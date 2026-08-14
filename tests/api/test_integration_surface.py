@@ -80,9 +80,7 @@ def test_api_submodule_exports_match_all(module_name: str, expected_all: list[st
     assert sorted(module.__all__) == sorted(expected_all)
 
 
-_HOOKS_NON_CALLABLE_EXPORTS: frozenset[str] = frozenset(
-    {"EVICTED_BASENAME_PATTERN", "INPUT_WAIT_IDLE_SECONDS"}
-)
+_HOOKS_NON_CALLABLE_EXPORTS: frozenset[str] = frozenset({"EVICTED_BASENAME_PATTERN", "INPUT_WAIT_IDLE_SECONDS"})
 
 
 @pytest.mark.api

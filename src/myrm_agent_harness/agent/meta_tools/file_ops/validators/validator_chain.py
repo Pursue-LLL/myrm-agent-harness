@@ -65,9 +65,9 @@ class ValidatorChain:
         self.chain = PathValidator(allowed_base_paths, config)
         self.chain.set_next(InvariantValidator()).set_next(
             SensitiveFileValidator(config, block_sensitive_reads)
-        ).set_next(ConfigProtectionValidator()).set_next(BinaryValidator()).set_next(
-            SizeValidator(strategy)
-        ).set_next(PermissionValidator(strategy))
+        ).set_next(ConfigProtectionValidator()).set_next(BinaryValidator()).set_next(SizeValidator(strategy)).set_next(
+            PermissionValidator(strategy)
+        )
 
     async def validate(self, context: OperationContext, path: str) -> None:
         """执行验证链

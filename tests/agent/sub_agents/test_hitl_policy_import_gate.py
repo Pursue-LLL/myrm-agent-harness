@@ -12,11 +12,7 @@ _CANONICAL_MODULE = "myrm_agent_harness.agent.sub_agents.hitl_tool_policy"
 def _run_import_smoke(script: str) -> None:
     env = os.environ.copy()
     current_pythonpath = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = (
-        str(_SRC_PATH)
-        if not current_pythonpath
-        else f"{_SRC_PATH}{os.pathsep}{current_pythonpath}"
-    )
+    env["PYTHONPATH"] = str(_SRC_PATH) if not current_pythonpath else f"{_SRC_PATH}{os.pathsep}{current_pythonpath}"
     completed = subprocess.run(
         [sys.executable, "-c", script],
         cwd=_HARNESS_ROOT,
@@ -61,15 +57,8 @@ def test_types_module_reexports_canonical_ssot():
 def test_legacy_shim_removed():
     """The backward-compat shim in clarification/ must not exist (dead code cleanup)."""
     legacy_path = (
-        _HARNESS_ROOT
-        / "src"
-        / "myrm_agent_harness"
-        / "agent"
-        / "meta_tools"
-        / "clarification"
-        / "hitl_tool_policy.py"
+        _HARNESS_ROOT / "src" / "myrm_agent_harness" / "agent" / "meta_tools" / "clarification" / "hitl_tool_policy.py"
     )
     assert not legacy_path.exists(), (
-        "Backward-compat shim must be removed; "
-        "import HitlToolPolicy directly from agent.sub_agents.hitl_tool_policy"
+        "Backward-compat shim must be removed; import HitlToolPolicy directly from agent.sub_agents.hitl_tool_policy"
     )

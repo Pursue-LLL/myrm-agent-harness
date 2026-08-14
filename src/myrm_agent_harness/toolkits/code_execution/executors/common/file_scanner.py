@@ -25,17 +25,34 @@ from myrm_agent_harness.toolkits.code_execution.executors.common.executor_utils 
 
 logger = logging.getLogger(__name__)
 
-_SCAN_SKIP_DIRS: frozenset[str] = frozenset({
-    ".git", ".svn", ".hg",
-    "node_modules", "__pycache__",
-    ".venv", "venv", ".env", "env",
-    ".tox", ".nox",
-    ".mypy_cache", ".pytest_cache", ".ruff_cache",
-    "dist", "build", ".next", ".nuxt",
-    "target", "out",
-    ".idea", ".vscode",
-    ".eggs", "site-packages",
-})
+_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
+    {
+        ".git",
+        ".svn",
+        ".hg",
+        "node_modules",
+        "__pycache__",
+        ".venv",
+        "venv",
+        ".env",
+        "env",
+        ".tox",
+        ".nox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "dist",
+        "build",
+        ".next",
+        ".nuxt",
+        "target",
+        "out",
+        ".idea",
+        ".vscode",
+        ".eggs",
+        "site-packages",
+    }
+)
 
 
 class GeneratedFilesScanner(ABC):

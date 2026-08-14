@@ -203,9 +203,7 @@ class CacheKeepAliveManager:
         if self._task is not None or self._stopped:
             return
         try:
-            self._task = asyncio.get_running_loop().create_task(
-                self._loop(), name="cache_keepalive"
-            )
+            self._task = asyncio.get_running_loop().create_task(self._loop(), name="cache_keepalive")
         except RuntimeError:
             logger.debug("No running event loop for cache keepalive; skipping")
 

@@ -142,9 +142,7 @@ class TestLifecycleTransitions:
 
     def test_never_used_skill_becomes_stale(self, collector: SkillStatsCollector) -> None:
         config = CuratorConfig(stale_after_days=7)
-        skills = [
-            _make_skill("never_used", call_count=0, success_count=0, failure_count=0, last_used_days_ago=None)
-        ]
+        skills = [_make_skill("never_used", call_count=0, success_count=0, failure_count=0, last_used_days_ago=None)]
         curator = SkillCurator(collector, config)
         result = curator.run(skills, force=True)
         assert result.stale_count >= 1
@@ -196,9 +194,7 @@ class TestExemptions:
 
     def test_installed_skill_optionally_exempt(self, collector: SkillStatsCollector) -> None:
         config = CuratorConfig(stale_after_days=7, protect_installed_skills=True)
-        skills = [
-            _make_skill("hub_skill", last_used_days_ago=100, trust=SkillTrust.INSTALLED)
-        ]
+        skills = [_make_skill("hub_skill", last_used_days_ago=100, trust=SkillTrust.INSTALLED)]
         curator = SkillCurator(collector, config)
         result = curator.run(skills, force=True)
         assert result.total_transitions == 0
@@ -210,10 +206,7 @@ class TestExemptions:
 class TestLRUEviction:
     def test_lru_eviction_when_exceeds_max(self, collector: SkillStatsCollector) -> None:
         config = CuratorConfig(max_skills=3, stale_after_days=365)
-        skills = [
-            _make_skill(f"skill_{i}", last_used_days_ago=50 - i)
-            for i in range(5)
-        ]
+        skills = [_make_skill(f"skill_{i}", last_used_days_ago=50 - i) for i in range(5)]
         curator = SkillCurator(collector, config)
         result = curator.run(skills, force=True)
         lru_transitions = [t for t in result.transitions if t.reason_type == "lru_eviction"]
@@ -294,6 +287,7 @@ class TestProperties:
 
     def test_consolidation_available_true_when_deps_present(self, collector: SkillStatsCollector) -> None:
         from unittest.mock import MagicMock
+
         config = CuratorConfig(consolidation_enabled=True)
         curator = SkillCurator(
             collector,
@@ -318,6 +312,7 @@ class TestAsyncSweep:
     @pytest.mark.asyncio
     async def test_run_async_with_consolidation_dry_run(self, collector: SkillStatsCollector) -> None:
         from unittest.mock import AsyncMock, MagicMock, patch
+
         config = CuratorConfig(consolidation_enabled=True, stale_after_days=365)
         skills = [_make_skill(f"skill_{i}") for i in range(5)]
         mock_embed = MagicMock()

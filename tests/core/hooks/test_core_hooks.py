@@ -34,8 +34,12 @@ class TestHookEvent:
 
     def test_key_events_exist(self) -> None:
         required = {
-            "SESSION_START", "SESSION_END", "USER_TURN",
-            "PRE_TOOL_USE", "POST_TOOL_USE", "POST_TOOL_USE_FAILURE",
+            "SESSION_START",
+            "SESSION_END",
+            "USER_TURN",
+            "PRE_TOOL_USE",
+            "POST_TOOL_USE",
+            "POST_TOOL_USE_FAILURE",
         }
         actual = {e.name for e in HookEvent}
         assert required.issubset(actual)
@@ -52,9 +56,7 @@ class TestHookResult:
         assert r.updated_input is None
 
     def test_blocking_result(self) -> None:
-        r = HookResult(
-            hook_type="http", success=True, blocked=True, reason="policy violation"
-        )
+        r = HookResult(hook_type="http", success=True, blocked=True, reason="policy violation")
         assert r.blocked is True
         assert r.reason == "policy violation"
 
@@ -69,6 +71,7 @@ class TestHookResult:
     def test_frozen(self) -> None:
         r = HookResult(hook_type="cmd", success=False)
         import pytest
+
         with pytest.raises(AttributeError):
             r.success = True  # type: ignore[misc]
 
@@ -169,9 +172,7 @@ class TestHookDefinitions:
 
 class TestPayloads:
     def test_pre_tool_use(self) -> None:
-        p = PreToolUsePayload(
-            tool_name="bash", tool_input={"cmd": "ls"}, tool_call_id="tc1"
-        )
+        p = PreToolUsePayload(tool_name="bash", tool_input={"cmd": "ls"}, tool_call_id="tc1")
         assert p.tool_name == "bash"
         assert p.tool_call_id == "tc1"
 
@@ -207,9 +208,7 @@ class TestPayloads:
         assert p.total_tokens == 5000
 
     def test_memory_archived(self) -> None:
-        p = MemoryArchivedPayload(
-            session_id="s1", agent_id="a1", archived_count=5, duration_ms=100.0
-        )
+        p = MemoryArchivedPayload(session_id="s1", agent_id="a1", archived_count=5, duration_ms=100.0)
         assert p.archived_count == 5
 
     def test_subagent_start(self) -> None:
@@ -221,9 +220,7 @@ class TestPayloads:
         assert p.result == "done"
 
     def test_subagent_merge_conflict(self) -> None:
-        p = SubagentMergeConflictPayload(
-            task_id="t1", agent_type="code", branch="main", conflicting_files=("a.py",)
-        )
+        p = SubagentMergeConflictPayload(task_id="t1", agent_type="code", branch="main", conflicting_files=("a.py",))
         assert p.conflicting_files == ("a.py",)
 
     def test_user_turn(self) -> None:

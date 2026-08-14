@@ -120,9 +120,7 @@ def _normalize_for_hash(current_output: str) -> str:
     except json.JSONDecodeError as exc:
         if stripped.startswith("{") or stripped.startswith("["):
             logger.warning("HashMonitor: invalid JSON-like output detected")
-            raise InvalidJsonLikeMonitorOutputError(
-                "invalid JSON-like monitor output"
-            ) from exc
+            raise InvalidJsonLikeMonitorOutputError("invalid JSON-like monitor output") from exc
         return stripped
 
     canonical = _canonicalize_json(parsed)

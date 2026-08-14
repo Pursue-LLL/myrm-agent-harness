@@ -66,9 +66,7 @@ class _FakeProc:
         self._exit_event.set()
 
 
-async def _wait_until(
-    predicate: Callable[[], bool], *, timeout_seconds: float = 2.0, what: str = "condition"
-) -> None:
+async def _wait_until(predicate: Callable[[], bool], *, timeout_seconds: float = 2.0, what: str = "condition") -> None:
     """Poll until ``predicate`` holds, replacing blind ``asyncio.sleep`` waits.
 
     Reader tasks flip registry state asynchronously; a fixed sleep is flaky
@@ -254,9 +252,7 @@ async def test_since_cursor_respects_cross_stream_interleave() -> None:
     assert {"out-1", "out-2", "out-3"}.issubset(set(cast(list[str], first["stdout"])))
     assert {"err-1", "err-2"}.issubset(set(cast(list[str], first["stderr"])))
 
-    follow = registry.get_output(
-        66666, max_lines=10, since_cursor=cast(int, first["next_cursor"])
-    )
+    follow = registry.get_output(66666, max_lines=10, since_cursor=cast(int, first["next_cursor"]))
     assert follow["stdout"] == []
     assert follow["stderr"] == []
     assert follow["dropped"] is False
@@ -398,6 +394,7 @@ async def test_last_progress_captured_for_list_processes() -> None:
         command="cargo build",
         session_id="L-s",
     )
+
     # Drive both progress markers through the reader task.
     def _progress_80() -> bool:
         items = registry.list_processes(session_id="L-s")
@@ -441,8 +438,10 @@ async def test_list_processes_omits_last_progress_when_unseen() -> None:
         session_id="np-s",
     )
     await _wait_until(
-        lambda: bool(registry.list_processes(session_id="np-s"))
-        and registry.list_processes(session_id="np-s")[0].last_progress is None,
+        lambda: (
+            bool(registry.list_processes(session_id="np-s"))
+            and registry.list_processes(session_id="np-s")[0].last_progress is None
+        ),
         what="plain output ingested without progress",
     )
     payload = registry.list_processes(session_id="np-s")[0].to_dict()
@@ -554,12 +553,8 @@ async def test_shutdown_uses_process_group_kill_for_living_children() -> None:
     registry = BackgroundProcessRegistry()
     proc_running = _FakeProc(pid=16001, stdout=[], stderr=[])
     proc_exited = _FakeProc(pid=16002, stdout=[], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc_running), command="npm start", session_id="s1"
-    )
-    await registry.register(
-        cast(AsyncProcessProtocol, proc_exited), command="echo done", session_id="s1"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc_running), command="npm start", session_id="s1")
+    await registry.register(cast(AsyncProcessProtocol, proc_exited), command="echo done", session_id="s1")
     proc_exited.finish(0)
     # Deterministically let the consumer loop transition proc_exited → exited
     # before shutdown runs (a fixed sleep is flaky under load).
@@ -580,8 +575,7 @@ async def test_shutdown_uses_process_group_kill_for_living_children() -> None:
         registry.shutdown()
 
     assert killed_pids == [(16001, signal.SIGKILL)], (
-        f"shutdown must SIGKILL only the still-running pid via group kill; "
-        f"got {killed_pids}"
+        f"shutdown must SIGKILL only the still-running pid via group kill; got {killed_pids}"
     )
 
 

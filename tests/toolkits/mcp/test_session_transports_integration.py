@@ -126,9 +126,7 @@ async def test_streamable_http_real_server_full_lifecycle(
         manager = await MCPConnectionManager.get_instance()
         try:
             conn = await manager.get_connection([cfg])
-            assert "echo:hello" in str(
-                await conn.call("httpprobe", "echo", {"text": "hello"})
-            )
+            assert "echo:hello" in str(await conn.call("httpprobe", "echo", {"text": "hello"}))
             assert "5" in str(await conn.call("httpprobe", "add", {"a": 2, "b": 3}))
         finally:
             await manager.stop()
@@ -137,9 +135,7 @@ async def test_streamable_http_real_server_full_lifecycle(
 
 
 @pytest.mark.asyncio
-async def test_stdio_real_server_full_lifecycle(
-    tmp_path, _reset_manager: object
-) -> None:
+async def test_stdio_real_server_full_lifecycle(tmp_path, _reset_manager: object) -> None:
     """A real stdio server served through the pool (full lifecycle).
 
     Extends the existing session-reuse proof with list_tools + call_tool
@@ -207,9 +203,7 @@ async def test_http_client_closed_when_target_build_fails(
         )
         with suppress(Exception):
             await actor.start()
-        assert (
-            actor._http_client is None
-        ), "transport HTTP client leaked after failed target build"
+        assert actor._http_client is None, "transport HTTP client leaked after failed target build"
     finally:
         monkeypatch.setattr(MCPSessionActor, "_build_client_target", real_build)
 
@@ -247,9 +241,7 @@ async def test_http_client_closed_when_reconnect_target_build_fails(
 
     # Fast reconnect cycle so the test finishes in seconds instead of the
     # production backoff cap (8s per attempt).
-    monkeypatch.setattr(
-        MCPSessionActor, "_reconnect_backoff", staticmethod(lambda attempt: 1.0)
-    )
+    monkeypatch.setattr(MCPSessionActor, "_reconnect_backoff", staticmethod(lambda attempt: 1.0))
     monkeypatch.setattr(MCPSessionActor, "_build_client_target", flaky_build)
 
     teardown, url = await _start_http_server()
@@ -280,9 +272,7 @@ async def test_http_client_closed_when_reconnect_target_build_fails(
             # The assertion must run *before* close(): close() itself releases
             # the transport client, which would mask a leak on the reconnect
             # exit path this test targets.
-            assert (
-                actor._http_client is None
-            ), "transport HTTP client leaked after reconnect target build failure"
+            assert actor._http_client is None, "transport HTTP client leaked after reconnect target build failure"
         finally:
             await actor.close()
     finally:

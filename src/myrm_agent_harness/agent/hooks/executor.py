@@ -154,7 +154,10 @@ class HookExecutor:
             if elapsed_ms > _SLOW_HOOK_THRESHOLD_MS:
                 logger.warning(
                     "Slow hook [%s] %s took %.0fms (>%.0fms)",
-                    event, hook.type, elapsed_ms, _SLOW_HOOK_THRESHOLD_MS,
+                    event,
+                    hook.type,
+                    elapsed_ms,
+                    _SLOW_HOOK_THRESHOLD_MS,
                 )
             results.append(result)
             if result.blocked:
@@ -234,9 +237,7 @@ class HookExecutor:
 
         return await self._http_send(hook, event, payload)
 
-    async def _http_fire_and_forget(
-        self, hook: HttpHookDefinition, event: str, payload: dict[str, object]
-    ) -> None:
+    async def _http_fire_and_forget(self, hook: HttpHookDefinition, event: str, payload: dict[str, object]) -> None:
         """Background task for fire-and-forget HTTP hooks; errors are logged only."""
         try:
             await self._http_send(hook, event, payload)

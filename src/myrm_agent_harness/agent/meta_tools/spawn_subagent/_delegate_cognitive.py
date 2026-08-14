@@ -40,9 +40,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
-_READONLY_BLOCKED_TOOLS = frozenset(
-    {"write_file", "execute_terminal_command", "bash_run_command", "git_commit"}
-)
+_READONLY_BLOCKED_TOOLS = frozenset({"write_file", "execute_terminal_command", "bash_run_command", "git_commit"})
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
@@ -265,9 +263,7 @@ async def _preflight_cost_check(
         "task_count": effective_count,
         "estimated_cost_usd": round(estimate.estimated_cost_usd, 4),
         "remaining_budget_usd": (
-            round(estimate.remaining_budget_usd, 4)
-            if estimate.remaining_budget_usd is not None
-            else None
+            round(estimate.remaining_budget_usd, 4) if estimate.remaining_budget_usd is not None else None
         ),
         "cost_status": estimate.cost_status,
         "mode": mode,

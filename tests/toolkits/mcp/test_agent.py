@@ -62,8 +62,7 @@ def _make_tool(
     tool = StructuredTool(
         name=name,
         description=description,
-        args_schema=schema
-        or {"type": "object", "properties": {"a": {"type": "string"}}},
+        args_schema=schema or {"type": "object", "properties": {"a": {"type": "string"}}},
         coroutine=coroutine or AsyncMock(return_value="ok"),
     )
     if metadata:
@@ -71,9 +70,7 @@ def _make_tool(
     return tool
 
 
-def _patch_enumerate(
-    agent: MCPAgent, tools_by_server: dict[str, list[StructuredTool] | Exception]
-):
+def _patch_enumerate(agent: MCPAgent, tools_by_server: dict[str, list[StructuredTool] | Exception]):
     """Patch _enumerate_server_tools to return pre-built tools by server name."""
 
     async def _fake_enumerate(server_config):
@@ -295,9 +292,7 @@ async def test_get_tools_parallel_multi_server():
     cfg2 = DummyConfig()
     cfg2.name = "server2"
 
-    big_tool = _make_tool(
-        name="tool_multi", description="A" * 3000, schema={"type": "object"}
-    )
+    big_tool = _make_tool(name="tool_multi", description="A" * 3000, schema={"type": "object"})
     with _patch_enumerate(
         agent,
         {
@@ -362,10 +357,7 @@ async def test_tool_server_mapping():
         tools = await agent.get_tools([config])
 
     assert agent.get_tool_server_name(tools[0]) == "test_server"
-    assert (
-        agent.get_server_name_by_tool_name("mcp__test_server__test_tool")
-        == "test_server"
-    )
+    assert agent.get_server_name_by_tool_name("mcp__test_server__test_tool") == "test_server"
     assert agent.get_server_name_by_tool_name("nonexistent") == "unknown_server"
 
 
@@ -747,9 +739,7 @@ def test_register_tool_annotations():
         }
     )
 
-    with patch(
-        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
-    ) as mock_reg:
+    with patch("myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata") as mock_reg:
         register_tool_annotations([tool], "my-server")
 
     mock_reg.assert_called_once()
@@ -773,9 +763,7 @@ def test_register_tool_annotations_host_serial_forces_non_concurrent():
         }
     )
 
-    with patch(
-        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
-    ) as mock_reg:
+    with patch("myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata") as mock_reg:
         register_tool_annotations([tool], "my-server", host_serial=True)
 
     safety = mock_reg.call_args[0][2]
@@ -789,9 +777,7 @@ def test_register_tool_annotations_host_serial_forces_non_concurrent():
 def test_register_tool_annotations_name_normalization():
     tool = _make_tool(metadata={})
 
-    with patch(
-        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
-    ) as mock_reg:
+    with patch("myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata") as mock_reg:
         register_tool_annotations([tool], "mcp_already_skill")
 
     assert mock_reg.call_args[0][0] == "mcp_already_skill"
@@ -800,9 +786,7 @@ def test_register_tool_annotations_name_normalization():
 def test_register_tool_annotations_plain_name():
     tool = _make_tool(metadata={})
 
-    with patch(
-        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
-    ) as mock_reg:
+    with patch("myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata") as mock_reg:
         register_tool_annotations([tool], "github")
 
     assert mock_reg.call_args[0][0] == "mcp_github_skill"
@@ -1589,17 +1573,13 @@ class TestWrapToolsAuthError:
         request = MagicMock()
         response = MagicMock()
         response.status_code = 401
-        err = httpx2.HTTPStatusError(
-            "401 Unauthorized", request=request, response=response
-        )
+        err = httpx2.HTTPStatusError("401 Unauthorized", request=request, response=response)
 
         tool = _make_tool(
             name="mcp__auth_server__read",
             coroutine=AsyncMock(side_effect=err),
         )
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool"
-        ) as mock_emit:
+        with patch("myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool") as mock_emit:
             wrap_tools_with_timeout([tool], timeout=5.0)
             result = await tool.ainvoke({"a": "1"})
 
@@ -1614,9 +1594,7 @@ class TestWrapToolsAuthError:
         request = MagicMock()
         response = MagicMock()
         response.status_code = 500
-        err = httpx2.HTTPStatusError(
-            "500 Internal Server Error", request=request, response=response
-        )
+        err = httpx2.HTTPStatusError("500 Internal Server Error", request=request, response=response)
 
         tool = _make_tool(name="mcp__srv__boom", coroutine=AsyncMock(side_effect=err))
         wrap_tools_with_timeout([tool], timeout=5.0)
@@ -1630,14 +1608,10 @@ class TestWrapToolsAuthError:
         request = MagicMock()
         response = MagicMock()
         response.status_code = 401
-        err = httpx2.HTTPStatusError(
-            "401 Unauthorized", request=request, response=response
-        )
+        err = httpx2.HTTPStatusError("401 Unauthorized", request=request, response=response)
 
         tool = _make_tool(name="plain_tool", coroutine=AsyncMock(side_effect=err))
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool"
-        ):
+        with patch("myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool"):
             wrap_tools_with_timeout([tool], timeout=5.0)
             result = await tool.ainvoke({"a": "1"})
 

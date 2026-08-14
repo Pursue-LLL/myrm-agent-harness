@@ -25,9 +25,7 @@ def test_extract_version_tokens_with_suffix() -> None:
 
 
 def test_extract_url_keywords_domain_and_fragment() -> None:
-    keywords = extract_url_keywords(
-        "https://docs.litellm.ai/release_notes/v1-77-2#system-prompt"
-    )
+    keywords = extract_url_keywords("https://docs.litellm.ai/release_notes/v1-77-2#system-prompt")
     assert "docs" in keywords
     assert "litellm" in keywords
     assert "release" in keywords
@@ -50,9 +48,7 @@ def test_split_camelcase_and_brands() -> None:
 
 
 def test_extract_special_patterns_version_and_url() -> None:
-    tokens = extract_special_patterns(
-        "litellm 1.77 release https://docs.litellm.ai/path"
-    )
+    tokens = extract_special_patterns("litellm 1.77 release https://docs.litellm.ai/path")
     assert any("1.77" in t for t in tokens)
     assert any("litellm" in t for t in tokens)
 
@@ -77,9 +73,7 @@ def test_bm25_retriever_empty_query_and_only_relevant() -> None:
 
     hits = retriever.search("python machine learning tutorial", top_k=5)
     assert hits
-    filtered = retriever.search(
-        "python machine learning tutorial", top_k=5, only_relevant=True
-    )
+    filtered = retriever.search("python machine learning tutorial", top_k=5, only_relevant=True)
     assert len(filtered) <= len(hits)
 
 

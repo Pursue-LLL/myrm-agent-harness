@@ -67,10 +67,14 @@ def _write_yaml_config(directory: Path, name: str, data: dict) -> Path:
 def test_register_from_directory() -> None:
     with TemporaryDirectory() as tmpdir:
         d = Path(tmpdir)
-        _write_yaml_config(d, "browser", {
-            "display_name": "Browser Agent",
-            "system_prompt": "Browse the web.",
-        })
+        _write_yaml_config(
+            d,
+            "browser",
+            {
+                "display_name": "Browser Agent",
+                "system_prompt": "Browse the web.",
+            },
+        )
         result = register_subagent_configs_from_directory(str(d))
         assert "browser" in result
         assert "browser" in SUBAGENT_CONFIGS
@@ -89,14 +93,22 @@ def test_auto_register_core_and_custom() -> None:
         custom = base / "custom"
         custom.mkdir()
 
-        _write_yaml_config(core, "search", {
-            "display_name": "Core Search",
-            "system_prompt": "Search.",
-        })
-        _write_yaml_config(custom, "search", {
-            "display_name": "Custom Search",
-            "system_prompt": "Custom search.",
-        })
+        _write_yaml_config(
+            core,
+            "search",
+            {
+                "display_name": "Core Search",
+                "system_prompt": "Search.",
+            },
+        )
+        _write_yaml_config(
+            custom,
+            "search",
+            {
+                "display_name": "Custom Search",
+                "system_prompt": "Custom search.",
+            },
+        )
 
         result = auto_register_subagent_configs(base_path=str(base))
         assert result["search"].display_name == "Custom Search"
@@ -108,10 +120,14 @@ def test_auto_register_skip_core() -> None:
         base = Path(tmpdir)
         core = base / "core"
         core.mkdir()
-        _write_yaml_config(core, "x", {
-            "display_name": "X",
-            "system_prompt": "X.",
-        })
+        _write_yaml_config(
+            core,
+            "x",
+            {
+                "display_name": "X",
+                "system_prompt": "X.",
+            },
+        )
 
         result = auto_register_subagent_configs(base_path=str(base), load_core=False)
         assert "x" not in result

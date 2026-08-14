@@ -81,10 +81,7 @@ def office_file_audit_read_error(file_path: Path) -> str | None:
                 "the file appears corrupt or is not a valid DOCX package."
             )
         except OSError as exc:
-            return (
-                f"Office fidelity could not be verified for {file_path.name}: "
-                f"could not read the file ({exc})."
-            )
+            return f"Office fidelity could not be verified for {file_path.name}: could not read the file ({exc})."
         return None
 
     if suffix not in {".xlsx", ".xlsm"}:
@@ -105,10 +102,7 @@ def office_file_audit_read_error(file_path: Path) -> str | None:
             f"the file appears corrupt or is not a valid XLSX package ({exc})."
         )
     except OSError as exc:
-        return (
-            f"Office fidelity could not be verified for {file_path.name}: "
-            f"could not read the workbook ({exc})."
-        )
+        return f"Office fidelity could not be verified for {file_path.name}: could not read the workbook ({exc})."
 
     workbook.close()
     return None

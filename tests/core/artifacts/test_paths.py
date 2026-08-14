@@ -25,9 +25,7 @@ def test_artifact_vault_uses_same_vault_dir(tmp_path: Path) -> None:
     assert vault.vault_dir == resolve_workspace_artifact_vault_dir(tmp_path)
 
 
-def test_env_override_custom_relative_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_env_override_custom_relative_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGENT_WORKSPACE_VAULT_RELATIVE", "runtime/vault")
     assert resolve_workspace_artifact_vault_dir(tmp_path) == tmp_path / "runtime" / "vault"
     assert workspace_vault_relative_parts() == ("runtime", "vault")
@@ -41,9 +39,7 @@ def test_env_override_custom_relative_path(
         "/abs/path",
     ],
 )
-def test_env_override_rejects_unsafe_paths(
-    override: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_env_override_rejects_unsafe_paths(override: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGENT_WORKSPACE_VAULT_RELATIVE", override)
     with pytest.raises(ValueError):
         workspace_vault_relative_parts()

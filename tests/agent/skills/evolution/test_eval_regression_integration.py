@@ -107,8 +107,7 @@ class _StructuredOutputWrapper:
                 else:
                     example_parts.append(f'"{name}": null')
             field_hint = (
-                "\n\nRespond ONLY with a JSON object using these exact field names:\n"
-                "{" + ", ".join(example_parts) + "}"
+                "\n\nRespond ONLY with a JSON object using these exact field names:\n{" + ", ".join(example_parts) + "}"
             )
 
         if isinstance(input, str):
@@ -128,12 +127,7 @@ class _StructuredOutputWrapper:
 
 def _load_test_env() -> dict[str, str]:
     """Load .env.test from the server directory for LLM credentials."""
-    env_path = (
-        Path(__file__).resolve().parents[5]
-        / "myrm-agent"
-        / "myrm-agent-server"
-        / ".env.test"
-    )
+    env_path = Path(__file__).resolve().parents[5] / "myrm-agent" / "myrm-agent-server" / ".env.test"
     env_vars: dict[str, str] = {}
     if env_path.exists():
         for line in env_path.read_text().splitlines():
@@ -221,9 +215,7 @@ async def test_fix_skill_with_eval_cases_regression_gate(tmp_path: Path):
     assert proposal.evolution_type == EvolutionType.FIX
     assert proposal.skill_id == "integ_fix_1"
     assert len(proposal.proposed_content) > 10, "Proposed content should be non-trivial"
-    assert "nginx" in proposal.proposed_content.lower(), (
-        "Regression gate should ensure 'nginx' is in proposed content"
-    )
+    assert "nginx" in proposal.proposed_content.lower(), "Regression gate should ensure 'nginx' is in proposed content"
 
     store.close()
 
@@ -280,10 +272,12 @@ async def test_derive_skill_with_eval_cases_coevolution(tmp_path: Path):
     loaded = store.get_skill("integ_derive_1")
     assert loaded is not None
     assert loaded.eval_cases == [
-        {"sandbox_assertions": [
-            {"type": "code_contains", "target": "git"},
-            {"type": "code_contains", "target": "branch"},
-        ]},
+        {
+            "sandbox_assertions": [
+                {"type": "code_contains", "target": "git"},
+                {"type": "code_contains", "target": "branch"},
+            ]
+        },
     ], "Original skill eval_cases should remain intact in DB"
 
     store.close()
@@ -336,9 +330,7 @@ async def test_regression_gate_hard_filters_destructive_variant(tmp_path: Path):
     assert good_variant in survivors, "Good variant should survive"
     assert penalties[good_variant] == 0.0, "Good variant should have zero penalty"
     assert penalties[destructive_variant] > 0, "Destructive variant should have positive penalty"
-    assert penalties[no_rollback_variant] > 0, (
-        "Variant missing both 'rollback' and 'deploy' should get penalty"
-    )
+    assert penalties[no_rollback_variant] > 0, "Variant missing both 'rollback' and 'deploy' should get penalty"
     assert penalties[destructive_variant] > penalties[good_variant], (
         "Destructive variant should have higher penalty than good variant"
     )

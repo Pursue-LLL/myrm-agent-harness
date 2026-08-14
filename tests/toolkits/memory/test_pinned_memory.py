@@ -193,9 +193,7 @@ class TestDeletePinnedProtection:
     ) -> None:
         from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
 
-        pinned_rule = ProceduralMemory(
-            id="r1", content="When: X → Do: Y", trigger="X", action="Y", pinned=True
-        )
+        pinned_rule = ProceduralMemory(id="r1", content="When: X → Do: Y", trigger="X", action="Y", pinned=True)
         mock_relational_store.get_rule.return_value = pinned_rule
 
         mgr = MemoryManager(
@@ -220,9 +218,7 @@ class TestDeletePinnedProtection:
     ) -> None:
         from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
 
-        unpinned_rule = ProceduralMemory(
-            id="r2", content="When: A → Do: B", trigger="A", action="B", pinned=False
-        )
+        unpinned_rule = ProceduralMemory(id="r2", content="When: A → Do: B", trigger="A", action="B", pinned=False)
         mock_relational_store.get_rule.return_value = unpinned_rule
         mock_relational_store.delete_rule.return_value = True
 
@@ -243,11 +239,15 @@ class TestDeletePinnedProtection:
     ) -> None:
         """When batch-deleting, only unpinned docs should be removed."""
         pinned_doc = VectorDocument(
-            id="m1", content="pinned", embedding=[0.1],
+            id="m1",
+            content="pinned",
+            embedding=[0.1],
             metadata={"user_id": "test_user", "memory_type": "semantic", "pinned": True},
         )
         unpinned_doc = VectorDocument(
-            id="m2", content="normal", embedding=[0.1],
+            id="m2",
+            content="normal",
+            embedding=[0.1],
             metadata={"user_id": "test_user", "memory_type": "semantic", "pinned": False},
         )
         mock_vector_store.get.return_value = [pinned_doc, unpinned_doc]
@@ -280,7 +280,9 @@ class TestPinUnpinAPI:
         )
         mock_vector_store.get.return_value = [doc]
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False)
+        mgr = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
+        )
         result = await mgr.pin_memory("m1")
         assert result.pinned is True
         mock_vector_store.upsert.assert_called_once()
@@ -303,7 +305,9 @@ class TestPinUnpinAPI:
         )
         mock_vector_store.get.return_value = [doc]
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False)
+        mgr = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
+        )
         result = await mgr.unpin_memory("m1")
         assert result.pinned is False
         mock_vector_store.upsert.assert_called_once()
@@ -326,7 +330,9 @@ class TestPinUnpinAPI:
         )
         mock_vector_store.get.return_value = [doc]
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False)
+        mgr = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
+        )
         result = await mgr.pin_memory("m1")
         assert result.pinned is True
         mock_vector_store.upsert.assert_not_called()
@@ -337,7 +343,9 @@ class TestPinUnpinAPI:
     ) -> None:
         mock_vector_store.get.return_value = []
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False)
+        mgr = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
+        )
         from myrm_agent_harness.toolkits.memory._internal.storage import MemoryNotFoundError
 
         with pytest.raises(MemoryNotFoundError):
@@ -361,7 +369,9 @@ class TestPinUnpinAPI:
         )
         mock_vector_store.get.return_value = [doc]
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False)
+        mgr = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
+        )
         from myrm_agent_harness.toolkits.memory._internal.storage import MemoryNotFoundError
 
         with pytest.raises(MemoryNotFoundError):
@@ -371,7 +381,9 @@ class TestPinUnpinAPI:
     async def test_pin_without_vector_backend_raises(
         self, memory_config: MemoryConfig, mock_embedding: AsyncMock
     ) -> None:
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=None, embedding=mock_embedding, auto_warmup=False)
+        mgr = MemoryManager(
+            memory_config, user_id="test_user", vector=None, embedding=mock_embedding, auto_warmup=False
+        )
         from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError
 
         with pytest.raises(MemoryError, match="Vector backend is required"):
@@ -406,7 +418,9 @@ class TestPinUnpinAPI:
 
         mock_vector_store.get.side_effect = get_side_effect
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False)
+        mgr = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
+        )
         result = await mgr.pin_memory("e1")
         assert result.pinned is True
         mock_vector_store.upsert.assert_called_once()

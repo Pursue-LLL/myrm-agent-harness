@@ -108,7 +108,9 @@ class SubdirectoryContextTracker:
 
                 if len(content) > remaining:
                     # Truncate to fit remaining budget
-                    content = content[:remaining] + f"\n\n[...truncated {Path(rule.path).name}: exceeded total append budget]"
+                    content = (
+                        content[:remaining] + f"\n\n[...truncated {Path(rule.path).name}: exceeded total append budget]"
+                    )
 
                 discovered_rules.append(f"[Discovered {Path(rule.path).name} in {directory}]\n{content}")
                 total_chars += len(content)

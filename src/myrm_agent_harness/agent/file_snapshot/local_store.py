@@ -39,6 +39,7 @@ def _default_local_snapshot_path() -> Path:
         return Path(data_dir) / "file_snapshots" / "local"
     return Path.home() / ".myrm" / "file_snapshots" / "local"
 
+
 # Default patterns to exclude from snapshots
 DEFAULT_EXCLUDES: set[str] = {
     # Version control

@@ -36,6 +36,7 @@ def test_filter_with_min_words():
 
     assert filter.min_word_threshold == 10
 
+
 def test_process_with_truncation():
     """测试带截断的process方法"""
     filter = ContentPruningFilter()

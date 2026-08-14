@@ -512,9 +512,7 @@ async def check_continuation(
                 judge_reason,
             )
             if hasattr(goal_provider, "enter_wait"):
-                await goal_provider.enter_wait(
-                    goal.goal_id, reason=judge_reason or "Blocked — needs user input"
-                )
+                await goal_provider.enter_wait(goal.goal_id, reason=judge_reason or "Blocked — needs user input")
             else:
                 await goal_provider.update_status(goal.goal_id, GoalStatus.WAIT)
             return _make_decision(

@@ -23,8 +23,10 @@ async def test_evaluate_ptc_fast_path_auto_approve(mock_extract_intent, mock_get
     config = SecurityConfig(auto_mode_enabled=False, path_policy=PathPolicy())
     tool_call = ToolCall(
         name="bash_code_execute_tool",
-        args={"command": 'python -c "from skills.mcp_github_skill import _read_file; _read_file(path=\'/workspace/repo\')"'},
-        id="call_123"
+        args={
+            "command": "python -c \"from skills.mcp_github_skill import _read_file; _read_file(path='/workspace/repo')\""
+        },
+        id="call_123",
     )
 
     auto_approved, auto_denied, pending = await evaluate_tool_batch(
@@ -33,13 +35,14 @@ async def test_evaluate_ptc_fast_path_auto_approve(mock_extract_intent, mock_get
         is_cron=False,
         workspace_root="/workspace",
         session_key="test_sess",
-        args_hashes={}
+        args_hashes={},
     )
 
     assert len(auto_approved) == 1
     assert len(auto_denied) == 0
     assert len(pending) == 0
     assert auto_approved[0][1].get("id") == "call_123"
+
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.security.tool_registry.get_ptc_safety_metadata")
@@ -56,8 +59,10 @@ async def test_evaluate_ptc_destructive_is_pending(mock_extract_intent, mock_get
     config = SecurityConfig(auto_mode_enabled=False, path_policy=PathPolicy())
     tool_call = ToolCall(
         name="bash_code_execute_tool",
-        args={"command": 'python -c "from skills.mcp_github_skill import _write_file; _write_file(path=\'/workspace/repo/file.txt\')"'},
-        id="call_123"
+        args={
+            "command": "python -c \"from skills.mcp_github_skill import _write_file; _write_file(path='/workspace/repo/file.txt')\""
+        },
+        id="call_123",
     )
 
     auto_approved, auto_denied, pending = await evaluate_tool_batch(
@@ -66,7 +71,7 @@ async def test_evaluate_ptc_destructive_is_pending(mock_extract_intent, mock_get
         is_cron=False,
         workspace_root="/workspace",
         session_key="test_sess",
-        args_hashes={}
+        args_hashes={},
     )
 
     assert len(auto_approved) == 0
@@ -87,15 +92,13 @@ async def test_evaluate_ptc_contradictory_annotations_is_pending(mock_extract_in
     """Contradictory annotations (readOnly + destructive) stay pending in PTC path."""
     mock_extract_intent.return_value = ("mcp_buggy_skill", "trap_tool", {"path": "/workspace"})
 
-    safety_meta = SafetyMetadata(
-        is_read_only=True, is_open_world=False, is_destructive=True, is_concurrent_safe=True
-    )
+    safety_meta = SafetyMetadata(is_read_only=True, is_open_world=False, is_destructive=True, is_concurrent_safe=True)
     mock_get_meta.return_value = (safety_meta, {"readOnlyHint": True, "destructiveHint": True})
 
     config = SecurityConfig(auto_mode_enabled=False, path_policy=PathPolicy())
     tool_call = ToolCall(
         name="bash_code_execute_tool",
-        args={"command": 'python -c "from skills.mcp_buggy_skill import _trap_tool; _trap_tool(path=\'/workspace\')"'},
+        args={"command": "python -c \"from skills.mcp_buggy_skill import _trap_tool; _trap_tool(path='/workspace')\""},
         id="call_trap",
     )
 

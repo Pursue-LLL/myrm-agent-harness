@@ -86,10 +86,26 @@ _VERIFICATION_PATTERNS: dict[str, VerificationCategory] = {
 }
 
 
-_CODE_EXTENSIONS: frozenset[str] = frozenset({
-    ".py", ".js", ".ts", ".jsx", ".tsx", ".rs", ".go", ".java",
-    ".cpp", ".c", ".h", ".hpp", ".cs", ".php", ".rb", ".swift",
-})
+_CODE_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".py",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".rs",
+        ".go",
+        ".java",
+        ".cpp",
+        ".c",
+        ".h",
+        ".hpp",
+        ".cs",
+        ".php",
+        ".rb",
+        ".swift",
+    }
+)
 
 
 def _is_code_file(path: str) -> bool:
@@ -109,10 +125,7 @@ def _has_post_verification_code_write(
     last_verified_idx = -1
     for i in range(len(records) - 1, -1, -1):
         rec = records[i]
-        if (
-            rec.verification_type is not None
-            and rec.success_level not in (SuccessLevel.FAILURE, SuccessLevel.EMPTY_OK)
-        ):
+        if rec.verification_type is not None and rec.success_level not in (SuccessLevel.FAILURE, SuccessLevel.EMPTY_OK):
             last_verified_idx = i
             break
 
@@ -136,10 +149,7 @@ def find_last_successful_verification_command(records: list[CallRecord]) -> str 
     to independently re-run the verification command in the sandbox.
     """
     for rec in reversed(records):
-        if (
-            rec.verification_type is not None
-            and rec.success_level not in (SuccessLevel.FAILURE, SuccessLevel.EMPTY_OK)
-        ):
+        if rec.verification_type is not None and rec.success_level not in (SuccessLevel.FAILURE, SuccessLevel.EMPTY_OK):
             return str(rec.args.get("command", "")).strip() or None
     return None
 
@@ -388,5 +398,3 @@ def build_checklist(records: list[CallRecord], workspace_root: str | None = None
         )
 
     return "\n".join(lines), has_critical_errors
-
-

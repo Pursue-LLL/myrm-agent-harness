@@ -102,9 +102,7 @@ class ConsensusEngine:
         self._agg = aggregator_llm
         self._cfg = config or ConsensusConfig()
         if self._cfg.privacy_filter != "off" and privacy_redactor is None:
-            raise ValueError(
-                "privacy_redactor must be provided when ConsensusConfig.privacy_filter is not 'off'"
-            )
+            raise ValueError("privacy_redactor must be provided when ConsensusConfig.privacy_filter is not 'off'")
         self._privacy_redactor = privacy_redactor
 
     async def run(
@@ -217,9 +215,7 @@ class ConsensusEngine:
                 for coro in asyncio.as_completed(tasks, timeout=cfg.timeout_total):
                     ref = await coro
                     ref_responses.append(ref)
-                    sse_ref = apply_privacy_to_ref(
-                        ref, sse_privacy_mode(cfg.privacy_filter), self._privacy_redactor
-                    )
+                    sse_ref = apply_privacy_to_ref(ref, sse_privacy_mode(cfg.privacy_filter), self._privacy_redactor)
                     yield ConsensusStreamEvent(kind="ref_done", ref=sse_ref)
                     if cancel_token and cancel_token.is_cancelled:
                         break

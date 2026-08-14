@@ -75,15 +75,11 @@ def _sniff_zip_container(path: Path) -> str | None:
         with zipfile.ZipFile(path) as archive:
             names = archive.namelist()
             if "mimetype" in names:
-                raw_mimetype = (
-                    archive.read("mimetype").decode("utf-8", errors="ignore").strip()
-                )
+                raw_mimetype = archive.read("mimetype").decode("utf-8", errors="ignore").strip()
                 mapped = _ZIP_EXTENSIONS.get(raw_mimetype.split(";")[0].strip())
                 if mapped:
                     return mapped
-            if "[Content_Types].xml" in names and any(
-                name.startswith("word/") for name in names
-            ):
+            if "[Content_Types].xml" in names and any(name.startswith("word/") for name in names):
                 return ".docx"
             if "META-INF/container.xml" in names:
                 return ".epub"
@@ -117,17 +113,13 @@ def _sniff_zip_container_bytes(content: bytes) -> str | None:
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             names = archive.namelist()
             if "mimetype" in names:
-                raw_mimetype = (
-                    archive.read("mimetype").decode("utf-8", errors="ignore").strip()
-                )
+                raw_mimetype = archive.read("mimetype").decode("utf-8", errors="ignore").strip()
                 mapped = _ZIP_EXTENSIONS.get(raw_mimetype.split(";")[0].strip())
                 if mapped:
                     return mapped
             if "content.xml" in names:
                 return ".odt"
-            if "[Content_Types].xml" in names and any(
-                name.startswith("word/") for name in names
-            ):
+            if "[Content_Types].xml" in names and any(name.startswith("word/") for name in names):
                 return ".docx"
             if "META-INF/container.xml" in names:
                 return ".epub"

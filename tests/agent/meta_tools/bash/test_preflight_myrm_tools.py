@@ -177,9 +177,7 @@ def test_myrm_tools_cat_pipe_missing_file_allowed() -> None:
     check_myrm_tools_import("cat /tmp/nonexistent_myrm_guard_test.py | python3")
 
 
-def test_myrm_tools_referenced_python_file_read_error_skipped(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_myrm_tools_referenced_python_file_read_error_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     script_path = tmp_path / "unreadable.py"
     script_path.write_text("import myrm_tools\n", encoding="utf-8")
 

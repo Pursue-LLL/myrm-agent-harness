@@ -83,10 +83,13 @@ async def test_skip_when_no_completed_todos() -> None:
     goal = _make_goal()
     provider = AsyncMock()
     with tempfile.TemporaryDirectory() as tmpdir:
-        _write_todos(tmpdir, [
-            {"id": "t1", "content": "Step 1", "status": "pending"},
-            {"id": "t2", "content": "Step 2", "status": "in_progress"},
-        ])
+        _write_todos(
+            tmpdir,
+            [
+                {"id": "t1", "content": "Step 1", "status": "pending"},
+                {"id": "t2", "content": "Step 2", "status": "in_progress"},
+            ],
+        )
         with patch(_PATCH_WS_ROOT, return_value=tmpdir):
             result = await check_todo_checkpoint(provider, goal)
     assert result is None
@@ -100,10 +103,13 @@ async def test_pause_on_new_completed_todo() -> None:
     provider.update_status = AsyncMock()
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        _write_todos(tmpdir, [
-            {"id": "t1", "content": "Build image", "status": "completed"},
-            {"id": "t2", "content": "Run migration", "status": "pending"},
-        ])
+        _write_todos(
+            tmpdir,
+            [
+                {"id": "t1", "content": "Build image", "status": "completed"},
+                {"id": "t2", "content": "Run migration", "status": "pending"},
+            ],
+        )
         with patch(_PATCH_WS_ROOT, return_value=tmpdir):
             result = await check_todo_checkpoint(provider, goal)
 
@@ -128,10 +134,13 @@ async def test_skip_when_same_completed_snapshot() -> None:
     provider = AsyncMock()
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        _write_todos(tmpdir, [
-            {"id": "t1", "content": "Build image", "status": "completed"},
-            {"id": "t2", "content": "Run migration", "status": "pending"},
-        ])
+        _write_todos(
+            tmpdir,
+            [
+                {"id": "t1", "content": "Build image", "status": "completed"},
+                {"id": "t2", "content": "Run migration", "status": "pending"},
+            ],
+        )
         with patch(_PATCH_WS_ROOT, return_value=tmpdir):
             result = await check_todo_checkpoint(provider, goal)
 
@@ -147,12 +156,15 @@ async def test_detect_multiple_new_completions() -> None:
     provider.update_status = AsyncMock()
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        _write_todos(tmpdir, [
-            {"id": "t1", "content": "Build image", "status": "completed"},
-            {"id": "t2", "content": "Run migration", "status": "completed"},
-            {"id": "t3", "content": "Health check", "status": "completed"},
-            {"id": "t4", "content": "Verify", "status": "pending"},
-        ])
+        _write_todos(
+            tmpdir,
+            [
+                {"id": "t1", "content": "Build image", "status": "completed"},
+                {"id": "t2", "content": "Run migration", "status": "completed"},
+                {"id": "t3", "content": "Health check", "status": "completed"},
+                {"id": "t4", "content": "Verify", "status": "pending"},
+            ],
+        )
         with patch(_PATCH_WS_ROOT, return_value=tmpdir):
             result = await check_todo_checkpoint(provider, goal)
 
@@ -174,9 +186,12 @@ async def test_pause_reason_includes_todo_names() -> None:
     provider.update_status = AsyncMock()
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        _write_todos(tmpdir, [
-            {"id": "t1", "content": "Deploy service", "status": "completed"},
-        ])
+        _write_todos(
+            tmpdir,
+            [
+                {"id": "t1", "content": "Deploy service", "status": "completed"},
+            ],
+        )
         with patch(_PATCH_WS_ROOT, return_value=tmpdir):
             await check_todo_checkpoint(provider, goal)
 

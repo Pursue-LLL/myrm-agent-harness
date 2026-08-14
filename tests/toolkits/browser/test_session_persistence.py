@@ -162,9 +162,7 @@ class TestSessionPersistence:
     async def test_compute_hash_success(self):
         """测试 compute_hash 成功"""
         mock_vault = MagicMock()
-        mock_entry = MockSessionEntry(
-            storage_state={"cookies": [{"name": "a"}]}
-        )
+        mock_entry = MockSessionEntry(storage_state={"cookies": [{"name": "a"}]})
         mock_vault.load = AsyncMock(return_value=mock_entry)
 
         persistence = SessionPersistence(mock_vault)

@@ -53,9 +53,7 @@ class MemoryManagerDeletionMixin:
             try:
                 await self._graph.delete_subgraph(evidence.id)
             except Exception as exc:
-                logger.warning(
-                    "Graph evidence delete failed for %s: %s", evidence.id, exc
-                )
+                logger.warning("Graph evidence delete failed for %s: %s", evidence.id, exc)
 
         try:
             claim_nodes = await self._graph.find_nodes(
@@ -72,9 +70,7 @@ class MemoryManagerDeletionMixin:
                 try:
                     await self._graph.delete_subgraph(claim.id)
                 except Exception as exc:
-                    logger.warning(
-                        "Graph claim delete failed for %s: %s", claim.id, exc
-                    )
+                    logger.warning("Graph claim delete failed for %s: %s", claim.id, exc)
             else:
                 try:
                     await self._graph.update_node_properties(
@@ -82,15 +78,11 @@ class MemoryManagerDeletionMixin:
                         {"evidence_count": max(0, evidence_count - 1)},
                     )
                 except Exception as exc:
-                    logger.warning(
-                        "Graph claim update failed for %s: %s", claim.id, exc
-                    )
+                    logger.warning("Graph claim update failed for %s: %s", claim.id, exc)
 
     # ── Delete ──
 
-    async def delete_memory(
-        self, collection: str, ids: list[str], *, allow_pinned: bool = True
-    ) -> int:
+    async def delete_memory(self, collection: str, ids: list[str], *, allow_pinned: bool = True) -> int:
         if self._vector is None:
             raise MemoryError("Vector backend is required but not provided")
         if ids:
@@ -98,8 +90,7 @@ class MemoryManagerDeletionMixin:
             owned_ids = [
                 doc.id
                 for doc in docs
-                if self._owns_vector_doc(doc)
-                and (allow_pinned or not doc.metadata.get("pinned"))
+                if self._owns_vector_doc(doc) and (allow_pinned or not doc.metadata.get("pinned"))
             ]
             if not owned_ids:
                 return 0
@@ -153,13 +144,7 @@ class MemoryManagerDeletionMixin:
             for memory_type, collection in vector_collections.items():
                 if memory_type not in selected_types:
                     continue
-                memory_ids = [
-                    doc_id
-                    for doc_id, owned in await self._collect_vector_ids(
-                        collection, filters
-                    )
-                    if owned
-                ]
+                memory_ids = [doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned]
                 deleted = await self.delete_memory(collection, memory_ids)
                 counts[memory_type.value] = deleted
 
@@ -187,9 +172,7 @@ class MemoryManagerDeletionMixin:
 
         return counts
 
-    async def delete_memories_by_ids(
-        self, memory_ids_by_type: dict[str, list[str]]
-    ) -> MemoryMutationResult:
+    async def delete_memories_by_ids(self, memory_ids_by_type: dict[str, list[str]]) -> MemoryMutationResult:
         """Delete owned memories by explicit type/id refs and return exact outcomes."""
 
         result = MemoryMutationResult()
@@ -211,14 +194,9 @@ class MemoryManagerDeletionMixin:
                     ids=ids,
                 )
                 continue
-            if (
-                memory_type == MemoryType.PROCEDURAL.value
-                and self._relational is not None
-            ):
+            if memory_type == MemoryType.PROCEDURAL.value and self._relational is not None:
                 for rule_id in ids:
-                    rule = await self._relational.get_rule(
-                        rule_id, namespaces=self._namespaces
-                    )
+                    rule = await self._relational.get_rule(rule_id, namespaces=self._namespaces)
                     if rule is None:
                         result.missing_refs.append(
                             MemoryMutationRef(
@@ -313,17 +291,11 @@ class MemoryManagerDeletionMixin:
                     )
                 )
 
-        owned_ids = [
-            memory_id
-            for memory_id, doc in docs_by_id.items()
-            if self._owns_vector_doc(doc)
-        ]
+        owned_ids = [memory_id for memory_id, doc in docs_by_id.items() if self._owns_vector_doc(doc)]
         if not owned_ids:
             return
         try:
-            deleted_count = await delete_from_vector(
-                collection, owned_ids, self._vector
-            )
+            deleted_count = await delete_from_vector(collection, owned_ids, self._vector)
         except Exception as e:
             for memory_id in owned_ids:
                 result.failed_refs.append(
@@ -341,9 +313,7 @@ class MemoryManagerDeletionMixin:
         else:
             remaining_docs = await self._vector.get(collection, owned_ids) or []
             remaining_ids = {doc.id for doc in remaining_docs}
-            deleted_ids = [
-                memory_id for memory_id in owned_ids if memory_id not in remaining_ids
-            ]
+            deleted_ids = [memory_id for memory_id in owned_ids if memory_id not in remaining_ids]
             for memory_id in remaining_ids:
                 result.failed_refs.append(
                     MemoryMutationRef(
@@ -356,9 +326,7 @@ class MemoryManagerDeletionMixin:
 
         for memory_id in deleted_ids:
             result.deleted_refs.append(
-                MemoryMutationRef(
-                    memory_type=memory_type, memory_id=memory_id, backend=collection
-                )
+                MemoryMutationRef(memory_type=memory_type, memory_id=memory_id, backend=collection)
             )
             await self._cascade_clean_derived_graph_nodes(memory_id)
 
@@ -393,11 +361,7 @@ class MemoryManagerDeletionMixin:
                 if memory_type not in selected_types:
                     continue
                 matches[memory_type.value] = [
-                    doc_id
-                    for doc_id, owned in await self._collect_vector_ids(
-                        collection, filters
-                    )
-                    if owned
+                    doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned
                 ]
 
         if MemoryType.PROCEDURAL in selected_types and self._relational is not None:
@@ -412,11 +376,7 @@ class MemoryManagerDeletionMixin:
                 )
                 if not rules:
                     break
-                rule_ids.extend(
-                    rule.id
-                    for rule in rules
-                    if rule.metadata.get(metadata_key) == metadata_value
-                )
+                rule_ids.extend(rule.id for rule in rules if rule.metadata.get(metadata_key) == metadata_value)
                 offset += len(rules)
             matches[MemoryType.PROCEDURAL.value] = rule_ids
 
@@ -493,9 +453,7 @@ class MemoryManagerDeletionMixin:
             logger.warning("Vector cascade deletion skipped (chat=%s): %s", chat_id, e)
             counts = {}
         if self._relational is not None:
-            pending_deleted = await self._relational.delete_pending_by_source_chat_id(
-                chat_id
-            )
+            pending_deleted = await self._relational.delete_pending_by_source_chat_id(chat_id)
             if pending_deleted:
                 counts["pending"] = pending_deleted
         return counts
@@ -509,9 +467,7 @@ class MemoryManagerDeletionMixin:
             logger.warning("Vector cascade count skipped (chat=%s): %s", chat_id, e)
             result = {}
         if self._relational is not None:
-            pending_count = await self._relational.count_pending_by_source_chat_id(
-                chat_id
-            )
+            pending_count = await self._relational.count_pending_by_source_chat_id(chat_id)
             if pending_count:
                 result["pending"] = pending_count
         return result
@@ -539,32 +495,24 @@ class MemoryManagerDeletionMixin:
                 logger.warning("Error deleting graph data: %s", e)
         return counts
 
-    async def _collect_vector_ids(
-        self, collection: str, filters: FilterDict
-    ) -> list[tuple[str, bool]]:
+    async def _collect_vector_ids(self, collection: str, filters: FilterDict) -> list[tuple[str, bool]]:
         if self._vector is None:
             return []
         ids: list[tuple[str, bool]] = []
         offset: str | None = None
         while True:
-            docs, offset = await self._vector.scroll(
-                collection, limit=500, offset=offset, filters=filters
-            )
+            docs, offset = await self._vector.scroll(collection, limit=500, offset=offset, filters=filters)
             ids.extend((doc.id, self._owns_vector_doc(doc)) for doc in docs)
             if offset is None:
                 return ids
 
-    async def _collect_vector_docs(
-        self, collection: str, filters: FilterDict
-    ) -> list[VectorDocument]:
+    async def _collect_vector_docs(self, collection: str, filters: FilterDict) -> list[VectorDocument]:
         if self._vector is None:
             return []
         collected: list[VectorDocument] = []
         offset: str | None = None
         while True:
-            docs, offset = await self._vector.scroll(
-                collection, limit=500, offset=offset, filters=filters
-            )
+            docs, offset = await self._vector.scroll(collection, limit=500, offset=offset, filters=filters)
             collected.extend(docs)
             if offset is None:
                 return collected
@@ -597,9 +545,7 @@ class MemoryManagerDeletionMixin:
             doc = docs[0]
             if not self._owns_vector_doc(doc):
                 raise MemoryNotFoundError(f"Memory {memory_id} not found")
-            is_archived = doc.metadata.get("status") == "archived" or doc.metadata.get(
-                "archived"
-            )
+            is_archived = doc.metadata.get("status") == "archived" or doc.metadata.get("archived")
             if not is_archived:
                 raise MemoryError(f"Memory {memory_id} is not archived")
             doc.metadata["status"] = "active"

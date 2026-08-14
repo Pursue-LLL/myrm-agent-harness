@@ -201,16 +201,12 @@ async def test_workflow_dynamic_content_loading(browser_session: BrowserSession)
     # must be captured with a fast DOM read rather than a fixed sleep that can
     # race the timer under load.
     await page.click("#loadBtn")
-    loading_text = await page.evaluate(
-        "document.getElementById('content').innerText"
-    )
+    loading_text = await page.evaluate("document.getElementById('content').innerText")
     assert "Loading..." in loading_text
 
     # Deterministically wait for the async content, then verify the session
     # extract_text reflects the dynamic update.
-    await page.wait_for_function(
-        "document.getElementById('content').innerText.includes('Loaded Data')"
-    )
+    await page.wait_for_function("document.getElementById('content').innerText.includes('Loaded Data')")
     text_loaded = await browser_session.extract_text()
     assert "Loaded Data" in text_loaded
     assert "Item 1" in text_loaded

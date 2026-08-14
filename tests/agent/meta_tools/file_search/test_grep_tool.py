@@ -253,10 +253,13 @@ class TestCreateGrepTool:
 
     async def test_path_not_found(self, mock_executor: MagicMock, runnable_config: RunnableConfig) -> None:
         tool_fn = create_grep_tool()
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
-            return_value=mock_executor,
-        ), pytest.raises(ToolError, match="Path not found"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
+                return_value=mock_executor,
+            ),
+            pytest.raises(ToolError, match="Path not found"),
+        ):
             await tool_fn.ainvoke(
                 {"pattern": "test", "path": "nonexistent_dir"},
                 config=runnable_config,
@@ -308,9 +311,7 @@ class TestCreateGrepTool:
             )
             assert "match" in result.lower()
 
-    async def test_cache_hit(
-        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
-    ) -> None:
+    async def test_cache_hit(self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig) -> None:
         tool_fn = create_grep_tool()
         with patch(
             "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
@@ -379,18 +380,19 @@ class TestCreateGrepTool:
         self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
     ) -> None:
         tool_fn = create_grep_tool()
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
-            return_value=mock_executor,
-        ), pytest.raises(ToolError, match=r"[Dd]angerous|[Nn]ested"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
+                return_value=mock_executor,
+            ),
+            pytest.raises(ToolError, match=r"[Dd]angerous|[Nn]ested"),
+        ):
             await tool_fn.ainvoke(
                 {"pattern": "(a+)+"},
                 config=runnable_config,
             )
 
-    async def test_no_matches(
-        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
-    ) -> None:
+    async def test_no_matches(self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig) -> None:
         tool_fn = create_grep_tool()
         with patch(
             "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
@@ -421,10 +423,13 @@ class TestCreateGrepTool:
         mock_executor_bad = AsyncMock()
         mock_executor_bad.resolve_path = AsyncMock(side_effect=ValueError("path traversal"))
         tool_fn = create_grep_tool()
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
-            return_value=mock_executor_bad,
-        ), pytest.raises(ToolError, match="Invalid path"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
+                return_value=mock_executor_bad,
+            ),
+            pytest.raises(ToolError, match="Invalid path"),
+        ):
             await tool_fn.ainvoke(
                 {"pattern": "test", "path": "../../etc/passwd"},
                 config=runnable_config,
@@ -715,10 +720,13 @@ class TestUnexpectedExceptionWrapping:
         mock_executor_bad = AsyncMock()
         mock_executor_bad.resolve_path = AsyncMock(side_effect=RuntimeError("unexpected boom"))
         tool_fn = create_grep_tool()
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
-            return_value=mock_executor_bad,
-        ), pytest.raises(ToolError, match=r"[Uu]nexpected"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
+                return_value=mock_executor_bad,
+            ),
+            pytest.raises(ToolError, match=r"[Uu]nexpected"),
+        ):
             await tool_fn.ainvoke(
                 {"pattern": "test"},
                 config=runnable_config,
@@ -771,7 +779,11 @@ class TestAuditLog:
             assert len(indented) == 0, f"Below threshold should use flat format, got: {result}"
 
     async def test_audit_log_enabled(
-        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig, caplog: pytest.LogCaptureFixture
+        self,
+        workspace: Path,
+        mock_executor: MagicMock,
+        runnable_config: RunnableConfig,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         import logging
 
@@ -857,10 +869,13 @@ class TestGrepLiteralMode:
     ) -> None:
         """literal=True with empty pattern raises ToolError."""
         tool_fn = create_grep_tool()
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
-            return_value=mock_executor,
-        ), pytest.raises(ToolError):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
+                return_value=mock_executor,
+            ),
+            pytest.raises(ToolError),
+        ):
             await tool_fn.ainvoke(
                 {"pattern": "", "literal": True},
                 config=runnable_config,

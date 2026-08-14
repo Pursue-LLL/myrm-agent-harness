@@ -173,9 +173,7 @@ class WikiAssetIndexer:
     def get_stats(self) -> AssetIndexStats:
         files = self._list_asset_files()
         with self._get_conn() as conn:
-            cursor = conn.execute(
-                "SELECT index_status, COUNT(*) AS cnt FROM wiki_assets_meta GROUP BY index_status"
-            )
+            cursor = conn.execute("SELECT index_status, COUNT(*) AS cnt FROM wiki_assets_meta GROUP BY index_status")
             counts = {str(row["index_status"]): int(row["cnt"]) for row in cursor.fetchall()}
         indexed = counts.get("indexed", 0)
         failed = counts.get("failed", 0)
@@ -186,11 +184,7 @@ class WikiAssetIndexer:
         assets = self.assets_dir
         if not assets.is_dir():
             return []
-        return sorted(
-            path
-            for path in assets.iterdir()
-            if path.is_file() and path.suffix.lower() in _IMAGE_SUFFIXES
-        )
+        return sorted(path for path in assets.iterdir() if path.is_file() and path.suffix.lower() in _IMAGE_SUFFIXES)
 
     async def _ensure_collection(self) -> None:
         if not self._vector or not self._embedding or self._collection_ready:

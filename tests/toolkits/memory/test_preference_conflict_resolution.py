@@ -50,11 +50,7 @@ class InMemoryPreferenceFacetStore:
         return list(self._facets.values())
 
     async def cleanup_dropped(self, max_age_days: int = 30) -> int:
-        to_remove = [
-            fid
-            for fid, f in self._facets.items()
-            if f.lifecycle == PreferenceLifecycle.DROPPED
-        ]
+        to_remove = [fid for fid, f in self._facets.items() if f.lifecycle == PreferenceLifecycle.DROPPED]
         for fid in to_remove:
             del self._facets[fid]
         return len(to_remove)

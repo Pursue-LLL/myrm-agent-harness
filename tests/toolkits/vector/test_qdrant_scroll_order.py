@@ -17,9 +17,7 @@ def mock_client():
 
 @pytest.fixture
 def store(mock_client):
-    config = VectorStoreConfig(
-        mode=DeploymentMode.REMOTE, url="http://localhost:6333", api_key="test"
-    )
+    config = VectorStoreConfig(mode=DeploymentMode.REMOTE, url="http://localhost:6333", api_key="test")
     return QdrantVectorStore(client=mock_client, config=config, is_async=True)
 
 
@@ -58,9 +56,7 @@ class TestScrollOrderBy:
     @pytest.mark.asyncio
     async def test_scroll_order_by_with_offset(self, store, mock_client):
         mock_client.scroll.return_value = ([], None)
-        await store.scroll(
-            "col", limit=10, offset="uuid-123", order_by=("_updated_ts", "desc")
-        )
+        await store.scroll("col", limit=10, offset="uuid-123", order_by=("_updated_ts", "desc"))
         call_kwargs = mock_client.scroll.call_args[1]
         assert call_kwargs["offset"] == "uuid-123"
         assert "order_by" in call_kwargs
@@ -72,9 +68,7 @@ class TestEnsurePayloadIndexes:
         mock_client.create_payload_index.return_value = True
         await store.ensure_payload_indexes("test_col")
         assert mock_client.create_payload_index.call_count == 6
-        created_fields = [
-            c[1]["field_name"] for c in mock_client.create_payload_index.call_args_list
-        ]
+        created_fields = [c[1]["field_name"] for c in mock_client.create_payload_index.call_args_list]
         assert set(created_fields) == {
             "_created_ts",
             "_updated_ts",
@@ -94,9 +88,7 @@ class TestUpsertEpochTimestamps:
     @pytest.mark.asyncio
     async def test_upsert_includes_epoch_timestamps(self, store, mock_client):
         now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
-        doc = VectorDocument(
-            id="doc1", content="test", vector=[0.1, 0.2], created_at=now, updated_at=now
-        )
+        doc = VectorDocument(id="doc1", content="test", vector=[0.1, 0.2], created_at=now, updated_at=now)
         await store.upsert("test_col", [doc])
         call_args = mock_client.upsert.call_args
         point = call_args[1]["points"][0]

@@ -146,9 +146,7 @@ class TestConvertDictToMessage:
     def test_user_system_tool_roles(self) -> None:
         assert isinstance(convert_dict_to_message({"role": "user", "content": "u"}), HumanMessage)
         assert isinstance(convert_dict_to_message({"role": "system", "content": "s"}), SystemMessage)
-        tm = convert_dict_to_message(
-            {"role": "tool", "content": "ok", "tool_call_id": "t1", "name": "tool_a"}
-        )
+        tm = convert_dict_to_message({"role": "tool", "content": "ok", "tool_call_id": "t1", "name": "tool_a"})
         assert isinstance(tm, ToolMessage)
 
     def test_assistant_function_call_passthrough(self) -> None:
@@ -190,9 +188,7 @@ class TestConvertDictToMessage:
 class TestParseToolCallArgsHooks:
     def test_parse_tool_call_args_logs_when_unsafe(self) -> None:
         raw = 'oops "command": "rm -rf /tmp/demo" trailing'
-        with patch(
-            "myrm_agent_harness.toolkits.llms.adapters.converters.logger.warning"
-        ) as mock_warn:
+        with patch("myrm_agent_harness.toolkits.llms.adapters.converters.logger.warning") as mock_warn:
             out = _parse_tool_call_args(raw, "bash_code_execute_tool")
             assert out == {}
             assert mock_warn.called

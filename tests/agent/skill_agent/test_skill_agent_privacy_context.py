@@ -53,9 +53,7 @@ class FakeAgent(SkillAgentReviewMixin):
 
 
 def _make_agent(enabled: bool = True) -> FakeAgent:
-    config = _FakeConfig(
-        security_config=_FakeSecurityConfig(privacy_policy=_fake_policy(enabled))
-    )
+    config = _FakeConfig(security_config=_FakeSecurityConfig(privacy_policy=_fake_policy(enabled)))
     return FakeAgent(config=config, last_context={"workspace_path": "/tmp/ws"})
 
 
@@ -87,9 +85,7 @@ class TestReestablishPrivacyContext:
 
     def test_skips_without_workspace(self) -> None:
         agent = FakeAgent(
-            config=_FakeConfig(
-                security_config=_FakeSecurityConfig(privacy_policy=_fake_policy(True))
-            ),
+            config=_FakeConfig(security_config=_FakeSecurityConfig(privacy_policy=_fake_policy(True))),
             last_context={},
         )
         with patch(
@@ -147,9 +143,7 @@ class TestReestablishPrivacyContext:
             deep_scan=True,
         )
         agent = FakeAgent(
-            config=_FakeConfig(
-                security_config=_FakeSecurityConfig(privacy_policy=policy)
-            ),
+            config=_FakeConfig(security_config=_FakeSecurityConfig(privacy_policy=policy)),
             last_context={"workspace_path": "/tmp/ws"},
         )
         with (

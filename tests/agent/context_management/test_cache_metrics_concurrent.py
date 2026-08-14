@@ -71,9 +71,7 @@ def test_concurrent_writes_no_corruption(metrics_dir: Path) -> None:
                 compression_count=0,
             )
             set_pending_explicit_cache_snapshot(snapshot)
-            response = _mock_llm_response(
-                prompt_tokens=8000, completion_tokens=1000, cached_tokens=4000
-            )
+            response = _mock_llm_response(prompt_tokens=8000, completion_tokens=1000, cached_tokens=4000)
             try_persist_cache_call_metrics(response)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
@@ -117,9 +115,7 @@ def test_concurrent_writes_unique_records(metrics_dir: Path) -> None:
                 compression_count=0,
             )
             set_pending_explicit_cache_snapshot(snapshot)
-            response = _mock_llm_response(
-                prompt_tokens=5000, completion_tokens=800, cached_tokens=2500
-            )
+            response = _mock_llm_response(prompt_tokens=5000, completion_tokens=800, cached_tokens=2500)
             try_persist_cache_call_metrics(response)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
@@ -164,9 +160,7 @@ def test_concurrent_writes_with_snapshot_clearing(metrics_dir: Path) -> None:
                 set_pending_explicit_cache_snapshot(snapshot)
                 local_count += 1
 
-            response = _mock_llm_response(
-                prompt_tokens=6000, completion_tokens=900, cached_tokens=3000
-            )
+            response = _mock_llm_response(prompt_tokens=6000, completion_tokens=900, cached_tokens=3000)
             try_persist_cache_call_metrics(response)
 
         with counter_lock:
@@ -180,9 +174,7 @@ def test_concurrent_writes_with_snapshot_clearing(metrics_dir: Path) -> None:
     lines = ndjson_file.read_text(encoding="utf-8").strip().split("\n")
     assert len(lines) == num_threads * writes_per_thread
 
-    records_with_snapshot = sum(
-        1 for line in lines if json.loads(line)["explicit_cache_snapshot"] is True
-    )
+    records_with_snapshot = sum(1 for line in lines if json.loads(line)["explicit_cache_snapshot"] is True)
     expected_snapshot_count = sum(thread_local_counters.values())
     assert records_with_snapshot == expected_snapshot_count
 
@@ -209,9 +201,7 @@ def test_high_contention_write_performance(metrics_dir: Path) -> None:
                 compression_count=0,
             )
             set_pending_explicit_cache_snapshot(snapshot)
-            response = _mock_llm_response(
-                prompt_tokens=4000, completion_tokens=700, cached_tokens=2000
-            )
+            response = _mock_llm_response(prompt_tokens=4000, completion_tokens=700, cached_tokens=2000)
             try_persist_cache_call_metrics(response)
 
     start = time.perf_counter()
@@ -221,9 +211,7 @@ def test_high_contention_write_performance(metrics_dir: Path) -> None:
     elapsed = time.perf_counter() - start
 
     throughput = total_writes / elapsed
-    assert (
-        throughput > 150.0
-    ), f"Throughput {throughput:.0f} writes/s below 150/s threshold"
+    assert throughput > 150.0, f"Throughput {throughput:.0f} writes/s below 150/s threshold"
 
     ndjson_file = next(metrics_dir.glob("cache_metrics_*.ndjson"))
     lines = ndjson_file.read_text(encoding="utf-8").strip().split("\n")
@@ -254,9 +242,7 @@ def test_context_var_isolation_across_threads(metrics_dir: Path) -> None:
             set_pending_explicit_cache_snapshot(snapshot)
             local_turns.append(unique_turn)
 
-            response = _mock_llm_response(
-                prompt_tokens=5000, completion_tokens=800, cached_tokens=2500
-            )
+            response = _mock_llm_response(prompt_tokens=5000, completion_tokens=800, cached_tokens=2500)
             try_persist_cache_call_metrics(response)
 
         with results_lock:
@@ -271,9 +257,7 @@ def test_context_var_isolation_across_threads(metrics_dir: Path) -> None:
 
     for _thread_id, expected_turns in results.items():
         thread_records = [
-            json.loads(line)
-            for line in lines
-            if json.loads(line)["explicit_cache"]["turn_count"] in expected_turns
+            json.loads(line) for line in lines if json.loads(line)["explicit_cache"]["turn_count"] in expected_turns
         ]
         assert len(thread_records) == len(expected_turns)
         actual_turns = [rec["explicit_cache"]["turn_count"] for rec in thread_records]

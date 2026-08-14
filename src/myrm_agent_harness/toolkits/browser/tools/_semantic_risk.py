@@ -170,7 +170,7 @@ def classify_interaction_risk(action: str, ref_info: RefInfo) -> RiskVerdict:
     if ref_info.role in _HIGH_RISK_ROLES:
         return RiskVerdict(
             SemanticRiskLevel.HIGH,
-            f"Interaction with alert dialog: [{ref_info.role}] \"{ref_info.name}\"",
+            f'Interaction with alert dialog: [{ref_info.role}] "{ref_info.name}"',
         )
 
     name_lower = ref_info.name.lower()
@@ -179,7 +179,7 @@ def classify_interaction_risk(action: str, ref_info: RefInfo) -> RiskVerdict:
             label = _CATEGORY_LABELS.get(category, category)
             return RiskVerdict(
                 SemanticRiskLevel.HIGH,
-                f"{label}: [{ref_info.role}] \"{ref_info.name}\"",
+                f'{label}: [{ref_info.role}] "{ref_info.name}"',
             )
 
     return RiskVerdict(SemanticRiskLevel.SAFE, "")

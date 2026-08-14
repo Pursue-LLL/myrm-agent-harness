@@ -95,10 +95,13 @@ async def test_advisor_fanout_cache_hit_replays_on_ref_done() -> None:
     runner._cache["seed"] = [ref]
 
     on_ref_done = AsyncMock()
-    with patch(
-        "myrm_agent_harness.toolkits.llms.consensus.advisor_fanout._state_cache_key",
-        return_value="seed",
-    ), patch.object(AdvisorFanoutRunner, "_query_references", new_callable=AsyncMock) as query_mock:
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.llms.consensus.advisor_fanout._state_cache_key",
+            return_value="seed",
+        ),
+        patch.object(AdvisorFanoutRunner, "_query_references", new_callable=AsyncMock) as query_mock,
+    ):
         refs = await runner.run([HumanMessage(content="hello")], on_ref_done=on_ref_done)
 
     assert refs == [ref]

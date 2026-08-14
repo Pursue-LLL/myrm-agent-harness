@@ -115,9 +115,7 @@ class ContextBudgetGuard:
             return 1.0
         return self._used_tokens / self._total_budget_tokens
 
-    def _try_persist(
-        self, content: str, tool_name: str
-    ) -> tuple[str, str, str, int, int, bool] | None:
+    def _try_persist(self, content: str, tool_name: str) -> tuple[str, str, str, int, int, bool] | None:
         """Try to persist content to UECD evicted dir.
 
         Returns (summary, rel_path, evicted_basename, stored_chars, total_lines, storage_truncated) or None.
@@ -144,9 +142,7 @@ class ContextBudgetGuard:
         )
         tail = content[-_PREVIEW_CHARS:] if len(content) > _PREVIEW_CHARS * 2 else ""
         if tail:
-            summary = (
-                f"{head}\n...[truncated {line_count} lines total]...\n{tail}{footer}"
-            )
+            summary = f"{head}\n...[truncated {line_count} lines total]...\n{tail}{footer}"
         else:
             summary = f"{head}{footer}"
         return (
@@ -200,9 +196,7 @@ class ContextBudgetGuard:
         # truncate further to fit within remaining budget
         if not was_persisted:
             result_tokens = _estimate_tokens(result_content)
-            projected_pct = (self._used_tokens + result_tokens) / max(
-                1, self._total_budget_tokens
-            )
+            projected_pct = (self._used_tokens + result_tokens) / max(1, self._total_budget_tokens)
 
             if projected_pct >= self._hard_limit_pct:
                 remaining_tokens = max(
@@ -253,9 +247,7 @@ class ContextBudgetGuard:
             return BudgetVerdict(
                 action=BudgetAction.WARNING,
                 content=result_content,
-                reason=(
-                    f"Context budget at {current_pct:.0%} after '{tool_name}' ({actual_tokens} tokens added)"
-                ),
+                reason=(f"Context budget at {current_pct:.0%} after '{tool_name}' ({actual_tokens} tokens added)"),
                 budget_used_pct=current_pct,
             )
 

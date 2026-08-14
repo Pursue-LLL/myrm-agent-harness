@@ -78,7 +78,7 @@ class WellKnownSkillSource:
         if not skill_id.startswith(prefix):
             return None
 
-        skill_name = skill_id[len(prefix):]
+        skill_name = skill_id[len(prefix) :]
         index = await self._fetch_index()
         if not index:
             return None

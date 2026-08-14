@@ -78,10 +78,13 @@ class TestAtomicWrite:
         """If encryption fails, the original file should be untouched."""
         backend.set_secret("agent-1", "KEY", "original")
 
-        with patch(
-            "myrm_agent_harness.backends.secrets.local_backend.ConfigCrypto.encrypt_value",
-            side_effect=EncryptionError("encryption boom"),
-        ), pytest.raises(SecretEncryptionError):
+        with (
+            patch(
+                "myrm_agent_harness.backends.secrets.local_backend.ConfigCrypto.encrypt_value",
+                side_effect=EncryptionError("encryption boom"),
+            ),
+            pytest.raises(SecretEncryptionError),
+        ):
             backend.set_secret("agent-1", "KEY", "corrupted")
 
         assert backend.get_secret("agent-1", "KEY") == "original"

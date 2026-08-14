@@ -101,9 +101,7 @@ async def test_stage_chat_compound_dedupes_source_message(
         source_message="msg-dup",
         trust=ChatCompoundTrustContext(False, False),
     )
-    first = await stage_chat_compound(
-        wiki_structure, mock_indexer, pending_mgr, request
-    )
+    first = await stage_chat_compound(wiki_structure, mock_indexer, pending_mgr, request)
     assert first.pending_edit_id > 0
 
     with pytest.raises(ChatCompoundError) as exc_info:
@@ -124,8 +122,6 @@ def test_find_pending_edit_id_by_source_message(wiki_structure: WikiStructure) -
             trust=ChatCompoundTrustContext(False, False),
         ),
     )
-    pending_mgr.add_pending_edit(
-        "ChatCompounds/2026-08/find", draft, provenance=CHAT_COMPOUND_PROVENANCE
-    )
+    pending_mgr.add_pending_edit("ChatCompounds/2026-08/find", draft, provenance=CHAT_COMPOUND_PROVENANCE)
     found = find_pending_edit_id_by_source_message(pending_mgr, "msg-find")
     assert found is not None

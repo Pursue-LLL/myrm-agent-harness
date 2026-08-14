@@ -1,6 +1,5 @@
 """Tests for model tier inference logic."""
 
-
 from myrm_agent_harness.core.config.llm import CustomModelDef
 from myrm_agent_harness.core.config.model_tier import ModelTier, infer_model_tier
 

@@ -70,20 +70,12 @@ def collapse_const_unions(schema: dict[str, Any]) -> dict[str, Any]:
                 out[key] = value
             else:
                 out[key] = _walk(value)
-        present = [
-            key
-            for key in _COMPOSITE_KEYS
-            if isinstance(out.get(key), list) and out[key]
-        ]
+        present = [key for key in _COMPOSITE_KEYS if isinstance(out.get(key), list) and out[key]]
         if present != ["anyOf"] and present != ["oneOf"]:
             return out
         variants = out[present[0]]
         null_branches = [
-            item
-            for item in variants
-            if isinstance(item, dict)
-            and item.get("type") == "null"
-            and "const" not in item
+            item for item in variants if isinstance(item, dict) and item.get("type") == "null" and "const" not in item
         ]
         const_branches = [item for item in variants if item not in null_branches]
         if len(null_branches) > 1 or not const_branches:
@@ -173,9 +165,7 @@ def flatten_top_level_composite(schema: dict[str, Any]) -> dict[str, Any]:
     return _flatten_top_level_composite(schema, depth=0)
 
 
-def _flatten_top_level_composite(
-    schema: dict[str, Any], *, depth: int
-) -> dict[str, Any]:
+def _flatten_top_level_composite(schema: dict[str, Any], *, depth: int) -> dict[str, Any]:
     if not isinstance(schema, dict):
         return schema
 
@@ -212,9 +202,7 @@ def _flatten_top_level_composite(
                 continue
             if keyword == "allOf":
                 for name in props:
-                    _merge_branch_property(
-                        merged_props, name, props[name], conjunctive=True
-                    )
+                    _merge_branch_property(merged_props, name, props[name], conjunctive=True)
                 req = resolved.get("required")
                 if isinstance(req, list):
                     merged_required.extend(req)
@@ -224,9 +212,7 @@ def _flatten_top_level_composite(
                 if isinstance(branch_required, list):
                     for name in branch_required:
                         if isinstance(name, str) and name in props:
-                            alt_required_counts[name] = (
-                                alt_required_counts.get(name, 0) + 1
-                            )
+                            alt_required_counts[name] = alt_required_counts.get(name, 0) + 1
                 alternative_groups.append(sorted(props))
                 for name in props:
                     _merge_branch_property(merged_props, name, props[name])
@@ -235,9 +221,7 @@ def _flatten_top_level_composite(
     # discriminator of a oneOf union) is mandatory no matter which branch is
     # chosen — promote it so the LLM sees it as required instead of optional.
     common_required = {
-        name
-        for name, count in alt_required_counts.items()
-        if alt_branch_count > 1 and count == alt_branch_count
+        name for name, count in alt_required_counts.items() if alt_branch_count > 1 and count == alt_branch_count
     }
     merged_required.extend(sorted(common_required))
 
@@ -253,18 +237,11 @@ def _flatten_top_level_composite(
 
     # The exclusivity hint lists only the per-branch choices; common required
     # fields are excluded since they are always present, not an alternative.
-    exclusive_groups = [
-        [name for name in group if name not in common_required]
-        for group in alternative_groups
-    ]
-    constraint = _build_alternative_constraint(
-        exclusive_groups, keyword="oneOf" if "oneOf" in composite else "anyOf"
-    )
+    exclusive_groups = [[name for name in group if name not in common_required] for group in alternative_groups]
+    constraint = _build_alternative_constraint(exclusive_groups, keyword="oneOf" if "oneOf" in composite else "anyOf")
     if constraint:
         existing = result.get("description")
-        result["description"] = (
-            f"{existing} {constraint}".strip() if existing else constraint
-        )
+        result["description"] = f"{existing} {constraint}".strip() if existing else constraint
 
     logger.debug(
         "Flattened top-level composite (%s) into %d flat properties",
@@ -284,9 +261,7 @@ def _resolve_composite_branch(branch: dict[str, Any], depth: int) -> dict[str, A
     return branch
 
 
-def _build_alternative_constraint(
-    alternatives: list[list[str]], *, keyword: str
-) -> str | None:
+def _build_alternative_constraint(alternatives: list[list[str]], *, keyword: str) -> str | None:
     """Build a mutual-exclusivity hint when several non-empty groups exist.
 
     The wording matches the real JSON Schema semantics: ``oneOf`` admits
@@ -298,14 +273,8 @@ def _build_alternative_constraint(
         return None
     groups = "; ".join(f"({', '.join(alt)})" for alt in non_empty)
     if keyword == "oneOf":
-        return (
-            "Parameters are mutually exclusive alternatives — provide exactly "
-            f"one group: {groups}."
-        )
-    return (
-        "Parameters are alternatives — provide at least one of these groups: "
-        f"{groups}."
-    )
+        return f"Parameters are mutually exclusive alternatives — provide exactly one group: {groups}."
+    return f"Parameters are alternatives — provide at least one of these groups: {groups}."
 
 
 def _collect_enum_values(prop_schema: dict[str, Any]) -> list[Any]:
@@ -366,18 +335,14 @@ def _union_enum_schema(
         merged["description"] = first_description or second_description
     first_default = first.get("default")
     if "default" in first or "default" in second:
-        merged["default"] = (
-            first_default if "default" in first else second.get("default")
-        )
+        merged["default"] = first_default if "default" in first else second.get("default")
     if "type" in first and first.get("type") == second.get("type"):
         merged["type"] = first["type"]
     merged["enum"] = _dedupe_preserving_order(first_values + second_values)
     return merged
 
 
-def _merge_open_schema(
-    const_side: dict[str, Any], open_side: dict[str, Any]
-) -> dict[str, Any]:
+def _merge_open_schema(const_side: dict[str, Any], open_side: dict[str, Any]) -> dict[str, Any]:
     """Merge a closed const/enum schema with an open (unconstrained) one.
 
     A const/enum definition lists allowed values while an open definition
@@ -387,9 +352,7 @@ def _merge_open_schema(
     Metadata (``title``/``description``/``default``) is kept from either
     side, preferring ``const_side`` values already present in ``open_side``.
     """
-    merged: dict[str, Any] = {
-        key: value for key, value in open_side.items() if key not in ("const", "enum")
-    }
+    merged: dict[str, Any] = {key: value for key, value in open_side.items() if key not in ("const", "enum")}
     for meta_key in ("title", "description", "default"):
         if meta_key in const_side and meta_key not in merged:
             merged[meta_key] = const_side[meta_key]
@@ -484,9 +447,7 @@ def _merge_branch_property(
     first_values = _collect_enum_values(existing)
     second_values = _collect_enum_values(prop_schema)
     if first_values and second_values:
-        merged_props[name] = _union_enum_schema(
-            existing, prop_schema, first_values, second_values
-        )
+        merged_props[name] = _union_enum_schema(existing, prop_schema, first_values, second_values)
     elif first_values or second_values:
         # One branch is a closed const/enum set, the other an open type.
         # The union of a closed set with an open domain is the open domain

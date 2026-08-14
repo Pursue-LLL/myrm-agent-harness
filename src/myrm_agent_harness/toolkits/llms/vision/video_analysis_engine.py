@@ -213,10 +213,7 @@ class VideoAnalysisEngine:
                 return extract_answer_text(response)
             except Exception as exc:
                 reason = classify_failover_reason(exc)
-                if (
-                    should_vision_capacity_failover(reason)
-                    and index < len(self.fallback_configs) - 1
-                ):
+                if should_vision_capacity_failover(reason) and index < len(self.fallback_configs) - 1:
                     logger.warning(
                         "Video provider %s capacity failure, trying next provider: %s",
                         self.fallback_configs[index].model,
@@ -326,10 +323,7 @@ class VideoAnalysisEngine:
                         analyze_bytes = Path(compact_path).read_bytes()
                     except Exception as exc:
                         logger.error("Video transcode failed: %s", exc)
-                        return (
-                            f"[Video too large and transcode failed: "
-                            f"{len(raw_bytes) / 1024 / 1024:.1f}MB]"
-                        )
+                        return f"[Video too large and transcode failed: {len(raw_bytes) / 1024 / 1024:.1f}MB]"
                     finally:
                         if compact_path is not None:
                             cleanup_transcode_path(compact_path)

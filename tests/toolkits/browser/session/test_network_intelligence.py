@@ -95,11 +95,7 @@ class TestNetworkIntelligenceRedaction:
         """A credential split by the display cut in get_summary must not
         surface as a plaintext fragment (raw window is redacted first)."""
         ni = NetworkIntelligence()
-        body = (
-            '{"op":"login","payload":"'
-            + "x" * 150
-            + '","password":"mysecretvalue12345678"}'
-        )
+        body = '{"op":"login","payload":"' + "x" * 150 + '","password":"mysecretvalue12345678"}'
         self._on_post(ni, body)
 
         summary = ni.get_summary()
@@ -130,9 +126,7 @@ class TestNetworkIntelligenceRedaction:
         head = "x" * 7990
         tail = '"password":"mysecretvalue12345678"}'
         large_body = head + tail
-        mock_cdp.send = AsyncMock(
-            return_value={"body": large_body, "base64Encoded": False}
-        )
+        mock_cdp.send = AsyncMock(return_value={"body": large_body, "base64Encoded": False})
         ni._cdp_session = mock_cdp
 
         result = await ni.get_response_body(1)
@@ -309,9 +303,7 @@ class TestNetworkIntelligence:
     @pytest.mark.asyncio
     async def test_attach_failure_non_critical(self):
         mock_page = MagicMock()
-        mock_page.context.new_cdp_session = AsyncMock(
-            side_effect=Exception("CDP failed")
-        )
+        mock_page.context.new_cdp_session = AsyncMock(side_effect=Exception("CDP failed"))
 
         ni = NetworkIntelligence()
         await ni.attach(mock_page)
@@ -356,16 +348,12 @@ class TestNetworkIntelligence:
         )
 
         mock_cdp = AsyncMock()
-        mock_cdp.send = AsyncMock(
-            return_value={"body": '{"users": [1, 2, 3]}', "base64Encoded": False}
-        )
+        mock_cdp.send = AsyncMock(return_value={"body": '{"users": [1, 2, 3]}', "base64Encoded": False})
         ni._cdp_session = mock_cdp
 
         result = await ni.get_response_body(1)
         assert result == '{"users": [1, 2, 3]}'
-        mock_cdp.send.assert_awaited_once_with(
-            "Network.getResponseBody", {"requestId": "req-1"}
-        )
+        mock_cdp.send.assert_awaited_once_with("Network.getResponseBody", {"requestId": "req-1"})
 
     @pytest.mark.asyncio
     async def test_get_response_body_binary(self):
@@ -385,9 +373,7 @@ class TestNetworkIntelligence:
         )
 
         mock_cdp = AsyncMock()
-        mock_cdp.send = AsyncMock(
-            return_value={"body": "iVBORw0KGgo=", "base64Encoded": True}
-        )
+        mock_cdp.send = AsyncMock(return_value={"body": "iVBORw0KGgo=", "base64Encoded": True})
         ni._cdp_session = mock_cdp
 
         result = await ni.get_response_body(1)
@@ -429,9 +415,7 @@ class TestNetworkIntelligence:
         )
 
         mock_cdp = AsyncMock()
-        mock_cdp.send = AsyncMock(
-            side_effect=Exception("No resource with given identifier found")
-        )
+        mock_cdp.send = AsyncMock(side_effect=Exception("No resource with given identifier found"))
         ni._cdp_session = mock_cdp
 
         result = await ni.get_response_body(1)
@@ -451,9 +435,7 @@ class TestNetworkIntelligence:
 
         large_body = "x" * 10000
         mock_cdp = AsyncMock()
-        mock_cdp.send = AsyncMock(
-            return_value={"body": large_body, "base64Encoded": False}
-        )
+        mock_cdp.send = AsyncMock(return_value={"body": large_body, "base64Encoded": False})
         ni._cdp_session = mock_cdp
 
         result = await ni.get_response_body(1)

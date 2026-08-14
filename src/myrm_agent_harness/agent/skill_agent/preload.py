@@ -23,9 +23,7 @@ class SkillAgentPreloadMixin:
     _TOKEN_BUDGET_MAX = 12000
     """Soft cap (in estimated characters) for combined SOP injection to prevent token explosion."""
 
-    async def _preload_explicit_skill(
-        self, query: str
-    ) -> tuple[str, SkillMetadata | None, list[SkillMetadata]]:
+    async def _preload_explicit_skill(self, query: str) -> tuple[str, SkillMetadata | None, list[SkillMetadata]]:
         """Detect ``[use skill_name]`` or ``[use s1,s2,s3]`` prefix and pre-inject SOP(s).
 
         Supports both single-skill and multi-skill (bundle) invocation. When multiple
@@ -153,9 +151,7 @@ class SkillAgentPreloadMixin:
 
         return "\n".join(parts), preloaded_skills[0], preloaded_skills
 
-    async def _resolve_skill_instance_for_l1(
-        self, skill_name: str
-    ) -> SkillInstance | None:
+    async def _resolve_skill_instance_for_l1(self, skill_name: str) -> SkillInstance | None:
         """Resolve bound SkillInstance for L1 config footer (matches select tool SSOT)."""
         from myrm_agent_harness.backends.skills.types import SkillInstance
 
@@ -182,4 +178,3 @@ class SkillAgentPreloadMixin:
             )
             return None
         return instance if isinstance(instance, SkillInstance) else None
-

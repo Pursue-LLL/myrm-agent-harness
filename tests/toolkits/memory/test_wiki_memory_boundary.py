@@ -93,9 +93,7 @@ async def test_persist_extracted_memories_applies_wiki_filter() -> None:
     mock_manager = MagicMock()
     mock_manager.store_batch = AsyncMock(return_value=[short_semantic])
 
-    with patch(
-        "myrm_agent_harness.toolkits.memory.strategies.extractor.MemoryExtractor"
-    ) as mock_cls:
+    with patch("myrm_agent_harness.toolkits.memory.strategies.extractor.MemoryExtractor") as mock_cls:
         mock_extractor = MagicMock()
         mock_extractor.to_concrete_memories.return_value = [long_semantic, short_semantic]
         mock_cls.return_value = mock_extractor

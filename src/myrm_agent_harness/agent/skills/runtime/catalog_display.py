@@ -45,18 +45,12 @@ def _filter_skills_for_agent_tools(
     available_tool_names: frozenset[str] | None,
     available_tool_groups: frozenset[str] | None,
 ) -> list[SkillMetadata]:
-    if not skills or (
-        available_tool_names is None and available_tool_groups is None
-    ):
+    if not skills or (available_tool_names is None and available_tool_groups is None):
         return list(skills)
 
     tool_names = available_tool_names or frozenset()
     tool_groups = available_tool_groups or frozenset()
-    return [
-        skill
-        for skill in skills
-        if skill_visible_for_tools(skill, tool_names, tool_groups)
-    ]
+    return [skill for skill in skills if skill_visible_for_tools(skill, tool_names, tool_groups)]
 
 
 def resolve_catalog_display_skills(
@@ -76,11 +70,7 @@ def resolve_catalog_display_skills(
     model_visible = [skill for skill in available_skills if skill.model_invocable]
 
     if skill_configs is not None:
-        core_candidates = [
-            skill
-            for skill in model_visible
-            if skill_configs.get(skill.id, {}).get("is_core", False)
-        ]
+        core_candidates = [skill for skill in model_visible if skill_configs.get(skill.id, {}).get("is_core", False)]
         display_skills = _sorted_inline(core_candidates)
     elif len(model_visible) > SKILL_INLINE_THRESHOLD:
         always_skills = sorted(

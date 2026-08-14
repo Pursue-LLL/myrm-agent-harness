@@ -57,9 +57,7 @@ class TestCrawlGuardsAndFastPaths:
     @pytest.mark.asyncio
     async def test_crawl_domain_allowlist_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            engine = _engine(
-                tmp, domain_allowlist=SimpleNamespace(is_allowed=lambda host: False)
-            )
+            engine = _engine(tmp, domain_allowlist=SimpleNamespace(is_allowed=lambda host: False))
             engine._allow_private_networks = True
 
             doc = await engine.crawl(PLAIN_URL)
@@ -158,9 +156,7 @@ class TestCrawlGuardsAndFastPaths:
             engine = _engine(tmp)
             engine.crawl = AsyncMock(return_value=None)  # type: ignore[method-assign]
 
-            success, failed = await engine.crawl_many(
-                ["http://a.example/x", "http://b.example/x"], max_concurrency=2
-            )
+            success, failed = await engine.crawl_many(["http://a.example/x", "http://b.example/x"], max_concurrency=2)
 
             assert success == []
             assert len(failed) == 2
@@ -207,28 +203,20 @@ class TestCacheMixinBranches:
         with tempfile.TemporaryDirectory() as tmp:
             engine = _engine(tmp)
             engine._ensure_workers_started()
-            cached = CachedDocument(
-                doc=_doc(), etag=None, last_modified=None, cached_at=0.0
-            )
+            cached = CachedDocument(doc=_doc(), etag=None, last_modified=None, cached_at=0.0)
             with patch.object(
                 engine,
                 "_background_revalidate",
                 new=AsyncMock(side_effect=RuntimeError("boom")),
             ):
                 engine._background_queue.put_nowait(
-                    BackgroundTask(
-                        priority=-1, url=PLAIN_URL, cache_key="k", cached_item=cached
-                    )
+                    BackgroundTask(priority=-1, url=PLAIN_URL, cache_key="k", cached_item=cached)
                 )
                 for _ in engine._background_workers:
                     engine._background_queue.put_nowait(
-                        BackgroundTask(
-                            priority=0, url="", cache_key="", cached_item=None
-                        )
+                        BackgroundTask(priority=0, url="", cache_key="", cached_item=None)
                     )
-                await asyncio.wait_for(
-                    asyncio.gather(*engine._background_workers), timeout=5
-                )
+                await asyncio.wait_for(asyncio.gather(*engine._background_workers), timeout=5)
 
                 assert engine._background_queue.empty()
             await engine.shutdown()
@@ -237,9 +225,7 @@ class TestCacheMixinBranches:
     async def test_background_revalidate_failure_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             engine = _engine(tmp)
-            cached = CachedDocument(
-                doc=_doc(), etag=None, last_modified=None, cached_at=0.0
-            )
+            cached = CachedDocument(doc=_doc(), etag=None, last_modified=None, cached_at=0.0)
             with patch.object(
                 engine,
                 "_crawl_with_degradation",
@@ -254,9 +240,7 @@ class TestCacheMixinBranches:
     async def test_background_revalidate_timeout_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             engine = _engine(tmp)
-            cached = CachedDocument(
-                doc=_doc(), etag=None, last_modified=None, cached_at=0.0
-            )
+            cached = CachedDocument(doc=_doc(), etag=None, last_modified=None, cached_at=0.0)
             with patch.object(
                 engine,
                 "_crawl_with_degradation",

@@ -64,12 +64,22 @@ def _make_conversation_with_blocker() -> list[HumanMessage | AIMessage | SystemM
     """Build a realistic conversation where the agent is blocked and has next steps."""
     return [
         SystemMessage(content="You are a helpful AI assistant."),
-        HumanMessage(content="Please refactor the authentication module in app/auth/jwt.py to use RS256 instead of HS256."),
+        HumanMessage(
+            content="Please refactor the authentication module in app/auth/jwt.py to use RS256 instead of HS256."
+        ),
         AIMessage(content="I'll start by reading the current jwt.py implementation to understand the existing code."),
-        HumanMessage(content="Here's the file content:\n```python\nimport jwt\ndef verify(token):\n    return jwt.decode(token, SECRET, algorithms=['HS256'])\n```"),
-        AIMessage(content="I see the current implementation uses HS256. I'll need to:\n1. Generate RSA key pair\n2. Update the verify function to use RS256\n3. Update the sign function\n\nLet me start with generating the key pair."),
-        HumanMessage(content="I ran the key generation script but got an error: `cryptography.exceptions.UnsupportedAlgorithm: RSA key generation requires pyca/cryptography >= 3.0`. The current environment has cryptography 2.8."),
-        AIMessage(content="The cryptography library version is too old. We need to upgrade it first. However, I notice the requirements.txt has a pin `cryptography==2.8` with a comment saying 'pinned for FIPS compliance'. I'm blocked on this - I need to know if we can upgrade the cryptography library or if FIPS compliance is still required.\n\nPlanned next steps once unblocked:\n1. Upgrade cryptography to >= 3.0 (if FIPS allows)\n2. Generate RSA-2048 key pair\n3. Refactor jwt.py verify() to RS256\n4. Update all tests in tests/test_auth.py\n5. Run full test suite"),
+        HumanMessage(
+            content="Here's the file content:\n```python\nimport jwt\ndef verify(token):\n    return jwt.decode(token, SECRET, algorithms=['HS256'])\n```"
+        ),
+        AIMessage(
+            content="I see the current implementation uses HS256. I'll need to:\n1. Generate RSA key pair\n2. Update the verify function to use RS256\n3. Update the sign function\n\nLet me start with generating the key pair."
+        ),
+        HumanMessage(
+            content="I ran the key generation script but got an error: `cryptography.exceptions.UnsupportedAlgorithm: RSA key generation requires pyca/cryptography >= 3.0`. The current environment has cryptography 2.8."
+        ),
+        AIMessage(
+            content="The cryptography library version is too old. We need to upgrade it first. However, I notice the requirements.txt has a pin `cryptography==2.8` with a comment saying 'pinned for FIPS compliance'. I'm blocked on this - I need to know if we can upgrade the cryptography library or if FIPS compliance is still required.\n\nPlanned next steps once unblocked:\n1. Upgrade cryptography to >= 3.0 (if FIPS allows)\n2. Generate RSA-2048 key pair\n3. Refactor jwt.py verify() to RS256\n4. Update all tests in tests/test_auth.py\n5. Run full test suite"
+        ),
         HumanMessage(content="Good analysis. Let me check with the security team about FIPS."),
     ]
 
@@ -110,16 +120,14 @@ async def test_full_summary_captures_blocked_and_next_steps() -> None:
     if has_blocked:
         blocked_text = " ".join(summary.blocked_items).lower()
         assert any(
-            keyword in blocked_text
-            for keyword in ["cryptography", "fips", "upgrade", "version", "library", "blocked"]
+            keyword in blocked_text for keyword in ["cryptography", "fips", "upgrade", "version", "library", "blocked"]
         ), f"blocked_items should mention the cryptography/FIPS blocker, got: {summary.blocked_items}"
 
     if has_next:
         next_text = " ".join(summary.next_steps).lower()
-        assert any(
-            keyword in next_text
-            for keyword in ["upgrade", "rsa", "rs256", "refactor", "test", "jwt", "key"]
-        ), f"next_steps should mention planned actions, got: {summary.next_steps}"
+        assert any(keyword in next_text for keyword in ["upgrade", "rsa", "rs256", "refactor", "test", "jwt", "key"]), (
+            f"next_steps should mention planned actions, got: {summary.next_steps}"
+        )
 
     found_summary_msg = False
     for msg in new_messages:
@@ -158,8 +166,12 @@ async def test_incremental_summary_updates_blocked_and_next_steps() -> None:
 
     new_messages: list[HumanMessage | AIMessage | SystemMessage] = [
         SystemMessage(content="You are a helpful AI assistant."),
-        HumanMessage(content="Security team confirmed: FIPS compliance is no longer required. We can upgrade cryptography."),
-        AIMessage(content="The FIPS blocker is resolved. I'll now upgrade cryptography to the latest version and proceed with the RS256 migration.\n\nUpdated plan:\n1. pip install cryptography>=41.0\n2. Generate RSA-2048 key pair\n3. Refactor jwt.py\n4. Update tests"),
+        HumanMessage(
+            content="Security team confirmed: FIPS compliance is no longer required. We can upgrade cryptography."
+        ),
+        AIMessage(
+            content="The FIPS blocker is resolved. I'll now upgrade cryptography to the latest version and proceed with the RS256 migration.\n\nUpdated plan:\n1. pip install cryptography>=41.0\n2. Generate RSA-2048 key pair\n3. Refactor jwt.py\n4. Update tests"
+        ),
     ]
 
     config = ContextConfig(max_context_tokens=128000)

@@ -316,9 +316,7 @@ class TestRunCouncil:
     )
     async def test_basic_2_experts_1_round(self, mock_emit: AsyncMock) -> None:
         chair_text = (
-            "### Consensus Points\n- Both agree on A\n\n"
-            "### Divergences\n- None\n\n"
-            "### Action Items\n- Implement A\n"
+            "### Consensus Points\n- Both agree on A\n\n### Divergences\n- None\n\n### Action Items\n- Implement A\n"
         )
         spawn_results = [
             _ok(result="Expert 0 analysis"),
@@ -402,8 +400,10 @@ class TestRunCouncil:
     )
     async def test_custom_chair_config(self, mock_emit: AsyncMock) -> None:
         spawn_results = [
-            _ok(result="A"), _ok(result="B"),
-            _ok(result="CA"), _ok(result="CB"),
+            _ok(result="A"),
+            _ok(result="B"),
+            _ok(result="CA"),
+            _ok(result="CB"),
             _ok(result="### Consensus Points\n- OK\n### Divergences\n### Action Items\n- Do X"),
         ]
         mgr = _make_manager(spawn_results)
@@ -434,9 +434,12 @@ class TestRunCouncil:
     )
     async def test_multiple_cross_review_rounds(self, mock_emit: AsyncMock) -> None:
         spawn_results = [
-            _ok(result="A1"), _ok(result="B1"),
-            _ok(result="A-CR1"), _ok(result="B-CR1"),
-            _ok(result="A-CR2"), _ok(result="B-CR2"),
+            _ok(result="A1"),
+            _ok(result="B1"),
+            _ok(result="A-CR1"),
+            _ok(result="B-CR1"),
+            _ok(result="A-CR2"),
+            _ok(result="B-CR2"),
             _ok(result="### Consensus Points\n- Yes\n### Divergences\n### Action Items\n"),
         ]
         mgr = _make_manager(spawn_results)
@@ -468,7 +471,9 @@ class TestRunCouncil:
             _ok(result="Security cross-review"),
             _ok(result="Performance cross-review"),
             _ok(result="Cost cross-review"),
-            _ok(result="### Consensus Points\n- All agree on X\n### Divergences\n- Split on Y\n### Action Items\n- Do Z"),
+            _ok(
+                result="### Consensus Points\n- All agree on X\n### Divergences\n- Split on Y\n### Action Items\n- Do Z"
+            ),
         ]
         mgr = _make_manager(spawn_results)
 
@@ -561,10 +566,14 @@ class TestRunCouncil:
     )
     async def test_cross_review_rounds_clamped(self, mock_emit: AsyncMock) -> None:
         spawn_results = [
-            _ok(result="A"), _ok(result="B"),
-            _ok(result="CR1-A"), _ok(result="CR1-B"),
-            _ok(result="CR2-A"), _ok(result="CR2-B"),
-            _ok(result="CR3-A"), _ok(result="CR3-B"),
+            _ok(result="A"),
+            _ok(result="B"),
+            _ok(result="CR1-A"),
+            _ok(result="CR1-B"),
+            _ok(result="CR2-A"),
+            _ok(result="CR2-B"),
+            _ok(result="CR3-A"),
+            _ok(result="CR3-B"),
             _ok(result="### Consensus Points\n### Divergences\n### Action Items\n"),
         ]
         mgr = _make_manager(spawn_results)
@@ -588,10 +597,14 @@ class TestRunCouncil:
     )
     async def test_dict_chair_result(self, mock_emit: AsyncMock) -> None:
         """Chair returning a dict instead of SubAgentResult is handled."""
-        mgr = _make_manager([
-            _ok(result="A"), _ok(result="B"),
-            _ok(result="CA"), _ok(result="CB"),
-        ])
+        mgr = _make_manager(
+            [
+                _ok(result="A"),
+                _ok(result="B"),
+                _ok(result="CA"),
+                _ok(result="CB"),
+            ]
+        )
 
         original_spawn = mgr.spawn_child.side_effect
         call_count = 0
@@ -625,8 +638,10 @@ class TestRunCouncil:
     )
     async def test_custom_prompt_templates(self, mock_emit: AsyncMock) -> None:
         spawn_results = [
-            _ok(result="A"), _ok(result="B"),
-            _ok(result="CA"), _ok(result="CB"),
+            _ok(result="A"),
+            _ok(result="B"),
+            _ok(result="CA"),
+            _ok(result="CB"),
             _ok(result="### Consensus Points\n- OK\n### Divergences\n### Action Items\n"),
         ]
         mgr = _make_manager(spawn_results)

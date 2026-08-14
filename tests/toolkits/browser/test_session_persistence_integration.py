@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -54,7 +53,7 @@ class _QuietHandler(BaseHTTPRequestHandler):
     def log_message(self, _format: str, *_args: object) -> None:
         pass
 
-    def do_GET(self) -> None:  # noqa: N802 — BaseHTTPRequestHandler API
+    def do_GET(self) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(_PAGE_HTML)))
@@ -104,9 +103,7 @@ def session_vault(vault_dir: Path, vault_key: bytes) -> SessionVault:
 async def _plant_state(session: BrowserSession, origin: str) -> None:
     """Navigate and plant a cookie + localStorage entry on the page."""
     await session.new_tab(origin)
-    await session.evaluate(
-        "document.cookie = 'integ_cookie=hello; path=/'"
-    )
+    await session.evaluate("document.cookie = 'integ_cookie=hello; path=/'")
     await session.evaluate("localStorage.setItem('integ_key', 'world')")
 
 
@@ -258,9 +255,7 @@ async def test_memory_bridge_hook_updates_real_profile(
             assert "Saved encrypted session" in result
 
             for _ in range(50):
-                profile = await manager.get_profile_attribute(
-                    "active_browser_sessions"
-                )
+                profile = await manager.get_profile_attribute("active_browser_sessions")
                 if profile and "127.0.0.1" in profile:
                     break
                 await asyncio.sleep(0.1)
@@ -268,9 +263,7 @@ async def test_memory_bridge_hook_updates_real_profile(
 
             await session.delete_session("127.0.0.1")
             for _ in range(50):
-                profile = await manager.get_profile_attribute(
-                    "active_browser_sessions"
-                )
+                profile = await manager.get_profile_attribute("active_browser_sessions")
                 if not profile or "127.0.0.1" not in profile:
                     break
                 await asyncio.sleep(0.1)

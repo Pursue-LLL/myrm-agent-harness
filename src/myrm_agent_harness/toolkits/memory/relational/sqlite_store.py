@@ -207,17 +207,13 @@ class SQLiteRelationalStore(RelationalStore):
                     "ALTER TABLE procedural_rules ADD COLUMN access_count INTEGER NOT NULL DEFAULT 0"
                 )
             if "last_accessed_at" not in rule_columns:
-                await self._connection.execute(
-                    "ALTER TABLE procedural_rules ADD COLUMN last_accessed_at TEXT"
-                )
+                await self._connection.execute("ALTER TABLE procedural_rules ADD COLUMN last_accessed_at TEXT")
             if "is_user_locked" not in rule_columns:
                 await self._connection.execute(
                     "ALTER TABLE procedural_rules ADD COLUMN is_user_locked INTEGER NOT NULL DEFAULT 0"
                 )
             if "expected_valid_days" not in rule_columns:
-                await self._connection.execute(
-                    "ALTER TABLE procedural_rules ADD COLUMN expected_valid_days INTEGER"
-                )
+                await self._connection.execute("ALTER TABLE procedural_rules ADD COLUMN expected_valid_days INTEGER")
 
     def _scope_values(
         self, scope: MemoryScope | None

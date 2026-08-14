@@ -57,9 +57,7 @@ def _make_config() -> SessionConfig:
     )
 
 
-def _enable_fake_provider(
-    monkeypatch: pytest.MonkeyPatch, provider: _FakeSandboxProvider
-) -> None:
+def _enable_fake_provider(monkeypatch: pytest.MonkeyPatch, provider: _FakeSandboxProvider) -> None:
     status = SandboxStatus(True, provider.name, "enabled")
     monkeypatch.setattr(
         "myrm_agent_harness.toolkits.code_execution.sandbox.detect_sandbox_provider",

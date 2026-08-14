@@ -191,8 +191,10 @@ async def test_generate_retries_then_raises() -> None:
     )
     _, client_patch = _patch_async_client(RuntimeError("network down"))
 
-    with client_patch, patch("myrm_agent_harness.toolkits.llms.tts.generator.asyncio.sleep", new_callable=AsyncMock), pytest.raises(
-        TTSGenerationError, match="network down"
+    with (
+        client_patch,
+        patch("myrm_agent_harness.toolkits.llms.tts.generator.asyncio.sleep", new_callable=AsyncMock),
+        pytest.raises(TTSGenerationError, match="network down"),
     ):
         await engine.generate("retry")
 

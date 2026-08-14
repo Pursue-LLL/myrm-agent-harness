@@ -47,9 +47,7 @@ async def test_aevaluate_allows_with_async_checker_when_granted() -> None:
     """Async checker allowing the permission must let the tool call through."""
     _load_skill()
 
-    async def checker(
-        skill_id: str, permission_type: str, operation: str
-    ) -> tuple[bool, str]:
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
         return True, ""
 
     provider = SkillBoundaryProvider(permission_checker=checker)
@@ -62,9 +60,7 @@ async def test_aevaluate_denies_with_async_checker_when_not_granted() -> None:
     """No loaded skill with the required permission must deny the tool call."""
     _load_skill()
 
-    async def checker(
-        skill_id: str, permission_type: str, operation: str
-    ) -> tuple[bool, str]:
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
         return False, "denied by policy"
 
     provider = SkillBoundaryProvider(permission_checker=checker)
@@ -77,9 +73,7 @@ async def test_aevaluate_denies_with_async_checker_when_not_granted() -> None:
 async def test_aevaluate_allows_when_no_skills_loaded() -> None:
     """No loaded skills must short-circuit to allow."""
 
-    def fail_checker(
-        skill_id: str, permission_type: str, operation: str
-    ) -> tuple[bool, str]:
+    def fail_checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
         pytest.fail("checker must not be called when no skills are loaded")
 
     provider = SkillBoundaryProvider(permission_checker=fail_checker)
@@ -101,9 +95,7 @@ async def test_aevaluate_allows_when_tool_has_no_permission_mapping() -> None:
 async def test_aevaluate_compatible_with_sync_checker() -> None:
     """A sync checker returning a plain tuple must still work via aevaluate."""
     _load_skill()
-    provider = SkillBoundaryProvider(
-        permission_checker=lambda _skill_id, _pt, _op: (True, "")
-    )
+    provider = SkillBoundaryProvider(permission_checker=lambda _skill_id, _pt, _op: (True, ""))
     decision = await provider.aevaluate(_request())
     assert decision.allow is True
 
@@ -112,9 +104,7 @@ def test_evaluate_wraps_async_checker_via_asyncio_run() -> None:
     """The sync protocol method must resolve async checkers without nesting."""
     _load_skill()
 
-    async def checker(
-        skill_id: str, permission_type: str, operation: str
-    ) -> tuple[bool, str]:
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
         return True, ""
 
     provider = SkillBoundaryProvider(permission_checker=checker)
@@ -126,9 +116,7 @@ def test_evaluate_denies_async_checker_when_not_granted() -> None:
     """Sync path must surface deny decisions from async checkers."""
     _load_skill()
 
-    async def checker(
-        skill_id: str, permission_type: str, operation: str
-    ) -> tuple[bool, str]:
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
         return False, "denied"
 
     provider = SkillBoundaryProvider(permission_checker=checker)
@@ -153,9 +141,7 @@ async def test_aevaluate_runs_inside_existing_event_loop() -> None:
     """The async path must never call asyncio.run() inside the running loop."""
     _load_skill()
 
-    async def checker(
-        skill_id: str, permission_type: str, operation: str
-    ) -> tuple[bool, str]:
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
         # Assert that we are inside the running event loop.
         assert asyncio.get_running_loop() is not None
         return True, ""
@@ -172,9 +158,7 @@ def _granted_checker(granted: frozenset[str]) -> PermissionChecker:
     SkillPermission, then compared against the granted permission values.
     """
 
-    async def checker(
-        skill_id: str, permission_type: str, operation: str
-    ) -> tuple[bool, str]:
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
         mapped = map_permission_to_skill_permission(permission_type)
         if mapped is not None and mapped.value in granted:
             return True, ""
@@ -191,9 +175,7 @@ async def test_ssot_file_edit_maps_to_file_write_gate() -> None:
     edits without FILE_WRITE. Regression guard for the drift.
     """
     _load_skill()
-    provider = SkillBoundaryProvider(
-        permission_checker=_granted_checker(frozenset({"file_read"}))
-    )
+    provider = SkillBoundaryProvider(permission_checker=_granted_checker(frozenset({"file_read"})))
     decision = await provider.aevaluate(
         GuardrailRequest(
             tool_name="file_edit_tool",
@@ -227,13 +209,9 @@ async def test_ssot_bash_code_execute_uses_code_interpreter_grant() -> None:
     skill granted CODE_INTERPRETER (sandboxed code execution).
     """
     _load_skill()
-    provider = SkillBoundaryProvider(
-        permission_checker=_granted_checker(frozenset({"code_interpreter"}))
-    )
+    provider = SkillBoundaryProvider(permission_checker=_granted_checker(frozenset({"code_interpreter"})))
     decision = await provider.aevaluate(
-        GuardrailRequest(
-            tool_name="bash_code_execute_tool", tool_input={"command": "echo hi"}
-        )
+        GuardrailRequest(tool_name="bash_code_execute_tool", tool_input={"command": "echo hi"})
     )
     assert decision.allow is True
 
@@ -242,13 +220,9 @@ async def test_ssot_bash_code_execute_uses_code_interpreter_grant() -> None:
 async def test_ssot_web_fetch_uses_network_access_grant() -> None:
     """web_fetch_tool must resolve via SSOT to net_fetch → NETWORK_ACCESS grant."""
     _load_skill()
-    provider = SkillBoundaryProvider(
-        permission_checker=_granted_checker(frozenset({"network_access"}))
-    )
+    provider = SkillBoundaryProvider(permission_checker=_granted_checker(frozenset({"network_access"})))
     decision = await provider.aevaluate(
-        GuardrailRequest(
-            tool_name="web_fetch_tool", tool_input={"url": "https://example.com"}
-        )
+        GuardrailRequest(tool_name="web_fetch_tool", tool_input={"url": "https://example.com"})
     )
     assert decision.allow is True
 
@@ -258,9 +232,7 @@ async def test_ssot_mcp_tool_not_applicable_to_skills() -> None:
     """MCP tools resolve to mcp_invoke (own auth) and must not invoke the checker."""
     _load_skill()
     provider = SkillBoundaryProvider(permission_checker=MagicMock())
-    decision = await provider.aevaluate(
-        GuardrailRequest(tool_name="mcp__github__get_repo", tool_input={"repo": "x"})
-    )
+    decision = await provider.aevaluate(GuardrailRequest(tool_name="mcp__github__get_repo", tool_input={"repo": "x"}))
     assert decision.allow is True
     provider._permission_checker.assert_not_called()
 
@@ -299,9 +271,7 @@ async def test_aevaluate_allows_when_any_loaded_skill_has_permission() -> None:
     )
     granted = frozenset({"code_interpreter"})
 
-    async def checker(
-        skill_id: str, permission_type: str, operation: str
-    ) -> tuple[bool, str]:
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
         if skill_id == "skill-b":
             mapped = map_permission_to_skill_permission(permission_type)
             return mapped is not None and mapped.value in granted, ""
@@ -309,9 +279,7 @@ async def test_aevaluate_allows_when_any_loaded_skill_has_permission() -> None:
 
     provider = SkillBoundaryProvider(permission_checker=checker)
     decision = await provider.aevaluate(
-        GuardrailRequest(
-            tool_name="bash_code_execute_tool", tool_input={"command": "echo hi"}
-        )
+        GuardrailRequest(tool_name="bash_code_execute_tool", tool_input={"command": "echo hi"})
     )
     assert decision.allow is True
 
@@ -330,13 +298,9 @@ async def test_aevaluate_uses_storage_skill_id_over_name() -> None:
         ]
     )
 
-    async def checker(
-        skill_id: str, permission_type: str, operation: str
-    ) -> tuple[bool, str]:
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
         return skill_id == "stored-id", ""
 
     provider = SkillBoundaryProvider(permission_checker=checker)
-    decision = await provider.aevaluate(
-        GuardrailRequest(tool_name="file_write_tool", tool_input={"path": "/tmp/x"})
-    )
+    decision = await provider.aevaluate(GuardrailRequest(tool_name="file_write_tool", tool_input={"path": "/tmp/x"}))
     assert decision.allow is True

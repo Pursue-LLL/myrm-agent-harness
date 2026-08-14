@@ -13,6 +13,7 @@ def create_mock_zip(files: dict) -> bytes:
             zip_file.writestr(file_path, content)
     return zip_buffer.getvalue()
 
+
 @pytest.mark.asyncio
 async def test_hermes_batch_parser_valid_zip():
     skill1_md = """---
@@ -34,7 +35,7 @@ def summarize():
         "translate_skill/SKILL.md": skill1_md,
         "translate_skill/utils.py": "def util(): pass",
         "summarize_skill/README.md": skill2_md,
-        "ignored_root_file.txt": "ignore me"
+        "ignored_root_file.txt": "ignore me",
     }
     zip_bytes = create_mock_zip(files)
 
@@ -55,12 +56,14 @@ def summarize():
     assert summarize is not None
     assert summarize.description == "Summarize text"
 
+
 @pytest.mark.asyncio
 async def test_hermes_batch_parser_empty_zip():
     zip_bytes = create_mock_zip({})
     parser = HermesBatchParser()
     skills = parser.parse_zip(zip_bytes)
     assert len(skills) == 0
+
 
 @pytest.mark.asyncio
 async def test_hermes_batch_parser_no_md():

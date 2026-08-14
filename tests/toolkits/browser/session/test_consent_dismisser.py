@@ -41,9 +41,7 @@ class TestConsentDismisserInit:
 
 class TestDismissDisabled:
     @pytest.mark.asyncio
-    async def test_returns_none_when_disabled(
-        self, disabled_dismisser: ConsentDismisser, mock_page: MagicMock
-    ) -> None:
+    async def test_returns_none_when_disabled(self, disabled_dismisser: ConsentDismisser, mock_page: MagicMock) -> None:
         result = await disabled_dismisser.dismiss(mock_page)
         assert result is None
         mock_page.evaluate.assert_not_called()
@@ -51,9 +49,7 @@ class TestDismissDisabled:
 
 class TestDismissSuccess:
     @pytest.mark.asyncio
-    async def test_returns_message_on_cmp_selector(
-        self, dismisser: ConsentDismisser, mock_page: MagicMock
-    ) -> None:
+    async def test_returns_message_on_cmp_selector(self, dismisser: ConsentDismisser, mock_page: MagicMock) -> None:
         mock_page.evaluate.return_value = {"dismissed": True, "method": "cmp_selector"}
         result = await dismisser.dismiss(mock_page)
         assert result is not None
@@ -61,27 +57,21 @@ class TestDismissSuccess:
         mock_page.evaluate.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_returns_message_on_text_match(
-        self, dismisser: ConsentDismisser, mock_page: MagicMock
-    ) -> None:
+    async def test_returns_message_on_text_match(self, dismisser: ConsentDismisser, mock_page: MagicMock) -> None:
         mock_page.evaluate.return_value = {"dismissed": True, "method": "text_match"}
         result = await dismisser.dismiss(mock_page)
         assert result is not None
         assert "text_match" in result
 
     @pytest.mark.asyncio
-    async def test_returns_message_on_shadow_dom(
-        self, dismisser: ConsentDismisser, mock_page: MagicMock
-    ) -> None:
+    async def test_returns_message_on_shadow_dom(self, dismisser: ConsentDismisser, mock_page: MagicMock) -> None:
         mock_page.evaluate.return_value = {"dismissed": True, "method": "shadow_dom"}
         result = await dismisser.dismiss(mock_page)
         assert result is not None
         assert "shadow_dom" in result
 
     @pytest.mark.asyncio
-    async def test_returns_message_on_api_call(
-        self, dismisser: ConsentDismisser, mock_page: MagicMock
-    ) -> None:
+    async def test_returns_message_on_api_call(self, dismisser: ConsentDismisser, mock_page: MagicMock) -> None:
         mock_page.evaluate.return_value = {"dismissed": True, "method": "didomi_api"}
         result = await dismisser.dismiss(mock_page)
         assert result is not None
@@ -99,17 +89,13 @@ class TestDismissSuccess:
 
 class TestDismissNoConsent:
     @pytest.mark.asyncio
-    async def test_returns_none_when_no_consent_found(
-        self, dismisser: ConsentDismisser, mock_page: MagicMock
-    ) -> None:
+    async def test_returns_none_when_no_consent_found(self, dismisser: ConsentDismisser, mock_page: MagicMock) -> None:
         mock_page.evaluate.return_value = {"dismissed": False, "method": None}
         result = await dismisser.dismiss(mock_page)
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_on_empty_result(
-        self, dismisser: ConsentDismisser, mock_page: MagicMock
-    ) -> None:
+    async def test_returns_none_on_empty_result(self, dismisser: ConsentDismisser, mock_page: MagicMock) -> None:
         mock_page.evaluate.return_value = None
         result = await dismisser.dismiss(mock_page)
         assert result is None
@@ -117,17 +103,13 @@ class TestDismissNoConsent:
 
 class TestDismissErrors:
     @pytest.mark.asyncio
-    async def test_returns_none_on_js_exception(
-        self, dismisser: ConsentDismisser, mock_page: MagicMock
-    ) -> None:
+    async def test_returns_none_on_js_exception(self, dismisser: ConsentDismisser, mock_page: MagicMock) -> None:
         mock_page.evaluate.side_effect = Exception("Page closed")
         result = await dismisser.dismiss(mock_page)
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_on_timeout(
-        self, dismisser: ConsentDismisser, mock_page: MagicMock
-    ) -> None:
+    async def test_returns_none_on_timeout(self, dismisser: ConsentDismisser, mock_page: MagicMock) -> None:
         mock_page.evaluate.side_effect = TimeoutError("Evaluation timed out")
         result = await dismisser.dismiss(mock_page)
         assert result is None

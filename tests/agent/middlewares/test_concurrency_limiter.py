@@ -2,7 +2,10 @@ import asyncio
 
 import pytest
 
-from myrm_agent_harness.agent.middlewares.concurrency.concurrency_limiter import create_concurrency_limiter, get_subagent_semaphore
+from myrm_agent_harness.agent.middlewares.concurrency.concurrency_limiter import (
+    create_concurrency_limiter,
+    get_subagent_semaphore,
+)
 from myrm_agent_harness.agent.sub_agents.registry import SUBAGENT_CONFIGS
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 
@@ -11,15 +14,9 @@ from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 def setup_configs():
     original = dict(SUBAGENT_CONFIGS)
     SUBAGENT_CONFIGS.clear()
-    SUBAGENT_CONFIGS["search"] = SubagentConfig(
-        concurrency_limit=10, description="", system_prompt=""
-    )
-    SUBAGENT_CONFIGS["browser"] = SubagentConfig(
-        concurrency_limit=3, description="", system_prompt=""
-    )
-    SUBAGENT_CONFIGS["analysis"] = SubagentConfig(
-        concurrency_limit=5, description="", system_prompt=""
-    )
+    SUBAGENT_CONFIGS["search"] = SubagentConfig(concurrency_limit=10, description="", system_prompt="")
+    SUBAGENT_CONFIGS["browser"] = SubagentConfig(concurrency_limit=3, description="", system_prompt="")
+    SUBAGENT_CONFIGS["analysis"] = SubagentConfig(concurrency_limit=5, description="", system_prompt="")
     yield
     SUBAGENT_CONFIGS.clear()
     SUBAGENT_CONFIGS.update(original)

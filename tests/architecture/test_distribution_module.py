@@ -129,8 +129,9 @@ def test_assert_distribution_ready_raises_on_platform_key_mismatch(
     core_mod = ModuleType("myrm_agent_harness_core")
     core_mod.__version__ = "1.0.0"
     core_mod.get_platform_key = lambda: "linux-x64"
-    with patch.dict(sys.modules, {"myrm_agent_harness_core": core_mod}), pytest.raises(
-        DistributionNotReadyError, match="platform core wheel mismatch"
+    with (
+        patch.dict(sys.modules, {"myrm_agent_harness_core": core_mod}),
+        pytest.raises(DistributionNotReadyError, match="platform core wheel mismatch"),
     ):
         assert_distribution_ready()
 
@@ -150,8 +151,9 @@ def test_assert_distribution_ready_raises_on_version_mismatch(
     core_mod = ModuleType("myrm_agent_harness_core")
     core_mod.__version__ = "1.0.0"
     core_mod.get_platform_key = lambda: "unknown"
-    with patch.dict(sys.modules, {"myrm_agent_harness_core": core_mod}), pytest.raises(
-        DistributionNotReadyError, match="version mismatch"
+    with (
+        patch.dict(sys.modules, {"myrm_agent_harness_core": core_mod}),
+        pytest.raises(DistributionNotReadyError, match="version mismatch"),
     ):
         assert_distribution_ready()
 

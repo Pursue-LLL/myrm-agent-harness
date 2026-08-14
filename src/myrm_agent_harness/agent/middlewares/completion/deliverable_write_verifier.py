@@ -39,9 +39,7 @@ _WRITE_CLAIM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(已保存|已写入|写入到|保存至|保存到|已生成(?:文件|报告)?|已创建(?:文件)?|文件已)"),
 )
 
-_FILE_PATH_INDICATOR = re.compile(
-    r"(?i)(`[^`]+`|workspace/[A-Za-z0-9_./-]+|[A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,12})"
-)
+_FILE_PATH_INDICATOR = re.compile(r"(?i)(`[^`]+`|workspace/[A-Za-z0-9_./-]+|[A-Za-z0-9_./-]+\.[A-Za-z0-9]{1,12})")
 
 
 def detect_claimed_file_write(content: str) -> bool:

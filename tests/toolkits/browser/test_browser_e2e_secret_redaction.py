@@ -91,9 +91,9 @@ async def browser_session(browser_pool: GlobalBrowserPool) -> BrowserSession:
 def _assert_secrets_redacted(result: str) -> None:
     for secret in _PLAINTEXT_SECRETS:
         assert secret not in result, f"leaked plaintext secret: {secret}"
-    assert any(
-        frag in result for frag in _MASKED_FRAGMENTS
-    ), "no masked fragment survived — redaction may not have run on output"
+    assert any(frag in result for frag in _MASKED_FRAGMENTS), (
+        "no masked fragment survived — redaction may not have run on output"
+    )
 
 
 @pytest.mark.e2e
@@ -190,9 +190,7 @@ async def test_e2e_manage_console_log_redacts_page_secrets(
     assert console, "console capture never received the secret log line"
     tools = create_browser_tools(browser_session)
     tool_dict = {tool.name: tool for tool in tools}
-    result = await tool_dict["browser_manage_tool"].ainvoke(
-        {"action": "console_log", "value": ""}
-    )
+    result = await tool_dict["browser_manage_tool"].ainvoke({"action": "console_log", "value": ""})
     assert "sk-proj-abcdefghijklmnop1234567890" not in result
 
 
@@ -215,9 +213,7 @@ async def test_e2e_execute_script_redacts_page_secrets(
 ) -> None:
     """browser_execute_script printed page text must redact credentials."""
     page = browser_session._tab_controller.get_active_page()
-    await page.set_content(
-        '<html><body><div id="sec">TOKEN=sk-proj-abcdefghijklmnop1234567890</div></body></html>'
-    )
+    await page.set_content('<html><body><div id="sec">TOKEN=sk-proj-abcdefghijklmnop1234567890</div></body></html>')
     await asyncio.sleep(0.5)
     tools = create_browser_tools(browser_session)
     tool_dict = {tool.name: tool for tool in tools}

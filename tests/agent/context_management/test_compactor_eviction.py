@@ -9,10 +9,15 @@ from myrm_agent_harness.agent.context_management.strategies.compactor.compactor 
 
 @pytest.mark.asyncio
 async def test_compress_messages_async_batch_eviction(monkeypatch):
-    monkeypatch.setattr("myrm_agent_harness.agent.context_management.strategies.compactor.compactor.get_token_count", lambda x: 600)
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.get_token_count", lambda x: 600
+    )
 
     mock_compress = AsyncMock(return_value=100)
-    monkeypatch.setattr("myrm_agent_harness.agent.context_management.strategies.compactor.compactor.compress_tool_message_async", mock_compress)
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.compress_tool_message_async",
+        mock_compress,
+    )
 
     ai_msg1 = AIMessage(content="ai1", tool_calls=[{"id": "1", "name": "tool1", "args": {}}])
     tool_msg1 = ToolMessage(content="long tool output 1", tool_call_id="1", name="tool1")
@@ -32,7 +37,7 @@ async def test_compress_messages_async_batch_eviction(monkeypatch):
         on_compress_eviction=mock_eviction_cb,
         user_goal_hint="test goal",
         chat_id="chat1",
-        user_id="user1"
+        user_id="user1",
     )
 
     mock_eviction_cb.assert_called_once()
@@ -60,7 +65,9 @@ async def test_compress_messages_async_batch_eviction(monkeypatch):
 @pytest.mark.asyncio
 async def test_compress_eviction_preserves_original_content(monkeypatch):
     """Verify that original_content is captured BEFORE compression mutates tool_msg."""
-    monkeypatch.setattr("myrm_agent_harness.agent.context_management.strategies.compactor.compactor.get_token_count", lambda x: 600)
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.get_token_count", lambda x: 600
+    )
 
     original_tool_output = "This is the original long tool output with important data"
 
@@ -97,13 +104,19 @@ async def test_compress_eviction_preserves_original_content(monkeypatch):
     assert evicted.original_content == original_tool_output
     assert tool_msg.content == "COMPACTED: tool1 summary"
 
+
 @pytest.mark.asyncio
 async def test_compress_messages_async_no_eviction_if_small(monkeypatch):
     # Mock get_token_count to return < 500
-    monkeypatch.setattr("myrm_agent_harness.agent.context_management.strategies.compactor.compactor.get_token_count", lambda x: 100)
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.get_token_count", lambda x: 100
+    )
 
     mock_compress = AsyncMock(return_value=100)
-    monkeypatch.setattr("myrm_agent_harness.agent.context_management.strategies.compactor.compactor.compress_tool_message_async", mock_compress)
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.compress_tool_message_async",
+        mock_compress,
+    )
 
     ai_msg1 = AIMessage(content="ai1", tool_calls=[{"id": "1", "name": "tool1", "args": {}}])
     tool_msg1 = ToolMessage(content="short tool output 1", tool_call_id="1", name="tool1")
@@ -120,7 +133,7 @@ async def test_compress_messages_async_no_eviction_if_small(monkeypatch):
         on_compress_eviction=mock_eviction_cb,
         user_goal_hint="test goal",
         chat_id="chat1",
-        user_id="user1"
+        user_id="user1",
     )
 
     # Eviction callback should NOT be called because tokens < 500

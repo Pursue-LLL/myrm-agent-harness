@@ -229,16 +229,12 @@ class TestKeywordSearchIntentDetector:
         result = detector.detect("github")
         assert result.confidence == pytest.approx(0.7, abs=0.01)
 
-    def test_multiple_keywords_increase_confidence(
-        self, detector: KeywordSearchIntentDetector
-    ):
+    def test_multiple_keywords_increase_confidence(self, detector: KeywordSearchIntentDetector):
         result = detector.detect("github stackoverflow implementation source code")
         assert result.confidence >= 0.7
 
     def test_max_confidence_capped_at_1(self, detector: KeywordSearchIntentDetector):
-        result = detector.detect(
-            "github stackoverflow npm pypi implementation source code crate package"
-        )
+        result = detector.detect("github stackoverflow npm pypi implementation source code crate package")
         assert result.confidence <= 1.0
 
     # --- Edge cases ---
@@ -329,14 +325,10 @@ class TestResolveSearchParams:
         assert params is None
 
     def test_threshold_boundary(self):
-        just_below = SearchIntentResult(
-            intent=SearchIntent.CODE, confidence=_CONFIDENCE_THRESHOLD - 0.01
-        )
+        just_below = SearchIntentResult(intent=SearchIntent.CODE, confidence=_CONFIDENCE_THRESHOLD - 0.01)
         assert resolve_search_params(just_below, "searxng") is None
 
-        at_threshold = SearchIntentResult(
-            intent=SearchIntent.CODE, confidence=_CONFIDENCE_THRESHOLD
-        )
+        at_threshold = SearchIntentResult(intent=SearchIntent.CODE, confidence=_CONFIDENCE_THRESHOLD)
         assert resolve_search_params(at_threshold, "searxng") is not None
 
     # --- Unknown provider returns None ---
@@ -420,16 +412,12 @@ class TestIntentIntegrationWithWebSearcher:
             WebSearcher,
         )
 
-        config = SearchServiceConfig(
-            search_service="searxng", api_base="http://localhost:8081"
-        )
+        config = SearchServiceConfig(search_service="searxng", api_base="http://localhost:8081")
         searcher = WebSearcher(config)
 
         mock_service = AsyncMock()
         mock_service.search = AsyncMock(
-            return_value=[
-                SearchResult(link="https://github.com/test", title="Test", snippet="S")
-            ]
+            return_value=[SearchResult(link="https://github.com/test", title="Test", snippet="S")]
         )
         searcher._search_service = mock_service
 
@@ -470,9 +458,7 @@ class TestIntentIntegrationWithWebSearcher:
         searcher = WebSearcher(config)
 
         mock_service = AsyncMock()
-        mock_service.search = AsyncMock(
-            return_value=[SearchResult(link="https://test.com", title="T", snippet="S")]
-        )
+        mock_service.search = AsyncMock(return_value=[SearchResult(link="https://test.com", title="T", snippet="S")])
         searcher._search_service = mock_service
 
         unique_q = f"override_precedence_{id(searcher)}"
@@ -498,15 +484,11 @@ class TestIntentIntegrationWithWebSearcher:
             WebSearcher,
         )
 
-        config = SearchServiceConfig(
-            search_service="searxng", api_base="http://localhost:8081"
-        )
+        config = SearchServiceConfig(search_service="searxng", api_base="http://localhost:8081")
         searcher = WebSearcher(config)
 
         mock_service = AsyncMock()
-        mock_service.search = AsyncMock(
-            return_value=[SearchResult(link="https://r.com", title="R", snippet="S")]
-        )
+        mock_service.search = AsyncMock(return_value=[SearchResult(link="https://r.com", title="R", snippet="S")])
         searcher._search_service = mock_service
 
         unique_q = f"cache_override_test_{id(searcher)}"

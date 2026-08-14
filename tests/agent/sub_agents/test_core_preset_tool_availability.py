@@ -17,15 +17,7 @@ def _monorepo_root() -> Path:
 
 
 def _core_presets_dir() -> Path:
-    path = (
-        _monorepo_root()
-        / "myrm-agent"
-        / "myrm-agent-server"
-        / "app"
-        / "config"
-        / "subagents"
-        / "core"
-    )
+    path = _monorepo_root() / "myrm-agent" / "myrm-agent-server" / "app" / "config" / "subagents" / "core"
     if not path.exists():
         pytest.skip("Core subagent presets directory not found")
     return path
@@ -66,10 +58,7 @@ def test_core_preset_loads_and_has_tools_after_filter(preset_name: str) -> None:
     assert config.tools, f"{preset_name} preset must declare at least one tool"
 
     filtered = filter_tools(config, _full_parent_toolkit())
-    assert filtered, (
-        f"{preset_name} preset produced zero tools after filter_tools; "
-        f"allowlist={list(config.tools)}"
-    )
+    assert filtered, f"{preset_name} preset produced zero tools after filter_tools; allowlist={list(config.tools)}"
 
 
 def test_browser_preset_includes_interact_tool() -> None:

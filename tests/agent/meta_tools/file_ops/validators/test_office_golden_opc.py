@@ -33,12 +33,15 @@ async def test_golden_docx_opc_degradation_detected(tmp_path: Path) -> None:
     snapshots = OfficeBashAudit.prepare_snapshots(str(tmp_path), command)
     _write_docx_with_run_properties(docx_path, run_properties=1)
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_layout_qa_check",
-        new=AsyncMock(return_value=[]),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_xlsx_recalc_check",
-        new=AsyncMock(return_value=[]),
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_layout_qa_check",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_xlsx_recalc_check",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         warnings = await OfficeBashAudit.finalize_audit(
             snapshots,

@@ -69,9 +69,7 @@ class FakeSkillAgent(SkillAgentReviewMixin):
 
 class TestBuildRecurrenceSummary:
     def test_string_query(self) -> None:
-        result = SkillAgentReviewMixin._build_recurrence_summary(
-            "How to debug Python?", []
-        )
+        result = SkillAgentReviewMixin._build_recurrence_summary("How to debug Python?", [])
         assert result == "How to debug Python?"
 
     def test_list_query_extracts_user_role(self) -> None:
@@ -169,9 +167,7 @@ class TestTriggerBackgroundSkillReview:
             HumanMessage(content="Fix the bug"),
             AIMessage(content="I'll look into it"),
         ]
-        await agent._trigger_background_skill_review(
-            "Fix the bug", history, ["I fixed the bug"]
-        )
+        await agent._trigger_background_skill_review("Fix the bug", history, ["I fixed the bug"])
         await asyncio.sleep(0.1)
 
     @pytest.mark.asyncio
@@ -203,9 +199,7 @@ class TestTriggerBackgroundSkillReview:
             HumanMessage(content="I prefer Python"),
             AIMessage(content="Noted, I'll remember that"),
         ]
-        await agent._trigger_background_skill_review(
-            "I prefer Python", history, ["Noted"]
-        )
+        await agent._trigger_background_skill_review("I prefer Python", history, ["Noted"])
         await asyncio.sleep(0.3)
         callback.assert_called_once()
         call_data = callback.call_args[0][0]
@@ -253,9 +247,7 @@ class TestMaybeArchiveToWiki:
         assert "source_chat: review-chat" in archived
 
     @pytest.mark.asyncio
-    async def test_archive_omits_source_chat_when_chat_id_unknown(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_archive_omits_source_chat_when_chat_id_unknown(self, tmp_path: Path) -> None:
         from myrm_agent_harness.toolkits.wiki import (
             WikiCompiler,
             WikiConfig,
@@ -278,9 +270,7 @@ class TestMaybeArchiveToWiki:
         assert "source_chat" not in archived
 
     @pytest.mark.asyncio
-    async def test_cleanup_session_forwards_chat_id_to_archive(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_cleanup_session_forwards_chat_id_to_archive(self, tmp_path: Path) -> None:
         """Session-end cleanup must forward the resolved chat_id into the wiki archive.
 
         Regression: the archive path read ``config.chat_id``, which does not exist on the
@@ -347,9 +337,7 @@ class TestCleanupSession:
     async def test_skill_review_triggered_when_stats_sufficient(self) -> None:
         stats = AgentRunStatistics(tool_call_count=5)
         agent = FakeSkillAgent(stats=stats)
-        with patch.object(
-            agent, "_trigger_background_skill_review", new_callable=AsyncMock
-        ) as mock_trigger:
+        with patch.object(agent, "_trigger_background_skill_review", new_callable=AsyncMock) as mock_trigger:
             await agent._cleanup_session("x" * 60, None, ["reply"])
             mock_trigger.assert_called_once()
 
@@ -357,9 +345,7 @@ class TestCleanupSession:
     async def test_no_review_when_stats_insufficient(self) -> None:
         stats = AgentRunStatistics(tool_call_count=1)
         agent = FakeSkillAgent(stats=stats)
-        with patch.object(
-            agent, "_trigger_background_skill_review", new_callable=AsyncMock
-        ) as mock_trigger:
+        with patch.object(agent, "_trigger_background_skill_review", new_callable=AsyncMock) as mock_trigger:
             await agent._cleanup_session("hi", None, ["ok"])
             mock_trigger.assert_not_called()
 

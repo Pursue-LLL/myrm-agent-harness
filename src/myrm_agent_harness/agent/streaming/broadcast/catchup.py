@@ -21,24 +21,12 @@ from pydantic import BaseModel, Field
 class CatchupBrief(BaseModel):
     """Structured summary of an agent session for Catchup Inbox."""
 
-    last_user_prompt: str = Field(
-        default="", description="The last message sent by the user"
-    )
-    latest_agent_response: str = Field(
-        default="", description="The latest text response from the agent"
-    )
-    files_touched: list[str] = Field(
-        default_factory=list, description="List of unique file paths modified"
-    )
-    tool_counts: dict[str, int] = Field(
-        default_factory=dict, description="Counts of each tool used"
-    )
-    activity_steps: list[str] = Field(
-        default_factory=list, description="High-level activity descriptions"
-    )
-    needs_from_user: str | None = Field(
-        default=None, description="What the agent needs from the user (if any)"
-    )
+    last_user_prompt: str = Field(default="", description="The last message sent by the user")
+    latest_agent_response: str = Field(default="", description="The latest text response from the agent")
+    files_touched: list[str] = Field(default_factory=list, description="List of unique file paths modified")
+    tool_counts: dict[str, int] = Field(default_factory=dict, description="Counts of each tool used")
+    activity_steps: list[str] = Field(default_factory=list, description="High-level activity descriptions")
+    needs_from_user: str | None = Field(default=None, description="What the agent needs from the user (if any)")
     status: str = Field(
         default="completed",
         description="Status of the session (e.g., completed, waiting, error)",
@@ -122,9 +110,7 @@ class CatchupBriefExtractor:
                         if isinstance(query, list):
                             for q in query[:3]:
                                 if isinstance(q, str) and q:
-                                    brief.activity_steps.append(
-                                        f"Searched web for: {q}"
-                                    )
+                                    brief.activity_steps.append(f"Searched web for: {q}")
                         elif isinstance(query, str) and query:
                             brief.activity_steps.append(f"Searched web for: {query}")
 

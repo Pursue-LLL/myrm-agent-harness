@@ -195,9 +195,7 @@ class TestWorkspaceRulesMiddleware:
 
         request.override.assert_called_once()
         injected = request.override.call_args[1]["messages"]
-        workspace_msgs = [
-            m for m in injected if isinstance(m, SystemMessage) and WORKSPACE_CONTEXT_MARKER in m.content
-        ]
+        workspace_msgs = [m for m in injected if isinstance(m, SystemMessage) and WORKSPACE_CONTEXT_MARKER in m.content]
         assert len(workspace_msgs) == 1
         assert "Project Rules" in workspace_msgs[0].content
 

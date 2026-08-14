@@ -165,11 +165,9 @@ class TestLoadMultiTurnCases:
         data = [
             {
                 "message": "Single turn test",
-                "semantic_assertions": [{"type": "llm_judge", "expected": "friendly", "threshold": 0.9}]
+                "semantic_assertions": [{"type": "llm_judge", "expected": "friendly", "threshold": 0.9}],
             },
-            {
-                "turns": [{"message": "Multi turn test"}]
-            }
+            {"turns": [{"message": "Multi turn test"}]},
         ]
         path = tmp_path / "mixed.json"
         path.write_text(json.dumps(data))

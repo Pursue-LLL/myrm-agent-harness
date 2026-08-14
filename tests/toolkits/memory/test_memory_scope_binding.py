@@ -38,9 +38,7 @@ async def test_add_knowledge_write_target():
     config = MemoryConfig(embedding_model="test", retrieval=RetrievalConfig())
     manager = MemoryManager(config, user_id="test_user", namespaces=["global", "agent:scifi"])
 
-    with patch(
-        "myrm_agent_harness.toolkits.memory.manager.MemoryManager.store", new_callable=AsyncMock
-    ) as mock_store:
+    with patch("myrm_agent_harness.toolkits.memory.manager.MemoryManager.store", new_callable=AsyncMock) as mock_store:
 
         async def mock_store_func(x, **kwargs):
             return x
@@ -61,9 +59,7 @@ async def test_add_event_write_target():
     config = MemoryConfig(embedding_model="test", retrieval=RetrievalConfig())
     manager = MemoryManager(config, user_id="test_user", namespaces=["global", "agent:scifi"])
 
-    with patch(
-        "myrm_agent_harness.toolkits.memory.manager.MemoryManager.store", new_callable=AsyncMock
-    ) as mock_store:
+    with patch("myrm_agent_harness.toolkits.memory.manager.MemoryManager.store", new_callable=AsyncMock) as mock_store:
 
         async def mock_store_func(x, **kwargs):
             return x
@@ -94,9 +90,7 @@ async def test_add_knowledge_respects_formal_write_policy():
         ),
     )
 
-    with patch(
-        "myrm_agent_harness.toolkits.memory.manager.MemoryManager.store", new_callable=AsyncMock
-    ) as mock_store:
+    with patch("myrm_agent_harness.toolkits.memory.manager.MemoryManager.store", new_callable=AsyncMock) as mock_store:
 
         async def mock_store_func(x, **kwargs):
             return x

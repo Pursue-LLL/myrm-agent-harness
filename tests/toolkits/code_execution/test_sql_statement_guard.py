@@ -284,6 +284,7 @@ class TestCoverageEdgeCases:
         from myrm_agent_harness.toolkits.code_execution.security.sql_statement_guard import (
             _find_destructive_keyword,
         )
+
         assert _find_destructive_keyword("  ;  ;  ") == "UNKNOWN"
 
     def test_empty_tokens_in_flag_args(self) -> None:
@@ -291,6 +292,7 @@ class TestCoverageEdgeCases:
         from myrm_agent_harness.toolkits.code_execution.security.sql_statement_guard import (
             _extract_sql_from_flag_args,
         )
+
         assert _extract_sql_from_flag_args("") == []
 
     def test_pipe_with_empty_last_segment(self) -> None:
@@ -298,6 +300,7 @@ class TestCoverageEdgeCases:
         from myrm_agent_harness.toolkits.code_execution.security.sql_statement_guard import (
             _extract_sql_from_pipe,
         )
+
         assert _extract_sql_from_pipe("echo 'DROP TABLE x' |   ") == []
 
     def test_pipe_to_non_db_client(self) -> None:
@@ -311,4 +314,5 @@ class TestCoverageEdgeCases:
         from myrm_agent_harness.toolkits.code_execution.security.sql_statement_guard import (
             _extract_sql_from_pipe,
         )
+
         assert _extract_sql_from_pipe("   | psql") == []

@@ -51,7 +51,9 @@ def _build_long_conversation(rounds: int = 12) -> list:
         msgs.append(
             AIMessage(
                 content="Running...",
-                tool_calls=[{"id": f"call_{i}", "name": "bash_code_execute_tool", "args": {"cmd": f"pytest test_{i}.py"}}],
+                tool_calls=[
+                    {"id": f"call_{i}", "name": "bash_code_execute_tool", "args": {"cmd": f"pytest test_{i}.py"}}
+                ],
             )
         )
         msgs.append(
@@ -128,12 +130,8 @@ async def test_compaction_resets_loop_guard_budget_full_chain():
 
     await middleware.awrap_model_call(request, handler)
 
-    assert guard._metrics.total_calls == 0, (
-        f"Expected total_calls=0 after compaction, got {guard._metrics.total_calls}"
-    )
-    assert "crash://db-timeout" in guard._error_signatures, (
-        "Error signatures must survive compaction"
-    )
+    assert guard._metrics.total_calls == 0, f"Expected total_calls=0 after compaction, got {guard._metrics.total_calls}"
+    assert "crash://db-timeout" in guard._error_signatures, "Error signatures must survive compaction"
     assert len(guard._window) == 0, "Window should be cleared after compaction"
     assert len(guard._output_history) == 0, "Output history should be cleared"
 
@@ -175,9 +173,7 @@ async def test_no_compaction_preserves_loop_guard_budget():
 
     await middleware.awrap_model_call(request, handler)
 
-    assert guard._metrics.total_calls == 20, (
-        f"Expected total_calls=20 (unchanged), got {guard._metrics.total_calls}"
-    )
+    assert guard._metrics.total_calls == 20, f"Expected total_calls=20 (unchanged), got {guard._metrics.total_calls}"
 
 
 @pytest.mark.asyncio
@@ -315,9 +311,7 @@ async def test_consecutive_compactions_reset_each_time():
             f"Cycle {cycle}: expected total_calls=0, got {guard._metrics.total_calls}"
         )
 
-    assert len(guard._error_signatures) == 3, (
-        "All error signatures from all cycles should be preserved"
-    )
+    assert len(guard._error_signatures) == 3, "All error signatures from all cycles should be preserved"
     for cycle in range(3):
         assert f"err_{cycle}" in guard._error_signatures
 
@@ -353,6 +347,4 @@ async def test_compaction_preserves_agent_phase():
     await middleware.awrap_model_call(request, handler)
 
     assert guard._metrics.total_calls == 0
-    assert guard._current_phase == AgentPhase.EXECUTION, (
-        "Agent phase must survive compaction"
-    )
+    assert guard._current_phase == AgentPhase.EXECUTION, "Agent phase must survive compaction"

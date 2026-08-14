@@ -519,4 +519,3 @@ async def test_wiki_query_includes_recent_activity_log(wiki_structure: WikiStruc
     result = await engine.query("What is transformer?")
     assert "Recent activity log" in result.answer
     assert "Compiled arxiv transformer survey" in result.answer
-

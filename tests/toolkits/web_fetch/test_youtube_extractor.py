@@ -46,10 +46,7 @@ class TestIsYoutubeUrl:
         assert is_youtube_url("http://youtube.com/watch?v=dQw4w9WgXcQ") is True
 
     def test_query_param_order(self) -> None:
-        assert (
-            is_youtube_url("https://www.youtube.com/watch?feature=share&v=dQw4w9WgXcQ")
-            is True
-        )
+        assert is_youtube_url("https://www.youtube.com/watch?feature=share&v=dQw4w9WgXcQ") is True
 
     def test_reject_notyoutube(self) -> None:
         assert is_youtube_url("https://notyoutube.com/watch?v=dQw4w9WgXcQ") is False
@@ -58,9 +55,7 @@ class TestIsYoutubeUrl:
         assert is_youtube_url("https://fakeyoutube.com/watch?v=dQw4w9WgXcQ") is False
 
     def test_reject_evil_subdomain(self) -> None:
-        assert (
-            is_youtube_url("https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ") is False
-        )
+        assert is_youtube_url("https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ") is False
 
     def test_reject_no_protocol(self) -> None:
         assert is_youtube_url("youtube.com/watch?v=dQw4w9WgXcQ") is False
@@ -74,18 +69,13 @@ class TestIsYoutubeUrl:
 
 class TestExtractVideoId:
     def test_standard(self) -> None:
-        assert (
-            _extract_video_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
-            == "dQw4w9WgXcQ"
-        )
+        assert _extract_video_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ") == "dQw4w9WgXcQ"
 
     def test_short_url(self) -> None:
         assert _extract_video_id("https://youtu.be/dQw4w9WgXcQ") == "dQw4w9WgXcQ"
 
     def test_shorts(self) -> None:
-        assert (
-            _extract_video_id("https://youtube.com/shorts/abc123XYZ00") == "abc123XYZ00"
-        )
+        assert _extract_video_id("https://youtube.com/shorts/abc123XYZ00") == "abc123XYZ00"
 
     def test_invalid_url(self) -> None:
         assert _extract_video_id("https://example.com") is None
@@ -94,28 +84,16 @@ class TestExtractVideoId:
         assert _extract_video_id("https://youtube.com/watch?v=short") is None
 
     def test_extra_query_params(self) -> None:
-        assert (
-            _extract_video_id("https://youtube.com/watch?v=dQw4w9WgXcQ&t=120")
-            == "dQw4w9WgXcQ"
-        )
+        assert _extract_video_id("https://youtube.com/watch?v=dQw4w9WgXcQ&t=120") == "dQw4w9WgXcQ"
 
     def test_embed_url(self) -> None:
-        assert (
-            _extract_video_id("https://www.youtube.com/embed/dQw4w9WgXcQ")
-            == "dQw4w9WgXcQ"
-        )
+        assert _extract_video_id("https://www.youtube.com/embed/dQw4w9WgXcQ") == "dQw4w9WgXcQ"
 
     def test_live_url(self) -> None:
-        assert (
-            _extract_video_id("https://www.youtube.com/live/dQw4w9WgXcQ")
-            == "dQw4w9WgXcQ"
-        )
+        assert _extract_video_id("https://www.youtube.com/live/dQw4w9WgXcQ") == "dQw4w9WgXcQ"
 
     def test_id_with_dashes_and_underscores(self) -> None:
-        assert (
-            _extract_video_id("https://youtube.com/watch?v=A-b_C1d2E3f")
-            == "A-b_C1d2E3f"
-        )
+        assert _extract_video_id("https://youtube.com/watch?v=A-b_C1d2E3f") == "A-b_C1d2E3f"
 
 
 class TestFormatTimestamp:
@@ -156,9 +134,7 @@ class TestExtractYoutubeTranscript:
             patch.dict("sys.modules", {"youtube_transcript_api": None}),
             patch("builtins.__import__", side_effect=ImportError("no module")),
         ):
-            result = await extract_youtube_transcript(
-                "https://youtube.com/watch?v=dQw4w9WgXcQ"
-            )
+            result = await extract_youtube_transcript("https://youtube.com/watch?v=dQw4w9WgXcQ")
             assert result is None
 
     @pytest.mark.asyncio
@@ -193,9 +169,7 @@ class TestExtractYoutubeTranscript:
                     return_value={},
                 ),
             ):
-                result = await yt_mod.extract_youtube_transcript(
-                    "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                )
+                result = await yt_mod.extract_youtube_transcript("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
 
         assert result is not None
         assert "Hello world" in result.page_content
@@ -257,9 +231,7 @@ class TestExtractYoutubeTranscript:
     async def test_transcript_disabled_returns_none(self) -> None:
         mock_api_class = MagicMock()
         mock_api_instance = MagicMock()
-        mock_api_instance.fetch = MagicMock(
-            side_effect=Exception("Subtitles are disabled")
-        )
+        mock_api_instance.fetch = MagicMock(side_effect=Exception("Subtitles are disabled"))
         mock_api_class.return_value = mock_api_instance
 
         mock_module = MagicMock()
@@ -272,12 +244,8 @@ class TestExtractYoutubeTranscript:
 
             importlib.reload(yt_mod)
 
-            with patch(
-                "asyncio.to_thread", side_effect=Exception("Subtitles are disabled")
-            ):
-                result = await yt_mod.extract_youtube_transcript(
-                    "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                )
+            with patch("asyncio.to_thread", side_effect=Exception("Subtitles are disabled")):
+                result = await yt_mod.extract_youtube_transcript("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
                 assert result is None
 
     @pytest.mark.asyncio
@@ -291,9 +259,7 @@ class TestExtractYoutubeTranscript:
             import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
 
             importlib.reload(yt_mod)
-            result = await yt_mod.extract_youtube_transcript(
-                "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-            )
+            result = await yt_mod.extract_youtube_transcript("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
             assert result is None
 
     @pytest.mark.asyncio
@@ -308,9 +274,7 @@ class TestExtractYoutubeTranscript:
             import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
 
             importlib.reload(yt_mod)
-            result = await yt_mod.extract_youtube_transcript(
-                "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-            )
+            result = await yt_mod.extract_youtube_transcript("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
             assert result is None
 
     @pytest.mark.asyncio
@@ -380,9 +344,7 @@ class TestOembedMetadata:
 
         opener = MagicMock()
         resp = MagicMock()
-        resp.read.return_value = (
-            b'{"title": "My Title", "author_name": "Alice", "unused": "x"}'
-        )
+        resp.read.return_value = b'{"title": "My Title", "author_name": "Alice", "unused": "x"}'
         opener.open.return_value.__enter__.return_value = resp
 
         with (
@@ -401,9 +363,7 @@ class TestOembedMetadata:
         resp = MagicMock()
         resp.read.return_value = b'{"thumbnail_url": "https://i.ytimg.com/x.jpg"}'
         opener.open.return_value.__enter__.return_value = resp
-        proxy = SimpleNamespace(
-            get_next=lambda: SimpleNamespace(to_url=lambda: "http://127.0.0.1:8888")
-        )
+        proxy = SimpleNamespace(get_next=lambda: SimpleNamespace(to_url=lambda: "http://127.0.0.1:8888"))
 
         with (
             patch("asyncio.to_thread", side_effect=lambda fn, *a, **k: fn(*a, **k)),
@@ -420,13 +380,9 @@ class TestOembedMetadata:
         with (
             patch(
                 "asyncio.to_thread",
-                side_effect=lambda fn, *a, **k: (_ for _ in ()).throw(
-                    OSError("network")
-                ),
+                side_effect=lambda fn, *a, **k: (_ for _ in ()).throw(OSError("network")),
             ),
-            patch.object(
-                yt_mod.urllib.request, "build_opener", side_effect=OSError("network")
-            ),
+            patch.object(yt_mod.urllib.request, "build_opener", side_effect=OSError("network")),
         ):
             meta = await yt_mod._fetch_oembed_metadata("dQw4w9WgXcQ")
 
@@ -464,9 +420,7 @@ class TestOembedMetadata:
                     },
                 ),
             ):
-                result = await yt_mod.extract_youtube_transcript(
-                    "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                )
+                result = await yt_mod.extract_youtube_transcript("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
 
         assert result is not None
         assert result.metadata["title"] == "My Title"

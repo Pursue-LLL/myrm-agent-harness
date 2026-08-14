@@ -116,12 +116,8 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
             return
         self._running = True
         await self._rescue_orphaned_tasks()
-        self._dispatch_task = asyncio.create_task(
-            self._dispatch_loop(), name="kanban-dispatch"
-        )
-        self._zombie_task = asyncio.create_task(
-            self._zombie_loop(), name="kanban-zombie"
-        )
+        self._dispatch_task = asyncio.create_task(self._dispatch_loop(), name="kanban-dispatch")
+        self._zombie_task = asyncio.create_task(self._zombie_loop(), name="kanban-zombie")
         logger.info(
             "Kanban dispatcher started for board=%s worker=%s",
             self._board.board_id,
@@ -175,8 +171,7 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
         """
         if board.board_id != self._board.board_id:
             raise ValueError(
-                "refresh_board board id mismatch: expected "
-                f"{self._board.board_id!r}, got {board.board_id!r}"
+                f"refresh_board board id mismatch: expected {self._board.board_id!r}, got {board.board_id!r}"
             )
         self._board = board
         self.wake()
@@ -339,19 +334,13 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
                 # claim are not lost — the next wait() returns immediately.
                 self._wake_event.clear()
 
-                running_count = len(
-                    await self._store.list_running_tasks(self._board.board_id)
-                )
+                running_count = len(await self._store.list_running_tasks(self._board.board_id))
                 available_slots = settings.max_concurrent_tasks - running_count
 
                 if available_slots > 0:
-                    ready_tasks = await self._store.list_ready_tasks(
-                        self._board.board_id
-                    )
+                    ready_tasks = await self._store.list_ready_tasks(self._board.board_id)
                     for task in ready_tasks[:available_slots]:
-                        claimed = await self._store.claim_task(
-                            task.task_id, self._worker_id
-                        )
+                        claimed = await self._store.claim_task(task.task_id, self._worker_id)
                         if claimed:
                             t = asyncio.create_task(
                                 self._execute_task(task.task_id),

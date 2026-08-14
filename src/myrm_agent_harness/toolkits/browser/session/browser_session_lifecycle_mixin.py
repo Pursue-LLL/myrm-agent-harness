@@ -275,6 +275,7 @@ class BrowserSessionLifecycleMixin:
                     _fire_and_forget(hook.on_session_saved(domain, cookie_count, ls_count))
             except Exception as exc:
                 logger.warning("Auto-save failed for %s: %s", domain, exc)
+
     async def _initialize_components(self) -> None:
         """Initialize components (Navigator integration rate-limiting, circuit breaker and smart wait)."""
         page = self._tab_controller.get_active_page()
@@ -294,7 +295,9 @@ class BrowserSessionLifecycleMixin:
         self._snapshot_manager = SnapshotManager(page)
 
         last_snapshot_url = self._tab_controller.get_snapshot_url(tab_id)
-        self._interactor = Interactor(page, {}, last_snapshot_url=last_snapshot_url, humanize=self._browser_pool.config.humanize)
+        self._interactor = Interactor(
+            page, {}, last_snapshot_url=last_snapshot_url, humanize=self._browser_pool.config.humanize
+        )
         self._extractor = Extractor(page)
 
         if not self._auto_restored and self._auto_restore_domains and self._persistence:

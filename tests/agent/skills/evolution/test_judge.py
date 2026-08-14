@@ -10,12 +10,14 @@ from myrm_agent_harness.agent.skills.evolution.safety.judge import EvolutionJudg
 def mock_llm():
     return AsyncMock()
 
+
 @pytest.mark.asyncio
 async def test_evaluate_no_llm():
     judge = EvolutionJudge(judge_llm=None)
     result = await judge.evaluate("old", "new", "error")
     assert result.confidence == 0.5
     assert "No judge LLM configured" in result.reason
+
 
 @pytest.mark.asyncio
 async def test_evaluate_success(mock_llm):
@@ -38,6 +40,7 @@ async def test_evaluate_success(mock_llm):
     assert "old code" in call_args[0].content
     assert "new code" in call_args[0].content
 
+
 @pytest.mark.asyncio
 async def test_evaluate_exception(mock_llm):
     mock_llm.ainvoke.side_effect = Exception("API Error")
@@ -49,12 +52,14 @@ async def test_evaluate_exception(mock_llm):
     assert "LLM judge evaluation failed" in result.reason
     assert "API Error" in result.reason
 
+
 def test_parse_llm_response_float():
     judge = EvolutionJudge()
     content = "Confidence: 0.85\nReason: nice."
     conf, reason = judge._parse_llm_response(content)
     assert conf == 0.85
     assert reason == content
+
 
 def test_parse_llm_response_percentage():
     judge = EvolutionJudge()
@@ -63,19 +68,22 @@ def test_parse_llm_response_percentage():
     assert conf == 0.9
     assert reason == content
 
+
 def test_parse_llm_response_no_match():
     judge = EvolutionJudge()
     content = "I think it is a good fix, probably."
     conf, reason = judge._parse_llm_response(content)
-    assert conf == 0.5 # default
+    assert conf == 0.5  # default
     assert reason == content
+
 
 def test_parse_llm_response_invalid_value():
     judge = EvolutionJudge()
     content = "Confidence: high\nReason: nice."
     conf, reason = judge._parse_llm_response(content)
-    assert conf == 0.5 # default
+    assert conf == 0.5  # default
     assert reason == content
+
 
 def test_parse_llm_response_clamp_max():
     judge = EvolutionJudge()
@@ -85,6 +93,7 @@ def test_parse_llm_response_clamp_max():
     assert conf == 0.015
     assert reason == content
 
+
 def test_parse_llm_response_clamp_max_real():
     judge = EvolutionJudge()
     # what if someone says 105%?
@@ -93,6 +102,7 @@ def test_parse_llm_response_clamp_max_real():
     # 105 / 100 = 1.05. Clamp max 1.0 -> 1.0
     assert conf == 1.0
     assert reason == content
+
 
 def test_parse_llm_response_clamp_min():
     judge = EvolutionJudge()

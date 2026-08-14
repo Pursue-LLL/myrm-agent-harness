@@ -59,11 +59,7 @@ class SkillEvaluationRubric(BaseModel):
     @property
     def total_score(self) -> float:
         """Calculate weighted total score."""
-        return (
-            (self.accuracy_score * 0.5)
-            + (self.anti_fragmentation_score * 0.3)
-            + (self.redundancy_score * 0.2)
-        )
+        return (self.accuracy_score * 0.5) + (self.anti_fragmentation_score * 0.3) + (self.redundancy_score * 0.2)
 
 
 class BatchEvaluator:
@@ -91,9 +87,7 @@ class BatchEvaluator:
             A tuple of (best_variant_content, score, reasoning_for_score, is_general).
         """
         if not self._llm or not variants:
-            logger.warning(
-                "No LLM or variants for evaluation. Returning first variant."
-            )
+            logger.warning("No LLM or variants for evaluation. Returning first variant.")
             return (
                 variants[0] if variants else original_skill.content,
                 1.0,
@@ -117,14 +111,10 @@ class BatchEvaluator:
             if length_ratio > 1.2:
                 length_penalty = min(0.4, (length_ratio - 1.2) * 0.5)  # Max penalty 40%
 
-            prompt = self._build_evaluation_prompt(
-                scoring_content, feedback, trajectory
-            )
+            prompt = self._build_evaluation_prompt(scoring_content, feedback, trajectory)
             try:
                 if self._llm is not None and hasattr(self._llm, "with_structured_output"):
-                    structured_llm = self._llm.with_structured_output(
-                        SkillEvaluationRubric
-                    )
+                    structured_llm = self._llm.with_structured_output(SkillEvaluationRubric)
                     rubric_raw = await structured_llm.ainvoke(prompt)
                     if isinstance(rubric_raw, SkillEvaluationRubric):
                         rubric: SkillEvaluationRubric = rubric_raw
@@ -231,9 +221,7 @@ class BatchEvaluator:
 
         return variants[best_idx], best_score, results[best_idx][1], True
 
-    def _build_evaluation_prompt(
-        self, candidate: str, feedback: str, trajectory: str
-    ) -> str:
+    def _build_evaluation_prompt(self, candidate: str, feedback: str, trajectory: str) -> str:
         """Construct the LLM-as-judge evaluation prompt."""
         return f"""You are evaluating an evolved skill patch using a strict Class-First Rubric.
 

@@ -24,15 +24,13 @@ def tmp_py(tmp_path: Path) -> Path:
         "from pathlib import Path\n"
         "import importlib\n"
         "m = importlib.import_module('json')\n"
-        "exec(\"import math\")\n",
+        'exec("import math")\n',
         encoding="utf-8",
     )
     return f
 
 
-def test_get_changed_harness_files_git_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_get_changed_harness_files_git_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """git unavailable returns None so callers fall back to a full scan."""
     from scripts.boundary_engine import get_changed_harness_files
 
@@ -43,9 +41,7 @@ def test_get_changed_harness_files_git_error(
     assert get_changed_harness_files(tmp_path) is None
 
 
-def test_get_changed_harness_files_git_returns_changed(
-    monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_get_changed_harness_files_git_returns_changed(monkeypatch: pytest.MonkeyPatch) -> None:
     """Changed harness .py files are returned; non-py files are filtered out."""
     from scripts.boundary_engine import _repo_root, get_changed_harness_files
 
@@ -80,9 +76,7 @@ def test_collect_imports_static_and_dynamic(tmp_py: Path) -> None:
     assert "math" in modules  # exec("import math")
 
 
-def test_collect_imports_missing_file(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_collect_imports_missing_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """Missing file yields an empty list and a warning."""
     from scripts.boundary_engine import collect_imports
 
@@ -91,9 +85,7 @@ def test_collect_imports_missing_file(
     assert "File not found" in capsys.readouterr().err
 
 
-def test_collect_imports_syntax_error(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_collect_imports_syntax_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """Syntax errors are handled gracefully."""
     from scripts.boundary_engine import collect_imports
 
@@ -164,9 +156,7 @@ def test_fix_violations_missing_file(tmp_path: Path) -> None:
     assert fix_violations(tmp_path / "ghost.py", [(1, "x")]) == (0, [])
 
 
-def test_fix_violations_write_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_fix_violations_write_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Write failures return zero fixes without raising."""
     from scripts.boundary_engine import fix_violations
 
@@ -180,9 +170,7 @@ def test_fix_violations_write_error(
     assert fix_violations(f, [(1, "os")]) == (0, [])
 
 
-def test_collect_imports_encoding_error(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_collect_imports_encoding_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """Unicode decode errors are handled without raising."""
     from scripts.boundary_engine import collect_imports
 
@@ -275,9 +263,7 @@ def test_check_file_fix_mode(tmp_path: Path) -> None:
     assert "# BOUNDARY-VIOLATION" in f.read_text(encoding="utf-8")
 
 
-def test_get_changed_harness_files_git_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_get_changed_harness_files_git_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A non-zero git return code returns None (caller falls back to full scan)."""
     from scripts.boundary_engine import get_changed_harness_files
 

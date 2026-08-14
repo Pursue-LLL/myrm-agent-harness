@@ -517,9 +517,7 @@ class PersistentSession(ABC):
         if not self.process or self.process.pid is None:
             return
         with contextlib.suppress(asyncio.CancelledError):
-            await asyncio.shield(
-                _kill_process_tree(self.process, self._platform.is_windows, grace_period)
-            )
+            await asyncio.shield(_kill_process_tree(self.process, self._platform.is_windows, grace_period))
 
     async def close(self) -> None:
         async with self._lock:

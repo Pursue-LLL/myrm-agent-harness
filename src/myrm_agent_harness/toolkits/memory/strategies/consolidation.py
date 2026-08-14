@@ -260,9 +260,7 @@ async def _execute_operations(
                     continue
 
                 should_route = (
-                    on_conflict is not None
-                    and op.importance >= importance_thr
-                    and op.accuracy_score < confidence_thr
+                    on_conflict is not None and op.importance >= importance_thr and op.accuracy_score < confidence_thr
                 )
 
                 if should_route:
@@ -420,7 +418,9 @@ async def run_consolidation(
             else:
                 logger.info(
                     "Consolidation op %s rejected by Rubric (Score: %.2f). Reason: %s",
-                    op.action, total_score, op.reasoning,
+                    op.action,
+                    total_score,
+                    op.reasoning,
                 )
 
         parsed = ConsolidationResponse(operations=valid_ops, insights=response.insights)

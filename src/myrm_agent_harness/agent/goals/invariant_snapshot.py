@@ -110,13 +110,19 @@ def verify_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
     for path, original_hash in original_snapshot.items():
         current_hash = current_snapshot.get(path)
         if current_hash is None:
-            violations.append(ProtectedFileViolation(path=path, pattern=_find_matching_pattern(path, patterns), kind="deleted"))
+            violations.append(
+                ProtectedFileViolation(path=path, pattern=_find_matching_pattern(path, patterns), kind="deleted")
+            )
         elif current_hash != original_hash:
-            violations.append(ProtectedFileViolation(path=path, pattern=_find_matching_pattern(path, patterns), kind="modified"))
+            violations.append(
+                ProtectedFileViolation(path=path, pattern=_find_matching_pattern(path, patterns), kind="modified")
+            )
 
     for path in current_snapshot:
         if path not in original_snapshot:
-            violations.append(ProtectedFileViolation(path=path, pattern=_find_matching_pattern(path, patterns), kind="created"))
+            violations.append(
+                ProtectedFileViolation(path=path, pattern=_find_matching_pattern(path, patterns), kind="created")
+            )
 
     if violations:
         logger.warning(

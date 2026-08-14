@@ -235,10 +235,13 @@ class TestAttemptMixinPartialOutput:
 
         child_agent.run = mock_run
 
-        with patch(
-            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
-            return_value=child_agent,
-        ), pytest.raises(asyncio.CancelledError):
+        with (
+            patch(
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+                return_value=child_agent,
+            ),
+            pytest.raises(asyncio.CancelledError),
+        ):
             await executor._run_single_attempt(
                 task_id="cancel",
                 agent_type="worker",
@@ -275,11 +278,12 @@ class TestRetryMixinPartialProgress:
 
         fire_hook_mock = AsyncMock()
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            fire_hook_mock,
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                fire_hook_mock,
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="llm-fail",
@@ -311,11 +315,12 @@ class TestRetryMixinPartialProgress:
 
         fire_hook_mock = AsyncMock()
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            fire_hook_mock,
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                fire_hook_mock,
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="budget-fail",
@@ -346,11 +351,12 @@ class TestRetryMixinPartialProgress:
 
         fire_hook_mock = AsyncMock()
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            fire_hook_mock,
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                fire_hook_mock,
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="runtime-fail",
@@ -373,19 +379,18 @@ class TestRetryMixinPartialProgress:
         fire_hook_mock.assert_called()
 
     @pytest.mark.asyncio
-    async def test_partial_output_truncation(
-        self, executor: SubagentExecutor, config: SubagentConfig
-    ) -> None:
+    async def test_partial_output_truncation(self, executor: SubagentExecutor, config: SubagentConfig) -> None:
         """Partial output exceeding max_error_chars*2 is truncated."""
         long_partial = "x" * 500  # config.max_error_chars=100, threshold=200
         exc = MyrmLLMError(error_code=FailoverReason.UNKNOWN, default_msg="err")
         exc.partial_output = long_partial  # type: ignore[attr-defined]
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            AsyncMock(),
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                AsyncMock(),
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="trunc",
@@ -407,18 +412,17 @@ class TestRetryMixinPartialProgress:
         assert result.result.startswith("x" * 200)
 
     @pytest.mark.asyncio
-    async def test_empty_partial_output_not_truncated(
-        self, executor: SubagentExecutor, config: SubagentConfig
-    ) -> None:
+    async def test_empty_partial_output_not_truncated(self, executor: SubagentExecutor, config: SubagentConfig) -> None:
         """Empty partial output remains empty (no truncation marker)."""
         exc = SubagentBudgetExceededError("budget")
         exc.partial_output = ""  # type: ignore[attr-defined]
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            AsyncMock(),
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                AsyncMock(),
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="empty",
@@ -444,11 +448,12 @@ class TestRetryMixinPartialProgress:
         exc = SubagentBudgetExceededError("budget exceeded")
         # deliberately do NOT set exc.partial_output
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            AsyncMock(),
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                AsyncMock(),
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="no-attr",
@@ -476,11 +481,12 @@ class TestRetryMixinPartialProgress:
 
         fire_hook_mock = AsyncMock()
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            fire_hook_mock,
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                fire_hook_mock,
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="hook-test",
@@ -498,29 +504,25 @@ class TestRetryMixinPartialProgress:
 
         assert result.success is False
         hook_calls = fire_hook_mock.call_args_list
-        stop_calls = [
-            c for c in hook_calls
-            if len(c.args) >= 1 and "stop" in str(c.args[0]).lower()
-        ]
+        stop_calls = [c for c in hook_calls if len(c.args) >= 1 and "stop" in str(c.args[0]).lower()]
         assert len(stop_calls) >= 1
         stop_payload = stop_calls[-1].args[1]
         assert stop_payload["task_id"] == "hook-test"
         assert stop_payload["success"] is False
 
     @pytest.mark.asyncio
-    async def test_budget_exceeded_truncation(
-        self, executor: SubagentExecutor, config: SubagentConfig
-    ) -> None:
+    async def test_budget_exceeded_truncation(self, executor: SubagentExecutor, config: SubagentConfig) -> None:
         """SubagentBudgetExceededError with oversized partial → truncated."""
         long_partial = "B" * 300
         exc = SubagentBudgetExceededError("over budget")
         exc.partial_output = long_partial  # type: ignore[attr-defined]
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            AsyncMock(),
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                AsyncMock(),
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="budget-trunc",
@@ -570,11 +572,12 @@ class TestRetryPartialOutputBehavior:
             exc.partial_output = f"attempt-{call_count['n']}-partial"  # type: ignore[attr-defined]
             raise exc
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=side_effect
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            AsyncMock(),
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=side_effect),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                AsyncMock(),
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="retry-last",
@@ -625,11 +628,12 @@ class TestRetryPartialOutputBehavior:
                 status=SubAgentStatus.COMPLETED,
             )
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=side_effect
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            AsyncMock(),
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=side_effect),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                AsyncMock(),
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="retry-ok",
@@ -650,18 +654,17 @@ class TestRetryPartialOutputBehavior:
         assert "partial" not in result.result
 
     @pytest.mark.asyncio
-    async def test_timeout_error_returns_partial(
-        self, executor: SubagentExecutor, config: SubagentConfig
-    ) -> None:
+    async def test_timeout_error_returns_partial(self, executor: SubagentExecutor, config: SubagentConfig) -> None:
         """TimeoutError with partial_output → SubAgentResult includes partial."""
         exc = TimeoutError("request timed out")
         exc.partial_output = "timeout-partial-data"  # type: ignore[attr-defined]
 
-        with patch.object(
-            executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc
-        ), patch(
-            "myrm_agent_harness.agent.hooks.executor.fire_hook",
-            AsyncMock(),
+        with (
+            patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, side_effect=exc),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                AsyncMock(),
+            ),
         ):
             result = await executor.run_with_retry(
                 task_id="timeout",
@@ -730,9 +733,7 @@ class TestAttemptMixinEdgeCases:
             assert "{'key': 'val'}" in exc_info.value.partial_output
 
     @pytest.mark.asyncio
-    async def test_context_restored_after_exception(
-        self, executor: SubagentExecutor, config: SubagentConfig
-    ) -> None:
+    async def test_context_restored_after_exception(self, executor: SubagentExecutor, config: SubagentConfig) -> None:
         """After exception, is_subagent context is restored to False."""
         from myrm_agent_harness.agent.middlewares._session_context import get_is_subagent
 
@@ -748,10 +749,13 @@ class TestAttemptMixinEdgeCases:
 
         child_agent.run = mock_run
 
-        with patch(
-            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
-            return_value=child_agent,
-        ), pytest.raises(ValueError):
+        with (
+            patch(
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+                return_value=child_agent,
+            ),
+            pytest.raises(ValueError),
+        ):
             await executor._run_single_attempt(
                 task_id="ctx-test",
                 agent_type="worker",

@@ -33,6 +33,7 @@ try:
 except (ImportError, TypeError):
     Image = None  # type: ignore[assignment]
 
+
 def _dhash(image_bytes: bytes) -> int:
     """Compute dHash (Difference Hash) from image bytes.
 

@@ -70,9 +70,7 @@ class TestApplyApprovalDecisionsShellEdit:
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "edit", "args": {"command": "npm install lodash"}}]
 
-        revised, messages, guidance = await apply_approval_decisions(
-            decisions, ai_msg, [], pending, [0], {}
-        )
+        revised, messages, guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert len(revised) == 1
         assert not messages
         assert not guidance
@@ -88,9 +86,7 @@ class TestApprovalGuidanceInjection:
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "approve", "guidance": "Use the production API, not staging"}]
 
-        revised, messages, guidance = await apply_approval_decisions(
-            decisions, ai_msg, [], pending, [0], {}
-        )
+        revised, messages, guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert len(revised) == 1
         assert not messages
         assert len(guidance) == 1
@@ -104,9 +100,7 @@ class TestApprovalGuidanceInjection:
         pending = [(0, tc, "shell_exec", "dangerous", None)]
         decisions = [{"type": "reject", "feedback": "Too risky", "guidance": "Try a safer command instead"}]
 
-        revised, messages, guidance = await apply_approval_decisions(
-            decisions, ai_msg, [], pending, [0], {}
-        )
+        revised, messages, guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert len(revised) == 0
         assert len(messages) == 1
         assert len(guidance) == 1
@@ -119,9 +113,7 @@ class TestApprovalGuidanceInjection:
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "approve", "guidance": ""}]
 
-        _, _, guidance = await apply_approval_decisions(
-            decisions, ai_msg, [], pending, [0], {}
-        )
+        _, _, guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert not guidance
 
     @pytest.mark.asyncio
@@ -131,9 +123,7 @@ class TestApprovalGuidanceInjection:
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "approve"}]
 
-        _, _, guidance = await apply_approval_decisions(
-            decisions, ai_msg, [], pending, [0], {}
-        )
+        _, _, guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert not guidance
 
     @pytest.mark.asyncio
@@ -143,9 +133,7 @@ class TestApprovalGuidanceInjection:
         pending = [(0, tc, "shell_exec", "needs approval", None)]
         decisions = [{"type": "approve", "guidance": 123}]
 
-        _, _, guidance = await apply_approval_decisions(
-            decisions, ai_msg, [], pending, [0], {}
-        )
+        _, _, guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0], {})
         assert not guidance
 
     @pytest.mark.asyncio
@@ -162,9 +150,7 @@ class TestApprovalGuidanceInjection:
             {"type": "approve", "guidance": "Second guidance"},
         ]
 
-        _, _, guidance = await apply_approval_decisions(
-            decisions, ai_msg, [], pending, [0, 1], {}
-        )
+        _, _, guidance = await apply_approval_decisions(decisions, ai_msg, [], pending, [0, 1], {})
         assert len(guidance) == 2
         assert "First guidance" in guidance[0].content
         assert "Second guidance" in guidance[1].content

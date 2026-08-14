@@ -130,9 +130,7 @@ class TestDailyBudgetGuard:
         assert guard.check_budget() == BudgetStatus.OK
 
     def test_initial_cost_already_warning(self) -> None:
-        guard = DailyBudgetGuard(
-            daily_budget_usd=10.0, warning_threshold=0.8, initial_cost=8.5
-        )
+        guard = DailyBudgetGuard(daily_budget_usd=10.0, warning_threshold=0.8, initial_cost=8.5)
         assert guard.check_budget() == BudgetStatus.WARNING
 
     def test_initial_cost_already_exceeded(self) -> None:
@@ -141,8 +139,6 @@ class TestDailyBudgetGuard:
         assert guard.get_remaining_budget() == 0.0
 
     def test_initial_cost_plus_record(self) -> None:
-        guard = DailyBudgetGuard(
-            daily_budget_usd=10.0, warning_threshold=0.8, initial_cost=7.0
-        )
+        guard = DailyBudgetGuard(daily_budget_usd=10.0, warning_threshold=0.8, initial_cost=7.0)
         assert guard.record_cost(1.5) == BudgetStatus.WARNING
         assert guard.today_cost == pytest.approx(8.5)

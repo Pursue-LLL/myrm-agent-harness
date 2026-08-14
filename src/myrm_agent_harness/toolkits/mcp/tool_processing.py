@@ -85,9 +85,7 @@ def apply_tool_filter(
     """
     if not tool_include and not tool_exclude:
         return tools
-    filtered = [
-        t for t in tools if should_register_mcp_tool(t.name, tool_include, tool_exclude)
-    ]
+    filtered = [t for t in tools if should_register_mcp_tool(t.name, tool_include, tool_exclude)]
     removed = len(tools) - len(filtered)
     if removed:
         logger.info(
@@ -136,11 +134,7 @@ def sanitize_tools(tools: list[BaseTool]) -> None:
         # restore map already stored on ``metadata`` — otherwise the fresh
         # wrapper would silently drop wire-name restoration.
         meta = getattr(tool, "metadata", {}) or {}
-        restore_map = (
-            meta.get("_key_restore_map", {})
-            if isinstance(meta.get("_key_restore_map"), dict)
-            else {}
-        )
+        restore_map = meta.get("_key_restore_map", {}) if isinstance(meta.get("_key_restore_map"), dict) else {}
 
         if hasattr(tool, "args_schema") and isinstance(tool.args_schema, dict):
             # Step 1: Resolve $ref pointers
@@ -168,8 +162,7 @@ def sanitize_tools(tools: list[BaseTool]) -> None:
                 if isinstance(raw_schema, dict)
                 else (
                     getattr(raw_schema, "model_json_schema", lambda: {})()
-                    if raw_schema is not None
-                    and hasattr(raw_schema, "model_json_schema")
+                    if raw_schema is not None and hasattr(raw_schema, "model_json_schema")
                     else {}
                 )
             )
@@ -194,9 +187,7 @@ def sanitize_tools(tools: list[BaseTool]) -> None:
             tool.coroutine = _coercion_wrapper
 
 
-def register_tool_annotations(
-    tools: list[BaseTool], server_name: str, host_serial: bool = False
-) -> None:
+def register_tool_annotations(tools: list[BaseTool], server_name: str, host_serial: bool = False) -> None:
     """Extract and register MCP native annotations into PTC safety registry."""
     skill_name = server_name.replace("-", "_").lower()
     if not skill_name.startswith("mcp_"):
@@ -269,9 +260,7 @@ def _is_mcp_auth_error(exc: Exception) -> bool:
         pass
     if not status_error_types:
         return False
-    return (
-        isinstance(exc, tuple(status_error_types)) and exc.response.status_code == 401
-    )
+    return isinstance(exc, tuple(status_error_types)) and exc.response.status_code == 401
 
 
 def _emit_auth_expired_for_tool(server_name: str, error_detail: str) -> None:
@@ -336,12 +325,8 @@ def wrap_tools_with_timeout(
                         # bypass max_output_chars by pairing a huge text
                         # block with a legitimate image.  Truncating before
                         # wrapping keeps the UNTRUSTED_DATA markers intact.
-                        normalized = truncate_multimodal_text_blocks(
-                            normalized, _name, _max_chars, _handler
-                        )
-                        normalized = wrap_multimodal_text_blocks(
-                            normalized, source=f"mcp:{_name}"
-                        )
+                        normalized = truncate_multimodal_text_blocks(normalized, _name, _max_chars, _handler)
+                        normalized = wrap_multimodal_text_blocks(normalized, source=f"mcp:{_name}")
             except TimeoutError:
                 error_msg = f"MCP tool '{_name}' timed out after {_timeout}s. Server may be slow or unresponsive."
                 logger.error(error_msg)

@@ -22,31 +22,13 @@ from myrm_agent_harness.backends.skills.types_enums import SkillPermission
 def test_standard_permission_types_resolve_to_enum() -> None:
     """Every direct permission name must map to a SkillPermission."""
     assert map_permission_to_skill_permission("file_read") == SkillPermission.FILE_READ
-    assert (
-        map_permission_to_skill_permission("file_write") == SkillPermission.FILE_WRITE
-    )
-    assert (
-        map_permission_to_skill_permission("file_delete") == SkillPermission.FILE_DELETE
-    )
-    assert (
-        map_permission_to_skill_permission("shell_exec") == SkillPermission.SHELL_EXEC
-    )
-    assert (
-        map_permission_to_skill_permission("code_interpreter")
-        == SkillPermission.CODE_INTERPRETER
-    )
-    assert (
-        map_permission_to_skill_permission("network_access")
-        == SkillPermission.NETWORK_ACCESS
-    )
-    assert (
-        map_permission_to_skill_permission("web_fetch")
-        == SkillPermission.NETWORK_ACCESS
-    )
-    assert (
-        map_permission_to_skill_permission("env_var_access")
-        == SkillPermission.ENV_VAR_ACCESS
-    )
+    assert map_permission_to_skill_permission("file_write") == SkillPermission.FILE_WRITE
+    assert map_permission_to_skill_permission("file_delete") == SkillPermission.FILE_DELETE
+    assert map_permission_to_skill_permission("shell_exec") == SkillPermission.SHELL_EXEC
+    assert map_permission_to_skill_permission("code_interpreter") == SkillPermission.CODE_INTERPRETER
+    assert map_permission_to_skill_permission("network_access") == SkillPermission.NETWORK_ACCESS
+    assert map_permission_to_skill_permission("web_fetch") == SkillPermission.NETWORK_ACCESS
+    assert map_permission_to_skill_permission("env_var_access") == SkillPermission.ENV_VAR_ACCESS
 
 
 def test_tool_registry_ssot_types_resolve_to_enum() -> None:
@@ -56,14 +38,8 @@ def test_tool_registry_ssot_types_resolve_to_enum() -> None:
     against mapping drift: browser/web/search types must land on NETWORK_ACCESS,
     otherwise a loaded skill could silently bypass network gating.
     """
-    assert (
-        map_permission_to_skill_permission("net_fetch")
-        == SkillPermission.NETWORK_ACCESS
-    )
-    assert (
-        map_permission_to_skill_permission("web_search_tool")
-        == SkillPermission.NETWORK_ACCESS
-    )
+    assert map_permission_to_skill_permission("net_fetch") == SkillPermission.NETWORK_ACCESS
+    assert map_permission_to_skill_permission("web_search_tool") == SkillPermission.NETWORK_ACCESS
     for browser_type in (
         "browser_navigate",
         "browser_read",
@@ -77,10 +53,7 @@ def test_tool_registry_ssot_types_resolve_to_enum() -> None:
         "browser_manage",
         "browser_execute_script_tool",
     ):
-        assert (
-            map_permission_to_skill_permission(browser_type)
-            == SkillPermission.NETWORK_ACCESS
-        )
+        assert map_permission_to_skill_permission(browser_type) == SkillPermission.NETWORK_ACCESS
 
 
 def test_every_skill_permission_has_a_mapping_key() -> None:
@@ -125,12 +98,8 @@ def test_every_ssot_skill_domain_type_is_mapped() -> None:
 
 
 def test_check_allows_granted_permission() -> None:
-    assert check_permission_for_tool_call(
-        "network_access", {SkillPermission.NETWORK_ACCESS}
-    ) == (True, "")
-    assert check_permission_for_tool_call(
-        "env_var_access", {SkillPermission.ENV_VAR_ACCESS}
-    ) == (True, "")
+    assert check_permission_for_tool_call("network_access", {SkillPermission.NETWORK_ACCESS}) == (True, "")
+    assert check_permission_for_tool_call("env_var_access", {SkillPermission.ENV_VAR_ACCESS}) == (True, "")
 
 
 def test_check_denies_ungranted_permission() -> None:
@@ -189,9 +158,7 @@ def test_set_and_clear_permission_usage_callback() -> None:
         allowed: bool,
         deny_reason: str,
     ) -> None:
-        received.append(
-            (user_id, skill_id, permission, operation, allowed, deny_reason)
-        )
+        received.append((user_id, skill_id, permission, operation, allowed, deny_reason))
 
     set_permission_usage_callback(_callback)
     try:

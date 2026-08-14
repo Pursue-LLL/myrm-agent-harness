@@ -44,9 +44,7 @@ async def test_try_escalation_returns_document_when_provider_succeeds() -> None:
 @pytest.mark.asyncio
 async def test_crawl_with_degradation_skips_escalation_when_disabled() -> None:
     engine = FetchEngine()
-    provider = _StubProvider(
-        EscalationFetchResult(url="https://example.com", content="remote", provider_id="stub")
-    )
+    provider = _StubProvider(EscalationFetchResult(url="https://example.com", content="remote", provider_id="stub"))
     engine.set_escalation_providers([provider])
 
     with patch.object(engine, "_try_and_report", new=AsyncMock(return_value=(None, True, 0.0, None, None, None))):
@@ -101,9 +99,10 @@ async def test_crawl_with_degradation_calls_escalation_after_l3_failure() -> Non
     )
     engine.set_escalation_providers([provider])
 
-    with patch.object(engine, "_try_and_report", new=AsyncMock(return_value=(None, True, 0.0, None, None, None))), patch.object(
-        engine._router, "select"
-    ) as mock_select:
+    with (
+        patch.object(engine, "_try_and_report", new=AsyncMock(return_value=(None, True, 0.0, None, None, None))),
+        patch.object(engine._router, "select") as mock_select,
+    ):
         from myrm_agent_harness.toolkits.web_fetch.router.models import FetcherDecision
 
         mock_select.return_value = FetcherDecision(fetcher_type=FetcherType.HTTP, reason="test")

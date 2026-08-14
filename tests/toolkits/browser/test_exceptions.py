@@ -15,9 +15,7 @@ from myrm_agent_harness.toolkits.browser.exceptions import (
 
 class TestBrowserErrorRedaction:
     def test_message_credential_redacted_at_construction(self) -> None:
-        err = BrowserError(
-            "Navigation failed for https://app.com/callback?code=4d3f9c2a1b8e"
-        )
+        err = BrowserError("Navigation failed for https://app.com/callback?code=4d3f9c2a1b8e")
         assert "4d3f9c2a1b8e" not in str(err)
         assert "code=***" in str(err)
 

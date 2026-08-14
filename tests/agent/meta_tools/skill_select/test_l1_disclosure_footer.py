@@ -70,8 +70,7 @@ class TestFilterDisclosableResourcePaths:
 
     def test_groups_and_caps(self) -> None:
         grouped = group_linked_resources(
-            [f"scripts/file{i}.sh" for i in range(12)]
-            + ["references/a.md", "templates/t.md"]
+            [f"scripts/file{i}.sh" for i in range(12)] + ["references/a.md", "templates/t.md"]
         )
         section = format_linked_files_section(grouped, max_per_group=3, max_total=5)
         assert "[Linked files]" in section
@@ -79,9 +78,7 @@ class TestFilterDisclosableResourcePaths:
         assert "more" in section
 
     def test_nested_allowed_paths(self) -> None:
-        paths = filter_disclosable_resource_paths(
-            ["assets/images/icons/logo.png", "src/main.py"]
-        )
+        paths = filter_disclosable_resource_paths(["assets/images/icons/logo.png", "src/main.py"])
         assert paths == ["assets/images/icons/logo.png"]
 
     def test_compact_index(self) -> None:

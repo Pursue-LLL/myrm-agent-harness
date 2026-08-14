@@ -37,9 +37,7 @@ def test_store_init(temp_db_path):
     try:
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='subagent_events'")
         assert cursor.fetchone() is not None
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='orchestration_scripts'"
-        )
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='orchestration_scripts'")
         assert cursor.fetchone() is not None
 
         journal = conn.execute("PRAGMA journal_mode").fetchone()[0]

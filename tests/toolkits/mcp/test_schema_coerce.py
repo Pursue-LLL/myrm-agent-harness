@@ -46,9 +46,7 @@ def test_coerce_arguments_markdown_stripping():
 
 
 def test_coerce_arguments_boolean():
-    schema = {
-        "properties": {"dry_run": {"type": "boolean"}, "force": {"type": "boolean"}}
-    }
+    schema = {"properties": {"dry_run": {"type": "boolean"}, "force": {"type": "boolean"}}}
     kwargs = {"dry_run": "true", "force": "False"}
     coerced = coerce_arguments_by_schema(schema, kwargs)
     assert coerced["dry_run"] is True
@@ -56,9 +54,7 @@ def test_coerce_arguments_boolean():
 
 
 def test_coerce_arguments_number():
-    schema = {
-        "properties": {"limit": {"type": "integer"}, "threshold": {"type": "number"}}
-    }
+    schema = {"properties": {"limit": {"type": "integer"}, "threshold": {"type": "number"}}}
     kwargs = {"limit": "10", "threshold": "3.14"}
     coerced = coerce_arguments_by_schema(schema, kwargs)
     assert coerced["limit"] == 10
@@ -91,6 +87,56 @@ def test_coerce_number_decimal_and_exponent_still_float():
     assert isinstance(coerced["a"], float)
     assert coerced["b"] == 1e10
     assert isinstance(coerced["b"], float)
+
+
+def test_coerce_integer_float_form_literal_to_int():
+    """integer schema with a float-form literal denoting a whole number → int.
+
+    Mirrors openclaw's Number.isInteger behavior: "25.0" → 25. int() alone
+    would raise ValueError and leave the raw string.
+    """
+    schema = {"properties": {"count": {"type": "integer"}}}
+    coerced = coerce_arguments_by_schema(schema, {"count": "25.0"})
+    assert coerced["count"] == 25
+    assert isinstance(coerced["count"], int)
+
+
+def test_coerce_integer_exponent_form_literal_to_int():
+    """integer schema with an exponent literal denoting a whole number → int."""
+    schema = {"properties": {"count": {"type": "integer"}}}
+    coerced = coerce_arguments_by_schema(schema, {"count": "1e3"})
+    assert coerced["count"] == 1000
+    assert isinstance(coerced["count"], int)
+
+
+def test_coerce_number_float_form_big_integer_preserves_precision():
+    """number schema with a float-form literal of a big integer → exact int.
+
+    "9007199254740993.0" must not round through float() (which yields
+    ...992.0); Decimal parsing keeps the exact integer.
+    """
+    schema = {"properties": {"id": {"type": "number"}}}
+    coerced = coerce_arguments_by_schema(schema, {"id": "9007199254740993.0"})
+    assert coerced["id"] == 9007199254740993
+    assert isinstance(coerced["id"], int)
+
+
+def test_coerce_integer_fractional_literal_keeps_string():
+    """integer schema with a genuinely fractional literal keeps the string.
+
+    Mirrors openclaw's Number.isInteger rejection for non-integers.
+    """
+    schema = {"properties": {"count": {"type": "integer"}}}
+    coerced = coerce_arguments_by_schema(schema, {"count": "25.5"})
+    assert coerced["count"] == "25.5"
+
+
+def test_coerce_integer_invalid_numeric_literal_keeps_string():
+    """Unparseable numeric literals (hex, garbage) stay untouched."""
+    schema = {"properties": {"count": {"type": "integer"}}}
+    for raw in ("0x10", "abc", "nan", "inf"):
+        coerced = coerce_arguments_by_schema(schema, {"count": raw})
+        assert coerced["count"] == raw, raw
 
 
 def test_coerce_arguments_recursive():
@@ -151,11 +197,7 @@ def test_coerce_arguments_union_object_from_json_string():
 
 
 def test_coerce_arguments_union_array_from_json_string():
-    schema = {
-        "properties": {
-            "items": {"type": ["array", "null"], "items": {"type": "string"}}
-        }
-    }
+    schema = {"properties": {"items": {"type": ["array", "null"], "items": {"type": "string"}}}}
     kwargs = {"items": '["a", "b"]'}
     coerced = coerce_arguments_by_schema(schema, kwargs)
     assert coerced["items"] == ["a", "b"]

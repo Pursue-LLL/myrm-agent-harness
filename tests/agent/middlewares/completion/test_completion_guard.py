@@ -29,9 +29,7 @@ from myrm_agent_harness.core.security.tool_registry import (
     register_ptc_safety_metadata,
 )
 
-LOOP_GUARD_PATCH = (
-    "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-)
+LOOP_GUARD_PATCH = "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
 
 
 def _make_state(messages: list[object]) -> dict[str, object]:
@@ -672,9 +670,7 @@ class TestClassifyVerification:
             ("bun run build", VerificationCategory.BUILD),
         ],
     )
-    def test_detects_verification_commands(
-        self, command: str, expected: VerificationCategory
-    ) -> None:
+    def test_detects_verification_commands(self, command: str, expected: VerificationCategory) -> None:
         assert classify_verification({"command": command}) == expected
 
     @pytest.mark.parametrize(
@@ -698,35 +694,19 @@ class TestClassifyVerification:
 
     def test_chained_commands(self) -> None:
         """Detects verification in chained commands (&&, ;)."""
-        assert (
-            classify_verification({"command": "cd src && pytest tests/"})
-            == VerificationCategory.TEST
-        )
-        assert (
-            classify_verification({"command": "cd src; ruff check ."})
-            == VerificationCategory.LINT
-        )
+        assert classify_verification({"command": "cd src && pytest tests/"}) == VerificationCategory.TEST
+        assert classify_verification({"command": "cd src; ruff check ."}) == VerificationCategory.LINT
 
     def test_exact_match_without_trailing_args(self) -> None:
         """Exact command matches (no args after pattern)."""
         assert classify_verification({"command": "pytest"}) == VerificationCategory.TEST
-        assert (
-            classify_verification({"command": "npm test"}) == VerificationCategory.TEST
-        )
-        assert (
-            classify_verification({"command": "tsc"}) == VerificationCategory.TYPECHECK
-        )
+        assert classify_verification({"command": "npm test"}) == VerificationCategory.TEST
+        assert classify_verification({"command": "tsc"}) == VerificationCategory.TYPECHECK
 
     def test_chained_exact_match(self) -> None:
         """Chained commands with exact match at end."""
-        assert (
-            classify_verification({"command": "cd dir && pytest"})
-            == VerificationCategory.TEST
-        )
-        assert (
-            classify_verification({"command": "source .venv/bin/activate && mypy"})
-            == VerificationCategory.TYPECHECK
-        )
+        assert classify_verification({"command": "cd dir && pytest"}) == VerificationCategory.TEST
+        assert classify_verification({"command": "source .venv/bin/activate && mypy"}) == VerificationCategory.TYPECHECK
 
 
 class TestFrontendBrowserVerificationWarning:
@@ -1118,9 +1098,7 @@ class TestMixedMessageGuard:
             ("browser_ask_human_tool", {"reason": "Enter SMS code"}),
         ],
     )
-    async def test_preserves_interaction_ui_carriers(
-        self, tool_name: str, args: dict[str, object]
-    ) -> None:
+    async def test_preserves_interaction_ui_carriers(self, tool_name: str, args: dict[str, object]) -> None:
         """Safety: content + interaction/UI carrier must NOT be stripped — these
         are registry read-only but carry user-visible functionality (question,
         grant, render); dropping them breaks the interaction/UI chain."""
@@ -1966,10 +1944,7 @@ class TestHasExternalEvidence:
             tool_name="bash_code_execute_tool",
             args_hash="mcp1",
             args={
-                "command": (
-                    'python3 -c "from skills.mcp_12306_skill import get_tickets; '
-                    'print(\\"ok\\")"'
-                ),
+                "command": ('python3 -c "from skills.mcp_12306_skill import get_tickets; print(\\"ok\\")"'),
             },
             success_level=SuccessLevel.FULL_SUCCESS,
         )
@@ -2035,7 +2010,7 @@ class TestHasExternalEvidence:
         ]
         reason = build_external_evidence_reason(messages=messages, records=[])
         assert reason is not None
-        assert 'external/freshness need' in reason
+        assert "external/freshness need" in reason
 
     def test_no_evidence_required_without_freshness_or_citation_web_hint(self) -> None:
         """Plain questions must not require external evidence."""
@@ -2085,9 +2060,7 @@ class TestHasExternalEvidence:
         )
 
         messages = [
-            HumanMessage(
-                content="What are the latest code changes in the auth module?"
-            ),
+            HumanMessage(content="What are the latest code changes in the auth module?"),
             AIMessage(content="All done."),
         ]
         reason = build_external_evidence_reason(messages=messages, records=[])
@@ -2261,4 +2234,3 @@ class TestHasExternalEvidence:
             success_level=None,
         )
         assert has_external_evidence([record]) is False
-

@@ -36,9 +36,7 @@ class TestNotifyLoopGuardCompaction:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var"
             ) as mock_var,
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.logger"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.logger"),
         ):
             mock_var.get.return_value = guard
             notify_loop_guard_compaction()
@@ -222,9 +220,7 @@ async def test_inner_clarification_approve_continue() -> None:
     pre_result.freq_verdict = MagicMock()
     pre_result.steering_token = MagicMock()
 
-    mock_execute = AsyncMock(
-        side_effect=[ToolClarificationError("clarify"), result]
-    )
+    mock_execute = AsyncMock(side_effect=[ToolClarificationError("clarify"), result])
 
     with (
         patch(
@@ -273,9 +269,7 @@ async def test_inner_clarification_edited_payload() -> None:
     pre_result.freq_verdict = MagicMock()
     pre_result.steering_token = MagicMock()
 
-    mock_execute = AsyncMock(
-        side_effect=[ToolClarificationError("clarify"), result]
-    )
+    mock_execute = AsyncMock(side_effect=[ToolClarificationError("clarify"), result])
 
     with (
         patch(
@@ -403,9 +397,7 @@ async def test_inner_cancelled_error_handled() -> None:
             "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.handle_cancellation"
         ) as mock_handle,
     ):
-        mock_handle.return_value = ToolMessage(
-            content="user_cancelled", name="test_tool", tool_call_id="call_123"
-        )
+        mock_handle.return_value = ToolMessage(content="user_cancelled", name="test_tool", tool_call_id="call_123")
         res = await _tool_interceptor_middleware_inner(_request(), _handler)
         assert "user_cancelled" in res.content
         mock_handle.assert_called_once()
@@ -416,9 +408,7 @@ def test_notify_compaction_logs_when_previous_calls(mock_logger: MagicMock) -> N
     guard = MagicMock()
     guard._metrics.total_calls = 7
     with (
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var"
-        ) as mock_var,
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var") as mock_var,
     ):
         mock_var.get.return_value = guard
         notify_loop_guard_compaction()

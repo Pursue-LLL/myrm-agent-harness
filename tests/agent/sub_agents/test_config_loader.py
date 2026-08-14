@@ -420,6 +420,7 @@ config:
         loader = SubagentConfigLoader()
         assert loader.load_from_directory(config_file) == {}
 
+
 def test_convenience_function(temp_config_dir, valid_config_yaml):
     """Test convenience function load_subagent_configs_from_directory"""
     # File name must match YAML name field
@@ -460,14 +461,7 @@ class TestCodingYamlIntegration:
         """Path to the real coding.yaml file in myrm-agent-server."""
         monorepo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
         path = (
-            monorepo_root
-            / "myrm-agent"
-            / "myrm-agent-server"
-            / "app"
-            / "config"
-            / "subagents"
-            / "core"
-            / "coding.yaml"
+            monorepo_root / "myrm-agent" / "myrm-agent-server" / "app" / "config" / "subagents" / "core" / "coding.yaml"
         )
         if not path.exists():
             pytest.skip("coding.yaml not found (run tests from harness repo root)")
@@ -574,7 +568,13 @@ class TestDeepAuditYamlIntegration:
 
         assert config is not None
         assert set(config.tools) == {"file_read_tool", "grep_tool", "glob_tool", "bash_code_execute_tool"}
-        write_tools = {"file_write_tool", "file_edit_tool", "skill_manage_tool", "skill_market_tool", "delegate_to_agent_tool"}
+        write_tools = {
+            "file_write_tool",
+            "file_edit_tool",
+            "skill_manage_tool",
+            "skill_market_tool",
+            "delegate_to_agent_tool",
+        }
         assert write_tools.issubset(config.disallowed_tools)
 
     def test_deep_audit_no_delegation(self, deep_audit_yaml_path):

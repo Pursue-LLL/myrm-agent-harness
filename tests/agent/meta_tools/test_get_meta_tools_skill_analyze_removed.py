@@ -84,9 +84,7 @@ class TestSkillAnalyzeRemoved:
         )
         sync_discover_capability_tool(registry, skills=many_skills)
 
-        discover = next(
-            t for t in registry.resolve() if t.name == "skill_search_tool"
-        )
+        discover = next(t for t in registry.resolve() if t.name == "skill_search_tool")
         description = discover.description or ""
         assert "skill_analyze_tool" not in description
         assert "skill_analyze" not in description.lower()

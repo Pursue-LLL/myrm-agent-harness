@@ -332,4 +332,3 @@ class ChatLiteLLMMessageMixin:
         set_model_value = self.model_name or self.model
         llm_output = {"token_usage": token_usage, "model": set_model_value}
         return ChatResult(generations=generations, llm_output=llm_output)
-

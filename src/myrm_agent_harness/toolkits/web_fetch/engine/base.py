@@ -134,9 +134,7 @@ class FetchEngine(
         self._domain_allowlist = domain_allowlist
         self._allow_private_networks = allow_private_networks
         self._youtube_languages = youtube_languages
-        self._http_fetcher = HttpFetcher(
-            proxy_pool=proxy_pool, session_vault=session_vault
-        )
+        self._http_fetcher = HttpFetcher(proxy_pool=proxy_pool, session_vault=session_vault)
         self._browser_fetcher = BrowserFetcher(
             allow_private_networks=allow_private_networks, session_vault=session_vault
         )
@@ -148,8 +146,7 @@ class FetchEngine(
         def _doc_size(cached: CachedDocument) -> int:
             content_size = len(cached.doc.page_content.encode("utf-8"))
             metadata_size = sum(
-                len(str(k).encode("utf-8")) + len(str(v).encode("utf-8"))
-                for k, v in cached.doc.metadata.items()
+                len(str(k).encode("utf-8")) + len(str(v).encode("utf-8")) for k, v in cached.doc.metadata.items()
             )
             return content_size + metadata_size
 
@@ -160,18 +157,14 @@ class FetchEngine(
             max_bytes=cache_max_bytes,
             size_fn=_doc_size,
         )
-        self._fail_cache: LRUCache[bool] = LRUCache(
-            maxsize=200, ttl=300, id="fetch_engine_fail_cache"
-        )
+        self._fail_cache: LRUCache[bool] = LRUCache(maxsize=200, ttl=300, id="fetch_engine_fail_cache")
         self._pending_requests: dict[str, asyncio.Future[Document | None]] = {}
         self._enable_http_validation = True
         self._stale_while_revalidate = stale_while_revalidate
         self._coalescing_timeout = coalescing_timeout
         self._max_background_tasks = max_background_tasks
         self._crawl_timeout = crawl_timeout
-        self._background_queue: asyncio.PriorityQueue[BackgroundTask] = (
-            asyncio.PriorityQueue()
-        )
+        self._background_queue: asyncio.PriorityQueue[BackgroundTask] = asyncio.PriorityQueue()
         self._background_workers: list[asyncio.Task[None]] = []
         self._url_access_stats: OrderedDict[str, AccessStats] = OrderedDict()
         self._max_access_stats_size = 10_000
@@ -192,9 +185,7 @@ class FetchEngine(
         self._http_fetcher._session_vault = session_vault
         self._browser_fetcher._session_vault = session_vault
 
-    def set_escalation_providers(
-        self, providers: list[FetchEscalationProvider] | None
-    ) -> None:
+    def set_escalation_providers(self, providers: list[FetchEscalationProvider] | None) -> None:
         """Inject optional L4 remote fetch providers (server layer implements httpx vendors)."""
         self._escalation_providers = providers
 
@@ -229,9 +220,7 @@ class FetchEngine(
         if self._domain_allowlist:
             hostname = urlparse(url).hostname or ""
             if not self._domain_allowlist.is_allowed(hostname):
-                logger.warning(
-                    "URL blocked by domain allowlist: %s (host=%s)", url, hostname
-                )
+                logger.warning("URL blocked by domain allowlist: %s (host=%s)", url, hostname)
                 return None
 
         cache_key = normalize_url(url)
@@ -239,9 +228,7 @@ class FetchEngine(
         if cache_key in self._url_access_stats:
             self._url_access_stats[cache_key].count += 1
         else:
-            self._url_access_stats[cache_key] = AccessStats(
-                count=1, last_access=time.time()
-            )
+            self._url_access_stats[cache_key] = AccessStats(count=1, last_access=time.time())
 
         self._url_access_stats.move_to_end(cache_key)
 
@@ -251,13 +238,9 @@ class FetchEngine(
         if not force_refresh and cache_key in self._pending_requests:
             logger.info(f"Request coalescing: waiting for in-flight request: {url}")
             try:
-                return await asyncio.wait_for(
-                    self._pending_requests[cache_key], timeout=self._coalescing_timeout
-                )
+                return await asyncio.wait_for(self._pending_requests[cache_key], timeout=self._coalescing_timeout)
             except TimeoutError:
-                logger.warning(
-                    f"Request coalescing timeout ({self._coalescing_timeout}s), retrying: {url}"
-                )
+                logger.warning(f"Request coalescing timeout ({self._coalescing_timeout}s), retrying: {url}")
                 self._pending_requests.pop(cache_key, None)
 
         if force_refresh:
@@ -277,14 +260,8 @@ class FetchEngine(
         future: asyncio.Future[Document | None] = asyncio.Future()
         self._pending_requests[cache_key] = future
 
-        etag = (
-            cached_item.etag if cached_item and self._enable_http_validation else None
-        )
-        last_modified = (
-            cached_item.last_modified
-            if cached_item and self._enable_http_validation
-            else None
-        )
+        etag = cached_item.etag if cached_item and self._enable_http_validation else None
+        last_modified = cached_item.last_modified if cached_item and self._enable_http_validation else None
 
         try:
             if is_youtube_url(url):
@@ -334,9 +311,7 @@ class FetchEngine(
                     fetch_result = None
                     logger.info("Weixin article fast-path succeeded: %s", url)
                 else:
-                    logger.info(
-                        "Weixin article fast-path missed, degrading to browser: %s", url
-                    )
+                    logger.info("Weixin article fast-path missed, degrading to browser: %s", url)
                     async with asyncio.timeout(self._crawl_timeout):
                         doc, fetch_result = await self._crawl_with_degradation(
                             url,
@@ -346,13 +321,9 @@ class FetchEngine(
                             allow_escalation=allow_escalation,
                         )
                     if doc is not None:
-                        logger.info(
-                            "Weixin article browser degradation succeeded: %s", url
-                        )
+                        logger.info("Weixin article browser degradation succeeded: %s", url)
                     else:
-                        logger.warning(
-                            "Weixin article fetch failed after degradation: %s", url
-                        )
+                        logger.warning("Weixin article fetch failed after degradation: %s", url)
             else:
                 async with asyncio.timeout(self._crawl_timeout):
                     doc, fetch_result = await self._crawl_with_degradation(
@@ -461,9 +432,7 @@ class FetchEngine(
                         )
                     except Exception as e:
                         last_error = str(e)
-                        logger.warning(
-                            f"Prefetch failed (attempt {retry_count + 1}/{max_retries + 1}): {url} — {e}"
-                        )
+                        logger.warning(f"Prefetch failed (attempt {retry_count + 1}/{max_retries + 1}): {url} — {e}")
 
                     retry_count += 1
                     if retry_count <= max_retries:
@@ -496,9 +465,7 @@ class FetchEngine(
         if self._background_workers:
             logger.info(f"Stopping {len(self._background_workers)} background workers")
             for _ in self._background_workers:
-                self._background_queue.put_nowait(
-                    BackgroundTask(priority=0, url="", cache_key="", cached_item=None)
-                )
+                self._background_queue.put_nowait(BackgroundTask(priority=0, url="", cache_key="", cached_item=None))
             await asyncio.gather(*self._background_workers, return_exceptions=True)
             self._background_workers.clear()
 
@@ -517,14 +484,8 @@ class FetchEngine(
 
     def get_cache_metrics(self) -> dict[str, dict[str, int | float]]:
         """Get cache metrics (for monitoring and tuning)."""
-        total_bg = (
-            self._bg_revalidations_success
-            + self._bg_revalidations_failed
-            + self._bg_revalidations_timeout
-        )
-        avg_latency = (
-            self._bg_revalidations_total_ms / total_bg if total_bg > 0 else 0.0
-        )
+        total_bg = self._bg_revalidations_success + self._bg_revalidations_failed + self._bg_revalidations_timeout
+        avg_latency = self._bg_revalidations_total_ms / total_bg if total_bg > 0 else 0.0
 
         return {
             "crawl_cache": self._crawl_cache.get_metrics(),
@@ -536,9 +497,7 @@ class FetchEngine(
                 "timeout": self._bg_revalidations_timeout,
                 "skipped": self._bg_revalidations_skipped,
                 "total": total_bg,
-                "success_rate": (
-                    self._bg_revalidations_success / total_bg if total_bg > 0 else 0.0
-                ),
+                "success_rate": (self._bg_revalidations_success / total_bg if total_bg > 0 else 0.0),
                 "avg_latency_ms": avg_latency,
                 "queue_size": self._background_queue.qsize(),
                 "active_workers": len(self._background_workers),

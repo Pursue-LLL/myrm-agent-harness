@@ -136,9 +136,7 @@ class EvidenceAggregator:
 
         return evidence_groups
 
-    def _compute_confidence(
-        self, failure_cases: list[ExecutionAnalysis], common_errors: list[str]
-    ) -> float:
+    def _compute_confidence(self, failure_cases: list[ExecutionAnalysis], common_errors: list[str]) -> float:
         """Compute evidence confidence based on error pattern consistency.
 
         High confidence (>0.7): Failures share a common error pattern (likely fixable).
@@ -154,10 +152,7 @@ class EvidenceAggregator:
         # If top error pattern accounts for >50% of failures, high confidence
         if common_errors:
             top_pattern = common_errors[0]
-            matching = sum(
-                1 for f in failure_cases
-                if top_pattern in (f.error_message or "")
-            )
+            matching = sum(1 for f in failure_cases if top_pattern in (f.error_message or ""))
             pattern_ratio = matching / total_failures
             return min(1.0, 0.4 + pattern_ratio * 0.6)
 

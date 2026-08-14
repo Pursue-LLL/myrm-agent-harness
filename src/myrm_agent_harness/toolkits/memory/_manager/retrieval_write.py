@@ -249,4 +249,3 @@ class MemoryManagerRetrievalWriteMixin:
         except Exception as e:
             logger.warning("get_tool_rules failed for %s: %s", tool_name, e)
             return []
-

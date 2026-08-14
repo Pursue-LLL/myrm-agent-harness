@@ -13,11 +13,13 @@ def _make_mock_parent():
     parent._spawn_child = AsyncMock()
     return parent
 
+
 def _make_mock_config():
     return SubagentConfig(
         system_prompt="You are a mock agent",
         tools=("mock_tool",),
     )
+
 
 @pytest.mark.asyncio
 async def test_delegate_task_with_verifier_prompt_and_wait_false():
@@ -35,6 +37,7 @@ async def test_delegate_task_with_verifier_prompt_and_wait_false():
     assert result["success"] is False
     assert "Adversarial verification requires wait=True" in result["error"]
 
+
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification")
 async def test_delegate_task_with_verifier_prompt_and_wait_true(mock_run_with_verification):
@@ -50,7 +53,7 @@ async def test_delegate_task_with_verifier_prompt_and_wait_true(mock_run_with_ve
         agent_type="coder",
         result="Done",
         completed_at=123.0,
-        status=SubAgentStatus.COMPLETED
+        status=SubAgentStatus.COMPLETED,
     )
     mock_run_with_verification.return_value = mock_result
 
@@ -73,11 +76,13 @@ async def test_delegate_task_with_verifier_prompt_and_wait_true(mock_run_with_ve
     assert result["success"] is True
     assert result["task_id"] == "test-task"
 
+
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification")
 async def test_delegate_task_with_verifier_prompt_fallback_type(mock_run_with_verification):
     parent = _make_mock_parent()
     catalog = AsyncMock()
+
     def mock_resolve(type_id):
         if type_id == "coder":
             return _make_mock_config()
@@ -93,7 +98,7 @@ async def test_delegate_task_with_verifier_prompt_fallback_type(mock_run_with_ve
         agent_type="coder",
         result="Done",
         completed_at=123.0,
-        status=SubAgentStatus.COMPLETED
+        status=SubAgentStatus.COMPLETED,
     )
     mock_run_with_verification.return_value = mock_result
 

@@ -47,8 +47,11 @@ class TestAutoVaultOrTruncate:
     def test_short_result_not_vaulted(self, config_with_vault: SubagentConfig, workspace: str) -> None:
         """Results under threshold should pass through to truncation."""
         result = _auto_vault_or_truncate(
-            "short output", config_with_vault,
-            {"workspace_path": workspace}, "task-1", "test",
+            "short output",
+            config_with_vault,
+            {"workspace_path": workspace},
+            "task-1",
+            "test",
         )
         assert "vault://" not in result
         assert "short output" in result
@@ -57,15 +60,16 @@ class TestAutoVaultOrTruncate:
         """Results exceeding threshold should be stored in vault."""
         long_output = "x" * 200
         result = _auto_vault_or_truncate(
-            long_output, config_with_vault,
-            {"workspace_path": workspace}, "task-1", "test",
+            long_output,
+            config_with_vault,
+            {"workspace_path": workspace},
+            "task-1",
+            "test",
         )
         assert "vault://" in result
         assert "[Full result stored in vault:" in result
 
-    def test_long_result_pushes_inline_artifact(
-        self, config_with_vault: SubagentConfig, workspace: str
-    ) -> None:
+    def test_long_result_pushes_inline_artifact(self, config_with_vault: SubagentConfig, workspace: str) -> None:
         """Auto-vault should queue an inline artifact for frontend delivery."""
         from myrm_agent_harness.agent.artifacts import ArtifactContextManager, get_artifact_context
 
@@ -90,10 +94,14 @@ class TestAutoVaultOrTruncate:
     def test_vault_pointer_is_valid_uuid(self, config_with_vault: SubagentConfig, workspace: str) -> None:
         """The vault pointer should contain a valid UUID."""
         import re
+
         long_output = "x" * 200
         result = _auto_vault_or_truncate(
-            long_output, config_with_vault,
-            {"workspace_path": workspace}, "task-1", "test",
+            long_output,
+            config_with_vault,
+            {"workspace_path": workspace},
+            "task-1",
+            "test",
         )
         match = re.search(r"vault://([a-f0-9-]+)", result)
         assert match is not None
@@ -107,8 +115,11 @@ class TestAutoVaultOrTruncate:
 
         long_output = "hello " * 100
         result = _auto_vault_or_truncate(
-            long_output, config_with_vault,
-            {"workspace_path": workspace}, "task-1", "test",
+            long_output,
+            config_with_vault,
+            {"workspace_path": workspace},
+            "task-1",
+            "test",
         )
         match = re.search(r"(vault://[a-f0-9-]+)", result)
         assert match
@@ -117,9 +128,7 @@ class TestAutoVaultOrTruncate:
         content = vault.get(match.group(1))
         assert content.decode("utf-8") == long_output
 
-    def test_isolated_workspace_vaults_to_parent(
-        self, config_with_vault: SubagentConfig, tmp_path: Path
-    ) -> None:
+    def test_isolated_workspace_vaults_to_parent(self, config_with_vault: SubagentConfig, tmp_path: Path) -> None:
         """ISOLATED_COPY: vault must land in parent workspace, not child temp dir."""
         import re
 
@@ -157,8 +166,11 @@ class TestAutoVaultOrTruncate:
         middle = "m" * 200
         long_output = head + middle + tail
         result = _auto_vault_or_truncate(
-            long_output, config_with_vault,
-            {"workspace_path": workspace}, "task-1", "test",
+            long_output,
+            config_with_vault,
+            {"workspace_path": workspace},
+            "task-1",
+            "test",
         )
         assert "HEAD_MARKER" in result
         assert "TAIL_MARKER" in result
@@ -167,8 +179,11 @@ class TestAutoVaultOrTruncate:
         """When auto_vault_threshold is None, should always truncate."""
         long_output = "x" * 200
         result = _auto_vault_or_truncate(
-            long_output, config_without_vault,
-            {"workspace_path": workspace}, "task-1", "test",
+            long_output,
+            config_without_vault,
+            {"workspace_path": workspace},
+            "task-1",
+            "test",
         )
         assert "vault://" not in result
 
@@ -176,8 +191,11 @@ class TestAutoVaultOrTruncate:
         """Without workspace_path in context, should fall back to truncation."""
         long_output = "x" * 200
         result = _auto_vault_or_truncate(
-            long_output, config_with_vault,
-            {}, "task-1", "test",
+            long_output,
+            config_with_vault,
+            {},
+            "task-1",
+            "test",
         )
         assert "vault://" not in result
 
@@ -185,8 +203,11 @@ class TestAutoVaultOrTruncate:
         """Non-string workspace_path should fall back to truncation."""
         long_output = "x" * 200
         result = _auto_vault_or_truncate(
-            long_output, config_with_vault,
-            {"workspace_path": 12345}, "task-1", "test",
+            long_output,
+            config_with_vault,
+            {"workspace_path": 12345},
+            "task-1",
+            "test",
         )
         assert "vault://" not in result
 

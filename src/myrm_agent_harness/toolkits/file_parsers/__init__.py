@@ -202,9 +202,7 @@ class LegacyFormatParser(FileParser):
 
     @property
     def supported_extensions(self) -> list[str]:
-        src_ext = next(
-            (k for k, v in _LEGACY_TO_MODERN.items() if v == self._target_ext), ""
-        )
+        src_ext = next((k for k, v in _LEGACY_TO_MODERN.items() if v == self._target_ext), "")
         return [src_ext] if src_ext else []
 
 

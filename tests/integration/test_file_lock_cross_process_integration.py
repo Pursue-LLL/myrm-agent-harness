@@ -11,6 +11,7 @@ and would deadlock the suite.
 """
 
 import asyncio
+import contextlib
 import subprocess
 import sys
 import textwrap
@@ -83,15 +84,11 @@ class _RemoteHolder:
     def __exit__(self, *_exc: object) -> None:
         if self._proc and self._proc.poll() is None:
             self._proc.kill()
-            try:
+            with contextlib.suppress(subprocess.TimeoutExpired):
                 self._proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                pass
 
 
-def _local_acquire(
-    lock_dir: Path, resource_id: str, *, mode: Literal["exclusive", "shared"] = "exclusive"
-) -> bool:
+def _local_acquire(lock_dir: Path, resource_id: str, *, mode: Literal["exclusive", "shared"] = "exclusive") -> bool:
     lock = FileLock(lock_dir)
 
     async def _acquire() -> bool:

@@ -140,18 +140,10 @@ async def evaluate_tool_batch(
 
     map_policy = get_managed_approval_policy()
     agent_primary_model = get_agent_primary_model_slug()
-    auto_mode_enabled = effective_auto_mode_enabled(
-        config, map_policy, agent_primary_model
-    )
+    auto_mode_enabled = effective_auto_mode_enabled(config, map_policy, agent_primary_model)
 
-    if is_yolo_mode_active(config, session_key=session_key) and yolo_allowed_for_model(
-        map_policy, agent_primary_model
-    ):
-        suffix = (
-            ""
-            if not config.yolo_mode_timeout
-            else f" (expires in {config.yolo_mode_timeout}s)"
-        )
+    if is_yolo_mode_active(config, session_key=session_key) and yolo_allowed_for_model(map_policy, agent_primary_model):
+        suffix = "" if not config.yolo_mode_timeout else f" (expires in {config.yolo_mode_timeout}s)"
         logger.info(
             "[YOLO] Auto-approving tool calls%s (session: %s)",
             suffix,
@@ -228,16 +220,11 @@ async def evaluate_tool_batch(
                 # Path Policy Enforcement for PTC
                 ptc_path = str(arguments.get("path", ""))
                 if ptc_path and workspace_root:
-                    path_action, path_reason = check_path_policy(
-                        ptc_path, config.path_policy, workspace_root
-                    )
+                    path_action, path_reason = check_path_policy(ptc_path, config.path_policy, workspace_root)
                     if path_action == PermissionAction.DENY:
                         action = PermissionAction.DENY
                         reason = f"PTC {path_reason}"
-                    elif (
-                        path_action == PermissionAction.ASK
-                        and action != PermissionAction.DENY
-                    ):
+                    elif path_action == PermissionAction.ASK and action != PermissionAction.DENY:
                         action = PermissionAction.ASK
                         reason = f"PTC {path_reason}"
 
@@ -258,11 +245,7 @@ async def evaluate_tool_batch(
         # read-only MCP tools skip the HITL prompt without user config.
         if action == PermissionAction.ASK and permission_type == "mcp_invoke":
             mcp_safety = resolve_safety_metadata(tool_name)
-            if (
-                mcp_safety.is_read_only
-                and not mcp_safety.is_open_world
-                and not mcp_safety.is_destructive
-            ):
+            if mcp_safety.is_read_only and not mcp_safety.is_open_world and not mcp_safety.is_destructive:
                 action = PermissionAction.ALLOW
                 reason = f"Fast-Path Auto-Approve for read-only MCP tool: {tool_name}"
 
@@ -275,11 +258,7 @@ async def evaluate_tool_batch(
             allowlist = get_allowlist()
             user_id = get_approval_user_id() or DEFAULT_USER_ID
             await allowlist.load_user(user_id)
-            effective_tool_name = (
-                extra_ctx.get("ptc_tool_name_full", tool_name)
-                if extra_ctx
-                else tool_name
-            )
+            effective_tool_name = extra_ctx.get("ptc_tool_name_full", tool_name) if extra_ctx else tool_name
             args_hash = args_hashes.get(idx)
             from myrm_agent_harness.agent.security.command_allowlist_pattern import (
                 extract_shell_command,
@@ -325,8 +304,7 @@ async def evaluate_tool_batch(
                         if len(sources_list) > 5:
                             truncated_sources = sources_list[:5]
                             sources_str = (
-                                ", ".join(truncated_sources)
-                                + f" ... and {len(sources_list) - 5} more sources"
+                                ", ".join(truncated_sources) + f" ... and {len(sources_list) - 5} more sources"
                             )
                         else:
                             sources_str = ", ".join(sources_list)
@@ -357,9 +335,7 @@ async def evaluate_tool_batch(
                     and is_threshold_breached() == ThresholdBreach.NONE
                 ):
                     safe_tool_input = _truncate_tool_args(tool_input)
-                    command_repr = (
-                        f"Tool: {tool_name}\nArgs: {json.dumps(safe_tool_input)}"
-                    )
+                    command_repr = f"Tool: {tool_name}\nArgs: {json.dumps(safe_tool_input)}"
                     review_result = await _run_llm_review(
                         command_repr,
                         workspace_root,
@@ -380,9 +356,7 @@ async def evaluate_tool_batch(
                                 tool_name,
                                 review_result.reason,
                             )
-                            record_decision(
-                                tool_name, "LLM_REVIEW_ALLOW", review_result.reason
-                            )
+                            record_decision(tool_name, "LLM_REVIEW_ALLOW", review_result.reason)
                             auto_approved.append((idx, tool_call))
                             record_approval()
                             continue
@@ -392,9 +366,7 @@ async def evaluate_tool_batch(
                                 tool_name,
                                 review_result.reason,
                             )
-                            record_decision(
-                                tool_name, "LLM_REVIEW_DENY", review_result.reason
-                            )
+                            record_decision(tool_name, "LLM_REVIEW_DENY", review_result.reason)
                             hint = record_denial(tool_name)
                             auto_denied.append(
                                 (
@@ -424,7 +396,9 @@ async def evaluate_tool_batch(
                     and is_threshold_breached() == ThresholdBreach.NONE
                 ):
                     safe_tool_input = _truncate_tool_args(tool_input)
-                    command_repr = f"Tool: {tool_name}\nArgs: {json.dumps(safe_tool_input, ensure_ascii=False, default=str)}"
+                    command_repr = (
+                        f"Tool: {tool_name}\nArgs: {json.dumps(safe_tool_input, ensure_ascii=False, default=str)}"
+                    )
                     review_result = await _run_llm_review(
                         command_repr,
                         workspace_root,
@@ -444,9 +418,7 @@ async def evaluate_tool_batch(
                                 tool_name,
                                 review_result.reason,
                             )
-                            record_decision(
-                                tool_name, "OUTBOUND_DENY", review_result.reason
-                            )
+                            record_decision(tool_name, "OUTBOUND_DENY", review_result.reason)
                             hint = record_denial(tool_name)
                             auto_denied.append(
                                 (
@@ -462,9 +434,7 @@ async def evaluate_tool_batch(
                                 tool_name,
                                 review_result.reason,
                             )
-                            record_decision(
-                                tool_name, "OUTBOUND_UNCERTAIN", review_result.reason
-                            )
+                            record_decision(tool_name, "OUTBOUND_UNCERTAIN", review_result.reason)
                             extra_ctx = extra_ctx or {}
                             extra_ctx["high_risk"] = True
                             pending_approval.append(
@@ -499,14 +469,9 @@ async def evaluate_tool_batch(
                     )
 
                     shell_cmd = str(
-                        tool_input.get("command", "")
-                        or tool_input.get("code", "")
-                        or tool_input.get("data", "")
+                        tool_input.get("command", "") or tool_input.get("code", "") or tool_input.get("data", "")
                     ).strip()
-                    if (
-                        shell_cmd
-                        and classify_command_risk(shell_cmd) != CommandRiskLevel.SAFE
-                    ):
+                    if shell_cmd and classify_command_risk(shell_cmd) != CommandRiskLevel.SAFE:
                         if extra_ctx and "ptc_annotations" in extra_ctx:
                             shell_cmd = f"{shell_cmd}\n\n# PTC Annotations: {extra_ctx['ptc_annotations']}"
                         review_result = await _run_llm_review(
@@ -615,9 +580,7 @@ async def evaluate_tool_batch(
                 )
                 continue
             shell_cmd = str(
-                tool_input.get("command", "")
-                or tool_input.get("code", "")
-                or tool_input.get("data", "")
+                tool_input.get("command", "") or tool_input.get("code", "") or tool_input.get("data", "")
             ).strip()
             if permission_type in ("shell_exec", "code_interpreter") and shell_cmd:
                 from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
@@ -641,8 +604,7 @@ async def evaluate_tool_batch(
                         (
                             idx,
                             tool_call,
-                            "Tool denied: cron jobs cannot auto-approve Google/integration write "
-                            f"operations.{hint}",
+                            f"Tool denied: cron jobs cannot auto-approve Google/integration write operations.{hint}",
                         )
                     )
                     continue
@@ -666,9 +628,7 @@ async def evaluate_tool_batch(
                     skill_hook_verdict.blocking_skill,
                     skill_hook_verdict.reason,
                 )
-                record_decision(
-                    tool_name, "SKILL_HOOK_BLOCK", skill_hook_verdict.reason
-                )
+                record_decision(tool_name, "SKILL_HOOK_BLOCK", skill_hook_verdict.reason)
                 hint = record_denial(tool_name)
                 auto_denied.append(
                     (
@@ -684,9 +644,7 @@ async def evaluate_tool_batch(
                     tool_name,
                     skill_hook_verdict.reason,
                 )
-                record_decision(
-                    tool_name, "SKILL_HOOK_APPROVAL", skill_hook_verdict.reason
-                )
+                record_decision(tool_name, "SKILL_HOOK_APPROVAL", skill_hook_verdict.reason)
                 pending_approval.append(
                     (
                         idx,
@@ -725,9 +683,7 @@ async def evaluate_tool_batch(
             # Build command representation for the classifier
             if permission_type in ("shell_exec", "code_interpreter"):
                 command = str(
-                    tool_input.get("command", "")
-                    or tool_input.get("code", "")
-                    or tool_input.get("data", "")
+                    tool_input.get("command", "") or tool_input.get("code", "") or tool_input.get("data", "")
                 ).strip()
                 if extra_ctx and "ptc_annotations" in extra_ctx:
                     command = f"{command}\n\n# PTC Annotations: {extra_ctx['ptc_annotations']}"
@@ -754,9 +710,7 @@ async def evaluate_tool_batch(
                             tool_name,
                             review_result.reason,
                         )
-                        record_decision(
-                            tool_name, "LLM_REVIEW_ALLOW", review_result.reason
-                        )
+                        record_decision(tool_name, "LLM_REVIEW_ALLOW", review_result.reason)
                         auto_approved.append((idx, tool_call))
                         record_approval()
                         continue
@@ -766,17 +720,13 @@ async def evaluate_tool_batch(
                             tool_name,
                             review_result.reason,
                         )
-                        record_decision(
-                            tool_name, "LLM_REVIEW_DENY", review_result.reason
-                        )
+                        record_decision(tool_name, "LLM_REVIEW_DENY", review_result.reason)
                         if is_interactive:
                             extra_ctx = extra_ctx or {}
                             extra_ctx["smart_denied"] = True
                             extra_ctx["reviewer_reason"] = review_result.reason
                             reason = f"AI Security Reviewer recommends denial: {review_result.reason}"
-                            pending_approval.append(
-                                (idx, tool_call, permission_type, reason, extra_ctx)
-                            )
+                            pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
                         else:
                             hint = record_denial(tool_name)
                             auto_denied.append(
@@ -787,9 +737,7 @@ async def evaluate_tool_batch(
                                 )
                             )
                         continue
-                    record_decision(
-                        tool_name, "LLM_REVIEW_UNCERTAIN", review_result.reason
-                    )
+                    record_decision(tool_name, "LLM_REVIEW_UNCERTAIN", review_result.reason)
                     reason = f"{reason}\n\nAI Security Reviewer: {review_result.reason}"
                     extra_ctx = extra_ctx or {}
                     extra_ctx["high_risk"] = True
@@ -803,9 +751,7 @@ async def evaluate_tool_batch(
                 tool_name,
                 session_key,
             )
-            record_decision(
-                tool_name, "AUTO_MODE_SUSPENDED", f"denial threshold: {breach.value}"
-            )
+            record_decision(tool_name, "AUTO_MODE_SUSPENDED", f"denial threshold: {breach.value}")
             extra_ctx = extra_ctx or {}
             extra_ctx["high_risk"] = True
 

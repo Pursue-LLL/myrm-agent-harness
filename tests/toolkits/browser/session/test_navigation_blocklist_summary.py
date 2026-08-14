@@ -122,7 +122,9 @@ async def test_navigate_via_extension_unknown_action_requires_extension_upgrade(
 async def test_navigate_via_extension_maps_disconnected_to_extension_lost() -> None:
     bridge = MagicMock()
     bridge.is_connected.return_value = True
-    bridge.navigate_to_url = AsyncMock(side_effect=ExtensionBridgeNotAvailableError("Browser extension is not connected"))
+    bridge.navigate_to_url = AsyncMock(
+        side_effect=ExtensionBridgeNotAvailableError("Browser extension is not connected")
+    )
     bridge.connect_to_domain = AsyncMock()
 
     probe = _ExtensionNavigationProbe(bridge)

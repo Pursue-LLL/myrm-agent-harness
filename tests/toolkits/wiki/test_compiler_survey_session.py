@@ -41,9 +41,7 @@ async def test_facet_seeds_reach_second_batch_prompt(wiki_structure, mock_indexe
         for message in messages:
             if isinstance(message, HumanMessage):
                 captured_human_contents.append(str(message.content))
-        return AIMessage(
-            content='[{"name": "Shared Topic", "definition": "A concept reused across batches."}]'
-        )
+        return AIMessage(content='[{"name": "Shared Topic", "definition": "A concept reused across batches."}]')
 
     llm.ainvoke = _capture_invoke
 

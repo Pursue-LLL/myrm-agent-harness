@@ -88,9 +88,7 @@ def drain_restore_notifications() -> str | None:
             "Re-read any files you previously modified before making further changes."
         )
         if notif.external_effects:
-            effects_str = ", ".join(
-                _EXTERNAL_EFFECT_LABELS.get(effect, effect) for effect in notif.external_effects
-            )
+            effects_str = ", ".join(_EXTERNAL_EFFECT_LABELS.get(effect, effect) for effect in notif.external_effects)
             msg += (
                 f" WARNING: This snapshot involved external operations ({effects_str}) "
                 "that file-rollback cannot undo. The user may need to manually revert those changes."

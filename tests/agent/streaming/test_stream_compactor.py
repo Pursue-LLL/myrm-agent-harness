@@ -221,6 +221,7 @@ async def test_stream_compactor_none_data():
     msg = await queue.get()
     assert "data" not in msg or msg.get("data") is None
 
+
 @pytest.mark.asyncio
 async def test_compactor_reasoning_buffering():
     queue = asyncio.Queue()
@@ -239,6 +240,7 @@ async def test_compactor_reasoning_buffering():
     assert event["type"] == AgentEventType.REASONING.value
     assert event["data"] == "Thinking about it..."
     assert event["messageId"] == "msg-1"
+
 
 @pytest.mark.asyncio
 async def test_compactor_mixed_message_and_reasoning():

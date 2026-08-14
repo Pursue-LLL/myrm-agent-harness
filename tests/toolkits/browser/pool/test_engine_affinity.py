@@ -44,6 +44,7 @@ def _json_path(data_dir: str) -> str:
 
 # ── Construction ─────────────────────────────────────────────────────
 
+
 class TestConstruction:
     def test_fresh_store_empty(self, store_dir: str) -> None:
         store = EngineAffinityStore()
@@ -57,6 +58,7 @@ class TestConstruction:
 
 
 # ── Record & Get ─────────────────────────────────────────────────────
+
 
 class TestRecordAndGet:
     def test_record_then_get(self, store_dir: str) -> None:
@@ -78,6 +80,7 @@ class TestRecordAndGet:
 
 # ── Clear ────────────────────────────────────────────────────────────
 
+
 class TestClear:
     def test_clear_existing(self, store_dir: str) -> None:
         store = EngineAffinityStore()
@@ -91,6 +94,7 @@ class TestClear:
 
 
 # ── TTL Expiration ───────────────────────────────────────────────────
+
 
 class TestTTL:
     def test_expired_entry_returns_none(self, store_dir: str) -> None:
@@ -113,6 +117,7 @@ class TestTTL:
 
 # ── LRU Eviction ─────────────────────────────────────────────────────
 
+
 class TestLRUEviction:
     def test_evicts_oldest_when_exceeding_max(self, store_dir: str) -> None:
         store = EngineAffinityStore()
@@ -130,6 +135,7 @@ class TestLRUEviction:
 
 
 # ── File Persistence ─────────────────────────────────────────────────
+
 
 class TestPersistence:
     def test_record_creates_file(self, store_dir: str) -> None:
@@ -169,11 +175,14 @@ class TestPersistence:
         path = _json_path(store_dir)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({
-                "good.com": [BrowserEngine.FIREFOX_CAMOUFOX.value, time.time()],
-                "bad.com": "not-a-list",
-                "short.com": [BrowserEngine.FIREFOX_CAMOUFOX.value],
-            }, f)
+            json.dump(
+                {
+                    "good.com": [BrowserEngine.FIREFOX_CAMOUFOX.value, time.time()],
+                    "bad.com": "not-a-list",
+                    "short.com": [BrowserEngine.FIREFOX_CAMOUFOX.value],
+                },
+                f,
+            )
 
         store = EngineAffinityStore()
         assert store.get("good.com") is BrowserEngine.FIREFOX_CAMOUFOX
@@ -182,7 +191,10 @@ class TestPersistence:
 
     def test_flush_failure_does_not_raise(self, store_dir: str) -> None:
         store = EngineAffinityStore()
-        with patch("myrm_agent_harness.toolkits.browser.pool.engine_affinity._store_path", return_value="/dev/null/impossible/path"):
+        with patch(
+            "myrm_agent_harness.toolkits.browser.pool.engine_affinity._store_path",
+            return_value="/dev/null/impossible/path",
+        ):
             store.record("fail.com", BrowserEngine.FIREFOX_CAMOUFOX)
 
     def test_clear_persists_to_disk(self, store_dir: str) -> None:
@@ -196,6 +208,7 @@ class TestPersistence:
 
 # ── Invalid Engine Value ─────────────────────────────────────────────
 
+
 class TestInvalidEngine:
     def test_invalid_engine_value_returns_none(self, store_dir: str) -> None:
         store = EngineAffinityStore()
@@ -207,6 +220,7 @@ class TestInvalidEngine:
 
 
 # ── Singleton ────────────────────────────────────────────────────────
+
 
 class TestSingleton:
     def test_returns_same_instance(self, store_dir: str) -> None:

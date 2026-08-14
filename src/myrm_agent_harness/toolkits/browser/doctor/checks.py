@@ -331,9 +331,7 @@ async def _check_extension_relay(base_url: str = "") -> DoctorCheckResult:
 
     import httpx
 
-    base = base_url.strip().rstrip("/") or os.environ.get(
-        "MYRM_SERVER_URL", "http://127.0.0.1:8080"
-    ).rstrip("/")
+    base = base_url.strip().rstrip("/") or os.environ.get("MYRM_SERVER_URL", "http://127.0.0.1:8080").rstrip("/")
     url = f"{base}/api/v1/extension/setup-hints"
     if not url.startswith(("http://", "https://")):
         return DoctorCheckResult(
@@ -370,26 +368,19 @@ async def _check_extension_relay(base_url: str = "") -> DoctorCheckResult:
             fix="Check server logs and extension connection settings",
         )
 
-    if (
-        payload.get("relay_cdp_ready") is True
-        and payload.get("access_policy_valid") is True
-    ):
+    if payload.get("relay_cdp_ready") is True and payload.get("access_policy_valid") is True:
         return DoctorCheckResult(
             name="extension_relay",
             status=CheckStatus.OK,
             message="Extension CDP relay is ready for login-state automation",
         )
 
-    if payload.get("relay_cdp_ready") is True and not payload.get(
-        "access_policy_valid"
-    ):
+    if payload.get("relay_cdp_ready") is True and not payload.get("access_policy_valid"):
         return DoctorCheckResult(
             name="extension_relay",
             status=CheckStatus.WARNING,
             message="Extension relay is up but access policy is not configured",
-            fix=(
-                "Add authorized domains or enable allow-all in Settings → Browser Extension"
-            ),
+            fix=("Add authorized domains or enable allow-all in Settings → Browser Extension"),
         )
 
     if payload.get("auth_token_required") and not payload.get("auth_token_configured"):

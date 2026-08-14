@@ -72,8 +72,7 @@ def create_vision_agent_tools(
     class SemanticInput(BaseModel):
         mode: Literal["together", "ground", "region", "ocr"] = Field(
             description=(
-                "together=multi-image joint analysis; ground=find target bbox; "
-                "region=crop+analyze; ocr=verbatim text."
+                "together=multi-image joint analysis; ground=find target bbox; region=crop+analyze; ocr=verbatim text."
             )
         )
         paths: list[str] = Field(

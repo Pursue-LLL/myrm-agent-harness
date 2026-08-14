@@ -40,13 +40,9 @@ async def test_clean_queries_pass_through() -> None:
 
     import myrm_agent_harness.toolkits.web_search.engine as engine_mod
 
-    with patch.object(
-        engine_mod.WebSearchTools, "fast_search_with_questions"
-    ) as mock_search:
+    with patch.object(engine_mod.WebSearchTools, "fast_search_with_questions") as mock_search:
         mock_search.return_value = ([], "")
-        result = await tool.ainvoke(
-            {"questions": ["best chess openings"], "reason": "probe"}
-        )
+        result = await tool.ainvoke({"questions": ["best chess openings"], "reason": "probe"})
         assert "content" in result
         assert "metadata" in result
         mock_search.assert_awaited_once()
@@ -56,9 +52,7 @@ async def test_clean_queries_pass_through() -> None:
 async def test_case_insensitive_block() -> None:
     tool = _make_tool(("HUGGINGFACE",))
     with pytest.raises(ToolError):
-        await tool.ainvoke(
-            {"questions": ["huggingface dataset download"], "reason": ""}
-        )
+        await tool.ainvoke({"questions": ["huggingface dataset download"], "reason": ""})
 
 
 @pytest.mark.asyncio
@@ -158,9 +152,7 @@ async def test_blocked_hostnames_none_passthrough() -> None:
         new_callable=AsyncMock,
         return_value=mock_results,
     ):
-        sources, formatted = await tools.fast_search_with_questions(
-            questions=["test query"]
-        )
+        sources, formatted = await tools.fast_search_with_questions(questions=["test query"])
 
     assert len(sources) == 2
     assert "huggingface" in formatted.lower()
@@ -178,13 +170,9 @@ async def test_tool_forwards_blocked_hostnames_to_engine() -> None:
         blocked_hostnames=("huggingface.co",),
     )
 
-    with patch.object(
-        engine_mod.WebSearchTools, "fast_search_with_questions", new_callable=AsyncMock
-    ) as mock_search:
+    with patch.object(engine_mod.WebSearchTools, "fast_search_with_questions", new_callable=AsyncMock) as mock_search:
         mock_search.return_value = ([], "")
         await tool.ainvoke({"questions": ["best chess openings"], "reason": "probe"})
 
     mock_search.assert_awaited_once()
-    assert mock_search.await_args.kwargs.get("blocked_hostnames") == (
-        "huggingface.co",
-    )
+    assert mock_search.await_args.kwargs.get("blocked_hostnames") == ("huggingface.co",)

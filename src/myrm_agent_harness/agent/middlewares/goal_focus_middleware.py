@@ -74,9 +74,7 @@ def _has_goal_continuation_prompt(messages: list[object]) -> bool:
                 return True
         elif isinstance(content, list):
             joined = " ".join(
-                block.get("text", "")
-                for block in content
-                if isinstance(block, dict) and block.get("type") == "text"
+                block.get("text", "") for block in content if isinstance(block, dict) and block.get("type") == "text"
             )
             if joined.startswith(GOAL_CONTINUATION_PREFIX) or joined.startswith(GOAL_WRAPUP_PREFIX):
                 return True

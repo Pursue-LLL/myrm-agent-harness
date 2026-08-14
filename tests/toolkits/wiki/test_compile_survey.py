@@ -34,20 +34,14 @@ def test_empty_paths_skipped(wiki_structure: WikiStructure) -> None:
 
 
 def test_fast_path_small_shallow_vault(wiki_structure: WikiStructure) -> None:
-    paths = [
-        _raw_path(wiki_structure, f"raw/doc-{index:02d}.md")
-        for index in range(FAST_PATH_MAX_RAW_COUNT)
-    ]
+    paths = [_raw_path(wiki_structure, f"raw/doc-{index:02d}.md") for index in range(FAST_PATH_MAX_RAW_COUNT)]
     context = build_compile_survey(wiki_structure, paths)
     assert context.skipped is True
     assert context.facet_count == 0
 
 
 def test_fast_path_uses_vault_scope_not_pending_only(wiki_structure: WikiStructure) -> None:
-    vault_paths = [
-        _raw_path(wiki_structure, f"raw/doc-{index:02d}.md")
-        for index in range(FAST_PATH_MAX_RAW_COUNT + 1)
-    ]
+    vault_paths = [_raw_path(wiki_structure, f"raw/doc-{index:02d}.md") for index in range(FAST_PATH_MAX_RAW_COUNT + 1)]
     pending_only = vault_paths[:3]
     context = build_compile_survey(
         wiki_structure,
@@ -59,10 +53,7 @@ def test_fast_path_uses_vault_scope_not_pending_only(wiki_structure: WikiStructu
 
 
 def test_survey_when_exceeds_fast_path_count(wiki_structure: WikiStructure) -> None:
-    paths = [
-        _raw_path(wiki_structure, f"raw/doc-{index:02d}.md")
-        for index in range(FAST_PATH_MAX_RAW_COUNT + 1)
-    ]
+    paths = [_raw_path(wiki_structure, f"raw/doc-{index:02d}.md") for index in range(FAST_PATH_MAX_RAW_COUNT + 1)]
     context = build_compile_survey(wiki_structure, paths)
     assert context.skipped is False
     assert context.facet_count >= 1

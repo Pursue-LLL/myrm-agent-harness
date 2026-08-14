@@ -94,14 +94,26 @@ class TestCreateCheckpointSync:
     def test_raises_when_no_config(self) -> None:
         manager = _make_manager()
         with pytest.raises(ValueError, match="No config found"):
-            manager._checkpoint_manager.create_checkpoint("missing-task", manager._children_agents, manager._children_configs, manager._children_types, manager._parent_agent)
+            manager._checkpoint_manager.create_checkpoint(
+                "missing-task",
+                manager._children_agents,
+                manager._children_configs,
+                manager._children_types,
+                manager._parent_agent,
+            )
 
     def test_minimal_checkpoint_when_no_agent(self) -> None:
         manager = _make_manager()
         manager._children_configs["task-1"] = _make_config()
         manager._children_types["task-1"] = "researcher"
 
-        cp = manager._checkpoint_manager.create_checkpoint("task-1", manager._children_agents, manager._children_configs, manager._children_types, manager._parent_agent)
+        cp = manager._checkpoint_manager.create_checkpoint(
+            "task-1",
+            manager._children_agents,
+            manager._children_configs,
+            manager._children_types,
+            manager._parent_agent,
+        )
         assert cp.task_id == "task-1"
         assert cp.agent_type == "researcher"
         assert cp.resumable is False
@@ -117,7 +129,13 @@ class TestCreateCheckpointSync:
         child.last_run_stats = _FakeRunStats()
         manager._children_agents["task-1"] = child  # type: ignore[assignment]
 
-        cp = manager._checkpoint_manager.create_checkpoint("task-1", manager._children_agents, manager._children_configs, manager._children_types, manager._parent_agent)
+        cp = manager._checkpoint_manager.create_checkpoint(
+            "task-1",
+            manager._children_agents,
+            manager._children_configs,
+            manager._children_types,
+            manager._parent_agent,
+        )
         assert cp.task_id == "task-1"
         assert cp.resumable is False
         assert cp.progress == 1.0
@@ -128,7 +146,13 @@ class TestCreateCheckpointSync:
         manager._children_configs["task-1"] = _make_config()
         manager._children_types["task-1"] = "custom_coder"
 
-        cp = manager._checkpoint_manager.create_checkpoint("task-1", manager._children_agents, manager._children_configs, manager._children_types, manager._parent_agent)
+        cp = manager._checkpoint_manager.create_checkpoint(
+            "task-1",
+            manager._children_agents,
+            manager._children_configs,
+            manager._children_types,
+            manager._parent_agent,
+        )
         assert cp.agent_type == "custom_coder"
 
 
@@ -142,7 +166,9 @@ class TestCreateCheckpointAsync:
     async def test_raises_when_no_config(self) -> None:
         manager = _make_manager()
         with pytest.raises(ValueError, match="No config found"):
-            await manager._checkpoint_manager.create_checkpoint_async("missing-task", manager._children_agents, manager._children_configs, manager._children_types)
+            await manager._checkpoint_manager.create_checkpoint_async(
+                "missing-task", manager._children_agents, manager._children_configs, manager._children_types
+            )
 
     @pytest.mark.asyncio
     async def test_minimal_checkpoint_when_no_agent(self) -> None:
@@ -150,7 +176,9 @@ class TestCreateCheckpointAsync:
         manager._children_configs["task-2"] = _make_config()
         manager._children_types["task-2"] = "coder"
 
-        cp = await manager._checkpoint_manager.create_checkpoint_async("task-2", manager._children_agents, manager._children_configs, manager._children_types)
+        cp = await manager._checkpoint_manager.create_checkpoint_async(
+            "task-2", manager._children_agents, manager._children_configs, manager._children_types
+        )
         assert cp.resumable is False
         assert cp.messages == []
         assert cp.agent_type == "coder"
@@ -164,7 +192,9 @@ class TestCreateCheckpointAsync:
         child = _FakeChildAgent()
         manager._children_agents["task-1"] = child  # type: ignore[assignment]
 
-        cp = await manager._checkpoint_manager.create_checkpoint_async("task-1", manager._children_agents, manager._children_configs, manager._children_types)
+        cp = await manager._checkpoint_manager.create_checkpoint_async(
+            "task-1", manager._children_agents, manager._children_configs, manager._children_types
+        )
         assert cp.task_id == "task-1"
         assert cp.progress == 0.7
         assert cp.last_tool == "web_search"

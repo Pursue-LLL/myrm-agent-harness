@@ -35,9 +35,9 @@ class TestParseDetectionResponse:
         assert result == [[], []]
 
     def test_single_text_flat_list(self) -> None:
-        resp = json.dumps([
-            {"original_text": "penicillin allergy", "privacy_type": "Medical Health", "privacy_level": "PL3"}
-        ])
+        resp = json.dumps(
+            [{"original_text": "penicillin allergy", "privacy_type": "Medical Health", "privacy_level": "PL3"}]
+        )
         result = _parse_detection_response(resp, 1)
         assert len(result) == 1
         assert len(result[0]) == 1
@@ -46,11 +46,13 @@ class TestParseDetectionResponse:
         assert result[0][0].privacy_level == "PL3"
 
     def test_batch_nested_list(self) -> None:
-        resp = json.dumps([
-            [{"original_text": "depression", "privacy_type": "Medical Health", "privacy_level": "PL3"}],
-            [],
-            [{"original_text": "张三", "privacy_type": "Real Name", "privacy_level": "PL2"}],
-        ])
+        resp = json.dumps(
+            [
+                [{"original_text": "depression", "privacy_type": "Medical Health", "privacy_level": "PL3"}],
+                [],
+                [{"original_text": "张三", "privacy_type": "Real Name", "privacy_level": "PL2"}],
+            ]
+        )
         result = _parse_detection_response(resp, 3)
         assert len(result) == 3
         assert len(result[0]) == 1
@@ -58,20 +60,26 @@ class TestParseDetectionResponse:
         assert len(result[2]) == 1
 
     def test_think_tags_stripped(self) -> None:
-        resp = "<think>analyzing...</think>" + json.dumps([
-            [{"original_text": "asthma", "privacy_type": "Medical Health", "privacy_level": "PL3"}]
-        ])
+        resp = "<think>analyzing...</think>" + json.dumps(
+            [[{"original_text": "asthma", "privacy_type": "Medical Health", "privacy_level": "PL3"}]]
+        )
         result = _parse_detection_response(resp, 1)
         assert len(result[0]) == 1
         assert result[0][0].original_text == "asthma"
 
-    @pytest.mark.parametrize("tag_name", [
-        "think", "thinking", "thought", "antthinking", "reasoning", "REASONING_SCRATCHPAD",
-    ])
+    @pytest.mark.parametrize(
+        "tag_name",
+        [
+            "think",
+            "thinking",
+            "thought",
+            "antthinking",
+            "reasoning",
+            "REASONING_SCRATCHPAD",
+        ],
+    )
     def test_all_thinking_tags_stripped(self, tag_name: str) -> None:
-        inner = json.dumps([[
-            {"original_text": "asthma", "privacy_type": "Medical Health", "privacy_level": "PL3"}
-        ]])
+        inner = json.dumps([[{"original_text": "asthma", "privacy_type": "Medical Health", "privacy_level": "PL3"}]])
         resp = f"<{tag_name}>internal reasoning</{tag_name}>{inner}"
         result = _parse_detection_response(resp, 1)
         assert len(result[0]) == 1
@@ -82,9 +90,7 @@ class TestParseDetectionResponse:
         assert result == [[], []]
 
     def test_invalid_privacy_level_filtered(self) -> None:
-        resp = json.dumps([
-            {"original_text": "likes coffee", "privacy_type": "Preference", "privacy_level": "PL1"}
-        ])
+        resp = json.dumps([{"original_text": "likes coffee", "privacy_type": "Preference", "privacy_level": "PL1"}])
         result = _parse_detection_response(resp, 1)
         assert len(result[0]) == 0
 
@@ -97,7 +103,7 @@ class TestParseDetectionResponse:
     def test_multiple_arrays_takes_last(self) -> None:
         example = '{"original_text": "example@test.com", "privacy_type": "Email", "privacy_level": "PL3"}'
         real = '{"original_text": "wang@corp.com", "privacy_type": "Email", "privacy_level": "PL3"}'
-        resp = f'Some candidates: [[{example}]]\nReal: [[{real}]]'
+        resp = f"Some candidates: [[{example}]]\nReal: [[{real}]]"
         result = _parse_detection_response(resp, 1)
         assert len(result) == 1
         assert len(result[0]) == 1
@@ -113,18 +119,22 @@ class TestParseDetectionResponse:
 
 class TestParseItems:
     def test_valid_items(self) -> None:
-        items = _parse_items([
-            {"original_text": "心脏支架", "privacy_type": "Medical Health", "privacy_level": "PL3"},
-            {"original_text": "301医院", "privacy_type": "Precise Location", "privacy_level": "PL3"},
-        ])
+        items = _parse_items(
+            [
+                {"original_text": "心脏支架", "privacy_type": "Medical Health", "privacy_level": "PL3"},
+                {"original_text": "301医院", "privacy_type": "Precise Location", "privacy_level": "PL3"},
+            ]
+        )
         assert len(items) == 2
 
     def test_missing_fields_skipped(self) -> None:
-        items = _parse_items([
-            {"original_text": "test"},
-            {"privacy_type": "test", "privacy_level": "PL2"},
-            {},
-        ])
+        items = _parse_items(
+            [
+                {"original_text": "test"},
+                {"privacy_type": "test", "privacy_level": "PL2"},
+                {},
+            ]
+        )
         assert len(items) == 0
 
     def test_non_dict_skipped(self) -> None:
@@ -189,9 +199,13 @@ class TestDetectDeepPII:
 
     @pytest.mark.asyncio
     async def test_successful_detection(self) -> None:
-        detection_response = json.dumps([[
-            {"original_text": "penicillin allergy", "privacy_type": "Medical Health", "privacy_level": "PL3"},
-        ]])
+        detection_response = json.dumps(
+            [
+                [
+                    {"original_text": "penicillin allergy", "privacy_type": "Medical Health", "privacy_level": "PL3"},
+                ]
+            ]
+        )
 
         async def _mock(_s: str, _u: str) -> str:
             return detection_response
@@ -221,10 +235,18 @@ class TestPseudonymizeDeepPII:
     @pytest.mark.asyncio
     async def test_pii_replaced_with_pseudonyms(self, store: PseudonymStore) -> None:
         async def _mock(_s: str, _u: str) -> str:
-            return json.dumps([[
-                {"original_text": "penicillin allergy", "privacy_type": "Medical Health", "privacy_level": "PL3"},
-                {"original_text": "Building 301", "privacy_type": "Precise Location", "privacy_level": "PL3"},
-            ]])
+            return json.dumps(
+                [
+                    [
+                        {
+                            "original_text": "penicillin allergy",
+                            "privacy_type": "Medical Health",
+                            "privacy_level": "PL3",
+                        },
+                        {"original_text": "Building 301", "privacy_type": "Precise Location", "privacy_level": "PL3"},
+                    ]
+                ]
+            )
 
         result = await pseudonymize_deep_pii(
             ["User has penicillin allergy, visited Building 301"],
@@ -241,9 +263,13 @@ class TestPseudonymizeDeepPII:
     @pytest.mark.asyncio
     async def test_idempotent_across_calls(self, store: PseudonymStore) -> None:
         async def _mock(_s: str, _u: str) -> str:
-            return json.dumps([[
-                {"original_text": "diabetes", "privacy_type": "Medical Health", "privacy_level": "PL3"},
-            ]])
+            return json.dumps(
+                [
+                    [
+                        {"original_text": "diabetes", "privacy_type": "Medical Health", "privacy_level": "PL3"},
+                    ]
+                ]
+            )
 
         r1 = await pseudonymize_deep_pii(["has diabetes"], store, llm_func=_mock)
         r2 = await pseudonymize_deep_pii(["has diabetes"], store, llm_func=_mock)
@@ -252,11 +278,13 @@ class TestPseudonymizeDeepPII:
     @pytest.mark.asyncio
     async def test_batch_texts(self, store: PseudonymStore) -> None:
         async def _mock(_s: str, _u: str) -> str:
-            return json.dumps([
-                [{"original_text": "asthma", "privacy_type": "Medical Health", "privacy_level": "PL3"}],
-                [],
-                [{"original_text": "John Doe", "privacy_type": "Real Name", "privacy_level": "PL2"}],
-            ])
+            return json.dumps(
+                [
+                    [{"original_text": "asthma", "privacy_type": "Medical Health", "privacy_level": "PL3"}],
+                    [],
+                    [{"original_text": "John Doe", "privacy_type": "Real Name", "privacy_level": "PL2"}],
+                ]
+            )
 
         result = await pseudonymize_deep_pii(
             ["has asthma", "clean text", "name is John Doe"],
@@ -285,9 +313,7 @@ class TestParseEdgeCases:
         assert result == [[]]
 
     def test_markdown_wrapped_json(self) -> None:
-        inner = json.dumps([[
-            {"original_text": "asthma", "privacy_type": "Medical Health", "privacy_level": "PL3"}
-        ]])
+        inner = json.dumps([[{"original_text": "asthma", "privacy_type": "Medical Health", "privacy_level": "PL3"}]])
         resp = f"```json\n{inner}\n```"
         result = _parse_detection_response(resp, 1)
         assert len(result[0]) == 1

@@ -169,9 +169,7 @@ class TestSecurityConfigWorkspace:
         assert da_rules[0].action == PermissionAction.ALLOW
 
     def test_workspace_with_shell_action_deny(self) -> None:
-        config = SecurityConfig.workspace(
-            allowed_roots=("/tmp",), shell_action=PermissionAction.DENY
-        )
+        config = SecurityConfig.workspace(allowed_roots=("/tmp",), shell_action=PermissionAction.DENY)
         shell_rules = [r for r in config.ruleset if r.permission == "shell_exec"]
         assert shell_rules[0].action == PermissionAction.DENY
 
@@ -330,9 +328,7 @@ class TestParseSecurityConfigAutoMode:
     def test_auto_mode_takes_priority_over_auto_review(self) -> None:
         from myrm_agent_harness.agent.security.config import parse_security_config
 
-        config = parse_security_config(
-            {"autoModeEnabled": False, "autoReviewEnabled": True}
-        )
+        config = parse_security_config({"autoModeEnabled": False, "autoReviewEnabled": True})
         assert config is not None
         assert config.auto_mode_enabled is False
 

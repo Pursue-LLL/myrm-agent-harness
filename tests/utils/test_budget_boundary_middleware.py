@@ -103,9 +103,7 @@ class TestBeforeModel:
     def test_warning_hint_idempotent(self) -> None:
         """Re-injection is skipped when a budget hint is already present."""
         mw = BudgetBoundaryMiddleware()
-        existing_hint = HumanMessage(
-            content=f"[SYSTEM INSTRUCTION] {_HINT_PREFIX}\n{_build_warning_hint(0.80)}"
-        )
+        existing_hint = HumanMessage(content=f"[SYSTEM INSTRUCTION] {_HINT_PREFIX}\n{_build_warning_hint(0.80)}")
         messages = [HumanMessage(content="hi"), existing_hint]
         with patch(
             "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",

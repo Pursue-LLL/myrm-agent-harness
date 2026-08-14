@@ -50,9 +50,7 @@ async def test_tool_interceptor_coverage_estop():
             "myrm_agent_harness.agent.hooks.executor.fire_hook",
             return_value=MagicMock(blocked=False, updated_input=None),
         ),
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop"
-        ) as mock_estop,
+        patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop") as mock_estop,
     ):
         mock_estop_state = MagicMock()
         mock_estop_state.level = "KILL_ALL"
@@ -84,11 +82,8 @@ async def test_tool_interceptor_coverage_loop_break():
             "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop",
             return_value=None,
         ),
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-        ) as mock_guard,
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard") as mock_guard,
     ):
-
         mock_guard_inst = MagicMock()
         mock_verdict = MagicMock()
         from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction
@@ -124,15 +119,12 @@ async def test_tool_interceptor_coverage_pii_block():
             "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop",
             return_value=None,
         ),
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-        ) as mock_guard,
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard") as mock_guard,
         patch(
             "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_params_pii",
             return_value="pii block",
         ),
     ):
-
         mock_guard_inst = MagicMock()
         mock_verdict = MagicMock()
         from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction
@@ -155,9 +147,7 @@ async def test_build_hook_failure_result():
         build_hook_failure_result as _build_hook_failure_result,
     )
 
-    result = ToolMessage(
-        content="original output", name="test_tool", tool_call_id="call_123"
-    )
+    result = ToolMessage(content="original output", name="test_tool", tool_call_id="call_123")
 
     # Create a mock post_hook_result
     mock_hook_result = MagicMock()
@@ -175,9 +165,7 @@ async def test_build_hook_failure_result():
 
     mock_hook_result.results = [mock_res1, mock_res2]
 
-    error_msg = _build_hook_failure_result(
-        result, mock_hook_result, "test_tool", "call_123", "original output"
-    )
+    error_msg = _build_hook_failure_result(result, mock_hook_result, "test_tool", "call_123", "original output")
 
     assert "detail 1" in error_msg.content
     assert "detail 2" in error_msg.content
@@ -197,11 +185,8 @@ async def test_handle_cancellation():
     e = asyncio.CancelledError("timeout occurred")
     with (
         patch("myrm_agent_harness.agent.hooks.executor.fire_hook") as mock_fire,
-        patch(
-            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink"
-        ) as mock_sink,
+        patch("myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink") as mock_sink,
     ):
-
         mock_sink_inst = AsyncMock()
         mock_sink.return_value = mock_sink_inst
 
@@ -231,20 +216,13 @@ async def test_handle_execution_error():
             run_post_call_guards as _run_post_call_guards,
         )
 
-        result = ToolMessage(
-            content="test output", name="test_tool", tool_call_id="call_123"
-        )
+        result = ToolMessage(content="test output", name="test_tool", tool_call_id="call_123")
 
         with (
             patch("myrm_agent_harness.agent.hooks.executor.fire_hook") as mock_fire,
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii"
-            ) as mock_pii,
-            patch(
-                "myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii") as mock_pii,
+            patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker"),
         ):
-
             mock_hook_result = MagicMock()
             mock_hook_result.blocked = False
             mock_fire.return_value = mock_hook_result
@@ -293,15 +271,11 @@ async def test_emit_hook_failure_event():
     mock_agent_event_type = MagicMock()
     mock_agent_event_type.HOOK_FAILED.value = "hook_failed"
 
-    with patch(
-        "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink"
-    ) as mock_sink:
+    with patch("myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink") as mock_sink:
         mock_sink_inst = AsyncMock()
         mock_sink.return_value = mock_sink_inst
 
-        await _emit_hook_failure_event(
-            "test_tool", mock_hook_result, mock_agent_event_type
-        )
+        await _emit_hook_failure_event("test_tool", mock_hook_result, mock_agent_event_type)
 
         assert mock_sink_inst.emit.call_count == 1
 
@@ -310,9 +284,7 @@ async def test_emit_hook_failure_event():
             _check_circuit_breaker,
         )
 
-        with patch(
-            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_terminal_errors"
-        ) as mock_cb:
+        with patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_terminal_errors") as mock_cb:
             mock_cb_inst = MagicMock()
             mock_cb_inst.get_all.return_value = {"any": "error"}
             mock_cb.return_value = mock_cb_inst
@@ -328,14 +300,11 @@ def test_record_skill_execution():
     )
 
     with (
-        patch(
-            "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills"
-        ) as mock_skills,
+        patch("myrm_agent_harness.agent.skill_agent.context.get_loaded_skills") as mock_skills,
         patch(
             "myrm_agent_harness.agent.skills.evolution.infra.integration.get_global_evolution_integration"
         ) as mock_evo,
     ):
-
         mock_skill = MagicMock()
         mock_skill.name = "test_tool"
         mock_skill.storage_skill_id = "skill_123"
@@ -404,15 +373,12 @@ async def test_run_pre_call_guards_updated_input():
             "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop",
             return_value=None,
         ),
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-        ) as mock_guard,
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard") as mock_guard,
         patch(
             "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_params_pii",
             return_value=None,
         ),
     ):
-
         mock_hook_result = MagicMock()
         mock_hook_result.blocked = False
         mock_hook_result.updated_input = {"new": 2}
@@ -530,9 +496,7 @@ def test_reset_loop_guard():
     )
 
     _session_loop_guards.clear()
-    with patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var"
-    ) as mock_var:
+    with patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var") as mock_var:
         mock_var.get.return_value = None
         reset_loop_guard()
         assert len(_session_loop_guards) == 1
@@ -549,9 +513,7 @@ async def test_tool_interceptor_middleware_success():
 
     request = MagicMock()
     request.tool_call = {"name": "test_tool", "args": {}, "id": "call_123"}
-    result_msg = ToolMessage(
-        content="success", name="test_tool", tool_call_id="call_123"
-    )
+    result_msg = ToolMessage(content="success", name="test_tool", tool_call_id="call_123")
 
     async def mock_handler(req):
         return result_msg
@@ -564,11 +526,8 @@ async def test_tool_interceptor_middleware_success():
         patch(
             "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._track_skill_execution"
         ) as mock_track,
-        patch(
-            "myrm_agent_harness.observability.metrics.registry.metrics_registry"
-        ) as mock_registry,
+        patch("myrm_agent_harness.observability.metrics.registry.metrics_registry") as mock_registry,
     ):
-
         mock_registry.enabled = True
 
         # We need to unwrap the decorator for testing, or just call it directly.
@@ -614,11 +573,8 @@ async def test_tool_interceptor_middleware_error():
         patch(
             "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._track_skill_execution"
         ) as mock_track,
-        patch(
-            "myrm_agent_harness.observability.metrics.registry.metrics_registry"
-        ) as mock_registry,
+        patch("myrm_agent_harness.observability.metrics.registry.metrics_registry") as mock_registry,
     ):
-
         mock_registry.enabled = True
 
         with pytest.raises(ValueError):
@@ -641,9 +597,7 @@ async def test_tool_interceptor_middleware_error():
 def test_check_circuit_breaker_network():
     from myrm_agent_harness.agent.middlewares.tooling._tool_guards import _check_circuit_breaker
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_terminal_errors"
-    ) as mock_cb:
+    with patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_terminal_errors") as mock_cb:
         mock_cb_inst = MagicMock()
         mock_cb_inst.get_all.return_value = {"network_blocked": "error"}
         mock_cb.return_value = mock_cb_inst
@@ -659,9 +613,7 @@ def test_check_circuit_breaker_network():
 def test_check_circuit_breaker_write():
     from myrm_agent_harness.agent.middlewares.tooling._tool_guards import _check_circuit_breaker
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_terminal_errors"
-    ) as mock_cb:
+    with patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_terminal_errors") as mock_cb:
         mock_cb_inst = MagicMock()
         mock_cb_inst.get_all.return_value = {"sandbox_ro": "error"}
         mock_cb.return_value = mock_cb_inst
@@ -688,29 +640,16 @@ async def test_run_post_call_guards_full():
 
     with (
         patch("myrm_agent_harness.agent.hooks.executor.fire_hook") as mock_fire,
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii"
-        ) as mock_pii,
-        patch(
-            "myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker"
-        ),
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard"
-        ) as mock_budget,
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.run_content_validation"
-        ) as mock_validation,
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.emit_hook_failure_event"
-        ),
+        patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii") as mock_pii,
+        patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker"),
+        patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard") as mock_budget,
+        patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.run_content_validation") as mock_validation,
+        patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.emit_hook_failure_event"),
     ):
-
         mock_hook_result = MagicMock()
         mock_hook_result.blocked = True
         mock_hook_result.reason = "hook blocked"
-        mock_hook_result.results = [
-            MagicMock(blocked=True, success=False, output=None, reason="hook blocked")
-        ]
+        mock_hook_result.results = [MagicMock(blocked=True, success=False, output=None, reason="hook blocked")]
         mock_fire.return_value = mock_hook_result
 
         mock_pii.return_value = (result, "(no output)")
@@ -771,15 +710,9 @@ async def test_run_post_call_guards_budget_persisted():
 
     with (
         patch("myrm_agent_harness.agent.hooks.executor.fire_hook") as mock_fire,
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii"
-        ) as mock_pii,
-        patch(
-            "myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker"
-        ),
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard"
-        ) as mock_budget,
+        patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii") as mock_pii,
+        patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker"),
+        patch("myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard") as mock_budget,
         patch(
             "myrm_agent_harness.agent.middlewares.tooling._tool_guards.run_content_validation",
             return_value=None,
@@ -789,7 +722,6 @@ async def test_run_post_call_guards_budget_persisted():
             new_callable=AsyncMock,
         ),
     ):
-
         mock_hook_result = MagicMock()
         mock_hook_result.blocked = False
         mock_fire.return_value = mock_hook_result
@@ -842,9 +774,7 @@ async def test_tool_interceptor_middleware_inner_success():
 
     request = MagicMock()
     request.tool_call = {"name": "test_tool", "args": {}, "id": "call_123"}
-    result_msg = ToolMessage(
-        content="success", name="test_tool", tool_call_id="call_123"
-    )
+    result_msg = ToolMessage(content="success", name="test_tool", tool_call_id="call_123")
 
     async def mock_handler(req):
         return result_msg
@@ -861,23 +791,16 @@ async def test_tool_interceptor_middleware_inner_success():
             "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_post_call_guards",
             return_value=result_msg,
         ),
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.push_tool_context"
-        ),
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.pop_tool_context"
-        ),
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.push_tool_context"),
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.pop_tool_context"),
         patch(
             "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker"
         ) as mock_tracker,
         patch(
             "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_event_logger"
         ) as mock_logger,
-        patch(
-            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat"
-        ),
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat"),
     ):
-
         mock_pre_result = MagicMock()
         mock_pre_result.blocked = False
         mock_pre_result.loop_guard = MagicMock()
@@ -915,9 +838,7 @@ async def test_tool_interceptor_middleware_inner_blocked():
 
     request = MagicMock()
     request.tool_call = {"name": "test_tool", "args": {}, "id": "call_123"}
-    blocked_msg = ToolMessage(
-        content="blocked", name="test_tool", tool_call_id="call_123"
-    )
+    blocked_msg = ToolMessage(content="blocked", name="test_tool", tool_call_id="call_123")
 
     async def mock_handler(req):
         return None
@@ -940,12 +861,9 @@ async def test_emit_tool_heartbeat():
     )
 
     with (
-        patch(
-            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink"
-        ) as mock_sink,
+        patch("myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink") as mock_sink,
         patch("asyncio.sleep", side_effect=[None, asyncio.CancelledError()]),
     ):
-
         mock_sink_inst = AsyncMock()
         mock_sink.return_value = mock_sink_inst
 
@@ -968,26 +886,19 @@ async def test_handle_cancellation_reasons():
         patch("myrm_agent_harness.agent.hooks.executor.fire_hook"),
         patch("myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink"),
     ):
-
         # user
         e_user = asyncio.CancelledError("user requested")
-        res_user = await _handle_cancellation(
-            e_user, "test_tool", "call_123", {}, time.time()
-        )
+        res_user = await _handle_cancellation(e_user, "test_tool", "call_123", {}, time.time())
         assert "user_cancelled" in res_user.content
 
         # session
         e_session = asyncio.CancelledError("session closed")
-        res_session = await _handle_cancellation(
-            e_session, "test_tool", "call_123", {}, time.time()
-        )
+        res_session = await _handle_cancellation(e_session, "test_tool", "call_123", {}, time.time())
         assert "session_ended" in res_session.content
 
         # default
         e_default = asyncio.CancelledError()
-        res_default = await _handle_cancellation(
-            e_default, "test_tool", "call_123", {}, time.time()
-        )
+        res_default = await _handle_cancellation(e_default, "test_tool", "call_123", {}, time.time())
         assert "user_cancelled" in res_default.content
 
 
@@ -1060,9 +971,7 @@ async def test_pre_check_tool_stuck_triggers_interrupt_via_pre_call_guards():
         )
 
         with pytest.raises(GraphInterrupt):
-            await _run_pre_call_guards(
-                request, "bash_code_execute_tool", "call_pre_check", {"cmd": "echo"}
-            )
+            await _run_pre_call_guards(request, "bash_code_execute_tool", "call_pre_check", {"cmd": "echo"})
 
         mock_interrupt.assert_called_once()
         payload = mock_interrupt.call_args[0][0]
@@ -1117,9 +1026,7 @@ async def test_pre_check_tool_stuck_fallthrough_returns_error_msg():
         mock_hook_result.updated_input = None
         mock_hook.return_value = mock_hook_result
 
-        result = await _run_pre_call_guards(
-            request, "bash_code_execute_tool", "call_pre_ft", {"cmd": "echo"}
-        )
+        result = await _run_pre_call_guards(request, "bash_code_execute_tool", "call_pre_ft", {"cmd": "echo"})
         assert isinstance(result, ToolMessage)
         assert "TOOL_STUCK_EXCEPTION" in result.content
 
@@ -1142,9 +1049,7 @@ async def test_handle_execution_error_tool_stuck_triggers_interrupt():
         )
 
         with pytest.raises(GraphInterrupt):
-            await _handle_execution_error(
-                e, "bash_code_execute_tool", "call_999", {"cmd": "echo"}
-            )
+            await _handle_execution_error(e, "bash_code_execute_tool", "call_999", {"cmd": "echo"})
 
         mock_interrupt.assert_called_once()
         call_payload = mock_interrupt.call_args[0][0]
@@ -1167,10 +1072,5 @@ async def test_handle_execution_error_tool_stuck_fallthrough_if_interrupt_return
         patch("langgraph.types.interrupt", return_value=None),
         patch("myrm_agent_harness.agent.hooks.executor.fire_hook"),
     ):
-        result = await _handle_execution_error(
-            e, "bash_code_execute_tool", "call_999", {}
-        )
-        assert (
-            "ToolStuckException" in result.content
-            or "TOOL_STUCK_EXCEPTION" in result.content
-        )
+        result = await _handle_execution_error(e, "bash_code_execute_tool", "call_999", {})
+        assert "ToolStuckException" in result.content or "TOOL_STUCK_EXCEPTION" in result.content

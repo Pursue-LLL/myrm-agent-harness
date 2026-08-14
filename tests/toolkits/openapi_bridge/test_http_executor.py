@@ -23,9 +23,7 @@ class TestPathResolution:
         assert result == "/users/123"
 
     def test_multiple_params(self):
-        result = OpenAPIExecutor._resolve_path(
-            "/orgs/{orgId}/teams/{teamId}", {"orgId": "abc", "teamId": "xyz"}
-        )
+        result = OpenAPIExecutor._resolve_path("/orgs/{orgId}/teams/{teamId}", {"orgId": "abc", "teamId": "xyz"})
         assert result == "/orgs/abc/teams/xyz"
 
     def test_no_params(self):
@@ -67,6 +65,7 @@ class TestResponseFormatting:
     def test_large_json_truncation(self):
         large_obj = {"data": "x" * 10000}
         import json
+
         response = httpx.Response(
             200,
             headers={"content-type": "application/json"},

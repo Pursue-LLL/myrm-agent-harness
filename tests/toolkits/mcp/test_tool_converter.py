@@ -133,9 +133,7 @@ async def test_convert_tool_oneof_branch_invocation_dispatches():
             },
         ],
     }
-    tools = convert_mcp_tools(
-        [_make_mcp_tool("click", input_schema=schema)], capture_call
-    )
+    tools = convert_mcp_tools([_make_mcp_tool("click", input_schema=schema)], capture_call)
     await tools[0].ainvoke({"index": 3})
     assert captured[0] == ("click", {"index": 3})
 
@@ -328,11 +326,7 @@ def test_convert_tool_with_optional_nested_ref_preserves_object():
     # $ref is inlined but the nullable union shape is preserved verbatim
     # (the LLM-facing normalizer collapses single-non-null anyOf branches
     # at bind time). The object branch must carry its nested properties.
-    non_null_branches = [
-        b
-        for b in address_prop.get("anyOf", [])
-        if isinstance(b, dict) and b.get("type") != "null"
-    ]
+    non_null_branches = [b for b in address_prop.get("anyOf", []) if isinstance(b, dict) and b.get("type") != "null"]
     assert non_null_branches
     assert non_null_branches[0]["type"] == "object"
     assert "street" in non_null_branches[0].get("properties", {})
@@ -366,11 +360,7 @@ def test_convert_tool_with_ref_branch_in_union_infers_type():
     tools = convert_mcp_tools([_make_mcp_tool("emit", input_schema=schema)], noop)
     payload_prop = _props(tools[0])["payload"]
     # $ref resolved inline inside the union; the object branch must survive.
-    non_null_branches = [
-        b
-        for b in payload_prop.get("anyOf", [])
-        if isinstance(b, dict) and b.get("type") != "null"
-    ]
+    non_null_branches = [b for b in payload_prop.get("anyOf", []) if isinstance(b, dict) and b.get("type") != "null"]
     assert non_null_branches
     assert non_null_branches[0]["type"] == "object"
 

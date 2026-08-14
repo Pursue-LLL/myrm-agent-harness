@@ -38,9 +38,7 @@ def test_minimax_system_messages_are_folded_into_first_human_turn() -> None:
 
     assert params["api_base"] == "https://api.minimaxi.com/v1"
     assert [entry["role"] for entry in message_dicts] == ["user", "assistant"]
-    assert message_dicts[0]["content"] == (
-        "You are a concise assistant.\n\nAnswer in one paragraph.\n\nHello"
-    )
+    assert message_dicts[0]["content"] == ("You are a concise assistant.\n\nAnswer in one paragraph.\n\nHello")
     assert "name" not in message_dicts[0]
     assert message_dicts[1]["content"] == "Hi there."
 

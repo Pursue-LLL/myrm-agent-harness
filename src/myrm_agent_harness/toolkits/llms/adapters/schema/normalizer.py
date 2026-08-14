@@ -250,9 +250,7 @@ def _ensure_object_type(schema: dict[str, object]) -> dict[str, object]:
         if not isinstance(branches, list):
             continue
 
-        obj_branches = [
-            b for b in branches if isinstance(b, dict) and b.get("type") == "object"
-        ]
+        obj_branches = [b for b in branches if isinstance(b, dict) and b.get("type") == "object"]
         if len(obj_branches) == 1:
             merged = obj_branches[0]
             preserve_metadata(schema, merged)
@@ -305,9 +303,7 @@ def _normalize_property(prop: dict[str, object]) -> dict[str, object]:
         if not isinstance(branches, list):
             continue
 
-        non_null = [
-            b for b in branches if not (isinstance(b, dict) and b.get("type") == "null")
-        ]
+        non_null = [b for b in branches if not (isinstance(b, dict) and b.get("type") == "null")]
 
         if kw == "allOf" and len(non_null) > 1:
             merged = merge_allof_branches(non_null)
@@ -321,9 +317,7 @@ def _normalize_property(prop: dict[str, object]) -> dict[str, object]:
         # hidden from the LLM.  A single object branch and mixed primitive
         # unions fall through to the branch-selection logic below.
         if kw in ("anyOf", "oneOf") and len(non_null) > 1:
-            object_branches = [
-                b for b in non_null if isinstance(b, dict) and b.get("type") == "object"
-            ]
+            object_branches = [b for b in non_null if isinstance(b, dict) and b.get("type") == "object"]
             if len(object_branches) > 1:
                 merged = merge_union_object_branches(object_branches, keyword=kw)
                 merged = apply_union_hint(merged, prop)
@@ -376,11 +370,7 @@ def _infer_missing_type(schema: dict[str, object]) -> None:
     if "type" in schema and schema["type"] not in {None, ""}:
         return
 
-    if (
-        "properties" in schema
-        or "required" in schema
-        or "additionalProperties" in schema
-    ):
+    if "properties" in schema or "required" in schema or "additionalProperties" in schema:
         schema["type"] = "object"
         _normalize_properties(schema)
     elif "items" in schema or "prefixItems" in schema:

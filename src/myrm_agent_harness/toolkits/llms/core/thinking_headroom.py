@@ -128,7 +128,9 @@ def ensure_thinking_headroom(model: str, llm_kwargs: dict[str, Any]) -> None:
         llm_kwargs["max_tokens"] = floor
         logger.info(
             "Thinking headroom: set max_tokens=%d for %s (effort=%s, was unset)",
-            floor, model, effort or "default",
+            floor,
+            model,
+            effort or "default",
         )
         return
 
@@ -136,5 +138,8 @@ def ensure_thinking_headroom(model: str, llm_kwargs: dict[str, Any]) -> None:
         llm_kwargs["max_tokens"] = floor
         logger.info(
             "Thinking headroom: raised max_tokens %d → %d for %s (effort=%s)",
-            current, floor, model, effort or "default",
+            current,
+            floor,
+            model,
+            effort or "default",
         )

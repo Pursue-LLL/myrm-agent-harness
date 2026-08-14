@@ -44,11 +44,14 @@ def test_tool_gateway_config_from_env_enabled_success():
 
 
 def test_tool_gateway_config_from_env_enabled_missing_token():
-    with patch.dict(
-        os.environ,
-        {"MYRM_GATEWAY_URL": "https://custom.gateway.com"},
-        clear=True,
-    ), pytest.raises(ValueError, match="MYRM_GATEWAY_TOKEN is required"):
+    with (
+        patch.dict(
+            os.environ,
+            {"MYRM_GATEWAY_URL": "https://custom.gateway.com"},
+            clear=True,
+        ),
+        pytest.raises(ValueError, match="MYRM_GATEWAY_TOKEN is required"),
+    ):
         ToolGatewayConfig.from_env(use_gateway=True)
 
 

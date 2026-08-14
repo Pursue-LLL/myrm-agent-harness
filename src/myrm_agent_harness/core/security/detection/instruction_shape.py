@@ -203,9 +203,7 @@ _ZH_PATTERNS: tuple[tuple[InstructionShapeLabel, re.Pattern[str]], ...] = (
 
 _WHITESPACE_RE = re.compile(r"\s+")
 
-_ALL_PATTERNS: tuple[tuple[InstructionShapeLabel, re.Pattern[str]], ...] = (
-    _EN_PATTERNS + _ZH_PATTERNS
-)
+_ALL_PATTERNS: tuple[tuple[InstructionShapeLabel, re.Pattern[str]], ...] = _EN_PATTERNS + _ZH_PATTERNS
 
 
 def _normalize(text: str) -> str:

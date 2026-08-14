@@ -40,9 +40,7 @@ class TestWebSearchDescriptionBaseline:
 
     def test_tool_description_retains_compact_rewrite_rules(self) -> None:
         tool = create_web_search_tool(
-            search_service_cfg=SearchServiceConfig(
-                search_service="tavily", api_key="test-key"
-            ),
+            search_service_cfg=SearchServiceConfig(search_service="tavily", api_key="test-key"),
             description_locale="zh-CN",
         )
         description = tool.description or ""

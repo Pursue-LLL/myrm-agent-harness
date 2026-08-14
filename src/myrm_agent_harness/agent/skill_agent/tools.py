@@ -69,9 +69,7 @@ class SkillAgentToolsMixin:
                     if instance:
                         skill_instance_by_name[skill_name] = instance
                         skill_env_map[skill_name] = instance.config.env_overrides
-                        logger.info(
-                            "Loaded skill instance: %s.%s", skill_name, instance_name
-                        )
+                        logger.info("Loaded skill instance: %s.%s", skill_name, instance_name)
                 except Exception as e:
                     logger.warning(
                         "Failed to load skill instance %s.%s: %s",
@@ -104,9 +102,7 @@ class SkillAgentToolsMixin:
                     uninstall_fn=uninstall_fn,
                 )
             )
-            logger.info(
-                " skill_market_tool mounted via market_backend (server/user_tools SSOT)"
-            )
+            logger.info(" skill_market_tool mounted via market_backend (server/user_tools SSOT)")
 
         if self.write_backend is not None and not _user_has_tool("skill_manage_tool"):  # type: ignore[attr-defined]
             from myrm_agent_harness.agent.meta_tools.skills.manage import (
@@ -120,9 +116,7 @@ class SkillAgentToolsMixin:
                     self._similarity_checker,  # type: ignore[attr-defined]
                 )
             )
-            logger.info(
-                " skill_manage_tool mounted via write_backend (server/user_tools SSOT)"
-            )
+            logger.info(" skill_manage_tool mounted via write_backend (server/user_tools SSOT)")
 
         has_manage_tool = _user_has_tool("skill_manage_tool") or bool(
             self.write_backend  # type: ignore[attr-defined]
@@ -173,11 +167,7 @@ class SkillAgentToolsMixin:
                     if mw_tools:
                         for t in mw_tools:
                             is_internal = t.name.startswith("_")
-                            bind_mode = (
-                                ToolBindMode.RUNTIME_ONLY
-                                if is_internal
-                                else ToolBindMode.TURN1
-                            )
+                            bind_mode = ToolBindMode.RUNTIME_ONLY if is_internal else ToolBindMode.TURN1
                             registry.register(t, source=ToolSource.MIDDLEWARE, bind_mode=bind_mode)  # type: ignore[arg-type]
                 except Exception as e:
                     logger.warning(
@@ -277,9 +267,7 @@ class SkillAgentToolsMixin:
             getattr(t, "name", getattr(t, "tool_name", None)) == "todo_write"
             for t in self.user_tools  # type: ignore[attr-defined]
         ):
-            logger.info(
-                "todo_write: user-provided override detected, skipping auto-creation"
-            )
+            logger.info("todo_write: user-provided override detected, skipping auto-creation")
             return None
 
         try:
@@ -287,9 +275,7 @@ class SkillAgentToolsMixin:
                 create_todo_write_tool,
             )
 
-            tool = create_todo_write_tool(
-                workspace_root=self._resolve_task_workspace_root()
-            )
+            tool = create_todo_write_tool(workspace_root=self._resolve_task_workspace_root())
             logger.warning(" todo_write auto-created")
             return tool
         except Exception as e:
@@ -369,9 +355,7 @@ class SkillAgentToolsMixin:
             register_large_doc_ingest_callback,
         )
 
-        async def _ingest_large_doc(
-            filename: str, full_text: str, doc_hash: str
-        ) -> None:
+        async def _ingest_large_doc(filename: str, full_text: str, doc_hash: str) -> None:
             raw_path = structure.get_raw_file_path(f"auto_rag_{doc_hash}_{filename}.md")
             raw_path.parent.mkdir(parents=True, exist_ok=True)
             content = f"# {filename}\n\n{full_text}"
@@ -384,9 +368,7 @@ class SkillAgentToolsMixin:
                 return
 
             compiler.enqueue_file(raw_path)
-            logger.info(
-                "Large doc auto-ingested into wiki for RAG: %s (%s)", filename, doc_hash
-            )
+            logger.info("Large doc auto-ingested into wiki for RAG: %s (%s)", filename, doc_hash)
 
         register_large_doc_ingest_callback(_ingest_large_doc)
 
@@ -401,8 +383,4 @@ class SkillAgentToolsMixin:
         """Get all skill storage paths (absolute)."""
         skills = await self._get_cached_skills()  # type: ignore[attr-defined]
         base_path = storage_config.get_local_base_path()
-        return [
-            str(base_path / skill.storage_path)
-            for skill in skills
-            if skill.storage_path
-        ]
+        return [str(base_path / skill.storage_path) for skill in skills if skill.storage_path]

@@ -65,6 +65,7 @@ def _cleanup_sandbox_patcher() -> None:
     """Cleanup sandbox patcher after each test."""
     yield  # type: ignore[misc]
     import unittest.mock
+
     unittest.mock.patch.stopall()
 
 
@@ -127,9 +128,7 @@ async def test_spawn_full_duplex_communication(workspace: Path) -> None:
             collected += data
 
         decoded = collected.decode("utf-8", errors="replace")
-        assert "ECHO:" in decoded and "hello" in decoded, (
-            f"Expected 'ECHO:...hello' in stdout but got: {decoded!r}"
-        )
+        assert "ECHO:" in decoded and "hello" in decoded, f"Expected 'ECHO:...hello' in stdout but got: {decoded!r}"
 
         exit_code = await process.wait()
         assert exit_code == 0

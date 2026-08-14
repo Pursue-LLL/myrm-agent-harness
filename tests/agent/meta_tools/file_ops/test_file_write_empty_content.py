@@ -75,9 +75,7 @@ async def test_file_write_allows_non_empty_content() -> None:
             "myrm_agent_harness.agent.meta_tools.file_ops.file_write_tool.FileOperationService",
         ) as mock_service_cls,
     ):
-        mock_service_cls.return_value.execute = AsyncMock(
-            return_value="Successfully created reports/week.md"
-        )
+        mock_service_cls.return_value.execute = AsyncMock(return_value="Successfully created reports/week.md")
         result = await tool.ainvoke(
             {"path": "reports/week.md", "content": "# Weekly report\n"},
             config=_DUMMY_CONFIG,
@@ -101,9 +99,7 @@ async def test_file_write_tool_permission_denied() -> None:
         ) as mock_service_cls,
         pytest.raises(ToolError) as exc_info,
     ):
-        mock_service_cls.return_value.execute = AsyncMock(
-            side_effect=PermissionError("denied")
-        )
+        mock_service_cls.return_value.execute = AsyncMock(side_effect=PermissionError("denied"))
         await tool.ainvoke(
             {"path": "x.py", "content": "print(1)"},
             config=_DUMMY_CONFIG,
@@ -126,9 +122,7 @@ async def test_file_write_tool_value_error() -> None:
         ) as mock_service_cls,
         pytest.raises(ToolError) as exc_info,
     ):
-        mock_service_cls.return_value.execute = AsyncMock(
-            side_effect=ValueError("bad path")
-        )
+        mock_service_cls.return_value.execute = AsyncMock(side_effect=ValueError("bad path"))
         await tool.ainvoke(
             {"path": "x.py", "content": "print(1)"},
             config=_DUMMY_CONFIG,
@@ -151,9 +145,7 @@ async def test_file_write_tool_unexpected_error() -> None:
         ) as mock_service_cls,
         pytest.raises(ToolError) as exc_info,
     ):
-        mock_service_cls.return_value.execute = AsyncMock(
-            side_effect=RuntimeError("boom")
-        )
+        mock_service_cls.return_value.execute = AsyncMock(side_effect=RuntimeError("boom"))
         await tool.ainvoke(
             {"path": "x.py", "content": "print(1)"},
             config=_DUMMY_CONFIG,

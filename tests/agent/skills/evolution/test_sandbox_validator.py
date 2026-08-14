@@ -47,9 +47,7 @@ async def test_sandbox_validator_with_python_code_success():
         timed_out=False,
         duration_seconds=0.1,
     )
-    with patch.object(
-        validator._test_executor, "run_tests", new_callable=AsyncMock
-    ) as mock_run:
+    with patch.object(validator._test_executor, "run_tests", new_callable=AsyncMock) as mock_run:
         mock_run.return_value = mock_result
         is_safe, _msg = await validator.dry_run_skill(skill)
         assert is_safe is True
@@ -76,13 +74,12 @@ async def test_sandbox_validator_with_python_code_failure():
         timed_out=False,
         duration_seconds=0.1,
     )
-    with patch.object(
-        validator._test_executor, "run_tests", new_callable=AsyncMock
-    ) as mock_run:
+    with patch.object(validator._test_executor, "run_tests", new_callable=AsyncMock) as mock_run:
         mock_run.return_value = mock_result
         is_safe, _msg = await validator.dry_run_skill(skill)
         assert is_safe is False
         mock_run.assert_not_called()
+
 
 @pytest.mark.asyncio
 async def test_sandbox_validator_with_verification_steps_success():
@@ -94,7 +91,7 @@ async def test_sandbox_validator_with_verification_steps_success():
         content="No python code",
         path="",
         lineage=None,  # type: ignore
-        verification_steps=[{"command": "echo test"}]
+        verification_steps=[{"command": "echo test"}],
     )
 
     mock_result = ExecutionResult(
@@ -103,11 +100,15 @@ async def test_sandbox_validator_with_verification_steps_success():
         stderr="",
         error=None,
     )
-    with patch("myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.LocalExecutor.execute_bash", new_callable=AsyncMock) as mock_run:
+    with patch(
+        "myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.LocalExecutor.execute_bash",
+        new_callable=AsyncMock,
+    ) as mock_run:
         mock_run.return_value = mock_result
         is_safe, _msg = await validator.dry_run_skill(skill)
         assert is_safe is True
         mock_run.assert_called_once()
+
 
 @pytest.mark.asyncio
 async def test_sandbox_validator_with_verification_steps_failure():
@@ -119,7 +120,7 @@ async def test_sandbox_validator_with_verification_steps_failure():
         content="No python code",
         path="",
         lineage=None,  # type: ignore
-        verification_steps=[{"command": "echo test"}]
+        verification_steps=[{"command": "echo test"}],
     )
 
     mock_result = ExecutionResult(
@@ -128,11 +129,15 @@ async def test_sandbox_validator_with_verification_steps_failure():
         stderr="error",
         error="Execution failed",
     )
-    with patch("myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.LocalExecutor.execute_bash", new_callable=AsyncMock) as mock_run:
+    with patch(
+        "myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.LocalExecutor.execute_bash",
+        new_callable=AsyncMock,
+    ) as mock_run:
         mock_run.return_value = mock_result
         is_safe, _msg = await validator.dry_run_skill(skill)
         assert is_safe is False
         mock_run.assert_called_once()
+
 
 @pytest.mark.asyncio
 async def test_sandbox_validator_with_verification_steps_empty_command():
@@ -144,7 +149,7 @@ async def test_sandbox_validator_with_verification_steps_empty_command():
         content="No python code",
         path="",
         lineage=None,  # type: ignore
-        verification_steps=[{"command": ""}]
+        verification_steps=[{"command": ""}],
     )
 
     is_safe, _msg = await validator.dry_run_skill(skill)

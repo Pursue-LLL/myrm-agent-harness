@@ -113,9 +113,7 @@ class TestHandleThinkingSignature:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_returns_false_for_non_matching_error(
-        self, ctx: StreamContext
-    ) -> None:
+    async def test_returns_false_for_non_matching_error(self, ctx: StreamContext) -> None:
         exc = _FakeError("generic error", status_code=400)
         executor = _make_executor(ctx)
         result = await executor._handle_thinking_signature(exc, attempted=False)
@@ -130,9 +128,7 @@ class TestHandleThinkingSignature:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_returns_false_when_no_thinking_blocks(
-        self, ctx: StreamContext
-    ) -> None:
+    async def test_returns_false_when_no_thinking_blocks(self, ctx: StreamContext) -> None:
         ctx.agent_input["messages"] = [
             HumanMessage(content="q"),
             AIMessage(content="no thinking here"),
@@ -240,14 +236,9 @@ class TestHandleThinkingSignature:
         executor = _make_executor(ctx)
         await executor._handle_thinking_signature(exc, attempted=False)
         events = executor._compactor.events
+        assert any(isinstance(e, dict) and e.get("step_key") == "thinking_signature_recovery" for e in events)
         assert any(
-            isinstance(e, dict) and e.get("step_key") == "thinking_signature_recovery"
-            for e in events
-        )
-        assert any(
-            isinstance(e, dict)
-            and e.get("step_key") == "thinking_signature_recovery"
-            and e.get("restart") is True
+            isinstance(e, dict) and e.get("step_key") == "thinking_signature_recovery" and e.get("restart") is True
             for e in events
         )
 
@@ -272,9 +263,7 @@ class TestHandleDuplicateToolUseId:
         result = await executor._handle_duplicate_tool_use_id(exc, attempted=False)
         assert result is True
         ai_ids = [
-            m.tool_calls[0]["id"]
-            for m in ctx.agent_input["messages"]
-            if isinstance(m, AIMessage) and m.tool_calls
+            m.tool_calls[0]["id"] for m in ctx.agent_input["messages"] if isinstance(m, AIMessage) and m.tool_calls
         ]
         assert ai_ids == ["call_x", "call_x@2"]
         assert executor._compactor.events
@@ -336,9 +325,7 @@ class TestHandleImageShrink:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_returns_false_for_non_matching_error(
-        self, ctx: StreamContext
-    ) -> None:
+    async def test_returns_false_for_non_matching_error(self, ctx: StreamContext) -> None:
         exc = _FakeError("some other error", status_code=400)
         executor = _make_executor(ctx)
         result = await executor._handle_image_shrink(exc, attempted=False)
@@ -375,9 +362,7 @@ class TestHandleImageShrink:
         exc = _FakeError("image exceeds 5 MB maximum", status_code=400)
         executor = _make_executor(ctx)
 
-        with patch(
-            "myrm_agent_harness.utils.media.image_compressor.ImageCompressor"
-        ) as mock_compressor:
+        with patch("myrm_agent_harness.utils.media.image_compressor.ImageCompressor") as mock_compressor:
             mock_instance = mock_compressor.return_value
             mock_instance.compress.return_value = b"\x89PNG\r\n" + b"\x00" * 1000
             result = await executor._handle_image_shrink(exc, attempted=False)
@@ -397,22 +382,15 @@ class TestHandleImageShrink:
         exc = _FakeError("image exceeds 5 MB maximum", status_code=400)
         executor = _make_executor(ctx)
 
-        with patch(
-            "myrm_agent_harness.utils.media.image_compressor.ImageCompressor"
-        ) as mock_compressor:
+        with patch("myrm_agent_harness.utils.media.image_compressor.ImageCompressor") as mock_compressor:
             mock_instance = mock_compressor.return_value
             mock_instance.compress.return_value = b"\x89PNG\r\n" + b"\x00" * 1000
             await executor._handle_image_shrink(exc, attempted=False)
 
         events = executor._compactor.events
+        assert any(isinstance(e, dict) and e.get("step_key") == "image_shrink_recovery" for e in events)
         assert any(
-            isinstance(e, dict) and e.get("step_key") == "image_shrink_recovery"
-            for e in events
-        )
-        assert any(
-            isinstance(e, dict)
-            and e.get("step_key") == "image_shrink_recovery"
-            and e.get("restart") is True
+            isinstance(e, dict) and e.get("step_key") == "image_shrink_recovery" and e.get("restart") is True
             for e in events
         )
 
@@ -424,9 +402,7 @@ class TestHandleImageShrink:
 
 class TestHandleLongContextTier:
     @pytest.mark.asyncio
-    async def test_returns_false_for_non_matching_error(
-        self, ctx: StreamContext
-    ) -> None:
+    async def test_returns_false_for_non_matching_error(self, ctx: StreamContext) -> None:
         exc = _FakeError("rate limit exceeded", status_code=429)
         executor = _make_executor(ctx)
         result = await executor._handle_long_context_tier(exc)
@@ -435,9 +411,7 @@ class TestHandleLongContextTier:
     @pytest.mark.asyncio
     async def test_returns_false_in_command_mode(self, ctx: StreamContext) -> None:
         ctx.agent_input = Command(resume="test")
-        exc = _FakeError(
-            "Extra usage is required for long context requests", status_code=429
-        )
+        exc = _FakeError("Extra usage is required for long context requests", status_code=429)
         executor = _make_executor(ctx)
         result = await executor._handle_long_context_tier(exc)
         assert result is False
@@ -448,9 +422,7 @@ class TestHandleLongContextTier:
             HumanMessage(content="q"),
             AIMessage(content="a" * 50000),
         ]
-        exc = _FakeError(
-            "Extra usage is required for long context requests", status_code=429
-        )
+        exc = _FakeError("Extra usage is required for long context requests", status_code=429)
         executor = _make_executor(ctx)
 
         with patch(
@@ -467,9 +439,7 @@ class TestHandleLongContextTier:
             HumanMessage(content="q"),
             AIMessage(content="answer"),
         ]
-        exc = _FakeError(
-            "Extra usage is required for long context requests", status_code=429
-        )
+        exc = _FakeError("Extra usage is required for long context requests", status_code=429)
         executor = _make_executor(ctx)
 
         with (
@@ -492,9 +462,7 @@ class TestHandleLongContextTier:
             HumanMessage(content="q"),
             AIMessage(content="a"),
         ]
-        exc = _FakeError(
-            "Extra usage is required for long context requests", status_code=429
-        )
+        exc = _FakeError("Extra usage is required for long context requests", status_code=429)
         executor = _make_executor(ctx)
 
         with patch(
@@ -505,14 +473,9 @@ class TestHandleLongContextTier:
             await executor._handle_long_context_tier(exc)
 
         events = executor._compactor.events
+        assert any(isinstance(e, dict) and e.get("step_key") == "long_context_tier_recovery" for e in events)
         assert any(
-            isinstance(e, dict) and e.get("step_key") == "long_context_tier_recovery"
-            for e in events
-        )
-        assert any(
-            isinstance(e, dict)
-            and e.get("step_key") == "long_context_tier_recovery"
-            and e.get("restart") is True
+            isinstance(e, dict) and e.get("step_key") == "long_context_tier_recovery" and e.get("restart") is True
             for e in events
         )
 
@@ -560,9 +523,7 @@ class TestShrinkOversizedImages:
                 ]
             ),
         ]
-        with patch(
-            "myrm_agent_harness.utils.media.image_compressor.ImageCompressor"
-        ) as mock_compressor:
+        with patch("myrm_agent_harness.utils.media.image_compressor.ImageCompressor") as mock_compressor:
             mock_instance = mock_compressor.return_value
             mock_instance.compress.return_value = b"\x89PNG\r\n" + b"\x00" * 1000
             count = _shrink_oversized_images(messages)
@@ -581,9 +542,7 @@ class TestShrinkOversizedImages:
                 ]
             ),
         ]
-        with patch(
-            "myrm_agent_harness.utils.media.image_compressor.ImageCompressor"
-        ) as mock_compressor:
+        with patch("myrm_agent_harness.utils.media.image_compressor.ImageCompressor") as mock_compressor:
             mock_instance = mock_compressor.return_value
             mock_instance.compress.side_effect = RuntimeError("compression failed")
             count = _shrink_oversized_images(messages)
@@ -703,9 +662,7 @@ class TestShrinkOversizedImagesRealPillow:
         ]
         for err_msg in dimension_errors:
             exc = _FakeError(err_msg, status_code=400)
-            assert (
-                classify_failover_reason(exc) == FailoverReason.IMAGE_TOO_LARGE
-            ), f"Failed to classify: {err_msg}"
+            assert classify_failover_reason(exc) == FailoverReason.IMAGE_TOO_LARGE, f"Failed to classify: {err_msg}"
 
     def test_parse_max_dimension_from_error(self) -> None:
         """Verify max_dimension parsing from error messages."""
@@ -720,9 +677,7 @@ class TestShrinkOversizedImagesRealPillow:
 
 class TestHandleMediaRejected:
     @pytest.mark.asyncio
-    async def test_applies_vision_fallback_before_strip(
-        self, ctx: StreamContext
-    ) -> None:
+    async def test_applies_vision_fallback_before_strip(self, ctx: StreamContext) -> None:
         ctx.merged_context = {
             "supports_vision": False,
             "vision_fallback_model_cfg": {"model": "gpt-4o-mini", "api_key": "k"},
@@ -758,21 +713,14 @@ class TestHandleMediaRejected:
         assert result is True
         mock_fallback.assert_awaited_once()
         events = executor._compactor.events
+        assert any(isinstance(e, dict) and e.get("step_key") == "vision_fallback_recovery" for e in events)
         assert any(
-            isinstance(e, dict) and e.get("step_key") == "vision_fallback_recovery"
-            for e in events
-        )
-        assert any(
-            isinstance(e, dict)
-            and e.get("step_key") == "vision_fallback_recovery"
-            and e.get("restart") is True
+            isinstance(e, dict) and e.get("step_key") == "vision_fallback_recovery" and e.get("restart") is True
             for e in events
         )
 
     @pytest.mark.asyncio
-    async def test_vision_fallback_prefers_stream_context_file_content_reader(
-        self, ctx: StreamContext
-    ) -> None:
+    async def test_vision_fallback_prefers_stream_context_file_content_reader(self, ctx: StreamContext) -> None:
         """StreamContext.file_content_reader is SSOT when merged_context was checkpoint-stripped."""
 
         async def reader(_file_id: str) -> bytes:

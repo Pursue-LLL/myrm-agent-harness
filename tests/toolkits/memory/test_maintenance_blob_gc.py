@@ -14,11 +14,15 @@ async def test_sweep_orphaned_blobs_disabled():
     vector = AsyncMock()
     assert await sweep_orphaned_blobs(vector, config) == 0
 
+
 @pytest.mark.asyncio
 async def test_sweep_orphaned_blobs_no_dir(tmp_path):
-    config = MemoryConfig(embedding_model="test", blob_storage_enabled=True, blob_storage_path=str(tmp_path / "nonexistent"))
+    config = MemoryConfig(
+        embedding_model="test", blob_storage_enabled=True, blob_storage_path=str(tmp_path / "nonexistent")
+    )
     vector = AsyncMock()
     assert await sweep_orphaned_blobs(vector, config) == 0
+
 
 @pytest.mark.asyncio
 async def test_sweep_orphaned_blobs_empty_dir(tmp_path):
@@ -27,6 +31,7 @@ async def test_sweep_orphaned_blobs_empty_dir(tmp_path):
     config = MemoryConfig(embedding_model="test", blob_storage_enabled=True, blob_storage_path=str(blob_dir))
     vector = AsyncMock()
     assert await sweep_orphaned_blobs(vector, config) == 0
+
 
 @pytest.mark.asyncio
 async def test_sweep_orphaned_blobs_mtime_grace_period(tmp_path):
@@ -55,6 +60,7 @@ async def test_sweep_orphaned_blobs_mtime_grace_period(tmp_path):
     assert recent_file.exists()
     assert not old_file.exists()
 
+
 @pytest.mark.asyncio
 async def test_sweep_orphaned_blobs_scroll_failure(tmp_path):
     blob_dir = tmp_path / "blobs"
@@ -75,6 +81,7 @@ async def test_sweep_orphaned_blobs_scroll_failure(tmp_path):
     # GC should abort and return 0, no files should be deleted
     assert deleted_count == 0
     assert old_file.exists()
+
 
 @pytest.mark.asyncio
 async def test_sweep_orphaned_blobs_active_blob_kept(tmp_path):
@@ -103,6 +110,7 @@ async def test_sweep_orphaned_blobs_active_blob_kept(tmp_path):
     assert deleted_count == 1
     assert active_file.exists()
     assert not orphan_file.exists()
+
 
 @pytest.mark.asyncio
 async def test_sweep_orphaned_blobs_delete_failure(tmp_path):

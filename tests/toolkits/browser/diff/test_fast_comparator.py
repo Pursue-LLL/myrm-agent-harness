@@ -318,8 +318,9 @@ class TestFastComparator:
 
     def test_initialization_without_pillow(self) -> None:
         """Test initialization fails when Pillow is not installed."""
-        with patch("myrm_agent_harness.toolkits.browser.diff.fast_comparator.Image", None), pytest.raises(
-            ImportError, match="Pillow is required for FastComparator"
+        with (
+            patch("myrm_agent_harness.toolkits.browser.diff.fast_comparator.Image", None),
+            pytest.raises(ImportError, match="Pillow is required for FastComparator"),
         ):
             FastComparator()
 
@@ -330,8 +331,9 @@ class TestFastComparator:
         img.save(buffer, format="PNG")
         image_bytes = buffer.getvalue()
 
-        with patch("myrm_agent_harness.toolkits.browser.diff.fast_comparator.Image", None), pytest.raises(
-            ImportError, match="Pillow is required for FastComparator"
+        with (
+            patch("myrm_agent_harness.toolkits.browser.diff.fast_comparator.Image", None),
+            pytest.raises(ImportError, match="Pillow is required for FastComparator"),
         ):
             FastComparator.from_bytes(image_bytes)
 

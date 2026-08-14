@@ -15,39 +15,23 @@ class TestModelCapabilityDetector:
 
     def test_needs_reasoning_content_echo_mimo(self, detector):
         """MiMo models require reasoning_content echo-back."""
-        assert detector.needs_reasoning_content_echo(
-            provider="xiaomi", model="mimo-v2.5-pro", base_url=""
-        )
-        assert detector.needs_reasoning_content_echo(
-            provider="", model="xiaomi_mimo/mimo-v2.5-pro", base_url=""
-        )
-        assert detector.needs_reasoning_content_echo(
-            provider="", model="", base_url="https://api.xiaomimimo.com/v1"
-        )
+        assert detector.needs_reasoning_content_echo(provider="xiaomi", model="mimo-v2.5-pro", base_url="")
+        assert detector.needs_reasoning_content_echo(provider="", model="xiaomi_mimo/mimo-v2.5-pro", base_url="")
+        assert detector.needs_reasoning_content_echo(provider="", model="", base_url="https://api.xiaomimimo.com/v1")
 
     def test_needs_reasoning_content_echo_deepseek(self, detector):
         """DeepSeek models require reasoning_content echo-back."""
-        assert detector.needs_reasoning_content_echo(
-            provider="deepseek", model="deepseek-v4-flash", base_url=""
-        )
-        assert detector.needs_reasoning_content_echo(
-            provider="", model="deepseek/deepseek-v4-pro", base_url=""
-        )
+        assert detector.needs_reasoning_content_echo(provider="deepseek", model="deepseek-v4-flash", base_url="")
+        assert detector.needs_reasoning_content_echo(provider="", model="deepseek/deepseek-v4-pro", base_url="")
         assert detector.needs_reasoning_content_echo(
             provider="custom", model="", base_url="https://api.deepseek.com/v1"
         )
 
     def test_needs_reasoning_content_echo_kimi(self, detector):
         """Kimi/Moonshot models require reasoning_content echo-back."""
-        assert detector.needs_reasoning_content_echo(
-            provider="kimi-coding", model="kimi-k2.5", base_url=""
-        )
-        assert detector.needs_reasoning_content_echo(
-            provider="", model="moonshot/kimi-k2", base_url=""
-        )
-        assert detector.needs_reasoning_content_echo(
-            provider="custom", model="", base_url="https://api.moonshot.ai/v1"
-        )
+        assert detector.needs_reasoning_content_echo(provider="kimi-coding", model="kimi-k2.5", base_url="")
+        assert detector.needs_reasoning_content_echo(provider="", model="moonshot/kimi-k2", base_url="")
+        assert detector.needs_reasoning_content_echo(provider="custom", model="", base_url="https://api.moonshot.ai/v1")
 
     def test_deepseek_through_openai_like_gateway(self, detector):
         """DeepSeek via openai-like gateways keeps model-name detection.
@@ -68,24 +52,16 @@ class TestModelCapabilityDetector:
 
     def test_kimi_through_other_gateway(self, detector):
         """Kimi model-name detection works regardless of the gateway host."""
-        assert detector.is_kimi_model(
-            provider="openai-like", model="kimi-k2.5", base_url="https://gateway.example/v1"
-        )
+        assert detector.is_kimi_model(provider="openai-like", model="kimi-k2.5", base_url="https://gateway.example/v1")
         assert detector.is_mimo_model(
             provider="openai-like", model="mimo-v2.5-pro", base_url="https://gateway.example/v1"
         )
 
     def test_needs_reasoning_content_echo_other(self, detector):
         """Other models do not require reasoning_content echo-back."""
-        assert not detector.needs_reasoning_content_echo(
-            provider="openai", model="gpt-4o", base_url=""
-        )
-        assert not detector.needs_reasoning_content_echo(
-            provider="anthropic", model="claude-3-opus", base_url=""
-        )
-        assert not detector.needs_reasoning_content_echo(
-            provider="", model="", base_url=""
-        )
+        assert not detector.needs_reasoning_content_echo(provider="openai", model="gpt-4o", base_url="")
+        assert not detector.needs_reasoning_content_echo(provider="anthropic", model="claude-3-opus", base_url="")
+        assert not detector.needs_reasoning_content_echo(provider="", model="", base_url="")
 
     def test_is_mimo_model(self, detector):
         """Test MiMo model detection."""

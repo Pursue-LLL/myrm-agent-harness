@@ -66,9 +66,7 @@ class CorpusDedupScanner:
             try:
                 rel = raw_file.relative_to(self._structure.raw_dir).as_posix()
                 active_paths.add(rel)
-                fingerprint, recomputed = self._resolve_fingerprint(
-                    raw_file, rel, incremental=incremental
-                )
+                fingerprint, recomputed = self._resolve_fingerprint(raw_file, rel, incremental=incremental)
                 fingerprints.append(fingerprint)
                 if recomputed:
                     files_recomputed += 1
@@ -127,9 +125,7 @@ class CorpusDedupScanner:
             deferred_member_sets=deferred_member_sets,
         )
         grouped_paths.update(exact_paths)
-        normalized_remaining = [
-            item for item in fingerprints if item.relative_path not in grouped_paths
-        ]
+        normalized_remaining = [item for item in fingerprints if item.relative_path not in grouped_paths]
         normalized_groups, normalized_paths = self._group_by_key(
             normalized_remaining,
             key=lambda item: item.normalized_hash,
@@ -137,12 +133,8 @@ class CorpusDedupScanner:
             deferred_member_sets=deferred_member_sets,
         )
         grouped_paths.update(normalized_paths)
-        near_remaining = [
-            item for item in fingerprints if item.relative_path not in grouped_paths
-        ]
-        near_groups, near_paths = self._group_near(
-            near_remaining, deferred_member_sets=deferred_member_sets
-        )
+        near_remaining = [item for item in fingerprints if item.relative_path not in grouped_paths]
+        near_groups, near_paths = self._group_near(near_remaining, deferred_member_sets=deferred_member_sets)
         grouped_paths.update(near_paths)
 
         groups_found = exact_groups + normalized_groups + near_groups
@@ -179,11 +171,7 @@ class CorpusDedupScanner:
         stat = raw_file.stat()
         if incremental:
             cached = self._store.get_cached_fingerprint(relative_path)
-            if (
-                cached is not None
-                and cached.size_bytes == stat.st_size
-                and cached.mtime_ns == stat.st_mtime_ns
-            ):
+            if cached is not None and cached.size_bytes == stat.st_size and cached.mtime_ns == stat.st_mtime_ns:
                 return cached, False
         fingerprint = build_fingerprint(raw_file, relative_path=relative_path)
         self._store.upsert_file_fingerprint(fingerprint)

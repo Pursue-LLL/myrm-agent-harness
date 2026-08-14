@@ -34,9 +34,7 @@ async def test_awrap_tool_call_success(middleware):
         state={},
         runtime=MagicMock(),
     )
-    expected_message = ToolMessage(
-        content="success", name="test_tool", tool_call_id="call_1"
-    )
+    expected_message = ToolMessage(content="success", name="test_tool", tool_call_id="call_1")
 
     async def handler(req):
         return expected_message
@@ -83,9 +81,7 @@ def test_wrap_tool_call_propagates_graph_interrupt(middleware):
 
 
 @pytest.mark.asyncio
-@patch(
-    "myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion"
-)
+@patch("myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion")
 async def test_awrap_tool_call_catches_error(mock_get_suggestion, middleware):
     """Test that awrap_tool_call catches exceptions and returns a Replan ToolMessage."""
     mock_get_suggestion.return_value = "Try checking the permissions."
@@ -116,9 +112,7 @@ async def test_awrap_tool_call_catches_error(mock_get_suggestion, middleware):
 
 
 @pytest.mark.asyncio
-@patch(
-    "myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion"
-)
+@patch("myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion")
 async def test_awrap_tool_call_empty_args(mock_get_suggestion, middleware):
     """Test error handling when tool_call args is an empty dict."""
     mock_get_suggestion.return_value = "Check docs."
@@ -142,9 +136,7 @@ async def test_awrap_tool_call_empty_args(mock_get_suggestion, middleware):
 
 
 @pytest.mark.asyncio
-@patch(
-    "myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion"
-)
+@patch("myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion")
 async def test_awrap_tool_call_missing_name(mock_get_suggestion, middleware):
     """Test handling when tool_call lacks 'name' key."""
     mock_get_suggestion.return_value = "Generic recovery."
@@ -175,9 +167,7 @@ async def test_awrap_tool_call_no_exception(middleware):
         runtime=MagicMock(),
     )
 
-    expected = ToolMessage(
-        content="result data", name="test_tool", tool_call_id="call_ok"
-    )
+    expected = ToolMessage(content="result data", name="test_tool", tool_call_id="call_ok")
 
     async def handler(req):
         return expected
@@ -219,9 +209,7 @@ async def test_awrap_tool_call_exceeds_max_attempts(middleware):
 
 
 @pytest.mark.asyncio
-@patch(
-    "myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion"
-)
+@patch("myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion")
 async def test_per_tool_counting_isolation(mock_get_suggestion, middleware):
     """Verify that a success on tool_a does NOT reset tool_b's error count."""
     mock_get_suggestion.return_value = "Check syntax."
@@ -237,9 +225,7 @@ async def test_per_tool_counting_isolation(mock_get_suggestion, middleware):
     )
 
     async def ok_handler(req):
-        return ToolMessage(
-            content="ok", name="skill_select_tool", tool_call_id="call_ok"
-        )
+        return ToolMessage(content="ok", name="skill_select_tool", tool_call_id="call_ok")
 
     await middleware.awrap_tool_call(success_request, ok_handler)
     assert _per_tool_errors_var.get().get("bash_code_execute_tool") == 3

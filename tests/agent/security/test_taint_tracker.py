@@ -127,6 +127,7 @@ class TestContextVar:
         assert not new_tracker.is_tainted
         assert new_tracker is not tracker
 
+
 def test_record_tool_output_invalid_label():
     from unittest.mock import MagicMock, patch
 
@@ -141,6 +142,7 @@ def test_record_tool_output_invalid_label():
         tracker.record_tool_output("some_tool")
         assert not tracker.labels
 
+
 def test_record_tool_output_extractor_exception():
     from unittest.mock import MagicMock, patch
 
@@ -150,8 +152,10 @@ def test_record_tool_output_extractor_exception():
     with patch("myrm_agent_harness.agent.security.tool_registry.resolve_safety_metadata") as mock_resolve:
         mock_meta = MagicMock()
         mock_meta.taint_label = "external_network"
+
         def bad_extractor(args):
             raise ValueError("extractor failed")
+
         mock_meta.taint_extractor = bad_extractor
         mock_resolve.return_value = mock_meta
 
@@ -159,6 +163,7 @@ def test_record_tool_output_extractor_exception():
 
         assert TaintLabel.EXTERNAL_NETWORK in tracker.labels
         assert tracker._taints[TaintLabel.EXTERNAL_NETWORK] == set()
+
 
 def test_record_tool_output_string_extractor():
     from unittest.mock import MagicMock, patch
@@ -177,6 +182,7 @@ def test_record_tool_output_string_extractor():
         assert TaintLabel.EXTERNAL_NETWORK in tracker.labels
         assert "http://example.com" in tracker._taints[TaintLabel.EXTERNAL_NETWORK]
 
+
 def test_get_taint_tracker_lookup_error():
     import contextvars
 
@@ -184,6 +190,7 @@ def test_get_taint_tracker_lookup_error():
 
     # Create a new context to force LookupError
     ctx = contextvars.Context()
+
     def run_in_ctx():
         tracker = get_taint_tracker()
         assert tracker is not None
@@ -191,8 +198,10 @@ def test_get_taint_tracker_lookup_error():
 
     ctx.run(run_in_ctx)
 
+
 def test_add_taint_duplicate_source():
     from myrm_agent_harness.agent.security.guards.taint_tracker import TaintLabel, TaintTracker
+
     tracker = TaintTracker()
     tracker.record(TaintLabel.EXTERNAL_NETWORK, "src1")
     tracker.record(TaintLabel.EXTERNAL_NETWORK, "src1")

@@ -33,6 +33,7 @@ def _get_langchain_splitters():
         raise ImportError(_RETRIEVAL_INSTALL_HINT) from exc
     return Language, RecursiveCharacterTextSplitter
 
+
 # 语言映射表（映射 to langchain Language枚举）
 LANGUAGE_MAP = {
     "cpp": "cpp",

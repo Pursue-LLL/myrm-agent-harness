@@ -1,7 +1,6 @@
 """Tests for SmartPDFParser (PDF parser with OCR fallback)."""
 
 import tempfile
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -24,9 +23,7 @@ def _build_minimal_pdf_bytes(text: str) -> bytes:
         b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
         b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
         b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
-        f"4 0 obj\n<< /Length {stream_len} >>\nstream\n".encode("latin-1")
-        + stream_bytes
-        + b"\nendstream\nendobj\n",
+        f"4 0 obj\n<< /Length {stream_len} >>\nstream\n".encode("latin-1") + stream_bytes + b"\nendstream\nendobj\n",
         b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
     ]
 

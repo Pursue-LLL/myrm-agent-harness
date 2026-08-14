@@ -28,10 +28,7 @@ async def browser_session(browser_pool: GlobalBrowserPool) -> BrowserSession:
     await session.close()
 
 
-MOBILE_HTML = (
-    "data:text/html,<meta name=\"viewport\" "
-    "content=\"width=device-width,initial-scale=1\"><title>mobile</title>"
-)
+MOBILE_HTML = 'data:text/html,<meta name="viewport" content="width=device-width,initial-scale=1"><title>mobile</title>'
 
 
 @pytest.mark.e2e
@@ -79,8 +76,7 @@ async def test_emulate_desktop_restores_viewport(
     assert "iPhone" not in ua
 
     dims = await page.evaluate(
-        "() => ({ width: innerWidth, dpr: devicePixelRatio, "
-        "maxTouchPoints: navigator.maxTouchPoints })"
+        "() => ({ width: innerWidth, dpr: devicePixelRatio, maxTouchPoints: navigator.maxTouchPoints })"
     )
     assert dims["width"] >= 1000  # desktop-width layout viewport (context default)
     assert dims["width"] != 393
@@ -116,9 +112,7 @@ async def test_new_tab_inherits_active_device_emulation(
     page_b = browser_session.get_active_page()
     await page_b.goto(MOBILE_HTML)
 
-    dims = await page_b.evaluate(
-        "() => ({ width: innerWidth, maxTouchPoints: navigator.maxTouchPoints })"
-    )
+    dims = await page_b.evaluate("() => ({ width: innerWidth, maxTouchPoints: navigator.maxTouchPoints })")
     assert dims["width"] == 393
     assert dims["maxTouchPoints"] > 0
     ua = await page_b.evaluate("navigator.userAgent")
@@ -151,9 +145,7 @@ async def test_reset_clears_emulation_on_all_tabs(
     assert "Restored desktop viewport" in result
 
     await browser_session.switch_tab(tab_b)
-    dims = await page_b.evaluate(
-        "() => ({ width: innerWidth, maxTouchPoints: navigator.maxTouchPoints })"
-    )
+    dims = await page_b.evaluate("() => ({ width: innerWidth, maxTouchPoints: navigator.maxTouchPoints })")
     assert dims["width"] != 412
     assert dims["maxTouchPoints"] == 0
     ua = await page_b.evaluate("navigator.userAgent")
@@ -174,9 +166,7 @@ async def test_emulate_landscape_device_swaps_viewport(
     assert "Emulated 'iPhone 15 Pro landscape'" in result
     assert "659x393" in result
 
-    dims = await page.evaluate(
-        "() => ({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio })"
-    )
+    dims = await page.evaluate("() => ({ width: innerWidth, height: innerHeight, dpr: devicePixelRatio })")
     assert dims["width"] == 659
     assert dims["height"] == 393
     assert dims["dpr"] == 3.0
@@ -201,9 +191,7 @@ async def test_close_last_tab_drops_emulation_state(
     page = browser_session.get_active_page()
     await page.goto(MOBILE_HTML)
 
-    dims = await page.evaluate(
-        "() => ({ width: innerWidth, maxTouchPoints: navigator.maxTouchPoints })"
-    )
+    dims = await page.evaluate("() => ({ width: innerWidth, maxTouchPoints: navigator.maxTouchPoints })")
     assert dims["width"] >= 1000
     assert dims["maxTouchPoints"] == 0
     ua = await page.evaluate("navigator.userAgent")

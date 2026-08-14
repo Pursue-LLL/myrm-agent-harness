@@ -16,19 +16,11 @@ from myrm_agent_harness.toolkits.web_search.citation_resolver import (
 
 
 def test_needs_citation_redirect_resolution_detects_known_wrappers() -> None:
-    assert _needs_citation_redirect_resolution(
-        "https://www.google.com/url?q=https://example.com/a"
-    )
-    assert _needs_citation_redirect_resolution(
-        "https://duckduckgo.com/l/?uddg=https://example.com"
-    )
-    assert _needs_citation_redirect_resolution(
-        "https://www.bing.com/ck/a?url=https://example.com"
-    )
+    assert _needs_citation_redirect_resolution("https://www.google.com/url?q=https://example.com/a")
+    assert _needs_citation_redirect_resolution("https://duckduckgo.com/l/?uddg=https://example.com")
+    assert _needs_citation_redirect_resolution("https://www.bing.com/ck/a?url=https://example.com")
     assert _needs_citation_redirect_resolution("https://googleusercontent.com/a/b")
-    assert _needs_citation_redirect_resolution(
-        "https://searx.local/redirect?url=https://example.com"
-    )
+    assert _needs_citation_redirect_resolution("https://searx.local/redirect?url=https://example.com")
     assert not _needs_citation_redirect_resolution("https://docs.python.org/3/")
 
 
@@ -61,9 +53,7 @@ async def test_enrich_sources_handles_empty_and_missing_url() -> None:
 
 def test_normalize_source_url_sets_canonical_url_and_redirect_url() -> None:
     source = {"url": "https://redirect.example/r", "title": "T"}
-    normalized = _normalize_source_url(
-        source, "https://redirect.example/r", "https://real.example/article"
-    )
+    normalized = _normalize_source_url(source, "https://redirect.example/r", "https://real.example/article")
     assert normalized["url"] == "https://real.example/article"
     assert normalized["redirect_url"] == "https://redirect.example/r"
     assert normalized["title"] == "T"
@@ -71,9 +61,7 @@ def test_normalize_source_url_sets_canonical_url_and_redirect_url() -> None:
 
 def test_normalize_source_url_noop_when_unchanged() -> None:
     source = {"url": "https://example.com/a", "title": "T"}
-    normalized = _normalize_source_url(
-        source, "https://example.com/a", "https://example.com/a"
-    )
+    normalized = _normalize_source_url(source, "https://example.com/a", "https://example.com/a")
     assert normalized is source
 
 
@@ -111,9 +99,7 @@ async def test_resolve_citation_url_follows_redirect_chain() -> None:
         "myrm_agent_harness.toolkits.web_search.citation_resolver.resolve_secure_http_target",
         new=AsyncMock(return_value=target),
     ):
-        result = await resolve_citation_url(
-            "https://www.google.com/url?q=https://docs.python.org/3/"
-        )
+        result = await resolve_citation_url("https://www.google.com/url?q=https://docs.python.org/3/")
     assert result == "https://docs.python.org/3/"
 
 

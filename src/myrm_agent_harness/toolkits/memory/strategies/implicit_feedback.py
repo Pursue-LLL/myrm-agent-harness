@@ -132,16 +132,12 @@ async def detect_implicit_feedback(
         ImplicitFeedbackResult with detected signals and planned proposals
     """
     if len(messages) < 2:
-        return ImplicitFeedbackResult(
-            signal=FeedbackSignal.NONE, has_implicit_contradiction=False
-        )
+        return ImplicitFeedbackResult(signal=FeedbackSignal.NONE, has_implicit_contradiction=False)
 
     regex_signal = detect_feedback_signals(messages)
 
     if regex_signal == FeedbackSignal.NEGATIVE:
-        proposals = await plan_memory_corrections(
-            messages, llm_func, existing_memories=existing_memories
-        )
+        proposals = await plan_memory_corrections(messages, llm_func, existing_memories=existing_memories)
         return ImplicitFeedbackResult(
             signal=FeedbackSignal.NEGATIVE,
             has_implicit_contradiction=False,
@@ -157,9 +153,7 @@ async def detect_implicit_feedback(
             raw_detection_response=raw_response,
         )
 
-    proposals = await plan_memory_corrections(
-        messages, llm_func, existing_memories=existing_memories
-    )
+    proposals = await plan_memory_corrections(messages, llm_func, existing_memories=existing_memories)
     return ImplicitFeedbackResult(
         signal=FeedbackSignal.NEGATIVE,
         has_implicit_contradiction=True,
@@ -185,14 +179,10 @@ async def plan_memory_corrections(
         List of structured correction proposals
     """
     recent = messages[-_SCAN_WINDOW:]
-    language = detect_language(
-        " ".join(m.get("content", "")[:200] for m in recent if m.get("role") == "user")
-    )
+    language = detect_language(" ".join(m.get("content", "")[:200] for m in recent if m.get("role") == "user"))
 
     conversation = "\n".join(
-        f"{'User' if m.get('role') == 'user' else 'AI'}: "
-        f"{m.get('content', '')[:_MAX_CONTENT_PER_MSG]}"
-        for m in recent
+        f"{'User' if m.get('role') == 'user' else 'AI'}: {m.get('content', '')[:_MAX_CONTENT_PER_MSG]}" for m in recent
     )
 
     prompt_parts = [f"## Conversation\n\n{conversation}"]
@@ -226,8 +216,7 @@ async def _llm_detect_contradiction(
     """
     recent = messages[-_SCAN_WINDOW:]
     conversation = "\n".join(
-        f"[{'USER' if m.get('role') == 'user' else 'AI'}]: "
-        f"{m.get('content', '')[:_MAX_CONTENT_PER_MSG]}"
+        f"[{'USER' if m.get('role') == 'user' else 'AI'}]: {m.get('content', '')[:_MAX_CONTENT_PER_MSG]}"
         for m in recent
     )
 

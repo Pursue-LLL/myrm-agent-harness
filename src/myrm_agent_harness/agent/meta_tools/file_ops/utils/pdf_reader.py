@@ -122,7 +122,9 @@ async def _schedule_rag_ingest(
         if result.page_count > RAG_MAX_PAGES_LIMIT:
             logger.warning(
                 "PDF %s has %d pages (>%d), skipping RAG ingest",
-                path, result.page_count, RAG_MAX_PAGES_LIMIT,
+                path,
+                result.page_count,
+                RAG_MAX_PAGES_LIMIT,
             )
             return
 
@@ -172,9 +174,7 @@ async def read_pdf_as_content_blocks(
 
         tmp_path = await _write_to_temp(raw_bytes)
         try:
-            result = await extract_pdf_content(
-                tmp_path, PDFExtractConfig(max_pages=RAG_PAGE_THRESHOLD)
-            )
+            result = await extract_pdf_content(tmp_path, PDFExtractConfig(max_pages=RAG_PAGE_THRESHOLD))
         finally:
             os.unlink(tmp_path)
 
@@ -193,9 +193,7 @@ async def read_pdf_as_content_blocks(
     rag_triggered = is_large_doc and _ingest_callback is not None
 
     if rag_triggered:
-        task = asyncio.create_task(
-            _schedule_rag_ingest(path, raw_bytes, result, PDFExtractConfig, extract_pdf_content)
-        )
+        task = asyncio.create_task(_schedule_rag_ingest(path, raw_bytes, result, PDFExtractConfig, extract_pdf_content))
         _pending_ingest_tasks.add(task)
         task.add_done_callback(_pending_ingest_tasks.discard)
 

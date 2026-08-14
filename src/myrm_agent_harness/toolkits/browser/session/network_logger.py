@@ -179,9 +179,7 @@ class NetworkLogger:
                     # Redact before truncating: the preview cut could otherwise
                     # leave a credential fragment shorter than the redaction
                     # patterns' minimum length.
-                    post_data_preview = redact_sensitive_text(
-                        raw[:_RAW_PREVIEW_WINDOW]
-                    )[:200]
+                    post_data_preview = redact_sensitive_text(raw[:_RAW_PREVIEW_WINDOW])[:200]
 
             info = RequestInfo(
                 method=request.method,
@@ -260,9 +258,7 @@ class NetworkLogger:
 
         if req.status is not None:
             status_marker = "OK" if req.status < 400 else "FAIL"
-            parts.append(
-                f"   [{status_marker}] Status: {req.status} {req.status_text or ''}"
-            )
+            parts.append(f"   [{status_marker}] Status: {req.status} {req.status_text or ''}")
         elif req.status_text:
             parts.append(f"   [FAIL] {req.status_text}")
 
@@ -291,9 +287,7 @@ class NetworkLogger:
             case "all":
                 return list(self._requests)
             case _:
-                logger.warning(
-                    "Unknown filter mode: %s, defaulting to 'api'", filter_mode
-                )
+                logger.warning("Unknown filter mode: %s, defaulting to 'api'", filter_mode)
                 return [r for r in self._requests if r.is_api_request]
 
     def clear(self) -> None:

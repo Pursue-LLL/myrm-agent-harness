@@ -85,9 +85,7 @@ class TestApplyDomainDiversitySort:
         ]
         result = apply_domain_diversity_sort(docs)
 
-        first_three_domains = [
-            d.metadata["url"].split("/")[2] for d in result[:3]
-        ]
+        first_three_domains = [d.metadata["url"].split("/")[2] for d in result[:3]]
         unique_in_top3 = len(set(first_three_domains))
         assert unique_in_top3 >= 2
 
@@ -199,9 +197,7 @@ class TestApplyDomainDiversitySort:
         result = apply_domain_diversity_sort(docs)
         assert len(result) == 10
 
-        top3_domains = {
-            result[i].metadata["url"].split("/")[2] for i in range(3)
-        }
+        top3_domains = {result[i].metadata["url"].split("/")[2] for i in range(3)}
         assert len(top3_domains) >= 1
 
     def test_no_metadata_url_key(self) -> None:

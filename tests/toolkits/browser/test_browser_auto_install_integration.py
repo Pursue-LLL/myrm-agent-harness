@@ -73,8 +73,7 @@ class TestErrorDetectionIntegration:
     async def test_real_playwright_error_format(self) -> None:
         """Playwright-style errors are also detected."""
         exc = Exception(
-            "browserType.launch: Executable doesn't exist at "
-            "/ms-playwright/chromium-1148/chrome-linux/chrome"
+            "browserType.launch: Executable doesn't exist at /ms-playwright/chromium-1148/chrome-linux/chrome"
         )
         assert _is_executable_missing(exc) is True
 

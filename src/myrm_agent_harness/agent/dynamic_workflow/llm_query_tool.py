@@ -128,9 +128,7 @@ def _extract_model_name(llm: object) -> str | None:
     return None
 
 
-def _build_messages(
-    prompt: str, system: str | None
-) -> list[HumanMessage | SystemMessage]:
+def _build_messages(prompt: str, system: str | None) -> list[HumanMessage | SystemMessage]:
     messages: list[HumanMessage | SystemMessage] = []
     if system:
         messages.append(SystemMessage(content=system))
@@ -232,9 +230,7 @@ class LlmQueryTool(BaseTool):
         llm: _ChatLlm | None = None,
         model_name: str | None = None,
     ) -> dict[str, object]:
-        if self.cancel_token is not None and getattr(
-            self.cancel_token, "is_cancelled", False
-        ):
+        if self.cancel_token is not None and getattr(self.cancel_token, "is_cancelled", False):
             return {"success": False, "error": "Workflow cancelled by user."}
 
         budget_error = self._check_budget()
@@ -307,8 +303,7 @@ class LlmQueryBatchedTool(LlmQueryTool):
         if len(prompts) > _MAX_BATCH_QUERIES:
             return {
                 "success": False,
-                "error": f"Too many prompts: {len(prompts)} (max {_MAX_BATCH_QUERIES}). "
-                "Batch in smaller groups.",
+                "error": f"Too many prompts: {len(prompts)} (max {_MAX_BATCH_QUERIES}). Batch in smaller groups.",
             }
 
         budget_error = self._check_budget()

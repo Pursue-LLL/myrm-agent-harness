@@ -81,12 +81,7 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
 
     # 搜索类工具 - 显示搜索查询
     if "search" in tool_name.lower():
-        query = (
-            tool_args.get("questions")
-            or tool_args.get("query")
-            or tool_args.get("queries")
-            or tool_args.get("q")
-        )
+        query = tool_args.get("questions") or tool_args.get("query") or tool_args.get("queries") or tool_args.get("q")
         if query:
             if isinstance(query, list):
                 return {"data": [{"query": q} for q in query[:5]]}
@@ -105,11 +100,7 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
         skill_names = tool_args.get("skill_names", [])
         reason = str(tool_args.get("reason", ""))
         if isinstance(skill_names, list) and skill_names:
-            return {
-                "data": [
-                    {"skill_name": str(name), "reason": reason} for name in skill_names
-                ]
-            }
+            return {"data": [{"skill_name": str(name), "reason": reason} for name in skill_names]}
 
     # 文件读取工具
     if tool_name == "file_read_tool":
@@ -174,12 +165,8 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
                 normalized = normalize_edits_payload(tool_args)
                 old_str, new_str = merge_edits_for_diff(normalized)
             except ValueError:
-                old_str = str(
-                    tool_args.get("old_str") or tool_args.get("old_string") or ""
-                )
-                new_str = str(
-                    tool_args.get("new_str") or tool_args.get("new_string") or ""
-                )
+                old_str = str(tool_args.get("old_str") or tool_args.get("old_string") or "")
+                new_str = str(tool_args.get("new_str") or tool_args.get("new_string") or "")
 
             if old_str or new_str:
                 _inject_diff(item, str(path), old_str, new_str)
@@ -208,14 +195,9 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
 
             # 注入 action_type
             action_type = "read"
-            if any(
-                kw in tool_name.lower() for kw in ["write", "edit", "replace", "append"]
-            ):
+            if any(kw in tool_name.lower() for kw in ["write", "edit", "replace", "append"]):
                 action_type = "write"
-            elif any(
-                kw in tool_name.lower()
-                for kw in ["list", "glob", "search", "find", "grep"]
-            ):
+            elif any(kw in tool_name.lower() for kw in ["list", "glob", "search", "find", "grep"]):
                 action_type = "search"
             item["action_type"] = action_type
 
@@ -253,9 +235,7 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
 _DIFF_MAX_LINES = 50
 
 
-def _inject_diff(
-    item: dict[str, str | bool], file_path: str, old_str: str, new_str: str
-) -> None:
+def _inject_diff(item: dict[str, str | bool], file_path: str, old_str: str, new_str: str) -> None:
     """Generate unified diff and inject into item dict (mutates in-place)."""
     if not old_str and not new_str:
         return

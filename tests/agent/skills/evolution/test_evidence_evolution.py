@@ -476,9 +476,7 @@ class TestEngineEvolveFromEvidence:
             metrics=SkillMetrics(applied_count=10, success_count=7),
         )
 
-    def _make_evidence(
-        self, n_success: int = 5, n_failure: int = 2
-    ) -> SkillEvidenceGroup:
+    def _make_evidence(self, n_success: int = 5, n_failure: int = 2) -> SkillEvidenceGroup:
         return SkillEvidenceGroup(
             skill_id="sk1",
             skill_name="test-skill",
@@ -564,9 +562,7 @@ class TestEngineEvolveFromEvidence:
             reasoning="Good improvement",
         )
         structured_llm = MagicMock()
-        structured_llm.ainvoke = AsyncMock(
-            side_effect=[baseline_rubric, variant_rubric]
-        )
+        structured_llm.ainvoke = AsyncMock(side_effect=[baseline_rubric, variant_rubric])
 
         llm = MagicMock()
         resp_mock = MagicMock()
@@ -574,9 +570,7 @@ class TestEngineEvolveFromEvidence:
         llm.ainvoke = AsyncMock(return_value=resp_mock)
         llm.with_structured_output = MagicMock(return_value=structured_llm)
 
-        engine = SkillEvolutionEngine(
-            store=store, llm=llm, num_variants_per_evolution=1
-        )
+        engine = SkillEvolutionEngine(store=store, llm=llm, num_variants_per_evolution=1)
 
         evidence = self._make_evidence()
         result = await engine.evolve_from_evidence(evidence)
@@ -608,16 +602,12 @@ class TestEngineEvolveFromEvidence:
         skill = self._make_skill()
         store = MagicMock()
         store.get_skill.return_value = skill
-        store.get_evolution_constraints.return_value = [
-            "- do not remove error handling"
-        ]
+        store.get_evolution_constraints.return_value = ["- do not remove error handling"]
 
         llm = MagicMock()
         llm.ainvoke = AsyncMock(side_effect=RuntimeError("LLM down"))
 
-        engine = SkillEvolutionEngine(
-            store=store, llm=llm, num_variants_per_evolution=2
-        )
+        engine = SkillEvolutionEngine(store=store, llm=llm, num_variants_per_evolution=2)
         evidence = self._make_evidence()
         result = await engine.evolve_from_evidence(evidence)
 
@@ -644,9 +634,7 @@ class TestVariantGeneratorEvidenceLLMPaths:
             skill_id="sk1",
             skill_name="test-skill",
             success_cases=[
-                ExecutionAnalysis(
-                    skill_id="sk1", task_id="t1", success=True, task_context="context A"
-                ),
+                ExecutionAnalysis(skill_id="sk1", task_id="t1", success=True, task_context="context A"),
             ],
             failure_cases=[
                 ExecutionAnalysis(
@@ -672,9 +660,7 @@ class TestVariantGeneratorEvidenceLLMPaths:
         llm.ainvoke = AsyncMock(return_value=resp)
 
         gen = VariantGenerator(llm=llm)
-        variants = await gen.generate_variants_from_evidence(
-            self._make_skill(), self._make_evidence(), num_variants=2
-        )
+        variants = await gen.generate_variants_from_evidence(self._make_skill(), self._make_evidence(), num_variants=2)
 
         assert len(variants) >= 1
         assert "Improved" in variants[0] or "better" in variants[0]
@@ -686,9 +672,7 @@ class TestVariantGeneratorEvidenceLLMPaths:
         )
 
         gen = VariantGenerator(llm=None)
-        variants = await gen.generate_variants_from_evidence(
-            self._make_skill(), self._make_evidence(), num_variants=2
-        )
+        variants = await gen.generate_variants_from_evidence(self._make_skill(), self._make_evidence(), num_variants=2)
 
         assert len(variants) == 1
         assert variants[0] == self._make_skill().content
@@ -703,9 +687,7 @@ class TestVariantGeneratorEvidenceLLMPaths:
         llm.ainvoke = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
 
         gen = VariantGenerator(llm=llm)
-        variants = await gen.generate_variants_from_evidence(
-            self._make_skill(), self._make_evidence(), num_variants=2
-        )
+        variants = await gen.generate_variants_from_evidence(self._make_skill(), self._make_evidence(), num_variants=2)
 
         assert len(variants) == 1
         assert variants[0] == self._make_skill().content
@@ -722,9 +704,7 @@ class TestVariantGeneratorEvidenceLLMPaths:
         llm.ainvoke = AsyncMock(return_value=resp)
 
         gen = VariantGenerator(llm=llm)
-        variants = await gen.generate_variants_from_evidence(
-            self._make_skill(), self._make_evidence(), num_variants=1
-        )
+        variants = await gen.generate_variants_from_evidence(self._make_skill(), self._make_evidence(), num_variants=1)
 
         assert len(variants) == 1
         assert "```" not in variants[0]
@@ -865,9 +845,7 @@ class TestRunEvidenceEvolution:
             EvolutionIntegration as RealEI,
         )
 
-        proposals = await RealEI.run_evidence_evolution(
-            integration, on_proposal_callback=callback, lookback_days=7
-        )
+        proposals = await RealEI.run_evidence_evolution(integration, on_proposal_callback=callback, lookback_days=7)
 
         assert len(proposals) == 1
         callback.assert_called_once_with(mock_proposal)

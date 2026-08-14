@@ -23,9 +23,7 @@ from myrm_agent_harness.toolkits.memory.types import (
 )
 
 
-def create_vector_doc(
-    doc_id: str, content: str, user_id: str = "bench_user"
-) -> VectorDocument:
+def create_vector_doc(doc_id: str, content: str, user_id: str = "bench_user") -> VectorDocument:
     """Factory for benchmark VectorDocument."""
     return VectorDocument(
         id=doc_id,
@@ -72,14 +70,8 @@ class TestBM25RetrievalBenchmarks:
         mock_vector_store = AsyncMock()
         mock_vector_store.count.side_effect = [1000, 500]
 
-        sem_docs = [
-            create_vector_doc(f"sem-{i}", f"Python programming guide {i}")
-            for i in range(700)
-        ]
-        epi_docs = [
-            create_vector_doc(f"epi-{i}", f"Discussed API design {i}")
-            for i in range(300)
-        ]
+        sem_docs = [create_vector_doc(f"sem-{i}", f"Python programming guide {i}") for i in range(700)]
+        epi_docs = [create_vector_doc(f"epi-{i}", f"Discussed API design {i}") for i in range(300)]
 
         mock_vector_store.scroll.side_effect = [(sem_docs, None), (epi_docs, None)] * 10
 
@@ -103,14 +95,8 @@ class TestBM25RetrievalBenchmarks:
         mock_vector_store = AsyncMock()
         mock_vector_store.count.side_effect = [5000, 2500]
 
-        sem_docs = [
-            create_vector_doc(f"sem-{i}", f"Machine learning tutorial {i}")
-            for i in range(3500)
-        ]
-        epi_docs = [
-            create_vector_doc(f"epi-{i}", f"Discussed database design {i}")
-            for i in range(1500)
-        ]
+        sem_docs = [create_vector_doc(f"sem-{i}", f"Machine learning tutorial {i}") for i in range(3500)]
+        epi_docs = [create_vector_doc(f"epi-{i}", f"Discussed database design {i}") for i in range(1500)]
 
         mock_vector_store.scroll.side_effect = [(sem_docs, None), (epi_docs, None)] * 10
 
@@ -134,14 +120,8 @@ class TestBM25RetrievalBenchmarks:
         mock_vector_store = AsyncMock()
         mock_vector_store.count.side_effect = [10000, 5000]
 
-        sem_docs = [
-            create_vector_doc(f"sem-{i}", f"Deep learning framework {i}")
-            for i in range(7000)
-        ]
-        epi_docs = [
-            create_vector_doc(f"epi-{i}", f"Discussed system architecture {i}")
-            for i in range(3000)
-        ]
+        sem_docs = [create_vector_doc(f"sem-{i}", f"Deep learning framework {i}") for i in range(7000)]
+        epi_docs = [create_vector_doc(f"epi-{i}", f"Discussed system architecture {i}") for i in range(3000)]
 
         mock_vector_store.scroll.side_effect = [(sem_docs, None), (epi_docs, None)] * 5
 
@@ -237,9 +217,7 @@ class TestBatchStorageBenchmarks:
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark(group="batch", min_rounds=10)
-    async def test_batch_store_10_memories(
-        self, benchmark, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_batch_store_10_memories(self, benchmark, mock_vector_store, mock_embedding, memory_config):
         """Benchmark batch store with 10 memories.
 
         Performance threshold: < 500ms
@@ -254,22 +232,15 @@ class TestBatchStorageBenchmarks:
             embedding=mock_embedding,
         )
 
-        memories = [
-            SemanticMemory(content=f"Memory content {i}", importance=0.5)
-            for i in range(10)
-        ]
+        memories = [SemanticMemory(content=f"Memory content {i}", importance=0.5) for i in range(10)]
 
-        result = await benchmark.pedantic(
-            manager.store_batch, args=(memories,), rounds=10
-        )
+        result = await benchmark.pedantic(manager.store_batch, args=(memories,), rounds=10)
 
         assert len(result) == 10
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark(group="batch", min_rounds=5)
-    async def test_batch_store_50_memories(
-        self, benchmark, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_batch_store_50_memories(self, benchmark, mock_vector_store, mock_embedding, memory_config):
         """Benchmark batch store with 50 memories.
 
         Performance threshold: < 1s
@@ -284,22 +255,15 @@ class TestBatchStorageBenchmarks:
             embedding=mock_embedding,
         )
 
-        memories = [
-            SemanticMemory(content=f"Memory content {i}", importance=0.5)
-            for i in range(50)
-        ]
+        memories = [SemanticMemory(content=f"Memory content {i}", importance=0.5) for i in range(50)]
 
-        result = await benchmark.pedantic(
-            manager.store_batch, args=(memories,), rounds=5
-        )
+        result = await benchmark.pedantic(manager.store_batch, args=(memories,), rounds=5)
 
         assert len(result) == 50
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark(group="batch", min_rounds=3)
-    async def test_batch_store_100_memories(
-        self, benchmark, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_batch_store_100_memories(self, benchmark, mock_vector_store, mock_embedding, memory_config):
         """Benchmark batch store with 100 memories.
 
         Performance threshold: < 2s
@@ -314,14 +278,9 @@ class TestBatchStorageBenchmarks:
             embedding=mock_embedding,
         )
 
-        memories = [
-            EpisodicMemory(content=f"Conversation event {i}", importance=0.5)
-            for i in range(100)
-        ]
+        memories = [EpisodicMemory(content=f"Conversation event {i}", importance=0.5) for i in range(100)]
 
-        result = await benchmark.pedantic(
-            manager.store_batch, args=(memories,), rounds=3
-        )
+        result = await benchmark.pedantic(manager.store_batch, args=(memories,), rounds=3)
 
         assert len(result) == 100
 
@@ -331,9 +290,7 @@ class TestEndToEndBenchmarks:
 
     @pytest.mark.asyncio
     @pytest.mark.benchmark(group="e2e", min_rounds=10)
-    async def test_search_with_bm25_and_vector(
-        self, benchmark, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_search_with_bm25_and_vector(self, benchmark, mock_vector_store, mock_embedding, memory_config):
         """Benchmark full search flow: embedding + vector + BM25 + RRF fusion.
 
         Performance threshold: < 800ms
@@ -345,14 +302,11 @@ class TestEndToEndBenchmarks:
         mock_embedding.embed.return_value = [0.1] * 768
         mock_vector_store.count.side_effect = lambda coll: 1000
         mock_vector_store.scroll.return_value = [
-            create_vector_doc(f"doc-{i}", f"Python async programming {i}")
-            for i in range(1000)
+            create_vector_doc(f"doc-{i}", f"Python async programming {i}") for i in range(1000)
         ]
 
         doc = create_vector_doc("vec-1", "Python async best practices")
-        mock_vector_store.search.return_value = [
-            VectorSearchResult(document=doc, score=0.9)
-        ]
+        mock_vector_store.search.return_value = [VectorSearchResult(document=doc, score=0.9)]
 
         manager = MemoryManager(
             memory_config,

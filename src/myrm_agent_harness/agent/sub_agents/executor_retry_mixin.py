@@ -234,7 +234,9 @@ class SubagentExecutorRetryMixin:
                         task_id=task_id,
                         agent_type=agent_type,
                         result=partial,
-                        error=f"Timeout after {config.timeout_seconds}s" if config.timeout_seconds is not None else "Timeout",
+                        error=f"Timeout after {config.timeout_seconds}s"
+                        if config.timeout_seconds is not None
+                        else "Timeout",
                         duration_seconds=now - start_time,
                         completed_at=now,
                         status=SubAgentStatus.TIMED_OUT,
@@ -244,7 +246,8 @@ class SubagentExecutorRetryMixin:
                     retries_left -= 1
                     logger.warning(
                         "[subagent:%s] LLM error, retries_left=%d",
-                        task_id, retries_left,
+                        task_id,
+                        retries_left,
                     )
                     if retries_left > 0:
                         await asyncio.sleep(backoff_seconds)

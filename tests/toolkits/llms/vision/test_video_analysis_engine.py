@@ -21,9 +21,7 @@ def mock_llm_config():
 
 @pytest.fixture
 def video_engine(mock_llm_config):
-    with patch(
-        "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.create_litellm_model"
-    ) as mock_create:
+    with patch("myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.create_litellm_model") as mock_create:
         mock_model = AsyncMock()
         mock_create.return_value = mock_model
         engine = VideoAnalysisEngine(mock_llm_config)
@@ -70,9 +68,7 @@ class TestVideoAnalysisEngineDirectAnalyze:
         mock_response.content = "Video shows a cat playing"
         video_engine.model.ainvoke.return_value = mock_response
 
-        result = await video_engine.analyze_video_b64(
-            "dummyb64data", "video/mp4", supports_video=True
-        )
+        result = await video_engine.analyze_video_b64("dummyb64data", "video/mp4", supports_video=True)
         assert result == "Video shows a cat playing"
         video_engine.model.ainvoke.assert_called_once()
 
@@ -80,9 +76,7 @@ class TestVideoAnalysisEngineDirectAnalyze:
     async def test_direct_analyze_exception(self, video_engine):
         video_engine.model.ainvoke.side_effect = Exception("API Error")
 
-        result = await video_engine.analyze_video_b64(
-            "dummyb64data", "video/mp4", supports_video=True
-        )
+        result = await video_engine.analyze_video_b64("dummyb64data", "video/mp4", supports_video=True)
         assert "[Video could not be analyzed]" in result
 
     @pytest.mark.asyncio
@@ -91,16 +85,12 @@ class TestVideoAnalysisEngineDirectAnalyze:
         mock_response.content = "A lecture video"
         video_engine.model.ainvoke.return_value = mock_response
 
-        result = await video_engine.analyze_video_url(
-            "https://example.com/video.mp4", supports_video=True
-        )
+        result = await video_engine.analyze_video_url("https://example.com/video.mp4", supports_video=True)
         assert result == "A lecture video"
 
     @pytest.mark.asyncio
     async def test_analyze_video_url_not_supported(self, video_engine):
-        result = await video_engine.analyze_video_url(
-            "https://example.com/video.mp4", supports_video=False
-        )
+        result = await video_engine.analyze_video_url("https://example.com/video.mp4", supports_video=False)
         assert "requires a video-capable model" in result
 
 
@@ -111,9 +101,7 @@ class TestVideoAnalysisEngineFrameExtraction:
             "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
             return_value=False,
         ):
-            result = await video_engine.analyze_video_b64(
-                "dummyb64", "video/mp4", supports_video=False
-            )
+            result = await video_engine.analyze_video_b64("dummyb64", "video/mp4", supports_video=False)
             assert "ffmpeg is not installed" in result
 
     @pytest.mark.asyncio
@@ -123,13 +111,16 @@ class TestVideoAnalysisEngineFrameExtraction:
         video_engine.model.ainvoke.return_value = mock_response
 
         fake_frame = b"\xff\xd8\xff\xe0" + b"\x00" * 100  # fake JPEG header
-        with patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
-            return_value=True,
-        ), patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._extract_frames_ffmpeg",
-            new_callable=AsyncMock,
-            return_value=[(fake_frame, "image/jpeg"), (fake_frame, "image/jpeg")],
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
+                return_value=True,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._extract_frames_ffmpeg",
+                new_callable=AsyncMock,
+                return_value=[(fake_frame, "image/jpeg"), (fake_frame, "image/jpeg")],
+            ),
         ):
             result = await video_engine.analyze_video_b64(
                 base64.b64encode(b"fake_video_data").decode(),
@@ -140,13 +131,16 @@ class TestVideoAnalysisEngineFrameExtraction:
 
     @pytest.mark.asyncio
     async def test_frame_extraction_empty_frames(self, video_engine):
-        with patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
-            return_value=True,
-        ), patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._extract_frames_ffmpeg",
-            new_callable=AsyncMock,
-            return_value=[],
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
+                return_value=True,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._extract_frames_ffmpeg",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             result = await video_engine.analyze_video_b64(
                 base64.b64encode(b"fake_video").decode(),
@@ -162,9 +156,7 @@ class TestVideoAnalysisEngineLocalVideo:
         mock_executor = AsyncMock()
         mock_executor.read_file_bytes.return_value = b"x" * (MAX_VIDEO_BYTES + 1)
 
-        result = await video_engine.analyze_local_video(
-            "/path/video.mp4", mock_executor, supports_video=True
-        )
+        result = await video_engine.analyze_local_video("/path/video.mp4", mock_executor, supports_video=True)
         assert "Video too large" in result
 
     @pytest.mark.asyncio
@@ -172,9 +164,7 @@ class TestVideoAnalysisEngineLocalVideo:
         mock_executor = AsyncMock()
         mock_executor.read_file_bytes.side_effect = OSError("Permission denied")
 
-        result = await video_engine.analyze_local_video(
-            "/path/video.mp4", mock_executor, supports_video=True
-        )
+        result = await video_engine.analyze_local_video("/path/video.mp4", mock_executor, supports_video=True)
         assert "Video file could not be read" in result
 
     @pytest.mark.asyncio
@@ -186,9 +176,7 @@ class TestVideoAnalysisEngineLocalVideo:
         mock_response.content = "Video content described"
         video_engine.model.ainvoke.return_value = mock_response
 
-        result = await video_engine.analyze_local_video(
-            "/path/video.mp4", mock_executor, supports_video=True
-        )
+        result = await video_engine.analyze_local_video("/path/video.mp4", mock_executor, supports_video=True)
         assert result == "Video content described"
 
     @pytest.mark.asyncio
@@ -200,9 +188,7 @@ class TestVideoAnalysisEngineLocalVideo:
             "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
             return_value=False,
         ):
-            result = await video_engine.analyze_local_video(
-                "/path/video.mp4", mock_executor, supports_video=False
-            )
+            result = await video_engine.analyze_local_video("/path/video.mp4", mock_executor, supports_video=False)
             assert "ffmpeg is not installed" in result
 
 
@@ -213,7 +199,9 @@ class TestMaxVideoBytes:
 
 class TestHasFfmpeg:
     def test_returns_true_when_binary_present(self):
-        with patch("myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.shutil.which", return_value="/usr/bin/ffmpeg"):
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.shutil.which", return_value="/usr/bin/ffmpeg"
+        ):
             assert _has_ffmpeg() is True
 
     def test_returns_false_when_missing(self):
@@ -234,18 +222,19 @@ class TestVideoAnalysisEngineAdditionalPaths:
     async def test_local_video_uses_frame_extraction_when_no_video_support(self, video_engine):
         mock_executor = AsyncMock()
 
-        with patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
-            return_value=True,
-        ), patch.object(
-            video_engine,
-            "_frame_extraction_analyze_path",
-            new_callable=AsyncMock,
-            return_value="frame summary",
-        ) as mock_frames:
-            result = await video_engine.analyze_local_video(
-                "/path/video.mp4", mock_executor, supports_video=False
-            )
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
+                return_value=True,
+            ),
+            patch.object(
+                video_engine,
+                "_frame_extraction_analyze_path",
+                new_callable=AsyncMock,
+                return_value="frame summary",
+            ) as mock_frames,
+        ):
+            result = await video_engine.analyze_local_video("/path/video.mp4", mock_executor, supports_video=False)
 
         assert result == "frame summary"
         mock_frames.assert_awaited_once_with("/path/video.mp4", None)
@@ -281,15 +270,18 @@ class TestVideoAnalysisEngineAdditionalPaths:
         mock_response.content = "mov summary"
         video_engine.model.ainvoke.return_value = mock_response
 
-        with patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
-            return_value=True,
-        ), patch.object(
-            video_engine,
-            "_frame_extraction_analyze_path",
-            new_callable=AsyncMock,
-            return_value="unused",
-        ) as mock_path:
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine._has_ffmpeg",
+                return_value=True,
+            ),
+            patch.object(
+                video_engine,
+                "_frame_extraction_analyze_path",
+                new_callable=AsyncMock,
+                return_value="unused",
+            ) as mock_path,
+        ):
             await video_engine.analyze_video_b64(
                 base64.b64encode(b"fake-mov").decode(),
                 "video/quicktime",

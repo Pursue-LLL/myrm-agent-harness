@@ -22,6 +22,7 @@ from myrm_agent_harness.toolkits.browser.domain_skills.store import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_manifest_dir(base: Path, skill_id: str, domains: list[str]) -> Path:
     """Create a minimal manifest.json under base/skill_id/."""
     skill_dir = base / skill_id
@@ -49,15 +50,14 @@ def _make_manifest_dir(base: Path, skill_id: str, domains: list[str]) -> Path:
             }
         },
     }
-    (skill_dir / "manifest.json").write_text(
-        json.dumps(manifest), encoding="utf-8"
-    )
+    (skill_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     return skill_dir
 
 
 # ---------------------------------------------------------------------------
 # Unit: _domain_matches / _normalize_hostname
 # ---------------------------------------------------------------------------
+
 
 class TestDomainMatching:
     def test_exact_match(self) -> None:
@@ -94,6 +94,7 @@ class TestDomainMatching:
 # ---------------------------------------------------------------------------
 # Integration: DomainSkillStore
 # ---------------------------------------------------------------------------
+
 
 class TestDomainSkillStore:
     def test_load_builtin_x_com(self) -> None:
@@ -217,9 +218,7 @@ class TestDomainSkillStoreEnvResolution:
         resolved = DomainSkillStore._resolve_user_dir(None)
         assert resolved == tmp_path / "domain_skills"
 
-    def test_explicit_path_overrides_env(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_explicit_path_overrides_env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MYRM_DATA_DIR", "/should/not/use")
         resolved = DomainSkillStore._resolve_user_dir(tmp_path / "custom")
         assert resolved == tmp_path / "custom"
@@ -228,6 +227,7 @@ class TestDomainSkillStoreEnvResolution:
 # ---------------------------------------------------------------------------
 # DomainSkillManifest.tool_signatures
 # ---------------------------------------------------------------------------
+
 
 class TestToolSignatures:
     def test_empty_tools(self) -> None:
@@ -243,7 +243,9 @@ class TestToolSignatures:
             args={"url": {"type": "string", "required": "true"}},
         )
         m = DomainSkillManifest(
-            id="t", name="T", domains=("t.com",),
+            id="t",
+            name="T",
+            domains=("t.com",),
             python_tools={"fetch": tool},
         )
         assert m.tool_signatures() == "fetch(url)"
@@ -254,11 +256,12 @@ class TestToolSignatures:
             description="Search",
             script_path="tools/search.py",
             callable_name="search",
-            args={"query": {"type": "string", "required": "true"},
-                  "limit": {"type": "integer", "required": "false"}},
+            args={"query": {"type": "string", "required": "true"}, "limit": {"type": "integer", "required": "false"}},
         )
         m = DomainSkillManifest(
-            id="t", name="T", domains=("t.com",),
+            id="t",
+            name="T",
+            domains=("t.com",),
             python_tools={"search": tool},
         )
         sig = m.tool_signatures()
@@ -269,7 +272,9 @@ class TestToolSignatures:
         t1 = DomainTool(name="a", description="", script_path="", callable_name="a")
         t2 = DomainTool(name="b", description="", script_path="", callable_name="b")
         m = DomainSkillManifest(
-            id="t", name="T", domains=("t.com",),
+            id="t",
+            name="T",
+            domains=("t.com",),
             python_tools={"a": t1, "b": t2},
         )
         sig = m.tool_signatures()
@@ -281,6 +286,7 @@ class TestToolSignatures:
 # ---------------------------------------------------------------------------
 # URL extraction edge cases
 # ---------------------------------------------------------------------------
+
 
 class TestUrlExtraction:
     def test_url_without_scheme(self) -> None:
@@ -301,6 +307,7 @@ class TestUrlExtraction:
 # ---------------------------------------------------------------------------
 # is_builtin detection
 # ---------------------------------------------------------------------------
+
 
 class TestIsBuiltin:
     def test_builtin_skill_returns_true(self) -> None:
@@ -325,9 +332,11 @@ class TestIsBuiltin:
 # Distill tool_name validation (Pydantic model_validator)
 # ---------------------------------------------------------------------------
 
+
 class TestDistillToolNameValidation:
     def test_valid_tool_name_accepted(self) -> None:
         import re
+
         pattern = re.compile(r"^[a-z0-9][a-z0-9_]*$")
         assert pattern.match("get_timeline_posts") is not None
         assert pattern.match("a") is not None
@@ -335,12 +344,14 @@ class TestDistillToolNameValidation:
 
     def test_path_traversal_rejected(self) -> None:
         import re
+
         pattern = re.compile(r"^[a-z0-9][a-z0-9_]*$")
         assert pattern.match("../../backdoor") is None
         assert pattern.match("../evil") is None
 
     def test_invalid_chars_rejected(self) -> None:
         import re
+
         pattern = re.compile(r"^[a-z0-9][a-z0-9_]*$")
         assert pattern.match("get-timeline") is None
         assert pattern.match("Get_Posts") is None
@@ -352,9 +363,11 @@ class TestDistillToolNameValidation:
 # Singleton: get_global_domain_skill_store
 # ---------------------------------------------------------------------------
 
+
 class TestGlobalSingleton:
     def test_returns_store_instance(self) -> None:
         import myrm_agent_harness.toolkits.browser.domain_skills.store as mod
+
         mod._global_store = None
         try:
             store = mod.get_global_domain_skill_store()
@@ -364,6 +377,7 @@ class TestGlobalSingleton:
 
     def test_returns_same_instance(self) -> None:
         import myrm_agent_harness.toolkits.browser.domain_skills.store as mod
+
         mod._global_store = None
         try:
             s1 = mod.get_global_domain_skill_store()
@@ -376,6 +390,7 @@ class TestGlobalSingleton:
 # ---------------------------------------------------------------------------
 # _resolve_user_dir: /workspace/ fallback
 # ---------------------------------------------------------------------------
+
 
 class TestResolveUserDirWorkspace:
     def test_workspace_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -395,6 +410,7 @@ class TestResolveUserDirWorkspace:
 # _load_directory: non-directory path
 # ---------------------------------------------------------------------------
 
+
 class TestLoadDirectoryEdge:
     def test_load_nondir_noop(self, tmp_path: Path) -> None:
         f = tmp_path / "not_a_dir.txt"
@@ -413,6 +429,7 @@ class TestLoadDirectoryEdge:
 # ---------------------------------------------------------------------------
 # _parse_manifest: default value fallback
 # ---------------------------------------------------------------------------
+
 
 class TestParseManifestDefaults:
     def test_id_falls_back_to_dir_name(self, tmp_path: Path) -> None:
@@ -464,6 +481,7 @@ class TestParseManifestDefaults:
 # ---------------------------------------------------------------------------
 # Multi-skill matching & add_user_skill override
 # ---------------------------------------------------------------------------
+
 
 class TestMultiSkillMatching:
     def test_multiple_skills_match_same_domain(self, tmp_path: Path) -> None:

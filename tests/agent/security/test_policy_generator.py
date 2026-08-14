@@ -152,20 +152,14 @@ class TestParsePolicy:
 
     def test_multiline_json_values(self) -> None:
         """Values containing raw newlines (reasoning-model artifacts) must parse."""
-        raw = (
-            '{"permissions": {"shell_exec": "deny"}, '
-            '"commandDenylist": ["rm -rf *", "git push\n--force"]}'
-        )
+        raw = '{"permissions": {"shell_exec": "deny"}, "commandDenylist": ["rm -rf *", "git push\n--force"]}'
         result = parse_policy_response(raw)
         assert result["permissions"] == {"shell_exec": "deny"}
         assert result["commandDenylist"] == ["rm -rf *", "git push\n--force"]
 
     def test_example_object_precedes_real(self) -> None:
         """When a format example precedes the real config, the last object wins."""
-        raw = (
-            'Example: {"permissions": {"file_read": "allow"}}\n'
-            'Real config: {"permissions": {"shell_exec": "deny"}}'
-        )
+        raw = 'Example: {"permissions": {"file_read": "allow"}}\nReal config: {"permissions": {"shell_exec": "deny"}}'
         result = parse_policy_response(raw)
         assert result["permissions"] == {"shell_exec": "deny"}
         assert "file_read" not in result["permissions"]

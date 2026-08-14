@@ -222,10 +222,7 @@ async def extract_bilibili_subtitle(
     if not segments:
         return None
 
-    timestamped_lines = [
-        f"{_format_timestamp(seg.get('from', 0))} {seg.get('content', '')}"
-        for seg in segments
-    ]
+    timestamped_lines = [f"{_format_timestamp(seg.get('from', 0))} {seg.get('content', '')}" for seg in segments]
     full_text = "\n".join(timestamped_lines)
 
     duration = int(metadata_result.get("duration", 0))

@@ -190,9 +190,7 @@ class TestDiscoverChromeEndpoint:
 
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
-    def test_fallback_to_9222(
-        self, mock_dirs: MagicMock, mock_probe: MagicMock, monkeypatch
-    ) -> None:
+    def test_fallback_to_9222(self, mock_dirs: MagicMock, mock_probe: MagicMock, monkeypatch) -> None:
         monkeypatch.setenv("MYRM_CHROME_E2E", "1")
         mock_dirs.return_value = iter([])
         mock_probe.side_effect = [None, "ws://127.0.0.1:9222/devtools/browser"]

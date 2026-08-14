@@ -62,9 +62,7 @@ def _reset_manager() -> object:
 
 
 @pytest.mark.asyncio
-async def test_read_resource_real_stdio_server(
-    tmp_path, _reset_manager: object
-) -> None:
+async def test_read_resource_real_stdio_server(tmp_path, _reset_manager: object) -> None:
     """A template resource is fetched through the pool over a real subprocess."""
     script = tmp_path / "res_server.py"
     script.write_text(_RESOURCE_SERVER_SRC, encoding="utf-8")
@@ -89,9 +87,7 @@ async def test_read_resource_real_stdio_server(
 
 
 @pytest.mark.asyncio
-async def test_read_resource_missing_uri_does_not_reconnect(
-    tmp_path, _reset_manager: object
-) -> None:
+async def test_read_resource_missing_uri_does_not_reconnect(tmp_path, _reset_manager: object) -> None:
     """A bad resource URI fails the read but never triggers a reconnect."""
     script = tmp_path / "res_server.py"
     script.write_text(_RESOURCE_SERVER_SRC, encoding="utf-8")
@@ -157,9 +153,7 @@ def test_update_auth_headers_merges_with_existing() -> None:
 @pytest.mark.asyncio
 async def test_refresh_auth_headers_uses_provider() -> None:
     provider = MagicMock()
-    provider.get_auth_headers = AsyncMock(
-        return_value={"Authorization": "Bearer fresh"}
-    )
+    provider.get_auth_headers = AsyncMock(return_value={"Authorization": "Bearer fresh"})
     conn = {
         "transport": "streamable_http",
         "url": "http://x/mcp",
@@ -212,9 +206,7 @@ def test_build_client_target_sse_branch() -> None:
     actor = MCPSessionActor("srv", {"transport": "sse"})
     headers = {"Authorization": "Bearer x"}
     with patch("mcp.client.sse.sse_client", return_value="sse-target") as mock_sse:
-        target = actor._build_client_target(
-            {"transport": "sse", "url": "https://example.com/sse", "headers": headers}
-        )
+        target = actor._build_client_target({"transport": "sse", "url": "https://example.com/sse", "headers": headers})
     assert target == "sse-target"
     mock_sse.assert_called_once_with("https://example.com/sse", headers=headers)
 

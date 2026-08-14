@@ -38,9 +38,7 @@ class TestConversationMemoryType:
         assert memory.user_turn_only is True
 
     def test_without_raw_lazy_loading(self) -> None:
-        memory = ConversationMemory(
-            raw_exchange="User: Hello\nAssistant: Hi there!", content="Hello"
-        )
+        memory = ConversationMemory(raw_exchange="User: Hello\nAssistant: Hi there!", content="Hello")
 
         lazy_memory = memory.without_raw()
 

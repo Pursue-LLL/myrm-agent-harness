@@ -53,9 +53,7 @@ async def test_registry_redacts_sensitive_output_at_write_time() -> None:
     registry = BackgroundProcessRegistry()
     secret_line = b"Authorization: Bearer sk-live-abcdefghijklmnopqrstuvwxyz\n"
     proc = _FakeProc(pid=9001, stdout=[secret_line], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="echo leak", session_id="s-redact"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="echo leak", session_id="s-redact")
     proc.finish(0)
     await asyncio.sleep(0.05)
 
@@ -68,9 +66,7 @@ async def test_registry_redacts_sensitive_output_at_write_time() -> None:
 async def test_registry_wait_respects_cap_and_still_running() -> None:
     registry = BackgroundProcessRegistry()
     proc = _FakeProc(pid=9002, stdout=[], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="sleep 999", session_id="s-wait"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="sleep 999", session_id="s-wait")
 
     result = await registry.wait_for_process(9002, timeout_seconds=0.2)
     assert result["still_running"] is True
@@ -88,9 +84,7 @@ async def test_registry_wait_respects_cap_and_still_running() -> None:
 async def test_registry_poll_hint_backoff_on_empty_polls() -> None:
     registry = BackgroundProcessRegistry()
     proc = _FakeProc(pid=9003, stdout=[b"once\n"], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="echo once", session_id="s-poll"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="echo once", session_id="s-poll")
     await asyncio.sleep(0.05)
 
     first = registry.get_output(9003, since_cursor=None)
@@ -125,12 +119,8 @@ async def test_count_running_scoped_by_session() -> None:
 
 
 def test_auto_yield_whitelist_and_defaults() -> None:
-    assert should_auto_yield(
-        command="npm test", run_in_background=False, yield_after_seconds=None
-    )
-    assert not should_auto_yield(
-        command="echo hi", run_in_background=False, yield_after_seconds=None
-    )
+    assert should_auto_yield(command="npm test", run_in_background=False, yield_after_seconds=None)
+    assert not should_auto_yield(command="echo hi", run_in_background=False, yield_after_seconds=None)
     assert resolve_yield_seconds(None) == DEFAULT_YIELD_AFTER_SECONDS
     assert resolve_yield_seconds(0) is None
 
@@ -144,22 +134,15 @@ def test_build_auto_yield_return_still_running() -> None:
         started_at=0.0,
         status="running",
     )
-    payload = build_auto_yield_return(
-        info=info, yield_seconds=10, registry=BackgroundProcessRegistry()
-    )
+    payload = build_auto_yield_return(info=info, yield_seconds=10, registry=BackgroundProcessRegistry())
     assert payload["metadata"]["auto_yielded"] is True
-    assert (
-        "still running" in str(payload["content"]).lower()
-        or "detached" in str(payload["content"]).lower()
-    )
+    assert "still running" in str(payload["content"]).lower() or "detached" in str(payload["content"]).lower()
 
 
 @pytest.mark.asyncio
 async def test_bash_process_wait_action_requires_session() -> None:
     tool = create_bash_process_tool()
-    result = await tool.ainvoke(
-        {"action": "wait", "pid": 1, "timeout_seconds": 1}, config={}
-    )
+    result = await tool.ainvoke({"action": "wait", "pid": 1, "timeout_seconds": 1}, config={})
     assert result["metadata"]["error"] == "missing_session_id"
 
 
@@ -167,17 +150,13 @@ async def test_bash_process_wait_action_requires_session() -> None:
 async def test_bash_process_wait_action_on_finished_job() -> None:
     registry = get_background_registry()
     proc = _FakeProc(pid=9010, stdout=[b"done\n"], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="echo done", session_id="chat-wait"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="echo done", session_id="chat-wait")
     proc.finish(0)
     await asyncio.sleep(0.15)
 
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "chat-wait"}}}
-    result = await tool.ainvoke(
-        {"action": "wait", "pid": 9010, "timeout_seconds": 5}, config=config
-    )
+    result = await tool.ainvoke({"action": "wait", "pid": 9010, "timeout_seconds": 5}, config=config)
     assert result["metadata"]["still_running"] is False
     assert result["content"]["exit_code"] == 0
 
@@ -195,9 +174,7 @@ def test_hooks_count_running_background_shell_jobs() -> None:
 
 
 def test_should_auto_yield_skips_background_spawn() -> None:
-    assert not should_auto_yield(
-        command="npm test", run_in_background=True, yield_after_seconds=None
-    )
+    assert not should_auto_yield(command="npm test", run_in_background=True, yield_after_seconds=None)
 
 
 def test_resolve_yield_seconds_custom_value() -> None:
@@ -208,9 +185,7 @@ def test_resolve_yield_seconds_custom_value() -> None:
 async def test_wait_for_yield_window_returns_when_job_exits() -> None:
     registry = BackgroundProcessRegistry()
     proc = _FakeProc(pid=9020, stdout=[b"done\n"], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="echo done", session_id="s-yield-exit"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="echo done", session_id="s-yield-exit")
     proc.finish(0)
     await asyncio.sleep(0.05)
 
@@ -284,9 +259,7 @@ async def test_wait_for_yield_window_returns_at_deadline() -> None:
 async def test_registry_wait_returns_exit_metadata() -> None:
     registry = BackgroundProcessRegistry()
     proc = _FakeProc(pid=9023, stdout=[b"ok\n"], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="echo ok", session_id="s-wait-exit"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="echo ok", session_id="s-wait-exit")
     proc.finish(2)
     await asyncio.sleep(0.05)
 
@@ -307,9 +280,7 @@ async def test_registry_wait_unknown_pid() -> None:
 async def test_bash_process_list_action() -> None:
     registry = get_background_registry()
     proc = _FakeProc(pid=9030, stdout=[], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="sleep 1", session_id="chat-list"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="sleep 1", session_id="chat-list")
 
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "chat-list"}}}
@@ -322,9 +293,7 @@ async def test_bash_process_list_action() -> None:
 async def test_bash_process_output_success_and_poll_hint() -> None:
     registry = get_background_registry()
     proc = _FakeProc(pid=9031, stdout=[b"line\n"], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="echo line", session_id="chat-out"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="echo line", session_id="chat-out")
     await asyncio.sleep(0.05)
 
     tool = create_bash_process_tool()
@@ -338,9 +307,7 @@ async def test_bash_process_output_success_and_poll_hint() -> None:
 async def test_bash_process_output_wrong_session() -> None:
     registry = get_background_registry()
     proc = _FakeProc(pid=9032, stdout=[], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="sleep", session_id="owner"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="sleep", session_id="owner")
 
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "other"}}}
@@ -360,9 +327,7 @@ async def test_bash_process_wait_still_running_message() -> None:
 
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "chat-wait-run"}}}
-    result = await tool.ainvoke(
-        {"action": "wait", "pid": 9033, "timeout_seconds": 1}, config=config
-    )
+    result = await tool.ainvoke({"action": "wait", "pid": 9033, "timeout_seconds": 1}, config=config)
     assert result["metadata"]["still_running"] is True
     assert "still running" in str(result["content"]["message"]).lower()
 
@@ -371,18 +336,14 @@ async def test_bash_process_wait_still_running_message() -> None:
 async def test_bash_process_kill_success() -> None:
     registry = get_background_registry()
     proc = _FakeProc(pid=9034, stdout=[], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="sleep 999", session_id="chat-kill"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="sleep 999", session_id="chat-kill")
 
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "chat-kill"}}}
     with patch(
         "myrm_agent_harness.agent.meta_tools.bash._background.registry.kill_process_group",
     ) as mock_kill:
-        result = await tool.ainvoke(
-            {"action": "kill", "pid": 9034, "force": True}, config=config
-        )
+        result = await tool.ainvoke({"action": "kill", "pid": 9034, "force": True}, config=config)
         mock_kill.assert_called()
     assert result["metadata"]["killed"] is True
 
@@ -391,9 +352,7 @@ async def test_bash_process_kill_success() -> None:
 async def test_bash_process_kill_wrong_session() -> None:
     registry = get_background_registry()
     proc = _FakeProc(pid=9035, stdout=[], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="sleep", session_id="owner-kill"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="sleep", session_id="owner-kill")
 
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "other-kill"}}}
@@ -421,28 +380,20 @@ async def test_bash_process_output_invalid_filter() -> None:
 
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "chat-bad-filter"}}}
-    result = await tool.ainvoke(
-        {"action": "output", "pid": 9036, "filter": "[invalid"}, config=config
-    )
+    result = await tool.ainvoke({"action": "output", "pid": 9036, "filter": "[invalid"}, config=config)
     assert result["metadata"]["error"] == "invalid_filter"
 
 
 @pytest.mark.asyncio
 async def test_bash_process_output_with_line_filter() -> None:
     registry = get_background_registry()
-    proc = _FakeProc(
-        pid=9037, stdout=[b"ok\n", b"ERROR: boom\n"], stderr=[b"WARN: slow\n"]
-    )
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="build", session_id="chat-good-filter"
-    )
+    proc = _FakeProc(pid=9037, stdout=[b"ok\n", b"ERROR: boom\n"], stderr=[b"WARN: slow\n"])
+    await registry.register(cast(AsyncProcessProtocol, proc), command="build", session_id="chat-good-filter")
     await asyncio.sleep(0.05)
 
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "chat-good-filter"}}}
-    result = await tool.ainvoke(
-        {"action": "output", "pid": 9037, "filter": "ERROR|WARN"}, config=config
-    )
+    result = await tool.ainvoke({"action": "output", "pid": 9037, "filter": "ERROR|WARN"}, config=config)
     assert "ERROR: boom" in result["content"]["stdout"][0]
     assert result["metadata"]["filter"] == "ERROR|WARN"
 
@@ -451,15 +402,11 @@ async def test_bash_process_output_with_line_filter() -> None:
 async def test_bash_process_wait_wrong_session() -> None:
     registry = get_background_registry()
     proc = _FakeProc(pid=9038, stdout=[], stderr=[])
-    await registry.register(
-        cast(AsyncProcessProtocol, proc), command="sleep", session_id="owner-wait"
-    )
+    await registry.register(cast(AsyncProcessProtocol, proc), command="sleep", session_id="owner-wait")
 
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "other-wait"}}}
-    result = await tool.ainvoke(
-        {"action": "wait", "pid": 9038, "timeout_seconds": 1}, config=config
-    )
+    result = await tool.ainvoke({"action": "wait", "pid": 9038, "timeout_seconds": 1}, config=config)
     assert result["metadata"]["found"] is False
 
 

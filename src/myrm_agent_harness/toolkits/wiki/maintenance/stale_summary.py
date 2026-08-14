@@ -83,9 +83,7 @@ def collect_stale_raw_files(structure: WikiStructure) -> WikiStaleSummary:
                 last_compile_time=last_compile,
                 stale_files=tuple(stale),
             )
-        return WikiStaleSummary(
-            stale_count=0, last_compile_time=last_compile, stale_files=()
-        )
+        return WikiStaleSummary(stale_count=0, last_compile_time=last_compile, stale_files=())
 
     stale: list[StaleRawFile] = []
     for key, current_hash in current_hashes.items():

@@ -63,9 +63,7 @@ class TestDueWindow:
         assert w.timezone == "UTC"
 
     def test_custom_timezone(self) -> None:
-        w = CommitmentDueWindow(
-            earliest_ms=100, latest_ms=200, timezone="Asia/Shanghai"
-        )
+        w = CommitmentDueWindow(earliest_ms=100, latest_ms=200, timezone="Asia/Shanghai")
         assert w.timezone == "Asia/Shanghai"
 
 

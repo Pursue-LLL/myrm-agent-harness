@@ -172,6 +172,7 @@ async def test_skill_select_tool_compression_preserves_recovery_info() -> None:
 @pytest.mark.asyncio
 async def test_skill_select_tool_small_content_compresses_without_offload() -> None:
     """Small skill content is compressed in-place without offload, retaining identifier."""
+
     async def offload(*, content: str, tool_name: str, scope_id: str | None) -> str:
         _ = content, tool_name, scope_id
         raise AssertionError("Should not be called for small content")

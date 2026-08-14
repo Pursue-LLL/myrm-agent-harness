@@ -122,9 +122,7 @@ class TestReportText:
         long_url = "https://cdn.example.com/" + "a" * 500 + ".js"
         report = WebVitalsReport(
             url="https://example.com",
-            slow_resources=[
-                {"name": long_url, "duration": 2400, "size": 0, "type": "script"}
-            ],
+            slow_resources=[{"name": long_url, "duration": 2400, "size": 0, "type": "script"}],
         )
         text = report.to_text()
         assert long_url not in text

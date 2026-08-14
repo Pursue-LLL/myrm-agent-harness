@@ -85,7 +85,7 @@ class BashFlavor(ShellFlavor):
         # shell actually exits; a healthy command leaves it dormant so markers
         # are emitted exactly once per execution.
         return (
-            f"trap 'echo \"{exit_marker}\"$?; echo \"{end_marker}\"' EXIT\n"
+            f'trap \'echo "{exit_marker}"$?; echo "{end_marker}"\' EXIT\n'
             "{\n"
             f"{command}\n"
             f"__myrm_rc__={exit_code_var}\n"

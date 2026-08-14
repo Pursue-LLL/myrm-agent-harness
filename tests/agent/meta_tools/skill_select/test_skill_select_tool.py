@@ -29,11 +29,7 @@ def _make_mcp_skill(
     tool_schemas: dict[str, dict[str, object]] | None = None,
 ) -> SkillMetadata:
     resolved_tools = tools if tools is not None else list(_DEFAULT_TOOLS)
-    resolved_schemas = (
-        tool_schemas
-        if tool_schemas is not None
-        else {t: {"type": "object"} for t in resolved_tools}
-    )
+    resolved_schemas = tool_schemas if tool_schemas is not None else {t: {"type": "object"} for t in resolved_tools}
     return SkillMetadata(
         name=name,
         description="Test MCP skill",
@@ -131,9 +127,7 @@ class TestCreateSelectSkillToolDeduplication:
             ) as mock_add,
         ):
             tool = create_select_skill_tool([skill], backend)
-            result = await tool.ainvoke(
-                {"skill_names": ["mcp_search_skill"], "reason": "testing"}
-            )
+            result = await tool.ainvoke({"skill_names": ["mcp_search_skill"], "reason": "testing"})
 
             mock_get_doc.assert_called_once()
             mock_add.assert_called_once_with(skill)
@@ -154,9 +148,7 @@ class TestCreateSelectSkillToolDeduplication:
             ) as mock_get_doc,
         ):
             tool = create_select_skill_tool([skill], backend)
-            result = await tool.ainvoke(
-                {"skill_names": ["mcp_search_skill"], "reason": "testing"}
-            )
+            result = await tool.ainvoke({"skill_names": ["mcp_search_skill"], "reason": "testing"})
 
             mock_get_doc.assert_not_called()
             assert "already loaded" in result
@@ -172,9 +164,7 @@ class TestCreateSelectSkillToolDeduplication:
             return_value=[],
         ):
             tool = create_select_skill_tool([skill], backend)
-            result = await tool.ainvoke(
-                {"skill_names": ["nonexistent_skill"], "reason": "testing"}
-            )
+            result = await tool.ainvoke({"skill_names": ["nonexistent_skill"], "reason": "testing"})
 
             assert "not found" in result
 
@@ -198,9 +188,7 @@ class TestCreateSelectSkillToolDeduplication:
             ),
         ):
             tool = create_select_skill_tool([skill_a, skill_b], backend)
-            result = await tool.ainvoke(
-                {"skill_names": ["skill_a", "skill_b"], "reason": "testing"}
-            )
+            result = await tool.ainvoke({"skill_names": ["skill_a", "skill_b"], "reason": "testing"})
 
             assert "already loaded" in result
             assert "skill_b Full SOP" in result
@@ -248,9 +236,7 @@ class TestSelectSkillRecordsUsage:
             patch("myrm_agent_harness.agent.skill_agent.context.add_loaded_skill"),
         ):
             tool = create_select_skill_tool([skill], backend)
-            await tool.ainvoke(
-                {"skill_names": ["demo_skill"], "reason": "testing usage"}
-            )
+            await tool.ainvoke({"skill_names": ["demo_skill"], "reason": "testing usage"})
 
         flush_skill_usage_stats()
         stats_file = skill_dir / ".stats.json"
@@ -303,9 +289,7 @@ class TestSelectSkillReloadSkipsUsage:
             patch("myrm_agent_harness.agent.skill_agent.context.add_loaded_skill"),
         ):
             tool = create_select_skill_tool([skill], backend)
-            await tool.ainvoke(
-                {"skill_names": ["reload_skill"], "reason": "first load"}
-            )
+            await tool.ainvoke({"skill_names": ["reload_skill"], "reason": "first load"})
             flush_skill_usage_stats()
 
         assert collector.get_stats(skill_dir).call_count == 1
@@ -320,9 +304,7 @@ class TestSelectSkillReloadSkipsUsage:
             ) as mock_doc,
         ):
             tool = create_select_skill_tool([skill], backend)
-            result = await tool.ainvoke(
-                {"skill_names": ["reload_skill"], "reason": "reload"}
-            )
+            result = await tool.ainvoke({"skill_names": ["reload_skill"], "reason": "reload"})
             flush_skill_usage_stats()
 
         mock_doc.assert_not_called()
@@ -452,9 +434,7 @@ class TestCleanupSessionContextFilesEdgeCases:
             "myrm_agent_harness.runtime.context.cleanup_ops.os.path.isdir",
             side_effect=selective_isdir,
         ):
-            await cleanup_session_context_files(
-                "test_chat_123", cast("CodeExecutor", executor)
-            )
+            await cleanup_session_context_files("test_chat_123", cast("CodeExecutor", executor))
 
         assert len(executor.executed) == 0
 

@@ -19,6 +19,7 @@ from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
 def temp_db_path(tmp_path: Path):
     return tmp_path / "test_skills.db"
 
+
 @pytest.fixture
 def skill_record():
     return SkillRecord(
@@ -27,21 +28,18 @@ def skill_record():
         description="A test skill",
         content="def test(): pass",
         path="skills/test_skill.py",
-        lineage=SkillLineage(
-            evolution_type=EvolutionType.DERIVED,
-            version=1,
-            parent_id=None,
-            change_summary="init"
-        ),
+        lineage=SkillLineage(evolution_type=EvolutionType.DERIVED, version=1, parent_id=None, change_summary="init"),
         metrics=SkillMetrics(),
         traps=[],
         verification_steps=[],
     )
 
+
 def test_store_init(temp_db_path):
     store = SkillStore(db_path=temp_db_path)
     assert temp_db_path.exists()
     store.close()
+
 
 @pytest.mark.asyncio
 async def test_save_and_get_skill(temp_db_path, skill_record):
@@ -55,6 +53,7 @@ async def test_save_and_get_skill(temp_db_path, skill_record):
 
     store.close()
 
+
 @pytest.mark.asyncio
 async def test_get_skill_by_name_version(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
@@ -65,6 +64,7 @@ async def test_get_skill_by_name_version(temp_db_path, skill_record):
     assert retrieved.skill_id == "test_skill_1"
 
     store.close()
+
 
 @pytest.mark.asyncio
 async def test_deactivate_skill(temp_db_path, skill_record):
@@ -78,6 +78,7 @@ async def test_deactivate_skill(temp_db_path, skill_record):
 
     store.close()
 
+
 @pytest.mark.asyncio
 async def test_update_metrics(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
@@ -90,6 +91,7 @@ async def test_update_metrics(temp_db_path, skill_record):
     assert retrieved.metrics.success_count == 5
 
     store.close()
+
 
 @pytest.mark.asyncio
 async def test_get_active_skills(temp_db_path, skill_record):
@@ -105,6 +107,7 @@ async def test_get_active_skills(temp_db_path, skill_record):
     assert len(active2) == 0
     store.close()
 
+
 @pytest.mark.asyncio
 async def test_get_skills_needing_fix(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
@@ -117,6 +120,7 @@ async def test_get_skills_needing_fix(temp_db_path, skill_record):
     assert needing_fix[0].skill_id == "test_skill_1"
     store.close()
 
+
 @pytest.mark.asyncio
 async def test_get_skill_lineage(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
@@ -126,6 +130,7 @@ async def test_get_skill_lineage(temp_db_path, skill_record):
     assert len(lineage) == 1
     assert lineage[0].skill_id == "test_skill_1"
     store.close()
+
 
 @pytest.mark.asyncio
 async def test_get_skill_lineage_terminates_on_self_reference(temp_db_path, skill_record):
@@ -138,6 +143,7 @@ async def test_get_skill_lineage_terminates_on_self_reference(temp_db_path, skil
     lineage = store.get_skill_lineage("test_skill_1")
     assert [s.skill_id for s in lineage] == ["test_skill_1"]
     store.close()
+
 
 @pytest.mark.asyncio
 async def test_get_skill_lineage_terminates_on_cycle(temp_db_path, skill_record):
@@ -165,6 +171,7 @@ async def test_get_skill_lineage_terminates_on_cycle(temp_db_path, skill_record)
     assert sorted(s.skill_id for s in lineage) == ["skill_a", "skill_b"]
     store.close()
 
+
 @pytest.mark.asyncio
 async def test_search_skills_sync(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
@@ -177,6 +184,7 @@ async def test_search_skills_sync(temp_db_path, skill_record):
     assert len(res2) == 0
     store.close()
 
+
 @pytest.mark.asyncio
 async def test_search_skills_async(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
@@ -186,6 +194,7 @@ async def test_search_skills_async(temp_db_path, skill_record):
     res = await store.search_skills("test")
     assert len(res) == 1
     store.close()
+
 
 @pytest.mark.asyncio
 async def test_get_recent_analyses_grouped(temp_db_path, skill_record):
@@ -198,7 +207,7 @@ async def test_get_recent_analyses_grouped(temp_db_path, skill_record):
         success=False,
         error_message="test error",
         root_cause="test cause",
-        suggested_fix="test fix"
+        suggested_fix="test fix",
     )
     await store.save_analysis(analysis)
 
@@ -218,7 +227,7 @@ async def test_get_recent_analyses_grouped(temp_db_path, skill_record):
         root_cause="bug",
         suggested_fix="fix it",
         task_context='{"k":"v"}',
-        analyzed_at=datetime.now()
+        analyzed_at=datetime.now(),
     )
     await store.save_analysis(analysis)
 
@@ -227,6 +236,7 @@ async def test_get_recent_analyses_grouped(temp_db_path, skill_record):
     assert logs[0].root_cause == "bug"
 
     store.close()
+
 
 @pytest.mark.asyncio
 async def test_evolution_rejections(temp_db_path, skill_record):
@@ -239,7 +249,7 @@ async def test_evolution_rejections(temp_db_path, skill_record):
         proposed_type="FIX",
         rejection_reason="too soon",
         confidence=0.8,
-        trigger_context='{"k":"v"}'
+        trigger_context='{"k":"v"}',
     )
 
     rejections = store.load_rejections("test_skill_1")
@@ -247,6 +257,7 @@ async def test_evolution_rejections(temp_db_path, skill_record):
     assert rejections[0]["rejection_reason"] == "too soon"
 
     store.close()
+
 
 @pytest.mark.asyncio
 async def test_evolution_constraints(temp_db_path, skill_record):
@@ -260,6 +271,7 @@ async def test_evolution_constraints(temp_db_path, skill_record):
     assert constraints[0] == "Must not use os.system"
 
     store.close()
+
 
 @pytest.mark.asyncio
 async def test_vector_sync(temp_db_path, skill_record):
@@ -276,6 +288,7 @@ async def test_vector_sync(temp_db_path, skill_record):
 
     store.close()
 
+
 @pytest.mark.asyncio
 async def test_delete_skill(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
@@ -287,9 +300,11 @@ async def test_delete_skill(temp_db_path, skill_record):
 
     store.close()
 
+
 @pytest.mark.asyncio
 async def test_delete_skills_by_agent(temp_db_path, skill_record):
     from myrm_agent_harness.agent.skills.evolution.core.types import EnvironmentFingerprint
+
     store = SkillStore(db_path=temp_db_path)
     skill_record.environment = EnvironmentFingerprint()
     skill_record.environment.custom_tags["scope_agent_id"] = "agent_x"
@@ -315,6 +330,7 @@ async def test_delete_skills_by_agent(temp_db_path, skill_record):
 
     store.close()
 
+
 @pytest.mark.asyncio
 async def test_save_skills_batch(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
@@ -338,9 +354,7 @@ async def test_save_skills_batch(temp_db_path, skill_record):
 
 
 @pytest.mark.asyncio
-async def test_save_skills_batch_rejects_oversized_content(
-    temp_db_path, skill_record
-):
+async def test_save_skills_batch_rejects_oversized_content(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
     oversized = copy.deepcopy(skill_record)
     oversized.skill_id = "oversized_skill"

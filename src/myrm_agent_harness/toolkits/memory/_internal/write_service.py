@@ -95,21 +95,11 @@ class MemoryWriter:
         submit_pending_func: ApprovalSubmitFunc,
         store_semantic_func: Callable[[SemanticMemory], Awaitable[SemanticMemory]],
         store_episodic_func: Callable[[EpisodicMemory], Awaitable[EpisodicMemory]],
-        store_procedural_func: Callable[
-            [ProceduralMemory], Awaitable[ProceduralMemory]
-        ],
-        store_semantics_batch_func: Callable[
-            [list[SemanticMemory]], Awaitable[list[SemanticMemory]]
-        ],
-        store_episodics_batch_func: Callable[
-            [list[EpisodicMemory]], Awaitable[list[EpisodicMemory]]
-        ],
-        store_procedurals_batch_func: Callable[
-            [list[ProceduralMemory]], Awaitable[list[ProceduralMemory]]
-        ],
-        store_conversations_batch_func: Callable[
-            [list[ConversationMemory]], Awaitable[list[ConversationMemory]]
-        ],
+        store_procedural_func: Callable[[ProceduralMemory], Awaitable[ProceduralMemory]],
+        store_semantics_batch_func: Callable[[list[SemanticMemory]], Awaitable[list[SemanticMemory]]],
+        store_episodics_batch_func: Callable[[list[EpisodicMemory]], Awaitable[list[EpisodicMemory]]],
+        store_procedurals_batch_func: Callable[[list[ProceduralMemory]], Awaitable[list[ProceduralMemory]]],
+        store_conversations_batch_func: Callable[[list[ConversationMemory]], Awaitable[list[ConversationMemory]]],
         deduplicate_semantic_batch_func: SemanticDedupFunc,
         deduplicate_episodic_batch_func: EpisodicDedupFunc,
     ) -> None:
@@ -129,16 +119,12 @@ class MemoryWriter:
         self._deduplicate_semantic_batch = deduplicate_semantic_batch_func
         self._deduplicate_episodic_batch = deduplicate_episodic_batch_func
 
-    async def store(
-        self, memory: AnyMemory, *, bypass_approval: bool = False
-    ) -> AnyMemory:
+    async def store(self, memory: AnyMemory, *, bypass_approval: bool = False) -> AnyMemory:
         self._validate_supported_memory(memory)
         bound_memory = self._bind_scope(memory)
         self._validate_write_scope(bound_memory)
         if self._config.security_scan_enabled:
-            scan_and_clean_memory(
-                bound_memory, block_threshold=self._config.injection_block_threshold
-            )
+            scan_and_clean_memory(bound_memory, block_threshold=self._config.injection_block_threshold)
 
         if isinstance(bound_memory, ProceduralMemory):
             self._enforce_agent_self_priority_ceiling(bound_memory)
@@ -146,9 +132,7 @@ class MemoryWriter:
         if self._approval_required and not bypass_approval:
             pending_id = await self._submit_pending(bound_memory)
             if not pending_id:
-                raise MemoryError(
-                    "Duplicate pending memory (already awaiting approval)"
-                )
+                raise MemoryError("Duplicate pending memory (already awaiting approval)")
             bound_memory.metadata["_pending_id"] = pending_id
             return bound_memory
 
@@ -160,9 +144,7 @@ class MemoryWriter:
             return await self._store_procedural(bound_memory)
         raise ValueError(f"Unknown memory type: {type(bound_memory).__name__}")
 
-    async def store_batch(
-        self, memories: Sequence[AnyMemory], *, bypass_approval: bool = False
-    ) -> list[AnyMemory]:
+    async def store_batch(self, memories: Sequence[AnyMemory], *, bypass_approval: bool = False) -> list[AnyMemory]:
         if not memories:
             return []
 
@@ -190,35 +172,19 @@ class MemoryWriter:
 
         partitioned = self._partition_memories(safe_memories)
         if partitioned.semantic:
-            partitioned.semantic = await self._deduplicate_semantic_batch(
-                partitioned.semantic
-            )
+            partitioned.semantic = await self._deduplicate_semantic_batch(partitioned.semantic)
         if partitioned.episodic:
-            partitioned.episodic = await self._deduplicate_episodic_batch(
-                partitioned.episodic
-            )
+            partitioned.episodic = await self._deduplicate_episodic_batch(partitioned.episodic)
 
         tasks: list[asyncio.Task[Sequence[AnyMemory]]] = []
         if partitioned.semantic:
-            tasks.append(
-                asyncio.create_task(self._store_semantics_batch(partitioned.semantic))
-            )
+            tasks.append(asyncio.create_task(self._store_semantics_batch(partitioned.semantic)))
         if partitioned.episodic:
-            tasks.append(
-                asyncio.create_task(self._store_episodics_batch(partitioned.episodic))
-            )
+            tasks.append(asyncio.create_task(self._store_episodics_batch(partitioned.episodic)))
         if partitioned.procedural:
-            tasks.append(
-                asyncio.create_task(
-                    self._store_procedurals_batch(partitioned.procedural)
-                )
-            )
+            tasks.append(asyncio.create_task(self._store_procedurals_batch(partitioned.procedural)))
         if partitioned.conversation:
-            tasks.append(
-                asyncio.create_task(
-                    self._store_conversations_batch(partitioned.conversation)
-                )
-            )
+            tasks.append(asyncio.create_task(self._store_conversations_batch(partitioned.conversation)))
 
         results = await asyncio.gather(*tasks)
         return [memory for batch in results for memory in batch]
@@ -342,18 +308,12 @@ class MemoryWriter:
             return
         memory_namespaces = set(memory.scope.namespaces)
         if not memory_namespaces.issubset(allowed):
-            raise MemoryError(
-                f"Memory write scope {sorted(memory_namespaces)} exceeds "
-                f"allowed scope {sorted(allowed)}"
-            )
+            raise MemoryError(f"Memory write scope {sorted(memory_namespaces)} exceeds allowed scope {sorted(allowed)}")
 
     @staticmethod
     def _enforce_agent_self_priority_ceiling(memory: ProceduralMemory) -> None:
         """Prevent AGENT_SELF rules from claiming CRITICAL priority."""
-        if (
-            memory.source == RuleSource.AGENT_SELF
-            and memory.tool_rule_priority == ToolRulePriority.CRITICAL
-        ):
+        if memory.source == RuleSource.AGENT_SELF and memory.tool_rule_priority == ToolRulePriority.CRITICAL:
             memory.tool_rule_priority = ToolRulePriority.HIGH
             logger.warning(
                 "Downgraded AGENT_SELF rule from CRITICAL to HIGH: %s",
@@ -373,9 +333,7 @@ def build_semantic_deduplicator(
         if not memories or vector is None or embedding is None:
             return memories
         if deduplicator is not None:
-            return await deduplicator.deduplicate_batch(
-                memories, vector, embedding, config, cache
-            )
+            return await deduplicator.deduplicate_batch(memories, vector, embedding, config, cache)
         return await dedup_semantics(memories, vector, embedding, config, cache)
 
     return deduplicate
@@ -392,8 +350,6 @@ def build_episodic_deduplicator(
     async def deduplicate(memories: list[EpisodicMemory]) -> list[EpisodicMemory]:
         if not memories or vector is None or embedding is None or deduplicator is None:
             return memories
-        return await deduplicator.deduplicate_batch(
-            memories, vector, embedding, config, cache
-        )
+        return await deduplicator.deduplicate_batch(memories, vector, embedding, config, cache)
 
     return deduplicate

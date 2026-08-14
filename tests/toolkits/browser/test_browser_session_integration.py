@@ -52,13 +52,9 @@ def session_vault(tmp_path: Path) -> SessionVault:
 
 
 @pytest.fixture
-async def browser_session(
-    browser_pool: GlobalBrowserPool, session_vault: SessionVault
-) -> BrowserSession:
+async def browser_session(browser_pool: GlobalBrowserPool, session_vault: SessionVault) -> BrowserSession:
     """BrowserSession with real pool and SessionVault."""
-    session = BrowserSession(
-        browser_pool, ContextType.AGENT, session_vault=session_vault
-    )
+    session = BrowserSession(browser_pool, ContextType.AGENT, session_vault=session_vault)
     yield session
     await session.close()
 
@@ -82,9 +78,7 @@ async def test_integration_navigate_and_snapshot(
     await tab_handle.page.set_content(_SIMPLE_HTML_CONTENT)
 
     result = await browser_session.snapshot(scope="content", diff=False)
-    assert (
-        "Integration Test" in result.aria_tree or "button" in result.aria_tree.lower()
-    )
+    assert "Integration Test" in result.aria_tree or "button" in result.aria_tree.lower()
     assert result.meta.ref_count > 0
     assert "e0" in result.aria_tree or "e1" in result.aria_tree
 
@@ -152,9 +146,7 @@ async def test_integration_evaluate_js(
     tab_handle = browser_session._tab_controller._tabs[tab_id]
     await tab_handle.page.set_content(_SIMPLE_HTML_CONTENT)
 
-    result = await browser_session.evaluate(
-        "document.querySelector('h1')?.innerText ?? 'fallback'"
-    )
+    result = await browser_session.evaluate("document.querySelector('h1')?.innerText ?? 'fallback'")
     assert "Integration" in result or "Test" in result
 
 

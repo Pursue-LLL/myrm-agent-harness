@@ -62,11 +62,7 @@ def _parse_verdict(raw_result: str) -> VerificationVerdict:
             findings_raw = data.get("findings", [])
             findings: list[dict[str, str]] = []
             if isinstance(findings_raw, list):
-                findings = [
-                    {k: str(v) for k, v in item.items()}
-                    for item in findings_raw
-                    if isinstance(item, dict)
-                ]
+                findings = [{k: str(v) for k, v in item.items()} for item in findings_raw if isinstance(item, dict)]
             return VerificationVerdict(
                 passed=passed,
                 summary=summary,
@@ -120,19 +116,21 @@ async def _emit_verification_verdict(
     ]
 
     try:
-        await sink.emit({
-            "type": AgentEventType.VERIFICATION_VERDICT.value,
-            "data": {
-                "passed": verdict.passed,
-                "summary": verdict.summary[:500],
-                "confidence": verdict.confidence,
-                "round": round_num,
-                "max_rounds": max_rounds,
-                "worker_type": worker_type,
-                "verifier_type": verifier_type,
-                "has_workspace_diff": has_diff,
-                "findings": findings_brief,
-            },
-        })
+        await sink.emit(
+            {
+                "type": AgentEventType.VERIFICATION_VERDICT.value,
+                "data": {
+                    "passed": verdict.passed,
+                    "summary": verdict.summary[:500],
+                    "confidence": verdict.confidence,
+                    "round": round_num,
+                    "max_rounds": max_rounds,
+                    "worker_type": worker_type,
+                    "verifier_type": verifier_type,
+                    "has_workspace_diff": has_diff,
+                    "findings": findings_brief,
+                },
+            }
+        )
     except Exception as exc:
         logger.debug("[verification] Failed to emit VERIFICATION_VERDICT event: %s", exc)

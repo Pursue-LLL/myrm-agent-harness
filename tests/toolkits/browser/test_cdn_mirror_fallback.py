@@ -56,9 +56,7 @@ class TestGetInstallEnv:
             patch("urllib.request.urlopen") as mock_urlopen,
         ):
             _clear_user_env()
-            mock_urlopen.side_effect = urllib.error.HTTPError(
-                _CDN_PROBE_URL, 400, "Bad Request", {}, None
-            )
+            mock_urlopen.side_effect = urllib.error.HTTPError(_CDN_PROBE_URL, 400, "Bad Request", {}, None)
             env = _get_install_env()
             assert "PLAYWRIGHT_DOWNLOAD_HOST" not in env
             assert "PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST" not in env
@@ -69,9 +67,7 @@ class TestGetInstallEnv:
             patch("urllib.request.urlopen") as mock_urlopen,
         ):
             _clear_user_env()
-            mock_urlopen.side_effect = urllib.error.HTTPError(
-                _CDN_PROBE_URL, 500, "Internal Server Error", {}, None
-            )
+            mock_urlopen.side_effect = urllib.error.HTTPError(_CDN_PROBE_URL, 500, "Internal Server Error", {}, None)
             env = _get_install_env()
             assert "PLAYWRIGHT_DOWNLOAD_HOST" not in env
 

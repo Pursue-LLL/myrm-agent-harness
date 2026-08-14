@@ -1,6 +1,5 @@
 """Tests for step_builder module — build_step_data and _inject_diff."""
 
-
 from myrm_agent_harness.agent.streaming.step_builder import (
     _inject_diff,
     build_step_data,
@@ -63,9 +62,7 @@ class TestBuildStepDataFileWrite:
     def test_file_write_basic(self, tmp_path):
         f = tmp_path / "test.py"
         f.write_text("print('hello')")
-        result = build_step_data(
-            "file_write_tool", {"path": str(f), "content": "print('hello')"}
-        )
+        result = build_step_data("file_write_tool", {"path": str(f), "content": "print('hello')"})
         assert result["step_key"] == "file_write_tool"
         assert len(result["data"]) == 1
         item = result["data"][0]
@@ -108,9 +105,7 @@ class TestBuildStepDataFileEdit:
     def test_file_edit_no_old_new(self, tmp_path):
         f = tmp_path / "noop.py"
         f.write_text("x")
-        result = build_step_data(
-            "file_edit_tool", {"path": str(f), "old_str": "", "new_str": ""}
-        )
+        result = build_step_data("file_edit_tool", {"path": str(f), "old_str": "", "new_str": ""})
         item = result["data"][0]
         assert "diff" not in item
 
@@ -228,9 +223,7 @@ class TestBuildStepDataFileRead:
 
 class TestBuildStepDataFileEditEdgeCases:
     def test_file_edit_empty_path(self):
-        result = build_step_data(
-            "file_edit_tool", {"path": "", "old_str": "x", "new_str": "y"}
-        )
+        result = build_step_data("file_edit_tool", {"path": "", "old_str": "x", "new_str": "y"})
         assert result == {"data": []}
 
     def test_file_edit_nonexistent_file(self):
@@ -284,9 +277,7 @@ class TestBuildStepDataGenericFileCode:
     def test_generic_file_tool_with_line_range(self, tmp_path):
         f = tmp_path / "lr.py"
         f.write_text("a\nb\nc")
-        result = build_step_data(
-            "file_inspect_tool", {"path": str(f), "start_line": 1, "end_line": 10}
-        )
+        result = build_step_data("file_inspect_tool", {"path": str(f), "start_line": 1, "end_line": 10})
         item = result["data"][0]
         assert item["line_range"] == "1-10"
 
@@ -313,9 +304,7 @@ class TestBuildStepDataGenericFileCode:
 
 class TestBuildStepDataOtherTools:
     def test_other_tool_summary(self):
-        result = build_step_data(
-            "calendar_tool", {"date": "2024-01-01", "title": "Meeting"}
-        )
+        result = build_step_data("calendar_tool", {"date": "2024-01-01", "title": "Meeting"})
         item = result["data"][0]
         assert "text" in item
         assert "date:" in item["text"]

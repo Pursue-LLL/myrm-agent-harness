@@ -49,13 +49,16 @@ async def test_middleware_emits_overlay_active_before_fanout() -> None:
     handler = AsyncMock(return_value=ModelResponse(result=MagicMock()))
     active_mock = AsyncMock()
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
-        new_callable=AsyncMock,
-        return_value=[],
-    ), patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_active",
-        active_mock,
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_active",
+            active_mock,
+        ),
     ):
         await middleware.awrap_model_call(request, handler)
 
@@ -97,12 +100,15 @@ async def test_middleware_emits_ref_done_via_callback() -> None:
                 await on_ref_done(ref)
         return refs
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
-        side_effect=run_with_callback,
-    ), patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
-        emit_mock,
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+            side_effect=run_with_callback,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
+            emit_mock,
+        ),
     ):
         await middleware.awrap_model_call(request, handler)
 
@@ -123,15 +129,19 @@ async def test_middleware_emits_overlay_skipped_on_budget_pressure() -> None:
     skip_mock = AsyncMock()
     run_mock = AsyncMock()
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._budget_pressure_active",
-        return_value=True,
-    ), patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
-        skip_mock,
-    ), patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
-        run_mock,
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._budget_pressure_active",
+            return_value=True,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
+            skip_mock,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+            run_mock,
+        ),
     ):
         await middleware.awrap_model_call(request, handler)
 
@@ -152,12 +162,15 @@ async def test_middleware_budget_skip_toast_emits_once_per_turn() -> None:
     handler = AsyncMock(return_value=ModelResponse(result=MagicMock()))
     skip_mock = AsyncMock()
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._budget_pressure_active",
-        return_value=True,
-    ), patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
-        skip_mock,
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._budget_pressure_active",
+            return_value=True,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
+            skip_mock,
+        ),
     ):
         await middleware.awrap_model_call(request, handler)
         await middleware.awrap_model_call(request, handler)
@@ -185,13 +198,16 @@ async def test_middleware_injects_advisor_block_on_success() -> None:
         )
     ]
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
-        new_callable=AsyncMock,
-        return_value=refs,
-    ), patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
-        new_callable=AsyncMock,
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+            new_callable=AsyncMock,
+            return_value=refs,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
+            new_callable=AsyncMock,
+        ),
     ):
         await middleware.awrap_model_call(request, handler)
 
@@ -230,13 +246,16 @@ async def test_middleware_emits_overlay_skipped_on_insufficient_refs() -> None:
         ),
     ]
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
-        new_callable=AsyncMock,
-        return_value=refs,
-    ), patch(
-        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
-        skip_mock,
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+            new_callable=AsyncMock,
+            return_value=refs,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
+            skip_mock,
+        ),
     ):
         await middleware.awrap_model_call(request, handler)
 

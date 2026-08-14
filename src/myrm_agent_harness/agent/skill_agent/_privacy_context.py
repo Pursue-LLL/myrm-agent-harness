@@ -75,14 +75,9 @@ def reestablish_privacy_context(agent: object) -> PrivacyContextRestore:
     if security_config is None or privacy_policy is None or not privacy_policy.enabled:
         return PrivacyContextRestore(restored=False)
 
-    workspace_path = (getattr(agent, "_last_context", None) or {}).get(
-        "workspace_path"
-    )
+    workspace_path = (getattr(agent, "_last_context", None) or {}).get("workspace_path")
     if not workspace_path:
-        logger.warning(
-            "Privacy context not re-established: workspace_path missing from "
-            "last run context"
-        )
+        logger.warning("Privacy context not re-established: workspace_path missing from last run context")
         return PrivacyContextRestore(restored=False)
 
     from myrm_agent_harness.agent._internals.run_lifecycle import (

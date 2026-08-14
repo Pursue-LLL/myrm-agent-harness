@@ -132,7 +132,6 @@ class TestBoundaryGuard:
         # First message should be HumanMessage or AIMessage, not ToolMessage
         assert not isinstance(fallback_messages[0], ToolMessage)
 
-
     @pytest.mark.asyncio
     async def test_failed_tool_call_ids_stay_high_priority(self) -> None:
         """Failed tool IDs should remain HIGH priority during smart fallback."""

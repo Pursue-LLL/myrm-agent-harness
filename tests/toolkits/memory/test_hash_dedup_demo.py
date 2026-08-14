@@ -80,7 +80,9 @@ async def test_complete_dedup_demo(mock_llm, mock_vector, mock_embedding, memory
        - Add "CAFÉ" (global dedup blocks)
        - Add "Redis   timeout   is   5   seconds" (global dedup blocks)
     """
-    manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm)
+    manager = MemoryManager(
+        memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm
+    )
 
     session1 = MemorySession(manager=manager, chat_id="chat1")
     mem1 = session1.add_knowledge("Redis timeout is 5 seconds")
@@ -134,7 +136,9 @@ async def test_fifo_capacity_management_demo(mock_llm, mock_vector, mock_embeddi
     """Demonstrate FIFO eviction with small capacity."""
     config = MemoryConfig(embedding_model="test-model", dedup=DeduplicationParams(enabled=True, hash_cache_capacity=5))
 
-    manager = MemoryManager(config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm)
+    manager = MemoryManager(
+        config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm
+    )
 
     for i in range(10):
         session = MemorySession(manager=manager, chat_id=f"chat{i}")
@@ -154,7 +158,9 @@ async def test_fifo_capacity_management_demo(mock_llm, mock_vector, mock_embeddi
 @pytest.mark.asyncio
 async def test_normalization_variants_demo(mock_llm, mock_vector, mock_embedding, memory_config):
     """Demonstrate enhanced normalization catching all variants."""
-    manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm)
+    manager = MemoryManager(
+        memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm
+    )
 
     variants = [
         ("Original", "Redis timeout is 5 seconds"),

@@ -39,9 +39,7 @@ def _redact_for_privacy(
     if mode == "off" or not text:
         return text
     if redact_fn is None:
-        logger.warning(
-            "Consensus privacy filter is active but no redactor injected; emitting raw content"
-        )
+        logger.warning("Consensus privacy filter is active but no redactor injected; emitting raw content")
         return text
     return redact_fn(text)
 
@@ -155,10 +153,7 @@ class AdvisorFanoutRunner:
         on_ref_done: Callable[[ReferenceResponse], Awaitable[None]] | None = None,
     ) -> list[ReferenceResponse]:
         cfg = self._cfg
-        tasks = [
-            asyncio.ensure_future(self._query_single(llm, query, chat_history))
-            for llm in self._refs
-        ]
+        tasks = [asyncio.ensure_future(self._query_single(llm, query, chat_history)) for llm in self._refs]
         task_to_llm = dict(zip(tasks, self._refs, strict=True))
         ref_responses: list[ReferenceResponse] = []
         try:

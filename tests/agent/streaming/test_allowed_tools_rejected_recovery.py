@@ -63,12 +63,8 @@ class TestHandleAllowedToolsRejected:
         compactor = _FakeCompactor()
         recovery = _FakeRecovery(ctx, compactor)
 
-        exc = _FakeError(
-            "Invalid tool_choice: allowed_tools is unsupported", status_code=400
-        )
-        result = await recovery._handle_allowed_tools_tool_choice_rejected(
-            exc, attempted=False
-        )
+        exc = _FakeError("Invalid tool_choice: allowed_tools is unsupported", status_code=400)
+        result = await recovery._handle_allowed_tools_tool_choice_rejected(exc, attempted=False)
 
         assert result is True
         assert recovery.streaming_final_answer is False
@@ -80,9 +76,7 @@ class TestHandleAllowedToolsRejected:
         recovery = _FakeRecovery(ctx, compactor)
 
         exc = _FakeError("unsupported tool_choice allowed_tools", status_code=400)
-        result = await recovery._handle_allowed_tools_tool_choice_rejected(
-            exc, attempted=True
-        )
+        result = await recovery._handle_allowed_tools_tool_choice_rejected(exc, attempted=True)
         assert result is False
 
     @pytest.mark.asyncio
@@ -92,9 +86,7 @@ class TestHandleAllowedToolsRejected:
         recovery = _FakeRecovery(ctx, compactor)
 
         exc = _FakeError("rate limit exceeded", status_code=429)
-        result = await recovery._handle_allowed_tools_tool_choice_rejected(
-            exc, attempted=False
-        )
+        result = await recovery._handle_allowed_tools_tool_choice_rejected(exc, attempted=False)
         assert result is False
 
     @pytest.mark.asyncio
@@ -105,9 +97,7 @@ class TestHandleAllowedToolsRejected:
         compactor = _FakeCompactor()
         recovery = _FakeRecovery(ctx, compactor)
 
-        exc = _FakeError(
-            "tool_choice type allowed_tools not supported", status_code=400
-        )
+        exc = _FakeError("tool_choice type allowed_tools not supported", status_code=400)
         await recovery._handle_allowed_tools_tool_choice_rejected(exc, attempted=False)
 
         learner = get_capability_learner()
@@ -124,9 +114,7 @@ class TestHandleAllowedToolsRejected:
         compactor = _FakeCompactor()
         recovery = _FakeRecovery(ctx, compactor)
 
-        exc = _FakeError(
-            "tool_choice type allowed_tools not supported", status_code=400
-        )
+        exc = _FakeError("tool_choice type allowed_tools not supported", status_code=400)
         await recovery._handle_allowed_tools_tool_choice_rejected(exc, attempted=False)
 
         learner = get_capability_learner()
@@ -161,9 +149,7 @@ class TestHandleAllowedToolsRejected:
         recovery = _FakeRecovery(ctx, compactor)
 
         exc = _FakeError("unsupported allowed_tools tool_choice", status_code=400)
-        result = await recovery._handle_allowed_tools_tool_choice_rejected(
-            exc, attempted=False
-        )
+        result = await recovery._handle_allowed_tools_tool_choice_rejected(exc, attempted=False)
 
         assert result is True
         assert get_capability_learner().size() == 0

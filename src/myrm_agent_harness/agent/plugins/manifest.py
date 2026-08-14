@@ -116,16 +116,12 @@ def parse_manifest(
 
     schema = raw.get("$schema")
     if not isinstance(schema, str) or schema not in _SUPPORTED_VERSION_SCHEMAS:
-        raise ManifestNoSchemaError(
-            f"plugin.json declares unsupported or missing $schema: {schema!r}"
-        )
+        raise ManifestNoSchemaError(f"plugin.json declares unsupported or missing $schema: {schema!r}")
 
     # Required fields (§5.3).
     name = raw.get("name")
     if not isinstance(name, str) or not name.strip():
-        raise ManifestSchemaValidationError(
-            "plugin.json is missing required field 'name'"
-        )
+        raise ManifestSchemaValidationError("plugin.json is missing required field 'name'")
     if not _NAME_RE.match(name):
         raise ManifestSchemaValidationError(
             f"plugin.json 'name' violates Agent Plugins naming constraints: {name!r}",
@@ -172,14 +168,10 @@ def parse_manifest(
     keywords: tuple[str, ...]
     if keywords_raw is None:
         keywords = ()
-    elif isinstance(keywords_raw, list) and all(
-        isinstance(k, str) for k in keywords_raw
-    ):
+    elif isinstance(keywords_raw, list) and all(isinstance(k, str) for k in keywords_raw):
         keywords = tuple(keywords_raw)
     else:
-        raise ManifestSchemaValidationError(
-            "plugin.json 'keywords' must be an array of strings"
-        )
+        raise ManifestSchemaValidationError("plugin.json 'keywords' must be an array of strings")
 
     meta = AgentPluginManifestMeta(
         name=name,
@@ -206,12 +198,8 @@ def _optional_str(raw: dict[str, Any], key: str) -> str | None:
 def _validate_author(value: object) -> dict[str, str] | None:
     if value is None:
         return None
-    if not isinstance(value, dict) or not all(
-        isinstance(k, str) and isinstance(v, str) for k, v in value.items()
-    ):
-        raise ManifestSchemaValidationError(
-            "plugin.json 'author' must be an object of strings"
-        )
+    if not isinstance(value, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in value.items()):
+        raise ManifestSchemaValidationError("plugin.json 'author' must be an object of strings")
     unknown = set(value.keys()) - {"name", "email", "url"}
     if unknown:
         raise ManifestSchemaValidationError(

@@ -81,7 +81,8 @@ class TestValidateToolResult:
     )
     def test_prompt_injection_detected(self, injection: str):
         result = validate_tool_result(
-            f"Normal looking result text that has enough length. {injection} do something bad here", "bash_code_execute_tool"
+            f"Normal looking result text that has enough length. {injection} do something bad here",
+            "bash_code_execute_tool",
         )
         assert not result.is_valid
         assert result.severity == "error"

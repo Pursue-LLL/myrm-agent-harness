@@ -20,9 +20,7 @@ from myrm_agent_harness.toolkits.code_execution.session.persistent_session impor
 
 
 def _make_config(timeout: int = 10) -> SessionConfig:
-    return SessionConfig(
-        session_id="test", work_dir="/tmp", timeout=timeout, sandbox_mode="disable"
-    )
+    return SessionConfig(session_id="test", work_dir="/tmp", timeout=timeout, sandbox_mode="disable")
 
 
 def _pid_exists(pid: int) -> bool:
@@ -165,9 +163,7 @@ class TestRealUserFlow:
             # 2. cwd + env persist across commands.
             await session.execute("mkdir -p /tmp/myrm-user-flow && cd /tmp/myrm-user-flow")
             assert (await session.execute("pwd")).stdout == "/tmp/myrm-user-flow"
-            assert (
-                await session.execute('echo "$APP_TOKEN"')
-            ).stdout == 'sk-x"y$HOME`id`\txyz'
+            assert (await session.execute('echo "$APP_TOKEN"')).stdout == 'sk-x"y$HOME`id`\txyz'
 
             # 3. Multi-line output round-trips.
             result = await session.execute("printf 'a\\nb\\nc\\n'")
@@ -368,9 +364,7 @@ class TestProcessGroupKill:
         with (
             patch(
                 "os.getpgid",
-                side_effect=lambda pid: (
-                    fake_child_pgid if pid == 99999 else real_my_pgid
-                ),
+                side_effect=lambda pid: fake_child_pgid if pid == 99999 else real_my_pgid,
             ),
             patch("os.killpg") as mock_killpg,
         ):
@@ -430,14 +424,9 @@ class TestStreamThrottlingAndOOM:
             result = await session.execute(cmd)
 
             assert result.success
-            assert (
-                len(result.stdout) <= MAX_OUTPUT_CHARS + 500
-            )  # Leave room for the warning text
+            assert len(result.stdout) <= MAX_OUTPUT_CHARS + 500  # Leave room for the warning text
             assert "[System Warning: The middle" in result.stdout
-            assert (
-                "characters of output were truncated to prevent memory overflow]"
-                in result.stdout
-            )
+            assert "characters of output were truncated to prevent memory overflow]" in result.stdout
         finally:
             await session.close()
 
@@ -476,9 +465,7 @@ class TestCoverageEdgeCases:
         env_cmd = flavor.format_env_set("VAR", "VAL%UE")
         assert "set VAR=VAL%%UE" in env_cmd
 
-        wrap_cmd = flavor.build_wrapped_command(
-            "echo hello", "EXIT:", "END", "%errorlevel%"
-        )
+        wrap_cmd = flavor.build_wrapped_command("echo hello", "EXIT:", "END", "%errorlevel%")
         assert "echo hello\\r\\n" in wrap_cmd or "echo hello\r\n" in wrap_cmd
         assert "EXIT:%errorlevel%" in wrap_cmd
         assert "END" in wrap_cmd
@@ -555,6 +542,7 @@ class TestCoverageEdgeCases:
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
+
             async def run_and_collect():
                 chunks = []
                 async for chunk in session.execute_stream("sleep 10"):
@@ -592,9 +580,7 @@ class TestSmartEnvInjection:
             await session.execute(f"source {script_path}")
 
             # Check if CI and NEXT_TELEMETRY_DISABLED are exported globally
-            result = await session.execute(
-                "env | grep -E '^(CI|NEXT_TELEMETRY_DISABLED)='"
-            )
+            result = await session.execute("env | grep -E '^(CI|NEXT_TELEMETRY_DISABLED)='")
             assert "CI=1" in result.stdout
             assert "NEXT_TELEMETRY_DISABLED=1" in result.stdout
         finally:
@@ -709,14 +695,10 @@ exit 0
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            await session.execute(
-                f"rm -rf {self._FAKE_DIR} && mkdir -p {self._FAKE_DIR}/home"
-            )
+            await session.execute(f"rm -rf {self._FAKE_DIR} && mkdir -p {self._FAKE_DIR}/home")
             await session.execute('rm -f "${TMPDIR:-/tmp}"/myrm_gh_identity')
             if pre_cache:
-                await session.execute(
-                    f"printf '%s' '{pre_cache}' > \"${{TMPDIR:-/tmp}}\"/myrm_gh_identity"
-                )
+                await session.execute(f"printf '%s' '{pre_cache}' > \"${{TMPDIR:-/tmp}}\"/myrm_gh_identity")
             for name, body in (("git", self._FAKE_GIT), ("curl", self._FAKE_CURL)):
                 b64 = base64.b64encode(body.encode()).decode()
                 await session.execute(
@@ -724,14 +706,10 @@ exit 0
                 )
             # Isolate HOME so a host-level ~/.git-credentials (e.g. gh auth) cannot
             # flip _git_has_existing_credentials and skip helper injection.
-            await session.execute(
-                f"export PATH={self._FAKE_DIR}:$PATH HOME={self._FAKE_DIR}/home {env}"
-            )
+            await session.execute(f"export PATH={self._FAKE_DIR}:$PATH HOME={self._FAKE_DIR}/home {env}")
             await session.execute(f"source {self._RESILIENCE}")
             await session.execute(cmd)
-            result = await session.execute(
-                f"cat {self._FAKE_DIR}/git.log 2>/dev/null || true"
-            )
+            result = await session.execute(f"cat {self._FAKE_DIR}/git.log 2>/dev/null || true")
             return result.stdout
         finally:
             await session.close()
@@ -740,9 +718,7 @@ exit 0
     async def test_push_https_injects_host_scoped_helper(self) -> None:
         """HTTPS GitHub push without existing credentials gets an env-ref helper gated on github.com hosts."""
         log = await self._run(
-            self._env(
-                remote="https://github.com/owner/repo.git", token="ghp_testtoken"
-            ),
+            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken"),
             "git push origin main",
         )
         assert 'host=*) host="${line#host=}"' in log
@@ -790,9 +766,7 @@ exit 0
     async def test_push_www_github_host_scope(self) -> None:
         """www.github.com HTTPS push gets the host-scoped helper."""
         log = await self._run(
-            self._env(
-                remote="https://www.github.com/owner/repo.git", token="ghp_testtoken"
-            ),
+            self._env(remote="https://www.github.com/owner/repo.git", token="ghp_testtoken"),
             "git push origin main",
         )
         assert 'host=*) host="${line#host=}"' in log
@@ -813,9 +787,7 @@ exit 0
     async def test_commit_injects_resolved_identity(self) -> None:
         """Commit with no sandbox identity resolves GitHub login and injects user.name/email."""
         log = await self._run(
-            self._env(
-                remote="https://github.com/owner/repo.git", token="ghp_testtoken"
-            ),
+            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken"),
             "git commit -m x",
         )
         assert "-c user.name=octocat" in log
@@ -854,9 +826,7 @@ exit 0
     async def test_commit_uses_cached_identity(self) -> None:
         """Commit identity resolution reuses the TMPDIR cache instead of calling the GitHub API."""
         log = await self._run(
-            self._env(
-                remote="https://github.com/owner/repo.git", token="ghp_testtoken"
-            ),
+            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken"),
             "git commit -m x",
             pre_cache="cacheduser|cacheduser@users.noreply.github.com",
         )
@@ -966,9 +936,7 @@ class TestKillProcessTreeEdgeCases:
         with (
             patch(
                 "os.getpgid",
-                side_effect=lambda pid: (
-                    fake_child_pgid if pid == 99999 else real_my_pgid
-                ),
+                side_effect=lambda pid: fake_child_pgid if pid == 99999 else real_my_pgid,
             ),
             patch("os.killpg") as mock_killpg,
         ):
@@ -1138,15 +1106,13 @@ class TestInitializeShellEdge:
         embedded in a user-provided env value (e.g. API tokens).
         """
         config = _make_config()
-        config.env = {
-            "MY_SPECIAL": 'a"b\\c d$HOME `whoami` \'q\''
-        }
+        config.env = {"MY_SPECIAL": "a\"b\\c d$HOME `whoami` 'q'"}
         session = LocalPersistentSession(config)
         await session.start()
         try:
             result = await session.execute("printf '%s' \"$MY_SPECIAL\"")
             assert result.success
-            assert result.stdout == 'a"b\\c d$HOME `whoami` \'q\''
+            assert result.stdout == "a\"b\\c d$HOME `whoami` 'q'"
         finally:
             await session.close()
 
@@ -1190,9 +1156,7 @@ class TestLifecycleSafety:
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            result = await session.execute(
-                'echo "hello __MYRM_EXIT__ world"; echo after'
-            )
+            result = await session.execute('echo "hello __MYRM_EXIT__ world"; echo after')
             assert result.success
             assert result.exit_code == 0
             assert "hello __MYRM_EXIT__ world" in result.stdout
@@ -1224,9 +1188,7 @@ class TestLifecycleSafety:
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            result = await session.execute(
-                "printf 'a\\n__MYRM_EXIT__\\nb\\n__MYRM_END__\\nc\\n'"
-            )
+            result = await session.execute("printf 'a\\n__MYRM_EXIT__\\nb\\n__MYRM_END__\\nc\\n'")
             assert result.success
             assert result.exit_code == 0
             assert "a" in result.stdout and "b" in result.stdout and "c" in result.stdout
@@ -1377,7 +1339,7 @@ class TestLifecycleSafety:
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            result = await session.execute("for i in 1 2; do\n  echo \"x$i\"\ndone")
+            result = await session.execute('for i in 1 2; do\n  echo "x$i"\ndone')
             assert result.success
             assert "x1" in result.stdout and "x2" in result.stdout
         finally:
@@ -1404,9 +1366,7 @@ class TestLifecycleSafety:
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            result = await asyncio.wait_for(
-                session.execute("sleep 5 & echo done", timeout=5), timeout=6
-            )
+            result = await asyncio.wait_for(session.execute("sleep 5 & echo done", timeout=5), timeout=6)
             assert result.success
             assert "done" in result.stdout
             assert session.is_alive
@@ -1420,9 +1380,7 @@ class TestLifecycleSafety:
         await session.start()
         try:
             result = await asyncio.wait_for(
-                session.execute(
-                    "nohup sleep 3 >/dev/null 2>&1 & echo started", timeout=5
-                ),
+                session.execute("nohup sleep 3 >/dev/null 2>&1 & echo started", timeout=5),
                 timeout=6,
             )
             assert result.success
@@ -1437,9 +1395,7 @@ class TestLifecycleSafety:
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            result = await asyncio.wait_for(
-                session.execute("# just a comment", timeout=5), timeout=6
-            )
+            result = await asyncio.wait_for(session.execute("# just a comment", timeout=5), timeout=6)
             assert result.success
             assert result.exit_code == 0
             assert session.is_alive
@@ -1452,9 +1408,7 @@ class TestLifecycleSafety:
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            result = await asyncio.wait_for(
-                session.execute("   ", timeout=5), timeout=6
-            )
+            result = await asyncio.wait_for(session.execute("   ", timeout=5), timeout=6)
             assert result.success
             assert result.exit_code == 0
             assert session.is_alive
@@ -1492,9 +1446,7 @@ class TestLifecycleSafety:
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            _ = await asyncio.wait_for(
-                session.execute("echo a \\", timeout=5), timeout=6
-            )
+            _ = await asyncio.wait_for(session.execute("echo a \\", timeout=5), timeout=6)
             assert session.is_alive
         finally:
             await session.close()
@@ -1578,8 +1530,7 @@ class TestAutoTeeAndDiskQuota:
         await session.start()
         try:
             with patch(
-                "myrm_agent_harness.toolkits.code_execution.session"
-                ".stream_output_processor._TEE_MAX_BYTES",
+                "myrm_agent_harness.toolkits.code_execution.session.stream_output_processor._TEE_MAX_BYTES",
                 test_limit,
             ):
                 cmd = "python3 -c \"print('B' * 2000000)\""
@@ -1601,10 +1552,7 @@ class TestAutoTeeAndDiskQuota:
 
                 with open(latest_log, encoding="utf-8") as f:
                     content = f.read()
-                    assert (
-                        "[System Warning: Tee log file exceeded 50MB hard limit "
-                        "and was truncated.]" in content
-                    )
+                    assert "[System Warning: Tee log file exceeded 50MB hard limit and was truncated.]" in content
 
         finally:
             await session.close()

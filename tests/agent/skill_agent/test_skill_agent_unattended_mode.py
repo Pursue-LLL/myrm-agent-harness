@@ -39,6 +39,7 @@ async def test_build_tools_filters_interactive_when_unattended():
         tools=[regular_tool, interactive_tool],
     )
     from unittest.mock import MagicMock
+
     agent.config = MagicMock()
     agent.config.unattended = True
 
@@ -62,6 +63,7 @@ async def test_build_tools_keeps_interactive_when_attended():
         tools=[regular_tool, interactive_tool],
     )
     from unittest.mock import MagicMock
+
     agent.config = MagicMock()
     agent.config.unattended = False
 

@@ -77,18 +77,14 @@ async def test_handle_iteration_limit_emits_event_and_grace_fallback():
     ctx = _make_ctx(recursion_limit=80, node_count=35)
     executor = _make_executor(ctx)
 
-    await executor._handle_iteration_limit(
-        GraphRecursionError("Recursion limit reached"), list(_SAMPLE_MESSAGES)
-    )
+    await executor._handle_iteration_limit(GraphRecursionError("Recursion limit reached"), list(_SAMPLE_MESSAGES))
     await executor._compactor.flush()
 
     events: list[dict[str, object]] = []
     while not ctx.output_queue.empty():
         events.append(await ctx.output_queue.get())
 
-    limit_events = [
-        e for e in events if e["type"] == AgentEventType.ITERATION_LIMIT_REACHED.value
-    ]
+    limit_events = [e for e in events if e["type"] == AgentEventType.ITERATION_LIMIT_REACHED.value]
     assert len(limit_events) == 1
     assert limit_events[0]["data"]["limit"] == 80
     assert limit_events[0]["data"]["nodes_completed"] == 35
@@ -104,16 +100,12 @@ async def test_grace_call_uses_llm_summary():
     from langgraph.errors import GraphRecursionError
 
     mock_llm = AsyncMock()
-    mock_llm.ainvoke.return_value = AIMessage(
-        content="Here is a summary of progress so far."
-    )
+    mock_llm.ainvoke.return_value = AIMessage(content="Here is a summary of progress so far.")
 
     ctx = _make_ctx(recursion_limit=50, node_count=49, llm=mock_llm)
     executor = _make_executor(ctx)
 
-    await executor._handle_iteration_limit(
-        GraphRecursionError("limit"), list(_SAMPLE_MESSAGES)
-    )
+    await executor._handle_iteration_limit(GraphRecursionError("limit"), list(_SAMPLE_MESSAGES))
     await executor._compactor.flush()
 
     events: list[dict[str, object]] = []
@@ -138,9 +130,7 @@ async def test_grace_call_falls_back_on_llm_error():
     ctx = _make_ctx(recursion_limit=50, node_count=49, llm=mock_llm)
     executor = _make_executor(ctx)
 
-    await executor._handle_iteration_limit(
-        GraphRecursionError("limit"), list(_SAMPLE_MESSAGES)
-    )
+    await executor._handle_iteration_limit(GraphRecursionError("limit"), list(_SAMPLE_MESSAGES))
     await executor._compactor.flush()
 
     events: list[dict[str, object]] = []
@@ -158,14 +148,10 @@ async def test_handle_iteration_limit_ignores_other_exceptions():
     ctx = _make_ctx()
     executor = _make_executor(ctx)
 
-    result = await executor._handle_iteration_limit(
-        ValueError("some other error"), list(_SAMPLE_MESSAGES)
-    )
+    result = await executor._handle_iteration_limit(ValueError("some other error"), list(_SAMPLE_MESSAGES))
     assert result is False
 
-    result = await executor._handle_iteration_limit(
-        RuntimeError("runtime error"), list(_SAMPLE_MESSAGES)
-    )
+    result = await executor._handle_iteration_limit(RuntimeError("runtime error"), list(_SAMPLE_MESSAGES))
     assert result is False
 
     assert ctx.output_queue.empty()
@@ -179,9 +165,7 @@ async def test_grace_fallback_zh_locale():
     ctx = _make_ctx(recursion_limit=50, node_count=49, locale="zh-CN")
     executor = _make_executor(ctx)
 
-    await executor._handle_iteration_limit(
-        GraphRecursionError("limit"), list(_SAMPLE_MESSAGES)
-    )
+    await executor._handle_iteration_limit(GraphRecursionError("limit"), list(_SAMPLE_MESSAGES))
     await executor._compactor.flush()
 
     events: list[dict[str, object]] = []
@@ -222,16 +206,12 @@ async def test_grace_call_repairs_dangling_tool_calls_before_llm_invoke():
     ]
 
     mock_llm = AsyncMock()
-    mock_llm.ainvoke.return_value = AIMessage(
-        content="Progress summary with G1234 train info."
-    )
+    mock_llm.ainvoke.return_value = AIMessage(content="Progress summary with G1234 train info.")
 
     ctx = _make_ctx(recursion_limit=50, node_count=49, llm=mock_llm)
     executor = _make_executor(ctx)
 
-    await executor._handle_iteration_limit(
-        GraphRecursionError("limit"), list(messages_with_dangling)
-    )
+    await executor._handle_iteration_limit(GraphRecursionError("limit"), list(messages_with_dangling))
 
     mock_llm.ainvoke.assert_awaited_once()
     sent_messages = mock_llm.ainvoke.await_args.args[0]
@@ -257,9 +237,7 @@ async def test_grace_call_drops_leading_orphan_tool_in_tail_slice():
             }
         ],
     )
-    orphan_tool = ToolMessage(
-        content="ok", tool_call_id="call_orphan_tool", name="file_read_tool"
-    )
+    orphan_tool = ToolMessage(content="ok", tool_call_id="call_orphan_tool", name="file_read_tool")
     suffix = [HumanMessage(content=f"tail-{idx}") for idx in range(19)]
     messages = [*prefix, owner_ai, orphan_tool, *suffix]
 
@@ -288,9 +266,7 @@ async def test_grace_prompt_preserves_prior_external_results():
     ctx = _make_ctx(recursion_limit=50, node_count=49, llm=mock_llm)
     executor = _make_executor(ctx)
 
-    await executor._handle_iteration_limit(
-        GraphRecursionError("limit"), list(_SAMPLE_MESSAGES)
-    )
+    await executor._handle_iteration_limit(GraphRecursionError("limit"), list(_SAMPLE_MESSAGES))
 
     sent_messages = mock_llm.ainvoke.await_args.args[0]
     grace_prompt = sent_messages[-1]
@@ -312,9 +288,7 @@ async def test_grace_prompt_locale_driven_language_instruction():
     ctx = _make_ctx(recursion_limit=50, node_count=49, llm=mock_llm)
     executor = _make_executor(ctx)
 
-    await executor._handle_iteration_limit(
-        GraphRecursionError("limit"), list(_SAMPLE_MESSAGES)
-    )
+    await executor._handle_iteration_limit(GraphRecursionError("limit"), list(_SAMPLE_MESSAGES))
 
     sent_messages = mock_llm.ainvoke.await_args.args[0]
     content = sent_messages[-1].content

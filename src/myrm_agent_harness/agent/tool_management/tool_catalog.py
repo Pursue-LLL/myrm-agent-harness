@@ -38,9 +38,7 @@ class ToolCatalogRole(StrEnum):
     USER_CAPABILITY = "user_capability"
 
 
-_GROUP_TO_PRODUCT_ID: dict[str, str] = {
-    group: product_id for product_id, group in BUILTIN_TOOL_ID_TO_GROUP.items()
-}
+_GROUP_TO_PRODUCT_ID: dict[str, str] = {group: product_id for product_id, group in BUILTIN_TOOL_ID_TO_GROUP.items()}
 
 _BASELINE_TOOL_GROUPS: frozenset[str] = frozenset({"file_ops", "shell"})
 
@@ -169,9 +167,7 @@ def get_tool_load_condition(tool_name: str, *, layer: ToolLayer | None = None) -
     return _DEFAULT_LOAD_BY_LAYER.get(resolved_layer, "Opt-in; see factory wiring")
 
 
-def build_tool_catalog_row(
-    tool_name: str, *, layer: ToolLayer | None = None
-) -> ToolCatalogRow:
+def build_tool_catalog_row(tool_name: str, *, layer: ToolLayer | None = None) -> ToolCatalogRow:
     """Build a catalog row for one Action Tool name."""
     resolved_layer = layer if layer is not None else get_tool_layer(tool_name)
     return ToolCatalogRow(
@@ -193,10 +189,7 @@ def build_tool_catalog_rows(
     registered: dict[str, ToolLayer | str],
 ) -> list[ToolCatalogRow]:
     """Sorted catalog rows for all Action Tool names in _TOOL_LAYERS."""
-    rows = [
-        build_tool_catalog_row(name, layer=_coerce_layer(layer))
-        for name, layer in registered.items()
-    ]
+    rows = [build_tool_catalog_row(name, layer=_coerce_layer(layer)) for name, layer in registered.items()]
     rows.sort(key=lambda row: (int(row.layer), row.name))
     return rows
 
@@ -210,11 +203,7 @@ def validate_layer_product_consistency(
     defaults = default_enabled_product_ids or DEFAULT_ENABLED_PRODUCT_IDS
     errors: list[str] = []
 
-    core_registered = {
-        name
-        for name, layer in registered.items()
-        if _coerce_layer(layer) == ToolLayer.CORE
-    }
+    core_registered = {name for name, layer in registered.items() if _coerce_layer(layer) == ToolLayer.CORE}
     if core_registered != CORE_ACTION_TOOL_NAMES:
         missing = sorted(CORE_ACTION_TOOL_NAMES - core_registered)
         extra = sorted(core_registered - CORE_ACTION_TOOL_NAMES)
@@ -229,16 +218,12 @@ def validate_layer_product_consistency(
 
         if name in EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS:
             if layer != ToolLayer.EXTENDED:
-                errors.append(
-                    f"{name}: must stay EXTENDED (default-on HITL / prompt-cache tail policy)"
-                )
+                errors.append(f"{name}: must stay EXTENDED (default-on HITL / prompt-cache tail policy)")
             continue
 
         if layer == ToolLayer.COMMON:
             if product_id is None:
-                errors.append(
-                    f"{name}: COMMON layer tools must map to a GUI product_id"
-                )
+                errors.append(f"{name}: COMMON layer tools must map to a GUI product_id")
             elif product_id not in defaults:
                 errors.append(
                     f"{name}: COMMON layer requires default-on product_id "
@@ -246,11 +231,7 @@ def validate_layer_product_consistency(
                 )
             continue
 
-        if (
-            layer == ToolLayer.EXTENDED
-            and product_id is not None
-            and product_id in defaults
-        ):
+        if layer == ToolLayer.EXTENDED and product_id is not None and product_id in defaults:
             errors.append(
                 f"{name}: product_id {product_id!r} is default-on but tool is EXTENDED; "
                 "move to COMMON or add to EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS with rationale"
@@ -277,7 +258,5 @@ def format_tool_catalog_markdown(rows: list[ToolCatalogRow]) -> str:
     ]
     for row in rows:
         product = row.product_id or "—"
-        lines.append(
-            f"| `{row.name}` | {row.layer.name} | {row.role.value} | {product} | {row.load_condition} |"
-        )
+        lines.append(f"| `{row.name}` | {row.layer.name} | {row.role.value} | {product} | {row.load_condition} |")
     return "\n".join(lines)

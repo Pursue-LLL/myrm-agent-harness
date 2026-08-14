@@ -38,7 +38,9 @@ async def test_no_eval_cases_passthrough():
     skill = _make_skill()
     variants = ["variant_a", "variant_b"]
     surviving, penalties = await filter_variants_by_regression(
-        skill, variants, logging.getLogger("test"),
+        skill,
+        variants,
+        logging.getLogger("test"),
     )
     assert surviving == variants
     assert penalties == {}
@@ -47,13 +49,19 @@ async def test_no_eval_cases_passthrough():
 @pytest.mark.asyncio
 async def test_code_contains_pass():
     """Variant containing required pattern passes assertion."""
-    skill = _make_skill(eval_cases=[{
-        "message": "deploy",
-        "sandbox_assertions": [{"type": "code_contains", "target": "nginx"}],
-    }])
+    skill = _make_skill(
+        eval_cases=[
+            {
+                "message": "deploy",
+                "sandbox_assertions": [{"type": "code_contains", "target": "nginx"}],
+            }
+        ]
+    )
     variants = ["install nginx server", "install apache server"]
     surviving, penalties = await filter_variants_by_regression(
-        skill, variants, logging.getLogger("test"),
+        skill,
+        variants,
+        logging.getLogger("test"),
     )
     assert "install nginx server" in surviving
     assert penalties.get("install apache server", 0) > 0
@@ -62,14 +70,20 @@ async def test_code_contains_pass():
 @pytest.mark.asyncio
 async def test_code_not_contains_pass():
     """Variant without forbidden pattern passes."""
-    skill = _make_skill(eval_cases=[{
-        "message": "safe deploy",
-        "sandbox_assertions": [{"type": "code_not_contains", "target": "rm -rf /"}],
-    }])
+    skill = _make_skill(
+        eval_cases=[
+            {
+                "message": "safe deploy",
+                "sandbox_assertions": [{"type": "code_not_contains", "target": "rm -rf /"}],
+            }
+        ]
+    )
     good = "deploy safely"
     bad = "deploy with rm -rf /"
     surviving, penalties = await filter_variants_by_regression(
-        skill, [good, bad], logging.getLogger("test"),
+        skill,
+        [good, bad],
+        logging.getLogger("test"),
     )
     assert good in surviving
     assert penalties.get(bad, 0) > 0
@@ -78,14 +92,20 @@ async def test_code_not_contains_pass():
 @pytest.mark.asyncio
 async def test_ast_valid_pass():
     """Valid Python passes ast_valid assertion."""
-    skill = _make_skill(eval_cases=[{
-        "message": "run code",
-        "sandbox_assertions": [{"type": "ast_valid", "target": ""}],
-    }])
+    skill = _make_skill(
+        eval_cases=[
+            {
+                "message": "run code",
+                "sandbox_assertions": [{"type": "ast_valid", "target": ""}],
+            }
+        ]
+    )
     good = "x = 1 + 2"
     bad = "x = 1 +"
     surviving, penalties = await filter_variants_by_regression(
-        skill, [good, bad], logging.getLogger("test"),
+        skill,
+        [good, bad],
+        logging.getLogger("test"),
     )
     assert good in surviving
     assert penalties.get(bad, 0) > 0
@@ -94,14 +114,20 @@ async def test_ast_valid_pass():
 @pytest.mark.asyncio
 async def test_imports_module_pass():
     """Variant that imports the required module passes."""
-    skill = _make_skill(eval_cases=[{
-        "message": "use json",
-        "sandbox_assertions": [{"type": "imports_module", "target": "json"}],
-    }])
+    skill = _make_skill(
+        eval_cases=[
+            {
+                "message": "use json",
+                "sandbox_assertions": [{"type": "imports_module", "target": "json"}],
+            }
+        ]
+    )
     good = "import json\njson.dumps({})"
     bad = "x = 1"
     surviving, penalties = await filter_variants_by_regression(
-        skill, [good, bad], logging.getLogger("test"),
+        skill,
+        [good, bad],
+        logging.getLogger("test"),
     )
     assert good in surviving
     assert penalties.get(bad, 0) > 0
@@ -110,14 +136,20 @@ async def test_imports_module_pass():
 @pytest.mark.asyncio
 async def test_regex_match_pass():
     """Variant matching regex passes."""
-    skill = _make_skill(eval_cases=[{
-        "message": "check pattern",
-        "sandbox_assertions": [{"type": "regex_match", "target": r"def \w+\("}],
-    }])
+    skill = _make_skill(
+        eval_cases=[
+            {
+                "message": "check pattern",
+                "sandbox_assertions": [{"type": "regex_match", "target": r"def \w+\("}],
+            }
+        ]
+    )
     good = "def hello():\n    pass"
     bad = "x = 1"
     surviving, penalties = await filter_variants_by_regression(
-        skill, [good, bad], logging.getLogger("test"),
+        skill,
+        [good, bad],
+        logging.getLogger("test"),
     )
     assert good in surviving
     assert penalties.get(bad, 0) > 0
@@ -126,18 +158,22 @@ async def test_regex_match_pass():
 @pytest.mark.asyncio
 async def test_all_fail_hard_filter():
     """If ALL eval cases fail, penalty reaches hard threshold and variant is filtered."""
-    skill = _make_skill(eval_cases=[
-        {"message": "a", "sandbox_assertions": [{"type": "code_contains", "target": "MUST_HAVE_THIS"}]},
-        {"message": "b", "sandbox_assertions": [{"type": "code_contains", "target": "AND_THIS_TOO"}]},
-        {"message": "c", "sandbox_assertions": [{"type": "code_contains", "target": "AND_ALSO_THIS"}]},
-        {"message": "d", "sandbox_assertions": [{"type": "code_contains", "target": "PLUS_THIS"}]},
-        {"message": "e", "sandbox_assertions": [{"type": "code_contains", "target": "ONE_MORE"}]},
-        {"message": "f", "sandbox_assertions": [{"type": "code_contains", "target": "LAST_ONE"}]},
-        {"message": "g", "sandbox_assertions": [{"type": "code_contains", "target": "FINAL"}]},
-    ])
+    skill = _make_skill(
+        eval_cases=[
+            {"message": "a", "sandbox_assertions": [{"type": "code_contains", "target": "MUST_HAVE_THIS"}]},
+            {"message": "b", "sandbox_assertions": [{"type": "code_contains", "target": "AND_THIS_TOO"}]},
+            {"message": "c", "sandbox_assertions": [{"type": "code_contains", "target": "AND_ALSO_THIS"}]},
+            {"message": "d", "sandbox_assertions": [{"type": "code_contains", "target": "PLUS_THIS"}]},
+            {"message": "e", "sandbox_assertions": [{"type": "code_contains", "target": "ONE_MORE"}]},
+            {"message": "f", "sandbox_assertions": [{"type": "code_contains", "target": "LAST_ONE"}]},
+            {"message": "g", "sandbox_assertions": [{"type": "code_contains", "target": "FINAL"}]},
+        ]
+    )
     variants = ["nothing matches"]
     surviving, penalties = await filter_variants_by_regression(
-        skill, variants, logging.getLogger("test"),
+        skill,
+        variants,
+        logging.getLogger("test"),
     )
     assert surviving == []
     assert penalties["nothing matches"] >= 1.0
@@ -146,14 +182,20 @@ async def test_all_fail_hard_filter():
 @pytest.mark.asyncio
 async def test_no_assertions_fallback_to_expected_tools():
     """When no sandbox_assertions, fall back to checking expected_tools mentions."""
-    skill = _make_skill(eval_cases=[{
-        "message": "use bash",
-        "expected_tools": ["bash", "python"],
-    }])
+    skill = _make_skill(
+        eval_cases=[
+            {
+                "message": "use bash",
+                "expected_tools": ["bash", "python"],
+            }
+        ]
+    )
     good = "use bash and python to solve"
     bad = "use curl only"
     surviving, penalties = await filter_variants_by_regression(
-        skill, [good, bad], logging.getLogger("test"),
+        skill,
+        [good, bad],
+        logging.getLogger("test"),
     )
     assert good in surviving
     assert penalties.get(bad, 0) > 0
@@ -247,12 +289,16 @@ def test_build_skill_eval_cases_with_patterns():
 @pytest.mark.asyncio
 async def test_single_case_failure_penalty():
     """Variant failing one eval_case gets a non-zero penalty."""
-    skill = _make_skill(eval_cases=[
-        {"sandbox_assertions": [{"type": "code_contains", "target": "deploy"}]},
-    ])
+    skill = _make_skill(
+        eval_cases=[
+            {"sandbox_assertions": [{"type": "code_contains", "target": "deploy"}]},
+        ]
+    )
     variant = "just random stuff"
     _surviving, penalties = await filter_variants_by_regression(
-        skill, [variant], logging.getLogger("test"),
+        skill,
+        [variant],
+        logging.getLogger("test"),
     )
     assert penalties[variant] > 0
 
@@ -260,19 +306,23 @@ async def test_single_case_failure_penalty():
 @pytest.mark.asyncio
 async def test_mixed_assertion_types():
     """Variant that passes some assertion types but fails others."""
-    skill = _make_skill(eval_cases=[
-        {
-            "sandbox_assertions": [
-                {"type": "ast_valid"},
-                {"type": "code_contains", "target": "import os"},
-                {"type": "regex_match", "target": r"def \w+"},
-                {"type": "code_not_contains", "target": "eval("},
-            ],
-        },
-    ])
+    skill = _make_skill(
+        eval_cases=[
+            {
+                "sandbox_assertions": [
+                    {"type": "ast_valid"},
+                    {"type": "code_contains", "target": "import os"},
+                    {"type": "regex_match", "target": r"def \w+"},
+                    {"type": "code_not_contains", "target": "eval("},
+                ],
+            },
+        ]
+    )
     variant = "import os\ndef hello():\n    pass"
     surviving, penalties = await filter_variants_by_regression(
-        skill, [variant], logging.getLogger("test"),
+        skill,
+        [variant],
+        logging.getLogger("test"),
     )
     assert variant in surviving
     assert penalties[variant] == 0.0
@@ -281,17 +331,21 @@ async def test_mixed_assertion_types():
 @pytest.mark.asyncio
 async def test_mixed_assertion_partial_fail():
     """Variant passes ast_valid and regex but fails code_contains."""
-    skill = _make_skill(eval_cases=[
-        {
-            "sandbox_assertions": [
-                {"type": "ast_valid"},
-                {"type": "code_contains", "target": "import numpy"},
-            ],
-        },
-    ])
+    skill = _make_skill(
+        eval_cases=[
+            {
+                "sandbox_assertions": [
+                    {"type": "ast_valid"},
+                    {"type": "code_contains", "target": "import numpy"},
+                ],
+            },
+        ]
+    )
     variant = "import os\ndef hello():\n    pass"
     _surviving, penalties = await filter_variants_by_regression(
-        skill, [variant], logging.getLogger("test"),
+        skill,
+        [variant],
+        logging.getLogger("test"),
     )
     assert penalties[variant] > 0
 
@@ -299,12 +353,16 @@ async def test_mixed_assertion_partial_fail():
 @pytest.mark.asyncio
 async def test_empty_variant_code():
     """Empty variant code should fail code_contains but pass code_not_contains."""
-    skill = _make_skill(eval_cases=[
-        {"sandbox_assertions": [{"type": "code_contains", "target": "import"}]},
-        {"sandbox_assertions": [{"type": "code_not_contains", "target": "danger"}]},
-    ])
+    skill = _make_skill(
+        eval_cases=[
+            {"sandbox_assertions": [{"type": "code_contains", "target": "import"}]},
+            {"sandbox_assertions": [{"type": "code_not_contains", "target": "danger"}]},
+        ]
+    )
     surviving, penalties = await filter_variants_by_regression(
-        skill, [""], logging.getLogger("test"),
+        skill,
+        [""],
+        logging.getLogger("test"),
     )
     assert "" in surviving
     assert penalties[""] > 0
@@ -315,14 +373,13 @@ async def test_many_eval_cases_performance():
     """100 eval_cases should complete quickly without hanging."""
     import time
 
-    cases = [
-        {"sandbox_assertions": [{"type": "code_contains", "target": f"pattern_{i}"}]}
-        for i in range(100)
-    ]
+    cases = [{"sandbox_assertions": [{"type": "code_contains", "target": f"pattern_{i}"}]} for i in range(100)]
     skill = _make_skill(eval_cases=cases)
     start = time.monotonic()
     _surviving, penalties = await filter_variants_by_regression(
-        skill, ["pattern_0 pattern_1"], logging.getLogger("test"),
+        skill,
+        ["pattern_0 pattern_1"],
+        logging.getLogger("test"),
     )
     elapsed = time.monotonic() - start
     assert elapsed < 5.0, f"100 eval_cases took {elapsed:.2f}s, should be <5s"
@@ -332,11 +389,15 @@ async def test_many_eval_cases_performance():
 @pytest.mark.asyncio
 async def test_unknown_assertion_type_passes():
     """Unknown assertion type should be silently ignored (pass)."""
-    skill = _make_skill(eval_cases=[
-        {"sandbox_assertions": [{"type": "unknown_future_type", "target": "x"}]},
-    ])
+    skill = _make_skill(
+        eval_cases=[
+            {"sandbox_assertions": [{"type": "unknown_future_type", "target": "x"}]},
+        ]
+    )
     surviving, penalties = await filter_variants_by_regression(
-        skill, ["any code"], logging.getLogger("test"),
+        skill,
+        ["any code"],
+        logging.getLogger("test"),
     )
     assert "any code" in surviving
     assert penalties["any code"] == 0.0
@@ -355,15 +416,21 @@ async def test_regex_match_invalid_pattern():
 @pytest.mark.asyncio
 async def test_code_contains_unicode():
     """Unicode patterns should work in code_contains/code_not_contains."""
-    skill = _make_skill(eval_cases=[
-        {"sandbox_assertions": [
-            {"type": "code_contains", "target": "安装"},
-            {"type": "code_not_contains", "target": "删除"},
-        ]},
-    ])
+    skill = _make_skill(
+        eval_cases=[
+            {
+                "sandbox_assertions": [
+                    {"type": "code_contains", "target": "安装"},
+                    {"type": "code_not_contains", "target": "删除"},
+                ]
+            },
+        ]
+    )
     variant = "安装 nginx 服务器"
     surviving, penalties = await filter_variants_by_regression(
-        skill, [variant], logging.getLogger("test"),
+        skill,
+        [variant],
+        logging.getLogger("test"),
     )
     assert variant in surviving
     assert penalties[variant] == 0.0

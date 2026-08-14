@@ -94,12 +94,8 @@ async def create_skill_agent(
     wiki_search_fn: SemanticSearchFn | None = None,
     wiki_scope_id: str | None = None,
     similarity_checker: SkillSimilarityChecker | None = None,
-    on_session_cleanup: (
-        Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None
-    ) = None,
-    on_loaded_skills_persist: (
-        Callable[[list[str], str | None], Awaitable[None]] | None
-    ) = None,
+    on_session_cleanup: (Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None) = None,
+    on_loaded_skills_persist: (Callable[[list[str], str | None], Awaitable[None]] | None) = None,
     extraction_lifecycle_observer: Callable[..., Awaitable[None]] | None = None,
     file_access_mode: FileAccessMode = FileAccessMode.FULL,
     enable_shell_tools: bool = True,
@@ -139,10 +135,7 @@ async def create_skill_agent(
         llm = create_litellm_model(**kwargs)
         logger.info(f" 创建 LLM 实例: {llm_config.model}")
 
-    if (
-        privacy_routing_config is not None
-        and privacy_routing_config.local_model is not None
-    ):
+    if privacy_routing_config is not None and privacy_routing_config.local_model is not None:
         from myrm_agent_harness.toolkits.llms import (
             create_litellm_model as _create_model,
         )
@@ -212,14 +205,9 @@ async def create_skill_agent(
                         "OpenAPI services are enabled but no tools were loaded. "
                         "Check spec URL/content, authentication, and selected endpoints."
                     ),
-                    "zh": (
-                        "已启用 OpenAPI 服务但未加载任何工具。"
-                        "请检查 spec URL/内容、认证配置及已选 endpoint。"
-                    ),
+                    "zh": ("已启用 OpenAPI 服务但未加载任何工具。请检查 spec URL/内容、认证配置及已选 endpoint。"),
                 },
-                technical_details=(
-                    f"{enabled_openapi_count} enabled OpenAPI service(s) produced 0 tools"
-                ),
+                technical_details=(f"{enabled_openapi_count} enabled OpenAPI service(s) produced 0 tools"),
                 resolution_steps=[
                     "Open Agent settings → OpenAPI services",
                     "Verify spec URL or inline spec content loads correctly",
@@ -241,10 +229,7 @@ async def create_skill_agent(
 
             openapi_tokens = estimate_schema_tokens(openapi_all)
             surface = parse_mcp_surface_mode(spec.mcp_surface_mode)
-            if (
-                surface != MCPSurfaceMode.DIRECT_FC
-                and openapi_tokens > AGGREGATE_DIRECT_TOKEN_BUDGET
-            ):
+            if surface != MCPSurfaceMode.DIRECT_FC and openapi_tokens > AGGREGATE_DIRECT_TOKEN_BUDGET:
                 raise ConfigIncompleteError(
                     user_friendly_message={
                         "en": (
@@ -259,8 +244,7 @@ async def create_skill_agent(
                         ),
                     },
                     technical_details=(
-                        f"OpenAPI schema ~{openapi_tokens} tokens exceeds direct budget "
-                        f"{AGGREGATE_DIRECT_TOKEN_BUDGET}"
+                        f"OpenAPI schema ~{openapi_tokens} tokens exceeds direct budget {AGGREGATE_DIRECT_TOKEN_BUDGET}"
                     ),
                     resolution_steps=[
                         "Open Agent settings → OpenAPI services",
@@ -304,9 +288,7 @@ async def create_skill_agent(
                 routes=new_routes,
                 default=skill_backend.default,
             )
-            logger.info(
-                f" 扁平化合并 MCP Skills + 用户 {len(skill_backend.routes)} 个后端路由"
-            )
+            logger.info(f" 扁平化合并 MCP Skills + 用户 {len(skill_backend.routes)} 个后端路由")
 
         else:
             routes: dict[str, SkillBackendProto] = {
@@ -328,14 +310,8 @@ async def create_skill_agent(
         from dataclasses import fields as dataclass_fields
 
         known_fields = {field.name for field in dataclass_fields(EngineParams)}
-        filtered_params = {
-            key: value
-            for key, value in engine_params_dict.items()
-            if key in known_fields
-        }
-        engine_params = (
-            EngineParams(**filtered_params) if filtered_params else EngineParams()
-        )
+        filtered_params = {key: value for key, value in engine_params_dict.items() if key in known_fields}
+        engine_params = EngineParams(**filtered_params) if filtered_params else EngineParams()
     else:
         engine_params = EngineParams()
 
@@ -458,9 +434,7 @@ async def create_skill_agent(
         enable_planning=enable_planning,
         task_workspace_root=task_workspace_root
         or (spec.workspace_binding.root_path if spec.workspace_binding else None),
-        available_tool_names=(
-            frozenset(spec.allowed_tools) if spec.allowed_tools else None
-        ),
+        available_tool_names=(frozenset(spec.allowed_tools) if spec.allowed_tools else None),
         available_tool_groups=frozenset(spec.tool_groups) if spec.tool_groups else None,
         library_skill_names=library_skill_names,
     )

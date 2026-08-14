@@ -16,8 +16,13 @@ from myrm_agent_harness.toolkits.wiki.retrieval.query import WikiQueryEngine
 
 _ENV_TEST = os.path.join(
     os.path.dirname(__file__),
-    "..", "..", "..", "..",
-    "myrm-agent", "myrm-agent-server", ".env.test",
+    "..",
+    "..",
+    "..",
+    "..",
+    "myrm-agent",
+    "myrm-agent-server",
+    ".env.test",
 )
 load_dotenv(_ENV_TEST, override=False)
 
@@ -127,14 +132,22 @@ async def test_sidecar_incremental_rebuild_skips_unchanged(tmp_path):
     concepts = _seed_concepts(structure)
 
     first = await build_directory_sidecars(
-        llm, structure, WikiCompileConfig(), touched_concepts=concepts, indexer=indexer,
+        llm,
+        structure,
+        WikiCompileConfig(),
+        touched_concepts=concepts,
+        indexer=indexer,
     )
     assert first.rebuilt_directories >= 2
 
     llm.ainvoke.call_count if hasattr(llm.ainvoke, "call_count") else None
 
     second = await build_directory_sidecars(
-        llm, structure, WikiCompileConfig(), touched_concepts=[], indexer=indexer,
+        llm,
+        structure,
+        WikiCompileConfig(),
+        touched_concepts=[],
+        indexer=indexer,
     )
     assert second.skipped_directories >= 2, "All directories should be skipped on second build"
     assert second.rebuilt_directories == 0, "No directories should be rebuilt"

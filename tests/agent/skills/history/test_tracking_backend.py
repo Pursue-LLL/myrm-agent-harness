@@ -47,9 +47,7 @@ class FileSystemWriteBackend(SkillWriteBackend):
             shutil.rmtree(p)
         return SkillDeleteResult(success=True, skill_name=name)
 
-    async def write_resource(
-        self, skill_name: str, resource_path: str, content: str
-    ) -> SkillResourceWriteResult:
+    async def write_resource(self, skill_name: str, resource_path: str, content: str) -> SkillResourceWriteResult:
         p = self.base_path / skill_name / resource_path
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")

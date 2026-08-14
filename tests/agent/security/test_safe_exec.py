@@ -102,6 +102,7 @@ class TestKillProcessTreeSafety:
         ):
             _kill_process_tree(mock_proc)
             import signal
+
             mock_kill.assert_called_once_with(12345, signal.SIGKILL)
             mock_killpg.assert_not_called()
 

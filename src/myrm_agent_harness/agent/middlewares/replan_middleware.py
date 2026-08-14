@@ -26,9 +26,7 @@ from langgraph.types import Command
 
 logger = logging.getLogger(__name__)
 
-_per_tool_errors_var: ContextVar[dict[str, int] | None] = ContextVar(
-    "replan_per_tool_errors", default=None
-)
+_per_tool_errors_var: ContextVar[dict[str, int] | None] = ContextVar("replan_per_tool_errors", default=None)
 
 
 def reset_replan_attempts() -> None:
@@ -82,9 +80,7 @@ class ReplanMiddleware(AgentMiddleware[Any, Any]):
             )
 
         tool_args = request.tool_call.get("args", {})
-        target = str(
-            tool_args.get("path", tool_args.get("url", tool_args.get("command", "")))
-        )[:200]
+        target = str(tool_args.get("path", tool_args.get("url", tool_args.get("command", ""))))[:200]
         logger.warning("ReplanNode caught tool error in '%s': %s", tool_name, error)
 
         from myrm_agent_harness.agent._internals.agent_recovery import (

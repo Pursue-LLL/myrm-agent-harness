@@ -36,10 +36,7 @@ def test_build_run_digest_waiting_approval() -> None:
 
 
 def test_build_run_digest_recent_steps_window() -> None:
-    steps = [
-        {"tool_name": f"tool_{index}", "step_key": f"k{index}"}
-        for index in range(7)
-    ]
+    steps = [{"tool_name": f"tool_{index}", "step_key": f"k{index}"} for index in range(7)]
     digest = build_run_digest(
         chat_id="chat-3",
         progress_steps=steps,

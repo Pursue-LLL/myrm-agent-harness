@@ -115,8 +115,7 @@ def strip_anthropic_unsupported(schema: dict[str, object]) -> dict[str, object]:
     props = cleaned.get("properties")
     if isinstance(props, dict):
         cleaned["properties"] = {
-            k: strip_anthropic_unsupported(v) if isinstance(v, dict) else v
-            for k, v in props.items()
+            k: strip_anthropic_unsupported(v) if isinstance(v, dict) else v for k, v in props.items()
         }
 
     items = cleaned.get("items")
@@ -126,10 +125,7 @@ def strip_anthropic_unsupported(schema: dict[str, object]) -> dict[str, object]:
     for kw in ("anyOf", "oneOf", "allOf"):
         branches = cleaned.get(kw)
         if isinstance(branches, list):
-            cleaned[kw] = [
-                strip_anthropic_unsupported(b) if isinstance(b, dict) else b
-                for b in branches
-            ]
+            cleaned[kw] = [strip_anthropic_unsupported(b) if isinstance(b, dict) else b for b in branches]
 
     not_schema = cleaned.get("not")
     if isinstance(not_schema, dict):
@@ -138,8 +134,7 @@ def strip_anthropic_unsupported(schema: dict[str, object]) -> dict[str, object]:
     prefix_items = cleaned.get("prefixItems")
     if isinstance(prefix_items, list):
         cleaned["prefixItems"] = [
-            strip_anthropic_unsupported(item) if isinstance(item, dict) else item
-            for item in prefix_items
+            strip_anthropic_unsupported(item) if isinstance(item, dict) else item for item in prefix_items
         ]
 
     return cleaned

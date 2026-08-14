@@ -109,10 +109,13 @@ class TestGetInstallHint:
 
 class TestLookupInstallHint:
     def test_delegates_to_get_install_hint(self) -> None:
-        with patch(
-            "myrm_agent_harness.toolkits.code_execution.executors.models._lookup_install_hint",
-            wraps=_lookup_install_hint,
-        ), patch("myrm_agent_harness.toolkits.code_execution.tool_discovery.detector.platform") as mock_plat:
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.code_execution.executors.models._lookup_install_hint",
+                wraps=_lookup_install_hint,
+            ),
+            patch("myrm_agent_harness.toolkits.code_execution.tool_discovery.detector.platform") as mock_plat,
+        ):
             mock_plat.system.return_value = "Darwin"
             result = _lookup_install_hint("ffmpeg")
             assert result == "brew install ffmpeg"

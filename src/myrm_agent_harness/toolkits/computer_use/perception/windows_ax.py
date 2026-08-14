@@ -161,15 +161,37 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
     return ActionResult(success=True, output=f"UIA {normalized} succeeded")
 
 
-_COM_AUTOMATABLE_APPS: frozenset[str] = frozenset({
-    "Microsoft Excel", "Microsoft Word", "Microsoft PowerPoint",
-    "Microsoft Outlook", "Microsoft Access", "Microsoft Visio",
-    "File Explorer", "Windows Terminal", "Command Prompt", "PowerShell",
-    "Notepad", "WordPad", "Calculator",
-    "Adobe Photoshop", "Adobe Illustrator", "Adobe Acrobat", "Adobe InDesign",
-    "AutoCAD", "WPS", "WPS Office", "Firefox", "Arc",
-    "Obsidian", "Discord", "Visual Studio Code", "Cursor", "Total Commander",
-})
+_COM_AUTOMATABLE_APPS: frozenset[str] = frozenset(
+    {
+        "Microsoft Excel",
+        "Microsoft Word",
+        "Microsoft PowerPoint",
+        "Microsoft Outlook",
+        "Microsoft Access",
+        "Microsoft Visio",
+        "File Explorer",
+        "Windows Terminal",
+        "Command Prompt",
+        "PowerShell",
+        "Notepad",
+        "WordPad",
+        "Calculator",
+        "Adobe Photoshop",
+        "Adobe Illustrator",
+        "Adobe Acrobat",
+        "Adobe InDesign",
+        "AutoCAD",
+        "WPS",
+        "WPS Office",
+        "Firefox",
+        "Arc",
+        "Obsidian",
+        "Discord",
+        "Visual Studio Code",
+        "Cursor",
+        "Total Commander",
+    }
+)
 
 
 def _native_api_hint(app_name: str) -> str:

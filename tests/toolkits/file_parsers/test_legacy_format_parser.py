@@ -83,9 +83,7 @@ class TestSofficeUnavailable:
         f.write_bytes(_OLE2_MAGIC + b"\x00" * 100)
 
         parser = LegacyFormatParser(".docx", _FakeDelegate())
-        with patch("shutil.which", return_value=None), pytest.raises(
-            RuntimeError, match="soffice is not available"
-        ):
+        with patch("shutil.which", return_value=None), pytest.raises(RuntimeError, match="soffice is not available"):
             await parser.parse(str(f))
 
 

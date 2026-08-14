@@ -64,9 +64,7 @@ class TestGoalTerminalCallbackTrigger:
         goal_provider.get_goal.return_value = goal
         goal_provider.get_latest_goal.return_value = goal
         goal_provider.is_continuation_suppressed.return_value = False
-        goal_provider.account_usage.return_value = MagicMock(
-            goal=goal, status_changed=False, budget_exhausted=False
-        )
+        goal_provider.account_usage.return_value = MagicMock(goal=goal, status_changed=False, budget_exhausted=False)
         goal_provider.evaluate_semantic.return_value = MagicMock(passed=True, reason="done")
         goal_provider.record_progress.return_value = goal
 
@@ -119,9 +117,7 @@ class TestGoalTerminalCallbackTrigger:
         goal_provider.get_active_goal.return_value = goal
         goal_provider.get_goal.return_value = goal
         goal_provider.get_latest_goal.return_value = goal
-        goal_provider.account_usage.return_value = MagicMock(
-            goal=goal, status_changed=True, budget_exhausted=True
-        )
+        goal_provider.account_usage.return_value = MagicMock(goal=goal, status_changed=True, budget_exhausted=True)
         goal_provider.record_progress.return_value = goal
 
         ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)
@@ -173,9 +169,7 @@ class TestGoalTerminalCallbackTrigger:
         goal_provider.get_goal.return_value = goal
         goal_provider.get_latest_goal.return_value = goal
         goal_provider.is_continuation_suppressed.return_value = False
-        goal_provider.account_usage.return_value = MagicMock(
-            goal=goal, status_changed=False, budget_exhausted=False
-        )
+        goal_provider.account_usage.return_value = MagicMock(goal=goal, status_changed=False, budget_exhausted=False)
         goal_provider.evaluate_semantic.return_value = MagicMock(
             passed=False, reason="not done", parse_failed=False, wait=False
         )
@@ -217,9 +211,7 @@ class TestGoalTerminalCallbackTrigger:
         goal_provider.get_goal.return_value = goal
         goal_provider.get_latest_goal.return_value = goal
         goal_provider.is_continuation_suppressed.return_value = False
-        goal_provider.account_usage.return_value = MagicMock(
-            goal=goal, status_changed=False, budget_exhausted=False
-        )
+        goal_provider.account_usage.return_value = MagicMock(goal=goal, status_changed=False, budget_exhausted=False)
         goal_provider.evaluate_semantic.return_value = MagicMock(passed=True, reason="done")
         goal_provider.record_progress.return_value = goal
 
@@ -257,9 +249,7 @@ class TestGoalTerminalCallbackTrigger:
         goal_provider.get_active_goal.return_value = goal
         goal_provider.get_goal.return_value = goal
         goal_provider.get_latest_goal.return_value = goal
-        goal_provider.account_usage.return_value = MagicMock(
-            goal=goal, status_changed=False, budget_exhausted=False
-        )
+        goal_provider.account_usage.return_value = MagicMock(goal=goal, status_changed=False, budget_exhausted=False)
         goal_provider.record_progress.return_value = goal
 
         cancel_token = MagicMock()

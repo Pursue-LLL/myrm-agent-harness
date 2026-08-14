@@ -64,9 +64,7 @@ async def format_conversation_search_response(
         sources.append(source_ref(len(sources) + 1, hit))
 
     if truncated:
-        lines.append(
-            "[conversation_search_budget] Results were truncated. Refine the query for more detail."
-        )
+        lines.append("[conversation_search_budget] Results were truncated. Refine the query for more detail.")
 
     await emit_sources(sources)
     return finalize_recall_tool_output("\n\n".join(lines))

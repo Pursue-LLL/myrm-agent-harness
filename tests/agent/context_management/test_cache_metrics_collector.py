@@ -187,19 +187,23 @@ def test_get_pending_cache_break_event_stores_break_info() -> None:
     try:
         # First call: establish baseline
         detector.check_cache_break(50_000, 0)
-        try_persist_cache_call_metrics({
-            "model": "m",
-            "usage": {"prompt_tokens": 100, "prompt_tokens_details": {"cached_tokens": 50000}},
-        })
+        try_persist_cache_call_metrics(
+            {
+                "model": "m",
+                "usage": {"prompt_tokens": 100, "prompt_tokens_details": {"cached_tokens": 50000}},
+            }
+        )
         # Consume any event from first call
         get_pending_cache_break_event()
 
         # Simulate a massive cache drop (50k -> 0)
         detector.record_prompt_state([], "m")
-        try_persist_cache_call_metrics({
-            "model": "m",
-            "usage": {"prompt_tokens": 100, "prompt_tokens_details": {"cached_tokens": 0}},
-        })
+        try_persist_cache_call_metrics(
+            {
+                "model": "m",
+                "usage": {"prompt_tokens": 100, "prompt_tokens_details": {"cached_tokens": 0}},
+            }
+        )
 
         event = get_pending_cache_break_event()
         assert event is not None

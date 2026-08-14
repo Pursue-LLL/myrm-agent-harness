@@ -83,12 +83,7 @@ class TestNormalizeMessages:
             ToolMessage(content="b", tool_call_id="call_x", name="grep_tool"),
         ]
         result = normalize_messages(messages)
-        ai_tool_ids = [
-            tc["id"]
-            for m in result
-            if isinstance(m, AIMessage)
-            for tc in (m.tool_calls or [])
-        ]
+        ai_tool_ids = [tc["id"] for m in result if isinstance(m, AIMessage) for tc in (m.tool_calls or [])]
         assert len(ai_tool_ids) == len(set(ai_tool_ids))
         assert "call_x@2" in ai_tool_ids
 

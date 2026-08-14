@@ -83,9 +83,7 @@ class PseudonymStore:
             )
         """
         )
-        self._conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_pseudonyms_type ON pseudonyms(privacy_type)"
-        )
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_pseudonyms_type ON pseudonyms(privacy_type)")
         self._conn.commit()
 
     def _next_pseudonym(self, privacy_type: str) -> str:

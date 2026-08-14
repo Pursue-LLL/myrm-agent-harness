@@ -52,11 +52,7 @@ def _doc(text: str = "content") -> Document:
     return Document(page_content=text, metadata={"title": "page"})
 
 
-RICH_HTML = (
-    "<html><body><article><p>"
-    + ("lorem ipsum content " * 40)
-    + "</p></article></body></html>"
-)
+RICH_HTML = "<html><body><article><p>" + ("lorem ipsum content " * 40) + "</p></article></body></html>"
 
 
 # ===================================================================
@@ -164,9 +160,7 @@ class TestTryFetchAndProcess:
                 "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.parse_weixin_article_html",
                 new=lambda html, url=None: _doc("weixin"),
             ):
-                doc, degradable, _, _, _, _ = await engine._try_fetch_and_process(
-                    url, FetcherType.HTTP
-                )
+                doc, degradable, _, _, _, _ = await engine._try_fetch_and_process(url, FetcherType.HTTP)
 
                 assert doc is not None
                 assert doc.page_content == "weixin"
@@ -190,9 +184,7 @@ class TestTryFetchAndProcess:
                     new=lambda html: False,
                 ),
             ):
-                doc, degradable, _, _, _, _ = await engine._try_fetch_and_process(
-                    url, FetcherType.HTTP
-                )
+                doc, degradable, _, _, _, _ = await engine._try_fetch_and_process(url, FetcherType.HTTP)
 
                 assert doc is None
                 assert degradable is True
@@ -251,9 +243,7 @@ class TestTryFetchAndProcess:
                 "myrm_agent_harness.toolkits.web_fetch.escalation.context.get_bound_browser_launch_mode",
                 new=lambda: "EXTENSION",
             ):
-                await engine._try_fetch_and_process(
-                    "http://example.com/page", FetcherType.BROWSER
-                )
+                await engine._try_fetch_and_process("http://example.com/page", FetcherType.BROWSER)
 
                 browser.set_launch_mode_preference.assert_called_once_with("EXTENSION")
             await engine.shutdown()
@@ -278,9 +268,7 @@ class TestCrawlWithDegradation:
             stealth.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             assert result is not None
@@ -301,9 +289,7 @@ class TestCrawlWithDegradation:
             browser.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, _result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, _result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             await engine.shutdown()
@@ -333,9 +319,7 @@ class TestCrawlWithDegradation:
             )
             engine.set_escalation_providers([provider])
 
-            doc, result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             assert doc.metadata.get("escalation_provider") == "reader"
@@ -355,9 +339,7 @@ class TestCrawlWithDegradation:
             browser.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, _result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, _result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             await engine.shutdown()
@@ -370,9 +352,7 @@ class TestCrawlWithDegradation:
             http.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, _result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, _result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             http.fetch.assert_awaited_once()
@@ -385,9 +365,7 @@ class TestCrawlWithDegradation:
             http, browser, stealth = _stub_fetchers(engine)
             http.fetch.return_value = _http_result("", status=404)
 
-            doc, _result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, _result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is None
             browser.fetch.assert_not_awaited()
@@ -403,9 +381,7 @@ class TestCrawlWithDegradation:
             browser.fetch.return_value = None
             stealth.fetch.return_value = None
 
-            doc, result = await engine._crawl_with_degradation(
-                "http://example.com/page", allow_escalation=False
-            )
+            doc, result = await engine._crawl_with_degradation("http://example.com/page", allow_escalation=False)
 
             assert doc is None
             assert result is None
@@ -439,9 +415,7 @@ class TestEscalationMixin:
             good = SimpleNamespace(
                 provider_id="reader2",
                 fetch_url=AsyncMock(
-                    return_value=SimpleNamespace(
-                        content="# final", is_markdown=True, url=None, title="t"
-                    )
+                    return_value=SimpleNamespace(content="# final", is_markdown=True, url=None, title="t")
                 ),
             )
             bad = SimpleNamespace(
@@ -474,9 +448,7 @@ class TestEscalationMixin:
             )
             engine.set_escalation_providers([provider])
 
-            doc, _result = await engine._try_escalation(
-                "http://example.com/page", max_chars=10
-            )
+            doc, _result = await engine._try_escalation("http://example.com/page", max_chars=10)
 
             assert doc is not None
             assert doc.page_content == "x" * 10
@@ -513,11 +485,7 @@ class TestEscalationMixin:
             engine = _make_engine(tmp)
             provider = SimpleNamespace(
                 provider_id="reader5",
-                fetch_url=AsyncMock(
-                    return_value=SimpleNamespace(
-                        content="   ", is_markdown=True, url=None, title=""
-                    )
-                ),
+                fetch_url=AsyncMock(return_value=SimpleNamespace(content="   ", is_markdown=True, url=None, title="")),
             )
             engine.set_escalation_providers([provider])
 
@@ -606,9 +574,7 @@ class TestEscalationMixin:
             engine._pipeline = MagicMock()  # type: ignore[assignment]
             engine._pipeline.process.return_value = None
 
-            doc, result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is None
             assert result is None
@@ -658,9 +624,7 @@ class TestFetchMixinRemaining:
             http.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, _, _, cpu, mem, _ = await engine._try_fetch_and_process(
-                "http://example.com/page", FetcherType.HTTP
-            )
+            doc, _, _, cpu, mem, _ = await engine._try_fetch_and_process("http://example.com/page", FetcherType.HTTP)
 
             assert doc is not None
             assert cpu is None
@@ -681,9 +645,7 @@ class TestFetchMixinRemaining:
             browser.fetch.return_value = None
             engine._escalation_providers = None
 
-            doc, result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is None
             assert result is None
@@ -703,9 +665,7 @@ class TestFetchMixinRemaining:
             stealth.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc("stealth")
 
-            doc, _result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, _result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             assert doc.page_content == "stealth"
@@ -721,9 +681,7 @@ class TestFetchMixinRemaining:
             stealth.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc("stealth final")
 
-            doc, _result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, _result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             assert doc.page_content == "stealth final"
@@ -756,9 +714,7 @@ class TestLadderRemainingBranches:
                     new=lambda html: False,
                 ),
             ):
-                doc, degradable, _, _, _, result = await engine._try_fetch_and_process(
-                    url, FetcherType.HTTP
-                )
+                doc, degradable, _, _, _, result = await engine._try_fetch_and_process(url, FetcherType.HTTP)
 
                 assert doc is None
                 assert degradable is True
@@ -792,9 +748,7 @@ class TestLadderRemainingBranches:
                 )
             ]
 
-            doc, result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             assert doc.page_content == "# Escaped body"
@@ -812,9 +766,7 @@ class TestLadderRemainingBranches:
             browser.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc("browser final")
 
-            doc, _result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, _result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             assert doc.page_content == "browser final"
@@ -835,9 +787,7 @@ class TestLadderRemainingBranches:
             stealth.fetch.return_value = None
             engine._escalation_providers = None
 
-            doc, result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is None
             assert result is None
@@ -866,9 +816,7 @@ class TestLadderRemainingBranches:
                 )
             ]
 
-            doc, _result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, _result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             assert doc.page_content == "# Last resort"
@@ -909,9 +857,7 @@ class TestLadderRemainingBranches:
                 ),
             ]
 
-            doc, _result = await engine._crawl_with_degradation(
-                "http://example.com/page"
-            )
+            doc, _result = await engine._crawl_with_degradation("http://example.com/page")
 
             assert doc is not None
             assert doc.page_content == "html escaped"

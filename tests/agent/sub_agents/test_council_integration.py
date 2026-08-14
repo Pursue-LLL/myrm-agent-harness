@@ -41,6 +41,7 @@ class _StubLLM:
 
     async def ainvoke(self, messages: list[object], config: object = None) -> object:
         from langchain_core.messages import AIMessage
+
         return AIMessage(content="stub")
 
 
@@ -86,9 +87,7 @@ def _build_executor_side_effect(
         for pattern, text in responses.items():
             if pattern in task_id:
                 if text is None:
-                    return _make_executor_result(
-                        task_id, agent_type, success=False, error="executor failure"
-                    )
+                    return _make_executor_result(task_id, agent_type, success=False, error="executor failure")
                 return _make_executor_result(task_id, agent_type, result_text=text)
         return _make_executor_result(task_id, agent_type, result_text=f"default-{call_counter['n']}")
 
@@ -119,11 +118,13 @@ class TestCouncilImportIntegration:
 
     async def test_run_council_importable_from_orchestrator(self) -> None:
         from myrm_agent_harness.agent.sub_agents.orchestrator import run_council as rc
+
         assert callable(rc)
 
     async def test_council_types_importable(self) -> None:
         from myrm_agent_harness.agent.sub_agents.types import CouncilOpinion as CO  # noqa: N817
         from myrm_agent_harness.agent.sub_agents.types import CouncilResult as CR  # noqa: N817
+
         assert CO is CouncilOpinion
         assert CR is CouncilResult
 
@@ -171,15 +172,19 @@ class TestCouncilFullPipeline:
         new_callable=AsyncMock,
     )
     async def test_2_experts_full_pipeline(
-        self, mock_emit: AsyncMock, mock_executor: AsyncMock,
+        self,
+        mock_emit: AsyncMock,
+        mock_executor: AsyncMock,
     ) -> None:
-        mock_executor.side_effect = _build_executor_side_effect({
-            "p1-0": "Expert 0 independent analysis",
-            "p1-1": "Expert 1 independent analysis",
-            "cr1-0": "Expert 0 cross-review",
-            "cr1-1": "Expert 1 cross-review",
-            "chair": _CHAIR_SYNTHESIS,
-        })
+        mock_executor.side_effect = _build_executor_side_effect(
+            {
+                "p1-0": "Expert 0 independent analysis",
+                "p1-1": "Expert 1 independent analysis",
+                "cr1-0": "Expert 0 cross-review",
+                "cr1-1": "Expert 1 cross-review",
+                "chair": _CHAIR_SYNTHESIS,
+            }
+        )
 
         _, mgr = _build_real_manager()
 
@@ -222,14 +227,18 @@ class TestCouncilFullPipeline:
         new_callable=AsyncMock,
     )
     async def test_3_experts_2_rounds(
-        self, mock_emit: AsyncMock, mock_executor: AsyncMock,
+        self,
+        mock_emit: AsyncMock,
+        mock_executor: AsyncMock,
     ) -> None:
-        mock_executor.side_effect = _build_executor_side_effect({
-            "p1-": "Independent opinion",
-            "cr1-": "Cross-review round 1",
-            "cr2-": "Cross-review round 2",
-            "chair": _CHAIR_SYNTHESIS,
-        })
+        mock_executor.side_effect = _build_executor_side_effect(
+            {
+                "p1-": "Independent opinion",
+                "cr1-": "Cross-review round 1",
+                "cr2-": "Cross-review round 2",
+                "chair": _CHAIR_SYNTHESIS,
+            }
+        )
 
         _, mgr = _build_real_manager()
 
@@ -257,14 +266,18 @@ class TestCouncilFullPipeline:
         new_callable=AsyncMock,
     )
     async def test_partial_failure_continues(
-        self, mock_emit: AsyncMock, mock_executor: AsyncMock,
+        self,
+        mock_emit: AsyncMock,
+        mock_executor: AsyncMock,
     ) -> None:
-        mock_executor.side_effect = _build_executor_side_effect({
-            "p1-0": "Expert 0 ok",
-            "p1-1": None,
-            "cr1-": "cross review",
-            "chair": _CHAIR_SYNTHESIS,
-        })
+        mock_executor.side_effect = _build_executor_side_effect(
+            {
+                "p1-0": "Expert 0 ok",
+                "p1-1": None,
+                "cr1-": "cross review",
+                "chair": _CHAIR_SYNTHESIS,
+            }
+        )
 
         _, mgr = _build_real_manager()
 
@@ -290,12 +303,16 @@ class TestCouncilFullPipeline:
         new_callable=AsyncMock,
     )
     async def test_all_experts_fail(
-        self, mock_emit: AsyncMock, mock_executor: AsyncMock,
+        self,
+        mock_emit: AsyncMock,
+        mock_executor: AsyncMock,
     ) -> None:
-        mock_executor.side_effect = _build_executor_side_effect({
-            "p1-0": None,
-            "p1-1": None,
-        })
+        mock_executor.side_effect = _build_executor_side_effect(
+            {
+                "p1-0": None,
+                "p1-1": None,
+            }
+        )
 
         _, mgr = _build_real_manager()
 
@@ -320,13 +337,17 @@ class TestCouncilFullPipeline:
         new_callable=AsyncMock,
     )
     async def test_chair_failure(
-        self, mock_emit: AsyncMock, mock_executor: AsyncMock,
+        self,
+        mock_emit: AsyncMock,
+        mock_executor: AsyncMock,
     ) -> None:
-        mock_executor.side_effect = _build_executor_side_effect({
-            "p1-": "ok",
-            "cr1-": "cross",
-            "chair": None,
-        })
+        mock_executor.side_effect = _build_executor_side_effect(
+            {
+                "p1-": "ok",
+                "cr1-": "cross",
+                "chair": None,
+            }
+        )
 
         _, mgr = _build_real_manager()
 
@@ -352,7 +373,9 @@ class TestCouncilFullPipeline:
         new_callable=AsyncMock,
     )
     async def test_less_than_2_experts_rejected(
-        self, mock_emit: AsyncMock, mock_executor: AsyncMock,
+        self,
+        mock_emit: AsyncMock,
+        mock_executor: AsyncMock,
     ) -> None:
         _, mgr = _build_real_manager()
 
@@ -375,13 +398,17 @@ class TestCouncilFullPipeline:
         new_callable=AsyncMock,
     )
     async def test_custom_chair_config(
-        self, mock_emit: AsyncMock, mock_executor: AsyncMock,
+        self,
+        mock_emit: AsyncMock,
+        mock_executor: AsyncMock,
     ) -> None:
-        mock_executor.side_effect = _build_executor_side_effect({
-            "p1-": "analysis",
-            "cr1-": "review",
-            "chair": _CHAIR_SYNTHESIS,
-        })
+        mock_executor.side_effect = _build_executor_side_effect(
+            {
+                "p1-": "analysis",
+                "cr1-": "review",
+                "chair": _CHAIR_SYNTHESIS,
+            }
+        )
 
         _, mgr = _build_real_manager()
 
@@ -412,13 +439,17 @@ class TestCouncilFullPipeline:
         new_callable=AsyncMock,
     )
     async def test_council_result_to_dict_serializable(
-        self, mock_emit: AsyncMock, mock_executor: AsyncMock,
+        self,
+        mock_emit: AsyncMock,
+        mock_executor: AsyncMock,
     ) -> None:
-        mock_executor.side_effect = _build_executor_side_effect({
-            "p1-": "analysis",
-            "cr1-": "review",
-            "chair": _CHAIR_SYNTHESIS,
-        })
+        mock_executor.side_effect = _build_executor_side_effect(
+            {
+                "p1-": "analysis",
+                "cr1-": "review",
+                "chair": _CHAIR_SYNTHESIS,
+            }
+        )
 
         _, mgr = _build_real_manager()
 
@@ -448,15 +479,19 @@ class TestCouncilFullPipeline:
         new_callable=AsyncMock,
     )
     async def test_no_sink_does_not_crash(
-        self, mock_emit: AsyncMock, mock_executor: AsyncMock,
+        self,
+        mock_emit: AsyncMock,
+        mock_executor: AsyncMock,
     ) -> None:
         """_emit_council_phase gracefully no-ops when no progress sink is set."""
         mock_emit.side_effect = None
-        mock_executor.side_effect = _build_executor_side_effect({
-            "p1-": "analysis",
-            "cr1-": "review",
-            "chair": _CHAIR_SYNTHESIS,
-        })
+        mock_executor.side_effect = _build_executor_side_effect(
+            {
+                "p1-": "analysis",
+                "cr1-": "review",
+                "chair": _CHAIR_SYNTHESIS,
+            }
+        )
 
         _, mgr = _build_real_manager()
 
@@ -480,12 +515,16 @@ class TestCouncilFullPipeline:
         new_callable=AsyncMock,
     )
     async def test_cross_review_rounds_clamped_to_3(
-        self, mock_emit: AsyncMock, mock_executor: AsyncMock,
+        self,
+        mock_emit: AsyncMock,
+        mock_executor: AsyncMock,
     ) -> None:
-        mock_executor.side_effect = _build_executor_side_effect({
-            "": "default response",
-            "chair": _CHAIR_SYNTHESIS,
-        })
+        mock_executor.side_effect = _build_executor_side_effect(
+            {
+                "": "default response",
+                "chair": _CHAIR_SYNTHESIS,
+            }
+        )
 
         _, mgr = _build_real_manager()
 

@@ -214,14 +214,19 @@ class SubagentEventForwarder:
         }
         logger.warning(
             "[subagent:%s] Stale detected: no progress for %.0fs (elapsed=%.0fs, tokens=%d)",
-            self.task_id, stale_duration_s, elapsed_s, self.cumulative_tokens,
+            self.task_id,
+            stale_duration_s,
+            elapsed_s,
+            self.cumulative_tokens,
         )
         if sink:
             try:
-                await sink.emit({
-                    "type": AgentEventType.SUBAGENT_STALE.value,
-                    "data": stale_data,
-                })
+                await sink.emit(
+                    {
+                        "type": AgentEventType.SUBAGENT_STALE.value,
+                        "data": stale_data,
+                    }
+                )
             except Exception as exc:
                 logger.warning("Failed to emit SUBAGENT_STALE for %s: %s", self.task_id, exc)
 

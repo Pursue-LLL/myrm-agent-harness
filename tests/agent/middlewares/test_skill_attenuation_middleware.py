@@ -188,9 +188,7 @@ def test_wrap_tool_call_delegates_when_tool_prebound() -> None:
         state={},
         runtime=MagicMock(),
     )
-    expected = ToolMessage(
-        content="ok", name="ask_question_tool", tool_call_id="call_1"
-    )
+    expected = ToolMessage(content="ok", name="ask_question_tool", tool_call_id="call_1")
 
     def handler(req: ToolCallRequest) -> ToolMessage:
         assert req.tool is bound_tool

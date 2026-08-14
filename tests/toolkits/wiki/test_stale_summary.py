@@ -14,7 +14,9 @@ from myrm_agent_harness.toolkits.wiki.maintenance.stale_summary import (
 )
 
 
-def _write_metadata(structure: WikiStructure, last_compile_time: str, *, raw_hashes: dict[str, str] | None = None) -> None:
+def _write_metadata(
+    structure: WikiStructure, last_compile_time: str, *, raw_hashes: dict[str, str] | None = None
+) -> None:
     metadata_path = structure.get_wiki_metadata_path()
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
     payload: dict[str, object] = {"last_compile_time": last_compile_time}
@@ -40,11 +42,14 @@ def test_resolve_raw_file_ingest_status_tri_state(tmp_path: Path) -> None:
     )
 
     stale_paths = collect_stale_raw_path_set(structure)
-    assert resolve_raw_file_ingest_status(
-        "raw/notes.md",
-        stale_paths=stale_paths,
-        last_compile_time="2020-01-01T00:00:00+00:00",
-    ) == "tracked-modified"
+    assert (
+        resolve_raw_file_ingest_status(
+            "raw/notes.md",
+            stale_paths=stale_paths,
+            last_compile_time="2020-01-01T00:00:00+00:00",
+        )
+        == "tracked-modified"
+    )
 
     _write_metadata(
         structure,

@@ -153,9 +153,7 @@ def create_extraction_llm_func(
 
     async def llm_func(system: str, prompt: str) -> str:
         msgs = (
-            [SystemMessage(content=system), HumanMessage(content=prompt)]
-            if system
-            else [HumanMessage(content=prompt)]
+            [SystemMessage(content=system), HumanMessage(content=prompt)] if system else [HumanMessage(content=prompt)]
         )
         resp = await llm.ainvoke(msgs)
         return extract_answer_text(resp)
@@ -196,9 +194,7 @@ def create_conversation_memories(
             source_chat_id=source_chat_id,
             project_id=project_id,
             topic_id=topic_id,
-            language=(
-                "zh" if any(ord(c) > 0x4E00 for c in chunk.user_turn[:50]) else "en"
-            ),
+            language=("zh" if any(ord(c) > 0x4E00 for c in chunk.user_turn[:50]) else "en"),
         )
         conversation_memories.append(memory)
 
@@ -244,9 +240,7 @@ async def persist_extracted_memories(
             filter_wiki_document_vector_memories,
         )
 
-        filtered_batch, dropped = filter_wiki_document_vector_memories(
-            batch, enabled=True
-        )
+        filtered_batch, dropped = filter_wiki_document_vector_memories(batch, enabled=True)
         batch = filtered_batch
     else:
         dropped = 0
@@ -284,16 +278,12 @@ async def _apply_deep_pii_scan(
     real_name = await _get_user_real_name(memory_manager)
 
     try:
-        results = await pseudonymize_deep_pii(
-            texts, store, llm_func, real_name=real_name
-        )
+        results = await pseudonymize_deep_pii(texts, store, llm_func, real_name=real_name)
         for mem, result in zip(memories, results, strict=False):
             if result.items:
                 mem.content = result.pseudonymized_text
     except Exception as e:
-        logger.warning(
-            "Deep PII scan failed (non-fatal, regex fallback applies): %s", e
-        )
+        logger.warning("Deep PII scan failed (non-fatal, regex fallback applies): %s", e)
 
     return memories
 
@@ -366,11 +356,7 @@ async def auto_extract_memories(
                         score,
                     )
 
-        if (
-            not correction_detected
-            and len(assistant_reply) < _MIN_REPLY_LEN_FOR_EXTRACTION
-            and len(messages) <= 3
-        ):
+        if not correction_detected and len(assistant_reply) < _MIN_REPLY_LEN_FOR_EXTRACTION and len(messages) <= 3:
             logger.info("Skipping memory extraction: trivial conversation")
             await _notify_extraction_lifecycle(
                 lifecycle_observer,
@@ -393,13 +379,9 @@ async def auto_extract_memories(
         verbatim_stored_count = 0
 
         if enable_verbatim:
-            conversation_memories = create_conversation_memories(
-                messages, source_chat_id=source_chat_id
-            )
+            conversation_memories = create_conversation_memories(messages, source_chat_id=source_chat_id)
             if conversation_memories:
-                stored_verbatim = await memory_manager.store_batch(
-                    conversation_memories
-                )
+                stored_verbatim = await memory_manager.store_batch(conversation_memories)
                 verbatim_stored_count = len(stored_verbatim)
                 logger.info(
                     "Stored %d verbatim conversation chunks",
@@ -435,9 +417,7 @@ async def auto_extract_memories(
         llm_for_extraction = extraction_llm or llm
         llm_func = create_extraction_llm_func(llm_for_extraction)
         if correction_detected:
-            logger.info(
-                "Correction signals detected in conversation, enhancing extraction prompt"
-            )
+            logger.info("Correction signals detected in conversation, enhancing extraction prompt")
         config = ExtractionConfig(
             enable_task_digest=True,
             wiki_boundary_enabled=wiki_boundary_enabled,
@@ -499,9 +479,7 @@ async def auto_extract_memories(
             },
         )
     except Exception as e:
-        logger.warning(
-            "Memory auto-extraction failed (non-fatal): %s", e, exc_info=True
-        )
+        logger.warning("Memory auto-extraction failed (non-fatal): %s", e, exc_info=True)
         await _notify_extraction_lifecycle(
             lifecycle_observer,
             "extract",

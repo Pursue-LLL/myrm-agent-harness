@@ -47,10 +47,7 @@ class TestMediaRejectedClassification:
         assert classify_failover_reason(exc) == FailoverReason.MEDIA_REJECTED
 
     def test_media_rejected_is_transient(self) -> None:
-        assert (
-            FailoverReason.MEDIA_REJECTED.recoverability
-            == RecoverabilityLevel.TRANSIENT
-        )
+        assert FailoverReason.MEDIA_REJECTED.recoverability == RecoverabilityLevel.TRANSIENT
 
     def test_media_rejected_not_failoverable(self) -> None:
         assert not FailoverReason.MEDIA_REJECTED.is_failoverable
@@ -72,15 +69,6 @@ class TestMediaRejectedClassification:
         assert classify_failover_reason(exc) == FailoverReason.FORMAT_ERROR
 
     def test_existing_types_not_broken(self) -> None:
-        assert (
-            classify_failover_reason(_FakeError("rate limit exceeded", status_code=429))
-            == FailoverReason.RATE_LIMIT
-        )
-        assert (
-            classify_failover_reason(_FakeError("insufficient balance"))
-            == FailoverReason.BILLING
-        )
-        assert (
-            classify_failover_reason(_FakeError("context_length_exceeded"))
-            == FailoverReason.CONTEXT_OVERFLOW
-        )
+        assert classify_failover_reason(_FakeError("rate limit exceeded", status_code=429)) == FailoverReason.RATE_LIMIT
+        assert classify_failover_reason(_FakeError("insufficient balance")) == FailoverReason.BILLING
+        assert classify_failover_reason(_FakeError("context_length_exceeded")) == FailoverReason.CONTEXT_OVERFLOW

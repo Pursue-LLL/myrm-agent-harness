@@ -83,9 +83,7 @@ def build_worker_tools(
         return json.dumps({"task": task.to_dict()})
 
     @tool("kanban_complete")
-    async def kanban_complete(
-        summary: str, metadata: str = "", task_id: str = ""
-    ) -> str:
+    async def kanban_complete(summary: str, metadata: str = "", task_id: str = "") -> str:
         """Mark your task as completed with a structured handoff.
 
         Args:
@@ -95,9 +93,7 @@ def build_worker_tools(
             task_id: Defaults to your assigned task.
         """
         if not summary:
-            return json.dumps(
-                {"error": "summary is required — describe what was accomplished"}
-            )
+            return json.dumps({"error": "summary is required — describe what was accomplished"})
         resolved_id = task_id or current_task_id or ""
         if not resolved_id:
             return json.dumps({"error": "task_id is required"})
@@ -107,9 +103,7 @@ def build_worker_tools(
         assert task is not None
 
         if task.is_terminal:
-            return json.dumps(
-                {"error": f"Task already in terminal state ({task.status})"}
-            )
+            return json.dumps({"error": f"Task already in terminal state ({task.status})"})
 
         parsed_metadata: dict[str, object] | None = None
         if metadata:
@@ -166,9 +160,7 @@ def build_worker_tools(
         assert task is not None
 
         if task.is_terminal:
-            return json.dumps(
-                {"error": f"Task already in terminal state ({task.status})"}
-            )
+            return json.dumps({"error": f"Task already in terminal state ({task.status})"})
 
         scheduled_until: datetime | None = None
         if until:
@@ -198,11 +190,7 @@ def build_worker_tools(
                 "from": old_status.value,
                 "reason": reason,
                 "block_kind": block_kind.value,
-                **(
-                    {"scheduled_until": scheduled_until.isoformat()}
-                    if scheduled_until
-                    else {}
-                ),
+                **({"scheduled_until": scheduled_until.isoformat()} if scheduled_until else {}),
             },
         )
 
@@ -275,9 +263,7 @@ def build_worker_tools(
         )
 
     @tool("kanban_attach")
-    async def kanban_attach(
-        source: Literal["path", "url"], value: str, task_id: str = ""
-    ) -> str:
+    async def kanban_attach(source: Literal["path", "url"], value: str, task_id: str = "") -> str:
         """Attach a sandbox file path or HTTPS URL to your task for downstream workers.
 
         Args:
@@ -289,9 +275,7 @@ def build_worker_tools(
         if not value or not value.strip():
             return json.dumps({"error": "value is required"})
         if attach_task_file is None:
-            return json.dumps(
-                {"error": "Task attachments are not configured for this agent run"}
-            )
+            return json.dumps({"error": "Task attachments are not configured for this agent run"})
         resolved_id = task_id or current_task_id or ""
         if not resolved_id:
             return json.dumps({"error": "task_id is required"})

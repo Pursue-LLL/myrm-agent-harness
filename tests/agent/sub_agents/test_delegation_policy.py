@@ -40,11 +40,7 @@ def test_register_leaf_blocked_tools_noop_on_empty() -> None:
     )
     from myrm_agent_harness.agent.sub_agents.types import DELEGATION_CAPABILITY_MANIFEST
 
-    before = get_effective_leaf_blocked_tools(
-        DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
-    )
+    before = get_effective_leaf_blocked_tools(DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools)
     register_leaf_blocked_tools(frozenset())
-    after = get_effective_leaf_blocked_tools(
-        DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
-    )
+    after = get_effective_leaf_blocked_tools(DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools)
     assert after == before

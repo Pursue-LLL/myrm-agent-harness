@@ -128,9 +128,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
         self._max_context_tokens = max_context_tokens
         self._on_prune_offload = on_prune_offload
         self._archive_summary_service = archive_summary_service
-        self._offload_result_cache: OrderedDict[str, ContextOffloadResult] = (
-            OrderedDict()
-        )
+        self._offload_result_cache: OrderedDict[str, ContextOffloadResult] = OrderedDict()
 
     @property
     def name(self) -> str:
@@ -138,9 +136,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
 
     def _is_cache_expired(self, context: ProcessorContext) -> bool:
         """Determine if prompt cache has likely expired."""
-        feedback = CacheUsageFeedback.from_mapping(
-            context.metadata.get("cache_usage_feedback")
-        )
+        feedback = CacheUsageFeedback.from_mapping(context.metadata.get("cache_usage_feedback"))
         feedback_decision = self._cache_feedback_expired(feedback)
         if feedback_decision is not None:
             return feedback_decision
@@ -157,17 +153,12 @@ class CacheTtlPruneProcessor(BaseProcessor):
 
         return False
 
-    def _cache_feedback_expired(
-        self, feedback: CacheUsageFeedback | None
-    ) -> bool | None:
+    def _cache_feedback_expired(self, feedback: CacheUsageFeedback | None) -> bool | None:
         """Use provider usage feedback when the business layer supplies it."""
         if feedback is None:
             return None
 
-        if (
-            feedback.cached_tokens > 0
-            and feedback.cache_hit_rate >= _CACHE_FEEDBACK_HOT_HIT_RATE
-        ):
+        if feedback.cached_tokens > 0 and feedback.cache_hit_rate >= _CACHE_FEEDBACK_HOT_HIT_RATE:
             return False
 
         if (
@@ -188,9 +179,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
             and len(content) > self._config.large_payload_fast_guard_chars
         )
 
-    def _estimate_content_tokens_for_pruning(
-        self, content: str | Sequence[object]
-    ) -> int:
+    def _estimate_content_tokens_for_pruning(self, content: str | Sequence[object]) -> int:
         """Estimate payload tokens without running tokenizer on very large tool output."""
         if self._is_large_payload(content):
             return max(1, int(len(content) / 3.5))
@@ -232,20 +221,13 @@ class CacheTtlPruneProcessor(BaseProcessor):
         last_provider = budget_kwargs.get("last_provider_prompt_tokens")
         if last_provider is not None and last_provider > total_tokens:
             total_tokens = last_provider
-        return (
-            total_tokens / self._max_context_tokens
-            if self._max_context_tokens > 0
-            else 0.0
-        )
+        return total_tokens / self._max_context_tokens if self._max_context_tokens > 0 else 0.0
 
     def _is_emergency_prune(self, context: ProcessorContext) -> bool:
         """Allow bounded pruning when cache preservation would otherwise exceed the context window."""
         if self._config.emergency_prune_ratio <= 0:
             return False
-        return (
-            self._estimate_context_ratio(context.messages, context.metadata)
-            >= self._config.emergency_prune_ratio
-        )
+        return self._estimate_context_ratio(context.messages, context.metadata) >= self._config.emergency_prune_ratio
 
     def _effective_policy(self, context: ProcessorContext) -> _EffectivePrunePolicy:
         """Back off pruning when previous archive restores made ROI poor."""
@@ -279,9 +261,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
         return _EffectivePrunePolicy(
             soft_trim_ratio=min(policy.soft_trim_ratio + bump, 1.0),
             hard_clear_ratio=min(policy.hard_clear_ratio + bump, 1.0),
-            min_prunable_tokens=max(
-                policy.min_prunable_tokens * 2, policy.min_prunable_tokens
-            ),
+            min_prunable_tokens=max(policy.min_prunable_tokens * 2, policy.min_prunable_tokens),
             backoff_applied=True,
             backoff_reasons=reasons,
             backoff_sample_count=backoff_window.sample_count,
@@ -318,22 +298,15 @@ class CacheTtlPruneProcessor(BaseProcessor):
         window_refetch_events = [
             event
             for event in metrics.refetch_events
-            if event.timestamp >= window_start
-            and event.reason == "archive_reference_read"
+            if event.timestamp >= window_start and event.reason == "archive_reference_read"
         ]
         window_restore_events = [
-            event
-            for event in metrics.archive_restore_result_events
-            if event.timestamp >= window_start
+            event for event in metrics.archive_restore_result_events if event.timestamp >= window_start
         ]
-        refetch_ratio = (
-            len(window_refetch_events) / sample_count if sample_count > 0 else 0.0
-        )
+        refetch_ratio = len(window_refetch_events) / sample_count if sample_count > 0 else 0.0
         restore_tokens = sum(event.estimated_tokens for event in window_restore_events)
         net_tokens_saved = (
-            tokens_saved
-            - sum(event.estimated_tokens for event in window_refetch_events)
-            - restore_tokens
+            tokens_saved - sum(event.estimated_tokens for event in window_refetch_events) - restore_tokens
         )
         restore_cost_ratio = restore_tokens / tokens_saved if tokens_saved > 0 else 0.0
         restore_roi_ratio = net_tokens_saved / tokens_saved if tokens_saved > 0 else 0.0
@@ -350,11 +323,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
                 bad_reasons.append(_BACKOFF_LOW_RESTORE_ROI_RATIO)
 
         recovery_sample_count = sample_count if not bad_reasons else 0
-        if (
-            not bad_reasons
-            and metrics.pruning_backoff_applied
-            and recovery_sample_count < recovery_samples
-        ):
+        if not bad_reasons and metrics.pruning_backoff_applied and recovery_sample_count < recovery_samples:
             return _BackoffWindow(
                 reasons=(_BACKOFF_RECOVERY_HYSTERESIS,),
                 sample_count=sample_count,
@@ -385,10 +354,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
                     allowed=False,
                     reason="wall_time_budget",
                 )
-        if (
-            config.max_archives_per_pass >= 0
-            and stats.archived >= config.max_archives_per_pass
-        ):
+        if config.max_archives_per_pass >= 0 and stats.archived >= config.max_archives_per_pass:
             return _ArchiveBudgetDecision(
                 allowed=False,
                 reason="archive_count_budget",
@@ -417,9 +383,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
             return False
 
         first_human = _find_first_human_index(context.messages)
-        cutoff = _find_assistant_cutoff(
-            context.messages, self._config.keep_last_assistant_turns
-        )
+        cutoff = _find_assistant_cutoff(context.messages, self._config.keep_last_assistant_turns)
         prune_start = first_human if first_human is not None else len(context.messages)
 
         prunable_tokens = 0
@@ -435,9 +399,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
         return prunable_tokens >= policy.min_prunable_tokens
 
     async def process(self, context: ProcessorContext) -> ProcessorContext:
-        if self._should_skip_for_cache_preservation(
-            context
-        ) and not self._is_emergency_prune(context):
+        if self._should_skip_for_cache_preservation(context) and not self._is_emergency_prune(context):
             return context
 
         messages = list(context.messages)
@@ -446,9 +408,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
         policy = self._effective_policy(context)
 
         first_human = _find_first_human_index(messages)
-        cutoff = _find_assistant_cutoff(
-            messages, self._config.keep_last_assistant_turns
-        )
+        cutoff = _find_assistant_cutoff(messages, self._config.keep_last_assistant_turns)
         prune_start = first_human if first_human is not None else len(messages)
 
         before_tokens = self._estimate_messages_tokens_for_pruning(context_messages)
@@ -501,24 +461,16 @@ class CacheTtlPruneProcessor(BaseProcessor):
                         stats.archived += 1
                         if archive_attempt.offload_reused:
                             stats.archive_reused += 1
-                            stats.archive_bytes_reused += (
-                                archive_attempt.stored_bytes or content_bytes
-                            )
+                            stats.archive_bytes_reused += archive_attempt.stored_bytes or content_bytes
                         else:
                             stats.archive_written += 1
-                            stats.archive_bytes_written += (
-                                archive_attempt.stored_bytes or content_bytes
-                            )
+                            stats.archive_bytes_written += archive_attempt.stored_bytes or content_bytes
                             offload_bytes_used += content_bytes
-                        stats.original_tokens += (
-                            self._estimate_content_tokens_for_pruning(content)
-                        )
+                        stats.original_tokens += self._estimate_content_tokens_for_pruning(content)
                         ratio = self._estimate_context_ratio(messages, context.metadata)
                         continue
 
-                    stats.record_offload_failure(
-                        archive_attempt.failure_kind or "temporary_failure"
-                    )
+                    stats.record_offload_failure(archive_attempt.failure_kind or "temporary_failure")
                 else:
                     archive_deferred_reason = budget_decision.reason
                     stats.record_archive_deferred(archive_deferred_reason)
@@ -527,9 +479,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
             if ratio >= policy.soft_trim_ratio and trimmed is not None:
                 messages[i] = _replace_tool_content(msg, trimmed)
                 stats.soft_trimmed += 1
-                stats.original_tokens += self._estimate_content_tokens_for_pruning(
-                    content
-                )
+                stats.original_tokens += self._estimate_content_tokens_for_pruning(content)
                 if archive_deferred_reason:
                     stats.record_archive_deferred_soft_trimmed(archive_deferred_reason)
                 ratio = self._estimate_context_ratio(messages, context.metadata)
@@ -542,9 +492,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
             context.messages = messages
             context.tokens_saved += tokens_saved
             prune_elapsed_ms = int((time.perf_counter() - started_at) * 1000)
-            self._record_metrics(
-                context, tokens_saved, stats, policy, elapsed_ms=prune_elapsed_ms
-            )
+            self._record_metrics(context, tokens_saved, stats, policy, elapsed_ms=prune_elapsed_ms)
             detector = get_cache_break_detector()
             if detector is not None:
                 detector.notify_compaction()
@@ -556,9 +504,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
                 stats.archive_deferred,
                 tokens_saved,
             )
-        elif (
-            stats.deferred > 0 or stats.offload_failed > 0 or stats.archive_deferred > 0
-        ):
+        elif stats.deferred > 0 or stats.offload_failed > 0 or stats.archive_deferred > 0:
             prune_elapsed_ms = int((time.perf_counter() - started_at) * 1000)
             self._record_metrics(context, 0, stats, policy, elapsed_ms=prune_elapsed_ms)
 
@@ -627,9 +573,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
 
         if self._archive_summary_service is not None:
             runnable_config = context.metadata.get("runnable_config")
-            config = (
-                runnable_config if isinstance(runnable_config, RunnableConfig) else None
-            )
+            config = runnable_config if isinstance(runnable_config, RunnableConfig) else None
             self._archive_summary_service.dispatch(
                 tool_name=tool_name,
                 content=content,
@@ -729,12 +673,7 @@ class CacheTtlPruneProcessor(BaseProcessor):
         """Record task-level pruning metrics when a chat-scoped metrics object exists."""
         if not context.chat_id:
             return
-        if (
-            tokens_saved <= 0
-            and stats.deferred == 0
-            and stats.offload_failed == 0
-            and stats.archive_deferred == 0
-        ):
+        if tokens_saved <= 0 and stats.deferred == 0 and stats.offload_failed == 0 and stats.archive_deferred == 0:
             return
         metrics = get_task_metrics(context.chat_id)
         if metrics is None:

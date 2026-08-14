@@ -121,11 +121,7 @@ async def apply_wiki_mutation(
                     f"Canonical identity already mapped to {conflict}",
                 )
 
-        existing = (
-            None
-            if request.op == WikiApplyOp.CREATE_NOTE
-            else _read_existing_content(structure, concept_name)
-        )
+        existing = None if request.op == WikiApplyOp.CREATE_NOTE else _read_existing_content(structure, concept_name)
         if existing is not None and request.if_match:
             current_hash = compute_page_lease_hash(existing)
             if request.if_match != current_hash:

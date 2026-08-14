@@ -16,8 +16,7 @@ def test_vision_package_lives_under_llms_not_toolkits_root() -> None:
     """Prevent regression: vision engines must stay in the llms media stack."""
     top_level_vision = TOOLKITS_ROOT / "vision"
     assert not top_level_vision.exists(), (
-        f"{top_level_vision.relative_to(HARNESS_ROOT)} must not exist; "
-        "use toolkits/llms/vision/ instead"
+        f"{top_level_vision.relative_to(HARNESS_ROOT)} must not exist; use toolkits/llms/vision/ instead"
     )
     assert LLMS_VISION_ROOT.is_dir(), (
         f"{LLMS_VISION_ROOT.relative_to(HARNESS_ROOT)} must exist as the vision module root"

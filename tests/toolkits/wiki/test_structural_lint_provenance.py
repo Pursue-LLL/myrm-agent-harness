@@ -122,12 +122,7 @@ def test_provenance_gap_accepts_string_sources_metadata(
     raw_file.write_text("raw note", encoding="utf-8")
     concept = wiki_structure.concepts_dir / "string-source.md"
     concept.write_text(
-        "---\n"
-        "title: String Source\n"
-        "type: concept\n"
-        "provenance: compiled\n"
-        "sources: note.md\n"
-        "---\n\nBody",
+        "---\ntitle: String Source\ntype: concept\nprovenance: compiled\nsources: note.md\n---\n\nBody",
         encoding="utf-8",
     )
 
@@ -139,13 +134,7 @@ def test_provenance_gap_accepts_string_sources_metadata(
 def test_provenance_gap_flags_invalid_raw_source_path(wiki_structure: WikiStructure) -> None:
     concept = wiki_structure.concepts_dir / "traversal.md"
     concept.write_text(
-        "---\n"
-        "title: Traversal\n"
-        "type: concept\n"
-        "provenance: compiled\n"
-        "sources:\n"
-        "  - ../outside.md\n"
-        "---\n\nBody",
+        "---\ntitle: Traversal\ntype: concept\nprovenance: compiled\nsources:\n  - ../outside.md\n---\n\nBody",
         encoding="utf-8",
     )
 
@@ -162,13 +151,7 @@ def test_provenance_gap_accepts_raw_prefixed_source_path(
     raw_file.write_text("raw", encoding="utf-8")
     concept = wiki_structure.concepts_dir / "prefixed.md"
     concept.write_text(
-        "---\n"
-        "title: Prefixed\n"
-        "type: concept\n"
-        "provenance: compiled\n"
-        "sources:\n"
-        "  - raw/prefixed.md\n"
-        "---\n\nBody",
+        "---\ntitle: Prefixed\ntype: concept\nprovenance: compiled\nsources:\n  - raw/prefixed.md\n---\n\nBody",
         encoding="utf-8",
     )
 
@@ -186,9 +169,7 @@ async def test_scan_includes_provenance_gap(wiki_structure: WikiStructure) -> No
     )
 
     linter = WikiLinter(_NoopLlm(), wiki_structure, WikiConfig())
-    issues, _raw_scan = await linter.scan(
-        MaintainMode.STRUCTURAL, include_raw_security=False
-    )
+    issues, _raw_scan = await linter.scan(MaintainMode.STRUCTURAL, include_raw_security=False)
 
     assert any(issue.issue_type == "provenance_gap" for issue in issues)
 

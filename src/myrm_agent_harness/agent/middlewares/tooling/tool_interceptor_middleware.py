@@ -104,9 +104,7 @@ def _get_session_loop_guard() -> LoopGuard | None:
 
 
 def _create_loop_guard(*, graph_recursion_limit: int = 100) -> LoopGuard:
-    return LoopGuard(
-        poll_tools=_BASH_POLL_TOOLS, graph_recursion_limit=graph_recursion_limit
-    )
+    return LoopGuard(poll_tools=_BASH_POLL_TOOLS, graph_recursion_limit=graph_recursion_limit)
 
 
 def get_loop_guard() -> LoopGuard:
@@ -120,9 +118,7 @@ def get_loop_guard() -> LoopGuard:
     return _bind_loop_guard(_create_loop_guard())
 
 
-def reset_loop_guard(
-    *, is_resume: bool = False, graph_recursion_limit: int = 100
-) -> None:
+def reset_loop_guard(*, is_resume: bool = False, graph_recursion_limit: int = 100) -> None:
     """Reset the session-scoped loop guard state.
 
     Called at the start of each agent run and at each Goal continuation turn.
@@ -135,9 +131,7 @@ def reset_loop_guard(
     if guard is None:
         guard = _get_session_loop_guard()
     if guard is None:
-        _bind_loop_guard(
-            _create_loop_guard(graph_recursion_limit=graph_recursion_limit)
-        )
+        _bind_loop_guard(_create_loop_guard(graph_recursion_limit=graph_recursion_limit))
         return
     guard.reset(
         preserve_error_signatures=is_resume,
@@ -209,9 +203,7 @@ async def tool_interceptor_middleware(
             agent_id_for_metrics = get_agent_id() or "base_agent"
 
             if metrics_registry.enabled:
-                metrics_registry.record_tool_call(
-                    agent_id=agent_id_for_metrics, tool_name=tool_name, status=status
-                )
+                metrics_registry.record_tool_call(agent_id=agent_id_for_metrics, tool_name=tool_name, status=status)
 
             _track_skill_execution(
                 tool_name,
@@ -236,9 +228,7 @@ async def tool_interceptor_middleware(
             agent_id_for_metrics = get_agent_id() or "base_agent"
 
             if metrics_registry.enabled:
-                metrics_registry.record_tool_call(
-                    agent_id=agent_id_for_metrics, tool_name=tool_name, status="error"
-                )
+                metrics_registry.record_tool_call(agent_id=agent_id_for_metrics, tool_name=tool_name, status="error")
 
             _track_skill_execution(
                 tool_name,
@@ -293,9 +283,7 @@ async def _tool_interceptor_middleware_inner(
     tool_call_id = request.tool_call.get("id", "")
     tool_args: dict[str, object] = request.tool_call.get("args") or {}
 
-    pre_result = await run_pre_call_guards(
-        request, tool_name, tool_call_id, tool_args, get_loop_guard
-    )
+    pre_result = await run_pre_call_guards(request, tool_name, tool_call_id, tool_args, get_loop_guard)
     if isinstance(pre_result, ToolMessage):
         return pre_result
 
@@ -308,9 +296,7 @@ async def _tool_interceptor_middleware_inner(
 
     start_time = time.time()
 
-    heartbeat_task = asyncio.create_task(
-        emit_tool_heartbeat(tool_name, tool_call_id, start_time)
-    )
+    heartbeat_task = asyncio.create_task(emit_tool_heartbeat(tool_name, tool_call_id, start_time))
 
     try:
         from myrm_agent_harness.agent.middlewares._session_context import (
@@ -321,9 +307,7 @@ async def _tool_interceptor_middleware_inner(
 
         while True:
             try:
-                result = await execute_with_retry(
-                    request, handler, tool_name, tool_call_id, allowed_domains
-                )
+                result = await execute_with_retry(request, handler, tool_name, tool_call_id, allowed_domains)
                 break
             except Exception as e:
                 if type(e).__name__ == "ToolClarificationError":
@@ -343,10 +327,7 @@ async def _tool_interceptor_middleware_inner(
                     else:
                         decision = {}
 
-                    if (
-                        decision.get("type") == "approve"
-                        or decision.get("action") == "approve"
-                    ):
+                    if decision.get("type") == "approve" or decision.get("action") == "approve":
                         if decision.get("edited_payload"):
                             new_args = decision["edited_payload"]
                             request.tool_call["args"] = new_args
@@ -371,9 +352,7 @@ async def _tool_interceptor_middleware_inner(
         return result
 
     except asyncio.CancelledError as e:
-        return await handle_cancellation(
-            e, tool_name, tool_call_id, tool_args, start_time
-        )
+        return await handle_cancellation(e, tool_name, tool_call_id, tool_args, start_time)
 
     except Exception as e:
         return await handle_execution_error(e, tool_name, tool_call_id, tool_args)

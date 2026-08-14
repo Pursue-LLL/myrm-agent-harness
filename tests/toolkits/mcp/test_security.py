@@ -343,9 +343,7 @@ class TestCheckOsvMalware:
 
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
-        mock_response.json.return_value = {
-            "vulns": [{"id": "MAL-2024-001", "summary": "Malicious npm package"}]
-        }
+        mock_response.json.return_value = {"vulns": [{"id": "MAL-2024-001", "summary": "Malicious npm package"}]}
 
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=mock_response)

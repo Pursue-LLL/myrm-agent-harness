@@ -35,19 +35,13 @@ class MockExtensionBridge:
             raise ExtensionBridgeNotAvailableError("Extension not connected")
         browser = MagicMock()
         browser.contexts = []
-        return BrowserInstance(
-            browser=browser, engine="chromium-patchright", is_managed=False
-        )
+        return BrowserInstance(browser=browser, engine="chromium-patchright", is_managed=False)
 
-    async def connect_to_domain(
-        self, domain: str, *, timeout: float = 10.0
-    ) -> BrowserInstance:
+    async def connect_to_domain(self, domain: str, *, timeout: float = 10.0) -> BrowserInstance:
         self.connect_domain_called = True
         browser = MagicMock()
         browser.contexts = []
-        return BrowserInstance(
-            browser=browser, engine="chromium-patchright", is_managed=False
-        )
+        return BrowserInstance(browser=browser, engine="chromium-patchright", is_managed=False)
 
     async def get_status(self) -> ExtensionStatus:
         return ExtensionStatus(connected=self._connected)
@@ -103,9 +97,7 @@ class TestExtensionBridgeProtocol:
 
 class TestExtensionTab:
     def test_frozen_dataclass(self) -> None:
-        tab = ExtensionTab(
-            tab_id=1, url="https://example.com", title="Test", domain="example.com"
-        )
+        tab = ExtensionTab(tab_id=1, url="https://example.com", title="Test", domain="example.com")
         assert tab.tab_id == 1
         assert tab.domain == "example.com"
         assert tab.active is False
@@ -190,9 +182,7 @@ class TestLaunchModeExtension:
             launch_mode=LaunchMode.EXTENSION,
             extension_bridge="not_a_bridge",
         )
-        with pytest.raises(
-            BrowserLaunchError, match="must implement ExtensionBridge Protocol"
-        ):
+        with pytest.raises(BrowserLaunchError, match="must implement ExtensionBridge Protocol"):
             await launcher.create_browser()
 
 

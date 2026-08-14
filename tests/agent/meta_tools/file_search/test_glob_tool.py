@@ -137,9 +137,7 @@ class TestCreateGlobTool:
             assert "test_app.py" in result
             assert "main.py" not in result
 
-    async def test_no_matches(
-        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
-    ) -> None:
+    async def test_no_matches(self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig) -> None:
         tool_fn = create_glob_tool()
         with patch(
             "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
@@ -148,14 +146,15 @@ class TestCreateGlobTool:
             result = await tool_fn.ainvoke({"pattern": "*.xyz"}, config=runnable_config)
             assert "No files found" in result
 
-    async def test_path_not_found(
-        self, mock_executor: MagicMock, runnable_config: RunnableConfig
-    ) -> None:
+    async def test_path_not_found(self, mock_executor: MagicMock, runnable_config: RunnableConfig) -> None:
         tool_fn = create_glob_tool()
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
-            return_value=mock_executor,
-        ), pytest.raises(ToolError, match="Path not found"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
+                return_value=mock_executor,
+            ),
+            pytest.raises(ToolError, match="Path not found"),
+        ):
             await tool_fn.ainvoke(
                 {"pattern": "*.py", "path": "nonexistent"},
                 config=runnable_config,
@@ -165,25 +164,29 @@ class TestCreateGlobTool:
         self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
     ) -> None:
         tool_fn = create_glob_tool()
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
-            return_value=mock_executor,
-        ), pytest.raises(ToolError, match="Not a directory"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
+                return_value=mock_executor,
+            ),
+            pytest.raises(ToolError, match="Not a directory"),
+        ):
             await tool_fn.ainvoke(
                 {"pattern": "*.py", "path": "main.py"},
                 config=runnable_config,
             )
 
-    async def test_invalid_path_traversal(
-        self, runnable_config: RunnableConfig
-    ) -> None:
+    async def test_invalid_path_traversal(self, runnable_config: RunnableConfig) -> None:
         mock_exec = AsyncMock()
         mock_exec.resolve_path = AsyncMock(side_effect=ValueError("path traversal"))
         tool_fn = create_glob_tool()
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
-            return_value=mock_exec,
-        ), pytest.raises(ToolError, match="Invalid path"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
+                return_value=mock_exec,
+            ),
+            pytest.raises(ToolError, match="Invalid path"),
+        ):
             await tool_fn.ainvoke(
                 {"pattern": "*.py", "path": "../../etc"},
                 config=runnable_config,
@@ -211,9 +214,7 @@ class TestCreateGlobTool:
         ):
             result = await tool_fn.ainvoke({"pattern": "*.py"}, config=runnable_config)
             lines = [
-                line.strip()
-                for line in result.strip().split("\n")
-                if line.strip() and not line.startswith("Found")
+                line.strip() for line in result.strip().split("\n") if line.strip() and not line.startswith("Found")
             ]
             assert lines == sorted(lines)
 
@@ -241,23 +242,28 @@ class TestCreateGlobTool:
             assert "Found" in result
             assert "file(s)" in result
 
-    async def test_unexpected_error_becomes_tool_error(
-        self, runnable_config: RunnableConfig
-    ) -> None:
+    async def test_unexpected_error_becomes_tool_error(self, runnable_config: RunnableConfig) -> None:
         mock_exec = AsyncMock()
         mock_exec.resolve_path = AsyncMock(side_effect=RuntimeError("unexpected boom"))
         tool_fn = create_glob_tool()
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
-            return_value=mock_exec,
-        ), pytest.raises(ToolError, match=r"[Uu]nexpected"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_search.glob_tool.ensure_executor",
+                return_value=mock_exec,
+            ),
+            pytest.raises(ToolError, match=r"[Uu]nexpected"),
+        ):
             await tool_fn.ainvoke(
                 {"pattern": "*.py"},
                 config=runnable_config,
             )
 
     async def test_audit_log_enabled(
-        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig, caplog: pytest.LogCaptureFixture
+        self,
+        workspace: Path,
+        mock_executor: MagicMock,
+        runnable_config: RunnableConfig,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         import logging
 

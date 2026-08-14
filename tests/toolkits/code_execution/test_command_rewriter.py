@@ -22,21 +22,15 @@ def _rewrite(command: str, workspace: str | None) -> str:
 
 class TestRewriteWorkspacePaths:
     def test_container_convention_replaced(self) -> None:
-        assert _rewrite("cd /workspace && python3 main.py", "/tmp/ws") == (
-            "cd /tmp/ws && python3 main.py"
-        )
+        assert _rewrite("cd /workspace && python3 main.py", "/tmp/ws") == ("cd /tmp/ws && python3 main.py")
 
     def test_path_arguments_replaced(self) -> None:
-        assert (
-            _rewrite("cat /workspace/README.md", "/tmp/ws") == "cat /tmp/ws/README.md"
-        )
+        assert _rewrite("cat /workspace/README.md", "/tmp/ws") == "cat /tmp/ws/README.md"
 
     def test_real_workspace_path_not_duplicated(self) -> None:
         """A real workspace ending in /workspace stays byte-identical."""
         ws = "/data/wb_bench/workspaces/code/t1/workspace"
-        command = (
-            f"WORKSPACE={ws} LOG_DIR={ws}/.wb_bench/logs python3 {ws}/tests/verifier.py"
-        )
+        command = f"WORKSPACE={ws} LOG_DIR={ws}/.wb_bench/logs python3 {ws}/tests/verifier.py"
         assert _rewrite(command, ws) == command
 
     def test_mixed_real_and_convention_paths(self) -> None:

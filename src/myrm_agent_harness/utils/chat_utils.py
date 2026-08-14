@@ -66,9 +66,7 @@ def convert_chat_history_simple(history: object) -> ChatHistory:
             reasoning_content = meta.get("reasoning_content")
             if isinstance(reasoning_content, str) and reasoning_content:
                 additional_kwargs["reasoning_content"] = reasoning_content
-            messages.append(
-                AIMessage(content=text_content, additional_kwargs=additional_kwargs)
-            )
+            messages.append(AIMessage(content=text_content, additional_kwargs=additional_kwargs))
 
     return messages
 

@@ -81,15 +81,19 @@ async def test_verify_worker_output_returns_tool_submitted_verdict() -> None:
     fake_executor = MagicMock()
     fake_executor.has_executed_code = True
 
-    with patch(
-        "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor",
-        return_value=fake_executor,
-    ), patch(
-        "myrm_agent_harness.toolkits.code_execution.executors.readonly_proxy.ReadonlyExecutorProxy",
-        side_effect=lambda executor: executor,
-    ), patch(
-        "myrm_agent_harness.agent.skills.evolution.execution.executor_context.ExecutorContextManager",
-    ) as mock_ctx_mgr:
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor",
+            return_value=fake_executor,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.executors.readonly_proxy.ReadonlyExecutorProxy",
+            side_effect=lambda executor: executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.skills.evolution.execution.executor_context.ExecutorContextManager",
+        ) as mock_ctx_mgr,
+    ):
         mock_ctx_mgr.return_value.__enter__ = MagicMock(return_value=None)
         mock_ctx_mgr.return_value.__exit__ = MagicMock(return_value=None)
 

@@ -44,9 +44,7 @@ logger = logging.getLogger(__name__)
 # segments. ``.`` is intentionally excluded: keys never need it (UUIDs use
 # ``-``), and keeping it out prevents hidden lock files and ``..``-like names.
 _LOCK_KEY_MAX_LENGTH = 128
-_LOCK_KEY_SAFE_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
-)
+_LOCK_KEY_SAFE_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
 _LOCK_MODES = frozenset(("exclusive", "shared"))
 
 
@@ -133,9 +131,7 @@ class FileLock:
                 "retry with your own backoff, or serialize with asyncio.Lock."
             )
         if mode not in _LOCK_MODES:
-            raise ValueError(
-                f"FileLock mode={mode!r} is unsupported; use 'exclusive' or 'shared'."
-            )
+            raise ValueError(f"FileLock mode={mode!r} is unsupported; use 'exclusive' or 'shared'.")
 
         lock_file = self.lock_dir / f"{_sanitize_lock_key(resource_id)}.lock"
 

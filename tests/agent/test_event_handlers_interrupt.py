@@ -107,7 +107,7 @@ async def test_interrupt_preserves_other_nodes():
     }
 
     data = {
-            "__interrupt__": (Interrupt(value=interrupt_payload),),
+        "__interrupt__": (Interrupt(value=interrupt_payload),),
         "model": {"messages": [AIMessage(content="test")]},
     }
 

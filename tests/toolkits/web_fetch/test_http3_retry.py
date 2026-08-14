@@ -332,7 +332,9 @@ async def test_fetch_with_redirects_binary_body(install_fake_scrapling: AsyncMoc
 
 
 @pytest.mark.asyncio
-async def test_fetch_http3_passes_impersonate_none(install_fake_scrapling: AsyncMock, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fetch_http3_passes_impersonate_none(
+    install_fake_scrapling: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv("MYRM_HTTP3_RETRY", "1")
     fetcher = HttpFetcher()
     install_fake_scrapling.return_value = _blocked_result()
@@ -594,10 +596,12 @@ async def test_fetch_with_redirects_ssrf_blocked(install_fake_scrapling: AsyncMo
 
     with patch(
         "myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher.async_pin_url",
-        new=AsyncMock(side_effect=__import__(
-            "myrm_agent_harness.core.security.guards.url_allowlist",
-            fromlist=["SSRFSecurityError"],
-        ).SSRFSecurityError("blocked")),
+        new=AsyncMock(
+            side_effect=__import__(
+                "myrm_agent_harness.core.security.guards.url_allowlist",
+                fromlist=["SSRFSecurityError"],
+            ).SSRFSecurityError("blocked")
+        ),
     ):
         result = await fetcher._fetch_with_redirects(
             "http://127.0.0.1/internal",
@@ -818,4 +822,3 @@ def test_is_http3_retry_enabled_truthy_variants(monkeypatch: pytest.MonkeyPatch)
     assert is_http3_retry_enabled() is True
     monkeypatch.setenv("MYRM_HTTP3_RETRY", "yes")
     assert is_http3_retry_enabled() is True
-

@@ -82,7 +82,11 @@ class LLMErrorDiagnostic:
             hint = get_tls_remediation_hint()
             raw_msg = locale_manager.translate("tls_certificate", "user_message", locale)
             raw_steps = locale_manager.translate("tls_certificate", "resolution_steps", locale)
-            user_message = raw_msg if isinstance(raw_msg, str) and not raw_msg.startswith("[Missing") else f"TLS certificate verification failed. {hint}"
+            user_message = (
+                raw_msg
+                if isinstance(raw_msg, str) and not raw_msg.startswith("[Missing")
+                else f"TLS certificate verification failed. {hint}"
+            )
             steps: list[str] = raw_steps if isinstance(raw_steps, list) and raw_steps else [hint]
 
             return DiagnosticResult(
@@ -395,7 +399,11 @@ class LLMErrorDiagnostic:
         "zh-CN": {"update_key": "更新 API 密钥", "top_up": "充值余额", "change_model": "切换模型"},
         "ja": {"update_key": "APIキーを更新", "top_up": "残高をチャージ", "change_model": "モデルを変更"},
         "ko": {"update_key": "API 키 업데이트", "top_up": "잔액 충전", "change_model": "모델 변경"},
-        "de": {"update_key": "API-Schlüssel aktualisieren", "top_up": "Guthaben aufladen", "change_model": "Modell wechseln"},
+        "de": {
+            "update_key": "API-Schlüssel aktualisieren",
+            "top_up": "Guthaben aufladen",
+            "change_model": "Modell wechseln",
+        },
     }
 
     @staticmethod

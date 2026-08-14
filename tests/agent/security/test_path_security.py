@@ -136,17 +136,20 @@ class TestSafeJoinPathAndBoundary:
 
     def test_is_within_boundary_safe(self) -> None:
         from myrm_agent_harness.agent.security.path_security import is_within_boundary
+
         assert is_within_boundary("/safe/workspace/file.txt", "/safe/workspace") is True
         assert is_within_boundary("/safe/workspace/subdir/file.txt", "/safe/workspace") is True
 
     def test_is_within_boundary_traversal(self) -> None:
         from myrm_agent_harness.agent.security.path_security import is_within_boundary
+
         assert is_within_boundary("/safe/workspace/../file.txt", "/safe/workspace") is False
         assert is_within_boundary("/etc/passwd", "/safe/workspace") is False
 
     def test_safe_join_path_safe(self) -> None:
 
         from myrm_agent_harness.agent.security.path_security import safe_join_path
+
         result = safe_join_path("/safe/workspace", "subdir/file.txt")
         assert str(result).endswith("subdir/file.txt")
 
@@ -154,6 +157,7 @@ class TestSafeJoinPathAndBoundary:
         import pytest
 
         from myrm_agent_harness.agent.security.path_security import safe_join_path
+
         with pytest.raises(ValueError, match="Null byte injection"):
             safe_join_path("/safe/workspace", "file\0.txt")
 
@@ -161,6 +165,7 @@ class TestSafeJoinPathAndBoundary:
         import pytest
 
         from myrm_agent_harness.agent.security.path_security import safe_join_path
+
         with pytest.raises(ValueError, match="Absolute paths are not allowed"):
             safe_join_path("/safe/workspace", "/etc/passwd")
 
@@ -168,6 +173,7 @@ class TestSafeJoinPathAndBoundary:
         import pytest
 
         from myrm_agent_harness.agent.security.path_security import safe_join_path
+
         with pytest.raises(ValueError, match="Path traversal detected"):
             safe_join_path("/safe/workspace", "../../etc/passwd")
 

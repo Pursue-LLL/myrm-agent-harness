@@ -730,9 +730,7 @@ class TestTracingContextPropagation:
             await store.save_job(job)
             jobs.append(job)
 
-        await asyncio.gather(*(
-            executor.run_and_record(job, runner) for job in jobs
-        ))
+        await asyncio.gather(*(executor.run_and_record(job, runner) for job in jobs))
 
         assert len(captured) == 3
         trace_ids = [t[0] for t in captured]

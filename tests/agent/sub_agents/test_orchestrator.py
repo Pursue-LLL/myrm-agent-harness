@@ -27,9 +27,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
 from myrm_agent_harness.utils.token_economics.tracker import TokenUsage
 
 
-def _ok(
-    task_id: str = "t1", agent_type: str = "worker", result: str = "done"
-) -> SubAgentResult:
+def _ok(task_id: str = "t1", agent_type: str = "worker", result: str = "done") -> SubAgentResult:
     return SubAgentResult(
         success=True,
         task_id=task_id,
@@ -40,9 +38,7 @@ def _ok(
     )
 
 
-def _fail(
-    task_id: str = "t1", agent_type: str = "worker", error: str = "boom"
-) -> SubAgentResult:
+def _fail(task_id: str = "t1", agent_type: str = "worker", error: str = "boom") -> SubAgentResult:
     return SubAgentResult(
         success=False,
         task_id=task_id,
@@ -62,9 +58,7 @@ class TestExecuteDagPlan:
     @pytest.mark.asyncio
     async def test_execute_dag_plan_dict_result(self):
         mgr = MagicMock()
-        mgr.spawn_child = AsyncMock(
-            return_value={"success": True, "result": "dict-out"}
-        )
+        mgr.spawn_child = AsyncMock(return_value={"success": True, "result": "dict-out"})
 
         class MockStep:
             def __init__(self, step_id, desc, expected):
@@ -168,9 +162,7 @@ class TestExecuteDagPlan:
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
 
             # Make create_task raise an exception
-            mock_tg_instance.create_task.side_effect = ValueError(
-                "Failed to create task"
-            )
+            mock_tg_instance.create_task.side_effect = ValueError("Failed to create task")
 
             # Mock sleep to prevent hanging without recursion
             # Use a counter to break out of the loop since the task will never complete
@@ -261,9 +253,7 @@ class TestExecuteDagPlan:
         plan.steps = plan.steps_list
 
         # Mock TaskGroup to raise an exception when created
-        with patch(
-            "asyncio.TaskGroup", side_effect=ValueError("TaskGroup creation failed")
-        ):
+        with patch("asyncio.TaskGroup", side_effect=ValueError("TaskGroup creation failed")):
             task = asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: []))
             try:
                 result = await asyncio.wait_for(task, timeout=2.0)
@@ -277,9 +267,7 @@ class TestExecuteDagPlan:
     @pytest.mark.asyncio
     async def test_execute_dag_plan_success(self):
         mgr = MagicMock()
-        mgr.spawn_child = AsyncMock(
-            return_value=_ok("dag-step1", "general", "step1-out")
-        )
+        mgr.spawn_child = AsyncMock(return_value=_ok("dag-step1", "general", "step1-out"))
 
         class MockStep:
             def __init__(self, step_id, desc, expected):
@@ -383,9 +371,7 @@ class TestExecuteDagPlan:
                     if step.status == "pending":
                         deps_met = True
                         for dep_id in step.dependencies:
-                            dep_step = next(
-                                (s for s in self.steps if s.step_id == dep_id), None
-                            )
+                            dep_step = next((s for s in self.steps if s.step_id == dep_id), None)
                             if not dep_step or dep_step.status != "completed":
                                 deps_met = False
                                 break
@@ -442,9 +428,7 @@ class TestExecuteDagPlan:
                 except TimeoutError:
                     pytest.fail("execute_dag_plan timed out")
 
-        assert not result[
-            "success"
-        ]  # The plan is marked complete but step2 is pending, so it returns failure
+        assert not result["success"]  # The plan is marked complete but step2 is pending, so it returns failure
         assert "step1" in result["results"]
         assert "step2" not in result["results"]
         assert mgr.spawn_child.await_count == 1
@@ -637,9 +621,7 @@ class TestExecuteDagPlan:
                     if step.status == "pending":
                         deps_met = True
                         for dep_id in step.dependencies:
-                            dep_step = next(
-                                (s for s in self.steps if s.step_id == dep_id), None
-                            )
+                            dep_step = next((s for s in self.steps if s.step_id == dep_id), None)
                             if not dep_step or dep_step.status != "completed":
                                 deps_met = False
                                 break
@@ -733,9 +715,7 @@ class TestExecuteDagPlan:
                     for s in self.steps
                     if s.status == "pending"
                     and all(
-                        next((x.status for x in self.steps if x.step_id == d), "")
-                        in resolved
-                        for d in s.dependencies
+                        next((x.status for x in self.steps if x.step_id == d), "") in resolved for d in s.dependencies
                     )
                 ]
 
@@ -752,9 +732,7 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
-                coro
-            )
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
             original_sleep = asyncio.sleep
 
             async def mock_sleep_func(delay):
@@ -773,9 +751,7 @@ class TestExecuteDagPlan:
                     timeout=2.0,
                 )
 
-        assert result[
-            "success"
-        ], "Optional step failure should not block overall success"
+        assert result["success"], "Optional step failure should not block overall success"
         assert plan.steps[0].status == "skipped"
         assert plan.steps[1].status == "completed"
         assert "s1" in result["partial_failures"]
@@ -784,9 +760,7 @@ class TestExecuteDagPlan:
     async def test_critical_step_failure_blocks_downstream(self):
         """allow_failure=False step fails -> status='failed', downstream blocked, success=False."""
         mgr = MagicMock()
-        mgr.spawn_child = AsyncMock(
-            return_value=_fail("critical-step", "general", "crash")
-        )
+        mgr.spawn_child = AsyncMock(return_value=_fail("critical-step", "general", "crash"))
 
         class MockStep:
             def __init__(self, step_id, desc, expected, deps=None, allow_failure=False):
@@ -811,9 +785,7 @@ class TestExecuteDagPlan:
                     for s in self.steps
                     if s.status == "pending"
                     and all(
-                        next((x.status for x in self.steps if x.step_id == d), "")
-                        in resolved
-                        for d in s.dependencies
+                        next((x.status for x in self.steps if x.step_id == d), "") in resolved for d in s.dependencies
                     )
                 ]
 
@@ -830,9 +802,7 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
-                coro
-            )
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
             original_sleep = asyncio.sleep
 
             async def mock_sleep_func(delay):
@@ -851,9 +821,7 @@ class TestExecuteDagPlan:
                     timeout=2.0,
                 )
 
-        assert not result[
-            "success"
-        ], "Critical step failure should mark overall as failed"
+        assert not result["success"], "Critical step failure should mark overall as failed"
         assert plan.steps[0].status == "failed"
         assert plan.steps[1].status == "pending"
         assert result["partial_failures"] == []
@@ -896,9 +864,7 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
-                coro
-            )
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
             original_sleep = asyncio.sleep
 
             async def mock_sleep_func(delay):
@@ -962,13 +928,9 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
-                coro
-            )
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
 
-            result = await execute_dag_plan(
-                plan, mgr, {}, lambda: [], progress_sink=_sink
-            )
+            result = await execute_dag_plan(plan, mgr, {}, lambda: [], progress_sink=_sink)
 
         assert result["success"] is True
         assert ("s1", "in_progress", "Starting: desc") in sink_calls
@@ -1009,13 +971,9 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
-                coro
-            )
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
 
-            result = await execute_dag_plan(
-                plan, mgr, {}, lambda: [], cancel_token=cancel_token
-            )
+            result = await execute_dag_plan(plan, mgr, {}, lambda: [], cancel_token=cancel_token)
 
         assert mgr.spawn_child.await_count == 0
         assert result["success"] is False  # cancelled before any step resolved
@@ -1058,13 +1016,9 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
-                coro
-            )
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
 
-            result = await execute_dag_plan(
-                plan, mgr, {}, lambda: [], progress_sink=_sink
-            )
+            result = await execute_dag_plan(plan, mgr, {}, lambda: [], progress_sink=_sink)
 
         assert result["success"] is False
         assert any(call[1] == "error" and call[0] == "s1" for call in sink_calls)
@@ -1224,9 +1178,7 @@ class TestRunChain:
     @pytest.mark.asyncio
     async def test_chain_handles_dict_return(self):
         mgr = MagicMock()
-        mgr.spawn_child = AsyncMock(
-            return_value={"success": True, "result": "dict-out"}
-        )
+        mgr.spawn_child = AsyncMock(return_value={"success": True, "result": "dict-out"})
         cfg = SubagentConfig(system_prompt="s")
         result = await run_chain(mgr, [("w", cfg, "task")], {}, lambda: [])
         assert result.success
@@ -1339,9 +1291,7 @@ class TestWaitChildren:
     async def test_running_tasks_complete(self):
         mgr = MagicMock()
         ok_result = _ok("t1")
-        future: asyncio.Future[SubAgentResult] = (
-            asyncio.get_event_loop().create_future()
-        )
+        future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
         future.set_result(ok_result)
         mgr.children = {"t1": future}
         mgr.child_results = {}
@@ -1352,9 +1302,7 @@ class TestWaitChildren:
     @pytest.mark.asyncio
     async def test_running_tasks_exception(self):
         mgr = MagicMock()
-        future: asyncio.Future[SubAgentResult] = (
-            asyncio.get_event_loop().create_future()
-        )
+        future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
         future.set_exception(RuntimeError("crash"))
         mgr.children = {"t1": future}
         mgr.child_results = {}
@@ -1385,9 +1333,7 @@ class TestWaitChildren:
     @pytest.mark.asyncio
     async def test_mixed_completed_and_running(self):
         mgr = MagicMock()
-        future: asyncio.Future[SubAgentResult] = (
-            asyncio.get_event_loop().create_future()
-        )
+        future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
         future.set_result(_ok("t2"))
         mgr.children = {"t2": future}
         mgr.child_results = {"t1": _ok("t1")}
@@ -1429,9 +1375,7 @@ class TestSubAgentResultStillRunning:
         assert "completed_at" not in d
 
     def test_still_running_absent_in_to_dict_when_false(self):
-        r = SubAgentResult(
-            success=True, task_id="t1", agent_type="w", completed_at=100.0
-        )
+        r = SubAgentResult(success=True, task_id="t1", agent_type="w", completed_at=100.0)
         d = r.to_dict()
         assert "still_running" not in d
         assert d["completed_at"] == 100.0
@@ -1453,9 +1397,7 @@ class TestSubAgentResultStillRunning:
             agent_type="w",
             result="partial",
             error="timed out",
-            token_usage=TokenUsage(
-                prompt_tokens=10, completion_tokens=5, total_tokens=15
-            ),
+            token_usage=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
             duration_seconds=59.9999,
             completed_at=999.0,
             status=SubAgentStatus.TIMED_OUT,
@@ -1466,9 +1408,7 @@ class TestSubAgentResultStillRunning:
             still_running=True,
         )
         d = r.to_dict()
-        assert (
-            "completed_at" not in d
-        ), "completed_at must be omitted when still_running=True"
+        assert "completed_at" not in d, "completed_at must be omitted when still_running=True"
         assert d["still_running"] is True
         assert d["trace_id"] == "trace-abc"
         assert d["error"] == "timed out"
@@ -1596,16 +1536,12 @@ class TestVerification:
 
         # It should reject the PASS, and loop again.
         # We'll just provide the same results for round 2, and it will fail eventually.
-        mgr.spawn_child = AsyncMock(
-            side_effect=[worker_result, verifier_result, worker_result, verifier_result]
-        )
+        mgr.spawn_child = AsyncMock(side_effect=[worker_result, verifier_result, worker_result, verifier_result])
 
         from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
 
         config = SubagentConfig(system_prompt="")
-        verifier_config = SubagentConfig(
-            system_prompt="", workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX
-        )
+        verifier_config = SubagentConfig(system_prompt="", workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
 
         result = await run_with_verification(
             manager=mgr,
@@ -1889,12 +1825,8 @@ class TestVerification:
         assert "dict out" in result.result
 
     @patch("myrm_agent_harness.toolkits.code_execution.executors.base.get_executor")
-    @patch(
-        "myrm_agent_harness.agent.skills.evolution.execution.executor_context.ExecutorContextManager"
-    )
-    async def test_run_with_verification_readonly_sandbox(
-        self, mock_ctx_mgr, mock_get_executor
-    ):
+    @patch("myrm_agent_harness.agent.skills.evolution.execution.executor_context.ExecutorContextManager")
+    async def test_run_with_verification_readonly_sandbox(self, mock_ctx_mgr, mock_get_executor):
         from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
         from myrm_agent_harness.toolkits.code_execution.executors.readonly_proxy import (
             ReadonlyExecutorProxy,
@@ -1908,9 +1840,7 @@ class TestVerification:
         mock_executor = MagicMock()
         mock_get_executor.return_value = mock_executor
 
-        config = SubagentConfig(
-            system_prompt="", workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX
-        )
+        config = SubagentConfig(system_prompt="", workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
 
         result = await run_with_verification(
             manager=mgr,
@@ -1964,9 +1894,7 @@ class TestRunAlternatives:
                 status=SubAgentStatus.COMPLETED,
                 completed_at=time.time(),
             )
-            future: asyncio.Future[SubAgentResult] = (
-                asyncio.get_event_loop().create_future()
-            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -1974,9 +1902,7 @@ class TestRunAlternatives:
         mgr.spawn_child = _spawn
 
         config = SubagentConfig(system_prompt="write something")
-        results = await run_alternatives(
-            mgr, "write a landing page", [("writer", config)], {}, lambda: []
-        )
+        results = await run_alternatives(mgr, "write a landing page", [("writer", config)], {}, lambda: [])
 
         assert len(results) == 1
         assert results[0].success
@@ -1999,9 +1925,7 @@ class TestRunAlternatives:
                 status=SubAgentStatus.COMPLETED,
                 completed_at=time.time(),
             )
-            future: asyncio.Future[SubAgentResult] = (
-                asyncio.get_event_loop().create_future()
-            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -2041,9 +1965,7 @@ class TestRunAlternatives:
                     status=SubAgentStatus.FAILED,
                 )
             mgr.child_results[tid] = _ok(tid, kwargs["agent_type"], "ok")
-            future: asyncio.Future[SubAgentResult] = (
-                asyncio.get_event_loop().create_future()
-            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -2102,18 +2024,14 @@ class TestRunAlternatives:
             captured_contexts.append(kwargs["context"])
             tid = kwargs["task_id"]
             mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
-            future: asyncio.Future[SubAgentResult] = (
-                asyncio.get_event_loop().create_future()
-            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
 
         mgr.spawn_child = _spawn
 
-        config = SubagentConfig(
-            system_prompt="s", workspace_policy=WorkspacePolicy.INHERIT
-        )
+        config = SubagentConfig(system_prompt="s", workspace_policy=WorkspacePolicy.INHERIT)
         await run_alternatives(mgr, "task", [("w", config)], {}, lambda: [])
 
         assert captured_configs[0].workspace_policy == WorkspacePolicy.ISOLATED_COPY
@@ -2130,9 +2048,7 @@ class TestRunAlternatives:
             tid = kwargs["task_id"]
             captured_task_ids.append(tid)
             mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
-            future: asyncio.Future[SubAgentResult] = (
-                asyncio.get_event_loop().create_future()
-            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -2157,9 +2073,7 @@ class TestRunAlternatives:
             captured_cancel_tokens.append(kwargs.get("cancel_token"))
             tid = kwargs["task_id"]
             mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
-            future: asyncio.Future[SubAgentResult] = (
-                asyncio.get_event_loop().create_future()
-            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -2168,9 +2082,7 @@ class TestRunAlternatives:
 
         sentinel = object()
         config = SubagentConfig(system_prompt="s")
-        await run_alternatives(
-            mgr, "task", [("w", config)], {}, lambda: [], cancel_token=sentinel
-        )
+        await run_alternatives(mgr, "task", [("w", config)], {}, lambda: [], cancel_token=sentinel)
 
         assert len(captured_cancel_tokens) == 1
         assert captured_cancel_tokens[0] is sentinel
@@ -2184,9 +2096,7 @@ class TestRunAlternatives:
         async def _spawn(**kwargs):
             tid = kwargs["task_id"]
             mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
-            future: asyncio.Future[SubAgentResult] = (
-                asyncio.get_event_loop().create_future()
-            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -2214,9 +2124,7 @@ class TestRunAlternatives:
             else:
                 r = _fail(tid, kwargs["agent_type"], "runtime error")
             mgr.child_results[tid] = r
-            future: asyncio.Future[SubAgentResult] = (
-                asyncio.get_event_loop().create_future()
-            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
             future.set_result(r)
             mgr.children[tid] = future
             return future
@@ -2261,9 +2169,7 @@ class TestRunAlternatives:
                 completed_at=time.time(),
             )
             mgr.child_results[tid] = r
-            future: asyncio.Future[SubAgentResult] = (
-                asyncio.get_event_loop().create_future()
-            )
+            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
             future.set_result(r)
             mgr.children[tid] = future
             return future

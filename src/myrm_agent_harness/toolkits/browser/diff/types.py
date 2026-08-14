@@ -56,8 +56,7 @@ def validate_screenshot_input(screenshot_b64: str, param_name: str) -> bytes:
 
         if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
             raise ValueError(
-                f"{param_name} dimensions too large: {width}x{height} "
-                f"(max {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION})"
+                f"{param_name} dimensions too large: {width}x{height} (max {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION})"
             )
 
         img.verify()

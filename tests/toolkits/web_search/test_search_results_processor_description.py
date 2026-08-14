@@ -90,10 +90,7 @@ class TestSearchResultsEdgeCases:
 
     def test_multiple_results_all_preserved(self) -> None:
         snippets = [f"Snippet {i} with more than one hundred characters " * 3 for i in range(5)]
-        results = [
-            SearchResult(title=f"T{i}", link=f"https://{i}.com", snippet=s)
-            for i, s in enumerate(snippets)
-        ]
+        results = [SearchResult(title=f"T{i}", link=f"https://{i}.com", snippet=s) for i, s in enumerate(snippets)]
         docs = search_results_to_documents(results)
         assert len(docs) == 5
         for _i, doc in enumerate(docs):

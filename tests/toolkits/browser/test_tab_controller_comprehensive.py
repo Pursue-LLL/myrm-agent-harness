@@ -10,9 +10,7 @@ from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserP
 from myrm_agent_harness.toolkits.browser.session.tab_controller import TabController, TabHandle
 
 _HAS_CHROMIUM = shutil.which("chromium") is not None or shutil.which("google-chrome") is not None
-requires_browser = pytest.mark.skipif(
-    not _HAS_CHROMIUM, reason="Chromium/Patchright not installed in this environment"
-)
+requires_browser = pytest.mark.skipif(not _HAS_CHROMIUM, reason="Chromium/Patchright not installed in this environment")
 
 
 @pytest.fixture
@@ -701,9 +699,7 @@ async def test_integration_popup_capture_real_browser() -> None:
         pool.release_page = AsyncMock()
         tc = TabController(pool, ContextType.CRAWL)
 
-        parent_handle = TabHandle(
-            page=parent_page, tab_id="tab0", context_key="test"
-        )
+        parent_handle = TabHandle(page=parent_page, tab_id="tab0", context_key="test")
         tc._tabs["tab0"] = parent_handle
         tc._active_tab_id = "tab0"
         tc._tab_counter = 1
@@ -763,9 +759,7 @@ async def test_integration_popup_self_close_via_window_close() -> None:
         pool.release_page = AsyncMock()
         tc = TabController(pool, ContextType.CRAWL)
 
-        parent_handle = TabHandle(
-            page=parent_page, tab_id="tab0", context_key="test"
-        )
+        parent_handle = TabHandle(page=parent_page, tab_id="tab0", context_key="test")
         tc._tabs["tab0"] = parent_handle
         tc._active_tab_id = "tab0"
         tc._tab_counter = 1
@@ -794,9 +788,7 @@ async def test_integration_popup_self_close_via_window_close() -> None:
         parent_page.remove_listener("popup", original_on_popup)
         parent_page.on("popup", _spy_on_popup)
 
-        popup_ref = await parent_page.evaluate(
-            "() => { const w = window.open('about:blank', '_blank'); return !!w; }"
-        )
+        popup_ref = await parent_page.evaluate("() => { const w = window.open('about:blank', '_blank'); return !!w; }")
         assert popup_ref is True
 
         await asyncio.wait_for(popup_captured.wait(), timeout=5.0)

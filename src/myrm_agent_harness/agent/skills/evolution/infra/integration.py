@@ -242,9 +242,7 @@ class EvolutionIntegration:
 
             if enable_tde and self.test_executor is None:
                 self.test_executor = SubprocessCodeExecutor()
-                logger.debug(
-                    "EvolutionIntegration: auto-created subprocess test executor"
-                )
+                logger.debug("EvolutionIntegration: auto-created subprocess test executor")
 
             self.engine = SkillEvolutionEngine(
                 store=self.store,
@@ -327,11 +325,7 @@ class EvolutionIntegration:
         )
 
         existing = registry._hooks.get(HookEvent.POST_TOOL_USE, [])
-        if any(
-            getattr(h, "fn", None)
-            and getattr(h.fn, "__name__", "") == "_window_counter"
-            for h in existing
-        ):
+        if any(getattr(h, "fn", None) and getattr(h.fn, "__name__", "") == "_window_counter" for h in existing):
             return
 
         async def _handle_trace_slice(event: str, payload: dict[str, object]) -> Any:
@@ -437,9 +431,7 @@ class EvolutionIntegration:
                             priority=QueuePriority.NORMAL,
                         )
                     except Exception as e:
-                        logger.warning(
-                            "Failed to enqueue frustration-driven evolution: %s", e
-                        )
+                        logger.warning("Failed to enqueue frustration-driven evolution: %s", e)
 
             return HookResult(hook_type="callable", success=True)
 
@@ -533,20 +525,14 @@ class EvolutionIntegration:
                 quarantine_reason = "1-Strike (Deterministic Error)"
             elif metrics.consecutive_failures >= 3:
                 needs_quarantine = True
-                quarantine_reason = (
-                    f"3-Strikes (Consecutive Failures: {metrics.consecutive_failures})"
-                )
+                quarantine_reason = f"3-Strikes (Consecutive Failures: {metrics.consecutive_failures})"
 
         if needs_quarantine:
             logger.error(
                 "HARD QUARANTINE: Skill %s deactivated. Reason: %s. Error: %s",
                 skill_id,
                 quarantine_reason,
-                (
-                    error_message.split("\n")[-1][:100]
-                    if "\n" in error_message
-                    else error_message[:100]
-                ),
+                (error_message.split("\n")[-1][:100] if "\n" in error_message else error_message[:100]),
             )
             await self.store.deactivate_skill(skill_id)
 
@@ -555,9 +541,7 @@ class EvolutionIntegration:
                 skill_record = self.store.get_skill(skill_id)
                 if skill_record:
                     error_line = (
-                        error_message.split("\n")[-1].strip()
-                        if "\n" in error_message
-                        else error_message.strip()
+                        error_message.split("\n")[-1].strip() if "\n" in error_message else error_message.strip()
                     )
                     trap = {
                         "description": error_line[:200],
@@ -568,9 +552,7 @@ class EvolutionIntegration:
                         try:
                             await self.store.save_skill(skill_record)
                         except Exception as e:
-                            logger.debug(
-                                "Failed to persist trap for %s: %s", skill_id, e
-                            )
+                            logger.debug("Failed to persist trap for %s: %s", skill_id, e)
 
         # Auto-trigger FIX if needed (business layer can override this)
         # CRITICAL: We MUST trigger FIX if the skill was quarantined (even if it's the 1st failure),
@@ -589,11 +571,7 @@ class EvolutionIntegration:
                 priority = (
                     QueuePriority.CRITICAL
                     if is_deterministic_error
-                    else (
-                        QueuePriority.HIGH
-                        if metrics.consecutive_failures < 3
-                        else QueuePriority.CRITICAL
-                    )
+                    else (QueuePriority.HIGH if metrics.consecutive_failures < 3 else QueuePriority.CRITICAL)
                 )
                 await self.queue.enqueue(
                     EvolutionRequest(
@@ -653,13 +631,9 @@ class EvolutionIntegration:
                 return None
 
         if evolution_type == EvolutionType.FIX:
-            return await self.engine.fix_skill(
-                skill_id, kwargs.get("reason", "Manual fix")
-            )
+            return await self.engine.fix_skill(skill_id, kwargs.get("reason", "Manual fix"))
         elif evolution_type == EvolutionType.DERIVED:
-            return await self.engine.derive_skill_simple(
-                skill_id, kwargs.get("user_feedback", "")
-            )
+            return await self.engine.derive_skill_simple(skill_id, kwargs.get("user_feedback", ""))
         elif evolution_type == EvolutionType.CAPTURED:
             return await self.engine.capture_skill_simple(
                 kwargs.get("repeated_commands", []),
@@ -733,9 +707,7 @@ class EvolutionIntegration:
         )
         return proposals
 
-    async def start_background_queue(
-        self, on_proposal_callback: Any | None = None
-    ) -> None:
+    async def start_background_queue(self, on_proposal_callback: Any | None = None) -> None:
         """Start background evolution queue.
 
         Args:

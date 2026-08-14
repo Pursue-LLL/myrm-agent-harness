@@ -126,8 +126,7 @@ class FilesystemFileSearchMiddleware(AgentMiddleware):
         self._tools: list[BaseTool] = self._build_tools()
 
         logger.info(
-            "FilesystemFileSearchMiddleware initialized: root=%s, "
-            "ripgrep=%s, max_size=%sMB",
+            "FilesystemFileSearchMiddleware initialized: root=%s, ripgrep=%s, max_size=%sMB",
             self.root_path,
             use_ripgrep,
             max_file_size_mb,

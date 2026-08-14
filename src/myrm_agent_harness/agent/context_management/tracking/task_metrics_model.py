@@ -346,7 +346,9 @@ class TaskMetrics(TaskMetricsRestoreMixin):
     def record_compression(
         self,
         tokens_saved: int,
-        compression_type: Literal["filter", "cache_ttl_prune", "active_tool_prune", "compress", "summarize"] = "compress",
+        compression_type: Literal[
+            "filter", "cache_ttl_prune", "active_tool_prune", "compress", "summarize"
+        ] = "compress",
         details: str = "",
         *,
         group_count: int = 0,

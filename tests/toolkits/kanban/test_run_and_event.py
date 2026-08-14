@@ -84,7 +84,9 @@ class TestInMemoryRunCrud:
         store = InMemoryKanbanStore()
         run = await store.create_run("t1", "w1")
         completed = await store.complete_run(
-            run.run_id, TaskRunOutcome.COMPLETED, summary="all good",
+            run.run_id,
+            TaskRunOutcome.COMPLETED,
+            summary="all good",
         )
         assert completed.outcome == TaskRunOutcome.COMPLETED
         assert completed.summary == "all good"
@@ -154,8 +156,10 @@ class TestInMemoryEventCrud:
     async def test_event_with_payload_and_run_id(self) -> None:
         store = InMemoryKanbanStore()
         ev = await store.append_event(
-            "t1", TaskEventKind.BLOCKED,
-            payload={"reason": "rate limit"}, run_id="r42",
+            "t1",
+            TaskEventKind.BLOCKED,
+            payload={"reason": "rate limit"},
+            run_id="r42",
         )
         assert ev.payload == {"reason": "rate limit"}
         assert ev.run_id == "r42"
@@ -291,7 +295,8 @@ class TestEditedEventStore:
     async def test_edited_event_with_payload(self) -> None:
         store = InMemoryKanbanStore()
         ev = await store.append_event(
-            "t1", TaskEventKind.EDITED,
+            "t1",
+            TaskEventKind.EDITED,
             payload={"fields": ["result"]},
         )
         assert ev.kind == TaskEventKind.EDITED
@@ -301,7 +306,8 @@ class TestEditedEventStore:
     async def test_edited_event_multiple_fields(self) -> None:
         store = InMemoryKanbanStore()
         ev = await store.append_event(
-            "t1", TaskEventKind.EDITED,
+            "t1",
+            TaskEventKind.EDITED,
             payload={"fields": ["result", "metadata"]},
         )
         assert ev.payload is not None
@@ -323,7 +329,8 @@ class TestEditedEventStore:
     async def test_edited_event_to_dict(self) -> None:
         store = InMemoryKanbanStore()
         ev = await store.append_event(
-            "t1", TaskEventKind.EDITED,
+            "t1",
+            TaskEventKind.EDITED,
             payload={"fields": ["metadata"]},
         )
         d = ev.to_dict()
@@ -373,11 +380,13 @@ class TestAgentToolsUnblockEvent:
         assert '"added"' in result
 
         import json
+
         data = json.loads(result)
         task_id = data["task"]["task_id"]
         events = await store.list_events(task_id)
         assert len(events) == 1
         assert events[0].kind == TaskEventKind.CREATED
+
 
 # ---------------------------------------------------------------------------
 # InMemory cleanup on delete
@@ -457,7 +466,9 @@ class TestListTasksIncludeStats:
 
         for i in range(3):
             task = KanbanTask(
-                task_id=f"t{i}", board_id="b1", title=f"Task {i}",
+                task_id=f"t{i}",
+                board_id="b1",
+                title=f"Task {i}",
                 status=TaskStatus.READY,
             )
             await store.save_task(task)

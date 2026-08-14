@@ -291,9 +291,7 @@ class SnapshotStore:
                         operation=SnapshotOp(item["operation"]),
                         original_content=item["original_content"],
                         timestamp=item["timestamp"],
-                        skip_reason=SnapshotSkipReason(item["skip_reason"])
-                        if item.get("skip_reason")
-                        else None,
+                        skip_reason=SnapshotSkipReason(item["skip_reason"]) if item.get("skip_reason") else None,
                     )
                     for item in raw
                 ]

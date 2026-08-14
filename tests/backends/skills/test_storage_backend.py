@@ -296,9 +296,7 @@ async def test_self_qa_skill_loaded_with_allowed_tools(tmp_path):
     (qa_dir / "SKILL.md").write_text(SELF_QA_SKILL_MD)
 
     storage = LocalStorageBackend(str(tmp_path))
-    backend = StorageSkillBackend(
-        storage, skills_prefix="skills/prebuilt", default_trust=SkillTrust.TRUSTED
-    )
+    backend = StorageSkillBackend(storage, skills_prefix="skills/prebuilt", default_trust=SkillTrust.TRUSTED)
 
     skills = await backend.list_skills()
     assert len(skills) == 1
@@ -307,12 +305,14 @@ async def test_self_qa_skill_loaded_with_allowed_tools(tmp_path):
     assert "Automated QA testing" in skill.description
     assert skill.trust == SkillTrust.TRUSTED
     assert skill.allowed_tools == [
-        "browser_navigate", "browser_inspect", "browser_snapshot",
-        "browser_interact", "browser_extract", "browser_manage",
+        "browser_navigate",
+        "browser_inspect",
+        "browser_snapshot",
+        "browser_interact",
+        "browser_extract",
+        "browser_manage",
     ]
 
     content = await backend.get_skill_content("self-qa")
     assert "# Self QA" in content
     assert "QA engineer" in content
-
-

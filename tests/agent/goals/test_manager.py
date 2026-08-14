@@ -79,7 +79,11 @@ async def test_account_usage_updates_stats(goal_manager):
     goal = await goal_manager.create_goal(session_id, "Test usage")
 
     outcome = await goal_manager.account_usage(
-        goal_id=goal.goal_id, token_delta=50, cost_delta=0.01, time_delta_seconds=5, turn_delta=1,
+        goal_id=goal.goal_id,
+        token_delta=50,
+        cost_delta=0.01,
+        time_delta_seconds=5,
+        turn_delta=1,
     )
 
     assert outcome.goal.tokens_used == 50
@@ -93,9 +97,7 @@ async def test_account_usage_updates_stats(goal_manager):
 @pytest.mark.asyncio
 async def test_account_usage_exhausts_budget(goal_manager):
     session_id = "session-5"
-    goal = await goal_manager.create_goal(
-        session_id, "Test budget", budget=GoalBudget(max_tokens=100)
-    )
+    goal = await goal_manager.create_goal(session_id, "Test budget", budget=GoalBudget(max_tokens=100))
 
     outcome1 = await goal_manager.account_usage(goal.goal_id, 60, 0, 0)
     assert outcome1.goal.tokens_used == 60
@@ -114,9 +116,7 @@ async def test_account_usage_exhausts_budget(goal_manager):
 @pytest.mark.asyncio
 async def test_account_usage_exhausts_turns_budget(goal_manager):
     session_id = "session-turns"
-    goal = await goal_manager.create_goal(
-        session_id, "Test turn budget", budget=GoalBudget(max_turns=3)
-    )
+    goal = await goal_manager.create_goal(session_id, "Test turn budget", budget=GoalBudget(max_turns=3))
 
     outcome1 = await goal_manager.account_usage(goal.goal_id, 0, 0, 0, turn_delta=1)
     assert outcome1.goal.turns_used == 1
@@ -135,18 +135,14 @@ async def test_account_usage_exhausts_turns_budget(goal_manager):
 @pytest.mark.asyncio
 async def test_update_budget(goal_manager):
     session_id = "session-budget-test"
-    goal = await goal_manager.create_goal(
-        session_id, "Test budget update", budget=GoalBudget(max_tokens=100)
-    )
+    goal = await goal_manager.create_goal(session_id, "Test budget update", budget=GoalBudget(max_tokens=100))
 
     # Update budget
     updated = await goal_manager.update_budget(goal.goal_id, 50)
     assert updated.budget.max_tokens == 150
 
     # Create goal without budget
-    goal_no_budget = await goal_manager.create_goal(
-        "session-no-budget", "Test no budget update"
-    )
+    goal_no_budget = await goal_manager.create_goal("session-no-budget", "Test no budget update")
 
     # Update budget for goal without budget
     updated_no_budget = await goal_manager.update_budget(goal_no_budget.goal_id, 200)
@@ -241,9 +237,7 @@ async def test_verification_retries(goal_manager):
 @pytest.mark.asyncio
 async def test_resume_goal(goal_manager):
     session_id = "session-resume"
-    goal = await goal_manager.create_goal(
-        session_id, "Test resume", budget=GoalBudget(max_turns=10)
-    )
+    goal = await goal_manager.create_goal(session_id, "Test resume", budget=GoalBudget(max_turns=10))
 
     await goal_manager.account_usage(goal.goal_id, 100, 0, 0, turn_delta=5)
     await goal_manager.update_status(goal.goal_id, GoalStatus.PAUSED)
@@ -294,9 +288,7 @@ async def test_resume_goal_resets_convergence_counters(goal_manager):
 async def test_resume_goal_resets_parse_failure_counter(goal_manager):
     """resume_goal must reset consecutive_judge_parse_failures to 0."""
     session_id = "session-resume-parse"
-    goal = await goal_manager.create_goal(
-        session_id, "Test parse counter reset", budget=GoalBudget(max_turns=10)
-    )
+    goal = await goal_manager.create_goal(session_id, "Test parse counter reset", budget=GoalBudget(max_turns=10))
 
     await goal_manager.record_judge_parse_result(goal.goal_id, parse_failed=True)
     await goal_manager.record_judge_parse_result(goal.goal_id, parse_failed=True)

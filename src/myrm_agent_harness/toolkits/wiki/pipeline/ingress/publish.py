@@ -234,9 +234,7 @@ async def publish_url_markdown_ingress(
             base_url=request.url,
             raw_relative=rel_path,
         )
-        localized = _assets_localized_label(
-            asset_stats, had_markdown_refs=bool(re.search(r"!\[[^\]]*\]\(", markdown))
-        )
+        localized = _assets_localized_label(asset_stats, had_markdown_refs=bool(re.search(r"!\[[^\]]*\]\(", markdown)))
 
     title = Path(rel_path).stem
     content = (

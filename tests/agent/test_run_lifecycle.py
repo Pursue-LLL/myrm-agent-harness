@@ -55,13 +55,9 @@ class TestSetupWorkspace:
 
         fake_root = "/tmp/host-aggregate"
         with (
-            patch(
-                f"{_MOD}.create_workspace_service", return_value=mock_svc
-            ) as mock_fact,
+            patch(f"{_MOD}.create_workspace_service", return_value=mock_svc) as mock_fact,
             patch(f"{_MOD}.set_workspace_root"),
-            patch(
-                "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"
-            ),
+            patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
         ):
             ctx, exe = await setup_workspace(
                 executor=mock_executor,
@@ -95,9 +91,7 @@ class TestSetupWorkspace:
                 "myrm_agent_harness.toolkits.code_execution.create_executor",
                 return_value=mock_executor,
             ),
-            patch(
-                "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"
-            ),
+            patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
         ):
             _ctx, exe = await setup_workspace(
                 executor=None,
@@ -127,9 +121,7 @@ class TestCleanupRun:
             patch(f"{_MOD}.reset_token_tracker"),
             patch(f"{_MOD}.clear_pending_explicit_cache_snapshot"),
             patch("myrm_agent_harness.agent.middlewares.approval.set_security_config"),
-            patch(
-                "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"
-            ),
+            patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
         ):
             cleanup_run(**defaults)  # type: ignore[arg-type]
 
@@ -161,12 +153,8 @@ class TestCleanupRun:
             patch(f"{_MOD}.reset_token_tracker"),
             patch(f"{_MOD}.clear_pending_explicit_cache_snapshot"),
             patch("myrm_agent_harness.agent.middlewares.approval.set_security_config"),
-            patch(
-                "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"
-            ),
-            patch(
-                "myrm_agent_harness.utils.runtime.steering.set_steering_token"
-            ) as mock_set_st,
+            patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
+            patch("myrm_agent_harness.utils.runtime.steering.set_steering_token") as mock_set_st,
         ):
             cleanup_run(
                 stats=AgentRunStatistics(),
@@ -186,9 +174,7 @@ class TestCleanupRun:
             patch(f"{_MOD}.reset_token_tracker"),
             patch(f"{_MOD}.clear_pending_explicit_cache_snapshot"),
             patch("myrm_agent_harness.agent.middlewares.approval.set_security_config"),
-            patch(
-                "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"
-            ),
+            patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
             patch(
                 "myrm_agent_harness.toolkits.code_execution.executors.base.clear_stashed_executor"
             ) as mock_clear_exec,
@@ -498,12 +484,7 @@ class TestPostRunEvents:
                 return_value=None,
             ),
         ):
-            events = [
-                e
-                async for e in post_run_events(
-                    stats, "msg1", {}, False, None, tracker=tracker
-                )
-            ]
+            events = [e async for e in post_run_events(stats, "msg1", {}, False, None, tracker=tracker)]
 
         end_event = events[-1]
         assert end_event["type"] == AgentEventType.MESSAGE_END.value
@@ -690,9 +671,7 @@ class TestResolveContextBudgetBreakdown:
         assert result["turn_count"] == 1
         assert result["other_tokens"] == max(
             0,
-            50_000
-            - result["messages_estimated_tokens"]
-            - result["bound_tools_overhead_tokens"],
+            50_000 - result["messages_estimated_tokens"] - result["bound_tools_overhead_tokens"],
         )
         checkpointer.aget.assert_awaited_once()
 
@@ -723,9 +702,7 @@ class TestResolveContextBudgetBreakdown:
     @pytest.mark.asyncio
     async def test_checkpointer_error_still_returns_tools_breakdown(self) -> None:
         checkpointer = AsyncMock()
-        checkpointer.aget = AsyncMock(
-            side_effect=RuntimeError("checkpoint unavailable")
-        )
+        checkpointer.aget = AsyncMock(side_effect=RuntimeError("checkpoint unavailable"))
 
         tool = MagicMock()
         tool.description = "search the web"

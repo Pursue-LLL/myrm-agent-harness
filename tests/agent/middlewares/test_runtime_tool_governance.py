@@ -81,9 +81,7 @@ def test_runtime_governance_readonly_intent_filters_mutation_tools() -> None:
         recent_human_text="请分析这段日志为什么会失败？",
     )
 
-    assert allowed == frozenset(
-        {"web_fetch_tool", "file_read_tool", "request_answer_user_tool"}
-    )
+    assert allowed == frozenset({"web_fetch_tool", "file_read_tool", "request_answer_user_tool"})
     assert "readonly_intent_gate" in reasons
 
 

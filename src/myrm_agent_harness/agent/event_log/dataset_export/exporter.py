@@ -102,9 +102,7 @@ class DatasetExporter:
                     report.duration_ms = (time.monotonic() - start_time) * 1000
                     return report
 
-            samples_by_format: dict[ExportFormat, list[dict[str, object]]] = {
-                fmt: [] for fmt in config.formats
-            }
+            samples_by_format: dict[ExportFormat, list[dict[str, object]]] = {fmt: [] for fmt in config.formats}
 
             exported_session_ids: list[str] = []
 

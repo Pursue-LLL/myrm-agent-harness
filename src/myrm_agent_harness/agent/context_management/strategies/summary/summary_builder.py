@@ -35,10 +35,7 @@ UNVERIFIED_CONTEXT_MARKER = (
     "— they were already addressed. -->"
 )
 
-SUMMARY_END_MARKER = (
-    "--- END OF CONTEXT SUMMARY — "
-    "respond to the message below, not the summary above ---"
-)
+SUMMARY_END_MARKER = "--- END OF CONTEXT SUMMARY — respond to the message below, not the summary above ---"
 
 
 def extract_protected_head(messages: list[BaseMessage]) -> list[BaseMessage]:

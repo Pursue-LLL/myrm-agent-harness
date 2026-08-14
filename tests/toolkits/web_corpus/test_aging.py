@@ -21,9 +21,7 @@ def store(tmp_path: Path) -> WebCorpusStore:
 def test_aging_evicts_old_entries(store: WebCorpusStore) -> None:
     store.upsert(url="https://old.com", title="Old", snippet="old page")
     past = (datetime.now(UTC) - timedelta(days=60)).isoformat()
-    store._conn.execute(
-        "UPDATE web_corpus_meta SET last_accessed = ?", (past,)
-    )
+    store._conn.execute("UPDATE web_corpus_meta SET last_accessed = ?", (past,))
 
     policy = CorpusAgingPolicy(max_age_days=30, max_disk_mb=500)
     evicted = run_aging(store, policy)

@@ -49,73 +49,89 @@ class TestFindTabByOrigin:
         return ctrl
 
     def test_finds_matching_origin(self):
-        ctrl = self._create_controller_with_tabs({
-            "tab0": "https://www.google.com/search?q=test",
-            "tab1": "https://github.com/user/repo",
-        })
+        ctrl = self._create_controller_with_tabs(
+            {
+                "tab0": "https://www.google.com/search?q=test",
+                "tab1": "https://github.com/user/repo",
+            }
+        )
 
         result = ctrl.find_tab_by_origin("https://www.google.com")
         assert result is not None
         assert result.tab_id == "tab0"
 
     def test_returns_none_when_no_match(self):
-        ctrl = self._create_controller_with_tabs({
-            "tab0": "https://www.google.com/search",
-        })
+        ctrl = self._create_controller_with_tabs(
+            {
+                "tab0": "https://www.google.com/search",
+            }
+        )
 
         result = ctrl.find_tab_by_origin("https://github.com")
         assert result is None
 
     def test_skips_blank_tabs(self):
-        ctrl = self._create_controller_with_tabs({
-            "tab0": "about:blank",
-            "tab1": "https://example.com/page",
-        })
+        ctrl = self._create_controller_with_tabs(
+            {
+                "tab0": "about:blank",
+                "tab1": "https://example.com/page",
+            }
+        )
 
         result = ctrl.find_tab_by_origin("https://example.com")
         assert result is not None
         assert result.tab_id == "tab1"
 
     def test_skips_empty_url_tabs(self):
-        ctrl = self._create_controller_with_tabs({
-            "tab0": "",
-            "tab1": "https://github.com/repo",
-        })
+        ctrl = self._create_controller_with_tabs(
+            {
+                "tab0": "",
+                "tab1": "https://github.com/repo",
+            }
+        )
 
         result = ctrl.find_tab_by_origin("https://github.com")
         assert result is not None
         assert result.tab_id == "tab1"
 
     def test_all_blank_tabs_returns_none(self):
-        ctrl = self._create_controller_with_tabs({
-            "tab0": "about:blank",
-            "tab1": "",
-        })
+        ctrl = self._create_controller_with_tabs(
+            {
+                "tab0": "about:blank",
+                "tab1": "",
+            }
+        )
 
         result = ctrl.find_tab_by_origin("https://example.com")
         assert result is None
 
     def test_different_port_is_different_origin(self):
-        ctrl = self._create_controller_with_tabs({
-            "tab0": "http://localhost:3000/page",
-        })
+        ctrl = self._create_controller_with_tabs(
+            {
+                "tab0": "http://localhost:3000/page",
+            }
+        )
 
         result = ctrl.find_tab_by_origin("http://localhost:8080")
         assert result is None
 
     def test_same_port_matches(self):
-        ctrl = self._create_controller_with_tabs({
-            "tab0": "http://localhost:3000/api/data",
-        })
+        ctrl = self._create_controller_with_tabs(
+            {
+                "tab0": "http://localhost:3000/api/data",
+            }
+        )
 
         result = ctrl.find_tab_by_origin("http://localhost:3000")
         assert result is not None
         assert result.tab_id == "tab0"
 
     def test_http_vs_https_is_different_origin(self):
-        ctrl = self._create_controller_with_tabs({
-            "tab0": "http://example.com/page",
-        })
+        ctrl = self._create_controller_with_tabs(
+            {
+                "tab0": "http://example.com/page",
+            }
+        )
 
         result = ctrl.find_tab_by_origin("https://example.com")
         assert result is None
@@ -138,10 +154,12 @@ class TestFindTabByOrigin:
         assert result.tab_id == "tab1"
 
     def test_prefers_active_tab_when_multiple_share_origin(self):
-        ctrl = self._create_controller_with_tabs({
-            "tab0": "https://github.com/userA/repo1",
-            "tab1": "https://github.com/userB/repo2",
-        })
+        ctrl = self._create_controller_with_tabs(
+            {
+                "tab0": "https://github.com/userA/repo1",
+                "tab1": "https://github.com/userB/repo2",
+            }
+        )
         ctrl._active_tab_id = "tab1"
 
         result = ctrl.find_tab_by_origin("https://github.com")
@@ -149,10 +167,12 @@ class TestFindTabByOrigin:
         assert result.tab_id == "tab1"
 
     def test_returns_first_match_when_no_active_matches(self):
-        ctrl = self._create_controller_with_tabs({
-            "tab0": "https://github.com/userA/repo1",
-            "tab1": "https://github.com/userB/repo2",
-        })
+        ctrl = self._create_controller_with_tabs(
+            {
+                "tab0": "https://github.com/userA/repo1",
+                "tab1": "https://github.com/userB/repo2",
+            }
+        )
         ctrl._active_tab_id = "tab2"  # active is something else
 
         result = ctrl.find_tab_by_origin("https://github.com")
@@ -289,9 +309,11 @@ class TestManageToolTabActions:
         session = MagicMock()
         session.list_tabs = Mock(return_value=["tab0"])
         session.new_tab = AsyncMock(return_value="tab0")
-        session.list_tabs_with_info = Mock(return_value=[
-            {"tab_id": "tab0", "domain": "google.com", "active": True},
-        ])
+        session.list_tabs_with_info = Mock(
+            return_value=[
+                {"tab_id": "tab0", "domain": "google.com", "active": True},
+            ]
+        )
 
         tool_fn = create_manage_tool(session)
         result = await tool_fn.ainvoke({"action": "new_tab", "value": "https://google.com/maps"})
@@ -320,10 +342,12 @@ class TestManageToolTabActions:
         from myrm_agent_harness.toolkits.browser.tools.manage import create_manage_tool
 
         session = MagicMock()
-        session.list_tabs_with_info = Mock(return_value=[
-            {"tab_id": "tab0", "domain": "google.com", "active": True},
-            {"tab_id": "tab1", "domain": "github.com", "active": False},
-        ])
+        session.list_tabs_with_info = Mock(
+            return_value=[
+                {"tab_id": "tab0", "domain": "google.com", "active": True},
+                {"tab_id": "tab1", "domain": "github.com", "active": False},
+            ]
+        )
 
         tool_fn = create_manage_tool(session)
         result = await tool_fn.ainvoke({"action": "list_tabs", "value": ""})

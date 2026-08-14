@@ -202,9 +202,7 @@ class TestApprovalInterceptedEventData:
         assert data.original_text is None
 
     def test_with_original_text(self) -> None:
-        data = ApprovalInterceptedEventData(
-            decision="rejected", original_text="rm -rf /"
-        )
+        data = ApprovalInterceptedEventData(decision="rejected", original_text="rm -rf /")
         assert data.original_text == "rm -rf /"
 
 

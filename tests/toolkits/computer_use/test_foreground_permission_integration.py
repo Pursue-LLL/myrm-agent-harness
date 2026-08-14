@@ -34,6 +34,7 @@ from myrm_agent_harness.toolkits.computer_use.types import (
 def _realistic_png_bytes() -> bytes:
     """Generate a 1920x1080 noisy PNG that passes the min-size check after JPEG encoding."""
     import random
+
     random.seed(42)
     img = Image.new("RGB", (1920, 1080))
     pixels = img.load()
@@ -92,9 +93,7 @@ class TestDesktopVisionActionPermissionIntegration:
     async def test_foreground_mode_proceeds_to_action(self) -> None:
         """In foreground mode, permission gate is skipped entirely — action executes."""
         backend = _make_backend()
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.foreground, screenshot_delay=0.0
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.foreground, screenshot_delay=0.0)
         session = DesktopSession(backend=backend, config=config)
         session._last_snapshot_time = time.time()
 
@@ -102,9 +101,7 @@ class TestDesktopVisionActionPermissionIntegration:
             "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
             return_value=_NON_SENSITIVE_FG_INFO,
         ):
-            result = await session.desktop_vision_action(
-                action="left_click", coordinate=[50, 50]
-            )
+            result = await session.desktop_vision_action(action="left_click", coordinate=[50, 50])
 
         assert "permission denied" not in str(result).lower()
         backend.click.assert_called_once()
@@ -113,9 +110,7 @@ class TestDesktopVisionActionPermissionIntegration:
     async def test_background_strict_blocks_without_callback(self) -> None:
         """background_strict + no callback → permission denied string returned."""
         backend = _make_backend()
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
         session = DesktopSession(backend=backend, config=config, permission_callback=None)
         session._last_snapshot_time = time.time()
 
@@ -123,9 +118,7 @@ class TestDesktopVisionActionPermissionIntegration:
             "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
             return_value=_NON_SENSITIVE_FG_INFO,
         ):
-            result = await session.desktop_vision_action(
-                action="left_click", coordinate=[50, 50]
-            )
+            result = await session.desktop_vision_action(action="left_click", coordinate=[50, 50])
 
         _assert_control_blocked(result)
         assert (
@@ -140,25 +133,17 @@ class TestDesktopVisionActionPermissionIntegration:
         """background_strict + callback grants → action executes normally."""
         backend = _make_backend()
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(
-                granted=True, scope=ForegroundPermissionScope.session
-            )
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.session)
         )
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         session._last_snapshot_time = time.time()
 
         with patch(
             "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
             return_value=_NON_SENSITIVE_FG_INFO,
         ):
-            result = await session.desktop_vision_action(
-                action="left_click", coordinate=[50, 50]
-            )
+            result = await session.desktop_vision_action(action="left_click", coordinate=[50, 50])
 
         callback.assert_called_once()
         assert "permission denied" not in str(result).lower()
@@ -168,24 +153,16 @@ class TestDesktopVisionActionPermissionIntegration:
     async def test_background_strict_callback_denies_blocks(self) -> None:
         """background_strict + callback denies → action blocked."""
         backend = _make_backend()
-        callback = AsyncMock(
-            return_value=ForegroundPermissionResult(granted=False)
-        )
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        callback = AsyncMock(return_value=ForegroundPermissionResult(granted=False))
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         session._last_snapshot_time = time.time()
 
         with patch(
             "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
             return_value=_NON_SENSITIVE_FG_INFO,
         ):
-            result = await session.desktop_vision_action(
-                action="left_click", coordinate=[50, 50]
-            )
+            result = await session.desktop_vision_action(action="left_click", coordinate=[50, 50])
 
         callback.assert_called_once()
         _assert_control_blocked(result)
@@ -196,16 +173,10 @@ class TestDesktopVisionActionPermissionIntegration:
         """Per-app approval runs each mutating vision call; foreground session grant persists."""
         backend = _make_backend()
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(
-                granted=True, scope=ForegroundPermissionScope.session
-            )
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.session)
         )
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         session._last_snapshot_time = time.time()
 
         with patch(
@@ -226,17 +197,16 @@ class TestDesktopVisionActionPermissionIntegration:
         """'screenshot' and 'wait' are background-safe — no permission needed."""
         backend = _make_backend()
         callback = AsyncMock()
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
 
-        with patch(
-            "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
-            return_value=_NON_SENSITIVE_FG_INFO,
-        ), patch.object(session, "wait_seconds", new_callable=AsyncMock) as mock_wait:
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
+                return_value=_NON_SENSITIVE_FG_INFO,
+            ),
+            patch.object(session, "wait_seconds", new_callable=AsyncMock) as mock_wait,
+        ):
             mock_wait.return_value = ActionResult(success=True)
             result = await session.desktop_vision_action(action="wait")
 
@@ -247,9 +217,7 @@ class TestDesktopVisionActionPermissionIntegration:
     async def test_best_effort_mode_proceeds_without_callback(self) -> None:
         """background_best_effort + no callback → action proceeds (graceful degradation)."""
         backend = _make_backend()
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_best_effort, screenshot_delay=0.0
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_best_effort, screenshot_delay=0.0)
         session = DesktopSession(backend=backend, config=config, permission_callback=None)
         session._last_snapshot_time = time.time()
 
@@ -257,9 +225,7 @@ class TestDesktopVisionActionPermissionIntegration:
             "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
             return_value=_NON_SENSITIVE_FG_INFO,
         ):
-            result = await session.desktop_vision_action(
-                action="left_click", coordinate=[50, 50]
-            )
+            result = await session.desktop_vision_action(action="left_click", coordinate=[50, 50])
 
         assert "permission denied" not in str(result).lower()
         backend.click.assert_called_once()
@@ -276,9 +242,7 @@ class TestHealerBBoxClickPermissionIntegration:
         session = DesktopSession(backend=backend, config=config, permission_callback=None)
         element = _make_element()
 
-        result = await try_bbox_click(
-            session=session, element=element, action="click", text="", modifiers=None
-        )
+        result = await try_bbox_click(session=session, element=element, action="click", text="", modifiers=None)
 
         assert result.success is False
         assert "background_strict" in result.error
@@ -289,19 +253,13 @@ class TestHealerBBoxClickPermissionIntegration:
         """Healer fallback proceeds when callback grants permission."""
         backend = _make_backend()
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(
-                granted=True, scope=ForegroundPermissionScope.once
-            )
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.once)
         )
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         element = _make_element(x=50, y=60)
 
-        result = await try_bbox_click(
-            session=session, element=element, action="click", text="", modifiers=None
-        )
+        result = await try_bbox_click(session=session, element=element, action="click", text="", modifiers=None)
 
         assert result.success is True
         callback.assert_called_once()
@@ -312,19 +270,13 @@ class TestHealerBBoxClickPermissionIntegration:
         """Healer 'fill' action: click + type_text after permission grant."""
         backend = _make_backend()
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(
-                granted=True, scope=ForegroundPermissionScope.session
-            )
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.session)
         )
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         element = _make_element(x=0, y=0)
 
-        result = await try_bbox_click(
-            session=session, element=element, action="fill", text="hello", modifiers=None
-        )
+        result = await try_bbox_click(session=session, element=element, action="fill", text="hello", modifiers=None)
 
         assert result.success is True
         backend.click.assert_called_once()
@@ -334,18 +286,12 @@ class TestHealerBBoxClickPermissionIntegration:
     async def test_bbox_click_denied_by_callback(self) -> None:
         """Healer fallback blocked when callback explicitly denies."""
         backend = _make_backend()
-        callback = AsyncMock(
-            return_value=ForegroundPermissionResult(granted=False)
-        )
+        callback = AsyncMock(return_value=ForegroundPermissionResult(granted=False))
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         element = _make_element()
 
-        result = await try_bbox_click(
-            session=session, element=element, action="click", text="", modifiers=None
-        )
+        result = await try_bbox_click(session=session, element=element, action="click", text="", modifiers=None)
 
         assert result.success is False
         assert "denied" in result.error.lower()
@@ -357,14 +303,10 @@ class TestHealerBBoxClickPermissionIntegration:
         backend = _make_backend()
         callback = AsyncMock()
         config = ComputerUseConfig(execution_mode=ExecutionMode.foreground)
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         element = _make_element(x=10, y=20)
 
-        result = await try_bbox_click(
-            session=session, element=element, action="click", text="", modifiers=None
-        )
+        result = await try_bbox_click(session=session, element=element, action="click", text="", modifiers=None)
 
         assert result.success is True
         callback.assert_not_called()
@@ -380,16 +322,17 @@ class TestDesktopInteractPermissionIntegration:
         from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         backend = _make_backend()
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
         session = DesktopSession(backend=backend, config=config, permission_callback=None)
         session._last_snapshot_time = time.time()
 
         element = _make_element(x=100, y=200)
         meta = SnapshotMeta(
-            ref_count=1, app_name="Safari", window_title="Page",
-            scope="foreground", needs_permission=False,
+            ref_count=1,
+            app_name="Safari",
+            window_title="Page",
+            scope="foreground",
+            needs_permission=False,
         )
         session._refs.replace({"de0": element}, meta)
 
@@ -410,35 +353,36 @@ class TestDesktopInteractPermissionIntegration:
 
         backend = _make_backend()
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(
-                granted=True, scope=ForegroundPermissionScope.session
-            )
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.session)
         )
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         session._last_snapshot_time = time.time()
 
         element = _make_element(x=100, y=200)
         meta = SnapshotMeta(
-            ref_count=1, app_name="Safari", window_title="Page",
-            scope="foreground", needs_permission=False,
+            ref_count=1,
+            app_name="Safari",
+            window_title="Page",
+            scope="foreground",
+            needs_permission=False,
         )
         session._refs.replace({"de0": element}, meta)
 
         failed_invoke = ActionResult(success=False, error="AX invoke not available")
-        with patch(
-            "myrm_agent_harness.toolkits.computer_use.desktop_session.invoke_element",
-            return_value=failed_invoke,
-        ), patch(
-            "myrm_agent_harness.toolkits.computer_use.desktop_session.capture_snapshot",
-            return_value=(meta, {"de0": element}),
-        ), patch(
-            "myrm_agent_harness.toolkits.computer_use.desktop_session.render_snapshot_tree",
-            return_value=("tree text", meta),
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.desktop_session.invoke_element",
+                return_value=failed_invoke,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.desktop_session.capture_snapshot",
+                return_value=(meta, {"de0": element}),
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.desktop_session.render_snapshot_tree",
+                return_value=("tree text", meta),
+            ),
         ):
             result = await session.desktop_interact(ref="e0", action="click")
 
@@ -454,9 +398,7 @@ class TestVisionActionVariantsPermission:
     async def test_type_action_blocked_in_strict(self) -> None:
         """'type' action is foreground-requiring and gets blocked in strict mode."""
         backend = _make_backend()
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
         session = DesktopSession(backend=backend, config=config, permission_callback=None)
         session._last_snapshot_time = time.time()
 
@@ -472,9 +414,7 @@ class TestVisionActionVariantsPermission:
     async def test_key_action_blocked_in_strict(self) -> None:
         """'key' action blocked without callback in strict mode."""
         backend = _make_backend()
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
         session = DesktopSession(backend=backend, config=config, permission_callback=None)
         session._last_snapshot_time = time.time()
 
@@ -490,9 +430,7 @@ class TestVisionActionVariantsPermission:
     async def test_scroll_action_blocked_in_strict(self) -> None:
         """'scroll' action blocked in strict mode."""
         backend = _make_backend()
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
         session = DesktopSession(backend=backend, config=config, permission_callback=None)
         session._last_snapshot_time = time.time()
 
@@ -510,9 +448,7 @@ class TestVisionActionVariantsPermission:
     async def test_drag_action_blocked_in_strict(self) -> None:
         """'drag' action blocked in strict mode."""
         backend = _make_backend()
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
         session = DesktopSession(backend=backend, config=config, permission_callback=None)
         session._last_snapshot_time = time.time()
 
@@ -532,9 +468,7 @@ class TestVisionActionVariantsPermission:
     async def test_mouse_move_blocked_in_strict(self) -> None:
         """'mouse_move' action blocked in strict mode."""
         backend = _make_backend()
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
         session = DesktopSession(backend=backend, config=config, permission_callback=None)
         session._last_snapshot_time = time.time()
 
@@ -542,9 +476,7 @@ class TestVisionActionVariantsPermission:
             "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
             return_value=_NON_SENSITIVE_FG_INFO,
         ):
-            result = await session.desktop_vision_action(
-                action="mouse_move", coordinate=[100, 100]
-            )
+            result = await session.desktop_vision_action(action="mouse_move", coordinate=[100, 100])
 
             _assert_control_blocked(result)
 
@@ -557,16 +489,10 @@ class TestAlwaysScopePersistence:
         """After 'always' grant via vision action, healer also skips callback."""
         backend = _make_backend()
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(
-                granted=True, scope=ForegroundPermissionScope.always
-            )
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.always)
         )
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         session._last_snapshot_time = time.time()
 
         with patch(
@@ -578,9 +504,7 @@ class TestAlwaysScopePersistence:
         assert callback.call_count == 1
 
         element = _make_element(x=30, y=40)
-        result = await try_bbox_click(
-            session=session, element=element, action="click", text="", modifiers=None
-        )
+        result = await try_bbox_click(session=session, element=element, action="click", text="", modifiers=None)
         assert result.success is True
         assert callback.call_count == 1  # NOT called again
 
@@ -589,26 +513,16 @@ class TestAlwaysScopePersistence:
         """'once' scope requires callback on every subsequent call."""
         backend = _make_backend()
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(
-                granted=True, scope=ForegroundPermissionScope.once
-            )
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.once)
         )
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
 
         element1 = _make_element(x=10, y=10)
         element2 = _make_element(x=20, y=20)
 
-        await try_bbox_click(
-            session=session, element=element1, action="click", text="", modifiers=None
-        )
-        await try_bbox_click(
-            session=session, element=element2, action="click", text="", modifiers=None
-        )
+        await try_bbox_click(session=session, element=element1, action="click", text="", modifiers=None)
+        await try_bbox_click(session=session, element=element2, action="click", text="", modifiers=None)
 
         assert callback.call_count == 2
 
@@ -621,16 +535,10 @@ class TestCallbackArgsIntegration:
         """Callback from desktop_vision_action has correct reason and operation."""
         backend = _make_backend()
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(
-                granted=True, scope=ForegroundPermissionScope.once
-            )
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.once)
         )
-        config = ComputerUseConfig(
-            execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0
-        )
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict, screenshot_delay=0.0)
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         session._last_snapshot_time = time.time()
 
         with patch(
@@ -650,19 +558,13 @@ class TestCallbackArgsIntegration:
         """Callback from try_bbox_click has correct reason and operation."""
         backend = _make_backend()
         callback = AsyncMock(
-            return_value=ForegroundPermissionResult(
-                granted=True, scope=ForegroundPermissionScope.once
-            )
+            return_value=ForegroundPermissionResult(granted=True, scope=ForegroundPermissionScope.once)
         )
         config = ComputerUseConfig(execution_mode=ExecutionMode.background_strict)
-        session = DesktopSession(
-            backend=backend, config=config, permission_callback=callback
-        )
+        session = DesktopSession(backend=backend, config=config, permission_callback=callback)
         element = _make_element(x=100, y=200)
 
-        await try_bbox_click(
-            session=session, element=element, action="click", text="", modifiers=None
-        )
+        await try_bbox_click(session=session, element=element, action="click", text="", modifiers=None)
 
         call_kwargs = callback.call_args.kwargs
         assert "AX invoke failed for @e0" in call_kwargs["reason"]

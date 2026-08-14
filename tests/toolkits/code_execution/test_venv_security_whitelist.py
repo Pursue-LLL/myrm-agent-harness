@@ -56,39 +56,29 @@ def venv_manager_without_venv(tmp_path: Path) -> VenvManager:
 class TestCommandWhitelistPaths:
     """Unit tests for VenvManager.command_whitelist_paths."""
 
-    def test_returns_venv_path_when_exists(
-        self, venv_manager_with_venv: VenvManager, tmp_venv: Path
-    ) -> None:
+    def test_returns_venv_path_when_exists(self, venv_manager_with_venv: VenvManager, tmp_venv: Path) -> None:
         result = venv_manager_with_venv.command_whitelist_paths(())
         assert result is not None
         assert len(result) == 1
         assert result[0] == tmp_venv
 
-    def test_returns_none_when_venv_missing(
-        self, venv_manager_without_venv: VenvManager
-    ) -> None:
+    def test_returns_none_when_venv_missing(self, venv_manager_without_venv: VenvManager) -> None:
         result = venv_manager_without_venv.command_whitelist_paths(())
         assert result is None
 
-    def test_return_type_matches_additional_paths_signature(
-        self, venv_manager_with_venv: VenvManager
-    ) -> None:
+    def test_return_type_matches_additional_paths_signature(self, venv_manager_with_venv: VenvManager) -> None:
         result = venv_manager_with_venv.command_whitelist_paths(())
         assert isinstance(result, list)
         assert all(isinstance(p, Path) for p in result)
 
-    def test_merges_readonly_grader_paths(
-        self, venv_manager_with_venv: VenvManager, tmp_venv: Path
-    ) -> None:
+    def test_merges_readonly_grader_paths(self, venv_manager_with_venv: VenvManager, tmp_venv: Path) -> None:
         grader = tmp_venv.parent / "grader"
         result = venv_manager_with_venv.command_whitelist_paths((str(grader),))
         assert result is not None
         assert grader in result
         assert len(result) == 2
 
-    def test_readonly_paths_without_venv(
-        self, venv_manager_without_venv: VenvManager
-    ) -> None:
+    def test_readonly_paths_without_venv(self, venv_manager_without_venv: VenvManager) -> None:
         grader = Path("/data/grader")
         result = venv_manager_without_venv.command_whitelist_paths((str(grader),))
         assert result == [grader]
@@ -97,9 +87,7 @@ class TestCommandWhitelistPaths:
 class TestValidateCommandWithVenvWhitelist:
     """Integration tests: validate_command + venv as additional_paths."""
 
-    def test_venv_python_path_allowed(
-        self, tmp_workspace: Path, tmp_venv: Path
-    ) -> None:
+    def test_venv_python_path_allowed(self, tmp_workspace: Path, tmp_venv: Path) -> None:
         python_path = str(tmp_venv / "bin" / "python")
         script = tmp_workspace / "run.py"
         script.touch()
@@ -121,9 +109,7 @@ class TestValidateCommandWithVenvWhitelist:
         )
         assert result.is_safe, f"Expected safe, got: {result.reason}"
 
-    def test_non_whitelist_path_still_blocked(
-        self, tmp_workspace: Path, tmp_venv: Path
-    ) -> None:
+    def test_non_whitelist_path_still_blocked(self, tmp_workspace: Path, tmp_venv: Path) -> None:
         cmd = "/usr/local/bin/evil_script.sh"
         result = validate_command(
             cmd,
@@ -133,9 +119,7 @@ class TestValidateCommandWithVenvWhitelist:
         assert not result.is_safe
         assert "Access denied" in (result.reason or "")
 
-    def test_workspace_path_still_allowed(
-        self, tmp_workspace: Path, tmp_venv: Path
-    ) -> None:
+    def test_workspace_path_still_allowed(self, tmp_workspace: Path, tmp_venv: Path) -> None:
         script = tmp_workspace / "my_script.py"
         script.touch()
         cmd = f"python {script}"
@@ -146,9 +130,7 @@ class TestValidateCommandWithVenvWhitelist:
         )
         assert result.is_safe
 
-    def test_without_additional_paths_venv_blocked(
-        self, tmp_workspace: Path, tmp_venv: Path
-    ) -> None:
+    def test_without_additional_paths_venv_blocked(self, tmp_workspace: Path, tmp_venv: Path) -> None:
         """Before the fix: venv paths are blocked without additional_paths."""
         python_path = str(tmp_venv / "bin" / "python")
         script = tmp_workspace / "run.py"
@@ -238,9 +220,7 @@ class TestIsPathAllowed:
         allowed = _get_allowed_paths(workspace_path=tmp_workspace)
         assert _is_path_allowed("/etc/shadow", allowed) is False
 
-    def test_venv_path_with_additional(
-        self, tmp_workspace: Path, tmp_venv: Path
-    ) -> None:
+    def test_venv_path_with_additional(self, tmp_workspace: Path, tmp_venv: Path) -> None:
         allowed = _get_allowed_paths(
             workspace_path=tmp_workspace,
             additional_paths=[tmp_venv],
@@ -248,9 +228,7 @@ class TestIsPathAllowed:
         python_path = str(tmp_venv / "bin" / "python")
         assert _is_path_allowed(python_path, allowed) is True
 
-    def test_venv_path_without_additional_blocked(
-        self, tmp_workspace: Path, tmp_venv: Path
-    ) -> None:
+    def test_venv_path_without_additional_blocked(self, tmp_workspace: Path, tmp_venv: Path) -> None:
         allowed = _get_allowed_paths(workspace_path=tmp_workspace)
         python_path = str(tmp_venv / "bin" / "python")
         assert _is_path_allowed(python_path, allowed) is False

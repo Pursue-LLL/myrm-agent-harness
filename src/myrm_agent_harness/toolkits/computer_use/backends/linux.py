@@ -389,10 +389,7 @@ class LinuxBackend:
         and DISPLAY env var (X11 server connectivity).
         """
         has_xdotool = shutil.which("xdotool") is not None
-        has_screenshot = (
-            shutil.which("scrot") is not None
-            or shutil.which("gnome-screenshot") is not None
-        )
+        has_screenshot = shutil.which("scrot") is not None or shutil.which("gnome-screenshot") is not None
         has_display = bool(os.getenv("DISPLAY"))
 
         deeplinks: dict[str, str] = {}

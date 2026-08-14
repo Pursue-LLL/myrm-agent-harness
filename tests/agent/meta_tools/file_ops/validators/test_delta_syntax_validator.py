@@ -11,16 +11,19 @@ def test_python_valid_syntax():
     # Should not raise exception
     DeltaSyntaxValidator.validate("test.py", post_content, pre_content=None)
 
+
 def test_python_invalid_syntax_no_pre_content():
     post_content = "def hello()\n    print('world')\n"
     with pytest.raises(ValueError, match="Syntax validation failed"):
         DeltaSyntaxValidator.validate("test.py", post_content, pre_content=None)
+
 
 def test_python_new_error_with_clean_pre_content():
     pre_content = "def hello():\n    print('world')\n"
     post_content = "def hello()\n    print('world')\n"
     with pytest.raises(ValueError, match="New syntax errors introduced"):
         DeltaSyntaxValidator.validate("test.py", post_content, pre_content=pre_content)
+
 
 def test_python_same_error_is_ignored():
     pre_content = "def hello()\n    print('world')\n"
@@ -29,6 +32,7 @@ def test_python_same_error_is_ignored():
     # Should not raise exception
     DeltaSyntaxValidator.validate("test.py", post_content, pre_content=pre_content)
 
+
 def test_python_new_error_with_broken_pre_content():
     pre_content = "def hello()\n    print('world')\n"
     # Fixed the previous error, but introduced a new one (IndentationError)
@@ -36,9 +40,11 @@ def test_python_new_error_with_broken_pre_content():
     with pytest.raises(ValueError, match="New syntax errors introduced"):
         DeltaSyntaxValidator.validate("test.py", post_content, pre_content=pre_content)
 
+
 def test_json_valid():
     post_content = '{"key": "value"}'
     DeltaSyntaxValidator.validate("test.json", post_content, pre_content=None)
+
 
 def test_json_invalid_trailing_comma():
     pre_content = '{"key": "value"}'
@@ -46,10 +52,12 @@ def test_json_invalid_trailing_comma():
     with pytest.raises(ValueError, match="New syntax errors introduced"):
         DeltaSyntaxValidator.validate("test.json", post_content, pre_content=pre_content)
 
+
 def test_unknown_extension():
     post_content = "some arbitrary content\n  with invalid syntax { } ["
     # No linter for .txt, should pass
     DeltaSyntaxValidator.validate("test.txt", post_content, pre_content=None)
+
 
 def test_python_shifted_error_is_ignored():
     # Pre-content has error at line 1
@@ -62,14 +70,17 @@ def test_python_shifted_error_is_ignored():
     # With _strip_line_col, the error signature matches and is ignored.
     DeltaSyntaxValidator.validate("test.py", post_content, pre_content=pre_content)
 
+
 def test_json_shifted_error_is_ignored():
     pre_content = '{\n"key": "value",\n}'
     post_content = '\n{\n"key": "value",\n}'
     DeltaSyntaxValidator.validate("test.json", post_content, pre_content=pre_content)
 
+
 def test_yaml_valid():
     post_content = "key: value\nlist:\n  - item1\n"
     DeltaSyntaxValidator.validate("test.yaml", post_content, pre_content=None)
+
 
 def test_yaml_invalid():
     pre_content = "key: value\n"
@@ -77,20 +88,24 @@ def test_yaml_invalid():
     with pytest.raises(ValueError, match="New syntax errors introduced"):
         DeltaSyntaxValidator.validate("test.yaml", post_content, pre_content=pre_content)
 
+
 def test_yaml_shifted_error_is_ignored():
     pre_content = "list: [unclosed\n"
     post_content = "\nlist: [unclosed\n"
     DeltaSyntaxValidator.validate("test.yml", post_content, pre_content=pre_content)
 
+
 def test_toml_valid():
     post_content = '[table]\nkey = "value"\n'
     DeltaSyntaxValidator.validate("test.toml", post_content, pre_content=None)
+
 
 def test_toml_invalid():
     pre_content = '[table]\nkey = "value"\n'
     post_content = '[table\nkey = "value"\n'
     with pytest.raises(ValueError, match="New syntax errors introduced"):
         DeltaSyntaxValidator.validate("test.toml", post_content, pre_content=pre_content)
+
 
 def test_toml_shifted_error_is_ignored():
     pre_content = '[table\nkey = "value"\n'
@@ -178,4 +193,3 @@ def test_python_linter_generic_exception(monkeypatch: pytest.MonkeyPatch) -> Non
     ok, err = mod._lint_python_inproc("x = 1\n")
     assert ok is False
     assert "MemoryError" in err
-

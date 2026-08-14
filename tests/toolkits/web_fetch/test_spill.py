@@ -58,9 +58,7 @@ async def test_spill_truncates_and_persists_large_content(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_spill_persist_failure_still_returns_preview(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_spill_persist_failure_still_returns_preview(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     workspace = tmp_path
     chat_id = "persist_fail_test"
     token = workspace_root_var.set(str(workspace))

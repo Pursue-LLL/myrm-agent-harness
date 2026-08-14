@@ -89,10 +89,12 @@ class TestMultimodalDatetimeInjection:
     def _run_with_injection_enabled(self, fn):
         """Helper to run fn with datetime injection context vars set."""
         ctx = copy_context()
+
         def _inner():
             datetime_injection_enabled_var.set(True)
             user_timezone_var.set("UTC")
             fn()
+
         ctx.run(_inner)
 
     def test_multimodal_text_part_gets_datetime(self) -> None:

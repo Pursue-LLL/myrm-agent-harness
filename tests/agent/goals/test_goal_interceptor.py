@@ -40,9 +40,7 @@ def llm() -> MagicMock:
 async def test_no_active_goal_returns_early(goal_provider, llm, storage_provider):
     goal_provider.get_active_goal.return_value = None
 
-    await intercept_goal_and_plan(
-        goal_provider, "s1", "do stuff", llm, storage_provider
-    )
+    await intercept_goal_and_plan(goal_provider, "s1", "do stuff", llm, storage_provider)
 
     goal_provider.update_status.assert_not_called()
 
@@ -63,9 +61,7 @@ async def test_applies_goal_invariants_without_plan_generation(
     goal.protected_paths = ["src/main.py"]
     goal_provider.get_active_goal.return_value = goal
 
-    await intercept_goal_and_plan(
-        goal_provider, "s1", "do stuff", llm, storage_provider
-    )
+    await intercept_goal_and_plan(goal_provider, "s1", "do stuff", llm, storage_provider)
 
     mock_set_paths.assert_called_once_with(("src/main.py",))
     mock_capture.assert_called_once()

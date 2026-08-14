@@ -172,8 +172,7 @@ def test_multimodal_first_human_message_prepends_catalog() -> None:
 
 def test_agent_switch_catalog_refresh_replaces_stale_block() -> None:
     stale = (
-        '<bound_skills hash="agent-a">\n<skills><skill name="old_skill"/></skills>\n'
-        "</bound_skills>\n\nfirst question"
+        '<bound_skills hash="agent-a">\n<skills><skill name="old_skill"/></skills>\n</bound_skills>\n\nfirst question'
     )
     messages = [HumanMessage(content=stale), HumanMessage(content="follow up")]
     ensure_skill_catalog_in_messages(messages, [_skill("new_skill")])
@@ -207,9 +206,7 @@ def test_ensure_skill_catalog_no_ops_on_empty_messages() -> None:
     assert messages == []
 
 
-def test_resolve_catalog_display_skills_prefers_always_skills_when_over_threshold() -> (
-    None
-):
+def test_resolve_catalog_display_skills_prefers_always_skills_when_over_threshold() -> None:
     from myrm_agent_harness.agent.skills.runtime.catalog_display import (
         resolve_catalog_display_skills,
     )

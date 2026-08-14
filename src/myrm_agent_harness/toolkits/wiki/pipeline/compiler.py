@@ -177,17 +177,12 @@ class WikiCompiler:
         except ValueError:
             return doc_path.name
 
-    def _sort_queue_items_for_survey(
-        self, queue_items: list[QueueItem]
-    ) -> list[QueueItem]:
+    def _sort_queue_items_for_survey(self, queue_items: list[QueueItem]) -> list[QueueItem]:
         session = self._get_session()
         if session is None or session.context.skipped:
             return queue_items
 
-        order_index = {
-            facet_id: index
-            for index, facet_id in enumerate(session.context.processing_order)
-        }
+        order_index = {facet_id: index for index, facet_id in enumerate(session.context.processing_order)}
 
         def _sort_key(item: QueueItem) -> tuple[int, str]:
             rel = self._relative_raw_path(Path(str(item["file_path"])))
@@ -211,9 +206,7 @@ class WikiCompiler:
                     *session.facet_seeds.get(facet_id, []),
                     *list(facet.suggested_seeds),
                 ]
-                unique_seeds = list(dict.fromkeys(seed for seed in seed_lines if seed))[
-                    :12
-                ]
+                unique_seeds = list(dict.fromkeys(seed for seed in seed_lines if seed))[:12]
                 if unique_seeds:
                     sections.append(
                         "# Facet concept seeds (reuse these names when applicable):\n"
@@ -234,17 +227,12 @@ class WikiCompiler:
             return ""
         return "\n\n".join(sections) + "\n\n"
 
-    def _record_facet_seeds(
-        self, queue_items: list[QueueItem], concepts: list[ConceptInfo]
-    ) -> None:
+    def _record_facet_seeds(self, queue_items: list[QueueItem], concepts: list[ConceptInfo]) -> None:
         session = self._get_session()
         if session is None or session.context.skipped or not concepts:
             return
 
-        batch_paths = {
-            self._relative_raw_path(Path(str(item["file_path"])))
-            for item in queue_items
-        }
+        batch_paths = {self._relative_raw_path(Path(str(item["file_path"]))) for item in queue_items}
         for concept in concepts:
             for source in concept.source_files:
                 if source not in batch_paths:
@@ -295,9 +283,7 @@ class WikiCompiler:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            logger.debug(
-                "No running event loop; background worker will start on first compile"
-            )
+            logger.debug("No running event loop; background worker will start on first compile")
             return
 
         task = loop.create_task(self._worker_loop())
@@ -323,15 +309,11 @@ class WikiCompiler:
                 pending_items = self._queue.get_pending_items(limit=5)
 
                 if not pending_items:
-                    retryable = self._queue.get_transient_retryable_items(
-                        max_retries=3, limit=3
-                    )
+                    retryable = self._queue.get_transient_retryable_items(max_retries=3, limit=3)
                     if retryable:
                         for item in retryable:
                             self._queue.reset_for_retry(item["id"])
-                        logger.info(
-                            f"Auto-retrying {len(retryable)} transient failed items"
-                        )
+                        logger.info(f"Auto-retrying {len(retryable)} transient failed items")
                         consecutive_empty = 0
                         continue
 
@@ -403,16 +385,12 @@ class WikiCompiler:
             CorpusEligibilityFilter,
         )
 
-        raw_files = CorpusEligibilityFilter(self._structure).filter_raw_paths(
-            self._structure.list_raw_files()
-        )
+        raw_files = CorpusEligibilityFilter(self._structure).filter_raw_paths(self._structure.list_raw_files())
 
         # Step 0: Add files to queue based on strategy
         if self._config.compile_strategy == "incremental":
             changed_files = await self._filter_changed_files(raw_files)
-            logger.info(
-                f"Incremental compile: adding {len(changed_files)} changed files to queue"
-            )
+            logger.info(f"Incremental compile: adding {len(changed_files)} changed files to queue")
             if changed_files:
                 self._queue.add_batch(changed_files)
         else:
@@ -423,16 +401,12 @@ class WikiCompiler:
         pending_items = self._queue.get_pending_items(limit=batch_size)
 
         if self._queue.is_compile_paused():
-            logger.warning(
-                "Compile requested while circuit is paused; skipping batch drain"
-            )
+            logger.warning("Compile requested while circuit is paused; skipping batch drain")
             return CompileResult(
                 concepts_count=0,
                 articles_generated=0,
                 backlinks_created=0,
-                duration_ms=int(
-                    (datetime.now(UTC) - start_time).total_seconds() * 1000
-                ),
+                duration_ms=int((datetime.now(UTC) - start_time).total_seconds() * 1000),
                 articles_pending=0,
                 articles_published=0,
                 articles_blocked=0,
@@ -441,9 +415,7 @@ class WikiCompiler:
 
         if not pending_items:
             logger.info("No pending files to compile in queue")
-            self._refresh_cognitive_map(
-                [], summary="Compile requested; ingestion queue empty"
-            )
+            self._refresh_cognitive_map([], summary="Compile requested; ingestion queue empty")
             return CompileResult(
                 concepts_count=0,
                 articles_generated=0,
@@ -579,9 +551,7 @@ class WikiCompiler:
                 changed.append(f)
         return changed
 
-    async def _extract_concepts_batch(
-        self, queue_items: list[QueueItem]
-    ) -> _BatchExtractOutcome:
+    async def _extract_concepts_batch(self, queue_items: list[QueueItem]) -> _BatchExtractOutcome:
         """Extract concepts from queue items with configurable parallelism."""
         queue_items = self._sort_queue_items_for_survey(queue_items)
         failure_kinds: list[str] = []
@@ -607,9 +577,7 @@ class WikiCompiler:
                 else:
                     concepts = await self._extract_concepts_from_doc(raw_file)
                 if not concepts:
-                    resolution = resolve_llm_failure(
-                        RuntimeError("Concept extraction returned no concepts")
-                    )
+                    resolution = resolve_llm_failure(RuntimeError("Concept extraction returned no concepts"))
                     self._queue.mark_failed(
                         item_id,
                         "Concept extraction returned no concepts",
@@ -645,11 +613,7 @@ class WikiCompiler:
         for result in results:
             if isinstance(result, BaseException):
                 logger.error(f"Unexpected error in concept extraction: {result}")
-                resolution = resolve_llm_failure(
-                    result
-                    if isinstance(result, Exception)
-                    else RuntimeError(str(result))
-                )
+                resolution = resolve_llm_failure(result if isinstance(result, Exception) else RuntimeError(str(result)))
                 failure_kinds.append(resolution.error_kind)
                 continue
             for concept in result:
@@ -659,12 +623,8 @@ class WikiCompiler:
                         name=concept.name,
                         definition=concept.definition,
                         mentions=existing.mentions + concept.mentions,
-                        source_files=list(
-                            set(existing.source_files + concept.source_files)
-                        ),
-                        related_concepts=list(
-                            set(existing.related_concepts + concept.related_concepts)
-                        ),
+                        source_files=list(set(existing.source_files + concept.source_files)),
+                        related_concepts=list(set(existing.related_concepts + concept.related_concepts)),
                     )
                 else:
                     all_concepts[concept.name] = concept
@@ -711,15 +671,9 @@ class WikiCompiler:
             logger.error(f"LLM extraction failed for {doc_path}: {e}")
             raise
 
-    async def _generate_articles_batch(
-        self, concepts: list[ConceptInfo]
-    ) -> _ArticleBatchStats:
+    async def _generate_articles_batch(self, concepts: list[ConceptInfo]) -> _ArticleBatchStats:
         """Generate wiki articles with configurable parallelism."""
-        filtered = [
-            c
-            for c in concepts
-            if c.mentions >= self._compile_config.min_concept_mentions
-        ]
+        filtered = [c for c in concepts if c.mentions >= self._compile_config.min_concept_mentions]
         logger.info(f"Generating articles for {len(filtered)} concepts")
 
         embed_pause: list[tuple[str, str]] = []
@@ -800,9 +754,7 @@ class WikiCompiler:
         if existing_content:
             prompt += f"\n\n# Existing Wiki Content\nPlease update the Compiled Truth section using the new source documents, but MUST PRESERVE the existing Timeline and APPEND new evidence to the bottom of the Timeline:\n\n{existing_content}"
 
-        system_msg = SystemMessage(
-            content="You are a technical writer creating wiki articles."
-        )
+        system_msg = SystemMessage(content="You are a technical writer creating wiki articles.")
         human_msg = HumanMessage(content=prompt)
 
         try:
@@ -810,10 +762,7 @@ class WikiCompiler:
             article_content = extract_answer_text(response)
 
             if len(article_content) > self._compile_config.max_article_length:
-                article_content = (
-                    article_content[: self._compile_config.max_article_length]
-                    + "\n\n(truncated)"
-                )
+                article_content = article_content[: self._compile_config.max_article_length] + "\n\n(truncated)"
 
             from ..core.frontmatter_contract import apply_compile_gate
 
@@ -836,9 +785,7 @@ class WikiCompiler:
             if not restore_base and concept.source_files:
                 # First compile of a brand-new concept: raw sources (e.g. auto-archived
                 # turns) carry source_chat provenance that would otherwise be lost.
-                source_provenance = provenance_from_raw_sources(
-                    self._structure, list(concept.source_files)
-                )
+                source_provenance = provenance_from_raw_sources(self._structure, list(concept.source_files))
                 if source_provenance:
                     from ..core.frontmatter_contract import (
                         serialize_frontmatter_block,
@@ -846,9 +793,7 @@ class WikiCompiler:
 
                     restore_base = serialize_frontmatter_block(source_provenance)
 
-            article_content = restore_provenance_metadata(
-                restore_base, article_content
-            )
+            article_content = restore_provenance_metadata(restore_base, article_content)
 
             if self._compile_config.require_approval:
                 from ..core.frontmatter_contract import WikiProvenance
@@ -916,9 +861,7 @@ class WikiCompiler:
 
     async def _generate_backlinks(self, concepts: list[ConceptInfo]) -> int:
         """Delegate to postprocess.generate_backlinks."""
-        return await generate_backlinks(
-            self._structure, self._config, concepts, self._indexer
-        )
+        return await generate_backlinks(self._structure, self._config, concepts, self._indexer)
 
     async def _save_metadata(self, concepts_count: int, articles_count: int) -> None:
         """Delegate to postprocess.save_metadata."""

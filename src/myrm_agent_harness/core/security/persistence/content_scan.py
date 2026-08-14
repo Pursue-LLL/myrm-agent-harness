@@ -38,8 +38,8 @@ from myrm_agent_harness.core.security.detection.prompt_guard import scan_input
 
 PseudonymizeFn = Callable[[str], str]
 
-_pii_pseudonymizer_var: contextvars.ContextVar[PseudonymizeFn | None] = (
-    contextvars.ContextVar("pii_pseudonymizer", default=None)
+_pii_pseudonymizer_var: contextvars.ContextVar[PseudonymizeFn | None] = contextvars.ContextVar(
+    "pii_pseudonymizer", default=None
 )
 
 
@@ -136,11 +136,7 @@ def scan_persistable_content(
                 injection_score=injection_score,
                 injection_patterns=injection_patterns,
             )
-        if (
-            profile == PersistScanProfile.WIKI_RAW
-            and wiki_raw_caller == "agent"
-            and injection_score >= block_threshold
-        ):
+        if profile == PersistScanProfile.WIKI_RAW and wiki_raw_caller == "agent" and injection_score >= block_threshold:
             return PersistScanResult(
                 verdict=PersistScanVerdict.BLOCKED,
                 cleaned_text=text,

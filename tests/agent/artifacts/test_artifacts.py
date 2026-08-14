@@ -724,11 +724,29 @@ class TestUIComponentType:
 
     def test_all_component_types_defined(self):
         expected = {
-            "text", "button", "button_group",
-            "text_field", "textarea", "select", "date_picker", "time_picker",
-            "slider", "checkbox", "radio", "switch",
-            "container", "card", "divider", "grid", "tabs",
-            "table", "list", "image", "chart", "progress", "badge",
+            "text",
+            "button",
+            "button_group",
+            "text_field",
+            "textarea",
+            "select",
+            "date_picker",
+            "time_picker",
+            "slider",
+            "checkbox",
+            "radio",
+            "switch",
+            "container",
+            "card",
+            "divider",
+            "grid",
+            "tabs",
+            "table",
+            "list",
+            "image",
+            "chart",
+            "progress",
+            "badge",
         }
         actual = {t.value for t in UIComponentType}
         assert actual == expected

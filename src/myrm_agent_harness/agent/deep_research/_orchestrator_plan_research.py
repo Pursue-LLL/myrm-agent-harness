@@ -313,4 +313,3 @@ class DeepResearchPlanResearchMixin:
                 break
 
         logger.info("[deep-research] Research phase complete after %d cycles", cycle)
-

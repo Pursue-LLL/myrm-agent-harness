@@ -161,10 +161,11 @@ async def test_default_idle_callback_denied(mock_get_scheduler):
     )
 
     # We also need to mock _revert_task_to_pending
-    with patch(
-        "myrm_agent_harness.agent.background_worker.idle_tasks._revert_task_to_pending", new_callable=AsyncMock
-    ) as mock_revert, patch(
-        "myrm_agent_harness.agent.background_worker.idle_tasks.get_event_bus", return_value=mock_event_bus
+    with (
+        patch(
+            "myrm_agent_harness.agent.background_worker.idle_tasks._revert_task_to_pending", new_callable=AsyncMock
+        ) as mock_revert,
+        patch("myrm_agent_harness.agent.background_worker.idle_tasks.get_event_bus", return_value=mock_event_bus),
     ):
         session_id = "test_session_4"
         await default_idle_callback(session_id, mock_registry)
@@ -229,8 +230,12 @@ class TestRunContextCompaction:
     async def test_skip_when_no_chat_id(self) -> None:
         event_bus = MagicMock()
         task = IdleTaskRecord(
-            id=10, session_id="s1", task_type="context_compaction",
-            payload={}, status="running", created_at=0.0,
+            id=10,
+            session_id="s1",
+            task_type="context_compaction",
+            payload={},
+            status="running",
+            created_at=0.0,
         )
         result = await _run_context_compaction("s1", task, event_bus)
         assert result["skipped"] is True
@@ -239,12 +244,21 @@ class TestRunContextCompaction:
     async def test_compaction_success_no_preheat(self) -> None:
         event_bus = MagicMock()
         task = IdleTaskRecord(
-            id=11, session_id="s2", task_type="context_compaction",
-            payload={"chat_id": "chat_123"}, status="running", created_at=0.0,
+            id=11,
+            session_id="s2",
+            task_type="context_compaction",
+            payload={"chat_id": "chat_123"},
+            status="running",
+            created_at=0.0,
         )
-        compact_handler = AsyncMock(return_value={
-            "compacted": True, "tokens_saved": 5000, "message_count": 20, "reason": "",
-        })
+        compact_handler = AsyncMock(
+            return_value={
+                "compacted": True,
+                "tokens_saved": 5000,
+                "message_count": 20,
+                "reason": "",
+            }
+        )
         _idle_task_handlers["_context_compact_impl"] = compact_handler
         try:
             result = await _run_context_compaction("s2", task, event_bus)
@@ -259,12 +273,21 @@ class TestRunContextCompaction:
     async def test_compaction_not_needed(self) -> None:
         event_bus = MagicMock()
         task = IdleTaskRecord(
-            id=12, session_id="s3", task_type="context_compaction",
-            payload={"chat_id": "chat_short"}, status="running", created_at=0.0,
+            id=12,
+            session_id="s3",
+            task_type="context_compaction",
+            payload={"chat_id": "chat_short"},
+            status="running",
+            created_at=0.0,
         )
-        compact_handler = AsyncMock(return_value={
-            "compacted": False, "tokens_saved": 0, "message_count": 5, "reason": "too_few_messages",
-        })
+        compact_handler = AsyncMock(
+            return_value={
+                "compacted": False,
+                "tokens_saved": 0,
+                "message_count": 5,
+                "reason": "too_few_messages",
+            }
+        )
         _idle_task_handlers["_context_compact_impl"] = compact_handler
         try:
             result = await _run_context_compaction("s3", task, event_bus)
@@ -276,8 +299,12 @@ class TestRunContextCompaction:
     async def test_no_handler_registered(self) -> None:
         event_bus = MagicMock()
         task = IdleTaskRecord(
-            id=13, session_id="s4", task_type="context_compaction",
-            payload={"chat_id": "chat_456"}, status="running", created_at=0.0,
+            id=13,
+            session_id="s4",
+            task_type="context_compaction",
+            payload={"chat_id": "chat_456"},
+            status="running",
+            created_at=0.0,
         )
         _idle_task_handlers.pop("_context_compact_impl", None)
         result = await _run_context_compaction("s4", task, event_bus)
@@ -286,8 +313,12 @@ class TestRunContextCompaction:
     async def test_handler_error_caught(self) -> None:
         event_bus = MagicMock()
         task = IdleTaskRecord(
-            id=14, session_id="s5", task_type="context_compaction",
-            payload={"chat_id": "chat_err"}, status="running", created_at=0.0,
+            id=14,
+            session_id="s5",
+            task_type="context_compaction",
+            payload={"chat_id": "chat_err"},
+            status="running",
+            created_at=0.0,
         )
         compact_handler = AsyncMock(side_effect=RuntimeError("DB connection lost"))
         _idle_task_handlers["_context_compact_impl"] = compact_handler
@@ -300,16 +331,24 @@ class TestRunContextCompaction:
     async def test_preheat_triggered_when_llm_provided(self) -> None:
         event_bus = MagicMock()
         task = IdleTaskRecord(
-            id=15, session_id="s6", task_type="context_compaction",
-            payload={"chat_id": "chat_preheat"}, status="running", created_at=0.0,
+            id=15,
+            session_id="s6",
+            task_type="context_compaction",
+            payload={"chat_id": "chat_preheat"},
+            status="running",
+            created_at=0.0,
         )
         mock_llm = AsyncMock()
         mock_llm.ainvoke.return_value = MagicMock()
         mock_messages = [MagicMock()]
-        compact_handler = AsyncMock(return_value={
-            "compacted": True, "llm": mock_llm, "messages": mock_messages,
-            "model_name": "anthropic/claude-3",
-        })
+        compact_handler = AsyncMock(
+            return_value={
+                "compacted": True,
+                "llm": mock_llm,
+                "messages": mock_messages,
+                "model_name": "anthropic/claude-3",
+            }
+        )
         _idle_task_handlers["_context_compact_impl"] = compact_handler
         try:
             result = await _run_context_compaction("s6", task, event_bus)
@@ -409,7 +448,8 @@ class TestSessionEvidenceExtractionCaptured:
 
             event_bus = mock_bus.return_value
             completed_events = [
-                c.args[0] for c in event_bus.publish.call_args_list
+                c.args[0]
+                for c in event_bus.publish.call_args_list
                 if hasattr(c.args[0], "status") and c.args[0].status == "completed"
             ]
             assert len(completed_events) == 1
@@ -466,7 +506,8 @@ class TestSessionEvidenceExtractionCaptured:
 
             event_bus = mock_bus.return_value
             completed_events = [
-                c.args[0] for c in event_bus.publish.call_args_list
+                c.args[0]
+                for c in event_bus.publish.call_args_list
                 if hasattr(c.args[0], "status") and c.args[0].status == "completed"
             ]
             assert len(completed_events) == 1

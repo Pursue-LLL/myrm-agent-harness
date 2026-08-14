@@ -64,9 +64,7 @@ async def process_updates_chunk(
             continue
 
         stats.node_execution_count += 1
-        logger.debug(
-            " Node execution [%s] (%d times)", node_name, stats.node_execution_count
-        )
+        logger.debug(" Node execution [%s] (%d times)", node_name, stats.node_execution_count)
 
         # Handle LangGraph __interrupt__ events
         if node_name == "__interrupt__":
@@ -78,10 +76,7 @@ async def process_updates_chunk(
                     if isinstance(item, Interrupt) and hasattr(item, "value"):
                         payload = item.value
 
-                        if (
-                            isinstance(payload, dict)
-                            and payload.get("action_type") == "plan_confirm"
-                        ):
+                        if isinstance(payload, dict) and payload.get("action_type") == "plan_confirm":
                             logger.info("LangGraph plan_confirm interrupt triggered")
                             yield {
                                 "type": AgentEventType.STATUS.value,
@@ -96,19 +91,11 @@ async def process_updates_chunk(
                             }
                             continue
 
-                        action_requests = (
-                            payload.get("actionRequests", [])
-                            if isinstance(payload, dict)
-                            else []
-                        )
-                        tool_names = [
-                            str(r.get("action", "?"))
-                            for r in action_requests
-                            if isinstance(r, dict)
-                        ] or ["unknown"]
-                        logger.info(
-                            "LangGraph interrupt triggered: %s", ", ".join(tool_names)
-                        )
+                        action_requests = payload.get("actionRequests", []) if isinstance(payload, dict) else []
+                        tool_names = [str(r.get("action", "?")) for r in action_requests if isinstance(r, dict)] or [
+                            "unknown"
+                        ]
+                        logger.info("LangGraph interrupt triggered: %s", ", ".join(tool_names))
                         yield {
                             "type": AgentEventType.TOOL_APPROVAL_REQUEST.value,
                             "data": item.value,
@@ -122,11 +109,7 @@ async def process_updates_chunk(
         messages = cast(list[object], node_output["messages"])
         for msg in messages:
             if collected_messages is not None and isinstance(msg, BaseMessage):
-                if (
-                    isinstance(msg, AIMessage)
-                    and not msg.content
-                    and not msg.tool_calls
-                ):
+                if isinstance(msg, AIMessage) and not msg.content and not msg.tool_calls:
                     logger.debug("Skipping empty AIMessage from collected_messages")
                 else:
                     collected_messages.append(msg)
@@ -187,9 +170,7 @@ async def _handle_tool_result(
 
     if status == "error":
         error_content = str(msg.content)[:500] if msg.content else "Unknown error"
-        logger.warning(
-            " Tool execution failed [%s]: %s", tool_name, error_content[:300]
-        )
+        logger.warning(" Tool execution failed [%s]: %s", tool_name, error_content[:300])
 
         event = {
             "type": AgentEventType.TASKS_STEPS.value,
@@ -261,9 +242,7 @@ async def _handle_tool_result(
         tool_metadata = _extract_tool_metadata(msg)
 
         if source_tracker and tool_metadata:
-            async for source_event in _emit_source_events(
-                tool_metadata, message_id, source_tracker
-            ):
+            async for source_event in _emit_source_events(tool_metadata, message_id, source_tracker):
                 yield source_event
 
     except Exception as e:
@@ -412,10 +391,7 @@ def _is_tool_call_chunk(message_chunk: object) -> bool:
     content_blocks = getattr(message_chunk, "content_blocks", None)
     is_tool_call_block = bool(
         content_blocks
-        and any(
-            isinstance(b, dict) and b.get("type") in ("tool_call", "tool_call_chunk")
-            for b in content_blocks
-        )
+        and any(isinstance(b, dict) and b.get("type") in ("tool_call", "tool_call_chunk") for b in content_blocks)
     )
     has_tool_calls = bool(getattr(message_chunk, "tool_calls", None))
     has_tool_call_chunks = bool(getattr(message_chunk, "tool_call_chunks", None))

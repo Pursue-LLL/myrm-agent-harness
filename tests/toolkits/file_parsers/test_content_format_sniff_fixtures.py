@@ -40,9 +40,7 @@ async def test_sniff_fixture_epub_roundtrip(tmp_path: Path) -> None:
     target = tmp_path / "book.wrongext"
     with zipfile.ZipFile(target, "w") as archive:
         archive.writestr("mimetype", "application/epub+zip")
-        archive.writestr(
-            "chapter.xhtml", "<html><body><p>Fixture EPUB</p></body></html>"
-        )
+        archive.writestr("chapter.xhtml", "<html><body><p>Fixture EPUB</p></body></html>")
     assert sniff_content_format(target) == ".epub"
     parser = get_parser(str(target))
     text = normalize_to_gfm_markdown(await parser.parse(str(target)))

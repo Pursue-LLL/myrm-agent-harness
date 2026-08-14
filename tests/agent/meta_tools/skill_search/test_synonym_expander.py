@@ -70,9 +70,7 @@ class TestSynonymExpander:
         expander = SynonymExpander()
         expanded = expander.expand("authenticate user")
         assert expanded == ["authenticate user"]
-        assert not any(
-            "enticate user" in q and q != "authenticate user" for q in expanded
-        )
+        assert not any("enticate user" in q and q != "authenticate user" for q in expanded)
 
     def test_expand_whole_word_auth(self) -> None:
         """Whole-word auth should still expand to authentication."""

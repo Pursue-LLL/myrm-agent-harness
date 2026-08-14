@@ -45,19 +45,13 @@ class TestCallToolResultNormalization:
 
     def test_text_content_passthrough(self):
         """TextContent flows through unchanged."""
-        result = normalize_mcp_result(
-            CallToolResult(content=[TextContent(type="text", text="hello world")])
-        )
+        result = normalize_mcp_result(CallToolResult(content=[TextContent(type="text", text="hello world")]))
         assert result == "hello world"
 
     def test_image_content_preserved_as_multimodal(self):
         """ImageContent with base64 produces a multimodal list result."""
         result = normalize_mcp_result(
-            CallToolResult(
-                content=[
-                    ImageContent(type="image", data="base64data", mimeType="image/png")
-                ]
-            )
+            CallToolResult(content=[ImageContent(type="image", data="base64data", mimeType="image/png")])
         )
         assert isinstance(result, list)
         assert any(b["type"] == "image" for b in result)
@@ -221,11 +215,7 @@ class TestCallToolResultNormalization:
     def test_audio_content_degraded_to_text_marker(self):
         """AudioContent degrades to a short text marker, not a base64 dump."""
         result = normalize_mcp_result(
-            CallToolResult(
-                content=[
-                    AudioContent(type="audio", data="audio_b64", mimeType="audio/mpeg")
-                ]
-            )
+            CallToolResult(content=[AudioContent(type="audio", data="audio_b64", mimeType="audio/mpeg")])
         )
         assert isinstance(result, str)
         assert "[audio content omitted]" in result
@@ -260,9 +250,7 @@ class TestCallToolResultNormalization:
     def test_multiple_text_blocks_joined(self):
         """Multiple text blocks are joined with newline separator."""
         result = normalize_mcp_result(
-            CallToolResult(
-                content=[TextContent(type="text", text=f"line {i}") for i in range(3)]
-            )
+            CallToolResult(content=[TextContent(type="text", text=f"line {i}") for i in range(3)])
         )
         assert isinstance(result, str)
         assert "line 0" in result
@@ -288,9 +276,7 @@ class TestAudioContentUpstreamFault:
         NotImplementedError, which _timeout_wrapper must catch."""
 
         async def _raise_not_impl(*a: object, **kw: object) -> None:
-            raise NotImplementedError(
-                "AudioContent conversion to LangChain content blocks is not yet supported."
-            )
+            raise NotImplementedError("AudioContent conversion to LangChain content blocks is not yet supported.")
 
         tool = _make_tool("audio_tool")
         tool.coroutine = _raise_not_impl
@@ -381,9 +367,7 @@ class TestFullToolExecutionPipeline:
         """Tool returns CallToolResult with text block — plain string output."""
 
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
-            return CallToolResult(
-                content=[TextContent(type="text", text="query result: 42")]
-            )
+            return CallToolResult(content=[TextContent(type="text", text="query result: 42")])
 
         tool = _make_tool("query_tool")
         tool.coroutine = _mock_invoke
@@ -398,13 +382,7 @@ class TestFullToolExecutionPipeline:
         """Tool returns CallToolResult with image block — multimodal list output."""
 
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
-            return CallToolResult(
-                content=[
-                    ImageContent(
-                        type="image", data="chart_png_base64", mimeType="image/png"
-                    )
-                ]
-            )
+            return CallToolResult(content=[ImageContent(type="image", data="chart_png_base64", mimeType="image/png")])
 
         tool = _make_tool("chart_tool")
         tool.coroutine = _mock_invoke
@@ -578,13 +556,7 @@ class TestProcessSessionToolsChain:
         """process_session_tools preserves image blocks in multimodal output."""
 
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
-            return CallToolResult(
-                content=[
-                    ImageContent(
-                        type="image", data="screenshot_b64", mimeType="image/png"
-                    )
-                ]
-            )
+            return CallToolResult(content=[ImageContent(type="image", data="screenshot_b64", mimeType="image/png")])
 
         tool = _make_tool("screenshot_tool")
         tool.coroutine = _mock_invoke

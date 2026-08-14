@@ -73,10 +73,12 @@ async def test_base64_image_default_mime_type():
 
 @pytest.mark.asyncio
 async def test_mixed_base64_and_url_images():
-    msg = _make_tool_msg([
-        {"type": "image", "base64": "b64data", "mime_type": "image/jpeg"},
-        {"type": "image", "url": "https://cdn.example.com/photo.jpg", "mime_type": "image/jpeg"},
-    ])
+    msg = _make_tool_msg(
+        [
+            {"type": "image", "base64": "b64data", "mime_type": "image/jpeg"},
+            {"type": "image", "url": "https://cdn.example.com/photo.jpg", "mime_type": "image/jpeg"},
+        ]
+    )
     data = _wrap_in_updates(msg)
     stats = AgentRunStatistics()
     events = [e async for e in process_updates_chunk(data, stats, "msg_001")]
@@ -100,10 +102,12 @@ async def test_image_block_without_base64_or_url_is_ignored():
 
 @pytest.mark.asyncio
 async def test_non_image_blocks_do_not_emit_image_events():
-    msg = _make_tool_msg([
-        {"type": "text", "text": "hello"},
-        {"type": "image", "base64": "data123", "mime_type": "image/png"},
-    ])
+    msg = _make_tool_msg(
+        [
+            {"type": "text", "text": "hello"},
+            {"type": "image", "base64": "data123", "mime_type": "image/png"},
+        ]
+    )
     data = _wrap_in_updates(msg)
     stats = AgentRunStatistics()
     events = [e async for e in process_updates_chunk(data, stats, "msg_001")]

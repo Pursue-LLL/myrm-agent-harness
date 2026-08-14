@@ -68,9 +68,7 @@ class SyncHookParityAdapter(AgentMiddleware):  # type: ignore[type-arg]
             return await handler(request)
         return await inner.awrap_tool_call(request, handler)
 
-    async def aafter_model(
-        self, state: dict[str, object], runtime: object
-    ) -> dict[str, object] | None:
+    async def aafter_model(self, state: dict[str, object], runtime: object) -> dict[str, object] | None:
         inner = object.__getattribute__(self, "_inner")
         if type(inner).aafter_model is AgentMiddleware.aafter_model:
             return None

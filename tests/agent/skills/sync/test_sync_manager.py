@@ -67,9 +67,7 @@ async def test_register_and_push(manager: tuple[SkillSyncManager, FakeSyncBacken
     mgr, backend = manager
     mgr.register_local_skill("skill_a")
 
-    result = await mgr.push_evolved_skills(
-        skill_metrics={"skill_a": (0.9, 10)}
-    )
+    result = await mgr.push_evolved_skills(skill_metrics={"skill_a": (0.9, 10)})
     assert result.success is True
     assert result.pushed_count == 1
     assert "skill_a" in backend.pushed
@@ -80,9 +78,7 @@ async def test_push_rejects_low_quality(manager: tuple[SkillSyncManager, FakeSyn
     mgr, _backend = manager
     mgr.register_local_skill("skill_a")
 
-    result = await mgr.push_evolved_skills(
-        skill_metrics={"skill_a": (0.2, 1)}
-    )
+    result = await mgr.push_evolved_skills(skill_metrics={"skill_a": (0.2, 1)})
     assert result.success is True
     assert result.pushed_count == 0
     assert result.rejected_count > 0
@@ -99,9 +95,7 @@ async def test_pull_shared_skills(manager: tuple[SkillSyncManager, FakeSyncBacke
 async def test_full_sync(manager: tuple[SkillSyncManager, FakeSyncBackend]) -> None:
     mgr, _ = manager
     mgr.register_local_skill("skill_a")
-    push_result, pull_result = await mgr.full_sync(
-        skill_metrics={"skill_a": (0.85, 5)}
-    )
+    push_result, pull_result = await mgr.full_sync(skill_metrics={"skill_a": (0.85, 5)})
     assert push_result.success
     assert pull_result.success
 

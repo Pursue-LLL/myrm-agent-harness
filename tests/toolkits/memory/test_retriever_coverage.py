@@ -635,7 +635,9 @@ class TestBoostWithQueryContext:
     def test_boost_with_query_context_increases_score(self) -> None:
         now = datetime.now(UTC)
         retriever = MemoryRetriever()
-        mem = SemanticMemory(content="John talked about machine learning", importance=0.7, created_at=now - timedelta(hours=12))
+        mem = SemanticMemory(
+            content="John talked about machine learning", importance=0.7, created_at=now - timedelta(hours=12)
+        )
         result = MemorySearchResult(memory=mem, score=0.8, memory_type=MemoryType.SEMANTIC)
 
         ctx = QueryContext(
@@ -666,8 +668,12 @@ class TestRankWithQueryContext:
         now = datetime.now(UTC)
         retriever = MemoryRetriever()
 
-        mem_recent = SemanticMemory(id="recent", content="John discussed yesterday", importance=0.7, created_at=now - timedelta(hours=12))
-        mem_old = SemanticMemory(id="old", content="some old content", importance=0.8, created_at=now - timedelta(days=30))
+        mem_recent = SemanticMemory(
+            id="recent", content="John discussed yesterday", importance=0.7, created_at=now - timedelta(hours=12)
+        )
+        mem_old = SemanticMemory(
+            id="old", content="some old content", importance=0.8, created_at=now - timedelta(days=30)
+        )
 
         results = [
             MemorySearchResult(memory=mem_recent, score=0.75, memory_type=MemoryType.SEMANTIC),
@@ -743,9 +749,9 @@ class TestSourceDecayMMR:
             self._make_result("c1", "svelte compile time optimization", "chat_c"),
         ]
 
-        ranked_no_decay = MemoryRetriever(
-            RetrievalConfig(mmr_lambda=0.7, source_diversity_weight=0.0)
-        ).rank(results, limit=5, query="frontend performance optimization")
+        ranked_no_decay = MemoryRetriever(RetrievalConfig(mmr_lambda=0.7, source_diversity_weight=0.0)).rank(
+            results, limit=5, query="frontend performance optimization"
+        )
 
         ranked_with_decay = retriever.rank(results, limit=5, query="frontend performance optimization")
 

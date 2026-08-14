@@ -108,9 +108,7 @@ __all__ = [
 ]
 
 
-class ChatLiteLLM(
-    ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyncMixin, BaseChatModel
-):
+class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyncMixin, BaseChatModel):
     """Minimal LangChain ChatModel adapter for litellm.
 
     Implements the subset of features this project uses: non-streaming/streaming
@@ -182,13 +180,9 @@ class ChatLiteLLM(
         try:
             import litellm
         except (ImportError, TypeError):
-            raise ValueError(
-                "Could not import litellm python package. Please install it with uv sync."
-            ) from None
+            raise ValueError("Could not import litellm python package. Please install it with uv sync.") from None
 
-        values["openai_api_key"] = get_from_dict_or_env(
-            values, "openai_api_key", "OPENAI_API_KEY", default=""
-        )
+        values["openai_api_key"] = get_from_dict_or_env(values, "openai_api_key", "OPENAI_API_KEY", default="")
         values["client"] = litellm
         return values
 
@@ -232,9 +226,7 @@ class ChatLiteLLM(
 
         # Inject Authorization header for providers that might need it explicitly (like minimax)
         api_key_val = self.api_key or self.openai_api_key
-        logger.debug(
-            f"_client_params api_key_val type: {type(api_key_val)}, val: {str(api_key_val)[:5]}***"
-        )
+        logger.debug(f"_client_params api_key_val type: {type(api_key_val)}, val: {str(api_key_val)[:5]}***")
         if api_key_val:
             extra_headers = self.model_kwargs.get("extra_headers", {})
             if "Authorization" not in extra_headers:
@@ -356,22 +348,16 @@ class ChatLiteLLM(
         if "tools" in kwargs:
             logger.debug(f"ainvoke tools count: {len(kwargs.get('tools', []))}")
         if kwargs.get("_in_fallback", False):
-            return await super().ainvoke(
-                input, config, **self.clean_model_kwargs(kwargs, self._get_model_name())
-            )
+            return await super().ainvoke(input, config, **self.clean_model_kwargs(kwargs, self._get_model_name()))
 
         result = await super().ainvoke(input, config, **kwargs)
         if not kwargs.get("_json_mode_fallback", False):
             return result
 
-        if result.content and (
-            isinstance(result.content, str) and result.content.strip()
-        ):
+        if result.content and (isinstance(result.content, str) and result.content.strip()):
             return result
 
-        reasoning_content = getattr(result, "additional_kwargs", {}).get(
-            "reasoning_content"
-        )
+        reasoning_content = getattr(result, "additional_kwargs", {}).get("reasoning_content")
         if (
             reasoning_content
             and isinstance(reasoning_content, str)
@@ -411,9 +397,7 @@ class ChatLiteLLM(
 
         if is_pydantic_schema:
             # schema is guaranteed to be Type[BaseModel] when is_pydantic_schema is True
-            output_parser: (
-                PydanticOutputParser[BaseModel] | JsonOutputParser
-            ) = PydanticOutputParser(
+            output_parser: PydanticOutputParser[BaseModel] | JsonOutputParser = PydanticOutputParser(
                 pydantic_object=cast(type[BaseModel], schema)
             )
         else:
@@ -424,9 +408,7 @@ class ChatLiteLLM(
                 parsed=itemgetter("raw") | output_parser, parsing_error=lambda _: None
             )
             parser_none = RunnablePassthrough.assign(parsed=lambda _: None)
-            parser_with_fallback = parser_assign.with_fallbacks(
-                [parser_none], exception_key="parsing_error"
-            )
+            parser_with_fallback = parser_assign.with_fallbacks([parser_none], exception_key="parsing_error")
             return RunnableMap(raw=llm) | parser_with_fallback
 
         return llm | output_parser
@@ -447,11 +429,7 @@ class ChatLiteLLM(
                 openai_tools.append(normalize_tool_schema(t, model_name=model_id))
             else:
                 try:
-                    openai_tools.append(
-                        normalize_tool_schema(
-                            convert_to_openai_tool(t), model_name=model_id
-                        )
-                    )
+                    openai_tools.append(normalize_tool_schema(convert_to_openai_tool(t), model_name=model_id))
                 except Exception as e:
                     logger.warning(
                         "Failed to convert tool %s: %s",

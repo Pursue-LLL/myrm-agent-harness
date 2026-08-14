@@ -283,6 +283,7 @@ async def test_info_logging_baseline_and_shutdown(caplog: pytest.LogCaptureFixtu
             return_value=ResourceMetrics(1.0, 50.0, 100.0, 100, 0.5, 1.0, 0.0, 0.0, 1.0)
         )
         import logging
+
         with caplog.at_level(logging.INFO, logger="myrm_agent_harness.runtime.resource_monitor"):
             await mon.start()
             await asyncio.sleep(0.03)
@@ -305,13 +306,15 @@ async def test_info_logging_periodic(caplog: pytest.LogCaptureFixture) -> None:
             return_value=ResourceMetrics(1.0, 50.0, 100.0, 100, 0.5, 1.0, 0.0, 0.0, 1.0)
         )
         import logging
+
         with caplog.at_level(logging.INFO, logger="myrm_agent_harness.runtime.resource_monitor"):
             await mon.start()
             await asyncio.sleep(0.08)
             await mon.stop()
 
     periodic_logs = [
-        r for r in caplog.records
+        r
+        for r in caplog.records
         if "[MEMORY]" in r.message and "baseline" not in r.message and "shutdown" not in r.message
     ]
     assert len(periodic_logs) >= 1

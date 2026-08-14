@@ -115,8 +115,7 @@ class OfficeBashAudit:
         warnings: list[str] = []
         paths = OfficeBashAudit.collect_candidate_paths(workspace_root, command, generated_files)
         command_path_keys = {
-            str(item)
-            for item in OfficeBashAudit.collect_candidate_paths(workspace_root, command, None)
+            str(item) for item in OfficeBashAudit.collect_candidate_paths(workspace_root, command, None)
         }
 
         for path in paths:
@@ -147,11 +146,7 @@ class OfficeBashAudit:
             if is_office_docx_path(str(path)):
                 warnings.extend(await run_layout_qa_check(path))
 
-            if (
-                is_office_xlsx_path(str(path))
-                and after_xlsx is not None
-                and after_xlsx.formulas
-            ):
+            if is_office_xlsx_path(str(path)) and after_xlsx is not None and after_xlsx.formulas:
                 warnings.extend(await run_xlsx_recalc_check(path))
 
         return warnings

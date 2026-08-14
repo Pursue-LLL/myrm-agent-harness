@@ -31,9 +31,7 @@ def _make_session() -> BrowserSession:
 async def test_interact_uses_hitl_caller_tool_when_set() -> None:
     session = _make_session()
     session._hitl_caller_tool = "browser_execute_script_tool"
-    session._require_interactor = MagicMock(
-        return_value=MagicMock(interact=AsyncMock(return_value="ok"))
-    )
+    session._require_interactor = MagicMock(return_value=MagicMock(interact=AsyncMock(return_value="ok")))
 
     with patch(
         "myrm_agent_harness.toolkits.browser.tools.semantic_dom_hitl.enforce_semantic_interaction_guard",
@@ -49,9 +47,7 @@ async def test_interact_uses_hitl_caller_tool_when_set() -> None:
 @pytest.mark.asyncio
 async def test_interact_defaults_to_browser_interact_tool() -> None:
     session = _make_session()
-    session._require_interactor = MagicMock(
-        return_value=MagicMock(interact=AsyncMock(return_value="ok"))
-    )
+    session._require_interactor = MagicMock(return_value=MagicMock(interact=AsyncMock(return_value="ok")))
 
     with patch(
         "myrm_agent_harness.toolkits.browser.tools.semantic_dom_hitl.enforce_semantic_interaction_guard",
@@ -77,4 +73,3 @@ async def test_interact_returns_guard_block_without_interactor() -> None:
 
     assert result == "[BLOCKED] user said no"
     interactor.interact.assert_not_called()
-

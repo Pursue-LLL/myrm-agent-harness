@@ -530,8 +530,7 @@ class TestDocxParserStructure:
             result = await parser.parse(tmp)
             data = json.loads(result)
             assert data["element_count"] == 0 or all(
-                e.get("text_preview", "") == "" for e in data["elements"]
-                if e["type"] == "paragraph"
+                e.get("text_preview", "") == "" for e in data["elements"] if e["type"] == "paragraph"
             )
         finally:
             os.unlink(tmp)
@@ -593,12 +592,9 @@ class TestDocxParserStructure:
             assert "paragraph" in types
             assert "table" in types
 
-            table_idx = next(
-                e["index"] for e in data["elements"] if e["type"] == "table"
-            )
+            table_idx = next(e["index"] for e in data["elements"] if e["type"] == "table")
             para_before = next(
-                e for e in data["elements"]
-                if e["type"] == "paragraph" and "Intro" in e.get("text_preview", "")
+                e for e in data["elements"] if e["type"] == "paragraph" and "Intro" in e.get("text_preview", "")
             )
             assert para_before["index"] < table_idx
         finally:

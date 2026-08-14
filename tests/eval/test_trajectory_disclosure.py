@@ -44,9 +44,7 @@ class TestEvalResultTurnDisclosure:
             response=AgentResponse(
                 answer="a",
                 tools_called=["web_search_tool"],
-                tool_call_details=[
-                    {"tool_name": "web_search_tool", "step_key": "web", "detail": []}
-                ],
+                tool_call_details=[{"tool_name": "web_search_tool", "step_key": "web", "detail": []}],
                 limit_reached="max_tool_calls",
                 blocked_count=2,
             ),
@@ -212,7 +210,5 @@ class TestJsonlReporterDisclosure:
         turn_line = next(ln for ln in lines if ln["type"] == "turn")
         assert turn_line["limit_reached"] == "max_tool_calls"
         assert turn_line["blocked_count"] == 1
-        assert turn_line["tool_call_details"] == [
-            {"tool_name": "web_search_tool", "step_key": "web"}
-        ]
+        assert turn_line["tool_call_details"] == [{"tool_name": "web_search_tool", "step_key": "web"}]
         assert turn_line["actual_tools"] == ["web_search_tool"]

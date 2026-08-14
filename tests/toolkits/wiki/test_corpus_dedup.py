@@ -91,9 +91,7 @@ async def test_trash_moves_file_to_corpus_trash(wiki_structure: WikiStructure) -
     group = scanner.store.list_groups(status=GroupStatus.OPEN)[0]
     governor = CorpusDedupGovernor(wiki_structure)
     duplicate_path = next(
-        member.relative_path
-        for member in group.members
-        if member.relative_path != group.recommended_keep_path
+        member.relative_path for member in group.members if member.relative_path != group.recommended_keep_path
     )
     result = await governor.apply_disposition(
         group.group_id,
@@ -142,13 +140,9 @@ async def test_restore_trashed_raw_returns_file_to_raw_dir(
     group = scanner.store.list_groups(status=GroupStatus.OPEN)[0]
     governor = CorpusDedupGovernor(wiki_structure)
     trash_path = next(
-        member.relative_path
-        for member in group.members
-        if member.relative_path != group.recommended_keep_path
+        member.relative_path for member in group.members if member.relative_path != group.recommended_keep_path
     )
-    await governor.apply_disposition(
-        group.group_id, DispositionAction.TRASH, reason="restore test"
-    )
+    await governor.apply_disposition(group.group_id, DispositionAction.TRASH, reason="restore test")
     assert not wiki_structure.get_raw_file_path(trash_path).exists()
 
     restored = await governor.restore_trashed_raw(trash_path)
@@ -169,13 +163,9 @@ async def test_undo_excluded_raw_re_enables_compile_eligibility(
     group = scanner.store.list_groups(status=GroupStatus.OPEN)[0]
     governor = CorpusDedupGovernor(wiki_structure)
     exclude_path = next(
-        member.relative_path
-        for member in group.members
-        if member.relative_path != group.recommended_keep_path
+        member.relative_path for member in group.members if member.relative_path != group.recommended_keep_path
     )
-    await governor.apply_disposition(
-        group.group_id, DispositionAction.EXCLUDE, reason="exclude undo test"
-    )
+    await governor.apply_disposition(group.group_id, DispositionAction.EXCLUDE, reason="exclude undo test")
     eligibility = CorpusEligibilityFilter(wiki_structure)
     assert not eligibility.is_eligible_relative_path(exclude_path)
 
@@ -214,9 +204,7 @@ async def test_restore_trashed_raw_re_enqueues_compile(
     group = scanner.store.list_groups(status=GroupStatus.OPEN)[0]
     governor = CorpusDedupGovernor(wiki_structure)
     trash_path = next(
-        member.relative_path
-        for member in group.members
-        if member.relative_path != group.recommended_keep_path
+        member.relative_path for member in group.members if member.relative_path != group.recommended_keep_path
     )
 
     class _FakeCompiler:
@@ -254,9 +242,7 @@ async def test_fully_dismissed_group_stays_hidden_on_rescan(
     scanner.scan(incremental=False)
     group = scanner.store.list_groups(status=GroupStatus.OPEN)[0]
     governor = CorpusDedupGovernor(wiki_structure)
-    await governor.apply_disposition(
-        group.group_id, DispositionAction.DISMISS, reason=""
-    )
+    await governor.apply_disposition(group.group_id, DispositionAction.DISMISS, reason="")
 
     scanner.scan(incremental=False)
     open_groups = scanner.store.list_groups(status=GroupStatus.OPEN)
@@ -275,9 +261,7 @@ async def test_dismissed_group_resurfaces_when_new_member_joins(
     scanner.scan(incremental=False)
     group = scanner.store.list_groups(status=GroupStatus.OPEN)[0]
     governor = CorpusDedupGovernor(wiki_structure)
-    await governor.apply_disposition(
-        group.group_id, DispositionAction.DISMISS, reason=""
-    )
+    await governor.apply_disposition(group.group_id, DispositionAction.DISMISS, reason="")
 
     _write_raw(wiki_structure, "imports/new-dup.md", content)
     scanner.scan(incremental=False)
@@ -339,10 +323,7 @@ def test_eligibility_filter_relative_paths_and_count(
     eligibility.store.add_excluded_path("drop.md", reason="test")
     assert eligibility.count_eligible_raw_files() == 1
     assert eligibility.filter_relative_paths(["keep.md", "drop.md"]) == ["keep.md"]
-    assert (
-        eligibility.is_eligible_raw_file(wiki_structure.get_raw_file_path("keep.md"))
-        is True
-    )
+    assert eligibility.is_eligible_raw_file(wiki_structure.get_raw_file_path("keep.md")) is True
     assert eligibility.is_eligible_relative_path("drop.md") is False
 
 

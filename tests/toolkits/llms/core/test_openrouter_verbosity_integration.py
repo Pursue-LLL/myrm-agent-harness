@@ -38,11 +38,14 @@ class TestOpenrouterVerbosityIntegration:
         assert "reasoning_effort" not in params
         assert params["extra_body"]["reasoning"]["effort"] == "none"
 
-    @pytest.mark.parametrize("model", [
-        "anthropic/claude-4.6-opus",
-        "openai/gpt-4o",
-        "deepseek/deepseek-r1",
-    ])
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "anthropic/claude-4.6-opus",
+            "openai/gpt-4o",
+            "deepseek/deepseek-r1",
+        ],
+    )
     def test_non_openrouter_model_keeps_reasoning_effort(self, model: str) -> None:
         """Non-OpenRouter model retains top-level reasoning_effort untouched."""
         llm = create_litellm_model(model, api_key="sk-test", reasoning_effort="low")

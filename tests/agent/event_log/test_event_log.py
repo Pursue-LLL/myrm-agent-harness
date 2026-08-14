@@ -45,6 +45,7 @@ class TestStructuredEvent:
     def test_frozen(self) -> None:
         event = StructuredEvent(sequence=1, timestamp=0.0, event_type="test", session_id="s", data={})
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError):
             event.sequence = 2  # type: ignore[misc]
 
@@ -268,7 +269,9 @@ class TestFileEventLogBackend:
     @pytest.mark.asyncio
     async def test_append_creates_file(self, log_dir: Path) -> None:
         backend = FileEventLogBackend(log_dir, "sess-1")
-        event = StructuredEvent(sequence=1, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={"t": "bash"})
+        event = StructuredEvent(
+            sequence=1, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={"t": "bash"}
+        )
         await backend.append([event])
 
         file_path = log_dir / "sess-1.jsonl"
@@ -295,7 +298,12 @@ class TestFileEventLogBackend:
     @pytest.mark.asyncio
     async def test_get_events_basic(self, log_dir: Path) -> None:
         backend = FileEventLogBackend(log_dir, "sess-1")
-        events = [StructuredEvent(sequence=i, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={"i": i}) for i in range(1, 4)]
+        events = [
+            StructuredEvent(
+                sequence=i, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={"i": i}
+            )
+            for i in range(1, 4)
+        ]
         await backend.append(events)
 
         result = await backend.get_events("sess-1")
@@ -308,9 +316,13 @@ class TestFileEventLogBackend:
         backend = FileEventLogBackend(log_dir, "sess-1")
         await backend.append(
             [
-                StructuredEvent(sequence=1, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={}),
+                StructuredEvent(
+                    sequence=1, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={}
+                ),
                 StructuredEvent(sequence=2, timestamp=time.time(), event_type="error", session_id="sess-1", data={}),
-                StructuredEvent(sequence=3, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={}),
+                StructuredEvent(
+                    sequence=3, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={}
+                ),
             ]
         )
 
@@ -322,7 +334,14 @@ class TestFileEventLogBackend:
     @pytest.mark.asyncio
     async def test_get_events_with_limit(self, log_dir: Path) -> None:
         backend = FileEventLogBackend(log_dir, "sess-1")
-        await backend.append([StructuredEvent(sequence=i, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={}) for i in range(1, 11)])
+        await backend.append(
+            [
+                StructuredEvent(
+                    sequence=i, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={}
+                )
+                for i in range(1, 11)
+            ]
+        )
 
         filt = EventFilter(limit=3)
         result = await backend.get_events("sess-1", filt)
@@ -331,7 +350,14 @@ class TestFileEventLogBackend:
     @pytest.mark.asyncio
     async def test_get_events_with_start_sequence(self, log_dir: Path) -> None:
         backend = FileEventLogBackend(log_dir, "sess-1")
-        await backend.append([StructuredEvent(sequence=i, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={}) for i in range(1, 6)])
+        await backend.append(
+            [
+                StructuredEvent(
+                    sequence=i, timestamp=time.time(), event_type="tool_start", session_id="sess-1", data={}
+                )
+                for i in range(1, 6)
+            ]
+        )
 
         filt = EventFilter(start_sequence=3)
         result = await backend.get_events("sess-1", filt)
@@ -364,7 +390,9 @@ class TestFileEventLogBackend:
         small_limit = 4096
         backend = FileEventLogBackend(log_dir, "sess-big", max_jsonl_line_bytes=small_limit)
         huge: dict[str, object] = {"items": ["x" * 200] * 80}
-        event = StructuredEvent(sequence=1, timestamp=time.time(), event_type="tool_start", session_id="sess-big", data=huge)
+        event = StructuredEvent(
+            sequence=1, timestamp=time.time(), event_type="tool_start", session_id="sess-big", data=huge
+        )
         await backend.append([event])
 
         file_path = log_dir / "sess-big.jsonl"
@@ -386,7 +414,9 @@ class TestFileEventLogBackend:
         """Default 100KB line cap: nested list (no single top-level 4K str) must still downgrade."""
         backend = FileEventLogBackend(log_dir, "sess-100k")
         items = ["y" * 100] * 1300
-        event = StructuredEvent(sequence=1, timestamp=time.time(), event_type="error", session_id="sess-100k", data={"items": items})
+        event = StructuredEvent(
+            sequence=1, timestamp=time.time(), event_type="error", session_id="sess-100k", data={"items": items}
+        )
         await backend.append([event])
         line = (log_dir / "sess-100k.jsonl").read_text().splitlines()[0]
         assert len(line.encode("utf-8")) <= _DEFAULT_MAX_JSONL_LINE_BYTES

@@ -39,16 +39,25 @@ class TestTriageStatus:
 
     def test_triage_not_in_terminal_statuses(self) -> None:
         from myrm_agent_harness.toolkits.kanban.types import _TERMINAL_STATUSES
+
         assert TaskStatus.TRIAGE not in _TERMINAL_STATUSES
 
     def test_triage_not_in_active_statuses(self) -> None:
         from myrm_agent_harness.toolkits.kanban.types import _ACTIVE_STATUSES
+
         assert TaskStatus.TRIAGE not in _ACTIVE_STATUSES
 
     def test_triage_allowed_targets_exact(self) -> None:
-        assert frozenset({
-            TaskStatus.BACKLOG, TaskStatus.READY, TaskStatus.ARCHIVED,
-        }) == _TRIAGE_ALLOWED_TARGETS
+        assert (
+            frozenset(
+                {
+                    TaskStatus.BACKLOG,
+                    TaskStatus.READY,
+                    TaskStatus.ARCHIVED,
+                }
+            )
+            == _TRIAGE_ALLOWED_TARGETS
+        )
 
     def test_triage_cannot_go_to_running(self) -> None:
         assert TaskStatus.RUNNING not in _TRIAGE_ALLOWED_TARGETS
@@ -64,7 +73,9 @@ class TestTriageStatus:
 
     def test_task_can_be_created_with_triage_status(self) -> None:
         task = KanbanTask(
-            task_id="t1", board_id="b1", title="rough idea",
+            task_id="t1",
+            board_id="b1",
+            title="rough idea",
             status=TaskStatus.TRIAGE,
         )
         assert task.status == TaskStatus.TRIAGE
@@ -89,9 +100,13 @@ class TestSpecifiedEventKind:
 class TestSpecifyOutcome:
     def test_ok_outcome_fields(self) -> None:
         o = SpecifyOutcome(
-            task_id="t1", ok=True, reason="specified",
-            new_title="Better Title", new_body="**Goal** ...",
-            prompt_tokens=100, completion_tokens=200,
+            task_id="t1",
+            ok=True,
+            reason="specified",
+            new_title="Better Title",
+            new_body="**Goal** ...",
+            prompt_tokens=100,
+            completion_tokens=200,
             persisted=True,
         )
         assert o.task_id == "t1"
@@ -186,7 +201,9 @@ class TestInMemoryStoreTriage:
         board = KanbanBoard(board_id="b1", name="B")
         await store.save_board(board)
         task = KanbanTask(
-            task_id="t1", board_id="b1", title="rough idea",
+            task_id="t1",
+            board_id="b1",
+            title="rough idea",
             status=TaskStatus.TRIAGE,
         )
         saved = await store.save_task(task)
@@ -200,12 +217,22 @@ class TestInMemoryStoreTriage:
         store = InMemoryKanbanStore()
         board = KanbanBoard(board_id="b1", name="B")
         await store.save_board(board)
-        await store.save_task(KanbanTask(
-            task_id="t1", board_id="b1", title="idea", status=TaskStatus.TRIAGE,
-        ))
-        await store.save_task(KanbanTask(
-            task_id="t2", board_id="b1", title="ready task", status=TaskStatus.READY,
-        ))
+        await store.save_task(
+            KanbanTask(
+                task_id="t1",
+                board_id="b1",
+                title="idea",
+                status=TaskStatus.TRIAGE,
+            )
+        )
+        await store.save_task(
+            KanbanTask(
+                task_id="t2",
+                board_id="b1",
+                title="ready task",
+                status=TaskStatus.READY,
+            )
+        )
         triage_tasks = await store.list_tasks("b1", status=TaskStatus.TRIAGE)
         assert len(triage_tasks) == 1
         assert triage_tasks[0].task_id == "t1"
@@ -215,9 +242,14 @@ class TestInMemoryStoreTriage:
         store = InMemoryKanbanStore()
         board = KanbanBoard(board_id="b1", name="B")
         await store.save_board(board)
-        await store.save_task(KanbanTask(
-            task_id="t1", board_id="b1", title="idea", status=TaskStatus.TRIAGE,
-        ))
+        await store.save_task(
+            KanbanTask(
+                task_id="t1",
+                board_id="b1",
+                title="idea",
+                status=TaskStatus.TRIAGE,
+            )
+        )
         ready_tasks = await store.list_ready_tasks("b1")
         assert len(ready_tasks) == 0
 
@@ -226,12 +258,22 @@ class TestInMemoryStoreTriage:
         store = InMemoryKanbanStore()
         board = KanbanBoard(board_id="b1", name="B")
         await store.save_board(board)
-        await store.save_task(KanbanTask(
-            task_id="t1", board_id="b1", title="idea", status=TaskStatus.TRIAGE,
-        ))
-        await store.save_task(KanbanTask(
-            task_id="t2", board_id="b1", title="ready", status=TaskStatus.READY,
-        ))
+        await store.save_task(
+            KanbanTask(
+                task_id="t1",
+                board_id="b1",
+                title="idea",
+                status=TaskStatus.TRIAGE,
+            )
+        )
+        await store.save_task(
+            KanbanTask(
+                task_id="t2",
+                board_id="b1",
+                title="ready",
+                status=TaskStatus.READY,
+            )
+        )
         counts = await store.count_tasks_grouped("b1")
         assert counts.get("triage", 0) == 1
         assert counts.get("ready", 0) == 1
@@ -241,11 +283,17 @@ class TestInMemoryStoreTriage:
         store = InMemoryKanbanStore()
         board = KanbanBoard(board_id="b1", name="B")
         await store.save_board(board)
-        await store.save_task(KanbanTask(
-            task_id="t1", board_id="b1", title="idea", status=TaskStatus.TRIAGE,
-        ))
+        await store.save_task(
+            KanbanTask(
+                task_id="t1",
+                board_id="b1",
+                title="idea",
+                status=TaskStatus.TRIAGE,
+            )
+        )
         event = await store.append_event(
-            "t1", TaskEventKind.SPECIFIED,
+            "t1",
+            TaskEventKind.SPECIFIED,
             payload={"author": "specifier", "promoted_to": "ready"},
         )
         assert event.kind == TaskEventKind.SPECIFIED

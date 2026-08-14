@@ -377,8 +377,9 @@ class TestIsPathAllowedExceptionFallback:
         from unittest.mock import patch
 
         allowed = _get_allowed_paths(workspace_path=Path("/home"))
-        with patch("pathlib.Path.is_absolute", return_value=True), patch(
-            "pathlib.Path.resolve", side_effect=RuntimeError("mock")
+        with (
+            patch("pathlib.Path.is_absolute", return_value=True),
+            patch("pathlib.Path.resolve", side_effect=RuntimeError("mock")),
         ):
             result = _is_path_allowed("/some/path", allowed)
             assert result is False
@@ -423,9 +424,7 @@ class TestSanitizeEnv:
             sanitize_env,
         )
 
-        result = sanitize_env(
-            {"PATH": "/usr/bin", "HOME": "/home/user"}, EnvInheritPolicy.NONE
-        )
+        result = sanitize_env({"PATH": "/usr/bin", "HOME": "/home/user"}, EnvInheritPolicy.NONE)
         assert result == {}
 
     def test_core_policy_keeps_only_core(self) -> None:

@@ -138,13 +138,15 @@ async def test_todo_write_single_in_progress_no_correction(tmp_path) -> None:
     workspace.mkdir()
     tool = create_todo_write_tool(str(workspace))
 
-    result = await tool.ainvoke({
-        "todos": [
-            {"id": "a", "content": "step-a", "status": "in_progress"},
-            {"id": "b", "content": "step-b", "status": "pending"},
-        ],
-        "merge": False,
-    })
+    result = await tool.ainvoke(
+        {
+            "todos": [
+                {"id": "a", "content": "step-a", "status": "in_progress"},
+                {"id": "b", "content": "step-b", "status": "pending"},
+            ],
+            "merge": False,
+        }
+    )
     data = json.loads(result)
     assert data["summary"]["in_progress"] == 1
     assert "note" not in data["summary"]
@@ -157,14 +159,16 @@ async def test_todo_write_multiple_in_progress_corrected(tmp_path) -> None:
     workspace.mkdir()
     tool = create_todo_write_tool(str(workspace))
 
-    result = await tool.ainvoke({
-        "todos": [
-            {"id": "a", "content": "step-a", "status": "in_progress"},
-            {"id": "b", "content": "step-b", "status": "in_progress"},
-            {"id": "c", "content": "step-c", "status": "in_progress"},
-        ],
-        "merge": False,
-    })
+    result = await tool.ainvoke(
+        {
+            "todos": [
+                {"id": "a", "content": "step-a", "status": "in_progress"},
+                {"id": "b", "content": "step-b", "status": "in_progress"},
+                {"id": "c", "content": "step-c", "status": "in_progress"},
+            ],
+            "merge": False,
+        }
+    )
     data = json.loads(result)
     assert data["summary"]["in_progress"] == 1
     assert data["summary"]["pending"] == 2
@@ -183,18 +187,22 @@ async def test_todo_write_merge_creates_duplicate_in_progress(tmp_path) -> None:
     workspace.mkdir()
     tool = create_todo_write_tool(str(workspace))
 
-    await tool.ainvoke({
-        "todos": [
-            {"id": "x", "content": "first", "status": "in_progress"},
-            {"id": "y", "content": "second", "status": "pending"},
-        ],
-        "merge": False,
-    })
+    await tool.ainvoke(
+        {
+            "todos": [
+                {"id": "x", "content": "first", "status": "in_progress"},
+                {"id": "y", "content": "second", "status": "pending"},
+            ],
+            "merge": False,
+        }
+    )
 
-    result = await tool.ainvoke({
-        "todos": [{"id": "y", "content": "second", "status": "in_progress"}],
-        "merge": True,
-    })
+    result = await tool.ainvoke(
+        {
+            "todos": [{"id": "y", "content": "second", "status": "in_progress"}],
+            "merge": True,
+        }
+    )
     data = json.loads(result)
     assert data["summary"]["in_progress"] == 1
     assert data["summary"]["note"] is not None

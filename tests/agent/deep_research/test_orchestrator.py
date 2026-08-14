@@ -284,9 +284,7 @@ class TestCompactOrchMessages:
             messages.append(
                 AIMessage(
                     content=f"response_{i}",
-                    tool_calls=[
-                        {"id": f"tc_{i}", "name": "dispatch_research", "args": {}}
-                    ],
+                    tool_calls=[{"id": f"tc_{i}", "name": "dispatch_research", "args": {}}],
                 )
             )
             messages.append(ToolMessage(content=long_content, tool_call_id=f"tc_{i}"))
@@ -299,11 +297,7 @@ class TestCompactOrchMessages:
         total_after = sum(len(str(m.content)) for m in messages)
         assert total_after < total_before
 
-        compacted_count = sum(
-            1
-            for m in messages
-            if isinstance(m, ToolMessage) and "compacted" in str(m.content)
-        )
+        compacted_count = sum(1 for m in messages if isinstance(m, ToolMessage) and "compacted" in str(m.content))
         assert compacted_count > 0
 
     def test_preserves_recent_messages(self):
@@ -328,9 +322,7 @@ class TestCompactOrchMessages:
     def test_preserves_tool_call_id(self):
         messages: list[BaseMessage] = [
             SystemMessage(content="s" * 100_000),
-            AIMessage(
-                content="r", tool_calls=[{"id": "tc_old", "name": "test", "args": {}}]
-            ),
+            AIMessage(content="r", tool_calls=[{"id": "tc_old", "name": "test", "args": {}}]),
             ToolMessage(content="x" * 50_000, tool_call_id="tc_old"),
         ] + [HumanMessage(content="pad")] * 15
 
@@ -372,36 +364,28 @@ class TestFormatResearchContext:
 
     def test_single_result(self):
         orch = self._make_orchestrator()
-        orch._result.agent_results = [
-            {"task": "Test task", "result": "Found something"}
-        ]
+        orch._result.agent_results = [{"task": "Test task", "result": "Found something"}]
         ctx = orch._format_research_context()
         assert "Test task" in ctx
         assert "Found something" in ctx
 
     def test_within_limit(self):
         orch = self._make_orchestrator(max_report_context_chars=100_000)
-        orch._result.agent_results = [
-            {"task": f"Task {i}", "result": f"Result {i}"} for i in range(5)
-        ]
+        orch._result.agent_results = [{"task": f"Task {i}", "result": f"Result {i}"} for i in range(5)]
         ctx = orch._format_research_context()
         assert "Task 1" in ctx
         assert "Task 5" in ctx
 
     def test_exceeds_limit_truncates_earliest(self):
         orch = self._make_orchestrator(max_report_context_chars=500)
-        orch._result.agent_results = [
-            {"task": f"Task {i}", "result": "x" * 200} for i in range(5)
-        ]
+        orch._result.agent_results = [{"task": f"Task {i}", "result": "x" * 200} for i in range(5)]
         ctx = orch._format_research_context()
         assert len(ctx) <= 600
         assert "Task 5" in ctx
 
     def test_truncation_marker_present(self):
         orch = self._make_orchestrator(max_report_context_chars=300)
-        orch._result.agent_results = [
-            {"task": f"Task {i}", "result": "x" * 200} for i in range(3)
-        ]
+        orch._result.agent_results = [{"task": f"Task {i}", "result": "x" * 200} for i in range(3)]
         ctx = orch._format_research_context()
         assert "[Truncated" in ctx or "Task 3" in ctx
 
@@ -496,9 +480,7 @@ class TestOrchestratorRun:
 
         llm.astream = mock_astream
 
-        orch = DeepResearchOrchestrator(
-            llm=llm, config=DeepResearchConfig(enable_clarification=True, max_cycles=1)
-        )
+        orch = DeepResearchOrchestrator(llm=llm, config=DeepResearchConfig(enable_clarification=True, max_cycles=1))
 
         events = [e async for e in orch.run("detailed query with enough context")]
         step_events = [e for e in events if e.get("type") == "tasks_steps"]
@@ -559,9 +541,7 @@ class TestOrchestratorRun:
 
         llm.astream = mock_astream
 
-        orch = DeepResearchOrchestrator(
-            llm=llm, config=DeepResearchConfig(max_cycles=1), on_clarify=on_clarify
-        )
+        orch = DeepResearchOrchestrator(llm=llm, config=DeepResearchConfig(max_cycles=1), on_clarify=on_clarify)
 
         _ = [e async for e in orch.run("query")]
         assert callback_called
@@ -600,9 +580,7 @@ class TestOrchestratorRun:
 
         llm.astream = mock_astream
 
-        orch = DeepResearchOrchestrator(
-            llm=llm, config=DeepResearchConfig(max_cycles=1), on_clarify=on_clarify
-        )
+        orch = DeepResearchOrchestrator(llm=llm, config=DeepResearchConfig(max_cycles=1), on_clarify=on_clarify)
 
         _ = [e async for e in orch.run("query")]
         assert callback_called
@@ -665,9 +643,7 @@ class TestOrchestratorRun:
 
         llm.astream = mock_astream
 
-        orch = DeepResearchOrchestrator(
-            llm=llm, config=DeepResearchConfig(enable_clarification=False, max_cycles=1)
-        )
+        orch = DeepResearchOrchestrator(llm=llm, config=DeepResearchConfig(enable_clarification=False, max_cycles=1))
 
         _ = [e async for e in orch.run("query")]
 
@@ -692,9 +668,7 @@ class TestOrchestratorRun:
 
         orch = DeepResearchOrchestrator(
             llm=llm,
-            config=DeepResearchConfig(
-                enable_clarification=True, llm_call_timeout_seconds=1
-            ),
+            config=DeepResearchConfig(enable_clarification=True, llm_call_timeout_seconds=1),
         )
 
         events = [e async for e in orch.run("query")]
@@ -763,15 +737,11 @@ class TestOrchestratorRun:
         llm.model_name = "gpt-4o"
         orch = DeepResearchOrchestrator(llm=llm)
 
-        orch._accumulate_child_usage(
-            {"usage": {"input_tokens": 100, "output_tokens": 50}}
-        )
+        orch._accumulate_child_usage({"usage": {"input_tokens": 100, "output_tokens": 50}})
         assert orch._result.total_input_tokens == 100
         assert orch._result.total_output_tokens == 50
 
-        orch._accumulate_child_usage(
-            {"usage": {"input_tokens": 200, "output_tokens": 80}}
-        )
+        orch._accumulate_child_usage({"usage": {"input_tokens": 200, "output_tokens": 80}})
         assert orch._result.total_input_tokens == 300
         assert orch._result.total_output_tokens == 130
 
@@ -932,9 +902,7 @@ class TestOrchestratorRun:
             if call_idx == 1:
                 return AIMessage(
                     content="",
-                    tool_calls=[
-                        {"id": "tc_skip", "name": "finalize_report", "args": {}}
-                    ],
+                    tool_calls=[{"id": "tc_skip", "name": "finalize_report", "args": {}}],
                 )
             if call_idx == 2:
                 dispatch_response.usage_metadata = {
@@ -992,9 +960,7 @@ class TestOrchestratorRun:
                 parent_tools=[],
             )
 
-            events = [
-                e async for e in orch.run("Research AI models", message_id="msg-test")
-            ]
+            events = [e async for e in orch.run("Research AI models", message_id="msg-test")]
 
         event_types = [e.get("type") for e in events]
         assert "tasks_steps" in event_types
@@ -1088,13 +1054,9 @@ class TestOrchestratorRun:
             AIMessage(content="Previous answer"),
         ]
 
-        orch = DeepResearchOrchestrator(
-            llm=llm, config=DeepResearchConfig(enable_clarification=False, max_cycles=1)
-        )
+        orch = DeepResearchOrchestrator(llm=llm, config=DeepResearchConfig(enable_clarification=False, max_cycles=1))
 
-        events = [
-            e async for e in orch.run("Follow up question", chat_history=chat_history)
-        ]
+        events = [e async for e in orch.run("Follow up question", chat_history=chat_history)]
         assert any(e.get("type") == "message" for e in events)
         assert orch.result.report == "Report"
 
@@ -1405,7 +1367,8 @@ class TestOrchestratorRun:
         assert orch.result.local_context == "### Existing Article\n\nWe already know about AI."
 
         explore_events = [
-            e for e in events
+            e
+            for e in events
             if e.get("type") == "status" and isinstance(e.get("data"), dict) and e["data"].get("phase") == "explore"
         ]
         assert len(explore_events) == 1

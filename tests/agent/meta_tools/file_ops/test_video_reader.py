@@ -67,9 +67,7 @@ class TestReadVideoAsContentBlocks:
         mock_executor.read_file_bytes.side_effect = FileNotFoundError("not found")
 
         with pytest.raises(FileNotFoundError):
-            await read_video_as_content_blocks(
-                "missing.mp4", mock_executor, supports_vision=True, supports_video=True
-            )
+            await read_video_as_content_blocks("missing.mp4", mock_executor, supports_vision=True, supports_video=True)
 
     @pytest.mark.asyncio
     async def test_read_error_returns_text(self, mock_executor):
@@ -116,17 +114,21 @@ class TestReadVideoAsContentBlocks:
         validated = MagicMock()
         validated.supports_video = True
 
-        with patch(
-            "myrm_agent_harness.toolkits.llms.vision.fallback_engine.LLMConfig.model_validate",
-            return_value=validated,
-        ), patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
-            return_value=None,
-        ) as mock_engine_init, patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.analyze_local_video",
-            new_callable=AsyncMock,
-            return_value="Scene summary",
-        ) as mock_analyze:
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.fallback_engine.LLMConfig.model_validate",
+                return_value=validated,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
+                return_value=None,
+            ) as mock_engine_init,
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.analyze_local_video",
+                new_callable=AsyncMock,
+                return_value="Scene summary",
+            ) as mock_analyze,
+        ):
             result = await read_video_as_content_blocks(
                 "clip.mp4",
                 mock_executor,
@@ -151,15 +153,19 @@ class TestReadVideoAsContentBlocks:
         fallback_cfg.base_url = None
         fallback_cfg.model_kwargs = None
 
-        with patch(
-            "myrm_agent_harness.toolkits.llms.vision.fallback_engine.LLMConfig.model_validate"
-        ) as mock_model_validate, patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
-            return_value=None,
-        ), patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.analyze_local_video",
-            new_callable=AsyncMock,
-            return_value="A cat playing",
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.fallback_engine.LLMConfig.model_validate"
+            ) as mock_model_validate,
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
+                return_value=None,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.analyze_local_video",
+                new_callable=AsyncMock,
+                return_value="A cat playing",
+            ),
         ):
             mock_model_validate.return_value = MagicMock()
 
@@ -184,16 +190,20 @@ class TestReadVideoAsContentBlocks:
         fallback_cfg.base_url = None
         fallback_cfg.model_kwargs = None
 
-        with patch(
-            "myrm_agent_harness.toolkits.llms.vision.fallback_engine.LLMConfig.model_validate",
-            return_value=MagicMock(supports_video=False),
-        ), patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
-            return_value=None,
-        ), patch(
-            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.analyze_local_video",
-            new_callable=AsyncMock,
-            side_effect=RuntimeError("boom"),
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.fallback_engine.LLMConfig.model_validate",
+                return_value=MagicMock(supports_video=False),
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
+                return_value=None,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.analyze_local_video",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("boom"),
+            ),
         ):
             result = await read_video_as_content_blocks(
                 "clip.mp4",

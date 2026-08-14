@@ -50,16 +50,20 @@ class TestNetworkShieldIntegration:
     @pytest.mark.asyncio
     async def test_ssrf_blocks_internal_ips(self):
         """Test that SSRF blocks internal IPs even with no DLP."""
-        with mock_getaddrinfo("192.168.1.100"), URLAllowlistGuard.apply(None), pytest.raises(
-            SSRFSecurityError, match="Access to internal network is blocked"
+        with (
+            mock_getaddrinfo("192.168.1.100"),
+            URLAllowlistGuard.apply(None),
+            pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"),
         ):  # No DLP restrictions
             await async_pin_url("http://192.168.1.100/admin")
 
     @pytest.mark.asyncio
     async def test_ssrf_blocks_dns_rebinding(self):
         """Test that SSRF blocks DNS rebinding attacks."""
-        with mock_getaddrinfo("127.0.0.1"), URLAllowlistGuard.apply(["evil-domain.com"]), pytest.raises(
-            SSRFSecurityError, match="Access to internal network is blocked"
+        with (
+            mock_getaddrinfo("127.0.0.1"),
+            URLAllowlistGuard.apply(["evil-domain.com"]),
+            pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"),
         ):
             # Even if the domain is in the allowlist, if it resolves to internal IP, it should be blocked
             await async_pin_url("http://evil-domain.com/flushall")

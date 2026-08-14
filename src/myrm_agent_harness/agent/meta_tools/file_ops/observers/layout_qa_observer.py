@@ -60,16 +60,12 @@ async def run_layout_qa_check(file_path: Path) -> list[str]:
         if proc.returncode != 0:
             detail = stderr.decode("utf-8", errors="replace").strip()
             warnings.append(
-                f"Layout QA failed: soffice could not convert {file_path.name} "
-                f"(exit {proc.returncode}). {detail[:200]}"
+                f"Layout QA failed: soffice could not convert {file_path.name} (exit {proc.returncode}). {detail[:200]}"
             )
             return warnings
 
         pdf_path = tmp / f"{file_path.stem}.pdf"
         if not pdf_path.is_file() or pdf_path.stat().st_size < 128:
-            warnings.append(
-                f"Layout QA failed: converted PDF for {file_path.name} is missing or empty."
-            )
+            warnings.append(f"Layout QA failed: converted PDF for {file_path.name} is missing or empty.")
 
     return warnings
-

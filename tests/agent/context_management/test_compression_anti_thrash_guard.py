@@ -18,9 +18,7 @@ def test_should_block_when_streak_high_and_below_safety_net() -> None:
     metrics = create_task_metrics(chat_id)
     metrics.compression_ineffective_streak = ANTI_THRASHING_STREAK_LIMIT
 
-    assert should_block_automatic_compression(
-        chat_id, total_tokens=50_000, max_context_tokens=128_000
-    )
+    assert should_block_automatic_compression(chat_id, total_tokens=50_000, max_context_tokens=128_000)
 
 
 def test_should_not_block_when_above_safety_net() -> None:
@@ -40,9 +38,7 @@ def test_record_resets_streak_on_effective_savings() -> None:
     metrics = create_task_metrics(chat_id)
     metrics.compression_ineffective_streak = 2
 
-    record_compression_effectiveness(
-        chat_id, original_tokens=10_000, tokens_saved=2_000
-    )
+    record_compression_effectiveness(chat_id, original_tokens=10_000, tokens_saved=2_000)
 
     updated = get_task_metrics(chat_id)
     assert updated is not None

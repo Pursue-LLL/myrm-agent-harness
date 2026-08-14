@@ -114,22 +114,16 @@ def convert_message_to_dict(message: BaseMessage) -> dict[str, Any]:
         message_dict["role"] = "assistant"
         # ThinkingBlockCleaner has already selectively removed stale reasoning_content by tool_calls
         if "reasoning_content" in message.additional_kwargs:
-            message_dict["reasoning_content"] = message.additional_kwargs[
-                "reasoning_content"
-            ]
+            message_dict["reasoning_content"] = message.additional_kwargs["reasoning_content"]
         # Process function_call (OpenAI deprecated format)
         if "function_call" in message.additional_kwargs:
             message_dict["function_call"] = message.additional_kwargs["function_call"]
         # Process tool_calls (prefer message.tool_calls, fall back to additional_kwargs)
         if message.tool_calls:
-            message_dict["tool_calls"] = [
-                lc_tool_call_to_openai_tool_call(tc) for tc in message.tool_calls
-            ]
+            message_dict["tool_calls"] = [lc_tool_call_to_openai_tool_call(tc) for tc in message.tool_calls]
         elif "tool_calls" in message.additional_kwargs:
             # ensure arguments are JSON strings
-            message_dict["tool_calls"] = ensure_arguments_json_string(
-                message.additional_kwargs["tool_calls"]
-            )
+            message_dict["tool_calls"] = ensure_arguments_json_string(message.additional_kwargs["tool_calls"])
     elif isinstance(message, SystemMessage):
         message_dict["role"] = "system"
     elif isinstance(message, FunctionMessage):
@@ -210,9 +204,7 @@ def _convert_raw_tool_call_to_langchain(
         tool_call_id = tc.get("id", "")
         if not tool_call_id:
             tool_call_id = f"call_{uuid4().hex[:24]}"
-            logger.warning(
-                f" Generate tool_call_id: {tc['function']['name']} -> {tool_call_id}"
-            )
+            logger.warning(f" Generate tool_call_id: {tc['function']['name']} -> {tool_call_id}")
 
         # Process tool name (strip namespace prefixes)
         raw_tool_name = tc["function"]["name"]
@@ -233,11 +225,7 @@ def _convert_raw_tool_call_to_langchain(
             "degraded": recovery.degraded,
             "safe": recovery.safe,
         }
-        if (
-            recovery.strategy != "standard_json"
-            or recovery.degraded
-            or not recovery.safe
-        ):
+        if recovery.strategy != "standard_json" or recovery.degraded or not recovery.safe:
             from myrm_agent_harness.observability.metrics.registry import (
                 metrics_registry,
             )
@@ -255,9 +243,7 @@ def _convert_raw_tool_call_to_langchain(
                 recovery.strategy,
             )
         elif recovery.strategy != "standard_json" or recovery.degraded:
-            logger.warning(
-                " Recovered tool_call args for %s via %s", tool_name, recovery.strategy
-            )
+            logger.warning(" Recovered tool_call args for %s via %s", tool_name, recovery.strategy)
 
         return (
             ToolCall(
@@ -293,14 +279,10 @@ def _parse_tool_call_args(
     parsed, recovery = _parse_tool_call_args_result(args, tool_name, tool_schema)
 
     if not recovery.safe:
-        logger.warning(
-            " Dropped unsafe tool_call args for %s via %s", tool_name, recovery.strategy
-        )
+        logger.warning(" Dropped unsafe tool_call args for %s via %s", tool_name, recovery.strategy)
         return {}
     if recovery.strategy != "standard_json" or recovery.degraded:
-        logger.warning(
-            " Recovered tool_call args for %s via %s", tool_name, recovery.strategy
-        )
+        logger.warning(" Recovered tool_call args for %s via %s", tool_name, recovery.strategy)
     return parsed
 
 
@@ -366,15 +348,11 @@ def convert_dict_to_message(
         if raw_tool_calls:
             content = clean_xml_tool_tags(content)
             for tc in raw_tool_calls:
-                tool_call, metadata = _convert_raw_tool_call_to_langchain(
-                    tc, tool_schemas
-                )
+                tool_call, metadata = _convert_raw_tool_call_to_langchain(tc, tool_schemas)
                 if tool_call:
                     tool_calls.append(tool_call)
                 if metadata and (
-                    metadata["strategy"] != "standard_json"
-                    or metadata["degraded"]
-                    or not metadata["safe"]
+                    metadata["strategy"] != "standard_json" or metadata["degraded"] or not metadata["safe"]
                 ):
                     recovery_metadata.append(metadata)
             additional_kwargs["tool_calls"] = raw_tool_calls

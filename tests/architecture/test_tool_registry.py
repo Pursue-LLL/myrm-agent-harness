@@ -79,10 +79,7 @@ def test_no_duplicate_tool_names(report) -> None:
         "Identical tool names declared in multiple files:\n"
         + "\n".join(
             f"  - {name}\n"
-            + "\n".join(
-                f"      {decl.file.relative_to(_repo_root.parent)}:{decl.line}"
-                for decl in decls
-            )
+            + "\n".join(f"      {decl.file.relative_to(_repo_root.parent)}:{decl.line}" for decl in decls)
             for name, decls in sorted(dupes.items())
         )
         + "\nFix: rename one of the colliding tools."
@@ -106,7 +103,6 @@ def test_web_crawl_tool_removed_from_harness() -> None:
         for token in banned_tokens:
             if token in text:
                 hits.append(f"{path.relative_to(_repo_root)}:{token}")
-    assert not hits, (
-        "Removed deep crawl symbols must not reappear in harness:\n"
-        + "\n".join(f"  - {hit}" for hit in sorted(hits))
+    assert not hits, "Removed deep crawl symbols must not reappear in harness:\n" + "\n".join(
+        f"  - {hit}" for hit in sorted(hits)
     )

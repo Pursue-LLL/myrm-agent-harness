@@ -326,9 +326,7 @@ class TestToolRegistryBindMode:
             bind_mode=ToolBindMode.RUNTIME_ONLY,
         )
         snaps = reg.snapshot()
-        non_turn1_snaps = [
-            s for s in snaps if s.bind_mode != ToolBindMode.TURN1.value
-        ]
+        non_turn1_snaps = [s for s in snaps if s.bind_mode != ToolBindMode.TURN1.value]
         turn1_snaps = [s for s in snaps if s.bind_mode == ToolBindMode.TURN1.value]
         assert len(non_turn1_snaps) == 1
         assert non_turn1_snaps[0].name == "_internal_hook"

@@ -189,8 +189,7 @@ async def test_spa_consecutive_navigations_collapse(
 async def test_hover_action_skips_screenshot() -> None:
     engine, page = _screenshot_engine()
     await engine._on_action_event(
-        '{"action":"hover","selector":"#avatar","value":"",'
-        '"url":"https://example.com","title":"","ts":1000.0}'
+        '{"action":"hover","selector":"#avatar","value":"","url":"https://example.com","title":"","ts":1000.0}'
     )
 
     steps = engine._session.steps
@@ -203,8 +202,7 @@ async def test_hover_action_skips_screenshot() -> None:
 async def test_non_hover_action_takes_screenshot() -> None:
     engine, page = _screenshot_engine()
     await engine._on_action_event(
-        '{"action":"click","selector":"#submit","value":"",'
-        '"url":"https://example.com","title":"","ts":1000.0}'
+        '{"action":"click","selector":"#submit","value":"","url":"https://example.com","title":"","ts":1000.0}'
     )
 
     steps = engine._session.steps
@@ -230,8 +228,7 @@ async def test_press_step_carries_modifiers() -> None:
 async def test_press_step_defaults_empty_modifiers() -> None:
     engine, _ = _screenshot_engine()
     await engine._on_action_event(
-        '{"action":"press","selector":"#msg","value":"Enter",'
-        '"url":"https://example.com","title":"","ts":1000.0}'
+        '{"action":"press","selector":"#msg","value":"Enter","url":"https://example.com","title":"","ts":1000.0}'
     )
 
     steps = engine._session.steps
@@ -256,8 +253,7 @@ async def test_select_step_carries_label() -> None:
 async def test_select_step_label_defaults_empty() -> None:
     engine, _ = _screenshot_engine()
     await engine._on_action_event(
-        '{"action":"select","selector":"#lang","value":"en",'
-        '"url":"https://example.com","title":"","ts":1000.0}'
+        '{"action":"select","selector":"#lang","value":"en","url":"https://example.com","title":"","ts":1000.0}'
     )
 
     steps = engine._session.steps

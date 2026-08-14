@@ -169,7 +169,7 @@ def _extract_param_target(cmd: str, tokens: list[str]) -> str | None:
     if cmd in ("pip", "pip3"):
         for i, t in enumerate(tokens):
             if t == "install" and i + 1 < len(tokens):
-                rest = [p for p in tokens[i + 1:] if not p.startswith("-")]
+                rest = [p for p in tokens[i + 1 :] if not p.startswith("-")]
                 return " ".join(rest) if rest else None
         return None
 
@@ -191,7 +191,9 @@ def _get_subcommand(cmd: str, tokens: list[str]) -> str | None:
 
 
 def _build_param_explanation(
-    cmd: str, tokens: list[str], base_explanation: BilingualExplanation,
+    cmd: str,
+    tokens: list[str],
+    base_explanation: BilingualExplanation,
 ) -> BilingualExplanation:
     """Enrich explanation with parameter context when available."""
     templates = _PARAM_AWARE_COMMANDS.get(cmd)
@@ -296,14 +298,13 @@ def humanize_command(
     if not has_unknown:
         return None
 
-    segments = [command[s["startIndex"]:s["endIndex"]] for s in spans]
+    segments = [command[s["startIndex"] : s["endIndex"]] for s in spans]
 
     if _detect_dangerous_pipe(segments):
         return _DANGEROUS_PIPE_EXPLANATION
 
     explanations: list[BilingualExplanation | None] = [
-        _explain_segment(seg) if risks[i] == "unknown" else None
-        for i, seg in enumerate(segments)
+        _explain_segment(seg) if risks[i] == "unknown" else None for i, seg in enumerate(segments)
     ]
 
     meaningful = [(i, exp) for i, exp in enumerate(explanations) if exp is not None]

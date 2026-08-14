@@ -129,7 +129,9 @@ async def _auto_install_chromium() -> bool:
             env = await asyncio.get_running_loop().run_in_executor(None, _get_install_env)
             proc = await asyncio.wait_for(
                 asyncio.create_subprocess_exec(
-                    "patchright", "install", "chromium",
+                    "patchright",
+                    "install",
+                    "chromium",
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     env=env,
@@ -399,7 +401,8 @@ class BrowserLauncher:
                             logger.debug("Loaded Camoufox fingerprint from %s", fp_file)
                         except (json.JSONDecodeError, ValueError):
                             logger.warning(
-                                "Corrupted Camoufox fingerprint at %s — deleting and regenerating", fp_file,
+                                "Corrupted Camoufox fingerprint at %s — deleting and regenerating",
+                                fp_file,
                             )
                             fp_file.unlink(missing_ok=True)
                             camoufox_config = None
@@ -529,8 +532,7 @@ class BrowserLauncher:
 
         if not isinstance(self._extension_bridge, ExtensionBridge):
             raise BrowserLaunchError(
-                f"extension_bridge must implement ExtensionBridge Protocol, "
-                f"got {type(self._extension_bridge).__name__}"
+                f"extension_bridge must implement ExtensionBridge Protocol, got {type(self._extension_bridge).__name__}"
             )
 
         try:
@@ -541,9 +543,7 @@ class BrowserLauncher:
         except ExtensionBridgeNotAvailableError as exc:
             raise BrowserLaunchError(str(exc)) from exc
         except Exception as exc:
-            raise BrowserLaunchError(
-                f"Extension bridge connection failed: {exc}"
-            ) from exc
+            raise BrowserLaunchError(f"Extension bridge connection failed: {exc}") from exc
 
     async def shutdown(self) -> None:
         """Shutdown Playwright."""

@@ -84,9 +84,7 @@ class CrashWatchdogMixin:
                 self._crash_count_browser += 1
 
             slots_to_release = inst.load
-            self._current_pages_in_use = max(
-                0, self._current_pages_in_use - slots_to_release
-            )
+            self._current_pages_in_use = max(0, self._current_pages_in_use - slots_to_release)
 
             if inst in self._browsers:
                 self._browsers.remove(inst)
@@ -98,9 +96,7 @@ class CrashWatchdogMixin:
             self._global_semaphore.release()
 
         if is_external:
-            logger.info(
-                f"External browser disconnected — released {slots_to_release} semaphore slots"
-            )
+            logger.info(f"External browser disconnected — released {slots_to_release} semaphore slots")
         else:
             logger.warning(
                 f"Browser crashed — released {slots_to_release} semaphore slots, "
@@ -175,28 +171,20 @@ class CrashWatchdogMixin:
                     is_external = not inst.is_managed
                     if not is_external:
                         self._crash_count_browser += 1
-                    self._current_pages_in_use = max(
-                        0, self._current_pages_in_use - slots_to_release
-                    )
+                    self._current_pages_in_use = max(0, self._current_pages_in_use - slots_to_release)
                     if is_external:
                         logger.info(
                             f"Lifecycle: external browser disconnected (load={slots_to_release}), removing from pool"
                         )
                     else:
-                        logger.warning(
-                            f"Lifecycle: browser crashed (load={slots_to_release}), removing from pool"
-                        )
+                        logger.warning(f"Lifecycle: browser crashed (load={slots_to_release}), removing from pool")
                     self._browsers.remove(inst)
                     evicted.append((inst, slots_to_release))
                     if self._circuit_breaker and not is_external:
                         self._circuit_breaker.record_failure()
                     continue
 
-                if (
-                    inst.load == 0
-                    and idle_timeout > 0
-                    and (now - inst.last_active_at) > idle_timeout
-                ):
+                if inst.load == 0 and idle_timeout > 0 and (now - inst.last_active_at) > idle_timeout:
                     logger.info(
                         f"Lifecycle: evicting idle browser (idle {now - inst.last_active_at:.0f}s > {idle_timeout}s)"
                     )

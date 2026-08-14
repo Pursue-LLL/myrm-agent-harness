@@ -21,10 +21,7 @@ class TestBuildParamsSection:
     def test_empty_schema_returns_no_params(self) -> None:
         assert build_params_section({}) == "## Parameters\n\nNo parameters required."
         assert build_params_section(None) == "## Parameters\n\nNo parameters required."
-        assert (
-            build_params_section({"type": "object"})
-            == "## Parameters\n\nNo parameters required."
-        )
+        assert build_params_section({"type": "object"}) == "## Parameters\n\nNo parameters required."
 
     def test_renders_required_and_optional_tags(self) -> None:
         schema = {
@@ -162,9 +159,7 @@ class TestNormalizeInputSchema:
         assert normalize_input_schema(schema) is schema
 
     def test_pydantic_model_uses_model_json_schema(self) -> None:
-        model = SimpleNamespace(
-            model_json_schema=lambda: {"type": "object", "properties": {"x": {}}}
-        )
+        model = SimpleNamespace(model_json_schema=lambda: {"type": "object", "properties": {"x": {}}})
         assert normalize_input_schema(model)["properties"] == {"x": {}}
 
     def test_model_without_schema_method(self) -> None:

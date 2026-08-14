@@ -36,9 +36,7 @@ class JsonFormatter(logging.Formatter):
         message = redact_sensitive_text(record.getMessage())
 
         payload: dict[str, str | float] = {
-            "timestamp": datetime.fromtimestamp(
-                record.created, tz=UTC
-            ).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "trace_id": getattr(record, "trace_id", "-"),

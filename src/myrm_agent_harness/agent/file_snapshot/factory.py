@@ -37,7 +37,8 @@ async def _detect_git() -> bool:
     """One-time probe for system git availability."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "git", "--version",
+            "git",
+            "--version",
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )

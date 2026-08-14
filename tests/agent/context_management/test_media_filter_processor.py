@@ -138,10 +138,7 @@ class TestProcess:
         assert isinstance(content, list)
         assert len(content) == 2
         assert content[0] == {"type": "text", "text": "look"}
-        assert (
-            "removed" in content[1]["text"].lower()
-            or "does not support" in content[1]["text"].lower()
-        )
+        assert "removed" in content[1]["text"].lower() or "does not support" in content[1]["text"].lower()
 
     @pytest.mark.asyncio
     async def test_strips_video(self) -> None:
@@ -199,7 +196,11 @@ class TestProcess:
         # Default K=2, so photo3 and photo2 are kept, photo1 is stripped
         content_1 = result.messages[0].content
         assert isinstance(content_1, list)
-        assert "removed" in content_1[1]["text"].lower() or "does not support" in content_1[1]["text"].lower() or "media stripped" in content_1[1]["text"].lower()
+        assert (
+            "removed" in content_1[1]["text"].lower()
+            or "does not support" in content_1[1]["text"].lower()
+            or "media stripped" in content_1[1]["text"].lower()
+        )
 
         content_2 = result.messages[1].content
         assert isinstance(content_2, list)
@@ -222,7 +223,11 @@ class TestProcess:
         # photo3 and photo2 are kept, photo1 is stripped
         content_1 = result.messages[1].content
         assert isinstance(content_1, list)
-        assert "removed" in content_1[1]["text"].lower() or "does not support" in content_1[1]["text"].lower() or "media stripped" in content_1[1]["text"].lower()
+        assert (
+            "removed" in content_1[1]["text"].lower()
+            or "does not support" in content_1[1]["text"].lower()
+            or "media stripped" in content_1[1]["text"].lower()
+        )
 
         content_2 = result.messages[3].content
         assert isinstance(content_2, list)

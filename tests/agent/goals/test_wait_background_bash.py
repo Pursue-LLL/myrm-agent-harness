@@ -41,11 +41,7 @@ def test_find_latest_background_spawn_in_window() -> None:
             tool_name="bash_code_execute_tool",
             args_hash="b",
             args={"command": "pytest -q", "run_in_background": True},
-            result_content=(
-                "Background process started.\n"
-                "  job_id: cccccccccccccccccccccccccccccccc\n"
-                "  pid: 99\n"
-            ),
+            result_content=("Background process started.\n  job_id: cccccccccccccccccccccccccccccccc\n  pid: 99\n"),
         ),
     ]
     info = find_latest_background_spawn_in_window(records)

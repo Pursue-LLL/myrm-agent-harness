@@ -223,9 +223,7 @@ class Navigator:
                         },
                     )
                 except Exception as stop_e:
-                    logger.warning(
-                        f"Navigator: failed to stop page after timeout: {stop_e}"
-                    )
+                    logger.warning(f"Navigator: failed to stop page after timeout: {stop_e}")
 
                 # We don't have a response object, but we can still get title and url
                 response = None
@@ -351,9 +349,7 @@ class Navigator:
         scheme = parsed.scheme.lower() if parsed.scheme else ""
 
         if not scheme:
-            raise ValueError(
-                f"Invalid URL: missing scheme (must be http:// or https://). Got: {url}"
-            )
+            raise ValueError(f"Invalid URL: missing scheme (must be http:// or https://). Got: {url}")
 
         if scheme not in _ALLOWED_SCHEMES:
             raise ValueError(

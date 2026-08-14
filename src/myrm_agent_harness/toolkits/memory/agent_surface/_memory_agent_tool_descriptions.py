@@ -53,8 +53,7 @@ _MCP_SURFACE_EXTRA_REPLACEMENTS_EN: tuple[tuple[str, str], ...] = (
         "Task progress or chat history → do not use memory_manage for session logs",
     ),
     (
-        "- Use wiki_ingest_tool for articles, notes, or long reference text. "
-        "Memory is for short durable facts.",
+        "- Use wiki_ingest_tool for articles, notes, or long reference text. Memory is for short durable facts.",
         "- Long-form articles, notes, or reference text are not appropriate for memory. "
         "Memory is for short durable facts.",
     ),
@@ -88,11 +87,7 @@ def _apply_tool_surface_names(
     result = description
     for agent_name, mcp_name in _AGENT_TO_MCP_TOOL_REPLACEMENTS:
         result = result.replace(agent_name, mcp_name)
-    extras = (
-        _MCP_SURFACE_EXTRA_REPLACEMENTS_ZH
-        if is_chinese(locale)
-        else _MCP_SURFACE_EXTRA_REPLACEMENTS_EN
-    )
+    extras = _MCP_SURFACE_EXTRA_REPLACEMENTS_ZH if is_chinese(locale) else _MCP_SURFACE_EXTRA_REPLACEMENTS_EN
     for old, new in extras:
         result = result.replace(old, new)
     return result
@@ -294,17 +289,13 @@ def _build_memory_search_en(policy: MemorySearchPolicy) -> str:
         "- Use since/until for time-scoped queries (7d, 2w, 1m, 24h, 1y, or ISO 8601)",
     ]
     if policy.allow_sessions:
-        tip_lines.append(
-            '- For recent chats without a query, use corpus=sessions with query="*"'
-        )
+        tip_lines.append('- For recent chats without a query, use corpus=sessions with query="*"')
         tip_lines.append(
             "- When a sessions hit includes message_id and the user needs verbatim detail, "
             "call again with corpus=sessions, expand_conversation_id, and expand_message_id"
         )
     if policy.allow_web:
-        tip_lines.append(
-            "- Use corpus=web to re-query pages you've already searched or fetched"
-        )
+        tip_lines.append("- Use corpus=web to re-query pages you've already searched or fetched")
 
     context_parts = ["personal context", "preferences"]
     if policy.allow_wiki:
@@ -317,10 +308,7 @@ def _build_memory_search_en(policy: MemorySearchPolicy) -> str:
     return (
         f"Unified search across {_join_scope_fragments(scope_fragments)}.\n\n"
         f"Use when the user's question relates to {_join_scope_fragments(context_parts)}.\n\n"
-        "**Corpus guide**:\n"
-        + "\n".join(corpus_lines)
-        + "\n\n**Search tips**:\n"
-        + "\n".join(tip_lines)
+        "**Corpus guide**:\n" + "\n".join(corpus_lines) + "\n\n**Search tips**:\n" + "\n".join(tip_lines)
     )
 
 
@@ -374,10 +362,7 @@ def _build_memory_search_zh(policy: MemorySearchPolicy) -> str:
     return (
         f"跨{zh_join}的统一检索。\n\n"
         f"当用户问题涉及{context_join}时使用。\n\n"
-        "**Corpus 指南**：\n"
-        + "\n".join(corpus_lines)
-        + "\n\n**搜索技巧**：\n"
-        + "\n".join(tip_lines)
+        "**Corpus 指南**：\n" + "\n".join(corpus_lines) + "\n\n**搜索技巧**：\n" + "\n".join(tip_lines)
     )
 
 
@@ -419,10 +404,7 @@ def _approval_fragment_en() -> str:
 
 
 def _approval_fragment_zh() -> str:
-    return (
-        "**审批**：若需用户确认，工具可能返回「submitted for approval」——"
-        "在用户批准前该记忆不会生效。"
-    )
+    return "**审批**：若需用户确认，工具可能返回「submitted for approval」——在用户批准前该记忆不会生效。"
 
 
 def build_memory_save_tool_description(
@@ -433,19 +415,11 @@ def build_memory_save_tool_description(
     surface: MemoryToolDescriptionSurface = "agent",
 ) -> str:
     """Build memory_save_tool description (wiki boundary + approval vary by runtime)."""
-    parts: list[str] = [
-        MEMORY_SAVE_CORE_ZH if is_chinese(locale) else MEMORY_SAVE_CORE_EN
-    ]
+    parts: list[str] = [MEMORY_SAVE_CORE_ZH if is_chinese(locale) else MEMORY_SAVE_CORE_EN]
     if policy.allow_wiki:
-        parts.append(
-            _wiki_boundary_fragment_zh()
-            if is_chinese(locale)
-            else _wiki_boundary_fragment_en()
-        )
+        parts.append(_wiki_boundary_fragment_zh() if is_chinese(locale) else _wiki_boundary_fragment_en())
     if approval_required:
-        parts.append(
-            _approval_fragment_zh() if is_chinese(locale) else _approval_fragment_en()
-        )
+        parts.append(_approval_fragment_zh() if is_chinese(locale) else _approval_fragment_en())
     return _apply_tool_surface_names("\n\n".join(parts), surface=surface, locale=locale)
 
 
@@ -489,11 +463,7 @@ def resolve_memory_manage_tool_description(
     *,
     surface: MemoryToolDescriptionSurface = "agent",
 ) -> str:
-    base = (
-        MEMORY_MANAGE_TOOL_DESCRIPTION_ZH
-        if is_chinese(locale)
-        else MEMORY_MANAGE_TOOL_DESCRIPTION_EN
-    )
+    base = MEMORY_MANAGE_TOOL_DESCRIPTION_ZH if is_chinese(locale) else MEMORY_MANAGE_TOOL_DESCRIPTION_EN
     return _apply_tool_surface_names(base, surface=surface, locale=locale)
 
 

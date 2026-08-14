@@ -19,13 +19,33 @@ from myrm_agent_harness.agent.hooks.types import AggregatedHookResult, HookResul
 def _mock_env():
     """Provide minimal mocks so the interceptor doesn't crash on import-time deps."""
     with (
-        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_security_config", return_value=None),
-        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_workspace_root", return_value="/tmp"),
-        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_approval_session", return_value="sess"),
-        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_approval_user_id", return_value="user"),
-        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_event_logger", return_value=None),
-        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_terminal_errors") as mock_te,
-        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_allowed_domains_map", return_value={}),
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_security_config",
+            return_value=None,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_workspace_root",
+            return_value="/tmp",
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_approval_session",
+            return_value="sess",
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_approval_user_id",
+            return_value="user",
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_event_logger",
+            return_value=None,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_terminal_errors"
+        ) as mock_te,
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_allowed_domains_map",
+            return_value={},
+        ),
     ):
         registry = MagicMock()
         registry.get_all.return_value = {}

@@ -72,6 +72,7 @@ class SubagentExecutorAttemptMixin:
             if key not in merged and key in parent_ctx:
                 merged[key] = parent_ctx[key]
         return merged
+
     async def _run_single_attempt(
         self,
         task_id: str,
@@ -103,10 +104,7 @@ class SubagentExecutorAttemptMixin:
         if not filtered_tools and config.tools:
             parent_tool_names = {tool.name for tool in parent_tools}
             unavailable = sorted(set(config.tools) - parent_tool_names)
-            error_msg = (
-                f"Subagent '{agent_type}' has no tools after filtering. "
-                f"Allowlist: {sorted(config.tools)}."
-            )
+            error_msg = f"Subagent '{agent_type}' has no tools after filtering. Allowlist: {sorted(config.tools)}."
             if unavailable:
                 error_msg += f" Not in parent toolkit: {unavailable}."
             else:
@@ -182,7 +180,9 @@ class SubagentExecutorAttemptMixin:
                             chat_history = _filter_fork_messages(raw_msgs, config.max_fork_tokens)
                             logger.info(
                                 "[subagent:%s] Fork context filtered: %d → %d messages",
-                                task_id, raw_count, len(chat_history),
+                                task_id,
+                                raw_count,
+                                len(chat_history),
                             )
             except Exception as e:
                 logger.warning("[subagent:%s] Failed to fork parent context: %s", task_id, e)

@@ -60,15 +60,16 @@ async def test_complete_goal_tool_with_criteria_pass(mock_provider):
     mock_goal.acceptance_criteria = [{"type": "shell", "command": "echo 1"}]
     mock_provider.get_active_goal.return_value = mock_goal
 
-    with patch(
-        "myrm_agent_harness.agent.goals.verification.VerificationGatekeeper"
-    ) as MockGK, patch(  # noqa: N806 mock 类名别名
-        "myrm_agent_harness.agent.goals.finalizer.finalize_goal_complete",
-        new_callable=AsyncMock,
-    ) as mock_finalize:
+    with (
+        patch("myrm_agent_harness.agent.goals.verification.VerificationGatekeeper") as mock_gatekeeper,
+        patch(
+            "myrm_agent_harness.agent.goals.finalizer.finalize_goal_complete",
+            new_callable=AsyncMock,
+        ) as mock_finalize,
+    ):
         mock_gk_instance = AsyncMock()
         mock_gk_instance.verify_all.return_value = VerificationResult(passed=True)
-        MockGK.return_value = mock_gk_instance
+        mock_gatekeeper.return_value = mock_gk_instance
 
         tools = create_goal_tools(mock_provider, "sess-1")
         complete_tool = tools[0]
@@ -86,14 +87,12 @@ async def test_complete_goal_tool_with_criteria_fail(mock_provider):
     mock_goal.acceptance_criteria = [{"type": "shell", "command": "echo 1"}]
     mock_provider.get_active_goal.return_value = mock_goal
 
-    with patch(
-        "myrm_agent_harness.agent.goals.verification.VerificationGatekeeper"
-    ) as MockGK:  # noqa: N806 mock 类名别名
+    with patch("myrm_agent_harness.agent.goals.verification.VerificationGatekeeper") as mock_gatekeeper:
         mock_gk_instance = AsyncMock()
         mock_gk_instance.verify_all.return_value = VerificationResult(
             passed=False, reason="Bad command", error_logs="Not found"
         )
-        MockGK.return_value = mock_gk_instance
+        mock_gatekeeper.return_value = mock_gk_instance
 
         tools = create_goal_tools(mock_provider, "sess-1")
         complete_tool = tools[0]

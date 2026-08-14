@@ -65,14 +65,10 @@ async def test_http_fetcher_cookiejar_injection(install_fake_scrapling: AsyncMoc
 
     # Mock AsyncFetcher.get to intercept the call and check kwargs
     mock_get = install_fake_scrapling
-    with patch.dict(
-        "os.environ", {"MYRM_ENABLE_SSRF_SHIELD": "false", "MYRM_HTTP3_RETRY": "0"}
-    ):
+    with patch.dict("os.environ", {"MYRM_ENABLE_SSRF_SHIELD": "false", "MYRM_HTTP3_RETRY": "0"}):
         mock_response = MagicMock()
         mock_response.status = 200
-        mock_response.body = (
-            b"<html><body><p>" + (b"Test content. " * 20) + b"</p></body></html>"
-        )
+        mock_response.body = b"<html><body><p>" + (b"Test content. " * 20) + b"</p></body></html>"
         mock_response.encoding = "utf-8"
         mock_response.url = "https://example.com/test"
         mock_response.headers = {"content-type": "text/html"}
@@ -136,11 +132,7 @@ async def test_browser_fetcher_storage_state_injection():
     mock_vault = MagicMock(spec=SessionVault)
 
     # Create a mock SessionEntry with storage_state
-    mock_storage_state = {
-        "cookies": [
-            {"name": "test", "value": "123", "domain": "example.com", "path": "/"}
-        ]
-    }
+    mock_storage_state = {"cookies": [{"name": "test", "value": "123", "domain": "example.com", "path": "/"}]}
     import time
 
     mock_entry = SessionEntry(
@@ -207,12 +199,8 @@ async def test_http_fetcher_initialization():
     from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
 
     pool = RoundRobinProxyPool([ProxyConfig(server="http://proxy.com:8080")])
-    vault = SessionVault(
-        FileVaultBackend(Path("/tmp/test")), b"0123456789abcdef0123456789abcdef"
-    )
-    fetcher = HttpFetcher(
-        max_concurrent=10, timeout=15, proxy_pool=pool, session_vault=vault
-    )
+    vault = SessionVault(FileVaultBackend(Path("/tmp/test")), b"0123456789abcdef0123456789abcdef")
+    fetcher = HttpFetcher(max_concurrent=10, timeout=15, proxy_pool=pool, session_vault=vault)
 
     assert fetcher.fetcher_type == FetcherType.HTTP
     assert fetcher._timeout == 15
@@ -234,9 +222,7 @@ async def test_browser_fetcher_initialization():
 
     from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
 
-    vault = SessionVault(
-        FileVaultBackend(Path("/tmp/test")), b"0123456789abcdef0123456789abcdef"
-    )
+    vault = SessionVault(FileVaultBackend(Path("/tmp/test")), b"0123456789abcdef0123456789abcdef")
     fetcher = BrowserFetcher(session_vault=vault)
 
     assert fetcher.fetcher_type == FetcherType.BROWSER
@@ -275,18 +261,10 @@ async def test_stealth_fetcher_shutdown():
 
 def test_fetch_result_has_content():
     """测试 FetchResult.has_content 属性"""
-    long_html = (
-        "<html><body><p>"
-        + ("This is a test paragraph with content. " * 20)
-        + "</p></body></html>"
-    )
-    result_with_content = FetchResult(
-        html=long_html, url="https://example.com", status_code=200
-    )
+    long_html = "<html><body><p>" + ("This is a test paragraph with content. " * 20) + "</p></body></html>"
+    result_with_content = FetchResult(html=long_html, url="https://example.com", status_code=200)
 
-    result_no_content = FetchResult(
-        html="<html></html>", url="https://example.com", status_code=200
-    )
+    result_no_content = FetchResult(html="<html></html>", url="https://example.com", status_code=200)
 
     assert result_with_content.has_content is True
     assert result_no_content.has_content is False

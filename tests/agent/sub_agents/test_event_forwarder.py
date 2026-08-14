@@ -107,6 +107,7 @@ class TestBudgetCheck:
 
     def test_budget_exceeded(self, event_forwarder):
         from myrm_agent_harness.agent.sub_agents.types import SubagentBudgetExceededError
+
         event_forwarder.cumulative_tokens = 15000  # Exceeds 10000
         with pytest.raises(SubagentBudgetExceededError):
             event_forwarder.check_budget()
@@ -254,7 +255,10 @@ class TestStalenessInit:
 
         now = _time.time()
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=basic_config, start_time=now,
+            task_id="t",
+            agent_type="w",
+            config=basic_config,
+            start_time=now,
         )
         assert forwarder.is_stale() is False
 
@@ -286,7 +290,10 @@ class TestIsStale:
     def test_stale_after_threshold(self, monkeypatch: pytest.MonkeyPatch) -> None:
         cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=10)
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=100.0,
         )
         # At t=100, last_effective=100, so (100-100)=0 < 10 → not stale
         monkeypatch.setattr("time.time", lambda: 100.0)
@@ -298,10 +305,15 @@ class TestIsStale:
 
     def test_in_tool_multiplier(self, monkeypatch: pytest.MonkeyPatch) -> None:
         cfg = SubagentConfig(
-            system_prompt="sys", stale_after_seconds=10, in_tool_stale_multiplier=3,
+            system_prompt="sys",
+            stale_after_seconds=10,
+            in_tool_stale_multiplier=3,
         )
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=100.0,
         )
         forwarder._in_tool = True
 
@@ -320,7 +332,10 @@ class TestMarkProgress:
     def test_mark_progress_resets_stale(self, monkeypatch: pytest.MonkeyPatch) -> None:
         cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=10)
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=100.0,
         )
         # Simulate stale state
         forwarder._stale_emitted = True
@@ -351,7 +366,10 @@ class TestStaleEventEmission:
 
         sink = FakeSink()
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="researcher", config=cfg, start_time=100.0,
+            task_id="t",
+            agent_type="researcher",
+            config=cfg,
+            start_time=100.0,
             parent_progress_sink=sink,
         )
         forwarder.cumulative_tokens = 500
@@ -379,7 +397,10 @@ class TestStaleEventEmission:
 
         sink = FakeSink()
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=100.0,
             parent_progress_sink=sink,
         )
         monkeypatch.setattr("time.time", lambda: 110.0)  # 10s < 60s threshold
@@ -399,7 +420,10 @@ class TestStaleEventEmission:
 
         sink = FakeSink()
         forwarder = SubagentEventForwarder(
-            task_id="task-abc", agent_type="coder", config=cfg, start_time=100.0,
+            task_id="task-abc",
+            agent_type="coder",
+            config=cfg,
+            start_time=100.0,
             parent_progress_sink=sink,
         )
         forwarder.cumulative_tokens = 1234
@@ -431,7 +455,10 @@ class TestStaleEventEmission:
 
         sink = FakeSink()
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=100.0,
             parent_progress_sink=sink,
         )
         monkeypatch.setattr(forwarder, "_publish_stale_lifecycle_event", lambda d: None)
@@ -460,7 +487,10 @@ class TestStaleEventEmission:
         """No crash when sink is None."""
         cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=5)
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=100.0,
         )
         monkeypatch.setattr("time.time", lambda: 106.0)
         monkeypatch.setattr(forwarder, "_publish_stale_lifecycle_event", lambda d: None)
@@ -476,7 +506,10 @@ class TestStalenessIntegration:
     async def test_token_usage_marks_progress(self, monkeypatch: pytest.MonkeyPatch) -> None:
         cfg = SubagentConfig(system_prompt="sys", stale_after_seconds=10)
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=100.0,
         )
         monkeypatch.setattr("time.time", lambda: 105.0)
         monkeypatch.setattr(forwarder, "_publish_stale_lifecycle_event", lambda d: None)
@@ -493,7 +526,10 @@ class TestStalenessIntegration:
     async def test_tool_start_sets_in_tool(self) -> None:
         cfg = SubagentConfig(system_prompt="sys")
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=0.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=0.0,
         )
         event = {"type": AgentEventType.TOOL_START.value, "data": {"tool_name": "bash"}}
         await forwarder.handle_event(event)
@@ -503,7 +539,10 @@ class TestStalenessIntegration:
     async def test_tool_end_clears_in_tool_and_marks_progress(self, monkeypatch: pytest.MonkeyPatch) -> None:
         cfg = SubagentConfig(system_prompt="sys")
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=100.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=100.0,
         )
         forwarder._in_tool = True
         monkeypatch.setattr("time.time", lambda: 120.0)
@@ -518,7 +557,10 @@ class TestStalenessIntegration:
     async def test_tool_failure_clears_in_tool(self) -> None:
         cfg = SubagentConfig(system_prompt="sys")
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=0.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=0.0,
         )
         forwarder._in_tool = True
         event = {"type": AgentEventType.TOOL_FAILURE.value, "data": {"tool_name": "bash", "error": "fail"}}
@@ -529,7 +571,10 @@ class TestStalenessIntegration:
     async def test_tool_cancelled_clears_in_tool(self) -> None:
         cfg = SubagentConfig(system_prompt="sys")
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=0.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=0.0,
         )
         forwarder._in_tool = True
         event = {
@@ -543,7 +588,10 @@ class TestStalenessIntegration:
     async def test_tool_timeout_clears_in_tool(self) -> None:
         cfg = SubagentConfig(system_prompt="sys")
         forwarder = SubagentEventForwarder(
-            task_id="t", agent_type="w", config=cfg, start_time=0.0,
+            task_id="t",
+            agent_type="w",
+            config=cfg,
+            start_time=0.0,
         )
         forwarder._in_tool = True
         event = {

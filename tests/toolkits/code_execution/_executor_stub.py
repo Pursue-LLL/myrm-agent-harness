@@ -36,9 +36,7 @@ class InProcessExecutor(CodeExecutor):
             env=env,
             cwd=context.work_dir if context.work_dir != "/workspace" else None,
         )
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=context.timeout or 30
-        )
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=context.timeout or 30)
         stdout = stdout_bytes.decode(errors="replace")
         stderr = stderr_bytes.decode(errors="replace")
         return ExecutionResult(
@@ -58,9 +56,7 @@ class InProcessExecutor(CodeExecutor):
             stderr=asyncio.subprocess.PIPE,
             env=env,
         )
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(
-            proc.communicate(), timeout=context.timeout or 30
-        )
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=context.timeout or 30)
         return ExecutionResult(
             success=proc.returncode == 0,
             result=proc.returncode,
@@ -68,9 +64,7 @@ class InProcessExecutor(CodeExecutor):
             stderr=stderr_bytes.decode(errors="replace"),
         )
 
-    async def execute_bash_stream(
-        self, context: ExecutionContext
-    ) -> AsyncIterator[str]:
+    async def execute_bash_stream(self, context: ExecutionContext) -> AsyncIterator[str]:
         result = await self.execute_bash(context)
         if result.stdout:
             yield result.stdout

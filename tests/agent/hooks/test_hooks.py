@@ -1310,6 +1310,7 @@ class TestDispatchUnknownHookType:
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
+
 def test_bootstrap_hook_registry():
     from myrm_agent_harness.agent.hooks.executor import bootstrap_hook_registry, get_hook_executor, set_hook_executor
 
@@ -1401,7 +1402,6 @@ class TestSlowHookWarning:
     async def test_slow_hook_logs_warning(self):
         import asyncio as _asyncio
 
-
         async def slow_hook(event: str, payload: dict[str, object]) -> HookResult:
             await _asyncio.sleep(0.01)
             return HookResult(hook_type="callable", success=True)
@@ -1448,8 +1448,5 @@ class TestSlowHookWarning:
         ) as mock_logger:
             mock_logger.warning = unittest.mock.MagicMock()
             await executor.execute(HookEvent.SESSION_START, {})
-            slow_calls = [
-                call for call in mock_logger.warning.call_args_list
-                if "Slow hook" in str(call)
-            ]
+            slow_calls = [call for call in mock_logger.warning.call_args_list if "Slow hook" in str(call)]
             assert len(slow_calls) == 0

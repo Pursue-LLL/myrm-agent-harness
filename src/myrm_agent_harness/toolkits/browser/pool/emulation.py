@@ -121,10 +121,7 @@ class EmulationConfig:
                 raise ValueError(msg)
 
         if self.device_scale_factor is not None and self.device_scale_factor <= 0:
-            msg = (
-                "device_scale_factor must be positive, "
-                f"got {self.device_scale_factor}"
-            )
+            msg = f"device_scale_factor must be positive, got {self.device_scale_factor}"
             raise ValueError(msg)
 
     def to_playwright_kwargs(self) -> dict[str, object]:

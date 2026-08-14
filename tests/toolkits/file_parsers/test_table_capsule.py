@@ -72,9 +72,7 @@ async def test_extract_pdf_content_with_tables():
                 "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._extract_embedded_images_sync",
                 return_value=[],
             ),
-            patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync", return_value=[]
-            ),
+            patch("myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync", return_value=[]),
         ):
             config = PDFExtractConfig(table_format="placeholder")
             result = await extract_pdf_content("fake.pdf", config)

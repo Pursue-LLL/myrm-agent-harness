@@ -103,9 +103,7 @@ def build_orchestrator_tools(
                 idempotency_key,
             )
             if existing:
-                return json.dumps(
-                    {"status": "already_exists", "task": existing.to_dict()}
-                )
+                return json.dumps({"status": "already_exists", "task": existing.to_dict()})
 
         board = await store.get_board(resolved_board_id)
         if board is None:
@@ -116,17 +114,11 @@ def build_orchestrator_tools(
         except ValueError:
             task_priority = TaskPriority.NORMAL
 
-        dep_ids = (
-            [d.strip() for d in depends_on.split(",") if d.strip()]
-            if depends_on
-            else []
-        )
+        dep_ids = [d.strip() for d in depends_on.split(",") if d.strip()] if depends_on else []
         initial_status = TaskStatus.BACKLOG if dep_ids else TaskStatus.READY
 
         parsed_skills: list[str] = (
-            list(dict.fromkeys(s for raw in skills.split(",") if (s := raw.strip())))
-            if skills
-            else []
+            list(dict.fromkeys(s for raw in skills.split(",") if (s := raw.strip()))) if skills else []
         )
 
         task = KanbanTask(
@@ -138,9 +130,7 @@ def build_orchestrator_tools(
             priority=task_priority,
             agent_id=assign_agent_id or agent_id,
             parent_task_id=parent_task_id or None,
-            max_runtime_seconds=(
-                max_runtime_seconds if max_runtime_seconds > 0 else None
-            ),
+            max_runtime_seconds=(max_runtime_seconds if max_runtime_seconds > 0 else None),
             max_retries=max_retries,
             extra_skill_ids=parsed_skills,
             model_override=model or None,
@@ -176,9 +166,7 @@ def build_orchestrator_tools(
                 try:
                     await store.add_edge(parent_id, saved.task_id)
                 except ValueError as exc:
-                    logger.warning(
-                        "Skipped dependency %s -> %s: %s", parent_id, saved.task_id, exc
-                    )
+                    logger.warning("Skipped dependency %s -> %s: %s", parent_id, saved.task_id, exc)
             if not valid_deps and dep_ids:
                 saved.status = TaskStatus.READY
                 await store.save_task(saved)
@@ -278,9 +266,7 @@ def build_orchestrator_tools(
         if task is None:
             return json.dumps({"error": f"Task {task_id} not found"})
         if task.status != TaskStatus.BLOCKED:
-            return json.dumps(
-                {"error": f"Task is not blocked (status={task.status.value})"}
-            )
+            return json.dumps({"error": f"Task is not blocked (status={task.status.value})"})
 
         board = await store.get_board(task.board_id)
         block_limit = board.settings.block_recurrence_limit if board else 2
@@ -292,10 +278,7 @@ def build_orchestrator_tools(
             task.block_kind = None
             task.scheduled_until = None
             task.consecutive_failures = 0
-            task.error = (
-                f"Escalated to triage after {task.block_cycle_count} block cycles "
-                f"(limit {block_limit})"
-            )
+            task.error = f"Escalated to triage after {task.block_cycle_count} block cycles (limit {block_limit})"
             saved = await store.save_task(task)
             await store.append_event(
                 task_id,
@@ -331,11 +314,7 @@ def build_orchestrator_tools(
 
         saved = await store.save_task(task)
         dependencies_met = await store.are_dependencies_met(task_id)
-        outcome = (
-            "unblocked"
-            if saved.status == TaskStatus.READY
-            else "waiting_on_dependencies"
-        )
+        outcome = "unblocked" if saved.status == TaskStatus.READY else "waiting_on_dependencies"
         event_payload: dict[str, object] = {
             "from": old_status.value,
             "to": saved.status.value,
@@ -345,9 +324,7 @@ def build_orchestrator_tools(
         }
         if reason.strip():
             event_payload["reason"] = reason.strip()
-        await store.append_event(
-            task_id, TaskEventKind.UNBLOCKED, payload=event_payload
-        )
+        await store.append_event(task_id, TaskEventKind.UNBLOCKED, payload=event_payload)
 
         if dispatcher:
             dispatcher.emit("task_unblocked", saved)
@@ -385,9 +362,7 @@ def build_orchestrator_tools(
             TaskStatus.ARCHIVED,
             TaskStatus.IN_REVIEW,
         ):
-            return json.dumps(
-                {"error": f"Cannot cancel task in {task.status.value} state"}
-            )
+            return json.dumps({"error": f"Cannot cancel task in {task.status.value} state"})
 
         was_running = task.status == TaskStatus.RUNNING
         if was_running and dispatcher:
@@ -431,9 +406,7 @@ def build_orchestrator_tools(
         }
         if reason.strip():
             event_payload["reason"] = reason.strip()
-        await store.append_event(
-            task_id, TaskEventKind.ARCHIVED, payload=event_payload
-        )
+        await store.append_event(task_id, TaskEventKind.ARCHIVED, payload=event_payload)
 
         if dispatcher:
             dispatcher.emit("task_archived", saved)
@@ -473,11 +446,7 @@ def build_orchestrator_tools(
             return json.dumps({"error": f"Task {task_id} not found"})
 
         if task.status != TaskStatus.FAILED:
-            return json.dumps(
-                {
-                    "error": f"Only FAILED tasks can be retried (current: {task.status.value})"
-                }
-            )
+            return json.dumps({"error": f"Only FAILED tasks can be retried (current: {task.status.value})"})
 
         task.status = TaskStatus.READY
         task.error = ""
@@ -498,9 +467,7 @@ def build_orchestrator_tools(
         }
         if reason.strip():
             event_payload["reason"] = reason.strip()
-        await store.append_event(
-            task_id, TaskEventKind.RETRYING, payload=event_payload
-        )
+        await store.append_event(task_id, TaskEventKind.RETRYING, payload=event_payload)
 
         if dispatcher:
             dispatcher.emit("task_retrying", saved)

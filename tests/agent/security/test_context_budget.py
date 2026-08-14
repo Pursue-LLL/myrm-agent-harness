@@ -46,17 +46,13 @@ class TestBasicBudget:
         assert v.persisted_path is None
 
     def test_warning_threshold(self) -> None:
-        g = ContextBudgetGuard(
-            max_result_chars=100_000, total_budget_tokens=70, warning_pct=0.80
-        )
+        g = ContextBudgetGuard(max_result_chars=100_000, total_budget_tokens=70, warning_pct=0.80)
         g.check_and_truncate("x" * 400, "tool1")
         v = g.check_and_truncate("x" * 100, "tool2")
         assert v.action == BudgetAction.WARNING
 
     def test_predictive_overflow_truncation(self) -> None:
-        g = ContextBudgetGuard(
-            max_result_chars=100_000, total_budget_tokens=100, hard_limit_pct=0.95
-        )
+        g = ContextBudgetGuard(max_result_chars=100_000, total_budget_tokens=100, hard_limit_pct=0.95)
         g.check_and_truncate("x" * 360, "tool1")
         v = g.check_and_truncate("x" * 400, "tool2")
         assert v.action == BudgetAction.TRUNCATED
@@ -83,27 +79,21 @@ class TestPersistToDisk:
         assert saved.read_text(encoding="utf-8") == content
         assert "Full content saved to sandbox storage" in v.content
 
-    def test_persist_summary_contains_line_count(
-        self, uecd_session: tuple[str, str]
-    ) -> None:
+    def test_persist_summary_contains_line_count(self, uecd_session: tuple[str, str]) -> None:
         g = ContextBudgetGuard(max_result_chars=100)
         content = "line\n" * 300
         v = g.check_and_truncate(content, "grep")
         assert v.action == BudgetAction.PERSISTED
         assert "lines total" in v.content
 
-    def test_persist_summary_contains_file_path(
-        self, uecd_session: tuple[str, str]
-    ) -> None:
+    def test_persist_summary_contains_file_path(self, uecd_session: tuple[str, str]) -> None:
         g = ContextBudgetGuard(max_result_chars=100)
         v = g.check_and_truncate("x" * 500, "bash")
         assert v.action == BudgetAction.PERSISTED
         assert v.persisted_path is not None
         assert v.persisted_path in v.content
 
-    def test_persist_reduces_budget_consumption(
-        self, uecd_session: tuple[str, str]
-    ) -> None:
+    def test_persist_reduces_budget_consumption(self, uecd_session: tuple[str, str]) -> None:
         g = ContextBudgetGuard(max_result_chars=100, total_budget_tokens=10_000)
         content = "x" * 50_000
         v = g.check_and_truncate(content, "big_tool")
@@ -122,28 +112,20 @@ class TestPersistToDisk:
         assert v.action == BudgetAction.TRUNCATED
         assert v.persisted_path is None
 
-    def test_multiple_persists_unique_filenames(
-        self, uecd_session: tuple[str, str]
-    ) -> None:
+    def test_multiple_persists_unique_filenames(self, uecd_session: tuple[str, str]) -> None:
         g = ContextBudgetGuard(max_result_chars=100)
         v1 = g.check_and_truncate("x" * 500, "http_tool")
         v2 = g.check_and_truncate("y" * 500, "http_tool")
         assert v1.persisted_path != v2.persisted_path
 
-    def test_persist_skips_predictive_overflow(
-        self, uecd_session: tuple[str, str]
-    ) -> None:
+    def test_persist_skips_predictive_overflow(self, uecd_session: tuple[str, str]) -> None:
         """Persisted results skip Layer 3 predictive overflow (summary is small)."""
-        g = ContextBudgetGuard(
-            max_result_chars=100, total_budget_tokens=50, hard_limit_pct=0.95
-        )
+        g = ContextBudgetGuard(max_result_chars=100, total_budget_tokens=50, hard_limit_pct=0.95)
         g.check_and_truncate("x" * 160, "tool1")
         v = g.check_and_truncate("y" * 500, "tool2")
         assert v.action == BudgetAction.PERSISTED
 
-    def test_oserror_fallback_to_truncate(
-        self, uecd_session: tuple[str, str], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_oserror_fallback_to_truncate(self, uecd_session: tuple[str, str], monkeypatch: pytest.MonkeyPatch) -> None:
         """When UECD disk write fails, gracefully fall back to truncation."""
         g = ContextBudgetGuard(max_result_chars=100)
 
@@ -181,9 +163,7 @@ class TestLayer1Exemption:
         assert v.action in (BudgetAction.OK, BudgetAction.WARNING)
         assert v.content == content
 
-    def test_file_read_exempt_even_with_session(
-        self, uecd_session: tuple[str, str]
-    ) -> None:
+    def test_file_read_exempt_even_with_session(self, uecd_session: tuple[str, str]) -> None:
         g = ContextBudgetGuard(max_result_chars=100)
         content = "z" * 500
         v = g.check_and_truncate(content, "file_read_tool")
@@ -201,9 +181,7 @@ class TestLayer1Exemption:
 class TestPersistContentReadability:
     """Verify persisted summaries contain info needed for Agent to re-read the file."""
 
-    def test_persist_summary_has_file_path_for_reread(
-        self, uecd_session: tuple[str, str]
-    ) -> None:
+    def test_persist_summary_has_file_path_for_reread(self, uecd_session: tuple[str, str]) -> None:
         g = ContextBudgetGuard(max_result_chars=100)
         content = "important data\n" * 100
         v = g.check_and_truncate(content, "web_fetch_tool")
@@ -212,9 +190,7 @@ class TestPersistContentReadability:
         assert v.persisted_path in v.content
         assert "file_read_tool" in v.content
 
-    def test_persist_summary_head_tail_preview(
-        self, uecd_session: tuple[str, str]
-    ) -> None:
+    def test_persist_summary_head_tail_preview(self, uecd_session: tuple[str, str]) -> None:
         head = "HEAD_MARKER_" + "x" * 50
         tail = "y" * 50 + "_TAIL_MARKER"
         content = head + "m" * 2000 + tail
@@ -223,9 +199,7 @@ class TestPersistContentReadability:
         assert "HEAD_MARKER_" in v.content
         assert "_TAIL_MARKER" in v.content
 
-    def test_persisted_file_contains_full_content(
-        self, uecd_session: tuple[str, str]
-    ) -> None:
+    def test_persisted_file_contains_full_content(self, uecd_session: tuple[str, str]) -> None:
         workspace, _chat_id = uecd_session
         g = ContextBudgetGuard(max_result_chars=100)
         content = "line {}\n".format("x" * 100) * 50
@@ -237,18 +211,14 @@ class TestPersistContentReadability:
 
 class TestCumulativeBudgetTracking:
     def test_multiple_tools_accumulate_budget(self) -> None:
-        g = ContextBudgetGuard(
-            max_result_chars=100_000, total_budget_tokens=100, warning_pct=0.80
-        )
+        g = ContextBudgetGuard(max_result_chars=100_000, total_budget_tokens=100, warning_pct=0.80)
         g.check_and_truncate("x" * 100, "tool1")
         g.check_and_truncate("y" * 100, "tool2")
         g.check_and_truncate("z" * 100, "tool3")
         assert g.used_tokens > 0
         assert g.budget_used_pct > 0
 
-    def test_persisted_results_consume_less_budget(
-        self, uecd_session: tuple[str, str]
-    ) -> None:
+    def test_persisted_results_consume_less_budget(self, uecd_session: tuple[str, str]) -> None:
         g = ContextBudgetGuard(max_result_chars=100, total_budget_tokens=10_000)
         large_content = "x" * 50_000
         v = g.check_and_truncate(large_content, "big_tool")

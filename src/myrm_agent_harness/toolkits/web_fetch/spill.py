@@ -41,9 +41,7 @@ class _EvictedCallbacks:
     emit_ref: Callable[..., Awaitable[None]]
 
 
-_evicted_callbacks_var: ContextVar[_EvictedCallbacks | None] = ContextVar(
-    "web_fetch_evicted_callbacks", default=None
-)
+_evicted_callbacks_var: ContextVar[_EvictedCallbacks | None] = ContextVar("web_fetch_evicted_callbacks", default=None)
 
 
 def set_evicted_content_callbacks(
@@ -54,9 +52,7 @@ def set_evicted_content_callbacks(
 ) -> None:
     """Inject evicted-content callbacks from the agent/middleware layer."""
     _evicted_callbacks_var.set(
-        _EvictedCallbacks(
-            persist=persist_fn, build_footer=build_footer_fn, emit_ref=emit_ref_fn
-        )
+        _EvictedCallbacks(persist=persist_fn, build_footer=build_footer_fn, emit_ref=emit_ref_fn)
     )
 
 
@@ -91,9 +87,7 @@ async def maybe_spill_web_fetch_content(
 
     preview = smart_truncate(content, preview_chars)
     if evicted_ref and persist_result.rel_path:
-        head_part = (
-            preview.split("\n\n[Truncated:")[0] if "[Truncated:" in preview else preview
-        )
+        head_part = preview.split("\n\n[Truncated:")[0] if "[Truncated:" in preview else preview
         preview = f"{preview}{cbs.build_footer(evicted_basename=evicted_ref, head_text=head_part, rel_path=persist_result.rel_path)}"
     elif evicted_ref:
         preview = (

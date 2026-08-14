@@ -45,9 +45,7 @@ def test_package_root_layout_gate() -> None:
 
 @pytest.mark.architecture
 def test_distribution_subpackage_layout() -> None:
-    assert _DISTRIBUTION_SUBPACKAGE.is_dir(), (
-        f"Missing {_DISTRIBUTION_SUBPACKAGE}. See distribution/_ARCH.md."
-    )
+    assert _DISTRIBUTION_SUBPACKAGE.is_dir(), f"Missing {_DISTRIBUTION_SUBPACKAGE}. See distribution/_ARCH.md."
     for filename in _REQUIRED_SUBPACKAGE_FILES:
         path = _DISTRIBUTION_SUBPACKAGE / filename
         assert path.is_file(), f"Missing required distribution module file: {path}"
@@ -58,8 +56,7 @@ def test_distribution_subpackage_layout() -> None:
 def test_distribution_legacy_flat_files_removed(legacy_filename: str) -> None:
     legacy_path = _PACKAGE_ROOT / legacy_filename
     assert not legacy_path.exists(), (
-        f"Legacy flat distribution file must not reappear: {legacy_path}. "
-        "Use distribution/ subpackage instead."
+        f"Legacy flat distribution file must not reappear: {legacy_path}. Use distribution/ subpackage instead."
     )
 
 

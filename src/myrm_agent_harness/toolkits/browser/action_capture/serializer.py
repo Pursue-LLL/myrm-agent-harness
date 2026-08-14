@@ -33,9 +33,7 @@ def _mask_sensitive_value(step: ActionStep) -> str:
     return step.value
 
 
-def serialize_step(
-    step: ActionStep, *, include_screenshot: bool = False
-) -> dict[str, object]:
+def serialize_step(step: ActionStep, *, include_screenshot: bool = False) -> dict[str, object]:
     """Serialize a single ActionStep for SSE streaming.
 
     Args:
@@ -64,9 +62,7 @@ def serialize_step(
     return d
 
 
-def serialize_session(
-    session: CaptureSession, *, include_screenshots: bool = False
-) -> dict[str, object]:
+def serialize_session(session: CaptureSession, *, include_screenshots: bool = False) -> dict[str, object]:
     """Serialize a full CaptureSession.
 
     Args:
@@ -82,10 +78,7 @@ def serialize_session(
         "start_url": session.start_url,
         "start_time": session.start_time,
         "step_count": len(session.steps),
-        "steps": [
-            serialize_step(s, include_screenshot=include_screenshots)
-            for s in session.steps
-        ],
+        "steps": [serialize_step(s, include_screenshot=include_screenshots) for s in session.steps],
     }
 
 
@@ -120,9 +113,7 @@ def _element_context(step: ActionStep) -> str:
     return f'{role} "{text}"' if text else role
 
 
-def step_to_natural_language(
-    step: ActionStep, *, credential_label: str | None = None
-) -> str:
+def step_to_natural_language(step: ActionStep, *, credential_label: str | None = None) -> str:
     """Convert a single ActionStep to a human-readable sentence.
 
     Args:
@@ -159,11 +150,7 @@ def step_to_natural_language(
         return template.format(
             element_text=step.element_text or step.selector,
             element_role=step.element_role or "element",
-            element_context=(
-                _element_context(step)
-                if step.action.value in _CONTEXT_TEMPLATES
-                else ""
-            ),
+            element_context=(_element_context(step) if step.action.value in _CONTEXT_TEMPLATES else ""),
             value=step.value,
             action=step.action.value,
         )
@@ -185,7 +172,5 @@ def steps_to_natural_language(
     labels = credential_labels or {}
     lines: list[str] = []
     for step in steps:
-        lines.append(
-            f"{step.seq}. {step_to_natural_language(step, credential_label=labels.get(step.seq))}"
-        )
+        lines.append(f"{step.seq}. {step_to_natural_language(step, credential_label=labels.get(step.seq))}")
     return "\n".join(lines)

@@ -83,8 +83,18 @@ class TestGoalModeDoesNotAffectExistingBehavior:
         task = _make_task(goal_mode=True, goal_max_turns=10)
         d = task.to_dict()
         required_keys = {
-            "task_id", "board_id", "title", "description", "status",
-            "priority", "goal_mode", "goal_max_turns", "retry_count",
-            "max_retries", "metadata", "created_at", "updated_at",
+            "task_id",
+            "board_id",
+            "title",
+            "description",
+            "status",
+            "priority",
+            "goal_mode",
+            "goal_max_turns",
+            "retry_count",
+            "max_retries",
+            "metadata",
+            "created_at",
+            "updated_at",
         }
         assert required_keys.issubset(set(d.keys()))

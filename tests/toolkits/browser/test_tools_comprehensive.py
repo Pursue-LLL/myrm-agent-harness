@@ -30,10 +30,12 @@ def mock_session() -> Any:
     session.new_tab = AsyncMock(return_value="tab1")
     session.switch_tab = AsyncMock(return_value="Switched to tab1")
     session.list_tabs = MagicMock(return_value=["tab0", "tab1"])
-    session.list_tabs_with_info = MagicMock(return_value=[
-        {"tab_id": "tab0", "domain": "example.com", "active": True},
-        {"tab_id": "tab1", "domain": "other.com", "active": False},
-    ])
+    session.list_tabs_with_info = MagicMock(
+        return_value=[
+            {"tab_id": "tab0", "domain": "example.com", "active": True},
+            {"tab_id": "tab1", "domain": "other.com", "active": False},
+        ]
+    )
     session.close_tab = AsyncMock(return_value="Closed tab1")
     session.go_back = AsyncMock(return_value="Navigated back")
     session.go_forward = AsyncMock(return_value="Navigated forward")
@@ -730,12 +732,14 @@ async def test_browser_interact_batch_steps(mock_session: Any) -> None:
     tools = create_browser_tools(mock_session)
     interact_tool = next(t for t in tools if t.name == "browser_interact_tool")
 
-    result = await interact_tool.ainvoke({
-        "steps": [
-            {"action": "click", "ref": "e0"},
-            {"action": "fill", "ref": "e1", "text": "hello"},
-        ],
-    })
+    result = await interact_tool.ainvoke(
+        {
+            "steps": [
+                {"action": "click", "ref": "e0"},
+                {"action": "fill", "ref": "e1", "text": "hello"},
+            ],
+        }
+    )
 
     assert "Step 1" in result
     assert "Step 2" in result

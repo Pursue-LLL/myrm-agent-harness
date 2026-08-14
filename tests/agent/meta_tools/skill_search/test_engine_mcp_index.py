@@ -11,9 +11,7 @@ from myrm_agent_harness.agent.meta_tools.skills.search.engine import (
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
 
 
-def _mcp_skill(
-    tool_count: int, *, user_description: str = "GitHub integration"
-) -> SkillMetadata:
+def _mcp_skill(tool_count: int, *, user_description: str = "GitHub integration") -> SkillMetadata:
     tools = [f"tool_{i}" for i in range(tool_count)]
     tool_schemas: dict[str, dict[str, object]] = {}
     for name in tools:
@@ -24,9 +22,7 @@ def _mcp_skill(
     return SkillMetadata(
         name="mcp_github_skill",
         description=user_description,
-        mcp=MCPSkillData(
-            server="github", tools=tools, config=[], tool_schemas=tool_schemas
-        ),
+        mcp=MCPSkillData(server="github", tools=tools, config=[], tool_schemas=tool_schemas),
     )
 
 
@@ -76,10 +72,7 @@ class TestTruncateToolDesc:
 
 class TestSkillSearchEngineRegexLimit:
     def test_regex_search_respects_top_k(self) -> None:
-        skills = [
-            SkillMetadata(name=f"skill_{i}", description=f"match keyword {i}")
-            for i in range(5)
-        ]
+        skills = [SkillMetadata(name=f"skill_{i}", description=f"match keyword {i}") for i in range(5)]
         engine = SkillSearchEngine(skills)
         results = engine.search_regex("match", top_k=2)
         assert len(results) == 2

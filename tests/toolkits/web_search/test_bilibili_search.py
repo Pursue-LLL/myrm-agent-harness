@@ -118,7 +118,14 @@ class TestSearchBilibili:
                     {
                         "result_type": "video",
                         "data": [
-                            {"title": f"Video {i}", "author": "UP", "play": 1000, "duration": "10:00", "bvid": f"BV{i:010d}", "description": "desc"}
+                            {
+                                "title": f"Video {i}",
+                                "author": "UP",
+                                "play": 1000,
+                                "duration": "10:00",
+                                "bvid": f"BV{i:010d}",
+                                "description": "desc",
+                            }
                             for i in range(5)
                         ],
                     }

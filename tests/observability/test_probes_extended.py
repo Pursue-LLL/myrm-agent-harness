@@ -10,6 +10,7 @@ Covers probes NOT tested in test_probes.py:
 from __future__ import annotations
 
 from contextlib import ExitStack, contextmanager
+from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,11 +19,13 @@ import pytest
 class TestCheckNetworkHealth:
     @pytest.mark.asyncio
     async def test_httpx_missing_returns_warn(self):
-        with patch.dict("sys.modules", {"httpx": None}), patch(
-            "myrm_agent_harness.observability.diagnostics.probes.httpx",
-            None,
+        with (
+            patch.dict("sys.modules", {"httpx": None}),
+            patch(
+                "myrm_agent_harness.observability.diagnostics.probes.httpx",
+                None,
+            ),
         ):
-
             import myrm_agent_harness.observability.diagnostics.probes as probes_mod
 
             original_httpx = probes_mod.httpx
@@ -126,13 +129,21 @@ class TestCheckSystemResources:
             stack.enter_context(patch("psutil.cpu_percent", return_value=cpu))
             stack.enter_context(patch("psutil.virtual_memory", return_value=mock_memory))
             stack.enter_context(
-                patch("myrm_agent_harness.observability.diagnostics.system_resources._read_pid_usage", return_value=usage)
+                patch(
+                    "myrm_agent_harness.observability.diagnostics.system_resources._read_pid_usage", return_value=usage
+                )
             )
             stack.enter_context(
-                patch("myrm_agent_harness.observability.diagnostics.system_resources._sample_process_tree", return_value=tree)
+                patch(
+                    "myrm_agent_harness.observability.diagnostics.system_resources._sample_process_tree",
+                    return_value=tree,
+                )
             )
             stack.enter_context(
-                patch("myrm_agent_harness.observability.diagnostics.system_resources._top_memory_processes", return_value=top)
+                patch(
+                    "myrm_agent_harness.observability.diagnostics.system_resources._top_memory_processes",
+                    return_value=top,
+                )
             )
             yield
 
@@ -189,11 +200,18 @@ class TestCheckSystemResources:
         with ExitStack() as stack:
             stack.enter_context(patch("psutil.cpu_percent", side_effect=RuntimeError("access denied")))
             for ctx in (
-                patch("myrm_agent_harness.observability.diagnostics.system_resources._read_pid_usage", return_value=(None, None)),
                 patch(
-                    "myrm_agent_harness.observability.diagnostics.system_resources._sample_process_tree", return_value=(0, 0)
+                    "myrm_agent_harness.observability.diagnostics.system_resources._read_pid_usage",
+                    return_value=(None, None),
                 ),
-                patch("myrm_agent_harness.observability.diagnostics.system_resources._top_memory_processes", return_value=""),
+                patch(
+                    "myrm_agent_harness.observability.diagnostics.system_resources._sample_process_tree",
+                    return_value=(0, 0),
+                ),
+                patch(
+                    "myrm_agent_harness.observability.diagnostics.system_resources._top_memory_processes",
+                    return_value="",
+                ),
             ):
                 stack.enter_context(ctx)
             report = await check_system_resources()
@@ -213,17 +231,21 @@ class TestPidSaturation:
         mock_memory.used = 8 * (1024**3)
         mock_memory.total = 16 * (1024**3)
 
-        with patch("psutil.cpu_percent", return_value=30.0), patch(
-            "psutil.virtual_memory", return_value=mock_memory
-        ), patch(
-            "myrm_agent_harness.observability.diagnostics.system_resources._read_pid_usage",
-            return_value=usage,
-        ), patch(
-            "myrm_agent_harness.observability.diagnostics.system_resources._sample_process_tree",
-            return_value=tree,
-        ), patch(
-            "myrm_agent_harness.observability.diagnostics.system_resources._top_memory_processes",
-            return_value="",
+        with (
+            patch("psutil.cpu_percent", return_value=30.0),
+            patch("psutil.virtual_memory", return_value=mock_memory),
+            patch(
+                "myrm_agent_harness.observability.diagnostics.system_resources._read_pid_usage",
+                return_value=usage,
+            ),
+            patch(
+                "myrm_agent_harness.observability.diagnostics.system_resources._sample_process_tree",
+                return_value=tree,
+            ),
+            patch(
+                "myrm_agent_harness.observability.diagnostics.system_resources._top_memory_processes",
+                return_value="",
+            ),
         ):
             import asyncio
 
@@ -259,14 +281,17 @@ class TestPidSaturation:
 
         from myrm_agent_harness.observability.diagnostics.system_resources import check_system_resources
 
-        with patch("psutil.cpu_percent", return_value=30.0), patch(
-            "psutil.virtual_memory", return_value=mock_memory
-        ), patch(
-            "myrm_agent_harness.observability.diagnostics.system_resources._read_pid_usage",
-            return_value=(95, 100),
-        ), patch(
-            "myrm_agent_harness.observability.diagnostics.system_resources._sample_process_tree",
-            return_value=(30, 25),
+        with (
+            patch("psutil.cpu_percent", return_value=30.0),
+            patch("psutil.virtual_memory", return_value=mock_memory),
+            patch(
+                "myrm_agent_harness.observability.diagnostics.system_resources._read_pid_usage",
+                return_value=(95, 100),
+            ),
+            patch(
+                "myrm_agent_harness.observability.diagnostics.system_resources._sample_process_tree",
+                return_value=(30, 25),
+            ),
         ):
             import asyncio
 
@@ -385,9 +410,9 @@ class TestSystemResourcesFallbacks:
             assert _sample_process_tree() == (0, 0)
 
     def test_sample_tree_skips_dead_children(self):
-        from myrm_agent_harness.observability.diagnostics import system_resources as sr
-
         import psutil as real_psutil
+
+        from myrm_agent_harness.observability.diagnostics import system_resources as sr
 
         dead = MagicMock()
         dead.name.side_effect = real_psutil.NoSuchProcess(999)
@@ -403,9 +428,9 @@ class TestSystemResourcesFallbacks:
             assert sr._sample_process_tree() == (2, 0)
 
     def test_sample_tree_handles_children_raises(self):
-        from myrm_agent_harness.observability.diagnostics import system_resources as sr
-
         import psutil as real_psutil
+
+        from myrm_agent_harness.observability.diagnostics import system_resources as sr
 
         root = MagicMock()
         root.children.side_effect = real_psutil.AccessDenied()
@@ -414,9 +439,9 @@ class TestSystemResourcesFallbacks:
             assert sr._sample_process_tree() == (0, 0)
 
     def test_top_memory_skips_dead_process(self):
-        from myrm_agent_harness.observability.diagnostics import system_resources as sr
-
         import psutil as real_psutil
+
+        from myrm_agent_harness.observability.diagnostics import system_resources as sr
 
         class ThrowingInfo:
             def __getitem__(self, key):
@@ -426,7 +451,10 @@ class TestSystemResourcesFallbacks:
             info = ThrowingInfo()
 
         class LiveProc:
-            info = {"name": "python", "memory_percent": 3.0}
+            info: ClassVar[dict[str, object]] = {
+                "name": "python",
+                "memory_percent": 3.0,
+            }
 
         with patch.object(sr.psutil, "process_iter", return_value=[DeadProc, LiveProc]):
             summary = sr._top_memory_processes(limit=5)
@@ -450,12 +478,16 @@ class TestCheckQdrantHealth:
     async def test_vector_toolkit_missing_returns_warn(self):
         from myrm_agent_harness.observability.diagnostics.probes import check_qdrant_health
 
-        with patch(
-            "myrm_agent_harness.observability.diagnostics.probes.check_qdrant_health",
-            wraps=check_qdrant_health,
-        ), patch.dict("sys.modules", {"myrm_agent_harness.toolkits.vector": None}), patch(
-            "builtins.__import__",
-            side_effect=ImportError("No module named 'myrm_agent_harness.toolkits.vector'"),
+        with (
+            patch(
+                "myrm_agent_harness.observability.diagnostics.probes.check_qdrant_health",
+                wraps=check_qdrant_health,
+            ),
+            patch.dict("sys.modules", {"myrm_agent_harness.toolkits.vector": None}),
+            patch(
+                "builtins.__import__",
+                side_effect=ImportError("No module named 'myrm_agent_harness.toolkits.vector'"),
+            ),
         ):
             report = await check_qdrant_health()
             assert report.status == "warn"
@@ -467,12 +499,15 @@ class TestCheckQdrantHealth:
         mock_config_cls = MagicMock()
         mock_create = AsyncMock()
 
-        with patch(
-            "myrm_agent_harness.toolkits.vector.VectorStoreConfig",
-            mock_config_cls,
-        ), patch(
-            "myrm_agent_harness.toolkits.vector.qdrant.create_vector_store",
-            mock_create,
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.vector.VectorStoreConfig",
+                mock_config_cls,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.vector.qdrant.create_vector_store",
+                mock_create,
+            ),
         ):
             report = await check_qdrant_health()
             assert report.status == "pass"
@@ -485,12 +520,15 @@ class TestCheckQdrantHealth:
         mock_config_cls = MagicMock()
         mock_create = AsyncMock(side_effect=ConnectionError("refused"))
 
-        with patch(
-            "myrm_agent_harness.toolkits.vector.VectorStoreConfig",
-            mock_config_cls,
-        ), patch(
-            "myrm_agent_harness.toolkits.vector.qdrant.create_vector_store",
-            mock_create,
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.vector.VectorStoreConfig",
+                mock_config_cls,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.vector.qdrant.create_vector_store",
+                mock_create,
+            ),
         ):
             report = await check_qdrant_health()
             assert report.status == "fail"

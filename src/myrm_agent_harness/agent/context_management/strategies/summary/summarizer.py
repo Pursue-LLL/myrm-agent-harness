@@ -100,9 +100,7 @@ def _get_structured_llm_or_parser(
         structured_llm = llm.with_structured_output(StructuredSummary)
         return structured_llm, None
     except NotImplementedError:
-        logger.warning(
-            " Model does not support with_structured_output natively, degrading to PydanticOutputParser"
-        )
+        logger.warning(" Model does not support with_structured_output natively, degrading to PydanticOutputParser")
         return None, PydanticOutputParser(pydantic_object=_FallbackSummaryModel)
 
 
@@ -131,17 +129,12 @@ def _redact_summary_fields(summary: StructuredSummary) -> StructuredSummary:
             setattr(
                 summary,
                 field_name,
-                [
-                    _redact_text(item) if isinstance(item, str) else item
-                    for item in value
-                ],
+                [_redact_text(item) if isinstance(item, str) else item for item in value],
             )
     return summary
 
 
-def _coerce_to_structured_summary(
-    response: object, context_dump_path: str = ""
-) -> StructuredSummary:
+def _coerce_to_structured_summary(response: object, context_dump_path: str = "") -> StructuredSummary:
     """Normalize ``with_structured_output``/parser output into a ``StructuredSummary``.
 
     ``with_structured_output`` returns a plain ``dict`` on JSON-mode providers
@@ -172,9 +165,7 @@ async def _invoke_summary(
     if parser:
         instructions = parser.get_format_instructions()
         final_prompt = f"{prompt}\n\n{instructions}"
-        messages = _build_summary_invocation_messages(
-            final_prompt, cache_prefix_messages
-        )
+        messages = _build_summary_invocation_messages(final_prompt, cache_prefix_messages)
         response = await _stream_with_progress(llm, messages, tracker)
         parsed = parser.invoke(response)
         summary = parsed.to_structured_summary()
@@ -429,9 +420,7 @@ async def generate_structured_summary(
             progress_tracker=progress_tracker,
         )
 
-    tail_budget = int(
-        (cfg.max_context_tokens or 128000) * getattr(cfg, "tail_budget_ratio", 0.20)
-    )
+    tail_budget = int((cfg.max_context_tokens or 128000) * getattr(cfg, "tail_budget_ratio", 0.20))
     recent_messages = extract_recent_messages(messages, tail_budget)
     original_tokens = estimate_messages_tokens(messages)
 
@@ -452,10 +441,7 @@ async def generate_structured_summary(
     protected_head = [
         msg
         for msg in protected_head
-        if not (
-            isinstance(msg, SystemMessage)
-            and str(msg.content).startswith("[SYSTEM: PRESERVED CONTEXT]")
-        )
+        if not (isinstance(msg, SystemMessage) and str(msg.content).startswith("[SYSTEM: PRESERVED CONTEXT]"))
     ]
 
     # --- Generic Context Preservation Logic ---
@@ -463,9 +449,7 @@ async def generate_structured_summary(
     # truncates them to prevent OOM, and injects them into the protected_head
     # to maximize Prompt Cache hits.
     rescued_context_blocks = {}
-    preserve_tag_pattern = re.compile(
-        r"<preserve_context>(.*?)</preserve_context>", re.DOTALL | re.IGNORECASE
-    )
+    preserve_tag_pattern = re.compile(r"<preserve_context>(.*?)</preserve_context>", re.DOTALL | re.IGNORECASE)
     max_preserve_chars = 2000
 
     for msg in messages:
@@ -482,9 +466,7 @@ async def generate_structured_summary(
             block_hash = hashlib.md5(clean_match.encode("utf-8")).hexdigest()
             if block_hash not in rescued_context_blocks:
                 # Re-wrap in tags so it survives multiple summarizations
-                rescued_context_blocks[block_hash] = (
-                    f"<preserve_context>\n{clean_match}\n</preserve_context>"
-                )
+                rescued_context_blocks[block_hash] = f"<preserve_context>\n{clean_match}\n</preserve_context>"
 
     if rescued_context_blocks:
         combined_preserved = "\n\n".join(rescued_context_blocks.values())
@@ -639,17 +621,13 @@ async def _summarize_full_with_audit(
 
     structured_llm, parser = _get_structured_llm_or_parser(llm)
 
-    prompt_tokens = estimate_messages_tokens(
-        [HumanMessage(content=cache_safe_base_prompt)]
-    )
+    prompt_tokens = estimate_messages_tokens([HumanMessage(content=cache_safe_base_prompt)])
     guarded_messages = _guard_aux_context(messages, llm, prompt_tokens)
 
     for attempt in range(_MAX_AUDIT_RETRIES + 1):
         prompt = cache_safe_base_prompt
         if attempt > 0 and best is not None:
-            guidance = build_retry_guidance(
-                audit_summary(best, messages, entities=entities)
-            )
+            guidance = build_retry_guidance(audit_summary(best, messages, entities=entities))
             prompt = f"{cache_safe_base_prompt}\n\n Quality feedback:\n{guidance}"
 
         try:
@@ -727,17 +705,13 @@ async def _summarize_incremental_with_audit(
 
     structured_llm, parser = _get_structured_llm_or_parser(llm)
 
-    prompt_tokens = estimate_messages_tokens(
-        [HumanMessage(content=cache_safe_base_prompt)]
-    )
+    prompt_tokens = estimate_messages_tokens([HumanMessage(content=cache_safe_base_prompt)])
     guarded_new_messages = _guard_aux_context(new_messages, llm, prompt_tokens)
 
     for attempt in range(_MAX_AUDIT_RETRIES + 1):
         prompt = cache_safe_base_prompt
         if attempt > 0 and best is not None:
-            guidance = build_retry_guidance(
-                audit_summary(best, all_messages, entities=entities)
-            )
+            guidance = build_retry_guidance(audit_summary(best, all_messages, entities=entities))
             prompt = f"{cache_safe_base_prompt}\n\n Quality feedback:\n{guidance}"
 
         try:
@@ -825,9 +799,7 @@ def _log_merge_quality(before: StructuredSummary, after: StructuredSummary) -> N
         logger.warning(f" Incremental merge quality: {', '.join(changes)}")
 
 
-def _record_summarize_to_metrics(
-    tokens_saved: int, details: str = "", *, elapsed_ms: int = 0
-) -> None:
+def _record_summarize_to_metrics(tokens_saved: int, details: str = "", *, elapsed_ms: int = 0) -> None:
     """Record a summarize event to TaskMetrics."""
     try:
         from myrm_agent_harness.agent.context_management.infra.session_lock import (

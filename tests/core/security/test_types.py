@@ -35,9 +35,7 @@ class TestProfileFactories:
     """SecurityConfig factory methods produce the expected postures."""
 
     def test_readonly_profile_denies_writes_and_shell(self) -> None:
-        cfg = SecurityConfig.readonly(
-            allowed_roots=("/data",), workspace_label="analysis"
-        )
+        cfg = SecurityConfig.readonly(allowed_roots=("/data",), workspace_label="analysis")
 
         actions = {r.permission: r.action for r in cfg.ruleset}
         assert actions["shell_exec"] is PermissionAction.DENY

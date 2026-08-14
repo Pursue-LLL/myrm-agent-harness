@@ -70,9 +70,7 @@ logger = logging.getLogger(__name__)
 _OUTPUT_TAIL_LINES = 200  # Per process; bounded to keep memory flat under churn.
 _DEFAULT_PER_SESSION_LIMIT = 5  # Soft cap; raise via env if a power-user complains.
 _DEFAULT_KILL_GRACE_SECONDS = 5.0  # SIGTERM → SIGKILL escalation window.
-_DEFAULT_REAP_DELAY_SECONDS = (
-    300.0  # Exited entries are purged from the registry after this idle window.
-)
+_DEFAULT_REAP_DELAY_SECONDS = 300.0  # Exited entries are purged from the registry after this idle window.
 _WAIT_MAX_SECONDS = 30.0
 _WAIT_POLL_INTERVAL_SECONDS = 0.1
 
@@ -111,9 +109,7 @@ class BackgroundProcessRegistry:
 
         with self._lock:
             active = sum(
-                1
-                for e in self._entries.values()
-                if e.info.session_id == session_id and e.info.status == "running"
+                1 for e in self._entries.values() if e.info.session_id == session_id and e.info.status == "running"
             )
         if active >= self._per_session_limit:
             raise BackgroundQuotaError(session_id, self._per_session_limit)
@@ -130,9 +126,7 @@ class BackgroundProcessRegistry:
         started_at = time.time()
         spill_writer: BackgroundOutputSpillWriter | None = None
         if session_id:
-            spill_writer = BackgroundOutputSpillWriter(
-                session_id=session_id, job_id=job_id
-            )
+            spill_writer = BackgroundOutputSpillWriter(session_id=session_id, job_id=job_id)
 
         info = BackgroundProcessInfo(
             job_id=job_id,
@@ -169,16 +163,12 @@ class BackgroundProcessRegistry:
                     started_at=started_at,
                 )
             except Exception as exc:
-                logger.warning(
-                    "Background job store insert failed job=%s: %s", job_id, exc
-                )
+                logger.warning("Background job store insert failed job=%s: %s", job_id, exc)
 
         entry.reader_task = asyncio.create_task(self._consume(entry))
         return info
 
-    def list_processes(
-        self, session_id: str | None = None
-    ) -> list[BackgroundProcessInfo]:
+    def list_processes(self, session_id: str | None = None) -> list[BackgroundProcessInfo]:
         with self._lock:
             entries = list(self._entries.values())
         if session_id is None:
@@ -194,16 +184,11 @@ class BackgroundProcessRegistry:
         """Count running background jobs globally or for one session."""
         with self._lock:
             if session_id is None:
-                return sum(
-                    1
-                    for entry in self._entries.values()
-                    if entry.info.status == "running"
-                )
+                return sum(1 for entry in self._entries.values() if entry.info.status == "running")
             return sum(
                 1
                 for entry in self._entries.values()
-                if entry.info.session_id == session_id
-                and entry.info.status == "running"
+                if entry.info.session_id == session_id and entry.info.status == "running"
             )
 
     def get_output(
@@ -397,8 +382,7 @@ class BackgroundProcessRegistry:
             targets = [
                 entry.info.pid
                 for entry in self._entries.values()
-                if entry.info.session_id == session_id
-                and entry.info.status == "running"
+                if entry.info.session_id == session_id and entry.info.status == "running"
             ]
         if not targets:
             self._maybe_clear_session_spawn_tools(session_id)

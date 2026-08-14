@@ -40,9 +40,7 @@ class TestRewriteSkillPaths:
         assert ".claude/skills" not in result
         assert name == "tool"
 
-    def test_multiple_different_skills_logs_warning_and_uses_first(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_multiple_different_skills_logs_warning_and_uses_first(self, caplog: pytest.LogCaptureFixture) -> None:
         cmd = "python3 .claude/skills/alpha/a.py .claude/skills/beta/b.py"
         with caplog.at_level(logging.WARNING):
             result, name = rewrite_skill_paths(cmd)
@@ -58,9 +56,7 @@ class TestRewriteSkillPaths:
 
 class TestDetectSkillScriptCommand:
     def test_skill_path_detected(self) -> None:
-        detected, name = detect_skill_script_command(
-            "python3 .claude/skills/my-tool/run.py"
-        )
+        detected, name = detect_skill_script_command("python3 .claude/skills/my-tool/run.py")
         assert detected is True
         assert name == "my-tool"
 

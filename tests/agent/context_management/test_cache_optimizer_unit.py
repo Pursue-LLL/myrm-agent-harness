@@ -429,9 +429,7 @@ class TestCoverageGaps:
     def test_cache_retention_long_overrides_proxy_url(self, processor):
         """cache_retention='long' 优先于 base_url 判断"""
         messages = [SystemMessage(content="System")]
-        ctx = self._make_context(
-            messages, cache_retention="long", base_url="https://openrouter.ai/api/v1"
-        )
+        ctx = self._make_context(messages, cache_retention="long", base_url="https://openrouter.ai/api/v1")
         result = processor._inject_cache_control(messages, [0], ctx)
         assert result[0].additional_kwargs.get("cache_control") == {"type": "ephemeral", "ttl": "1h"}
 

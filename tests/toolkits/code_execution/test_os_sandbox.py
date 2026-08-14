@@ -225,15 +225,11 @@ class TestSBPLProfile:
         assert f'(subpath "{resolved}")' in profile
 
     def test_network_allowed(self) -> None:
-        profile = _generate_sbpl_profile(
-            SandboxPolicy(allow_network=True), "/workspace"
-        )
+        profile = _generate_sbpl_profile(SandboxPolicy(allow_network=True), "/workspace")
         assert "(allow network*)" in profile
 
     def test_network_blocked(self) -> None:
-        profile = _generate_sbpl_profile(
-            SandboxPolicy(allow_network=False), "/workspace"
-        )
+        profile = _generate_sbpl_profile(SandboxPolicy(allow_network=False), "/workspace")
         assert "block outbound network" in profile
         assert "(allow network* (local udp) (local tcp))" in profile
 
@@ -383,9 +379,7 @@ class TestDetector:
         )
 
         with patch.object(AppContainerProvider, "is_available", return_value=False):
-            provider, status = detect_sandbox_provider(
-                SandboxMode.AUTO, _windows_platform()
-            )
+            provider, status = detect_sandbox_provider(SandboxMode.AUTO, _windows_platform())
         assert isinstance(provider, NullProvider)
         assert status.enabled is False
         assert "AppContainer unavailable" in status.reason
@@ -395,8 +389,9 @@ class TestDetector:
             AppContainerProvider,
         )
 
-        with patch.object(AppContainerProvider, "is_available", return_value=False), pytest.raises(
-            RuntimeError, match="AppContainer not available"
+        with (
+            patch.object(AppContainerProvider, "is_available", return_value=False),
+            pytest.raises(RuntimeError, match="AppContainer not available"),
         ):
             detect_sandbox_provider(SandboxMode.ENABLE, _windows_platform())
 
@@ -406,9 +401,7 @@ class TestDetector:
         )
 
         with patch.object(AppContainerProvider, "is_available", return_value=True):
-            provider, status = detect_sandbox_provider(
-                SandboxMode.AUTO, _windows_platform()
-            )
+            provider, status = detect_sandbox_provider(SandboxMode.AUTO, _windows_platform())
         assert isinstance(provider, AppContainerProvider)
         assert status.enabled is True
         assert status.provider_name == "appcontainer"
@@ -486,9 +479,7 @@ class TestAppContainerProvider:
         )
 
         provider = AppContainerProvider()
-        exe, args = provider.wrap_command(
-            "cmd.exe", ("/Q",), "C:\\workspace", SandboxPolicy()
-        )
+        exe, args = provider.wrap_command("cmd.exe", ("/Q",), "C:\\workspace", SandboxPolicy())
         assert exe == "cmd.exe"
         assert args == ("/Q",)
 
@@ -508,9 +499,7 @@ class TestAppContainerProvider:
             "myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer.sys.platform",
             "win32",
         ):
-            result = await provider.create_process(
-                "cmd.exe", ("/Q",), "C:\\workspace", SandboxPolicy(), {}
-            )
+            result = await provider.create_process("cmd.exe", ("/Q",), "C:\\workspace", SandboxPolicy(), {})
         assert result is None
 
     @pytest.mark.asyncio
@@ -520,9 +509,7 @@ class TestAppContainerProvider:
         )
 
         provider = AppContainerProvider()
-        result = await provider.create_process(
-            "bash", ("-l",), "/tmp", SandboxPolicy(), {}
-        )
+        result = await provider.create_process("bash", ("-l",), "/tmp", SandboxPolicy(), {})
         assert result is None
 
     def test_policy_fingerprint_deterministic(self) -> None:
@@ -592,9 +579,7 @@ class TestSandboxProviderProtocol:
     @pytest.mark.asyncio
     async def test_null_provider_create_process_returns_none(self) -> None:
         provider = NullProvider()
-        result = await provider.create_process(
-            "/bin/bash", ("--norc",), "/workspace", SandboxPolicy(), {}
-        )
+        result = await provider.create_process("/bin/bash", ("--norc",), "/workspace", SandboxPolicy(), {})
         assert result is None
 
 
@@ -678,9 +663,7 @@ class TestSessionSandboxIntegration:
             SessionConfig,
         )
 
-        config = SessionConfig(
-            session_id="test", work_dir="/tmp/test", sandbox_mode="disable"
-        )
+        config = SessionConfig(session_id="test", work_dir="/tmp/test", sandbox_mode="disable")
         session = LocalPersistentSession(config)
         assert session.is_sandboxed is False
 

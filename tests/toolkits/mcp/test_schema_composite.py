@@ -551,9 +551,7 @@ def test_collapse_const_unions_mixed_composite_keys_untouched():
 
 def test_collapse_const_unions_duplicate_const_deduplicated():
     """Repeated const values collapse into a deduplicated enum."""
-    result = collapse_const_unions(
-        {"anyOf": [{"const": "red"}, {"const": "red"}, {"const": "green"}]}
-    )
+    result = collapse_const_unions({"anyOf": [{"const": "red"}, {"const": "red"}, {"const": "green"}]})
     assert result == {"type": "string", "enum": ["red", "green"]}
 
 
@@ -568,9 +566,7 @@ def test_collapse_const_unions_outer_type_mismatch_rejected():
 
 def test_collapse_const_unions_outer_type_matching_folded():
     """An outer type matching the const union still folds."""
-    result = collapse_const_unions(
-        {"type": "string", "anyOf": [{"const": "red"}, {"const": "green"}]}
-    )
+    result = collapse_const_unions({"type": "string", "anyOf": [{"const": "red"}, {"const": "green"}]})
     assert result == {"type": "string", "enum": ["red", "green"]}
 
 

@@ -14,9 +14,11 @@ def mock_inner_executor():
     inner.execute_bash_stream = AsyncMock()
     return inner
 
+
 @pytest.fixture
 def proxy(mock_inner_executor):
     return ReadonlyExecutorProxy(mock_inner_executor)
+
 
 @pytest.mark.asyncio
 async def test_readonly_proxy_file_writes(proxy, mock_inner_executor):
@@ -50,6 +52,7 @@ async def test_readonly_proxy_file_writes(proxy, mock_inner_executor):
     assert called_ctx.session_id == "session1_readonly"
     assert result.success is True
 
+
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.toolkits.code_execution.sandbox.detect_sandbox_provider")
 async def test_execute_bash_sandbox_enabled(mock_detect, proxy, mock_inner_executor):
@@ -66,6 +69,7 @@ async def test_execute_bash_sandbox_enabled(mock_detect, proxy, mock_inner_execu
     assert called_ctx.readonly_workspace is True
     assert called_ctx.session_id == "session1_readonly"
     assert result.success is True
+
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.toolkits.code_execution.sandbox.detect_sandbox_provider")

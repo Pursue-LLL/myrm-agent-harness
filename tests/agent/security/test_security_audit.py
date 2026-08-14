@@ -130,7 +130,6 @@ class TestLookupErrorBranches:
         """record_decision auto-initializes ContextVar when not previously set."""
         import contextvars
 
-
         ctx = contextvars.Context()
 
         def _run():
@@ -163,11 +162,21 @@ class TestDecisionKindCompleteness:
 
         valid_kinds = set(get_args(DecisionKind))
         used_kinds = [
-            "ALLOW", "DENY", "ASK", "CRON_DENY", "TAINT_ESCALATE",
-            "YOLO_AUTO_APPROVE", "LLM_REVIEW_ALLOW", "LLM_REVIEW_DENY",
-            "LLM_REVIEW_UNCERTAIN", "SKILL_HOOK_BLOCK", "SKILL_HOOK_APPROVAL",
-            "DOMAIN_RUNTIME_ALLOW", "ALLOWLIST_AUTO_APPROVE",
-            "FREQUENCY_WARN", "FREQUENCY_BREAK",
+            "ALLOW",
+            "DENY",
+            "ASK",
+            "CRON_DENY",
+            "TAINT_ESCALATE",
+            "YOLO_AUTO_APPROVE",
+            "LLM_REVIEW_ALLOW",
+            "LLM_REVIEW_DENY",
+            "LLM_REVIEW_UNCERTAIN",
+            "SKILL_HOOK_BLOCK",
+            "SKILL_HOOK_APPROVAL",
+            "DOMAIN_RUNTIME_ALLOW",
+            "ALLOWLIST_AUTO_APPROVE",
+            "FREQUENCY_WARN",
+            "FREQUENCY_BREAK",
         ]
         for kind in used_kinds:
             assert kind in valid_kinds, f"{kind} missing from DecisionKind"

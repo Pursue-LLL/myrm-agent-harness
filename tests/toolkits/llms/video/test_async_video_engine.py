@@ -106,13 +106,9 @@ class TestVideoEngineUrlExtraction:
 
         captured_extra: dict[str, object] = {}
 
-        async def _mock_generate(
-            self_gen, prompt: str, *, provider_id=None, model=None, **kwargs
-        ) -> VideoResult:
+        async def _mock_generate(self_gen, prompt: str, *, provider_id=None, model=None, **kwargs) -> VideoResult:
             captured_extra.update(kwargs.get("extra_params") or {})
-            return VideoResult(
-                provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[]
-            )
+            return VideoResult(provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[])
 
         with (
             patch.object(VideoGenerator, "generate", _mock_generate),
@@ -151,13 +147,9 @@ class TestVideoEngineUrlExtraction:
 
         captured_extra: dict[str, object] = {}
 
-        async def _mock_generate(
-            self_gen, prompt: str, *, provider_id=None, model=None, **kwargs
-        ) -> VideoResult:
+        async def _mock_generate(self_gen, prompt: str, *, provider_id=None, model=None, **kwargs) -> VideoResult:
             captured_extra.update(kwargs.get("extra_params") or {})
-            return VideoResult(
-                provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[]
-            )
+            return VideoResult(provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[])
 
         with (
             patch.object(VideoGenerator, "generate", _mock_generate),
@@ -193,13 +185,9 @@ class TestVideoEngineUrlExtraction:
 
         captured_extra: dict[str, object] = {}
 
-        async def _mock_generate(
-            self_gen, prompt: str, *, provider_id=None, model=None, **kwargs
-        ) -> VideoResult:
+        async def _mock_generate(self_gen, prompt: str, *, provider_id=None, model=None, **kwargs) -> VideoResult:
             captured_extra.update(kwargs.get("extra_params") or {})
-            return VideoResult(
-                provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[]
-            )
+            return VideoResult(provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[])
 
         with (
             patch.object(VideoGenerator, "generate", _mock_generate),
@@ -242,12 +230,8 @@ class TestVideoEngineUrlExtraction:
         )
         engine = VideoGenerationTools(config)
 
-        async def _mock_generate(
-            self_gen, prompt: str, *, provider_id=None, model=None, **kwargs
-        ) -> VideoResult:
-            return VideoResult(
-                provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[]
-            )
+        async def _mock_generate(self_gen, prompt: str, *, provider_id=None, model=None, **kwargs) -> VideoResult:
+            return VideoResult(provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[])
 
         with (
             patch.object(VideoGenerator, "generate", _mock_generate),

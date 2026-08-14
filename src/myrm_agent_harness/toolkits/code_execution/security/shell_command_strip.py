@@ -8,6 +8,7 @@ from __future__ import annotations
 
 _PLACEHOLDER = "\x01"
 
+
 def _strip_quoted_content(command: str) -> str:
     """Replace single-quoted string content with placeholders using a state machine.
 
@@ -90,5 +91,3 @@ def _strip_quoted_content(command: str) -> str:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-
-

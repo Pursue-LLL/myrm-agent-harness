@@ -24,9 +24,7 @@ def _build_manager(*, search_results: list[MemorySearchResult]) -> tuple[MemoryM
     vector = AsyncMock()
     relational = AsyncMock()
     embedding = AsyncMock()
-    manager = MemoryManager(
-        config, user_id="u1", vector=vector, relational=relational, embedding=embedding
-    )
+    manager = MemoryManager(config, user_id="u1", vector=vector, relational=relational, embedding=embedding)
     mock_search_svc = AsyncMock()
     mock_search_svc.search.return_value = search_results
     manager._search_service = mock_search_svc
@@ -70,8 +68,12 @@ async def test_full_chain_episodic_access_count_persisted():
 async def test_full_chain_procedural_access_count_persisted():
     """Procedural memory access count bump through relational store."""
     mem = ProceduralMemory(
-        id="p1", content="always respond in Chinese", trigger="any message", action="respond in zh",
-        source="agent_self", access_count=3,
+        id="p1",
+        content="always respond in Chinese",
+        trigger="any message",
+        action="respond in zh",
+        source="agent_self",
+        access_count=3,
     )
     result = MemorySearchResult(memory=mem, score=0.7, memory_type=MemoryType.PROCEDURAL)
     manager, _, relational = _build_manager(search_results=[result])
@@ -104,9 +106,7 @@ async def test_full_chain_mixed_results_all_types_tracked():
     """Mixed results: each type gets its access_count bumped correctly."""
     sem = SemanticMemory(id="s1", content="fact", metadata={}, access_count=0)
     epi = EpisodicMemory(id="e1", content="event", metadata={}, access_count=2)
-    proc = ProceduralMemory(
-        id="p1", content="rule", trigger="t", action="a", source="agent_self", access_count=10
-    )
+    proc = ProceduralMemory(id="p1", content="rule", trigger="t", action="a", source="agent_self", access_count=10)
     results = [
         MemorySearchResult(memory=sem, score=0.9, memory_type=MemoryType.SEMANTIC),
         MemorySearchResult(memory=epi, score=0.8, memory_type=MemoryType.EPISODIC),
@@ -132,9 +132,7 @@ async def test_full_chain_no_vector_store_does_not_crash():
     manager = MemoryManager(config, user_id="u1", vector=None, embedding=embedding)
     mock_search_svc = AsyncMock()
     mem = SemanticMemory(id="s1", content="test", metadata={})
-    mock_search_svc.search.return_value = [
-        MemorySearchResult(memory=mem, score=0.9, memory_type=MemoryType.SEMANTIC)
-    ]
+    mock_search_svc.search.return_value = [MemorySearchResult(memory=mem, score=0.9, memory_type=MemoryType.SEMANTIC)]
     manager._search_service = mock_search_svc
 
     results = await manager.search("test", track_access=True)
@@ -165,10 +163,7 @@ async def test_full_chain_concurrent_searches():
 @pytest.mark.asyncio
 async def test_full_chain_large_result_set():
     """Large result set (limit=10) should batch upsert correctly."""
-    memories = [
-        SemanticMemory(id=f"s{i}", content=f"fact {i}", metadata={}, access_count=0)
-        for i in range(10)
-    ]
+    memories = [SemanticMemory(id=f"s{i}", content=f"fact {i}", metadata={}, access_count=0) for i in range(10)]
     results = [
         MemorySearchResult(memory=m, score=0.9 - i * 0.05, memory_type=MemoryType.SEMANTIC)
         for i, m in enumerate(memories)

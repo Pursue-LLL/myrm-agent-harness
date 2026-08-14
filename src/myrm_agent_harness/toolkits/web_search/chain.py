@@ -80,9 +80,7 @@ async def search_provider_chain(
                 extra_params_override=extra_params_override,
             )
             if index > 0:
-                await _dispatch_chain_hop_event(
-                    from_provider=chain[index - 1].search_service, to_provider=provider
-                )
+                await _dispatch_chain_hop_event(from_provider=chain[index - 1].search_service, to_provider=provider)
                 if metrics is not None:
                     metrics.record_chain_hop(
                         from_provider=chain[index - 1].search_service,
@@ -112,11 +110,7 @@ async def search_provider_chain(
                 continue
             break
 
-    message = (
-        str(last_error)
-        if last_error is not None
-        else "All search providers in chain failed"
-    )
+    message = str(last_error) if last_error is not None else "All search providers in chain failed"
     raise AllQueriesFailedError(message) from last_error
 
 

@@ -26,9 +26,7 @@ def _case(message: str) -> EvalCase:
 def _turn(case: EvalCase, passed: bool | None = None) -> EvalTurnResult:
     return EvalTurnResult(
         case=case,
-        response=AgentResponse(
-            answer="ok", token_usage={"total_tokens": 12}, cost=0.01
-        ),
+        response=AgentResponse(answer="ok", token_usage={"total_tokens": 12}, cost=0.01),
         assertion_passed=passed,
         timings=EvalTimings(total_ms=10.0),
     )
@@ -41,9 +39,7 @@ def _result(turns: list[EvalTurnResult]) -> EvalResult:
 class FakeExecutor:
     """Minimal AgentExecutor protocol implementation for MatrixRunner tests."""
 
-    async def execute(
-        self, message: str, *, session_id: str | None = None
-    ) -> AgentResponse:
+    async def execute(self, message: str, *, session_id: str | None = None) -> AgentResponse:
         return AgentResponse(answer=f"reply:{message}")
 
     async def create_session(self) -> str:
@@ -60,14 +56,10 @@ class _FakeEvalRunner:
         self.executor = executor
         self.kwargs = kwargs
 
-    async def run(
-        self, cases: list[EvalCase], manifest: EvalManifest | None = None
-    ) -> EvalResult:
+    async def run(self, cases: list[EvalCase], manifest: EvalManifest | None = None) -> EvalResult:
         return _result([_turn(case, True) for case in cases])
 
-    async def run_multi_turn(
-        self, cases: list[MultiTurnEvalCase], manifest: EvalManifest | None = None
-    ) -> EvalResult:
+    async def run_multi_turn(self, cases: list[MultiTurnEvalCase], manifest: EvalManifest | None = None) -> EvalResult:
         return _result([_turn(turn, True) for mc in cases for turn in mc.turns])
 
     def abort(self) -> None:
@@ -93,18 +85,14 @@ def _manifest(profile_id: str) -> EvalManifest:
 class _CallbackEvalRunner(_FakeEvalRunner):
     """Fake runner that forwards ``on_case_complete`` to the caller."""
 
-    async def run(
-        self, cases: list[EvalCase], manifest: EvalManifest | None = None
-    ) -> EvalResult:
+    async def run(self, cases: list[EvalCase], manifest: EvalManifest | None = None) -> EvalResult:
         events.append(("run", manifest.profile_id if manifest else None))
         callback = self.kwargs.get("on_case_complete")
         if callback:
             callback(_turn(cases[0], True))  # type: ignore[call-arg]
         return await super().run(cases, manifest)
 
-    async def run_multi_turn(
-        self, cases: list[MultiTurnEvalCase], manifest: EvalManifest | None = None
-    ) -> EvalResult:
+    async def run_multi_turn(self, cases: list[MultiTurnEvalCase], manifest: EvalManifest | None = None) -> EvalResult:
         callback = self.kwargs.get("on_case_complete")
         if callback:
             callback(_turn(cases[0].turns[0], True))  # type: ignore[call-arg]
@@ -229,12 +217,8 @@ class TestMatrixRunner:
     """Sequential profile orchestration with callbacks and abort."""
 
     @pytest.mark.asyncio
-    async def test_run_sequential_profiles(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            "myrm_agent_harness.eval.matrix.EvalRunner", _FakeEvalRunner
-        )
+    async def test_run_sequential_profiles(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("myrm_agent_harness.eval.matrix.EvalRunner", _FakeEvalRunner)
         runner = MatrixRunner({"a": FakeExecutor(), "b": FakeExecutor()})
         result = await runner.run([_case("hello")])
         assert result.profile_ids == ["a", "b"]
@@ -242,13 +226,9 @@ class TestMatrixRunner:
         assert result.stable_cases == [0]
 
     @pytest.mark.asyncio
-    async def test_run_callbacks_and_manifest_builder(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_run_callbacks_and_manifest_builder(self, monkeypatch: pytest.MonkeyPatch) -> None:
         events.clear()
-        monkeypatch.setattr(
-            "myrm_agent_harness.eval.matrix.EvalRunner", _CallbackEvalRunner
-        )
+        monkeypatch.setattr("myrm_agent_harness.eval.matrix.EvalRunner", _CallbackEvalRunner)
         runner = MatrixRunner(
             {"a": FakeExecutor(), "b": FakeExecutor()},
             on_profile_start=lambda pid, idx, total: events.append(("start", pid)),
@@ -261,12 +241,8 @@ class TestMatrixRunner:
         assert ("run", "b") in events
 
     @pytest.mark.asyncio
-    async def test_abort_before_run_yields_no_results(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            "myrm_agent_harness.eval.matrix.EvalRunner", _FakeEvalRunner
-        )
+    async def test_abort_before_run_yields_no_results(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("myrm_agent_harness.eval.matrix.EvalRunner", _FakeEvalRunner)
         runner = MatrixRunner({"a": FakeExecutor()})
         runner.abort()
         result = await runner.run([_case("c")])
@@ -281,13 +257,9 @@ class TestMatrixRunner:
         assert active.aborted is True
 
     @pytest.mark.asyncio
-    async def test_run_multi_turn_with_callback(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_run_multi_turn_with_callback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         events.clear()
-        monkeypatch.setattr(
-            "myrm_agent_harness.eval.matrix.EvalRunner", _CallbackEvalRunner
-        )
+        monkeypatch.setattr("myrm_agent_harness.eval.matrix.EvalRunner", _CallbackEvalRunner)
         runner = MatrixRunner(
             {"a": FakeExecutor()},
             on_case_complete=lambda pid, turn: events.append(("case", pid)),
@@ -299,12 +271,8 @@ class TestMatrixRunner:
         assert result.stable_cases == [0, 1]
 
     @pytest.mark.asyncio
-    async def test_run_multi_turn_flattens_cases(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            "myrm_agent_harness.eval.matrix.EvalRunner", _FakeEvalRunner
-        )
+    async def test_run_multi_turn_flattens_cases(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("myrm_agent_harness.eval.matrix.EvalRunner", _FakeEvalRunner)
         runner = MatrixRunner({"a": FakeExecutor()})
         multi = MultiTurnEvalCase(turns=[_case("t0"), _case("t1")])
         result = await runner.run_multi_turn([multi], manifest_builder=_manifest)

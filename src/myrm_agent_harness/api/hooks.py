@@ -51,10 +51,14 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_event_logger,
     get_pseudonym_store,
     get_terminal_errors,
-    get_workspace_root as _get_workspace_root,
     set_approval_user_id,
     set_pseudonym_store,
     set_security_config,
+)
+from myrm_agent_harness.agent.middlewares._session_context import (
+    get_workspace_root as _get_workspace_root,
+)
+from myrm_agent_harness.agent.middlewares._session_context import (
     set_workspace_root as _set_workspace_root,
 )
 from myrm_agent_harness.agent.skill_agent.context import (
@@ -67,6 +71,7 @@ from myrm_agent_harness.agent.skill_agent.context import (
     set_permission_invalidation_callback,
     set_task_intent,
 )
+from myrm_agent_harness.agent.streaming.step_builder import build_step_data
 from myrm_agent_harness.core.security.detection.pseudonym_store import (
     get_pseudonym_store as build_pseudonym_store,
 )
@@ -74,7 +79,6 @@ from myrm_agent_harness.core.security.guards.privacy_tracker import (
     get_privacy_policy,
     set_privacy_policy,
 )
-from myrm_agent_harness.agent.streaming.step_builder import build_step_data
 from myrm_agent_harness.core.security.persistence.content_scan import (
     get_pii_pseudonymizer,
     set_pii_pseudonymizer,

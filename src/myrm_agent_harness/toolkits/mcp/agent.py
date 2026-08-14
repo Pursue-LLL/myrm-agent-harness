@@ -102,9 +102,7 @@ class MCPAgent:
         tool_desc = getattr(tool, "description", "")
         return f"{tool_name}:{hash(tool_desc)}"
 
-    def _store_tool_server_mapping(
-        self, tools: list[BaseTool], server_name: str
-    ) -> None:
+    def _store_tool_server_mapping(self, tools: list[BaseTool], server_name: str) -> None:
         """Store tool-to-server name mapping."""
         for tool in tools:
             tool_id = self._get_tool_id(tool)
@@ -136,9 +134,7 @@ class MCPAgent:
         prefix_tool_names(tools, server_name)
         enforce_description_limits(tools)
         sanitize_tools(tools)
-        wrap_tools_with_timeout(
-            tools, execute_timeout, max_output_chars, oversized_result_handler
-        )
+        wrap_tools_with_timeout(tools, execute_timeout, max_output_chars, oversized_result_handler)
         register_tool_annotations(tools, server_name, host_serial)
         return tools
 
@@ -225,17 +221,13 @@ class MCPAgent:
         for attempt in range(1, _TOOL_FETCH_MAX_ATTEMPTS + 1):
             pending_http_clients: list[httpx2.AsyncClient] = []
             try:
-                target = self._build_enumeration_target(
-                    server_config, http_clients=pending_http_clients
-                )
+                target = self._build_enumeration_target(server_config, http_clients=pending_http_clients)
                 async with target as streams:
                     read, write = streams[0], streams[1]
                     async with ClientSession(
                         read,
                         write,
-                        client_info=Implementation(
-                            name="myrm-agent", version=__version__
-                        ),
+                        client_info=Implementation(name="myrm-agent", version=__version__),
                     ) as session:
                         await session.initialize()
                         async with asyncio.timeout(connect_timeout):
@@ -289,9 +281,7 @@ class MCPAgent:
             with contextlib.suppress(Exception):
                 await http_client.aclose()
 
-    async def get_tools(
-        self, mcp_config: Sequence[MCPServerConfigProtocol] | None = None
-    ) -> list[BaseTool]:
+    async def get_tools(self, mcp_config: Sequence[MCPServerConfigProtocol] | None = None) -> list[BaseTool]:
         """Get all available MCP tools from configured servers.
 
         Each server gets a one-shot ``mcp.ClientSession`` connection for tool

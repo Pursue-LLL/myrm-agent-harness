@@ -16,10 +16,7 @@ class TestWellKnownSkillSourceInit:
     def test_valid_url(self) -> None:
         source = WellKnownSkillSource("https://skills.company.com")
         assert source._base_url == "https://skills.company.com"
-        assert (
-            source._index_url
-            == "https://skills.company.com/.well-known/skills/index.json"
-        )
+        assert source._index_url == "https://skills.company.com/.well-known/skills/index.json"
 
     def test_strips_trailing_slash(self) -> None:
         source = WellKnownSkillSource("https://skills.company.com/")
@@ -74,9 +71,7 @@ class TestWellKnownSkillSourceSearch:
     async def test_search_empty_query_returns_all(
         self, source: WellKnownSkillSource, mock_index: list[dict[str, object]]
     ) -> None:
-        with patch.object(
-            source, "_fetch_index", new_callable=AsyncMock, return_value=mock_index
-        ):
+        with patch.object(source, "_fetch_index", new_callable=AsyncMock, return_value=mock_index):
             results = await source.search("", limit=10)
             assert len(results) == 3
 
@@ -84,20 +79,14 @@ class TestWellKnownSkillSourceSearch:
     async def test_search_keyword_match(
         self, source: WellKnownSkillSource, mock_index: list[dict[str, object]]
     ) -> None:
-        with patch.object(
-            source, "_fetch_index", new_callable=AsyncMock, return_value=mock_index
-        ):
+        with patch.object(source, "_fetch_index", new_callable=AsyncMock, return_value=mock_index):
             results = await source.search("code review")
             assert len(results) == 1
             assert results[0].name == "code-review"
 
     @pytest.mark.asyncio
-    async def test_search_tag_match(
-        self, source: WellKnownSkillSource, mock_index: list[dict[str, object]]
-    ) -> None:
-        with patch.object(
-            source, "_fetch_index", new_callable=AsyncMock, return_value=mock_index
-        ):
+    async def test_search_tag_match(self, source: WellKnownSkillSource, mock_index: list[dict[str, object]]) -> None:
+        with patch.object(source, "_fetch_index", new_callable=AsyncMock, return_value=mock_index):
             results = await source.search("devops")
             assert len(results) == 1
             assert results[0].name == "deploy-helper"
@@ -106,19 +95,13 @@ class TestWellKnownSkillSourceSearch:
     async def test_search_respects_limit(
         self, source: WellKnownSkillSource, mock_index: list[dict[str, object]]
     ) -> None:
-        with patch.object(
-            source, "_fetch_index", new_callable=AsyncMock, return_value=mock_index
-        ):
+        with patch.object(source, "_fetch_index", new_callable=AsyncMock, return_value=mock_index):
             results = await source.search("", limit=2)
             assert len(results) == 2
 
     @pytest.mark.asyncio
-    async def test_search_returns_empty_on_fetch_failure(
-        self, source: WellKnownSkillSource
-    ) -> None:
-        with patch.object(
-            source, "_fetch_index", new_callable=AsyncMock, return_value=None
-        ):
+    async def test_search_returns_empty_on_fetch_failure(self, source: WellKnownSkillSource) -> None:
+        with patch.object(source, "_fetch_index", new_callable=AsyncMock, return_value=None):
             results = await source.search("anything")
             assert results == []
 
@@ -126,18 +109,13 @@ class TestWellKnownSkillSourceSearch:
     async def test_search_result_fields(
         self, source: WellKnownSkillSource, mock_index: list[dict[str, object]]
     ) -> None:
-        with patch.object(
-            source, "_fetch_index", new_callable=AsyncMock, return_value=mock_index
-        ):
+        with patch.object(source, "_fetch_index", new_callable=AsyncMock, return_value=mock_index):
             results = await source.search("code")
             r = results[0]
             assert r.id == "well-known:https://skills.test.com/code-review"
             assert r.source == "well-known:https://skills.test.com"
             assert r.author == "team"
-            assert (
-                r.install_url
-                == "https://skills.test.com/.well-known/skills/code-review/SKILL.md"
-            )
+            assert r.install_url == "https://skills.test.com/.well-known/skills/code-review/SKILL.md"
 
 
 class TestWellKnownSkillSourceGetDetail:
@@ -148,24 +126,16 @@ class TestWellKnownSkillSourceGetDetail:
     @pytest.mark.asyncio
     async def test_get_detail_found(self, source: WellKnownSkillSource) -> None:
         index = [{"name": "my-skill", "description": "Desc", "tags": []}]
-        with patch.object(
-            source, "_fetch_index", new_callable=AsyncMock, return_value=index
-        ):
-            result = await source.get_detail(
-                "well-known:https://skills.test.com/my-skill"
-            )
+        with patch.object(source, "_fetch_index", new_callable=AsyncMock, return_value=index):
+            result = await source.get_detail("well-known:https://skills.test.com/my-skill")
             assert result is not None
             assert result.name == "my-skill"
 
     @pytest.mark.asyncio
     async def test_get_detail_not_found(self, source: WellKnownSkillSource) -> None:
         index = [{"name": "other-skill", "description": "Desc", "tags": []}]
-        with patch.object(
-            source, "_fetch_index", new_callable=AsyncMock, return_value=index
-        ):
-            result = await source.get_detail(
-                "well-known:https://skills.test.com/missing"
-            )
+        with patch.object(source, "_fetch_index", new_callable=AsyncMock, return_value=index):
+            result = await source.get_detail("well-known:https://skills.test.com/missing")
             assert result is None
 
     @pytest.mark.asyncio
@@ -182,18 +152,14 @@ class TestWellKnownSkillSourceProbe:
     @pytest.mark.asyncio
     async def test_probe_success(self, source: WellKnownSkillSource) -> None:
         index = [{"name": "s1"}, {"name": "s2"}, {"name": "s3"}]
-        with patch.object(
-            source, "_fetch_index", new_callable=AsyncMock, return_value=index
-        ):
+        with patch.object(source, "_fetch_index", new_callable=AsyncMock, return_value=index):
             reachable, count = await source.probe()
             assert reachable is True
             assert count == 3
 
     @pytest.mark.asyncio
     async def test_probe_unreachable(self, source: WellKnownSkillSource) -> None:
-        with patch.object(
-            source, "_fetch_index", new_callable=AsyncMock, return_value=None
-        ):
+        with patch.object(source, "_fetch_index", new_callable=AsyncMock, return_value=None):
             reachable, count = await source.probe()
             assert reachable is False
             assert count == 0
@@ -254,9 +220,7 @@ class TestWellKnownSkillSourceFetchIndex:
             assert result is None
 
     @pytest.mark.asyncio
-    async def test_fetch_index_invalid_json_structure(
-        self, source: WellKnownSkillSource
-    ) -> None:
+    async def test_fetch_index_invalid_json_structure(self, source: WellKnownSkillSource) -> None:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"skills": "not-a-list"}
@@ -297,9 +261,7 @@ class TestRegisterUnregisterSource:
         svc.register_source(source)
         removed = svc.unregister_source("well-known:https://private.corp.com")
         assert removed is True
-        assert not any(
-            s.source_name == "well-known:https://private.corp.com" for s in svc._sources
-        )
+        assert not any(s.source_name == "well-known:https://private.corp.com" for s in svc._sources)
 
     def test_unregister_nonexistent(self) -> None:
         svc = BaseSkillMarketService()

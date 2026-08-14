@@ -225,9 +225,7 @@ async def test_unlink_failure_logged_and_locked(tmp_path):
     lock = FileLock(tmp_path)
     lock_file = tmp_path / "res_unlink_fail.lock"
 
-    with mock.patch.object(
-        Path, "unlink", side_effect=OSError("unlink failed")
-    ) as mock_unlink:
+    with mock.patch.object(Path, "unlink", side_effect=OSError("unlink failed")) as mock_unlink:
         async with lock.acquire("res_unlink_fail") as acquired:
             assert acquired is True
             assert lock_file.exists()

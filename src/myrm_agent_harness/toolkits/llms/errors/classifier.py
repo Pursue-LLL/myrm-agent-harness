@@ -523,19 +523,13 @@ _OPENROUTER_BREAKDOWN_RE = re.compile(
     re.IGNORECASE,
 )
 
-_MAX_CTX_LENGTH_RE = re.compile(
-    r"maximum context length is (\d+)\s*token", re.IGNORECASE
-)
+_MAX_CTX_LENGTH_RE = re.compile(r"maximum context length is (\d+)\s*token", re.IGNORECASE)
 
 _CHAR_PROMPT_RE = re.compile(r"prompt contains (\d+)\s*character", re.IGNORECASE)
 
-_INPUT_TOKENS_RE = re.compile(
-    r"prompt contains (?:at least )?(\d+)\s*input tokens", re.IGNORECASE
-)
+_INPUT_TOKENS_RE = re.compile(r"prompt contains (?:at least )?(\d+)\s*input tokens", re.IGNORECASE)
 
-_DASHSCOPE_RANGE_RE = re.compile(
-    r"range of max_tokens should be\s*\[\s*\d+\s*,\s*(\d+)\s*\]", re.IGNORECASE
-)
+_DASHSCOPE_RANGE_RE = re.compile(r"range of max_tokens should be\s*\[\s*\d+\s*,\s*(\d+)\s*\]", re.IGNORECASE)
 
 _IS_OUTPUT_CAP_KEYWORDS = (
     ("max_tokens", "available_tokens"),

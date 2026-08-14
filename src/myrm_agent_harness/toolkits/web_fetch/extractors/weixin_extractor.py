@@ -64,9 +64,7 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         headers: object,
         newurl: str,
     ) -> None:
-        raise urllib.error.HTTPError(
-            req.full_url, code, f"redirect blocked: {newurl}", headers, fp
-        )
+        raise urllib.error.HTTPError(req.full_url, code, f"redirect blocked: {newurl}", headers, fp)
 
 
 def is_weixin_article_url(url: str) -> bool:
@@ -95,9 +93,7 @@ def _is_blocked_page(html_text: str) -> bool:
     return any(marker in html_text for marker in _BLOCK_MARKERS)
 
 
-def _first_meta(
-    soup: BeautifulSoup, *, property_name: str | None = None, name: str | None = None
-) -> str:
+def _first_meta(soup: BeautifulSoup, *, property_name: str | None = None, name: str | None = None) -> str:
     if property_name:
         tag = soup.find("meta", property=property_name)
         if tag and tag.get("content"):
@@ -200,9 +196,7 @@ def _content_div_to_markdown(content_div: Tag) -> str:
     markdown = converter.handle(fragment).strip()
     markdown = re.sub(r"\n{3,}", "\n\n", markdown)
     if len(markdown) > _MAX_BODY_CHARS:
-        markdown = (
-            markdown[:_MAX_BODY_CHARS] + "\n\n…（正文超长已截断 / body truncated）"
-        )
+        markdown = markdown[:_MAX_BODY_CHARS] + "\n\n…（正文超长已截断 / body truncated）"
     return markdown
 
 
@@ -267,9 +261,7 @@ def _build_opener(proxy_pool: ProxyPool | None) -> urllib.request.OpenerDirector
     if proxy_pool:
         proxy_config = proxy_pool.get_next()
         proxy_url = proxy_config.to_url()
-        handlers.append(
-            urllib.request.ProxyHandler({"https": proxy_url, "http": proxy_url})
-        )
+        handlers.append(urllib.request.ProxyHandler({"https": proxy_url, "http": proxy_url}))
     handlers.append(urllib.request.HTTPHandler())
     handlers.append(urllib.request.HTTPSHandler())
     return urllib.request.build_opener(*handlers)
@@ -333,9 +325,7 @@ async def extract_weixin_article(
                     exc,
                 )
         if last_error is not None:
-            logger.info(
-                "Weixin article fetch exhausted retries for %s: %s", url, last_error
-            )
+            logger.info("Weixin article fetch exhausted retries for %s: %s", url, last_error)
         return None
 
     return await asyncio.to_thread(_do_fetch)

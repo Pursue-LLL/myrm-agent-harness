@@ -172,9 +172,7 @@ def _recalc_workbook_sync(file_path: Path, *, timeout_seconds: int) -> list[str]
             return [f"Excel recalc failed for {file_path.name}: {detail[:200]}"]
 
         if _file_stamp(file_path) == before_stamp:
-            return [
-                f"Excel recalc did not rewrite {file_path.name}; formula errors may remain undetected."
-            ]
+            return [f"Excel recalc did not rewrite {file_path.name}; formula errors may remain undetected."]
 
     return _collect_excel_error_warnings(file_path)
 

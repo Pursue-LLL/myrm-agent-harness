@@ -95,9 +95,7 @@ class FilterProcessor(BaseProcessor):
         for msg in context.messages:
             if isinstance(msg, ToolMessage):
                 content = msg.content if isinstance(msg.content, str) else ""
-                if should_filter(
-                    content, threshold=self.context_config.tool_result_evict_threshold
-                ):
+                if should_filter(content, threshold=self.context_config.tool_result_evict_threshold):
                     return True
         return False
 
@@ -136,9 +134,7 @@ class FilterProcessor(BaseProcessor):
                     continue
 
                 content = msg.content if isinstance(msg.content, str) else ""
-                if should_filter(
-                    content, threshold=self.context_config.tool_result_evict_threshold
-                ):
+                if should_filter(content, threshold=self.context_config.tool_result_evict_threshold):
                     saved, retained = await self._filter_tool_message(
                         msg=msg,
                         content=content,
@@ -161,9 +157,7 @@ class FilterProcessor(BaseProcessor):
         if filtered_count > 0 or protected_count > 0 or retained_count > 0:
             log_parts = []
             if filtered_count > 0:
-                log_parts.append(
-                    f"过滤 {filtered_count} 个，节省 ~{total_saved} tokens"
-                )
+                log_parts.append(f"过滤 {filtered_count} 个，节省 ~{total_saved} tokens")
             if retained_count > 0:
                 log_parts.append(f"保留 {retained_count} 个失败/错误工具输出(结构裁剪)")
             if protected_count > 0:
@@ -173,9 +167,7 @@ class FilterProcessor(BaseProcessor):
         context.tokens_saved += total_saved
 
         if protected_count > 0:
-            context.operations.append(
-                f"protected_tools:{','.join(set(protected_tools))}"
-            )
+            context.operations.append(f"protected_tools:{','.join(set(protected_tools))}")
 
         return context
 

@@ -35,18 +35,24 @@ from myrm_agent_harness.toolkits.browser.domain_filter import (
 class TestDomainAllowlist:
     def test_empty_allowlist_matches_nothing(self):
         al = DomainAllowlist(patterns=())
-        assert not al.is_allowed("example.com",)
+        assert not al.is_allowed(
+            "example.com",
+        )
         assert al.is_empty
 
     def test_exact_match(self):
         al = DomainAllowlist(patterns=("example.com",))
-        assert al.is_allowed("example.com",)
+        assert al.is_allowed(
+            "example.com",
+        )
         assert not al.is_allowed("other.com")
         assert not al.is_allowed("sub.example.com")
 
     def test_wildcard_match(self):
         al = DomainAllowlist(patterns=("*.example.com",))
-        assert al.is_allowed("example.com",)
+        assert al.is_allowed(
+            "example.com",
+        )
         assert al.is_allowed("sub.example.com")
         assert al.is_allowed("deep.sub.example.com")
         assert not al.is_allowed("notexample.com")
@@ -62,12 +68,16 @@ class TestDomainAllowlist:
         assert al.is_allowed("api.example.com")
         assert al.is_allowed("cdn.net")
         assert al.is_allowed("img.cdn.net")
-        assert not al.is_allowed("example.com",)
+        assert not al.is_allowed(
+            "example.com",
+        )
 
     def test_from_strings_factory(self):
         al = DomainAllowlist.from_strings(["  Example.COM  ", "*.CDN.net", "", "  "])
         assert al.patterns == ("example.com", "*.cdn.net")
-        assert al.is_allowed("example.com",)
+        assert al.is_allowed(
+            "example.com",
+        )
         assert al.is_allowed("img.cdn.net")
 
     def test_frozen_immutable(self):

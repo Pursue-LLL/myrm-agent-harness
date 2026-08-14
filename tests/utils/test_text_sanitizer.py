@@ -128,7 +128,6 @@ class TestToolProtocolTagStripping:
     def test_tool_use_tag(self) -> None:
         assert sanitize_llm_output("start</tool_use>end") == "startend"
 
-
     def test_antml_namespaced_parameter(self) -> None:
         tag = chr(60) + "antml:parameter" + chr(62)
         close_tag = chr(60) + "/antml:parameter" + chr(62)
@@ -138,6 +137,19 @@ class TestToolProtocolTagStripping:
     def test_mixed_protocol_and_think_tags(self) -> None:
         tag = chr(60) + "parameter" + chr(62)
         close_tag = chr(60) + "/parameter" + chr(62)
-        raw = "A" + chr(60) + "think" + chr(62) + "hidden" + chr(60) + "/think" + chr(62) + "B" + tag + "x" + close_tag + "C"
+        raw = (
+            "A"
+            + chr(60)
+            + "think"
+            + chr(62)
+            + "hidden"
+            + chr(60)
+            + "/think"
+            + chr(62)
+            + "B"
+            + tag
+            + "x"
+            + close_tag
+            + "C"
+        )
         assert sanitize_llm_output(raw) == "ABxC"
-

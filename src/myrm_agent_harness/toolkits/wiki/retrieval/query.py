@@ -125,9 +125,7 @@ class WikiQueryEngine:
         if not related_articles:
             asset_snippets = await self._search_asset_snippets(question)
             if asset_snippets:
-                asset_lines = "\n".join(
-                    f"- {snippet.snippet} ({snippet.article_path})" for snippet in asset_snippets
-                )
+                asset_lines = "\n".join(f"- {snippet.snippet} ({snippet.article_path})" for snippet in asset_snippets)
                 answer = self._compose_answer(
                     hot_context,
                     log_context,
@@ -167,9 +165,7 @@ class WikiQueryEngine:
         asset_snippets = await self._search_asset_snippets(question)
         if asset_snippets:
             snippets = [*snippets, *asset_snippets]
-            asset_lines = "\n".join(
-                f"- {snippet.snippet} ({snippet.article_path})" for snippet in asset_snippets
-            )
+            asset_lines = "\n".join(f"- {snippet.snippet} ({snippet.article_path})" for snippet in asset_snippets)
             asset_block = f"## Related images\n{asset_lines}"
             context = f"{context}\n\n{asset_block}" if context else asset_block
         context = self._compose_answer(hot_context, log_context, context, question)
@@ -187,8 +183,7 @@ class WikiQueryEngine:
             article_paths=related_articles,
         )
         should_archive = (
-            effective_query_config.auto_enhance_enabled
-            and confidence >= effective_query_config.min_query_quality_score
+            effective_query_config.auto_enhance_enabled and confidence >= effective_query_config.min_query_quality_score
         )
 
         return QueryResult(
@@ -224,10 +219,7 @@ class WikiQueryEngine:
         """Prefix wiki_query responses with hot.md and recent log.md when available (zero LLM)."""
         prefix = WikiQueryEngine._format_vault_prefix(hot_context, log_context)
         if prefix and article_context:
-            return (
-                f"{prefix}\n\n"
-                f"## Retrieved articles for: {question}\n{article_context}"
-            )
+            return f"{prefix}\n\n## Retrieved articles for: {question}\n{article_context}"
         if prefix:
             return prefix
         return article_context
@@ -351,11 +343,7 @@ class WikiQueryEngine:
             logger.info("wiki_index_route_hit=true seed_count=%d", len(seed_names))
 
         scoped_concepts = self._scope_concepts_for_index_seeds(concepts, seed_names)
-        valid_names = (
-            frozenset(self._concept_name_from_path(path) for path in scoped_concepts)
-            if seed_names
-            else None
-        )
+        valid_names = frozenset(self._concept_name_from_path(path) for path in scoped_concepts) if seed_names else None
         seeds = await self._collect_retrieval_seeds(
             query,
             scoped_concepts,
@@ -537,10 +525,7 @@ class WikiQueryEngine:
         if not candidates:
             return []
 
-        candidate_name_to_path = {
-            self._concept_name_from_path(path): path
-            for path in candidates
-        }
+        candidate_name_to_path = {self._concept_name_from_path(path): path for path in candidates}
         ranked_names: list[str] = []
         if seed_names:
             for concept_name in seed_names:

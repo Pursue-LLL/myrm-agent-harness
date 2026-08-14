@@ -178,6 +178,7 @@ class TestCredentialPoolReportError:
         pool.report_error("a", "rate_limit", cooldown_hint_s=3.0)
         assert pool.available_count() == 1
         import time
+
         time.sleep(3.1)
         assert pool.available_count() == 2
 
@@ -186,6 +187,7 @@ class TestCredentialPoolReportError:
         pool.report_error("a", "auth")
         assert pool.available_count() == 1
         import time
+
         time.sleep(1.1)
         assert pool.available_count() == 1  # still cooled down (24h cooldown)
 
@@ -194,6 +196,7 @@ class TestCredentialPoolReportError:
         pool.report_error("a", "billing")
         assert pool.available_count() == 1
         import time
+
         time.sleep(1.1)
         assert pool.available_count() == 1  # still cooled down (24h cooldown)
 
@@ -215,6 +218,7 @@ class TestCredentialPoolReportError:
         pool = CredentialPool(["a", "b"], cooldown_s=1)
         pool.report_error("a", "auth", cooldown_hint_s=0.5)
         import time
+
         time.sleep(0.6)
         assert pool.available_count() == 1  # auth ignores hint, uses 24h
 

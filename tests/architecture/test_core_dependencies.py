@@ -120,10 +120,12 @@ def test_all_extra_includes_acp() -> None:
     assert "acp" in joined
 
 
-_LOCK_DRIFT_ALLOWED: frozenset[str] = frozenset({
-    "httpx2",
-    "langchain-mcp-adapters",
-})
+_LOCK_DRIFT_ALLOWED: frozenset[str] = frozenset(
+    {
+        "httpx2",
+        "langchain-mcp-adapters",
+    }
+)
 
 
 @pytest.mark.architecture

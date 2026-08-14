@@ -74,9 +74,7 @@ class DocxParser(FileParser):
             from docx.table import Table
             from docx.text.paragraph import Paragraph
         except ImportError as e:
-            raise ImportError(
-                "python-docx is not installed. Run: uv add python-docx"
-            ) from e
+            raise ImportError("python-docx is not installed. Run: uv add python-docx") from e
 
         doc = Document(file_path)
 
@@ -117,9 +115,7 @@ class DocxParser(FileParser):
                     else:
                         blocks.append(text)
                 for embed_id in embed_ids:
-                    blocks.append(
-                        f"![embedded image]({docx_embed_markdown_ref(embed_id)})"
-                    )
+                    blocks.append(f"![embedded image]({docx_embed_markdown_ref(embed_id)})")
                 if not text and not embed_ids:
                     continue
             elif tag == qn("w:tbl"):  # type: ignore[operator]
@@ -148,16 +144,12 @@ class DocxParser(FileParser):
             tag = element.tag
             if tag == qn("w:p"):  # type: ignore[operator]
                 para = Paragraph(element, doc)
-                para_id = element.get(
-                    "{http://schemas.microsoft.com/office/word/2010/wordml}paraId"
-                )
+                para_id = element.get("{http://schemas.microsoft.com/office/word/2010/wordml}paraId")
                 if para_id is None:
                     para_id = f"_idx_{element_idx}"
 
                 text = para.text.strip()
-                style_name = (
-                    para.style.name if para.style and para.style.name else "Normal"
-                )
+                style_name = para.style.name if para.style and para.style.name else "Normal"
 
                 has_images = bool(element.findall(f".//{qn('w:drawing')}"))  # type: ignore[operator, arg-type]
 
@@ -202,9 +194,7 @@ class DocxParser(FileParser):
                     for r_idx, row_cells in enumerate(rows_data):
                         for c_idx, cell_text in enumerate(row_cells):
                             if cell_text:
-                                cell_map.append(
-                                    {"r": r_idx, "c": c_idx, "v": cell_text}
-                                )
+                                cell_map.append({"r": r_idx, "c": c_idx, "v": cell_text})
                                 if len(cell_map) >= 500:
                                     break
                         if len(cell_map) >= 500:

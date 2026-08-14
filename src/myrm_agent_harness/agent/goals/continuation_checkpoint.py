@@ -70,9 +70,7 @@ async def check_todo_checkpoint(
     if not newly_completed:
         return None
 
-    newly_completed_names = [
-        t.content for t in store.todos if t.id in newly_completed
-    ]
+    newly_completed_names = [t.content for t in store.todos if t.id in newly_completed]
     total_todos = len(store.todos)
     total_completed = len(current_completed)
 
@@ -81,8 +79,7 @@ async def check_todo_checkpoint(
         {
             _CHECKPOINT_SNAPSHOT_KEY: sorted(current_completed),
             "pause_reason": (
-                f"Checkpoint: completed {', '.join(newly_completed_names[:3])}"
-                f" ({total_completed}/{total_todos})"
+                f"Checkpoint: completed {', '.join(newly_completed_names[:3])} ({total_completed}/{total_todos})"
             ),
         },
     )
@@ -99,10 +96,7 @@ async def check_todo_checkpoint(
     return ContinuationDecision(
         should_continue=False,
         verdict="checkpoint_pause",
-        reason=(
-            f"Checkpoint: {len(newly_completed)} todo(s) completed "
-            f"({total_completed}/{total_todos})"
-        ),
+        reason=(f"Checkpoint: {len(newly_completed)} todo(s) completed ({total_completed}/{total_todos})"),
         turns_used=goal.turns_used,
         max_turns=goal.budget.max_turns if goal.budget else None,
     )

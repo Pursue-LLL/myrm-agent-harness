@@ -221,9 +221,7 @@ def compute_turn_allowed_names(
 
 def _is_read_only_intent(text: str) -> bool:
     lowered = text.lower()
-    has_readonly_hint = _has_keyword(
-        lowered, _READ_ONLY_INTENT_KEYWORDS
-    ) or lowered.endswith(("?", "？"))
+    has_readonly_hint = _has_keyword(lowered, _READ_ONLY_INTENT_KEYWORDS) or lowered.endswith(("?", "？"))
     has_action_hint = _has_keyword(lowered, _ACTION_INTENT_KEYWORDS)
     return has_readonly_hint and not has_action_hint
 

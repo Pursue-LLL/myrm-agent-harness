@@ -29,7 +29,7 @@ pytestmark = [
     pytest.mark.asyncio,
 ]
 
-from myrm_agent_harness.toolkits.browser.action_capture.capture_engine import (  # noqa: E402
+from myrm_agent_harness.toolkits.browser.action_capture.capture_engine import (
     ActionCaptureEngine,
 )
 
@@ -46,12 +46,8 @@ class _Collector:
 def page_urls(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, str]:
     """Two static pages served over HTTP on 127.0.0.1."""
     tmp = tmp_path_factory.mktemp("capture_pages")
-    (tmp / "p1.html").write_text(
-        "<html><body><button id='b'>p1</button></body></html>", encoding="utf-8"
-    )
-    (tmp / "p2.html").write_text(
-        "<html><body><button id='b'>p2</button></body></html>", encoding="utf-8"
-    )
+    (tmp / "p1.html").write_text("<html><body><button id='b'>p1</button></body></html>", encoding="utf-8")
+    (tmp / "p2.html").write_text("<html><body><button id='b'>p2</button></body></html>", encoding="utf-8")
     server = HTTPServer(
         ("127.0.0.1", 0),
         lambda *a, **k: SimpleHTTPRequestHandler(*a, directory=str(tmp), **k),

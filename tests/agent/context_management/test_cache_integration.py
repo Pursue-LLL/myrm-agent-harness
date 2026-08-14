@@ -73,9 +73,7 @@ class TestCacheIntegration:
             },
         }
 
-    async def test_full_cache_pipeline_with_ndjson(
-        self, processor, sample_messages, mock_llm_response, tmp_path
-    ):
+    async def test_full_cache_pipeline_with_ndjson(self, processor, sample_messages, mock_llm_response, tmp_path):
         """测试完整缓存链路：Processor → NDJSON 配对"""
         metrics_dir = tmp_path / "cache_metrics"
         set_cache_metrics_dir(str(metrics_dir))

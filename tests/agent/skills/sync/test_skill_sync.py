@@ -29,6 +29,7 @@ from myrm_agent_harness.agent.skills.sync.types import (
 #  Data Types
 # ──────────────────────────────────────────────
 
+
 class TestSyncTypes:
     """数据类型正确性测试."""
 
@@ -84,6 +85,7 @@ class TestSyncTypes:
 #  LocalFSSyncBackend
 # ──────────────────────────────────────────────
 
+
 class TestLocalFSSyncBackend:
     """LocalFSSyncBackend 本地文件同步测试."""
 
@@ -118,6 +120,7 @@ class TestLocalFSSyncBackend:
     @pytest.fixture
     def backend(self, mock_storage: AsyncMock, tmp_path: Path) -> Any:
         from myrm_agent_harness.agent.skills.sync.local_sync import LocalFSSyncBackend
+
         return LocalFSSyncBackend(storage=mock_storage, local_skills_path=tmp_path / "skills")
 
     @pytest.mark.asyncio
@@ -181,6 +184,7 @@ class TestLocalFSSyncBackend:
 #  SkillSyncManager
 # ──────────────────────────────────────────────
 
+
 class TestSkillSyncManager:
     """SkillSyncManager 编排测试."""
 
@@ -197,9 +201,7 @@ class TestSkillSyncManager:
     @pytest.fixture
     def mock_backend(self) -> AsyncMock:
         backend = AsyncMock()
-        backend.push_skills = AsyncMock(
-            return_value=PushResult(success=True, pushed_count=1)
-        )
+        backend.push_skills = AsyncMock(return_value=PushResult(success=True, pushed_count=1))
         backend.pull_skills = AsyncMock(
             return_value=PullResult(success=True, new_count=1, pulled_skills=["remote_skill"])
         )
@@ -214,6 +216,7 @@ class TestSkillSyncManager:
         skills_dir: Path,
     ) -> Any:
         from myrm_agent_harness.agent.skills.sync.manager import SkillSyncManager
+
         return SkillSyncManager(
             sync_backend=mock_backend,
             manifest=manifest,
@@ -248,9 +251,7 @@ class TestSkillSyncManager:
         manifest.update_local("my_skill", "sha123")
 
         with patch.object(manager, "_packer") as mock_packer:
-            mock_packer.package_files.return_value = MagicMock(
-                success=True, zip_content=b"packed"
-            )
+            mock_packer.package_files.return_value = MagicMock(success=True, zip_content=b"packed")
             result = await manager.push_evolved_skills()
 
         assert mock_backend.push_skills.called
@@ -268,9 +269,7 @@ class TestSkillSyncManager:
         (skill_dir / "SKILL.md").write_text("# Bad Skill")
         manifest.update_local("bad_skill", "sha_bad")
 
-        result = await manager.push_evolved_skills(
-            skill_metrics={"bad_skill": (0.1, 1)}
-        )
+        result = await manager.push_evolved_skills(skill_metrics={"bad_skill": (0.1, 1)})
         assert "bad_skill" in result.rejected_skills
 
     @pytest.mark.asyncio
@@ -321,6 +320,7 @@ class TestSkillSyncManager:
 #  idle_integration
 # ──────────────────────────────────────────────
 
+
 class TestIdleIntegration:
     """idle_integration 空闲任务集成测试."""
 
@@ -328,9 +328,7 @@ class TestIdleIntegration:
         from myrm_agent_harness.agent.skills.sync import idle_integration
 
         mock_manager = MagicMock()
-        with patch(
-            "myrm_agent_harness.agent.background_worker.idle_tasks.register_idle_task_handler"
-        ) as mock_reg:
+        with patch("myrm_agent_harness.agent.background_worker.idle_tasks.register_idle_task_handler") as mock_reg:
             idle_integration.register_skill_sync_idle_handler(mock_manager)
             mock_reg.assert_called_once_with("skill_sync", idle_integration._handle_skill_sync)
 
@@ -381,4 +379,5 @@ class TestIdleIntegration:
 
     def test_task_type_constant(self) -> None:
         from myrm_agent_harness.agent.skills.sync.idle_integration import SKILL_SYNC_TASK_TYPE
+
         assert SKILL_SYNC_TASK_TYPE == "skill_sync"

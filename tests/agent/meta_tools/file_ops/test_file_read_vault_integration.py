@@ -39,9 +39,7 @@ def workspace(tmp_path: Path) -> str:
 async def test_file_read_tool_reads_auto_vaulted_subagent_result(workspace: str) -> None:
     config = SubagentConfig(system_prompt="t", auto_vault_threshold=80, max_result_tokens=40)
     payload = "CHAIN_" + ("z" * 200)
-    summary = _auto_vault_or_truncate(
-        payload, config, {"workspace_path": workspace}, "int-read", "coder"
-    )
+    summary = _auto_vault_or_truncate(payload, config, {"workspace_path": workspace}, "int-read", "coder")
     match = re.search(r"vault://[a-f0-9-]+", summary)
     assert match is not None
 

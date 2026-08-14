@@ -67,10 +67,7 @@ class MatrixResult:
         """Case indices that pass on ALL profiles (Skill stable boundary)."""
         stable: list[int] = []
         for i in range(len(self.cases)):
-            if all(
-                self._cell_passed(profile_id, i)
-                for profile_id in self.profile_ids
-            ):
+            if all(self._cell_passed(profile_id, i) for profile_id in self.profile_ids):
                 stable.append(i)
         return stable
 
@@ -79,10 +76,7 @@ class MatrixResult:
         """Case indices that pass on some profiles but fail on others."""
         regressions: list[int] = []
         for i in range(len(self.cases)):
-            results = [
-                self._cell_passed(profile_id, i)
-                for profile_id in self.profile_ids
-            ]
+            results = [self._cell_passed(profile_id, i) for profile_id in self.profile_ids]
             if any(r is True for r in results) and any(r is not True for r in results):
                 regressions.append(i)
         return regressions
@@ -147,18 +141,9 @@ class MatrixResult:
                     "total_tokens": r.total_tokens,
                     "total_cost": round(r.total_cost, 6),
                     "total_ms": round(r.total_ms, 2),
-                    "total_tool_calls": sum(
-                        len(turn.response.tools_called)
-                        for turn in r.turn_results
-                    ),
-                    "limit_hits": sum(
-                        1
-                        for turn in r.turn_results
-                        if turn.response.limit_reached is not None
-                    ),
-                    "blocked_count": sum(
-                        turn.response.blocked_count for turn in r.turn_results
-                    ),
+                    "total_tool_calls": sum(len(turn.response.tools_called) for turn in r.turn_results),
+                    "limit_hits": sum(1 for turn in r.turn_results if turn.response.limit_reached is not None),
+                    "blocked_count": sum(turn.response.blocked_count for turn in r.turn_results),
                 }
 
         return {
@@ -166,9 +151,7 @@ class MatrixResult:
             "total_cases": len(self.cases),
             "stable_count": len(self.stable_cases),
             "regression_count": len(self.regression_cases),
-            "stable_rate": round(
-                len(self.stable_cases) / len(self.cases), 4
-            ) if self.cases else 0.0,
+            "stable_rate": round(len(self.stable_cases) / len(self.cases), 4) if self.cases else 0.0,
             "per_profile": per_profile_summary,
             "matrix": matrix,
             "total_ms": round(self.total_ms, 2),
@@ -233,8 +216,10 @@ class MatrixRunner:
             def _make_callback(pid: str) -> Callable[[EvalTurnResult], None] | None:
                 if not self._on_case_complete:
                     return None
+
                 def _cb(turn_result: EvalTurnResult) -> None:
                     self._on_case_complete(pid, turn_result)  # type: ignore[misc]
+
                 return _cb
 
             runner = EvalRunner(
@@ -287,8 +272,10 @@ class MatrixRunner:
             def _make_callback(pid: str) -> Callable[[EvalTurnResult], None] | None:
                 if not self._on_case_complete:
                     return None
+
                 def _cb(turn_result: EvalTurnResult) -> None:
                     self._on_case_complete(pid, turn_result)  # type: ignore[misc]
+
                 return _cb
 
             runner = EvalRunner(

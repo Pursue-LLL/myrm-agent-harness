@@ -192,9 +192,7 @@ async def test_fetch_url_fetch_engine_import_failure() -> None:
             return_value=mock_response,
         ) as mock_secure_get,
     ):
-        mock_engine.crawl = AsyncMock(
-            side_effect=ModuleNotFoundError("No module named 'scrapling'")
-        )
+        mock_engine.crawl = AsyncMock(side_effect=ModuleNotFoundError("No module named 'scrapling'"))
         result = await _fetch_url_as_markdown("https://example.com/no-scrapling")
 
     mock_secure_get.assert_awaited_once()

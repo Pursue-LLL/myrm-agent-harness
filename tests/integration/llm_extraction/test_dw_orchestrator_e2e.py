@@ -52,8 +52,7 @@ async def test_orchestrator_generates_valid_python_script(basic_llm) -> None:
     assert "<think>" not in raw_script, "think blocks must be stripped from the script"
     assert script_code.strip(), "strip_script_markdown produced an empty script"
     assert script_code != "None", (
-        "orchestrator script must not be the literal 'None' a reasoning model with "
-        "content=None used to produce"
+        "orchestrator script must not be the literal 'None' a reasoning model with content=None used to produce"
     )
 
     tree = ast.parse(script_code)
@@ -73,6 +72,4 @@ async def test_orchestrator_script_references_ptc_tools(basic_llm) -> None:
     assert script_code.strip(), "script must be non-empty"
     single, batched = count_llm_query_calls(script_code)
     spawns = count_spawn_calls(script_code)
-    assert (
-        single + batched + spawns > 0
-    ), "script should reference at least one PTC tool (spawn_subagent / llm_query)"
+    assert single + batched + spawns > 0, "script should reference at least one PTC tool (spawn_subagent / llm_query)"

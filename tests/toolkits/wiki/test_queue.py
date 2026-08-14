@@ -90,9 +90,7 @@ def test_get_transient_retryable_items_respects_max_retries(
     items = queue.get_pending_items()
     item_id = items[0]["id"]
     for _ in range(4):
-        queue.mark_failed(
-            item_id, "rate limited", error_kind=ErrorKind.RATE_LIMIT.value
-        )
+        queue.mark_failed(item_id, "rate limited", error_kind=ErrorKind.RATE_LIMIT.value)
     retryable = queue.get_transient_retryable_items(max_retries=3)
     assert len(retryable) == 0
 
@@ -164,9 +162,7 @@ def test_reset_stale_processing(queue: WikiIngestionQueue) -> None:
     queue.mark_processing(item_id)
     assert queue.get_pending_items() == []
     with queue._get_conn() as conn:
-        conn.execute(
-            "UPDATE ingestion_queue SET updated_at = datetime('now', '-400 seconds')"
-        )
+        conn.execute("UPDATE ingestion_queue SET updated_at = datetime('now', '-400 seconds')")
     assert queue.reset_stale_processing(stale_seconds=300) == 1
     pending = queue.get_pending_items()
     assert len(pending) == 1

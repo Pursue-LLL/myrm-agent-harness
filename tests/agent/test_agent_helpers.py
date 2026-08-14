@@ -14,9 +14,9 @@ def test_schedule_post_run_idle_tasks_token_window(mock_schedule, mock_get_regis
     # Create messages exceeding the 16000 character limit
     long_content = "A" * 10000
     messages = [
-        {"role": "user", "content": long_content}, # 10000 chars
-        {"role": "assistant", "content": long_content}, # 10000 chars
-        {"role": "user", "content": "Short message"}, # 13 chars
+        {"role": "user", "content": long_content},  # 10000 chars
+        {"role": "assistant", "content": long_content},  # 10000 chars
+        {"role": "user", "content": "Short message"},  # 13 chars
     ]
 
     merged_context = {
@@ -29,10 +29,7 @@ def test_schedule_post_run_idle_tasks_token_window(mock_schedule, mock_get_regis
     schedule_post_run_idle_tasks(merged_context)
 
     # Assert registry enqueue was called for cognitive_derivation
-    derivation_calls = [
-        call for call in mock_registry.enqueue.call_args_list
-        if call[0][2] == "cognitive_derivation"
-    ]
+    derivation_calls = [call for call in mock_registry.enqueue.call_args_list if call[0][2] == "cognitive_derivation"]
 
     assert len(derivation_calls) == 1
     call_args = derivation_calls[0][0]
@@ -59,6 +56,7 @@ def test_schedule_post_run_idle_tasks_token_window(mock_schedule, mock_get_regis
     assert len(first_msg_content) > 1000
     assert len(first_msg_content) < 10000
 
+
 @patch("myrm_agent_harness.agent._internals._agent_helpers._fire_and_forget")
 @patch("myrm_agent_harness.agent.background_worker.registry.get_idle_task_registry")
 @patch("myrm_agent_harness.agent.background_worker.idle_worker.schedule_idle_task")
@@ -83,10 +81,7 @@ def test_schedule_post_run_idle_tasks_no_truncation(mock_schedule, mock_get_regi
     schedule_post_run_idle_tasks(merged_context)
 
     # Assert registry enqueue was called for cognitive_derivation
-    derivation_calls = [
-        call for call in mock_registry.enqueue.call_args_list
-        if call[0][2] == "cognitive_derivation"
-    ]
+    derivation_calls = [call for call in mock_registry.enqueue.call_args_list if call[0][2] == "cognitive_derivation"]
 
     assert len(derivation_calls) == 1
     call_args = derivation_calls[0][0]

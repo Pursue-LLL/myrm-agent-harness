@@ -107,9 +107,7 @@ async def _assert_evicted_uploaded_read_scope(
     """Restrict reads to UECD spill files and chat uploads (Fast / search track)."""
     # Persist side normalizes chat_<id> session keys to <id> (evicted_content.py);
     # mirror it here so saved paths match the read scope check.
-    session_chat_id = normalize_delivery_chat_id(
-        chat_id.strip() or chat_id_var.get().strip()
-    )
+    session_chat_id = normalize_delivery_chat_id(chat_id.strip() or chat_id_var.get().strip())
     if not session_chat_id:
         raise ToolError(
             message="file_read_tool blocked: missing chat_id for evicted-read scope",
@@ -140,10 +138,7 @@ async def _assert_evicted_uploaded_read_scope(
             (Path(workspace_root) / ".context" / session_chat_id / "evicted").resolve(),
             (Path(workspace_root) / "_uploaded").resolve(),
         ]
-        if not any(
-            resolved_path == root or root in resolved_path.parents
-            for root in allowed_roots
-        ):
+        if not any(resolved_path == root or root in resolved_path.parents for root in allowed_roots):
             raise ToolError(
                 message=f"file_read_tool blocked: {raw}",
                 user_hint=(
@@ -203,9 +198,7 @@ class FileReadInput(BaseModel):
         ),
     )
 
-    chunk_size_mb: int = Field(
-        default=10, description="streaming模式下的块大小（MB），默认10MB"
-    )
+    chunk_size_mb: int = Field(default=10, description="streaming模式下的块大小（MB），默认10MB")
 
     parse_mode: str | None = Field(
         default=None,
@@ -218,9 +211,7 @@ class FileReadInput(BaseModel):
         ),
     )
 
-    reason: str | None = Field(
-        default=None, description="执行命令的原因（可选，用于日志）"
-    )
+    reason: str | None = Field(default=None, description="执行命令的原因（可选，用于日志）")
 
     preserve_in_context: bool = Field(
         default=False,
@@ -292,9 +283,7 @@ def create_file_read_tool(
             url_errors: list[str] = []
             if url_paths:
                 rejected = ", ".join(url_paths[:3])
-                suffix = (
-                    f" (and {len(url_paths) - 3} more)" if len(url_paths) > 3 else ""
-                )
+                suffix = f" (and {len(url_paths) - 3} more)" if len(url_paths) > 3 else ""
                 url_errors.append(
                     f"file_read_tool cannot read URLs: {rejected}{suffix}. "
                     "This tool only supports local file paths, not web URLs."
@@ -310,35 +299,17 @@ def create_file_read_tool(
             await _assert_paths_allowed_for_read(valid_paths, config, executor)
             if path_policy == "evicted_uploaded":
                 chat_id = str(ctx.get("chat_id") or "")
-                await _assert_evicted_uploaded_read_scope(
-                    valid_paths, chat_id=chat_id, executor=executor
-                )
+                await _assert_evicted_uploaded_read_scope(valid_paths, chat_id=chat_id, executor=executor)
             supports_vision = bool(ctx.get("supports_vision", False))
             supports_video = bool(ctx.get("supports_video", False))
             vision_fallback_model_cfg = ctx.get("vision_fallback_model_cfg")
             vision_fallback_model_cfgs = ctx.get("vision_fallback_model_cfgs")
             video_fallback_model_cfgs = ctx.get("video_fallback_model_cfgs")
 
-            image_paths = [
-                p
-                for p in valid_paths
-                if is_image_path(path_base(p)) and not is_vault_uri(p)
-            ]
-            pdf_paths = [
-                p
-                for p in valid_paths
-                if is_pdf_path(path_base(p)) and not is_vault_uri(p)
-            ]
-            document_paths = [
-                p
-                for p in valid_paths
-                if is_document_path(path_base(p)) and not is_vault_uri(p)
-            ]
-            video_paths = [
-                p
-                for p in valid_paths
-                if is_video_path(path_base(p)) and not is_vault_uri(p)
-            ]
+            image_paths = [p for p in valid_paths if is_image_path(path_base(p)) and not is_vault_uri(p)]
+            pdf_paths = [p for p in valid_paths if is_pdf_path(path_base(p)) and not is_vault_uri(p)]
+            document_paths = [p for p in valid_paths if is_document_path(path_base(p)) and not is_vault_uri(p)]
+            video_paths = [p for p in valid_paths if is_video_path(path_base(p)) and not is_vault_uri(p)]
             vault_paths = [p for p in valid_paths if is_vault_uri(p)]
             text_paths = [
                 p
@@ -350,9 +321,7 @@ def create_file_read_tool(
                 and not is_video_path(path_base(p))
             ]
 
-            has_multimodal = (
-                image_paths or pdf_paths or video_paths
-            ) and executor is not None
+            has_multimodal = (image_paths or pdf_paths or video_paths) and executor is not None
             use_multimodal = has_multimodal and (
                 supports_vision
                 or supports_video
@@ -405,11 +374,7 @@ def create_file_read_tool(
             )
 
             if vault_paths:
-                text_parts.extend(
-                    await read_vault_paths_to_parts(
-                        vault_paths, executor, mode, config=config
-                    )
-                )
+                text_parts.extend(await read_vault_paths_to_parts(vault_paths, executor, mode, config=config))
 
             if text_paths:
                 text_parts.extend(

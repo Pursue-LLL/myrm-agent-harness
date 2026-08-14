@@ -105,9 +105,7 @@ def format_plan_preview(review: WorkflowPlanReview) -> str:
         if review.llm_query_single_calls > 0:
             labels.append(f"{review.llm_query_single_calls} direct AI call(s)")
         if review.llm_query_batched_calls > 0:
-            labels.append(
-                f"{review.llm_query_batched_calls} parallel batch(es) of AI calls"
-            )
+            labels.append(f"{review.llm_query_batched_calls} parallel batch(es) of AI calls")
         lead = "It also includes " if review.spawn_count > 0 else "It includes "
         lines.append(lead + ", ".join(labels) + " for quick analysis.")
 
@@ -115,10 +113,7 @@ def format_plan_preview(review: WorkflowPlanReview) -> str:
         cost_line = f"Estimated cost: ${review.estimated_cost_usd:.2f}"
         if review.remaining_budget_usd is not None:
             cost_line += f" (remaining budget: ${review.remaining_budget_usd:.2f})"
-        cost_line += (
-            ". Estimate is approximate; actual cost depends on runtime calls "
-            "and token counts."
-        )
+        cost_line += ". Estimate is approximate; actual cost depends on runtime calls and token counts."
     else:
         cost_line = "Cost estimate unavailable."
     lines.append(cost_line)
@@ -197,10 +192,7 @@ async def estimate_workflow_cost(
         )
 
         objective = query[:500] if query else "Dynamic Workflow sub-agent task"
-        tasks = [
-            TaskRequest(agent_type="generalPurpose", objective=objective)
-            for _ in range(spawn_count)
-        ]
+        tasks = [TaskRequest(agent_type="generalPurpose", objective=objective) for _ in range(spawn_count)]
         try:
             estimate = await _estimate_batch_cost(
                 parent_agent=parent_agent,
@@ -218,9 +210,7 @@ async def estimate_workflow_cost(
                 spawn_cost = estimate.estimated_cost_usd
                 spawn_status = estimate.cost_status or "estimated"
 
-    llm_query_cost, llm_query_status = _estimate_llm_query_cost(
-        parent_agent, llm_query_calls[0], llm_query_calls[1]
-    )
+    llm_query_cost, llm_query_status = _estimate_llm_query_cost(parent_agent, llm_query_calls[0], llm_query_calls[1])
 
     if llm_query_cost is None and spawn_cost is None:
         return (

@@ -80,9 +80,7 @@ async def test_build_multimodal_vision_and_pdf(tmp_path: Path) -> None:
             config=_DUMMY_CONFIG,
         )
 
-    texts = [
-        b["text"] for b in blocks if isinstance(b, dict) and b.get("type") == "text"
-    ]
+    texts = [b["text"] for b in blocks if isinstance(b, dict) and b.get("type") == "text"]
     assert any("img block" in t for t in texts)
     assert any("pdf text" in t for t in texts)
     assert any("video text" in t for t in texts)
@@ -207,9 +205,7 @@ async def test_read_via_service_dispatches_truncation_event() -> None:
             new_callable=AsyncMock,
         ) as mock_dispatch,
     ):
-        out = await _read_via_service(
-            "f.txt", MagicMock(), None, None, config=_DUMMY_CONFIG
-        )
+        out = await _read_via_service("f.txt", MagicMock(), None, None, config=_DUMMY_CONFIG)
     assert out == "short"
     mock_dispatch.assert_awaited_once()
 
@@ -220,9 +216,7 @@ async def test_dispatch_truncation_event() -> None:
         "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
         new_callable=AsyncMock,
     ) as mock_event:
-        await _dispatch_truncation_event(
-            {"k": "v"}, tool="file_read", config=_DUMMY_CONFIG
-        )
+        await _dispatch_truncation_event({"k": "v"}, tool="file_read", config=_DUMMY_CONFIG)
     mock_event.assert_awaited_once()
 
 
@@ -592,9 +586,7 @@ async def test_process_text_paths_exception_fallback(tmp_path: Path) -> None:
 async def test_file_read_blocks_disabled_skill_path() -> None:
     tool = create_file_read_tool()
     mock_executor = MagicMock()
-    mock_executor.resolve_path = AsyncMock(
-        return_value="/workspace/skills/off/secret.md"
-    )
+    mock_executor.resolve_path = AsyncMock(return_value="/workspace/skills/off/secret.md")
     config = RunnableConfig(
         configurable={"context": {"disabled_skill_roots": ["/workspace/skills/off"]}},
     )
@@ -644,9 +636,7 @@ async def test_file_read_rejects_url_paths_only() -> None:
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
         return_value=MagicMock(),
     ):
-        result = await tool.ainvoke(
-            {"paths": ["https://example.com/doc"]}, config=_DUMMY_CONFIG
-        )
+        result = await tool.ainvoke({"paths": ["https://example.com/doc"]}, config=_DUMMY_CONFIG)
     assert isinstance(result, str)
     assert "cannot read URLs" in result
 

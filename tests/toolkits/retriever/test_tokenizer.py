@@ -109,8 +109,9 @@ async def test_module_preload_tokenizer() -> None:
 @pytest.mark.asyncio
 async def test_preload_failure_raises() -> None:
     service = TokenizerService()
-    with patch.object(service, "_async_initialize", side_effect=RuntimeError("boom")), pytest.raises(
-        RuntimeError, match="boom"
+    with (
+        patch.object(service, "_async_initialize", side_effect=RuntimeError("boom")),
+        pytest.raises(RuntimeError, match="boom"),
     ):
         await service.preload()
 

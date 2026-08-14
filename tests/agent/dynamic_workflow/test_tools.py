@@ -619,6 +619,7 @@ async def test_spawn_tool_sync_run_readonly_raises(mock_parent_agent):
 # NotifyProgressTool tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def notify_queue():
     return asyncio.Queue()

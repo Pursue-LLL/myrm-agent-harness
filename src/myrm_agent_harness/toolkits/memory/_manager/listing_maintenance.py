@@ -71,20 +71,14 @@ class MemoryManagerListingMaintenanceMixin:
 
     async def delete_by_type(self, memory_type: MemoryType) -> int:
         cascade_ids: list[str] = []
-        if (
-            memory_type == MemoryType.EPISODIC
-            and self._vector is not None
-            and self._graph is not None
-        ):
+        if memory_type == MemoryType.EPISODIC and self._vector is not None and self._graph is not None:
             # Claim Graph Evidence/Claim nodes reference episodic task digests, so a
             # bulk clear must cascade-clean derived nodes — matching the single
             # delete path. Collect owned ids first (they are gone after the wipe).
             filters = _user_filter(namespaces=self._namespaces, include_archived=True)
             cascade_ids = [
                 memory_id
-                for memory_id, owned in await self._collect_vector_ids(
-                    self._config.episodic_collection, filters
-                )
+                for memory_id, owned in await self._collect_vector_ids(self._config.episodic_collection, filters)
                 if owned
             ]
         deleted = await _delete_by_type(

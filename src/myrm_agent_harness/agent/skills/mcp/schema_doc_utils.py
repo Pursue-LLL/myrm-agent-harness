@@ -143,9 +143,7 @@ def build_call_example(input_schema: JsonDict) -> str:
         ptype = info.get("type", "string")
         example = info.get("examples", [None])[0] if info.get("examples") else None
         if example is not None:
-            parts.append(
-                f'{name}="{example}"' if ptype == "string" else f"{name}={example}"
-            )
+            parts.append(f'{name}="{example}"' if ptype == "string" else f"{name}={example}")
         elif ptype == "string":
             parts.append(f'{name}="..."')
         elif ptype in ("integer", "number"):

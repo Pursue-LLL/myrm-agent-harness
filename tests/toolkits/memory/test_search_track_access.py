@@ -15,9 +15,7 @@ def _make_manager(*, search_results: list[MemorySearchResult] | None = None) -> 
     vector = AsyncMock()
     relational = AsyncMock()
     embedding = AsyncMock()
-    manager = MemoryManager(
-        config, user_id="u1", vector=vector, relational=relational, embedding=embedding
-    )
+    manager = MemoryManager(config, user_id="u1", vector=vector, relational=relational, embedding=embedding)
     mock_search_svc = AsyncMock()
     mock_search_svc.search.return_value = search_results or []
     manager._search_service = mock_search_svc

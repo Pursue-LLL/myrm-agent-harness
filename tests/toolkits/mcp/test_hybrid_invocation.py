@@ -143,22 +143,14 @@ class TestMCPConfigClean:
 
     def test_no_invocation_mode_field(self) -> None:
         cfg = MCPConfig(name="test", type="stdio", command="echo")
-        assert (
-            not hasattr(cfg, "invocation_mode")
-            or "invocation_mode" not in cfg.model_fields
-        )
+        assert not hasattr(cfg, "invocation_mode") or "invocation_mode" not in cfg.model_fields
 
     def test_no_direct_tool_threshold_field(self) -> None:
         cfg = MCPConfig(name="test", type="stdio", command="echo")
-        assert (
-            not hasattr(cfg, "direct_tool_threshold")
-            or "direct_tool_threshold" not in cfg.model_fields
-        )
+        assert not hasattr(cfg, "direct_tool_threshold") or "direct_tool_threshold" not in cfg.model_fields
 
     def test_ptc_config_projection_keeps_host_serial(self) -> None:
-        cfg = MCPConfig(
-            name="stateful-host", type="stdio", command="echo", host_serial=True
-        )
+        cfg = MCPConfig(name="stateful-host", type="stdio", command="echo", host_serial=True)
         payload = _config_to_dict(cfg)
         assert payload["host_serial"] is True
 
@@ -190,9 +182,7 @@ class TestNormalizeMcpResult:
         assert normalize_mcp_result(result) == "line1\nline2"
 
     def test_image_block_passthrough(self) -> None:
-        result = CallToolResult(
-            content=[ImageContent(type="image", data="base64...", mimeType="image/png")]
-        )
+        result = CallToolResult(content=[ImageContent(type="image", data="base64...", mimeType="image/png")])
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, list)
         assert normalized[0]["type"] == "image"
@@ -296,11 +286,7 @@ class TestNormalizeMcpResult:
         """AudioContent degrades to a short marker, not a base64 dump."""
         from mcp.types import AudioContent
 
-        result = CallToolResult(
-            content=[
-                AudioContent(type="audio", data="audio_b64", mimeType="audio/mpeg")
-            ]
-        )
+        result = CallToolResult(content=[AudioContent(type="audio", data="audio_b64", mimeType="audio/mpeg")])
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
         assert "[audio content omitted]" in normalized

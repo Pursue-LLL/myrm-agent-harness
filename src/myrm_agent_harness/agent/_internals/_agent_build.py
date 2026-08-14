@@ -27,9 +27,6 @@ from myrm_agent_harness.agent.middlewares import (
 )
 from myrm_agent_harness.agent.middlewares.approval import ToolApprovalMiddleware
 from myrm_agent_harness.agent.middlewares.completion import CompletionGuard
-from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware import (
-    dangling_tool_call_middleware,
-)
 from myrm_agent_harness.agent.middlewares.concurrency.safety_dispatcher import (
     create_safety_dispatcher,
 )
@@ -44,6 +41,9 @@ from myrm_agent_harness.agent.middlewares.session_access_middleware import (
 )
 from myrm_agent_harness.agent.middlewares.subagent_limit_middleware import (
     subagent_limit_middleware,
+)
+from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware import (
+    dangling_tool_call_middleware,
 )
 from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import (
     tool_history_hygiene_middleware,
@@ -123,9 +123,7 @@ def build_middlewares(
 
     middlewares.extend(
         [
-            ToolCallLimitMiddleware(
-                run_limit=params.max_tool_calls, exit_behavior="continue"
-            ),
+            ToolCallLimitMiddleware(run_limit=params.max_tool_calls, exit_behavior="continue"),
             ToolCallLimitMiddleware(
                 tool_name="bash_code_execute_tool",
                 run_limit=params.max_bash_calls,
@@ -171,9 +169,7 @@ def _weave_dynamic_schemas(resolved_tools: list[BaseTool]) -> list[BaseTool]:
     weaved_tools = []
 
     for tool in resolved_tools:
-        if hasattr(tool, "dynamic_schema_modifier") and callable(
-            tool.dynamic_schema_modifier
-        ):
+        if hasattr(tool, "dynamic_schema_modifier") and callable(tool.dynamic_schema_modifier):
             try:
                 modified_tool = tool.dynamic_schema_modifier(available_names)
                 weaved_tools.append(modified_tool)
@@ -211,11 +207,7 @@ async def build_tools(
                 if mw_tools:
                     for t in mw_tools:
                         is_internal = t.name.startswith("_")
-                        bind_mode = (
-                            ToolBindMode.RUNTIME_ONLY
-                            if is_internal
-                            else ToolBindMode.TURN1
-                        )
+                        bind_mode = ToolBindMode.RUNTIME_ONLY if is_internal else ToolBindMode.TURN1
                         registry.register(t, source=ToolSource.MIDDLEWARE, bind_mode=bind_mode)  # type: ignore[arg-type]
                     logger.info(
                         " Loaded %d tools from middleware: %s",
@@ -243,9 +235,7 @@ def emit_tools_snapshot(registry: ToolRegistry) -> list[dict[str, object]] | Non
         from myrm_agent_harness.agent.tool_management import ToolBindMode
 
         snapshots = registry.snapshot()
-        turn1_snapshots = [
-            s for s in snapshots if s.bind_mode == ToolBindMode.TURN1.value
-        ]
+        turn1_snapshots = [s for s in snapshots if s.bind_mode == ToolBindMode.TURN1.value]
         if not turn1_snapshots:
             return None
         from dataclasses import asdict

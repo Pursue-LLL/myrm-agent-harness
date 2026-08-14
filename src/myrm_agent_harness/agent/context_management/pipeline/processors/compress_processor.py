@@ -114,18 +114,14 @@ class CompressProcessor(BaseProcessor):
         """Check if eco mode is active (budget pressure signal from business layer)."""
         return bool(context.metadata.get("eco_mode", False))
 
-    def _should_bypass_for_hot_cache(
-        self, context: ProcessorContext, current_tokens: int
-    ) -> bool:
+    def _should_bypass_for_hot_cache(self, context: ProcessorContext, current_tokens: int) -> bool:
         """Check whether to bypass compression due to hot cache."""
         max_tokens = self.config.max_context_tokens or 128000
         if current_tokens >= max_tokens * 0.90:
             return False  # MUST compress synchronously to avoid OOM
 
         last_active = context.metadata.get("last_activity_time")
-        return isinstance(last_active, (int, float)) and (
-            time.time() - last_active < self._HOT_CACHE_WINDOW_SECONDS
-        )
+        return isinstance(last_active, (int, float)) and (time.time() - last_active < self._HOT_CACHE_WINDOW_SECONDS)
 
     def _budget_kwargs(self, context: ProcessorContext) -> dict[str, int]:
         return resolve_budget_kwargs_from_metadata(context.metadata)
@@ -144,9 +140,7 @@ class CompressProcessor(BaseProcessor):
 
         turn_count = sum(1 for m in context.messages if m.type == "human")
 
-        budget = calculate_context_budget(
-            context.messages, cfg, **self._budget_kwargs(context)
-        )
+        budget = calculate_context_budget(context.messages, cfg, **self._budget_kwargs(context))
         dynamic_threshold, _ = budget.calculate_dynamic_thresholds(
             turn_count=turn_count,
             estimated_remaining_turns=DEFAULT_ESTIMATED_REMAINING_TURNS,
@@ -174,9 +168,7 @@ class CompressProcessor(BaseProcessor):
         )
 
         max_tokens = cfg.max_context_tokens or 128000
-        if should_block_automatic_compression(
-            context.chat_id, total_tokens, max_tokens
-        ):
+        if should_block_automatic_compression(context.chat_id, total_tokens, max_tokens):
             return False
 
         # --- Cold Cache Drain Architecture (Hot Cache Bypass) ---
@@ -218,15 +210,11 @@ class CompressProcessor(BaseProcessor):
 
         original_tokens = self._estimate_context_tokens(context)
 
-        budget = calculate_context_budget(
-            context.messages, self.config, **self._budget_kwargs(context)
-        )
+        budget = calculate_context_budget(context.messages, self.config, **self._budget_kwargs(context))
         dynamic_min_save = budget.get_dynamic_compress_min_save()
 
         if dynamic_min_save != self.config.compress_min_save:
-            remaining_ratio = (
-                budget.remaining_ratio if budget.remaining_ratio is not None else 1.0
-            )
+            remaining_ratio = budget.remaining_ratio if budget.remaining_ratio is not None else 1.0
             logger.info(
                 "Dynamic compress_min_save: %d -> %d (remaining %.1f%%)",
                 self.config.compress_min_save,
@@ -324,9 +312,7 @@ class CompressProcessor(BaseProcessor):
 
             metrics = _get_metrics(context.chat_id)
             if metrics:
-                context.metadata["compression_ineffective_streak"] = (
-                    metrics.compression_ineffective_streak
-                )
+                context.metadata["compression_ineffective_streak"] = metrics.compression_ineffective_streak
 
         from ...infra.cache_break_detector import get_cache_break_detector
 
@@ -338,9 +324,7 @@ class CompressProcessor(BaseProcessor):
             apply_pre_compact_after_protected_head,
         )
 
-        context.messages = apply_pre_compact_after_protected_head(
-            context.messages, context=context
-        )
+        context.messages = apply_pre_compact_after_protected_head(context.messages, context=context)
 
         return context
 

@@ -60,7 +60,9 @@ class TestVariantGeneratorNoLLM:
         assert results == [mock_skill.content]
 
     @pytest.mark.asyncio
-    async def test_no_llm_evidence_returns_original(self, mock_skill: SkillRecord, mock_evidence: SkillEvidenceGroup) -> None:
+    async def test_no_llm_evidence_returns_original(
+        self, mock_skill: SkillRecord, mock_evidence: SkillEvidenceGroup
+    ) -> None:
         gen = VariantGenerator(llm=None)
         results = await gen.generate_variants_from_evidence(mock_skill, mock_evidence)
         assert results == [mock_skill.content]
@@ -113,9 +115,7 @@ class TestVariantGeneratorWithMockLLM:
         assert results == [mock_skill.content]
 
     @pytest.mark.asyncio
-    async def test_reasoning_model_content_empty_falls_back(
-        self, mock_skill: SkillRecord
-    ) -> None:
+    async def test_reasoning_model_content_empty_falls_back(self, mock_skill: SkillRecord) -> None:
         """Reasoning model with empty content must still produce a variant."""
         from langchain_core.messages import AIMessage
 
@@ -152,7 +152,9 @@ class TestPromptAssembly:
         assert "stack trace here" in prompt
         assert mock_skill.name in prompt
 
-    def test_preference_prompt_uses_preference_module(self, generator: VariantGenerator, mock_skill: SkillRecord) -> None:
+    def test_preference_prompt_uses_preference_module(
+        self, generator: VariantGenerator, mock_skill: SkillRecord
+    ) -> None:
         prompt = generator._build_variant_prompt(mock_skill, "[PREFERENCE]太啰嗦了", "")
         assert "User Preference Embedding" in prompt
         assert "Failure Attribution" not in prompt
@@ -173,7 +175,9 @@ class TestPromptAssembly:
         assert "Never delete user data" in prompt
 
     def test_constraints_injected(self, generator: VariantGenerator, mock_skill: SkillRecord) -> None:
-        prompt = generator._build_variant_prompt(mock_skill, "error", "trace", constraints="Must preserve API port 8080")
+        prompt = generator._build_variant_prompt(
+            mock_skill, "error", "trace", constraints="Must preserve API port 8080"
+        )
         assert "Historical Constraints" in prompt
         assert "Must preserve API port 8080" in prompt
 
@@ -186,7 +190,7 @@ class TestContentExtraction:
         assert VariantGenerator._extract_content(raw) == "# Skill\nContent here"
 
     def test_preserves_edit_summary(self) -> None:
-        raw = "# Skill\n---EDIT_SUMMARY---\n{\"notes\": \"changed X\"}"
+        raw = '# Skill\n---EDIT_SUMMARY---\n{"notes": "changed X"}'
         assert "---EDIT_SUMMARY---" in VariantGenerator._extract_content(raw)
 
     def test_plain_text_unchanged(self) -> None:

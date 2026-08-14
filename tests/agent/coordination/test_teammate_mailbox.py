@@ -410,10 +410,7 @@ async def test_concurrent_drain_does_not_duplicate_messages() -> None:
 
 def test_many_teammates_roster_performance() -> None:
     """Roster with 50 teammates still renders correctly."""
-    roster = [
-        {"task_id": f"task_{i:03d}", "agent_type": f"type_{i % 5}"}
-        for i in range(50)
-    ]
+    roster = [{"task_id": f"task_{i:03d}", "agent_type": f"type_{i % 5}"} for i in range(50)]
     result = format_roster_prompt(roster)
     assert result is not None
     assert result.count("- task_") == 50

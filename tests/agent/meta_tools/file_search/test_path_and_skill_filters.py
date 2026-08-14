@@ -45,7 +45,6 @@ def test_filter_disabled_skill_paths_passthrough_when_no_roots() -> None:
     assert filter_disabled_skill_paths(paths, []) == paths
 
 
-
 def test_is_under_disabled_skill_root_prefix() -> None:
     roots = ["/workspace/skills/disabled-skill"]
     assert is_under_disabled_skill_root("/workspace/skills/disabled-skill/SKILL.md", roots)
@@ -72,4 +71,3 @@ def test_get_disabled_skill_roots_empty_when_missing() -> None:
 def test_is_under_disabled_skill_root_exact_match() -> None:
     roots = ["/workspace/skills/off"]
     assert is_under_disabled_skill_root("/workspace/skills/off", roots)
-

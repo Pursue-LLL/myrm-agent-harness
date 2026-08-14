@@ -89,18 +89,10 @@ def parse_tool_calls(
     tool_calls = _parse_openai_format(response_dict)
     if tool_calls:
         if available_tools:
-            filtered = [
-                tc
-                for tc in tool_calls
-                if tc.get("function", {}).get("name") in available_tools
-            ]
+            filtered = [tc for tc in tool_calls if tc.get("function", {}).get("name") in available_tools]
             dropped = len(tool_calls) - len(filtered)
             if dropped:
-                dropped_names = [
-                    tc.get("function", {}).get("name")
-                    for tc in tool_calls
-                    if tc not in filtered
-                ]
+                dropped_names = [tc.get("function", {}).get("name") for tc in tool_calls if tc not in filtered]
                 logger.warning(
                     " Filtered %d hallucinated tool call(s) not in available_tools: %s",
                     dropped,
@@ -115,34 +107,26 @@ def parse_tool_calls(
     reasoning_content = response_dict.get("reasoning_content", "")
     tool_calls = _parse_glm_xml_format(reasoning_content)
     if tool_calls:
-        logger.warning(
-            f" Parsed from reasoning_content {len(tool_calls)} tool calls (GLM XML format)"
-        )
+        logger.warning(f" Parsed from reasoning_content {len(tool_calls)} tool calls (GLM XML format)")
         return tool_calls
 
     # 3. Anthropic XML format (content invoke tags in)
     content = response_dict.get("content", "")
     tool_calls = _parse_anthropic_xml_format(content, available_tools)
     if tool_calls:
-        logger.warning(
-            f" Parsed from content {len(tool_calls)} tool calls (Anthropic XML format)"
-        )
+        logger.warning(f" Parsed from content {len(tool_calls)} tool calls (Anthropic XML format)")
         return tool_calls
 
     # 3.5 Qwen XML JSON format
     tool_calls = _parse_qwen_xml_json_format(content, available_tools)
     if tool_calls:
-        logger.warning(
-            f" Parsed from content {len(tool_calls)} tool calls (Qwen XML JSON format)"
-        )
+        logger.warning(f" Parsed from content {len(tool_calls)} tool calls (Qwen XML JSON format)")
         return tool_calls
 
     # 4. DeepSeek inline format
     tool_calls = _parse_deepseek_inline_format(content, available_tools)
     if tool_calls:
-        logger.warning(
-            f" Parsed from content {len(tool_calls)} tool calls (DeepSeek inline format)"
-        )
+        logger.warning(f" Parsed from content {len(tool_calls)} tool calls (DeepSeek inline format)")
         return tool_calls
 
     # 5. DeepSeek DSML format
@@ -270,11 +254,7 @@ def _parse_qwen_xml_json_format(
             tool_name = data.get("name")
             args = data.get("arguments", {})
 
-            if (
-                not tool_name
-                and "function" in data
-                and isinstance(data["function"], dict)
-            ):
+            if not tool_name and "function" in data and isinstance(data["function"], dict):
                 func_data = data["function"]
                 tool_name = func_data.get("name")
                 args = func_data.get("arguments", {})
@@ -283,9 +263,7 @@ def _parse_qwen_xml_json_format(
                 continue
 
             if available_tools and tool_name not in available_tools:
-                logger.debug(
-                    f" Qwen XML JSON tool call name not in available tools: {tool_name}"
-                )
+                logger.debug(f" Qwen XML JSON tool call name not in available tools: {tool_name}")
                 continue
             if isinstance(args, str):
                 with contextlib.suppress(json.JSONDecodeError):
@@ -326,9 +304,7 @@ def _parse_anthropic_xml_format(
         return []
 
     # Match invoke tags (with or without antml: prefix)
-    invoke_pattern = (
-        r'<(antml:)?invoke\s+name=["\']([^"\']+)["\']>(.*?)(?:</(antml:)?invoke>|$)'
-    )
+    invoke_pattern = r'<(antml:)?invoke\s+name=["\']([^"\']+)["\']>(.*?)(?:</(antml:)?invoke>|$)'
 
     matches = list(re.finditer(invoke_pattern, content, re.DOTALL))
     if not matches:
@@ -491,9 +467,7 @@ def _parse_deepseek_dsml_format(
 
     tool_calls: list[ToolCallDict] = []
 
-    block_pattern = re.compile(
-        r"<[｜|]+DSML[｜|]+tool_calls>(.*?)</[｜|]+DSML[｜|]+tool_calls>", re.DOTALL
-    )
+    block_pattern = re.compile(r"<[｜|]+DSML[｜|]+tool_calls>(.*?)</[｜|]+DSML[｜|]+tool_calls>", re.DOTALL)
     blocks = block_pattern.findall(text)
 
     if not blocks:
@@ -516,9 +490,7 @@ def _parse_deepseek_dsml_format(
 
         for tool_name, params_text in invokes:
             if available_tools and tool_name not in available_tools:
-                logger.debug(
-                    f" DeepSeek DSML tool call name not in available tools: {tool_name}"
-                )
+                logger.debug(f" DeepSeek DSML tool call name not in available tools: {tool_name}")
                 continue
 
             args: dict[str, Any] = {}
@@ -554,17 +526,13 @@ def _parse_deepseek_dsml_format(
 # XML Tool Tag Cleaner
 # ============================================================================
 
-_DSML_PATTERN = re.compile(
-    r"<[｜|]+DSML[｜|]+tool_calls>.*?</[｜|]+DSML[｜|]+tool_calls>", re.DOTALL
-)
+_DSML_PATTERN = re.compile(r"<[｜|]+DSML[｜|]+tool_calls>.*?</[｜|]+DSML[｜|]+tool_calls>", re.DOTALL)
 _DSML_UNCLOSED_PATTERN = re.compile(r"<[｜|]+DSML[｜|]+tool_calls>.*", re.DOTALL)
 _XML_TOOL_PATTERN = re.compile(
     r"<(tool_call|invoke(?:\s+name=[\"'][^\"']*[\"'])?)>.*?</(?:\1|invoke)>",
     re.DOTALL,
 )
-_XML_TOOL_UNCLOSED_PATTERN = re.compile(
-    r"<(tool_call|invoke(?:\s+name=[\"'][^\"']*[\"'])?)>.*", re.DOTALL
-)
+_XML_TOOL_UNCLOSED_PATTERN = re.compile(r"<(tool_call|invoke(?:\s+name=[\"'][^\"']*[\"'])?)>.*", re.DOTALL)
 _FUNCTION_CALLS_PATTERN = re.compile(
     r"<(?:antml:)?(?:function|tool)_calls>.*?</(?:antml:)?(?:function|tool)_calls>",
     re.DOTALL,

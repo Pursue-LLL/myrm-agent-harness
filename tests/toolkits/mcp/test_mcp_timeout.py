@@ -206,9 +206,7 @@ class TestEnumerateServerToolsTimeout:
             description="d",
             connect_timeout=1.0,
         )
-        with patch.object(
-            agent, "_enumerate_server_tools", side_effect=_fake_enumerate
-        ):
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
             server_name, tools, error = await agent._enumerate_server_tools(cfg)
 
         assert server_name == "slow_server"
@@ -226,12 +224,8 @@ class TestEnumerateServerToolsTimeout:
         async def _fake_enumerate(cfg):
             return ("fast_server", [mock_tool], None)
 
-        cfg = MCPConfig(
-            name="fast_server", type="stdio", command="echo", description="d"
-        )
-        with patch.object(
-            agent, "_enumerate_server_tools", side_effect=_fake_enumerate
-        ):
+        cfg = MCPConfig(name="fast_server", type="stdio", command="echo", description="d")
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
             server_name, tools, error = await agent._enumerate_server_tools(cfg)
 
         assert server_name == "fast_server"
@@ -245,12 +239,8 @@ class TestEnumerateServerToolsTimeout:
         async def _fake_enumerate(cfg):
             return ("empty_server", [], "not found tools")
 
-        cfg = MCPConfig(
-            name="empty_server", type="stdio", command="echo", description="d"
-        )
-        with patch.object(
-            agent, "_enumerate_server_tools", side_effect=_fake_enumerate
-        ):
+        cfg = MCPConfig(name="empty_server", type="stdio", command="echo", description="d")
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
             _server_name, _tools, error = await agent._enumerate_server_tools(cfg)
         assert error == "not found tools"
 
@@ -261,12 +251,8 @@ class TestEnumerateServerToolsTimeout:
         async def _fake_enumerate(cfg):
             return ("broken_server", [], "connection refused")
 
-        cfg = MCPConfig(
-            name="broken_server", type="stdio", command="echo", description="d"
-        )
-        with patch.object(
-            agent, "_enumerate_server_tools", side_effect=_fake_enumerate
-        ):
+        cfg = MCPConfig(name="broken_server", type="stdio", command="echo", description="d")
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
             _server_name, _tools, error = await agent._enumerate_server_tools(cfg)
         assert error is not None
         assert "connection refused" in error
@@ -338,9 +324,7 @@ class TestGetToolsTimeout:
                 return ("server1", [tool1], None)
             return ("server2", [tool2], None)
 
-        with patch.object(
-            agent, "_enumerate_server_tools", side_effect=_fake_enumerate
-        ):
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
             tools = await agent.get_tools([cfg1, cfg2])
 
         assert len(tools) == 2
@@ -377,18 +361,14 @@ class TestBuildClientTarget:
         assert target == "http://x"
 
     def test_streamable_http_returns_url(self) -> None:
-        cfg = MCPConfig(
-            name="s", type="streamable_http", url="http://y", description="d"
-        )
+        cfg = MCPConfig(name="s", type="streamable_http", url="http://y", description="d")
         target = MCPClientManager.build_client_target(cfg)
         assert target == "http://y"
 
     def test_stdio_returns_params(self) -> None:
         from mcp import StdioServerParameters
 
-        cfg = MCPConfig(
-            name="s", type="stdio", command="node", args=["server.js"], description="d"
-        )
+        cfg = MCPConfig(name="s", type="stdio", command="node", args=["server.js"], description="d")
         target = MCPClientManager.build_client_target(cfg)
         assert isinstance(target, StdioServerParameters)
         assert target.command == "node"
@@ -420,9 +400,7 @@ class TestClientAuthInjection:
     async def test_auth_headers_injected_for_sse(self) -> None:
         cfg = MCPConfig(name="s", type="sse", url="http://x", description="d")
         mock_provider = AsyncMock()
-        mock_provider.get_auth_headers = AsyncMock(
-            return_value={"Authorization": "Bearer tok"}
-        )
+        mock_provider.get_auth_headers = AsyncMock(return_value={"Authorization": "Bearer tok"})
         cfg.auth_provider = mock_provider
 
         await MCPClientManager._inject_auth_headers_into_config(cfg)
@@ -448,9 +426,7 @@ class TestClientAuthInjection:
     async def test_auth_failure_non_fatal(self) -> None:
         cfg = MCPConfig(name="s", type="sse", url="http://x", description="d")
         mock_provider = AsyncMock()
-        mock_provider.get_auth_headers = AsyncMock(
-            side_effect=RuntimeError("auth fail")
-        )
+        mock_provider.get_auth_headers = AsyncMock(side_effect=RuntimeError("auth fail"))
         cfg.auth_provider = mock_provider
 
         await MCPClientManager._inject_auth_headers_into_config(cfg)
@@ -524,12 +500,8 @@ class TestEnumerateServerToolsCancelledError:
         async def _fake_enumerate(cfg):
             return ("leaky_server", [], "cancelled by SDK")
 
-        cfg = MCPConfig(
-            name="leaky_server", type="stdio", command="echo", description="d"
-        )
-        with patch.object(
-            agent, "_enumerate_server_tools", side_effect=_fake_enumerate
-        ):
+        cfg = MCPConfig(name="leaky_server", type="stdio", command="echo", description="d")
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
             server_name, tools, error = await agent._enumerate_server_tools(cfg)
 
         assert server_name == "leaky_server"
@@ -544,9 +516,7 @@ class TestEnumerateServerToolsCancelledError:
         async def _fake_enumerate(cfg):
             raise asyncio.CancelledError()
 
-        cfg = MCPConfig(
-            name="cancel_server", type="stdio", command="echo", description="d"
-        )
+        cfg = MCPConfig(name="cancel_server", type="stdio", command="echo", description="d")
         with (
             patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate),
             pytest.raises(asyncio.CancelledError),

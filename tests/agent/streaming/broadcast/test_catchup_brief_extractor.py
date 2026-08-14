@@ -130,10 +130,7 @@ class TestProgressStepExtraction:
         assert len(brief.activity_steps) == 1
 
     def test_limits_activity_steps_to_five(self) -> None:
-        steps = [
-            {"tool_name": "bash_code_execute_tool", "items": [{"command": f"cmd-{i}"}]}
-            for i in range(10)
-        ]
+        steps = [{"tool_name": "bash_code_execute_tool", "items": [{"command": f"cmd-{i}"}]} for i in range(10)]
         brief = CatchupBriefExtractor.extract([], steps)
         assert len(brief.activity_steps) <= 5
 

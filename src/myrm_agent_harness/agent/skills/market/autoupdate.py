@@ -115,9 +115,7 @@ class SkillAutoUpdateChecker:
 
         from myrm_agent_harness.agent.skills.market.helpers import read_origin
 
-        non_prebuilt_sources = [
-            s for s in self._market_service._sources if s.source_name != "prebuilt"
-        ]
+        non_prebuilt_sources = [s for s in self._market_service._sources if s.source_name != "prebuilt"]
         update_infos: list[SkillUpdateInfo] = []
 
         for skill in installed:
@@ -129,9 +127,7 @@ class SkillAutoUpdateChecker:
 
             sources_to_check = non_prebuilt_sources
             if origin_source:
-                preferred = [
-                    s for s in non_prebuilt_sources if s.source_name == origin_source
-                ]
+                preferred = [s for s in non_prebuilt_sources if s.source_name == origin_source]
                 if preferred:
                     sources_to_check = preferred
 
@@ -170,13 +166,9 @@ class SkillAutoUpdateChecker:
         Downloads the new version -> quarantine -> security scan -> replace.
         """
         if not self._market_service:
-            return SkillInstallResult(
-                success=False, error="No SkillMarketService configured"
-            )
+            return SkillInstallResult(success=False, error="No SkillMarketService configured")
 
-        return await self._market_service.install(
-            skill_id=update_info.skill_id, source=update_info.source
-        )
+        return await self._market_service.install(skill_id=update_info.skill_id, source=update_info.source)
 
 
 _checker: SkillAutoUpdateChecker | None = None
@@ -189,7 +181,5 @@ def get_update_checker(
     """Singleton accessor. Pass skill_store and market_service on first call to configure."""
     global _checker
     if _checker is None:
-        _checker = SkillAutoUpdateChecker(
-            skill_store=skill_store, market_service=market_service
-        )
+        _checker = SkillAutoUpdateChecker(skill_store=skill_store, market_service=market_service)
     return _checker

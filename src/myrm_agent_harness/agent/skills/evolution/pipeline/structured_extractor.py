@@ -155,15 +155,11 @@ class StructuredExtractor:
     def __init__(self, llm: BaseChatModel):
         self._llm = llm
 
-    async def extract_from_trajectory(
-        self, trajectory: str
-    ) -> SkillCaptureResult | None:
+    async def extract_from_trajectory(self, trajectory: str) -> SkillCaptureResult | None:
         """Extract a skill from a conversation trajectory."""
         messages = [
             SystemMessage(content=_EXTRACTION_PROMPT),
-            HumanMessage(
-                content=f"Analyze this conversation trajectory:\n\n{trajectory}"
-            ),
+            HumanMessage(content=f"Analyze this conversation trajectory:\n\n{trajectory}"),
         ]
 
         try:

@@ -133,9 +133,7 @@ async def test_bash_tool_myrm_tools_cat_pipe_preflight_blocks_before_executor(
 @pytest.mark.asyncio
 async def test_bash_tool_git_clone_hint():
     mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
-    mock_bash_exec.execute.side_effect = BashExecutionError(
-        "Command timed out", phase="execution"
-    )
+    mock_bash_exec.execute.side_effect = BashExecutionError("Command timed out", phase="execution")
 
     with p_ctx, p_get, p_be, p_scope:
         tool = create_bash_code_execute_tool()
@@ -155,16 +153,12 @@ async def test_bash_tool_git_clone_hint():
 @pytest.mark.asyncio
 async def test_bash_tool_no_git_clone_hint_for_other_commands():
     mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
-    mock_bash_exec.execute.side_effect = BashExecutionError(
-        "Command timed out", phase="execution"
-    )
+    mock_bash_exec.execute.side_effect = BashExecutionError("Command timed out", phase="execution")
 
     with p_ctx, p_get, p_be, p_scope:
         tool = create_bash_code_execute_tool()
         with pytest.raises(ToolError) as exc_info:
-            await tool.ainvoke(
-                {"command": "ls -la", "reason": "test cloning from remote repo"}
-            )
+            await tool.ainvoke({"command": "ls -la", "reason": "test cloning from remote repo"})
 
         assert "git clone" not in exc_info.value.user_hint
         assert "curl" not in exc_info.value.user_hint
@@ -191,9 +185,7 @@ async def test_bash_tool_failure_emits_stderr_evicted_ref():
             ) as mock_emit,
             pytest.raises(ToolError) as exc_info,
         ):
-            await tool.ainvoke(
-                {"command": "ls -la", "reason": "verify failure eviction emit"}
-            )
+            await tool.ainvoke({"command": "ls -la", "reason": "verify failure eviction emit"})
 
     assert str(exc_info.value) == "ValueError: bad row 150"
     mock_emit.assert_awaited_once()
@@ -230,9 +222,7 @@ async def test_bash_tool_failure_emits_both_streams_evicted_refs():
             ) as mock_emit,
             pytest.raises(ToolError),
         ):
-            await tool.ainvoke(
-                {"command": "ls -la", "reason": "verify both-stream eviction emit"}
-            )
+            await tool.ainvoke({"command": "ls -la", "reason": "verify both-stream eviction emit"})
 
     calls = mock_emit.await_args_list
     assert len(calls) == 2
@@ -258,9 +248,7 @@ async def test_bash_tool_failure_carries_error_category_diagnostic() -> None:
     with p_ctx, p_get, p_be, p_scope:
         tool = create_bash_code_execute_tool()
         with pytest.raises(ToolError) as exc_info:
-            await tool.ainvoke(
-                {"command": "ls -la", "reason": "verify diagnostic category"}
-            )
+            await tool.ainvoke({"command": "ls -la", "reason": "verify diagnostic category"})
 
     assert exc_info.value.diagnostic_info == {"error_category": "EXEC"}
 
@@ -286,9 +274,7 @@ async def test_bash_tool_emit_failure_does_not_mask_original_error() -> None:
             ),
             pytest.raises(ToolError) as exc_info,
         ):
-            await tool.ainvoke(
-                {"command": "ls -la", "reason": "verify emit failure isolation"}
-            )
+            await tool.ainvoke({"command": "ls -la", "reason": "verify emit failure isolation"})
 
     assert str(exc_info.value) == "ValueError: bad row 150"
 
@@ -314,9 +300,7 @@ async def test_bash_tool_success_emits_stderr_evicted_ref() -> None:
             "myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref",
             new=AsyncMock(),
         ) as mock_emit:
-            await tool.ainvoke(
-                {"command": "ls -la", "reason": "verify success-path stderr emit"}
-            )
+            await tool.ainvoke({"command": "ls -la", "reason": "verify success-path stderr emit"})
 
     mock_emit.assert_awaited_once()
     call = mock_emit.await_args

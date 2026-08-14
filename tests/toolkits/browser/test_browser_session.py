@@ -732,18 +732,14 @@ async def test_ensure_components_direct_call() -> None:
     finally:
         await pool.shutdown()
 
+
 @pytest.mark.asyncio
 async def test_restart_with_storage_state(browser_session: BrowserSession) -> None:
     """Test restart with storage state migration via add_init_script."""
     # Setup mock storage state
     mock_storage_state = {
         "cookies": [{"name": "test", "value": "123", "domain": "example.com", "path": "/"}],
-        "origins": [
-            {
-                "origin": "https://example.com",
-                "localStorage": [{"name": "key1", "value": "val1"}]
-            }
-        ]
+        "origins": [{"origin": "https://example.com", "localStorage": [{"name": "key1", "value": "val1"}]}],
     }
 
     # We need to mock the page context to return the storage state

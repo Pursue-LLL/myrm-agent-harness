@@ -242,7 +242,7 @@ class TestSqlGuardE2E:
             "psql -c 'TRUNCATE TABLE logs'",
             "sqlite3 test.db 'DROP TABLE data'",
             'psql -c "ALTER TABLE users DROP COLUMN email"',
-            'mysql -e "INSERT INTO admin VALUES (1, \'hacker\')"',
+            "mysql -e \"INSERT INTO admin VALUES (1, 'hacker')\"",
         ],
     )
     def test_destructive_sql_triggers_ask(self, cmd: str) -> None:

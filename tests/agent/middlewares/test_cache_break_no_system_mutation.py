@@ -33,9 +33,7 @@ class TestSystemPromptHashStability:
         ]
         hash_after = _compute_system_prompt_hash(with_extra)
 
-        assert hash_before == hash_after, (
-            "Adding HumanMessage should not change system prompt hash"
-        )
+        assert hash_before == hash_after, "Adding HumanMessage should not change system prompt hash"
 
     def test_system_hash_changes_with_system_message(self) -> None:
         base = [SystemMessage(content="core prompt"), HumanMessage(content="hello")]
@@ -225,5 +223,3 @@ class TestBudgetBoundaryIdempotency:
         ]
 
         assert _has_budget_hint(messages) is False
-
-

@@ -93,9 +93,7 @@ def store_clip_assets(
     skipped = 0
     failed = 0
     for item in assets[:_MAX_CLIP_ASSETS]:
-        filename = store_asset_bytes(
-            structure, data=item.data, content_type=item.content_type
-        )
+        filename = store_asset_bytes(structure, data=item.data, content_type=item.content_type)
         if filename is None:
             failed += 1
             continue
@@ -104,9 +102,7 @@ def store_clip_assets(
             continue
         url_to_filename[item.source_url] = filename
         stored += 1
-    return url_to_filename, IngressAssetStats(
-        stored=stored, skipped=skipped, failed=failed
-    )
+    return url_to_filename, IngressAssetStats(stored=stored, skipped=skipped, failed=failed)
 
 
 async def localize_public_markdown_images(
@@ -131,11 +127,7 @@ async def localize_public_markdown_images(
             break
         resolved = raw_ref
         if not raw_ref.startswith(("http://", "https://")):
-            if (
-                raw_ref.startswith("../")
-                or raw_ref.startswith("wiki/assets/")
-                or "/wiki/assets/" in raw_ref
-            ):
+            if raw_ref.startswith("../") or raw_ref.startswith("wiki/assets/") or "/wiki/assets/" in raw_ref:
                 continue
             if base_url:
                 from urllib.parse import urljoin
@@ -155,13 +147,9 @@ async def localize_public_markdown_images(
             if response.status_code != 200:
                 failed += 1
                 continue
-            content_type = response.headers.get(
-                "content-type", "application/octet-stream"
-            )
+            content_type = response.headers.get("content-type", "application/octet-stream")
             data = response.content
-            filename = store_asset_bytes(
-                structure, data=data, content_type=content_type
-            )
+            filename = store_asset_bytes(structure, data=data, content_type=content_type)
             if filename is None:
                 failed += 1
                 continue
@@ -177,9 +165,7 @@ async def localize_public_markdown_images(
             failed += 1
     if not url_to_filename:
         return markdown, IngressAssetStats(stored=0, skipped=0, failed=failed)
-    rewritten = rewrite_markdown_asset_refs(
-        markdown, url_to_filename, raw_relative=raw_relative
-    )
+    rewritten = rewrite_markdown_asset_refs(markdown, url_to_filename, raw_relative=raw_relative)
     return rewritten, IngressAssetStats(stored=stored, skipped=skipped, failed=failed)
 
 

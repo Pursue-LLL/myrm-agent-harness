@@ -154,9 +154,7 @@ class FusionPipeline:
 
             query_indexed_results[query] = query_global_results
 
-        logger.info(
-            f"Global index mapping: {len(all_documents)} unique documents (strategy: {self.dedup_strategy})"
-        )
+        logger.info(f"Global index mapping: {len(all_documents)} unique documents (strategy: {self.dedup_strategy})")
         self._all_documents = all_documents
 
         return query_indexed_results

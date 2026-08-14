@@ -133,9 +133,7 @@ async def test_scroll_careful_rhythm_moves_page_real(
         assert "Scrolled 300px" in result
         scroll_y = await page.evaluate("window.scrollY")
         # Overshoot + correction may overshoot slightly past 300; must have moved.
-        assert (
-            scroll_y >= 150
-        ), f"CAREFUL rhythm did not move the page: scrollY={scroll_y}"
+        assert scroll_y >= 150, f"CAREFUL rhythm did not move the page: scrollY={scroll_y}"
     finally:
         await browser.release_page(page, ctx)
 
@@ -151,12 +149,10 @@ async def test_scroll_to_bottom_reaches_end_real(browser: GlobalBrowserPool) -> 
         result = await interactor.interact("scroll_to_bottom", "e0", "")
 
         scroll_y = await page.evaluate("window.scrollY")
-        max_scroll = await page.evaluate(
-            "(document.documentElement.scrollHeight - window.innerHeight)"
+        max_scroll = await page.evaluate("(document.documentElement.scrollHeight - window.innerHeight)")
+        assert scroll_y >= max_scroll - 50, (
+            f"scroll_to_bottom did not reach the end: scrollY={scroll_y}, max={max_scroll}\n{result}"
         )
-        assert (
-            scroll_y >= max_scroll - 50
-        ), f"scroll_to_bottom did not reach the end: scrollY={scroll_y}, max={max_scroll}\n{result}"
     finally:
         await browser.release_page(page, ctx)
 
@@ -199,9 +195,7 @@ async def test_careful_click_off_viewport_lands_real(
 
         assert "Clicked e0" in result, result
         clicked = await page.evaluate("document.getElementById('deep').dataset.clicked")
-        assert (
-            clicked == "1"
-        ), "CAREFUL click on an off-viewport target must actually land"
+        assert clicked == "1", "CAREFUL click on an off-viewport target must actually land"
     finally:
         await browser.release_page(page, ctx)
 
@@ -220,13 +214,9 @@ async def test_careful_click_nested_scroll_container_real(
 
         assert "Clicked e0" in result, result
         clicked = await page.evaluate("document.getElementById('deep').dataset.clicked")
-        scroller_top = await page.evaluate(
-            "document.getElementById('scroller').scrollTop"
-        )
+        scroller_top = await page.evaluate("document.getElementById('scroller').scrollTop")
         assert clicked == "1", "CAREFUL click must land inside the nested container"
-        assert (
-            scroller_top > 0
-        ), "the nested #scroller itself must have been wheel-scrolled"
+        assert scroller_top > 0, "the nested #scroller itself must have been wheel-scrolled"
     finally:
         await browser.release_page(page, ctx)
 
@@ -249,12 +239,9 @@ async def test_careful_click_same_origin_iframe_real(
 
         assert "Clicked f1_e0" in result, result
         clicked = await page.evaluate(
-            "document.getElementById('f').contentDocument"
-            ".getElementById('deep').dataset.clicked"
+            "document.getElementById('f').contentDocument.getElementById('deep').dataset.clicked"
         )
-        iframe_top = await page.evaluate(
-            "document.getElementById('f').contentDocument.scrollingElement.scrollTop"
-        )
+        iframe_top = await page.evaluate("document.getElementById('f').contentDocument.scrollingElement.scrollTop")
         assert clicked == "1", "CAREFUL click must land inside the iframe"
         assert iframe_top > 0, "the iframe body itself must have been wheel-scrolled"
     finally:
@@ -282,9 +269,7 @@ async def test_careful_click_locked_scroll_never_silent_real(
             result = f"raised: {type(exc).__name__}"
 
         clicked = await page.evaluate("document.getElementById('deep').dataset.clicked")
-        assert clicked == "1" or result.startswith(
-            "raised:"
-        ), f"silent miss on locked scroll: {result}"
+        assert clicked == "1" or result.startswith("raised:"), f"silent miss on locked scroll: {result}"
     finally:
         await browser.release_page(page, ctx)
 
@@ -311,9 +296,7 @@ async def test_scroll_negative_delta_scrolls_up_real(
         result = await interactor.interact("scroll", "e0", "-200")
         assert "Scrolled -200px" in result, result
         top_after = await page.evaluate("window.scrollY")
-        assert (
-            top_after < top_before
-        ), f"negative delta must scroll up: before={top_before}, after={top_after}"
+        assert top_after < top_before, f"negative delta must scroll up: before={top_before}, after={top_after}"
     finally:
         await browser.release_page(page, ctx)
 
@@ -442,8 +425,7 @@ async def test_interact_at_dblclick_real(browser: GlobalBrowserPool) -> None:
     )
     try:
         await page.evaluate(
-            "window.__dbl=0;"
-            "document.getElementById('deep').addEventListener('dblclick',()=>window.__dbl++,true);"
+            "window.__dbl=0;document.getElementById('deep').addEventListener('dblclick',()=>window.__dbl++,true);"
         )
         interactor = _interactor(page, HumanizeMode.CAREFUL)
         result = await interactor.interact_at("dblclick", 260, 225)
@@ -475,9 +457,7 @@ async def test_interact_at_drag_real(browser: GlobalBrowserPool) -> None:
             "dst.addEventListener('mouseup',()=>window.__events.push('dst-up'),true);"
         )
         interactor = _interactor(page, HumanizeMode.CAREFUL)
-        result = await interactor.interact_at(
-            "drag", 150, 160, target_x=450, target_y=160
-        )
+        result = await interactor.interact_at("drag", 150, 160, target_x=450, target_y=160)
 
         assert "Dragged from (150, 160)" in result, result
         events = await page.evaluate("window.__events")

@@ -30,8 +30,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _SQLALCHEMY_INSTALL_HINT = (
-    "sqlalchemy is required for StatefulMigrationEngine. "
-    "Install with: pip install sqlalchemy  # or uv sync --group dev"
+    "sqlalchemy is required for StatefulMigrationEngine. Install with: pip install sqlalchemy  # or uv sync --group dev"
 )
 
 

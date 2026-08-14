@@ -56,9 +56,7 @@ logger = logging.getLogger(__name__)
 MOA_OVERLAY_SKIP_BUDGET_PRESSURE = "budget_pressure"
 MOA_OVERLAY_SKIP_INSUFFICIENT_REFS = "insufficient_refs"
 
-_moa_budget_skip_notified_var: ContextVar[bool] = ContextVar(
-    "moa_budget_skip_notified", default=False
-)
+_moa_budget_skip_notified_var: ContextVar[bool] = ContextVar("moa_budget_skip_notified", default=False)
 
 
 def _budget_pressure_active() -> bool:
@@ -74,9 +72,7 @@ def _budget_pressure_active() -> bool:
         return False
 
 
-async def _emit_ref_done(
-    ref_model: str, *, success: bool, elapsed: float, content: str | None
-) -> None:
+async def _emit_ref_done(ref_model: str, *, success: bool, elapsed: float, content: str | None) -> None:
     from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
 
     sink = get_tool_progress_sink()
@@ -198,10 +194,7 @@ def create_moa_advisor_middleware(
             )
             return await handler(request)
 
-        inject_refs = [
-            apply_privacy_to_ref(r, inject_privacy_mode(privacy_mode))
-            for r in successful
-        ]
+        inject_refs = [apply_privacy_to_ref(r, inject_privacy_mode(privacy_mode)) for r in successful]
         injection = build_advisor_injection_block(inject_refs)
         if not injection:
             return await handler(request)

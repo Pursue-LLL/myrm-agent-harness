@@ -17,9 +17,7 @@ class MockEventLogBackend:
     def __init__(self, events: list[StructuredEvent]):
         self.events = events
 
-    async def get_events(
-        self, session_id: str, event_filter: Any = None
-    ) -> list[StructuredEvent]:
+    async def get_events(self, session_id: str, event_filter: Any = None) -> list[StructuredEvent]:
         # Simple mock that just returns the events
         return self.events
 

@@ -22,7 +22,9 @@ class TestApprovalWorkflow:
     @pytest.mark.asyncio
     async def test_submit_pending_new_memory(self, mock_relational_store, memory_config):
         """Test submitting a new memory for approval."""
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         memory = SemanticMemory(content="New fact to approve")
         pending_id = await manager.submit_pending(memory)
@@ -36,7 +38,9 @@ class TestApprovalWorkflow:
         """Test submitting duplicate pending memory returns empty string."""
         mock_relational_store.pending_exists.return_value = True
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         memory = SemanticMemory(content="Duplicate fact")
         pending_id = await manager.submit_pending(memory)
@@ -60,7 +64,10 @@ class TestApprovalWorkflow:
         mock_relational_store.get_pending.return_value = pending_record
         mock_vector_store.upsert.return_value = ["mem-1"]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             relational=mock_relational_store,
             embedding=mock_embedding,
             approval_required=True,
@@ -85,7 +92,9 @@ class TestApprovalWorkflow:
         )
         mock_relational_store.get_pending.return_value = pending_record
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         result = await manager.approve("pending-1")
 
@@ -99,7 +108,9 @@ class TestApprovalWorkflow:
         """Test approving non-existent pending memory raises error."""
         mock_relational_store.get_pending.return_value = None
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         with pytest.raises(MemoryNotFoundError, match="Pending record pending-1 not found"):
             await manager.approve("pending-1")
@@ -107,7 +118,9 @@ class TestApprovalWorkflow:
     @pytest.mark.asyncio
     async def test_reject_pending_memory(self, mock_relational_store, memory_config):
         """Test rejecting a pending memory."""
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         await manager.reject("pending-1")
 
@@ -128,7 +141,9 @@ class TestApprovalWorkflow:
         ]
         mock_relational_store.list_pending.return_value = pending_list
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         result = await manager.list_pending(limit=50)
 
@@ -140,7 +155,9 @@ class TestApprovalWorkflow:
         """Test counting pending memories."""
         mock_relational_store.count_pending.return_value = 5
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         count = await manager.count_pending()
 
@@ -163,7 +180,10 @@ class TestApprovalWorkflow:
         mock_relational_store.get_pending.return_value = pending_record
         mock_vector_store.upsert.return_value = ["mem-1"]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             relational=mock_relational_store,
             embedding=mock_embedding,
             approval_required=True,
@@ -195,7 +215,10 @@ class TestApprovalWorkflow:
         mock_relational_store.get_pending.side_effect = mock_get_pending
         mock_vector_store.upsert.return_value = ["mem-1"]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             relational=mock_relational_store,
             embedding=mock_embedding,
             approval_required=True,
@@ -210,7 +233,9 @@ class TestApprovalWorkflow:
     @pytest.mark.asyncio
     async def test_batch_reject(self, mock_relational_store, memory_config):
         """Test batch rejection of pending memories."""
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         count = await manager.batch_reject(["p1", "p2", "p3"])
 

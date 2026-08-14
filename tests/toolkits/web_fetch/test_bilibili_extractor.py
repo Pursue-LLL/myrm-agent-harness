@@ -90,9 +90,7 @@ class TestOpenersAndApi:
             bo.assert_called_once_with()
 
     def test_build_opener_with_proxy(self) -> None:
-        proxy = SimpleNamespace(
-            get_next=lambda: SimpleNamespace(to_url=lambda: "http://127.0.0.1:8888")
-        )
+        proxy = SimpleNamespace(get_next=lambda: SimpleNamespace(to_url=lambda: "http://127.0.0.1:8888"))
         with patch(
             "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor.urllib.request.build_opener"
         ) as bo:
@@ -257,9 +255,7 @@ class TestExtractSubtitle:
     def test_zero_cid_returns_none(self) -> None:
         with patch(
             "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._fetch_video_metadata",
-            new=AsyncMock(
-                return_value={"cid": 0, "duration": 0, "title": "", "author_name": ""}
-            ),
+            new=AsyncMock(return_value={"cid": 0, "duration": 0, "title": "", "author_name": ""}),
         ):
             assert self._run(extract_bilibili_subtitle(BILIBILI_URL)) is None
 

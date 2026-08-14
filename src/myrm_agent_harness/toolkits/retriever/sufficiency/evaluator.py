@@ -78,7 +78,8 @@ def _parse_verdict(raw_text: str, config: SufficiencyConfig) -> SufficiencyVerdi
     if confidence < config.confidence_threshold:
         logger.debug(
             "RSG: Evaluator confidence %.2f below threshold %.2f, discarding verdict",
-            confidence, config.confidence_threshold,
+            confidence,
+            config.confidence_threshold,
         )
         return _FALLBACK_SUFFICIENT
 

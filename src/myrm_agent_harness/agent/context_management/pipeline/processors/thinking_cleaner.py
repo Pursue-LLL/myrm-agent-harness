@@ -68,10 +68,7 @@ def _has_content_thinking_blocks(msg: AIMessage) -> bool:
     content = msg.content
     if not isinstance(content, list):
         return False
-    return any(
-        isinstance(b, dict) and b.get("type") in _THINKING_CONTENT_TYPES
-        for b in content
-    )
+    return any(isinstance(b, dict) and b.get("type") in _THINKING_CONTENT_TYPES for b in content)
 
 
 class ThinkingBlockCleaner(BaseProcessor):
@@ -125,8 +122,7 @@ class ThinkingBlockCleaner(BaseProcessor):
                 content = msg.content
                 if isinstance(content, list):
                     new_content = [
-                        b for b in content
-                        if not (isinstance(b, dict) and b.get("type") in _THINKING_CONTENT_TYPES)
+                        b for b in content if not (isinstance(b, dict) and b.get("type") in _THINKING_CONTENT_TYPES)
                     ]
                     if len(new_content) != len(content):
                         dropped_count = len(content) - len(new_content)

@@ -132,9 +132,7 @@ async def test_safety_refusal_full_pipeline_real_tracker(finish_reason: str) -> 
     await executor._compactor.flush()
     events = _drain_queue(ctx.output_queue)
     safety_events = _find_safety_events(events)
-    assert len(safety_events) >= 1, (
-        f"expected safety_fallback_active event in output_queue, got events: {events}"
-    )
+    assert len(safety_events) >= 1, f"expected safety_fallback_active event in output_queue, got events: {events}"
     assert safety_events[0].get("error_kind") == "safety_block"
     assert safety_events[0].get("fallback_model") == "safety-backup-model"
 
@@ -351,6 +349,7 @@ async def test_fallback_model_name_resolution_chain() -> None:
 
     class _LLMWithModelAttr:
         """LLM that only has `model` attribute, not `model_name`."""
+
         model = "gemini-safety-fallback"
 
     safety_llm = _LLMWithModelAttr()

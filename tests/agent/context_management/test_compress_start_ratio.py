@@ -146,9 +146,7 @@ class TestAgentContextExtraction:
     """Test compress_start_ratio extraction from runtime context."""
 
     def test_from_dict_with_ratio(self) -> None:
-        ctx = AgentContext.from_dict(
-            {"chat_id": "test", "max_context_tokens": 128000, "compress_start_ratio": 0.6}
-        )
+        ctx = AgentContext.from_dict({"chat_id": "test", "max_context_tokens": 128000, "compress_start_ratio": 0.6})
         assert ctx.compress_start_ratio == 0.6
         assert ctx.max_context_tokens == 128000
 
@@ -172,7 +170,11 @@ class TestExtractContextFromRequest:
 
     def test_extracts_ratio_from_mapping_context(self) -> None:
         class MockRuntime:
-            context: ClassVar[dict[str, object]] = {"chat_id": "abc", "max_context_tokens": 200000, "compress_start_ratio": 0.7}
+            context: ClassVar[dict[str, object]] = {
+                "chat_id": "abc",
+                "max_context_tokens": 200000,
+                "compress_start_ratio": 0.7,
+            }
 
         class MockRequest:
             runtime = MockRuntime()

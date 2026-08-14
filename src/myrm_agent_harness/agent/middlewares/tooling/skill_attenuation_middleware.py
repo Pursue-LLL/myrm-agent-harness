@@ -34,11 +34,11 @@ from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
-from myrm_agent_harness.agent.middlewares.tooling._runtime_tool_governance import (
-    compute_turn_allowed_names,
-)
 from myrm_agent_harness.agent.middlewares._session_context import (
     set_turn_allowed_tool_names,
+)
+from myrm_agent_harness.agent.middlewares.tooling._runtime_tool_governance import (
+    compute_turn_allowed_names,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
@@ -67,9 +67,7 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
         request = self._apply_turn_tool_policy(request)
         return await handler(request)
 
-    def _apply_turn_tool_policy(
-        self, request: ModelRequest[object]
-    ) -> ModelRequest[object]:
+    def _apply_turn_tool_policy(self, request: ModelRequest[object]) -> ModelRequest[object]:
         from myrm_agent_harness.agent.middlewares.tooling._skill_tool_choice import (
             build_allowed_tools_tool_choice,
             extract_bound_tool_names,
@@ -96,10 +94,7 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
             return request
 
         if not final_allowed:
-            logger.info(
-                " SkillAttenuationMiddleware block-all turn policy active "
-                "(execution-layer enforcement only)"
-            )
+            logger.info(" SkillAttenuationMiddleware block-all turn policy active (execution-layer enforcement only)")
             return request
 
         llm = getattr(request, "model", None)
@@ -107,9 +102,7 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
         api_base = getattr(llm, "api_base", None)
         model_id = str(model_name) if model_name else None
 
-        if not model_supports_allowed_tools_tool_choice(
-            model_id, api_base=str(api_base or "")
-        ):
+        if not model_supports_allowed_tools_tool_choice(model_id, api_base=str(api_base or "")):
             logger.info(
                 " SkillAttenuationMiddleware skipped allowed_tools model-layer hint "
                 "(model=%s); execution-layer policy remains active",
@@ -126,9 +119,7 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
             tool_choice=build_allowed_tools_tool_choice(final_allowed),
         )
 
-    def _resolve_dynamic_tool_request(
-        self, request: ToolCallRequest
-    ) -> ToolCallRequest:
+    def _resolve_dynamic_tool_request(self, request: ToolCallRequest) -> ToolCallRequest:
         """Resolve dynamic BaseTool instances for ToolNode when not pre-bound."""
         if request.tool is not None:
             return request

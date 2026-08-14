@@ -43,9 +43,7 @@ def mock_vector_store():
     return store
 
 
-def create_vector_doc(
-    doc_id: str, content: str, user_id: str = "local"
-) -> VectorDocument:
+def create_vector_doc(doc_id: str, content: str, user_id: str = "local") -> VectorDocument:
     """Helper to create VectorDocument."""
     return VectorDocument(
         id=doc_id,
@@ -86,16 +84,12 @@ class TestSearchBM25:
 
         assert len(results) > 0
         assert all(isinstance(r, MemorySearchResult) for r in results)
-        assert all(
-            r.memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) for r in results
-        )
+        assert all(r.memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) for r in results)
         assert results[0].score > 0
         assert mock_vector_store.scroll.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_auto_degradation_exceeds_threshold(
-        self, mock_vector_store, memory_config
-    ):
+    async def test_auto_degradation_exceeds_threshold(self, mock_vector_store, memory_config):
         """Test auto-degradation when corpus size exceeds threshold."""
         sem_docs = [create_vector_doc(f"s{i}", f"Doc {i}") for i in range(3000)]
         epi_docs = [create_vector_doc(f"e{i}", f"Event {i}") for i in range(2500)]
@@ -106,9 +100,7 @@ class TestSearchBM25:
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_auto_degradation_empty_memory(
-        self, mock_vector_store, memory_config
-    ):
+    async def test_auto_degradation_empty_memory(self, mock_vector_store, memory_config):
         """Test auto-degradation when memory is empty."""
         mock_vector_store.scroll.side_effect = [([], None), ([], None)]
 
@@ -163,9 +155,7 @@ class TestSearchBM25:
         assert len(episodic_results) >= 0
 
     @pytest.mark.asyncio
-    async def test_only_relevant_results_returned(
-        self, mock_vector_store, memory_config
-    ):
+    async def test_only_relevant_results_returned(self, mock_vector_store, memory_config):
         """Test that only_relevant=True filters out zero-score results."""
 
         sem_docs = [
@@ -198,12 +188,8 @@ class TestSearchBM25:
     async def test_respects_bm25_top_k_limit(self, mock_vector_store, memory_config):
         """Test that results respect bm25_top_k configuration."""
 
-        sem_docs = [
-            create_vector_doc(f"sem{i}", f"Document {i} content") for i in range(100)
-        ]
-        epi_docs = [
-            create_vector_doc(f"epi{i}", f"Event {i} content") for i in range(50)
-        ]
+        sem_docs = [create_vector_doc(f"sem{i}", f"Document {i} content") for i in range(100)]
+        epi_docs = [create_vector_doc(f"epi{i}", f"Event {i} content") for i in range(50)]
 
         mock_vector_store.scroll.side_effect = [(sem_docs, None), (epi_docs, None)]
 
@@ -234,9 +220,7 @@ class TestMemoryManagerBM25Integration:
         )
 
     @pytest.mark.asyncio
-    async def test_bm25_channel_added_to_search(
-        self, memory_manager, mock_vector_store, mock_embedding
-    ):
+    async def test_bm25_channel_added_to_search(self, memory_manager, mock_vector_store, mock_embedding):
         """Test that BM25 channel is automatically added to search coroutines."""
         mock_vector_store.scroll.side_effect = [
             ([create_vector_doc("1", "Test content")], None),
@@ -250,25 +234,19 @@ class TestMemoryManagerBM25Integration:
         assert mock_embedding.embed.called
 
     @pytest.mark.asyncio
-    async def test_bm25_not_called_without_vector_types(
-        self, memory_manager, mock_vector_store
-    ):
+    async def test_bm25_not_called_without_vector_types(self, memory_manager, mock_vector_store):
         """Test BM25 is not called when no vector-based memory types are requested."""
         mock_relational = AsyncMock()
         mock_relational.list_profiles.return_value = []
 
-        manager = MemoryManager(
-            memory_manager.config, user_id="test_user", relational=mock_relational
-        )
+        manager = MemoryManager(memory_manager.config, user_id="test_user", relational=mock_relational)
 
         await manager.search("test query", memory_types=[MemoryType.PROFILE])
 
         assert mock_vector_store.count.call_count == 0
 
     @pytest.mark.asyncio
-    async def test_rrf_fusion_with_bm25_and_vector(
-        self, memory_manager, mock_vector_store, mock_embedding
-    ):
+    async def test_rrf_fusion_with_bm25_and_vector(self, memory_manager, mock_vector_store, mock_embedding):
         """Test that RRF fusion combines BM25 and Vector results."""
 
         sem_docs = [
@@ -296,21 +274,15 @@ class TestMemoryManagerBM25Integration:
         assert mock_embedding.embed.called
 
     @pytest.mark.asyncio
-    async def test_bm25_exception_handled_gracefully(
-        self, memory_manager, mock_vector_store, mock_embedding
-    ):
+    async def test_bm25_exception_handled_gracefully(self, memory_manager, mock_vector_store, mock_embedding):
         """Test that BM25 exceptions are caught and logged without breaking search."""
         mock_vector_store.scroll.side_effect = Exception("Database connection failed")
 
         mock_vector_store.search.return_value = [
-            VectorSearchHit(
-                document=create_vector_doc("1", "Fallback result"), score=0.9
-            )
+            VectorSearchHit(document=create_vector_doc("1", "Fallback result"), score=0.9)
         ]
 
-        results = await memory_manager.search(
-            "test query", memory_types=[MemoryType.SEMANTIC]
-        )
+        results = await memory_manager.search("test query", memory_types=[MemoryType.SEMANTIC])
 
         assert isinstance(results, list)
 
@@ -327,9 +299,7 @@ class TestMemoryManagerBM25Integration:
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_normal_operation_below_threshold(
-        self, mock_vector_store, memory_config
-    ):
+    async def test_normal_operation_below_threshold(self, mock_vector_store, memory_config):
         """Test normal BM25 operation when corpus size is below threshold."""
         sem_docs = [create_vector_doc("1", "Test content")]
         epi_docs = []
@@ -420,9 +390,7 @@ class TestMemoryManagerBM25Integration:
 
         mock_vector_store.scroll.side_effect = [(sem_docs, None), (epi_docs, None)]
 
-        results = await search_bm25(
-            "FastAPI framework", mock_vector_store, memory_config
-        )
+        results = await search_bm25("FastAPI framework", mock_vector_store, memory_config)
 
         assert len(results) > 0
         assert any("FastAPI" in r.memory.content for r in results)
@@ -468,9 +436,7 @@ class TestBM25Configuration:
 
     def test_custom_bm25_config_values(self):
         """Test custom BM25 configuration values."""
-        config = MemoryConfig(
-            embedding_model="test-model", bm25_top_k=100, bm25_max_corpus_size=10000
-        )
+        config = MemoryConfig(embedding_model="test-model", bm25_top_k=100, bm25_max_corpus_size=10000)
 
         assert config.bm25_top_k == 100
         assert config.bm25_max_corpus_size == 10000
@@ -556,9 +522,7 @@ class TestBM25PerformanceCharacteristics:
     """Test performance-related behaviors."""
 
     @pytest.mark.asyncio
-    async def test_degradation_logged_with_warning(
-        self, mock_vector_store, memory_config, caplog
-    ):
+    async def test_degradation_logged_with_warning(self, mock_vector_store, memory_config, caplog):
         """Test that auto-degradation logs a warning message."""
         import logging
 
@@ -576,12 +540,8 @@ class TestBM25PerformanceCharacteristics:
     @pytest.mark.asyncio
     async def test_large_corpus_near_threshold(self, mock_vector_store, memory_config):
         """Test performance with corpus size near threshold."""
-        large_sem_docs = [
-            create_vector_doc(f"sem{i}", f"Content {i}") for i in range(2500)
-        ]
-        large_epi_docs = [
-            create_vector_doc(f"epi{i}", f"Event {i}") for i in range(2499)
-        ]
+        large_sem_docs = [create_vector_doc(f"sem{i}", f"Content {i}") for i in range(2500)]
+        large_epi_docs = [create_vector_doc(f"epi{i}", f"Event {i}") for i in range(2499)]
 
         mock_vector_store.scroll.side_effect = [
             (large_sem_docs, None),

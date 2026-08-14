@@ -9,12 +9,7 @@ from myrm_agent_harness.agent.skills.evolution.utils.enhanced_schema import (
 
 
 def test_skill_trap_dataclass():
-    trap = SkillTrap(
-        description="desc",
-        severity="high",
-        trigger_condition="trig",
-        mitigation="mitig"
-    )
+    trap = SkillTrap(description="desc", severity="high", trigger_condition="trig", mitigation="mitig")
     assert trap.description == "desc"
     assert trap.severity == "high"
     assert trap.trigger_condition == "trig"
@@ -22,19 +17,16 @@ def test_skill_trap_dataclass():
     assert trap.discovered_at is None
     assert trap.occurrence_count == 0
 
+
 def test_verification_step_dataclass():
-    step = VerificationStep(
-        step_id="step1",
-        description="desc",
-        expected_output="output",
-        validation_method="method"
-    )
+    step = VerificationStep(step_id="step1", description="desc", expected_output="output", validation_method="method")
     assert step.step_id == "step1"
     assert step.description == "desc"
     assert step.expected_output == "output"
     assert step.validation_method == "method"
     assert step.is_required is True
     assert step.timeout_seconds == 30.0
+
 
 def test_get_trap_description_existing():
     trap_key = "npm_install_timeout"
@@ -47,15 +39,18 @@ def test_get_trap_description_existing():
     assert trap.trigger_condition in desc
     assert trap.mitigation in desc
 
+
 def test_get_trap_description_non_existing():
     desc = get_trap_description("invalid_trap_key_xyz")
     assert desc == ""
+
 
 def test_get_trap_description_all_severities():
     # just checking that it doesn't crash on different severities
     for trap_key in COMMON_TRAPS:
         desc = get_trap_description(trap_key)
         assert desc != ""
+
 
 def test_get_verification_description_existing():
     ver_key = "output_non_empty"
@@ -68,9 +63,11 @@ def test_get_verification_description_existing():
     assert ver.expected_output in desc
     assert ver.validation_method in desc
 
+
 def test_get_verification_description_non_existing():
     desc = get_verification_description("invalid_ver_key_xyz")
     assert desc == ""
+
 
 def test_get_verification_description_all():
     # just checking that it doesn't crash on different requirements

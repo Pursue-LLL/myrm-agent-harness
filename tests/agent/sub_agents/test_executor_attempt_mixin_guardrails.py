@@ -36,10 +36,13 @@ async def test_run_single_attempt_cancel_flag_exits(executor: SubagentExecutor, 
 
     child_agent.run = mock_run
 
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
-        return_value=child_agent,
-    ), pytest.raises(asyncio.CancelledError):
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=child_agent,
+        ),
+        pytest.raises(asyncio.CancelledError),
+    ):
         await executor._run_single_attempt(
             task_id="cancel-me",
             agent_type="browser",
@@ -73,10 +76,13 @@ async def test_run_single_attempt_raises_on_child_error_event(
 
     child_agent.run = mock_run
 
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
-        return_value=child_agent,
-    ), pytest.raises(MyrmLLMError, match="Subagent error"):
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=child_agent,
+        ),
+        pytest.raises(MyrmLLMError, match="Subagent error"),
+    ):
         await executor._run_single_attempt(
             task_id="err",
             agent_type="browser",
@@ -116,15 +122,19 @@ async def test_run_single_attempt_pending_approval_interrupt(
     state = MagicMock(next=True, tasks=[task])
     child_agent.checkpointer = MagicMock(aget=AsyncMock(return_value=state))
 
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
-        return_value=child_agent,
-    ), patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate",
-        return_value="done",
-    ), patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state",
-        return_value=None,
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate",
+            return_value="done",
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state",
+            return_value=None,
+        ),
     ):
         result = await executor._run_single_attempt(
             task_id="approve",
@@ -148,9 +158,7 @@ async def test_run_single_attempt_pending_approval_interrupt(
 
 
 @pytest.mark.asyncio
-async def test_run_single_attempt_swarm_fission_yield(
-    executor: SubagentExecutor, basic_config: SubagentConfig
-) -> None:
+async def test_run_single_attempt_swarm_fission_yield(executor: SubagentExecutor, basic_config: SubagentConfig) -> None:
     parent_agent = MagicMock()
     parent_agent._subagent_manager = None
     parent_agent._last_context = {}
@@ -168,15 +176,19 @@ async def test_run_single_attempt_swarm_fission_yield(
     state = MagicMock(next=True, tasks=[task])
     child_agent.checkpointer = MagicMock(aget=AsyncMock(return_value=state))
 
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
-        return_value=child_agent,
-    ), patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate",
-        return_value="yield",
-    ), patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state",
-        return_value=None,
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate",
+            return_value="yield",
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state",
+            return_value=None,
+        ),
     ):
         result = await executor._run_single_attempt(
             task_id="fission",
@@ -222,17 +234,22 @@ async def test_run_single_attempt_strips_handover_block(
 
     handover = AgentHandoverState(task_completed=["x"], pending_todos=[], risks_or_notes=[], relevant_files=[])
 
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
-        return_value=child_agent,
-    ), patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate",
-        side_effect=lambda text, *args, **kwargs: text,
-    ), patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state",
-        return_value=handover,
-    ), patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats",
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate",
+            side_effect=lambda text, *args, **kwargs: text,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state",
+            return_value=handover,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats",
+        ),
     ):
         result = await executor._run_single_attempt(
             task_id="handover",

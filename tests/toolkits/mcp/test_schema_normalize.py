@@ -35,9 +35,7 @@ def test_canonicalize_sorts_required_array():
 def test_canonicalize_preserves_enum_order():
     """``enum`` values carry semantic ordering — must NOT be sorted."""
     schema = {
-        "properties": {
-            "mode": {"enum": ["fast", "balanced", "thorough"], "type": "string"}
-        },
+        "properties": {"mode": {"enum": ["fast", "balanced", "thorough"], "type": "string"}},
         "type": "object",
     }
     canonical = canonicalize_schema_for_cache(schema)
@@ -93,9 +91,7 @@ def test_canonicalize_different_key_order_same_result():
         "properties": {"repo": {"type": "string"}},
         "type": "object",
     }
-    assert json.dumps(canonicalize_schema_for_cache(schema_a)) == json.dumps(
-        canonicalize_schema_for_cache(schema_b)
-    )
+    assert json.dumps(canonicalize_schema_for_cache(schema_a)) == json.dumps(canonicalize_schema_for_cache(schema_b))
 
 
 def test_canonicalize_scalars_passthrough():
@@ -243,9 +239,7 @@ def test_canonicalize_mixed_real_world_schema():
 def test_flatten_json_schema_basic():
     schema = {
         "properties": {"user": {"$ref": "#/definitions/User"}},
-        "definitions": {
-            "User": {"type": "object", "properties": {"name": {"type": "string"}}}
-        },
+        "definitions": {"User": {"type": "object", "properties": {"name": {"type": "string"}}}},
     }
 
     flattened = flatten_json_schema(schema)
@@ -656,9 +650,7 @@ def test_flatten_json_schema_valid_ref_still_resolves():
     schema = {
         "type": "object",
         "properties": {"addr": {"$ref": "#/$defs/Addr"}},
-        "$defs": {
-            "Addr": {"type": "object", "properties": {"street": {"type": "string"}}}
-        },
+        "$defs": {"Addr": {"type": "object", "properties": {"street": {"type": "string"}}}},
     }
     flattened = flatten_json_schema(schema)
     assert "$ref" not in str(flattened)
@@ -670,11 +662,7 @@ def test_flatten_json_schema_openapi_components_schemas():
     schema = {
         "type": "object",
         "properties": {"user": {"$ref": "#/components/schemas/User"}},
-        "components": {
-            "schemas": {
-                "User": {"type": "object", "properties": {"name": {"type": "string"}}}
-            }
-        },
+        "components": {"schemas": {"User": {"type": "object", "properties": {"name": {"type": "string"}}}}},
     }
     flattened = flatten_json_schema(schema)
     assert "$ref" not in str(flattened)
@@ -709,9 +697,7 @@ def test_flatten_json_schema_nested_path_in_definitions():
     schema = {
         "type": "object",
         "properties": {"field": {"$ref": "#/definitions/Foo/properties/bar"}},
-        "definitions": {
-            "Foo": {"type": "object", "properties": {"bar": {"type": "string"}}}
-        },
+        "definitions": {"Foo": {"type": "object", "properties": {"bar": {"type": "string"}}}},
     }
     flattened = flatten_json_schema(schema)
     assert "$ref" not in str(flattened)

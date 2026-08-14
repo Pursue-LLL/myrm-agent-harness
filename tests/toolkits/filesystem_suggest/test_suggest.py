@@ -34,4 +34,3 @@ def test_directory_kind_filters_files(tmp_path):
     results = suggest_workspace_paths(tmp_path, "src/", WorkspaceSuggestionOptions(kind="directory"))
 
     assert [item.relative_path for item in results] == ["src/components"]
-

@@ -79,9 +79,7 @@ def is_internal_ip(ip_str: str) -> bool:
     return is_blocked_ip(ip_str)
 
 
-def check_url(
-    url: str, *, allowed_internal_hosts: frozenset[str] = frozenset()
-) -> SSRFVerdict:
+def check_url(url: str, *, allowed_internal_hosts: frozenset[str] = frozenset()) -> SSRFVerdict:
     """Validate a URL for SSRF safety without DNS resolution."""
     hostname, error = validate_scheme_and_hostname(url)
     if hostname is None:
@@ -101,27 +99,19 @@ def check_url(
         return _VERDICT_OK
 
     if is_blocked_ip(hostname):
-        return SSRFVerdict(
-            allowed=False, reason=f"Blocked private/internal IP address: {hostname}"
-        )
+        return SSRFVerdict(allowed=False, reason=f"Blocked private/internal IP address: {hostname}")
     return _VERDICT_OK
 
 
-def resolve_and_check(
-    hostname: str, *, allowed_internal_hosts: frozenset[str] = frozenset()
-) -> SSRFVerdict:
+def resolve_and_check(hostname: str, *, allowed_internal_hosts: frozenset[str] = frozenset()) -> SSRFVerdict:
     """DNS-resolve a hostname synchronously and validate all resolved IPs."""
     if hostname in allowed_internal_hosts:
         return _VERDICT_OK
 
     try:
-        results = socket.getaddrinfo(
-            hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
-        )
+        results = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
     except socket.gaierror:
-        return SSRFVerdict(
-            allowed=False, reason=f"DNS resolution failed for: {hostname}"
-        )
+        return SSRFVerdict(allowed=False, reason=f"DNS resolution failed for: {hostname}")
 
     for _family, _type, _proto, _canonname, sockaddr in results:
         addr = str(sockaddr[0])
@@ -149,9 +139,7 @@ def _resolve_and_check_sync(hostname: str) -> SSRFResult:
     try:
         resolved = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
-        return SSRFResult(
-            safe=False, error=f"DNS resolution failed: {hostname}", hostname=hostname
-        )
+        return SSRFResult(safe=False, error=f"DNS resolution failed: {hostname}", hostname=hostname)
 
     ips: list[str] = []
     for _, _, _, _, sockaddr in resolved:
@@ -185,9 +173,7 @@ async def _resolve_and_check_async(hostname: str) -> SSRFResult:
     try:
         resolved = await loop.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
-        return SSRFResult(
-            safe=False, error=f"DNS resolution failed: {hostname}", hostname=hostname
-        )
+        return SSRFResult(safe=False, error=f"DNS resolution failed: {hostname}", hostname=hostname)
 
     ips: list[str] = []
     for _, _, _, _, sockaddr in resolved:
@@ -258,10 +244,7 @@ async def async_pin_url(
     if not result.safe:
         logger.warning("SSRF blocked request: %s — %s", url, result.error)
         record_decision("ssrf", "SSRF_BLOCKED", f"{url}: {result.error}")
-        raise SSRFSecurityError(
-            "Access to internal network is blocked for security reasons. "
-            f"{result.error}"
-        )
+        raise SSRFSecurityError(f"Access to internal network is blocked for security reasons. {result.error}")
 
     if not result.resolved_ips:
         raise SSRFSecurityError(f"DNS resolution failed for {hostname}")

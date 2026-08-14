@@ -7,15 +7,7 @@ from pathlib import Path
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_SHARED_PATH = (
-    _REPO_ROOT
-    / "src"
-    / "myrm_agent_harness"
-    / "toolkits"
-    / "memory"
-    / "_manager"
-    / "shared.py"
-)
+_SHARED_PATH = _REPO_ROOT / "src" / "myrm_agent_harness" / "toolkits" / "memory" / "_manager" / "shared.py"
 
 _REQUIRED_SYMBOLS = (
     "RuleSource",

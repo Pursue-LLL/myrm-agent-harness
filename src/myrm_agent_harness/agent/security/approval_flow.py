@@ -98,9 +98,7 @@ class Allowlist:
     """
 
     def __init__(self, store: AllowlistStore | None = None, ttl_seconds: float = 300.0) -> None:
-        self._entries: dict[
-            str, dict[tuple[str, str | None, str | None, str | None], AllowlistEntry]
-        ] = {}
+        self._entries: dict[str, dict[tuple[str, str | None, str | None, str | None], AllowlistEntry]] = {}
         self._store = store
         self._cache_meta: dict[str, tuple[float | None, asyncio.Lock]] = {}
         self._meta_lock = asyncio.Lock()

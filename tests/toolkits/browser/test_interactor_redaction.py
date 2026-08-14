@@ -37,9 +37,7 @@ async def test_interactor_fill_password_redaction():
     interactor = Interactor(page_mock, refs={"e1": mock_ref_info})
 
     with pytest.MonkeyPatch.context() as m:
-        m.setattr(
-            "myrm_agent_harness.toolkits.browser.wait.wait_for_page_ready", AsyncMock()
-        )
+        m.setattr("myrm_agent_harness.toolkits.browser.wait.wait_for_page_ready", AsyncMock())
 
         with pytest.raises(ValueError, match="strictly forbidden"):
             await interactor.interact(
@@ -62,16 +60,12 @@ async def test_interactor_fill_normal_text():
     interactor = Interactor(page_mock, refs={"e2": mock_ref_info})
 
     with pytest.MonkeyPatch.context() as m:
-        m.setattr(
-            "myrm_agent_harness.toolkits.browser.wait.wait_for_page_ready", AsyncMock()
-        )
+        m.setattr("myrm_agent_harness.toolkits.browser.wait.wait_for_page_ready", AsyncMock())
 
         result = await interactor.interact(action="fill", ref="e2", text="hello world")
 
         assert "hello world" in result
-        locator_mock.fill_mock.assert_called_once_with(
-            "hello world", timeout=pytest.approx(10000, abs=5000)
-        )
+        locator_mock.fill_mock.assert_called_once_with("hello world", timeout=pytest.approx(10000, abs=5000))
 
 
 @pytest.mark.asyncio
@@ -87,9 +81,7 @@ async def test_interactor_type_password_redaction():
     interactor = Interactor(page_mock, refs={"e3": mock_ref_info})
 
     with pytest.MonkeyPatch.context() as m:
-        m.setattr(
-            "myrm_agent_harness.toolkits.browser.wait.wait_for_page_ready", AsyncMock()
-        )
+        m.setattr("myrm_agent_harness.toolkits.browser.wait.wait_for_page_ready", AsyncMock())
 
         with pytest.raises(ValueError, match="strictly forbidden"):
             await interactor.interact(

@@ -58,13 +58,11 @@ async def test_verify_all_fail_all():
     assert serialized[1]["label"] == "fail-1"
     assert serialized[1]["passed"] is False
 
+
 @pytest.mark.asyncio
 async def test_gatekeeper_registry():
     # Test initialization from config
-    configs = [
-        {"type": "shell", "command": "echo 1"},
-        {"type": "semantic", "criteria": "test criteria"}
-    ]
+    configs = [{"type": "shell", "command": "echo 1"}, {"type": "semantic", "criteria": "test criteria"}]
     gatekeeper = VerificationGatekeeper(configs)
     assert len(gatekeeper.criteria) == 2
     assert type(gatekeeper.criteria[0]).__name__ == "ShellCriterion"

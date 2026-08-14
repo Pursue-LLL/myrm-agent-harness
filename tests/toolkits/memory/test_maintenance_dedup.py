@@ -24,6 +24,7 @@ async def test_dedup_semantics_no_duplicates():
     assert len(result) == 1
     assert result[0].id == "doc1"
 
+
 @pytest.mark.asyncio
 async def test_dedup_semantics_with_duplicates():
     config = MemoryConfig(embedding_model="test")
@@ -41,6 +42,7 @@ async def test_dedup_semantics_with_duplicates():
     result = await dedup_semantics([mem1], vector, embedding, config, cache)
 
     assert len(result) == 0
+
 
 @pytest.mark.asyncio
 async def test_dedup_semantics_error():

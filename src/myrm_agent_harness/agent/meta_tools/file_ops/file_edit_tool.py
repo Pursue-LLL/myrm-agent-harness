@@ -43,12 +43,8 @@ logger = logging.getLogger(__name__)
 class StrReplaceEditInput(BaseModel):
     """Single search-and-replace edit."""
 
-    old_str: str = Field(
-        description="Text to replace (must be unique in file; include indentation)"
-    )
-    new_str: str = Field(
-        default="", description="Replacement text (empty string deletes old_str)"
-    )
+    old_str: str = Field(description="Text to replace (must be unique in file; include indentation)")
+    new_str: str = Field(default="", description="Replacement text (empty string deletes old_str)")
 
 
 class FileEditInput(BaseModel):
@@ -64,8 +60,7 @@ class FileEditInput(BaseModel):
     verify_command: str | None = Field(
         default=None,
         description=(
-            "Optional post-edit verify command (e.g. 'python -m py_compile file.py'). "
-            "On failure, all edits roll back."
+            "Optional post-edit verify command (e.g. 'python -m py_compile file.py'). On failure, all edits roll back."
         ),
     )
     reason: str | None = Field(default=None, description="Optional reason for logs")
@@ -76,11 +71,7 @@ class FileEditInput(BaseModel):
         if not isinstance(data, dict):
             return data
         payload = dict(data)
-        if (
-            payload.get("edits") is not None
-            or "old_str" in payload
-            or "old_string" in payload
-        ):
+        if payload.get("edits") is not None or "old_str" in payload or "old_string" in payload:
             payload["edits"] = normalize_edits_payload(payload)
         return payload
 
@@ -130,10 +121,7 @@ def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
         try:
             executor = ensure_executor(config)
 
-            edit_tuple = tuple(
-                StrReplaceEdit(old_str=item.old_str, new_str=item.new_str)
-                for item in edits
-            )
+            edit_tuple = tuple(StrReplaceEdit(old_str=item.old_str, new_str=item.new_str) for item in edits)
 
             context = OperationContext(
                 operation=OperationType.STR_REPLACE,
@@ -165,8 +153,7 @@ def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
             error_str = str(e).lower()
             if "not found" in error_str:
                 hint = (
-                    "An old_str was not found. Check exact text (whitespace/indentation) "
-                    "or combine overlapping edits."
+                    "An old_str was not found. Check exact text (whitespace/indentation) or combine overlapping edits."
                 )
             elif "appears" in error_str and "times" in error_str:
                 hint = "An old_str matches multiple times. Add surrounding context to make it unique."

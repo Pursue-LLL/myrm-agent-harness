@@ -356,6 +356,7 @@ class TestInferPhase:
         g = LoopGuard(graph_recursion_limit=300)
         g._metrics.total_calls = 25
         from myrm_agent_harness.agent.security.guards.loop_guard import VERDICT_ALLOW
+
         g._check_consecutive_failures = lambda calls: VERDICT_ALLOW
         g._check_error_signature = lambda tool_name, result_text: VERDICT_ALLOW
         for i in range(10):

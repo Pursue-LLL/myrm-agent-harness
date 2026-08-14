@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 MEMORY_CONTEXT_MARKER = "<user_memory_context"
 MEMORY_UNTRUSTED_OPEN_MARKER = "<<<UNTRUSTED_DATA"
 
+
 def _has_memory_context(messages: Sequence[BaseMessage]) -> bool:
     for msg in messages[:15]:
         if isinstance(msg, (SystemMessage, HumanMessage)):
@@ -123,9 +124,9 @@ def _memory_search_guidance(*, sessions_corpus_enabled: bool) -> str:
     ]
     if sessions_corpus_enabled:
         lines.append(
-            'Use corpus=sessions for prior chat evidence, earlier decisions, branch/fork context, '
+            "Use corpus=sessions for prior chat evidence, earlier decisions, branch/fork context, "
             'or requests like "last time", "previously", and "continue that discussion". '
-            'Use corpus=wiki when wiki is enabled; corpus=all searches every enabled corpus.'
+            "Use corpus=wiki when wiki is enabled; corpus=all searches every enabled corpus."
         )
     lines.append(
         "Memories and recalled conversations are point-in-time records. "
@@ -306,5 +307,3 @@ Example: "Based on your preference for concise answers <cite:mem-123>, here is t
 {_memory_search_guidance(sessions_corpus_enabled=sessions_corpus_enabled)}"""
 
     return stable_formatted, untrusted_formatted
-
-

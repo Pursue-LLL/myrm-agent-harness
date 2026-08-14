@@ -114,9 +114,7 @@ def _parse_scroll_params(text: str) -> dict[str, int]:
             with contextlib.suppress(ValueError):
                 params[key] = int(val)
 
-    params["max_steps"] = max(
-        1, min(params["max_steps"], _SCROLL_TO_BOTTOM_MAX_STEPS_CAP)
-    )
+    params["max_steps"] = max(1, min(params["max_steps"], _SCROLL_TO_BOTTOM_MAX_STEPS_CAP))
     params["delay_ms"] = max(100, params["delay_ms"])
     params["stable_count"] = max(2, params["stable_count"])
     return params
@@ -147,9 +145,7 @@ class ScrollHumanizeMixin:
     async def _scroll_move_cursor(self, x: float, y: float) -> None:
         """Move the mouse to a scroll target (Bézier trajectory in CAREFUL mode)."""
         if self._humanize.enable_bezier_mouse:
-            await bezier_move(
-                self._page, self._mouse_x, self._mouse_y, x, y, self._humanize
-            )
+            await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
         else:
             await self._page.mouse.move(x, y)
         self._mouse_x, self._mouse_y = x, y
@@ -164,18 +160,14 @@ class ScrollHumanizeMixin:
         iframes are introspected directly; cross-origin iframes fall through to
         their ancestors (progress detection degrades to the retarget-on-stuck path).
         """
-        result = await self._page.evaluate(
-            _SCROLL_MEASURE_JS, {"x": round(x), "y": round(y)}
-        )
+        result = await self._page.evaluate(_SCROLL_MEASURE_JS, {"x": round(x), "y": round(y)})
         return {
             "top": float(result["top"]),
             "height": float(result["height"]),
             "client": float(result["client"]),
         }
 
-    async def _scroll_with_report(
-        self, x: float, y: float, delta: int, suffix: str
-    ) -> str:
+    async def _scroll_with_report(self, x: float, y: float, delta: int, suffix: str) -> str:
         """Deliver a wheel scroll and report the honest outcome.
 
         Measures the target container before delivery, then verifies movement
@@ -188,9 +180,7 @@ class ScrollHumanizeMixin:
         reason = await self._scroll_noop_reason(x, y, before, delta)
         return f"Scrolled {delta}px{suffix}{reason}"
 
-    async def _scroll_noop_reason(
-        self, x: float, y: float, before: dict[str, float], delta: int
-    ) -> str:
+    async def _scroll_noop_reason(self, x: float, y: float, before: dict[str, float], delta: int) -> str:
         """Empty when the container moved, else an honest parenthetical reason."""
         if (await self._scroll_measure(x, y))["top"] != before["top"]:
             return ""
@@ -307,21 +297,12 @@ class ScrollHumanizeMixin:
             await self._page.mouse.wheel(0, delta)
             return
         if self._humanize.mode == HumanizeMode.CAREFUL:
-            await asyncio.sleep(
-                random.randint(*self._humanize.scroll_pre_move_delay) / 1000.0
-            )
+            await asyncio.sleep(random.randint(*self._humanize.scroll_pre_move_delay) / 1000.0)
             direction = 1 if delta > 0 else -1
             accel, decel = scroll_phase_steps(self._humanize)
-            avg_delta = (
-                self._humanize.scroll_delta_base[0]
-                + self._humanize.scroll_delta_base[1]
-            ) / 2
+            avg_delta = (self._humanize.scroll_delta_base[0] + self._humanize.scroll_delta_base[1]) / 2
             total_notches = max(accel + decel + 1, round(abs(delta) / avg_delta))
-            phases = (
-                ["accel"] * accel
-                + ["cruise"] * max(0, total_notches - accel - decel)
-                + ["decel"] * decel
-            )
+            phases = ["accel"] * accel + ["cruise"] * max(0, total_notches - accel - decel) + ["decel"] * decel
             remaining = abs(delta)
             group_left = random.randint(2, 4)
             index = 0
@@ -359,14 +340,10 @@ class ScrollHumanizeMixin:
         if random.random() < self._humanize.scroll_overshoot_chance:
             overshoot = random.randint(*self._humanize.scroll_overshoot_px) * direction
             await wheel_burst(self._page, overshoot, self._humanize)
-            await asyncio.sleep(
-                random.randint(*self._humanize.scroll_settle_delay) / 1000.0
-            )
+            await asyncio.sleep(random.randint(*self._humanize.scroll_settle_delay) / 1000.0)
             for _ in range(random.randint(1, 2)):
                 correction = random.randint(40, 80) * -direction
                 await wheel_burst(self._page, correction, self._humanize)
                 await asyncio.sleep(random.randint(100, 250) / 1000.0)
         else:
-            await asyncio.sleep(
-                random.randint(*self._humanize.scroll_settle_delay) / 1000.0
-            )
+            await asyncio.sleep(random.randint(*self._humanize.scroll_settle_delay) / 1000.0)

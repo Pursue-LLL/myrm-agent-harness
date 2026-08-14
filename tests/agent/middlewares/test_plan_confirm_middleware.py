@@ -26,9 +26,7 @@ def middleware():
     return PlanConfirmMiddleware()
 
 
-def _make_request(
-    tool_name: str = "todo_write", args: dict | None = None
-) -> ToolCallRequest:
+def _make_request(tool_name: str = "todo_write", args: dict | None = None) -> ToolCallRequest:
     return ToolCallRequest(
         tool_call={"name": tool_name, "args": args or {}, "id": "call_1"},
         tool=MagicMock(),
@@ -38,15 +36,11 @@ def _make_request(
 
 
 def _make_todos(n: int) -> list[dict]:
-    return [
-        {"id": f"t{i}", "content": f"Task {i}", "status": "pending"} for i in range(n)
-    ]
+    return [{"id": f"t{i}", "content": f"Task {i}", "status": "pending"} for i in range(n)]
 
 
 async def _passthrough_handler(req: ToolCallRequest) -> ToolMessage:
-    return ToolMessage(
-        content="ok", name=req.tool_call["name"], tool_call_id=req.tool_call["id"]
-    )
+    return ToolMessage(content="ok", name=req.tool_call["name"], tool_call_id=req.tool_call["id"])
 
 
 @pytest.mark.asyncio
@@ -143,9 +137,7 @@ async def test_interrupt_payload_structure(middleware):
         return {"action": "confirm"}
 
     todos = _make_todos(4)
-    request = _make_request(
-        args={"merge": False, "todos": todos, "goal": "Build feature X"}
-    )
+    request = _make_request(args={"merge": False, "todos": todos, "goal": "Build feature X"})
 
     with (
         patch(

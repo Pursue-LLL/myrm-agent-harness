@@ -48,9 +48,7 @@ _SCREENSHOT_MAX_WIDTH = 1280
 _SCREENSHOT_MAX_HEIGHT = 720
 
 _PDF_HEADER_TEMPLATE = (
-    '<div style="font-size:8px;width:100%;padding:0 12px;color:#666">'
-    '<span class="title"></span>'
-    "</div>"
+    '<div style="font-size:8px;width:100%;padding:0 12px;color:#666"><span class="title"></span></div>'
 )
 _PDF_FOOTER_TEMPLATE = (
     '<div style="font-size:8px;width:100%;padding:0 12px;color:#666;'
@@ -335,7 +333,9 @@ class Extractor:
         except Exception:
             return False
 
-    async def extract_media(self, selector: str = "", max_images: int = 50, max_videos: int = 20, max_audios: int = 10) -> str:
+    async def extract_media(
+        self, selector: str = "", max_images: int = 50, max_videos: int = 20, max_audios: int = 10
+    ) -> str:
         """Extract all high-value media resource URLs from the page.
 
         Collects images (including lazy-loaded), videos, audio, and OG/Twitter meta
@@ -492,7 +492,12 @@ class Extractor:
             }
         """
 
-        all_media: dict[str, list[dict[str, str | int | None]]] = {"images": [], "videos": [], "audios": [], "metaImages": []}
+        all_media: dict[str, list[dict[str, str | int | None]]] = {
+            "images": [],
+            "videos": [],
+            "audios": [],
+            "metaImages": [],
+        }
         seen_urls: set[str] = set()
 
         for i, frame in enumerate(self._page.frames):

@@ -65,9 +65,7 @@ def test_parse_rate_limit_headers_openai():
     assert state.rph is None
     assert state.tph is None
 
-    assert state.highest_usage_pct == pytest.approx(
-        1000 / 160000
-    )  # (160000 - 159000) / 160000
+    assert state.highest_usage_pct == pytest.approx(1000 / 160000)  # (160000 - 159000) / 160000
 
 
 def test_parse_rate_limit_headers_anthropic():

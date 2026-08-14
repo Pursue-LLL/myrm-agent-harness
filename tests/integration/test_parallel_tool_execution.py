@@ -293,11 +293,15 @@ class TestConcurrencyLimiterEdgeCases:
         from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 
         if "search" not in SUBAGENT_CONFIGS:
-            register_subagent_configs({"search": SubagentConfig(
-                system_prompt="Search agent",
-                display_name="Search Agent",
-                concurrency_limit=2,
-            )})
+            register_subagent_configs(
+                {
+                    "search": SubagentConfig(
+                        system_prompt="Search agent",
+                        display_name="Search Agent",
+                        concurrency_limit=2,
+                    )
+                }
+            )
 
         middleware = create_concurrency_limiter()
         sem = get_subagent_semaphore("search")

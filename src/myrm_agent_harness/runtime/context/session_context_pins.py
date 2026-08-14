@@ -49,7 +49,7 @@ def read_pinned_files(session_id: str) -> list[str]:
     raw_files = payload.get("files")
     if not isinstance(raw_files, list):
         return []
-    return [item for item in raw_files if isinstance(item, str) and item][: _MAX_PINNED_FILES]
+    return [item for item in raw_files if isinstance(item, str) and item][:_MAX_PINNED_FILES]
 
 
 def write_pinned_files(session_id: str, files: list[str]) -> PinnedContextFiles:

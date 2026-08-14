@@ -58,10 +58,7 @@ class TestParseLlmResponse:
         assert _parse_llm_response("[1, 2, 3]") == []
 
     def test_prose_with_trailing_comma(self):
-        resp = (
-            'Audit result:\n'
-            '{"findings": [{"description": "exfil", "severity": "high"},]}'
-        )
+        resp = 'Audit result:\n{"findings": [{"description": "exfil", "severity": "high"},]}'
         findings = _parse_llm_response(resp)
         assert len(findings) == 1
         assert "exfil" in findings[0].description

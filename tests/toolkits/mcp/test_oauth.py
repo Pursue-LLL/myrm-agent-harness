@@ -30,6 +30,7 @@ from myrm_agent_harness.toolkits.mcp.oauth import (
 # MCPOAuthToken model
 # ---------------------------------------------------------------------------
 
+
 class TestMCPOAuthToken:
     def test_not_expired_when_no_expires_at(self) -> None:
         token = MCPOAuthToken(access_token="abc")
@@ -75,6 +76,7 @@ class TestMCPOAuthToken:
 # MCPOAuthConfig model
 # ---------------------------------------------------------------------------
 
+
 class TestMCPOAuthConfig:
     def test_required_fields(self) -> None:
         cfg = MCPOAuthConfig(
@@ -107,6 +109,7 @@ class TestMCPOAuthConfig:
 # ---------------------------------------------------------------------------
 # PKCE pair generation
 # ---------------------------------------------------------------------------
+
 
 class TestGeneratePkcePair:
     def test_returns_tuple_of_two_strings(self) -> None:
@@ -141,6 +144,7 @@ class TestGeneratePkcePair:
 # ---------------------------------------------------------------------------
 # build_authorization_url
 # ---------------------------------------------------------------------------
+
 
 class TestBuildAuthorizationUrl:
     @pytest.fixture
@@ -192,6 +196,7 @@ class TestBuildAuthorizationUrl:
 # MCPOAuthProvider
 # ---------------------------------------------------------------------------
 
+
 class TestMCPOAuthProvider:
     @pytest.fixture
     def mock_store(self) -> AsyncMock:
@@ -219,17 +224,13 @@ class TestMCPOAuthProvider:
         )
 
     @pytest.mark.asyncio
-    async def test_no_token_returns_empty_headers(
-        self, provider: MCPOAuthProvider, mock_store: AsyncMock
-    ) -> None:
+    async def test_no_token_returns_empty_headers(self, provider: MCPOAuthProvider, mock_store: AsyncMock) -> None:
         headers = await provider.get_auth_headers("test-mcp", "https://mcp.example.com")
         assert headers == {}
         mock_store.get_token.assert_called_once_with("test-mcp")
 
     @pytest.mark.asyncio
-    async def test_valid_token_returns_bearer_header(
-        self, provider: MCPOAuthProvider, mock_store: AsyncMock
-    ) -> None:
+    async def test_valid_token_returns_bearer_header(self, provider: MCPOAuthProvider, mock_store: AsyncMock) -> None:
         mock_store.get_token.return_value = MCPOAuthToken(
             access_token="valid-access-token",
             expires_at=time.time() + 3600,
@@ -268,9 +269,7 @@ class TestMCPOAuthProvider:
         headers = await provider.get_auth_headers("test-mcp", "https://mcp.example.com")
 
         assert headers == {"Authorization": "Bearer fresh-access"}
-        mock_store.refresh_token_exchange.assert_called_once_with(
-            "test-mcp", oauth_config, "refresh-xyz"
-        )
+        mock_store.refresh_token_exchange.assert_called_once_with("test-mcp", oauth_config, "refresh-xyz")
 
     @pytest.mark.asyncio
     async def test_expired_token_with_refresh_failure_deletes(
@@ -307,15 +306,11 @@ class TestMCPOAuthProvider:
     def test_server_name_property(self, provider: MCPOAuthProvider) -> None:
         assert provider.server_name == "test-mcp"
 
-    def test_oauth_config_property(
-        self, provider: MCPOAuthProvider, oauth_config: MCPOAuthConfig
-    ) -> None:
+    def test_oauth_config_property(self, provider: MCPOAuthProvider, oauth_config: MCPOAuthConfig) -> None:
         assert provider.oauth_config is oauth_config
 
     @pytest.mark.asyncio
-    async def test_custom_token_type_in_header(
-        self, provider: MCPOAuthProvider, mock_store: AsyncMock
-    ) -> None:
+    async def test_custom_token_type_in_header(self, provider: MCPOAuthProvider, mock_store: AsyncMock) -> None:
         mock_store.get_token.return_value = MCPOAuthToken(
             access_token="abc",
             token_type="DPoP",

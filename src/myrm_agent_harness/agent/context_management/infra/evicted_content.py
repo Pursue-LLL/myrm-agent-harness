@@ -48,9 +48,7 @@ _ALLOWED_EXTENSIONS = frozenset({"txt", "md", "log", "json"})
 _ALLOWED_SOURCE_PREFIXES = frozenset({"output", "web_fetch", "mcp", "tool", "filter"})
 
 # Keep in sync with myrm-agent-server app/api/files/evicted.py (_FILENAME_PATTERN imports this).
-EVICTED_BASENAME_PATTERN = re.compile(
-    r"^(?:output|web_fetch|mcp|tool|filter)_[a-f0-9]{8}\.(?:txt|md|log|json)$"
-)
+EVICTED_BASENAME_PATTERN = re.compile(r"^(?:output|web_fetch|mcp|tool|filter)_[a-f0-9]{8}\.(?:txt|md|log|json)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,9 +94,7 @@ class EvictedPersistResult:
     storage_truncated: bool = False
 
 
-def cap_content_for_storage(
-    content: str, *, max_chars: int = MAX_STORED_CHARS
-) -> tuple[str, bool]:
+def cap_content_for_storage(content: str, *, max_chars: int = MAX_STORED_CHARS) -> tuple[str, bool]:
     """Cap content before writing to Volume; returns (text, was_truncated)."""
     if len(content) <= max_chars:
         return content, False
@@ -184,9 +180,7 @@ def _resolve_persist_target(source: str, ext: str) -> tuple[str, str, Path] | No
     workspace_root = workspace_root_var.get().strip()
     chat_id = normalize_delivery_chat_id(chat_id_var.get())
     if not workspace_root or not chat_id:
-        logger.warning(
-            "[EvictedContent] Missing workspace_root or chat_id, skip persist"
-        )
+        logger.warning("[EvictedContent] Missing workspace_root or chat_id, skip persist")
         return None
     basename = build_evicted_basename(source, ext=ext)
     rel_dir = Path(".context") / chat_id / "evicted"

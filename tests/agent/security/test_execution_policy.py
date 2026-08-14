@@ -74,12 +74,13 @@ class TestSuspendExecution:
             reason="Test reason",
         )
         mock_interrupt = MagicMock(return_value="approve")
-        with patch(
-            "myrm_agent_harness.agent.security.execution_policy.interrupt",
-            mock_interrupt,
-            create=True,
-        ), patch.dict(
-            "sys.modules", {"langgraph.types": MagicMock(interrupt=mock_interrupt)}
+        with (
+            patch(
+                "myrm_agent_harness.agent.security.execution_policy.interrupt",
+                mock_interrupt,
+                create=True,
+            ),
+            patch.dict("sys.modules", {"langgraph.types": MagicMock(interrupt=mock_interrupt)}),
         ):
             result = suspend_execution(contract)
         # The interrupt should have been called with the serialized contract

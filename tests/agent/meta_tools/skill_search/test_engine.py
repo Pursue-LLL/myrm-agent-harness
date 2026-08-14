@@ -45,9 +45,7 @@ class TestSkillSearchEngine:
         assert len(engine._skills) == 4
         assert engine._min_relevance_score == DEFAULT_BM25_MIN_RELEVANCE_SCORE
 
-    def test_init_with_custom_threshold(
-        self, sample_skills: list[SkillMetadata]
-    ) -> None:
+    def test_init_with_custom_threshold(self, sample_skills: list[SkillMetadata]) -> None:
         """测试自定义阈值初始化"""
         custom_threshold = 0.3
         engine = SkillSearchEngine(sample_skills, min_relevance_score=custom_threshold)
@@ -58,18 +56,14 @@ class TestSkillSearchEngine:
         engine = SkillSearchEngine(sample_skills)
         results = engine.search_bm25("火车票")
         assert len(results) > 0
-        assert any(
-            "railway" in r.name or "railway" in r.description.lower() for r in results
-        )
+        assert any("railway" in r.name or "railway" in r.description.lower() for r in results)
 
     def test_search_bm25_english(self, sample_skills: list[SkillMetadata]) -> None:
         """测试英文BM25搜索"""
         engine = SkillSearchEngine(sample_skills, min_relevance_score=-1.0)
         results = engine.search_bm25("railway ticket")
         assert len(results) > 0
-        assert any(
-            "railway" in r.name or "railway" in r.description.lower() for r in results
-        )
+        assert any("railway" in r.name or "railway" in r.description.lower() for r in results)
 
     def test_search_bm25_multilingual(self, sample_skills: list[SkillMetadata]) -> None:
         """测试多语言格式搜索"""
@@ -90,17 +84,13 @@ class TestSkillSearchEngine:
         results = engine.search_bm25("")
         assert len(results) == 0
 
-    def test_search_bm25_special_query_star(
-        self, sample_skills: list[SkillMetadata]
-    ) -> None:
+    def test_search_bm25_special_query_star(self, sample_skills: list[SkillMetadata]) -> None:
         """测试特殊查询 *"""
         engine = SkillSearchEngine(sample_skills)
         results = engine.search_bm25("*")
         assert len(results) == 4
 
-    def test_search_bm25_special_query_all(
-        self, sample_skills: list[SkillMetadata]
-    ) -> None:
+    def test_search_bm25_special_query_all(self, sample_skills: list[SkillMetadata]) -> None:
         """测试特殊查询 all"""
         engine = SkillSearchEngine(sample_skills)
         results = engine.search_bm25("all")
@@ -126,10 +116,7 @@ class TestSkillSearchEngine:
         engine = SkillSearchEngine(sample_skills)
         results = engine.search_regex("railway")
         assert len(results) > 0
-        assert all(
-            "railway" in r.name.lower() or "railway" in r.description.lower()
-            for r in results
-        )
+        assert all("railway" in r.name.lower() or "railway" in r.description.lower() for r in results)
 
     def test_search_regex_pattern(self, sample_skills: list[SkillMetadata]) -> None:
         """测试regex模式"""
@@ -137,34 +124,26 @@ class TestSkillSearchEngine:
         results = engine.search_regex("railway|weather")
         assert len(results) >= 2
 
-    def test_search_regex_case_insensitive(
-        self, sample_skills: list[SkillMetadata]
-    ) -> None:
+    def test_search_regex_case_insensitive(self, sample_skills: list[SkillMetadata]) -> None:
         """测试regex大小写不敏感"""
         engine = SkillSearchEngine(sample_skills)
         results_lower = engine.search_regex("railway")
         results_upper = engine.search_regex("RAILWAY")
         assert len(results_lower) == len(results_upper)
 
-    def test_search_regex_special_pattern_dot_star(
-        self, sample_skills: list[SkillMetadata]
-    ) -> None:
+    def test_search_regex_special_pattern_dot_star(self, sample_skills: list[SkillMetadata]) -> None:
         """测试特殊regex模式 .*"""
         engine = SkillSearchEngine(sample_skills)
         results = engine.search_regex(".*")
         assert len(results) == 4
 
-    def test_search_regex_empty_pattern(
-        self, sample_skills: list[SkillMetadata]
-    ) -> None:
+    def test_search_regex_empty_pattern(self, sample_skills: list[SkillMetadata]) -> None:
         """测试空regex模式"""
         engine = SkillSearchEngine(sample_skills)
         results = engine.search_regex("")
         assert len(results) == 0
 
-    def test_search_regex_invalid_pattern(
-        self, sample_skills: list[SkillMetadata]
-    ) -> None:
+    def test_search_regex_invalid_pattern(self, sample_skills: list[SkillMetadata]) -> None:
         """测试无效regex模式"""
         engine = SkillSearchEngine(sample_skills)
         results = engine.search_regex("[invalid")
@@ -221,18 +200,14 @@ class TestSkillSearchEngine:
                 storage_skill_id="user_authentication",
             ),
         ]
-        engine = SkillSearchEngine(
-            skills, min_relevance_score=-1.0, enable_query_expansion=True
-        )
+        engine = SkillSearchEngine(skills, min_relevance_score=-1.0, enable_query_expansion=True)
         results = engine.search_bm25("login user", top_k=1)
         assert results
         assert results[0].name == "user_authentication"
 
     def test_query_expansion_disabled_skips_variations(self, sample_skills) -> None:
         """When expansion is off, search uses the original query only."""
-        engine = SkillSearchEngine(
-            sample_skills, min_relevance_score=-1.0, enable_query_expansion=False
-        )
+        engine = SkillSearchEngine(sample_skills, min_relevance_score=-1.0, enable_query_expansion=False)
         results = engine.search_bm25("railway ticket", top_k=3)
         assert results
         assert engine._expander is None

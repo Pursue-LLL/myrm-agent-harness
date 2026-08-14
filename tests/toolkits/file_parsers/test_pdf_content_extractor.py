@@ -30,9 +30,7 @@ def _make_text_pdf(text_content: str = "Hello World " * 80) -> Path:
     """Generate a minimal 1-page PDF with text using raw PDF 1.4 bytes."""
     pdf_bytes = _build_minimal_pdf_bytes(text_content)
 
-    with tempfile.NamedTemporaryFile(
-        suffix=".pdf", delete=False, mode="wb"
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False, mode="wb") as tmp:
         tmp.write(pdf_bytes)
         tmp.flush()
         tmp_path = tmp.name
@@ -602,7 +600,6 @@ class TestPdfOcrFallback:
         """Sparse PDF: OCR text replaces the sparse text layer; strategy stays 'image'."""
         from unittest.mock import AsyncMock
 
-
         pdf_path = _make_sparse_pdf()
         try:
             with (
@@ -802,9 +799,7 @@ class TestPdfOcrFallback:
         )
 
         images = [PDFImageContent(data=base64.b64encode(b"page-1").decode("ascii"))]
-        with patch(
-            "myrm_agent_harness.toolkits.file_parsers.ocr.OCRParser"
-        ) as mock_parser_cls:
+        with patch("myrm_agent_harness.toolkits.file_parsers.ocr.OCRParser") as mock_parser_cls:
             instance = mock_parser_cls.return_value
             instance.parse_bytes = AsyncMock(return_value="日本語テキスト")
             result = await _ocr_rendered_pages_async(images, ocr_pages=30, lang="japan")

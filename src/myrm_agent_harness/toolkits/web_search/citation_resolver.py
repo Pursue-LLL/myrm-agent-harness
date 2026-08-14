@@ -65,9 +65,7 @@ async def resolve_citation_url(url: str) -> str:
         return url
     try:
         timeout = httpx.Timeout(_REDIRECT_TIMEOUT_SECONDS)
-        async with create_httpx_client(
-            timeout=timeout, follow_redirects=False
-        ) as client:
+        async with create_httpx_client(timeout=timeout, follow_redirects=False) as client:
             target = await resolve_secure_http_target(
                 client,
                 url,
@@ -81,9 +79,7 @@ async def resolve_citation_url(url: str) -> str:
         return url
 
 
-def _normalize_source_url(
-    source: dict[str, Any], raw_url: str, resolved: str
-) -> dict[str, Any]:
+def _normalize_source_url(source: dict[str, Any], raw_url: str, resolved: str) -> dict[str, Any]:
     """Apply resolved destination as canonical `url`; preserve original in `redirect_url`."""
     if resolved == raw_url:
         return source

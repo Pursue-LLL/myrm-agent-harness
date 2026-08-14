@@ -93,10 +93,7 @@ def render_ui(
 ) -> str:
     """Render an interactive UI (forms, tables, charts) in chat."""
     if not components:
-        return (
-            "Failed to render UI: components must not be empty. "
-            f"Allowed types: {_ALLOWED_TYPES_LINE}."
-        )
+        return f"Failed to render UI: components must not be empty. Allowed types: {_ALLOWED_TYPES_LINE}."
 
     components = normalize_component_dicts(components)
 
@@ -126,9 +123,7 @@ def render_ui(
                     type=comp_type,
                     props=dict(comp_dict.get("props", {})) if isinstance(comp_dict.get("props"), dict) else {},
                     children=list(comp_dict.get("children", [])) if isinstance(comp_dict.get("children"), list) else [],
-                    bindings=dict(comp_dict.get("bindings", {}))
-                    if isinstance(comp_dict.get("bindings"), dict)
-                    else {},
+                    bindings=dict(comp_dict.get("bindings", {})) if isinstance(comp_dict.get("bindings"), dict) else {},
                     events=dict(comp_dict.get("events", {})) if isinstance(comp_dict.get("events"), dict) else {},
                 )
             )
@@ -137,23 +132,15 @@ def render_ui(
             return format_validation_error(invalid_types)
 
         if not parsed_components:
-            return (
-                "Failed to render UI: no valid components after parsing. "
-                f"Allowed types: {_ALLOWED_TYPES_LINE}."
-            )
+            return f"Failed to render UI: no valid components after parsing. Allowed types: {_ALLOWED_TYPES_LINE}."
 
         parsed_actions: list[UIAction] = []
         for index, action_dict in enumerate(actions or []):
             if not isinstance(action_dict, dict):
-                return (
-                    f"Failed to render UI: actions[{index}] must be an object, "
-                    f"got {type(action_dict).__name__}."
-                )
+                return f"Failed to render UI: actions[{index}] must be an object, got {type(action_dict).__name__}."
             raw_action_type = str(action_dict.get("type", "custom"))
             action_type: Literal["submit", "cancel", "navigate", "custom"] = (
-                raw_action_type
-                if raw_action_type in ("submit", "cancel", "navigate", "custom")
-                else "custom"
+                raw_action_type if raw_action_type in ("submit", "cancel", "navigate", "custom") else "custom"
             )
             parsed_actions.append(
                 UIAction(

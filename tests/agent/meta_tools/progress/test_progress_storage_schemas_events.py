@@ -179,9 +179,7 @@ def test_emit_todo_progress_events_dispatches_root_and_steps() -> None:
             TodoItem(id="2", content="step two", status=TodoStatus.CANCELLED),
         ],
     )
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.progress.events.dispatch_custom_event"
-    ) as mock_dispatch:
+    with patch("myrm_agent_harness.agent.meta_tools.progress.events.dispatch_custom_event") as mock_dispatch:
         emit_todo_progress_events(store)
     assert mock_dispatch.call_count == 3
     root_call = mock_dispatch.call_args_list[0].args

@@ -39,9 +39,7 @@ async def test_approval_returns_none_on_string_approve(mock_session: MagicMock) 
         patch("langgraph.types.interrupt", return_value="yes"),
         patch("myrm_agent_harness.core.security.audit.record_decision"),
     ):
-        result = await _require_privileged_api_approval(
-            mock_session, [".evaluate"], "await page.evaluate('1+1')"
-        )
+        result = await _require_privileged_api_approval(mock_session, [".evaluate"], "await page.evaluate('1+1')")
     assert result is None
 
 
@@ -65,9 +63,7 @@ async def test_approval_returns_blocked_on_unknown_response(mock_session: MagicM
         patch("langgraph.types.interrupt", return_value="no"),
         patch("myrm_agent_harness.core.security.audit.record_decision"),
     ):
-        result = await _require_privileged_api_approval(
-            mock_session, [".context"], "ctx = page.context"
-        )
+        result = await _require_privileged_api_approval(mock_session, [".context"], "ctx = page.context")
     assert result is not None
     assert "[BLOCKED]" in result
 
@@ -78,9 +74,7 @@ async def test_approval_records_audit_decisions(mock_session: MagicMock) -> None
         patch("langgraph.types.interrupt", return_value={"decision": "approve"}),
         patch("myrm_agent_harness.core.security.audit.record_decision") as mock_record,
     ):
-        await _require_privileged_api_approval(
-            mock_session, [".request.get()"], "script"
-        )
+        await _require_privileged_api_approval(mock_session, [".request.get()"], "script")
     assert mock_record.call_count == 2
     assert mock_record.call_args_list[0][0][1] == "ASK"
     assert mock_record.call_args_list[1][0][1] == "USER_APPROVED"
@@ -92,9 +86,7 @@ async def test_approval_records_reject_audit(mock_session: MagicMock) -> None:
         patch("langgraph.types.interrupt", return_value={"decision": "reject"}),
         patch("myrm_agent_harness.core.security.audit.record_decision") as mock_record,
     ):
-        await _require_privileged_api_approval(
-            mock_session, [".evaluate"], "script"
-        )
+        await _require_privileged_api_approval(mock_session, [".evaluate"], "script")
     assert mock_record.call_count == 2
     assert mock_record.call_args_list[1][0][1] == "USER_REJECTED"
 
@@ -106,8 +98,6 @@ async def test_approval_script_preview_truncated(mock_session: MagicMock) -> Non
         patch("langgraph.types.interrupt", return_value={"decision": "approve"}) as mock_interrupt,
         patch("myrm_agent_harness.core.security.audit.record_decision"),
     ):
-        await _require_privileged_api_approval(
-            mock_session, [".request.get()"], long_script
-        )
+        await _require_privileged_api_approval(mock_session, [".request.get()"], long_script)
     payload = mock_interrupt.call_args[0][0]
     assert len(payload["script_preview"]) == 500

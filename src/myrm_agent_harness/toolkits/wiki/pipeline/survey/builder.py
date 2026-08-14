@@ -103,10 +103,7 @@ def build_compile_survey(
     scope_rel_paths = [_relative_posix(structure.base_dir, path) for path in scope_paths]
     if scope_rel_paths:
         scope_max_depth = max(_folder_depth(rel) for rel in scope_rel_paths)
-        if (
-            len(scope_rel_paths) <= FAST_PATH_MAX_RAW_COUNT
-            and scope_max_depth <= FAST_PATH_MAX_FOLDER_DEPTH
-        ):
+        if len(scope_rel_paths) <= FAST_PATH_MAX_RAW_COUNT and scope_max_depth <= FAST_PATH_MAX_FOLDER_DEPTH:
             return _empty_context(skipped=True)
 
     facet_paths: dict[str, list[str]] = defaultdict(list)

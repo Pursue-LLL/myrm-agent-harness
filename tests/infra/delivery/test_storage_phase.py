@@ -133,16 +133,19 @@ async def test_load_pending_skips_corrupt_json(tmp_path: Path) -> None:
     assert len(loaded) == 1
     assert loaded[0].id == "good_one"
 
-    assert _queued_delivery_from_pending_dict(
-        {
-            "id": good.id,
-            "channel": good.channel,
-            "recipient": good.recipient,
-            "content": good.content,
-            "enqueued_at": good.enqueued_at,
-            "phase": "unknown",
-        }
-    ).phase == "pending"
+    assert (
+        _queued_delivery_from_pending_dict(
+            {
+                "id": good.id,
+                "channel": good.channel,
+                "recipient": good.recipient,
+                "content": good.content,
+                "enqueued_at": good.enqueued_at,
+                "phase": "unknown",
+            }
+        ).phase
+        == "pending"
+    )
 
     delivery_id = generate_delivery_id("feishu", "user_1")
     assert delivery_id.startswith("feishu_user_1_")

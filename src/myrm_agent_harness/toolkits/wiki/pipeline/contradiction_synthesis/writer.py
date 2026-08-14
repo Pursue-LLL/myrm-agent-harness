@@ -87,10 +87,7 @@ def _build_timeline_entry(
     link_b: str,
 ) -> str:
     if _topic_has_cjk(verdict.topic):
-        return (
-            f"编译批次合成待审（{pair.reason}）：{link_a} vs {link_b} "
-            f"（置信度 {verdict.confidence:.2f}）。"
-        )
+        return f"编译批次合成待审（{pair.reason}）：{link_a} vs {link_b} （置信度 {verdict.confidence:.2f}）。"
     return (
         f"Synthesis staged from compile batch ({pair.reason}): {link_a} vs {link_b} "
         f"(confidence {verdict.confidence:.2f})."

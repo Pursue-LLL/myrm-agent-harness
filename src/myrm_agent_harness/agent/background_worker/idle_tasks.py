@@ -87,9 +87,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
         return
 
     # 1. Request capacity
-    ticket_or_denial = await scheduler.request_capacity(
-        task_type=MaintenanceTaskType.CONTEXT_COMPACTION
-    )
+    ticket_or_denial = await scheduler.request_capacity(task_type=MaintenanceTaskType.CONTEXT_COMPACTION)
 
     if isinstance(ticket_or_denial, CapacityDenial):
         logger.info(
@@ -129,11 +127,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                 if task.task_type in _idle_task_handlers:
                     handler = _idle_task_handlers[task.task_type]
                     event_data = await handler(task, session_id)
-                    cost = (
-                        event_data.get("cost", 0.0)
-                        if isinstance(event_data, dict)
-                        else 0.0
-                    )
+                    cost = event_data.get("cost", 0.0) if isinstance(event_data, dict) else 0.0
                 elif task.task_type == "cognitive_consolidation":
                     memory_manager = get_memory_manager()
                     if memory_manager:
@@ -155,9 +149,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
 
                         event_data = result.to_dict()
                     else:
-                        logger.warning(
-                            "MemoryManager not available. Simulating idle task."
-                        )
+                        logger.warning("MemoryManager not available. Simulating idle task.")
                         await asyncio.sleep(5)
                         event_data = {"simulated": True}
                 elif task.task_type == "cognitive_derivation":
@@ -180,31 +172,19 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                             )
                         )
 
-                        result = await deriver.run_derivation(
-                            session_id, chat_id, messages
-                        )
+                        result = await deriver.run_derivation(session_id, chat_id, messages)
                         event_data = result
 
                         extracted_count = result.get("extracted_count", 0)
-                        has_disruptive_change = result.get(
-                            "has_disruptive_change", False
-                        )
+                        has_disruptive_change = result.get("has_disruptive_change", False)
                         if extracted_count > 0:
                             urgency = "notify" if has_disruptive_change else "silent"
-                            ui_message = (
-                                " 认知已更新：已牢记您最新指示的沟通偏好。"
-                                if has_disruptive_change
-                                else ""
-                            )
+                            ui_message = " 认知已更新：已牢记您最新指示的沟通偏好。" if has_disruptive_change else ""
 
                             event_bus.publish(
                                 IdleTaskProgressEvent(
                                     session_id=session_id,
-                                    status=(
-                                        "notification"
-                                        if has_disruptive_change
-                                        else "completed"
-                                    ),
+                                    status=("notification" if has_disruptive_change else "completed"),
                                     task_name=task.task_type,
                                     message=ui_message,
                                     progress_pct=100,
@@ -232,9 +212,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
 
                         llm_func = memory_manager._consolidation_llm
                         if not llm_func:
-                            logger.warning(
-                                "No consolidation_llm configured in MemoryManager. Subsumption skipped."
-                            )
+                            logger.warning("No consolidation_llm configured in MemoryManager. Subsumption skipped.")
                             event_data = {
                                 "skipped": True,
                                 "reason": "No consolidation_llm configured",
@@ -259,9 +237,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
 
                             deleted_count = 0
                             if subsumed_ids:
-                                deleted_count = await apply_subsumption(
-                                    memory_manager, subsumed_ids
-                                )
+                                deleted_count = await apply_subsumption(memory_manager, subsumed_ids)
 
                             event_data = {
                                 "subsumed_count": deleted_count,
@@ -323,20 +299,13 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                     SkillStore,
                                 )
 
-                                events = await event_logger._backend.get_events(
-                                    session_id
-                                )
-                                trajectory = "\n".join(
-                                    [f"[{e.event_type}] {e.data}" for e in events]
-                                )
+                                events = await event_logger._backend.get_events(session_id)
+                                trajectory = "\n".join([f"[{e.event_type}] {e.data}" for e in events])
 
                                 memory_manager = get_memory_manager()
                                 llm = (
-                                    memory_manager._consolidation_llm.keywords.get(
-                                        "llm"
-                                    )
-                                    if memory_manager
-                                    and hasattr(memory_manager, "_consolidation_llm")
+                                    memory_manager._consolidation_llm.keywords.get("llm")
+                                    if memory_manager and hasattr(memory_manager, "_consolidation_llm")
                                     else None
                                 )
 
@@ -347,9 +316,7 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                     )
                                 else:
                                     workspace_root = Path(get_workspace_root())
-                                    store = SkillStore(
-                                        db_path=workspace_root / ".myrm" / "skills.db"
-                                    )
+                                    store = SkillStore(db_path=workspace_root / ".myrm" / "skills.db")
                                     try:
                                         engine = SkillEvolutionEngine(
                                             store=store,
@@ -357,16 +324,12 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                                             event_log_backend=event_logger._backend,
                                         )
 
-                                        agent_id = task.payload.get(
-                                            "agent_id", "default"
-                                        )
+                                        agent_id = task.payload.get("agent_id", "default")
                                         chat_id = task.payload.get("chat_id")
 
-                                        proposal = (
-                                            await engine.capture_skill_from_trajectory(
-                                                trajectory=trajectory,
-                                                session_id=session_id,
-                                            )
+                                        proposal = await engine.capture_skill_from_trajectory(
+                                            trajectory=trajectory,
+                                            session_id=session_id,
                                         )
 
                                         if proposal:
@@ -396,28 +359,20 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
 
                         event_data = {
                             "extracted": bool(digest),
-                            "anti_patterns_count": (
-                                len(digest.anti_patterns) if digest else 0
-                            ),
+                            "anti_patterns_count": (len(digest.anti_patterns) if digest else 0),
                             "proposal": proposal_dict,
                         }
-                        logger.info(
-                            "Session evidence extraction completed for %s", session_id
-                        )
+                        logger.info("Session evidence extraction completed for %s", session_id)
                     else:
                         event_data = {
                             "skipped": True,
                             "reason": "No EventLogger configured",
                         }
                 elif task.task_type == "context_compaction":
-                    event_data = await _run_context_compaction(
-                        session_id, task, event_bus
-                    )
+                    event_data = await _run_context_compaction(session_id, task, event_bus)
                     cost = event_data.get("preheat_cost", 0.0)
                 else:
-                    logger.warning(
-                        f"Unknown task type or no handler registered for: {task.task_type}"
-                    )
+                    logger.warning(f"Unknown task type or no handler registered for: {task.task_type}")
                     await asyncio.sleep(1)
                     event_data = {"unhandled": True}
 
@@ -437,18 +392,12 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                 session_id=session_id,
                 status="completed",
                 task_name=task.task_type,
-                message=(
-                    " 记忆碎片整理完毕"
-                    if task.task_type == "cognitive_consolidation"
-                    else " 任务已完成"
-                ),
+                message=(" 记忆碎片整理完毕" if task.task_type == "cognitive_consolidation" else " 任务已完成"),
                 progress_pct=100,
                 data=event_data,
             )
         )
-        logger.info(
-            " Idle task %s completed successfully for session %s", task.id, session_id
-        )
+        logger.info(" Idle task %s completed successfully for session %s", task.id, session_id)
 
     except Exception as e:
         logger.error(
@@ -459,21 +408,13 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
             exc_info=True,
         )
         await registry.mark_error(task.id)
-        event_bus.publish(
-            IdleTaskProgressEvent(
-                session_id=session_id, status="error", message=" 后台任务执行出错"
-            )
-        )
+        event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="error", message=" 后台任务执行出错"))
     finally:
         # 5. Must release capacity and reset UI to purely idle
         await scheduler.release_capacity(ticket)
         # Small delay before resetting to idle to let the "completed" message linger briefly
         await asyncio.sleep(2)
-        event_bus.publish(
-            IdleTaskProgressEvent(
-                session_id=session_id, status="idle", message=" 闲置中"
-            )
-        )
+        event_bus.publish(IdleTaskProgressEvent(session_id=session_id, status="idle", message=" 闲置中"))
 
 
 async def _run_context_compaction(
@@ -484,9 +425,7 @@ async def _run_context_compaction(
     """Compress idle session context and optionally preheat the provider's prefix cache."""
     chat_id = task.payload.get("chat_id", "")
     if not chat_id:
-        logger.info(
-            "context_compaction skipped: no chat_id in payload (session %s)", session_id
-        )
+        logger.info("context_compaction skipped: no chat_id in payload (session %s)", session_id)
         return {"skipped": True, "reason": "no chat_id"}
 
     event_bus.publish(
@@ -510,11 +449,7 @@ async def _run_context_compaction(
         compact_handler = _idle_task_handlers.get("_context_compact_impl")
         if compact_handler:
             compact_result = await compact_handler(chat_id, session_id)
-            compacted = (
-                compact_result.get("compacted", False)
-                if isinstance(compact_result, dict)
-                else False
-            )
+            compacted = compact_result.get("compacted", False) if isinstance(compact_result, dict) else False
 
             if compacted:
                 llm = compact_result.get("llm")
@@ -537,9 +472,7 @@ async def _run_context_compaction(
                 "Business layer should register via register_idle_task_handler('_context_compact_impl', handler)."
             )
     except Exception as e:
-        logger.error(
-            "context_compaction error for chat %s: %s", chat_id, e, exc_info=True
-        )
+        logger.error("context_compaction error for chat %s: %s", chat_id, e, exc_info=True)
 
     return {
         "compacted": compacted,
@@ -554,9 +487,7 @@ async def _revert_task_to_pending(registry: IdleTaskRegistry, task_id: int) -> N
         from myrm_agent_harness.utils.db.sqlite import connect_async
 
         async with connect_async(registry.db_path) as db:
-            await db.execute(
-                "UPDATE idle_tasks SET status='pending' WHERE id=?", (task_id,)
-            )
+            await db.execute("UPDATE idle_tasks SET status='pending' WHERE id=?", (task_id,))
             await db.commit()
     except Exception as e:
         logger.error("Failed to revert task %s to pending: %s", task_id, e)

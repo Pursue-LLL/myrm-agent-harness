@@ -29,6 +29,7 @@ async def test_emit_tool_heartbeat():
         # We don't want to wait 3 seconds in a unit test, so we patch asyncio.sleep
         # but we need to let the event loop run
         sleep_calls = 0
+
         async def fake_sleep(delay):
             nonlocal sleep_calls
             sleep_calls += 1
@@ -52,23 +53,35 @@ async def test_emit_tool_heartbeat():
 async def test_tool_interceptor_starts_and_cancels_heartbeat():
     """Test that _tool_interceptor_middleware_inner starts and cancels the heartbeat task."""
     request = ToolCallRequest(
-        tool_call={"name": "test_tool", "id": "call_123", "args": {}},
-        tool=MagicMock(),
-        state=None,
-        runtime=MagicMock()
+        tool_call={"name": "test_tool", "id": "call_123", "args": {}}, tool=MagicMock(), state=None, runtime=MagicMock()
     )
 
     async def dummy_handler(req):
         return ToolMessage(content="success", name="test_tool", tool_call_id="call_123")
 
-    with patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_pre_call_guards", return_value=MagicMock()), \
-         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.execute_with_retry", return_value=ToolMessage(content="success", name="test_tool", tool_call_id="call_123")), \
-         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_post_call_guards", return_value=ToolMessage(content="success", name="test_tool", tool_call_id="call_123")), \
-         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat") as mock_emit, \
-         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.push_tool_context"), \
-         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.pop_tool_context"), \
-         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker", return_value=None):
-
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_pre_call_guards",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.execute_with_retry",
+            return_value=ToolMessage(content="success", name="test_tool", tool_call_id="call_123"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_post_call_guards",
+            return_value=ToolMessage(content="success", name="test_tool", tool_call_id="call_123"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat"
+        ) as mock_emit,
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.push_tool_context"),
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.pop_tool_context"),
+        patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker",
+            return_value=None,
+        ),
+    ):
         # Make _emit_tool_heartbeat an async function that just sleeps forever
         # so it can be cancelled
         async def fake_heartbeat(*args, **kwargs):

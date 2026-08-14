@@ -134,19 +134,22 @@ def _create_tool_for_endpoint(
         for key, value in coerced_kwargs.items():
             if key in path_keys:
                 p_params[key] = str(value)
-            elif key == "_body" or key == "request_body":
-                if isinstance(value, dict):
-                    body = value
-                elif isinstance(value, str):
+            elif key == "body" or key == "_body" or key == "request_body":
+                # Primitive/array/object request bodies (spec-declared `body`
+                # parameter or LLM-emitted `_body`/`request_body`) become the
+                # request body directly, never a nested {"body": ...} wrapper.
+                if isinstance(value, str):
                     try:
                         body = json.loads(value)
                     except json.JSONDecodeError:
                         body = {"data": value}
+                else:
+                    body = value
             elif has_structured_keys:
                 # Schema-defined endpoints: query keys go to the query string,
                 # every other declared field belongs to the JSON body.
                 if key in query_keys:
-                    q_params[key] = str(value)
+                    q_params[key] = _serialize_query_value(value)
                 else:
                     if body is None:
                         body = {}
@@ -154,7 +157,7 @@ def _create_tool_for_endpoint(
             else:
                 # For GET/DELETE: query params; for POST/PUT/PATCH: body fields
                 if method in ("GET", "HEAD", "OPTIONS", "DELETE"):
-                    q_params[key] = str(value)
+                    q_params[key] = _serialize_query_value(value)
                 else:
                     if body is None:
                         body = {}
@@ -204,6 +207,19 @@ def _build_description(endpoint: ParsedEndpoint) -> str:
     parts.append(f"[{endpoint.method} {endpoint.path}]")
 
     return " ".join(parts)
+
+
+def _serialize_query_value(value: Any) -> str:
+    """Serialize a query parameter value for the URL query string.
+
+    Objects/arrays encode as compact JSON (``str()`` would emit invalid
+    Python repr), booleans lowercase per URL conventions, scalars plain.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return str(value)
 
 
 def _extract_path_params(path: str) -> set[str]:

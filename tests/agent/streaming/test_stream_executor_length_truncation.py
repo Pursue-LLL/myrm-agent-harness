@@ -42,9 +42,7 @@ def mock_context():
 
 
 def _make_executor(ctx: StreamContext) -> StreamExecutor:
-    executor = StreamExecutor(
-        ctx=ctx, fallback_llm=None, rebuild_agent_fn=None, safety_fallback_llm=None
-    )
+    executor = StreamExecutor(ctx=ctx, fallback_llm=None, rebuild_agent_fn=None, safety_fallback_llm=None)
     executor._compactor = DummyCompactor()
     return executor
 
@@ -56,9 +54,7 @@ async def test_thinking_budget_exhausted_detected(mock_context):
 
     ai_msg = AIMessage(
         content="",
-        additional_kwargs={
-            "reasoning_content": "Long reasoning chain that consumed all tokens..."
-        },
+        additional_kwargs={"reasoning_content": "Long reasoning chain that consumed all tokens..."},
     )
     collected_messages = [ai_msg]
 

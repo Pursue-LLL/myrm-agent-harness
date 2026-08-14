@@ -32,7 +32,9 @@ def wiki_structure(tmp_path: Path) -> WikiStructure:
 
 
 @pytest.mark.asyncio
-async def test_frontmatter_auto_fix_uses_publish_gate(wiki_structure: WikiStructure, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_frontmatter_auto_fix_uses_publish_gate(
+    wiki_structure: WikiStructure, monkeypatch: pytest.MonkeyPatch
+) -> None:
     mock_llm = MagicMock()
     config = WikiConfig(enable_auto_maintenance=True)
     linter = WikiLinter(mock_llm, wiki_structure, config)
@@ -64,7 +66,9 @@ async def test_frontmatter_auto_fix_uses_publish_gate(wiki_structure: WikiStruct
 
 
 @pytest.mark.asyncio
-async def test_link_enrichment_uses_publish_gate(wiki_structure: WikiStructure, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_link_enrichment_uses_publish_gate(
+    wiki_structure: WikiStructure, monkeypatch: pytest.MonkeyPatch
+) -> None:
     mock_llm = MagicMock()
     config = WikiConfig(enable_auto_maintenance=True, enable_backlinks=True)
     linter = WikiLinter(mock_llm, wiki_structure, config)
@@ -131,10 +135,7 @@ async def test_stage_pending_demotes_stale_published(wiki_structure: WikiStructu
     assert await indexer.search("Budget 100M", limit=5)
 
     pending_mgr = WikiPendingEditsManager(wiki_structure, indexer)
-    proposed = (
-        "---\ntype: concept\nsources:\n  - notes.md\n---\n\n"
-        "## Compiled Truth\nBudget 50M.\n"
-    )
+    proposed = "---\ntype: concept\nsources:\n  - notes.md\n---\n\n## Compiled Truth\nBudget 50M.\n"
     await pending_mgr.stage_pending_edit("Team/Budget", proposed, source_files=["notes.md"])
 
     saved = article_path.read_text(encoding="utf-8")
@@ -145,10 +146,7 @@ async def test_stage_pending_demotes_stale_published(wiki_structure: WikiStructu
 
 @pytest.mark.asyncio
 async def test_reindex_after_move_preserves_publish_status(wiki_structure: WikiStructure) -> None:
-    content = (
-        "---\ntype: concept\npublish_status: published\n---\n\n"
-        "## Compiled Truth\nMove-safe body.\n"
-    )
+    content = "---\ntype: concept\npublish_status: published\n---\n\n## Compiled Truth\nMove-safe body.\n"
     old_path = wiki_structure.get_concept_file_path("Old/Topic")
     old_path.parent.mkdir(parents=True, exist_ok=True)
     old_path.write_text(content, encoding="utf-8")

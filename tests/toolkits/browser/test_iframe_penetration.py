@@ -38,9 +38,7 @@ class _FakePage:
 
     def locator(self, selector: str) -> MagicMock:
         loc = MagicMock()
-        loc.aria_snapshot = AsyncMock(
-            return_value='- button "Main Button"\n- link "Main Link"'
-        )
+        loc.aria_snapshot = AsyncMock(return_value='- button "Main Button"\n- link "Main Link"')
         loc.page = MagicMock()
         loc.page.evaluate = AsyncMock(return_value=[])
         return loc
@@ -139,9 +137,7 @@ async def test_snapshot_with_selector_skips_iframes(page_with_iframes):
     manager = SnapshotManager(page_with_iframes)
 
     # selector 设置时，即使 include_iframes=True 也会跳过
-    result = await manager.get_snapshot(
-        selector=".main-content", include_iframes=True, diff=False
-    )
+    result = await manager.get_snapshot(selector=".main-content", include_iframes=True, diff=False)
 
     # 没有 iframe 内容
     assert "--- iframe 1 ---" not in result.aria_tree

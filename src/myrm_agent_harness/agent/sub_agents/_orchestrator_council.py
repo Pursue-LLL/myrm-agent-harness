@@ -56,6 +56,7 @@ __all__ = ["run_council"]
 def _get_wait_children() -> Callable[..., Awaitable[dict[str, object]]]:
     """Lazy import to avoid circular dependency with orchestrator.py."""
     from .orchestrator import wait_children
+
     return wait_children
 
 
@@ -74,16 +75,18 @@ async def _emit_council_phase(
     if not sink:
         return
     try:
-        await sink.emit({
-            "type": AgentEventType.COUNCIL_PHASE.value,
-            "data": {
-                "phase": phase,
-                "round": round_num,
-                "max_rounds": max_rounds,
-                "expert_count": expert_count,
-                "detail": detail[:300],
-            },
-        })
+        await sink.emit(
+            {
+                "type": AgentEventType.COUNCIL_PHASE.value,
+                "data": {
+                    "phase": phase,
+                    "round": round_num,
+                    "max_rounds": max_rounds,
+                    "expert_count": expert_count,
+                    "detail": detail[:300],
+                },
+            }
+        )
     except Exception as exc:
         logger.debug("[council] Failed to emit COUNCIL_PHASE event: %s", exc)
 
@@ -97,10 +100,7 @@ def _format_opinions_for_injection(
     for op in opinions:
         if op.expert_id == exclude_expert:
             continue
-        parts.append(
-            f"### Expert: {op.expert_id} (role: {op.agent_type})\n\n"
-            f"{op.content}\n"
-        )
+        parts.append(f"### Expert: {op.expert_id} (role: {op.agent_type})\n\n{op.content}\n")
     return "\n---\n".join(parts) if parts else "(No other opinions available)"
 
 
@@ -115,22 +115,20 @@ def _format_all_opinions(opinions: list[CouncilOpinion]) -> str:
         label = "Independent Analysis" if rnd == 1 else f"Cross-Review Round {rnd - 1}"
         parts.append(f"## Round {rnd}: {label}\n")
         for op in by_round[rnd]:
-            parts.append(
-                f"### Expert: {op.expert_id} (role: {op.agent_type})\n\n"
-                f"{op.content}\n"
-            )
+            parts.append(f"### Expert: {op.expert_id} (role: {op.agent_type})\n\n{op.content}\n")
     return "\n---\n".join(parts)
 
 
 def _parse_chair_sections(text: str) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
     """Extract consensus, divergences, and action items from the chair's output."""
+
     def _extract_list(header_pattern: str, content: str) -> list[str]:
         match = re.search(header_pattern, content, re.IGNORECASE)
         if not match:
             return []
         start = match.end()
         next_header = re.search(r"\n#{1,3}\s", content[start:])
-        section = content[start: start + next_header.start()] if next_header else content[start:]
+        section = content[start : start + next_header.start()] if next_header else content[start:]
         items: list[str] = []
         for line in section.strip().splitlines():
             stripped = line.strip()
@@ -139,7 +137,7 @@ def _parse_chair_sections(text: str) -> tuple[tuple[str, ...], tuple[str, ...], 
             elif stripped:
                 num_match = re.match(r"^(\d+)[.)\s]", stripped)
                 if num_match:
-                    items.append(stripped[num_match.end():].strip())
+                    items.append(stripped[num_match.end() :].strip())
         return items
 
     consensus = _extract_list(r"#{1,3}\s*\d*\.?\s*Consensus\s*Points?", text)
@@ -228,14 +226,16 @@ async def run_council(
         success = completed is not None and completed.success
         content = completed.result if completed and completed.success else (completed.error if completed else "")
         duration = completed.duration_seconds if completed else 0.0
-        all_opinions.append(CouncilOpinion(
-            expert_id=expert_ids[idx],
-            agent_type=agent_type,
-            round_num=1,
-            content=content,
-            success=success,
-            duration_seconds=duration,
-        ))
+        all_opinions.append(
+            CouncilOpinion(
+                expert_id=expert_ids[idx],
+                agent_type=agent_type,
+                round_num=1,
+                content=content,
+                success=success,
+                duration_seconds=duration,
+            )
+        )
 
     successful_phase1 = sum(1 for o in all_opinions if o.success)
     if successful_phase1 < 1:
@@ -273,9 +273,7 @@ async def run_council(
             other_opinions_text = _format_opinions_for_injection(previous_round_opinions, expert_ids[idx])
             cr_prompt = cr_template.replace("{other_opinions}", other_opinions_text)
 
-            own_previous = next(
-                (o for o in previous_round_opinions if o.expert_id == expert_ids[idx]), None
-            )
+            own_previous = next((o for o in previous_round_opinions if o.expert_id == expert_ids[idx]), None)
             full_task = (
                 f"## Original Task\n\n{task_description}\n\n"
                 f"## Your Previous Analysis\n\n{own_previous.content if own_previous else '(none)'}\n\n"
@@ -305,14 +303,16 @@ async def run_council(
             success = completed is not None and completed.success
             content = completed.result if completed and completed.success else ""
             duration = completed.duration_seconds if completed else 0.0
-            all_opinions.append(CouncilOpinion(
-                expert_id=expert_ids[idx],
-                agent_type=agent_type,
-                round_num=round_num,
-                content=content,
-                success=success,
-                duration_seconds=duration,
-            ))
+            all_opinions.append(
+                CouncilOpinion(
+                    expert_id=expert_ids[idx],
+                    agent_type=agent_type,
+                    round_num=round_num,
+                    content=content,
+                    success=success,
+                    duration_seconds=duration,
+                )
+            )
 
         if cancel_token and cancel_token.is_cancelled:
             return CouncilResult(

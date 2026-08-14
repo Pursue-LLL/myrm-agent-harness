@@ -63,11 +63,11 @@ async def test_concurrent_same_skill_sequential(skill_manage_tool, mock_write_ba
                 "name": "shared_skill",
                 "content": '---\nname: shared_skill\ndescription: "Test skill"\n---\n# Test\nContent',
             },
-                config={
-                    "configurable": {
-                        "context": {"user_id": "test_user"},
-                    },
+            config={
+                "configurable": {
+                    "context": {"user_id": "test_user"},
                 },
+            },
         )
         end = time.time()
         results.append((skill_id, end - start))
@@ -88,7 +88,6 @@ async def test_concurrent_same_skill_sequential(skill_manage_tool, mock_write_ba
     # Verify both operations completed
     assert mock_write_backend.save_skill.call_count >= 2
 
-
     @pytest.mark.asyncio
     async def test_concurrent_different_skills_parallel(skill_manage_tool, mock_write_backend: AsyncMock) -> None:
         """Test that different skills can be modified concurrently."""
@@ -103,11 +102,11 @@ async def test_concurrent_same_skill_sequential(skill_manage_tool, mock_write_ba
                     "name": skill_name,
                     "content": f'---\nname: {skill_name}\ndescription: "Test skill"\n---\n# Test\nContent',
                 },
-                    config={
-                        "configurable": {
-                            "context": {"user_id": "test_user"},
-                        },
+                config={
+                    "configurable": {
+                        "context": {"user_id": "test_user"},
                     },
+                },
             )
             end = time.time()
             results.append((skill_name, end - start))
@@ -122,7 +121,6 @@ async def test_concurrent_same_skill_sequential(skill_manage_tool, mock_write_ba
 
         # Verify both operations completed
         assert mock_write_backend.save_skill.call_count >= 2
-
 
     @pytest.mark.asyncio
     async def test_concurrent_different_users_parallel(skill_manage_tool, mock_write_backend: AsyncMock) -> None:
@@ -183,11 +181,11 @@ async def test_lock_released_on_error(skill_manage_tool, mock_write_backend: Asy
                 "name": "test_skill",
                 "content": '---\nname: test_skill\ndescription: "Test skill"\n---\n# Test\nContent',
             },
-                config={
-                    "configurable": {
-                        "context": {"user_id": "test_user"},
-                    },
+            config={
+                "configurable": {
+                    "context": {"user_id": "test_user"},
                 },
+            },
         )
 
     # Second call should succeed (lock was released)
@@ -197,11 +195,11 @@ async def test_lock_released_on_error(skill_manage_tool, mock_write_backend: Asy
             "name": "test_skill",
             "content": '---\nname: test_skill\ndescription: "Test skill"\n---\n# Test\nContent',
         },
-                config={
-                    "configurable": {
-                        "context": {"user_id": "test_user"},
-                    },
-                },
+        config={
+            "configurable": {
+                "context": {"user_id": "test_user"},
+            },
+        },
     )
 
     # Verify second call succeeded

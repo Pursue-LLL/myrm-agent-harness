@@ -121,7 +121,9 @@ class MemoryManagerStorageMixin:
             if not await should_consolidate(self, cfg):
                 return
             await run_consolidation(
-                self, self._consolidation_llm, cfg,
+                self,
+                self._consolidation_llm,
+                cfg,
                 on_conflict=self._on_conflict,
                 on_complete=self._on_consolidation_complete,
             )

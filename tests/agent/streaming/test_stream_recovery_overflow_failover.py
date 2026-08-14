@@ -138,11 +138,7 @@ async def test_overflow_stage1_compact(ctx):
     assert result is True
     compact_mock.assert_called_once()
     events = executor._compactor.events
-    status_events = [
-        e
-        for e in events
-        if isinstance(e, dict) and e.get("step_key") == "context_compaction"
-    ]
+    status_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "context_compaction"]
     assert len(status_events) == 1
     assert status_events[0]["restart"] is True
 
@@ -173,11 +169,7 @@ async def test_overflow_stage1_fallthrough_to_truncate(ctx):
     assert result is True
     truncate_mock.assert_called_once()
     events = executor._compactor.events
-    status_events = [
-        e
-        for e in events
-        if isinstance(e, dict) and e.get("step_key") == "context_truncation"
-    ]
+    status_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "context_truncation"]
     assert len(status_events) == 1
     assert status_events[0]["restart"] is True
 
@@ -233,11 +225,7 @@ async def test_failover_unconfigured_emits_status(ctx):
 
     assert result is False
     events = executor._compactor.events
-    unconfigured = [
-        e
-        for e in events
-        if isinstance(e, dict) and e.get("step_key") == "model_failover_unconfigured"
-    ]
+    unconfigured = [e for e in events if isinstance(e, dict) and e.get("step_key") == "model_failover_unconfigured"]
     assert len(unconfigured) == 1
     assert unconfigured[0]["error_kind"] == ErrorKind.MODEL_NOT_FOUND.value
     # Unconfigured is a hint only — the turn does NOT restart, so no restart flag.
@@ -273,10 +261,7 @@ async def test_safety_fallback_unconfigured_emits_status(ctx):
 
     assert result is False
     events = executor._compactor.events
-    assert any(
-        isinstance(e, dict) and e.get("step_key") == "safety_fallback_unconfigured"
-        for e in events
-    )
+    assert any(isinstance(e, dict) and e.get("step_key") == "safety_fallback_unconfigured" for e in events)
 
 
 @pytest.mark.asyncio
@@ -309,11 +294,7 @@ async def test_failover_success(ctx):
     rebuild_fn.assert_called_once_with(fallback_llm)
 
     events = executor._compactor.events
-    failover_events = [
-        e
-        for e in events
-        if isinstance(e, dict) and e.get("step_key") == "model_failover"
-    ]
+    failover_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "model_failover"]
     assert len(failover_events) == 1
     assert failover_events[0]["fallback_model"] == "gpt-4o-mini"
     assert failover_events[0]["restart"] is True
@@ -347,19 +328,13 @@ async def test_failover_auth_with_fallback(ctx):
             return_value=mock_emitter,
         ),
     ):
-        result = await executor._handle_failover(
-            RuntimeError("401 Unauthorized invalid api key")
-        )
+        result = await executor._handle_failover(RuntimeError("401 Unauthorized invalid api key"))
 
     assert result is True
     assert executor.failover_used is True
     rebuild_fn.assert_called_once_with(fallback_llm)
     events = executor._compactor.events
-    failover_events = [
-        e
-        for e in events
-        if isinstance(e, dict) and e.get("step_key") == "model_failover"
-    ]
+    failover_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "model_failover"]
     assert len(failover_events) == 1
     assert failover_events[0]["error_kind"] == ErrorKind.AUTH.value
     assert failover_events[0]["restart"] is True
@@ -416,11 +391,7 @@ async def test_safety_fallback(ctx):
     assert result is True
     rebuild_fn.assert_called_once_with(safety_llm)
     events = executor._compactor.events
-    safety_events = [
-        e
-        for e in events
-        if isinstance(e, dict) and e.get("step_key") == "safety_fallback_active"
-    ]
+    safety_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "safety_fallback_active"]
     assert len(safety_events) == 1
     assert safety_events[0]["restart"] is True
 
@@ -456,11 +427,7 @@ async def test_safety_refusal_fallback_triggers_on_refusal(ctx):
     assert executor.failover_used is True
     rebuild_fn.assert_called_once_with(safety_llm)
     events = executor._compactor.events
-    safety_events = [
-        e
-        for e in events
-        if isinstance(e, dict) and e.get("step_key") == "safety_fallback_active"
-    ]
+    safety_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "safety_fallback_active"]
     assert len(safety_events) == 1
     assert safety_events[0]["restart"] is True
 
@@ -545,9 +512,7 @@ async def test_steering_injection(ctx):
 
     assert result is True
     messages = ctx.agent_input["messages"]
-    assert any(
-        isinstance(m, HumanMessage) and "Do this instead" in m.content for m in messages
-    )
+    assert any(isinstance(m, HumanMessage) and "Do this instead" in m.content for m in messages)
 
 
 @pytest.mark.asyncio
@@ -594,10 +559,7 @@ async def test_subagent_notifications_emits_event(ctx):
     assert result is False  # Does not trigger new iteration
     events = executor._compactor.events
     subagent_events = [
-        e
-        for e in events
-        if isinstance(e, dict)
-        and e.get("type") == AgentEventType.SUBAGENT_COMPLETION.value
+        e for e in events if isinstance(e, dict) and e.get("type") == AgentEventType.SUBAGENT_COMPLETION.value
     ]
     assert len(subagent_events) == 1
 

@@ -107,7 +107,7 @@ class TestDetectCaptcha:
     @pytest.mark.asyncio
     async def test_long_page_recaptcha_ignored(self) -> None:
         """reCAPTCHA on large page is treated as embedded widget, not blocking."""
-        html = '<html><body>' + 'x' * 15_000 + '<div class="g-recaptcha" data-sitekey="xxx"></div></body></html>'
+        html = "<html><body>" + "x" * 15_000 + '<div class="g-recaptcha" data-sitekey="xxx"></div></body></html>'
         assert len(html) > 10_000
         result = await detect_captcha(_make_page(html))
         assert result is None

@@ -56,7 +56,9 @@ def test_apply_ephemeral_override_noop_when_unset():
 def test_sync_ephemeral_output_cap_fast_fail(chat_model, messages, monkeypatch):
     error = Exception("context overflow")
     monkeypatch.setattr("myrm_agent_harness.toolkits.llms.errors.classifier.is_context_overflow", lambda e: True)
-    monkeypatch.setattr("myrm_agent_harness.toolkits.llms.errors.classifier.parse_available_output_tokens_from_error", lambda e: 400)
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.llms.errors.classifier.parse_available_output_tokens_from_error", lambda e: 400
+    )
 
     chat_model.client.completion.side_effect = error
 
@@ -66,10 +68,13 @@ def test_sync_ephemeral_output_cap_fast_fail(chat_model, messages, monkeypatch):
     # Should only be called once because it fast-fails
     assert chat_model.client.completion.call_count == 1
 
+
 def test_sync_ephemeral_output_cap_retry(chat_model, messages, monkeypatch):
     error = Exception("context overflow")
     monkeypatch.setattr("myrm_agent_harness.toolkits.llms.errors.classifier.is_context_overflow", lambda e: True)
-    monkeypatch.setattr("myrm_agent_harness.toolkits.llms.errors.classifier.parse_available_output_tokens_from_error", lambda e: 600)
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.llms.errors.classifier.parse_available_output_tokens_from_error", lambda e: 600
+    )
 
     # First call fails with context overflow, second succeeds
     mock_response = {
@@ -85,10 +90,13 @@ def test_sync_ephemeral_output_cap_retry(chat_model, messages, monkeypatch):
     assert chat_model.client.completion.call_count == 2
     assert result.generations[0].message.content == "success"
 
+
 async def test_async_ephemeral_output_cap_fast_fail(chat_model, messages, monkeypatch):
     error = Exception("context overflow")
     monkeypatch.setattr("myrm_agent_harness.toolkits.llms.errors.classifier.is_context_overflow", lambda e: True)
-    monkeypatch.setattr("myrm_agent_harness.toolkits.llms.errors.classifier.parse_available_output_tokens_from_error", lambda e: 400)
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.llms.errors.classifier.parse_available_output_tokens_from_error", lambda e: 400
+    )
 
     async def mock_acreate(*args, **kwargs):
         raise error
@@ -98,10 +106,13 @@ async def test_async_ephemeral_output_cap_fast_fail(chat_model, messages, monkey
     with pytest.raises(Exception, match="context overflow"):
         await chat_model._agenerate(messages)
 
+
 async def test_async_ephemeral_output_cap_retry(chat_model, messages, monkeypatch):
     error = Exception("context overflow")
     monkeypatch.setattr("myrm_agent_harness.toolkits.llms.errors.classifier.is_context_overflow", lambda e: True)
-    monkeypatch.setattr("myrm_agent_harness.toolkits.llms.errors.classifier.parse_available_output_tokens_from_error", lambda e: 600)
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.llms.errors.classifier.parse_available_output_tokens_from_error", lambda e: 600
+    )
 
     mock_response = {
         "choices": [{"message": {"role": "assistant", "content": "success"}, "finish_reason": "stop"}],
@@ -109,6 +120,7 @@ async def test_async_ephemeral_output_cap_retry(chat_model, messages, monkeypatc
     }
 
     call_count = 0
+
     async def mock_acreate(*args, **kwargs):
         nonlocal call_count
         call_count += 1

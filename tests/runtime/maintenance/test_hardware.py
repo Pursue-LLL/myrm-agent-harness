@@ -36,6 +36,7 @@ def test_hardware_profile_dataclass():
 
 # --- _lookup_bandwidth tests ---
 
+
 def test_lookup_bandwidth_apple_m2_pro():
     result = _lookup_bandwidth("Apple M2 Pro")
     assert result == 200.0
@@ -83,6 +84,7 @@ def test_lookup_bandwidth_case_insensitive():
 
 
 # --- memory_bandwidth_gbps integration tests ---
+
 
 @patch("myrm_agent_harness.runtime.maintenance.hardware.psutil")
 @patch("myrm_agent_harness.runtime.maintenance.hardware.platform")
@@ -139,6 +141,7 @@ def test_detect_hardware_profile_unknown_gpu_bandwidth_is_none(mock_run, mock_pl
     assert profile.gpu_name == "Apple Silicon"
     assert profile.memory_bandwidth_gbps is None
 
+
 @patch("myrm_agent_harness.runtime.maintenance.hardware.psutil")
 @patch("myrm_agent_harness.runtime.maintenance.hardware.platform")
 @patch("myrm_agent_harness.runtime.maintenance.hardware._detect_macos_hardware")
@@ -162,6 +165,7 @@ def test_detect_hardware_profile_macos(mock_detect_macos, mock_platform, mock_ps
     assert profile.total_ram_gb == 16.0
     assert profile.free_disk_gb == 100.0
     mock_detect_macos.assert_called_once_with(profile)
+
 
 @patch("myrm_agent_harness.runtime.maintenance.hardware.psutil")
 @patch("myrm_agent_harness.runtime.maintenance.hardware.platform")
@@ -187,6 +191,7 @@ def test_detect_hardware_profile_linux(mock_detect_linux, mock_platform, mock_ps
     assert profile.free_disk_gb == 200.0
     mock_detect_linux.assert_called_once_with(profile)
 
+
 @patch("myrm_agent_harness.runtime.maintenance.hardware.psutil")
 @patch("myrm_agent_harness.runtime.maintenance.hardware.platform")
 @patch("myrm_agent_harness.runtime.maintenance.hardware._detect_windows_hardware")
@@ -211,10 +216,12 @@ def test_detect_hardware_profile_windows(mock_detect_windows, mock_platform, moc
     assert profile.free_disk_gb == 50.0
     mock_detect_windows.assert_called_once_with(profile)
 
+
 @patch("myrm_agent_harness.runtime.maintenance.hardware.psutil", None)
 def test_detect_hardware_profile_no_psutil():
     profile = detect_hardware_profile()
     assert profile is None
+
 
 @patch("myrm_agent_harness.runtime.maintenance.hardware.subprocess.run")
 def test_detect_macos_hardware_arm64(mock_run):
@@ -233,6 +240,7 @@ def test_detect_macos_hardware_arm64(mock_run):
     assert profile.gpu_vram_gb == 16.0
     assert profile.gpu_name == "Apple M1 Pro"
 
+
 @patch("myrm_agent_harness.runtime.maintenance.hardware.subprocess.run")
 def test_detect_linux_hardware_nvidia(mock_run):
     profile = HardwareProfile(os_type="linux", cpu_arch="x86_64", total_ram_gb=32.0)
@@ -249,6 +257,7 @@ def test_detect_linux_hardware_nvidia(mock_run):
     assert profile.has_gpu is True
     assert profile.gpu_name == "NVIDIA GeForce RTX 4090"
     assert profile.gpu_vram_gb == 24564 / 1024.0
+
 
 @patch("myrm_agent_harness.runtime.maintenance.hardware.subprocess.run")
 def test_detect_macos_hardware_intel(mock_run):
@@ -270,6 +279,7 @@ def test_detect_macos_hardware_intel(mock_run):
     assert profile.gpu_name == "AMD Radeon Pro 5500M"
     assert profile.gpu_vram_gb == 8.0
 
+
 @patch("myrm_agent_harness.runtime.maintenance.hardware.subprocess.run")
 def test_detect_macos_hardware_intel_mb(mock_run):
     profile = HardwareProfile(os_type="macos", cpu_arch="x86_64", total_ram_gb=16.0)
@@ -289,6 +299,7 @@ def test_detect_macos_hardware_intel_mb(mock_run):
     assert profile.gpu_vendor == "intel"
     assert profile.gpu_name == "Intel Iris Plus Graphics"
     assert profile.gpu_vram_gb == 1536 / 1024.0
+
 
 @patch("myrm_agent_harness.runtime.maintenance.hardware.subprocess.run")
 def test_detect_linux_hardware_amd(mock_run):
@@ -312,6 +323,7 @@ def test_detect_linux_hardware_amd(mock_run):
     assert profile.has_gpu is True
     assert profile.gpu_name == "AMD Radeon GPU"
 
+
 @patch("myrm_agent_harness.runtime.maintenance.hardware.subprocess.run")
 def test_detect_linux_hardware_intel(mock_run):
     profile = HardwareProfile(os_type="linux", cpu_arch="x86_64", total_ram_gb=32.0)
@@ -333,6 +345,7 @@ def test_detect_linux_hardware_intel(mock_run):
     assert profile.gpu_vendor == "intel"
     assert profile.has_gpu is True
     assert profile.gpu_name == "Intel Integrated Graphics"
+
 
 @patch("myrm_agent_harness.runtime.maintenance.hardware.subprocess.run")
 def test_detect_windows_hardware_amd(mock_run):
@@ -357,6 +370,7 @@ def test_detect_windows_hardware_amd(mock_run):
     assert profile.gpu_name == "AMD Radeon RX 6800"
     assert profile.gpu_vram_gb == 17179869184 / (1024**3)
 
+
 @patch("myrm_agent_harness.runtime.maintenance.hardware.subprocess.run")
 def test_detect_windows_hardware_intel(mock_run):
     profile = HardwareProfile(os_type="windows", cpu_arch="AMD64", total_ram_gb=32.0)
@@ -380,6 +394,7 @@ def test_detect_windows_hardware_intel(mock_run):
     assert profile.gpu_name == "Intel(R) UHD Graphics"
     assert profile.gpu_vram_gb == 1073741824 / (1024**3)
 
+
 @patch("myrm_agent_harness.runtime.maintenance.hardware.psutil")
 @patch("myrm_agent_harness.runtime.maintenance.hardware.platform")
 @patch("myrm_agent_harness.runtime.maintenance.hardware._detect_macos_hardware")
@@ -400,6 +415,7 @@ def test_detect_hardware_profile_unknown_os(mock_detect, mock_platform, mock_psu
     assert profile is not None
     assert profile.os_type == "unknown"
     mock_detect.assert_not_called()
+
 
 @patch("myrm_agent_harness.runtime.maintenance.hardware.psutil")
 def test_detect_hardware_profile_exception(mock_psutil):

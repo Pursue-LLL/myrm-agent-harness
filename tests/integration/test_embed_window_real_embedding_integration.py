@@ -67,9 +67,7 @@ class _LocalEmbeddingHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path.rstrip("/") == "/v1/models":
-            self._send_json(
-                {"object": "list", "data": [{"id": _MODEL, "object": "model"}]}
-            )
+            self._send_json({"object": "list", "data": [{"id": _MODEL, "object": "model"}]})
             return
         self._send_json({"error": "not found"}, status=404)
 
@@ -125,9 +123,7 @@ class _LocalEmbeddingServer:
     def __enter__(self) -> _LocalEmbeddingServer:
         self._server = HTTPServer(("127.0.0.1", 0), _LocalEmbeddingHandler)
         self.base_url = f"http://127.0.0.1:{self._server.server_address[1]}/v1"
-        self._thread = threading.Thread(
-            target=self._server.serve_forever, daemon=True, name="test-embedding-server"
-        )
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True, name="test-embedding-server")
         self._thread.start()
         return self
 
@@ -147,8 +143,7 @@ def _assert_every_chunk_inside_window(chunks: list[str]) -> None:
     for chunk in chunks:
         estimate = estimate_wordpiece_tokens(chunk)
         assert estimate <= policy.max_input_tokens, (
-            f"chunk of {len(chunk)} chars estimates {estimate} wordpiece tokens "
-            f"> window {policy.max_input_tokens}"
+            f"chunk of {len(chunk)} chars estimates {estimate} wordpiece tokens > window {policy.max_input_tokens}"
         )
 
 
@@ -162,9 +157,7 @@ def _local_endpoint() -> str:
 @pytest.fixture
 def embedding(_local_endpoint: str) -> CloudEmbedding:
     """CloudEmbedding pointed at the live local endpoint (real HTTP path)."""
-    return CloudEmbedding(
-        model=_MODEL, api_key="local-test-key", api_base=_local_endpoint
-    )
+    return CloudEmbedding(model=_MODEL, api_key="local-test-key", api_base=_local_endpoint)
 
 
 @pytest.mark.asyncio
@@ -231,9 +224,7 @@ async def test_real_memory_fit_truncates_then_embeds(embedding: CloudEmbedding) 
 
 
 @pytest.mark.asyncio
-async def test_real_wiki_ingest_long_chinese_document(
-    embedding: CloudEmbedding, tmp_path: Path
-) -> None:
+async def test_real_wiki_ingest_long_chinese_document(embedding: CloudEmbedding, tmp_path: Path) -> None:
     """Real wiki ingest: long Chinese published doc splits and every chunk embeds in-window."""
     structure = WikiStructure(tmp_path)
     structure.ensure_structure()
@@ -246,9 +237,7 @@ async def test_real_wiki_ingest_long_chinese_document(
     vector_store.upsert = AsyncMock()
     vector_store.delete_by_filter = AsyncMock()
 
-    indexer = WikiIndexer(
-        structure, config, vector_store=vector_store, embedding=embedding
-    )
+    indexer = WikiIndexer(structure, config, vector_store=vector_store, embedding=embedding)
 
     body = _long_chinese_text(20_000)
     markdown = f"---\npublish_status: published\n---\n\n## Compiled Truth\n{body}"
@@ -272,12 +261,8 @@ async def test_real_bpe_model_long_text_splits_by_token_budget(
 ) -> None:
     """BPE model routes to the tiktoken token budget and embeds over real HTTP."""
     model = "text-embedding-3-small"
-    assert not is_cjk_wordpiece_model(
-        model
-    ), "text-embedding-3-small must stay on the BPE path"
-    bpe = CloudEmbedding(
-        model=model, api_key="local-test-key", api_base=_local_endpoint
-    )
+    assert not is_cjk_wordpiece_model(model), "text-embedding-3-small must stay on the BPE path"
+    bpe = CloudEmbedding(model=model, api_key="local-test-key", api_base=_local_endpoint)
     policy = EmbedWindowPolicy.for_model(model)
 
     text = _long_chinese_text(30_000)
@@ -293,9 +278,7 @@ async def test_real_small_window_wordpiece_budget(_local_endpoint: str) -> None:
     """Small-window wordpiece model (bge-large-zh, 512 window) uses the 0.5 char budget."""
     model = "BAAI/bge-large-zh-v1.5"
     assert is_cjk_wordpiece_model(model)
-    small = CloudEmbedding(
-        model=model, api_key="local-test-key", api_base=_local_endpoint
-    )
+    small = CloudEmbedding(model=model, api_key="local-test-key", api_base=_local_endpoint)
     policy = EmbedWindowPolicy.for_model(model)
     assert policy.max_input_tokens == 512
     assert policy.effective_chunk_budget == 256, "512 window x 0.5 margin = 256 chars"
@@ -316,22 +299,18 @@ async def test_real_small_window_wordpiece_budget(_local_endpoint: str) -> None:
 async def test_real_korean_text_wordpiece_budget(_local_endpoint: str) -> None:
     """Korean on a Chinese BERT wordpiece model (bge-large-zh) never exceeds the window."""
     model = "BAAI/bge-large-zh-v1.5"
-    korean = CloudEmbedding(
-        model=model, api_key="local-test-key", api_base=_local_endpoint
-    )
+    korean = CloudEmbedding(model=model, api_key="local-test-key", api_base=_local_endpoint)
     policy = EmbedWindowPolicy.for_model(model)
 
-    korean_text = (
-        "오늘 회의에서 진행 상황을 논의했고 다음 주 계획을 확정했습니다. " * 400
-    )
+    korean_text = "오늘 회의에서 진행 상황을 논의했고 다음 주 계획을 확정했습니다. " * 400
     chunks = split_for_embedding(korean_text, policy)
 
     assert len(chunks) >= 3, "long Korean text must split into multiple chunks"
     for chunk in chunks:
         estimate = estimate_wordpiece_tokens(chunk)
-        assert (
-            estimate <= policy.max_input_tokens
-        ), f"Korean chunk estimates {estimate} wordpiece tokens > window {policy.max_input_tokens}"
+        assert estimate <= policy.max_input_tokens, (
+            f"Korean chunk estimates {estimate} wordpiece tokens > window {policy.max_input_tokens}"
+        )
 
     vectors = await korean.embed_batch(chunks)
     assert len(vectors) == len(chunks)
@@ -343,9 +322,7 @@ async def test_real_mixed_language_text_never_exceeds_window(
 ) -> None:
     """Mixed zh/en/ko text on a wordpiece model stays inside the window after splitting."""
     model = "BAAI/bge-large-zh-v1.5"
-    mixed = CloudEmbedding(
-        model=model, api_key="local-test-key", api_base=_local_endpoint
-    )
+    mixed = CloudEmbedding(model=model, api_key="local-test-key", api_base=_local_endpoint)
     policy = EmbedWindowPolicy.for_model(model)
 
     mixed_text = (
@@ -373,9 +350,7 @@ async def test_real_store_semantic_long_memory_truncates_and_embeds(
     from myrm_agent_harness.toolkits.memory.types import SemanticMemory
 
     model = "BAAI/bge-large-zh-v1.5"
-    real_embedding = CloudEmbedding(
-        model=model, api_key="local-test-key", api_base=_local_endpoint
-    )
+    real_embedding = CloudEmbedding(model=model, api_key="local-test-key", api_base=_local_endpoint)
     policy = EmbedWindowPolicy.for_model(model)
 
     vector_store = AsyncMock()
@@ -397,7 +372,5 @@ async def test_real_store_semantic_long_memory_truncates_and_embeds(
     result = await store_semantic(memory, vector_store, config, real_embedding, cache)
 
     assert result.embedding is not None, "real embedding must succeed after truncation"
-    assert (
-        result.embedding != [0.1] * 768
-    ), "embedding must come from the real HTTP path"
+    assert result.embedding != [0.1] * 768, "embedding must come from the real HTTP path"
     vector_store.upsert.assert_awaited_once()

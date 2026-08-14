@@ -53,17 +53,13 @@ class VolcengineDoubaoSearch:
         self.api_base = (api_base or _API_KEY_URL).rstrip("/")
         self.timeout_seconds = timeout_seconds or 20
 
-    async def search(
-        self, query: str, num_results: int = 5, **kwargs: object
-    ) -> list[SearchResult]:
+    async def search(self, query: str, num_results: int = 5, **kwargs: object) -> list[SearchResult]:
         count = min(max(num_results, 1), _MAX_WEB_COUNT)
         body = self._build_body(query=query, count=count, extra=kwargs)
         payload = await self._post_search(body)
         return self._parse_results(payload)
 
-    def _build_body(
-        self, *, query: str, count: int, extra: dict[str, object]
-    ) -> dict[str, object]:
+    def _build_body(self, *, query: str, count: int, extra: dict[str, object]) -> dict[str, object]:
         search_type = str(extra.get("search_type") or extra.get("SearchType") or "web")
         body: dict[str, object] = {
             "Query": query,
@@ -96,9 +92,7 @@ class VolcengineDoubaoSearch:
         }
         body_str = json.dumps(body, ensure_ascii=False)
         try:
-            async with create_httpx_client(
-                timeout=float(self.timeout_seconds)
-            ) as client:
+            async with create_httpx_client(timeout=float(self.timeout_seconds)) as client:
                 response = await client.post(
                     self.api_base,
                     headers=headers,
@@ -111,9 +105,7 @@ class VolcengineDoubaoSearch:
                 provider="volcengine_doubao",
                 attempt_index=0,
             )
-            raise SearchAPIError(
-                "Volcengine search request timed out", context=ctx
-            ) from exc
+            raise SearchAPIError("Volcengine search request timed out", context=ctx) from exc
         except httpx.HTTPError as exc:
             ctx = build_search_error_context(
                 exc,
@@ -121,9 +113,7 @@ class VolcengineDoubaoSearch:
                 provider="volcengine_doubao",
                 attempt_index=0,
             )
-            raise SearchAPIError(
-                f"Volcengine search HTTP error: {exc}", context=ctx
-            ) from exc
+            raise SearchAPIError(f"Volcengine search HTTP error: {exc}", context=ctx) from exc
 
         if response.status_code == 429:
             ctx = build_search_error_context(
@@ -158,9 +148,7 @@ class VolcengineDoubaoSearch:
                 provider="volcengine_doubao",
                 attempt_index=0,
             )
-            raise SearchAPIError(
-                "Volcengine search returned invalid JSON", context=ctx
-            ) from exc
+            raise SearchAPIError("Volcengine search returned invalid JSON", context=ctx) from exc
 
         if not isinstance(data, dict):
             ctx = build_search_error_context(
@@ -169,9 +157,7 @@ class VolcengineDoubaoSearch:
                 provider="volcengine_doubao",
                 attempt_index=0,
             )
-            raise SearchAPIError(
-                "Volcengine search returned unexpected payload", context=ctx
-            )
+            raise SearchAPIError("Volcengine search returned unexpected payload", context=ctx)
 
         error_meta = data.get("ResponseMetadata")
         if isinstance(error_meta, dict):
@@ -188,9 +174,7 @@ class VolcengineDoubaoSearch:
                 attempt_index=0,
                 error_code=code or None,
             )
-            raise SearchAPIError(
-                f"Volcengine search API error [{code}]: {message}", context=ctx
-            )
+            raise SearchAPIError(f"Volcengine search API error [{code}]: {message}", context=ctx)
 
         return data
 

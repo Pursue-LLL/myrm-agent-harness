@@ -208,10 +208,7 @@ class VisionPerceptionEngine:
             return cached
         try:
             b64, mime = await self._load_image_b64(path, executor)
-            prompt = (
-                "Transcribe every piece of visible text verbatim, line by line. "
-                "Do not summarize or translate."
-            )
+            prompt = "Transcribe every piece of visible text verbatim, line by line. Do not summarize or translate."
             if task:
                 prompt = f"{self._engine.build_vision_prompt(hint=task, source='user')}\n\n{prompt}"
             text = await self._engine.describe_image_b64(b64, mime, prompt=prompt)

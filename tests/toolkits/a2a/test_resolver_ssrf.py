@@ -14,11 +14,14 @@ from myrm_agent_harness.toolkits.a2a.resolver import A2ACardResolver, SSRFBlocke
 async def test_resolve_blocks_ssrf_via_secure_get() -> None:
     resolver = A2ACardResolver(cache_ttl_seconds=0)
 
-    with patch(
-        "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
-        new_callable=AsyncMock,
-        side_effect=SSRFSecurityError("private IP"),
-    ), pytest.raises(SSRFBlockedError, match="private IP"):
+    with (
+        patch(
+            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+            new_callable=AsyncMock,
+            side_effect=SSRFSecurityError("private IP"),
+        ),
+        pytest.raises(SSRFBlockedError, match="private IP"),
+    ):
         await resolver.resolve("https://agent.example.com")
 
 

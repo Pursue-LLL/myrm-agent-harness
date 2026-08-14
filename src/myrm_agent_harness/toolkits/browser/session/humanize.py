@@ -40,9 +40,7 @@ if TYPE_CHECKING:
 INTERACTION_TIMEOUT_MS = 10_000
 
 
-def _humanized_delay(
-    cfg: HumanizeConfig, mean: float, sigma: float, lo: int, hi: int
-) -> int:
+def _humanized_delay(cfg: HumanizeConfig, mean: float, sigma: float, lo: int, hi: int) -> int:
     """Compute a humanized delay (ms). FAST uses uniform, DEFAULT/CAREFUL use Gaussian."""
     if cfg.mode == HumanizeMode.FAST:
         return random.randint(lo, hi)
@@ -154,9 +152,7 @@ async def wheel_burst(page: Page, delta: int, cfg: HumanizeConfig) -> None:
         await page.mouse.wheel(0, chunk * direction)
         remaining -= chunk
         if remaining > 0:
-            await asyncio.sleep(
-                random.randint(cfg.scroll_gap_min, cfg.scroll_gap_max) / 1000.0
-            )
+            await asyncio.sleep(random.randint(cfg.scroll_gap_min, cfg.scroll_gap_max) / 1000.0)
 
 
 def scroll_notch_delta(cfg: HumanizeConfig, phase: str, direction: int) -> int:
@@ -176,9 +172,7 @@ def scroll_notch_delta(cfg: HumanizeConfig, phase: str, direction: int) -> int:
     return round(delta) * direction
 
 
-def scroll_burst_break_ms(
-    cfg: HumanizeConfig, in_burst: bool, phase_changed: bool
-) -> int:
+def scroll_burst_break_ms(cfg: HumanizeConfig, in_burst: bool, phase_changed: bool) -> int:
     """Pause before the next scroll notch (ms), or 0 to keep the burst running.
 
     Human wheel scroll is bursty: several notches fire in quick succession, then

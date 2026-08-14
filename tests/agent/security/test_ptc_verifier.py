@@ -23,6 +23,7 @@ _read_file(path='/workspace/repo', branch='main')
     assert tool_name == "read_file"
     assert args == {"path": "/workspace/repo", "branch": "main"}
 
+
 def test_extract_ptc_with_other_imports_rejected():
     """Test that importing anything other than skills.* is rejected for safety."""
     command = '''python -c "
@@ -32,6 +33,7 @@ _read_file(path='/workspace')
 "'''
     result = extract_ptc_intent(command)
     assert result is None
+
 
 def test_extract_ptc_with_malicious_calls_rejected():
     """Test that calling anything other than allowed builtins and imported tools is rejected."""
@@ -43,6 +45,7 @@ eval('os.system(\\"rm -rf /\\")')
     result = extract_ptc_intent(command)
     assert result is None
 
+
 def test_extract_ptc_with_attribute_calls_rejected():
     """Test that methods on objects (Attribute calls) are rejected."""
     command = '''python -c "
@@ -52,6 +55,7 @@ res.update({'malicious': True})
 "'''
     result = extract_ptc_intent(command)
     assert result is None
+
 
 def test_extract_ptc_with_safe_builtins_accepted():
     """Test that using safe builtins like print or dict is accepted."""
@@ -66,6 +70,7 @@ print(dict(res))
     assert skill_name == "mcp_github_skill"
     assert tool_name == "read_file"
 
+
 def test_extract_ptc_with_loops_rejected():
     """Test that complex control flow like loops are rejected."""
     command = '''python -c "
@@ -76,17 +81,20 @@ for i in range(10):
     result = extract_ptc_intent(command)
     assert result is None
 
+
 def test_extract_ptc_with_syntax_error():
     """Test that invalid python syntax returns None."""
     command = '''python -c "from skills import def"'''
     result = extract_ptc_intent(command)
     assert result is None
 
+
 def test_extract_ptc_without_python_code():
     """Test that non-python commands return None."""
     command = '''echo "hello"'''
     result = extract_ptc_intent(command)
     assert result is None
+
 
 def test_extract_ptc_without_underscore_func():
     """Test that a tool name without leading underscore is parsed correctly."""
@@ -98,6 +106,7 @@ read_file(path='/workspace')
     assert result is not None
     assert result[1] == "read_file"
 
+
 def test_extract_ptc_with_complex_args():
     """Test that args failing literal_eval are ignored but script is still safe."""
     command = '''python -c "
@@ -108,6 +117,7 @@ read_file(path=my_var)
     result = extract_ptc_intent(command)
     assert result is not None
     assert "path" not in result[2]
+
 
 def test_extract_ptc_with_invalid_import():
     """Test import from without module name."""
@@ -213,7 +223,12 @@ class TestPTCSafetyMetadataRegistry:
 
     def test_register_and_get(self):
         meta = SafetyMetadata(is_read_only=True, is_concurrent_safe=True)
-        annotations: MCPAnnotations = {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
+        annotations: MCPAnnotations = {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": False,
+        }
         register_ptc_safety_metadata("my_skill", "read_file", meta, annotations)
 
         result = get_ptc_safety_metadata("my_skill", "read_file")
@@ -249,7 +264,8 @@ class TestPTCSafetyMetadataRegistry:
     def test_resolve_safety_metadata_builtin_takes_priority(self):
         """Built-in TOOL_SAFETY_METADATA entries always override MCP dynamic entries."""
         register_ptc_safety_metadata(
-            "my_skill", "file_read_tool",
+            "my_skill",
+            "file_read_tool",
             SafetyMetadata(is_destructive=True),
             {"destructiveHint": True},
         )

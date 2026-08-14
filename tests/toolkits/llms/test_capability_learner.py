@@ -67,9 +67,7 @@ class TestModelCapabilityLearner:
     def test_ttl_expiration(self) -> None:
         self.learner.learn("gpt-4o", "rejects_media", True, ttl_seconds=1)
         assert self.learner.get("gpt-4o", "rejects_media") is True
-        with patch(
-            "myrm_agent_harness.toolkits.llms.capability_learner.time"
-        ) as mock_time:
+        with patch("myrm_agent_harness.toolkits.llms.capability_learner.time") as mock_time:
             mock_time.monotonic.return_value = time.monotonic() + 2
             assert self.learner.get("gpt-4o", "rejects_media") is None
 

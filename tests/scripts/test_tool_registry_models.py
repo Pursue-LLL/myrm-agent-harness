@@ -24,9 +24,7 @@ def _decl(name: str, file: str = "/a.py", line: int = 1, kind: str = "decorator"
 
 def test_declared_names_dedups_repeated_entries() -> None:
     """Two declarations with the same name collapse to one in declared_names."""
-    report = ScanReport(
-        declarations=[_decl("foo"), _decl("foo", file="/b.py"), _decl("bar")]
-    )
+    report = ScanReport(declarations=[_decl("foo"), _decl("foo", file="/b.py"), _decl("bar")])
     assert report.declared_names == {"foo", "bar"}
 
 

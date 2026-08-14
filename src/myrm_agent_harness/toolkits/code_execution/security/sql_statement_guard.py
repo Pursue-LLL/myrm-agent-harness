@@ -48,11 +48,22 @@ _DB_CLIENT_SQL_FLAGS: dict[str, tuple[str, ...]] = {
 
 # Safe read-only SQL keywords (whitelist). Anything NOT in this set triggers
 # ESCALATE — conservative by design (unknown operations require human approval).
-_SAFE_SQL_KEYWORDS: frozenset[str] = frozenset({
-    "SELECT", "SHOW", "EXPLAIN", "DESCRIBE", "DESC",
-    "PRAGMA", "WITH", "VALUES",
-    "SET", "BEGIN", "COMMIT", "ROLLBACK",
-})
+_SAFE_SQL_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "SELECT",
+        "SHOW",
+        "EXPLAIN",
+        "DESCRIBE",
+        "DESC",
+        "PRAGMA",
+        "WITH",
+        "VALUES",
+        "SET",
+        "BEGIN",
+        "COMMIT",
+        "ROLLBACK",
+    }
+)
 
 # Write/destructive DML keywords scanned in WITH CTE bodies.
 _WRITE_DML_RE = re.compile(
@@ -81,12 +92,12 @@ def _extract_first_sql_keyword(sql: str) -> str | None:
             newline = text.find("\n")
             if newline == -1:
                 return None
-            text = text[newline + 1:].strip()
+            text = text[newline + 1 :].strip()
         elif text.startswith("/*"):
             end = text.find("*/")
             if end == -1:
                 return None
-            text = text[end + 2:].strip()
+            text = text[end + 2 :].strip()
         else:
             break
 
@@ -229,11 +240,13 @@ def check_sql_threats(command: str) -> list[CommandThreat]:
             continue
         if _is_destructive_sql(sql):
             keyword = _find_destructive_keyword(sql)
-            threats.append(CommandThreat(
-                level=ThreatLevel.ESCALATE,
-                category="destructive_sql",
-                detail=f"Destructive SQL operation: {keyword}",
-                evidence=sql[:80],
-            ))
+            threats.append(
+                CommandThreat(
+                    level=ThreatLevel.ESCALATE,
+                    category="destructive_sql",
+                    detail=f"Destructive SQL operation: {keyword}",
+                    evidence=sql[:80],
+                )
+            )
 
     return threats

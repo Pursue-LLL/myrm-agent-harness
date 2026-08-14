@@ -50,7 +50,9 @@ def _rustc_version_tuple() -> tuple[int, ...]:
     try:
         out = subprocess.run(
             ["rustc", "--version"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if out.returncode != 0:
             return (0,)
@@ -179,6 +181,7 @@ def test_core_wheel_contains_compiled_artifacts() -> None:
 
 
 _SLOW_ARCHITECTURE = pytest.mark.slow
+
 
 @pytest.mark.architecture
 @_SKIP_UNDER_XDIST

@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import re
 
-_MD_BASE64_IMAGE = re.compile(
-    r"!\[(?P<alt>[^\]]*)\]\(\s*data:image/[^;]+;base64,[A-Za-z0-9+/=\s]+\)"
-)
+_MD_BASE64_IMAGE = re.compile(r"!\[(?P<alt>[^\]]*)\]\(\s*data:image/[^;]+;base64,[A-Za-z0-9+/=\s]+\)")
 _PAREN_BASE64 = re.compile(r"\(\s*data:image/[^;]+;base64,[A-Za-z0-9+/=\s]+\)")
 _BARE_BASE64 = re.compile(r"data:image/[^;]+;base64,[A-Za-z0-9+/=]+")
 

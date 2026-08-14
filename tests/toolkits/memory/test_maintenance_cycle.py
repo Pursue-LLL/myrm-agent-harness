@@ -73,7 +73,10 @@ def _create_manager(
     consolidation_llm: object | None = None,
     mock_relational_store: AsyncMock | None = None,
 ) -> MemoryManager:
-    return MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+    return MemoryManager(
+        memory_config,
+        user_id="test_user",
+        vector=mock_vector_store,
         embedding=mock_embedding,
         relational=mock_relational_store,
         consolidation_llm=consolidation_llm,
@@ -285,7 +288,10 @@ class TestRunMaintenanceCycle:
             ),
         ]
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        mgr = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             graph=mock_graph_store,
             auto_warmup=False,
@@ -376,7 +382,10 @@ class TestRunMaintenanceCycle:
             id=node_id, labels=["Claim"], properties=properties
         )
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        mgr = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             graph=mock_graph_store,
             auto_warmup=False,
@@ -465,7 +474,10 @@ class TestRunMaintenanceCycle:
             id=node_id, labels=["Claim"], properties=properties
         )
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        mgr = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             graph=mock_graph_store,
             auto_warmup=False,

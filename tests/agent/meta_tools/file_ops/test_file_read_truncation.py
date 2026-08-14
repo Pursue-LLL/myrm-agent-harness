@@ -10,6 +10,7 @@ def test_truncate_file_output_no_truncation():
     assert was_truncated is False
     assert meta == {}
 
+
 def test_truncate_file_output_with_truncation():
     output = "a" * 200
     truncated, was_truncated, meta = _truncate_file_output(output, max_chars=100, is_dir=False, path_str="test.txt")
@@ -24,6 +25,7 @@ def test_truncate_file_output_with_truncation():
     assert "start_line/end_line" in truncated
     assert "grep" not in truncated
     assert "bash_exec" not in truncated
+
 
 def test_truncate_file_output_includes_actual_path_in_hint():
     """Line range example in hint must include the actual file path."""

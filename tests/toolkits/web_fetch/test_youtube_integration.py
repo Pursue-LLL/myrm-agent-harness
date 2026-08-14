@@ -114,9 +114,7 @@ async def test_youtube_languages_passed_to_extractor() -> None:
             "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_youtube_transcript",
             new_callable=AsyncMock,
         ) as mock_extract:
-            mock_extract.return_value = MagicMock(
-                page_content="transcript", metadata={"video_id": "abc123XYZ00"}
-            )
+            mock_extract.return_value = MagicMock(page_content="transcript", metadata={"video_id": "abc123XYZ00"})
 
             await engine.crawl(youtube_url)
 

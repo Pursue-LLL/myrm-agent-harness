@@ -103,9 +103,7 @@ class EmbedInputTooLargeError(Exception):
         self.parent_key = parent_key
         model_label = model or "embedding model"
         scope = f" for '{parent_key}'" if parent_key else ""
-        super().__init__(
-            f"Embedding input {token_count} tokens exceeds {model_label} limit {limit}{scope}"
-        )
+        super().__init__(f"Embedding input {token_count} tokens exceeds {model_label} limit {limit}{scope}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,14 +130,10 @@ class EmbedWindowPolicy:
         )
 
     @classmethod
-    def from_max_tokens(
-        cls, max_input_tokens: int, *, model: str | None = None
-    ) -> EmbedWindowPolicy:
+    def from_max_tokens(cls, max_input_tokens: int, *, model: str | None = None) -> EmbedWindowPolicy:
         safe_max = max(32, max_input_tokens)
         effective = max(32, int(safe_max * _safety_margin_for(safe_max, model)))
-        return cls(
-            max_input_tokens=safe_max, effective_chunk_budget=effective, model=model
-        )
+        return cls(max_input_tokens=safe_max, effective_chunk_budget=effective, model=model)
 
 
 # CJK scripts that BERT/XLM wordpiece tokenizers count as one token per char.
@@ -244,10 +238,7 @@ def _safety_margin_for(max_input_tokens: int, model: str | None) -> float:
     """
     if is_cjk_wordpiece_model(model):
         base = model.rsplit("/", 1)[-1].lower()
-        if (
-            max_input_tokens > SMALL_WINDOW_MAX_TOKENS
-            and base in _XLM_R_SAFE_WORDPIECE_MODELS
-        ):
+        if max_input_tokens > SMALL_WINDOW_MAX_TOKENS and base in _XLM_R_SAFE_WORDPIECE_MODELS:
             return SAFETY_MARGIN
         return CJK_WORDPIECE_SAFETY_MARGIN
     if max_input_tokens <= SMALL_WINDOW_MAX_TOKENS:

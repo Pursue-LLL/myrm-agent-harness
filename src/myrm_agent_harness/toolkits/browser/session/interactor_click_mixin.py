@@ -67,9 +67,7 @@ class ClickInteractMixin:
             self._mouse_x = vw / 2
             self._mouse_y = vh / 2
 
-        await bezier_move(
-            self._page, self._mouse_x, self._mouse_y, target_x, target_y, self._humanize
-        )
+        await bezier_move(self._page, self._mouse_x, self._mouse_y, target_x, target_y, self._humanize)
         self._mouse_x, self._mouse_y = target_x, target_y
         return True
 

@@ -173,9 +173,7 @@ class TestExtractor:
         assert "Iframe content" in result
         assert "Frame 1" in result
 
-    async def test_extract_full_text_frame_error_resilience(
-        self, extractor: Extractor, mock_page: MagicMock
-    ) -> None:
+    async def test_extract_full_text_frame_error_resilience(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test that a failing frame does not prevent extraction from other frames."""
         frame0 = MagicMock()
         frame0.evaluate = AsyncMock(return_value="Good frame")
@@ -213,9 +211,7 @@ class TestExtractor:
         assert "Exported PDF to" in result
         mock_page.pdf.assert_called_once_with(path=pdf_path, print_background=True)
 
-    async def test_detect_significant_visual_content_true(
-        self, extractor: Extractor, mock_page: MagicMock
-    ) -> None:
+    async def test_detect_significant_visual_content_true(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test detect_significant_visual_content returns True when large Canvas exists."""
         mock_page.evaluate = AsyncMock(return_value=True)
 
@@ -223,9 +219,7 @@ class TestExtractor:
 
         assert result is True
 
-    async def test_detect_significant_visual_content_false(
-        self, extractor: Extractor, mock_page: MagicMock
-    ) -> None:
+    async def test_detect_significant_visual_content_false(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test detect_significant_visual_content returns False when no large visual elements."""
         mock_page.evaluate = AsyncMock(return_value=False)
 
@@ -266,15 +260,17 @@ class TestExtractMedia:
     async def test_basic_images_extraction(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test extracting basic image URLs."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [
-                {"url": "https://example.com/hero.jpg", "w": 1920, "h": 1080, "alt": "Hero image"},
-                {"url": "https://example.com/product.png", "w": 800, "h": 600, "alt": "Product"},
-            ],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [
+                    {"url": "https://example.com/hero.jpg", "w": 1920, "h": 1080, "alt": "Hero image"},
+                    {"url": "https://example.com/product.png", "w": 800, "h": 600, "alt": "Product"},
+                ],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         result = await extractor.extract_media()
@@ -288,15 +284,17 @@ class TestExtractMedia:
     async def test_videos_extraction(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test extracting video URLs with posters."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [],
-            "videos": [
-                {"url": "https://example.com/demo.mp4", "poster": "https://example.com/thumb.jpg"},
-                {"url": "https://youtube.com/embed/abc123", "poster": None},
-            ],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [],
+                "videos": [
+                    {"url": "https://example.com/demo.mp4", "poster": "https://example.com/thumb.jpg"},
+                    {"url": "https://youtube.com/embed/abc123", "poster": None},
+                ],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         result = await extractor.extract_media()
@@ -309,12 +307,14 @@ class TestExtractMedia:
     async def test_audio_extraction(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test extracting audio URLs."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [],
-            "videos": [],
-            "audios": [{"url": "https://example.com/podcast.mp3"}],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [],
+                "videos": [],
+                "audios": [{"url": "https://example.com/podcast.mp3"}],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         result = await extractor.extract_media()
@@ -325,15 +325,17 @@ class TestExtractMedia:
     async def test_meta_images_extraction(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test extracting OG and Twitter meta images."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [],
-            "videos": [],
-            "audios": [],
-            "metaImages": [
-                {"property": "og:image", "url": "https://example.com/share.jpg"},
-                {"property": "twitter:image", "url": "https://example.com/card.jpg"},
-            ],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [],
+                "videos": [],
+                "audios": [],
+                "metaImages": [
+                    {"property": "og:image", "url": "https://example.com/share.jpg"},
+                    {"property": "twitter:image", "url": "https://example.com/card.jpg"},
+                ],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         result = await extractor.extract_media()
@@ -345,12 +347,14 @@ class TestExtractMedia:
     async def test_no_media_found(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test returns appropriate message when no media found."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         result = await extractor.extract_media()
@@ -360,19 +364,23 @@ class TestExtractMedia:
     async def test_multi_frame_media(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test media extraction aggregates across multiple frames."""
         frame0 = MagicMock()
-        frame0.evaluate = AsyncMock(return_value={
-            "images": [{"url": "https://main.com/img1.jpg", "w": 400, "h": 300, "alt": ""}],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        frame0.evaluate = AsyncMock(
+            return_value={
+                "images": [{"url": "https://main.com/img1.jpg", "w": 400, "h": 300, "alt": ""}],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         frame1 = MagicMock()
-        frame1.evaluate = AsyncMock(return_value={
-            "images": [{"url": "https://iframe.com/img2.jpg", "w": 200, "h": 200, "alt": ""}],
-            "videos": [{"url": "https://iframe.com/video.mp4", "poster": None}],
-            "audios": [],
-            "metaImages": [],
-        })
+        frame1.evaluate = AsyncMock(
+            return_value={
+                "images": [{"url": "https://iframe.com/img2.jpg", "w": 200, "h": 200, "alt": ""}],
+                "videos": [{"url": "https://iframe.com/video.mp4", "poster": None}],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [frame0, frame1]
 
         result = await extractor.extract_media()
@@ -384,12 +392,14 @@ class TestExtractMedia:
     async def test_frame_error_resilience(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test that a failing frame does not prevent media extraction from other frames."""
         frame0 = MagicMock()
-        frame0.evaluate = AsyncMock(return_value={
-            "images": [{"url": "https://ok.com/img.jpg", "w": None, "h": None, "alt": ""}],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        frame0.evaluate = AsyncMock(
+            return_value={
+                "images": [{"url": "https://ok.com/img.jpg", "w": None, "h": None, "alt": ""}],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         frame1 = MagicMock()
         frame1.evaluate = AsyncMock(side_effect=RuntimeError("Frame detached"))
         mock_page.frames = [frame0, frame1]
@@ -402,12 +412,14 @@ class TestExtractMedia:
         """Test that max_images parameter limits output."""
         images = [{"url": f"https://example.com/img{i}.jpg", "w": 100, "h": 100, "alt": ""} for i in range(100)]
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": images,
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": images,
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         result = await extractor.extract_media(max_images=5)
@@ -420,12 +432,14 @@ class TestExtractMedia:
     async def test_selector_passed_to_js(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test that selector parameter is passed to the JS evaluation."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         await extractor.extract_media(selector=".gallery")
@@ -436,16 +450,23 @@ class TestExtractMedia:
     async def test_output_truncation_on_large_result(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test that very large output is truncated to prevent context overflow."""
         images = [
-            {"url": f"https://example.com/{'x' * 200}/img{i}.jpg", "w": 1920, "h": 1080, "alt": f"Long alt text {'y' * 50}"}
+            {
+                "url": f"https://example.com/{'x' * 200}/img{i}.jpg",
+                "w": 1920,
+                "h": 1080,
+                "alt": f"Long alt text {'y' * 50}",
+            }
             for i in range(50)
         ]
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": images,
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": images,
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         result = await extractor.extract_media()
@@ -457,12 +478,14 @@ class TestExtractMedia:
     async def test_mixed_media_types(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test extraction with all media types present."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [{"url": "https://example.com/photo.jpg", "w": 640, "h": 480, "alt": "Photo"}],
-            "videos": [{"url": "https://example.com/clip.mp4", "poster": "https://example.com/poster.jpg"}],
-            "audios": [{"url": "https://example.com/song.mp3"}],
-            "metaImages": [{"property": "og:image", "url": "https://example.com/og.jpg"}],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [{"url": "https://example.com/photo.jpg", "w": 640, "h": 480, "alt": "Photo"}],
+                "videos": [{"url": "https://example.com/clip.mp4", "poster": "https://example.com/poster.jpg"}],
+                "audios": [{"url": "https://example.com/song.mp3"}],
+                "metaImages": [{"property": "og:image", "url": "https://example.com/og.jpg"}],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         result = await extractor.extract_media()
@@ -479,12 +502,14 @@ class TestExtractMedia:
     async def test_image_without_dimensions(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test that images without width/height still appear without dimension info."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [{"url": "https://example.com/lazy.jpg", "w": None, "h": None, "alt": "Lazy loaded"}],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [{"url": "https://example.com/lazy.jpg", "w": None, "h": None, "alt": "Lazy loaded"}],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         result = await extractor.extract_media()
@@ -496,12 +521,14 @@ class TestExtractMedia:
     async def test_js_script_handles_lazy_loading(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Verify JS script includes data-src and data-lazy-src for lazy-loaded images."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         await extractor.extract_media()
@@ -515,12 +542,14 @@ class TestExtractMedia:
     async def test_js_script_filters_decorative_elements(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Verify JS script filters out icons, logos, and tiny images."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         await extractor.extract_media()
@@ -535,12 +564,14 @@ class TestExtractMedia:
     async def test_js_script_handles_iframe_embeds(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Verify JS script detects YouTube/Vimeo iframe embeds as videos."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         await extractor.extract_media()
@@ -553,22 +584,26 @@ class TestExtractMedia:
     async def test_cross_frame_deduplication(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Test that duplicate URLs across frames are deduplicated."""
         frame0 = MagicMock()
-        frame0.evaluate = AsyncMock(return_value={
-            "images": [{"url": "https://shared.com/hero.jpg", "w": 800, "h": 600, "alt": "Hero"}],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        frame0.evaluate = AsyncMock(
+            return_value={
+                "images": [{"url": "https://shared.com/hero.jpg", "w": 800, "h": 600, "alt": "Hero"}],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         frame1 = MagicMock()
-        frame1.evaluate = AsyncMock(return_value={
-            "images": [
-                {"url": "https://shared.com/hero.jpg", "w": 800, "h": 600, "alt": "Hero Dupe"},
-                {"url": "https://unique.com/frame1.jpg", "w": 200, "h": 200, "alt": ""},
-            ],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        frame1.evaluate = AsyncMock(
+            return_value={
+                "images": [
+                    {"url": "https://shared.com/hero.jpg", "w": 800, "h": 600, "alt": "Hero Dupe"},
+                    {"url": "https://unique.com/frame1.jpg", "w": 200, "h": 200, "alt": ""},
+                ],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [frame0, frame1]
 
         result = await extractor.extract_media()
@@ -579,12 +614,14 @@ class TestExtractMedia:
     async def test_js_script_handles_data_srcset(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Verify JS script includes data-srcset for lazysizes library support."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         await extractor.extract_media()
@@ -595,12 +632,14 @@ class TestExtractMedia:
     async def test_js_script_has_wildcard_lazy_scan(self, extractor: Extractor, mock_page: MagicMock) -> None:
         """Verify JS script contains findLazySrc wildcard data-*src* fallback."""
         mock_frame = MagicMock()
-        mock_frame.evaluate = AsyncMock(return_value={
-            "images": [],
-            "videos": [],
-            "audios": [],
-            "metaImages": [],
-        })
+        mock_frame.evaluate = AsyncMock(
+            return_value={
+                "images": [],
+                "videos": [],
+                "audios": [],
+                "metaImages": [],
+            }
+        )
         mock_page.frames = [mock_frame]
 
         await extractor.extract_media()

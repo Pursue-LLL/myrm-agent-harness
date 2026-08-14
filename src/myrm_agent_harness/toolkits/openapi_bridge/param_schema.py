@@ -19,8 +19,6 @@ conversion shared by spec_parser (per-endpoint) and tool generation.
 
 from __future__ import annotations
 
-from typing import Any
-
 from myrm_agent_harness.toolkits.mcp.schema.normalize import flatten_json_schema
 
 
@@ -31,16 +29,17 @@ def extract_endpoint_params(
     is_swagger_2: bool,
     components: dict[str, object] | None = None,
     definitions: dict[str, object] | None = None,
+    top_parameters: dict[str, object] | None = None,
 ) -> tuple[dict[str, object] | None, set[str], set[str]]:
     """Extract a merged parameter JSON Schema for an operation.
 
     Merges path-level and operation-level ``parameters`` (operation wins on
     name+location collision) plus the request body (OpenAPI 3.x
     ``requestBody`` / Swagger 2.0 ``in: body``). ``$ref`` pointers are
-    resolved against the document's ``components`` (OpenAPI 3.x) or
-    ``definitions`` (Swagger 2.0) containers so the merged schema is
-    self-contained for LLM consumption. Returns ``None`` when the spec
-    declares no usable parameters.
+    resolved against the document's ``components`` (OpenAPI 3.x),
+    ``definitions`` (Swagger 2.0) and top-level ``parameters`` (Swagger 2.0)
+    containers so the merged schema is self-contained for LLM consumption.
+    Returns ``None`` when the spec declares no usable parameters.
     """
     properties: dict[str, object] = {}
     required: list[str] = []
@@ -55,7 +54,9 @@ def extract_endpoint_params(
         for param in params:
             if not isinstance(param, dict):
                 continue
-            param = _resolve_param_ref(param, components, definitions)
+            param = _resolve_param_ref(
+                param, components, definitions, top_parameters
+            )
             name = param.get("name")
             location = param.get("in")
             if not isinstance(name, str) or not name or location in ("", "header"):
@@ -79,6 +80,9 @@ def extract_endpoint_params(
     if not is_swagger_2:
         request_body = operation.get("requestBody")
         if isinstance(request_body, dict):
+            request_body = _resolve_request_body_ref(
+                request_body, components, definitions
+            )
             body_schema = _pick_json_schema(request_body)
     else:
         body_param = raw_params.get(("body", "body"))
@@ -136,8 +140,13 @@ def _resolve_param_ref(
     param: dict[str, object],
     components: dict[str, object] | None,
     definitions: dict[str, object] | None,
+    top_parameters: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    """Resolve an operation-level ``$ref`` parameter against the document containers."""
+    """Resolve an operation-level ``$ref`` parameter against the document containers.
+
+    Supports OpenAPI 3.x ``#/components/parameters/X`` and Swagger 2.0
+    top-level ``#/parameters/X`` pointers.
+    """
     ref = param.get("$ref")
     if not isinstance(ref, str):
         return param
@@ -146,8 +155,32 @@ def _resolve_param_ref(
         root["components"] = components
     if definitions is not None:
         root["definitions"] = definitions
+    if top_parameters is not None:
+        root["parameters"] = top_parameters
     resolved = _lookup_ref_target(ref, root)
     return resolved if isinstance(resolved, dict) else param
+
+
+def _resolve_request_body_ref(
+    request_body: dict[str, object],
+    components: dict[str, object] | None,
+    definitions: dict[str, object] | None,
+) -> dict[str, object]:
+    """Resolve an OpenAPI 3.x ``requestBody`` ``$ref`` when present.
+
+    Most real-world specs reuse bodies via ``#/components/requestBodies/X``;
+    without resolution the operation silently loses its body schema.
+    """
+    ref = request_body.get("$ref")
+    if not isinstance(ref, str):
+        return request_body
+    root: dict[str, object] = {}
+    if components is not None:
+        root["components"] = components
+    if definitions is not None:
+        root["definitions"] = definitions
+    resolved = _lookup_ref_target(ref, root)
+    return resolved if isinstance(resolved, dict) else request_body
 
 
 def _resolve_schema_refs(
@@ -183,9 +216,11 @@ def _lookup_ref_target(
 ) -> dict[str, object] | None:
     """Resolve a local ``#/...`` pointer against a single container dict.
 
-    Supports ``#/components/parameters/X``, ``#/definitions/X`` and nested
-    descent such as ``#/definitions/Foo/properties/bar``. Returns ``None``
-    when the pointer cannot be walked.
+    Supports ``#/components/parameters/X``, ``#/components/requestBodies/X``,
+    ``#/components/schemas/X``, ``#/definitions/X``, top-level
+    ``#/parameters/X`` (Swagger 2.0) and nested descent such as
+    ``#/definitions/Foo/properties/bar``. Returns ``None`` when the pointer
+    cannot be walked.
     """
     if not ref.startswith("#/"):
         return None

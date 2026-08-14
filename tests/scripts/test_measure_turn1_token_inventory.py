@@ -77,15 +77,10 @@ async def test_measure_turn1_inventory_aggregates_stub_tools(
     names = [row["name"] for row in report["per_tool"]]
     assert names == ["a_tool", "z_tool"]
     assert report["schema_wrapper_tokens"] == 2 * SCHEMA_WRAPPER_TOKENS_PER_TOOL
-    assert (
-        report["tools_subtotal"]
-        == report["description_tokens"] + report["schema_wrapper_tokens"]
-    )
+    assert report["tools_subtotal"] == report["description_tokens"] + report["schema_wrapper_tokens"]
 
 
-def test_main_json_mode(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_main_json_mode(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     fake_report = {
         "encoding": measure.ENCODING_NAME,
         "tool_count": 0,
@@ -95,21 +90,15 @@ def test_main_json_mode(
         "schema_wrapper_tokens": 0,
         "tools_subtotal": 0,
     }
-    monkeypatch.setattr(
-        measure, "measure_turn1_inventory", AsyncMock(return_value=fake_report)
-    )
-    monkeypatch.setattr(
-        measure.sys, "argv", ["measure_turn1_token_inventory.py", "--json"]
-    )
+    monkeypatch.setattr(measure, "measure_turn1_inventory", AsyncMock(return_value=fake_report))
+    monkeypatch.setattr(measure.sys, "argv", ["measure_turn1_token_inventory.py", "--json"])
     rc = measure.main()
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["tool_count"] == 0
 
 
-def test_main_table_mode(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_main_table_mode(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     fake_report = {
         "encoding": measure.ENCODING_NAME,
         "tool_count": 1,
@@ -119,9 +108,7 @@ def test_main_table_mode(
         "schema_wrapper_tokens": 65,
         "tools_subtotal": 107,
     }
-    monkeypatch.setattr(
-        measure, "measure_turn1_inventory", AsyncMock(return_value=fake_report)
-    )
+    monkeypatch.setattr(measure, "measure_turn1_inventory", AsyncMock(return_value=fake_report))
     monkeypatch.setattr(measure.sys, "argv", ["measure_turn1_token_inventory.py"])
     rc = measure.main()
     assert rc == 0
@@ -170,10 +157,7 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
     assert measured == _DOC_TURN1_TOOL_TOKENS
     assert report["tool_count"] == 13
     assert report["description_tokens"] == sum(_DOC_TURN1_TOOL_TOKENS.values())
-    assert (
-        report["tools_subtotal"]
-        == report["description_tokens"] + report["schema_wrapper_tokens"]
-    )
+    assert report["tools_subtotal"] == report["description_tokens"] + report["schema_wrapper_tokens"]
     layer_totals = report["layer_totals"]
     assert layer_totals["CORE"] == 3223
     assert layer_totals["COMMON"] == 2060

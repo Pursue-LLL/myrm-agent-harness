@@ -57,9 +57,7 @@ Important workflow:
 """
 
 _SKILL_SEARCH_MARKET_HINTS: dict[str, str] = {
-    "skill_search_tool": (
-        "NOT for searching skills already bound to this agent — use skill_search_tool for that."
-    ),
+    "skill_search_tool": ("NOT for searching skills already bound to this agent — use skill_search_tool for that."),
 }
 
 

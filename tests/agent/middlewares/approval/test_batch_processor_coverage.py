@@ -193,9 +193,7 @@ class TestYOLOMode:
 
         assert len(denied) == 1, "DENY rule must block even under YOLO"
         assert denied[0][0] == 0, "First tool (shell_exec) should be denied"
-        assert (
-            len(approved) == 1
-        ), "Non-DENY tool should still be auto-approved under YOLO"
+        assert len(approved) == 1, "Non-DENY tool should still be auto-approved under YOLO"
         assert approved[0][0] == 1, "Second tool (file_write) should be approved"
         assert len(pending) == 0, "No tools should be pending under active YOLO"
 
@@ -231,9 +229,7 @@ class TestYOLOMode:
             args_hashes={},
         )
 
-        assert (
-            len(approved) == 0
-        ), "No shell tools should be approved when shell_exec is DENY"
+        assert len(approved) == 0, "No shell tools should be approved when shell_exec is DENY"
         assert len(denied) == 2, "All shell tools should be denied"
         assert len(pending) == 0
 
@@ -265,9 +261,9 @@ class TestYOLOMode:
 
         assert len(denied) == 1
         reason_str = denied[0][2]
-        assert reason_str.startswith(
-            "Tool execution denied by security policy:"
-        ), f"YOLO DENY reason should have consistent prefix, got: {reason_str}"
+        assert reason_str.startswith("Tool execution denied by security policy:"), (
+            f"YOLO DENY reason should have consistent prefix, got: {reason_str}"
+        )
 
     @pytest.mark.asyncio
     async def test_yolo_capability_fence_deny(self):
@@ -305,9 +301,7 @@ class TestYOLOMode:
         )
 
         assert len(denied) == 1, "shell_exec not in capabilities should be denied"
-        assert (
-            denied[0][0] == 0
-        ), "First tool (bash_tool/shell_exec) should be denied by capability fence"
+        assert denied[0][0] == 0, "First tool (bash_tool/shell_exec) should be denied by capability fence"
         assert len(approved) == 1, "file_read in capabilities should be approved"
         assert approved[0][0] == 1
 
@@ -328,9 +322,7 @@ class TestPTCPathPolicy:
             lambda skill, tool: None,
         )
 
-        config = SecurityConfig(
-            ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
-        )
+        config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
 
         tool_calls = [
             ToolCall(
@@ -352,9 +344,7 @@ class TestPTCPathPolicy:
 
         has_deny = len(denied) > 0
         has_ptc_pending = any("PTC" in reason for _, _, _, reason, _ in pending)
-        assert (
-            has_deny or has_ptc_pending
-        ), "Path outside workspace should be denied or escalated"
+        assert has_deny or has_ptc_pending, "Path outside workspace should be denied or escalated"
 
     @pytest.mark.asyncio
     async def test_ptc_path_within_workspace_allows(self, monkeypatch):
@@ -373,9 +363,7 @@ class TestPTCPathPolicy:
             ),
         )
 
-        config = SecurityConfig(
-            ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
-        )
+        config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
 
         tool_calls = [
             ToolCall(
@@ -395,9 +383,7 @@ class TestPTCPathPolicy:
             args_hashes={},
         )
 
-        assert (
-            len(approved) == 1
-        ), "Read-only PTC within workspace should Fast-Path approve"
+        assert len(approved) == 1, "Read-only PTC within workspace should Fast-Path approve"
 
     @pytest.mark.asyncio
     async def test_ptc_path_ask_escalation(self, monkeypatch):
@@ -444,9 +430,7 @@ class TestPTCPathPolicy:
         )
 
         has_ptc_reason = any("PTC" in reason for _, _, _, reason, _ in pending)
-        assert (
-            len(pending) >= 1 and has_ptc_reason
-        ), "PTC with path outside workspace should be pending with PTC reason"
+        assert len(pending) >= 1 and has_ptc_reason, "PTC with path outside workspace should be pending with PTC reason"
 
 
 # --- LLM Reviewer tests ---
@@ -469,9 +453,7 @@ class TestLLMReviewer:
                 model_id: str | None = None,
                 trusted_domains: tuple[str, ...] = (),
             ) -> ReviewResult:
-                return ReviewResult(
-                    decision=ReviewDecision.ALLOW, reason="safe command"
-                )
+                return ReviewResult(decision=ReviewDecision.ALLOW, reason="safe command")
 
         register_security_reviewer(FakeReviewer())
 
@@ -517,9 +499,7 @@ class TestLLMReviewer:
                 model_id: str | None = None,
                 trusted_domains: tuple[str, ...] = (),
             ) -> ReviewResult:
-                return ReviewResult(
-                    decision=ReviewDecision.DENY, reason="dangerous command"
-                )
+                return ReviewResult(decision=ReviewDecision.DENY, reason="dangerous command")
 
         register_security_reviewer(FakeReviewer())
 
@@ -548,9 +528,7 @@ class TestLLMReviewer:
         )
 
         assert len(denied) == 0, "Interactive smart DENY should not auto-deny"
-        assert (
-            len(pending) == 1
-        ), "Interactive smart DENY should route to pending_approval"
+        assert len(pending) == 1, "Interactive smart DENY should route to pending_approval"
         _idx, _tc, _perm, reason, extra_ctx = pending[0]
         assert extra_ctx is not None
         assert extra_ctx.get("smart_denied") is True
@@ -573,9 +551,7 @@ class TestLLMReviewer:
                 model_id: str | None = None,
                 trusted_domains: tuple[str, ...] = (),
             ) -> ReviewResult:
-                return ReviewResult(
-                    decision=ReviewDecision.DENY, reason="dangerous command"
-                )
+                return ReviewResult(decision=ReviewDecision.DENY, reason="dangerous command")
 
         register_security_reviewer(FakeReviewer())
 
@@ -731,9 +707,7 @@ class TestInternalHelpers:
             lambda: [],
         )
 
-        result = _evaluate_skill_hooks_for_tool(
-            "bash_code_execute_tool", {"command": "ls"}
-        )
+        result = _evaluate_skill_hooks_for_tool("bash_code_execute_tool", {"command": "ls"})
         assert result is None
 
     @pytest.mark.asyncio
@@ -754,9 +728,7 @@ class TestInternalHelpers:
             _evaluate_skill_hooks_for_tool,
         )
 
-        result = _evaluate_skill_hooks_for_tool(
-            "bash_code_execute_tool", {"command": "ls"}
-        )
+        result = _evaluate_skill_hooks_for_tool("bash_code_execute_tool", {"command": "ls"})
         assert result is None
 
     @pytest.mark.asyncio
@@ -771,9 +743,7 @@ class TestInternalHelpers:
         )
 
         class FakeHook:
-            def before_tool_call(
-                self, tool_name: str, tool_args: dict[str, object]
-            ) -> ToolCallDecision:
+            def before_tool_call(self, tool_name: str, tool_args: dict[str, object]) -> ToolCallDecision:
                 return ToolCallDecision(action=HookAction.ALLOW)
 
         class FakeSkill:
@@ -785,9 +755,7 @@ class TestInternalHelpers:
             lambda: [FakeSkill()],
         )
 
-        result = _evaluate_skill_hooks_for_tool(
-            "bash_code_execute_tool", {"command": "ls"}
-        )
+        result = _evaluate_skill_hooks_for_tool("bash_code_execute_tool", {"command": "ls"})
         assert result is None, "ALLOW hook returns None (fast path)"
 
     @pytest.mark.asyncio
@@ -806,9 +774,7 @@ class TestInternalHelpers:
             lambda: [SkillWithoutHook()],
         )
 
-        result = _evaluate_skill_hooks_for_tool(
-            "bash_code_execute_tool", {"command": "ls"}
-        )
+        result = _evaluate_skill_hooks_for_tool("bash_code_execute_tool", {"command": "ls"})
         assert result is None, "No hooks → returns None"
 
     @pytest.mark.asyncio
@@ -823,9 +789,7 @@ class TestInternalHelpers:
         )
 
         class BlockingHook:
-            def before_tool_call(
-                self, tool_name: str, tool_args: dict[str, object]
-            ) -> ToolCallDecision:
+            def before_tool_call(self, tool_name: str, tool_args: dict[str, object]) -> ToolCallDecision:
                 return ToolCallDecision(action=HookAction.BLOCK, reason="Not allowed")
 
         class FakeSkill:
@@ -837,9 +801,7 @@ class TestInternalHelpers:
             lambda: [FakeSkill()],
         )
 
-        result = _evaluate_skill_hooks_for_tool(
-            "bash_code_execute_tool", {"command": "ls"}
-        )
+        result = _evaluate_skill_hooks_for_tool("bash_code_execute_tool", {"command": "ls"})
         assert result is not None, "BLOCK action should return verdict"
         assert result.action == HookAction.BLOCK
 
@@ -886,9 +848,7 @@ class TestDomainHITL:
         domains.add("api.example.com")
 
         config = SecurityConfig(
-            ruleset=(
-                PermissionRule("browser_navigate_tool", "*", PermissionAction.ASK),
-            ),
+            ruleset=(PermissionRule("browser_navigate_tool", "*", PermissionAction.ASK),),
             domain_hitl_enabled=True,
         )
 
@@ -937,9 +897,7 @@ class TestSkillHooks:
         )
 
         # file_write_tool gets ASK from permission engine, then skill hooks evaluate
-        config = SecurityConfig(
-            ruleset=(PermissionRule("file_write", "*", PermissionAction.ASK),)
-        )
+        config = SecurityConfig(ruleset=(PermissionRule("file_write", "*", PermissionAction.ASK),))
 
         tool_calls = [
             ToolCall(
@@ -982,9 +940,7 @@ class TestSkillHooks:
         )
 
         # file_write_tool gets ASK from permission engine, then skill hooks evaluate
-        config = SecurityConfig(
-            ruleset=(PermissionRule("file_write", "*", PermissionAction.ASK),)
-        )
+        config = SecurityConfig(ruleset=(PermissionRule("file_write", "*", PermissionAction.ASK),))
 
         tool_calls = [
             ToolCall(
@@ -1073,9 +1029,7 @@ class TestBuildInterruptPayload:
             )
         ]
 
-        payload, _ = build_interrupt_payload(
-            pending, "session-1", approval_timeout_seconds=60
-        )
+        payload, _ = build_interrupt_payload(pending, "session-1", approval_timeout_seconds=60)
 
         assert payload["extensions"]["timeout"]["seconds"] == 60
 
@@ -1120,10 +1074,7 @@ class TestBuildInterruptPayload:
         assert review_config["smartDenied"] is True
         assert set(review_config["allowedDecisions"]) == {"approve", "reject"}
         assert "edit" not in review_config["allowedDecisions"]
-        assert (
-            payload["actionRequests"][0].get("reviewerReason")
-            == "potential data exfiltration"
-        )
+        assert payload["actionRequests"][0].get("reviewerReason") == "potential data exfiltration"
 
     def test_non_smart_denied_allows_edit(self):
         """Normal pending items should allow approve+reject+edit."""
@@ -1200,9 +1151,7 @@ class TestApplyApprovalDecisions:
         set_approval_user_id("user1")
 
         config = SecurityConfig(
-            ruleset=(
-                PermissionRule("browser_navigate_tool", "*", PermissionAction.ASK),
-            ),
+            ruleset=(PermissionRule("browser_navigate_tool", "*", PermissionAction.ASK),),
             domain_hitl_enabled=True,
         )
 
@@ -1219,9 +1168,7 @@ class TestApplyApprovalDecisions:
         )
 
         decisions = [{"type": "approve", "extensions": {"allowDomain": True}}]
-        pending = [
-            (0, ai_msg.tool_calls[0], "browser_navigate", "Unknown domain", None)
-        ]
+        pending = [(0, ai_msg.tool_calls[0], "browser_navigate", "Unknown domain", None)]
 
         revised, _messages, _guidance = await apply_approval_decisions(
             decisions,
@@ -1359,9 +1306,7 @@ class TestApplyApprovalDecisions:
             ],
         )
 
-        decisions = [
-            {"type": "reject", "feedback": "Not safe enough", "extensions": {}}
-        ]
+        decisions = [{"type": "reject", "feedback": "Not safe enough", "extensions": {}}]
         pending = [(0, ai_msg.tool_calls[0], "code_interpreter", "ASK", None)]
 
         revised, messages, _guidance = await apply_approval_decisions(
@@ -1453,9 +1398,7 @@ class TestApplyApprovalDecisions:
 
         allowlist = get_allowlist()
         assert allowlist.check("user1", "code_interpreter", "ptc:filesystem.read_file")
-        assert not allowlist.check(
-            "user1", "code_interpreter", "bash_code_execute_tool"
-        )
+        assert not allowlist.check("user1", "code_interpreter", "bash_code_execute_tool")
 
 
 # --- _truncate_tool_args tests ---
@@ -1513,9 +1456,7 @@ class TestTaintLLMReview:
 
         class TaintAllowReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.ALLOW, reason="safe shell cmd"
-                )
+                return ReviewResult(decision=ReviewDecision.ALLOW, reason="safe shell cmd")
 
         register_security_reviewer(TaintAllowReviewer())
 
@@ -1558,9 +1499,7 @@ class TestTaintLLMReview:
 
         class TaintDenyReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.DENY, reason="data exfiltration risk"
-                )
+                return ReviewResult(decision=ReviewDecision.DENY, reason="data exfiltration risk")
 
         register_security_reviewer(TaintDenyReviewer())
 
@@ -1696,9 +1635,7 @@ class TestUncertainReasonInjection:
 
         class UncertainReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.UNCERTAIN, reason="needs human judgment"
-                )
+                return ReviewResult(decision=ReviewDecision.UNCERTAIN, reason="needs human judgment")
 
         register_security_reviewer(UncertainReviewer())
 
@@ -1782,9 +1719,7 @@ class TestOutboundDelegationCheck:
 
         class AllowReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.ALLOW, reason="safe delegation"
-                )
+                return ReviewResult(decision=ReviewDecision.ALLOW, reason="safe delegation")
 
         register_security_reviewer(AllowReviewer())
 
@@ -1821,9 +1756,7 @@ class TestOutboundDelegationCheck:
 
         class DenyReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.DENY, reason="suspicious delegation target"
-                )
+                return ReviewResult(decision=ReviewDecision.DENY, reason="suspicious delegation target")
 
         register_security_reviewer(DenyReviewer())
 
@@ -1961,9 +1894,7 @@ class TestOutboundDelegationCheck:
 
         class ShouldNotBeCalledReviewer:
             async def review(self, command, **kwargs):
-                raise AssertionError(
-                    "Reviewer should not be called when threshold breached"
-                )
+                raise AssertionError("Reviewer should not be called when threshold breached")
 
         register_security_reviewer(ShouldNotBeCalledReviewer())
 
@@ -2033,9 +1964,7 @@ class TestOutboundDelegationCheck:
 
         class DenyReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.DENY, reason="batch delegation blocked"
-                )
+                return ReviewResult(decision=ReviewDecision.DENY, reason="batch delegation blocked")
 
         register_security_reviewer(DenyReviewer())
 
@@ -2094,9 +2023,7 @@ class TestShellEscalationAutoMode:
 
         class AllowReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.ALLOW, reason="safe command"
-                )
+                return ReviewResult(decision=ReviewDecision.ALLOW, reason="safe command")
 
         register_security_reviewer(AllowReviewer())
 
@@ -2131,9 +2058,7 @@ class TestShellEscalationAutoMode:
 
         class DenyReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.DENY, reason="suspicious command"
-                )
+                return ReviewResult(decision=ReviewDecision.DENY, reason="suspicious command")
 
         register_security_reviewer(DenyReviewer())
 
@@ -2169,9 +2094,7 @@ class TestShellEscalationAutoMode:
 
         class UncertainReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.UNCERTAIN, reason="ambiguous intent"
-                )
+                return ReviewResult(decision=ReviewDecision.UNCERTAIN, reason="ambiguous intent")
 
         register_security_reviewer(UncertainReviewer())
 
@@ -2199,10 +2122,7 @@ class TestShellEscalationAutoMode:
         )
 
         assert len(pending) == 1
-        assert (
-            "ai security reviewer" in pending[0][3].lower()
-            or "shell command needs review" in pending[0][3].lower()
-        )
+        assert "ai security reviewer" in pending[0][3].lower() or "shell command needs review" in pending[0][3].lower()
 
     @pytest.mark.asyncio
     async def test_safe_command_skips_classifier(self):
@@ -2274,9 +2194,7 @@ class TestShellEscalationAutoMode:
 
         class DenyReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.DENY, reason="suspicious code"
-                )
+                return ReviewResult(decision=ReviewDecision.DENY, reason="suspicious code")
 
         register_security_reviewer(DenyReviewer())
 
@@ -2345,9 +2263,7 @@ class TestTrustContextPassThrough:
         )
         # Use mcp_invoke which maps to mcp_invoke perm type and defaults to ASK
         tool_calls = [
-            ToolCall(
-                name="mcp_invoke", args={"server": "test", "tool": "getData"}, id="tc1"
-            ),
+            ToolCall(name="mcp_invoke", args={"server": "test", "tool": "getData"}, id="tc1"),
         ]
 
         await evaluate_tool_batch(
@@ -2414,9 +2330,7 @@ class TestSmartDeniedOverride:
         assert len(messages) == 0
 
         allowlist = get_allowlist()
-        assert not allowlist.check(
-            "user1", "code_interpreter"
-        ), "Smart-denied override must NOT write to allowlist"
+        assert not allowlist.check("user1", "code_interpreter"), "Smart-denied override must NOT write to allowlist"
 
     @pytest.mark.asyncio
     async def test_smart_denied_reject_produces_denial_message(self):
@@ -2472,9 +2386,7 @@ class TestSmartDeniedOverride:
 
         class TaintDenyReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(
-                    decision=ReviewDecision.DENY, reason="data exfiltration risk"
-                )
+                return ReviewResult(decision=ReviewDecision.DENY, reason="data exfiltration risk")
 
         register_security_reviewer(TaintDenyReviewer())
 

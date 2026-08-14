@@ -10,6 +10,7 @@ import pytest
 _repo_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_repo_root))
 
+import scripts.validate_arch_inventory as arch_module
 from scripts.md_ref_validator import (
     _discover_pkg_root,
     _extract_md_refs,
@@ -21,7 +22,6 @@ from scripts.md_ref_validator import (
     _top_level_module_dirs,
     scan_md_refs,
 )
-import scripts.validate_arch_inventory as arch_module
 from scripts.validate_arch_inventory import (
     DirReport,
     _first_table_cell,
@@ -29,11 +29,28 @@ from scripts.validate_arch_inventory import (
     _is_inventory_file_cell,
     _listed_py_in_arch,
     _rel_to_repo,
-    main as arch_inventory_main,
     scan_directory,
     scan_tree,
 )
-_TOP_DIRS = frozenset({"agent", "api", "backends", "core", "distribution", "eval", "infra", "observability", "runtime", "toolkits", "utils"})
+from scripts.validate_arch_inventory import (
+    main as arch_inventory_main,
+)
+
+_TOP_DIRS = frozenset(
+    {
+        "agent",
+        "api",
+        "backends",
+        "core",
+        "distribution",
+        "eval",
+        "infra",
+        "observability",
+        "runtime",
+        "toolkits",
+        "utils",
+    }
+)
 
 
 @pytest.mark.architecture
@@ -261,9 +278,7 @@ def test_progressive_paths_strips_symbol_suffixes() -> None:
         "toolkits/mcp/schema",
     ]
     # Real files with dotted names resolve unchanged (first candidate).
-    assert _progressive_paths("toolkits/browser/assets/ad_domains.txt") == [
-        "toolkits/browser/assets/ad_domains.txt"
-    ]
+    assert _progressive_paths("toolkits/browser/assets/ad_domains.txt") == ["toolkits/browser/assets/ad_domains.txt"]
     assert _progressive_paths("docker/Dockerfile.official") == [
         "docker/Dockerfile.official",
         "docker/Dockerfile",
@@ -304,23 +319,34 @@ def test_resolve_md_ref_local_relative_and_cross_repo(tmp_path: Path) -> None:
     # Table row dir acts as a secondary base: `../Dockerfile` under `docs/docker/`.
     assert _resolve_md_ref(md, "../Dockerfile", "docker", tmp_path, harness_root, pkg)
     # Harness shorthand drops the src/myrm_agent_harness package prefix.
-    assert _resolve_md_ref(md, "myrm-agent-harness/agent/errors/classifier.py", None,
-                           tmp_path, harness_root, pkg)
-    assert not _resolve_md_ref(md, "myrm-agent-harness/agent/errors/ghost.py", None,
-                               tmp_path, harness_root, pkg)
+    assert _resolve_md_ref(md, "myrm-agent-harness/agent/errors/classifier.py", None, tmp_path, harness_root, pkg)
+    assert not _resolve_md_ref(md, "myrm-agent-harness/agent/errors/ghost.py", None, tmp_path, harness_root, pkg)
     # Cross-repo shortcut with a symbol suffix must fall through to the
     # progressive candidate (regression: early return skipped it).
     assert _resolve_md_ref(
-        md, "myrm-agent-harness/agent/errors/classifier.py.attr", None,
-        tmp_path, harness_root, pkg,
+        md,
+        "myrm-agent-harness/agent/errors/classifier.py.attr",
+        None,
+        tmp_path,
+        harness_root,
+        pkg,
     )
     # Progressive resolution: dotted chain and CamelCase class suffix.
     assert _resolve_md_ref(
-        md, "toolkits/mcp/schema.normalize.canonicalize_schema_for_cache", None,
-        tmp_path, harness_root, pkg,
+        md,
+        "toolkits/mcp/schema.normalize.canonicalize_schema_for_cache",
+        None,
+        tmp_path,
+        harness_root,
+        pkg,
     )
     assert _resolve_md_ref(
-        md, "agent/streaming/broadcast/ToolBroadcastBus", None, tmp_path, harness_root, pkg,
+        md,
+        "agent/streaming/broadcast/ToolBroadcastBus",
+        None,
+        tmp_path,
+        harness_root,
+        pkg,
     )
 
 
@@ -427,13 +453,9 @@ def test_scan_md_refs_resolves_server_shortcuts(tmp_path: Path) -> None:
     enumerations are dropped, and genuinely missing paths are reported."""
     server = tmp_path / "server"
     (server / "app" / "channels" / "protocols").mkdir(parents=True)
-    (server / "app" / "channels" / "protocols" / "inbound_profile.py").write_text(
-        "x = 1\n", encoding="utf-8"
-    )
+    (server / "app" / "channels" / "protocols" / "inbound_profile.py").write_text("x = 1\n", encoding="utf-8")
     (server / "app" / "services" / "config").mkdir(parents=True)
-    (server / "app" / "services" / "config" / "health_monitor.py").write_text(
-        "x = 1\n", encoding="utf-8"
-    )
+    (server / "app" / "services" / "config" / "health_monitor.py").write_text("x = 1\n", encoding="utf-8")
     (server / "docs").mkdir()
     (server / "docs" / "guide.md").write_text(
         "`channels/protocols/inbound_profile.py` and `services/config/health_monitor` exist; "
@@ -517,9 +539,7 @@ def test_main_clean_src_returns_0(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     repo = tmp_path / "repo"
     pkg = repo / "src" / "pkg"
     pkg.mkdir(parents=True)
-    (pkg / "_ARCH.md").write_text(
-        "| File | Purpose |\n| --- | --- |\n| mod.py | entry |\n", encoding="utf-8"
-    )
+    (pkg / "_ARCH.md").write_text("| File | Purpose |\n| --- | --- |\n| mod.py | entry |\n", encoding="utf-8")
     (pkg / "mod.py").write_text("x = 1\n", encoding="utf-8")
     monkeypatch.setattr(arch_module, "_REPO_ROOT", repo)
     assert arch_inventory_main(["--root", str(pkg), "--json"]) == 0
@@ -530,9 +550,7 @@ def test_main_drifted_src_returns_1(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     repo = tmp_path / "repo"
     pkg = repo / "src" / "pkg"
     pkg.mkdir(parents=True)
-    (pkg / "_ARCH.md").write_text(
-        "| File | Purpose |\n| --- | --- |\n| mod.py | entry |\n", encoding="utf-8"
-    )
+    (pkg / "_ARCH.md").write_text("| File | Purpose |\n| --- | --- |\n| mod.py | entry |\n", encoding="utf-8")
     (pkg / "stale.py").write_text("x = 1\n", encoding="utf-8")
     monkeypatch.setattr(arch_module, "_REPO_ROOT", repo)
     assert arch_inventory_main(["--root", str(pkg)]) == 1

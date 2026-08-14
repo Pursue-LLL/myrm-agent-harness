@@ -406,9 +406,7 @@ async def test_anthropic_only_thinking_blocks_no_rc():
     )
     ctx = _ctx([msg], model_name="anthropic/claude-3-opus-20240229")
     result = await cleaner.process(ctx)
-    assert result.messages[0].additional_kwargs["thinking_blocks"] == [
-        {"type": "thinking", "thinking": "tb only"}
-    ]
+    assert result.messages[0].additional_kwargs["thinking_blocks"] == [{"type": "thinking", "thinking": "tb only"}]
     assert result.tokens_saved == 0
 
 
@@ -498,9 +496,7 @@ async def test_anthropic_keeps_latest_thinking_blocks():
     result = await cleaner.process(ctx)
     ai_msg = result.messages[1]
     assert isinstance(ai_msg.content, list)
-    thinking_blocks = [
-        b for b in ai_msg.content if isinstance(b, dict) and b.get("type") == "thinking"
-    ]
+    thinking_blocks = [b for b in ai_msg.content if isinstance(b, dict) and b.get("type") == "thinking"]
     assert len(thinking_blocks) == 1
 
 
@@ -520,9 +516,7 @@ async def test_bedrock_anthropic_keeps_latest_thinking_blocks():
     ctx = _ctx(messages, model_name="bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0")
     result = await cleaner.process(ctx)
     ai_msg = result.messages[1]
-    thinking_blocks = [
-        b for b in ai_msg.content if isinstance(b, dict) and b.get("type") == "thinking"
-    ]
+    thinking_blocks = [b for b in ai_msg.content if isinstance(b, dict) and b.get("type") == "thinking"]
     assert len(thinking_blocks) == 1
 
 

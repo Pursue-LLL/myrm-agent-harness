@@ -256,8 +256,7 @@ class EvalRunner:
             if result.assertion_passed is False and strategy != "continue":
                 remaining = len(mt_case.turns) - idx - 1
                 logger.info(
-                    "Multi-turn session %s: turn %d assertion failed, "
-                    "strategy=%s, %d remaining turns",
+                    "Multi-turn session %s: turn %d assertion failed, strategy=%s, %d remaining turns",
                     session_id,
                     idx + 1,
                     strategy,

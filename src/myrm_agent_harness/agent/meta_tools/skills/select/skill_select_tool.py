@@ -77,21 +77,15 @@ def create_select_skill_tool(
             description="Skill names from the <bound_skills> catalog (must end with _skill). One or more allowed.",
             min_length=1,
         )
-        reason: str = Field(
-            description="Brief reason for selecting these skills (required, max 100 chars)"
-        )
+        reason: str = Field(description="Brief reason for selecting these skills (required, max 100 chars)")
         file_path: str | None = Field(
             default=None,
             description="Optional path to a specific file within the skill (e.g. 'scripts/setup.py', 'references/api.md'). "
             "Only allowed subdirs: scripts/, references/, templates/, assets/.",
         )
 
-    @tool(
-        "skill_select_tool", description=tool_description, args_schema=SelectSkillInput
-    )
-    async def select_skill_func(
-        skill_names: list[str], reason: str, file_path: str | None = None
-    ) -> str:
+    @tool("skill_select_tool", description=tool_description, args_schema=SelectSkillInput)
+    async def select_skill_func(skill_names: list[str], reason: str, file_path: str | None = None) -> str:
         """Select skills and load their SOP documentation or specific auxiliary files."""
         from myrm_agent_harness.agent.skill_agent.context import (
             add_loaded_skill,
@@ -109,15 +103,11 @@ def create_select_skill_tool(
             skill_meta = next((s for s in skills if s.name == skill_name), None)
             if not skill_meta:
                 hint = ", ".join(available_names[:15])
-                selected_skills_info.append(
-                    f"\nError: skill '{skill_name}' not found. Available: [{hint}]"
-                )
+                selected_skills_info.append(f"\nError: skill '{skill_name}' not found. Available: [{hint}]")
                 continue
 
             if file_path:
-                file_content = await get_skill_file(
-                    skill_meta, skill_backend, file_path
-                )
+                file_content = await get_skill_file(skill_meta, skill_backend, file_path)
                 if file_content is not None:
                     selected_skills_info.append(file_content)
                     record_skill_selection(skill_meta, success=True)
@@ -127,30 +117,22 @@ def create_select_skill_tool(
                     )
                     record_skill_selection(skill_meta, success=False)
             elif skill_name in loaded_names:
-                selected_skills_info.append(
-                    await build_reload_summary_with_index(skill_meta, skill_backend)
-                )
+                selected_skills_info.append(await build_reload_summary_with_index(skill_meta, skill_backend))
             else:
                 instance = skill_instances.get(skill_name) if skill_instances else None
-                skill_doc = await get_skill_document(
-                    skill_meta, skill_backend, skill_instance=instance
-                )
+                skill_doc = await get_skill_document(skill_meta, skill_backend, skill_instance=instance)
                 if skill_doc:
                     selected_skills_info.append(skill_doc)
                     add_loaded_skill(skill_meta)
                     record_skill_selection(skill_meta, success=True)
                 else:
-                    selected_skills_info.append(
-                        f"# {skill_name}\n\nError: failed to load skill document"
-                    )
+                    selected_skills_info.append(f"# {skill_name}\n\nError: failed to load skill document")
                     record_skill_selection(skill_meta, success=False)
 
         skill_docs_formatted: list[str] = []
         for idx, skill_name in enumerate(skill_names):
             if idx < len(selected_skills_info):
-                skill_docs_formatted.append(
-                    f"{skill_name}：{selected_skills_info[idx]}"
-                )
+                skill_docs_formatted.append(f"{skill_name}：{selected_skills_info[idx]}")
 
         return f"<skills_sop>\n{chr(10).join(skill_docs_formatted)}\n</skills_sop>"
 

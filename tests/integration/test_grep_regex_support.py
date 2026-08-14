@@ -28,14 +28,12 @@ def _disable_sandbox(monkeypatch):
         NullProvider(),
         SandboxStatus(enabled=False, provider_name="null", reason="test"),
     )
+
     def _fake(**_kwargs):
         return _null_result
-    monkeypatch.setattr(
-        "myrm_agent_harness.toolkits.code_execution.sandbox.detect_sandbox_provider", _fake
-    )
-    monkeypatch.setattr(
-        "myrm_agent_harness.toolkits.code_execution.sandbox.detector.detect_sandbox_provider", _fake
-    )
+
+    monkeypatch.setattr("myrm_agent_harness.toolkits.code_execution.sandbox.detect_sandbox_provider", _fake)
+    monkeypatch.setattr("myrm_agent_harness.toolkits.code_execution.sandbox.detector.detect_sandbox_provider", _fake)
 
 
 @pytest.fixture

@@ -160,9 +160,7 @@ class EventLogAnalytics:
 
         return await get_global_tool_stability(self._backend, session_ids, tool_name=tool_name, start_time=start_time)
 
-    async def get_agent_tool_health(
-        self, agent_id: str, days: int = 7
-    ) -> list[dict[str, Any]]:
+    async def get_agent_tool_health(self, agent_id: str, days: int = 7) -> list[dict[str, Any]]:
         """Get aggregated tool health metrics for a specific agent.
 
         Args:
@@ -173,6 +171,7 @@ class EventLogAnalytics:
             List of dictionaries containing aggregated metrics per tool.
         """
         from .analytics_queries import get_agent_tool_health
+
         return await get_agent_tool_health(self._backend, agent_id, days=days)
 
     def _calculate_max_streak(self, daily_activities: list[DailyActivity]) -> int:

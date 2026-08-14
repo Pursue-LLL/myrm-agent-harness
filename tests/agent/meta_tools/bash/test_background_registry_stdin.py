@@ -102,16 +102,8 @@ async def test_registry_write_stdin_rejects_unknown_pid() -> None:
 def test_resolve_permission_type_maps_stdin_to_shell_exec() -> None:
     from myrm_agent_harness.core.security.tool_registry import resolve_permission_type
 
-    assert (
-        resolve_permission_type(
-            "bash_process_tool", {"action": "submit_stdin", "data": "y"}
-        )
-        == "shell_exec"
-    )
-    assert (
-        resolve_permission_type("bash_process_tool", {"action": "output", "pid": 1})
-        == "bash_process_tool"
-    )
+    assert resolve_permission_type("bash_process_tool", {"action": "submit_stdin", "data": "y"}) == "shell_exec"
+    assert resolve_permission_type("bash_process_tool", {"action": "output", "pid": 1}) == "bash_process_tool"
 
 
 @pytest.fixture(autouse=True)

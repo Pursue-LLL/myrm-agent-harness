@@ -76,4 +76,3 @@ def test_is_mutating_tool_mcp_readonly_annotated() -> None:
 def test_is_mutating_tool_mcp_unannotated_fail_closed() -> None:
     """Unregistered MCP tool defaults to non-read-only (fail-closed) → mutating."""
     assert is_mutating_tool("mcp__payments__charge_card") is True
-

@@ -357,7 +357,8 @@ def _detect_dpi_scale_quartz(logical_width: int) -> float:
     try:
         probe = subprocess.run(
             [
-                "python3", "-c",
+                "python3",
+                "-c",
                 "from AppKit import NSScreen; print(NSScreen.mainScreen().backingScaleFactor())",
             ],
             capture_output=True,

@@ -98,9 +98,7 @@ class TestGoogleVeoGenerateMocked:
         post_route = f"{base}/v1beta/models/{model}:generateVideos"
         op_name = "operations/op-test"
 
-        respx.post(post_route).mock(
-            return_value=httpx.Response(200, json={"name": op_name})
-        )
+        respx.post(post_route).mock(return_value=httpx.Response(200, json={"name": op_name}))
         poll_route = f"{base}/v1beta/{op_name}"
         payload_b64 = base64.b64encode(b"fake-mp4-bytes").decode("ascii")
         respx.get(poll_route).mock(
@@ -110,11 +108,7 @@ class TestGoogleVeoGenerateMocked:
                     200,
                     json={
                         "done": True,
-                        "response": {
-                            "generatedVideos": [
-                                {"video": {"videoBytes": payload_b64}}
-                            ]
-                        },
+                        "response": {"generatedVideos": [{"video": {"videoBytes": payload_b64}}]},
                     },
                 ),
             ]
@@ -141,9 +135,7 @@ class TestGoogleVeoGenerateMocked:
         post_route = f"{base}/v1beta/models/{model}:generateVideos"
         op_name = "operations/op-err"
 
-        respx.post(post_route).mock(
-            return_value=httpx.Response(200, json={"name": op_name})
-        )
+        respx.post(post_route).mock(return_value=httpx.Response(200, json={"name": op_name}))
         poll_route = f"{base}/v1beta/{op_name}"
         respx.get(poll_route).mock(
             return_value=httpx.Response(
@@ -164,13 +156,9 @@ class TestGoogleVeoGenerateMocked:
         post_route = f"{base}/v1beta/models/{model}:generateVideos"
         op_name = "operations/op-slow"
 
-        respx.post(post_route).mock(
-            return_value=httpx.Response(200, json={"name": op_name})
-        )
+        respx.post(post_route).mock(return_value=httpx.Response(200, json={"name": op_name}))
         poll_route = f"{base}/v1beta/{op_name}"
-        respx.get(poll_route).mock(
-            return_value=httpx.Response(200, json={"done": False})
-        )
+        respx.get(poll_route).mock(return_value=httpx.Response(200, json={"done": False}))
 
         prov = GoogleVeoProvider()
         with pytest.raises(TimeoutError, match="did not finish"):
@@ -186,9 +174,7 @@ class TestGoogleVeoGenerateMocked:
         post_route = f"{base}/v1beta/models/{model}:generateVideos"
         op_name = "operations/op-uri"
 
-        respx.post(post_route).mock(
-            return_value=httpx.Response(200, json={"name": op_name})
-        )
+        respx.post(post_route).mock(return_value=httpx.Response(200, json={"name": op_name}))
         poll_route = f"{base}/v1beta/{op_name}"
         video_uri = "https://cdn.example.com/video.bin"
         respx.get(poll_route).mock(
@@ -196,9 +182,7 @@ class TestGoogleVeoGenerateMocked:
                 200,
                 json={
                     "done": True,
-                    "response": {
-                        "generatedVideos": [{"video": {"uri": video_uri}}]
-                    },
+                    "response": {"generatedVideos": [{"video": {"uri": video_uri}}]},
                 },
             )
         )
@@ -231,16 +215,12 @@ class TestGoogleVeoHealthCheck:
     async def test_health_check_true_on_200(self) -> None:
         cfg = _cfg()
         base = cfg.base_url or ""
-        respx.get(f"{base}/v1beta/models").mock(
-            return_value=httpx.Response(200, json={"models": []})
-        )
+        respx.get(f"{base}/v1beta/models").mock(return_value=httpx.Response(200, json={"models": []}))
         assert await GoogleVeoProvider().health_check(cfg) is True
 
     @respx.mock
     async def test_health_check_false_on_http_error(self) -> None:
         cfg = _cfg()
         base = cfg.base_url or ""
-        respx.get(f"{base}/v1beta/models").mock(
-            return_value=httpx.Response(401, json={"error": "denied"})
-        )
+        respx.get(f"{base}/v1beta/models").mock(return_value=httpx.Response(401, json={"error": "denied"}))
         assert await GoogleVeoProvider().health_check(cfg) is False

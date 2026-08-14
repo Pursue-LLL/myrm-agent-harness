@@ -59,8 +59,7 @@ class TestIsExecutableMissing:
 
     def test_real_linux_path_format(self) -> None:
         exc = Exception(
-            "browserType.launch: Executable doesn't exist at "
-            "/ms-playwright/chromium-1148/chrome-linux/chrome"
+            "browserType.launch: Executable doesn't exist at /ms-playwright/chromium-1148/chrome-linux/chrome"
         )
         assert _is_executable_missing(exc) is True
 
@@ -309,9 +308,7 @@ class TestLaunchNewBrowserAutoInstall:
         )
 
         mock_pw = MagicMock()
-        mock_pw.chromium.launch = AsyncMock(
-            side_effect=Exception("Executable doesn't exist at /path/chromium")
-        )
+        mock_pw.chromium.launch = AsyncMock(side_effect=Exception("Executable doesn't exist at /path/chromium"))
         mock_pw.stop = AsyncMock()
 
         mock_install_proc = AsyncMock()
@@ -334,16 +331,13 @@ class TestLaunchNewBrowserAutoInstall:
         )
 
         mock_pw = MagicMock()
-        mock_pw.chromium.launch = AsyncMock(
-            side_effect=Exception("Executable doesn't exist at /path/chromium")
-        )
+        mock_pw.chromium.launch = AsyncMock(side_effect=Exception("Executable doesn't exist at /path/chromium"))
         mock_pw.stop = AsyncMock()
 
         install_call_count = 0
         mock_install_proc = AsyncMock()
         mock_install_proc.returncode = 0
         mock_install_proc.communicate = AsyncMock(return_value=(b"OK", b""))
-
 
         async def count_installs(*args: object, **kwargs: object) -> AsyncMock:
             nonlocal install_call_count
@@ -352,7 +346,8 @@ class TestLaunchNewBrowserAutoInstall:
 
         with (
             patch.object(launcher, "_ensure_playwright", return_value=mock_pw),
-            patch("asyncio.create_subprocess_exec", side_effect=count_installs),pytest.raises(BrowserLaunchError)
+            patch("asyncio.create_subprocess_exec", side_effect=count_installs),
+            pytest.raises(BrowserLaunchError),
         ):
             await launcher._launch_new_browser()
 
@@ -406,8 +401,9 @@ class TestLaunchNewBrowserAutoInstall:
         mock_pw = MagicMock()
         mock_pw.chromium.launch = AsyncMock(side_effect=TimeoutError("browser timeout"))
 
-        with patch.object(launcher, "_ensure_playwright", return_value=mock_pw), pytest.raises(
-            BrowserLaunchError, match="Failed to create Browser"
+        with (
+            patch.object(launcher, "_ensure_playwright", return_value=mock_pw),
+            pytest.raises(BrowserLaunchError, match="Failed to create Browser"),
         ):
             await launcher._launch_new_browser()
 
@@ -422,12 +418,11 @@ class TestLaunchNewBrowserAutoInstall:
         )
 
         mock_pw = MagicMock()
-        mock_pw.chromium.launch = AsyncMock(
-            side_effect=PlaywrightTimeoutError("browser launch timeout")
-        )
+        mock_pw.chromium.launch = AsyncMock(side_effect=PlaywrightTimeoutError("browser launch timeout"))
 
-        with patch.object(launcher, "_ensure_playwright", return_value=mock_pw), pytest.raises(
-            BrowserLaunchError, match="Failed to create Browser"
+        with (
+            patch.object(launcher, "_ensure_playwright", return_value=mock_pw),
+            pytest.raises(BrowserLaunchError, match="Failed to create Browser"),
         ):
             await launcher._launch_new_browser()
 

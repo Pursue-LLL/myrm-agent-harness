@@ -172,7 +172,8 @@ class TestStoreListDueScheduledTasks:
 
     @pytest.mark.asyncio
     async def test_returns_only_due_tasks(
-        self, store_with_tasks: InMemoryKanbanStore,
+        self,
+        store_with_tasks: InMemoryKanbanStore,
     ) -> None:
         due = await store_with_tasks.list_due_scheduled_tasks("b1")
         assert len(due) == 1
@@ -201,7 +202,10 @@ class TestKanbanBlockTool:
         task = _make_task("t1", status=TaskStatus.RUNNING)
         await store.save_task(task)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1", agent_id="a1",
+            store,
+            mode="worker",
+            current_task_id="t1",
+            agent_id="a1",
         )
         return store, tools
 
@@ -213,14 +217,19 @@ class TestKanbanBlockTool:
 
     @pytest.mark.asyncio
     async def test_block_with_until(
-        self, setup: tuple[InMemoryKanbanStore, list],
+        self,
+        setup: tuple[InMemoryKanbanStore, list],
     ) -> None:
         _store, tools = setup
         block_tool = self._get_tool(tools, "kanban_block")
-        result = json.loads(await block_tool.ainvoke({
-            "reason": "Waiting for build",
-            "until": "30m",
-        }))
+        result = json.loads(
+            await block_tool.ainvoke(
+                {
+                    "reason": "Waiting for build",
+                    "until": "30m",
+                }
+            )
+        )
         assert result["status"] == "blocked"
         task = result["task"]
         assert task["block_kind"] == "scheduled"
@@ -228,13 +237,18 @@ class TestKanbanBlockTool:
 
     @pytest.mark.asyncio
     async def test_block_without_until(
-        self, setup: tuple[InMemoryKanbanStore, list],
+        self,
+        setup: tuple[InMemoryKanbanStore, list],
     ) -> None:
         _store, tools = setup
         block_tool = self._get_tool(tools, "kanban_block")
-        result = json.loads(await block_tool.ainvoke({
-            "reason": "Needs PR review",
-        }))
+        result = json.loads(
+            await block_tool.ainvoke(
+                {
+                    "reason": "Needs PR review",
+                }
+            )
+        )
         assert result["status"] == "blocked"
         task = result["task"]
         assert task["block_kind"] == "human"
@@ -242,14 +256,19 @@ class TestKanbanBlockTool:
 
     @pytest.mark.asyncio
     async def test_block_invalid_until(
-        self, setup: tuple[InMemoryKanbanStore, list],
+        self,
+        setup: tuple[InMemoryKanbanStore, list],
     ) -> None:
         _store, tools = setup
         block_tool = self._get_tool(tools, "kanban_block")
-        result = json.loads(await block_tool.ainvoke({
-            "reason": "test",
-            "until": "invalid_format",
-        }))
+        result = json.loads(
+            await block_tool.ainvoke(
+                {
+                    "reason": "test",
+                    "until": "invalid_format",
+                }
+            )
+        )
         assert "error" in result
         assert "Invalid" in result["error"]
 
@@ -278,7 +297,9 @@ class TestDispatcherAutoWakeup:
         await store.save_task(task)
 
         dispatcher = KanbanDispatcher(
-            board=board, store=store, runner=_DummyRunner(),
+            board=board,
+            store=store,
+            runner=_DummyRunner(),
         )
 
         await dispatcher._wakeup_scheduled_tasks()
@@ -312,7 +333,9 @@ class TestDispatcherAutoWakeup:
         await store.add_edge("parent", "child")
 
         dispatcher = KanbanDispatcher(
-            board=board, store=store, runner=_DummyRunner(),
+            board=board,
+            store=store,
+            runner=_DummyRunner(),
         )
 
         await dispatcher._wakeup_scheduled_tasks()
@@ -333,7 +356,9 @@ class TestDispatcherAutoWakeup:
         await store.save_task(task)
 
         dispatcher = KanbanDispatcher(
-            board=board, store=store, runner=_DummyRunner(),
+            board=board,
+            store=store,
+            runner=_DummyRunner(),
         )
 
         await dispatcher._wakeup_scheduled_tasks()
@@ -375,12 +400,17 @@ class TestAutoBlockSetsHuman:
                 raise RuntimeError("boom")
 
         dispatcher = KanbanDispatcher(
-            board=board, store=store, runner=_FailRunner(),
+            board=board,
+            store=store,
+            runner=_FailRunner(),
         )
 
         await dispatcher._apply_failure_pipeline(
-            task, "boom", run.run_id,
-            outcome=TaskRunOutcome.CRASHED, reason="crash",
+            task,
+            "boom",
+            run.run_id,
+            outcome=TaskRunOutcome.CRASHED,
+            reason="crash",
         )
 
         updated = await store.get_task("t1")

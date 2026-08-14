@@ -69,9 +69,7 @@ class A2ACardResolver:
     timeout_seconds: float = 30.0
     cache_ttl_seconds: float = 300.0  # 5 分钟默认缓存
 
-    _cache: dict[str, _CacheEntry] = field(
-        default_factory=dict, init=False, repr=False
-    )
+    _cache: dict[str, _CacheEntry] = field(default_factory=dict, init=False, repr=False)
 
     async def resolve(
         self,
@@ -128,21 +126,15 @@ class A2ACardResolver:
         except ContentTooLargeError as exc:
             raise A2AResolveError(f"AgentCard fetch failed: response too large: {exc}") from exc
         except httpx.HTTPStatusError as exc:
-            raise A2AResolveError(
-                f"AgentCard fetch failed: HTTP {exc.response.status_code}"
-            ) from exc
+            raise A2AResolveError(f"AgentCard fetch failed: HTTP {exc.response.status_code}") from exc
         except httpx.RequestError as exc:
-            raise A2AResolveError(
-                f"AgentCard fetch failed: {exc}"
-            ) from exc
+            raise A2AResolveError(f"AgentCard fetch failed: {exc}") from exc
 
         # 解析为强类型 AgentCard
         try:
             card = AgentCard.model_validate(data)
         except Exception as exc:
-            raise A2AResolveError(
-                f"AgentCard parse failed: {exc}"
-            ) from exc
+            raise A2AResolveError(f"AgentCard parse failed: {exc}") from exc
 
         # 写入缓存
         if self.cache_ttl_seconds > 0:

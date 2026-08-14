@@ -16,9 +16,7 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model import (
 
 
 def _make_model(model: str, **kwargs) -> ChatLiteLLM:
-    return ChatLiteLLM.model_construct(
-        client=MagicMock(), model=model, **kwargs
-    )
+    return ChatLiteLLM.model_construct(client=MagicMock(), model=model, **kwargs)
 
 
 class TestDeveloperRolePattern:
@@ -53,9 +51,7 @@ class TestDeveloperRolePattern:
         ],
     )
     def test_pattern_matches_developer_role_models(self, model_name: str) -> None:
-        assert DEVELOPER_ROLE_PATTERN.match(model_name), (
-            f"Expected pattern to match '{model_name}'"
-        )
+        assert DEVELOPER_ROLE_PATTERN.match(model_name), f"Expected pattern to match '{model_name}'"
 
     @pytest.mark.parametrize(
         "model_name",
@@ -77,9 +73,7 @@ class TestDeveloperRolePattern:
         ],
     )
     def test_pattern_rejects_non_developer_role_models(self, model_name: str) -> None:
-        assert not DEVELOPER_ROLE_PATTERN.match(model_name), (
-            f"Expected pattern to NOT match '{model_name}'"
-        )
+        assert not DEVELOPER_ROLE_PATTERN.match(model_name), f"Expected pattern to NOT match '{model_name}'"
 
 
 class TestShouldPromoteSystemToDeveloper:
@@ -270,9 +264,7 @@ class TestCreateMessageDictsPromotion:
             SystemMessage(content="You are helpful."),
             HumanMessage(content="Hello"),
         ]
-        message_dicts, params = model._create_message_dicts(
-            messages, stop=["STOP"]
-        )
+        message_dicts, params = model._create_message_dicts(messages, stop=["STOP"])
         assert message_dicts[0]["role"] == "developer"
         assert params["stop"] == ["STOP"]
 

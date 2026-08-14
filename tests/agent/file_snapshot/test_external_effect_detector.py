@@ -16,18 +16,21 @@ class TestDetectExternalEffects:
 
     # ---- Database commands ----
 
-    @pytest.mark.parametrize("cmd", [
-        "psql -c 'DROP TABLE users'",
-        "mysql -u root -p db < dump.sql",
-        "mysqldump --all-databases > backup.sql",
-        "mongo --eval 'db.users.drop()'",
-        "mongosh --eval 'db.collection.insertOne({})'",
-        "mongodump --out /backup",
-        "redis-cli FLUSHALL",
-        "sqlite3 app.db 'DELETE FROM sessions'",
-        "cqlsh -e 'TRUNCATE keyspace.table'",
-        "influx write 'cpu,host=server01 value=0.64'",
-    ])
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "psql -c 'DROP TABLE users'",
+            "mysql -u root -p db < dump.sql",
+            "mysqldump --all-databases > backup.sql",
+            "mongo --eval 'db.users.drop()'",
+            "mongosh --eval 'db.collection.insertOne({})'",
+            "mongodump --out /backup",
+            "redis-cli FLUSHALL",
+            "sqlite3 app.db 'DELETE FROM sessions'",
+            "cqlsh -e 'TRUNCATE keyspace.table'",
+            "influx write 'cpu,host=server01 value=0.64'",
+        ],
+    )
     def test_database_commands(self, cmd: str) -> None:
         result = detect_external_effects(cmd)
         assert "database" in result
@@ -38,105 +41,126 @@ class TestDetectExternalEffects:
 
     # ---- Container/Cloud commands ----
 
-    @pytest.mark.parametrize("cmd", [
-        "docker rm -f my_container",
-        "docker run -d nginx",
-        "podman build -t myimage .",
-        "kubectl delete pod my-pod",
-        "kubectl apply -f deployment.yaml",
-        "helm install myrelease mychart",
-        "terraform apply -auto-approve",
-        "aws s3 cp file.txt s3://bucket/",
-        "gcloud compute instances create vm-1",
-        "az vm create --name myVM",
-        "flyctl deploy",
-        "heroku ps:scale web=2",
-    ])
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "docker rm -f my_container",
+            "docker run -d nginx",
+            "podman build -t myimage .",
+            "kubectl delete pod my-pod",
+            "kubectl apply -f deployment.yaml",
+            "helm install myrelease mychart",
+            "terraform apply -auto-approve",
+            "aws s3 cp file.txt s3://bucket/",
+            "gcloud compute instances create vm-1",
+            "az vm create --name myVM",
+            "flyctl deploy",
+            "heroku ps:scale web=2",
+        ],
+    )
     def test_container_cloud_commands(self, cmd: str) -> None:
         result = detect_external_effects(cmd)
         assert "container_cloud" in result
 
     # ---- HTTP mutation: explicit -X ----
 
-    @pytest.mark.parametrize("cmd", [
-        "curl -X POST https://api.example.com/data",
-        "curl -X PUT -d '{\"key\":\"val\"}' https://api.example.com/item/1",
-        "curl -X DELETE https://api.example.com/item/1",
-        "curl -X PATCH -d '{\"name\":\"new\"}' https://api.example.com/item/1",
-        "curl -X post https://api.example.com/data",  # case insensitive
-    ])
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "curl -X POST https://api.example.com/data",
+            'curl -X PUT -d \'{"key":"val"}\' https://api.example.com/item/1',
+            "curl -X DELETE https://api.example.com/item/1",
+            'curl -X PATCH -d \'{"name":"new"}\' https://api.example.com/item/1',
+            "curl -X post https://api.example.com/data",  # case insensitive
+        ],
+    )
     def test_http_explicit_method(self, cmd: str) -> None:
         result = detect_external_effects(cmd)
         assert "network_mutation" in result
 
     # ---- HTTP mutation: implicit POST via -d/--data/-F ----
 
-    @pytest.mark.parametrize("cmd", [
-        "curl -d '{\"key\":\"value\"}' https://api.example.com/data",
-        "curl --data '{\"key\":\"value\"}' https://api.example.com/data",
-        "curl --data-raw '{\"json\":true}' https://api.example.com/endpoint",
-        "curl --data-binary @file.bin https://api.example.com/upload",
-        "curl --data-urlencode 'name=test' https://api.example.com/form",
-        "curl -F 'file=@upload.zip' https://api.example.com/upload",
-        "curl --form 'field=value' https://api.example.com/submit",
-    ])
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            'curl -d \'{"key":"value"}\' https://api.example.com/data',
+            'curl --data \'{"key":"value"}\' https://api.example.com/data',
+            "curl --data-raw '{\"json\":true}' https://api.example.com/endpoint",
+            "curl --data-binary @file.bin https://api.example.com/upload",
+            "curl --data-urlencode 'name=test' https://api.example.com/form",
+            "curl -F 'file=@upload.zip' https://api.example.com/upload",
+            "curl --form 'field=value' https://api.example.com/submit",
+        ],
+    )
     def test_http_implicit_post(self, cmd: str) -> None:
         result = detect_external_effects(cmd)
         assert "network_mutation" in result
 
     # ---- wget ----
 
-    @pytest.mark.parametrize("cmd", [
-        "wget --post-data='key=val' https://api.example.com",
-        "wget --post-file=data.json https://api.example.com",
-    ])
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "wget --post-data='key=val' https://api.example.com",
+            "wget --post-file=data.json https://api.example.com",
+        ],
+    )
     def test_wget_post(self, cmd: str) -> None:
         result = detect_external_effects(cmd)
         assert "network_mutation" in result
 
     # ---- httpie ----
 
-    @pytest.mark.parametrize("cmd", [
-        "http POST https://api.example.com/data name=test",
-        "http PUT https://api.example.com/users/1 name=updated",
-        "http DELETE https://api.example.com/users/1",
-        "http PATCH https://api.example.com/users/1 name=patched",
-        "https POST https://api.example.com data=test",
-    ])
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "http POST https://api.example.com/data name=test",
+            "http PUT https://api.example.com/users/1 name=updated",
+            "http DELETE https://api.example.com/users/1",
+            "http PATCH https://api.example.com/users/1 name=patched",
+            "https POST https://api.example.com data=test",
+        ],
+    )
     def test_httpie_mutation(self, cmd: str) -> None:
         result = detect_external_effects(cmd)
         assert "network_mutation" in result
 
     # ---- docker-compose (legacy syntax) ----
 
-    @pytest.mark.parametrize("cmd", [
-        "docker-compose up -d",
-        "docker-compose down",
-        "docker-compose rm -f",
-    ])
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "docker-compose up -d",
+            "docker-compose down",
+            "docker-compose rm -f",
+        ],
+    )
     def test_docker_compose_legacy(self, cmd: str) -> None:
         result = detect_external_effects(cmd)
         assert "container_cloud" in result
 
     # ---- Safe commands: should NOT trigger ----
 
-    @pytest.mark.parametrize("cmd", [
-        "curl https://api.example.com/status",
-        "curl -H 'Authorization: Bearer tok' https://api.example.com/data",
-        "curl -o output.json https://api.example.com/data",
-        "wget https://example.com/file.tar.gz",
-        "http GET https://api.example.com/data",
-        "http https://api.example.com/status",
-        "python -m http.server",
-        "ls -la",
-        "cat file.txt",
-        "echo hello world",
-        "python script.py",
-        "npm install",
-        "pip install requests",
-        "git commit -m 'message'",
-        "git clone https://github.com/user/repo",
-    ])
+    @pytest.mark.parametrize(
+        "cmd",
+        [
+            "curl https://api.example.com/status",
+            "curl -H 'Authorization: Bearer tok' https://api.example.com/data",
+            "curl -o output.json https://api.example.com/data",
+            "wget https://example.com/file.tar.gz",
+            "http GET https://api.example.com/data",
+            "http https://api.example.com/status",
+            "python -m http.server",
+            "ls -la",
+            "cat file.txt",
+            "echo hello world",
+            "python script.py",
+            "npm install",
+            "pip install requests",
+            "git commit -m 'message'",
+            "git clone https://github.com/user/repo",
+        ],
+    )
     def test_safe_commands_no_effects(self, cmd: str) -> None:
         result = detect_external_effects(cmd)
         assert result == []

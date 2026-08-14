@@ -123,9 +123,7 @@ class TestDetectCorrectionSignals:
         assert detect_correction_signals([]) is False
 
     def test_scans_within_window(self):
-        old_msgs = [
-            {"role": "user", "content": f"normal message {i}"} for i in range(10)
-        ]
+        old_msgs = [{"role": "user", "content": f"normal message {i}"} for i in range(10)]
         old_msgs[0]["content"] = "不对"
         assert detect_correction_signals(old_msgs) is False
 
@@ -368,9 +366,7 @@ class TestResponseParsing:
         memories = _parse_response(raw)
         valid = [m for m in memories if m.content in {"A", "B", "C", "D"}]
         assert len(valid) == 4
-        assert all(
-            m.expected_valid_days is None or m.expected_valid_days == 30 for m in valid
-        )
+        assert all(m.expected_valid_days is None or m.expected_valid_days == 30 for m in valid)
         d_memory = next(m for m in memories if m.content == "D")
         assert d_memory.expected_valid_days == 30
 
@@ -511,9 +507,7 @@ class TestMemoryExtractor:
         mock_llm_func.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_extract_semantic_memory_with_preference(
-        self, default_config, mock_llm_func
-    ):
+    async def test_extract_semantic_memory_with_preference(self, default_config, mock_llm_func):
         """Test extracting semantic memory with preference."""
         mock_llm_func.return_value = """[
             {
@@ -1370,9 +1364,7 @@ class TestMemoryExtractionIntegration:
         assert "max_retries=5" in content
 
     @pytest.mark.asyncio
-    async def test_multiple_facts_extracted_separately(
-        self, default_config, mock_llm_func
-    ):
+    async def test_multiple_facts_extracted_separately(self, default_config, mock_llm_func):
         """Test multiple facts are extracted as separate memories."""
         mock_llm_func.return_value = """[
             {"memory_type": "semantic", "content": "Likes Python", "confidence": 0.9, "importance": 0.7},
@@ -1401,9 +1393,7 @@ class TestTaskDigest:
 
     @pytest.fixture
     def digest_config(self) -> ExtractionConfig:
-        return ExtractionConfig(
-            enable_task_digest=True, min_confidence=0.7, min_importance=0.5
-        )
+        return ExtractionConfig(enable_task_digest=True, min_confidence=0.7, min_importance=0.5)
 
     @pytest.fixture
     def digest_llm_response(self) -> str:
@@ -1418,9 +1408,7 @@ class TestTaskDigest:
         ]"""
 
     @pytest.mark.asyncio
-    async def test_digest_extracted_alongside_fragments(
-        self, digest_config, digest_llm_response
-    ):
+    async def test_digest_extracted_alongside_fragments(self, digest_config, digest_llm_response):
         llm = AsyncMock(return_value=digest_llm_response)
         extractor = MemoryExtractor(config=digest_config, llm_func=llm)
         result = await extractor.extract(
@@ -1449,12 +1437,8 @@ class TestTaskDigest:
             [{"role": "user", "content": "x"}, {"role": "assistant", "content": "y"}],
             "local",
         )
-        fragments = [
-            m for m in result.memories if m.memory_type != MemoryType.TASK_DIGEST
-        ]
-        digests = [
-            m for m in result.memories if m.memory_type == MemoryType.TASK_DIGEST
-        ]
+        fragments = [m for m in result.memories if m.memory_type != MemoryType.TASK_DIGEST]
+        digests = [m for m in result.memories if m.memory_type == MemoryType.TASK_DIGEST]
         assert len(fragments) == 1
         assert len(digests) == 1
 
@@ -1471,9 +1455,7 @@ class TestTaskDigest:
             [{"role": "user", "content": "x"}, {"role": "assistant", "content": "y"}],
             "local",
         )
-        digests = [
-            m for m in result.memories if m.memory_type == MemoryType.TASK_DIGEST
-        ]
+        digests = [m for m in result.memories if m.memory_type == MemoryType.TASK_DIGEST]
         assert len(digests) == 1
 
     @pytest.mark.asyncio
@@ -1581,9 +1563,7 @@ class TestTaskDigest:
             ],
             "local",
         )
-        digests = [
-            m for m in result.memories if m.memory_type == MemoryType.TASK_DIGEST
-        ]
+        digests = [m for m in result.memories if m.memory_type == MemoryType.TASK_DIGEST]
         assert len(digests) == 0
 
 
@@ -1791,9 +1771,9 @@ class TestSessionDateInjection:
         assert len(captured_system) == 1
         import re
 
-        assert not re.search(
-            r"\d{4}-\d{2}-\d{2}", captured_system[0]
-        ), "System prompt must NOT contain dynamic dates (cache-breaking)"
+        assert not re.search(r"\d{4}-\d{2}-\d{2}", captured_system[0]), (
+            "System prompt must NOT contain dynamic dates (cache-breaking)"
+        )
 
     @pytest.mark.asyncio
     async def test_weekday_is_english(self):
@@ -1809,9 +1789,7 @@ class TestSessionDateInjection:
 
         import re
 
-        match = re.search(
-            r"Session date: \d{4}-\d{2}-\d{2} \((\w+)\)", captured_prompt[0]
-        )
+        match = re.search(r"Session date: \d{4}-\d{2}-\d{2} \((\w+)\)", captured_prompt[0])
         assert match
         weekday = match.group(1)
         valid_weekdays = {
@@ -2020,9 +1998,7 @@ class TestExtractMemoriesFromConversationRegex:
 
         result = await extract_memories_from_conversation(messages, mock_llm)
 
-        procedural = [
-            m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL
-        ]
+        procedural = [m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL]
         assert len(procedural) >= 1
         edict = procedural[0]
         assert edict.tool_rule_priority == "critical"
@@ -2045,9 +2021,7 @@ class TestExtractMemoriesFromConversationRegex:
 
         result = await extract_memories_from_conversation(messages, mock_llm)
 
-        procedural = [
-            m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL
-        ]
+        procedural = [m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL]
         assert len(procedural) >= 1
         assert procedural[0].tool_name == "bash_code_execute_tool"
 
@@ -2066,9 +2040,7 @@ class TestExtractMemoriesFromConversationRegex:
         ]
 
         result = await extract_memories_from_conversation(messages, mock_llm)
-        procedural = [
-            m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL
-        ]
+        procedural = [m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL]
         assert len(procedural) == 0
 
     @pytest.mark.asyncio

@@ -48,9 +48,7 @@ class TestNullableAnyOf:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {
-                    "name": {"anyOf": [{"type": "string"}, {"type": "null"}]}
-                },
+                "properties": {"name": {"anyOf": [{"type": "string"}, {"type": "null"}]}},
             }
         )
         result = _params(normalize_tool_schema(schema))
@@ -237,9 +235,7 @@ class TestOneOf:
                         "anyOf": [
                             {
                                 "type": "object",
-                                "properties": {
-                                    "op": {"const": "eq", "description": "Match op"}
-                                },
+                                "properties": {"op": {"const": "eq", "description": "Match op"}},
                             },
                             {
                                 "type": "object",
@@ -416,9 +412,7 @@ class TestOneOf:
                             },
                             {
                                 "type": "object",
-                                "properties": {
-                                    "op": {"type": "string", "const": "range"}
-                                },
+                                "properties": {"op": {"type": "string", "const": "range"}},
                             },
                         ],
                     }
@@ -440,15 +434,11 @@ class TestOneOf:
                         "anyOf": [
                             {
                                 "type": "object",
-                                "properties": {
-                                    "op": {"type": "string", "description": "First"}
-                                },
+                                "properties": {"op": {"type": "string", "description": "First"}},
                             },
                             {
                                 "type": "object",
-                                "properties": {
-                                    "op": {"type": "string", "description": "Second"}
-                                },
+                                "properties": {"op": {"type": "string", "description": "Second"}},
                             },
                         ],
                     }
@@ -756,9 +746,7 @@ class TestAllOf:
                 "type": "object",
                 "properties": {
                     "item": {
-                        "allOf": [
-                            {"type": "object", "properties": {"id": {"type": "string"}}}
-                        ],
+                        "allOf": [{"type": "object", "properties": {"id": {"type": "string"}}}],
                         "description": "An item",
                     }
                 },
@@ -945,9 +933,7 @@ class TestRefResolution:
             {
                 "type": "object",
                 "properties": {"item": {"$ref": "#/definitions/Item"}},
-                "definitions": {
-                    "Item": {"type": "string", "description": "An item ID"}
-                },
+                "definitions": {"Item": {"type": "string", "description": "An item ID"}},
             }
         )
         result = _params(normalize_tool_schema(schema))
@@ -1170,9 +1156,7 @@ class TestTopLevelComposite:
                     },
                     {
                         "type": "object",
-                        "properties": {
-                            "tags": {"type": "array", "items": {"type": "string"}}
-                        },
+                        "properties": {"tags": {"type": "array", "items": {"type": "string"}}},
                         "required": ["tags"],
                     },
                 ]
@@ -1195,9 +1179,7 @@ class TestNestedSchemas:
                 "properties": {
                     "outer": {
                         "type": "object",
-                        "properties": {
-                            "inner": {"anyOf": [{"type": "string"}, {"type": "null"}]}
-                        },
+                        "properties": {"inner": {"anyOf": [{"type": "string"}, {"type": "null"}]}},
                     }
                 },
             }
@@ -1319,9 +1301,7 @@ class TestEdgeCases:
                 "$defs": {
                     "Child": {
                         "type": "object",
-                        "properties": {
-                            "value": {"anyOf": [{"type": "number"}, {"type": "null"}]}
-                        },
+                        "properties": {"value": {"anyOf": [{"type": "number"}, {"type": "null"}]}},
                     }
                 },
             }
@@ -1496,9 +1476,7 @@ class TestStrictProviderCompat:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {
-                    "filter": {"nullable": True, "description": "Optional filter"}
-                },
+                "properties": {"filter": {"nullable": True, "description": "Optional filter"}},
             }
         )
         result = _params(normalize_tool_schema(schema))
@@ -1545,9 +1523,7 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(
-            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
-        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
         prop = result["properties"]["count"]
         assert "minimum" not in prop
         assert "maximum" not in prop
@@ -1557,9 +1533,7 @@ class TestAnthropicStrip:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {
-                    "count": {"type": "integer", "minimum": 0, "maximum": 10}
-                },
+                "properties": {"count": {"type": "integer", "minimum": 0, "maximum": 10}},
             }
         )
         result = _params(normalize_tool_schema(schema, model_name="gpt-4o"))
@@ -1571,9 +1545,7 @@ class TestAnthropicStrip:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {
-                    "count": {"type": "integer", "minimum": 0, "maximum": 10}
-                },
+                "properties": {"count": {"type": "integer", "minimum": 0, "maximum": 10}},
             }
         )
         result = _params(normalize_tool_schema(schema))
@@ -1595,9 +1567,7 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(
-            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
-        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
         prop = result["properties"]["path"]
         assert "title" not in prop
         assert "default" not in prop
@@ -1617,11 +1587,7 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(
-            normalize_tool_schema(
-                schema, model_name="anthropic/claude-sonnet-4-20250514"
-            )
-        )
+        result = _params(normalize_tool_schema(schema, model_name="anthropic/claude-sonnet-4-20250514"))
         prop = result["properties"]["urls"]
         assert "maxItems" not in prop
         assert "items: 0\u201320" in prop["description"]
@@ -1640,9 +1606,7 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(
-            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
-        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
         prop = result["properties"]["email"]
         assert "format" not in prop
         assert "pattern" not in prop
@@ -1669,9 +1633,7 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(
-            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
-        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
         timeout = result["properties"]["config"]["properties"]["timeout"]
         assert "minimum" not in timeout
         assert "maximum" not in timeout
@@ -1690,9 +1652,7 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(
-            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
-        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
         items = result["properties"]["urls"]["items"]
         assert "format" not in items
 
@@ -1700,14 +1660,10 @@ class TestAnthropicStrip:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {
-                    "val": {"type": "integer", "minimum": 0, "maximum": 100}
-                },
+                "properties": {"val": {"type": "integer", "minimum": 0, "maximum": 100}},
             }
         )
-        result = _params(
-            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
-        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
         prop = result["properties"]["val"]
         assert prop["description"] == "(range: 0\u2013100)"
 
@@ -1731,11 +1687,7 @@ class TestAnthropicStrip:
                 "properties": {"n": {"type": "integer", "minimum": 1, "title": "N"}},
             }
         )
-        result = _params(
-            normalize_tool_schema(
-                schema, model_name="anthropic/claude-sonnet-4-20250514"
-            )
-        )
+        result = _params(normalize_tool_schema(schema, model_name="anthropic/claude-sonnet-4-20250514"))
         prop = result["properties"]["n"]
         assert "minimum" not in prop
         assert "title" not in prop
@@ -1930,9 +1882,7 @@ class TestOrphanRequiredPruning:
                 "required": ["name", "absent"],
             }
         )
-        result = _params(
-            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
-        )
+        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
         assert result["required"] == ["name"]
 
     def test_missing_local_ref_degrades(self) -> None:
@@ -2021,9 +1971,7 @@ class TestTypeArrayNormalization:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {
-                    "name": {"type": ["string", "null"], "description": "d"}
-                },
+                "properties": {"name": {"type": ["string", "null"], "description": "d"}},
                 "required": ["name"],
             }
         )
@@ -2140,9 +2088,7 @@ class TestNormalizeTypeArrays:
             normalize_type_arrays,
         )
 
-        assert normalize_type_arrays({"type": [], "description": "d"}) == {
-            "description": "d"
-        }
+        assert normalize_type_arrays({"type": [], "description": "d"}) == {"description": "d"}
 
     def test_idempotent(self) -> None:
         from myrm_agent_harness.toolkits.llms.adapters.schema.scalar_compat import (
@@ -2166,9 +2112,7 @@ class TestNormalizeTypeArrays:
             normalize_type_arrays,
         )
 
-        result = normalize_type_arrays(
-            {"type": ["string", "null"], "anyOf": [{"const": "a"}]}
-        )
+        result = normalize_type_arrays({"type": ["string", "null"], "anyOf": [{"const": "a"}]})
         assert "anyOf" in result
         assert result.get("type") == "string"
         assert result.get("nullable") is True
@@ -2203,16 +2147,12 @@ class TestOpenApiComponentsRefs:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {
-                    "field": {"$ref": "#/components/schemas/Foo/properties/bar"}
-                },
+                "properties": {"field": {"$ref": "#/components/schemas/Foo/properties/bar"}},
                 "components": {
                     "schemas": {
                         "Foo": {
                             "type": "object",
-                            "properties": {
-                                "bar": {"type": "integer", "description": "b"}
-                            },
+                            "properties": {"bar": {"type": "integer", "description": "b"}},
                         }
                     }
                 },
@@ -2227,9 +2167,7 @@ class TestOpenApiComponentsRefs:
             {
                 "type": "object",
                 "properties": {"id": {"$ref": "#/components/schemas/Id"}},
-                "components": {
-                    "schemas": {"Id": {"type": "string", "description": "i"}}
-                },
+                "components": {"schemas": {"Id": {"type": "string", "description": "i"}}},
             }
         )
         result = _params(normalize_tool_schema(schema))

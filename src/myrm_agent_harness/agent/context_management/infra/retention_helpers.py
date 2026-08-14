@@ -46,11 +46,7 @@ def extract_failed_tool_call_ids(metadata: dict[str, object]) -> frozenset[str]:
     if not isinstance(raw_failed_ids, list):
         return frozenset()
 
-    return frozenset(
-        tool_call_id
-        for tool_call_id in raw_failed_ids
-        if isinstance(tool_call_id, str) and tool_call_id
-    )
+    return frozenset(tool_call_id for tool_call_id in raw_failed_ids if isinstance(tool_call_id, str) and tool_call_id)
 
 
 def extract_focus_files(metadata: dict[str, object]) -> frozenset[str]:
@@ -70,9 +66,7 @@ def extract_pinned_files(metadata: dict[str, object]) -> frozenset[str]:
     raw_pinned_files = _read_compression_intent(metadata).get("pinned_files")
     if not isinstance(raw_pinned_files, list):
         return frozenset()
-    return frozenset(
-        file_path for file_path in raw_pinned_files if isinstance(file_path, str) and file_path
-    )
+    return frozenset(file_path for file_path in raw_pinned_files if isinstance(file_path, str) and file_path)
 
 
 def extract_focus_modules(metadata: dict[str, object]) -> frozenset[str]:
@@ -81,11 +75,7 @@ def extract_focus_modules(metadata: dict[str, object]) -> frozenset[str]:
     if not isinstance(raw_focus_modules, list):
         return frozenset()
 
-    return frozenset(
-        module_name
-        for module_name in raw_focus_modules
-        if isinstance(module_name, str) and module_name
-    )
+    return frozenset(module_name for module_name in raw_focus_modules if isinstance(module_name, str) and module_name)
 
 
 def extract_user_goal_hint(metadata: dict[str, object]) -> str:

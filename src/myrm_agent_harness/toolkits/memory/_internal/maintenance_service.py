@@ -225,7 +225,9 @@ class MaintenanceService:
 
                 try:
                     digests_evaporated = await evaporate_task_digests(
-                        self._vector, self._config, namespaces=self._namespaces,
+                        self._vector,
+                        self._config,
+                        namespaces=self._namespaces,
                     )
                 except Exception as exc:
                     logger.warning("Maintenance digest evaporation failed: %s", exc)
@@ -233,7 +235,9 @@ class MaintenanceService:
                 if self._graph is not None:
                     try:
                         claims_compiled = await compile_claim_graph(
-                            self._vector, self._graph, self._config,
+                            self._vector,
+                            self._graph,
+                            self._config,
                             namespaces=self._namespaces,
                         )
                     except Exception as exc:
@@ -241,8 +245,11 @@ class MaintenanceService:
 
                 try:
                     forgetting = await run_forgetting(
-                        self._vector, self._config, self._graph,
-                        relational=self._relational, namespaces=self._namespaces,
+                        self._vector,
+                        self._config,
+                        self._graph,
+                        relational=self._relational,
+                        namespaces=self._namespaces,
                     )
                     forgotten_count = forgetting.forgotten_count
                     archived_count = forgetting.archived_count
@@ -368,29 +375,36 @@ class MaintenanceService:
 
         async def _update_metadata(mid: str, meta_patch: dict[str, object]) -> None:
             mem_cls = id_to_type.get(mid)
-            coll = (
-                self._config.episodic_collection
-                if mem_cls is EpisodicMemory
-                else self._config.semantic_collection
-            )
+            coll = self._config.episodic_collection if mem_cls is EpisodicMemory else self._config.semantic_collection
             docs = await self._vector.get(coll, [mid])  # type: ignore[union-attr]
             if not docs:
                 return
             doc = docs[0]
             meta = dict(doc.metadata)
             meta.update(meta_patch)
-            await self._vector.upsert(coll, [VectorDocument(  # type: ignore[union-attr]
-                id=doc.id, vector=doc.vector, content=doc.content, metadata=meta,
-            )])
+            await self._vector.upsert(
+                coll,
+                [
+                    VectorDocument(  # type: ignore[union-attr]
+                        id=doc.id,
+                        vector=doc.vector,
+                        content=doc.content,
+                        metadata=meta,
+                    )
+                ],
+            )
 
         if self._vector is not None:
             for mid in result.removed_ids:
                 try:
-                    await _update_metadata(mid, {
-                        "status": MemoryStatus.ARCHIVED.value,
-                        "archived": True,
-                        "archive_reason": "staleness_review",
-                    })
+                    await _update_metadata(
+                        mid,
+                        {
+                            "status": MemoryStatus.ARCHIVED.value,
+                            "archived": True,
+                            "archive_reason": "staleness_review",
+                        },
+                    )
                 except Exception as exc:
                     logger.warning("Staleness review: failed to archive %s: %s", mid, exc)
 

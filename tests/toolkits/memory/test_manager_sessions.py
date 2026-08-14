@@ -64,7 +64,9 @@ class TestSessionManagement:
         mock_vector_store.upsert.return_value = ["mem-1"]
         forgetting_config = MemoryConfig(embedding_model="test-model", forgetting_interval=3)
 
-        manager = MemoryManager(forgetting_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+        manager = MemoryManager(
+            forgetting_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding
+        )
 
         for i in range(3):
             session = manager.begin_session(f"chat-{i}")
@@ -80,7 +82,9 @@ class TestStoreOperations:
     @pytest.mark.asyncio
     async def test_store_with_approval_required(self, mock_relational_store, memory_config):
         """Test store with approval_required creates pending record."""
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         memory = SemanticMemory(content="Requires approval")
         result = await manager.store(memory)
@@ -94,7 +98,9 @@ class TestStoreOperations:
         mock_relational_store.pending_exists.return_value = True
         mock_relational_store.submit_pending.return_value = ""
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         memory = SemanticMemory(content="Duplicate")
 
@@ -169,7 +175,12 @@ class TestStoreOperations:
         rule_obj = ProceduralMemory(id="rule-1", content="Rule", trigger="trigger", action="action")
         mock_relational_store.create_rule.return_value = rule_obj
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, relational=mock_relational_store, embedding=mock_embedding
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
         )
 
         memories = [
@@ -192,7 +203,8 @@ class TestStoreOperations:
         mock_vector_store.upsert.return_value = ["mem-1"]
         mock_vector_store.search.return_value = []
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, dedup_llm=mock_llm
+        manager = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, dedup_llm=mock_llm
         )
 
         memories = [SemanticMemory(content="Test memory")]
@@ -208,7 +220,8 @@ class TestStoreOperations:
         mock_vector_store.upsert.return_value = ["mem-1"]
         mock_vector_store.search.return_value = []
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, dedup_llm=mock_llm
+        manager = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, dedup_llm=mock_llm
         )
 
         memories = [EpisodicMemory(content="Test event")]
@@ -278,7 +291,10 @@ class TestCheckSessionRecurrence:
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
         similar_docs = [
-            MagicMock(document=VectorDocument(id=f"doc-{i}", content=f"python session {i}", vector=[0.1]*768, metadata={}), score=0.85)
+            MagicMock(
+                document=VectorDocument(id=f"doc-{i}", content=f"python session {i}", vector=[0.1] * 768, metadata={}),
+                score=0.85,
+            )
             for i in range(4)
         ]
         mock_vector_store.search.return_value = similar_docs
@@ -322,7 +338,12 @@ class TestCheckSessionRecurrence:
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
         similar_docs = [
-            MagicMock(document=VectorDocument(id=f"doc-{i}", content=f"python data task {i}", vector=[0.1]*768, metadata={}), score=0.85)
+            MagicMock(
+                document=VectorDocument(
+                    id=f"doc-{i}", content=f"python data task {i}", vector=[0.1] * 768, metadata={}
+                ),
+                score=0.85,
+            )
             for i in range(4)
         ]
         mock_vector_store.search.return_value = similar_docs
@@ -337,8 +358,11 @@ class TestCheckSessionRecurrence:
             recurrence=RecurrenceConfig(recurrence_k=4),
         )
         manager = MemoryManager(
-            config, user_id="u1", vector=mock_vector_store,
-            embedding=mock_embedding, consolidation_llm=mock_llm,
+            config,
+            user_id="u1",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            consolidation_llm=mock_llm,
         )
 
         await manager.check_session_recurrence("python data processing again")

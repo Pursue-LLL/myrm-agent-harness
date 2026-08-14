@@ -172,11 +172,7 @@ class WebVitalsReport:
         )
         for name, value, unit, thresholds in metrics:
             if value is None:
-                note = (
-                    "not measurable yet — interact with the page and re-check"
-                    if name == "INP"
-                    else "not available"
-                )
+                note = "not measurable yet — interact with the page and re-check" if name == "INP" else "not available"
                 lines.append(f"{name}  n/a    —     {note}")
                 continue
             rating = rate_metric(value, thresholds)
@@ -184,15 +180,12 @@ class WebVitalsReport:
 
         if self.slow_resources:
             lines.append("Slow resources:")
-            for res in self.slow_resources[: _MAX_SLOW_RESOURCES]:
+            for res in self.slow_resources[:_MAX_SLOW_RESOURCES]:
                 name = _truncate_url(str(res.get("name", "")))
                 duration = res.get("duration", 0)
                 res_type = res.get("type", "")
                 size = res.get("size", 0)
-                lines.append(
-                    f"  - {name} — {duration}ms "
-                    f"({res_type}{', ' + str(size) + 'B' if size else ''})"
-                )
+                lines.append(f"  - {name} — {duration}ms ({res_type}{', ' + str(size) + 'B' if size else ''})")
         if self.suggestions:
             lines.append("Suggestions:")
             for suggestion in self.suggestions:
@@ -246,11 +239,7 @@ class WebVitalsCollector:
             inp_ms=_as_int(raw.get("inp")),
             fcp_ms=_as_int(raw.get("fcp")),
             ttfb_ms=_as_int(raw.get("ttfb")),
-            slow_resources=[
-                res
-                for res in raw.get("resources", [])
-                if isinstance(res, dict) and "name" in res
-            ],
+            slow_resources=[res for res in raw.get("resources", []) if isinstance(res, dict) and "name" in res],
         )
 
 
@@ -278,10 +267,7 @@ def build_suggestions(report: WebVitalsReport) -> list[str]:
         "needs-improvement",
         "poor",
     ):
-        suggestions.append(
-            "High TTFB — enable CDN caching and server-side response caching to cut "
-            "first-byte latency."
-        )
+        suggestions.append("High TTFB — enable CDN caching and server-side response caching to cut first-byte latency.")
     if report.cls is not None and rate_metric(report.cls, _CLS_THRESHOLDS) in (
         "needs-improvement",
         "poor",
@@ -292,8 +278,7 @@ def build_suggestions(report: WebVitalsReport) -> list[str]:
         )
     if report.inp_ms is not None and rate_metric(report.inp_ms, _INP_THRESHOLDS) == "poor":
         suggestions.append(
-            "Slow interaction response — reduce main-thread blocking (long tasks) and "
-            "defer non-critical JavaScript."
+            "Slow interaction response — reduce main-thread blocking (long tasks) and defer non-critical JavaScript."
         )
 
     if report.slow_resources:

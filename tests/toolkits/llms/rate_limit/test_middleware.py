@@ -86,9 +86,7 @@ class TestComputeMinRecoverySeconds:
         state = RateLimitState(
             provider="openai",
             model="gpt-4",
-            rpm=RateLimitBucket(
-                limit=10, remaining=0, reset_seconds=5.0, updated_at=time.time()
-            ),
+            rpm=RateLimitBucket(limit=10, remaining=0, reset_seconds=5.0, updated_at=time.time()),
         )
         result = _compute_min_recovery_seconds(state)
         assert 4.0 < result <= 5.0
@@ -98,12 +96,8 @@ class TestComputeMinRecoverySeconds:
         state = RateLimitState(
             provider="openai",
             model="gpt-4",
-            rpm=RateLimitBucket(
-                limit=10, remaining=0, reset_seconds=30.0, updated_at=now
-            ),
-            tpm=RateLimitBucket(
-                limit=100000, remaining=0, reset_seconds=5.0, updated_at=now
-            ),
+            rpm=RateLimitBucket(limit=10, remaining=0, reset_seconds=30.0, updated_at=now),
+            tpm=RateLimitBucket(limit=100000, remaining=0, reset_seconds=5.0, updated_at=now),
         )
         result = _compute_min_recovery_seconds(state)
         assert 4.0 < result <= 5.0
@@ -112,9 +106,7 @@ class TestComputeMinRecoverySeconds:
         state = RateLimitState(
             provider="openai",
             model="gpt-4",
-            rpm=RateLimitBucket(
-                limit=10, remaining=5, reset_seconds=60.0, updated_at=time.time()
-            ),
+            rpm=RateLimitBucket(limit=10, remaining=5, reset_seconds=60.0, updated_at=time.time()),
         )
         assert _compute_min_recovery_seconds(state) == 0.0
 
@@ -126,9 +118,7 @@ class TestComputeMinRecoverySeconds:
         state = RateLimitState(
             provider="openai",
             model="gpt-4",
-            rpm=RateLimitBucket(
-                limit=10, remaining=0, reset_seconds=1.0, updated_at=time.time() - 10.0
-            ),
+            rpm=RateLimitBucket(limit=10, remaining=0, reset_seconds=1.0, updated_at=time.time() - 10.0),
         )
         assert _compute_min_recovery_seconds(state) == 0.0
 
@@ -146,9 +136,7 @@ async def test_proactive_throttling_single_provider():
         RateLimitState(
             provider="openai",
             model="gpt-4",
-            rpm=RateLimitBucket(
-                limit=10, remaining=0, reset_seconds=0.5, updated_at=time.time()
-            ),
+            rpm=RateLimitBucket(limit=10, remaining=0, reset_seconds=0.5, updated_at=time.time()),
         )
     )
 
@@ -171,18 +159,14 @@ async def test_no_throttle_when_one_provider_healthy():
         RateLimitState(
             provider="openai",
             model="gpt-4",
-            rpm=RateLimitBucket(
-                limit=10, remaining=0, reset_seconds=30.0, updated_at=time.time()
-            ),
+            rpm=RateLimitBucket(limit=10, remaining=0, reset_seconds=30.0, updated_at=time.time()),
         )
     )
     tracker.update(
         RateLimitState(
             provider="anthropic",
             model="claude-3",
-            rpm=RateLimitBucket(
-                limit=50, remaining=40, reset_seconds=60.0, updated_at=time.time()
-            ),
+            rpm=RateLimitBucket(limit=50, remaining=40, reset_seconds=60.0, updated_at=time.time()),
         )
     )
 
@@ -204,18 +188,14 @@ async def test_throttle_all_providers_exhausted_uses_min_wait():
         RateLimitState(
             provider="openai",
             model="gpt-4",
-            rpm=RateLimitBucket(
-                limit=10, remaining=0, reset_seconds=30.0, updated_at=now
-            ),
+            rpm=RateLimitBucket(limit=10, remaining=0, reset_seconds=30.0, updated_at=now),
         )
     )
     tracker.update(
         RateLimitState(
             provider="anthropic",
             model="claude-3",
-            rpm=RateLimitBucket(
-                limit=50, remaining=0, reset_seconds=5.0, updated_at=now
-            ),
+            rpm=RateLimitBucket(limit=50, remaining=0, reset_seconds=5.0, updated_at=now),
         )
     )
 
@@ -237,9 +217,7 @@ async def test_throttle_capped_at_max_proactive_wait():
         RateLimitState(
             provider="openai",
             model="gpt-4",
-            rph=RateLimitBucket(
-                limit=100, remaining=0, reset_seconds=3600.0, updated_at=time.time()
-            ),
+            rph=RateLimitBucket(limit=100, remaining=0, reset_seconds=3600.0, updated_at=time.time()),
         )
     )
 
@@ -261,9 +239,7 @@ async def test_throttle_emits_rate_limit_throttled_event():
         RateLimitState(
             provider="openai",
             model="gpt-4",
-            rpm=RateLimitBucket(
-                limit=10, remaining=0, reset_seconds=5.0, updated_at=time.time()
-            ),
+            rpm=RateLimitBucket(limit=10, remaining=0, reset_seconds=5.0, updated_at=time.time()),
         )
     )
 
@@ -273,19 +249,13 @@ async def test_throttle_emits_rate_limit_throttled_event():
 
     with (
         patch("asyncio.sleep", new_callable=AsyncMock),
-        patch(
-            "myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink"
-        ) as mock_get_sink,
+        patch("myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink") as mock_get_sink,
     ):
         mock_sink = AsyncMock()
         mock_get_sink.return_value = mock_sink
         await middleware.awrap_model_call(request, handler)
 
-        throttled_calls = [
-            c
-            for c in mock_sink.emit.call_args_list
-            if c[0][0]["type"] == "rate_limit_throttled"
-        ]
+        throttled_calls = [c for c in mock_sink.emit.call_args_list if c[0][0]["type"] == "rate_limit_throttled"]
         assert len(throttled_calls) == 1
         assert "wait_seconds" in throttled_calls[0][0][0]["data"]
 
@@ -317,14 +287,10 @@ async def test_header_parsing_and_tracker_update():
         "x-ratelimit-remaining-requests": "4999",
         "x-ratelimit-reset-requests": "1s",
     }
-    response_msg = AIMessage(
-        content="test", response_metadata={"headers": headers, "model_name": "gpt-4"}
-    )
+    response_msg = AIMessage(content="test", response_metadata={"headers": headers, "model_name": "gpt-4"})
     handler = AsyncMock(return_value=ModelResponse(result=[response_msg]))
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink"
-    ) as mock_get_sink:
+    with patch("myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink") as mock_get_sink:
         mock_sink = AsyncMock()
         mock_get_sink.return_value = mock_sink
 
@@ -357,9 +323,7 @@ async def test_anthropic_header_detection():
     )
     handler = AsyncMock(return_value=ModelResponse(result=[response_msg]))
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink"
-    ) as mock_get_sink:
+    with patch("myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink") as mock_get_sink:
         mock_sink = AsyncMock()
         mock_get_sink.return_value = mock_sink
 
@@ -387,9 +351,7 @@ async def test_deepseek_model_uses_openai_provider():
     )
     handler = AsyncMock(return_value=ModelResponse(result=[response_msg]))
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink"
-    ) as mock_get_sink:
+    with patch("myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink") as mock_get_sink:
         mock_sink = AsyncMock()
         mock_get_sink.return_value = mock_sink
 
@@ -416,14 +378,10 @@ async def test_warning_emission_with_debounce():
         "x-ratelimit-remaining-requests": "10",
         "x-ratelimit-reset-requests": "10s",
     }
-    response_msg = AIMessage(
-        content="test", response_metadata={"headers": headers, "model_name": "gpt-4"}
-    )
+    response_msg = AIMessage(content="test", response_metadata={"headers": headers, "model_name": "gpt-4"})
     handler = AsyncMock(return_value=ModelResponse(result=[response_msg]))
 
-    with patch(
-        "myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink"
-    ) as mock_get_sink:
+    with patch("myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink") as mock_get_sink:
         mock_sink = AsyncMock()
         mock_get_sink.return_value = mock_sink
 

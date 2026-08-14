@@ -27,17 +27,9 @@ class FetchEngineEscalationMixin:
             return None
         try:
             entry = await vault.load("bilibili.com")
-            if (
-                not entry
-                or not entry.storage_state
-                or "cookies" not in entry.storage_state
-            ):
+            if not entry or not entry.storage_state or "cookies" not in entry.storage_state:
                 return None
-            return {
-                c["name"]: c["value"]
-                for c in entry.storage_state["cookies"]
-                if "name" in c and "value" in c
-            }
+            return {c["name"]: c["value"] for c in entry.storage_state["cookies"] if "name" in c and "value" in c}
         except Exception:
             return None
 
@@ -108,9 +100,7 @@ class FetchEngineEscalationMixin:
                 doc.metadata["escalation_provider"] = provider.provider_id
 
             web_fetch_escalation_metrics.record_success()
-            logger.info(
-                "Escalation provider %s succeeded for %s", provider.provider_id, url
-            )
+            logger.info("Escalation provider %s succeeded for %s", provider.provider_id, url)
             return doc, None
 
         web_fetch_escalation_metrics.record_failure()

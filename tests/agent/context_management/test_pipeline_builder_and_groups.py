@@ -78,11 +78,7 @@ def test_build_default_processors_shares_offload_with_cache_ttl_prune() -> None:
         max_context_tokens=32000,
         on_compress_offload=offload,
     )
-    cache_prune = next(
-        processor
-        for processor in processors
-        if isinstance(processor, CacheTtlPruneProcessor)
-    )
+    cache_prune = next(processor for processor in processors if isinstance(processor, CacheTtlPruneProcessor))
 
     assert cache_prune._on_prune_offload is offload
 
@@ -93,11 +89,7 @@ def test_build_default_processors_accepts_cache_ttl_prune_config() -> None:
         max_context_tokens=32000,
         cache_ttl_prune_config=config,
     )
-    cache_prune = next(
-        processor
-        for processor in processors
-        if isinstance(processor, CacheTtlPruneProcessor)
-    )
+    cache_prune = next(processor for processor in processors if isinstance(processor, CacheTtlPruneProcessor))
 
     assert cache_prune._config is config
 
@@ -172,9 +164,7 @@ def test_build_tool_call_groups_keeps_last_duplicate_tool_message() -> None:
         HumanMessage(content="query"),
         AIMessage(
             content="",
-            tool_calls=[
-                {"id": "call_1", "name": "bash", "args": {"command": "pytest"}}
-            ],
+            tool_calls=[{"id": "call_1", "name": "bash", "args": {"command": "pytest"}}],
         ),
         ToolMessage(content="stale result", tool_call_id="call_1", name="bash"),
         ToolMessage(content="latest result", tool_call_id="call_1", name="bash"),
@@ -192,16 +182,12 @@ def test_build_tool_call_groups_handles_reused_tool_call_id_across_turns() -> No
         HumanMessage(content="query"),
         AIMessage(
             content="",
-            tool_calls=[
-                {"id": "call_1", "name": "bash", "args": {"command": "pytest a"}}
-            ],
+            tool_calls=[{"id": "call_1", "name": "bash", "args": {"command": "pytest a"}}],
         ),
         ToolMessage(content="result a", tool_call_id="call_1", name="bash"),
         AIMessage(
             content="",
-            tool_calls=[
-                {"id": "call_1", "name": "bash", "args": {"command": "pytest b"}}
-            ],
+            tool_calls=[{"id": "call_1", "name": "bash", "args": {"command": "pytest b"}}],
         ),
         ToolMessage(content="result b", tool_call_id="call_1", name="bash"),
     ]

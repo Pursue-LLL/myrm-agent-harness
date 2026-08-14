@@ -138,9 +138,7 @@ def truncate_oldest_rounds(messages: list[BaseMessage]) -> int:
 # ============================================================================
 
 
-def rebuild_agent_with_llm(
-    agent: BaseAgent, new_llm: BaseChatModel
-) -> CompiledStateGraph[Any, Any, Any, Any]:
+def rebuild_agent_with_llm(agent: BaseAgent, new_llm: BaseChatModel) -> CompiledStateGraph[Any, Any, Any, Any]:
     """Rebuild agent graph with a different LLM for failover.
 
     Reuses the cached tools / middlewares / system prompt so the only

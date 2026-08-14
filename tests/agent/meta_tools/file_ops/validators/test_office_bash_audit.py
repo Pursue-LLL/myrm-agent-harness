@@ -41,12 +41,15 @@ async def test_finalize_audit_warns_when_formulas_removed(tmp_path: Path) -> Non
     snapshots = OfficeBashAudit.prepare_snapshots(str(tmp_path), command)
     _write_xlsx_without_formula(workbook_path)
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_layout_qa_check",
-        new=AsyncMock(return_value=[]),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_xlsx_recalc_check",
-        new=AsyncMock(return_value=[]),
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_layout_qa_check",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_xlsx_recalc_check",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         warnings = await OfficeBashAudit.finalize_audit(
             snapshots,
@@ -65,12 +68,15 @@ async def test_finalize_audit_no_metric_warnings_on_unchanged_xlsx(tmp_path: Pat
     command = f"python noop {workbook_path}"
     snapshots = OfficeBashAudit.prepare_snapshots(str(tmp_path), command)
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_layout_qa_check",
-        new=AsyncMock(return_value=[]),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_xlsx_recalc_check",
-        new=AsyncMock(return_value=[]),
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_layout_qa_check",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_xlsx_recalc_check",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         warnings = await OfficeBashAudit.finalize_audit(
             snapshots,
@@ -90,12 +96,15 @@ async def test_finalize_audit_warns_when_generated_file_missing_baseline(
     _write_xlsx_with_formula(workbook_path)
     command = "python script.py"
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_layout_qa_check",
-        new=AsyncMock(return_value=[]),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_xlsx_recalc_check",
-        new=AsyncMock(return_value=[]),
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_layout_qa_check",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_xlsx_recalc_check",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         warnings = await OfficeBashAudit.finalize_audit(
             {},
@@ -113,12 +122,15 @@ async def test_finalize_audit_warns_on_corrupt_docx(tmp_path: Path) -> None:
     docx_path.write_bytes(b"not-a-valid-docx")
     command = f"python edit {docx_path}"
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_layout_qa_check",
-        new=AsyncMock(return_value=[]),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_xlsx_recalc_check",
-        new=AsyncMock(return_value=[]),
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_layout_qa_check",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.validators.office_bash_audit.run_xlsx_recalc_check",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         warnings = await OfficeBashAudit.finalize_audit(
             {},

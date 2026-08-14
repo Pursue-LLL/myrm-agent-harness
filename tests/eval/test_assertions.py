@@ -17,9 +17,7 @@ async def test_evaluate_sandbox_assertions_empty(executor):
 
 @pytest.mark.asyncio
 async def test_evaluate_sandbox_assertions_no_executor():
-    passed, details = await evaluate_sandbox_assertions(
-        [SandboxAssertion(type="file_exists", target="test.txt")], None
-    )
+    passed, details = await evaluate_sandbox_assertions([SandboxAssertion(type="file_exists", target="test.txt")], None)
     assert passed is False
     assert "CodeExecutor is required" in details
 
@@ -45,11 +43,7 @@ async def test_file_exists_and_not_exists(executor, tmp_path):
 
     # Test file_not_exists success
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="file_not_exists", target=str(tmp_path / "missing.txt")
-            )
-        ],
+        [SandboxAssertion(type="file_not_exists", target=str(tmp_path / "missing.txt"))],
         executor,
     )
     assert passed is True
@@ -69,22 +63,14 @@ async def test_file_contains(executor, tmp_path):
 
     # Test success
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="file_contains", target=str(test_file), expected="world"
-            )
-        ],
+        [SandboxAssertion(type="file_contains", target=str(test_file), expected="world")],
         executor,
     )
     assert passed is True
 
     # Test failure (wrong content)
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="file_contains", target=str(test_file), expected="python"
-            )
-        ],
+        [SandboxAssertion(type="file_contains", target=str(test_file), expected="python")],
         executor,
     )
     assert passed is False
@@ -125,22 +111,14 @@ async def test_cmd_success(executor):
 async def test_cmd_output_contains(executor):
     # Test success
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="cmd_output_contains", target="echo hello world", expected="world"
-            )
-        ],
+        [SandboxAssertion(type="cmd_output_contains", target="echo hello world", expected="world")],
         executor,
     )
     assert passed is True
 
     # Test failure (wrong output)
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="cmd_output_contains", target="echo hello world", expected="python"
-            )
-        ],
+        [SandboxAssertion(type="cmd_output_contains", target="echo hello world", expected="python")],
         executor,
     )
     assert passed is False
@@ -148,11 +126,7 @@ async def test_cmd_output_contains(executor):
 
     # Test failure (command fails)
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="cmd_output_contains", target="exit 1", expected="python"
-            )
-        ],
+        [SandboxAssertion(type="cmd_output_contains", target="exit 1", expected="python")],
         executor,
     )
     assert passed is False
@@ -167,11 +141,7 @@ async def test_json_matches(executor, tmp_path):
 
     # Test success (simple key)
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="json_matches", target=str(test_file), expected="name=myrm"
-            )
-        ],
+        [SandboxAssertion(type="json_matches", target=str(test_file), expected="name=myrm")],
         executor,
     )
     assert passed is True
@@ -204,11 +174,7 @@ async def test_json_matches(executor, tmp_path):
 
     # Test failure (wrong value)
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="json_matches", target=str(test_file), expected="name=wrong"
-            )
-        ],
+        [SandboxAssertion(type="json_matches", target=str(test_file), expected="name=wrong")],
         executor,
     )
     assert passed is False
@@ -216,11 +182,7 @@ async def test_json_matches(executor, tmp_path):
 
     # Test failure (missing key)
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="json_matches", target=str(test_file), expected="missing=value"
-            )
-        ],
+        [SandboxAssertion(type="json_matches", target=str(test_file), expected="missing=value")],
         executor,
     )
     assert passed is False
@@ -228,11 +190,7 @@ async def test_json_matches(executor, tmp_path):
 
     # Test failure (invalid format)
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="json_matches", target=str(test_file), expected="invalid_format"
-            )
-        ],
+        [SandboxAssertion(type="json_matches", target=str(test_file), expected="invalid_format")],
         executor,
     )
     assert passed is False
@@ -242,11 +200,7 @@ async def test_json_matches(executor, tmp_path):
     bad_file = tmp_path / "bad.json"
     bad_file.write_text("{bad json")
     passed, details = await evaluate_sandbox_assertions(
-        [
-            SandboxAssertion(
-                type="json_matches", target=str(bad_file), expected="name=myrm"
-            )
-        ],
+        [SandboxAssertion(type="json_matches", target=str(bad_file), expected="name=myrm")],
         executor,
     )
     assert passed is False
@@ -326,16 +280,12 @@ class TestTestSuiteGradingAssets:
             readonly_paths=(str(graders),),
         )
         scores: dict[str, float] = {}
-        passed, _ = await evaluate_sandbox_assertions(
-            [assertion], ex, scores_out=scores
-        )
+        passed, _ = await evaluate_sandbox_assertions([assertion], ex, scores_out=scores)
         assert passed is True
         assert scores["pass_rate"] == 1.0
 
     @pytest.mark.asyncio
-    async def test_external_grader_blocked_without_readonly_mount(
-        self, executor, tmp_path
-    ):
+    async def test_external_grader_blocked_without_readonly_mount(self, executor, tmp_path):
         """Without readonly_paths the workspace-external grader path is blocked."""
         ws = tmp_path / "ws"
         ws.mkdir()
@@ -376,9 +326,7 @@ class TestTestSuiteGradingAssets:
             readonly_paths=(str(graders),),
         )
         scores: dict[str, float] = {}
-        passed, _ = await evaluate_sandbox_assertions(
-            [assertion], ex, scores_out=scores
-        )
+        passed, _ = await evaluate_sandbox_assertions([assertion], ex, scores_out=scores)
         assert passed is False
         assert scores["pass_rate"] == 0.25
 

@@ -34,8 +34,6 @@ def test_toolkits_test_dirs_mirror_src_packages() -> None:
 
         has_tests = any(test_dir.rglob("test_*.py"))
         if not has_tests:
-            violations.append(
-                f"{test_dir.relative_to(_REPO_ROOT)} is empty (no test_*.py) — delete or add tests"
-            )
+            violations.append(f"{test_dir.relative_to(_REPO_ROOT)} is empty (no test_*.py) — delete or add tests")
 
     assert not violations, "tests/toolkits mirror violations:\n" + "\n".join(violations)

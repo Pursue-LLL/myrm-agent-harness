@@ -37,9 +37,7 @@ from .models import PluginDiagnosticLevel, PluginParseResult, PluginSkill
 
 logger = logging.getLogger(__name__)
 
-_EXCLUDED_SEGMENTS = frozenset(
-    {".git", ".venv", "__pycache__", "node_modules", ".DS_Store", "__MACOSX"}
-)
+_EXCLUDED_SEGMENTS = frozenset({".git", ".venv", "__pycache__", "node_modules", ".DS_Store", "__MACOSX"})
 
 
 def _is_excluded_file(path: str) -> bool:
@@ -93,9 +91,7 @@ class AgentPluginParser:
             return result
 
         result.meta = meta
-        result.schemas.append(
-            "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
-        )
+        result.schemas.append("https://agent-plugins.org/schemas/1.0.0/plugin.schema.json")
 
         # Skills discovery (§6.1, §7.1): non-recursive, SKILL.md gate.
         self._discover_skills(all_files, result)
@@ -105,17 +101,13 @@ class AgentPluginParser:
 
         return result
 
-    def _load_plugin_manifest(
-        self, all_files: dict[str, bytes]
-    ) -> dict[str, Any] | None:
+    def _load_plugin_manifest(self, all_files: dict[str, bytes]) -> dict[str, Any] | None:
         raw = all_files.get("plugin.json")
         if raw is None:
             return None
         return decode_manifest_json(raw)
 
-    def _discover_skills(
-        self, all_files: dict[str, bytes], result: PluginParseResult
-    ) -> None:
+    def _discover_skills(self, all_files: dict[str, bytes], result: PluginParseResult) -> None:
         # Non-recursive: only immediate children of skills/ containing SKILL.md (§7.1).
         skill_names: set[str] = set()
         for path in all_files:
@@ -141,9 +133,7 @@ class AgentPluginParser:
                     PluginDiagnosticLevel.WARNING,
                 )
 
-    def _build_skill(
-        self, name: str, all_files: dict[str, bytes]
-    ) -> PluginSkill | None:
+    def _build_skill(self, name: str, all_files: dict[str, bytes]) -> PluginSkill | None:
         prefix = f"skills/{name}/"
         skill_files: dict[str, bytes] = {}
         for path, content in all_files.items():
@@ -163,18 +153,14 @@ class AgentPluginParser:
             metadata=metadata,
         )
 
-    def _discover_mcp(
-        self, all_files: dict[str, bytes], result: PluginParseResult
-    ) -> None:
+    def _discover_mcp(self, all_files: dict[str, bytes], result: PluginParseResult) -> None:
         if "mcp.json" not in all_files:
             return  # missing fixed location is not an error (§6.2)
 
         try:
             raw = decode_mcp_json(all_files["mcp.json"])
             if raw is None:
-                result.add_diagnostic(
-                    "mcp", "mcp_missing", "mcp.json is not a JSON object"
-                )
+                result.add_diagnostic("mcp", "mcp_missing", "mcp.json is not a JSON object")
                 return
             plugin_schema = result.schemas[0] if result.schemas else None
             mcp_config.validate_mcp_top_level(raw, plugin_schema=plugin_schema)

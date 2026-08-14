@@ -21,9 +21,7 @@ from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGu
 def mock_getaddrinfo(ip: str):
     """Create a mock for asyncio.get_running_loop().getaddrinfo."""
     mock_loop = AsyncMock()
-    mock_loop.getaddrinfo.return_value = [
-        (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))
-    ]
+    mock_loop.getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))]
     return patch("asyncio.get_running_loop", return_value=mock_loop)
 
 
@@ -61,9 +59,7 @@ class TestSSRFShield:
             assert safe_url == "https://8.8.8.8/search?q=test"
             assert headers == {"Host": "google.com"}
             mock_loop = mock_loop_patch.return_value
-            mock_loop.getaddrinfo.assert_called_once_with(
-                "google.com", None, proto=socket.IPPROTO_TCP
-            )
+            mock_loop.getaddrinfo.assert_called_once_with("google.com", None, proto=socket.IPPROTO_TCP)
 
     @pytest.mark.asyncio
     async def test_validate_external_url_with_port(self):
@@ -77,9 +73,7 @@ class TestSSRFShield:
     async def test_blocks_internal_ip(self):
         with (
             mock_getaddrinfo("192.168.1.100"),
-            pytest.raises(
-                SSRFSecurityError, match="Access to internal network is blocked"
-            ),
+            pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"),
         ):
             await async_pin_url("http://192.168.1.100/admin")
 
@@ -87,9 +81,7 @@ class TestSSRFShield:
     async def test_blocks_internal_ip_records_audit(self):
         with (
             mock_getaddrinfo("192.168.1.100"),
-            patch(
-                "myrm_agent_harness.core.security.guards.ssrf.record_decision"
-            ) as mock_audit,
+            patch("myrm_agent_harness.core.security.guards.ssrf.record_decision") as mock_audit,
             pytest.raises(SSRFSecurityError),
         ):
             await async_pin_url("http://192.168.1.100/admin")
@@ -101,9 +93,7 @@ class TestSSRFShield:
     async def test_blocks_dns_rebinding(self):
         with (
             mock_getaddrinfo("127.0.0.1"),
-            pytest.raises(
-                SSRFSecurityError, match="Access to internal network is blocked"
-            ),
+            pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"),
         ):
             await async_pin_url("http://evil-domain.com/flushall")
 
@@ -122,9 +112,7 @@ class TestSSRFShield:
     @pytest.mark.asyncio
     async def test_allows_whitelisted_ips(self):
         with mock_getaddrinfo("10.0.0.5"):
-            safe_url, headers = await async_pin_url(
-                "http://10.0.0.5:9000/data", allowed_internal_hosts=["10.0.0.5"]
-            )
+            safe_url, headers = await async_pin_url("http://10.0.0.5:9000/data", allowed_internal_hosts=["10.0.0.5"])
 
             assert safe_url == "http://10.0.0.5:9000/data"
             assert headers == {}
@@ -171,9 +159,7 @@ class TestCheckUrlAndResolve:
     def test_resolve_allows_allowlisted_host(self):
         from myrm_agent_harness.core.security.guards.ssrf import resolve_and_check
 
-        verdict = resolve_and_check(
-            "nas.internal", allowed_internal_hosts=frozenset({"nas.internal"})
-        )
+        verdict = resolve_and_check("nas.internal", allowed_internal_hosts=frozenset({"nas.internal"}))
         assert verdict.allowed is True
 
     @patch(
@@ -191,9 +177,7 @@ class TestCheckUrlAndResolve:
     def test_resolve_blocks_internal_resolved_ip(self, mock_gai):
         from myrm_agent_harness.core.security.guards.ssrf import resolve_and_check
 
-        mock_gai.return_value = [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.16.3.9", 0))
-        ]
+        mock_gai.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.16.3.9", 0))]
         verdict = resolve_and_check("attacker.example")
         assert verdict.allowed is False
         assert "resolves to private/internal IP" in verdict.reason
@@ -293,9 +277,7 @@ class TestValidateUrlForSSRF:
     def test_validate_dns_resolved_public(self, monkeypatch) -> None:
         monkeypatch.setattr(
             "socket.getaddrinfo",
-            lambda *a, **k: [
-                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0))
-            ],
+            lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0))],
         )
 
         result = validate_url_for_ssrf("http://good.example/x")
@@ -306,9 +288,7 @@ class TestValidateUrlForSSRF:
     def test_validate_dns_resolved_blocked(self, monkeypatch) -> None:
         monkeypatch.setattr(
             "socket.getaddrinfo",
-            lambda *a, **k: [
-                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0))
-            ],
+            lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0))],
         )
 
         result = validate_url_for_ssrf("http://evil.example/x")

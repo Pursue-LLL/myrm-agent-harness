@@ -126,15 +126,19 @@ class TestKanbanAddTaskModel:
 
     @pytest.mark.asyncio
     async def test_add_task_with_model(
-        self, store: InMemoryKanbanStore, tool_map: dict,
+        self,
+        store: InMemoryKanbanStore,
+        tool_map: dict,
     ) -> None:
         await _make_board(store)
         add_fn = tool_map["kanban_add_task"]
-        result = json.loads(await add_fn.coroutine(
-            title="Translate docs",
-            board_id="b1",
-            model="anthropic/claude-sonnet-4",
-        ))
+        result = json.loads(
+            await add_fn.coroutine(
+                title="Translate docs",
+                board_id="b1",
+                model="anthropic/claude-sonnet-4",
+            )
+        )
         assert result["status"] == "added"
         assert result["task"]["model_override"] == "anthropic/claude-sonnet-4"
         task = await store.get_task(result["task"]["task_id"])
@@ -143,13 +147,18 @@ class TestKanbanAddTaskModel:
 
     @pytest.mark.asyncio
     async def test_add_task_without_model(
-        self, store: InMemoryKanbanStore, tool_map: dict,
+        self,
+        store: InMemoryKanbanStore,
+        tool_map: dict,
     ) -> None:
         await _make_board(store)
         add_fn = tool_map["kanban_add_task"]
-        result = json.loads(await add_fn.coroutine(
-            title="Normal task", board_id="b1",
-        ))
+        result = json.loads(
+            await add_fn.coroutine(
+                title="Normal task",
+                board_id="b1",
+            )
+        )
         assert result["status"] == "added"
         assert result["task"]["model_override"] is None
         task = await store.get_task(result["task"]["task_id"])

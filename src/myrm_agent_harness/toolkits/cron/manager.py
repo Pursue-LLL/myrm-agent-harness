@@ -306,9 +306,7 @@ class CronManager:
             chat_id=source.chat_id,
             agent_id=source.agent_id,
             workflow_template_id=source.workflow_template_id,
-            workflow_template_args=(
-                dict(source.workflow_template_args) if source.workflow_template_args else None
-            ),
+            workflow_template_args=(dict(source.workflow_template_args) if source.workflow_template_args else None),
             command=source.command,
             required_capabilities=source.required_capabilities,
             allowed_roots=source.allowed_roots,

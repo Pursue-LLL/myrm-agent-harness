@@ -137,9 +137,7 @@ async def test_hash_persistence(mock_llm, mock_vector, mock_embedding, mock_conf
         )
 
         duplicate_memories = [SemanticMemory(content=f"Content {i}") for i in range(10)]
-        result = await dedup2.deduplicate_batch(
-            duplicate_memories, mock_vector, mock_embedding, mock_config, None
-        )
+        result = await dedup2.deduplicate_batch(duplicate_memories, mock_vector, mock_embedding, mock_config, None)
 
         assert len(result) == 0, "All should be duplicates (loaded from cache)"
         print("\n[Hash 持久化验证] 跨实例去重生效")

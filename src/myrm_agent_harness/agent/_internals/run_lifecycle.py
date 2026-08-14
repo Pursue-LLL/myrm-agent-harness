@@ -77,9 +77,7 @@ install_llm_observability_hook()
 
 _WS_BIND_CTX_KEY = "__workspace_storage_bind_token"  # legacy; never serialize — see _workspace_bind_handle_stash
 
-_workspace_bind_handle_stash: ContextVar[object | None] = ContextVar(
-    "workspace_bind_handle_stash", default=None
-)
+_workspace_bind_handle_stash: ContextVar[object | None] = ContextVar("workspace_bind_handle_stash", default=None)
 
 
 def _stash_workspace_bind_handle(handle: object) -> None:
@@ -149,10 +147,7 @@ def _register_pii_pseudonymizer(policy: object, store: object) -> None:
     def _pseudonymize(text: str) -> str:
         if not policy.enabled:
             return text
-        has_pseudonymize = (
-            policy.s2_action == PIIAction.PSEUDONYMIZE
-            or policy.s3_action == PIIAction.PSEUDONYMIZE
-        )
+        has_pseudonymize = policy.s2_action == PIIAction.PSEUDONYMIZE or policy.s3_action == PIIAction.PSEUDONYMIZE
         if not has_pseudonymize or store is None:
             return text
 
@@ -161,18 +156,13 @@ def _register_pii_pseudonymizer(policy: object, store: object) -> None:
             return text
 
         levels_to_process: list[SensitivityLevel] = [pii_result.level]
-        if (
-            pii_result.level == SensitivityLevel.S3
-            and policy.s2_action == PIIAction.PSEUDONYMIZE
-        ):
+        if pii_result.level == SensitivityLevel.S3 and policy.s2_action == PIIAction.PSEUDONYMIZE:
             levels_to_process.append(SensitivityLevel.S2)
 
         result = text
         total_count = 0
         for level in levels_to_process:
-            action = (
-                policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
-            )
+            action = policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
             if action != PIIAction.PSEUDONYMIZE:
                 continue
             ps_result = pseudonymize_text(result, store, level)
@@ -258,9 +248,7 @@ async def setup_workspace(
             logger.debug(f" Using provided Executor: {executor.get_executor_name()}")
 
         executor.bind_workspace(workspace_path)
-        logger.debug(
-            f" {executor.get_executor_name()}: workspace bound to {workspace_path}"
-        )
+        logger.debug(f" {executor.get_executor_name()}: workspace bound to {workspace_path}")
 
         from myrm_agent_harness.toolkits.code_execution.executors.base import (
             set_executor,
@@ -335,9 +323,7 @@ def cleanup_run(
 
         cancelled_count = cancel_all_fn(include_detached=include_detached)
         if cancelled_count > 0:
-            logger.info(
-                f" Cancelled {cancelled_count} running subagents on parent cleanup"
-            )
+            logger.info(f" Cancelled {cancelled_count} running subagents on parent cleanup")
 
         set_tool_progress_sink(None)
         set_cancel_token(None)
@@ -426,9 +412,7 @@ def cleanup_run(
         logger.error(f"Error during cleanup: {cleanup_error}", exc_info=True)
 
 
-def collect_tracker_stats(
-    stats: AgentRunStatistics, *, tracker: TokenTracker | None = None
-) -> None:
+def collect_tracker_stats(stats: AgentRunStatistics, *, tracker: TokenTracker | None = None) -> None:
     """Extract token usage and cost from the current TokenTracker into stats.
 
     Args:
@@ -454,9 +438,7 @@ def collect_tracker_stats(
             }
             for model, mu in tracker.model_usage.items()
         }
-        stats.primary_model = max(
-            tracker.model_usage, key=lambda m: tracker.model_usage[m].total_tokens
-        )
+        stats.primary_model = max(tracker.model_usage, key=lambda m: tracker.model_usage[m].total_tokens)
 
     if tracker.usage.cached_tokens > 0:
         cache_stats = tracker.usage.get_cache_effectiveness()
@@ -504,9 +486,7 @@ def compute_context_budget_snapshot(
     if last_prompt <= 0:
         return None
 
-    max_ctx = (
-        max_context_tokens if max_context_tokens and max_context_tokens > 0 else 128_000
-    )
+    max_ctx = max_context_tokens if max_context_tokens and max_context_tokens > 0 else 128_000
     usage_pct = (last_prompt / max_ctx) * 100
 
     if usage_pct >= 90:
@@ -562,9 +542,7 @@ async def resolve_context_budget_breakdown(
             if isinstance(channel_values, dict) and "messages" in channel_values:
                 raw_messages = channel_values["messages"]
                 if isinstance(raw_messages, list):
-                    messages = [
-                        msg for msg in raw_messages if isinstance(msg, BaseMessage)
-                    ]
+                    messages = [msg for msg in raw_messages if isinstance(msg, BaseMessage)]
                     if messages:
                         messages_tokens = estimate_messages_tokens(messages)
                         turn_count = sum(1 for m in messages if m.type == "human")
@@ -661,10 +639,7 @@ async def post_run_events(
         }
 
     completion_status = stats.completion_status.value
-    if (
-        has_workspace_merge_warning()
-        and completion_status == CompletionStatus.COMPLETE.value
-    ):
+    if has_workspace_merge_warning() and completion_status == CompletionStatus.COMPLETE.value:
         completion_status = "warning"
 
     message_end_event: dict[str, object] = {
@@ -779,15 +754,9 @@ async def extract_checkpoint_state(
 
     if last_run_stats:
         stats = {
-            "token_usage": (
-                last_run_stats.token_usage.to_dict()
-                if last_run_stats.token_usage
-                else {}
-            ),
+            "token_usage": (last_run_stats.token_usage.to_dict() if last_run_stats.token_usage else {}),
             "duration_seconds": last_run_stats.duration_seconds,
-            "status": (
-                last_run_stats.status.value if last_run_stats.status else "unknown"
-            ),
+            "status": (last_run_stats.status.value if last_run_stats.status else "unknown"),
         }
         progress = 1.0 if last_run_stats.status else 0.5
 

@@ -37,10 +37,16 @@ async def test_emit_error_handling():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.logger") as mock_logger,
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.logger") as mock_logger,
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -51,13 +57,13 @@ async def test_emit_error_handling():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-emit-error",
         )
@@ -102,9 +108,15 @@ async def test_tool_based_progress_without_budget():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=None, max_result_tokens=5000)
 
@@ -115,13 +127,13 @@ async def test_tool_based_progress_without_budget():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-tool-based",
         )
@@ -172,9 +184,15 @@ async def test_progress_throttling():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -185,13 +203,13 @@ async def test_progress_throttling():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-throttle",
         )
@@ -237,9 +255,15 @@ async def test_current_step_tracking():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -250,13 +274,13 @@ async def test_current_step_tracking():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-current-step",
         )
@@ -304,9 +328,15 @@ async def test_tool_error_forwarding():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -317,13 +347,13 @@ async def test_tool_error_forwarding():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-tool-error",
         )
@@ -372,9 +402,15 @@ async def test_progress_deduplication():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -385,13 +421,13 @@ async def test_progress_deduplication():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-dedup",
         )
@@ -447,9 +483,15 @@ async def test_custom_progress_calculator():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(
             system_prompt="You are a test agent",
@@ -465,13 +507,13 @@ async def test_custom_progress_calculator():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-custom-calc",
         )
@@ -522,9 +564,15 @@ async def test_eta_calculation():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -535,13 +583,13 @@ async def test_eta_calculation():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-eta",
         )
@@ -586,9 +634,15 @@ async def test_auto_progress_emission():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -599,13 +653,13 @@ async def test_auto_progress_emission():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-123",
         )
@@ -650,9 +704,15 @@ async def test_auto_log_emission():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -663,13 +723,13 @@ async def test_auto_log_emission():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-456",
         )
@@ -713,9 +773,15 @@ async def test_reasoning_event_forwarding():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -726,13 +792,13 @@ async def test_reasoning_event_forwarding():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-reasoning",
         )
@@ -776,9 +842,15 @@ async def test_tasks_steps_event_forwarding():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -789,13 +861,13 @@ async def test_tasks_steps_event_forwarding():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-tasks-steps",
         )
@@ -840,9 +912,15 @@ async def test_ui_update_event_forwarding():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -853,13 +931,13 @@ async def test_ui_update_event_forwarding():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-ui-update",
         )
@@ -902,9 +980,15 @@ async def test_status_event_forwarding():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -915,13 +999,13 @@ async def test_status_event_forwarding():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-status",
         )
@@ -971,9 +1055,15 @@ async def test_tool_cancelled_forwarding():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -984,13 +1074,13 @@ async def test_tool_cancelled_forwarding():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-tool-cancelled",
         )
@@ -1044,9 +1134,15 @@ async def test_tool_timeout_forwarding():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -1057,13 +1153,13 @@ async def test_tool_timeout_forwarding():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-tool-timeout",
         )
@@ -1119,9 +1215,15 @@ async def test_tool_retry_forwarding():
     mock_parent_taint.is_tainted = False
 
     with (
-            patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=mock_child_agent),
-        patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker", return_value=mock_parent_taint),
+        patch("myrm_agent_harness.agent.sub_agents.event_forwarder.get_tool_progress_sink", return_value=mock_sink),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=mock_child_agent,
+        ),
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.get_taint_tracker",
+            return_value=mock_parent_taint,
+        ),
     ):
         config = SubagentConfig(system_prompt="You are a test agent", budget_tokens=1000, max_result_tokens=5000)
 
@@ -1132,13 +1234,13 @@ async def test_tool_retry_forwarding():
             config=config,
             context={},
             tool_registry_getter=lambda: [],
-                start_time=time.time(),
-                parent_tracker=mock_parent_tracker,
-                parent_taint=mock_parent_taint,
-                parent_agent=mock_parent,
-                cancel_flags=manager._cancel_flags,
-                children_agents=manager._children_agents,
-                fire_hook=mock_fire_hook,
+            start_time=time.time(),
+            parent_tracker=mock_parent_tracker,
+            parent_taint=mock_parent_taint,
+            parent_agent=mock_parent,
+            cancel_flags=manager._cancel_flags,
+            children_agents=manager._children_agents,
+            fire_hook=mock_fire_hook,
             hook_event_cls=HookEvent,
             trace_id="trace-tool-retry",
         )

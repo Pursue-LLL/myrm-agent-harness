@@ -55,9 +55,7 @@ from myrm_agent_harness.utils.lru_cache import LRUCache
 if TYPE_CHECKING:
     pass
 
-_search_cache: LRUCache[list[SearchResult]] = LRUCache(
-    maxsize=200, ttl=900, id="web_search_api_cache"
-)
+_search_cache: LRUCache[list[SearchResult]] = LRUCache(maxsize=200, ttl=900, id="web_search_api_cache")
 
 SearchServiceType = str
 
@@ -89,18 +87,10 @@ class SearchServiceConfig(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
-    search_service: SearchServiceType = Field(
-        ..., description="Search service type (provider slug)"
-    )
-    api_key: str | None = Field(
-        default=None, description="API key (dynamically passed, supports multi-user)"
-    )
-    api_base: str | None = Field(
-        default=None, description="API base URL (for self-hosted services like SearxNG)"
-    )
-    timeout_seconds: int | None = Field(
-        default=20, description="Single search timeout (seconds)"
-    )
+    search_service: SearchServiceType = Field(..., description="Search service type (provider slug)")
+    api_key: str | None = Field(default=None, description="API key (dynamically passed, supports multi-user)")
+    api_base: str | None = Field(default=None, description="API base URL (for self-hosted services like SearxNG)")
+    timeout_seconds: int | None = Field(default=20, description="Single search timeout (seconds)")
     extra_params: dict[str, object] | None = Field(
         default=None,
         description="Provider-specific parameters for LiteLLM search (categories, engines, language, etc.)",
@@ -133,9 +123,7 @@ SearchServiceConfig.model_rebuild()
 class WebSearcher:
     """Web search core implementation class, only responsible for basic search functionality"""
 
-    def __init__(
-        self, config: SearchServiceConfig, metrics: WebSearchMetrics | None = None
-    ):
+    def __init__(self, config: SearchServiceConfig, metrics: WebSearchMetrics | None = None):
         """Initialize search tool
 
         Args:
@@ -159,9 +147,7 @@ class WebSearcher:
         if self._search_service is not None and not bypass_gateway:
             return self._search_service
 
-        logger.warning(
-            f"Initializing search service: {self.config.search_service} (bypass_gateway={bypass_gateway})"
-        )
+        logger.warning(f"Initializing search service: {self.config.search_service} (bypass_gateway={bypass_gateway})")
 
         if self.config.search_service in NATIVE_SEARCH_SLUGS:
             if self.config.search_service == "volcengine_doubao":
@@ -181,9 +167,7 @@ class WebSearcher:
                 )
                 if not bypass_gateway:
                     self._search_service = service
-                logger.warning(
-                    "Search service volcengine_doubao initialized successfully"
-                )
+                logger.warning("Search service volcengine_doubao initialized successfully")
                 return service
             raise SearchConfigError(
                 f"Native search provider '{self.config.search_service}' is not implemented",
@@ -201,11 +185,7 @@ class WebSearcher:
                 )
             api_key = self.config.api_key
         else:
-            if (
-                not bypass_gateway
-                and self.config.gateway_config
-                and self.config.gateway_config.use_gateway
-            ):
+            if not bypass_gateway and self.config.gateway_config and self.config.gateway_config.use_gateway:
                 # Use gateway routing: override api_base and inject auth_token as api_key
                 api_base = f"{self.config.gateway_config.gateway_url.rstrip('/')}/{self.config.search_service}"
                 api_key = self.config.gateway_config.auth_token
@@ -228,9 +208,7 @@ class WebSearcher:
         if not bypass_gateway:
             self._search_service = service
 
-        logger.warning(
-            f"Search service {self.config.search_service} initialized successfully"
-        )
+        logger.warning(f"Search service {self.config.search_service} initialized successfully")
         return service
 
     def _compute_search_total_timeout_seconds(self) -> float:
@@ -277,9 +255,7 @@ class WebSearcher:
             )
             return results
 
-        extra_params: dict[str, object] = (
-            dict(self.config.extra_params) if self.config.extra_params else {}
-        )
+        extra_params: dict[str, object] = dict(self.config.extra_params) if self.config.extra_params else {}
         if extra_params_override:
             extra_params.update(extra_params_override)
 
@@ -291,11 +267,7 @@ class WebSearcher:
             if "safesearch" not in extra_params:
                 extra_params["safesearch"] = "0"
 
-        extra_suffix = (
-            json.dumps(extra_params, sort_keys=True, default=str)
-            if extra_params
-            else ""
-        )
+        extra_suffix = json.dumps(extra_params, sort_keys=True, default=str) if extra_params else ""
         cache_key = f"{self.config.search_service}:{query}:{num_results}:{extra_suffix}"
 
         cached_result = _search_cache.get(cache_key)
@@ -312,13 +284,9 @@ class WebSearcher:
         for attempt in range(max_attempts):
             self._metrics.record_attempt()
             try:
-                search_service = await self._get_search_service(
-                    bypass_gateway=bypass_gateway
-                )
+                search_service = await self._get_search_service(bypass_gateway=bypass_gateway)
                 if extra_params:
-                    results = await search_service.search(
-                        query, num_results, **extra_params
-                    )
+                    results = await search_service.search(query, num_results, **extra_params)
                 else:
                     results = await search_service.search(query, num_results)
             except Exception as exc:
@@ -427,9 +395,7 @@ class WebSearcher:
                     "total_timeout_seconds": str(int(total_timeout)),
                 },
             )
-            err = SearchAPIError(
-                "Search exceeded total time budget (including retries)", context=ctx
-            )
+            err = SearchAPIError("Search exceeded total time budget (including retries)", context=ctx)
             logger.warning(f"Search '{query}' failed: {err.message}")
             return query, [], err
         except Exception as e:
@@ -451,9 +417,7 @@ class WebSearcher:
 
         # Semantic checks first — LiteLLM wraps provider errors inside generic
         # APIConnectionError, so content-based matching must precede class-name matching.
-        if "exceeds" in error_lower and (
-            "usage limit" in error_lower or "plan" in error_lower
-        ):
+        if "exceeds" in error_lower and ("usage limit" in error_lower or "plan" in error_lower):
             return "Search service quota exceeded — upgrade your plan or use a different API key"
         if "invalid api key" in error_lower or "invalid_api_key" in error_lower:
             return "Search service authentication failed — invalid API key"
@@ -544,6 +508,4 @@ class WebSearcher:
                 failed_queries=[(q, "empty result set") for q in empty_queries],
             )
 
-        raise AllQueriesFailedError(
-            "Web search failed: no queries were executed", failed_queries=[]
-        )
+        raise AllQueriesFailedError("Web search failed: no queries were executed", failed_queries=[])

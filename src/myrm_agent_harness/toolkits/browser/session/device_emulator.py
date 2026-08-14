@@ -227,9 +227,7 @@ class DeviceEmulator:
             },
         )
         if profile.user_agent is not None:
-            await cdp.send(
-                "Network.setUserAgentOverride", {"userAgent": profile.user_agent}
-            )
+            await cdp.send("Network.setUserAgentOverride", {"userAgent": profile.user_agent})
         await cdp.send(
             "Emulation.setTouchEmulationEnabled",
             {"enabled": bool(profile.has_touch)},

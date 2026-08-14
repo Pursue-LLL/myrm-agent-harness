@@ -42,9 +42,7 @@ def test_collect_concept_pairs_related_concept(temp_wiki: WikiStructure) -> None
             definition="Agent is autonomous",
             related_concepts=["AI/Agent-B"],
         ),
-        ConceptInfo(
-            name="AI/Agent-B", definition="Agent is a tool", related_concepts=[]
-        ),
+        ConceptInfo(name="AI/Agent-B", definition="Agent is a tool", related_concepts=[]),
     ]
     pairs = collect_concept_pairs(batch, temp_wiki)
     assert len(pairs) == 1
@@ -74,9 +72,7 @@ def test_build_synthesis_page_contains_wikilinks(temp_wiki: WikiStructure) -> No
         side_b="Agent is a passive tool",
         resolution_hint="Decide which definition matches your workflow.",
     )
-    pair = ConceptPair(
-        concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept"
-    )
+    pair = ConceptPair(concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept")
     concept_path, content = build_synthesis_page(verdict, pair)
     assert concept_path.startswith("Comparisons/")
     assert "[[AI/Agent-A]]" in content
@@ -96,9 +92,7 @@ async def test_run_contradiction_synthesis_pass_stages_pending(
             definition="Agent is autonomous",
             related_concepts=["AI/Agent-B"],
         ),
-        ConceptInfo(
-            name="AI/Agent-B", definition="Agent is a tool", related_concepts=[]
-        ),
+        ConceptInfo(name="AI/Agent-B", definition="Agent is a tool", related_concepts=[]),
     ]
     llm = MagicMock()
     llm.ainvoke = AsyncMock(
@@ -139,9 +133,7 @@ async def test_run_contradiction_synthesis_reasoning_model_content_empty(
             definition="Agent is autonomous",
             related_concepts=["AI/Agent-B"],
         ),
-        ConceptInfo(
-            name="AI/Agent-B", definition="Agent is a tool", related_concepts=[]
-        ),
+        ConceptInfo(name="AI/Agent-B", definition="Agent is a tool", related_concepts=[]),
     ]
     llm = MagicMock()
     llm.ainvoke = AsyncMock(
@@ -177,9 +169,7 @@ def test_build_synthesis_page_uses_cjk_body_for_cjk_topic() -> None:
         side_b="Agent 是被动工具",
         resolution_hint="请决定哪条定义优先。",
     )
-    pair = ConceptPair(
-        concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept"
-    )
+    pair = ConceptPair(concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept")
     _, content = build_synthesis_page(verdict, pair)
     assert "Agent 定义的演变" in content
     assert "本页记录" in content
@@ -208,9 +198,7 @@ async def test_detect_conflict_high_confidence_verdict(
             )
         )
     )
-    pair = ConceptPair(
-        concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept"
-    )
+    pair = ConceptPair(concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept")
     verdict = await detect_conflict(
         llm,
         temp_wiki,
@@ -245,9 +233,7 @@ async def test_detect_conflict_reasoning_model_content_empty(
             },
         )
     )
-    pair = ConceptPair(
-        concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept"
-    )
+    pair = ConceptPair(concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept")
     verdict = await detect_conflict(
         llm,
         temp_wiki,
@@ -279,9 +265,7 @@ async def test_detect_conflict_low_confidence_returns_none(
             )
         )
     )
-    pair = ConceptPair(
-        concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept"
-    )
+    pair = ConceptPair(concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept")
     verdict = await detect_conflict(
         llm,
         temp_wiki,
@@ -304,12 +288,8 @@ async def test_detect_conflict_invalid_json_returns_none(
     )
 
     llm = MagicMock()
-    llm.ainvoke = AsyncMock(
-        return_value=AIMessage(content="I could not determine a conflict.")
-    )
-    pair = ConceptPair(
-        concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept"
-    )
+    llm.ainvoke = AsyncMock(return_value=AIMessage(content="I could not determine a conflict."))
+    pair = ConceptPair(concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept")
     verdict = await detect_conflict(
         llm,
         temp_wiki,
@@ -342,9 +322,7 @@ async def test_detect_conflict_robust_json_parsing(
             )
         )
     )
-    pair = ConceptPair(
-        concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept"
-    )
+    pair = ConceptPair(concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept")
     verdict = await detect_conflict(
         llm,
         temp_wiki,
@@ -372,15 +350,9 @@ async def test_detect_conflict_reads_existing_concept_file(
     )
 
     path_a = temp_wiki.get_concept_file_path("AI/Agent-A")
-    path_a.write_text(
-        build_note_body_skeleton(
-            compiled_truth="Agent is autonomous", timeline_entry=""
-        )
-    )
+    path_a.write_text(build_note_body_skeleton(compiled_truth="Agent is autonomous", timeline_entry=""))
     path_b = temp_wiki.get_concept_file_path("AI/Agent-B")
-    path_b.write_text(
-        build_note_body_skeleton(compiled_truth="Agent is a tool", timeline_entry="")
-    )
+    path_b.write_text(build_note_body_skeleton(compiled_truth="Agent is a tool", timeline_entry=""))
 
     llm = MagicMock()
     llm.ainvoke = AsyncMock(
@@ -391,12 +363,8 @@ async def test_detect_conflict_reads_existing_concept_file(
             )
         )
     )
-    pair = ConceptPair(
-        concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept"
-    )
-    verdict = await detect_conflict(
-        llm, temp_wiki, pair, definition_a="", definition_b=""
-    )
+    pair = ConceptPair(concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept")
+    verdict = await detect_conflict(llm, temp_wiki, pair, definition_a="", definition_b="")
     assert verdict is not None
     assert verdict.side_a == "autonomous"
 
@@ -410,9 +378,7 @@ async def test_detect_conflict_exception_safe(temp_wiki: WikiStructure) -> None:
 
     llm = MagicMock()
     llm.ainvoke = AsyncMock(side_effect=RuntimeError("provider down"))
-    pair = ConceptPair(
-        concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept"
-    )
+    pair = ConceptPair(concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept")
     verdict = await detect_conflict(
         llm,
         temp_wiki,
@@ -444,9 +410,7 @@ async def test_apply_synthesis_backlinks_appends_timeline_on_linked_concept(
         (concept_a, "Agent is autonomous"),
         (concept_b, "Agent is a tool"),
     ):
-        body = build_note_body_skeleton(
-            compiled_truth=truth, timeline_entry="Initial note."
-        )
+        body = build_note_body_skeleton(compiled_truth=truth, timeline_entry="Initial note.")
         content = ensure_frontmatter_type(body, WikiPageType.CONCEPT)
         await publish_concept_article(temp_wiki, None, concept_name, content)
 
@@ -458,9 +422,7 @@ async def test_apply_synthesis_backlinks_appends_timeline_on_linked_concept(
         side_b="tool",
         resolution_hint="Pick one.",
     )
-    pair = ConceptPair(
-        concept_a=concept_a, concept_b=concept_b, reason="related_concept"
-    )
+    pair = ConceptPair(concept_a=concept_a, concept_b=concept_b, reason="related_concept")
     synthesis_path, synthesis_content = build_synthesis_page(verdict, pair)
 
     updated = await apply_synthesis_backlinks(
@@ -497,9 +459,7 @@ async def test_apply_synthesis_backlinks_uses_cjk_timeline_entry(
         (concept_a, "Agent 是产品助手"),
         (concept_b, "Agent 是研究工具"),
     ):
-        body = build_note_body_skeleton(
-            compiled_truth=truth, timeline_entry="初始记录。"
-        )
+        body = build_note_body_skeleton(compiled_truth=truth, timeline_entry="初始记录。")
         content = ensure_frontmatter_type(body, WikiPageType.CONCEPT)
         await publish_concept_article(temp_wiki, None, concept_name, content)
 
@@ -511,9 +471,7 @@ async def test_apply_synthesis_backlinks_uses_cjk_timeline_entry(
         side_b="研究工具",
         resolution_hint="请决定哪条定义优先。",
     )
-    pair = ConceptPair(
-        concept_a=concept_a, concept_b=concept_b, reason="related_concept"
-    )
+    pair = ConceptPair(concept_a=concept_a, concept_b=concept_b, reason="related_concept")
     synthesis_path, synthesis_content = build_synthesis_page(verdict, pair)
 
     updated = await apply_synthesis_backlinks(

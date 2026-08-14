@@ -50,11 +50,13 @@ async def test_normalize_processor_multimodal_content():
     processor = NormalizeProcessor()
 
     messages = [
-        HumanMessage(content=[
-            {"type": "text", "text": "Text\r\n\r\n\r\nPart  "},
-            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}},
-            {"type": "text", "text": "More\u200bText"},
-        ])
+        HumanMessage(
+            content=[
+                {"type": "text", "text": "Text\r\n\r\n\r\nPart  "},
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}},
+                {"type": "text", "text": "More\u200bText"},
+            ]
+        )
     ]
 
     context = ProcessorContext(messages=messages, user_query="")

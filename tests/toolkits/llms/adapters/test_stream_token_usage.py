@@ -147,6 +147,7 @@ class _MockModelResponse:
 
     def json(self, **kwargs: Any) -> str:
         import json
+
         return json.dumps(self._data)
 
 

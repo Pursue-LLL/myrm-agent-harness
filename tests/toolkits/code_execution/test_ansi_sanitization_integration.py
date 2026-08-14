@@ -47,19 +47,13 @@ class TestAnsiSanitizationIntegration:
                 side_effect=capture_event,
             ):
                 # printf outputs raw ANSI without checking isatty
-                result = await session.execute(
-                    r"printf '\033[31mRED_TEXT\033[0m normal_text\n'"
-                )
+                result = await session.execute(r"printf '\033[31mRED_TEXT\033[0m normal_text\n'")
 
             assert result.success, f"Command failed: {result.error}"
 
             full_sse_output = "".join(captured_chunks)
-            assert "\x1b" not in full_sse_output, (
-                f"ANSI ESC byte leaked to SSE: {full_sse_output!r}"
-            )
-            assert "[31m" not in full_sse_output, (
-                f"ANSI CSI fragment visible in SSE: {full_sse_output!r}"
-            )
+            assert "\x1b" not in full_sse_output, f"ANSI ESC byte leaked to SSE: {full_sse_output!r}"
+            assert "[31m" not in full_sse_output, f"ANSI CSI fragment visible in SSE: {full_sse_output!r}"
             assert "RED_TEXT" in full_sse_output
             assert "normal_text" in full_sse_output
         finally:
@@ -88,9 +82,7 @@ class TestAnsiSanitizationIntegration:
         await session.start()
         try:
             chunks: list[str] = []
-            async for chunk in session.execute_stream(
-                r"printf '\033[32mGREEN\033[0m done\n'"
-            ):
+            async for chunk in session.execute_stream(r"printf '\033[32mGREEN\033[0m done\n'"):
                 chunks.append(chunk)
 
             full_output = "".join(chunks)

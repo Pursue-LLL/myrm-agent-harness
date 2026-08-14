@@ -97,9 +97,7 @@ class TestTaskDiagnostic:
             diag.rule_id = "other"  # type: ignore[misc]
 
     def test_default_actions_empty(self) -> None:
-        diag = TaskDiagnostic(
-            rule_id="r", severity=TaskDiagnosticSeverity.WARNING, title="T", detail="D"
-        )
+        diag = TaskDiagnostic(rule_id="r", severity=TaskDiagnosticSeverity.WARNING, title="T", detail="D")
         assert diag.actions == ()
 
     def test_with_actions(self) -> None:
@@ -166,9 +164,7 @@ class _WarningRule:
     def rule_id(self) -> str:
         return "warn_rule"
 
-    def evaluate(
-        self, task: KanbanTask, *, context: DiagnosticContext | None = None
-    ) -> list[TaskDiagnostic]:
+    def evaluate(self, task: KanbanTask, *, context: DiagnosticContext | None = None) -> list[TaskDiagnostic]:
         return [
             TaskDiagnostic(
                 rule_id=self.rule_id,
@@ -184,9 +180,7 @@ class _ErrorRule:
     def rule_id(self) -> str:
         return "err_rule"
 
-    def evaluate(
-        self, task: KanbanTask, *, context: DiagnosticContext | None = None
-    ) -> list[TaskDiagnostic]:
+    def evaluate(self, task: KanbanTask, *, context: DiagnosticContext | None = None) -> list[TaskDiagnostic]:
         return [
             TaskDiagnostic(
                 rule_id=self.rule_id,
@@ -202,9 +196,7 @@ class _CriticalRule:
     def rule_id(self) -> str:
         return "crit_rule"
 
-    def evaluate(
-        self, task: KanbanTask, *, context: DiagnosticContext | None = None
-    ) -> list[TaskDiagnostic]:
+    def evaluate(self, task: KanbanTask, *, context: DiagnosticContext | None = None) -> list[TaskDiagnostic]:
         return [
             TaskDiagnostic(
                 rule_id=self.rule_id,
@@ -220,9 +212,7 @@ class _ExplodingRule:
     def rule_id(self) -> str:
         return "exploding"
 
-    def evaluate(
-        self, task: KanbanTask, *, context: DiagnosticContext | None = None
-    ) -> list[TaskDiagnostic]:
+    def evaluate(self, task: KanbanTask, *, context: DiagnosticContext | None = None) -> list[TaskDiagnostic]:
         raise RuntimeError("boom")
 
 
@@ -231,9 +221,7 @@ class _EmptyRule:
     def rule_id(self) -> str:
         return "empty_rule"
 
-    def evaluate(
-        self, task: KanbanTask, *, context: DiagnosticContext | None = None
-    ) -> list[TaskDiagnostic]:
+    def evaluate(self, task: KanbanTask, *, context: DiagnosticContext | None = None) -> list[TaskDiagnostic]:
         return []
 
 
@@ -242,9 +230,7 @@ class _ContextAwareRule:
     def rule_id(self) -> str:
         return "context_aware"
 
-    def evaluate(
-        self, task: KanbanTask, *, context: DiagnosticContext | None = None
-    ) -> list[TaskDiagnostic]:
+    def evaluate(self, task: KanbanTask, *, context: DiagnosticContext | None = None) -> list[TaskDiagnostic]:
         if context and context.parent_task_ids:
             return [
                 TaskDiagnostic(

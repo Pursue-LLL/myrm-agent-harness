@@ -129,9 +129,7 @@ def _redact_suggestion(suggestion: str) -> str:
     return redact_sensitive_text(suggestion)
 
 
-def format_error_message(
-    exception: Exception, context: str = "", include_traceback: bool = False
-) -> str:
+def format_error_message(exception: Exception, context: str = "", include_traceback: bool = False) -> str:
     """格式化异常信息
 
     Args:
@@ -248,6 +246,4 @@ class ModelOutputValidator:
     @staticmethod
     def create_model_capability_error() -> RuntimeError:
         """创建模型能力不足的标准错误"""
-        return RuntimeError(
-            "This model may have limited support for tool invocation capabilities"
-        )
+        return RuntimeError("This model may have limited support for tool invocation capabilities")

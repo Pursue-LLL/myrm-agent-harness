@@ -82,9 +82,7 @@ class FeatureSet:
                     continue
                 if spec.stage == FeatureStage.UNDER_DEVELOPMENT:
                     if value:
-                        warnings.append(
-                            f"Feature '{key}' is under development and cannot be enabled via overrides"
-                        )
+                        warnings.append(f"Feature '{key}' is under development and cannot be enabled via overrides")
                     enabled.discard(spec.id)
                     continue
                 if value:

@@ -16,9 +16,7 @@ _MAX_DESCRIPTION_TOKENS = 2000
 
 def test_default_locale_is_english() -> None:
     assert DEFAULT_WEB_FETCH_TOOL_DESCRIPTION_LOCALE == "en"
-    assert resolve_web_fetch_tool_description(False) == (
-        resolve_web_fetch_tool_description(False, None)
-    )
+    assert resolve_web_fetch_tool_description(False) == (resolve_web_fetch_tool_description(False, None))
 
 
 def test_web_fetch_tool_description_token_budget() -> None:
@@ -65,9 +63,7 @@ def test_web_fetch_tool_description_never_leaks_policy_details() -> None:
         for locale in (None, "en", "zh-CN"):
             desc = resolve_web_fetch_tool_description(enable_extract, locale)
             for leaked in ("blocked", "decontam", "Hugging Face", "benchmark"):
-                assert leaked not in desc, (
-                    f"policy implementation detail leaked into prompt: {leaked!r}"
-                )
+                assert leaked not in desc, f"policy implementation detail leaked into prompt: {leaked!r}"
 
 
 def test_extract_mode_omitted_when_disabled() -> None:

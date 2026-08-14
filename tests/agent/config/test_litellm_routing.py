@@ -72,6 +72,7 @@ class TestConstantsExport:
             "gemini-like",
             "anthropic-like",
         }
+
     def test_ordered_nonempty(self) -> None:
         segs = known_litellm_route_segments_ordered()
         assert "openai" in segs

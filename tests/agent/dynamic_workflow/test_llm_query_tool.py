@@ -167,9 +167,7 @@ async def test_estimate_workflow_cost_combines_spawn_and_llm_query(
         max_cost_usd=1.0,
     )
 
-    cost, _remaining, status = await estimate_workflow_cost(
-        parent, catalog, 2, "audit", llm_query_calls=(3, 1)
-    )
+    cost, _remaining, status = await estimate_workflow_cost(parent, catalog, 2, "audit", llm_query_calls=(3, 1))
     assert cost == pytest.approx(2.05)
     assert status == "configured_max_cost"
     mock_llm_cost.assert_called_once_with(parent, 3, 1)
@@ -183,9 +181,7 @@ async def test_estimate_workflow_cost_combines_spawn_and_llm_query(
 async def test_estimate_workflow_cost_llm_query_only(
     mock_llm_cost: MagicMock,
 ) -> None:
-    cost, _remaining, status = await estimate_workflow_cost(
-        MagicMock(), None, 0, "summarize", llm_query_calls=(2, 0)
-    )
+    cost, _remaining, status = await estimate_workflow_cost(MagicMock(), None, 0, "summarize", llm_query_calls=(2, 0))
     assert cost == pytest.approx(0.04)
     assert status == "estimated"
 
@@ -206,9 +202,7 @@ async def test_estimate_workflow_cost_llm_query_unavailable_falls_back_to_spawn(
         system_prompt="sub",
         max_cost_usd=0.5,
     )
-    cost, _remaining, status = await estimate_workflow_cost(
-        parent, catalog, 1, "task", llm_query_calls=(1, 0)
-    )
+    cost, _remaining, status = await estimate_workflow_cost(parent, catalog, 1, "task", llm_query_calls=(1, 0))
     assert cost == pytest.approx(0.5)
     assert status == "configured_max_cost"
 
@@ -241,9 +235,7 @@ class TestLlmQueryTool:
         tool = _make_tool()
         tool.parent_agent.llm.ainvoke.side_effect = RuntimeError("boom")
 
-        with patch(
-            "myrm_agent_harness.agent.dynamic_workflow.llm_query_tool.record_token_error"
-        ) as mock_error:
+        with patch("myrm_agent_harness.agent.dynamic_workflow.llm_query_tool.record_token_error") as mock_error:
             result = await tool._arun(prompt="q")
         assert result["success"] is False
         assert "boom" in result["error"]
@@ -318,9 +310,7 @@ class TestLlmQueryTool:
         """DeepSeek-R1 / OpenAI o-series return content=None and put the
         answer in additional_kwargs['reasoning_content']."""
         tool = _make_tool()
-        response = _FakeResponse(
-            None, {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}
-        )
+        response = _FakeResponse(None, {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15})
         response.additional_kwargs = {"reasoning_content": "reasoned answer"}
         tool.parent_agent.llm.ainvoke.return_value = response
         result = await tool._arun(prompt="q")
@@ -366,12 +356,8 @@ class TestLlmQueryBatchedTool:
     async def test_batched_preserves_order(self) -> None:
         tool = _make_tool(use_batched=True)
         tool.parent_agent.llm.ainvoke.side_effect = [
-            _FakeResponse(
-                "first", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-            ),
-            _FakeResponse(
-                "second", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-            ),
+            _FakeResponse("first", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
+            _FakeResponse("second", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
         ]
         result = await tool._arun(prompts=["a", "b"])
         assert result["success"] is True
@@ -382,13 +368,9 @@ class TestLlmQueryBatchedTool:
     async def test_batched_isolates_per_prompt_failure(self) -> None:
         tool = _make_tool(use_batched=True)
         tool.parent_agent.llm.ainvoke.side_effect = [
-            _FakeResponse(
-                "ok", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-            ),
+            _FakeResponse("ok", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
             RuntimeError("boom"),
-            _FakeResponse(
-                "ok2", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-            ),
+            _FakeResponse("ok2", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
         ]
         result = await tool._arun(prompts=["a", "b", "c"])
         assert result["success"] is True
@@ -424,15 +406,9 @@ class TestLlmQueryBatchedTool:
         """A batch must resolve the shared LLM once, not once per prompt."""
         tool = _make_tool(use_batched=True)
         tool.parent_agent.llm.ainvoke.side_effect = [
-            _FakeResponse(
-                "a", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-            ),
-            _FakeResponse(
-                "b", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-            ),
-            _FakeResponse(
-                "c", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-            ),
+            _FakeResponse("a", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
+            _FakeResponse("b", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
+            _FakeResponse("c", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
         ]
         with patch(
             "myrm_agent_harness.agent.dynamic_workflow.llm_query_tool.LlmQueryTool._resolve_llm",
@@ -458,12 +434,8 @@ class TestLlmQueryBatchedTool:
     @pytest.mark.asyncio
     async def test_batched_unparsable_usage_metadata_keeps_other_results(self) -> None:
         tool = _make_tool(use_batched=True)
-        good = _FakeResponse(
-            "ok", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
-        )
-        bad = _FakeResponse(
-            "bad", {"input_tokens": "nan", "output_tokens": "x", "total_tokens": "y"}
-        )
+        good = _FakeResponse("ok", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2})
+        bad = _FakeResponse("bad", {"input_tokens": "nan", "output_tokens": "x", "total_tokens": "y"})
         tool.parent_agent.llm.ainvoke.side_effect = [good, bad]
         result = await tool._arun(prompts=["a", "b"])
         assert result["success"] is True
@@ -507,11 +479,7 @@ async def test_ptc_batched_stub_passes_list_to_tool() -> None:
     parent.llm.ainvoke.side_effect = fake_ainvoke
     tool = LlmQueryBatchedTool(parent_agent=parent)
 
-    script = (
-        "import myrm_tools\n"
-        'result = myrm_tools.llm_query_batched(prompts=["q1", "q2"])\n'
-        "print(result)"
-    )
+    script = 'import myrm_tools\nresult = myrm_tools.llm_query_batched(prompts=["q1", "q2"])\nprint(result)'
     context = ExecutionContext(code=script, timeout=30)
     executor = InProcessExecutor()
     result = await inject_ptc_for_python_execution(context, executor, [tool])

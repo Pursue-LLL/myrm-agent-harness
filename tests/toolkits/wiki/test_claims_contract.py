@@ -55,10 +55,7 @@ def test_parse_claims_from_content_empty_when_missing() -> None:
 
 
 def test_ensure_compile_claims_adds_fallback_when_missing() -> None:
-    content = (
-        "---\ntype: concept\nsources:\n  - notes.md\n---\n\n"
-        "## Compiled Truth\nBudget is 50M for Q3.\n"
-    )
+    content = "---\ntype: concept\nsources:\n  - notes.md\n---\n\n## Compiled Truth\nBudget is 50M for Q3.\n"
     merged = ensure_compile_claims(content, "Finance/Budget", ["notes.md"])
     claims = parse_claims_from_content(merged)
     assert len(claims) == 1
@@ -167,9 +164,7 @@ def test_build_evidence_resource_uri_prefers_pin(tmp_path) -> None:
     assert build_evidence_resource_uri("raw/budget.md", pinned_sha, structure=structure) == (
         f"raw/budget.md@sha256:{pinned_sha}"
     )
-    assert build_evidence_resource_uri("raw/budget.md", "", structure=structure) == (
-        f"raw/budget.md@sha256:{live_sha}"
-    )
+    assert build_evidence_resource_uri("raw/budget.md", "", structure=structure) == (f"raw/budget.md@sha256:{live_sha}")
 
 
 def test_validate_compile_claims_rejects_empty_entries() -> None:

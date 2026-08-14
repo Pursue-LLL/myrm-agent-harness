@@ -88,11 +88,7 @@ def sanitize_property_keys(
                 node["properties"] = new_props
                 required = node.get("required")
                 if isinstance(required, list):
-                    node["required"] = [
-                        renames.get(item, item)
-                        for item in required
-                        if isinstance(item, str)
-                    ]
+                    node["required"] = [renames.get(item, item) for item in required if isinstance(item, str)]
         for key, value in node.items():
             if key != "properties":
                 node[key] = _walk(value, path)

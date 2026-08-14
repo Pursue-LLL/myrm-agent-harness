@@ -63,7 +63,10 @@ class TestMaintenanceCycleInsightPropagation:
         mock_relational = AsyncMock()
         mock_consolidation_llm = AsyncMock()
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        mgr = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             relational=mock_relational,
             consolidation_llm=mock_consolidation_llm,
@@ -95,7 +98,9 @@ class TestMaintenanceCycleInsightPropagation:
         mock_vector_store.scroll.return_value = []
         mock_vector_store.count.return_value = 0
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False)
+        mgr = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
+        )
 
         report = await mgr.run_maintenance_cycle()
         assert report.insights == ()

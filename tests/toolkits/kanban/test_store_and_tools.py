@@ -540,10 +540,12 @@ class TestAgentToolsAssignAgent:
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
         add_task = self._get_tool(tools, "kanban_add_task")
-        result = await add_task.ainvoke({
-            "title": "Assigned Task",
-            "assign_agent_id": "new-agent",
-        })
+        result = await add_task.ainvoke(
+            {
+                "title": "Assigned Task",
+                "assign_agent_id": "new-agent",
+            }
+        )
         data = json.loads(result)
         assert data["status"] == "added"
         assert data["task"]["agent_id"] == "new-agent"
@@ -959,9 +961,14 @@ class TestIdempotencyPerformance:
         add_task = self._get_tool(tools, "kanban_add_task")
 
         start = time.perf_counter()
-        result = json.loads(await add_task.ainvoke({
-            "title": "Dup", "idempotency_key": "perf-key-0000",
-        }))
+        result = json.loads(
+            await add_task.ainvoke(
+                {
+                    "title": "Dup",
+                    "idempotency_key": "perf-key-0000",
+                }
+            )
+        )
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert result["status"] == "already_exists"
@@ -990,9 +997,14 @@ class TestIdempotencyPerformance:
         add_task = self._get_tool(tools, "kanban_add_task")
 
         start = time.perf_counter()
-        result = json.loads(await add_task.ainvoke({
-            "title": "Brand New", "idempotency_key": "never-seen-before",
-        }))
+        result = json.loads(
+            await add_task.ainvoke(
+                {
+                    "title": "Brand New",
+                    "idempotency_key": "never-seen-before",
+                }
+            )
+        )
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert result["status"] == "added"
@@ -1009,7 +1021,6 @@ class TestIdempotencyPerformance:
 
 
 class TestMaxRuntimeSecondsTools:
-
     def _get_tool(self, tools: list, name: str):
         return next(t for t in tools if t.name == name)
 
@@ -1020,10 +1031,14 @@ class TestMaxRuntimeSecondsTools:
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
         add_task = self._get_tool(tools, "kanban_add_task")
 
-        result = json.loads(await add_task.ainvoke({
-            "title": "Timed Task",
-            "max_runtime_seconds": 300,
-        }))
+        result = json.loads(
+            await add_task.ainvoke(
+                {
+                    "title": "Timed Task",
+                    "max_runtime_seconds": 300,
+                }
+            )
+        )
         assert result["status"] == "added"
         assert result["task"]["max_runtime_seconds"] == 300
 
@@ -1034,10 +1049,14 @@ class TestMaxRuntimeSecondsTools:
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
         add_task = self._get_tool(tools, "kanban_add_task")
 
-        result = json.loads(await add_task.ainvoke({
-            "title": "Default Timeout",
-            "max_runtime_seconds": 0,
-        }))
+        result = json.loads(
+            await add_task.ainvoke(
+                {
+                    "title": "Default Timeout",
+                    "max_runtime_seconds": 0,
+                }
+            )
+        )
         assert result["status"] == "added"
         assert result["task"]["max_runtime_seconds"] is None
 
@@ -1048,7 +1067,6 @@ class TestMaxRuntimeSecondsTools:
 
 
 class TestKanbanCompleteTools:
-
     def _get_tool(self, tools: list, name: str):
         return next(t for t in tools if t.name == name)
 
@@ -1059,7 +1077,9 @@ class TestKanbanCompleteTools:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         complete = self._get_tool(tools, "kanban_complete")
         result = json.loads(await complete.ainvoke({"summary": "All done"}))
@@ -1078,13 +1098,20 @@ class TestKanbanCompleteTools:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         complete = self._get_tool(tools, "kanban_complete")
         meta = json.dumps({"changed_files": ["a.py"], "tests_run": 3})
-        result = json.loads(await complete.ainvoke({
-            "summary": "Fixed bug", "metadata": meta,
-        }))
+        result = json.loads(
+            await complete.ainvoke(
+                {
+                    "summary": "Fixed bug",
+                    "metadata": meta,
+                }
+            )
+        )
         assert result["status"] == "completion_requested"
         task = await store.get_task("t1")
         assert task is not None
@@ -1098,12 +1125,19 @@ class TestKanbanCompleteTools:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         complete = self._get_tool(tools, "kanban_complete")
-        result = json.loads(await complete.ainvoke({
-            "summary": "Done", "metadata": "not valid json{",
-        }))
+        result = json.loads(
+            await complete.ainvoke(
+                {
+                    "summary": "Done",
+                    "metadata": "not valid json{",
+                }
+            )
+        )
         assert "error" in result
         assert "Invalid metadata JSON" in result["error"]
 
@@ -1114,12 +1148,19 @@ class TestKanbanCompleteTools:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         complete = self._get_tool(tools, "kanban_complete")
-        result = json.loads(await complete.ainvoke({
-            "summary": "Done", "metadata": "[1, 2, 3]",
-        }))
+        result = json.loads(
+            await complete.ainvoke(
+                {
+                    "summary": "Done",
+                    "metadata": "[1, 2, 3]",
+                }
+            )
+        )
         assert "error" in result
         assert "must be a JSON object" in result["error"]
 
@@ -1130,7 +1171,9 @@ class TestKanbanCompleteTools:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         complete = self._get_tool(tools, "kanban_complete")
         result = json.loads(await complete.ainvoke({"summary": ""}))
@@ -1144,7 +1187,9 @@ class TestKanbanCompleteTools:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.COMPLETED)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         complete = self._get_tool(tools, "kanban_complete")
         result = json.loads(await complete.ainvoke({"summary": "retry"}))
@@ -1158,14 +1203,14 @@ class TestKanbanCompleteTools:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         complete = self._get_tool(tools, "kanban_complete")
         await complete.ainvoke({"summary": "Implemented feature X"})
         events = await store.list_events("t1")
-        requested_events = [
-            e for e in events if e.kind.value == "completion_requested"
-        ]
+        requested_events = [e for e in events if e.kind.value == "completion_requested"]
         assert len(requested_events) == 1
         assert requested_events[0].payload is not None
         assert requested_events[0].payload["summary"] == "Implemented feature X"
@@ -1177,7 +1222,9 @@ class TestKanbanCompleteTools:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         complete = self._get_tool(tools, "kanban_complete")
         await complete.ainvoke({"summary": "Done simple"})
@@ -1191,13 +1238,17 @@ class TestKanbanCompleteTools:
         store = InMemoryKanbanStore()
         await _make_board(store)
         task = KanbanTask(
-            task_id="t1", board_id="b1", title="T1",
+            task_id="t1",
+            board_id="b1",
+            title="T1",
             status=TaskStatus.RUNNING,
             metadata={"custom_key": "preserved"},
         )
         await store.save_task(task)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         complete = self._get_tool(tools, "kanban_complete")
         meta = json.dumps({"changed_files": ["b.py"]})
@@ -1225,12 +1276,19 @@ class TestKanbanCompleteTools:
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         await _make_task(store, "t2", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         complete = self._get_tool(tools, "kanban_complete")
-        result = json.loads(await complete.ainvoke({
-            "summary": "Done", "task_id": "t2",
-        }))
+        result = json.loads(
+            await complete.ainvoke(
+                {
+                    "summary": "Done",
+                    "task_id": "t2",
+                }
+            )
+        )
         assert "error" in result
         assert "Permission denied" in result["error"]
 
@@ -1241,7 +1299,6 @@ class TestKanbanCompleteTools:
 
 
 class TestWorkerToolsSuite:
-
     def _get_tool(self, tools: list, name: str):
         return next(t for t in tools if t.name == name)
 
@@ -1252,7 +1309,9 @@ class TestWorkerToolsSuite:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         show = self._get_tool(tools, "kanban_show")
         result = json.loads(await show.ainvoke({}))
@@ -1275,7 +1334,9 @@ class TestWorkerToolsSuite:
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         await _make_task(store, "t2", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         show = self._get_tool(tools, "kanban_show")
         result = json.loads(await show.ainvoke({"task_id": "t2"}))
@@ -1289,7 +1350,9 @@ class TestWorkerToolsSuite:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         block = self._get_tool(tools, "kanban_block")
         result = json.loads(await block.ainvoke({"reason": "missing API key"}))
@@ -1306,7 +1369,9 @@ class TestWorkerToolsSuite:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         block = self._get_tool(tools, "kanban_block")
         result = json.loads(await block.ainvoke({"reason": ""}))
@@ -1319,7 +1384,9 @@ class TestWorkerToolsSuite:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.COMPLETED)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         block = self._get_tool(tools, "kanban_block")
         result = json.loads(await block.ainvoke({"reason": "test"}))
@@ -1333,7 +1400,9 @@ class TestWorkerToolsSuite:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         heartbeat = self._get_tool(tools, "kanban_heartbeat")
         result = json.loads(await heartbeat.ainvoke({"note": "50% done"}))
@@ -1349,7 +1418,9 @@ class TestWorkerToolsSuite:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.READY)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         heartbeat = self._get_tool(tools, "kanban_heartbeat")
         result = json.loads(await heartbeat.ainvoke({"note": "progress"}))
@@ -1373,12 +1444,19 @@ class TestWorkerToolsSuite:
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         await _make_task(store, "t2", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         block = self._get_tool(tools, "kanban_block")
-        result = json.loads(await block.ainvoke({
-            "reason": "test", "task_id": "t2",
-        }))
+        result = json.loads(
+            await block.ainvoke(
+                {
+                    "reason": "test",
+                    "task_id": "t2",
+                }
+            )
+        )
         assert "error" in result
         assert "Permission denied" in result["error"]
 
@@ -1389,7 +1467,9 @@ class TestWorkerToolsSuite:
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1",
+            store,
+            mode="worker",
+            current_task_id="t1",
         )
         heartbeat = self._get_tool(tools, "kanban_heartbeat")
         result = json.loads(await heartbeat.ainvoke({"note": ""}))
@@ -1411,12 +1491,19 @@ class TestWorkerToolsSuite:
         store = InMemoryKanbanStore()
         await _make_board(store)
         tools = create_kanban_tools(
-            store, mode="orchestrator", default_board_id="b1",
+            store,
+            mode="orchestrator",
+            default_board_id="b1",
         )
         add = self._get_tool(tools, "kanban_add_task")
-        result = json.loads(await add.ainvoke({
-            "title": "Test", "priority": "ultra-high",
-        }))
+        result = json.loads(
+            await add.ainvoke(
+                {
+                    "title": "Test",
+                    "priority": "ultra-high",
+                }
+            )
+        )
         assert result["status"] == "added"
         assert result["task"]["priority"] == "normal"
 
@@ -1427,12 +1514,19 @@ class TestWorkerToolsSuite:
         await _make_board(store)
         parent = await _make_task(store, "p1", status=TaskStatus.READY)
         tools = create_kanban_tools(
-            store, mode="orchestrator", default_board_id="b1",
+            store,
+            mode="orchestrator",
+            default_board_id="b1",
         )
         add = self._get_tool(tools, "kanban_add_task")
-        result = json.loads(await add.ainvoke({
-            "title": "Child", "depends_on": parent.task_id,
-        }))
+        result = json.loads(
+            await add.ainvoke(
+                {
+                    "title": "Child",
+                    "depends_on": parent.task_id,
+                }
+            )
+        )
         assert result["status"] == "added"
         assert result["task"]["status"] == "backlog"
 
@@ -1442,12 +1536,19 @@ class TestWorkerToolsSuite:
         store = InMemoryKanbanStore()
         await _make_board(store)
         tools = create_kanban_tools(
-            store, mode="orchestrator", default_board_id="b1",
+            store,
+            mode="orchestrator",
+            default_board_id="b1",
         )
         add = self._get_tool(tools, "kanban_add_task")
-        result = json.loads(await add.ainvoke({
-            "title": "Child", "depends_on": "nonexistent",
-        }))
+        result = json.loads(
+            await add.ainvoke(
+                {
+                    "title": "Child",
+                    "depends_on": "nonexistent",
+                }
+            )
+        )
         assert result["status"] == "added"
         task = await store.get_task(result["task"]["task_id"])
         assert task is not None
@@ -1473,10 +1574,14 @@ class TestHandoffEndToEnd:
 
         tools = create_kanban_tools(store, mode="worker", current_task_id="p-e2e")
         complete = self._get_tool(tools, "kanban_complete")
-        result = json.loads(await complete.ainvoke({
-            "summary": "Implemented feature X",
-            "metadata": '{"changed_files": ["x.py"], "tests_passed": 12}',
-        }))
+        result = json.loads(
+            await complete.ainvoke(
+                {
+                    "summary": "Implemented feature X",
+                    "metadata": '{"changed_files": ["x.py"], "tests_passed": 12}',
+                }
+            )
+        )
         assert result["status"] == "completion_requested"
 
         parent = await store.get_task("p-e2e")
@@ -1511,10 +1616,14 @@ class TestDependencyAutoTransitions:
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
         add_task = self._get_tool(tools, "kanban_add_task")
-        result = json.loads(await add_task.ainvoke({
-            "title": "Child",
-            "depends_on": "parent",
-        }))
+        result = json.loads(
+            await add_task.ainvoke(
+                {
+                    "title": "Child",
+                    "depends_on": "parent",
+                }
+            )
+        )
         assert result["status"] == "added"
         assert result["task"]["status"] == "backlog"
 
@@ -1558,7 +1667,10 @@ class TestKanbanCommentTool:
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
 
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1", agent_id="agent-1",
+            store,
+            mode="worker",
+            current_task_id="t1",
+            agent_id="agent-1",
         )
         comment = self._get_tool(tools, "kanban_comment")
         result = json.loads(await comment.ainvoke({"task_id": "t1", "body": "Found issue X"}))
@@ -1574,7 +1686,10 @@ class TestKanbanCommentTool:
         await _make_task(store, "t2", status=TaskStatus.RUNNING)
 
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1", agent_id="agent-1",
+            store,
+            mode="worker",
+            current_task_id="t1",
+            agent_id="agent-1",
         )
         comment = self._get_tool(tools, "kanban_comment")
         result = json.loads(await comment.ainvoke({"task_id": "t2", "body": "Need your output"}))
@@ -1633,11 +1748,13 @@ class TestKanbanCommentTool:
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
 
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1", agent_id="agent-007",
+            store,
+            mode="worker",
+            current_task_id="t1",
+            agent_id="agent-007",
         )
         comment = self._get_tool(tools, "kanban_comment")
         await comment.ainvoke({"task_id": "t1", "body": "Test comment body"})
-
 
         events = await store.list_events("t1")
         comment_events = [e for e in events if e.kind == TaskEventKind.USER_COMMENT]
@@ -1656,7 +1773,6 @@ class TestKanbanCommentTool:
         comment = self._get_tool(tools, "kanban_comment")
         await comment.ainvoke({"task_id": "t1", "body": "No agent id"})
 
-
         events = await store.list_events("t1")
         comment_events = [e for e in events if e.kind == TaskEventKind.USER_COMMENT]
         assert len(comment_events) == 1
@@ -1670,11 +1786,13 @@ class TestKanbanCommentTool:
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
 
         tools = create_kanban_tools(
-            store, mode="worker", current_task_id="t1", agent_id="a1",
+            store,
+            mode="worker",
+            current_task_id="t1",
+            agent_id="a1",
         )
         comment = self._get_tool(tools, "kanban_comment")
         await comment.ainvoke({"task_id": "t1", "body": "  padded body  "})
-
 
         events = await store.list_events("t1")
         comment_events = [e for e in events if e.kind == TaskEventKind.USER_COMMENT]
@@ -1746,9 +1864,7 @@ class TestKanbanConsolidationTools:
             attach_task_file=attach_task_file,
         )
         attach = self._get_tool(tools, "kanban_attach")
-        result = json.loads(
-            await attach.ainvoke({"source": "path", "value": "/tmp/out.txt"})
-        )
+        result = json.loads(await attach.ainvoke({"source": "path", "value": "/tmp/out.txt"}))
         assert result["status"] == "attached"
         assert result["file_id"] == "f1"
 
@@ -2050,11 +2166,15 @@ class TestKanbanRetryTask:
 
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
         retry = self._get_tool(tools, "kanban_retry_task")
-        result = json.loads(await retry.ainvoke({
-            "task_id": "t1",
-            "description": "Better instructions: use API v2",
-            "reason": "improved approach",
-        }))
+        result = json.loads(
+            await retry.ainvoke(
+                {
+                    "task_id": "t1",
+                    "description": "Better instructions: use API v2",
+                    "reason": "improved approach",
+                }
+            )
+        )
         assert result["status"] == "retried"
 
         refreshed = await store.get_task("t1")
@@ -2082,7 +2202,13 @@ class TestKanbanRetryTask:
     async def test_retry_non_failed_task_rejected(self) -> None:
         store = InMemoryKanbanStore()
         await _make_board(store)
-        for status in (TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.BLOCKED, TaskStatus.COMPLETED, TaskStatus.ARCHIVED):
+        for status in (
+            TaskStatus.READY,
+            TaskStatus.RUNNING,
+            TaskStatus.BLOCKED,
+            TaskStatus.COMPLETED,
+            TaskStatus.ARCHIVED,
+        ):
             await _make_task(store, f"t-{status.value}", status=status)
             tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
             retry = self._get_tool(tools, "kanban_retry_task")

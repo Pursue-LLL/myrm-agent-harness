@@ -49,9 +49,7 @@ class StorageVaultBackend:
         >>> await backend.write("example.com", encrypted_data)
     """
 
-    def __init__(
-        self, storage_provider: StorageProvider, prefix: str = "browser/sessions"
-    ) -> None:
+    def __init__(self, storage_provider: StorageProvider, prefix: str = "browser/sessions") -> None:
         self._storage = storage_provider
         self._prefix = prefix.rstrip("/")
 
@@ -112,9 +110,7 @@ class StorageVaultBackend:
                         continue
             return domains
         except Exception:
-            logger.warning(
-                f"Failed to list sessions from storage: {self._prefix}", exc_info=True
-            )
+            logger.warning(f"Failed to list sessions from storage: {self._prefix}", exc_info=True)
             return []
 
     async def backup_corrupted(self, domain: str, data: bytes) -> None:

@@ -129,7 +129,10 @@ async def test_pass_verifier_task_completes(store: InMemoryKanbanStore, board: K
 
     runner = _FakeRunner()
     dispatcher = KanbanDispatcher(
-        store=store, runner=runner, board=board, verifier=_PassVerifier(),
+        store=store,
+        runner=runner,
+        board=board,
+        verifier=_PassVerifier(),
     )
     await dispatcher.start()
     await asyncio.sleep(0.3)
@@ -145,15 +148,21 @@ async def test_fail_verifier_triggers_retry(store: InMemoryKanbanStore, board: K
     """Verifier fails -> task is retried (status goes back to READY)."""
     await store.save_board(board)
     task = KanbanTask(
-        task_id="t1", board_id="b1", title="Test",
-        status=TaskStatus.READY, max_retries=3,
+        task_id="t1",
+        board_id="b1",
+        title="Test",
+        status=TaskStatus.READY,
+        max_retries=3,
     )
     await store.save_task(task)
 
     runner = _FakeRunner()
     verifier = _FailVerifier(reason="not actually done")
     dispatcher = KanbanDispatcher(
-        store=store, runner=runner, board=board, verifier=verifier,
+        store=store,
+        runner=runner,
+        board=board,
+        verifier=verifier,
     )
     await dispatcher.start()
     await asyncio.sleep(0.5)
@@ -177,15 +186,21 @@ async def test_fail_verifier_eventually_auto_blocks(store: InMemoryKanbanStore) 
     board = _make_board(auto_block_failures=2)
     await store.save_board(board)
     task = KanbanTask(
-        task_id="t1", board_id="b1", title="Test",
-        status=TaskStatus.READY, max_retries=10,
+        task_id="t1",
+        board_id="b1",
+        title="Test",
+        status=TaskStatus.READY,
+        max_retries=10,
     )
     await store.save_task(task)
 
     runner = _FakeRunner()
     verifier = _FailVerifier(reason="still incomplete")
     dispatcher = KanbanDispatcher(
-        store=store, runner=runner, board=board, verifier=verifier,
+        store=store,
+        runner=runner,
+        board=board,
+        verifier=verifier,
     )
     await dispatcher.start()
     await asyncio.sleep(1.0)
@@ -206,7 +221,10 @@ async def test_criteria_aware_verifier_skip_no_criteria(store: InMemoryKanbanSto
 
     runner = _FakeRunner()
     dispatcher = KanbanDispatcher(
-        store=store, runner=runner, board=board, verifier=_CriteriaAwareVerifier(),
+        store=store,
+        runner=runner,
+        board=board,
+        verifier=_CriteriaAwareVerifier(),
     )
     await dispatcher.start()
     await asyncio.sleep(0.3)
@@ -222,15 +240,21 @@ async def test_criteria_aware_verifier_blocks_on_fail_criteria(store: InMemoryKa
     """Tasks with completion_criteria containing 'fail' get rejected."""
     await store.save_board(board)
     task = KanbanTask(
-        task_id="t1", board_id="b1", title="Test",
-        status=TaskStatus.READY, max_retries=1,
+        task_id="t1",
+        board_id="b1",
+        title="Test",
+        status=TaskStatus.READY,
+        max_retries=1,
         metadata={"completion_criteria": "must fail check"},
     )
     await store.save_task(task)
 
     runner = _FakeRunner()
     dispatcher = KanbanDispatcher(
-        store=store, runner=runner, board=board, verifier=_CriteriaAwareVerifier(),
+        store=store,
+        runner=runner,
+        board=board,
+        verifier=_CriteriaAwareVerifier(),
     )
     await dispatcher.start()
     await asyncio.sleep(0.5)
@@ -247,8 +271,11 @@ async def test_verifier_timeout_treated_as_failure(store: InMemoryKanbanStore, b
     """A verifier that takes too long is treated as a failure."""
     await store.save_board(board)
     task = KanbanTask(
-        task_id="t1", board_id="b1", title="Test",
-        status=TaskStatus.READY, max_retries=1,
+        task_id="t1",
+        board_id="b1",
+        title="Test",
+        status=TaskStatus.READY,
+        max_retries=1,
     )
     await store.save_task(task)
 
@@ -280,14 +307,20 @@ async def test_verifier_exception_treated_as_failure(store: InMemoryKanbanStore,
     """A verifier that raises an exception is treated as a failure."""
     await store.save_board(board)
     task = KanbanTask(
-        task_id="t1", board_id="b1", title="Test",
-        status=TaskStatus.READY, max_retries=1,
+        task_id="t1",
+        board_id="b1",
+        title="Test",
+        status=TaskStatus.READY,
+        max_retries=1,
     )
     await store.save_task(task)
 
     runner = _FakeRunner()
     dispatcher = KanbanDispatcher(
-        store=store, runner=runner, board=board, verifier=_ExplodingVerifier(),
+        store=store,
+        runner=runner,
+        board=board,
+        verifier=_ExplodingVerifier(),
     )
     await dispatcher.start()
     await asyncio.sleep(0.5)
@@ -308,8 +341,11 @@ async def test_verification_failed_event_emitted(store: InMemoryKanbanStore, boa
     """The 'verification_failed' event callback is invoked on failure."""
     await store.save_board(board)
     task = KanbanTask(
-        task_id="t1", board_id="b1", title="Test",
-        status=TaskStatus.READY, max_retries=1,
+        task_id="t1",
+        board_id="b1",
+        title="Test",
+        status=TaskStatus.READY,
+        max_retries=1,
     )
     await store.save_task(task)
 
@@ -317,7 +353,10 @@ async def test_verification_failed_event_emitted(store: InMemoryKanbanStore, boa
 
     runner = _FakeRunner()
     dispatcher = KanbanDispatcher(
-        store=store, runner=runner, board=board, verifier=_FailVerifier("bad"),
+        store=store,
+        runner=runner,
+        board=board,
+        verifier=_FailVerifier("bad"),
     )
     dispatcher.on_event(lambda event_type, t: emitted_events.append((event_type, t.task_id)))
     await dispatcher.start()
@@ -331,7 +370,8 @@ async def test_verification_failed_event_emitted(store: InMemoryKanbanStore, boa
 
 @pytest.mark.asyncio
 async def test_dependency_child_never_completes_when_parent_verification_fails(
-    store: InMemoryKanbanStore, board: KanbanBoard,
+    store: InMemoryKanbanStore,
+    board: KanbanBoard,
 ) -> None:
     """When verification fails on parent, child never reaches COMPLETED.
 
@@ -342,12 +382,18 @@ async def test_dependency_child_never_completes_when_parent_verification_fails(
     """
     await store.save_board(board)
     parent = KanbanTask(
-        task_id="p1", board_id="b1", title="Parent",
-        status=TaskStatus.READY, max_retries=1,
+        task_id="p1",
+        board_id="b1",
+        title="Parent",
+        status=TaskStatus.READY,
+        max_retries=1,
     )
     child = KanbanTask(
-        task_id="c1", board_id="b1", title="Child",
-        status=TaskStatus.BACKLOG, max_retries=1,
+        task_id="c1",
+        board_id="b1",
+        title="Child",
+        status=TaskStatus.BACKLOG,
+        max_retries=1,
     )
     await store.save_task(parent)
     await store.save_task(child)
@@ -355,7 +401,10 @@ async def test_dependency_child_never_completes_when_parent_verification_fails(
 
     runner = _FakeRunner()
     dispatcher = KanbanDispatcher(
-        store=store, runner=runner, board=board, verifier=_FailVerifier("nope"),
+        store=store,
+        runner=runner,
+        board=board,
+        verifier=_FailVerifier("nope"),
     )
     await dispatcher.start()
     await asyncio.sleep(0.8)

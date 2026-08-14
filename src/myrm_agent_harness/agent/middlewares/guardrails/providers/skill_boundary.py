@@ -35,9 +35,7 @@ logger = logging.getLogger(__name__)
 #: Checker signature: (skill_id, permission_type, operation) -> (allowed, reason)
 #: Async checker functions are awaited automatically; sync callables are supported
 #: for sync tool paths.
-PermissionChecker = Callable[
-    [str, str, str], tuple[bool, str] | Awaitable[tuple[bool, str]]
-]
+PermissionChecker = Callable[[str, str, str], tuple[bool, str] | Awaitable[tuple[bool, str]]]
 
 
 class SkillBoundaryProvider(GuardrailProvider):
@@ -54,9 +52,7 @@ class SkillBoundaryProvider(GuardrailProvider):
     ):
         self._permission_checker = permission_checker
 
-    def _extract_critical_params(
-        self, tool_name: str, tool_input: dict[str, object]
-    ) -> str:
+    def _extract_critical_params(self, tool_name: str, tool_input: dict[str, object]) -> str:
         """Extract schema-aware boundary parameters."""
         perm_type = resolve_permission_type(tool_name, tool_input)
         if perm_type in ("file_read", "file_write", "file_delete"):
@@ -68,9 +64,7 @@ class SkillBoundaryProvider(GuardrailProvider):
                     tool_input.get("script", tool_input.get("code", tool_input)),
                 )
             )
-        if perm_type in ("net_fetch", "web_search_tool") or perm_type.startswith(
-            "browser_"
-        ):
+        if perm_type in ("net_fetch", "web_search_tool") or perm_type.startswith("browser_"):
             return str(tool_input.get("url", tool_input.get("query", tool_input)))
         return str(tool_input)
 
@@ -92,9 +86,7 @@ class SkillBoundaryProvider(GuardrailProvider):
 
         return await self._evaluate_skills(request, self._invoke_async)
 
-    async def _invoke_async(
-        self, skill_id: str, permission_type: str, critical_input: str
-    ) -> tuple[bool, str]:
+    async def _invoke_async(self, skill_id: str, permission_type: str, critical_input: str) -> tuple[bool, str]:
         """Resolve the permission checker result, awaiting async checkers.
 
         Sync checkers (e.g. ``asyncio.run`` wrappers) are invoked directly and
@@ -141,9 +133,7 @@ class SkillBoundaryProvider(GuardrailProvider):
             # gate open without consulting the permission checker.
             return GuardrailDecision(allow=True)
 
-        critical_input = self._extract_critical_params(
-            request.tool_name, request.tool_input
-        )
+        critical_input = self._extract_critical_params(request.tool_name, request.tool_input)
 
         for skill in loaded_skills:
             skill_id = skill.storage_skill_id or skill.name

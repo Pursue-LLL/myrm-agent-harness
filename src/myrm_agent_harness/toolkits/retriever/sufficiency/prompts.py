@@ -45,7 +45,13 @@ SUFFICIENCY_JSON_SCHEMA: dict[str, object] = {
             "description": "Items in the snippets that violate the user's exclusion criteria (e.g. 'except X', 'not including Y'). Empty if no violations.",
         },
     },
-    "required": ["is_sufficient", "confidence", "missing_aspects", "suggested_queries", "negative_constraint_violations"],
+    "required": [
+        "is_sufficient",
+        "confidence",
+        "missing_aspects",
+        "suggested_queries",
+        "negative_constraint_violations",
+    ],
     "additionalProperties": False,
 }
 

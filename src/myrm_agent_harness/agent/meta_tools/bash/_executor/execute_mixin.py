@@ -67,9 +67,7 @@ class BashExecutorExecuteMixin:
         executor = self._executor
         logger.info(f" Using executor: {executor.get_executor_name()}")
 
-        workspace, invalidated_workspace_id = (
-            await self._workspace_manager.get_or_create(session_id)
-        )
+        workspace, invalidated_workspace_id = await self._workspace_manager.get_or_create(session_id)
         if invalidated_workspace_id:
             self._skill_manager.clear_workspace_cache(invalidated_workspace_id)
 
@@ -103,10 +101,8 @@ class BashExecutorExecuteMixin:
                     break
 
             if used_skill_paths:
-                workspace_skill_paths = (
-                    await self._skill_manager.ensure_skills_in_workspace(
-                        workspace, used_skill_paths
-                    )
+                workspace_skill_paths = await self._skill_manager.ensure_skills_in_workspace(
+                    workspace, used_skill_paths
                 )
                 logger.info(f" Copying detected skill only: {detected_skill_name}")
 
@@ -121,9 +117,7 @@ class BashExecutorExecuteMixin:
         working_dir: str | None = None
 
         if workspace_skill_paths and workspace:
-            env_paths = self._convert_to_container_paths(
-                workspace_skill_paths, workspace
-            )
+            env_paths = self._convert_to_container_paths(workspace_skill_paths, workspace)
             if detected_skill_name:
                 working_dir = f"/workspace/.claude/skills/{detected_skill_name}"
 
@@ -137,9 +131,7 @@ class BashExecutorExecuteMixin:
             OfficeBashAudit,
         )
 
-        office_snapshots = OfficeBashAudit.prepare_snapshots(
-            workspace_root_str, command
-        )
+        office_snapshots = OfficeBashAudit.prepare_snapshots(workspace_root_str, command)
 
         context = self._build_execution_context(
             prepared_code=prepared_code,
@@ -167,12 +159,8 @@ class BashExecutorExecuteMixin:
         if not result.success and result.error:
             exit_code_val = result.result if isinstance(result.result, int) else 1
 
-            stdout_eviction = await maybe_evict_large_output(
-                result.stdout or "", self._executor
-            )
-            stderr_eviction = await maybe_evict_large_output(
-                result.stderr or "", self._executor
-            )
+            stdout_eviction = await maybe_evict_large_output(result.stdout or "", self._executor)
+            stderr_eviction = await maybe_evict_large_output(result.stderr or "", self._executor)
             message = self._build_error_details(result)
             # stdout is symmetric with stderr: small output goes verbatim so the
             # LLM sees partial progress context; large output is evicted and the
@@ -219,17 +207,13 @@ class BashExecutorExecuteMixin:
             list(result.generated_files or []),
         )
 
-        clean_stdout, mcp_metadata = self._metadata_extractor.extract_metadata(
-            result.stdout
-        )
+        clean_stdout, mcp_metadata = self._metadata_extractor.extract_metadata(result.stdout)
 
         eviction_result = await maybe_evict_large_output(clean_stdout, self._executor)
         # stderr gets the same eviction treatment as stdout: a large warning/error
         # stream must be persisted and read back via file_read_tool instead of being
         # middle-truncated by format_result. Empty stderr is a no-op short circuit.
-        stderr_eviction_result = await maybe_evict_large_output(
-            result.stderr or "", self._executor
-        )
+        stderr_eviction_result = await maybe_evict_large_output(result.stderr or "", self._executor)
 
         exit_code_val = result.result if isinstance(result.result, int) else 0
         await self._log_bash_command_execution(

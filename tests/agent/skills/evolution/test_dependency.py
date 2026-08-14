@@ -12,6 +12,7 @@ from myrm_agent_harness.agent.skills.evolution.execution.dependency import (
 def tracker():
     return SkillDependencyTracker()
 
+
 def test_add_dependency(tracker):
     tracker.add_dependency("skillA", "skillB")
 
@@ -21,6 +22,7 @@ def test_add_dependency(tracker):
     # Adding again shouldn't duplicate
     tracker.add_dependency("skillA", "skillB")
     assert len(tracker.get_dependencies("skillA")) == 1
+
 
 def test_remove_dependency(tracker):
     tracker.add_dependency("skillA", "skillB")
@@ -33,6 +35,7 @@ def test_remove_dependency(tracker):
     # Removing non-existent shouldn't crash
     tracker.remove_dependency("skillA", "skillD")
 
+
 def test_can_evolve_safely(tracker):
     tracker.add_dependency("skillA", "skillB")
 
@@ -44,6 +47,7 @@ def test_can_evolve_safely(tracker):
     assert can_evolve is True
     assert "Warning" in reason
     assert "skillA" in reason
+
 
 def test_get_evolution_order(tracker):
     # A depends on B, B depends on C
@@ -58,6 +62,7 @@ def test_get_evolution_order(tracker):
     order = tracker.get_evolution_order(["skillA", "skillB", "skillC"])
     assert order == ["skillC", "skillB", "skillA"]
 
+
 def test_get_evolution_order_cycle(tracker):
     # A -> B -> A
     tracker.add_dependency("skillA", "skillB")
@@ -68,6 +73,7 @@ def test_get_evolution_order_cycle(tracker):
     assert len(order) == 2
     assert set(order) == {"skillA", "skillB"}
 
+
 def test_clear(tracker):
     tracker.add_dependency("skillA", "skillB")
     tracker.track_runtime_call("skillA", "toolX")
@@ -76,12 +82,13 @@ def test_clear(tracker):
     assert tracker.get_dependencies("skillA") == []
     assert tracker.get_tool_usage("skillA") == []
 
+
 def test_auto_track_from_content(tracker):
-    content = '''
+    content = """
     @tool_use("github_tool")
     uses: slack_api
     some text mentioning custom_client somewhere
-    '''
+    """
     tracker.auto_track_from_content("skillA", content)
 
     tools = tracker.get_tool_usage("skillA")
@@ -89,12 +96,14 @@ def test_auto_track_from_content(tracker):
 
     assert tracker.find_skills_by_tool("github_tool") == ["skillA"]
 
+
 def test_track_runtime_call(tracker):
     tracker.track_runtime_call("skillA", "test_tool")
 
     assert tracker.get_tool_usage("skillA") == ["test_tool"]
     assert tracker.find_skills_by_tool("test_tool") == ["skillA"]
     assert tracker.get_tool_usage_count("test_tool") == 1
+
 
 def test_get_dependency_tracker():
     # To test singleton

@@ -105,9 +105,7 @@ _LOCAL_BROWSER_RELAXATION: PermissionRuleset = (
 )
 
 CHANNEL_PRESETS: dict[ChannelType, ChannelSecurityPreset] = {
-    ChannelType.WEB_CHAT: ChannelSecurityPreset(
-        capabilities=DEFAULT_CAPABILITIES, ruleset=()
-    ),
+    ChannelType.WEB_CHAT: ChannelSecurityPreset(capabilities=DEFAULT_CAPABILITIES, ruleset=()),
     ChannelType.IM: ChannelSecurityPreset(
         capabilities=_IM_CAPABILITIES,
         ruleset=(
@@ -283,9 +281,7 @@ def build_channel_security_config(
     return result
 
 
-def _merge_user_and_agent(
-    user: SecurityConfig | None, agent: SecurityConfig | None
-) -> SecurityConfig | None:
+def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | None) -> SecurityConfig | None:
     """Merge user-level config with per-agent overrides.
 
     - capabilities: intersection (Agent restricts, never expands)
@@ -299,16 +295,12 @@ def _merge_user_and_agent(
     if user is None:
         return agent
 
-    agent_positives = frozenset(
-        c for c in agent.capabilities if not c.permission.startswith("!")
-    )
+    agent_positives = frozenset(c for c in agent.capabilities if not c.permission.startswith("!"))
     if agent_positives:
-        user_positives = frozenset(
-            c for c in user.capabilities if not c.permission.startswith("!")
+        user_positives = frozenset(c for c in user.capabilities if not c.permission.startswith("!"))
+        all_negatives = frozenset(c for c in user.capabilities if c.permission.startswith("!")) | frozenset(
+            c for c in agent.capabilities if c.permission.startswith("!")
         )
-        all_negatives = frozenset(
-            c for c in user.capabilities if c.permission.startswith("!")
-        ) | frozenset(c for c in agent.capabilities if c.permission.startswith("!"))
         caps = (user_positives & agent_positives) | all_negatives
     else:
         caps = user.capabilities
@@ -317,9 +309,7 @@ def _merge_user_and_agent(
 
     from myrm_agent_harness.core.security.types import AccessRoot
 
-    path_set: dict[str, AccessRoot] = {
-        r.path: r for r in user.path_policy.access_roots
-    }
+    path_set: dict[str, AccessRoot] = {r.path: r for r in user.path_policy.access_roots}
     for root in agent.path_policy.access_roots:
         path_set.setdefault(root.path, root)
     label = agent.path_policy.workspace_label or user.path_policy.workspace_label
@@ -329,32 +319,18 @@ def _merge_user_and_agent(
         workspace_label=label,
     )
 
-    timeout = (
-        agent.approval_timeout_seconds
-        if agent.approval_timeout_seconds != 120
-        else user.approval_timeout_seconds
-    )
+    timeout = agent.approval_timeout_seconds if agent.approval_timeout_seconds != 120 else user.approval_timeout_seconds
     timeout_behavior = (
-        agent.approval_timeout_behavior
-        if agent.approval_timeout_behavior != "deny"
-        else user.approval_timeout_behavior
+        agent.approval_timeout_behavior if agent.approval_timeout_behavior != "deny" else user.approval_timeout_behavior
     )
 
-    network_allowlist = tuple(
-        sorted(set(user.network_allowlist) | set(agent.network_allowlist))
-    )
-    network_blocklist = tuple(
-        sorted(set(user.network_blocklist) | set(agent.network_blocklist))
-    )
-    command_denylist = tuple(
-        sorted(set(user.command_denylist) | set(agent.command_denylist))
-    )
+    network_allowlist = tuple(sorted(set(user.network_allowlist) | set(agent.network_allowlist)))
+    network_blocklist = tuple(sorted(set(user.network_blocklist) | set(agent.network_blocklist)))
+    command_denylist = tuple(sorted(set(user.command_denylist) | set(agent.command_denylist)))
     domain_hitl_enabled = user.domain_hitl_enabled or agent.domain_hitl_enabled
     auto_mode_enabled = user.auto_mode_enabled or agent.auto_mode_enabled
     auto_review_model = agent.auto_review_model or user.auto_review_model
-    auto_review_timeout = min(
-        user.auto_review_timeout_seconds, agent.auto_review_timeout_seconds
-    )
+    auto_review_timeout = min(user.auto_review_timeout_seconds, agent.auto_review_timeout_seconds)
     yolo_enabled = user.yolo_mode_enabled or agent.yolo_mode_enabled
     # Per-agent YOLO is an explicit override: do not let stale user timestamps/timeouts
     # expire agent YOLO (hitl-probe checks the flag only; batch_processor enforces timeout).

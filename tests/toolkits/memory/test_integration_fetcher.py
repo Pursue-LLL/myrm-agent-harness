@@ -51,9 +51,7 @@ def _make_fetcher(
 
     emb = embedding or AsyncMock()
     if not hasattr(emb.embed_batch, "_mock_name") or emb.embed_batch._mock_name:
-        emb.embed_batch = AsyncMock(
-            side_effect=lambda texts: [[0.1] * 128 for _ in texts]
-        )
+        emb.embed_batch = AsyncMock(side_effect=lambda texts: [[0.1] * 128 for _ in texts])
 
     tm = tree_manager or AsyncMock()
     tm.get_or_create_tree = AsyncMock(return_value=_make_tree())
@@ -152,9 +150,7 @@ class TestFetcherBatching:
         vs = AsyncMock()
         vs.upsert = AsyncMock()
         emb = AsyncMock()
-        emb.embed_batch = AsyncMock(
-            side_effect=lambda texts: [[0.1] * 128 for _ in texts]
-        )
+        emb.embed_batch = AsyncMock(side_effect=lambda texts: [[0.1] * 128 for _ in texts])
         tm = AsyncMock()
         tm.get_or_create_tree = AsyncMock(return_value=_make_tree())
         tm.attach_leaf = AsyncMock()

@@ -13,7 +13,9 @@ def test_finalize_stream_dsml_clean():
 
     # Simulate stream with DSML tags in content
     msg1 = AIMessageChunk(content="Thinking... \n<｜DSML｜tool_calls>\n")
-    msg2 = AIMessageChunk(content="<｜DSML｜invoke name=\"search_web\">\n<｜DSML｜parameter name=\"query\" string=\"true\">test</｜DSML｜parameter>\n")
+    msg2 = AIMessageChunk(
+        content='<｜DSML｜invoke name="search_web">\n<｜DSML｜parameter name="query" string="true">test</｜DSML｜parameter>\n'
+    )
     msg3 = AIMessageChunk(content="</｜DSML｜invoke>\n</｜DSML｜tool_calls>")
 
     agg.on_generation_chunk(ChatGenerationChunk(message=msg1), AIMessageChunk)
@@ -26,7 +28,7 @@ def test_finalize_stream_dsml_clean():
         model_name="deepseek-v4",
         is_async=False,
         record_usage_fn=lambda *args, **kwargs: None,
-        available_tools=["search_web"]
+        available_tools=["search_web"],
     )
 
     response_msg = res.aggregated_response["choices"][0]["message"]
@@ -40,12 +42,20 @@ def test_finalize_stream_dsml_clean():
     assert "<｜DSML｜tool_calls>" not in response_msg["content"]
     assert "Thinking..." in response_msg["content"]
 
+
 def test_finalize_stream_dsml_clean_reasoning():
     agg = StreamAggregator(AIMessageChunk)
 
     # Simulate stream with DSML tags in reasoning
-    msg1 = AIMessageChunk(content="", additional_kwargs={"reasoning_content": "Deep thought... \n<｜DSML｜tool_calls>\n"})
-    msg2 = AIMessageChunk(content="", additional_kwargs={"reasoning_content": "<｜DSML｜invoke name=\"search_web\">\n<｜DSML｜parameter name=\"query\" string=\"true\">test</｜DSML｜parameter>\n</｜DSML｜invoke>\n</｜DSML｜tool_calls>"})
+    msg1 = AIMessageChunk(
+        content="", additional_kwargs={"reasoning_content": "Deep thought... \n<｜DSML｜tool_calls>\n"}
+    )
+    msg2 = AIMessageChunk(
+        content="",
+        additional_kwargs={
+            "reasoning_content": '<｜DSML｜invoke name="search_web">\n<｜DSML｜parameter name="query" string="true">test</｜DSML｜parameter>\n</｜DSML｜invoke>\n</｜DSML｜tool_calls>'
+        },
+    )
 
     agg.on_generation_chunk(ChatGenerationChunk(message=msg1), AIMessageChunk)
     agg.on_generation_chunk(ChatGenerationChunk(message=msg2), AIMessageChunk)
@@ -56,7 +66,7 @@ def test_finalize_stream_dsml_clean_reasoning():
         model_name="deepseek-v4",
         is_async=False,
         record_usage_fn=lambda *args, **kwargs: None,
-        available_tools=["search_web"]
+        available_tools=["search_web"],
     )
 
     response_msg = res.aggregated_response["choices"][0]["message"]
@@ -70,13 +80,16 @@ def test_finalize_stream_dsml_clean_reasoning():
     assert "<｜DSML｜tool_calls>" not in response_msg["reasoning_content"]
     assert "Deep thought..." in response_msg["reasoning_content"]
 
+
 def test_aggregator_ingest_and_dict():
     agg = StreamAggregator(AIMessageChunk)
     # mock a dict chunk
     chunk = {
         "model": "test_model",
         "usage": {"total_tokens": 10},
-        "choices": [{"finish_reason": "stop", "delta": {"tool_calls": [{"function": {"name": "t1", "arguments": "{}"}}]}}]
+        "choices": [
+            {"finish_reason": "stop", "delta": {"tool_calls": [{"function": {"name": "t1", "arguments": "{}"}}]}}
+        ],
     }
     res = agg.ingest_raw_chunk(chunk)
     assert res == chunk
@@ -86,6 +99,7 @@ def test_aggregator_ingest_and_dict():
     assert agg.finish_reason == "stop"
     assert agg.last_usage == {"total_tokens": 10}
     assert len(agg.tool_calls) == 1
+
 
 def test_xml_stream_buffer():
     buf = XmlStreamBuffer()

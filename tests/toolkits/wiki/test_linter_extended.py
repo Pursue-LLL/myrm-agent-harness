@@ -137,7 +137,9 @@ async def test_check_drift_no_drift(mock_llm: MagicMock, linter_auto: WikiLinter
 
 
 @pytest.mark.asyncio
-async def test_check_drift_detects_drift(mock_llm: MagicMock, linter_auto: WikiLinter, temp_wiki: WikiStructure) -> None:
+async def test_check_drift_detects_drift(
+    mock_llm: MagicMock, linter_auto: WikiLinter, temp_wiki: WikiStructure
+) -> None:
     concept = temp_wiki.get_concept_file_path("Drifted")
     concept.write_text("---\nsources:\n  - source.md\n---\n## Compiled Truth\nFact A is 50%.\n## Timeline\n")
 
@@ -153,7 +155,9 @@ async def test_check_drift_detects_drift(mock_llm: MagicMock, linter_auto: WikiL
 
 
 @pytest.mark.asyncio
-async def test_incomplete_article_not_auto_fixed(mock_llm: MagicMock, linter_auto: WikiLinter, temp_wiki: WikiStructure) -> None:
+async def test_incomplete_article_not_auto_fixed(
+    mock_llm: MagicMock, linter_auto: WikiLinter, temp_wiki: WikiStructure
+) -> None:
     concept = temp_wiki.get_concept_file_path("Short")
     concept.write_text("Short.")
 
@@ -195,7 +199,9 @@ async def test_discover_connections_llm(mock_llm: MagicMock, temp_wiki: WikiStru
 
 
 @pytest.mark.asyncio
-async def test_discover_connections_reasoning_model_content_empty(mock_llm: MagicMock, temp_wiki: WikiStructure) -> None:
+async def test_discover_connections_reasoning_model_content_empty(
+    mock_llm: MagicMock, temp_wiki: WikiStructure
+) -> None:
     """Reasoning 模型 content 为空时回退到 additional_kwargs["reasoning_content"]。"""
     config = WikiConfig(enable_auto_maintenance=False, enable_backlinks=True)
     linter = WikiLinter(mock_llm, temp_wiki, config)

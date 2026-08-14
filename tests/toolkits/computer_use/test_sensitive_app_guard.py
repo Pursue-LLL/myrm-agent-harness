@@ -145,7 +145,10 @@ class TestDesktopSnapshotSensitiveGuard:
         from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         mock_meta = SnapshotMeta(
-            ref_count=5, app_name="支付宝", window_title="余额", scope="foreground",
+            ref_count=5,
+            app_name="支付宝",
+            window_title="余额",
+            scope="foreground",
         )
         with patch(
             "myrm_agent_harness.toolkits.computer_use.desktop_session.capture_snapshot",
@@ -161,7 +164,10 @@ class TestDesktopSnapshotSensitiveGuard:
         from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         mock_meta = SnapshotMeta(
-            ref_count=3, app_name="Microsoft Excel", window_title="Sheet1", scope="foreground",
+            ref_count=3,
+            app_name="Microsoft Excel",
+            window_title="Sheet1",
+            scope="foreground",
         )
         with (
             patch(
@@ -192,7 +198,10 @@ class TestDesktopInteractSensitiveGuard:
         session._last_snapshot_time = time.time() - 10.0
 
         mock_meta = SnapshotMeta(
-            ref_count=2, app_name="WeChat", window_title="Chat", scope="foreground",
+            ref_count=2,
+            app_name="WeChat",
+            window_title="Chat",
+            scope="foreground",
         )
         with patch(
             "myrm_agent_harness.toolkits.computer_use.desktop_session.capture_snapshot",
@@ -228,7 +237,8 @@ class TestDesktopVisionActionSensitiveGuard:
             },
         ):
             result = await session.desktop_vision_action(
-                action="left_click", coordinate=[100, 200],
+                action="left_click",
+                coordinate=[100, 200],
             )
 
         assert isinstance(result, str)
@@ -265,7 +275,8 @@ class TestDesktopVisionActionSensitiveGuard:
             },
         ):
             result = await session.desktop_vision_action(
-                action="left_click", coordinate=[100, 200],
+                action="left_click",
+                coordinate=[100, 200],
             )
 
         assert not isinstance(result, str) or "Safety" not in result

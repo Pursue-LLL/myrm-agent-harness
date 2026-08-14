@@ -82,14 +82,8 @@ class ClawHubSource:
 
     def _get_client(self) -> httpx.AsyncClient:
         base_url = self._base_url
-        if (
-            self._client is None
-            or self._client.is_closed
-            or self._client_base_url != base_url
-        ):
-            self._client = create_httpx_client(
-                timeout=CLAWHUB_API_TIMEOUT, headers=self._build_headers()
-            )
+        if self._client is None or self._client.is_closed or self._client_base_url != base_url:
+            self._client = create_httpx_client(timeout=CLAWHUB_API_TIMEOUT, headers=self._build_headers())
             self._client_base_url = base_url
         return self._client
 
@@ -126,9 +120,7 @@ class ClawHubSource:
 
         try:
             client = self._get_client()
-            resp = await client.get(
-                f"{self._base_url}/api/v1/skills/{_url_encode_slug(slug)}"
-            )
+            resp = await client.get(f"{self._base_url}/api/v1/skills/{_url_encode_slug(slug)}")
             if resp.status_code != 200:
                 return None
 
@@ -139,9 +131,7 @@ class ClawHubSource:
             logger.warning("ClawHub get_detail error for %s: %s", skill_id, e)
             return None
 
-    def _parse_search_response(
-        self, data: dict[str, object] | list[dict[str, object]]
-    ) -> list[SkillSearchResult]:
+    def _parse_search_response(self, data: dict[str, object] | list[dict[str, object]]) -> list[SkillSearchResult]:
         raw_results: list[dict[str, object]]
 
         if isinstance(data, list):
@@ -153,9 +143,7 @@ class ClawHubSource:
             return []
 
         return [
-            self._search_item_to_result(item)
-            for item in raw_results
-            if isinstance(item, dict) and item.get("slug")
+            self._search_item_to_result(item) for item in raw_results if isinstance(item, dict) and item.get("slug")
         ]
 
     def _search_item_to_result(self, item: dict[str, object]) -> SkillSearchResult:
@@ -178,9 +166,7 @@ class ClawHubSource:
             stars=_safe_int(item.get("score", 0)),
         )
 
-    def _parse_detail_response(
-        self, slug: str, data: dict[str, object]
-    ) -> SkillSearchResult | None:
+    def _parse_detail_response(self, slug: str, data: dict[str, object]) -> SkillSearchResult | None:
         skill = data.get("skill")
         if not isinstance(skill, dict):
             return None
@@ -198,9 +184,7 @@ class ClawHubSource:
         downloads = 0
         if isinstance(stats, dict):
             stars = _safe_int(stats.get("stars", 0))
-            downloads = _safe_int(
-                stats.get("downloads", stats.get("installsCurrent", 0))
-            )
+            downloads = _safe_int(stats.get("downloads", stats.get("installsCurrent", 0)))
 
         owner_data = data.get("owner")
         author = ""
@@ -232,21 +216,15 @@ class ClawHubSource:
             tags=tags,
         )
 
-    async def _enrich_results(
-        self, client: httpx.AsyncClient, results: list[SkillSearchResult]
-    ) -> None:
+    async def _enrich_results(self, client: httpx.AsyncClient, results: list[SkillSearchResult]) -> None:
         """Enrich top-N search results with detail data (stars, downloads, author).
 
         Best-effort: failures silently keep original values.
         """
 
-        async def _fetch_detail(
-            idx: int, slug: str
-        ) -> tuple[int, dict[str, object] | None]:
+        async def _fetch_detail(idx: int, slug: str) -> tuple[int, dict[str, object] | None]:
             try:
-                resp = await client.get(
-                    f"{self._base_url}/api/v1/skills/{_url_encode_slug(slug)}"
-                )
+                resp = await client.get(f"{self._base_url}/api/v1/skills/{_url_encode_slug(slug)}")
                 if resp.status_code == 200:
                     return idx, resp.json()
             except Exception:

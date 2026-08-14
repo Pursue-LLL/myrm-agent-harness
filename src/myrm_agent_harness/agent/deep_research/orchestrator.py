@@ -396,7 +396,9 @@ class DeepResearchOrchestrator(DeepResearchPlanResearchMixin, DeepResearchPhases
             logger.error("[deep-research] Unexpected error in phase %s: %s", self._phase.value, e, exc_info=True)
             self._result.error = f"{type(e).__name__} in {self._phase.value} phase"
             yield self._make_event(
-                AgentEventType.ERROR, message_id, error="Deep research encountered an error",
+                AgentEventType.ERROR,
+                message_id,
+                error="Deep research encountered an error",
                 error_type=type(e).__name__,
             )
         finally:

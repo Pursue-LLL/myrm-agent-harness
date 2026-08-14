@@ -308,9 +308,7 @@ class TestPDFPlumberParserIntegration:
 
         from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
 
-        parser = PDFPlumberParser(
-            heading_detection=mode, extract_tables=False, extract_bookmarks=True
-        )
+        parser = PDFPlumberParser(heading_detection=mode, extract_tables=False, extract_bookmarks=True)
         test_pdf = tmp_path / "test.pdf"
         test_pdf.write_text("dummy")
 
@@ -349,9 +347,7 @@ class TestPDFPlumberParserIntegration:
 
         from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
 
-        parser = PDFPlumberParser(
-            heading_detection="bookmarks", extract_tables=False, extract_bookmarks=True
-        )
+        parser = PDFPlumberParser(heading_detection="bookmarks", extract_tables=False, extract_bookmarks=True)
         test_pdf = tmp_path / "test.pdf"
         test_pdf.write_text("dummy")
 
@@ -370,9 +366,7 @@ class TestPDFPlumberParserIntegration:
 
         with (
             patch("pdfplumber.open") as mock_open,
-            patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_heading.detect_headings_by_font"
-            ) as mock_font_detect,
+            patch("myrm_agent_harness.toolkits.file_parsers.pdf_heading.detect_headings_by_font") as mock_font_detect,
         ):
             mock_open.return_value.__enter__ = Mock(return_value=mock_pdf)
             mock_open.return_value.__exit__ = Mock(return_value=False)
@@ -387,18 +381,13 @@ class TestPDFPlumberParserIntegration:
 
         from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
 
-        parser = PDFPlumberParser(
-            heading_detection="auto", extract_tables=False, extract_bookmarks=True
-        )
+        parser = PDFPlumberParser(heading_detection="auto", extract_tables=False, extract_bookmarks=True)
         test_pdf = tmp_path / "test.pdf"
         test_pdf.write_text("dummy")
 
         def make_page_with_heading(heading_text: str, page_num: int) -> Mock:
             body = [_make_char("x", 10.0, 50.0 + i, i) for i in range(80)]
-            h_chars = [
-                _make_char(c, 14.0, 10.0, j * 5.0)
-                for j, c in enumerate(heading_text)
-            ]
+            h_chars = [_make_char(c, 14.0, 10.0, j * 5.0) for j, c in enumerate(heading_text)]
             page = Mock()
             page.chars = h_chars + body
             page.page_number = page_num
@@ -434,9 +423,7 @@ class TestPDFPlumberParserIntegration:
 
         from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
 
-        parser = PDFPlumberParser(
-            heading_detection="auto", extract_tables=False, extract_bookmarks=True
-        )
+        parser = PDFPlumberParser(heading_detection="auto", extract_tables=False, extract_bookmarks=True)
         test_pdf = tmp_path / "test.pdf"
         test_pdf.write_text("dummy")
 
@@ -451,15 +438,11 @@ class TestPDFPlumberParserIntegration:
         mock_pdf = Mock()
         mock_pdf.pages = [mock_page]
         mock_pdf.doc = Mock()
-        mock_pdf.doc.get_outlines = Mock(
-            return_value=[(1, "Chapter 1", [Mock(objid=100)], None, None)]
-        )
+        mock_pdf.doc.get_outlines = Mock(return_value=[(1, "Chapter 1", [Mock(objid=100)], None, None)])
 
         with (
             patch("pdfplumber.open") as mock_open,
-            patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_heading.detect_headings_by_font"
-            ) as mock_font_detect,
+            patch("myrm_agent_harness.toolkits.file_parsers.pdf_heading.detect_headings_by_font") as mock_font_detect,
         ):
             mock_open.return_value.__enter__ = Mock(return_value=mock_pdf)
             mock_open.return_value.__exit__ = Mock(return_value=False)
@@ -517,12 +500,8 @@ class TestPDFPlumberParserIntegration:
 
         pages = []
         for i in range(10):
-            h_chars = [
-                _make_char(c, 14.0, 10.0, j * 5.0) for j, c in enumerate("Footer Text")
-            ]
-            unique_h = [
-                _make_char(c, 14.0, 30.0, j * 5.0) for j, c in enumerate(f"Chapter {i}")
-            ]
+            h_chars = [_make_char(c, 14.0, 10.0, j * 5.0) for j, c in enumerate("Footer Text")]
+            unique_h = [_make_char(c, 14.0, 30.0, j * 5.0) for j, c in enumerate(f"Chapter {i}")]
             page = _make_page(h_chars + unique_h + body_chars, page_number=i + 1)
             pages.append(page)
 

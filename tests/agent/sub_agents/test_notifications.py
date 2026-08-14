@@ -159,7 +159,13 @@ class TestFormatActiveSubagentContext:
 
     def test_single_running_child(self):
         children: list[dict[str, object]] = [
-            {"task_id": "abc", "agent_type": "searcher", "status": "running", "done": False, "description": "find docs"},
+            {
+                "task_id": "abc",
+                "agent_type": "searcher",
+                "status": "running",
+                "done": False,
+                "description": "find docs",
+            },
         ]
         result = format_active_subagent_context(children)
         assert result is not None
@@ -238,8 +244,12 @@ class TestNotificationManager:
     def test_add_and_drain(self):
         mgr = NotificationManager()
         result = SubAgentResult(
-            success=True, task_id="t1", agent_type="w", result="ok",
-            completed_at=time.time(), status=SubAgentStatus.COMPLETED,
+            success=True,
+            task_id="t1",
+            agent_type="w",
+            result="ok",
+            completed_at=time.time(),
+            status=SubAgentStatus.COMPLETED,
         )
         mgr.add_notification(result, timestamp=time.time())
         assert len(mgr._pending_notifications) == 1
@@ -256,8 +266,12 @@ class TestNotificationManager:
     def test_drain_expired_returns_none(self):
         mgr = NotificationManager()
         result = SubAgentResult(
-            success=True, task_id="t1", agent_type="w", result="ok",
-            completed_at=time.time(), status=SubAgentStatus.COMPLETED,
+            success=True,
+            task_id="t1",
+            agent_type="w",
+            result="ok",
+            completed_at=time.time(),
+            status=SubAgentStatus.COMPLETED,
         )
         old_timestamp = time.time() - _NOTIFICATION_TTL_SECONDS - 1
         mgr.add_notification(result, timestamp=old_timestamp)
@@ -268,8 +282,12 @@ class TestNotificationManager:
         now = time.time()
         for i in range(3):
             result = SubAgentResult(
-                success=True, task_id=f"t{i}", agent_type="w", result=f"r{i}",
-                completed_at=now, status=SubAgentStatus.COMPLETED,
+                success=True,
+                task_id=f"t{i}",
+                agent_type="w",
+                result=f"r{i}",
+                completed_at=now,
+                status=SubAgentStatus.COMPLETED,
             )
             mgr.add_notification(result, timestamp=now)
         merged = mgr.drain_notifications()

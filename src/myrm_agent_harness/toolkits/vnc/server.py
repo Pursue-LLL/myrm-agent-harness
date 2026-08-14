@@ -214,7 +214,10 @@ class VncServer:
         os.chmod(tmp.name, 0o600)
         self._passwd_file = Path(tmp.name)
         proc = await asyncio.create_subprocess_exec(
-            "x11vnc", "-storepasswd", self._password, str(self._passwd_file),
+            "x11vnc",
+            "-storepasswd",
+            self._password,
+            str(self._passwd_file),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -225,13 +228,17 @@ class VncServer:
     async def _start_x11vnc(self) -> None:
         cmd = [
             "x11vnc",
-            "-display", f":{self._display_num}",
-            "-rfbport", str(self.vnc_port),
-            "-rfbauth", str(self._passwd_file),
+            "-display",
+            f":{self._display_num}",
+            "-rfbport",
+            str(self.vnc_port),
+            "-rfbauth",
+            str(self._passwd_file),
             "-shared",
             "-forever",
             "-noxdamage",
-            "-cursor", "arrow",
+            "-cursor",
+            "arrow",
             "-nopw",
             "-quiet",
         ]
@@ -248,7 +255,8 @@ class VncServer:
     async def _start_websockify(self) -> None:
         cmd = [
             "websockify",
-            "--web", "/usr/share/novnc" if Path("/usr/share/novnc").exists() else "/dev/null",
+            "--web",
+            "/usr/share/novnc" if Path("/usr/share/novnc").exists() else "/dev/null",
             str(self.websockify_port),
             f"localhost:{self.vnc_port}",
         ]
@@ -297,12 +305,14 @@ class VncServer:
                                 if consecutive_failures >= _MAX_RESTART_ATTEMPTS:
                                     logger.error(
                                         "VNC restart failed %d times, giving up: %s",
-                                        consecutive_failures, exc,
+                                        consecutive_failures,
+                                        exc,
                                     )
                                     return
                                 logger.warning(
                                     "VNC restart failed (%d/%d), next retry in %ds: %s",
-                                    consecutive_failures, _MAX_RESTART_ATTEMPTS,
+                                    consecutive_failures,
+                                    _MAX_RESTART_ATTEMPTS,
                                     _HEALTH_CHECK_INTERVAL_S * (2 ** min(consecutive_failures, 4)),
                                     exc,
                                 )

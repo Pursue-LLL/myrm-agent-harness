@@ -50,4 +50,3 @@ async def acquire_file_path_lock(path: str) -> AsyncGenerator[str]:
     lock = await _get_file_path_lock(normalized_path)
     async with lock:
         yield normalized_path
-

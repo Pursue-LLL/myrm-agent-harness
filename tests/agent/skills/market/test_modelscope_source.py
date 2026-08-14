@@ -37,30 +37,35 @@ class TestSourceName:
 class TestSearch:
     @pytest.mark.asyncio
     async def test_search_success(self, source: ModelScopeSource) -> None:
-        resp = _make_mock_response(200, {
-            "success": True,
-            "data": {
-                "skills": [
-                    {
-                        "id": "@test/mcp-weather",
-                        "display_name": "Weather MCP",
-                        "description": "Get weather info",
-                        "developer": "test-dev",
-                        "downloads": 1500,
-                        "view_count": 3000,
-                        "version": "1.0.0",
-                        "category": "Utilities",
-                    }
-                ]
+        resp = _make_mock_response(
+            200,
+            {
+                "success": True,
+                "data": {
+                    "skills": [
+                        {
+                            "id": "@test/mcp-weather",
+                            "display_name": "Weather MCP",
+                            "description": "Get weather info",
+                            "developer": "test-dev",
+                            "downloads": 1500,
+                            "view_count": 3000,
+                            "version": "1.0.0",
+                            "category": "Utilities",
+                        }
+                    ]
+                },
             },
-        })
+        )
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client
+        ):
             results = await source.search("weather", limit=10)
 
         assert len(results) == 1
@@ -86,7 +91,9 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client
+        ):
             results = await source.search("", limit=10)
 
         assert results == []
@@ -100,7 +107,9 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client
+        ):
             results = await source.search("test", limit=5)
 
         assert results == []
@@ -114,7 +123,9 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client
+        ):
             results = await source.search("test", limit=5)
 
         assert results == []
@@ -128,7 +139,9 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client
+        ):
             results = await source.search("test", limit=5)
 
         assert results == []
@@ -143,7 +156,9 @@ class TestSearch:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client
+        ):
             await source.search("test", limit=200)
 
         call_kwargs = mock_client.get.call_args
@@ -152,29 +167,34 @@ class TestSearch:
 
     @pytest.mark.asyncio
     async def test_search_localized_description(self, source: ModelScopeSource) -> None:
-        resp = _make_mock_response(200, {
-            "success": True,
-            "data": {
-                "skills": [
-                    {
-                        "id": "test-skill",
-                        "display_name": "Test",
-                        "locales": {
-                            "zh": {"description": "中文描述"},
-                            "en": {"description": "English desc"},
-                        },
-                        "developer": "dev",
-                    }
-                ]
+        resp = _make_mock_response(
+            200,
+            {
+                "success": True,
+                "data": {
+                    "skills": [
+                        {
+                            "id": "test-skill",
+                            "display_name": "Test",
+                            "locales": {
+                                "zh": {"description": "中文描述"},
+                                "en": {"description": "English desc"},
+                            },
+                            "developer": "dev",
+                        }
+                    ]
+                },
             },
-        })
+        )
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client
+        ):
             results = await source.search("test", limit=5)
 
         assert len(results) == 1
@@ -184,23 +204,28 @@ class TestSearch:
 class TestGetDetail:
     @pytest.mark.asyncio
     async def test_get_detail_success(self, source: ModelScopeSource) -> None:
-        resp = _make_mock_response(200, {
-            "success": True,
-            "data": {
-                "id": "@org/skill-x",
-                "display_name": "Skill X",
-                "description": "A skill",
-                "developer": "org",
-                "version": "2.0",
+        resp = _make_mock_response(
+            200,
+            {
+                "success": True,
+                "data": {
+                    "id": "@org/skill-x",
+                    "display_name": "Skill X",
+                    "description": "A skill",
+                    "developer": "org",
+                    "version": "2.0",
+                },
             },
-        })
+        )
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await source.get_detail("@org/skill-x")
 
         assert result is not None
@@ -217,7 +242,9 @@ class TestGetDetail:
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client
+        ):
             result = await source.get_detail("nonexistent")
 
         assert result is None
@@ -250,25 +277,30 @@ class TestParseItem:
     @pytest.mark.asyncio
     async def test_author_from_id_prefix(self, source: ModelScopeSource) -> None:
         """When developer/owner is missing, extract from @org/name id."""
-        resp = _make_mock_response(200, {
-            "success": True,
-            "data": {
-                "skills": [
-                    {
-                        "id": "@myorg/tool",
-                        "display_name": "Tool",
-                        "description": "desc",
-                    }
-                ]
+        resp = _make_mock_response(
+            200,
+            {
+                "success": True,
+                "data": {
+                    "skills": [
+                        {
+                            "id": "@myorg/tool",
+                            "display_name": "Tool",
+                            "description": "desc",
+                        }
+                    ]
+                },
             },
-        })
+        )
 
         mock_client = AsyncMock()
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
         mock_client.get = AsyncMock(return_value=resp)
 
-        with patch("myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client):
+        with patch(
+            "myrm_agent_harness.agent.skills.market.sources.modelscope.httpx.AsyncClient", return_value=mock_client
+        ):
             results = await source.search("tool", limit=5)
 
         assert results[0].author == "myorg"

@@ -250,7 +250,9 @@ class TestAttenuatorScannerGating:
         (READ_ONLY tools are removed if not in allowed_tools declaration).
         """
         skill = _make_skill(
-            SkillTrust.INSTALLED, scanner_clean=True, allowed_tools=["file_write_tool", "web_search_tool", "bash_code_execute_tool"]
+            SkillTrust.INSTALLED,
+            scanner_clean=True,
+            allowed_tools=["file_write_tool", "web_search_tool", "bash_code_execute_tool"],
         )
         result = attenuate_tools(ALL_TOOLS, [skill])
 
@@ -310,7 +312,9 @@ class TestAttenuatorScannerGating:
     def test_installed_widening_respects_ceiling(self):
         """Widened tools must be within INSTALLED_CEILING_TOOLS."""
         skill = _make_skill(
-            SkillTrust.INSTALLED, scanner_clean=True, allowed_tools=[*list(INSTALLED_CEILING_TOOLS), "bash_code_execute_tool"]
+            SkillTrust.INSTALLED,
+            scanner_clean=True,
+            allowed_tools=[*list(INSTALLED_CEILING_TOOLS), "bash_code_execute_tool"],
         )
         result = attenuate_tools(ALL_TOOLS, [skill])
 

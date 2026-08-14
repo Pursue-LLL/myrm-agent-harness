@@ -50,24 +50,18 @@ def detector(mock_embedding: AsyncMock, mock_vector: AsyncMock) -> RecurrenceDet
 
 class TestRecurrenceDetector:
     @pytest.mark.asyncio
-    async def test_empty_summary_returns_not_triggered(
-        self, detector: RecurrenceDetector
-    ) -> None:
+    async def test_empty_summary_returns_not_triggered(self, detector: RecurrenceDetector) -> None:
         result = await detector.check_recurrence("")
         assert not result.triggered
         assert result.consolidated_content is None
 
     @pytest.mark.asyncio
-    async def test_whitespace_only_summary_not_triggered(
-        self, detector: RecurrenceDetector
-    ) -> None:
+    async def test_whitespace_only_summary_not_triggered(self, detector: RecurrenceDetector) -> None:
         result = await detector.check_recurrence("   \n  ")
         assert not result.triggered
 
     @pytest.mark.asyncio
-    async def test_importance_preemption_allergy(
-        self, detector: RecurrenceDetector
-    ) -> None:
+    async def test_importance_preemption_allergy(self, detector: RecurrenceDetector) -> None:
         result = await detector.check_recurrence("I have a peanut allergy")
         assert result.triggered
         assert result.consolidated_content == "I have a peanut allergy"
@@ -75,17 +69,13 @@ class TestRecurrenceDetector:
         assert result.recurrence_count == 1
 
     @pytest.mark.asyncio
-    async def test_importance_preemption_chinese(
-        self, detector: RecurrenceDetector
-    ) -> None:
+    async def test_importance_preemption_chinese(self, detector: RecurrenceDetector) -> None:
         result = await detector.check_recurrence("我对花生过敏")
         assert result.triggered
         assert result.consolidated_content == "我对花生过敏"
 
     @pytest.mark.asyncio
-    async def test_importance_preemption_disabled(
-        self, mock_embedding: AsyncMock, mock_vector: AsyncMock
-    ) -> None:
+    async def test_importance_preemption_disabled(self, mock_embedding: AsyncMock, mock_vector: AsyncMock) -> None:
         det = RecurrenceDetector(
             embedding=mock_embedding,
             vector=mock_vector,
@@ -96,18 +86,14 @@ class TestRecurrenceDetector:
         assert not result.triggered
 
     @pytest.mark.asyncio
-    async def test_no_recurrence_below_threshold(
-        self, detector: RecurrenceDetector, mock_vector: AsyncMock
-    ) -> None:
+    async def test_no_recurrence_below_threshold(self, detector: RecurrenceDetector, mock_vector: AsyncMock) -> None:
         mock_vector.search.return_value = []  # 0 similar results
         result = await detector.check_recurrence("I like Python programming")
         assert not result.triggered
         assert result.recurrence_count == 1  # Only current
 
     @pytest.mark.asyncio
-    async def test_recurrence_triggered_at_k(
-        self, detector: RecurrenceDetector, mock_vector: AsyncMock
-    ) -> None:
+    async def test_recurrence_triggered_at_k(self, detector: RecurrenceDetector, mock_vector: AsyncMock) -> None:
         similar_results = [
             SearchResult(
                 document=VectorDocument(id=f"id_{i}", content=f"Python session {i}"),
@@ -123,9 +109,7 @@ class TestRecurrenceDetector:
         assert result.consolidated_content == "I like Python programming"
 
     @pytest.mark.asyncio
-    async def test_recurrence_triggered_with_llm(
-        self, detector: RecurrenceDetector, mock_vector: AsyncMock
-    ) -> None:
+    async def test_recurrence_triggered_with_llm(self, detector: RecurrenceDetector, mock_vector: AsyncMock) -> None:
         similar_results = [
             SearchResult(
                 document=VectorDocument(id=f"id_{i}", content=f"Python task {i}"),
@@ -138,17 +122,13 @@ class TestRecurrenceDetector:
         async def mock_llm(system: str, user: str) -> str:
             return "User's primary programming language is Python"
 
-        result = await detector.check_recurrence(
-            "Writing Python again", llm_func=mock_llm
-        )
+        result = await detector.check_recurrence("Writing Python again", llm_func=mock_llm)
         assert result.triggered
         assert result.consolidated_content == "User's primary programming language is Python"
         assert result.recurrence_count == 4
 
     @pytest.mark.asyncio
-    async def test_llm_failure_fallback(
-        self, detector: RecurrenceDetector, mock_vector: AsyncMock
-    ) -> None:
+    async def test_llm_failure_fallback(self, detector: RecurrenceDetector, mock_vector: AsyncMock) -> None:
         similar_results = [
             SearchResult(
                 document=VectorDocument(id=f"id_{i}", content=f"topic {i}"),
@@ -166,9 +146,7 @@ class TestRecurrenceDetector:
         assert result.consolidated_content == "topic again"
 
     @pytest.mark.asyncio
-    async def test_eviction_when_over_capacity(
-        self, detector: RecurrenceDetector, mock_vector: AsyncMock
-    ) -> None:
+    async def test_eviction_when_over_capacity(self, detector: RecurrenceDetector, mock_vector: AsyncMock) -> None:
         mock_vector.count.return_value = 150
         docs = [MagicMock(id=f"old_{i}") for i in range(50)]
         mock_vector.scroll.return_value = (docs, None)
@@ -177,9 +155,7 @@ class TestRecurrenceDetector:
         mock_vector.delete.assert_called()
 
     @pytest.mark.asyncio
-    async def test_no_eviction_within_capacity(
-        self, detector: RecurrenceDetector, mock_vector: AsyncMock
-    ) -> None:
+    async def test_no_eviction_within_capacity(self, detector: RecurrenceDetector, mock_vector: AsyncMock) -> None:
         mock_vector.count.return_value = 50
         mock_vector.search.return_value = []
 
@@ -187,18 +163,14 @@ class TestRecurrenceDetector:
         mock_vector.scroll.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_collection_initialized_once(
-        self, detector: RecurrenceDetector, mock_vector: AsyncMock
-    ) -> None:
+    async def test_collection_initialized_once(self, detector: RecurrenceDetector, mock_vector: AsyncMock) -> None:
         mock_vector.search.return_value = []
         await detector.check_recurrence("topic 1")
         await detector.check_recurrence("topic 2")
         mock_vector.ensure_collection.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_triggered_entries_deleted(
-        self, detector: RecurrenceDetector, mock_vector: AsyncMock
-    ) -> None:
+    async def test_triggered_entries_deleted(self, detector: RecurrenceDetector, mock_vector: AsyncMock) -> None:
         similar_results = [
             SearchResult(
                 document=VectorDocument(id=f"triggered_{i}", content=f"recurrent topic {i}"),
@@ -211,11 +183,7 @@ class TestRecurrenceDetector:
         await detector.check_recurrence("recurrent topic again")
         delete_calls = mock_vector.delete.call_args_list
         triggered_ids = ["triggered_0", "triggered_1", "triggered_2"]
-        assert any(
-            call.args == (detector._collection, triggered_ids)
-            for call in delete_calls
-        )
-
+        assert any(call.args == (detector._collection, triggered_ids) for call in delete_calls)
 
     @pytest.mark.asyncio
     async def test_exactly_k_minus_one_does_not_trigger(
@@ -273,7 +241,9 @@ class TestRecurrenceDetector:
         assert result.triggered
         assert "[Session 1]: topic A" in "\n".join(consolidated_snippets)
         assert "[Session 2]: topic B" in "\n".join(consolidated_snippets)
-        assert "]: " not in "\n".join(consolidated_snippets).replace("[Session 1]: topic A", "").replace("[Session 2]: topic B", "").replace("[Session 3]: topic C", "")
+        assert "]: " not in "\n".join(consolidated_snippets).replace("[Session 1]: topic A", "").replace(
+            "[Session 2]: topic B", ""
+        ).replace("[Session 3]: topic C", "")
 
     @pytest.mark.asyncio
     async def test_vector_upsert_called_with_correct_collection(

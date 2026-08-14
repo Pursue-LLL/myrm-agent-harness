@@ -161,8 +161,12 @@ def test_best_first_prefers_high_weight_neighbor(wiki_structure, indexer) -> Non
 
     indexer.upsert_edges("AlphaNode", ["BetaNode", "GammaNode"])
     with indexer._get_conn() as conn:
-        conn.execute("UPDATE wiki_edges SET weight = ? WHERE source = ? AND target = ?", (10.0, "AlphaNode", "BetaNode"))
-        conn.execute("UPDATE wiki_edges SET weight = ? WHERE source = ? AND target = ?", (1.0, "AlphaNode", "GammaNode"))
+        conn.execute(
+            "UPDATE wiki_edges SET weight = ? WHERE source = ? AND target = ?", (10.0, "AlphaNode", "BetaNode")
+        )
+        conn.execute(
+            "UPDATE wiki_edges SET weight = ? WHERE source = ? AND target = ?", (1.0, "AlphaNode", "GammaNode")
+        )
 
     query_config = WikiQueryConfig(best_first_max_expansions=8)
     results = converge_retrieval_candidates(

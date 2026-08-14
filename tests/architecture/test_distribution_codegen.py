@@ -84,10 +84,7 @@ def test_nuitka_compile_input_uses_package_dir_for_init() -> None:
     """Package __init__.py must compile its directory, not the file path."""
     from harness_packaging.nuitka_compile import nuitka_artifact_stem, nuitka_compile_input
 
-    init_file = (
-        _REPO_ROOT
-        / "src/myrm_agent_harness/agent/context_management/pipeline/__init__.py"
-    )
+    init_file = _REPO_ROOT / "src/myrm_agent_harness/agent/context_management/pipeline/__init__.py"
     assert nuitka_compile_input(init_file) == init_file.parent
     assert nuitka_artifact_stem(init_file) == "pipeline"
 

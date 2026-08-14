@@ -435,11 +435,26 @@ _PRIVATE_REGISTRY_RE = re.compile(
 _LOCAL_PACKAGE_PREFIXES = ("./", "../", "file://", "git+", "/")
 _REQUIREMENTS_FILE_RE = re.compile(r"^.+\.(?:txt|cfg|toml|in)$")
 
-_PIP_FLAGS_WITH_VALUE: frozenset[str] = frozenset({
-    "-r", "--requirement", "-c", "--constraint", "-e", "--editable",
-    "-f", "--find-links", "-i", "--index-url", "--extra-index-url",
-    "--no-index", "--prefix", "--root", "--target", "-t",
-})
+_PIP_FLAGS_WITH_VALUE: frozenset[str] = frozenset(
+    {
+        "-r",
+        "--requirement",
+        "-c",
+        "--constraint",
+        "-e",
+        "--editable",
+        "-f",
+        "--find-links",
+        "-i",
+        "--index-url",
+        "--extra-index-url",
+        "--no-index",
+        "--prefix",
+        "--root",
+        "--target",
+        "-t",
+    }
+)
 
 _PIP_VERSION_SPEC_RE = re.compile(r"[>=<~!;\[]")
 _NPM_VERSION_SPEC_RE = re.compile(r"@(?![\w-]+/)")
@@ -522,7 +537,8 @@ async def _probe_registry(package: str, url: str, cache_key: str) -> tuple[str, 
         loop = asyncio.get_running_loop()
         request = urllib.request.Request(url, headers={"User-Agent": "myrm-slopcheck"}, method="HEAD")  # noqa: S310
         response = await loop.run_in_executor(
-            None, lambda: urllib.request.urlopen(request, timeout=_PROBE_TIMEOUT_S)  # noqa: S310
+            None,
+            lambda: urllib.request.urlopen(request, timeout=_PROBE_TIMEOUT_S),  # noqa: S310
         )
         exists = response.status == 200
     except urllib.error.HTTPError as exc:
@@ -543,9 +559,7 @@ def _probe_pypi(package: str) -> asyncio.Task[tuple[str, bool]]:
 
 
 def _probe_npm(package: str) -> asyncio.Task[tuple[str, bool]]:
-    return asyncio.create_task(
-        _probe_registry(package, f"https://registry.npmjs.org/{package}", f"npm:{package}")
-    )
+    return asyncio.create_task(_probe_registry(package, f"https://registry.npmjs.org/{package}", f"npm:{package}"))
 
 
 async def check_install_packages(command: str) -> None:

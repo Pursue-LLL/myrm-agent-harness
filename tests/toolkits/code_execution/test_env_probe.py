@@ -70,9 +70,7 @@ class TestEmitsOnRealProblems:
 
     def test_python_version_mismatch(self, monkeypatch: pytest.MonkeyPatch):
         """python3 is 3.11 but pip is bound to 3.12 → mismatch warning."""
-        monkeypatch.setattr(
-            env_probe, "_python_version_of", lambda b: {"python3": "3.11.15", "python": None}.get(b)
-        )
+        monkeypatch.setattr(env_probe, "_python_version_of", lambda b: {"python3": "3.11.15", "python": None}.get(b))
         monkeypatch.setattr(env_probe, "_has_pip_module", lambda b: False)
         monkeypatch.setattr(env_probe, "_detect_pep668", lambda b: True)
         monkeypatch.setattr(env_probe, "_pip_python_version", lambda: "3.12")

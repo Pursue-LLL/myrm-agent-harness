@@ -46,10 +46,7 @@ class BrowserSessionNetworkMixin:
 
         summary = self._network_logger.get_summary(filter_mode)
         if api_summary:
-            summary += (
-                "\n\nAPI Requests (use network_detail with index to view response body):"
-                f"\n{api_summary}"
-            )
+            summary += f"\n\nAPI Requests (use network_detail with index to view response body):\n{api_summary}"
         return summary
 
     async def get_network_detail(self, index: int) -> str:

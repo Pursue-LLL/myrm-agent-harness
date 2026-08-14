@@ -14,13 +14,30 @@ from __future__ import annotations
 import re
 
 _DATABASE_COMMANDS: set[str] = {
-    "psql", "mysql", "mysqldump", "mongo", "mongosh", "mongodump",
-    "redis-cli", "sqlite3", "cqlsh", "influx",
+    "psql",
+    "mysql",
+    "mysqldump",
+    "mongo",
+    "mongosh",
+    "mongodump",
+    "redis-cli",
+    "sqlite3",
+    "cqlsh",
+    "influx",
 }
 
 _CONTAINER_CLOUD_COMMANDS: set[str] = {
-    "docker", "docker-compose", "podman", "kubectl", "helm", "terraform",
-    "aws", "gcloud", "az", "flyctl", "heroku",
+    "docker",
+    "docker-compose",
+    "podman",
+    "kubectl",
+    "helm",
+    "terraform",
+    "aws",
+    "gcloud",
+    "az",
+    "flyctl",
+    "heroku",
 }
 
 _HTTP_MUTATION_RE = re.compile(

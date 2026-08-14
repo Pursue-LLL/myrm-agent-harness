@@ -89,7 +89,7 @@ def format_linked_files_section(
         )
     else:
         lines.append(
-            "  Use skill_select_tool(file_path=\"<path>\") to load an auxiliary file "
+            '  Use skill_select_tool(file_path="<path>") to load an auxiliary file '
             f"({', '.join(sorted(ALLOWED_SKILL_FILE_DIRS))}/)."
         )
     return "\n".join(lines)
@@ -161,9 +161,7 @@ def format_config_section(
     if resolved:
         from myrm_agent_harness.core.security.detection.leak_detector import redact_leaks
 
-        instance_label = (
-            skill_instance.instance_name if skill_instance is not None else "default"
-        )
+        instance_label = skill_instance.instance_name if skill_instance is not None else "default"
         lines = ["", f"[Skill config (instance: {instance_label})]"]
         for key, value in sorted(resolved.items()):
             display = redact_leaks(str(value) if value != "" else "(empty)")

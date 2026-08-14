@@ -290,7 +290,7 @@ Protocol-first architecture with strict framework-business separation.
 - `TaskRun`: Independent record per execution attempt (run_id, worker_id, outcome, duration)
 - `TaskRunOutcome`: COMPLETED / BLOCKED / CRASHED / RECLAIMED / TIMED_OUT
 - `TaskEvent`: Persistent lifecycle event for audit and catch-up
-- `TaskEventKind`: CREATED / CLAIMED / ASSIGNED / COMPLETED / FAILED / BLOCKED / UNBLOCKED / RETRYING / RECLAIMED / PROMOTED / ARCHIVED / HEARTBEAT / USER_COMMENT / VERIFICATION_FAILED / BRANCH_SWITCHED / SPECIFIED / DECOMPOSED / TIMED_OUT / REVIEW_REQUESTED / APPROVED / REJECTED
+- `TaskEventKind`: CREATED / CLAIMED / ASSIGNED / COMPLETED / FAILED / BLOCKED / UNBLOCKED / RETRYING / RECLAIMED / PROMOTED / ARCHIVED / HEARTBEAT / USER_COMMENT / VERIFICATION_FAILED / BRANCH_SWITCHED / MERGE_CONFLICT / SPECIFIED / DECOMPOSED / TIMED_OUT / REVIEW_REQUESTED / APPROVED / REJECTED
 - `TaskTimeoutError`: Exception raised when a task exceeds its `max_runtime_seconds` limit (carries `elapsed_seconds`, `limit_seconds`)
 - `SpecifyOutcome`: Result of a single Specifier pass (ok, new_title, new_body, reason, prompt_tokens, completion_tokens, persisted)
 - `DecomposeChildSpec`: Spec for a single child task (title, body, assignee, parent_indices)

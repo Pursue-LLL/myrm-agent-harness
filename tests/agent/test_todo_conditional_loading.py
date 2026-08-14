@@ -49,27 +49,21 @@ async def test_should_load_todo_when_planning_enabled() -> None:
 @pytest.mark.asyncio
 async def test_should_load_todo_when_workspace_has_todos() -> None:
     harness = _TodoHarness(storage_backend=MagicMock(), enable_planning=False)
-    with patch.object(
-        harness, "_workspace_has_todos", new=AsyncMock(return_value=True)
-    ):
+    with patch.object(harness, "_workspace_has_todos", new=AsyncMock(return_value=True)):
         assert await harness._should_load_todo_write_tool() is True
 
 
 @pytest.mark.asyncio
 async def test_should_skip_todo_when_disabled_and_no_todos() -> None:
     harness = _TodoHarness(storage_backend=MagicMock(), enable_planning=False)
-    with patch.object(
-        harness, "_workspace_has_todos", new=AsyncMock(return_value=False)
-    ):
+    with patch.object(harness, "_workspace_has_todos", new=AsyncMock(return_value=False)):
         assert await harness._should_load_todo_write_tool() is False
 
 
 @pytest.mark.asyncio
 async def test_create_todo_write_skipped_without_planning_or_existing_todos() -> None:
     harness = _TodoHarness(storage_backend=MagicMock(), enable_planning=False)
-    with patch.object(
-        harness, "_workspace_has_todos", new=AsyncMock(return_value=False)
-    ):
+    with patch.object(harness, "_workspace_has_todos", new=AsyncMock(return_value=False)):
         result = await harness._create_todo_write_tool()
     assert result is None
 
@@ -125,17 +119,13 @@ async def test_workspace_has_todos_returns_false_without_storage_backend() -> No
 async def test_workspace_has_todos_returns_false_on_backend_error() -> None:
     backend = MagicMock()
     backend.exists = AsyncMock(side_effect=RuntimeError("backend down"))
-    harness = _TodoHarness(
-        storage_backend=backend, enable_planning=False, task_workspace_root="/tmp/ws"
-    )
+    harness = _TodoHarness(storage_backend=backend, enable_planning=False, task_workspace_root="/tmp/ws")
     with patch.object(harness, "_resolve_task_workspace_root", return_value="/tmp/ws"):
         assert await harness._workspace_has_todos() is False
 
 
 def test_resolve_task_workspace_root_prefers_live_session_context() -> None:
-    harness = _TodoHarness(
-        storage_backend=MagicMock(), task_workspace_root="/bound/path"
-    )
+    harness = _TodoHarness(storage_backend=MagicMock(), task_workspace_root="/bound/path")
     with patch(
         "myrm_agent_harness.agent.middlewares._session_context.get_workspace_root",
         return_value="/live/session",
@@ -144,9 +134,7 @@ def test_resolve_task_workspace_root_prefers_live_session_context() -> None:
 
 
 def test_resolve_task_workspace_root_falls_back_to_bound_root() -> None:
-    harness = _TodoHarness(
-        storage_backend=MagicMock(), task_workspace_root="  /bound/path  "
-    )
+    harness = _TodoHarness(storage_backend=MagicMock(), task_workspace_root="  /bound/path  ")
     with patch(
         "myrm_agent_harness.agent.middlewares._session_context.get_workspace_root",
         return_value=None,

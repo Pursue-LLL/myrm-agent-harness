@@ -173,16 +173,11 @@ class BaseSkillMarketService:
                     results = await self._search_source(source, query, limit)
                     return source_index, source.source_name, results
 
-                tasks = [
-                    _search_with_meta(source_index, source)
-                    for source_index, source in enumerate(sources)
-                ]
+                tasks = [_search_with_meta(source_index, source) for source_index, source in enumerate(sources)]
                 source_batches: list[tuple[int, str, list[SkillSearchResult]]] = []
                 for coro in asyncio.as_completed(tasks):
                     try:
-                        source_batches.append(
-                            await asyncio.wait_for(coro, timeout=SEARCH_TIMEOUT)
-                        )
+                        source_batches.append(await asyncio.wait_for(coro, timeout=SEARCH_TIMEOUT))
                     except TimeoutError:
                         logger.warning("A skill source timed out during search")
                     except Exception as e:
@@ -204,9 +199,7 @@ class BaseSkillMarketService:
                 raw_results = ranked[:limit]
 
             if len(self._search_cache) >= CACHE_MAX_ENTRIES:
-                oldest_key = min(
-                    self._search_cache, key=lambda k: self._search_cache[k][0]
-                )
+                oldest_key = min(self._search_cache, key=lambda k: self._search_cache[k][0])
                 del self._search_cache[oldest_key]
             self._search_cache[cache_key] = (now, raw_results)
 
@@ -228,13 +221,9 @@ class BaseSkillMarketService:
             )
 
         if detail.install_method == "git":
-            skill_files = await self._git_installer.download(
-                detail.install_url, detail.subdirectory
-            )
+            skill_files = await self._git_installer.download(detail.install_url, detail.subdirectory)
         elif detail.install_method == "zip":
-            skill_files = await self._zip_installer.download(
-                detail.install_url, detail.subdirectory
-            )
+            skill_files = await self._zip_installer.download(detail.install_url, detail.subdirectory)
         else:
             raise ValueError(f"Unsupported install method: {detail.install_method}")
 
@@ -264,9 +253,7 @@ class BaseSkillMarketService:
         detail = await self.get_detail(skill_id, source)
         if not detail:
             _emit("failed", "Skill not found")
-            return SkillInstallResult(
-                success=False, error=f"Skill not found: {skill_id} from {source}"
-            )
+            return SkillInstallResult(success=False, error=f"Skill not found: {skill_id} from {source}")
 
         if detail.install_method == "direct" and detail.source == "prebuilt":
             _emit("completed", "Prebuilt skill ready")
@@ -284,9 +271,7 @@ class BaseSkillMarketService:
             except ValueError as e:
                 resolved_error, error_code = _resolve_install_error(e)
                 _emit("failed", resolved_error)
-                return SkillInstallResult(
-                    success=False, error=resolved_error, error_code=error_code
-                )
+                return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
             return await self._quarantine_install(
                 skill_id,
                 detail.name,
@@ -298,13 +283,9 @@ class BaseSkillMarketService:
         _emit("downloading", f"Downloading from {source}...")
         try:
             if detail.install_method == "git":
-                skill_files = await self._git_installer.download(
-                    detail.install_url, detail.subdirectory
-                )
+                skill_files = await self._git_installer.download(detail.install_url, detail.subdirectory)
             elif detail.install_method == "zip":
-                skill_files = await self._zip_installer.download(
-                    detail.install_url, detail.subdirectory
-                )
+                skill_files = await self._zip_installer.download(detail.install_url, detail.subdirectory)
             else:
                 _emit("failed", "Unsupported install method")
                 return SkillInstallResult(
@@ -314,9 +295,7 @@ class BaseSkillMarketService:
         except ValueError as e:
             resolved_error, error_code = _resolve_install_error(e)
             _emit("failed", resolved_error)
-            return SkillInstallResult(
-                success=False, error=resolved_error, error_code=error_code
-            )
+            return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
 
         sanitized = sanitize_skill_files(skill_files.files)
         return await self._quarantine_install(
@@ -348,15 +327,11 @@ class BaseSkillMarketService:
 
         _emit("downloading", "Cloning repository...")
         try:
-            skill_files = await self._git_installer.download(
-                ref.clone_url, subdirectory=ref.subdirectory, ref=ref.ref
-            )
+            skill_files = await self._git_installer.download(ref.clone_url, subdirectory=ref.subdirectory, ref=ref.ref)
         except ValueError as e:
             resolved_error, error_code = _resolve_install_error(e)
             _emit("failed", resolved_error)
-            return SkillInstallResult(
-                success=False, error=resolved_error, error_code=error_code
-            )
+            return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
 
         sanitized = sanitize_skill_files(skill_files.files)
         return await self._quarantine_install(
@@ -381,18 +356,14 @@ class BaseSkillMarketService:
 
         target_dir = resolve_local_install_dir(skill_id, LOCAL_INSTALL_DIR)
         if target_dir is None:
-            return SkillInstallResult(
-                success=False, error=f"Skill directory not found for id: {skill_id}"
-            )
+            return SkillInstallResult(success=False, error=f"Skill directory not found for id: {skill_id}")
 
         skill_name = target_dir.name
 
         try:
             shutil.rmtree(target_dir)
         except Exception as e:
-            return SkillInstallResult(
-                success=False, error=f"Failed to remove skill directory: {e}"
-            )
+            return SkillInstallResult(success=False, error=f"Failed to remove skill directory: {e}")
 
         logger.info("Uninstalled skill: %s", skill_name)
         return SkillInstallResult(
@@ -440,16 +411,12 @@ class BaseSkillMarketService:
                     )
                 )
             elif local_ver:
-                enriched.append(
-                    EnrichedSearchResult(result=r, installed_version=local_ver)
-                )
+                enriched.append(EnrichedSearchResult(result=r, installed_version=local_ver))
             else:
                 enriched.append(EnrichedSearchResult(result=r))
         return enriched
 
-    async def _search_source(
-        self, source: SkillSource, query: str, limit: int
-    ) -> list[SkillSearchResult]:
+    async def _search_source(self, source: SkillSource, query: str, limit: int) -> list[SkillSearchResult]:
         try:
             return await source.search(query, limit)
         except Exception as e:
@@ -477,9 +444,7 @@ class BaseSkillMarketService:
             for rel_path, content in files.items():
                 file_path = (quarantine_dir / rel_path).resolve()
                 if not str(file_path).startswith(str(quarantine_resolved)):
-                    logger.warning(
-                        "Blocked path escape in skill '%s': %s", name, rel_path
-                    )
+                    logger.warning("Blocked path escape in skill '%s': %s", name, rel_path)
                     continue
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 file_path.write_bytes(content)

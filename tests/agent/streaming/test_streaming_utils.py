@@ -85,9 +85,7 @@ class TestGetDatetimePromptEdgeCases:
     """get_datetime_prompt 边界分支"""
 
     def test_invalid_timezone_fallback(self) -> None:
-        prompt = get_datetime_prompt(
-            timezone="Invalid/Timezone", dt=datetime(2026, 5, 1, 12, 0)
-        )
+        prompt = get_datetime_prompt(timezone="Invalid/Timezone", dt=datetime(2026, 5, 1, 12, 0))
         assert DATETIME_TAG in prompt
         assert DATETIME_TAG_END in prompt
         assert "2026-05-01" in prompt
@@ -98,9 +96,7 @@ class TestGetDatetimePromptEdgeCases:
         assert prompt.endswith(DATETIME_TAG_END)
 
     def test_half_hour_offset_timezone(self) -> None:
-        prompt = get_datetime_prompt(
-            timezone="Asia/Kolkata", dt=datetime(2026, 5, 1, 12, 0)
-        )
+        prompt = get_datetime_prompt(timezone="Asia/Kolkata", dt=datetime(2026, 5, 1, 12, 0))
         assert "UTC+5:30" in prompt
 
 
@@ -156,9 +152,7 @@ class TestValidateContext:
             def __init__(self, **_: object) -> None:
                 raise RuntimeError("init error")
 
-        with pytest.raises(
-            ValueError, match="Context validation failed for schema BadSchema"
-        ):
+        with pytest.raises(ValueError, match="Context validation failed for schema BadSchema"):
             validate_context({"a": 1}, BadSchema)
 
 

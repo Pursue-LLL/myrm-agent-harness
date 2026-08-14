@@ -65,9 +65,7 @@ class TestContextBudget:
         assert _budget(70_000, config).remaining_until_summarize == 20_000
 
     def test_remaining_ratio(self, config: ContextConfig) -> None:
-        assert _budget(45_000, config).remaining_ratio == pytest.approx(
-            1.0 - 45_000 / ST
-        )
+        assert _budget(45_000, config).remaining_ratio == pytest.approx(1.0 - 45_000 / ST)
 
     def test_remaining_ratio_overflow(self, config: ContextConfig) -> None:
         assert _budget(100_000, config).remaining_ratio == 0.0
@@ -83,61 +81,37 @@ class TestContextBudget:
         assert b.summarize_usage == 0.0
         assert b.remaining_ratio == 1.0
 
-    def test_dynamic_compress_min_save_plenty_of_space(
-        self, config: ContextConfig
-    ) -> None:
+    def test_dynamic_compress_min_save_plenty_of_space(self, config: ContextConfig) -> None:
         assert _budget(10_000, config).get_dynamic_compress_min_save() == 3000
 
     def test_dynamic_compress_min_save_moderate(self, config: ContextConfig) -> None:
-        assert _budget(63_000, config).get_dynamic_compress_min_save() == int(
-            3000 * 0.6
-        )
+        assert _budget(63_000, config).get_dynamic_compress_min_save() == int(3000 * 0.6)
 
     def test_dynamic_compress_min_save_tight(self, config: ContextConfig) -> None:
-        assert _budget(79_000, config).get_dynamic_compress_min_save() == int(
-            3000 * 0.4
-        )
+        assert _budget(79_000, config).get_dynamic_compress_min_save() == int(3000 * 0.4)
 
     def test_dynamic_compress_min_save_emergency(self, config: ContextConfig) -> None:
-        assert _budget(86_000, config).get_dynamic_compress_min_save() == max(
-            500, int(3000 * 0.2)
-        )
+        assert _budget(86_000, config).get_dynamic_compress_min_save() == max(500, int(3000 * 0.2))
 
     def test_calculate_dynamic_thresholds_early(self, config: ContextConfig) -> None:
-        threshold, min_save = _budget(5_000, config).calculate_dynamic_thresholds(
-            turn_count=3
-        )
+        threshold, min_save = _budget(5_000, config).calculate_dynamic_thresholds(turn_count=3)
         assert threshold == CT
         assert min_save == 3000
 
     def test_calculate_dynamic_thresholds_relaxed(self, config: ContextConfig) -> None:
-        threshold, _ = _budget(20_000, config).calculate_dynamic_thresholds(
-            turn_count=10, estimated_remaining_turns=10
-        )
+        threshold, _ = _budget(20_000, config).calculate_dynamic_thresholds(turn_count=10, estimated_remaining_turns=10)
         assert threshold == CT
 
-    def test_calculate_dynamic_thresholds_moderate_urgency(
-        self, config: ContextConfig
-    ) -> None:
-        threshold, _ = _budget(50_000, config).calculate_dynamic_thresholds(
-            turn_count=10, estimated_remaining_turns=10
-        )
+    def test_calculate_dynamic_thresholds_moderate_urgency(self, config: ContextConfig) -> None:
+        threshold, _ = _budget(50_000, config).calculate_dynamic_thresholds(turn_count=10, estimated_remaining_turns=10)
         assert threshold < CT
 
-    def test_calculate_dynamic_thresholds_high_urgency(
-        self, config: ContextConfig
-    ) -> None:
-        threshold, _ = _budget(80_000, config).calculate_dynamic_thresholds(
-            turn_count=10, estimated_remaining_turns=10
-        )
+    def test_calculate_dynamic_thresholds_high_urgency(self, config: ContextConfig) -> None:
+        threshold, _ = _budget(80_000, config).calculate_dynamic_thresholds(turn_count=10, estimated_remaining_turns=10)
         assert threshold < CT
 
-    def test_calculate_dynamic_thresholds_very_high_urgency(
-        self, config: ContextConfig
-    ) -> None:
-        threshold, _ = _budget(85_000, config).calculate_dynamic_thresholds(
-            turn_count=10, estimated_remaining_turns=20
-        )
+    def test_calculate_dynamic_thresholds_very_high_urgency(self, config: ContextConfig) -> None:
+        threshold, _ = _budget(85_000, config).calculate_dynamic_thresholds(turn_count=10, estimated_remaining_turns=20)
         assert threshold == int(CT * 0.50)
 
     def test_to_dict(self, config: ContextConfig) -> None:
@@ -164,9 +138,7 @@ class TestContextBudget:
         assert "Compress" in view
         assert "Summarize" in view
 
-    def test_summarize_usage_when_current_tokens_none(
-        self, config: ContextConfig
-    ) -> None:
+    def test_summarize_usage_when_current_tokens_none(self, config: ContextConfig) -> None:
         """current_tokens=None short-circuits summarize_usage to 0.0."""
         b = ContextBudget(
             current_tokens=None,
@@ -177,9 +149,7 @@ class TestContextBudget:
         assert b.summarize_usage == 0.0
         assert b.remaining_ratio == 1.0
 
-    def test_dynamic_thresholds_when_no_tokens_measured(
-        self, config: ContextConfig
-    ) -> None:
+    def test_dynamic_thresholds_when_no_tokens_measured(self, config: ContextConfig) -> None:
         """avg_tokens_per_turn=0 makes estimated_remaining_tokens<=0 -> urgency=2.0."""
         b = ContextBudget(
             current_tokens=0,
@@ -187,9 +157,7 @@ class TestContextBudget:
             summarize_threshold=ST,
             config=config,
         )
-        threshold, min_save = b.calculate_dynamic_thresholds(
-            turn_count=10, estimated_remaining_turns=10
-        )
+        threshold, min_save = b.calculate_dynamic_thresholds(turn_count=10, estimated_remaining_turns=10)
         # urgency=2.0 is not >2.0, so it falls into the >1.0 branch (0.80 factor).
         assert threshold == int(CT * 0.80)
         assert min_save == int(3000 * 0.80)
@@ -199,9 +167,7 @@ class TestContextBudget:
         # current=30k -> avg=3k/turn; estimated=30k; remaining=90k-30k=60k
         # urgency=60k/30k=2.0 -> strictly >1.0 branch (0.80 factor)
         b = _budget(30_000, config)
-        threshold, min_save = b.calculate_dynamic_thresholds(
-            turn_count=10, estimated_remaining_turns=10
-        )
+        threshold, min_save = b.calculate_dynamic_thresholds(turn_count=10, estimated_remaining_turns=10)
         assert threshold == int(CT * 0.80)
         assert min_save == int(3000 * 0.80)
 
@@ -214,9 +180,7 @@ class TestCalculateContextBudget:
         assert budget.compress_threshold > 0
 
     def test_with_custom_config(self, config: ContextConfig) -> None:
-        budget = calculate_context_budget(
-            [HumanMessage(content="Hello")], config=config
-        )
+        budget = calculate_context_budget([HumanMessage(content="Hello")], config=config)
         assert budget.compress_threshold == CT
         assert budget.summarize_threshold == ST  # 100_000 * 0.9 = 90_000
 
@@ -245,12 +209,10 @@ class TestResolveBudgetKwargsFromMetadata:
         }
 
     def test_ignores_invalid_metadata(self) -> None:
-        assert resolve_budget_kwargs_from_metadata({}) == {
+        assert resolve_budget_kwargs_from_metadata({}) == {"bound_tool_overhead_tokens": 0}
+        assert resolve_budget_kwargs_from_metadata({"bound_tool_overhead_tokens": "bad"}) == {
             "bound_tool_overhead_tokens": 0
         }
-        assert resolve_budget_kwargs_from_metadata(
-            {"bound_tool_overhead_tokens": "bad"}
-        ) == {"bound_tool_overhead_tokens": 0}
 
 
 class TestEstimateProcessorContextTokens:
@@ -279,9 +241,7 @@ class TestFormatBudgetLog:
 
 
 class TestResolveContextBudgetMetadata:
-    def test_reads_tracker_usage_last_call(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_reads_tracker_usage_last_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from unittest.mock import MagicMock
 
         from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_helpers import (

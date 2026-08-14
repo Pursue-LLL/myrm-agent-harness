@@ -214,9 +214,7 @@ class Interactor(
             )
 
             cu_session = create_computer_session(ComputerUseConfig())
-            has_dialog = await cu_session.backend.has_blocking_dialog(
-                list(KNOWN_BROWSER_NAMES)
-            )
+            has_dialog = await cu_session.backend.has_blocking_dialog(list(KNOWN_BROWSER_NAMES))
         except Exception:
             has_dialog = False
 
@@ -248,9 +246,7 @@ class Interactor(
             RefNotFoundError: If the ref does not exist (includes structured diagnosis).
         """
         if action not in _VALID_ACTIONS:
-            raise ValueError(
-                f"Invalid action: {action}, must be one of {_VALID_ACTIONS}"
-            )
+            raise ValueError(f"Invalid action: {action}, must be one of {_VALID_ACTIONS}")
 
         if ref not in self._refs:
             total_refs = len(self._refs)
@@ -263,9 +259,7 @@ class Interactor(
             current_url = self._page.url
 
             logger.warning(
-                "Ref not found: %s (action=%s, page=%s). "
-                "Total refs: %d, Failure rate: %.1f%% "
-                "(recent: %.1f%%)",
+                "Ref not found: %s (action=%s, page=%s). Total refs: %d, Failure rate: %.1f%% (recent: %.1f%%)",
                 ref,
                 action,
                 redact_sensitive_text(current_url)[:80],
@@ -319,9 +313,7 @@ class Interactor(
         async def _wait_after_action():
             try:
                 # Wait for SPA stability after action (timeout=3000ms, quiet=500ms)
-                await wait_for_page_ready(
-                    self._page, strategy=WaitStrategy.SPA_STABLE, max_ms=3000
-                )
+                await wait_for_page_ready(self._page, strategy=WaitStrategy.SPA_STABLE, max_ms=3000)
             except Exception as e:
                 logger.debug(f"Interactor: post-action SPA wait failed/timed out: {e}")
 
@@ -356,9 +348,7 @@ class Interactor(
                 await self._assert_not_password_field(locator, "typing")
 
                 delay_per_char = type_delay(self._humanize)
-                typing_timeout = max(
-                    INTERACTION_TIMEOUT_MS, len(text) * delay_per_char + 5000
-                )
+                typing_timeout = max(INTERACTION_TIMEOUT_MS, len(text) * delay_per_char + 5000)
                 await locator.type(text, delay=delay_per_char, timeout=typing_timeout)
                 await _wait_after_action()
                 return f"Typed '{text}' into {ref}{healed_msg}"
@@ -386,9 +376,7 @@ class Interactor(
                     else:
                         secret_text = vault.get_password(text)
                 except Exception as e:
-                    raise ValueError(
-                        f"Failed to retrieve credential for label '{text}': {e}"
-                    ) from e
+                    raise ValueError(f"Failed to retrieve credential for label '{text}': {e}") from e
 
                 await locator.fill(secret_text, timeout=INTERACTION_TIMEOUT_MS)
                 await _wait_after_action()
@@ -415,9 +403,7 @@ class Interactor(
                 # Recorded multi-select steps join option values with "; " —
                 # split them so every option is selected instead of trying to
                 # match a single blob that no option equals.
-                values: str | list[str] = (
-                    [v.strip() for v in text.split(";")] if ";" in text else text
-                )
+                values: str | list[str] = [v.strip() for v in text.split(";")] if ";" in text else text
                 await locator.select_option(values, timeout=INTERACTION_TIMEOUT_MS)
                 return f"Selected '{text}' in {ref}{healed_msg}"
 
@@ -425,20 +411,14 @@ class Interactor(
                 try:
                     delta = int(text)
                 except ValueError as exc:
-                    raise ValueError(
-                        f"Scroll requires numeric text (pixel delta), got: {text}"
-                    ) from exc
+                    raise ValueError(f"Scroll requires numeric text (pixel delta), got: {text}") from exc
 
                 target_x, target_y = await self._scroll_cursor_target(locator)
                 await self._scroll_move_cursor(target_x, target_y)
-                return await self._scroll_with_report(
-                    target_x, target_y, delta, healed_msg
-                )
+                return await self._scroll_with_report(target_x, target_y, delta, healed_msg)
 
             elif action == "scroll_to_bottom":
-                return await self._scroll_to_bottom_loop(
-                    locator, _parse_scroll_params(text), healed_msg
-                )
+                return await self._scroll_to_bottom_loop(locator, _parse_scroll_params(text), healed_msg)
 
             elif action == "upload_file":
                 await locator.set_input_files(text, timeout=INTERACTION_TIMEOUT_MS)
@@ -452,13 +432,9 @@ class Interactor(
                 try:
                     x, y = int(parts[0]), int(parts[1])
                 except ValueError as exc:
-                    raise ValueError(
-                        f"Drag requires numeric 'x,y', got: {text}"
-                    ) from exc
+                    raise ValueError(f"Drag requires numeric 'x,y', got: {text}") from exc
 
-                await locator.drag_to(
-                    self._page.locator("body"), target_position={"x": x, "y": y}
-                )
+                await locator.drag_to(self._page.locator("body"), target_position={"x": x, "y": y})
                 return f"Dragged {ref} to ({x}, {y}){healed_msg}"
 
             elif action == "check":
@@ -473,11 +449,7 @@ class Interactor(
 
         except Exception as e:
             error_msg = str(e)
-            if (
-                "TargetClosedError" in error_msg
-                or "Target closed" in error_msg
-                or "Timeout" in error_msg
-            ):
+            if "TargetClosedError" in error_msg or "Target closed" in error_msg or "Timeout" in error_msg:
                 # A native OS dialog (file picker / permission prompt) blocks the
                 # browser process, so Playwright times out or loses the target.
                 hint = await self._dialog_block_hint(error_msg)

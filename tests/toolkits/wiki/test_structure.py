@@ -1,4 +1,3 @@
-
 import pytest
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -10,10 +9,12 @@ def temp_wiki_dir(tmp_path):
     structure.ensure_structure()
     return structure
 
+
 def test_sanitize_path():
     assert WikiStructure._sanitize_path("Work/Project A/Design Doc") == "work/project-a/design-doc"
     assert WikiStructure._sanitize_path("///Empty//Dirs///") == "empty/dirs"
     assert WikiStructure._sanitize_path("Root") == "root"
+
 
 def test_get_concept_file_path(temp_wiki_dir):
     path = temp_wiki_dir.get_concept_file_path("Work/ProjectA/Design")
@@ -21,6 +22,7 @@ def test_get_concept_file_path(temp_wiki_dir):
     assert path.parent.name == "projecta"
     assert path.parent.parent.name == "work"
     assert path.parent.exists()  # Should create parents
+
 
 def test_list_concepts(temp_wiki_dir):
     # Create some nested files
@@ -54,11 +56,13 @@ def test_get_directory_sidecar_paths(temp_wiki_dir):
     assert overview_path.name == ".overview.md"
     assert abstract_path.parent.name == "projecta"
 
+
 @pytest.mark.asyncio
 async def test_delete_folder_safe(temp_wiki_dir):
     class MockIndexer:
         def __init__(self):
             self.deleted = []
+
         async def delete(self, name):
             self.deleted.append(name)
 

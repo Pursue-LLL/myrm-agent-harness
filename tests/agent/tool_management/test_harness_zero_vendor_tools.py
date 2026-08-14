@@ -30,7 +30,4 @@ def test_harness_tool_layers_exclude_vendor_tools() -> None:
 
 def test_harness_tool_layers_exclude_server_business_tools() -> None:
     overlap = _SERVER_BUSINESS_TOOL_NAMES & set(_TOOL_LAYERS)
-    assert not overlap, (
-        "Server business tools must be registered via _tool_layer_bootstrap only: "
-        f"{sorted(overlap)}"
-    )
+    assert not overlap, f"Server business tools must be registered via _tool_layer_bootstrap only: {sorted(overlap)}"

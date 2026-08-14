@@ -139,7 +139,8 @@ class TestDiffCollectorObserver:
 
     @pytest.mark.asyncio
     async def test_modify_ignores_blank_create_initial_snap_for_base(
-        self, observer: DiffCollectorObserver,
+        self,
+        observer: DiffCollectorObserver,
     ) -> None:
         """When the first snapshot is a spurious CREATE (no original), MODIFY must not diff from /dev/null."""
         from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
@@ -159,12 +160,15 @@ class TestDiffCollectorObserver:
                 FileSnapshot(path="fallback.txt", operation=SnapshotOp.CREATE, original_content=None),
             )
             mock_sink = AsyncMock()
-            with patch(
-                "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
-                return_value=mock_sink,
-            ), patch(
-                "myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer._get_session_id",
-                return_value="chat-diff-fallback",
+            with (
+                patch(
+                    "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+                    return_value=mock_sink,
+                ),
+                patch(
+                    "myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer._get_session_id",
+                    return_value="chat-diff-fallback",
+                ),
             ):
                 await observer.on_file_modified("fallback.txt", "line1\n", "line1\nnew\n")
 

@@ -14,9 +14,11 @@ async def storage_provider(tmp_path: Path) -> AsyncIterator[LocalStorageBackend]
     backend = LocalStorageBackend(base_path=str(tmp_path))
     yield backend
 
+
 @pytest.fixture
 def goal_storage(storage_provider: LocalStorageBackend) -> GoalStorage:
     return GoalStorage(storage_provider)
+
 
 @pytest.mark.asyncio
 async def test_save_and_get_goal(goal_storage: GoalStorage) -> None:
@@ -41,10 +43,12 @@ async def test_save_and_get_goal(goal_storage: GoalStorage) -> None:
     assert retrieved.budget is not None
     assert retrieved.budget.max_tokens == 1000
 
+
 @pytest.mark.asyncio
 async def test_get_nonexistent_goal(goal_storage: GoalStorage) -> None:
     retrieved = await goal_storage.get_goal("nonexistent")
     assert retrieved is None
+
 
 @pytest.mark.asyncio
 async def test_active_goal_index(goal_storage: GoalStorage) -> None:
@@ -70,6 +74,7 @@ async def test_active_goal_index(goal_storage: GoalStorage) -> None:
 
     active_id = await goal_storage.get_active_goal_id(session_id)
     assert active_id is None
+
 
 @pytest.mark.asyncio
 async def test_update_goal_fields(goal_storage: GoalStorage) -> None:

@@ -49,7 +49,7 @@ def render_snapshot_tree(
         if som_index_map and ref_id in som_index_map:
             prefix = f"[{som_index_map[ref_id]}] "
         lines.append(
-            f"{prefix}@{ref_id} {element.role} \"{element.name}\"{value_suffix} "
+            f'{prefix}@{ref_id} {element.role} "{element.name}"{value_suffix} '
             f"bbox=({bbox.x},{bbox.y} {bbox.width}x{bbox.height}) "
             f"actions=[{', '.join(element.actions)}]"
         )
@@ -102,19 +102,13 @@ def render_diff_tree(
 
     for el in diff.added:
         value_part = f' value="{el.value}"' if el.value else ""
-        lines.append(
-            f"+ @{el.ref_id} {el.role} \"{el.name}\"{value_part} "
-            f"actions=[{', '.join(el.actions)}]"
-        )
+        lines.append(f'+ @{el.ref_id} {el.role} "{el.name}"{value_part} actions=[{", ".join(el.actions)}]')
 
     for upd in diff.updated:
         el = upd.element
         fields_str = ", ".join(upd.changed_fields)
         value_part = f' value="{el.value}"' if el.value else ""
-        lines.append(
-            f"~ @{upd.ref_id} {el.role} \"{el.name}\"{value_part} "
-            f"changed=[{fields_str}]"
-        )
+        lines.append(f'~ @{upd.ref_id} {el.role} "{el.name}"{value_part} changed=[{fields_str}]')
 
     for ref_id in diff.removed:
         lines.append(f"- @{ref_id} (removed)")

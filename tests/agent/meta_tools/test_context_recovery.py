@@ -186,6 +186,7 @@ class TestEnsureExecutor:
             patch(
                 f"{_CTX_MGMT}.extract_context_from_runnable_config",
                 return_value=mock_context,
-            ),pytest.raises(RuntimeError, match="CodeExecutor not available")
+            ),
+            pytest.raises(RuntimeError, match="CodeExecutor not available"),
         ):
             ensure_executor(mock_config)  # type: ignore[arg-type]

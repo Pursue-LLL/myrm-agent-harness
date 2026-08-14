@@ -20,12 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _DOCX_EMBED_PREFIX = "docx-embed:"
-_IMAGE_REL_TYPE = (
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
-)
-_EMBED_ATTR = (
-    "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
-)
+_IMAGE_REL_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+_EMBED_ATTR = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
 
 StoreAsset = Callable[[bytes, str], str | None]
 
@@ -63,11 +59,7 @@ def extract_docx_embedded_images(file_path: str | Path) -> dict[str, DocxEmbedde
                 target = rel.get("Target", "")
                 if not rel_id or rel_type != _IMAGE_REL_TYPE or not target:
                     continue
-                media_path = (
-                    target
-                    if target.startswith("word/")
-                    else f"word/{target.lstrip('/')}"
-                )
+                media_path = target if target.startswith("word/") else f"word/{target.lstrip('/')}"
                 rel_targets[rel_id] = media_path
 
             for embed_id, media_path in rel_targets.items():

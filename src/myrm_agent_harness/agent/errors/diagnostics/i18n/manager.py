@@ -191,9 +191,7 @@ class LocaleManager:
                 if "user_message" not in error_trans:
                     logger.warning("Missing 'user_message' for error type '%s' in locale '%s'", error_type, locale)
                 if "resolution_steps" not in error_trans:
-                    logger.warning(
-                        "Missing 'resolution_steps' for error type '%s' in locale '%s'", error_type, locale
-                    )
+                    logger.warning("Missing 'resolution_steps' for error type '%s' in locale '%s'", error_type, locale)
 
     def _safe_format(self, template: str, params: dict[str, object]) -> str:
         """Safely format template with parameters, using empty string for missing params."""

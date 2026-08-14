@@ -99,9 +99,7 @@ async def test_bash_failure_small_stdout_visible_in_tool_error(tmp_path: Path) -
     ):
         await tool.ainvoke(
             {
-                "command": (
-                    "python3 -c \"import sys; print('processed row 149'); 1/0\""
-                ),
+                "command": ("python3 -c \"import sys; print('processed row 149'); 1/0\""),
                 "reason": _INTEGRATION_REASON,
             },
             config=_tool_config(tmp_path, "small-fail"),
@@ -135,10 +133,7 @@ async def test_bash_failure_large_stdout_evicted_with_banner(tmp_path: Path) -> 
     ):
         await tool.ainvoke(
             {
-                "command": (
-                    "python3 -c \"import sys; "
-                    "[print(i) for i in range(2000)]; 1/0\""
-                ),
+                "command": ('python3 -c "import sys; [print(i) for i in range(2000)]; 1/0"'),
                 "reason": _INTEGRATION_REASON,
             },
             config=_tool_config(tmp_path, "large-fail"),

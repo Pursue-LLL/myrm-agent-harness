@@ -130,7 +130,11 @@ GOLDEN_MEMORY_DECISIONS: tuple[MemoryDecisionScenario, ...] = (
     MemoryDecisionScenario(
         "declarative_not_command",
         "memory_save_tool",
-        save_fragments_en=("write as declarative facts, not instructions", "instruction-style, gets misinterpreted as a command", "focused on durable facts"),
+        save_fragments_en=(
+            "write as declarative facts, not instructions",
+            "instruction-style, gets misinterpreted as a command",
+            "focused on durable facts",
+        ),
         save_fragments_zh=("写陈述性事实，不要写指令", "指令式，易被误解为命令", "聚焦持久事实"),
     ),
     MemoryDecisionScenario(
@@ -181,9 +185,7 @@ class TestMemoryToolDecisionGolden:
                 approval=scenario.save_approval_required,
             )
             for fragment in scenario.save_fragments_en:
-                assert fragment in text, (
-                    f"{scenario.scenario_id}: missing save EN fragment {fragment!r}"
-                )
+                assert fragment in text, f"{scenario.scenario_id}: missing save EN fragment {fragment!r}"
 
     def test_each_scenario_save_guardrails_zh(self) -> None:
         for scenario in GOLDEN_MEMORY_DECISIONS:
@@ -195,9 +197,7 @@ class TestMemoryToolDecisionGolden:
                 approval=scenario.save_approval_required,
             )
             for fragment in scenario.save_fragments_zh:
-                assert fragment in text, (
-                    f"{scenario.scenario_id}: missing save ZH fragment {fragment!r}"
-                )
+                assert fragment in text, f"{scenario.scenario_id}: missing save ZH fragment {fragment!r}"
 
     def test_each_scenario_manage_guardrails_en(self) -> None:
         for scenario in GOLDEN_MEMORY_DECISIONS:
@@ -205,9 +205,7 @@ class TestMemoryToolDecisionGolden:
                 continue
             text = MEMORY_MANAGE_TOOL_DESCRIPTION_EN
             for fragment in scenario.manage_fragments_en:
-                assert fragment in text, (
-                    f"{scenario.scenario_id}: missing manage EN fragment {fragment!r}"
-                )
+                assert fragment in text, f"{scenario.scenario_id}: missing manage EN fragment {fragment!r}"
 
     def test_each_scenario_manage_guardrails_zh(self) -> None:
         for scenario in GOLDEN_MEMORY_DECISIONS:
@@ -215,9 +213,7 @@ class TestMemoryToolDecisionGolden:
                 continue
             text = MEMORY_MANAGE_TOOL_DESCRIPTION_ZH
             for fragment in scenario.manage_fragments_zh:
-                assert fragment in text, (
-                    f"{scenario.scenario_id}: missing manage ZH fragment {fragment!r}"
-                )
+                assert fragment in text, f"{scenario.scenario_id}: missing manage ZH fragment {fragment!r}"
 
     def test_save_core_does_not_leak_manage_implementation_details(self) -> None:
         forbidden = ("demotes", "low confidence", "correction memory linked")

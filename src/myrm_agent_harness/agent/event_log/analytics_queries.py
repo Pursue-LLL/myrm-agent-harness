@@ -335,9 +335,7 @@ async def get_session_summary(
     )
 
 
-async def _extract_security_audit_summary(
-    backend: EventLogBackend, session_id: str
-) -> dict[str, object] | None:
+async def _extract_security_audit_summary(backend: EventLogBackend, session_id: str) -> dict[str, object] | None:
     """Extract security audit summary from persisted security_audit events."""
     audit_events = await _collect_events(
         backend.get_events(session_id, EventFilter(event_types=frozenset({"security_audit"}), limit=1))
@@ -514,9 +512,7 @@ async def _collect_events(result: object) -> list[StructuredEvent]:
     return list(await cast(Awaitable[Any], result))
 
 
-async def get_agent_tool_health(
-    backend: EventLogBackend, agent_id: str, *, days: int = 7
-) -> list[dict[str, Any]]:
+async def get_agent_tool_health(backend: EventLogBackend, agent_id: str, *, days: int = 7) -> list[dict[str, Any]]:
     """Get aggregated tool health metrics for a specific agent.
 
     Args:
@@ -574,14 +570,16 @@ async def get_agent_tool_health(
         avg_duration = (sum(durations) / len(durations) / 1000.0) if durations else 0.0
         max_duration = (max(durations) / 1000.0) if durations else 0.0
 
-        results.append({
-            "tool_name": tool_name,
-            "total_calls": data["total_calls"],
-            "success_count": data["success_count"],
-            "error_count": data["error_count"],
-            "avg_duration": avg_duration,
-            "max_duration": max_duration,
-        })
+        results.append(
+            {
+                "tool_name": tool_name,
+                "total_calls": data["total_calls"],
+                "success_count": data["success_count"],
+                "error_count": data["error_count"],
+                "avg_duration": avg_duration,
+                "max_duration": max_duration,
+            }
+        )
 
     # Sort by total_calls descending
     results.sort(key=lambda item: item["total_calls"], reverse=True)

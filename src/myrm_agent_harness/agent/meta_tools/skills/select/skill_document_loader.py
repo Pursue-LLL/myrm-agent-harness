@@ -54,9 +54,7 @@ def build_reload_summary(skill_meta: SkillMetadata) -> str:
     )
 
 
-async def build_reload_summary_with_index(
-    skill_meta: SkillMetadata, skill_backend: SkillBackend
-) -> str:
+async def build_reload_summary_with_index(skill_meta: SkillMetadata, skill_backend: SkillBackend) -> str:
     """Reload summary plus compact linked-file index when available."""
     from myrm_agent_harness.agent.meta_tools.skills.select.l1_disclosure_footer import (
         format_compact_linked_index,
@@ -96,9 +94,7 @@ async def get_skill_document(
         skill_doc = mcp_skill_generator.generate_skill_content(skill_meta)
     elif skill_meta.storage_skill_id:
         try:
-            skill_doc = await skill_backend.get_skill_content(
-                skill_meta.storage_skill_id
-            )
+            skill_doc = await skill_backend.get_skill_content(skill_meta.storage_skill_id)
         except Exception:
             return f"# {skill_meta.name}\n\nError: failed to load skill document"
 
@@ -139,18 +135,14 @@ async def get_skill_document(
         build_l1_disclosure_footer,
     )
 
-    footer = await build_l1_disclosure_footer(
-        skill_meta, skill_backend, skill_instance
-    )
+    footer = await build_l1_disclosure_footer(skill_meta, skill_backend, skill_instance)
     if footer:
         skill_doc = f"{skill_doc}{footer}"
 
     return skill_doc
 
 
-async def get_skill_file(
-    skill_meta: SkillMetadata, skill_backend: SkillBackend, file_path: str
-) -> str | None:
+async def get_skill_file(skill_meta: SkillMetadata, skill_backend: SkillBackend, file_path: str) -> str | None:
     """Read a specific auxiliary file from a skill directory."""
     from pathlib import PurePosixPath
 
@@ -181,9 +173,7 @@ async def get_skill_file(
         )
         return None
     except Exception as e:
-        logger.warning(
-            "Failed to read skill file '%s/%s': %s", skill_meta.name, file_path, e
-        )
+        logger.warning("Failed to read skill file '%s/%s': %s", skill_meta.name, file_path, e)
         return None
 
 
@@ -210,9 +200,7 @@ def _check_load_time_safety(skill_name: str, content: str) -> str:
     if not high_or_critical:
         return content
 
-    warning_lines = [
-        f"- {f.threat_type}: {f.description}" for f in high_or_critical[:3]
-    ]
+    warning_lines = [f"- {f.threat_type}: {f.description}" for f in high_or_critical[:3]]
     warning = (
         f">  **SECURITY WARNING**: This skill content has {len(high_or_critical)} "
         f"high/critical security finding(s) detected at load time:\n"
@@ -236,9 +224,7 @@ async def _resolve_dynamic_context(content: str) -> str:
             proc = await asyncio.create_subprocess_shell(
                 cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=_DYNAMIC_CMD_TIMEOUT
-            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=_DYNAMIC_CMD_TIMEOUT)
             output = stdout.decode("utf-8", errors="replace").strip()
             if proc.returncode != 0 and not output:
                 err = stderr.decode("utf-8", errors="replace").strip()

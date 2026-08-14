@@ -157,9 +157,7 @@ class TestRecordExecutionIntentInjection:
         mock_metrics.consecutive_failures = 1
         mock_tracker.record_execution = AsyncMock(return_value=mock_metrics)
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.store = mock_store
             integration.tracker = mock_tracker
@@ -170,9 +168,7 @@ class TestRecordExecutionIntentInjection:
 
         set_task_intent("Debug login page error")
 
-        await integration.record_execution(
-            skill_id="test_skill_001", success=False, error_message="Login failed"
-        )
+        await integration.record_execution(skill_id="test_skill_001", success=False, error_message="Login failed")
 
         call_args = mock_tracker.record_execution.call_args
         recorded_result: SkillExecutionResult = call_args[0][0]
@@ -193,9 +189,7 @@ class TestRecordExecutionIntentInjection:
         mock_metrics.should_trigger_fix.return_value = False
         mock_tracker.record_execution = AsyncMock(return_value=mock_metrics)
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.store = MagicMock()
             integration.tracker = mock_tracker
@@ -444,9 +438,7 @@ class TestSubprocessExecutorEdgeCases:
         with tempfile.TemporaryDirectory() as skill_dir_path:
             skill_dir = Path(skill_dir_path)
             # Create a regression test file
-            (skill_dir / "test_existing.py").write_text(
-                "def test_old(): assert True\n", encoding="utf-8"
-            )
+            (skill_dir / "test_existing.py").write_text("def test_old(): assert True\n", encoding="utf-8")
             # Create a non-test file (should be ignored)
             (skill_dir / "helper.py").write_text("x = 1\n", encoding="utf-8")
 
@@ -468,9 +460,7 @@ import time
 def test_slow():
     time.sleep(60)
 """
-        result = await executor.run_tests(
-            skill_content='"""Skill."""', test_code=test_code, skill_name="test_skill"
-        )
+        result = await executor.run_tests(skill_content='"""Skill."""', test_code=test_code, skill_name="test_skill")
         assert result.passed is False
         assert result.timed_out is True
         assert result.returncode == 124
@@ -511,9 +501,7 @@ class TestEvolutionIntegrationMethods:
 
         db_path = tmp_path / "skills.db"
         mock_llm = MagicMock()
-        integration = EvolutionIntegration(
-            db_path=db_path, llm=mock_llm, enable_tde=True, enable_tool_calling=True
-        )
+        integration = EvolutionIntegration(db_path=db_path, llm=mock_llm, enable_tde=True, enable_tool_calling=True)
 
         assert integration.db_path == db_path
         assert integration.store is not None
@@ -547,9 +535,7 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.engine = None
 
@@ -563,17 +549,13 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.engine = AsyncMock()
             integration.engine.fix_skill = AsyncMock(return_value="fixed")
             integration.screener = None
 
-        result = await integration.evolve_skill(
-            "sk1", EvolutionType.FIX, reason="crash"
-        )
+        result = await integration.evolve_skill("sk1", EvolutionType.FIX, reason="crash")
         assert result == "fixed"
         integration.engine.fix_skill.assert_awaited_once_with("sk1", "crash")
 
@@ -584,17 +566,13 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.engine = AsyncMock()
             integration.engine.derive_skill_simple = AsyncMock(return_value="derived")
             integration.screener = None
 
-        result = await integration.evolve_skill(
-            "sk1", EvolutionType.DERIVED, user_feedback="faster"
-        )
+        result = await integration.evolve_skill("sk1", EvolutionType.DERIVED, user_feedback="faster")
         assert result == "derived"
 
     @pytest.mark.asyncio
@@ -604,9 +582,7 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.engine = AsyncMock()
             integration.engine.capture_skill_simple = AsyncMock(return_value="captured")
@@ -639,9 +615,7 @@ class TestEvolutionIntegrationMethods:
         mock_store = MagicMock()
         mock_store.deactivate_skill = AsyncMock()
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.store = mock_store
             integration.tracker = mock_tracker
@@ -655,9 +629,7 @@ class TestEvolutionIntegrationMethods:
         )
 
         mock_store.deactivate_skill.assert_called_once_with("broken")
-        mock_engine.fix_skill.assert_called_once_with(
-            "broken", "SyntaxError: invalid syntax"
-        )
+        mock_engine.fix_skill.assert_called_once_with("broken", "SyntaxError: invalid syntax")
 
     @pytest.mark.asyncio
     async def test_record_execution_triggers_fix_immediate(self) -> None:
@@ -676,9 +648,7 @@ class TestEvolutionIntegrationMethods:
         mock_engine = AsyncMock()
         mock_engine.fix_skill = AsyncMock()
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.store = MagicMock()
             integration.store.deactivate_skill = AsyncMock()
@@ -686,9 +656,7 @@ class TestEvolutionIntegrationMethods:
             integration.engine = mock_engine
             integration.queue = None
 
-        await integration.record_execution(
-            skill_id="broken", success=False, error_message="crash"
-        )
+        await integration.record_execution(skill_id="broken", success=False, error_message="crash")
         mock_engine.fix_skill.assert_awaited_once_with("broken", "crash")
 
     @pytest.mark.asyncio
@@ -708,18 +676,14 @@ class TestEvolutionIntegrationMethods:
         mock_queue = AsyncMock()
         mock_queue.enqueue = AsyncMock()
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.store = MagicMock()
             integration.tracker = mock_tracker
             integration.engine = MagicMock()
             integration.queue = mock_queue
 
-        await integration.record_execution(
-            skill_id="flaky", success=False, error_message="fail"
-        )
+        await integration.record_execution(skill_id="flaky", success=False, error_message="fail")
         mock_queue.enqueue.assert_awaited_once()
 
     def test_get_stats_minimal(self) -> None:
@@ -728,9 +692,7 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.metrics_tracker = MagicMock()
             integration.metrics_tracker.get_report.return_value = {"total": 0}
@@ -747,9 +709,7 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.metrics_tracker = MagicMock()
             integration.metrics_tracker.get_report.return_value = {}
@@ -769,9 +729,7 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.queue = AsyncMock()
             integration.embedding_cache = MagicMock()
@@ -789,9 +747,7 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.queue = None
             integration.embedding_cache = None
@@ -807,9 +763,7 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.tracker = MagicMock()
             integration.tracker.get_skills_needing_fix = AsyncMock(return_value=["sk1"])
@@ -824,9 +778,7 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.queue = None
             integration.engine = MagicMock()
@@ -841,9 +793,7 @@ class TestEvolutionIntegrationMethods:
             EvolutionIntegration,
         )
 
-        with patch.object(
-            EvolutionIntegration, "__init__", lambda self, **kwargs: None
-        ):
+        with patch.object(EvolutionIntegration, "__init__", lambda self, **kwargs: None):
             integration = EvolutionIntegration.__new__(EvolutionIntegration)
             integration.queue = MagicMock()
             integration.engine = None

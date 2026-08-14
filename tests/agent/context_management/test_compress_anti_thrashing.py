@@ -35,9 +35,7 @@ class _FakeBudget:
         self._dynamic_min_save = dynamic_min_save
         self.remaining_ratio = remaining_ratio
 
-    def calculate_dynamic_thresholds(
-        self, *, turn_count: int, estimated_remaining_turns: int = 10
-    ) -> tuple[int, int]:
+    def calculate_dynamic_thresholds(self, *, turn_count: int, estimated_remaining_turns: int = 10) -> tuple[int, int]:
         return self._dynamic_threshold, self._dynamic_min_save
 
     def get_dynamic_compress_min_save(self) -> int:
@@ -47,9 +45,7 @@ class _FakeBudget:
 CHAT_ID = "test-anti-thrashing-chat"
 
 
-def _build_context(
-    *, messages: list | None = None, metadata: dict | None = None
-) -> ProcessorContext:
+def _build_context(*, messages: list | None = None, metadata: dict | None = None) -> ProcessorContext:
     return ProcessorContext(
         messages=messages or [HumanMessage(content="test")],
         user_query="test",
@@ -296,9 +292,7 @@ class TestAntiThrashingStreakUpdate:
             with (
                 patch(
                     "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-                    return_value=_FakeBudget(
-                        dynamic_threshold=100, dynamic_min_save=50
-                    ),
+                    return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
                 ),
                 patch(
                     "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
@@ -674,9 +668,7 @@ class TestBoundaryValues:
             with (
                 patch(
                     "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-                    return_value=_FakeBudget(
-                        dynamic_threshold=100, dynamic_min_save=50
-                    ),
+                    return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
                 ),
                 patch(
                     "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",

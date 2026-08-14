@@ -47,9 +47,7 @@ class InMemoryBackend:
         for e in events:
             self._events.setdefault(e.session_id, []).append(e)
 
-    async def get_events(
-        self, session_id: str, event_filter: EventFilter | None = None
-    ) -> list[StructuredEvent]:
+    async def get_events(self, session_id: str, event_filter: EventFilter | None = None) -> list[StructuredEvent]:
         events = self._events.get(session_id, [])
         if event_filter:
             if event_filter.start_sequence is not None:
@@ -137,9 +135,7 @@ def _make_session_events(
             timestamp=1700000002.0,
             event_type="tool_end",
             session_id=session_id,
-            data=EventPayload(
-                **{"tool_name": "code_runner", "output_summary": "ok", "duration_ms": 1000}
-            ),
+            data=EventPayload(**{"tool_name": "code_runner", "output_summary": "ok", "duration_ms": 1000}),
         ),
         StructuredEvent(
             sequence=4,
@@ -262,9 +258,7 @@ class TestFormatConverter:
         trace = _make_trace()
         result = convert_trace(trace, ExportFormat.OPENAI)
         messages = result["messages"]
-        assistant_tool_msgs = [
-            m for m in messages if m.get("role") == "assistant" and m.get("tool_calls")
-        ]
+        assistant_tool_msgs = [m for m in messages if m.get("role") == "assistant" and m.get("tool_calls")]
         assert len(assistant_tool_msgs) >= 1
         for msg in assistant_tool_msgs:
             for tc in msg["tool_calls"]:
@@ -288,9 +282,7 @@ class TestFormatConverter:
         )
         result = convert_trace(trace, ExportFormat.OPENAI)
         messages = result["messages"]
-        assistant_tool_msgs = [
-            m for m in messages if m.get("role") == "assistant" and m.get("tool_calls")
-        ]
+        assistant_tool_msgs = [m for m in messages if m.get("role") == "assistant" and m.get("tool_calls")]
         assert len(assistant_tool_msgs) == 1
         args_str = assistant_tool_msgs[0]["tool_calls"][0]["function"]["arguments"]
         assert args_str == "{}"
@@ -367,7 +359,11 @@ class TestDatasetExporter:
     @pytest.mark.asyncio
     async def test_export_multiple_formats(self, tmp_path: Path) -> None:
         backend = InMemoryBackend(
-            {"s1": _make_session_events("s1", "Test task with enough content for quality", "Output result with sufficient length")}
+            {
+                "s1": _make_session_events(
+                    "s1", "Test task with enough content for quality", "Output result with sufficient length"
+                )
+            }
         )
 
         config = ExportConfig(

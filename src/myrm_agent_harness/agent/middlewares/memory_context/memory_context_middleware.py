@@ -134,15 +134,10 @@ class MemoryContextMiddleware(AgentMiddleware):
                     continue
                 elif isinstance(msg.content, list) and len(msg.content) > 0:
                     first_block = msg.content[0]
-                    if (
-                        not isinstance(first_block, dict)
-                        or first_block.get("type") != "text"
-                    ):
+                    if not isinstance(first_block, dict) or first_block.get("type") != "text":
                         continue
                     first_text = first_block.get("text", "")
-                    if isinstance(first_text, str) and not first_text.startswith(
-                        prefix
-                    ):
+                    if isinstance(first_text, str) and not first_text.startswith(prefix):
                         new_content = copy.deepcopy(msg.content)
                         if not isinstance(new_content[0], dict):
                             continue
@@ -209,12 +204,8 @@ class MemoryContextMiddleware(AgentMiddleware):
             )
             return await handler(request)
 
-        prefetched_snapshot = (
-            context.get("memory_brief_snapshot") if isinstance(context, dict) else None
-        )
-        injection_source = (
-            "snapshot" if isinstance(prefetched_snapshot, dict) else "fallback"
-        )
+        prefetched_snapshot = context.get("memory_brief_snapshot") if isinstance(context, dict) else None
+        injection_source = "snapshot" if isinstance(prefetched_snapshot, dict) else "fallback"
         static_result: object
         learned_result: object
         if isinstance(prefetched_snapshot, dict):
@@ -271,9 +262,7 @@ class MemoryContextMiddleware(AgentMiddleware):
         memory_ctx: dict[str, object] = static_result
 
         if isinstance(learned_result, BaseException):
-            logger.warning(
-                "Learned memory context failed (non-fatal): %s", learned_result
-            )
+            logger.warning("Learned memory context failed (non-fatal): %s", learned_result)
             learned_ctx: dict[str, list[dict[str, str]]] = {
                 "learned_rules": [],
                 "learned_preferences": [],
@@ -331,9 +320,7 @@ class MemoryContextMiddleware(AgentMiddleware):
         if hasattr(manager, "_config"):
             base_budget = manager._config.max_learned_context_chars
             if manager._config.model_context_tokens:
-                total_budget = max(
-                    base_budget, manager._config.model_context_tokens // 30
-                )
+                total_budget = max(base_budget, manager._config.model_context_tokens // 30)
             else:
                 total_budget = base_budget
             used_chars = len(stable_formatted or "") + len(untrusted_formatted or "")

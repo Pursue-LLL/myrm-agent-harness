@@ -12,6 +12,7 @@ def test_idempotent_tool_relaxed_threshold():
     v = g.pre_check("file_read_tool", {"path": "test.txt"})
     assert v.action == LoopAction.WARN
 
+
 def test_bash_ls_is_idempotent():
     g = LoopGuard(warn_threshold=3, break_threshold=5)
 
@@ -22,6 +23,7 @@ def test_bash_ls_is_idempotent():
 
     v = g.pre_check("bash_code_execute_tool", {"command": "ls -la /tmp"})
     assert v.action == LoopAction.WARN
+
 
 def test_bash_rm_is_not_idempotent():
     g = LoopGuard(warn_threshold=3, break_threshold=5)

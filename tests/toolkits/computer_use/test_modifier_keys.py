@@ -27,6 +27,7 @@ class TestModifierKeyType:
 
     def test_modifier_key_is_literal(self) -> None:
         from typing import Literal, get_origin
+
         assert get_origin(ModifierKey) is Literal
 
 
@@ -65,6 +66,7 @@ def _mock_macos_env():
         import importlib
 
         import myrm_agent_harness.toolkits.computer_use.backends.macos as macos_mod
+
         importlib.reload(macos_mod)
         yield macos_mod
 
@@ -195,6 +197,7 @@ class TestLinuxBackendModifiers:
     @pytest.fixture
     def backend(self):
         from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
+
         return LinuxBackend(display_num=99)
 
     @pytest.mark.asyncio
@@ -307,6 +310,7 @@ class TestSessionModifierPassthrough:
     def mock_backend(self):
         backend = AsyncMock()
         from myrm_agent_harness.toolkits.computer_use.types import ScreenContext, ScreenInfo
+
         backend.screen_info.return_value = ScreenInfo(width=1920, height=1080, dpi_scale=1.0)
         backend.screen_context.return_value = ScreenContext(active_window="test", mouse_x=0, mouse_y=0)
         backend.click.return_value = ActionResult(success=True)
@@ -319,10 +323,14 @@ class TestSessionModifierPassthrough:
         from myrm_agent_harness.toolkits.computer_use.coordinate_scaler import CoordinateScaler
         from myrm_agent_harness.toolkits.computer_use.session import ComputerSession
         from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig
+
         s = ComputerSession(backend=mock_backend, config=ComputerUseConfig())
         s._scaler = CoordinateScaler(
-            screen_width=1920, screen_height=1080,
-            sent_width=1920, sent_height=1080, dpi_scale=1.0,
+            screen_width=1920,
+            screen_height=1080,
+            sent_width=1920,
+            sent_height=1080,
+            dpi_scale=1.0,
         )
         return s
 
@@ -363,6 +371,7 @@ class TestActionInputSchema:
     def test_modifiers_field_exists(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import create_desktop_tools
         from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
+
         mock_session = MagicMock(spec=DesktopSession)
         tools = create_desktop_tools(mock_session)
         action_tool = next(t for t in tools if t.name == "desktop_vision_tool")
@@ -374,6 +383,7 @@ class TestActionInputSchema:
     def test_modifiers_field_accepts_valid_values(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import create_desktop_tools
         from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
+
         mock_session = MagicMock(spec=DesktopSession)
         tools = create_desktop_tools(mock_session)
         action_tool = next(t for t in tools if t.name == "desktop_vision_tool")
@@ -388,6 +398,7 @@ class TestActionInputSchema:
     def test_modifiers_field_optional(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import create_desktop_tools
         from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
+
         mock_session = MagicMock(spec=DesktopSession)
         tools = create_desktop_tools(mock_session)
         action_tool = next(t for t in tools if t.name == "desktop_vision_tool")
@@ -403,6 +414,7 @@ class TestEdgeCases:
     @pytest.fixture
     def linux_backend(self):
         from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
+
         return LinuxBackend(display_num=99)
 
     @pytest.fixture

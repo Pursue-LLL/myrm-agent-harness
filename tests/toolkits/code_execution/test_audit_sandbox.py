@@ -27,9 +27,7 @@ def audit_hook(tmp_path):
 
 def test_subprocess_execution_blocked(audit_hook):
     hook, _ = audit_hook
-    blocked_events = [
-        "os.system", "os.exec", "os.posix_spawn", "os.spawn", "subprocess.Popen"
-    ]
+    blocked_events = ["os.system", "os.exec", "os.posix_spawn", "os.spawn", "subprocess.Popen"]
     for event in blocked_events:
         with pytest.raises(SecurityError, match="Subprocess execution is strictly forbidden"):
             hook(event, ("dummy",))
@@ -86,7 +84,9 @@ def test_file_isolation_writes_blocked_outside_workspace(audit_hook):
     with pytest.raises(SecurityError, match="Write operation outside allowed workspace blocked"):
         hook("open", (outside_path, "w", 0))
 
-    with pytest.raises(SecurityError, match=r"Destructive file operation \(os\.remove\) outside allowed workspace blocked"):
+    with pytest.raises(
+        SecurityError, match=r"Destructive file operation \(os\.remove\) outside allowed workspace blocked"
+    ):
         hook("os.remove", (outside_path, None))
 
 
@@ -111,5 +111,7 @@ def test_file_isolation_rename_blocked_outside_workspace(audit_hook):
     allowed_src = os.path.join(workspace, "test.txt")
     outside_dst = "/etc/hosts"
 
-    with pytest.raises(SecurityError, match=r"Destructive file operation \(os\.rename\) outside allowed workspace blocked"):
+    with pytest.raises(
+        SecurityError, match=r"Destructive file operation \(os\.rename\) outside allowed workspace blocked"
+    ):
         hook("os.rename", (allowed_src, outside_dst, None, None))

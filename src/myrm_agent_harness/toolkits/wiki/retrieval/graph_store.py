@@ -55,36 +55,30 @@ class WikiGraphStore:
                     edges_tables.append(f"pub_{idx}.wiki_edges")
 
             fts_union = " UNION ALL ".join(f"SELECT concept_name FROM {t}" for t in fts_tables)
-            edges_union = " UNION ALL ".join(
-                f"SELECT source, target, weight FROM {t}" for t in edges_tables
-            )
+            edges_union = " UNION ALL ".join(f"SELECT source, target, weight FROM {t}" for t in edges_tables)
 
             if not center_node:
-                cursor = conn.execute(
-                    f"SELECT concept_name FROM ({fts_union}) LIMIT ?", (limit,)
-                )
+                cursor = conn.execute(f"SELECT concept_name FROM ({fts_union}) LIMIT ?", (limit,))
                 for row in cursor.fetchall():
                     node_id = row["concept_name"]
                     nodes.append({"id": node_id, "name": node_id.replace("-", " "), "group": 1})
                     node_ids.add(node_id)
 
                 if node_ids:
-                    cursor = conn.execute(
-                        f"SELECT source, target, weight FROM ({edges_union})"
-                    )
+                    cursor = conn.execute(f"SELECT source, target, weight FROM ({edges_union})")
                     for row in cursor.fetchall():
                         src = row["source"]
                         tgt = row["target"]
                         if src in node_ids and tgt in node_ids:
-                            edges.append({
-                                "source": src,
-                                "target": tgt,
-                                "weight": row["weight"] or 1.0,
-                            })
+                            edges.append(
+                                {
+                                    "source": src,
+                                    "target": tgt,
+                                    "weight": row["weight"] or 1.0,
+                                }
+                            )
             else:
-                nodes, edges = self._bfs_from_center(
-                    conn, center_node, depth, limit, fts_union, edges_union
-                )
+                nodes, edges = self._bfs_from_center(conn, center_node, depth, limit, fts_union, edges_union)
 
         enrich_graph_with_communities(nodes, edges)
         return {"nodes": nodes, "edges": edges}
@@ -109,11 +103,13 @@ class WikiGraphStore:
             (center_node,),
         )
         if cursor.fetchone():
-            nodes.append({
-                "id": center_node,
-                "name": center_node.replace("-", " "),
-                "group": 1,
-            })
+            nodes.append(
+                {
+                    "id": center_node,
+                    "name": center_node.replace("-", " "),
+                    "group": 1,
+                }
+            )
 
         for _ in range(depth):
             if not current_level:
@@ -129,11 +125,13 @@ class WikiGraphStore:
             )
             for row in cursor.fetchall():
                 src, tgt = row["source"], row["target"]
-                all_edges.append({
-                    "source": src,
-                    "target": tgt,
-                    "weight": row["weight"] or 1.0,
-                })
+                all_edges.append(
+                    {
+                        "source": src,
+                        "target": tgt,
+                        "weight": row["weight"] or 1.0,
+                    }
+                )
                 if tgt not in visited_nodes:
                     next_level.add(tgt)
 
@@ -143,11 +141,13 @@ class WikiGraphStore:
             )
             for row in cursor.fetchall():
                 src, tgt = row["source"], row["target"]
-                all_edges.append({
-                    "source": src,
-                    "target": tgt,
-                    "weight": row["weight"] or 1.0,
-                })
+                all_edges.append(
+                    {
+                        "source": src,
+                        "target": tgt,
+                        "weight": row["weight"] or 1.0,
+                    }
+                )
                 if src not in visited_nodes:
                     next_level.add(src)
 
@@ -161,11 +161,13 @@ class WikiGraphStore:
                 for row in cursor.fetchall():
                     nid = row["concept_name"]
                     if nid not in visited_nodes:
-                        nodes.append({
-                            "id": nid,
-                            "name": nid.replace("-", " "),
-                            "group": 1,
-                        })
+                        nodes.append(
+                            {
+                                "id": nid,
+                                "name": nid.replace("-", " "),
+                                "group": 1,
+                            }
+                        )
                         visited_nodes.add(nid)
 
             current_level = next_level

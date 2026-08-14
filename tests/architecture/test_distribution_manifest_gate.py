@@ -29,8 +29,4 @@ def test_algorithm_zone_modules_are_manifest_covered_or_public() -> None:
     violations = manifest_watch_violations()
     if violations:
         joined = "\n  - ".join(violations)
-        pytest.fail(
-            "Algorithm-zone modules missing manifest coverage or public marker:\n"
-            f"  - {joined}\n"
-            f"{_GATE_HINT}"
-        )
+        pytest.fail(f"Algorithm-zone modules missing manifest coverage or public marker:\n  - {joined}\n{_GATE_HINT}")

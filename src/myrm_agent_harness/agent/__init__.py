@@ -99,6 +99,4 @@ def __getattr__(name: str) -> object:
 
 
 def __dir__() -> list[str]:
-    return sorted(
-        set(__all__ + [name for name in globals() if not name.startswith("_")])
-    )
+    return sorted(set(__all__ + [name for name in globals() if not name.startswith("_")]))

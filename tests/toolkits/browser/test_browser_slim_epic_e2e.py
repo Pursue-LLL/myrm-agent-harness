@@ -74,12 +74,14 @@ async def test_interact_batch_steps_real_browser(browser_session: BrowserSession
     btn_ref = extract_ref_ids(snap_text, role_filter="button")[0]
     input_ref = extract_ref_ids(snap_text, role_filter="textbox")[0]
 
-    result = await interact.ainvoke({
-        "steps": [
-            {"action": "fill", "ref": input_ref, "text": "hello"},
-            {"action": "click", "ref": btn_ref},
-        ],
-    })
+    result = await interact.ainvoke(
+        {
+            "steps": [
+                {"action": "fill", "ref": input_ref, "text": "hello"},
+                {"action": "click", "ref": btn_ref},
+            ],
+        }
+    )
 
     assert "Step 1" in result
     assert "Step 2" in result

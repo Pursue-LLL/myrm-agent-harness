@@ -175,9 +175,7 @@ def tool_layer_snapshot_label(layer: ToolLayer) -> str:
     return _LAYER_SNAPSHOT_LABELS[layer]
 
 
-def get_tool_registry_sort_key(
-    tool_name: str, layer: ToolLayer
-) -> tuple[int, int, str]:
+def get_tool_registry_sort_key(tool_name: str, layer: ToolLayer) -> tuple[int, int, str]:
     """Cache-friendly registry sort key: layer → group rank → name."""
     if layer == ToolLayer.COMMON:
         group_rank = _COMMON_LAYER_SORT_RANK.get(tool_name, 50)

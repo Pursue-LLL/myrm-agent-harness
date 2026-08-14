@@ -203,10 +203,14 @@ class TestScheduleRagIngest:
         full_result = FakePDFResult(text="full content all 50 pages", page_count=50)
         mock_extract = AsyncMock(return_value=full_result)
 
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/fake.pdf",
-        ), patch("os.unlink"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/fake.pdf",
+            ),
+            patch("os.unlink"),
+        ):
             await _schedule_rag_ingest("/tmp/large.pdf", raw_bytes, result, FakeConfig, mock_extract)
 
         expected_hash = hashlib.sha256(raw_bytes[:8192]).hexdigest()[:16]
@@ -221,10 +225,14 @@ class TestScheduleRagIngest:
         result = FakePDFResult(text="original truncated", page_count=50)
         mock_extract = AsyncMock(side_effect=RuntimeError("extraction boom"))
 
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/fake.pdf",
-        ), patch("os.unlink"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/fake.pdf",
+            ),
+            patch("os.unlink"),
+        ):
             await _schedule_rag_ingest("/tmp/fail.pdf", raw_bytes, result, FakeConfig, mock_extract)
 
         expected_hash = hashlib.sha256(raw_bytes[:8192]).hexdigest()[:16]
@@ -266,10 +274,14 @@ class TestScheduleRagIngest:
         result = FakePDFResult(text="text", page_count=50)
         mock_extract = AsyncMock(side_effect=RuntimeError("boom"))
 
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/cleanup.pdf",
-        ), patch("os.unlink") as mock_unlink:
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/cleanup.pdf",
+            ),
+            patch("os.unlink") as mock_unlink,
+        ):
             await _schedule_rag_ingest("/tmp/t.pdf", b"data", result, FakeConfig, mock_extract)
 
         mock_unlink.assert_called_once_with("/tmp/cleanup.pdf")
@@ -323,12 +335,17 @@ class TestReadPdfAsContentBlocks:
     async def test_import_error_graceful(self) -> None:
         executor = AsyncMock()
         executor.read_file_bytes = AsyncMock(return_value=b"bytes")
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/t.pdf",
-        ), patch("os.unlink"), patch.dict(
-            "sys.modules",
-            {"myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor": None},
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/t.pdf",
+            ),
+            patch("os.unlink"),
+            patch.dict(
+                "sys.modules",
+                {"myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor": None},
+            ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/test.pdf", executor, False)
         assert "not available" in result
@@ -337,12 +354,18 @@ class TestReadPdfAsContentBlocks:
     async def test_extraction_failure(self) -> None:
         executor = AsyncMock()
         executor.read_file_bytes = AsyncMock(return_value=b"bytes")
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/t.pdf",
-        ), patch("os.unlink"), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
-            new_callable=AsyncMock, side_effect=RuntimeError("extract fail"),
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/t.pdf",
+            ),
+            patch("os.unlink"),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("extract fail"),
+            ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/test.pdf", executor, False)
         assert "Extraction failed" in result
@@ -352,15 +375,22 @@ class TestReadPdfAsContentBlocks:
         executor = AsyncMock()
         executor.read_file_bytes = AsyncMock(return_value=b"bytes")
         empty_result = FakePDFResult(text="   ", page_count=1)
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/t.pdf",
-        ), patch("os.unlink"), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
-            new_callable=AsyncMock, return_value=empty_result,
-        ), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
-            FakeConfig,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/t.pdf",
+            ),
+            patch("os.unlink"),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                new_callable=AsyncMock,
+                return_value=empty_result,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                FakeConfig,
+            ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/enc.pdf", executor, False)
         assert "encrypted" in result
@@ -371,15 +401,22 @@ class TestReadPdfAsContentBlocks:
         executor = AsyncMock()
         executor.read_file_bytes = AsyncMock(return_value=b"bytes")
         small_result = FakePDFResult(text="Hello world", page_count=RAG_PAGE_THRESHOLD)
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/t.pdf",
-        ), patch("os.unlink"), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
-            new_callable=AsyncMock, return_value=small_result,
-        ), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
-            FakeConfig,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/t.pdf",
+            ),
+            patch("os.unlink"),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                new_callable=AsyncMock,
+                return_value=small_result,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                FakeConfig,
+            ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/s.pdf", executor, False)
         assert "RAG Auto-Index" not in result
@@ -393,15 +430,22 @@ class TestReadPdfAsContentBlocks:
         executor = AsyncMock()
         executor.read_file_bytes = AsyncMock(return_value=b"bytes")
         large_result = FakePDFResult(text="Content", page_count=RAG_PAGE_THRESHOLD + 1)
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/t.pdf",
-        ), patch("os.unlink"), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
-            new_callable=AsyncMock, return_value=large_result,
-        ), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
-            FakeConfig,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/t.pdf",
+            ),
+            patch("os.unlink"),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                new_callable=AsyncMock,
+                return_value=large_result,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                FakeConfig,
+            ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/l.pdf", executor, False)
         assert "RAG Auto-Index" in result
@@ -414,15 +458,22 @@ class TestReadPdfAsContentBlocks:
         executor = AsyncMock()
         executor.read_file_bytes = AsyncMock(return_value=b"bytes")
         large_result = FakePDFResult(text="Content", page_count=RAG_PAGE_THRESHOLD + 1)
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/t.pdf",
-        ), patch("os.unlink"), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
-            new_callable=AsyncMock, return_value=large_result,
-        ), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
-            FakeConfig,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/t.pdf",
+            ),
+            patch("os.unlink"),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                new_callable=AsyncMock,
+                return_value=large_result,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                FakeConfig,
+            ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/no_cb.pdf", executor, False)
         assert "RAG Auto-Index" not in result
@@ -433,15 +484,22 @@ class TestReadPdfAsContentBlocks:
         executor.read_file_bytes = AsyncMock(return_value=b"bytes")
         long_text = "x" * (_FALLBACK_MAX_CHARS + 1000)
         big_result = FakePDFResult(text=long_text, page_count=5)
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/t.pdf",
-        ), patch("os.unlink"), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
-            new_callable=AsyncMock, return_value=big_result,
-        ), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
-            FakeConfig,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/t.pdf",
+            ),
+            patch("os.unlink"),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                new_callable=AsyncMock,
+                return_value=big_result,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                FakeConfig,
+            ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/big.pdf", executor, False)
         assert f"truncated at {_FALLBACK_MAX_CHARS}" in result
@@ -452,15 +510,22 @@ class TestReadPdfAsContentBlocks:
         executor.read_file_bytes = AsyncMock(return_value=b"bytes")
         img = FakeImage()
         vision_result = FakePDFResult(text="Visual text", page_count=3, images=[img])
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/t.pdf",
-        ), patch("os.unlink"), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
-            new_callable=AsyncMock, return_value=vision_result,
-        ), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
-            FakeConfig,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/t.pdf",
+            ),
+            patch("os.unlink"),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                new_callable=AsyncMock,
+                return_value=vision_result,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                FakeConfig,
+            ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/v.pdf", executor, True)
         assert isinstance(result, list)
@@ -471,15 +536,22 @@ class TestReadPdfAsContentBlocks:
         executor = AsyncMock()
         executor.read_file_bytes = AsyncMock(return_value=b"bytes")
         text_result = FakePDFResult(text="Plain text", page_count=3)
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/t.pdf",
-        ), patch("os.unlink"), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
-            new_callable=AsyncMock, return_value=text_result,
-        ), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
-            FakeConfig,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/t.pdf",
+            ),
+            patch("os.unlink"),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                new_callable=AsyncMock,
+                return_value=text_result,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                FakeConfig,
+            ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/txt.pdf", executor, False)
         assert isinstance(result, str)
@@ -491,15 +563,22 @@ class TestReadPdfAsContentBlocks:
         executor = AsyncMock()
         executor.read_file_bytes = AsyncMock(return_value=b"bytes")
         img_only = FakePDFResult(text="   ", page_count=3, images=[FakeImage()])
-        with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
-            new_callable=AsyncMock, return_value="/tmp/t.pdf",
-        ), patch("os.unlink"), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
-            new_callable=AsyncMock, return_value=img_only,
-        ), patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
-            FakeConfig,
+        with (
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader._write_to_temp",
+                new_callable=AsyncMock,
+                return_value="/tmp/t.pdf",
+            ),
+            patch("os.unlink"),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                new_callable=AsyncMock,
+                return_value=img_only,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                FakeConfig,
+            ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/img.pdf", executor, False)
         assert "image-only" in result
@@ -521,9 +600,7 @@ class TestNonBlockingCreateTask:
 
         register_large_doc_ingest_callback(slow_ingest)
         result = FakePDFResult(text="text", page_count=5)
-        task = asyncio.create_task(_schedule_rag_ingest(
-            "/tmp/test.pdf", b"bytes", result, FakeConfig, AsyncMock()
-        ))
+        task = asyncio.create_task(_schedule_rag_ingest("/tmp/test.pdf", b"bytes", result, FakeConfig, AsyncMock()))
         events.append("main_returned")
 
         assert events == ["main_returned"]

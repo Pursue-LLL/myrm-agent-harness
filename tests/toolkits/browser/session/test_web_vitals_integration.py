@@ -67,8 +67,7 @@ _SPA_HTML = """<!DOCTYPE html>
 
 # Minimal 1x1 transparent PNG.
 _PNG_BYTES = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
-    "+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 )
 
 
@@ -164,9 +163,7 @@ async def test_session_get_web_vitals_real_chain(page_server: str) -> None:
         session: BrowserSession | None = None
         try:
             await pool.warmup(browsers=1, pages_per_context=1)
-            session = BrowserSession(
-                pool, ContextType.AGENT, allow_private_networks=True
-            )
+            session = BrowserSession(pool, ContextType.AGENT, allow_private_networks=True)
             tab_id = await session.new_tab(page_server)
             assert tab_id.startswith("tab")
             await session.wait_for_load()
@@ -224,9 +221,7 @@ async def test_manage_tool_web_vitals_action_real_chain(page_server: str) -> Non
         session: BrowserSession | None = None
         try:
             await pool.warmup(browsers=1, pages_per_context=1)
-            session = BrowserSession(
-                pool, ContextType.AGENT, allow_private_networks=True
-            )
+            session = BrowserSession(pool, ContextType.AGENT, allow_private_networks=True)
             from myrm_agent_harness.toolkits.browser.tools import create_browser_tools
 
             tools = create_browser_tools(session)

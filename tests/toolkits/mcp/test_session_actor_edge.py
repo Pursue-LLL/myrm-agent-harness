@@ -38,9 +38,7 @@ class _FakeTool:
         return self._result
 
 
-def _install_fake_client(
-    init_calls: list[int], tools: list[_FakeTool]
-) -> tuple[MagicMock, MagicMock]:
+def _install_fake_client(init_calls: list[int], tools: list[_FakeTool]) -> tuple[MagicMock, MagicMock]:
     """Build a mock ``mcp.ClientSession`` and ``convert_mcp_tools``."""
     attempts = {"n": 0}
 
@@ -126,9 +124,7 @@ def test_build_client_target_http_requires_url() -> None:
 def test_build_client_target_sse() -> None:
     with patch("mcp.client.sse.sse_client") as sse_client:
         actor = MCPSessionActor("srv", {"transport": "sse"})
-        target = actor._build_client_target(
-            {"transport": "sse", "url": "http://x", "headers": {"a": "b"}}
-        )
+        target = actor._build_client_target({"transport": "sse", "url": "http://x", "headers": {"a": "b"}})
         assert target is sse_client.return_value
         sse_client.assert_called_once_with("http://x", headers={"a": "b"})
 
@@ -143,22 +139,16 @@ def test_build_client_target_streamable_http_with_headers() -> None:
         patch("mcp.client.streamable_http.streamable_http_client") as streamable_client,
     ):
         actor = MCPSessionActor("srv", {"transport": "streamable_http"})
-        target = actor._build_client_target(
-            {"transport": "streamable_http", "url": "http://x", "headers": {"a": "b"}}
-        )
+        target = actor._build_client_target({"transport": "streamable_http", "url": "http://x", "headers": {"a": "b"}})
         assert target is streamable_client.return_value
         streamable_client.assert_called_once_with("http://x", http_client=http_client)
         assert actor._http_client is http_client
 
 
 def test_build_client_target_streamable_http_plain() -> None:
-    with patch(
-        "mcp.client.streamable_http.streamable_http_client"
-    ) as streamable_client:
+    with patch("mcp.client.streamable_http.streamable_http_client") as streamable_client:
         actor = MCPSessionActor("srv", {"transport": "streamable_http"})
-        target = actor._build_client_target(
-            {"transport": "streamable_http", "url": "http://x"}
-        )
+        target = actor._build_client_target({"transport": "streamable_http", "url": "http://x"})
         assert target is streamable_client.return_value
         streamable_client.assert_called_once_with("http://x")
         assert actor._http_client is None
@@ -166,9 +156,7 @@ def test_build_client_target_streamable_http_plain() -> None:
 
 def test_build_client_target_stdio() -> None:
     actor = MCPSessionActor("srv", {"transport": "stdio"})
-    target = actor._build_client_target(
-        {"transport": "stdio", "command": "/bin/echo", "args": ["hi"], "env": {}}
-    )
+    target = actor._build_client_target({"transport": "stdio", "command": "/bin/echo", "args": ["hi"], "env": {}})
     assert target is not None
 
 
@@ -217,9 +205,7 @@ async def test_reconnect_reset_after_stable_serve(
         try:
             with pytest.raises(ConnectionError):
                 await asyncio.wait_for(actor.call("alpha", {"id": "a"}), timeout=5.0)
-            result = await asyncio.wait_for(
-                actor.call("alpha", {"id": "b"}), timeout=5.0
-            )
+            result = await asyncio.wait_for(actor.call("alpha", {"id": "b"}), timeout=5.0)
             assert result == "recovered"
             assert actor.is_healthy() is True
         finally:
@@ -332,20 +318,14 @@ async def test_read_resource_decodes_blob_and_text() -> None:
     actor = MCPSessionActor("srv", {"transport": "stdio"}, connect_timeout=0.2)
     session = MagicMock()
     session.read_resource = AsyncMock(
-        return_value=SimpleNamespace(
-            contents=[SimpleNamespace(blob="aGVsbG8=", text=None)]
-        )
+        return_value=SimpleNamespace(contents=[SimpleNamespace(blob="aGVsbG8=", text=None)])
     )
     assert await actor._read_resource(session, "memory://k") == b"hello"
 
-    session.read_resource = AsyncMock(
-        return_value=SimpleNamespace(contents=[SimpleNamespace(blob=None, text="hi")])
-    )
+    session.read_resource = AsyncMock(return_value=SimpleNamespace(contents=[SimpleNamespace(blob=None, text="hi")]))
     assert await actor._read_resource(session, "memory://k") == b"hi"
 
-    session.read_resource = AsyncMock(
-        return_value=SimpleNamespace(contents=[SimpleNamespace(blob=None, text=None)])
-    )
+    session.read_resource = AsyncMock(return_value=SimpleNamespace(contents=[SimpleNamespace(blob=None, text=None)]))
     with pytest.raises(RuntimeError, match="no text or blob"):
         await actor._read_resource(session, "memory://k")
 
@@ -374,9 +354,7 @@ async def test_read_resource_success_via_owner_queue() -> None:
     with _patched(client_cls, convert):
         await actor.start()
         try:
-            data = await asyncio.wait_for(
-                actor.read_resource("memory://k"), timeout=5.0
-            )
+            data = await asyncio.wait_for(actor.read_resource("memory://k"), timeout=5.0)
             assert data == b"hi"
         finally:
             await actor.close()
@@ -401,9 +379,7 @@ async def test_read_resource_transport_break_recovers() -> None:
         try:
             with pytest.raises(ConnectionError):
                 await asyncio.wait_for(actor.read_resource("memory://k"), timeout=5.0)
-            data = await asyncio.wait_for(
-                actor.read_resource("memory://k"), timeout=5.0
-            )
+            data = await asyncio.wait_for(actor.read_resource("memory://k"), timeout=5.0)
             assert data == b"hi"
             assert actor.is_healthy() is True
         finally:

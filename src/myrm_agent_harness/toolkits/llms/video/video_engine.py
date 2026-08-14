@@ -508,9 +508,7 @@ async def _resolve_media_sources(
                 resp.raise_for_status()
                 data = resp.content
             except ContentTooLargeError as exc:
-                raise ValueError(
-                    f"{media_label} too large (>{max_bytes} bytes): {src[:80]}"
-                ) from exc
+                raise ValueError(f"{media_label} too large (>{max_bytes} bytes): {src[:80]}") from exc
             except SSRFSecurityError as exc:
                 raise ValueError(f"URL blocked by SSRF protection: {exc} ({src[:80]})") from exc
         else:

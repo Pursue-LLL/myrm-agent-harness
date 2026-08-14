@@ -18,5 +18,8 @@ def test_get_langchain_splitters_raises_retrieval_install_hint() -> None:
             raise ImportError("blocked for test")
         return real_import(name, *args, **kwargs)
 
-    with patch("builtins.__import__", side_effect=_import), pytest.raises(ImportError, match="langchain-text-splitters is required"):
+    with (
+        patch("builtins.__import__", side_effect=_import),
+        pytest.raises(ImportError, match="langchain-text-splitters is required"),
+    ):
         code_utils._get_langchain_splitters()

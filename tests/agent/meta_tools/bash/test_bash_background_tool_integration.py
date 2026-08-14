@@ -81,9 +81,7 @@ def _clear_background_registry() -> None:
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.parametrize("trailing_ampersand", [False, True])
-async def test_background_spawn_automount_list_output_kill(
-    tmp_path: Path, trailing_ampersand: bool
-) -> None:
+async def test_background_spawn_automount_list_output_kill(tmp_path: Path, trailing_ampersand: bool) -> None:
     """Real background spawn stays manageable even with a trailing ``&``.
 
     Regression for the orphan-process fix: ``run_in_background=true`` combined
@@ -110,10 +108,7 @@ async def test_background_spawn_automount_list_output_kill(
     bash_tool = create_bash_code_execute_tool()
     process_tool = create_bash_process_tool()
 
-    spawn_cmd = (
-        f"{sys.executable} -c "
-        f"\"import sys,time; print('{marker}', flush=True); time.sleep(120)\""
-    )
+    spawn_cmd = f"{sys.executable} -c \"import sys,time; print('{marker}', flush=True); time.sleep(120)\""
     if trailing_ampersand:
         spawn_cmd += " &"
 

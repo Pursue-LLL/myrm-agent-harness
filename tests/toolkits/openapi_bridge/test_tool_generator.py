@@ -28,9 +28,7 @@ def _make_spec(endpoints: list[ParsedEndpoint] | None = None) -> ParsedSpec:
         endpoints = [
             ParsedEndpoint(operation_id="listPets", method="GET", path="/pets", summary="List pets"),
             ParsedEndpoint(operation_id="getPet", method="GET", path="/pets/{petId}", summary="Get pet by ID"),
-            ParsedEndpoint(
-                operation_id="createPet", method="POST", path="/pets", summary="Create pet"
-            ),
+            ParsedEndpoint(operation_id="createPet", method="POST", path="/pets", summary="Create pet"),
             ParsedEndpoint(
                 operation_id="oldEndpoint", method="GET", path="/old", summary="Deprecated", deprecated=True
             ),
@@ -110,9 +108,14 @@ class TestGenerateTools:
 
     @pytest.mark.asyncio
     async def test_raises_without_base_url(self):
-        spec = ParsedSpec(title="T", version="1", base_url="", endpoints=[
-            ParsedEndpoint(operation_id="op", method="GET", path="/x", summary="X"),
-        ])
+        spec = ParsedSpec(
+            title="T",
+            version="1",
+            base_url="",
+            endpoints=[
+                ParsedEndpoint(operation_id="op", method="GET", path="/x", summary="X"),
+            ],
+        )
         config = OpenAPIServiceConfig(name="no_url", spec_url="https://x.com/s.json")
         with pytest.raises(ValueError, match="No base URL"):
             await generate_tools(config, spec)
@@ -331,9 +334,7 @@ class TestOpenAPIBridge:
         spec = _make_spec()
         config1 = _make_config(name="svc1")
         config2 = _make_config(name="svc2")
-        config_disabled = OpenAPIServiceConfig(
-            name="disabled", spec_url="https://x.com/s.json", enabled=False
-        )
+        config_disabled = OpenAPIServiceConfig(name="disabled", spec_url="https://x.com/s.json", enabled=False)
 
         with patch.object(OpenAPIBridge, "_parse_spec", new_callable=AsyncMock) as mock_parse:
             mock_parse.return_value = spec
@@ -420,9 +421,7 @@ class TestOpenAPIBridge:
         """Verify batch continues on individual service failure."""
         spec = _make_spec()
         config_ok = _make_config(name="ok_svc")
-        config_bad = OpenAPIServiceConfig(
-            name="bad_svc", spec_url="https://bad.example.com/spec.json"
-        )
+        config_bad = OpenAPIServiceConfig(name="bad_svc", spec_url="https://bad.example.com/spec.json")
 
         call_count = 0
 

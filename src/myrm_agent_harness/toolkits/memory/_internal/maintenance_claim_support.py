@@ -84,6 +84,8 @@ _CONSTRAINT_HINTS = (
     "except",
     "unless",
 )
+
+
 def _parse_task_digest_fields(content: str) -> dict[str, str]:
     parsed = {
         "title": "",
@@ -176,7 +178,8 @@ def _classify_result_polarity(result: str) -> str:
 
 def _text_tokens(text: str) -> set[str]:
     return {
-        t for t in _QUERY_TOKEN_PATTERN.findall(text.lower())
+        t
+        for t in _QUERY_TOKEN_PATTERN.findall(text.lower())
         if len(t) >= 2 or (len(t) == 1 and ord(t) >= _CJK_CHAR_START)
     }
 
@@ -307,7 +310,8 @@ def _build_claim_model_summary(
 
 def _tokenize_query(query: str) -> set[str]:
     return {
-        t for t in _QUERY_TOKEN_PATTERN.findall(query.lower())
+        t
+        for t in _QUERY_TOKEN_PATTERN.findall(query.lower())
         if len(t) >= 2 or (len(t) == 1 and ord(t) >= _CJK_CHAR_START)
     }
 
@@ -440,4 +444,3 @@ async def search_claim_graph(
 
     results.sort(key=lambda item: item.score, reverse=True)
     return results[:limit]
-

@@ -192,7 +192,9 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
 
         # 2.5. EvalCase Regression Gate (non-blocking score penalty)
         variants, regression_penalties = await filter_variants_by_regression(
-            old_skill, variants, logger,
+            old_skill,
+            variants,
+            logger,
         )
         if not variants:
             logger.warning("All variants failed EvalCase regression for '%s'", old_skill.name)
@@ -264,7 +266,9 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
 
         # EvalCase Regression Gate (non-blocking score penalty)
         variants, regression_penalties = await filter_variants_by_regression(
-            old_skill, variants, logger,
+            old_skill,
+            variants,
+            logger,
         )
         if not variants:
             logger.warning("All variants failed EvalCase regression for '%s'", old_skill.name)
@@ -395,7 +399,9 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
 
         # EvalCase Regression Gate (non-blocking score penalty)
         variants, regression_penalties = await filter_variants_by_regression(
-            old_skill, variants, logger,
+            old_skill,
+            variants,
+            logger,
         )
         if not variants:
             logger.warning("All variants failed EvalCase regression for '%s'", old_skill.name)

@@ -18,12 +18,7 @@ pytestmark = pytest.mark.integration
 from myrm_agent_harness.core.security.http.secure_fetch import secure_get
 from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 
-_ENV_TEST = (
-    Path(__file__).resolve().parents[3]
-    / "myrm-agent"
-    / "myrm-agent-server"
-    / ".env.test"
-)
+_ENV_TEST = Path(__file__).resolve().parents[3] / "myrm-agent" / "myrm-agent-server" / ".env.test"
 
 
 def _load_env_test() -> None:

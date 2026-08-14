@@ -17,9 +17,7 @@ class TestStateAssertions:
         from myrm_agent_harness.eval.assertions import evaluate_state_assertions
         from myrm_agent_harness.eval.protocols import StateAssertion
 
-        passed, _ = evaluate_state_assertions(
-            [StateAssertion(type="contains", expected="hello")], "hello world"
-        )
+        passed, _ = evaluate_state_assertions([StateAssertion(type="contains", expected="hello")], "hello world")
         assert passed is True
 
         passed, _details = evaluate_state_assertions(
@@ -68,9 +66,7 @@ class TestStateAssertions:
         )
         assert passed is True
 
-        passed, details = evaluate_state_assertions(
-            [StateAssertion(type="json_valid", expected="")], "not json"
-        )
+        passed, details = evaluate_state_assertions([StateAssertion(type="json_valid", expected="")], "not json")
         assert passed is False
         assert "not valid JSON" in details
 
@@ -138,9 +134,7 @@ class TestStateAssertions:
         from myrm_agent_harness.eval.assertions import evaluate_state_assertions
         from myrm_agent_harness.eval.protocols import StateAssertion
 
-        passed, _ = evaluate_state_assertions(
-            [StateAssertion(type="exact_match", expected="hello")], "hello"
-        )
+        passed, _ = evaluate_state_assertions([StateAssertion(type="exact_match", expected="hello")], "hello")
         assert passed is True
 
         passed, _details = evaluate_state_assertions(
@@ -152,9 +146,7 @@ class TestStateAssertions:
         from myrm_agent_harness.eval.assertions import evaluate_state_assertions
         from myrm_agent_harness.eval.protocols import StateAssertion
 
-        passed, details = evaluate_state_assertions(
-            [StateAssertion(type="nonexistent", expected="x")], "output"
-        )
+        passed, details = evaluate_state_assertions([StateAssertion(type="nonexistent", expected="x")], "output")
         assert passed is False
         assert "Unknown assertion type" in details
 
@@ -206,11 +198,7 @@ class TestStateAssertionBranches:
         from myrm_agent_harness.eval.protocols import StateAssertion
 
         passed, _ = evaluate_state_assertions(
-            [
-                StateAssertion(
-                    type="jaccard_similarity", expected="hello world", threshold=0.5
-                )
-            ],
+            [StateAssertion(type="jaccard_similarity", expected="hello world", threshold=0.5)],
             "hello world again",
         )
         assert passed is True

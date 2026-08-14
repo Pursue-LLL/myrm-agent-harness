@@ -34,9 +34,7 @@ async def test_browser_structured_extractor_real_llm(basic_llm) -> None:
         },
         "required": ["title"],
     }
-    page_text = (
-        "iPhone 15 Pro\nPrice: $999\nCurrently in stock, ships within 24 hours."
-    )
+    page_text = "iPhone 15 Pro\nPrice: $999\nCurrently in stock, ships within 24 hours."
     result = await extractor.extract(text=page_text, schema=schema)
     assert not result.startswith("[Error]"), f"extraction failed: {result}"
     parsed = json.loads(result)

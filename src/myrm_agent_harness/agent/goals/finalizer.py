@@ -69,9 +69,7 @@ async def finalize_goal_complete(
         return refreshed
 
     if refreshed.is_terminal:
-        raise ValueError(
-            f"Cannot complete terminal goal {goal.goal_id} ({refreshed.status.value})"
-        )
+        raise ValueError(f"Cannot complete terminal goal {goal.goal_id} ({refreshed.status.value})")
 
     await goal_provider.update_status(goal.goal_id, GoalStatus.COMPLETE)
 

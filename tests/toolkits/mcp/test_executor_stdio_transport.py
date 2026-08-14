@@ -615,9 +615,7 @@ async def test_connect_propagates_spawn_failure() -> None:
     from unittest.mock import AsyncMock
 
     transport, executor = _make_transport()
-    executor.spawn_background_process = AsyncMock(
-        side_effect=RuntimeError("Sandbox unavailable")
-    )
+    executor.spawn_background_process = AsyncMock(side_effect=RuntimeError("Sandbox unavailable"))
 
     with pytest.raises(RuntimeError, match="Sandbox unavailable"):
         async with transport.connect():

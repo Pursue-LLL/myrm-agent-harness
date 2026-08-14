@@ -77,9 +77,7 @@ class BashExecutorBackgroundMixin:
             )
             command = normalized
 
-        workspace, invalidated_workspace_id = (
-            await self._workspace_manager.get_or_create(session_id)
-        )
+        workspace, invalidated_workspace_id = await self._workspace_manager.get_or_create(session_id)
         if invalidated_workspace_id:
             self._skill_manager.clear_workspace_cache(invalidated_workspace_id)
 
@@ -136,9 +134,7 @@ class BashExecutorBackgroundMixin:
                 str(exc),
                 phase="validation",
                 error_category="BACKGROUND_QUOTA_EXCEEDED",
-                error_hint=(
-                    "Stop or wait for an existing background job before starting a new one."
-                ),
+                error_hint=("Stop or wait for an existing background job before starting a new one."),
             ) from exc
 
         await self._log_bash_command_execution(

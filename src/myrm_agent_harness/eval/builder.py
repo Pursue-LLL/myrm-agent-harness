@@ -104,9 +104,11 @@ def build_skill_eval_cases(
         for pattern in forbidden_patterns:
             assertions.append({"type": "code_not_contains", "target": pattern})
 
-    cases.append({
-        "message": trigger_message or f"Use skill: {skill_name}",
-        "sandbox_assertions": assertions,
-    })
+    cases.append(
+        {
+            "message": trigger_message or f"Use skill: {skill_name}",
+            "sandbox_assertions": assertions,
+        }
+    )
 
     return cases

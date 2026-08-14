@@ -93,9 +93,7 @@ def create_manage_tool(session: BrowserSession):
                 reused = tab_id in tabs_before
                 if reused:
                     tabs_info = session.list_tabs_with_info()
-                    domain = next(
-                        (i["domain"] for i in tabs_info if i["tab_id"] == tab_id), "unknown"
-                    )
+                    domain = next((i["domain"] for i in tabs_info if i["tab_id"] == tab_id), "unknown")
                     return f"Reused existing {tab_id} ({domain}) — same origin as requested URL"
                 return f"New tab created: {tab_id}"
             case "switch_tab":
@@ -167,10 +165,7 @@ def create_manage_tool(session: BrowserSession):
                 try:
                     new_policy = DialogPolicy(policy_str)
                 except ValueError:
-                    return (
-                        f"Invalid dialog policy '{policy_str}'. "
-                        f"Valid: {', '.join(p.value for p in DialogPolicy)}"
-                    )
+                    return f"Invalid dialog policy '{policy_str}'. Valid: {', '.join(p.value for p in DialogPolicy)}"
                 session._dialog_manager.policy = new_policy
                 return f"Dialog policy changed to: {new_policy.value}"
             case "save_session":
@@ -348,16 +343,12 @@ def create_manage_tool(session: BrowserSession):
         import sys
         import tempfile
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False, encoding="utf-8"
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as tmp:
             tmp.write(script_code)
             tmp_path = tmp.name
 
         try:
-            spec = importlib.util.spec_from_file_location(
-                f"_domain_tool_{skill_id}_{tool_name}", tmp_path
-            )
+            spec = importlib.util.spec_from_file_location(f"_domain_tool_{skill_id}_{tool_name}", tmp_path)
             if spec is None or spec.loader is None:
                 return f"Error: failed to load script for '{skill_id}:{tool_name}'"
             mod = importlib.util.module_from_spec(spec)
@@ -370,9 +361,7 @@ def create_manage_tool(session: BrowserSession):
 
             import asyncio
 
-            result = await asyncio.wait_for(
-                func(browser_session, tool_args), timeout=30.0
-            )
+            result = await asyncio.wait_for(func(browser_session, tool_args), timeout=30.0)
             return mark_untrusted(str(result))
         except TimeoutError:
             return f"Error: domain tool '{skill_id}:{tool_name}' timed out after 30s"
@@ -405,8 +394,7 @@ def create_manage_tool(session: BrowserSession):
             lines.append(f"\n  [{skill.id}] {skill.name} ({domains})")
             for dom_tool in skill.python_tools.values():
                 args_str = ", ".join(
-                    f"{k}{'?' if a.get('required') != 'true' else ''}"
-                    for k, a in dom_tool.args.items()
+                    f"{k}{'?' if a.get('required') != 'true' else ''}" for k, a in dom_tool.args.items()
                 )
                 lines.append(f"    - {dom_tool.name}({args_str}): {dom_tool.description}")
         return "\n".join(lines)

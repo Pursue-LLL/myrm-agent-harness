@@ -60,9 +60,11 @@ async def test_blocked_403_reaches_captcha_after_proxy_retries() -> None:
     await session._ensure_components()
     assert session._navigator is not None
 
-    with patch.object(session._navigator, "goto", side_effect=blocked_goto), patch.object(
-        session, "_handle_captcha_if_detected", side_effect=fake_handle_captcha
-    ), patch.object(session, "restart", new_callable=AsyncMock):
+    with (
+        patch.object(session._navigator, "goto", side_effect=blocked_goto),
+        patch.object(session, "_handle_captcha_if_detected", side_effect=fake_handle_captcha),
+        patch.object(session, "restart", new_callable=AsyncMock),
+    ):
         result = await session.navigate("https://blocked.example.com")
 
     assert goto_calls == 3
@@ -90,9 +92,11 @@ async def test_blocked_429_reaches_captcha_after_proxy_retries() -> None:
     session._captcha_coordinator = object()  # type: ignore[assignment]
     await session._ensure_components()
 
-    with patch.object(session._navigator, "goto", side_effect=blocked_goto), patch.object(
-        session, "_handle_captcha_if_detected", side_effect=fake_handle_captcha
-    ), patch.object(session, "restart", new_callable=AsyncMock):
+    with (
+        patch.object(session._navigator, "goto", side_effect=blocked_goto),
+        patch.object(session, "_handle_captcha_if_detected", side_effect=fake_handle_captcha),
+        patch.object(session, "restart", new_callable=AsyncMock),
+    ):
         result = await session.navigate("https://rate-limited.example.com")
 
     assert captcha_invoked is True
@@ -123,10 +127,12 @@ async def test_captcha_failure_upgrades_to_camoufox() -> None:
     restart_mock = AsyncMock()
     notify_mock = AsyncMock()
 
-    with patch.object(session._navigator, "goto", side_effect=ok_goto), patch.object(
-        session, "_handle_captcha_if_detected", side_effect=fake_handle_captcha
-    ), patch.object(session, "restart", restart_mock), patch.object(session, "notify_progress", notify_mock), pytest.raises(
-        ToolError, match="TERMINAL_CHALLENGE"
+    with (
+        patch.object(session._navigator, "goto", side_effect=ok_goto),
+        patch.object(session, "_handle_captcha_if_detected", side_effect=fake_handle_captcha),
+        patch.object(session, "restart", restart_mock),
+        patch.object(session, "notify_progress", notify_mock),
+        pytest.raises(ToolError, match="TERMINAL_CHALLENGE"),
     ):
         await session.navigate("https://cf.example.com")
 
@@ -173,10 +179,11 @@ async def test_captcha_failure_camoufox_retry_success_records_affinity(store_dir
     session._captcha_coordinator = object()  # type: ignore[assignment]
     await session._ensure_components()
 
-    with patch.dict(os.environ, {"MYRM_DATA_DIR": store_dir}), patch.object(
-        session._navigator, "goto", side_effect=ok_goto
-    ), patch.object(session, "_handle_captcha_if_detected", side_effect=fake_handle_captcha), patch.object(
-        session, "restart", new_callable=AsyncMock
+    with (
+        patch.dict(os.environ, {"MYRM_DATA_DIR": store_dir}),
+        patch.object(session._navigator, "goto", side_effect=ok_goto),
+        patch.object(session, "_handle_captcha_if_detected", side_effect=fake_handle_captcha),
+        patch.object(session, "restart", new_callable=AsyncMock),
     ):
         result = await session.navigate("https://cf-success.example.com")
 

@@ -99,10 +99,7 @@ def _build_app_selector(target_app: str | None) -> str:
         return "set targetApp to first application process whose frontmost is true"
     bundle_id = _TARGET_APP_BUNDLE_IDS.get(target_app)
     if bundle_id:
-        return (
-            f'set targetApp to first application process '
-            f'whose bundle identifier is "{bundle_id}"'
-        )
+        return f'set targetApp to first application process whose bundle identifier is "{bundle_id}"'
     escaped = target_app.replace('"', '\\"')
     return f'set targetApp to application process "{escaped}"'
 
@@ -408,11 +405,7 @@ def invoke_ax_element(
         return ActionResult(success=False, error=f"Unsupported AX action: {action}")
 
     ax_action = "fill" if normalized_action in {"fill", "type", "set_value"} else "click"
-    invoke_script = (
-        _build_ax_invoke_script(target_app=app_name)
-        if app_name
-        else _AX_INVOKE_SCRIPT
-    )
+    invoke_script = _build_ax_invoke_script(target_app=app_name) if app_name else _AX_INVOKE_SCRIPT
     try:
         result = subprocess.run(
             ["osascript", "-e", invoke_script, ax_action, backend_key, text],
@@ -434,18 +427,60 @@ def invoke_ax_element(
     return ActionResult(success=True, output=f"AX {ax_action} succeeded")
 
 
-_SCRIPTABLE_APPS: frozenset[str] = frozenset({
-    "Finder", "Mail", "Safari", "Notes", "Reminders", "Calendar", "Messages",
-    "Preview", "Music", "TV", "Podcasts", "Photos", "Keynote", "Pages",
-    "Numbers", "TextEdit", "Terminal", "Script Editor", "System Settings",
-    "System Preferences", "Automator", "Shortcuts", "Microsoft Excel",
-    "Microsoft Word", "Microsoft PowerPoint", "Microsoft Outlook",
-    "Google Chrome", "Slack", "Spotify", "iTerm2", "iTerm",
-    "Adobe Photoshop", "Adobe Illustrator", "Adobe Acrobat", "Adobe InDesign",
-    "Sketch", "Final Cut Pro", "Logic Pro", "GarageBand", "Xcode",
-    "WPS Office", "Firefox", "Arc", "Obsidian", "Discord",
-    "Visual Studio Code", "Cursor", "OmniGraffle", "DEVONthink", "Affinity Designer",
-})
+_SCRIPTABLE_APPS: frozenset[str] = frozenset(
+    {
+        "Finder",
+        "Mail",
+        "Safari",
+        "Notes",
+        "Reminders",
+        "Calendar",
+        "Messages",
+        "Preview",
+        "Music",
+        "TV",
+        "Podcasts",
+        "Photos",
+        "Keynote",
+        "Pages",
+        "Numbers",
+        "TextEdit",
+        "Terminal",
+        "Script Editor",
+        "System Settings",
+        "System Preferences",
+        "Automator",
+        "Shortcuts",
+        "Microsoft Excel",
+        "Microsoft Word",
+        "Microsoft PowerPoint",
+        "Microsoft Outlook",
+        "Google Chrome",
+        "Slack",
+        "Spotify",
+        "iTerm2",
+        "iTerm",
+        "Adobe Photoshop",
+        "Adobe Illustrator",
+        "Adobe Acrobat",
+        "Adobe InDesign",
+        "Sketch",
+        "Final Cut Pro",
+        "Logic Pro",
+        "GarageBand",
+        "Xcode",
+        "WPS Office",
+        "Firefox",
+        "Arc",
+        "Obsidian",
+        "Discord",
+        "Visual Studio Code",
+        "Cursor",
+        "OmniGraffle",
+        "DEVONthink",
+        "Affinity Designer",
+    }
+)
 
 
 def _native_api_hint(app_name: str) -> str:

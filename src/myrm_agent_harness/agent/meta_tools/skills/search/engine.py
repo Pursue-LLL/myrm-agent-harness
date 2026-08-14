@@ -34,9 +34,7 @@ MCP_SKILL_TOOL_INDEX_THRESHOLD = 3
 MCP_TOOL_SHORT_DESC_MAX_CHARS = 80
 
 
-def _truncate_tool_desc(
-    description: str, max_chars: int = MCP_TOOL_SHORT_DESC_MAX_CHARS
-) -> str:
+def _truncate_tool_desc(description: str, max_chars: int = MCP_TOOL_SHORT_DESC_MAX_CHARS) -> str:
     text = " ".join((description or "").split())
     if not text:
         return ""
@@ -45,11 +43,7 @@ def _truncate_tool_desc(
         return text[: match.end()].strip()
     if len(text) <= max_chars:
         return text
-    clipped = (
-        text[:max_chars].rsplit(" ", 1)[0]
-        if " " in text[:max_chars]
-        else text[:max_chars]
-    )
+    clipped = text[:max_chars].rsplit(" ", 1)[0] if " " in text[:max_chars] else text[:max_chars]
     return clipped.rstrip(",;: ") + "…"
 
 
@@ -113,9 +107,7 @@ class SkillSearchEngine:
             "enabled" if enable_query_expansion else "disabled",
         )
 
-    def search_bm25(
-        self, query: str, top_k: int = SKILL_SEARCH_TOP_K
-    ) -> list[SkillSearchResult]:
+    def search_bm25(self, query: str, top_k: int = SKILL_SEARCH_TOP_K) -> list[SkillSearchResult]:
         """BM25 自然语言搜索
 
         特殊查询:
@@ -133,10 +125,7 @@ class SkillSearchEngine:
                 query,
                 len(self._skills),
             )
-            return [
-                SkillSearchResult(name=s.name, description=s.description, score=1.0)
-                for s in self._skills
-            ]
+            return [SkillSearchResult(name=s.name, description=s.description, score=1.0) for s in self._skills]
 
         start_time = time.perf_counter()
 
@@ -155,17 +144,13 @@ class SkillSearchEngine:
         # Search with all query variations and merge results
         all_results: dict[int, float] = {}  # idx -> max_score
         for expanded_query in expanded_queries:
-            raw_results = self._retriever.search(
-                expanded_query, top_k=top_k * 2, only_relevant=False
-            )
+            raw_results = self._retriever.search(expanded_query, top_k=top_k * 2, only_relevant=False)
             for idx, score in raw_results:
                 if score >= self._min_relevance_score:
                     all_results[idx] = max(all_results.get(idx, 0.0), score)
 
         # Sort by score (desc) and skill name (asc) for stable tie-break
-        sorted_results = sorted(
-            all_results.items(), key=lambda x: (-x[1], self._skills[x[0]].name)
-        )[:top_k]
+        sorted_results = sorted(all_results.items(), key=lambda x: (-x[1], self._skills[x[0]].name))[:top_k]
         results = [
             SkillSearchResult(
                 name=self._skills[idx].name,
@@ -197,9 +182,7 @@ class SkillSearchEngine:
 
         return results
 
-    def search_regex(
-        self, pattern: str, top_k: int = SKILL_SEARCH_TOP_K
-    ) -> list[SkillSearchResult]:
+    def search_regex(self, pattern: str, top_k: int = SKILL_SEARCH_TOP_K) -> list[SkillSearchResult]:
         """Regex 模式匹配搜索
 
         特殊模式:
@@ -214,10 +197,7 @@ class SkillSearchEngine:
                 pattern,
                 len(self._skills),
             )
-            return [
-                SkillSearchResult(name=s.name, description=s.description, score=1.0)
-                for s in self._skills[:top_k]
-            ]
+            return [SkillSearchResult(name=s.name, description=s.description, score=1.0) for s in self._skills[:top_k]]
 
         start_time = time.perf_counter()
         try:
@@ -230,11 +210,7 @@ class SkillSearchEngine:
         for skill in self._skills:
             text = f"{skill.name} {skill.description}"
             if regex.search(text):
-                results.append(
-                    SkillSearchResult(
-                        name=skill.name, description=skill.description, score=1.0
-                    )
-                )
+                results.append(SkillSearchResult(name=skill.name, description=skill.description, score=1.0))
                 if len(results) >= top_k:
                     break
 

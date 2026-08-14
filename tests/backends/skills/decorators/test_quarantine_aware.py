@@ -30,9 +30,7 @@ def mock_state_reader():
 
 @pytest.fixture
 def backend(mock_base_backend, mock_state_reader):
-    return QuarantineAwareSkillBackend(
-        base_backend=mock_base_backend, state_reader=mock_state_reader
-    )
+    return QuarantineAwareSkillBackend(base_backend=mock_base_backend, state_reader=mock_state_reader)
 
 
 class TestListSkills:
@@ -80,9 +78,7 @@ class TestListSkills:
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_returns_all_on_state_reader_exception(
-        self, backend, mock_base_backend, mock_state_reader
-    ):
+    async def test_returns_all_on_state_reader_exception(self, backend, mock_base_backend, mock_state_reader):
         skills = [SkillMetadata(name="s1", description="d1")]
         mock_base_backend.list_skills.return_value = skills
         mock_state_reader.is_skill_active.side_effect = Exception("DB Error")

@@ -41,10 +41,7 @@ async def verify_ephemeral_memory_context():
     print("Architecture keeps security boundary rules applicable to envelopes.")
 
     print("\n[2/3] Code implementation snapshot...")
-    middleware_file = (
-        project_root
-        / "src/myrm_agent_harness/agent/middlewares/memory_context_middleware.py"
-    )
+    middleware_file = project_root / "src/myrm_agent_harness/agent/middlewares/memory_context_middleware.py"
     with open(middleware_file) as f:
         middleware_code = f.read()
 
@@ -72,10 +69,8 @@ async def verify_ephemeral_memory_context():
 
     test_messages = [
         MockMessage("User query"),
-        MockMessage('<user_memory_context>\nStable\n</user_memory_context>'),
-        MockMessage(
-            '[NOTICE]\n<<<UNTRUSTED_DATA id="deadbeef">\nLearned\n<<<END_UNTRUSTED_DATA id="deadbeef">>>'
-        ),
+        MockMessage("<user_memory_context>\nStable\n</user_memory_context>"),
+        MockMessage('[NOTICE]\n<<<UNTRUSTED_DATA id="deadbeef">\nLearned\n<<<END_UNTRUSTED_DATA id="deadbeef">>>'),
         MockMessage("Another user query"),
     ]
 

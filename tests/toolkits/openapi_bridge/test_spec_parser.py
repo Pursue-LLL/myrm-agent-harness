@@ -14,92 +14,96 @@ from myrm_agent_harness.toolkits.openapi_bridge.spec_parser import (
     parse_spec_from_content,
 )
 
-OPENAPI_3_SPEC = json.dumps({
-    "openapi": "3.0.3",
-    "info": {"title": "Pet Store", "version": "1.0.0", "description": "A pet store API"},
-    "servers": [{"url": "https://api.petstore.io/v1"}],
-    "tags": [
-        {"name": "pets", "description": "Pet operations"},
-        {"name": "store", "description": "Store operations"},
-    ],
-    "paths": {
-        "/pets": {
-            "get": {
-                "operationId": "listPets",
-                "summary": "List all pets",
-                "tags": ["pets"],
-                "parameters": [{"name": "limit", "in": "query", "schema": {"type": "integer"}}],
-                "responses": {"200": {"description": "OK"}},
+OPENAPI_3_SPEC = json.dumps(
+    {
+        "openapi": "3.0.3",
+        "info": {"title": "Pet Store", "version": "1.0.0", "description": "A pet store API"},
+        "servers": [{"url": "https://api.petstore.io/v1"}],
+        "tags": [
+            {"name": "pets", "description": "Pet operations"},
+            {"name": "store", "description": "Store operations"},
+        ],
+        "paths": {
+            "/pets": {
+                "get": {
+                    "operationId": "listPets",
+                    "summary": "List all pets",
+                    "tags": ["pets"],
+                    "parameters": [{"name": "limit", "in": "query", "schema": {"type": "integer"}}],
+                    "responses": {"200": {"description": "OK"}},
+                },
+                "post": {
+                    "operationId": "createPet",
+                    "summary": "Create a pet",
+                    "tags": ["pets"],
+                    "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}},
+                    "responses": {"201": {"description": "Created"}},
+                },
             },
-            "post": {
-                "operationId": "createPet",
-                "summary": "Create a pet",
-                "tags": ["pets"],
-                "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}},
-                "responses": {"201": {"description": "Created"}},
+            "/pets/{petId}": {
+                "get": {
+                    "operationId": "getPetById",
+                    "summary": "Get a pet by ID",
+                    "tags": ["pets"],
+                    "parameters": [{"name": "petId", "in": "path", "required": True, "schema": {"type": "string"}}],
+                    "responses": {"200": {"description": "OK"}},
+                },
+                "delete": {
+                    "operationId": "deletePet",
+                    "summary": "Delete a pet",
+                    "tags": ["pets"],
+                    "deprecated": True,
+                    "responses": {"204": {"description": "Deleted"}},
+                },
+            },
+            "/store/inventory": {
+                "get": {
+                    "operationId": "getInventory",
+                    "summary": "Get store inventory",
+                    "tags": ["store"],
+                    "responses": {"200": {"description": "OK"}},
+                },
             },
         },
-        "/pets/{petId}": {
-            "get": {
-                "operationId": "getPetById",
-                "summary": "Get a pet by ID",
-                "tags": ["pets"],
-                "parameters": [{"name": "petId", "in": "path", "required": True, "schema": {"type": "string"}}],
-                "responses": {"200": {"description": "OK"}},
-            },
-            "delete": {
-                "operationId": "deletePet",
-                "summary": "Delete a pet",
-                "tags": ["pets"],
-                "deprecated": True,
-                "responses": {"204": {"description": "Deleted"}},
-            },
-        },
-        "/store/inventory": {
-            "get": {
-                "operationId": "getInventory",
-                "summary": "Get store inventory",
-                "tags": ["store"],
-                "responses": {"200": {"description": "OK"}},
-            },
-        },
-    },
-})
+    }
+)
 
-SWAGGER_2_SPEC = json.dumps({
-    "swagger": "2.0",
-    "info": {"title": "Legacy API", "version": "2.0.0", "description": "A legacy Swagger 2.0 API"},
-    "host": "api.legacy.io",
-    "basePath": "/v2",
-    "schemes": ["https"],
-    "tags": [{"name": "users", "description": "User management"}],
-    "paths": {
-        "/users": {
-            "get": {
-                "operationId": "listUsers",
-                "summary": "List users",
-                "tags": ["users"],
-                "responses": {"200": {"description": "OK"}},
+SWAGGER_2_SPEC = json.dumps(
+    {
+        "swagger": "2.0",
+        "info": {"title": "Legacy API", "version": "2.0.0", "description": "A legacy Swagger 2.0 API"},
+        "host": "api.legacy.io",
+        "basePath": "/v2",
+        "schemes": ["https"],
+        "tags": [{"name": "users", "description": "User management"}],
+        "paths": {
+            "/users": {
+                "get": {
+                    "operationId": "listUsers",
+                    "summary": "List users",
+                    "tags": ["users"],
+                    "responses": {"200": {"description": "OK"}},
+                },
+                "post": {
+                    "operationId": "createUser",
+                    "summary": "Create user",
+                    "tags": ["users"],
+                    "parameters": [{"name": "body", "in": "body", "schema": {"type": "object"}}],
+                    "responses": {"201": {"description": "Created"}},
+                },
             },
-            "post": {
-                "operationId": "createUser",
-                "summary": "Create user",
-                "tags": ["users"],
-                "parameters": [{"name": "body", "in": "body", "schema": {"type": "object"}}],
-                "responses": {"201": {"description": "Created"}},
+            "/users/{userId}": {
+                "get": {
+                    "operationId": "getUserById",
+                    "summary": "Get user by ID",
+                    "tags": ["users"],
+                    "parameters": [{"name": "userId", "in": "path", "required": True, "type": "string"}],
+                    "responses": {"200": {"description": "OK"}},
+                },
             },
         },
-        "/users/{userId}": {
-            "get": {
-                "operationId": "getUserById",
-                "summary": "Get user by ID",
-                "tags": ["users"],
-                "parameters": [{"name": "userId", "in": "path", "required": True, "type": "string"}],
-                "responses": {"200": {"description": "OK"}},
-            },
-        },
-    },
-})
+    }
+)
 
 
 class TestParseOpenAPI3:
@@ -153,33 +157,35 @@ class TestParseOpenAPI3:
         assert get_pet.param_schema["required"] == ["petId"]
 
     def test_request_body_object_expands_into_properties(self):
-        spec_json = json.dumps({
-            "openapi": "3.0.3",
-            "info": {"title": "T", "version": "1"},
-            "paths": {
-                "/orders": {
-                    "post": {
-                        "operationId": "createOrder",
-                        "requestBody": {
-                            "required": True,
-                            "content": {
-                                "application/json": {
-                                    "schema": {
-                                        "type": "object",
-                                        "properties": {
-                                            "product_id": {"type": "integer"},
-                                            "amount": {"type": "number"},
-                                        },
-                                        "required": ["product_id", "amount"],
+        spec_json = json.dumps(
+            {
+                "openapi": "3.0.3",
+                "info": {"title": "T", "version": "1"},
+                "paths": {
+                    "/orders": {
+                        "post": {
+                            "operationId": "createOrder",
+                            "requestBody": {
+                                "required": True,
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "type": "object",
+                                            "properties": {
+                                                "product_id": {"type": "integer"},
+                                                "amount": {"type": "number"},
+                                            },
+                                            "required": ["product_id", "amount"],
+                                        }
                                     }
-                                }
+                                },
                             },
+                            "responses": {"201": {"description": "Created"}},
                         },
-                        "responses": {"201": {"description": "Created"}},
                     },
                 },
-            },
-        })
+            }
+        )
         spec = parse_spec_from_content(spec_json)
         ep = spec.endpoints[0]
         assert ep.param_schema is not None
@@ -189,61 +195,108 @@ class TestParseOpenAPI3:
         assert ep.param_schema["required"] == ["product_id", "amount"]
 
     def test_request_body_primitive_becomes_body_param(self):
-        spec_json = json.dumps({
-            "openapi": "3.0.3",
-            "info": {"title": "T", "version": "1"},
-            "paths": {
-                "/search": {
-                    "post": {
-                        "operationId": "search",
-                        "requestBody": {
-                            "content": {
-                                "application/json": {"schema": {"type": "array"}},
+        spec_json = json.dumps(
+            {
+                "openapi": "3.0.3",
+                "info": {"title": "T", "version": "1"},
+                "paths": {
+                    "/search": {
+                        "post": {
+                            "operationId": "search",
+                            "requestBody": {
+                                "content": {
+                                    "application/json": {"schema": {"type": "array"}},
+                                },
                             },
+                            "responses": {"200": {"description": "OK"}},
                         },
-                        "responses": {"200": {"description": "OK"}},
                     },
                 },
-            },
-        })
+            }
+        )
         spec = parse_spec_from_content(spec_json)
         ep = spec.endpoints[0]
         assert ep.param_schema is not None
         assert ep.param_schema["properties"]["body"] == {"type": "array"}
 
-    def test_request_body_ref_resolved_from_components(self):
-        """OpenAPI 3.x requestBody ``$ref`` into components/schemas is inlined."""
-        spec_json = json.dumps({
-            "openapi": "3.0.3",
-            "info": {"title": "T", "version": "1"},
-            "components": {
-                "schemas": {
-                    "CreateUserRequest": {
-                        "type": "object",
-                        "required": ["user_id"],
-                        "properties": {
-                            "user_id": {"type": "integer", "format": "int64"},
-                            "name": {"type": "string"},
-                        },
-                    }
-                }
-            },
-            "paths": {
-                "/users": {
-                    "post": {
-                        "operationId": "createUser",
-                        "requestBody": {
+    def test_request_body_ref_to_components_request_bodies_resolved(self):
+        """OpenAPI 3.x ``requestBody: {$ref: '#/components/requestBodies/X'}`` is inlined.
+
+        Real-world specs routinely reuse bodies via ``#/components/requestBodies``;
+        without resolution the operation silently loses its body schema.
+        """
+        spec_json = json.dumps(
+            {
+                "openapi": "3.0.3",
+                "info": {"title": "T", "version": "1"},
+                "components": {
+                    "requestBodies": {
+                        "CreateOrderBody": {
+                            "required": True,
                             "content": {
                                 "application/json": {
-                                    "schema": {"$ref": "#/components/schemas/CreateUserRequest"}
+                                    "schema": {
+                                        "type": "object",
+                                        "required": ["qty"],
+                                        "properties": {"qty": {"type": "integer"}},
+                                    }
                                 }
                             },
+                        }
+                    }
+                },
+                "paths": {
+                    "/orders": {
+                        "post": {
+                            "operationId": "createOrder",
+                            "requestBody": {"$ref": "#/components/requestBodies/CreateOrderBody"},
+                            "responses": {"201": {"description": "Created"}},
                         },
-                        "responses": {"201": {"description": "Created"}},
                     },
                 },
-            },
-        })
+            }
+        )
+        spec = parse_spec_from_content(spec_json)
+        ep = spec.endpoints[0]
+        assert ep.param_schema is not None
+        props = ep.param_schema["properties"]
+        assert props["qty"] == {"type": "integer"}
+        assert ep.param_schema["required"] == ["qty"]
+        assert "$ref" not in json.dumps(ep.param_schema)
+
+    def test_request_body_ref_resolved_from_components(self):
+        """OpenAPI 3.x requestBody ``$ref`` into components/schemas is inlined."""
+        spec_json = json.dumps(
+            {
+                "openapi": "3.0.3",
+                "info": {"title": "T", "version": "1"},
+                "components": {
+                    "schemas": {
+                        "CreateUserRequest": {
+                            "type": "object",
+                            "required": ["user_id"],
+                            "properties": {
+                                "user_id": {"type": "integer", "format": "int64"},
+                                "name": {"type": "string"},
+                            },
+                        }
+                    }
+                },
+                "paths": {
+                    "/users": {
+                        "post": {
+                            "operationId": "createUser",
+                            "requestBody": {
+                                "content": {
+                                    "application/json": {"schema": {"$ref": "#/components/schemas/CreateUserRequest"}}
+                                },
+                            },
+                            "responses": {"201": {"description": "Created"}},
+                        },
+                    },
+                },
+            }
+        )
         spec = parse_spec_from_content(spec_json)
         ep = spec.endpoints[0]
         assert ep.param_schema is not None
@@ -256,26 +309,28 @@ class TestParseOpenAPI3:
 
     def test_query_parameter_schema_ref_resolved(self):
         """Query parameter schema ``$ref`` into components/schemas is inlined."""
-        spec_json = json.dumps({
-            "openapi": "3.0.3",
-            "info": {"title": "T", "version": "1"},
-            "components": {"schemas": {"Limit": {"type": "integer", "format": "int32"}}},
-            "paths": {
-                "/items": {
-                    "get": {
-                        "operationId": "listItems",
-                        "parameters": [
-                            {
-                                "name": "limit",
-                                "in": "query",
-                                "schema": {"$ref": "#/components/schemas/Limit"},
-                            }
-                        ],
-                        "responses": {"200": {"description": "OK"}},
+        spec_json = json.dumps(
+            {
+                "openapi": "3.0.3",
+                "info": {"title": "T", "version": "1"},
+                "components": {"schemas": {"Limit": {"type": "integer", "format": "int32"}}},
+                "paths": {
+                    "/items": {
+                        "get": {
+                            "operationId": "listItems",
+                            "parameters": [
+                                {
+                                    "name": "limit",
+                                    "in": "query",
+                                    "schema": {"$ref": "#/components/schemas/Limit"},
+                                }
+                            ],
+                            "responses": {"200": {"description": "OK"}},
+                        },
                     },
                 },
-            },
-        })
+            }
+        )
         spec = parse_spec_from_content(spec_json)
         ep = spec.endpoints[0]
         assert ep.param_schema is not None
@@ -285,28 +340,30 @@ class TestParseOpenAPI3:
 
     def test_parameter_level_ref_resolved(self):
         """Operation-level parameter ``$ref`` into components/parameters is inlined."""
-        spec_json = json.dumps({
-            "openapi": "3.0.3",
-            "info": {"title": "T", "version": "1"},
-            "components": {
-                "parameters": {
-                    "LimitParam": {
-                        "name": "limit",
-                        "in": "query",
-                        "schema": {"type": "integer"},
+        spec_json = json.dumps(
+            {
+                "openapi": "3.0.3",
+                "info": {"title": "T", "version": "1"},
+                "components": {
+                    "parameters": {
+                        "LimitParam": {
+                            "name": "limit",
+                            "in": "query",
+                            "schema": {"type": "integer"},
+                        }
                     }
-                }
-            },
-            "paths": {
-                "/items": {
-                    "get": {
-                        "operationId": "listItems",
-                        "parameters": [{"$ref": "#/components/parameters/LimitParam"}],
-                        "responses": {"200": {"description": "OK"}},
+                },
+                "paths": {
+                    "/items": {
+                        "get": {
+                            "operationId": "listItems",
+                            "parameters": [{"$ref": "#/components/parameters/LimitParam"}],
+                            "responses": {"200": {"description": "OK"}},
+                        },
                     },
                 },
-            },
-        })
+            }
+        )
         spec = parse_spec_from_content(spec_json)
         ep = spec.endpoints[0]
         assert ep.param_schema is not None
@@ -316,25 +373,25 @@ class TestParseOpenAPI3:
 
     def test_unresolvable_external_ref_degrades(self):
         """External/unknown ``$ref`` degrades to permissive schema instead of leaking the pointer."""
-        spec_json = json.dumps({
-            "openapi": "3.0.3",
-            "info": {"title": "T", "version": "1"},
-            "paths": {
-                "/x": {
-                    "post": {
-                        "operationId": "createX",
-                        "requestBody": {
-                            "content": {
-                                "application/json": {
-                                    "schema": {"$ref": "https://example.com/external.json#/X"}
-                                }
+        spec_json = json.dumps(
+            {
+                "openapi": "3.0.3",
+                "info": {"title": "T", "version": "1"},
+                "paths": {
+                    "/x": {
+                        "post": {
+                            "operationId": "createX",
+                            "requestBody": {
+                                "content": {
+                                    "application/json": {"schema": {"$ref": "https://example.com/external.json#/X"}}
+                                },
                             },
+                            "responses": {"201": {"description": "Created"}},
                         },
-                        "responses": {"201": {"description": "Created"}},
                     },
                 },
-            },
-        })
+            }
+        )
         spec = parse_spec_from_content(spec_json)
         ep = spec.endpoints[0]
         assert ep.param_schema is not None
@@ -395,7 +452,7 @@ class TestParseSwagger2:
         assert "getUserById" in ep_map
         assert ep_map["getUserById"].path == "/users/{userId}"
 
-    def test_getUserById_param_schema(self):
+    def test_get_user_by_id_param_schema(self):
         spec = parse_spec_from_content(SWAGGER_2_SPEC)
         ep_map = {ep.operation_id: ep for ep in spec.endpoints}
         get_user = ep_map["getUserById"]
@@ -414,32 +471,71 @@ class TestParseSwagger2:
 
     def test_swagger2_body_ref_resolved_from_definitions(self):
         """Swagger 2.0 ``in: body`` schema ``$ref`` into definitions is inlined."""
-        spec_json = json.dumps({
-            "swagger": "2.0",
-            "info": {"title": "Legacy API", "version": "2.0.0"},
-            "host": "api.legacy.io",
-            "definitions": {
-                "User": {
-                    "type": "object",
-                    "properties": {"id": {"type": "integer"}},
-                }
-            },
-            "paths": {
-                "/users": {
-                    "post": {
-                        "operationId": "createUser",
-                        "parameters": [
-                            {"name": "body", "in": "body", "schema": {"$ref": "#/definitions/User"}}
-                        ],
-                        "responses": {"201": {"description": "Created"}},
+        spec_json = json.dumps(
+            {
+                "swagger": "2.0",
+                "info": {"title": "Legacy API", "version": "2.0.0"},
+                "host": "api.legacy.io",
+                "definitions": {
+                    "User": {
+                        "type": "object",
+                        "properties": {"id": {"type": "integer"}},
+                    }
+                },
+                "paths": {
+                    "/users": {
+                        "post": {
+                            "operationId": "createUser",
+                            "parameters": [{"name": "body", "in": "body", "schema": {"$ref": "#/definitions/User"}}],
+                            "responses": {"201": {"description": "Created"}},
+                        },
                     },
                 },
-            },
-        })
+            }
+        )
         spec = parse_spec_from_content(spec_json)
         ep = spec.endpoints[0]
         assert ep.param_schema is not None
         assert ep.param_schema["properties"]["id"] == {"type": "integer"}
+        assert "$ref" not in json.dumps(ep.param_schema)
+
+    def test_swagger2_top_level_parameter_ref_resolved(self):
+        """Swagger 2.0 top-level ``#/parameters/X`` (reusable params container) is inlined.
+
+        Swagger 2.0's standard reuse mechanism is a document-level ``parameters``
+        object, distinct from OpenAPI 3.x ``#/components/parameters/X``.
+        """
+        spec_json = json.dumps(
+            {
+                "swagger": "2.0",
+                "info": {"title": "Legacy API", "version": "2.0.0"},
+                "host": "api.legacy.io",
+                "parameters": {
+                    "LimitParam": {
+                        "name": "limit",
+                        "in": "query",
+                        "type": "integer",
+                        "required": True,
+                    }
+                },
+                "paths": {
+                    "/items": {
+                        "get": {
+                            "operationId": "listItems",
+                            "parameters": [{"$ref": "#/parameters/LimitParam"}],
+                            "responses": {"200": {"description": "OK"}},
+                        },
+                    },
+                },
+            }
+        )
+        spec = parse_spec_from_content(spec_json)
+        ep = spec.endpoints[0]
+        assert ep.param_schema is not None
+        props = ep.param_schema["properties"]
+        assert props["limit"] == {"type": "integer"}
+        assert ep.param_schema["required"] == ["limit"]
+        assert "limit" in ep.query_param_keys
         assert "$ref" not in json.dumps(ep.param_schema)
 
     def test_base_url_without_host_fallback_to_source(self):
@@ -460,43 +556,49 @@ class TestOperationIdResolution:
     """Test operation ID generation and deduplication."""
 
     def test_auto_generated_operation_id(self):
-        spec_json = json.dumps({
-            "openapi": "3.0.0",
-            "info": {"title": "T", "version": "1"},
-            "paths": {
-                "/items": {
-                    "get": {"summary": "List items", "responses": {"200": {"description": "OK"}}},
-                    "post": {"summary": "Create item", "responses": {"201": {"description": "OK"}}},
+        spec_json = json.dumps(
+            {
+                "openapi": "3.0.0",
+                "info": {"title": "T", "version": "1"},
+                "paths": {
+                    "/items": {
+                        "get": {"summary": "List items", "responses": {"200": {"description": "OK"}}},
+                        "post": {"summary": "Create item", "responses": {"201": {"description": "OK"}}},
+                    },
                 },
-            },
-        })
+            }
+        )
         spec = parse_spec_from_content(spec_json)
         ids = [ep.operation_id for ep in spec.endpoints]
         assert "get_items" in ids
         assert "post_items" in ids
 
     def test_sanitize_special_characters(self):
-        spec_json = json.dumps({
-            "openapi": "3.0.0",
-            "info": {"title": "T", "version": "1"},
-            "paths": {
-                "/foo": {
-                    "get": {"operationId": "get-foo.bar/baz", "responses": {"200": {"description": "OK"}}},
+        spec_json = json.dumps(
+            {
+                "openapi": "3.0.0",
+                "info": {"title": "T", "version": "1"},
+                "paths": {
+                    "/foo": {
+                        "get": {"operationId": "get-foo.bar/baz", "responses": {"200": {"description": "OK"}}},
+                    },
                 },
-            },
-        })
+            }
+        )
         spec = parse_spec_from_content(spec_json)
         assert spec.endpoints[0].operation_id == "get_foo_bar_baz"
 
     def test_duplicate_operation_id_dedup(self):
-        spec_json = json.dumps({
-            "openapi": "3.0.0",
-            "info": {"title": "T", "version": "1"},
-            "paths": {
-                "/a": {"get": {"operationId": "getItem", "responses": {"200": {"description": "OK"}}}},
-                "/b": {"get": {"operationId": "getItem", "responses": {"200": {"description": "OK"}}}},
-            },
-        })
+        spec_json = json.dumps(
+            {
+                "openapi": "3.0.0",
+                "info": {"title": "T", "version": "1"},
+                "paths": {
+                    "/a": {"get": {"operationId": "getItem", "responses": {"200": {"description": "OK"}}}},
+                    "/b": {"get": {"operationId": "getItem", "responses": {"200": {"description": "OK"}}}},
+                },
+            }
+        )
         spec = parse_spec_from_content(spec_json)
         ids = [ep.operation_id for ep in spec.endpoints]
         assert "getItem" in ids

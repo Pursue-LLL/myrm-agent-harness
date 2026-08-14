@@ -83,9 +83,7 @@ class AgentClient:
         self.allowed_tools.extend(tools)
         return self
 
-    def with_skills(
-        self, skill_ids: list[str], configs: dict[str, dict] | None = None
-    ) -> AgentClient:
+    def with_skills(self, skill_ids: list[str], configs: dict[str, dict] | None = None) -> AgentClient:
         """Enable custom skills."""
         self.skill_ids.extend(skill_ids)
         if configs:
@@ -145,9 +143,7 @@ class AgentClient:
                 if event_type == "reasoning" and on_thought:
                     on_thought(str(event.get("data", "")))
                 elif event_type == "tasks_steps" and on_tool_call:
-                    tool_name = str(
-                        event.get("tool_name", "") or event.get("step_key", "")
-                    )
+                    tool_name = str(event.get("tool_name", "") or event.get("step_key", ""))
                     on_tool_call(tool_name, str(event.get("data", "")))
                 elif event_type == "message":
                     chunk = str(event.get("data", ""))

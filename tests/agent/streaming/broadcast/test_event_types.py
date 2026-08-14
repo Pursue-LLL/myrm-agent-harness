@@ -62,9 +62,7 @@ class TestAgentEventTypeEnum:
     def test_all_values_are_snake_case(self):
         """All event type values should be lowercase snake_case."""
         for event in AgentEventType:
-            assert (
-                event.value == event.value.lower()
-            ), f"{event.name} value not lowercase"
+            assert event.value == event.value.lower(), f"{event.name} value not lowercase"
             assert " " not in event.value, f"{event.name} value has spaces"
 
     def test_no_duplicate_values(self):
@@ -133,9 +131,7 @@ class TestToolCallEventData:
             data.tool_name = "other"  # type: ignore[misc]
 
     def test_to_dict_minimal(self):
-        data = ToolCallEventData(
-            tool_name="web_search", status="started", start_time=1718000000.123
-        )
+        data = ToolCallEventData(tool_name="web_search", status="started", start_time=1718000000.123)
         d = data.to_dict()
         assert d == {
             "tool_name": "web_search",
@@ -165,9 +161,7 @@ class TestToolCallEventData:
         assert d["version"] == 3
 
     def test_to_json(self):
-        data = ToolCallEventData(
-            tool_name="test", status="failed", start_time=1.0, error="oops"
-        )
+        data = ToolCallEventData(tool_name="test", status="failed", start_time=1.0, error="oops")
         j = data.to_json()
         parsed = json.loads(j)
         assert parsed["status"] == "failed"

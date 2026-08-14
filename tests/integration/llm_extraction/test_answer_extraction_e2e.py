@@ -47,8 +47,7 @@ async def test_extract_answer_text_strips_think_blocks(basic_llm) -> None:
     """A model that returns an answer inside <think>…</think> has the block stripped."""
     response = await _ask(
         basic_llm,
-        "First think step by step inside a <think>...</think> block, "
-        "then answer. Output exactly: final answer 42",
+        "First think step by step inside a <think>...</think> block, then answer. Output exactly: final answer 42",
     )
     text = extract_answer_text(response)
     assert isinstance(text, str)

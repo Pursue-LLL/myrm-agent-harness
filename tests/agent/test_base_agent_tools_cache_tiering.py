@@ -38,6 +38,7 @@ def mock_agent():
     agent._cached_middlewares = []
 
     from myrm_agent_harness.agent.tool_management import ToolRegistry
+
     agent._tool_registry = ToolRegistry()
 
     return agent

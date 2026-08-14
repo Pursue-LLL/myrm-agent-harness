@@ -110,14 +110,10 @@ class TestAdaptiveThresholdCache:
     """Test adaptive threshold uses safe integer counts."""
 
     @pytest.mark.asyncio
-    async def test_get_adaptive_threshold_ignores_non_numeric_count(
-        self, mock_vector_store, memory_config
-    ):
+    async def test_get_adaptive_threshold_ignores_non_numeric_count(self, mock_vector_store, memory_config):
         mock_vector_store.count = AsyncMock(return_value=object())
 
-        threshold = await _get_adaptive_threshold(
-            mock_vector_store, [memory_config.semantic_collection], memory_config
-        )
+        threshold = await _get_adaptive_threshold(mock_vector_store, [memory_config.semantic_collection], memory_config)
 
         assert isinstance(threshold, float)
         assert threshold == memory_config.adaptive_threshold_strategy.get_threshold(0)
@@ -154,16 +150,12 @@ class TestGraphIndexingStorage:
 
         assert result == memory
         mock_vector_store.upsert.assert_awaited_once()
-        mock_graph_store.create_node.assert_awaited_once_with(
-            labels=["EpisodicMemory"], properties={"id": "mem-1"}
-        )
+        mock_graph_store.create_node.assert_awaited_once_with(labels=["EpisodicMemory"], properties={"id": "mem-1"})
         assert mock_graph_store.get_or_create_node.await_count == 2
         assert mock_graph_store.create_relationship.await_count == 2
 
     @pytest.mark.asyncio
-    async def test_store_episodic_without_graph(
-        self, mock_vector_store, mock_embedding, mock_cache, memory_config
-    ):
+    async def test_store_episodic_without_graph(self, mock_vector_store, mock_embedding, mock_cache, memory_config):
         """Test episodic storage without graph backend skips graph indexing."""
         memory = EpisodicMemory(
             id="mem-1",
@@ -282,9 +274,7 @@ class TestGraphIndexingStorage:
             call_count += 1
             if call_count == 1:
                 raise RuntimeError("Graph error")
-            return GraphNode(
-                id=f"node-{call_count}", labels=["EpisodicMemory"], properties={}
-            )
+            return GraphNode(id=f"node-{call_count}", labels=["EpisodicMemory"], properties={})
 
         mock_graph_store.create_node.side_effect = create_node_with_failure
 
@@ -457,9 +447,7 @@ class TestStorageCrudBranches:
         mock_embedding.embed_batch.return_value = [[0.2] * 768]
         mock_cache.get_batch.return_value = [None]
 
-        result = await store_semantics_batch(
-            memories, mock_vector_store, memory_config, mock_embedding, mock_cache
-        )
+        result = await store_semantics_batch(memories, mock_vector_store, memory_config, mock_embedding, mock_cache)
 
         assert result[0].embedding == [0.1] * 768
         assert result[1].embedding == [0.2] * 768
@@ -467,9 +455,7 @@ class TestStorageCrudBranches:
         mock_vector_store.upsert.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_get_from_vector_namespace_mismatch_skips_doc(
-        self, mock_vector_store, memory_config
-    ):
+    async def test_get_from_vector_namespace_mismatch_skips_doc(self, mock_vector_store, memory_config):
         """Docs whose namespaces do not intersect the requested ones are skipped."""
         doc = VectorDocument(
             id="mem-1",
@@ -478,17 +464,13 @@ class TestStorageCrudBranches:
         )
         mock_vector_store.get.return_value = [doc]
 
-        result = await get_from_vector(
-            "mem-1", mock_vector_store, memory_config, namespaces=["team-b"]
-        )
+        result = await get_from_vector("mem-1", mock_vector_store, memory_config, namespaces=["team-b"])
 
         assert result is None
         assert mock_vector_store.get.await_count == 2  # both collections scanned
 
     @pytest.mark.asyncio
-    async def test_update_vector_memory_episodic_unchanged(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_update_vector_memory_episodic_unchanged(self, mock_vector_store, mock_embedding, memory_config):
         """Episodic memory without content change upserts to episodic collection."""
         memory = EpisodicMemory(id="mem-1", content="event", embedding=[0.1] * 768)
 
@@ -502,9 +484,7 @@ class TestStorageCrudBranches:
         )
 
         assert result == memory
-        mock_vector_store.upsert.assert_awaited_once_with(
-            memory_config.episodic_collection, ANY
-        )
+        mock_vector_store.upsert.assert_awaited_once_with(memory_config.episodic_collection, ANY)
 
     @pytest.mark.asyncio
     async def test_list_procedural_rules(self, mock_relational_store, memory_config):
@@ -534,9 +514,7 @@ class TestStorageCrudBranches:
     @pytest.mark.asyncio
     async def test_list_task_digest(self, mock_vector_store, memory_config):
         """TASK_DIGEST list reads episodic collection with event_type filter."""
-        doc = VectorDocument(
-            id="dig-1", content="digest", metadata={"event_type": "task_digest"}
-        )
+        doc = VectorDocument(id="dig-1", content="digest", metadata={"event_type": "task_digest"})
         mock_vector_store.scroll.return_value = ([doc], None)
 
         result = await list_by_type(
@@ -623,8 +601,6 @@ class TestStorageCrudBranches:
     @pytest.mark.asyncio
     async def test_delete_by_type_no_backend_returns_zero(self, memory_config):
         """Without relational/vector backends the delete is a no-op."""
-        result = await delete_by_type(
-            MemoryType.SEMANTIC, relational=None, vector=None, config=memory_config
-        )
+        result = await delete_by_type(MemoryType.SEMANTIC, relational=None, vector=None, config=memory_config)
 
         assert result == 0

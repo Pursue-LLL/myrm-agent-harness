@@ -56,9 +56,7 @@ class BackgroundOutputSpillWriter:
                 handle.write(f"{prefix}{text}\n")
             self._spill_active = True
         except OSError as exc:
-            logger.warning(
-                "Background spill write failed job=%s: %s", self._job_id, exc
-            )
+            logger.warning("Background spill write failed job=%s: %s", self._job_id, exc)
 
     def _ensure_paths(self) -> None:
         if self._filename is not None:

@@ -40,9 +40,7 @@ class TestNormalizeAnswer:
         assert normalize_answer("v2.5.1") != normalize_answer("v251")
 
     def test_sentence_final_period_keeps_matching(self) -> None:
-        assert normalize_answer("The answer is 42.") == normalize_answer(
-            "the answer is 42"
-        )
+        assert normalize_answer("The answer is 42.") == normalize_answer("the answer is 42")
         assert normalize_answer("2024.") == normalize_answer("2024")
         assert normalize_answer("Apple, Inc.") == normalize_answer("apple inc")
 

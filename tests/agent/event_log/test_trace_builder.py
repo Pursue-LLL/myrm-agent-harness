@@ -32,15 +32,11 @@ class InMemoryBackend:
         for e in events:
             self._events.setdefault(e.session_id, []).append(e)
 
-    async def get_events(
-        self, session_id: str, event_filter: EventFilter | None = None
-    ) -> list[StructuredEvent]:
+    async def get_events(self, session_id: str, event_filter: EventFilter | None = None) -> list[StructuredEvent]:
         events = self._events.get(session_id, [])
         if event_filter:
             if event_filter.start_sequence is not None:
-                events = [
-                    e for e in events if e.sequence >= event_filter.start_sequence
-                ]
+                events = [e for e in events if e.sequence >= event_filter.start_sequence]
             if event_filter.start_time is not None:
                 events = [e for e in events if e.timestamp >= event_filter.start_time]
             if event_filter.end_time is not None:
@@ -143,9 +139,7 @@ class TestBuildTrace:
             _event(3, "tool_end", tool_name="file_read", duration_ms=100.0),
             _event(4, "tool_start", tool_name="bash"),
             _event(5, "tool_end", tool_name="bash", duration_ms=500.0),
-            _event(
-                6, "session_end", summary={"input_tokens": 100, "output_tokens": 50}
-            ),
+            _event(6, "session_end", summary={"input_tokens": 100, "output_tokens": 50}),
         ]
         backend = InMemoryBackend({"sess-1": events})
         trace = await build_trace(backend, "sess-1")
@@ -440,15 +434,11 @@ class TestEdgeCases:
         backend = InMemoryBackend(
             {
                 "sess-1": [
-                    _event(
-                        1, "session_start", session_id="sess-1", _task_type="coding"
-                    ),
+                    _event(1, "session_start", session_id="sess-1", _task_type="coding"),
                     _event(2, "session_end", session_id="sess-1"),
                 ],
                 "sess-2": [
-                    _event(
-                        1, "session_start", session_id="sess-2", _task_type="search"
-                    ),
+                    _event(1, "session_start", session_id="sess-2", _task_type="search"),
                     _event(2, "session_end", session_id="sess-2"),
                 ],
             }

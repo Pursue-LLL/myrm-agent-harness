@@ -35,9 +35,7 @@ logger = logging.getLogger(__name__)
 class CoordInteractMixin:
     """Coordinate-based interaction — Visual Mode actions at viewport positions."""
 
-    _COORD_ACTIONS = frozenset(
-        {"click", "dblclick", "type", "press", "hover", "scroll", "drag"}
-    )
+    _COORD_ACTIONS = frozenset({"click", "dblclick", "type", "press", "hover", "scroll", "drag"})
 
     async def interact_at(
         self,
@@ -68,10 +66,7 @@ class CoordInteractMixin:
             ValueError: If action is unsupported or coordinates are out of bounds.
         """
         if action not in self._COORD_ACTIONS:
-            raise ValueError(
-                f"Invalid coordinate action: {action}. "
-                f"Supported: {sorted(self._COORD_ACTIONS)}"
-            )
+            raise ValueError(f"Invalid coordinate action: {action}. Supported: {sorted(self._COORD_ACTIONS)}")
 
         viewport = self._page.viewport_size or {"width": 1280, "height": 720}
         vw, vh = viewport["width"], viewport["height"]
@@ -88,17 +83,13 @@ class CoordInteractMixin:
 
         async def _wait_after() -> None:
             try:
-                await wait_for_page_ready(
-                    self._page, strategy=WaitStrategy.SPA_STABLE, max_ms=3000
-                )
+                await wait_for_page_ready(self._page, strategy=WaitStrategy.SPA_STABLE, max_ms=3000)
             except Exception as exc:
                 logger.debug("Interactor: post-coord-action SPA wait failed: %s", exc)
 
         if action == "click":
             if self._humanize.enable_bezier_mouse:
-                await bezier_move(
-                    self._page, self._mouse_x, self._mouse_y, x, y, self._humanize
-                )
+                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
             else:
                 await self._page.mouse.move(x, y)
             delay_ms = click_delay(self._humanize)
@@ -119,9 +110,7 @@ class CoordInteractMixin:
             if not text:
                 raise ValueError("'text' is required for type action")
             if self._humanize.enable_bezier_mouse:
-                await bezier_move(
-                    self._page, self._mouse_x, self._mouse_y, x, y, self._humanize
-                )
+                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
             else:
                 await self._page.mouse.move(x, y)
             await self._page.mouse.click(x, y)
@@ -142,9 +131,7 @@ class CoordInteractMixin:
 
         if action == "hover":
             if self._humanize.enable_bezier_mouse:
-                await bezier_move(
-                    self._page, self._mouse_x, self._mouse_y, x, y, self._humanize
-                )
+                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
             else:
                 await self._page.mouse.move(x, y)
             self._mouse_x, self._mouse_y = x, y
@@ -152,32 +139,22 @@ class CoordInteractMixin:
 
         if action == "scroll":
             if not text:
-                raise ValueError(
-                    "'text' (signed pixel delta) is required for scroll action"
-                )
+                raise ValueError("'text' (signed pixel delta) is required for scroll action")
             try:
                 delta = int(text)
             except ValueError as exc:
-                raise ValueError(
-                    f"Scroll requires numeric text (pixel delta), got: {text}"
-                ) from exc
+                raise ValueError(f"Scroll requires numeric text (pixel delta), got: {text}") from exc
             await self._page.mouse.move(x, y)
             self._mouse_x, self._mouse_y = x, y
             return await self._scroll_with_report(x, y, delta, f" at ({x}, {y})")
 
         if action == "drag":
             if target_x is None or target_y is None:
-                raise ValueError(
-                    "'target_x' and 'target_y' are required for drag action"
-                )
+                raise ValueError("'target_x' and 'target_y' are required for drag action")
             if not (0 <= target_x <= vw and 0 <= target_y <= vh):
-                raise ValueError(
-                    f"Drag target ({target_x}, {target_y}) out of viewport bounds ({vw}×{vh})."
-                )
+                raise ValueError(f"Drag target ({target_x}, {target_y}) out of viewport bounds ({vw}×{vh}).")
             if self._humanize.enable_bezier_mouse:
-                await bezier_move(
-                    self._page, self._mouse_x, self._mouse_y, x, y, self._humanize
-                )
+                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
             else:
                 await self._page.mouse.move(x, y)
             await self._page.mouse.down()

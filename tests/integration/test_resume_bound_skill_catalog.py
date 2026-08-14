@@ -98,9 +98,7 @@ async def test_resume_refreshes_stale_catalog_from_real_checkpoint() -> None:
     agent._agent = graph
 
     command = Command(resume={"decision": "approve"})
-    refreshed = await apply_bound_skill_catalog_for_resume(
-        agent, command, thread_id=thread_id
-    )
+    refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id=thread_id)
 
     assert refreshed is not command
     updated_messages = refreshed.update.get("messages")
@@ -127,9 +125,7 @@ async def test_resume_no_op_when_checkpoint_thread_missing() -> None:
     agent._agent = graph
 
     command = Command(resume={"decision": "approve"})
-    refreshed = await apply_bound_skill_catalog_for_resume(
-        agent, command, thread_id="missing-thread-id"
-    )
+    refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id="missing-thread-id")
     assert refreshed is command
     assert refreshed.update is None
 
@@ -154,9 +150,7 @@ async def test_resume_no_op_when_catalog_already_matches_bind_list() -> None:
     agent._agent = graph
 
     command = Command(resume="continue")
-    refreshed = await apply_bound_skill_catalog_for_resume(
-        agent, command, thread_id=thread_id
-    )
+    refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id=thread_id)
     assert refreshed is command
 
 

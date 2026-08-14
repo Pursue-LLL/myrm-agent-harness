@@ -50,9 +50,7 @@ class CsvParser(FileParser):
         ]
         for row in body:
             padded = row + [""] * max(0, len(header) - len(row))
-            lines.append(
-                "| " + " | ".join(_cell(cell) for cell in padded[: len(header)]) + " |"
-            )
+            lines.append("| " + " | ".join(_cell(cell) for cell in padded[: len(header)]) + " |")
 
         logger.info("CSV parsed: %s, rows=%d", path.name, len(rows))
         return "\n".join(lines)

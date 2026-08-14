@@ -189,13 +189,15 @@ class ExcelParser(FileParser):
                     if isinstance(val, str) and val.startswith("="):
                         self._audit_formula(val, coord, sheet_name, wb.sheetnames, findings)
                     elif isinstance(val, str) and val.startswith("#"):
-                        findings.append({
-                            "severity": "error",
-                            "category": "formula_error",
-                            "cell": coord,
-                            "sheet": sheet_name,
-                            "description": f"Error value: {val}",
-                        })
+                        findings.append(
+                            {
+                                "severity": "error",
+                                "category": "formula_error",
+                                "cell": coord,
+                                "sheet": sheet_name,
+                                "description": f"Error value: {val}",
+                            }
+                        )
 
         error_count = sum(1 for f in findings if f["severity"] == "error")
         warning_count = sum(1 for f in findings if f["severity"] == "warning")
@@ -218,14 +220,16 @@ class ExcelParser(FileParser):
         for match in _CROSS_SHEET_RE.finditer(formula):
             ref_sheet = match.group(1) or match.group(2)
             if ref_sheet not in all_sheets:
-                findings.append({
-                    "severity": "error",
-                    "category": "broken_reference",
-                    "cell": coord,
-                    "sheet": sheet_name,
-                    "description": f"References non-existent sheet '{ref_sheet}'",
-                    "evidence": formula,
-                })
+                findings.append(
+                    {
+                        "severity": "error",
+                        "category": "broken_reference",
+                        "cell": coord,
+                        "sheet": sheet_name,
+                        "description": f"References non-existent sheet '{ref_sheet}'",
+                        "evidence": formula,
+                    }
+                )
 
     # ======================== Content Modes ========================
 

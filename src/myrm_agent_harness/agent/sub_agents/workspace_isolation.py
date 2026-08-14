@@ -31,19 +31,21 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_CLONE_IGNORE_DIRS: frozenset[str] = frozenset({
-    ".git",
-    "node_modules",
-    ".venv",
-    "venv",
-    "__pycache__",
-    ".mypy_cache",
-    ".pytest_cache",
-    ".tox",
-    "dist",
-    "build",
-    ".next",
-})
+_CLONE_IGNORE_DIRS: frozenset[str] = frozenset(
+    {
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".tox",
+        "dist",
+        "build",
+        ".next",
+    }
+)
 
 _DEFAULT_MAX_CLONE_BYTES: int = 1024 * 1024 * 1024  # 1 GiB
 
@@ -227,7 +229,8 @@ async def isolated_workspace(
     try:
         loop = asyncio.get_running_loop()
         count = await loop.run_in_executor(
-            None, lambda: _clone_workspace(parent_path, child_path, max_bytes=max_bytes),
+            None,
+            lambda: _clone_workspace(parent_path, child_path, max_bytes=max_bytes),
         )
         logger.info("Isolated workspace created: %s (%d files cloned)", child_path, count)
 

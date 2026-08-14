@@ -50,7 +50,9 @@ async def memory_manager():
             retrieval=RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0),
         )
 
-        manager = MemoryManager(config, user_id="test_user", vector=vector_store, embedding=MockEmbedding(), auto_warmup=False)
+        manager = MemoryManager(
+            config, user_id="test_user", vector=vector_store, embedding=MockEmbedding(), auto_warmup=False
+        )
 
         from qdrant_client.models import Distance, VectorParams
 

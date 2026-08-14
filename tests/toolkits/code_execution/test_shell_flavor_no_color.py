@@ -40,7 +40,7 @@ class TestBashFlavorEnvQuoting:
             "",
             "with spaces",
             'with "double" quotes',
-            "a\"b",  # odd quote count: previously hung the shell
+            'a"b',  # odd quote count: previously hung the shell
             "it's single quotes",
             r"back\\slash",
             r"path\/to\/file",
@@ -64,7 +64,7 @@ class TestBashFlavorEnvQuoting:
     @pytest.mark.parametrize(
         "value",
         [
-            "a\"b",
+            'a"b',
             "line1\nline2",
             "$HOME",
             "it's",
@@ -84,7 +84,7 @@ class TestBashFlavorEnvQuoting:
             flavor.format_env_set("K2", "$HOME"),
             flavor.format_env_set("K3", "plain"),
         ]
-        joined = "\n".join(cmds) + "\nprintf '%s|%s|%s' \"$K1\" \"$K2\" \"$K3\""
+        joined = "\n".join(cmds) + '\nprintf \'%s|%s|%s\' "$K1" "$K2" "$K3"'
         proc = subprocess.run(["bash", "-c", joined], capture_output=True, text=True, check=False)
         assert proc.returncode == 0
         assert proc.stdout == 'a"b|$HOME|plain'
@@ -135,7 +135,7 @@ class TestBashFlavorNoColor:
         flavor = BashFlavor()
         wrapped = flavor.build_wrapped_command("echo hi", "EX", "END", "$?")
 
-        assert wrapped.startswith("trap 'echo \"EX\"$?; echo \"END\"' EXIT\n{\necho hi\n")
+        assert wrapped.startswith('trap \'echo "EX"$?; echo "END"\' EXIT\n{\necho hi\n')
         assert "__myrm_rc__=$?" in wrapped
         assert "}\necho 'EX'" in wrapped
         assert "\necho 'END'\n" in wrapped

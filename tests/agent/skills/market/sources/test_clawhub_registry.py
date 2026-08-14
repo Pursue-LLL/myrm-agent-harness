@@ -61,13 +61,8 @@ def test_bootstrap_migrates_openclaw_env(monkeypatch: pytest.MonkeyPatch) -> Non
     assert os.environ.get(CLAWHUB_URL_ENV) == "https://openclaw.example.com"
     assert OPENCLAW_CLAWHUB_URL_ENV not in os.environ
     assert migrate_legacy_registry_url("https://skillhub.cn") == CLAWHUB_CN_PRESET_URL
-    assert (
-        migrate_legacy_registry_url("https://www.skillhub.cn/") == CLAWHUB_CN_PRESET_URL
-    )
-    assert (
-        migrate_legacy_registry_url("https://skill.xfyun.cn")
-        == "https://skill.xfyun.cn"
-    )
+    assert migrate_legacy_registry_url("https://www.skillhub.cn/") == CLAWHUB_CN_PRESET_URL
+    assert migrate_legacy_registry_url("https://skill.xfyun.cn") == "https://skill.xfyun.cn"
 
 
 def test_resolve_registry_base_url_prefers_clawhub_url_env(

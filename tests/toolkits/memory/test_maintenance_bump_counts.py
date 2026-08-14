@@ -57,9 +57,7 @@ async def test_bump_access_counts_procedural_without_relational():
     config = MemoryConfig(embedding_model="test")
     vector = AsyncMock()
 
-    proc_mem = ProceduralMemory(
-        id="proc1", content="rule", trigger="t", action="a", source="agent_self"
-    )
+    proc_mem = ProceduralMemory(id="proc1", content="rule", trigger="t", action="a", source="agent_self")
     res = MemorySearchResult(memory=proc_mem, score=0.85, memory_type=MemoryType.PROCEDURAL)
 
     await bump_access_counts([res], vector, config, relational=None)
@@ -132,9 +130,7 @@ async def test_bump_access_counts_procedural_update_rule_error():
     relational = AsyncMock()
     relational.update_rule.side_effect = Exception("DB connection lost")
 
-    proc_mem = ProceduralMemory(
-        id="proc1", content="rule", trigger="t", action="a", source="agent_self"
-    )
+    proc_mem = ProceduralMemory(id="proc1", content="rule", trigger="t", action="a", source="agent_self")
     res = MemorySearchResult(memory=proc_mem, score=0.85, memory_type=MemoryType.PROCEDURAL)
 
     await bump_access_counts([res], vector, config, relational=relational)

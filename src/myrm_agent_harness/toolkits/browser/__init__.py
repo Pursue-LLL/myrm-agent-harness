@@ -242,22 +242,14 @@ _LAZY_MODULES = {
     ],
 }
 
-_SYMBOL_TO_MODULE = {
-    symbol: module_name
-    for module_name, symbols in _LAZY_MODULES.items()
-    for symbol in symbols
-}
+_SYMBOL_TO_MODULE = {symbol: module_name for module_name, symbols in _LAZY_MODULES.items() for symbol in symbols}
 
 if __debug__:
-    _all_lazy_symbols = {
-        symbol for symbols in _LAZY_MODULES.values() for symbol in symbols
-    }
+    _all_lazy_symbols = {symbol for symbols in _LAZY_MODULES.values() for symbol in symbols}
     _all_set = set(__all__)
     _extra = _all_lazy_symbols - _all_set
     if _extra:
-        raise RuntimeError(
-            f"browser: _LAZY_MODULES has symbols not in __all__: {_extra}"
-        )
+        raise RuntimeError(f"browser: _LAZY_MODULES has symbols not in __all__: {_extra}")
 
 
 def __getattr__(name: str):

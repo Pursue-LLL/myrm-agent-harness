@@ -270,7 +270,10 @@ class DesktopSession(ComputerSession):
 
             snapshot_app = self._refs.meta.app_name if self._refs.meta else None
             ax_result = invoke_element(
-                self._backend, element, effective_action, effective_text,
+                self._backend,
+                element,
+                effective_action,
+                effective_text,
                 app_name=snapshot_app,
             )
             if not ax_result.success:
@@ -290,7 +293,8 @@ class DesktopSession(ComputerSession):
                 )
             else:
                 follow_up = await self.desktop_snapshot(
-                    scope="foreground", include_screenshot=False,
+                    scope="foreground",
+                    include_screenshot=False,
                 )
             if action == "fill_credential":
                 result_prefix = f"Filled credential '{text}' into @{element.ref_id} [CREDENTIAL_FILLED]\n\n"

@@ -87,8 +87,7 @@ async def create_embedded_store(
                 client = QdrantClient(path=":memory:")
             except Exception as mem_exc:
                 raise RuntimeError(
-                    f"Failed to initialize Qdrant at {data_path} ({e}); "
-                    f"in-memory fallback also failed ({mem_exc})"
+                    f"Failed to initialize Qdrant at {data_path} ({e}); in-memory fallback also failed ({mem_exc})"
                 ) from e
             actual_path = ":memory:"
 
@@ -163,9 +162,7 @@ async def clear_embedded_stores() -> None:
     async with _embedded_lock:
         stores = list(_embedded_clients.values())
         _embedded_clients.clear()
-    results = await asyncio.gather(
-        *(store.hard_close() for store in stores), return_exceptions=True
-    )
+    results = await asyncio.gather(*(store.hard_close() for store in stores), return_exceptions=True)
     for result in results:
         if isinstance(result, Exception):
             logger.warning("Failed to close embedded Qdrant client on shutdown: %s", result)

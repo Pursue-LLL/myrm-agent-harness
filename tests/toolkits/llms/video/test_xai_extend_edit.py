@@ -112,10 +112,12 @@ class TestExtractVideoSourceUrl:
         assert XAIGrokProvider._extract_video_source_url(params) is None
 
     def test_multiple_urls_returns_first(self) -> None:
-        params = {"_video_source_urls": [
-            "https://cdn.example.com/first.mp4",
-            "https://cdn.example.com/second.mp4",
-        ]}
+        params = {
+            "_video_source_urls": [
+                "https://cdn.example.com/first.mp4",
+                "https://cdn.example.com/second.mp4",
+            ]
+        }
         assert XAIGrokProvider._extract_video_source_url(params) == "https://cdn.example.com/first.mp4"
 
     def test_ftp_url_rejected(self) -> None:
@@ -168,15 +170,16 @@ class TestGenerateExtendEndpoint:
             return_value=Response(200, json={"request_id": "req-ext-001"})
         )
         respx.get("https://api.x.ai/v1/videos/req-ext-001").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {"url": "https://cdn.xai.com/out.mp4", "duration": 8},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {"url": "https://cdn.xai.com/out.mp4", "duration": 8},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
-        respx.get("https://cdn.xai.com/out.mp4").mock(
-            return_value=Response(200, content=b"\x00" * 100)
-        )
+        respx.get("https://cdn.xai.com/out.mp4").mock(return_value=Response(200, content=b"\x00" * 100))
 
         provider = XAIGrokProvider()
         result = await provider.generate(
@@ -201,15 +204,16 @@ class TestGenerateExtendEndpoint:
             return_value=Response(200, json={"request_id": "req-edit-002"})
         )
         respx.get("https://api.x.ai/v1/videos/req-edit-002").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {"url": "https://cdn.xai.com/edited.mp4", "duration": 5},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {"url": "https://cdn.xai.com/edited.mp4", "duration": 5},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
-        respx.get("https://cdn.xai.com/edited.mp4").mock(
-            return_value=Response(200, content=b"\x00" * 80)
-        )
+        respx.get("https://cdn.xai.com/edited.mp4").mock(return_value=Response(200, content=b"\x00" * 80))
 
         provider = XAIGrokProvider()
         result = await provider.generate(
@@ -231,15 +235,16 @@ class TestGenerateExtendEndpoint:
             return_value=Response(200, json={"request_id": "req-gen-003"})
         )
         respx.get("https://api.x.ai/v1/videos/req-gen-003").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {"url": "https://cdn.xai.com/new.mp4", "duration": 12},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {"url": "https://cdn.xai.com/new.mp4", "duration": 12},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
-        respx.get("https://cdn.xai.com/new.mp4").mock(
-            return_value=Response(200, content=b"\x00" * 60)
-        )
+        respx.get("https://cdn.xai.com/new.mp4").mock(return_value=Response(200, content=b"\x00" * 60))
 
         provider = XAIGrokProvider()
         result = await provider.generate(
@@ -291,10 +296,13 @@ class TestErrorHandling:
             return_value=Response(200, json={"request_id": "req-fail"})
         )
         respx.get("https://api.x.ai/v1/videos/req-fail").mock(
-            return_value=Response(200, json={
-                "status": "failed",
-                "error": {"message": "content policy violation"},
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "failed",
+                    "error": {"message": "content policy violation"},
+                },
+            )
         )
 
         provider = XAIGrokProvider()
@@ -315,15 +323,16 @@ class TestErrorHandling:
             return_value=Response(200, json={"request_id": "req-big"})
         )
         respx.get("https://api.x.ai/v1/videos/req-big").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {"url": "https://cdn.xai.com/big.mp4", "duration": 5},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {"url": "https://cdn.xai.com/big.mp4", "duration": 5},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
-        respx.get("https://cdn.xai.com/big.mp4").mock(
-            return_value=Response(200, content=b"\x00" * 100)
-        )
+        respx.get("https://cdn.xai.com/big.mp4").mock(return_value=Response(200, content=b"\x00" * 100))
 
         provider = XAIGrokProvider()
         with pytest.raises(ValueError, match="exceeds max download size"):
@@ -347,11 +356,14 @@ class TestErrorHandling:
             return_value=Response(200, json={"request_id": "req-nourl"})
         )
         respx.get("https://api.x.ai/v1/videos/req-nourl").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
 
         provider = XAIGrokProvider()
@@ -382,15 +394,16 @@ class TestDurationClamping:
             return_value=Response(200, json={"request_id": "req-clamp"})
         )
         respx.get("https://api.x.ai/v1/videos/req-clamp").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {"url": "https://cdn.xai.com/clamped.mp4", "duration": 10},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {"url": "https://cdn.xai.com/clamped.mp4", "duration": 10},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
-        respx.get("https://cdn.xai.com/clamped.mp4").mock(
-            return_value=Response(200, content=b"\x00" * 50)
-        )
+        respx.get("https://cdn.xai.com/clamped.mp4").mock(return_value=Response(200, content=b"\x00" * 50))
 
         provider = XAIGrokProvider()
         await provider.generate(
@@ -411,15 +424,16 @@ class TestDurationClamping:
             return_value=Response(200, json={"request_id": "req-min"})
         )
         respx.get("https://api.x.ai/v1/videos/req-min").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {"url": "https://cdn.xai.com/min.mp4", "duration": 2},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {"url": "https://cdn.xai.com/min.mp4", "duration": 2},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
-        respx.get("https://cdn.xai.com/min.mp4").mock(
-            return_value=Response(200, content=b"\x00" * 30)
-        )
+        respx.get("https://cdn.xai.com/min.mp4").mock(return_value=Response(200, content=b"\x00" * 30))
 
         provider = XAIGrokProvider()
         await provider.generate(
@@ -445,15 +459,16 @@ class TestIdempotencyAndHeaders:
             return_value=Response(200, json={"request_id": "req-idem"})
         )
         respx.get("https://api.x.ai/v1/videos/req-idem").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {"url": "https://cdn.xai.com/idem.mp4", "duration": 5},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {"url": "https://cdn.xai.com/idem.mp4", "duration": 5},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
-        respx.get("https://cdn.xai.com/idem.mp4").mock(
-            return_value=Response(200, content=b"\x00" * 20)
-        )
+        respx.get("https://cdn.xai.com/idem.mp4").mock(return_value=Response(200, content=b"\x00" * 20))
 
         provider = XAIGrokProvider()
         await provider.generate("idem test", xai_config, duration_seconds=5)
@@ -470,15 +485,16 @@ class TestIdempotencyAndHeaders:
             return_value=Response(200, json={"request_id": "req-auth"})
         )
         respx.get("https://api.x.ai/v1/videos/req-auth").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {"url": "https://cdn.xai.com/auth.mp4", "duration": 5},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {"url": "https://cdn.xai.com/auth.mp4", "duration": 5},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
-        respx.get("https://cdn.xai.com/auth.mp4").mock(
-            return_value=Response(200, content=b"\x00" * 20)
-        )
+        respx.get("https://cdn.xai.com/auth.mp4").mock(return_value=Response(200, content=b"\x00" * 20))
 
         provider = XAIGrokProvider()
         await provider.generate("auth test", xai_config, duration_seconds=5)
@@ -505,15 +521,16 @@ class TestProgressCallback:
             return_value=Response(200, json={"request_id": "req-prog"})
         )
         respx.get("https://api.x.ai/v1/videos/req-prog").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {"url": "https://cdn.xai.com/prog.mp4", "duration": 5},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {"url": "https://cdn.xai.com/prog.mp4", "duration": 5},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
-        respx.get("https://cdn.xai.com/prog.mp4").mock(
-            return_value=Response(200, content=b"\x00" * 20)
-        )
+        respx.get("https://cdn.xai.com/prog.mp4").mock(return_value=Response(200, content=b"\x00" * 20))
 
         provider = XAIGrokProvider()
         await provider.generate(
@@ -539,15 +556,16 @@ class TestMetadataOutput:
             return_value=Response(200, json={"request_id": "req-meta-ext"})
         )
         respx.get("https://api.x.ai/v1/videos/req-meta-ext").mock(
-            return_value=Response(200, json={
-                "status": "done",
-                "video": {"url": "https://cdn.xai.com/meta.mp4", "duration": 7},
-                "model": "grok-imagine-video",
-            })
+            return_value=Response(
+                200,
+                json={
+                    "status": "done",
+                    "video": {"url": "https://cdn.xai.com/meta.mp4", "duration": 7},
+                    "model": "grok-imagine-video",
+                },
+            )
         )
-        respx.get("https://cdn.xai.com/meta.mp4").mock(
-            return_value=Response(200, content=b"\x00" * 40)
-        )
+        respx.get("https://cdn.xai.com/meta.mp4").mock(return_value=Response(200, content=b"\x00" * 40))
 
         provider = XAIGrokProvider()
         result = await provider.generate(
@@ -575,23 +593,21 @@ class TestHealthCheck:
 
     @respx.mock
     async def test_health_check_success(self, xai_config: VideoGenerationConfig) -> None:
-        respx.get("https://api.x.ai/v1/models").mock(
-            return_value=Response(200, json={"models": []})
-        )
+        respx.get("https://api.x.ai/v1/models").mock(return_value=Response(200, json={"models": []}))
         provider = XAIGrokProvider()
         assert await provider.health_check(xai_config) is True
 
     @respx.mock
     async def test_health_check_failure(self, xai_config: VideoGenerationConfig) -> None:
-        respx.get("https://api.x.ai/v1/models").mock(
-            return_value=Response(401, json={"error": "unauthorized"})
-        )
+        respx.get("https://api.x.ai/v1/models").mock(return_value=Response(401, json={"error": "unauthorized"}))
         provider = XAIGrokProvider()
         assert await provider.health_check(xai_config) is False
 
     async def test_health_check_no_key(self) -> None:
         config = VideoGenerationConfig(
-            provider="xai", model="grok-imagine-video", api_key=None,
+            provider="xai",
+            model="grok-imagine-video",
+            api_key=None,
         )
         provider = XAIGrokProvider()
         assert await provider.health_check(config) is False

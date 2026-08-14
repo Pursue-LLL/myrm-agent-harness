@@ -146,9 +146,7 @@ async def merge_batch_workspace_sync_backs(
                     await _invoke_sync_back(sync_back)
                     did_merge = True
                 else:
-                    raise FileNotFoundError(
-                        f"{task_label}: isolated child workspace missing and no sync_back"
-                    )
+                    raise FileNotFoundError(f"{task_label}: isolated child workspace missing and no sync_back")
             elif sync_back is not None:
                 await _invoke_sync_back(sync_back)
                 did_merge = True

@@ -13,9 +13,7 @@ def test_proxy_config_to_url():
     config = ProxyConfig(server="http://proxy.example.com:8080")
     assert config.to_url() == "http://proxy.example.com:8080"
 
-    config_auth = ProxyConfig(
-        server="http://proxy.example.com:8080", username="user", password="pwd"
-    )
+    config_auth = ProxyConfig(server="http://proxy.example.com:8080", username="user", password="pwd")
     assert config_auth.to_url() == "http://user:pwd@proxy.example.com:8080"
 
 
@@ -23,9 +21,7 @@ def test_proxy_config_to_playwright_dict():
     config = ProxyConfig(server="http://proxy.example.com:8080")
     assert config.to_playwright_dict() == {"server": "http://proxy.example.com:8080"}
 
-    config_auth = ProxyConfig(
-        server="http://proxy.example.com:8080", username="user", password="pwd"
-    )
+    config_auth = ProxyConfig(server="http://proxy.example.com:8080", username="user", password="pwd")
     assert config_auth.to_playwright_dict() == {
         "server": "http://proxy.example.com:8080",
         "username": "user",
@@ -163,7 +159,5 @@ def test_round_robin_proxy_pool_urls_strip_credentials():
     assert pool.urls == ["http://proxy1.com", "http://proxy2.com:8080"]
 
     # Direct construction with embedded userinfo must also be stripped
-    direct = RoundRobinProxyPool(
-        [ProxyConfig(server="http://user:pwd@proxy3.com:3128")]
-    )
+    direct = RoundRobinProxyPool([ProxyConfig(server="http://user:pwd@proxy3.com:3128")])
     assert direct.urls == ["http://proxy3.com:3128"]

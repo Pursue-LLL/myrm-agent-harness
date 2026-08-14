@@ -79,15 +79,11 @@ async def test_estimate_workflow_cost_with_catalog():
         max_cost_usd=1.0,
     )
 
-    cost, _remaining, status = await estimate_workflow_cost(
-        parent, catalog, 2, "audit apis"
-    )
+    cost, _remaining, status = await estimate_workflow_cost(parent, catalog, 2, "audit apis")
     assert cost == 2.0
     assert status == "configured_max_cost"
 
-    none_cost, _, no_spawn_status = await estimate_workflow_cost(
-        parent, catalog, 0, "q"
-    )
+    none_cost, _, no_spawn_status = await estimate_workflow_cost(parent, catalog, 0, "q")
     assert none_cost is None
     assert no_spawn_status == "no_spawns"
 
@@ -243,9 +239,7 @@ print("done")
     plan_events = [
         c
         for c in chunks
-        if c.get("type") == "status"
-        and isinstance(c.get("data"), dict)
-        and c["data"].get("phase") == "plan_confirm"
+        if c.get("type") == "status" and isinstance(c.get("data"), dict) and c["data"].get("phase") == "plan_confirm"
     ]
     assert any(e["data"].get("status") == "waiting" for e in plan_events)
     end = next(c for c in chunks if c.get("type") == "message_end")

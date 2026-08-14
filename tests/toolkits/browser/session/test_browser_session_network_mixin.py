@@ -42,9 +42,7 @@ class TestReplayRedaction:
     @pytest.mark.asyncio
     async def test_replay_output_redacted(self):
         session = _StubSession()
-        session.page.evaluate = AsyncMock(
-            return_value='{"token":"sk-proj-abcdefghijklmnop12345678"}'
-        )
+        session.page.evaluate = AsyncMock(return_value='{"token":"sk-proj-abcdefghijklmnop12345678"}')
 
         result = await session.replay_network_request(1)
 

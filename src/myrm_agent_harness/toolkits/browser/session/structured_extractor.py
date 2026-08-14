@@ -121,9 +121,7 @@ class StructuredExtractor:
                     )
                 return result.model_dump_json(indent=2)
         except (NotImplementedError, AttributeError):
-            logger.debug(
-                "StructuredExtractor: with_structured_output not supported, using fallback."
-            )
+            logger.debug("StructuredExtractor: with_structured_output not supported, using fallback.")
         except Exception as e:
             logger.warning(
                 "StructuredExtractor: structured output failed (%s), trying fallback.",
@@ -195,9 +193,7 @@ def _validate_schema_complexity(schema: dict[str, Any], depth: int = 0) -> bool:
                 return False
         elif prop.get("type") == "array":
             items = prop.get("items", {})
-            if items.get("type") == "object" and not _validate_schema_complexity(
-                items, depth + 1
-            ):
+            if items.get("type") == "object" and not _validate_schema_complexity(items, depth + 1):
                 return False
 
     return True
@@ -276,9 +272,7 @@ def _json_type_to_python(field_name: str, field_schema: dict[str, Any]) -> type:
         return str
 
 
-def _extract_json_from_text(
-    text: str, *, expect_array: bool
-) -> dict[str, object] | list[object] | None:
+def _extract_json_from_text(text: str, *, expect_array: bool) -> dict[str, object] | list[object] | None:
     """Extract JSON from LLM response text, guided by the expected top-level type.
 
     ``expect_array=True`` selects the array parser (array schemas); otherwise

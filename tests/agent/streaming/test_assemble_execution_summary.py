@@ -68,9 +68,7 @@ def _get_mixin():
 class TestAssembleExecutionSummary:
     """Tests for _assemble_execution_summary method."""
 
-    @patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-    )
+    @patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard")
     def test_empty_window(self, mock_get_guard: MagicMock):
         """Empty LoopGuard window produces summary with all-zero/empty fields."""
         guard = MagicMock()
@@ -91,9 +89,7 @@ class TestAssembleExecutionSummary:
         assert summary.execution_duration_s == 120.0
         assert summary.turns_used == 4
 
-    @patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-    )
+    @patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard")
     def test_write_records_deduplicate(self, mock_get_guard: MagicMock):
         """Duplicate file paths are deduplicated."""
         guard = MagicMock()
@@ -114,9 +110,7 @@ class TestAssembleExecutionSummary:
         assert set(summary.files_modified) == {"/src/a.py", "/src/b.py"}
         assert len(summary.files_modified) == 2
 
-    @patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-    )
+    @patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard")
     def test_write_record_empty_path_ignored(self, mock_get_guard: MagicMock):
         """WRITE records with empty path are not included in files_modified."""
         guard = MagicMock()
@@ -136,9 +130,7 @@ class TestAssembleExecutionSummary:
 
         assert summary.files_modified == ("/src/real.py",)
 
-    @patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-    )
+    @patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard")
     def test_browser_records_counted(self, mock_get_guard: MagicMock):
         """BROWSER group records increment browser_checks counter."""
         guard = MagicMock()
@@ -160,9 +152,7 @@ class TestAssembleExecutionSummary:
         assert summary.files_modified == ()
         assert summary.verifications == ()
 
-    @patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-    )
+    @patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard")
     def test_verification_success_levels(self, mock_get_guard: MagicMock):
         """Verification records correctly map SuccessLevel to passed boolean."""
         guard = MagicMock()
@@ -207,9 +197,7 @@ class TestAssembleExecutionSummary:
         assert summary.verifications[2] == {"cmd": "tsc", "passed": True}
         assert summary.verifications[3] == {"cmd": "cargo build", "passed": True}
 
-    @patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-    )
+    @patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard")
     def test_verification_none_success_level(self, mock_get_guard: MagicMock):
         """Verification with None success_level is marked as not passed."""
         guard = MagicMock()
@@ -233,9 +221,7 @@ class TestAssembleExecutionSummary:
         assert len(summary.verifications) == 1
         assert summary.verifications[0] == {"cmd": "npm test", "passed": False}
 
-    @patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-    )
+    @patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard")
     def test_mixed_records(self, mock_get_guard: MagicMock):
         """Mixed record types are correctly categorized."""
         guard = MagicMock()
@@ -266,9 +252,7 @@ class TestAssembleExecutionSummary:
         assert len(summary.verifications) == 1
         assert summary.verifications[0]["passed"] is True
 
-    @patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-    )
+    @patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard")
     def test_goal_accounting_fields(self, mock_get_guard: MagicMock):
         """Goal accounting data (tokens, cost, duration, turns) is correctly mapped."""
         guard = MagicMock()
@@ -290,9 +274,7 @@ class TestAssembleExecutionSummary:
         assert summary.execution_duration_s == 7200.0
         assert summary.turns_used == 15
 
-    @patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-    )
+    @patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard")
     def test_files_sorted_alphabetically(self, mock_get_guard: MagicMock):
         """files_modified tuple is sorted alphabetically."""
         guard = MagicMock()
@@ -312,9 +294,7 @@ class TestAssembleExecutionSummary:
 
         assert summary.files_modified == ("/a/first.py", "/m/middle.py", "/z/last.py")
 
-    @patch(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
-    )
+    @patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard")
     def test_verification_uses_command_or_tool_name(self, mock_get_guard: MagicMock):
         """Verification cmd falls back to tool_name when command arg missing."""
         guard = MagicMock()
@@ -401,7 +381,15 @@ class TestGoalExecutionSummaryEdgeCases:
 
     @pytest.mark.parametrize(
         "field",
-        ["files_modified", "verifications", "browser_checks", "total_tokens", "total_cost_usd", "execution_duration_s", "turns_used"],
+        [
+            "files_modified",
+            "verifications",
+            "browser_checks",
+            "total_tokens",
+            "total_cost_usd",
+            "execution_duration_s",
+            "turns_used",
+        ],
     )
     def test_all_fields_present_in_to_dict(self, field: str):
         """All fields are present in to_dict output."""

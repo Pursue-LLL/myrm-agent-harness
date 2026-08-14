@@ -85,8 +85,7 @@ def test_memory_save_core_description_token_budget() -> None:
     for desc in (MEMORY_SAVE_CORE_EN, MEMORY_SAVE_CORE_ZH):
         tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)
         assert tokens <= _MAX_SAVE_CORE_TOKENS, (
-            f"memory_save_tool core description is {tokens} tokens "
-            f"(max {_MAX_SAVE_CORE_TOKENS})"
+            f"memory_save_tool core description is {tokens} tokens (max {_MAX_SAVE_CORE_TOKENS})"
         )
 
 
@@ -100,17 +99,16 @@ def test_memory_save_full_description_token_budget_with_wiki_and_approval() -> N
         )
         tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)
         assert tokens <= _MAX_SAVE_FULL_TOKENS, (
-            f"memory_save_tool full ({locale}) description is {tokens} tokens "
-            f"(max {_MAX_SAVE_FULL_TOKENS})"
+            f"memory_save_tool full ({locale}) description is {tokens} tokens (max {_MAX_SAVE_FULL_TOKENS})"
         )
 
 
 def test_memory_manage_tool_description_token_budget() -> None:
     for desc in (MEMORY_MANAGE_TOOL_DESCRIPTION_EN, MEMORY_MANAGE_TOOL_DESCRIPTION_ZH):
         tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)
-        assert (
-            tokens <= _MAX_MANAGE_DESCRIPTION_TOKENS
-        ), f"memory_manage_tool description is {tokens} tokens (max {_MAX_MANAGE_DESCRIPTION_TOKENS})"
+        assert tokens <= _MAX_MANAGE_DESCRIPTION_TOKENS, (
+            f"memory_manage_tool description is {tokens} tokens (max {_MAX_MANAGE_DESCRIPTION_TOKENS})"
+        )
 
 
 def test_memory_search_tool_description_token_budget() -> None:
@@ -119,8 +117,7 @@ def test_memory_search_tool_description_token_budget() -> None:
         desc = build_memory_search_tool_description(policy, locale=locale)
         tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)
         assert tokens <= _MAX_SEARCH_DESCRIPTION_TOKENS, (
-            f"memory_search_tool ({locale}) description is {tokens} tokens "
-            f"(max {_MAX_SEARCH_DESCRIPTION_TOKENS})"
+            f"memory_search_tool ({locale}) description is {tokens} tokens (max {_MAX_SEARCH_DESCRIPTION_TOKENS})"
         )
 
 
@@ -198,9 +195,7 @@ def test_memory_save_description_includes_approval_when_required() -> None:
     assert "submitted for approval" in desc
 
 
-def test_create_memory_tools_uses_description_ssot(
-    memory_config, mock_vector_store, mock_embedding
-) -> None:
+def test_create_memory_tools_uses_description_ssot(memory_config, mock_vector_store, mock_embedding) -> None:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
         create_memory_tools,
@@ -220,12 +215,8 @@ def test_create_memory_tools_uses_description_ssot(
         locale="en",
     )
     assert by_name["memory_save_tool"].description == expected_save
-    assert (
-        by_name["memory_manage_tool"].description == MEMORY_MANAGE_TOOL_DESCRIPTION_EN
-    )
-    assert by_name[
-        "memory_search_tool"
-    ].description == build_memory_search_tool_description(
+    assert by_name["memory_manage_tool"].description == MEMORY_MANAGE_TOOL_DESCRIPTION_EN
+    assert by_name["memory_search_tool"].description == build_memory_search_tool_description(
         MemorySearchPolicy(), locale="en"
     )
 
@@ -264,20 +255,15 @@ def test_memory_search_description_zh_includes_all_enabled_corpora() -> None:
 
 
 def test_memory_tool_descriptions_support_zh_cn_locale() -> None:
-    assert resolve_memory_save_tool_description(
-        "zh-CN"
-    ) == build_memory_save_tool_description(MemorySearchPolicy(), locale="zh-CN")
-    assert (
-        resolve_memory_manage_tool_description("zh-CN")
-        == MEMORY_MANAGE_TOOL_DESCRIPTION_ZH
+    assert resolve_memory_save_tool_description("zh-CN") == build_memory_save_tool_description(
+        MemorySearchPolicy(), locale="zh-CN"
     )
+    assert resolve_memory_manage_tool_description("zh-CN") == MEMORY_MANAGE_TOOL_DESCRIPTION_ZH
     search = build_memory_search_tool_description(MemorySearchPolicy(), locale="zh-CN")
     assert "**Corpus 指南**" in search
 
 
-def test_create_memory_tools_supports_chinese_locale(
-    memory_config, mock_vector_store, mock_embedding
-) -> None:
+def test_create_memory_tools_supports_chinese_locale(memory_config, mock_vector_store, mock_embedding) -> None:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
         create_memory_tools,
@@ -297,11 +283,7 @@ def test_create_memory_tools_supports_chinese_locale(
         locale="zh-CN",
     )
     assert by_name["memory_save_tool"].description == expected_save
-    assert (
-        by_name["memory_manage_tool"].description == MEMORY_MANAGE_TOOL_DESCRIPTION_ZH
-    )
-    assert by_name[
-        "memory_search_tool"
-    ].description == build_memory_search_tool_description(
+    assert by_name["memory_manage_tool"].description == MEMORY_MANAGE_TOOL_DESCRIPTION_ZH
+    assert by_name["memory_search_tool"].description == build_memory_search_tool_description(
         MemorySearchPolicy(), locale="zh"
     )

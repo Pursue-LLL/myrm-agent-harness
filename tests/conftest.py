@@ -15,6 +15,7 @@ try:
     import sys
 
     import pydantic.root_model
+
     sys.modules["pydantic.root_model"] = pydantic.root_model
 except ImportError:
     pass

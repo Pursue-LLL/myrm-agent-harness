@@ -13,12 +13,7 @@ from pathlib import Path
 
 import pytest
 
-_ENV_TEST = (
-    Path(__file__).resolve().parents[4]
-    / "myrm-agent"
-    / "myrm-agent-server"
-    / ".env.test"
-)
+_ENV_TEST = Path(__file__).resolve().parents[4] / "myrm-agent" / "myrm-agent-server" / ".env.test"
 
 _OPENAI_COMPAT = {"openai-like", "openai_compatible", "openai-compatible", "openai_like"}
 

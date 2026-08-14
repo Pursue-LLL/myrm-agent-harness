@@ -94,15 +94,10 @@ def test_has_weixin_js_content() -> None:
     assert not has_weixin_js_content("<div id='other'>")
 
 
-def test_parse_weixin_article_html_extracts_title_author_publish_time_images_and_body() -> (
-    None
-):
+def test_parse_weixin_article_html_extracts_title_author_publish_time_images_and_body() -> None:
     doc = parse_weixin_article_html(_SAMPLE_HTML, url=_ARTICLE_URL)
     assert doc is not None
-    assert (
-        doc.metadata["title"]
-        == "从 ReAct Agent 到 Harness Agent：构建可自举的 AI Agent"
-    )
+    assert doc.metadata["title"] == "从 ReAct Agent 到 Harness Agent：构建可自举的 AI Agent"
     assert doc.metadata["author"] == "AI开发者日记"
     assert doc.metadata["publish_time"] == "2026-03-01"
     assert doc.metadata["source_type"] == "weixin_article"
@@ -128,12 +123,7 @@ def test_parse_weixin_article_html_reads_publish_time_from_script() -> None:
 
 
 def test_parse_weixin_article_html_rejects_verification_page() -> None:
-    assert (
-        parse_weixin_article_html(
-            _BLOCKED_HTML, url="https://mp.weixin.qq.com/s/blocked"
-        )
-        is None
-    )
+    assert parse_weixin_article_html(_BLOCKED_HTML, url="https://mp.weixin.qq.com/s/blocked") is None
 
 
 def test_parse_weixin_article_html_rejects_missing_js_content() -> None:
@@ -148,9 +138,7 @@ def test_parse_weixin_article_html_rejects_short_body() -> None:
 
 def test_parse_weixin_article_html_truncates_overlong_body() -> None:
     long_paragraph = "长" * 25_000
-    html = (
-        f'<html><body><div id="js_content"><p>{long_paragraph}</p></div></body></html>'
-    )
+    html = f'<html><body><div id="js_content"><p>{long_paragraph}</p></div></body></html>'
     doc = parse_weixin_article_html(html, url=_ARTICLE_URL)
     assert doc is not None
     assert "body truncated" in doc.page_content
@@ -247,9 +235,7 @@ def test_build_opener_blocks_redirects() -> None:
 
 
 def _html_with_images(n: int) -> str:
-    imgs = "\n".join(
-        f'<img data-src="https://img.example.com/{i}.png" />' for i in range(n)
-    )
+    imgs = "\n".join(f'<img data-src="https://img.example.com/{i}.png" />' for i in range(n))
     return f'<html><body><div id="js_content"><h1>标题</h1><p>{"正文内容" * 40}</p>{imgs}</div></body></html>'
 
 
@@ -351,9 +337,7 @@ async def test_extract_scheme_guard_defense_in_depth(
 ) -> None:
     """Even when the URL classifier is bypassed, non-http(s) schemes are refused."""
 
-    monkeypatch.setattr(
-        weixin_extractor_module, "is_weixin_article_url", lambda url: True
-    )
+    monkeypatch.setattr(weixin_extractor_module, "is_weixin_article_url", lambda url: True)
     assert await extract_weixin_article("ftp://mp.weixin.qq.com/s/abc123") is None
 
 

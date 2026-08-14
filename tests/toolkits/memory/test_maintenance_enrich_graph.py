@@ -93,8 +93,10 @@ async def test_enrich_skips_archived_docs():
     graph.get_related_nodes_with_depth.return_value = [("mem2", 1)]
 
     archived_doc = VectorDocument(
-        id="mem2", content="query test archived",
-        metadata={"status": "archived"}, embedding=[0.1],
+        id="mem2",
+        content="query test archived",
+        metadata={"status": "archived"},
+        embedding=[0.1],
     )
     vector.get.return_value = [archived_doc]
 
@@ -116,8 +118,10 @@ async def test_enrich_skips_disabled_docs():
     graph.get_related_nodes_with_depth.return_value = [("mem2", 1)]
 
     disabled_doc = VectorDocument(
-        id="mem2", content="query test disabled",
-        metadata={"status": "disabled"}, embedding=[0.1],
+        id="mem2",
+        content="query test disabled",
+        metadata={"status": "disabled"},
+        embedding=[0.1],
     )
     vector.get.return_value = [disabled_doc]
 
@@ -139,8 +143,10 @@ async def test_enrich_skips_archived_flag_docs():
     graph.get_related_nodes_with_depth.return_value = [("mem2", 1)]
 
     archived_flag_doc = VectorDocument(
-        id="mem2", content="query test flagged",
-        metadata={"status": "active", "archived": True}, embedding=[0.1],
+        id="mem2",
+        content="query test flagged",
+        metadata={"status": "active", "archived": True},
+        embedding=[0.1],
     )
     vector.get.return_value = [archived_flag_doc]
 
@@ -162,12 +168,16 @@ async def test_enrich_deduplicates_same_content():
     graph.get_related_nodes_with_depth.return_value = [("mem2", 1), ("mem3", 1)]
 
     doc2 = VectorDocument(
-        id="mem2", content="Python query tutorial",
-        metadata={"status": "active"}, embedding=[0.1],
+        id="mem2",
+        content="Python query tutorial",
+        metadata={"status": "active"},
+        embedding=[0.1],
     )
     doc3 = VectorDocument(
-        id="mem3", content="python query tutorial",
-        metadata={"status": "active"}, embedding=[0.2],
+        id="mem3",
+        content="python query tutorial",
+        metadata={"status": "active"},
+        embedding=[0.2],
     )
     vector.get.return_value = [doc2, doc3]
 
@@ -187,7 +197,10 @@ async def test_enrich_respects_sibling_limit():
     res1 = MemorySearchResult(memory=mem1, score=0.9, memory_type=MemoryType.EPISODIC)
 
     graph.get_related_nodes_with_depth.return_value = [
-        ("mem2", 1), ("mem3", 1), ("mem4", 1), ("mem5", 2),
+        ("mem2", 1),
+        ("mem3", 1),
+        ("mem4", 1),
+        ("mem5", 2),
     ]
 
     docs = [
@@ -214,20 +227,33 @@ async def test_enrich_overfetch_with_namespaces():
     res1 = MemorySearchResult(memory=mem1, score=0.9, memory_type=MemoryType.EPISODIC)
 
     graph.get_related_nodes_with_depth.return_value = [
-        ("m2", 1), ("m3", 1), ("m4", 1), ("m5", 1), ("m6", 1), ("m7", 2),
+        ("m2", 1),
+        ("m3", 1),
+        ("m4", 1),
+        ("m5", 1),
+        ("m6", 1),
+        ("m7", 2),
     ]
 
     docs = [
         VectorDocument(
-            id=f"m{i}", content=f"query test doc {i}",
-            metadata={"status": "active", "namespaces": ["work"]}, embedding=[0.1],
+            id=f"m{i}",
+            content=f"query test doc {i}",
+            metadata={"status": "active", "namespaces": ["work"]},
+            embedding=[0.1],
         )
         for i in range(2, 8)
     ]
     vector.get.return_value = docs
 
     await enrich_with_graph(
-        [res1], "query", 10, graph, vector, config, namespaces=["work"],
+        [res1],
+        "query",
+        10,
+        graph,
+        vector,
+        config,
+        namespaces=["work"],
     )
 
     vector.get.assert_called_once()
@@ -250,18 +276,28 @@ async def test_enrich_namespace_filter_excludes_cross_namespace():
 
     docs = [
         VectorDocument(
-            id="m2", content="query test same ns",
-            metadata={"status": "active", "namespaces": ["work"]}, embedding=[0.1],
+            id="m2",
+            content="query test same ns",
+            metadata={"status": "active", "namespaces": ["work"]},
+            embedding=[0.1],
         ),
         VectorDocument(
-            id="m3", content="query test other ns",
-            metadata={"status": "active", "namespaces": ["personal"]}, embedding=[0.1],
+            id="m3",
+            content="query test other ns",
+            metadata={"status": "active", "namespaces": ["personal"]},
+            embedding=[0.1],
         ),
     ]
     vector.get.return_value = docs
 
     results = await enrich_with_graph(
-        [res1], "query", 10, graph, vector, config, namespaces=["work"],
+        [res1],
+        "query",
+        10,
+        graph,
+        vector,
+        config,
+        namespaces=["work"],
     )
 
     result_ids = {r.id for r in results}
@@ -280,7 +316,10 @@ async def test_enrich_depth_sorting_prefers_direct():
     res1 = MemorySearchResult(memory=mem1, score=0.9, memory_type=MemoryType.EPISODIC)
 
     graph.get_related_nodes_with_depth.return_value = [
-        ("deep1", 2), ("direct1", 1), ("deep2", 2), ("direct2", 1),
+        ("deep1", 2),
+        ("direct1", 1),
+        ("deep2", 2),
+        ("direct2", 1),
     ]
 
     vector.get.return_value = []

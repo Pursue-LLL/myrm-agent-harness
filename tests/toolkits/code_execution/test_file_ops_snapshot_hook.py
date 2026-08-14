@@ -43,8 +43,7 @@ class _TestOps(LocalFileOpsMixin):
 
 def _hook_patch():
     return patch(
-        "myrm_agent_harness.toolkits.code_execution.executors.local._file_ops."
-        "trigger_destructive_action_hook",
+        "myrm_agent_harness.toolkits.code_execution.executors.local._file_ops.trigger_destructive_action_hook",
         new_callable=AsyncMock,
     )
 

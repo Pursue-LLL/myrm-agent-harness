@@ -70,11 +70,7 @@ class ConsoleLogger:
         try:
             text = msg.text[:_MAX_RAW_TEXT_LENGTH]
             location = msg.location
-            url = (
-                f"{location.get('url', '')}:{location.get('lineNumber', '')}"
-                if location
-                else ""
-            )
+            url = f"{location.get('url', '')}:{location.get('lineNumber', '')}" if location else ""
             self._entries.append(
                 ConsoleEntry(
                     level=msg.type,
@@ -143,11 +139,7 @@ class ConsoleLogger:
         """
         entries = [e for e in self._entries if not errors_only or e.is_error]
         if not entries:
-            return (
-                "No console messages captured."
-                if not errors_only
-                else "No console errors."
-            )
+            return "No console messages captured." if not errors_only else "No console errors."
 
         lines: list[str] = []
         for entry in entries[-30:]:

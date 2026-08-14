@@ -75,9 +75,9 @@ class TestEstimateMessageTokens:
         )
         content_tokens = estimate_content_tokens(msg.content)
         full_tokens = estimate_message_tokens(msg)
-        assert (
-            full_tokens > content_tokens + 4
-        ), f"tool_calls args should add tokens: content={content_tokens}, full={full_tokens}"
+        assert full_tokens > content_tokens + 4, (
+            f"tool_calls args should add tokens: content={content_tokens}, full={full_tokens}"
+        )
 
     def test_ai_message_with_multiple_tool_calls(self) -> None:
         msg = AIMessage(
@@ -112,9 +112,7 @@ class TestEstimateMessageTokens:
         )
         content_only = estimate_content_tokens("Command output: success")
         full = estimate_message_tokens(msg)
-        assert (
-            full > content_only + 4
-        ), f"tool_call_id and name should add tokens: content={content_only}, full={full}"
+        assert full > content_only + 4, f"tool_call_id and name should add tokens: content={content_only}, full={full}"
 
     def test_tool_message_without_name(self) -> None:
         msg = ToolMessage(content="output", tool_call_id="call_abc123")

@@ -112,9 +112,7 @@ class TestCaptchaSolverProtocol:
     """CaptchaSolver protocol tests."""
 
     def test_protocol_is_runtime_checkable(self) -> None:
-        assert hasattr(CaptchaSolver, "__protocol_attrs__") or hasattr(
-            CaptchaSolver, "__abstractmethods__"
-        )
+        assert hasattr(CaptchaSolver, "__protocol_attrs__") or hasattr(CaptchaSolver, "__abstractmethods__")
 
     def test_manual_solver_implements_protocol(self) -> None:
         from myrm_agent_harness.toolkits.browser.captcha.manual_solver import ManualSolver

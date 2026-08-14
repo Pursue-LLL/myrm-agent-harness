@@ -75,9 +75,7 @@ class TestExtractExistingSummary:
 
     def test_json_block_with_inner_arrow_parsed(self) -> None:
         """JSON 值含字面 -->（markdown 箭头/代码片段）时仍可解析。"""
-        summary = StructuredSummary(
-            user_goal="debug", completed_actions=["step1 --> step2"]
-        )
+        summary = StructuredSummary(user_goal="debug", completed_actions=["step1 --> step2"])
         content = f"[历史摘要]\n<!-- SUMMARY_JSON\n{summary.to_json()}\n-->"
         msgs = [SystemMessage(content=content)]
         result = extract_existing_summary(msgs)
@@ -341,23 +339,14 @@ class TestParseSummaryResponse:
         assert result.errors_and_fixes == ["KeyError -> 添加默认值"]
 
     def test_text_format_parses_path_prefix(self) -> None:
-        content = (
-            "[历史摘要]\n"
-            "用户目标: 重构认证模块\n"
-            "路径: /workspace/auth/notes.jsonl\n"
-            "最后操作: 保存笔记\n"
-        )
+        content = "[历史摘要]\n用户目标: 重构认证模块\n路径: /workspace/auth/notes.jsonl\n最后操作: 保存笔记\n"
         msgs = [SystemMessage(content=content)]
         result = extract_existing_summary(msgs)
         assert result is not None
         assert result.context_dump_path == "/workspace/auth/notes.jsonl"
 
     def test_text_format_parses_history_log_prefix(self) -> None:
-        content = (
-            "[历史摘要]\n"
-            "用户目标: 分析性能瓶颈\n"
-            "历史日志: /tmp/agent/session.log\n"
-        )
+        content = "[历史摘要]\n用户目标: 分析性能瓶颈\n历史日志: /tmp/agent/session.log\n"
         msgs = [SystemMessage(content=content)]
         result = extract_existing_summary(msgs)
         assert result is not None
@@ -488,7 +477,7 @@ class TestParseSummaryResponse:
     def test_server_injected_malformed_json_parsed(self) -> None:
         """Server-injected JSON with trailing commas / bare newlines is tolerated."""
         content = (
-            '[Previous conversation summary]\n'
+            "[Previous conversation summary]\n"
             '{"user_goal": "重构认证模块", "completed_actions": ["实现JWT",], '
             '"last_action": "提交\n代码",}'
         )
@@ -501,9 +490,7 @@ class TestParseSummaryResponse:
     def test_parse_response_malformed_json(self) -> None:
         """parse_summary_response tolerates trailing commas and prose framing."""
         response = (
-            'Here is the summary:\n'
-            '{"user_goal": "build app", "completed_actions": ["step1",], '
-            '"last_action": "done",}'
+            'Here is the summary:\n{"user_goal": "build app", "completed_actions": ["step1",], "last_action": "done",}'
         )
         result = parse_summary_response(response)
         assert result.user_goal == "build app"

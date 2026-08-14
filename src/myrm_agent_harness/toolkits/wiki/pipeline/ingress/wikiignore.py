@@ -50,9 +50,7 @@ def path_matches_wikiignore(relative_posix: str, patterns: tuple[str, ...]) -> b
     for pattern in patterns:
         pat = pattern.replace("\\", "/")
         if "/" in pat:
-            if fnmatch.fnmatch(normalized, pat) or fnmatch.fnmatch(
-                normalized, f"**/{pat}"
-            ):
+            if fnmatch.fnmatch(normalized, pat) or fnmatch.fnmatch(normalized, f"**/{pat}"):
                 return True
         elif fnmatch.fnmatch(name, pat) or fnmatch.fnmatch(normalized, f"**/{pat}"):
             return True

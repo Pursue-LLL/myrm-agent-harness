@@ -196,7 +196,11 @@ class MemorySearchService:
             steps.append(
                 MemoryTraceStep(
                     phase="embed",
-                    status="success" if query_vector is not None else "skipped" if not embedding_required else "warning",
+                    status="success"
+                    if query_vector is not None
+                    else "skipped"
+                    if not embedding_required
+                    else "warning",
                     title="query_embedding",
                     summary="Dense query vector prepared when vector-backed memory types are searched.",
                     duration_ms=_elapsed_ms(embed_start),

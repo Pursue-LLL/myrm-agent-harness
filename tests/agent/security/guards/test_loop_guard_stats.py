@@ -12,8 +12,7 @@ def _insert_raw(db: LoopGuardStatsDB, tool: str, kind: str, timestamp: float) ->
     """Insert an event row directly (bypasses record_event for timestamp control)."""
     with db._connect() as conn:
         conn.execute(
-            "INSERT INTO loop_events (tool_name, loop_kind, timestamp, severity) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO loop_events (tool_name, loop_kind, timestamp, severity) VALUES (?, ?, ?, ?)",
             (tool, kind, timestamp, "WARNING"),
         )
         conn.commit()
@@ -43,9 +42,7 @@ class TestInitAndRecord:
         db = LoopGuardStatsDB(tmp_path / "stats.db")
         db.record_event("file_read_tool", LoopKind.NO_PROGRESS)
         with db._connect() as conn:
-            row = conn.execute(
-                "SELECT args_sample FROM loop_events WHERE tool_name=?", ("file_read_tool",)
-            ).fetchone()
+            row = conn.execute("SELECT args_sample FROM loop_events WHERE tool_name=?", ("file_read_tool",)).fetchone()
         assert row[0] is None
 
 

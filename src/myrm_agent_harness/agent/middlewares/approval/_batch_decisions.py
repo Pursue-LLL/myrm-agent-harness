@@ -389,8 +389,13 @@ async def apply_approval_decisions(
                         record_decision(tool_name, "DOMAIN_APPROVED", f"domains: {domains}")
 
                 await _try_add_to_allowlist(
-                    tool_call, extra_ctx, allow_always, permission_type,
-                    allowlist_tool_name, idx, args_hashes,
+                    tool_call,
+                    extra_ctx,
+                    allow_always,
+                    permission_type,
+                    allowlist_tool_name,
+                    idx,
+                    args_hashes,
                 )
 
                 revised_tool_calls.append(tool_call)
@@ -443,8 +448,13 @@ async def apply_approval_decisions(
 
                 if edit_applied:
                     await _try_add_to_allowlist(
-                        tool_call, extra_ctx, allow_always, permission_type,
-                        allowlist_tool_name, idx, args_hashes,
+                        tool_call,
+                        extra_ctx,
+                        allow_always,
+                        permission_type,
+                        allowlist_tool_name,
+                        idx,
+                        args_hashes,
                     )
 
             else:

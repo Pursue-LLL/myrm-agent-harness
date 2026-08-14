@@ -201,21 +201,13 @@ class DeepResearchPhasesMixin:
                 "type": "ask_question",
                 "source": "deep_research",
                 "form": clarify_form.model_dump(),
-                **(
-                    {"title": clarify_form.title}
-                    if clarify_form.title
-                    else {}
-                ),
+                **({"title": clarify_form.title} if clarify_form.title else {}),
                 **(
                     {"options": [option.label for option in first_question.options]}
                     if len(clarify_form.questions) == 1 and first_question.options
                     else {}
                 ),
-                **(
-                    {"allow_multiple": first_question.allow_multiple}
-                    if len(clarify_form.questions) == 1
-                    else {}
-                ),
+                **({"allow_multiple": first_question.allow_multiple} if len(clarify_form.questions) == 1 else {}),
             },
         )
 

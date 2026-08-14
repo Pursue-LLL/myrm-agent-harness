@@ -8,7 +8,9 @@ from myrm_agent_harness.toolkits.browser.session import ContentVault
 class TestContentVaultProtocol:
     def test_conforming_class_passes_isinstance(self) -> None:
         class FakeVault:
-            def put(self, content: str | bytes, filename: str, content_type: str | None = None, description: str = "") -> str:
+            def put(
+                self, content: str | bytes, filename: str, content_type: str | None = None, description: str = ""
+            ) -> str:
                 return "vault://fake-id"
 
         assert isinstance(FakeVault(), ContentVault)
@@ -29,7 +31,9 @@ class TestContentVaultProtocol:
 
     def test_put_returns_uri(self) -> None:
         class InMemoryVault:
-            def put(self, content: str | bytes, filename: str, content_type: str | None = None, description: str = "") -> str:
+            def put(
+                self, content: str | bytes, filename: str, content_type: str | None = None, description: str = ""
+            ) -> str:
                 return f"vault://{filename}"
 
         vault = InMemoryVault()

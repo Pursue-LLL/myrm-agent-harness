@@ -87,9 +87,7 @@ class FileOperationService:
     - 安全控制(并发限制、资源限制)
     """
 
-    def __init__(
-        self, context: OperationContext, io_config: FileIOConfig | None = None
-    ) -> None:
+    def __init__(self, context: OperationContext, io_config: FileIOConfig | None = None) -> None:
         """初始化服务
 
         Args:
@@ -134,9 +132,7 @@ class FileOperationService:
 
         if self.context.operation in (OperationType.CREATE, OperationType.STR_REPLACE):
             if not self.context.path:
-                raise ValueError(
-                    f"{self.context.operation} operation requires 'path' parameter"
-                )
+                raise ValueError(f"{self.context.operation} operation requires 'path' parameter")
 
             from ..utils.path_utils import resolve_file_id_path
 
@@ -154,7 +150,8 @@ class FileOperationService:
         if len(self.context.paths) > self.io_config.max_concurrent_reads:
             logger.warning(
                 "Concurrent read count (%d) exceeds limit (%d). Processing in batches.",
-                len(self.context.paths), self.io_config.max_concurrent_reads,
+                len(self.context.paths),
+                self.io_config.max_concurrent_reads,
             )
 
         # 获取当前事件循环的读取信号量
@@ -213,9 +210,7 @@ class FileOperationService:
         # 检查是否是目录
         if await strategy.is_directory(resolved_path):
             entries = await strategy.list_directory(resolved_path)
-            listing = DirectoryListing(
-                path=resolved_path, display_path=display_path, entries=entries
-            )
+            listing = DirectoryListing(path=resolved_path, display_path=display_path, entries=entries)
             return ResultFormatter.format_directory_listing(listing)
 
         pre_read_archive_decision = await evaluate_archive_full_read_before_content(
@@ -241,10 +236,7 @@ class FileOperationService:
             current_chat_id=get_current_chat_id(),
             is_range_read=view_range is not None,
         )
-        if (
-            archive_refetch_decision.is_archive_path
-            and not archive_refetch_decision.allowed
-        ):
+        if archive_refetch_decision.is_archive_path and not archive_refetch_decision.allowed:
             return format_archive_restore_block(
                 archive_refetch_decision,
                 archive_path=resolved_path,
@@ -275,9 +267,7 @@ class FileOperationService:
         logger.info("_execute_create called for path: %s", self.context.path)
 
         if not self.context.path or self.context.file_text is None:
-            raise ValueError(
-                "CREATE operation requires 'path' and 'file_text' parameters"
-            )
+            raise ValueError("CREATE operation requires 'path' and 'file_text' parameters")
 
         # 解析文件 ID
         from ..utils.path_utils import resolve_file_id_path
@@ -294,9 +284,7 @@ class FileOperationService:
         await validator_chain.validate(self.context, resolved_path)
 
         # Concurrent subagent conflict detection (pre-write)
-        conflict_warning = check_conflict_pre_write(
-            resolved_path, 1, self.context.file_text.count("\n") + 1
-        )
+        conflict_warning = check_conflict_pre_write(resolved_path, 1, self.context.file_text.count("\n") + 1)
 
         pre_existing = await strategy.exists(resolved_path)
         pre_content_str: str | None = None
@@ -326,9 +314,7 @@ class FileOperationService:
         # 增量容错语法校验 (Delta Syntax Validator)
         from ..validators.delta_syntax_validator import DeltaSyntaxValidator
 
-        DeltaSyntaxValidator.validate(
-            resolved_path, file_text, pre_content=pre_content_str
-        )
+        DeltaSyntaxValidator.validate(resolved_path, file_text, pre_content=pre_content_str)
 
         from ..validators.markdown_vault_write_guard import MarkdownVaultWriteGuard
 
@@ -352,13 +338,9 @@ class FileOperationService:
                 "Calling observer_manager.notify_file_modified (CREATE overwrote existing) for %s",
                 resolved_path,
             )
-            await self.observer_manager.notify_file_modified(
-                resolved_path, pre_content_str, new_content
-            )
+            await self.observer_manager.notify_file_modified(resolved_path, pre_content_str, new_content)
         else:
-            logger.info(
-                "Calling observer_manager.notify_file_created for %s", resolved_path
-            )
+            logger.info("Calling observer_manager.notify_file_created for %s", resolved_path)
             await self.observer_manager.notify_file_created(resolved_path, new_content)
 
         # 执行自动校验(如果有)
@@ -368,7 +350,9 @@ class FileOperationService:
             )
 
             logger.info(
-                "Running verify_command on %s: %s", resolved_path, self.context.verify_command,
+                "Running verify_command on %s: %s",
+                resolved_path,
+                self.context.verify_command,
             )
             exec_ctx = ExecutionContext(code=self.context.verify_command, work_dir=".")
             result = await self.context.executor.execute_bash(exec_ctx)
@@ -376,7 +360,9 @@ class FileOperationService:
             if not result.success:
                 await strategy.delete_file(resolved_path)
                 logger.warning(
-                    "Verification failed for %s, file deleted. Error: %s", resolved_path, result.stderr,
+                    "Verification failed for %s, file deleted. Error: %s",
+                    resolved_path,
+                    result.stderr,
                 )
                 raise ValueError(
                     f"File created but verification failed. The file has been deleted.\n"
@@ -392,9 +378,7 @@ class FileOperationService:
         if not self.context.verify_command and self.context.executor:
             from ..validators.auto_verify import run_auto_verify
 
-            auto_verify_report = await run_auto_verify(
-                self.context.executor, resolved_path
-            )
+            auto_verify_report = await run_auto_verify(self.context.executor, resolved_path)
 
         # Record hash AFTER observers and verification so FormatObserver's changes are captured.
         # Re-read to get the post-formatted content; skip re-read when no
@@ -418,9 +402,7 @@ class FileOperationService:
     async def _execute_str_replace(self) -> str:
         """执行 STR_REPLACE 操作（单事务批量 edits）"""
         if not self.context.path or not self.context.edits:
-            raise ValueError(
-                "STR_REPLACE operation requires 'path' and non-empty 'edits' parameters"
-            )
+            raise ValueError("STR_REPLACE operation requires 'path' and non-empty 'edits' parameters")
 
         from ..utils.path_utils import resolve_file_id_path
 
@@ -444,14 +426,10 @@ class FileOperationService:
             require_version=True,
         )
 
-        line_start, line_end = compute_batch_edit_line_range(
-            old_content, self.context.edits
-        )
+        line_start, line_end = compute_batch_edit_line_range(old_content, self.context.edits)
         conflict_warning = check_conflict_pre_write(resolved_path, line_start, line_end)
 
-        new_content, strategies = apply_batch_str_replace(
-            old_content, self.context.edits
-        )
+        new_content, strategies = apply_batch_str_replace(old_content, self.context.edits)
         if any(s != "exact" for s in strategies):
             logger.info(
                 "Batch str_replace applied with fuzzy strategies path=%s strategies=%s",
@@ -476,19 +454,17 @@ class FileOperationService:
         from ..validators.delta_syntax_validator import DeltaSyntaxValidator
 
         try:
-            DeltaSyntaxValidator.validate(
-                resolved_path, new_content, pre_content=old_content
-            )
+            DeltaSyntaxValidator.validate(resolved_path, new_content, pre_content=old_content)
         except ValueError as e:
             await strategy.write_file(resolved_path, old_content)
             logger.warning(
-                "Delta Syntax Validation failed for %s, changes rolled back. Error: %s", resolved_path, e,
+                "Delta Syntax Validation failed for %s, changes rolled back. Error: %s",
+                resolved_path,
+                e,
             )
             raise
 
-        await self.observer_manager.notify_file_modified(
-            resolved_path, old_content, new_content
-        )
+        await self.observer_manager.notify_file_modified(resolved_path, old_content, new_content)
 
         if self.context.verify_command and self.context.executor:
             from myrm_agent_harness.toolkits.code_execution.executors.models import (
@@ -496,7 +472,9 @@ class FileOperationService:
             )
 
             logger.info(
-                "Running verify_command on %s: %s", resolved_path, self.context.verify_command,
+                "Running verify_command on %s: %s",
+                resolved_path,
+                self.context.verify_command,
             )
             exec_ctx = ExecutionContext(code=self.context.verify_command, work_dir=".")
             result = await self.context.executor.execute_bash(exec_ctx)
@@ -504,7 +482,9 @@ class FileOperationService:
             if not result.success:
                 await strategy.write_file(resolved_path, old_content)
                 logger.warning(
-                    "Verification failed for %s, changes rolled back. Error: %s", resolved_path, result.stderr,
+                    "Verification failed for %s, changes rolled back. Error: %s",
+                    resolved_path,
+                    result.stderr,
                 )
                 raise ValueError(
                     f"File edited but verification failed. Changes have been rolled back.\n"

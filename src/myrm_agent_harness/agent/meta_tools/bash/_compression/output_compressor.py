@@ -111,13 +111,8 @@ class DeclarativeFilterEngine:
                         "name": f_def.get("name", "unnamed"),
                         "match_command": re.compile(f_def["match_command"]),
                         "strip_ansi": f_def.get("strip_ansi", False),
-                        "strip_lines_matching": [
-                            re.compile(p) for p in f_def.get("strip_lines_matching", [])
-                        ],
-                        "replace": [
-                            (re.compile(r["pattern"]), r["replacement"])
-                            for r in f_def.get("replace", [])
-                        ],
+                        "strip_lines_matching": [re.compile(p) for p in f_def.get("strip_lines_matching", [])],
+                        "replace": [(re.compile(r["pattern"]), r["replacement"]) for r in f_def.get("replace", [])],
                         "max_lines": f_def.get("max_lines"),
                         "on_empty": f_def.get("on_empty"),
                     }
@@ -186,11 +181,7 @@ class DeclarativeFilterEngine:
 
         strip_rules = filter_def["strip_lines_matching"]
         if strip_rules and isinstance(strip_rules, list):
-            lines = [
-                line
-                for line in lines
-                if not any(pat.search(line) for pat in strip_rules)
-            ]
+            lines = [line for line in lines if not any(pat.search(line) for pat in strip_rules)]
 
         max_lines_val = filter_def["max_lines"]
         if isinstance(max_lines_val, int) and len(lines) > max_lines_val:

@@ -93,17 +93,13 @@ class TestCJKRecallQuality:
         """Search '模型部署' must find '机器学习模型部署方案讨论'."""
         results = retriever.search("模型部署", top_k=5, only_relevant=True)
         found_indices = [idx for idx, _ in results]
-        assert 0 in found_indices, (
-            "Query '模型部署' must recall document containing '机器学习模型部署方案讨论'"
-        )
+        assert 0 in found_indices, "Query '模型部署' must recall document containing '机器学习模型部署方案讨论'"
 
     def test_partial_match_deep_learning(self, retriever):
         """Search '深度学习' must find the deep learning document."""
         results = retriever.search("深度学习", top_k=5, only_relevant=True)
         found_indices = [idx for idx, _ in results]
-        assert 1 in found_indices, (
-            "Query '深度学习' must recall document containing '深度学习训练优化技巧总结'"
-        )
+        assert 1 in found_indices, "Query '深度学习' must recall document containing '深度学习训练优化技巧总结'"
 
     def test_partial_match_data_pipeline(self, retriever):
         """Search '数据预处理' must find the data pipeline document."""
@@ -165,6 +161,4 @@ class TestTokenizerBackend:
         """Regardless of backend, Chinese text must produce multiple tokens."""
         service = get_tokenizer_service()
         tokens = service.tokenize("机器学习模型部署")
-        assert len(tokens) >= 4, (
-            f"Chinese text must produce multiple tokens, got {len(tokens)}: {tokens}"
-        )
+        assert len(tokens) >= 4, f"Chinese text must produce multiple tokens, got {len(tokens)}: {tokens}"

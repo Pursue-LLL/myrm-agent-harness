@@ -307,9 +307,7 @@ class MemoryPressureMonitor:
 
     async def _notify_subscribers(self, event: PressureEvent) -> None:
         """Notify all subscribers with per-subscriber exception isolation."""
-        await asyncio.gather(
-            *(self._notify_subscriber(subscriber, event) for subscriber in list(self._subscribers))
-        )
+        await asyncio.gather(*(self._notify_subscriber(subscriber, event) for subscriber in list(self._subscribers)))
 
     async def _notify_subscriber(self, subscriber: PressureSubscriber, event: PressureEvent) -> None:
         """Notify one subscriber without delaying other subscribers."""

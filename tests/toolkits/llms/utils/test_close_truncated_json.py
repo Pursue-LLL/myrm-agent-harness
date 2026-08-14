@@ -25,7 +25,7 @@ class TestCloseTruncatedJson:
         assert _close_truncated_json(original) == original
 
     def test_valid_array_unchanged(self) -> None:
-        original = '[1, 2, 3]'
+        original = "[1, 2, 3]"
         assert _close_truncated_json(original) == original
 
 
@@ -48,7 +48,7 @@ class TestStackBasedClosing:
         assert parsed == {"a": {"b": {"c": {"d": 1}}}}
 
     def test_pure_nested_arrays(self) -> None:
-        result = _close_truncated_json('[1, 2, [3, 4')
+        result = _close_truncated_json("[1, 2, [3, 4")
         parsed = _assert_valid_json(result)
         assert parsed == [1, 2, [3, 4]]
 

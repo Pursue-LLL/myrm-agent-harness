@@ -11,10 +11,7 @@ from myrm_agent_harness.agent.context_management.infra.tool_output_persister imp
     persist_large_tool_output,
 )
 
-_MOCK_PERSIST = (
-    "myrm_agent_harness.agent.context_management.infra.tool_output_persister"
-    ".persist_evicted_content"
-)
+_MOCK_PERSIST = "myrm_agent_harness.agent.context_management.infra.tool_output_persister.persist_evicted_content"
 
 
 class TestSanitizeEvictedSource:
@@ -127,9 +124,7 @@ class TestFormatFilteredMessageWithSavedPath:
             structure_overview="keys: [a, b, c]",
             read_suggestions=["re-execute tool"],
         )
-        msg = format_filtered_message(
-            result, saved_path=".context/abc/evicted/tool_123.txt"
-        )
+        msg = format_filtered_message(result, saved_path=".context/abc/evicted/tool_123.txt")
         assert "Full output saved to:" in msg
         assert ".context/abc/evicted/tool_123.txt" in msg
         assert "file_read_tool" in msg

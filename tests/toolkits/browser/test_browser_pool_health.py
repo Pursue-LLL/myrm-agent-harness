@@ -128,11 +128,5 @@ async def test_health_handles_unexpected_exception() -> None:
     assert health_status["browsers_alive"] == 1
     assert health_status["browsers_total"] == 3
     assert health_status["status"] == "degraded"
-    assert any(
-        "Browser #1 unresponsive" in issue
-        for issue in health_status["issues"]
-    )
-    assert any(
-        "Browser #2 unresponsive" in issue
-        for issue in health_status["issues"]
-    )
+    assert any("Browser #1 unresponsive" in issue for issue in health_status["issues"])
+    assert any("Browser #2 unresponsive" in issue for issue in health_status["issues"])

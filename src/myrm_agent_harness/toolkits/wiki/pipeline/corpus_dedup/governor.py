@@ -83,9 +83,7 @@ class CorpusDedupGovernor:
                 for right in paths[left_index + 1 :]:
                     self._store.add_dismissed_pair(left, right)
             self._store.update_group_status(group_id, GroupStatus.RESOLVED)
-            return DispositionResult(
-                group_id=group_id, action=action, affected_paths=tuple(paths)
-            )
+            return DispositionResult(group_id=group_id, action=action, affected_paths=tuple(paths))
 
         affected: list[str] = []
         prevented = 0
@@ -207,9 +205,7 @@ class CorpusDedupGovernor:
                 ),
             )
         except OSError as exc:
-            logger.warning(
-                "Failed to append restore log entry for %s: %s", normalized, exc
-            )
+            logger.warning("Failed to append restore log entry for %s: %s", normalized, exc)
         return entry
 
     def undo_excluded_raw(self, relative_path: str) -> ExcludedRawEntry:
@@ -225,8 +221,4 @@ class CorpusDedupGovernor:
 
     def blocking_open_groups(self) -> list[DuplicateGroup]:
         groups = self._store.list_groups(status=GroupStatus.OPEN)
-        return [
-            group
-            for group in groups
-            if group.tier in {DedupTier.EXACT, DedupTier.NORMALIZED}
-        ]
+        return [group for group in groups if group.tier in {DedupTier.EXACT, DedupTier.NORMALIZED}]

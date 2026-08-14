@@ -18,9 +18,7 @@ def test_builder_openapi_load_failure_is_fail_loud() -> None:
     assert 'error_code="openapi_load_failed"' in source, (
         "OpenAPI load failures must raise ConfigIncompleteError(openapi_load_failed)"
     )
-    assert "enabled_openapi_count > 0 and not openapi_all" in source, (
-        "OpenAPI fail-loud guard condition missing"
-    )
+    assert "enabled_openapi_count > 0 and not openapi_all" in source, "OpenAPI fail-loud guard condition missing"
 
 
 def test_builder_openapi_budget_failure_remains_fail_loud() -> None:

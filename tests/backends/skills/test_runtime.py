@@ -109,8 +109,6 @@ class TestCheckRequirements:
         assert "CONFIG: /no/such/file" in reason
 
 
-
-
 class TestComputeContentHash:
     """compute_content_hash() — SHA-256 with line ending normalization."""
 
@@ -210,4 +208,3 @@ class TestBuildSkillMetadata:
         assert short_meta.token_cost is not None
         assert long_meta.token_cost is not None
         assert long_meta.token_cost > short_meta.token_cost
-

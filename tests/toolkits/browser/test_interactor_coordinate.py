@@ -153,9 +153,7 @@ def _scroll_feed(mock_page: Any, *, movable: bool = True) -> None:
 
     async def mock_wheel(_dx: int, dy: int) -> None:
         if movable:
-            state["top"] = min(
-                state["top"] + dy, max(0.0, state["height"] - state["client"])
-            )
+            state["top"] = min(state["top"] + dy, max(0.0, state["height"] - state["client"]))
 
     mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
     mock_page.mouse.wheel = AsyncMock(side_effect=mock_wheel)
@@ -173,9 +171,7 @@ async def test_interact_at_scroll(interactor: Interactor, mock_page: Any) -> Non
 
 
 @pytest.mark.asyncio
-async def test_interact_at_scroll_negative(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_interact_at_scroll_negative(interactor: Interactor, mock_page: Any) -> None:
     """Scroll up (negative delta) at coordinates."""
     _scroll_feed(mock_page, movable=False)
 
@@ -186,9 +182,7 @@ async def test_interact_at_scroll_negative(
 
 
 @pytest.mark.asyncio
-async def test_interact_at_scroll_no_move_reports_edge(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_interact_at_scroll_no_move_reports_edge(interactor: Interactor, mock_page: Any) -> None:
     """Scroll that cannot move (stuck container) is reported honestly."""
     _scroll_feed(mock_page, movable=False)
 
@@ -334,9 +328,7 @@ async def test_interact_at_drag_with_bezier(mock_page: Any) -> None:
         ) as mock_bezier,
         patch(_WAIT_PATCH, new_callable=AsyncMock),
     ):
-        result = await interactor.interact_at(
-            "drag", 100, 200, target_x=500, target_y=400
-        )
+        result = await interactor.interact_at("drag", 100, 200, target_x=500, target_y=400)
 
     assert "Dragged from" in result
     assert mock_bezier.await_count == 2
@@ -348,9 +340,7 @@ async def test_interact_at_drag_with_bezier(mock_page: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_interact_at_boundary_coords(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_interact_at_boundary_coords(interactor: Interactor, mock_page: Any) -> None:
     """Coordinates at exact viewport boundary should succeed."""
     with patch(_WAIT_PATCH, new_callable=AsyncMock):
         result = await interactor.interact_at("click", 0, 0)
@@ -362,9 +352,7 @@ async def test_interact_at_boundary_coords(
 
 
 @pytest.mark.asyncio
-async def test_interact_at_updates_mouse_position(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_interact_at_updates_mouse_position(interactor: Interactor, mock_page: Any) -> None:
     """Mouse position should update after each coordinate interaction."""
     with patch(_WAIT_PATCH, new_callable=AsyncMock):
         await interactor.interact_at("click", 100, 200)
@@ -406,9 +394,7 @@ async def test_interact_at_type_with_bezier(mock_page: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_interact_at_spa_wait_failure_degrades(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_interact_at_spa_wait_failure_degrades(interactor: Interactor, mock_page: Any) -> None:
     """A failing post-action SPA wait degrades silently (action still succeeds)."""
     with patch(_WAIT_PATCH, side_effect=Exception("wait failed")):
         result = await interactor.interact_at("click", 400, 300)

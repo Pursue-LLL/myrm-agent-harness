@@ -235,11 +235,7 @@ async def apply_isolated_sync_back_with_snapshots(
 ) -> None:
     """Run immediate ISOLATED_COPY sync_back and register revert snapshots."""
     merge_ctx = build_merge_snapshot_context(parent_agent=parent_agent)
-    if (
-        merge_ctx is not None
-        and child_workspace.is_dir()
-        and parent_workspace.is_dir()
-    ):
+    if merge_ctx is not None and child_workspace.is_dir() and parent_workspace.is_dir():
         workspace_root = Path(merge_ctx.workspace_root).resolve()
         store = SnapshotStore.get()
 

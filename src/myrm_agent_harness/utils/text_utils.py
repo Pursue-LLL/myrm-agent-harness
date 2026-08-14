@@ -185,9 +185,7 @@ def estimate_tokens_fast(text: str) -> int:
         estimated_tokens = int(total_chars / 3.5)
 
     elapsed = time.time() - start_time
-    logger.debug(
-        f"快速估算完成: {total_chars}字符 -> {estimated_tokens}Token, 耗时: {elapsed * 1000:.2f}ms"
-    )
+    logger.debug(f"快速估算完成: {total_chars}字符 -> {estimated_tokens}Token, 耗时: {elapsed * 1000:.2f}ms")
 
     return estimated_tokens
 
@@ -216,9 +214,7 @@ def find_sentence_boundary(text: str, min_threshold: float) -> int:
     return best_pos
 
 
-def truncate_text_to_tokens(
-    text: str, max_tokens: int, encoding_name: str = PLANNING_ENCODING
-) -> str:
+def truncate_text_to_tokens(text: str, max_tokens: int, encoding_name: str = PLANNING_ENCODING) -> str:
     """将文本截断到指定的 token 数量（简单截断，不考虑句子边界）。
 
     Args:
@@ -244,9 +240,7 @@ def truncate_text_to_tokens(
         return _char_fallback_truncate(text, max_tokens)
 
 
-def truncate_by_tokens_with_boundary(
-    text: str, max_tokens: int, encoding_name: str = PLANNING_ENCODING
-) -> str:
+def truncate_by_tokens_with_boundary(text: str, max_tokens: int, encoding_name: str = PLANNING_ENCODING) -> str:
     """基于 token 数智能截断（在句子边界处切割）。
 
     优先在句子边界处截断以保持可读性；tiktoken 失败时退回字符估算。
@@ -350,11 +344,7 @@ def smart_truncate(
     marker_overhead = len(marker) + 20
     budget = max(200, max_chars - marker_overhead)
 
-    ratio = (
-        max(tail_ratio, important_tail_ratio)
-        if has_important_tail(text)
-        else tail_ratio
-    )
+    ratio = max(tail_ratio, important_tail_ratio) if has_important_tail(text) else tail_ratio
     tail_budget = int(budget * ratio)
     head_budget = budget - tail_budget
 
@@ -378,9 +368,7 @@ def smart_truncate(
 # Markdown code fence unwrapping
 # ---------------------------------------------------------------------------
 
-_LANG_TAG_CHARS = frozenset(
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-)
+_LANG_TAG_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 
 
 def unwrap_markdown_fence(text: str) -> str:
@@ -406,11 +394,7 @@ def unwrap_markdown_fence(text: str) -> str:
 
     first_line = lines[0].strip()
     if not (
-        first_line == "```"
-        or (
-            first_line.startswith("```")
-            and all(c in _LANG_TAG_CHARS for c in first_line[3:])
-        )
+        first_line == "```" or (first_line.startswith("```") and all(c in _LANG_TAG_CHARS for c in first_line[3:]))
     ):
         return text
 
@@ -482,9 +466,7 @@ def sanitize_binary_output(text: str) -> str:
         return text
 
     sample = text[:_BINARY_SAMPLE_SIZE]
-    non_printable = sum(
-        1 for ch in sample if not ch.isprintable() and ch not in _PRINTABLE_EXTRAS
-    )
+    non_printable = sum(1 for ch in sample if not ch.isprintable() and ch not in _PRINTABLE_EXTRAS)
 
     if non_printable / len(sample) < _BINARY_THRESHOLD:
         return text

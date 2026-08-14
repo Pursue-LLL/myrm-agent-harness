@@ -185,9 +185,7 @@ async def test_unknown_tool_raises() -> None:
 @pytest.mark.asyncio
 async def test_startup_retries_then_succeeds() -> None:
     init_calls: list[int] = []
-    client_cls, convert = _install_fake_client(
-        init_calls, [_FakeTool("alpha")], fail_first=1
-    )
+    client_cls, convert = _install_fake_client(init_calls, [_FakeTool("alpha")], fail_first=1)
 
     actor = MCPSessionActor("srv", {"transport": "stdio"}, connect_timeout=5.0)
     with _patched(client_cls, convert):
@@ -322,9 +320,7 @@ async def test_transport_break_recovers_and_keeps_serving() -> None:
             with pytest.raises(ConnectionError):
                 await actor.call("alpha", {"id": "a"})
             # Owner reconnected; the next call succeeds on the rebound session.
-            result = await asyncio.wait_for(
-                actor.call("alpha", {"id": "b"}), timeout=5.0
-            )
+            result = await asyncio.wait_for(actor.call("alpha", {"id": "b"}), timeout=5.0)
             assert result == "recovered"
             assert actor.is_healthy() is True
             # Reconnect re-ran initialize beyond the first successful start.
@@ -567,9 +563,7 @@ async def test_close_fails_in_flight_call_instead_of_hanging(
     no outer timeout), which hangs the agent mid-turn. Regression test for
     the close() grace-window cancel path.
     """
-    monkeypatch.setattr(
-        "myrm_agent_harness.toolkits.mcp.session_actor._CLOSE_TIMEOUT", 0.2
-    )
+    monkeypatch.setattr("myrm_agent_harness.toolkits.mcp.session_actor._CLOSE_TIMEOUT", 0.2)
     init_calls: list[int] = []
 
     class _HangingTool(_FakeTool):
@@ -612,9 +606,7 @@ async def test_close_fails_in_flight_resource_read_instead_of_hanging(
     owner task when close()'s grace window expires must not leave the caller
     waiting forever.
     """
-    monkeypatch.setattr(
-        "myrm_agent_harness.toolkits.mcp.session_actor._CLOSE_TIMEOUT", 0.2
-    )
+    monkeypatch.setattr("myrm_agent_harness.toolkits.mcp.session_actor._CLOSE_TIMEOUT", 0.2)
     init_calls: list[int] = []
 
     entered = asyncio.Event()
@@ -759,9 +751,7 @@ class TestNotificationHandler:
         handler = actor._make_notification_handler()
         assert handler is not None
 
-        notification = ToolListChangedNotification(
-            method="notifications/tools/list_changed"
-        )
+        notification = ToolListChangedNotification(method="notifications/tools/list_changed")
         await handler(notification)
 
         assert not actor._queue.empty()
@@ -778,9 +768,7 @@ class TestNotificationHandler:
         handler = actor._make_notification_handler()
         assert handler is not None
 
-        notification = PromptListChangedNotification(
-            method="notifications/prompts/list_changed"
-        )
+        notification = PromptListChangedNotification(method="notifications/prompts/list_changed")
         await handler(notification)
 
         assert actor._queue.empty()
@@ -793,9 +781,7 @@ class TestNotificationHandler:
         handler = actor._make_notification_handler()
         assert handler is not None
 
-        notification = ResourceListChangedNotification(
-            method="notifications/resources/list_changed"
-        )
+        notification = ResourceListChangedNotification(method="notifications/resources/list_changed")
         await handler(notification)
 
         assert actor._queue.empty()
@@ -818,9 +804,7 @@ class TestNotificationHandler:
         handler = actor._make_notification_handler()
         assert handler is not None
 
-        notification = ToolListChangedNotification(
-            method="notifications/tools/list_changed"
-        )
+        notification = ToolListChangedNotification(method="notifications/tools/list_changed")
         await handler(notification)
         await handler(notification)
 
@@ -1039,9 +1023,7 @@ class TestServeOnRefreshSignal:
         actor._queue.put_nowait(_REFRESH_SIGNAL)
         actor._queue.put_nowait(_SHUTDOWN)
 
-        with patch.object(
-            actor, "_refresh_tools", new_callable=AsyncMock
-        ) as mock_refresh:
+        with patch.object(actor, "_refresh_tools", new_callable=AsyncMock) as mock_refresh:
             outcome = await actor._serve_on(session)
 
         mock_refresh.assert_awaited_once_with(session)
@@ -1402,10 +1384,7 @@ class TestAuthErrorDetection:
     def test_ignores_port_number_containing_401(self) -> None:
         from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
 
-        assert (
-            _is_auth_error("ConnectionError: failed to connect to localhost:4010")
-            is False
-        )
+        assert _is_auth_error("ConnectionError: failed to connect to localhost:4010") is False
 
     def test_ignores_unrelated_error(self) -> None:
         from myrm_agent_harness.toolkits.mcp.session_actor import _is_auth_error
@@ -1426,28 +1405,20 @@ class TestAuthErrorDetection:
 
     def test_maybe_emit_auth_expired_fires_event(self) -> None:
         actor = MCPSessionActor("github-mcp", {"transport": "sse"})
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired"
-        ) as mock_notify:
+        with patch("myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired") as mock_notify:
             actor._maybe_emit_auth_expired("HTTPStatusError: 401 Unauthorized")
-            mock_notify.assert_called_once_with(
-                "github-mcp", "HTTPStatusError: 401 Unauthorized"
-            )
+            mock_notify.assert_called_once_with("github-mcp", "HTTPStatusError: 401 Unauthorized")
 
     def test_maybe_emit_auth_expired_no_event_for_non_auth(self) -> None:
         actor = MCPSessionActor("srv", {"transport": "stdio"})
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired"
-        ) as mock_notify:
+        with patch("myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired") as mock_notify:
             actor._maybe_emit_auth_expired("ConnectionRefusedError: connection refused")
             mock_notify.assert_not_called()
 
     def test_event_to_dict_serialization(self) -> None:
         from myrm_agent_harness.runtime.events.system_events import MCPAuthExpiredEvent
 
-        event = MCPAuthExpiredEvent(
-            server_name="linear-mcp", error_detail="401 Unauthorized"
-        )
+        event = MCPAuthExpiredEvent(server_name="linear-mcp", error_detail="401 Unauthorized")
         d = event.to_dict()
         assert d == {"server_name": "linear-mcp", "error_detail": "401 Unauthorized"}
 
@@ -1470,19 +1441,13 @@ class TestAuthErrorDetection:
 
     def test_fail_to_start_emits_auth_event(self) -> None:
         actor = MCPSessionActor("notion-mcp", {"transport": "sse"})
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired"
-        ) as mock_notify:
+        with patch("myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired") as mock_notify:
             actor._fail_to_start("HTTPStatusError: 401 Unauthorized")
-            mock_notify.assert_called_once_with(
-                "notion-mcp", "HTTPStatusError: 401 Unauthorized"
-            )
+            mock_notify.assert_called_once_with("notion-mcp", "HTTPStatusError: 401 Unauthorized")
 
     def test_fail_to_start_no_event_for_timeout(self) -> None:
         actor = MCPSessionActor("srv", {"transport": "stdio"})
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired"
-        ) as mock_notify:
+        with patch("myrm_agent_harness.toolkits.mcp.auth_notify.notify_mcp_auth_expired") as mock_notify:
             actor._fail_to_start("TimeoutError: connect timed out")
             mock_notify.assert_not_called()
 
@@ -1510,9 +1475,7 @@ class TestBuildElicitationCallback:
     @pytest.mark.asyncio
     async def test_callback_accept(self) -> None:
         handler = AsyncMock(return_value="accept")
-        actor = MCPSessionActor(
-            "srv", {"transport": "stdio"}, elicitation_handler=handler
-        )
+        actor = MCPSessionActor("srv", {"transport": "stdio"}, elicitation_handler=handler)
         cb = actor._build_elicitation_callback()
         assert cb is not None
 
@@ -1528,9 +1491,7 @@ class TestBuildElicitationCallback:
     @pytest.mark.asyncio
     async def test_callback_decline(self) -> None:
         handler = AsyncMock(return_value="decline")
-        actor = MCPSessionActor(
-            "srv", {"transport": "stdio"}, elicitation_handler=handler
-        )
+        actor = MCPSessionActor("srv", {"transport": "stdio"}, elicitation_handler=handler)
         cb = actor._build_elicitation_callback()
         assert cb is not None
 
@@ -1545,9 +1506,7 @@ class TestBuildElicitationCallback:
     @pytest.mark.asyncio
     async def test_callback_cancel(self) -> None:
         handler = AsyncMock(return_value="cancel")
-        actor = MCPSessionActor(
-            "srv", {"transport": "stdio"}, elicitation_handler=handler
-        )
+        actor = MCPSessionActor("srv", {"transport": "stdio"}, elicitation_handler=handler)
         cb = actor._build_elicitation_callback()
         assert cb is not None
 
@@ -1560,9 +1519,7 @@ class TestBuildElicitationCallback:
         assert result.action == "cancel"
 
     @pytest.mark.asyncio
-    async def test_callback_timeout_returns_cancel(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_callback_timeout_returns_cancel(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import myrm_agent_harness.toolkits.mcp.session_actor as sa
 
         monkeypatch.setattr(sa, "_ELICITATION_DEFAULT_TIMEOUT", 0.01)
@@ -1571,9 +1528,7 @@ class TestBuildElicitationCallback:
             await asyncio.sleep(999)
             return "accept"
 
-        actor = MCPSessionActor(
-            "srv", {"transport": "stdio"}, elicitation_handler=_hang
-        )
+        actor = MCPSessionActor("srv", {"transport": "stdio"}, elicitation_handler=_hang)
         cb = actor._build_elicitation_callback()
         assert cb is not None
 
@@ -1588,9 +1543,7 @@ class TestBuildElicitationCallback:
     @pytest.mark.asyncio
     async def test_callback_exception_returns_decline(self) -> None:
         handler = AsyncMock(side_effect=RuntimeError("handler crashed"))
-        actor = MCPSessionActor(
-            "srv", {"transport": "stdio"}, elicitation_handler=handler
-        )
+        actor = MCPSessionActor("srv", {"transport": "stdio"}, elicitation_handler=handler)
         cb = actor._build_elicitation_callback()
         assert cb is not None
 
@@ -1605,9 +1558,7 @@ class TestBuildElicitationCallback:
     @pytest.mark.asyncio
     async def test_callback_unexpected_value_returns_decline(self) -> None:
         handler = AsyncMock(return_value="invalid_action")
-        actor = MCPSessionActor(
-            "srv", {"transport": "stdio"}, elicitation_handler=handler
-        )
+        actor = MCPSessionActor("srv", {"transport": "stdio"}, elicitation_handler=handler)
         cb = actor._build_elicitation_callback()
         assert cb is not None
 
@@ -1622,9 +1573,7 @@ class TestBuildElicitationCallback:
     @pytest.mark.asyncio
     async def test_callback_fallback_message_when_empty(self) -> None:
         handler = AsyncMock(return_value="accept")
-        actor = MCPSessionActor(
-            "my-server", {"transport": "stdio"}, elicitation_handler=handler
-        )
+        actor = MCPSessionActor("my-server", {"transport": "stdio"}, elicitation_handler=handler)
         cb = actor._build_elicitation_callback()
         assert cb is not None
 
@@ -1637,9 +1586,7 @@ class TestBuildElicitationCallback:
     @pytest.mark.asyncio
     async def test_callback_fallback_schema_when_none(self) -> None:
         handler = AsyncMock(return_value="accept")
-        actor = MCPSessionActor(
-            "srv", {"transport": "stdio"}, elicitation_handler=handler
-        )
+        actor = MCPSessionActor("srv", {"transport": "stdio"}, elicitation_handler=handler)
         cb = actor._build_elicitation_callback()
         assert cb is not None
 
@@ -1652,15 +1599,11 @@ class TestBuildElicitationCallback:
     @pytest.mark.asyncio
     async def test_callback_url_mode_declines(self) -> None:
         handler = AsyncMock(return_value="accept")
-        actor = MCPSessionActor(
-            "srv", {"transport": "stdio"}, elicitation_handler=handler
-        )
+        actor = MCPSessionActor("srv", {"transport": "stdio"}, elicitation_handler=handler)
         cb = actor._build_elicitation_callback()
         assert cb is not None
 
-        params = MagicMock(
-            mode="url", message="Open OAuth", url="https://auth.example.com"
-        )
+        params = MagicMock(mode="url", message="Open OAuth", url="https://auth.example.com")
         result = await cb(MagicMock(), params)
 
         from mcp.types import ElicitResult
@@ -1671,9 +1614,7 @@ class TestBuildElicitationCallback:
 
     def test_elicitation_handler_stored(self) -> None:
         handler = AsyncMock()
-        actor = MCPSessionActor(
-            "srv", {"transport": "stdio"}, elicitation_handler=handler
-        )
+        actor = MCPSessionActor("srv", {"transport": "stdio"}, elicitation_handler=handler)
         assert actor._elicitation_handler is handler
 
     def test_elicitation_handler_defaults_none(self) -> None:

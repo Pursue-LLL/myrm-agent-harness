@@ -292,7 +292,7 @@ def create_cron_tools(
                 try:
                     bp_values = json.loads(blueprint_values)
                 except (json.JSONDecodeError, TypeError):
-                    return "Error: blueprint_values must be valid JSON object, e.g. '{\"time\": \"08:00\"}'."
+                    return 'Error: blueprint_values must be valid JSON object, e.g. \'{"time": "08:00"}\'.'
 
             fill_result = blueprint_filler(blueprint.strip(), bp_values, tz.strip() or None)
             if fill_result is None:
@@ -312,15 +312,9 @@ def create_cron_tools(
                 bp_every_minutes = int(sched_dict["interval_ms"]) // 60_000
 
         effective_required_capabilities = (
-            _parse_csv_tuple(required_capabilities)
-            if required_capabilities.strip()
-            else bp_required_capabilities
+            _parse_csv_tuple(required_capabilities) if required_capabilities.strip() else bp_required_capabilities
         )
-        effective_tools_allowed = (
-            tuple(_parse_csv_tuple(tools_allowed))
-            if tools_allowed.strip()
-            else bp_tools_allowed
-        )
+        effective_tools_allowed = tuple(_parse_csv_tuple(tools_allowed)) if tools_allowed.strip() else bp_tools_allowed
 
         dispatch = {
             "add": lambda: _do_add(
@@ -384,9 +378,7 @@ def create_cron_tools(
                 required_capabilities=_parse_csv_tuple(required_capabilities)
                 if required_capabilities.strip()
                 else None,
-                tools_allowed=tuple(_parse_csv_tuple(tools_allowed))
-                if tools_allowed.strip()
-                else None,
+                tools_allowed=tuple(_parse_csv_tuple(tools_allowed)) if tools_allowed.strip() else None,
             ),
             "remove": lambda: _do_remove(manager, user_id, job_id),
             "run": lambda: _do_run(manager, user_id, job_id),
@@ -476,7 +468,8 @@ _VALID_MONITOR_TYPES = {"set", "hash"}
 
 
 def _build_monitor_config(
-    monitor_type: str, monitor_enabled: bool,
+    monitor_type: str,
+    monitor_enabled: bool,
 ) -> tuple[str | None, MonitorConfig | None, bool]:
     """Build MonitorConfig from tool parameters.
 
@@ -694,8 +687,13 @@ async def _do_add(
         return "Schedule build failed."
 
     trig_err, trigger_config = _build_trigger_config(
-        stream_url, stream_protocol, stream_filter_json_path,
-        stream_filter_regex, stream_headers, poll_url, poll_json_path,
+        stream_url,
+        stream_protocol,
+        stream_filter_json_path,
+        stream_filter_regex,
+        stream_headers,
+        poll_url,
+        poll_json_path,
         poll_interval_seconds,
     )
     if trig_err:

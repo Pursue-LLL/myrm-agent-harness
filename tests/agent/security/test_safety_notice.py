@@ -5,7 +5,6 @@ SECURITY NOTICE prefix to provide LLM-level defense against
 prompt injection in external data.
 """
 
-
 from myrm_agent_harness.agent.security.detection.content_boundary import (
     wrap_tool_output,
     wrap_untrusted,

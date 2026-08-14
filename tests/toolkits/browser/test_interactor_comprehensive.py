@@ -219,9 +219,7 @@ async def test_interact_hover(interactor: Interactor) -> None:
 
 
 @pytest.mark.asyncio
-async def test_interact_hover_bezier_success(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_interact_hover_bezier_success(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """Test hover in CAREFUL mode uses Bézier trajectory when bounding_box succeeds."""
     from myrm_agent_harness.toolkits.browser.pool.config import (
         HumanizeConfig,
@@ -236,9 +234,7 @@ async def test_interact_hover_bezier_success(
     # RuntimeWarning. A real dict makes the probe resolve to "visible, top frame,
     # inside the center band" so the pre-interaction scroll exits on the first loop.
     mock_locator = AsyncMock()
-    mock_locator.bounding_box = AsyncMock(
-        return_value={"x": 100, "y": 300, "width": 80, "height": 30}
-    )
+    mock_locator.bounding_box = AsyncMock(return_value={"x": 100, "y": 300, "width": 80, "height": 30})
     mock_locator.evaluate = AsyncMock(
         return_value={
             "x": 100.0,
@@ -268,9 +264,7 @@ async def test_interact_hover_bezier_success(
 
 
 @pytest.mark.asyncio
-async def test_interact_hover_bezier_fallback(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_interact_hover_bezier_fallback(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """Test hover in CAREFUL mode falls back to locator.hover() when bounding_box returns None."""
     from myrm_agent_harness.toolkits.browser.pool.config import (
         HumanizeConfig,
@@ -400,9 +394,7 @@ async def test_interact_scroll_negative(interactor: Interactor, mock_page: Any) 
 
 
 @pytest.mark.asyncio
-async def test_interact_scroll_at_bottom_reports_edge(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_interact_scroll_at_bottom_reports_edge(interactor: Interactor, mock_page: Any) -> None:
     """Scroll past the bottom edge reports the no-op honestly."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [2000, 2000], client=720, top=1280)  # max scrollTop
@@ -417,9 +409,7 @@ async def test_interact_scroll_at_bottom_reports_edge(
 
 
 @pytest.mark.asyncio
-async def test_interact_scroll_no_overflow_reports(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_interact_scroll_no_overflow_reports(interactor: Interactor, mock_page: Any) -> None:
     """Scroll on a non-scrollable container reports no overflow."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [720, 720], client=720)
@@ -434,9 +424,7 @@ async def test_interact_scroll_no_overflow_reports(
 
 
 @pytest.mark.asyncio
-async def test_interact_scroll_blocked_reports(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_interact_scroll_blocked_reports(interactor: Interactor, mock_page: Any) -> None:
     """A scrollable container that ignores wheel input is reported honestly."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [2000, 2000], advance=False, top=100)
@@ -471,9 +459,7 @@ async def test_interact_scroll_invalid_text(interactor: Interactor) -> None:
 
 
 def _careful_interactor(mock_page: Any, refs_map: dict[str, RefInfo]) -> Interactor:
-    return Interactor(
-        mock_page, refs_map, humanize=HumanizeConfig.from_mode(HumanizeMode.CAREFUL)
-    )
+    return Interactor(mock_page, refs_map, humanize=HumanizeConfig.from_mode(HumanizeMode.CAREFUL))
 
 
 def _probe(
@@ -511,14 +497,10 @@ def _doc_container(delta: int) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_disabled_outside_careful(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_disabled_outside_careful(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """FAST/DEFAULT never pre-scroll: the helper is a pure no-op."""
     for mode in (HumanizeMode.FAST, HumanizeMode.DEFAULT):
-        interactor = Interactor(
-            mock_page, refs_map, humanize=HumanizeConfig.from_mode(mode)
-        )
+        interactor = Interactor(mock_page, refs_map, humanize=HumanizeConfig.from_mode(mode))
         locator = AsyncMock()
         locator.bounding_box.return_value = {
             "x": 100,
@@ -533,9 +515,7 @@ async def test_ensure_target_in_view_disabled_outside_careful(
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_already_in_zone_no_scroll(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_already_in_zone_no_scroll(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """A target already inside the center band costs zero wheel events."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
@@ -555,9 +535,7 @@ async def test_ensure_target_in_view_already_in_zone_no_scroll(
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_scrolls_below_target(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_scrolls_below_target(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """A target below the viewport is wheeled toward it (humanized notches)."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
@@ -567,9 +545,7 @@ async def test_ensure_target_in_view_scrolls_below_target(
         "width": 200,
         "height": 100,
     }  # off-viewport → probe reads invisible → main document container
-    locator.evaluate.return_value = _probe(
-        visible=False, y=1800, container=_doc_container(1490)
-    )
+    locator.evaluate.return_value = _probe(visible=False, y=1800, container=_doc_container(1490))
     mock_page.mouse.wheel = AsyncMock()
 
     with patch("random.random", return_value=0.5):  # no overshoot branch
@@ -580,9 +556,7 @@ async def test_ensure_target_in_view_scrolls_below_target(
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_scrolls_above_target(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_scrolls_above_target(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """A target above the viewport is wheeled up (negative delta)."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
@@ -592,9 +566,7 @@ async def test_ensure_target_in_view_scrolls_above_target(
         "width": 200,
         "height": 100,
     }  # cy = -750 < zone_lo = 216
-    locator.evaluate.return_value = _probe(
-        visible=False, y=-800, container=_doc_container(-1110)
-    )
+    locator.evaluate.return_value = _probe(visible=False, y=-800, container=_doc_container(-1110))
     mock_page.mouse.wheel = AsyncMock()
 
     with patch("random.random", return_value=0.5):
@@ -606,9 +578,7 @@ async def test_ensure_target_in_view_scrolls_above_target(
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_measure_failure_no_scroll(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_measure_failure_no_scroll(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """Unmeasurable targets degrade silently (no scroll, no crash)."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
@@ -651,9 +621,7 @@ async def test_ensure_target_in_view_stops_when_target_enters_zone(
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_degrades_on_wheel_error(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_degrades_on_wheel_error(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """Wheel errors during the best-effort pre-scroll degrade silently."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
@@ -663,9 +631,7 @@ async def test_ensure_target_in_view_degrades_on_wheel_error(
         "width": 200,
         "height": 100,
     }
-    locator.evaluate.return_value = _probe(
-        visible=False, y=1800, container=_doc_container(1490)
-    )
+    locator.evaluate.return_value = _probe(visible=False, y=1800, container=_doc_container(1490))
     mock_page.mouse.wheel = AsyncMock(side_effect=Exception("Target closed"))
 
     moved = await interactor._ensure_target_in_view(locator)
@@ -674,9 +640,7 @@ async def test_ensure_target_in_view_degrades_on_wheel_error(
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_scrolls_nested_container(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_scrolls_nested_container(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """A target clipped by an inner scroller wheels that scroller, not the page.
 
     The geometry lies inside the page viewport (y=601) so the old zone check
@@ -775,9 +739,7 @@ async def test_ensure_target_in_view_visible_in_nested_container_breaks(
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_visible_in_iframe_breaks(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_visible_in_iframe_breaks(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """An iframe target already visible stops — the page band is meaningless there."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
@@ -888,9 +850,7 @@ async def test_interact_click_careful_locked_scroll_falls_back(mock_page: Any) -
         "width": 200,
         "height": 100,
     }  # cy = 1850 > zone_hi = 504; box never moves (scroll locked)
-    locator.evaluate.return_value = _probe(
-        visible=False, y=1800, container=_doc_container(1490)
-    )
+    locator.evaluate.return_value = _probe(visible=False, y=1800, container=_doc_container(1490))
     mock_page.mouse = MagicMock()
     mock_page.mouse.move = AsyncMock()
     mock_page.mouse.wheel = AsyncMock()
@@ -955,9 +915,7 @@ async def test_interact_click_careful_unreachable_target_raises(
 
 
 @pytest.mark.asyncio
-async def test_interact_click_default_no_pre_scroll(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_interact_click_default_no_pre_scroll(interactor: Interactor, mock_page: Any) -> None:
     """DEFAULT/FAST click never emits pre-interaction wheel events."""
     locator = AsyncMock()
 
@@ -984,9 +942,7 @@ def _wheel_deltas(mock_page: Any) -> list[int]:
 @pytest.mark.asyncio
 async def test_scroll_deliver_fast_single_wheel(mock_page: Any) -> None:
     """FAST delivers the whole delta as one wheel event (zero humanization cost)."""
-    interactor = Interactor(
-        mock_page, {}, humanize=HumanizeConfig.from_mode(HumanizeMode.FAST)
-    )
+    interactor = Interactor(mock_page, {}, humanize=HumanizeConfig.from_mode(HumanizeMode.FAST))
 
     await interactor._scroll_deliver(300)
 
@@ -996,9 +952,7 @@ async def test_scroll_deliver_fast_single_wheel(mock_page: Any) -> None:
 @pytest.mark.asyncio
 async def test_scroll_deliver_default_wheel_burst(mock_page: Any) -> None:
     """DEFAULT splits the delta into a burst of small wheel notches."""
-    interactor = Interactor(
-        mock_page, {}, humanize=HumanizeConfig.from_mode(HumanizeMode.DEFAULT)
-    )
+    interactor = Interactor(mock_page, {}, humanize=HumanizeConfig.from_mode(HumanizeMode.DEFAULT))
 
     await interactor._scroll_deliver(300)
 
@@ -1010,9 +964,7 @@ async def test_scroll_deliver_default_wheel_burst(mock_page: Any) -> None:
 @pytest.mark.asyncio
 async def test_scroll_deliver_careful_notch_rhythm(mock_page: Any) -> None:
     """CAREFUL delivers notches summing to the delta and settles without overshoot."""
-    interactor = Interactor(
-        mock_page, {}, humanize=HumanizeConfig.from_mode(HumanizeMode.CAREFUL)
-    )
+    interactor = Interactor(mock_page, {}, humanize=HumanizeConfig.from_mode(HumanizeMode.CAREFUL))
 
     with patch("random.random", return_value=0.5):  # no overshoot branch
         await interactor._scroll_deliver(300)
@@ -1148,18 +1100,14 @@ def _scroll_feed(
 
     async def mock_wheel(_dx: int, dy: int) -> None:
         if advance:
-            state["top"] = min(
-                state["top"] + dy, max(0.0, state["height"] - state["client"])
-            )
+            state["top"] = min(state["top"] + dy, max(0.0, state["height"] - state["client"]))
 
     mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
     mock_page.mouse.wheel = AsyncMock(side_effect=mock_wheel)
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_reaches_bottom(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_scroll_to_bottom_reaches_bottom(interactor: Interactor, mock_page: Any) -> None:
     """scroll_to_bottom stops when scrollHeight stabilizes."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [1000, 1500, 2000, 2000, 2000, 2000])
@@ -1176,9 +1124,7 @@ async def test_scroll_to_bottom_reaches_bottom(
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_max_steps_reached(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_scroll_to_bottom_max_steps_reached(interactor: Interactor, mock_page: Any) -> None:
     """scroll_to_bottom respects max_steps when page keeps growing."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [1000, 1500, 2000, 2500, 3000])
@@ -1194,9 +1140,7 @@ async def test_scroll_to_bottom_max_steps_reached(
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_with_custom_params(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_scroll_to_bottom_with_custom_params(interactor: Interactor, mock_page: Any) -> None:
     """scroll_to_bottom accepts custom delay_ms and stable_count."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [1000, 1000, 1000])
@@ -1205,17 +1149,13 @@ async def test_scroll_to_bottom_with_custom_params(
         "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
         return_value=mock_locator,
     ):
-        result = await interactor.interact(
-            "scroll_to_bottom", "e0", "delay_ms=200,stable_count=2"
-        )
+        result = await interactor.interact("scroll_to_bottom", "e0", "delay_ms=200,stable_count=2")
 
     assert "completed" in result
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_single_step_already_at_bottom(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_scroll_to_bottom_single_step_already_at_bottom(interactor: Interactor, mock_page: Any) -> None:
     """Page already at bottom returns completed after stable_count checks."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [500, 500, 500, 500])
@@ -1230,9 +1170,7 @@ async def test_scroll_to_bottom_single_step_already_at_bottom(
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_no_overflow_early_exit(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_scroll_to_bottom_no_overflow_early_exit(interactor: Interactor, mock_page: Any) -> None:
     """A non-scrollable container exits immediately without wheel events."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [720, 720], client=720)
@@ -1250,9 +1188,7 @@ async def test_scroll_to_bottom_no_overflow_early_exit(
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_viewport_zero_fallback(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_scroll_to_bottom_viewport_zero_fallback(interactor: Interactor, mock_page: Any) -> None:
     """viewport_h <= 0 falls back to 800."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [1000, 1000, 1000, 1000], inner_height=0)
@@ -1267,9 +1203,7 @@ async def test_scroll_to_bottom_viewport_zero_fallback(
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_height_output_format(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_scroll_to_bottom_height_output_format(interactor: Interactor, mock_page: Any) -> None:
     """Return string contains steps, elapsed, height range, and status."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [1000, 2000, 2000, 2000, 2000])
@@ -1288,9 +1222,7 @@ async def test_scroll_to_bottom_height_output_format(
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_stuck_repositions_once(
-    interactor: Interactor, mock_page: Any
-) -> None:
+async def test_scroll_to_bottom_stuck_repositions_once(interactor: Interactor, mock_page: Any) -> None:
     """A scrollable container that ignores wheel input is retargeted once, then reported stuck."""
     mock_locator = _scroll_locator()
     _scroll_feed(mock_page, [1000, 1500, 2000, 2500, 2500], advance=False)
@@ -1322,9 +1254,7 @@ async def test_interact_upload_file(interactor: Interactor) -> None:
         result = await interactor.interact("upload_file", "e0", "/tmp/file.txt")
 
         assert result == "Uploaded file to e0: /tmp/file.txt"
-        mock_locator.set_input_files.assert_called_once_with(
-            "/tmp/file.txt", timeout=10_000
-        )
+        mock_locator.set_input_files.assert_called_once_with("/tmp/file.txt", timeout=10_000)
 
 
 # =============================================================================
@@ -1346,9 +1276,7 @@ async def test_interact_drag_success(interactor: Interactor, mock_page: Any) -> 
         result = await interactor.interact("drag", "e0", "200,150")
 
         assert result == "Dragged e0 to (200, 150)"
-        mock_locator.drag_to.assert_called_once_with(
-            body_locator, target_position={"x": 200, "y": 150}
-        )
+        mock_locator.drag_to.assert_called_once_with(body_locator, target_position={"x": 200, "y": 150})
 
 
 @pytest.mark.asyncio
@@ -1467,9 +1395,7 @@ from patchright.async_api import Page
 def test_update_refs():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {})
-    interactor.update_refs(
-        {"e1": RefInfo(role="link", name="L", nth=0)}, last_snapshot_url="http://new"
-    )
+    interactor.update_refs({"e1": RefInfo(role="link", name="L", nth=0)}, last_snapshot_url="http://new")
     assert "e1" in interactor._refs
     assert interactor._last_snapshot_url == "http://new"
 
@@ -1497,9 +1423,7 @@ def test_log_metrics_if_needed():
     interactor = Interactor(page, {})
     interactor._metrics.total_interactions = 100
     interactor._metrics.total_failures = 1
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.ref_metrics.logger.info"
-    ) as mock_info:
+    with patch("myrm_agent_harness.toolkits.browser.session.ref_metrics.logger.info") as mock_info:
         interactor._log_metrics_if_needed()
         mock_info.assert_called_once()
 
@@ -1519,16 +1443,12 @@ async def test_interact_exception_with_dialog():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
-    ) as mock_resolve:
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.click.side_effect = Exception("TargetClosedError")
         mock_resolve.return_value = mock_loc
 
-        with patch(
-            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session"
-        ) as mock_create:
+        with patch("myrm_agent_harness.toolkits.computer_use.session.create_computer_session") as mock_create:
             mock_cu = AsyncMock()
             mock_cu.backend.has_blocking_dialog.return_value = True
             mock_create.return_value = mock_cu
@@ -1542,16 +1462,12 @@ async def test_interact_exception_no_dialog():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
-    ) as mock_resolve:
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.click.side_effect = Exception("TargetClosedError")
         mock_resolve.return_value = mock_loc
 
-        with patch(
-            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session"
-        ) as mock_create:
+        with patch("myrm_agent_harness.toolkits.computer_use.session.create_computer_session") as mock_create:
             mock_cu = AsyncMock()
             mock_cu.backend.has_blocking_dialog.return_value = False
             mock_create.return_value = mock_cu
@@ -1565,9 +1481,7 @@ async def test_interact_type_exception():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
-    ) as mock_resolve:
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.get_attribute.side_effect = Exception("error")
         mock_resolve.return_value = mock_loc
@@ -1581,9 +1495,7 @@ async def test_interact_fill_exception():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
-    ) as mock_resolve:
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.get_attribute.side_effect = Exception("error")
         mock_resolve.return_value = mock_loc
@@ -1595,13 +1507,9 @@ async def test_interact_fill_exception():
 @pytest.mark.asyncio
 async def test_interact_password_blocked():
     page = AsyncMock(spec=Page)
-    interactor = Interactor(
-        page, {"e0": RefInfo(role="textbox", name="Password", nth=0)}
-    )
+    interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Password", nth=0)})
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
-    ) as mock_resolve:
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.get_attribute.return_value = "password"
         mock_resolve.return_value = mock_loc
@@ -1622,13 +1530,9 @@ async def test_interact_password_blocked():
 @pytest.mark.asyncio
 async def test_interact_fill_credential():
     page = AsyncMock(spec=Page)
-    interactor = Interactor(
-        page, {"e0": RefInfo(role="textbox", name="Password", nth=0)}
-    )
+    interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Password", nth=0)})
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
-    ) as mock_resolve:
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_resolve.return_value = mock_loc
 
@@ -1646,9 +1550,7 @@ async def test_interact_fill_credential_totp():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Code", nth=0)})
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
-    ) as mock_resolve:
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_resolve.return_value = mock_loc
 
@@ -1656,9 +1558,7 @@ async def test_interact_fill_credential_totp():
             "myrm_agent_harness.core.security.credential_vault.CredentialVault.get_totp_token",
             return_value="123456",
         ):
-            res = await interactor.interact(
-                "fill_credential", "e0", "github-personal-totp"
-            )
+            res = await interactor.interact("fill_credential", "e0", "github-personal-totp")
             assert "Filled credential 'github-personal-totp'" in res
             mock_loc.fill.assert_called_once_with("123456", timeout=10000)
 
@@ -1668,9 +1568,7 @@ async def test_interact_self_healing():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
-    ) as mock_resolve:
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.wait_for.side_effect = Exception("timeout")
         mock_resolve.return_value = mock_loc
@@ -1682,9 +1580,7 @@ async def test_interact_self_healing():
             healed_loc = AsyncMock()
             mock_heal.return_value = (healed_loc, "NewName", 0.5)
 
-            with patch(
-                "myrm_agent_harness.runtime.events.bus.get_event_bus"
-            ) as mock_bus:
+            with patch("myrm_agent_harness.runtime.events.bus.get_event_bus") as mock_bus:
                 mock_bus.return_value.publish = MagicMock()
                 res = await interactor.interact("click", "e0")
                 assert "Auto-Healed" in res
@@ -1693,9 +1589,7 @@ async def test_interact_self_healing():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
-    ) as mock_resolve:
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_loc = AsyncMock()
         mock_resolve.return_value = mock_loc
 
@@ -1747,9 +1641,7 @@ async def test_interactor_multiple_refs(mock_page: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_interactor_update_refs_and_use(
-    mock_page: Any, ref_info: RefInfo
-) -> None:
+async def test_interactor_update_refs_and_use(mock_page: Any, ref_info: RefInfo) -> None:
     """Test updating refs and using new refs."""
     interactor = Interactor(mock_page, {})
 
@@ -1768,9 +1660,7 @@ async def test_interactor_update_refs_and_use(
 
 
 @pytest.mark.asyncio
-async def test_interactor_unknown_action_coverage(
-    mock_page: Any, ref_info: RefInfo
-) -> None:
+async def test_interactor_unknown_action_coverage(mock_page: Any, ref_info: RefInfo) -> None:
     """测试未知action的返回（覆盖line 178，理论死代码）"""
     from myrm_agent_harness.toolkits.browser.session import (
         interactor as interactor_module,
@@ -1855,13 +1745,9 @@ async def test_scroll_overshoot_correct_branch(mock_page: Any) -> None:
 @pytest.mark.asyncio
 async def test_interact_fill_credential_vault_error(mock_page: Any) -> None:
     """Vault lookup failure surfaces as a clear ValueError."""
-    interactor = Interactor(
-        mock_page, {"e0": RefInfo(role="textbox", name="Code", nth=0)}
-    )
+    interactor = Interactor(mock_page, {"e0": RefInfo(role="textbox", name="Code", nth=0)})
 
-    with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
-    ) as mock_resolve:
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
         mock_resolve.return_value = AsyncMock()
         with (
             patch(
@@ -1874,9 +1760,7 @@ async def test_interact_fill_credential_vault_error(mock_page: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_interact_dialog_check_failure_falls_back(
-    mock_page: Any, ref_info: RefInfo
-) -> None:
+async def test_interact_dialog_check_failure_falls_back(mock_page: Any, ref_info: RefInfo) -> None:
     """Dialog detection failure degrades to the normal error path (no hint)."""
     interactor = Interactor(mock_page, {"e0": ref_info})
     locator = AsyncMock()
@@ -1890,9 +1774,7 @@ async def test_interact_dialog_check_failure_falls_back(
             "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
             side_effect=Exception("no backend"),
         ),
-        patch(
-            "myrm_agent_harness.toolkits.browser.session.interactor.logger.warning"
-        ) as mock_warn,
+        patch("myrm_agent_harness.toolkits.browser.session.interactor.logger.warning") as mock_warn,
         pytest.raises(Exception, match="Timeout"),
     ):
         await interactor.interact("click", "e0", "")
@@ -1955,9 +1837,7 @@ async def test_scroll_cursor_target_measure_error_uses_viewport_center(
 
 
 @pytest.mark.asyncio
-async def test_target_box_wait_failure_returns_none(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_target_box_wait_failure_returns_none(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """wait_for failure yields None so callers degrade gracefully."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
@@ -1967,9 +1847,7 @@ async def test_target_box_wait_failure_returns_none(
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_box_disappears_mid_scroll(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_box_disappears_mid_scroll(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """The target vanishes mid-scroll: report the scroll that already happened."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
@@ -1977,9 +1855,7 @@ async def test_ensure_target_in_view_box_disappears_mid_scroll(
     # first loop re-check box (below) + probe (invisible → container wheel),
     # then loop re-check box → None → break
     locator.bounding_box.side_effect = [off_zone, None]
-    locator.evaluate.return_value = _probe(
-        visible=False, y=1800, container=_doc_container(1490)
-    )
+    locator.evaluate.return_value = _probe(visible=False, y=1800, container=_doc_container(1490))
     mock_page.mouse.wheel = AsyncMock()
 
     with (
@@ -1992,9 +1868,7 @@ async def test_ensure_target_in_view_box_disappears_mid_scroll(
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_delta_zero_breaks(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_delta_zero_breaks(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """A target within a fraction of the band: delta rounds to zero, loop stops."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
@@ -2055,9 +1929,7 @@ async def test_scroll_deliver_zero_delta_noop(mock_page: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_bezier_move_to_initializes_mouse_position(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_bezier_move_to_initializes_mouse_position(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """A first Bézier move seeds the mouse from the viewport center."""
     interactor = _careful_interactor(mock_page, refs_map)
     interactor._mouse_x = 0.0
@@ -2076,9 +1948,7 @@ async def test_bezier_move_to_initializes_mouse_position(
 
 
 @pytest.mark.asyncio
-async def test_ensure_target_in_view_probe_measure_failure_breaks(
-    mock_page: Any, refs_map: dict[str, RefInfo]
-) -> None:
+async def test_ensure_target_in_view_probe_measure_failure_breaks(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
     """A rendered-state probe failure yields None and stops the loop silently."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()

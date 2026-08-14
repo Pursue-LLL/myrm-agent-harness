@@ -93,14 +93,10 @@ async def test_ordereddict_memory_efficiency():
     total_keys_size = key_sample_size * n
 
     size_ordereddict = sys.getsizeof(cache_ordereddict) + total_keys_size
-    size_set_deque = (
-        sys.getsizeof(cache_set) + sys.getsizeof(cache_deque) + total_keys_size * 2
-    )
+    size_set_deque = sys.getsizeof(cache_set) + sys.getsizeof(cache_deque) + total_keys_size * 2
 
     memory_saving = (size_set_deque - size_ordereddict) / size_set_deque * 100
-    assert (
-        memory_saving > 5
-    ), f"OrderedDict should save >5% memory, got {memory_saving:.1f}%"
+    assert memory_saving > 5, f"OrderedDict should save >5% memory, got {memory_saving:.1f}%"
 
 
 @pytest.mark.asyncio
@@ -167,52 +163,36 @@ async def test_normalization_performance_comparison():
 
     speedup_basic = results["FULL"] / results["BASIC"]
     speedup_none = results["FULL"] / results["NONE"]
-    assert (
-        speedup_basic > 0.5
-    ), f"BASIC should not be >2x slower than FULL, got {speedup_basic:.1f}x"
-    assert (
-        speedup_none > 1.05
-    ), f"NONE should be >1.05x faster than FULL, got {speedup_none:.1f}x"
+    assert speedup_basic > 0.5, f"BASIC should not be >2x slower than FULL, got {speedup_basic:.1f}x"
+    assert speedup_none > 1.05, f"NONE should be >1.05x faster than FULL, got {speedup_none:.1f}x"
 
 
 @pytest.mark.asyncio
-async def test_adaptive_capacity_adjustment(
-    mock_llm, mock_vector, mock_embedding, mock_config
-):
+async def test_adaptive_capacity_adjustment(mock_llm, mock_vector, mock_embedding, mock_config):
     """Adaptive capacity should adjust cache size based on memory count."""
     mock_vector.memory_count = 500
-    dedup = SmartDeduplicator(
-        mock_llm, max_cache_size=10000, adaptive_capacity=True, capacity_multiplier=1.5
-    )
+    dedup = SmartDeduplicator(mock_llm, max_cache_size=10000, adaptive_capacity=True, capacity_multiplier=1.5)
 
     for i in range(100):
         mem = SemanticMemory(content=f"Content {i}")
         mem.embedding = [0.1] * 384
-        await dedup.deduplicate_batch(
-            [mem], mock_vector, mock_embedding, mock_config, None
-        )
+        await dedup.deduplicate_batch([mem], mock_vector, mock_embedding, mock_config, None)
 
     expected_capacity = int(500 * 1.5)
     actual_size = len(dedup._hash_cache)
-    assert (
-        actual_size <= expected_capacity
-    ), f"Cache should adapt to ~{expected_capacity}, got {actual_size}"
+    assert actual_size <= expected_capacity, f"Cache should adapt to ~{expected_capacity}, got {actual_size}"
     assert actual_size == 100, "Cache should contain all 100 unique entries"
 
 
 @pytest.mark.asyncio
-async def test_adaptive_capacity_disabled(
-    mock_llm, mock_vector, mock_embedding, mock_config
-):
+async def test_adaptive_capacity_disabled(mock_llm, mock_vector, mock_embedding, mock_config):
     """With adaptive disabled, cache should use base capacity."""
     dedup = SmartDeduplicator(mock_llm, max_cache_size=100, adaptive_capacity=False)
 
     for i in range(150):
         mem = SemanticMemory(content=f"Content {i}")
         mem.embedding = [0.1] * 384
-        await dedup.deduplicate_batch(
-            [mem], mock_vector, mock_embedding, mock_config, None
-        )
+        await dedup.deduplicate_batch([mem], mock_vector, mock_embedding, mock_config, None)
 
     assert len(dedup._hash_cache) <= 100, "Cache should respect base capacity"
     assert dedup._metrics.evictions == 50, "Should have 50 evictions (150-100)"
@@ -226,16 +206,12 @@ async def test_metrics_tracking(mock_llm, mock_vector, mock_embedding, mock_conf
     for i in range(5):
         mem = SemanticMemory(content=f"Content {i}")
         mem.embedding = [0.1] * 384
-        await dedup.deduplicate_batch(
-            [mem], mock_vector, mock_embedding, mock_config, None
-        )
+        await dedup.deduplicate_batch([mem], mock_vector, mock_embedding, mock_config, None)
 
     for i in range(3):
         mem = SemanticMemory(content=f"Content {i}")
         mem.embedding = [0.1] * 384
-        await dedup.deduplicate_batch(
-            [mem], mock_vector, mock_embedding, mock_config, None
-        )
+        await dedup.deduplicate_batch([mem], mock_vector, mock_embedding, mock_config, None)
 
     metrics = dedup.get_metrics()
     assert metrics.total_checks == 8, "Should track all checks"

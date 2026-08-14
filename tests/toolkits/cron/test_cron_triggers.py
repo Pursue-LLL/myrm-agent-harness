@@ -183,9 +183,7 @@ class TestTriggerConfigSerialization:
 
     def test_polls_round_trip(self) -> None:
         tc = TriggerConfig(
-            polls=(
-                PollTrigger(url="https://api.example.com/data", json_path="$.count", interval_seconds=120),
-            ),
+            polls=(PollTrigger(url="https://api.example.com/data", json_path="$.count", interval_seconds=120),),
         )
         d = trigger_config_to_dict(tc)
         assert d is not None

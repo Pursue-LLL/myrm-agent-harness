@@ -148,9 +148,7 @@ class CodeTypeDetector:
 
     def _detect_python_pattern(self, command: str) -> str | None:
         lines = [
-            line.strip()
-            for line in command.strip().split("\n")
-            if line.strip() and not line.strip().startswith("#")
+            line.strip() for line in command.strip().split("\n") if line.strip() and not line.strip().startswith("#")
         ]
 
         if len(lines) <= self.MIN_LINES_FOR_MULTILINE_DETECTION:

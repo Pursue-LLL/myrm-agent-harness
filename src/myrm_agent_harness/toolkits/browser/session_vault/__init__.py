@@ -96,9 +96,7 @@ class SessionVault:
             cache_max_memory_mb: Max cache memory in MB (default 50)
         """
         if len(encryption_key) != 32:
-            raise ValueError(
-                f"Encryption key must be 32 bytes, got {len(encryption_key)}"
-            )
+            raise ValueError(f"Encryption key must be 32 bytes, got {len(encryption_key)}")
         self._backend = backend
         self._key = encryption_key
         self._cipher: AESGCM | None = None
@@ -202,10 +200,7 @@ class SessionVault:
             return
 
         # Evict by memory constraint
-        while (
-            self._cache
-            and self._metrics.cache_memory_bytes + entry_size > self._cache_max_memory
-        ):
+        while self._cache and self._metrics.cache_memory_bytes + entry_size > self._cache_max_memory:
             self._cache_evict_one()
 
         # Evict by size constraint
@@ -243,9 +238,7 @@ class SessionVault:
 
     def _decrypt(self, data: bytes) -> bytes:
         if len(data) < 29:
-            raise DecryptionError(
-                f"Ciphertext too short: {len(data)} bytes (expected >= 29)"
-            )
+            raise DecryptionError(f"Ciphertext too short: {len(data)} bytes (expected >= 29)")
 
         start = time.perf_counter()
         try:
@@ -384,9 +377,7 @@ class SessionVault:
         except (KeyError, ValueError, TypeError) as exc:
             logger.error("Invalid session data for %s: %s", domain, exc)
             await self._backup_and_delete_corrupted(domain, data)
-            raise CorruptedSessionError(
-                f"Session data for {domain} is corrupted"
-            ) from exc
+            raise CorruptedSessionError(f"Session data for {domain} is corrupted") from exc
 
         if entry.is_expired:
             await self._backend.delete(domain)
@@ -461,9 +452,7 @@ class SessionVault:
                 )
                 summaries.append(summary)
             except Exception:
-                logger.warning(
-                    "Failed to read session summary for %s, skipping", domain
-                )
+                logger.warning("Failed to read session summary for %s, skipping", domain)
         return summaries
 
     async def _check_and_remove_if_expired(self, domain: str) -> bool:

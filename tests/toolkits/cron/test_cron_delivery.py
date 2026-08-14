@@ -111,11 +111,14 @@ class TestWebhookDelivery:
             mock_client.__aexit__ = AsyncMock(return_value=False)
             mock_client_cls.return_value = mock_client
 
-            with patch(
-                "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
-                new_callable=AsyncMock,
-                return_value=mock_resp,
-            ) as mock_secure, patch("asyncio.sleep", new_callable=AsyncMock):
+            with (
+                patch(
+                    "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+                    new_callable=AsyncMock,
+                    return_value=mock_resp,
+                ) as mock_secure,
+                patch("asyncio.sleep", new_callable=AsyncMock),
+            ):
                 with pytest.raises(RuntimeError, match="Webhook returned 500"):
                     await delivery.deliver(_job(), _result())
                 assert mock_secure.await_count == 2

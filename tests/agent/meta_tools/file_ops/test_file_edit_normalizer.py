@@ -25,17 +25,13 @@ def test_normalize_edits_json_string() -> None:
 
 
 def test_file_edit_input_model_accepts_legacy_flat_fields() -> None:
-    parsed = FileEditInput.model_validate(
-        {"path": "f.py", "old_str": "1", "new_str": "2"}
-    )
+    parsed = FileEditInput.model_validate({"path": "f.py", "old_str": "1", "new_str": "2"})
     assert len(parsed.edits) == 1
     assert parsed.edits[0].old_str == "1"
 
 
 def test_merge_edits_for_diff_multiple() -> None:
-    old, new = merge_edits_for_diff(
-        [{"old_str": "a", "new_str": "A"}, {"old_str": "b", "new_str": "B"}]
-    )
+    old, new = merge_edits_for_diff([{"old_str": "a", "new_str": "A"}, {"old_str": "b", "new_str": "B"}])
     assert "--- edit 1 ---" in old
     assert "--- edit 2 ---" in new
 

@@ -257,9 +257,7 @@ class TestShouldBlockAllowAlways:
 
     def test_blocks_both_flags_set(self):
         tool_call = {"name": "bash_code_execute_tool", "args": {"command": "test"}}
-        assert _should_block_allow_always(
-            tool_call, {"high_risk": True, "smart_denied": True}
-        ) is True
+        assert _should_block_allow_always(tool_call, {"high_risk": True, "smart_denied": True}) is True
 
 
 class TestApplyDecisionsHighRiskBlocksAllowAlways:
@@ -308,9 +306,7 @@ class TestApplyDecisionsHighRiskBlocksAllowAlways:
         assert len(messages) == 0
 
         allowlist = get_allowlist()
-        assert not allowlist.check("user1", "code_interpreter"), (
-            "high_risk override must NOT write to allowlist"
-        )
+        assert not allowlist.check("user1", "code_interpreter"), "high_risk override must NOT write to allowlist"
 
     @pytest.mark.asyncio
     async def test_normal_allow_always_works(self):
@@ -347,6 +343,4 @@ class TestApplyDecisionsHighRiskBlocksAllowAlways:
 
         assert len(revised) == 1
         allowlist = get_allowlist()
-        assert allowlist.check("user1", "file_write"), (
-            "Normal allowAlways should persist to allowlist"
-        )
+        assert allowlist.check("user1", "file_write"), "Normal allowAlways should persist to allowlist"

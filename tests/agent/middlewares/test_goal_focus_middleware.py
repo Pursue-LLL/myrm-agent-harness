@@ -117,9 +117,7 @@ class TestGoalFocusHelpers:
 
 class TestGoalFocusMiddleware:
     @pytest.mark.asyncio
-    async def test_injects_active_goal_into_last_human_message(
-        self, mock_goal_provider
-    ) -> None:
+    async def test_injects_active_goal_into_last_human_message(self, mock_goal_provider) -> None:
         goal = Goal(
             goal_id="g-1",
             session_id="chat-1",
@@ -162,9 +160,7 @@ class TestGoalFocusMiddleware:
         middleware = goal_focus_middleware()
         request = _make_request(
             [
-                HumanMessage(
-                    content="[Continuing toward your standing goal]\nObjective: ship it"
-                ),
+                HumanMessage(content="[Continuing toward your standing goal]\nObjective: ship it"),
             ],
             {"chat_id": "chat-1"},
         )
@@ -175,9 +171,7 @@ class TestGoalFocusMiddleware:
         mock_goal_provider.get_active_goal.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_system_prompt_hash_unchanged_after_injection(
-        self, mock_goal_provider
-    ) -> None:
+    async def test_system_prompt_hash_unchanged_after_injection(self, mock_goal_provider) -> None:
         goal = Goal(
             goal_id="g-1",
             session_id="chat-1",
@@ -255,9 +249,7 @@ class TestGoalFocusMiddleware:
         mock_handler.assert_called_once_with(request)
 
     @pytest.mark.asyncio
-    async def test_injects_into_multimodal_human_message(
-        self, mock_goal_provider
-    ) -> None:
+    async def test_injects_into_multimodal_human_message(self, mock_goal_provider) -> None:
         goal = Goal(
             goal_id="g-1",
             session_id="chat-1",
@@ -279,9 +271,7 @@ class TestGoalFocusMiddleware:
         assert "Active goal: Multimodal steer" in str(injected.content[-1])
 
     @pytest.mark.asyncio
-    async def test_appends_when_no_human_message_exists(
-        self, mock_goal_provider
-    ) -> None:
+    async def test_appends_when_no_human_message_exists(self, mock_goal_provider) -> None:
         goal = Goal(
             goal_id="g-1",
             session_id="chat-1",

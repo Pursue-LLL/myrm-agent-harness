@@ -111,11 +111,7 @@ def build_continuation_prompt(goal: Goal, *, last_judge_reason: str | None = Non
                 criteria_block += f"  {i + 1}. [semantic] {ac.get('criteria', '')}\n"
 
     convergence_block = ""
-    if (
-        goal.budget
-        and goal.budget.convergence_window is not None
-        and goal.turns_used >= goal.budget.convergence_window
-    ):
+    if goal.budget and goal.budget.convergence_window is not None and goal.turns_used >= goal.budget.convergence_window:
         convergence_block = (
             "\n\nConvergence awareness:\n"
             f"- Convergence window: {goal.budget.convergence_window} turns. "
@@ -131,7 +127,7 @@ def build_continuation_prompt(goal: Goal, *, last_judge_reason: str | None = Non
         truncated = last_judge_reason[:_JUDGE_REASON_MAX_CHARS]
         judge_feedback_block = (
             "\n\nPrevious evaluation feedback:\n"
-            f"The judge indicated: \"{truncated}\"\n"
+            f'The judge indicated: "{truncated}"\n'
             "Address this specific gap before declaring the goal complete.\n"
         )
 
@@ -236,9 +232,7 @@ def build_judge_criteria(goal: Goal) -> str:
             else:
                 lines.append(f"- [semantic] {ac.get('criteria', '')}")
         criteria_section = (
-            "\n\nAcceptance Criteria (goal is NOT done unless ALL criteria are met):\n"
-            + "\n".join(lines)
-            + "\n"
+            "\n\nAcceptance Criteria (goal is NOT done unless ALL criteria are met):\n" + "\n".join(lines) + "\n"
         )
 
     return (

@@ -23,24 +23,15 @@ def _make_exc(msg: str) -> Exception:
 
 class TestAnthropicFormat:
     def test_standard(self) -> None:
-        exc = _make_exc(
-            "max_tokens: 32768 > context_window: 200000 "
-            "- input_tokens: 190000 = available_tokens: 10000"
-        )
+        exc = _make_exc("max_tokens: 32768 > context_window: 200000 - input_tokens: 190000 = available_tokens: 10000")
         assert parse_available_output_tokens_from_error(exc) == 10000
 
     def test_underscore_variant(self) -> None:
-        exc = _make_exc(
-            "max_tokens: 8192 > context_window: 128000 "
-            "- input_tokens: 127000 = available_tokens: 1000"
-        )
+        exc = _make_exc("max_tokens: 8192 > context_window: 128000 - input_tokens: 127000 = available_tokens: 1000")
         assert parse_available_output_tokens_from_error(exc) == 1000
 
     def test_space_variant(self) -> None:
-        exc = _make_exc(
-            "max_tokens: 4096 > context_window: 128000 "
-            "- input_tokens: 126000 = available tokens: 2000"
-        )
+        exc = _make_exc("max_tokens: 4096 > context_window: 128000 - input_tokens: 126000 = available tokens: 2000")
         assert parse_available_output_tokens_from_error(exc) == 2000
 
 
@@ -67,10 +58,7 @@ class TestOpenRouterFormat:
         assert parse_available_output_tokens_from_error(exc) == 5000
 
     def test_no_room_returns_none(self) -> None:
-        exc = _make_exc(
-            "maximum context length is 1000 tokens "
-            "(900 of text input, 200 of tool input, 0 in the output)"
-        )
+        exc = _make_exc("maximum context length is 1000 tokens (900 of text input, 200 of tool input, 0 in the output)")
         assert parse_available_output_tokens_from_error(exc) is None
 
 
@@ -157,23 +145,15 @@ class TestDashScopeFormat:
 
 class TestEdgeCases:
     def test_keywords_present_but_no_parseable_number(self) -> None:
-        exc = _make_exc(
-            "max_tokens exceeds available_tokens for this model"
-        )
+        exc = _make_exc("max_tokens exceeds available_tokens for this model")
         assert parse_available_output_tokens_from_error(exc) is None
 
     def test_equals_at_end_without_available_tokens_keyword(self) -> None:
-        exc = _make_exc(
-            "max_tokens: 8192 > context_window: 128000 "
-            "- input_tokens: 126000 = 2000"
-        )
+        exc = _make_exc("max_tokens: 8192 > context_window: 128000 - input_tokens: 126000 = 2000")
         assert parse_available_output_tokens_from_error(exc) is None
 
     def test_available_tokens_zero(self) -> None:
-        exc = _make_exc(
-            "max_tokens: 8192 > context_window: 128000 "
-            "- input_tokens: 128000 = available_tokens: 0"
-        )
+        exc = _make_exc("max_tokens: 8192 > context_window: 128000 - input_tokens: 128000 = available_tokens: 0")
         assert parse_available_output_tokens_from_error(exc) is None
 
 

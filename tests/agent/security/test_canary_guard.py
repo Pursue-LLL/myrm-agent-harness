@@ -82,15 +82,11 @@ class TestCheckCanary:
 
     def test_tool_calls_format(self) -> None:
         canary = "CANARY-AABBCCDDEEFF"
-        tool_calls = [
-            {"name": "bash", "args": {"command": f"echo {canary}"}, "id": "call_1"}
-        ]
+        tool_calls = [{"name": "bash", "args": {"command": f"echo {canary}"}, "id": "call_1"}]
         assert check_canary(tool_calls, canary) is True
 
     def test_tool_calls_safe(self) -> None:
-        tool_calls = [
-            {"name": "bash", "args": {"command": "ls -la"}, "id": "call_1"}
-        ]
+        tool_calls = [{"name": "bash", "args": {"command": "ls -la"}, "id": "call_1"}]
         assert check_canary(tool_calls, "CANARY-AABBCCDDEEFF") is False
 
 
@@ -214,9 +210,7 @@ class TestEdgeCases:
     def test_both_text_and_args_leaked(self) -> None:
         canary = "CANARY-AABBCCDDEEFF"
         text_has_canary = check_canary(f"leaked {canary}", canary)
-        args_has_canary = check_canary(
-            [{"name": "bash", "args": {"cmd": f"echo {canary}"}}], canary
-        )
+        args_has_canary = check_canary([{"name": "bash", "args": {"cmd": f"echo {canary}"}}], canary)
         assert text_has_canary is True
         assert args_has_canary is True
 

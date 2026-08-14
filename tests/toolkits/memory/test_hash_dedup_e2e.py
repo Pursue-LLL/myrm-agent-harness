@@ -65,7 +65,9 @@ def memory_config():
 @pytest.mark.asyncio
 async def test_session_layer_blocks_duplicates(mock_llm, mock_vector, mock_embedding, memory_config):
     """Session layer should block duplicates before reaching global layer."""
-    manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm)
+    manager = MemoryManager(
+        memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm
+    )
     session = MemorySession(manager=manager, chat_id="chat1")
 
     mem1 = session.add_knowledge("Redis timeout is 5 seconds")
@@ -84,7 +86,9 @@ async def test_session_layer_blocks_duplicates(mock_llm, mock_vector, mock_embed
 @pytest.mark.asyncio
 async def test_global_layer_blocks_cross_session_duplicates(mock_llm, mock_vector, mock_embedding, memory_config):
     """Global layer should block duplicates across different sessions."""
-    manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm)
+    manager = MemoryManager(
+        memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm
+    )
 
     session1 = MemorySession(manager=manager, chat_id="chat1")
     mem1 = session1.add_knowledge("PostgreSQL pool size is 10")
@@ -102,7 +106,9 @@ async def test_global_layer_blocks_cross_session_duplicates(mock_llm, mock_vecto
 @pytest.mark.asyncio
 async def test_two_layer_dedup_flow(mock_llm, mock_vector, mock_embedding, memory_config):
     """Test complete two-layer flow: session → global."""
-    manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm)
+    manager = MemoryManager(
+        memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm
+    )
 
     session1 = MemorySession(manager=manager, chat_id="chat1")
     session1.add_knowledge("System uses async processing")
@@ -122,7 +128,9 @@ async def test_two_layer_dedup_flow(mock_llm, mock_vector, mock_embedding, memor
 @pytest.mark.asyncio
 async def test_session_isolation(mock_llm, mock_vector, mock_embedding, memory_config):
     """Different sessions should have isolated session-level caches."""
-    manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm)
+    manager = MemoryManager(
+        memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm
+    )
 
     session1 = MemorySession(manager=manager, chat_id="chat1")
     session2 = MemorySession(manager=manager, chat_id="chat2")
@@ -139,7 +147,9 @@ async def test_session_isolation(mock_llm, mock_vector, mock_embedding, memory_c
 @pytest.mark.asyncio
 async def test_normalization_consistency(mock_llm, mock_vector, mock_embedding, memory_config):
     """Session and global layers should use same normalization."""
-    manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm)
+    manager = MemoryManager(
+        memory_config, user_id="test_user", vector=mock_vector, embedding=mock_embedding, dedup_llm=mock_llm
+    )
 
     session1 = MemorySession(manager=manager, chat_id="chat1")
     session1.add_knowledge("café")

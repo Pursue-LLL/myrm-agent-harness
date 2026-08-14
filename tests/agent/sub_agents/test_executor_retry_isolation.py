@@ -67,14 +67,16 @@ async def test_isolated_copy_runs_sync_back_on_success(tmp_path: Path, isolated_
             return None
 
     executor = SubagentExecutor()
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
-        return_value=FakeIsolation(),
-    ), patch.object(
-        executor, "_run_single_attempt", new_callable=AsyncMock, return_value=_success_result()
-    ), patch(
-        "myrm_agent_harness.agent.hooks.executor.fire_hook",
-        new_callable=AsyncMock,
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
+            return_value=FakeIsolation(),
+        ),
+        patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, return_value=_success_result()),
+        patch(
+            "myrm_agent_harness.agent.hooks.executor.fire_hook",
+            new_callable=AsyncMock,
+        ),
     ):
         context: dict[str, object] = {"workspace_path": str(parent_ws)}
         result = await executor.run_with_retry(
@@ -119,18 +121,21 @@ async def test_isolated_copy_sync_back_failure_records_merge_warning(
 
     reset_workspace_merge_warning()
     executor = SubagentExecutor()
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
-        return_value=FakeIsolation(),
-    ), patch.object(
-        executor, "_run_single_attempt", new_callable=AsyncMock, return_value=_success_result()
-    ), patch(
-        "myrm_agent_harness.agent.hooks.executor.fire_hook",
-        new_callable=AsyncMock,
-    ), patch(
-        "myrm_agent_harness.agent.workspace_coordination.merge_snapshots.apply_isolated_sync_back_with_snapshots",
-        new_callable=AsyncMock,
-        side_effect=OSError("disk full"),
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
+            return_value=FakeIsolation(),
+        ),
+        patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, return_value=_success_result()),
+        patch(
+            "myrm_agent_harness.agent.hooks.executor.fire_hook",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "myrm_agent_harness.agent.workspace_coordination.merge_snapshots.apply_isolated_sync_back_with_snapshots",
+            new_callable=AsyncMock,
+            side_effect=OSError("disk full"),
+        ),
     ):
         result = await executor.run_with_retry(
             task_id="task-1",
@@ -192,14 +197,16 @@ async def test_isolated_copy_sync_back_registers_revert_snapshots(
         return _success_result()
 
     executor = SubagentExecutor()
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
-        side_effect=lambda *a, **kw: RealIsolation(),
-    ), patch.object(
-        executor, "_run_single_attempt", side_effect=write_in_child
-    ), patch(
-        "myrm_agent_harness.agent.hooks.executor.fire_hook",
-        new_callable=AsyncMock,
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
+            side_effect=lambda *a, **kw: RealIsolation(),
+        ),
+        patch.object(executor, "_run_single_attempt", side_effect=write_in_child),
+        patch(
+            "myrm_agent_harness.agent.hooks.executor.fire_hook",
+            new_callable=AsyncMock,
+        ),
     ):
         result = await executor.run_with_retry(
             task_id="task-1",
@@ -223,9 +230,7 @@ async def test_isolated_copy_sync_back_registers_revert_snapshots(
 
 
 @pytest.mark.asyncio
-async def test_isolated_copy_defers_sync_when_merge_deferred(
-    tmp_path: Path, isolated_config: SubagentConfig
-) -> None:
+async def test_isolated_copy_defers_sync_when_merge_deferred(tmp_path: Path, isolated_config: SubagentConfig) -> None:
     parent_ws = tmp_path / "parent"
     parent_ws.mkdir()
     sync_back = AsyncMock()
@@ -239,17 +244,21 @@ async def test_isolated_copy_defers_sync_when_merge_deferred(
             return None
 
     executor = SubagentExecutor()
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
-        return_value=FakeIsolation(),
-    ), patch.object(
-        executor,
-        "_run_single_attempt",
-        new_callable=AsyncMock,
-        return_value=_success_result(result={"text": "payload"}),
-    ), patch(
-        "myrm_agent_harness.agent.hooks.executor.fire_hook",
-        new_callable=AsyncMock,
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
+            return_value=FakeIsolation(),
+        ),
+        patch.object(
+            executor,
+            "_run_single_attempt",
+            new_callable=AsyncMock,
+            return_value=_success_result(result={"text": "payload"}),
+        ),
+        patch(
+            "myrm_agent_harness.agent.hooks.executor.fire_hook",
+            new_callable=AsyncMock,
+        ),
     ):
         context: dict[str, object] = {
             "workspace_path": str(parent_ws),
@@ -277,9 +286,7 @@ async def test_isolated_copy_defers_sync_when_merge_deferred(
 
 
 @pytest.mark.asyncio
-async def test_isolated_copy_cleanup_failure_is_swallowed(
-    tmp_path: Path, isolated_config: SubagentConfig
-) -> None:
+async def test_isolated_copy_cleanup_failure_is_swallowed(tmp_path: Path, isolated_config: SubagentConfig) -> None:
     parent_ws = tmp_path / "parent"
     parent_ws.mkdir()
     sync_back = AsyncMock()
@@ -292,14 +299,16 @@ async def test_isolated_copy_cleanup_failure_is_swallowed(
             raise RuntimeError("teardown failed")
 
     executor = SubagentExecutor()
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
-        return_value=FailingIsolation(),
-    ), patch.object(
-        executor, "_run_single_attempt", new_callable=AsyncMock, return_value=_success_result()
-    ), patch(
-        "myrm_agent_harness.agent.hooks.executor.fire_hook",
-        new_callable=AsyncMock,
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.workspace_isolation.isolated_workspace",
+            return_value=FailingIsolation(),
+        ),
+        patch.object(executor, "_run_single_attempt", new_callable=AsyncMock, return_value=_success_result()),
+        patch(
+            "myrm_agent_harness.agent.hooks.executor.fire_hook",
+            new_callable=AsyncMock,
+        ),
     ):
         result = await executor.run_with_retry(
             task_id="task-1",

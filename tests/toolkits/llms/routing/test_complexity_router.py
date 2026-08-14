@@ -182,7 +182,11 @@ class TestUnifiedScoring:
 
     def test_debug_keyword_scores_standard(self) -> None:
         scores = _compute_unified_score(
-            "debug this function", False, DEFAULT_STANDARD_KEYWORDS, DEFAULT_REASONING_KEYWORDS, DEFAULT_SIMPLE_INDICATORS
+            "debug this function",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
         )
         assert scores[RoutingTier.STANDARD] > 0
 
@@ -224,12 +228,18 @@ class TestUnifiedScoring:
 
 class TestRuleBasedClassify:
     def test_greeting_classified_simple(self) -> None:
-        result = _rule_based_classify("hello", False, DEFAULT_STANDARD_KEYWORDS, DEFAULT_REASONING_KEYWORDS, DEFAULT_SIMPLE_INDICATORS)
+        result = _rule_based_classify(
+            "hello", False, DEFAULT_STANDARD_KEYWORDS, DEFAULT_REASONING_KEYWORDS, DEFAULT_SIMPLE_INDICATORS
+        )
         assert result == RoutingTier.SIMPLE
 
     def test_debug_classified_standard(self) -> None:
         result = _rule_based_classify(
-            "debug this authentication error", False, DEFAULT_STANDARD_KEYWORDS, DEFAULT_REASONING_KEYWORDS, DEFAULT_SIMPLE_INDICATORS
+            "debug this authentication error",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
         )
         assert result == RoutingTier.STANDARD
 
@@ -245,7 +255,11 @@ class TestRuleBasedClassify:
 
     def test_ambiguous_returns_none(self) -> None:
         result = _rule_based_classify(
-            "tell me about cats", False, DEFAULT_STANDARD_KEYWORDS, DEFAULT_REASONING_KEYWORDS, DEFAULT_SIMPLE_INDICATORS
+            "tell me about cats",
+            False,
+            DEFAULT_STANDARD_KEYWORDS,
+            DEFAULT_REASONING_KEYWORDS,
+            DEFAULT_SIMPLE_INDICATORS,
         )
         # May return None (ambiguous) or SIMPLE depending on length
         assert result is None or result in RoutingTier
@@ -474,11 +488,7 @@ class TestRouteTask:
 
     @pytest.mark.asyncio
     async def test_traceback_routes_to_standard(self) -> None:
-        traceback_text = (
-            "Traceback (most recent call last):\n"
-            '  File "main.py", line 42\n'
-            "TypeError: unsupported operand"
-        )
+        traceback_text = 'Traceback (most recent call last):\n  File "main.py", line 42\nTypeError: unsupported operand'
         result = await route_task(traceback_text, STD_CFG, light_model_cfg=LIGHT_CFG)
         assert result.tier == RoutingTier.STANDARD
 
@@ -555,7 +565,9 @@ class TestRoutingResult:
             r.tier = RoutingTier.SIMPLE  # type: ignore[misc]
 
     def test_fields(self) -> None:
-        r = RoutingResult(tier=RoutingTier.REASONING, model_cfg=REASON_CFG, fallback_model_cfg=STD_FALLBACK, reason="rule_based")
+        r = RoutingResult(
+            tier=RoutingTier.REASONING, model_cfg=REASON_CFG, fallback_model_cfg=STD_FALLBACK, reason="rule_based"
+        )
         assert r.tier == RoutingTier.REASONING
         assert r.model_cfg.model == "o1-preview"
         assert r.fallback_model_cfg is not None

@@ -267,9 +267,7 @@ class StreamContinuationRecoveryMixin:
 
         # loop_restart: trigger a new agent stream with fresh context
         if decision.verdict == "loop_restart" and goal and ctx.on_loop_restart:
-            _track_background_recovery_task(
-                asyncio.create_task(ctx.on_loop_restart(session_id, goal))
-            )
+            _track_background_recovery_task(asyncio.create_task(ctx.on_loop_restart(session_id, goal)))
 
         return False
 

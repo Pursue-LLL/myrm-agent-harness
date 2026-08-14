@@ -59,22 +59,16 @@ def test_goal_creation_and_properties():
 
 
 def test_goal_turns_used_default():
-    goal = Goal(
-        goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE
-    )
+    goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
     assert goal.turns_used == 0
 
 
 def test_goal_terminal_states():
-    goal_complete = Goal(
-        goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.COMPLETE
-    )
+    goal_complete = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.COMPLETE)
     assert goal_complete.is_active is False
     assert goal_complete.is_terminal is True
 
-    goal_cancelled = Goal(
-        goal_id="g2", session_id="s2", objective="obj", status=GoalStatus.CANCELLED
-    )
+    goal_cancelled = Goal(goal_id="g2", session_id="s2", objective="obj", status=GoalStatus.CANCELLED)
     assert goal_cancelled.is_active is False
     assert goal_cancelled.is_terminal is True
 

@@ -181,11 +181,7 @@ def _auto_vault_or_truncate(
         return truncate_result(raw_result, config.max_result_tokens)
 
     parent_workspace = context.get("_isolated_parent_workspace")
-    vault_workspace = (
-        parent_workspace
-        if isinstance(parent_workspace, str) and parent_workspace
-        else workspace_path
-    )
+    vault_workspace = parent_workspace if isinstance(parent_workspace, str) and parent_workspace else workspace_path
 
     try:
         from myrm_agent_harness.agent.artifacts.vault import ArtifactVault

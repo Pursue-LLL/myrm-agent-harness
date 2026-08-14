@@ -185,10 +185,7 @@ class TestClusterDetector:
             min_cluster_size=3,
             similarity_threshold=0.95,
         )
-        skills = [
-            _make_skill(f"skill_{i}", f"Description {i}")
-            for i in range(5)
-        ]
+        skills = [_make_skill(f"skill_{i}", f"Description {i}") for i in range(5)]
 
         clusters = await detector.detect(skills)
         assert isinstance(clusters, list)
@@ -213,11 +210,13 @@ class TestConsolidationJudge:
     async def test_judge_keep_decision(self, mock_llm: MagicMock) -> None:
         from myrm_agent_harness.agent.skills.curator.consolidation.judge import _ClusterJudgment
 
-        mock_structured = AsyncMock(return_value=_ClusterJudgment(
-            action="keep",
-            target_skill_name="any",
-            reasoning="Skills serve distinct purposes",
-        ))
+        mock_structured = AsyncMock(
+            return_value=_ClusterJudgment(
+                action="keep",
+                target_skill_name="any",
+                reasoning="Skills serve distinct purposes",
+            )
+        )
         mock_llm.with_structured_output = MagicMock(return_value=MagicMock(ainvoke=mock_structured))
 
         judge = ConsolidationJudge(mock_llm)
@@ -235,11 +234,13 @@ class TestConsolidationJudge:
     async def test_judge_merge_decision(self, mock_llm: MagicMock) -> None:
         from myrm_agent_harness.agent.skills.curator.consolidation.judge import _ClusterJudgment
 
-        mock_structured = AsyncMock(return_value=_ClusterJudgment(
-            action="merge",
-            target_skill_name="git_operations_skill",
-            reasoning="git_operations_skill is already broad enough",
-        ))
+        mock_structured = AsyncMock(
+            return_value=_ClusterJudgment(
+                action="merge",
+                target_skill_name="git_operations_skill",
+                reasoning="git_operations_skill is already broad enough",
+            )
+        )
         mock_llm.with_structured_output = MagicMock(return_value=MagicMock(ainvoke=mock_structured))
 
         judge = ConsolidationJudge(mock_llm)
@@ -268,28 +269,32 @@ class TestConsolidationExecutor:
     @pytest.fixture
     def mock_write_backend(self) -> MagicMock:
         backend = MagicMock()
-        backend.save_skill = AsyncMock(return_value=MagicMock(
-            success=True,
-            saved_path="/tmp/skills/umbrella_skill",
-            error="",
-        ))
+        backend.save_skill = AsyncMock(
+            return_value=MagicMock(
+                success=True,
+                saved_path="/tmp/skills/umbrella_skill",
+                error="",
+            )
+        )
         backend.write_resource = AsyncMock(return_value=MagicMock(success=True))
         return backend
 
     @pytest.fixture
     def stats_collector(self, tmp_path: Path) -> MagicMock:
         collector = MagicMock()
-        collector.get_stats = MagicMock(return_value=SkillUsageStats(
-            call_count=0, success_count=0, created_at=datetime.now(UTC),
-        ))
+        collector.get_stats = MagicMock(
+            return_value=SkillUsageStats(
+                call_count=0,
+                success_count=0,
+                created_at=datetime.now(UTC),
+            )
+        )
         collector.update_lifecycle_status = MagicMock()
         collector.flush = MagicMock()
         return collector
 
     @pytest.mark.asyncio
-    async def test_execute_create_umbrella(
-        self, mock_write_backend: MagicMock, stats_collector: MagicMock
-    ) -> None:
+    async def test_execute_create_umbrella(self, mock_write_backend: MagicMock, stats_collector: MagicMock) -> None:
         skills = [
             _make_skill("git_commit_skill", "Commit changes"),
             _make_skill("git_push_skill", "Push changes"),
@@ -313,9 +318,7 @@ class TestConsolidationExecutor:
         mock_write_backend.save_skill.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_merge(
-        self, mock_write_backend: MagicMock, stats_collector: MagicMock
-    ) -> None:
+    async def test_execute_merge(self, mock_write_backend: MagicMock, stats_collector: MagicMock) -> None:
         skills = [
             _make_skill("git_operations_skill", "Git operations"),
             _make_skill("git_commit_skill", "Commit changes"),
@@ -334,9 +337,7 @@ class TestConsolidationExecutor:
         mock_write_backend.write_resource.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_missing_target(
-        self, mock_write_backend: MagicMock, stats_collector: MagicMock
-    ) -> None:
+    async def test_execute_missing_target(self, mock_write_backend: MagicMock, stats_collector: MagicMock) -> None:
         skills = [_make_skill("only_skill", "Only skill")]
         action = ConsolidationAction(
             action_type=ConsolidationActionType.MERGE,
@@ -365,13 +366,9 @@ class TestSkillConsolidatorOrchestrator:
         return embedding_service, llm, write_backend, stats_collector
 
     @pytest.mark.asyncio
-    async def test_run_too_few_skills(
-        self, mock_deps: tuple[MagicMock, MagicMock, MagicMock, MagicMock]
-    ) -> None:
+    async def test_run_too_few_skills(self, mock_deps: tuple[MagicMock, MagicMock, MagicMock, MagicMock]) -> None:
         embed, llm, write, stats = mock_deps
-        consolidator = SkillConsolidator(
-            embed, llm, write, stats, min_skills_for_consolidation=10
-        )
+        consolidator = SkillConsolidator(embed, llm, write, stats, min_skills_for_consolidation=10)
         skills = [_make_skill(f"skill_{i}") for i in range(5)]
         result = await consolidator.run(skills, dry_run=True)
         assert isinstance(result, ConsolidationPlan)
@@ -408,17 +405,19 @@ class TestConsolidationExecutorDemote:
     @pytest.fixture
     def stats_collector(self) -> MagicMock:
         collector = MagicMock()
-        collector.get_stats = MagicMock(return_value=SkillUsageStats(
-            call_count=0, success_count=0, created_at=datetime.now(UTC),
-        ))
+        collector.get_stats = MagicMock(
+            return_value=SkillUsageStats(
+                call_count=0,
+                success_count=0,
+                created_at=datetime.now(UTC),
+            )
+        )
         collector.update_lifecycle_status = MagicMock()
         collector.flush = MagicMock()
         return collector
 
     @pytest.mark.asyncio
-    async def test_execute_demote_success(
-        self, mock_write_backend: MagicMock, stats_collector: MagicMock
-    ) -> None:
+    async def test_execute_demote_success(self, mock_write_backend: MagicMock, stats_collector: MagicMock) -> None:
         skills = [
             _make_skill("main_skill", "Main skill"),
             _make_skill("narrow_a", "Narrow helper A"),
@@ -440,9 +439,7 @@ class TestConsolidationExecutorDemote:
         assert mock_write_backend.write_resource.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_execute_demote_no_sources(
-        self, mock_write_backend: MagicMock, stats_collector: MagicMock
-    ) -> None:
+    async def test_execute_demote_no_sources(self, mock_write_backend: MagicMock, stats_collector: MagicMock) -> None:
         skills = [_make_skill("main_skill")]
         action = ConsolidationAction(
             action_type=ConsolidationActionType.DEMOTE,
@@ -486,9 +483,13 @@ class TestConsolidationExecutorExceptionHandling:
         backend = MagicMock()
         backend.save_skill = AsyncMock(side_effect=RuntimeError("Write failed"))
         stats = MagicMock()
-        stats.get_stats = MagicMock(return_value=SkillUsageStats(
-            call_count=0, success_count=0, created_at=datetime.now(UTC),
-        ))
+        stats.get_stats = MagicMock(
+            return_value=SkillUsageStats(
+                call_count=0,
+                success_count=0,
+                created_at=datetime.now(UTC),
+            )
+        )
 
         skills = [_make_skill("src_skill")]
         action = ConsolidationAction(
@@ -517,13 +518,15 @@ class TestSkillConsolidatorFullPipeline:
         mock_embed = MagicMock()
         mock_embed.embed_batch = AsyncMock(return_value=[[0.1] * 128] * 12)
 
-        mock_structured = AsyncMock(return_value=_ClusterJudgment(
-            action="create_umbrella",
-            target_skill_name="git_operations_skill",
-            reasoning="Create umbrella for git domain",
-            umbrella_description="Git operations umbrella",
-            umbrella_content_outline="Covers all git operations.",
-        ))
+        mock_structured = AsyncMock(
+            return_value=_ClusterJudgment(
+                action="create_umbrella",
+                target_skill_name="git_operations_skill",
+                reasoning="Create umbrella for git domain",
+                umbrella_description="Git operations umbrella",
+                umbrella_content_outline="Covers all git operations.",
+            )
+        )
         mock_llm = MagicMock()
         mock_llm.with_structured_output = MagicMock(return_value=MagicMock(ainvoke=mock_structured))
 
@@ -531,7 +534,10 @@ class TestSkillConsolidatorFullPipeline:
         mock_stats = MagicMock()
 
         consolidator = SkillConsolidator(
-            mock_embed, mock_llm, mock_write, mock_stats,
+            mock_embed,
+            mock_llm,
+            mock_write,
+            mock_stats,
             min_skills_for_consolidation=3,
             min_cluster_size=3,
             similarity_threshold=0.95,
@@ -557,25 +563,34 @@ class TestSkillConsolidatorFullPipeline:
         mock_embed = MagicMock()
         mock_embed.embed_batch = AsyncMock(return_value=[[0.1] * 128] * 12)
 
-        mock_structured = AsyncMock(return_value=_ClusterJudgment(
-            action="merge",
-            target_skill_name="git_commit_skill",
-            reasoning="Merge into existing broader skill",
-        ))
+        mock_structured = AsyncMock(
+            return_value=_ClusterJudgment(
+                action="merge",
+                target_skill_name="git_commit_skill",
+                reasoning="Merge into existing broader skill",
+            )
+        )
         mock_llm = MagicMock()
         mock_llm.with_structured_output = MagicMock(return_value=MagicMock(ainvoke=mock_structured))
 
         mock_write = MagicMock()
         mock_write.write_resource = AsyncMock(return_value=MagicMock(success=True))
         mock_stats = MagicMock()
-        mock_stats.get_stats = MagicMock(return_value=SkillUsageStats(
-            call_count=0, success_count=0, created_at=datetime.now(UTC),
-        ))
+        mock_stats.get_stats = MagicMock(
+            return_value=SkillUsageStats(
+                call_count=0,
+                success_count=0,
+                created_at=datetime.now(UTC),
+            )
+        )
         mock_stats.update_lifecycle_status = MagicMock()
         mock_stats.flush = MagicMock()
 
         consolidator = SkillConsolidator(
-            mock_embed, mock_llm, mock_write, mock_stats,
+            mock_embed,
+            mock_llm,
+            mock_write,
+            mock_stats,
             min_skills_for_consolidation=3,
             min_cluster_size=3,
             similarity_threshold=0.95,
@@ -603,16 +618,16 @@ class TestSkillConsolidatorFullPipeline:
         mock_stats = MagicMock()
 
         consolidator = SkillConsolidator(
-            mock_embed, mock_llm, mock_write, mock_stats,
+            mock_embed,
+            mock_llm,
+            mock_write,
+            mock_stats,
             min_skills_for_consolidation=3,
             min_cluster_size=3,
             similarity_threshold=0.99,
         )
 
-        skills = [
-            _make_skill(f"unique_{i}", f"Completely unique description {i}")
-            for i in range(5)
-        ]
+        skills = [_make_skill(f"unique_{i}", f"Completely unique description {i}") for i in range(5)]
 
         result = await consolidator.run(skills, dry_run=True)
         assert isinstance(result, ConsolidationPlan)
@@ -626,11 +641,13 @@ class TestSkillConsolidatorFullPipeline:
         mock_embed = MagicMock()
         mock_embed.embed_batch = AsyncMock(return_value=[[0.1] * 128] * 12)
 
-        mock_structured = AsyncMock(return_value=_ClusterJudgment(
-            action="keep",
-            target_skill_name="any",
-            reasoning="Skills serve distinct purposes",
-        ))
+        mock_structured = AsyncMock(
+            return_value=_ClusterJudgment(
+                action="keep",
+                target_skill_name="any",
+                reasoning="Skills serve distinct purposes",
+            )
+        )
         mock_llm = MagicMock()
         mock_llm.with_structured_output = MagicMock(return_value=MagicMock(ainvoke=mock_structured))
 
@@ -638,7 +655,10 @@ class TestSkillConsolidatorFullPipeline:
         mock_stats = MagicMock()
 
         consolidator = SkillConsolidator(
-            mock_embed, mock_llm, mock_write, mock_stats,
+            mock_embed,
+            mock_llm,
+            mock_write,
+            mock_stats,
             min_skills_for_consolidation=3,
             min_cluster_size=3,
             similarity_threshold=0.95,
@@ -700,13 +720,15 @@ class TestConsolidationJudgeEdgeCases:
         """LLM decides create_umbrella — should produce correct action."""
         from myrm_agent_harness.agent.skills.curator.consolidation.judge import _ClusterJudgment
 
-        mock_structured = AsyncMock(return_value=_ClusterJudgment(
-            action="create_umbrella",
-            target_skill_name="deploy_operations_skill",
-            reasoning="No single skill covers all deployment",
-            umbrella_description="Unified deployment operations",
-            umbrella_content_outline="Docker, K8s, and EC2 deployments",
-        ))
+        mock_structured = AsyncMock(
+            return_value=_ClusterJudgment(
+                action="create_umbrella",
+                target_skill_name="deploy_operations_skill",
+                reasoning="No single skill covers all deployment",
+                umbrella_description="Unified deployment operations",
+                umbrella_content_outline="Docker, K8s, and EC2 deployments",
+            )
+        )
         mock_llm = MagicMock()
         mock_llm.with_structured_output = MagicMock(return_value=MagicMock(ainvoke=mock_structured))
 
@@ -733,12 +755,14 @@ class TestConsolidationJudgeEdgeCases:
         """LLM decides demote — should produce correct action with target dir."""
         from myrm_agent_harness.agent.skills.curator.consolidation.judge import _ClusterJudgment
 
-        mock_structured = AsyncMock(return_value=_ClusterJudgment(
-            action="demote",
-            target_skill_name="main_skill",
-            reasoning="Helper skills are too narrow",
-            demote_target_dir="scripts",
-        ))
+        mock_structured = AsyncMock(
+            return_value=_ClusterJudgment(
+                action="demote",
+                target_skill_name="main_skill",
+                reasoning="Helper skills are too narrow",
+                demote_target_dir="scripts",
+            )
+        )
         mock_llm = MagicMock()
         mock_llm.with_structured_output = MagicMock(return_value=MagicMock(ainvoke=mock_structured))
 
@@ -888,7 +912,8 @@ class TestCuratorEngineConsolidationIntegration:
         mock_write = MagicMock()
 
         curator = SkillCurator(
-            collector, config,
+            collector,
+            config,
             embedding_service=mock_embed,
             llm=mock_llm,
             write_backend=mock_write,

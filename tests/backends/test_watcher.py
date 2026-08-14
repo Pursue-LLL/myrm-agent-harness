@@ -231,10 +231,10 @@ Initial content
     for i in range(5):
         skill_md.write_text(
             f"""---
-description: test skill v{i+2}
-version: 1.0.{i+1}
+description: test skill v{i + 2}
+version: 1.0.{i + 1}
 ---
-Content iteration {i+1}
+Content iteration {i + 1}
 """,
             encoding="utf-8",
         )

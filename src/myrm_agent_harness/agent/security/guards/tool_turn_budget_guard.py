@@ -157,9 +157,7 @@ class ToolTurnBudgetGuard:
         self._counts.clear()
 
 
-_tool_turn_budget_guard_var: ContextVar[ToolTurnBudgetGuard] = ContextVar(
-    "tool_turn_budget_guard"
-)
+_tool_turn_budget_guard_var: ContextVar[ToolTurnBudgetGuard] = ContextVar("tool_turn_budget_guard")
 
 
 def get_tool_turn_budget_guard() -> ToolTurnBudgetGuard:

@@ -66,9 +66,7 @@ class TestGraceCallSummaryReasoningModel:
         )
         executor = _make_executor(_make_ctx(llm))
         with patch.object(executor, "_emit_message_pair", new_callable=AsyncMock) as emit:
-            await executor._grace_call_summary(
-                [HumanMessage(content="q"), AIMessage(content="doing work")]
-            )
+            await executor._grace_call_summary([HumanMessage(content="q"), AIMessage(content="doing work")])
         emitted = emit.call_args[0][0]
         assert "login works" in emitted
         assert "maximum iteration" not in emitted
@@ -80,8 +78,6 @@ class TestGraceCallSummaryReasoningModel:
         llm.ainvoke = AsyncMock(return_value=AIMessage(content="", additional_kwargs={}))
         executor = _make_executor(_make_ctx(llm))
         with patch.object(executor, "_emit_message_pair", new_callable=AsyncMock) as emit:
-            await executor._grace_call_summary(
-                [HumanMessage(content="q"), AIMessage(content="doing work")]
-            )
+            await executor._grace_call_summary([HumanMessage(content="q"), AIMessage(content="doing work")])
         emitted = emit.call_args[0][0]
         assert "iteration limit" in emitted

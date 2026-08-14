@@ -559,20 +559,14 @@ class TestNetworkLoggerRedaction:
     def test_credential_crossing_preview_boundary_redacted(self):
         """The leak: a JSON value split by the 200-char preview cut previously
         surfaced as a plaintext fragment (JSON structure broken by the cut)."""
-        body = (
-            '{"op":"login","payload":"'
-            + "x" * 150
-            + '","password":"mysecretvalue12345678"}'
-        )
+        body = '{"op":"login","payload":"' + "x" * 150 + '","password":"mysecretvalue12345678"}'
         preview = self._run(body)
 
         assert "mysecretval" not in preview
         assert "mysecretvalue" not in preview
 
     def test_form_urlencoded_password_redacted(self):
-        preview = self._run(
-            "grant_type=password&username=u&password=supersecretvalue123"
-        )
+        preview = self._run("grant_type=password&username=u&password=supersecretvalue123")
 
         assert "supersecretvalue123" not in preview
 
@@ -618,9 +612,7 @@ class TestNetworkLoggerEdgeCases:
         logger = NetworkLogger()
 
         mock_request = Mock()
-        type(mock_request).resource_type = property(
-            lambda self: (_ for _ in ()).throw(Exception("Test error"))
-        )
+        type(mock_request).resource_type = property(lambda self: (_ for _ in ()).throw(Exception("Test error")))
 
         logger._on_request(mock_request)
 

@@ -457,6 +457,7 @@ class TaskEventKind(StrEnum):
     USER_COMMENT = "user_comment"
     VERIFICATION_FAILED = "verification_failed"
     BRANCH_SWITCHED = "branch_switched"
+    MERGE_CONFLICT = "merge_conflict"
     SPECIFIED = "specified"
     DECOMPOSED = "decomposed"
     TIMED_OUT = "timed_out"

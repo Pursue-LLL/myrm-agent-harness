@@ -71,7 +71,11 @@ class BrowserSessionExtractionMixin:
 
         if resume_cursor + max_length < total_len:
             next_cursor = resume_cursor + max_length
-            if total_len > _DEFAULT_VAULT_SPILL_CHAR_THRESHOLD and resume_cursor == 0 and self._content_vault is not None:
+            if (
+                total_len > _DEFAULT_VAULT_SPILL_CHAR_THRESHOLD
+                and resume_cursor == 0
+                and self._content_vault is not None
+            ):
                 try:
                     page = self._tab_controller.get_active_page()
                     url = page.url
@@ -177,7 +181,9 @@ class BrowserSessionExtractionMixin:
 
             already_note = ""
             if already_collected:
-                already_note = f"\n\nAlready collected (skip duplicates):\n{json_mod.dumps(already_collected, ensure_ascii=False)}"
+                already_note = (
+                    f"\n\nAlready collected (skip duplicates):\n{json_mod.dumps(already_collected, ensure_ascii=False)}"
+                )
 
             message = HumanMessage(
                 content=[

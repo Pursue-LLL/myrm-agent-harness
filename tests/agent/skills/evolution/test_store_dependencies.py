@@ -39,7 +39,7 @@ async def test_persist_and_query_dependents(temp_db_path):
     scraper = _record(
         "web-scraper",
         "web-scraper",
-        "---\nname: web-scraper\ndescription: scrape\ndependencies:\n  - http-client\n---\n@tool_use(\"browser_navigate\")\n",
+        '---\nname: web-scraper\ndescription: scrape\ndependencies:\n  - http-client\n---\n@tool_use("browser_navigate")\n',
     )
     await store.save_skill(base)
     await store.save_skill(scraper)

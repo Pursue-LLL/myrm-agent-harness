@@ -1,4 +1,3 @@
-
 import pytest
 
 from myrm_agent_harness.core.security.credential_vault import CredentialVault, get_global_credential_vault
@@ -13,6 +12,7 @@ def test_credential_vault_add_remove():
     with pytest.raises(KeyError):
         vault.get_password("test-label")
 
+
 def test_credential_vault_clear():
     vault = CredentialVault()
     vault.add_credential("test1", password="p1")
@@ -20,11 +20,13 @@ def test_credential_vault_clear():
     vault.clear()
     assert len(vault.list_labels()) == 0
 
+
 def test_credential_vault_no_password():
     vault = CredentialVault()
     vault.add_credential("test-label", totp_seed="JBSWY3DPEHPK3PXP")
     with pytest.raises(ValueError, match="does not have a password"):
         vault.get_password("test-label")
+
 
 def test_credential_vault_totp():
     vault = CredentialVault()
@@ -34,17 +36,20 @@ def test_credential_vault_totp():
     assert len(token) == 6
     assert token.isdigit()
 
+
 def test_credential_vault_totp_invalid_seed():
     vault = CredentialVault()
     vault.add_credential("test-totp", totp_seed="INVALID_SEED_!@#")
     with pytest.raises(ValueError, match="Failed to generate TOTP"):
         vault.get_totp_token("test-totp")
 
+
 def test_credential_vault_no_totp():
     vault = CredentialVault()
     vault.add_credential("test-label", password="password123")
     with pytest.raises(ValueError, match="does not have a TOTP seed"):
         vault.get_totp_token("test-label")
+
 
 def test_global_vault():
     vault = get_global_credential_vault()

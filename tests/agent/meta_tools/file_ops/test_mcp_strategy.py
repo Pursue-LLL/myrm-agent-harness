@@ -48,9 +48,7 @@ def strategy() -> MCPFileSystemStrategy:
 
 @pytest.fixture
 def local_strategy() -> MCPFileSystemStrategy:
-    return MCPFileSystemStrategy(
-        [SkillMetadata(name="local_skill", description="Local")]
-    )
+    return MCPFileSystemStrategy([SkillMetadata(name="local_skill", description="Local")])
 
 
 class TestReadAndExists:
@@ -66,9 +64,7 @@ class TestReadAndExists:
         assert "get_tickets" in joined
 
     async def test_get_file_size_positive(self, strategy) -> None:
-        size = await strategy.get_file_size(
-            "/mcp/mcp_12306_mcp_skill/get-tickets.md"
-        )
+        size = await strategy.get_file_size("/mcp/mcp_12306_mcp_skill/get-tickets.md")
         assert isinstance(size, int)
         assert size > 0
 
@@ -76,18 +72,13 @@ class TestReadAndExists:
         assert await strategy.exists("/mcp/mcp_12306_mcp_skill") is True
 
     async def test_exists_file(self, strategy) -> None:
-        assert (
-            await strategy.exists("/mcp/mcp_12306_mcp_skill/get-tickets.md")
-            is True
-        )
+        assert await strategy.exists("/mcp/mcp_12306_mcp_skill/get-tickets.md") is True
 
     async def test_exists_unknown_skill_false(self, strategy) -> None:
         assert await strategy.exists("/mcp/unknown_skill") is False
 
     async def test_exists_unknown_function_false(self, strategy) -> None:
-        assert (
-            await strategy.exists("/mcp/mcp_12306_mcp_skill/missing.md") is False
-        )
+        assert await strategy.exists("/mcp/mcp_12306_mcp_skill/missing.md") is False
 
     async def test_get_actual_path_returns_self(self, strategy) -> None:
         path = "/mcp/mcp_12306_mcp_skill/get-tickets.md"
@@ -99,12 +90,7 @@ class TestIsDirectory:
         assert await strategy.is_directory("/mcp/mcp_12306_mcp_skill") is True
 
     async def test_function_file_not_dir(self, strategy) -> None:
-        assert (
-            await strategy.is_directory(
-                "/mcp/mcp_12306_mcp_skill/get-tickets.md"
-            )
-            is False
-        )
+        assert await strategy.is_directory("/mcp/mcp_12306_mcp_skill/get-tickets.md") is False
 
     async def test_unknown_skill_not_dir(self, strategy) -> None:
         assert await strategy.is_directory("/mcp/unknown_skill") is False
@@ -159,15 +145,11 @@ class TestReadDocErrors:
 
     async def test_non_mcp_skill_raises(self, local_strategy) -> None:
         with pytest.raises(ValueError, match="not an MCP skill"):
-            local_strategy._read_mcp_function_doc(
-                "/mcp/local_skill/whatever.md"
-            )
+            local_strategy._read_mcp_function_doc("/mcp/local_skill/whatever.md")
 
     async def test_unknown_function_raises(self, strategy) -> None:
         with pytest.raises(FileNotFoundError, match="not found"):
-            strategy._read_mcp_function_doc(
-                "/mcp/mcp_12306_mcp_skill/missing.md"
-            )
+            strategy._read_mcp_function_doc("/mcp/mcp_12306_mcp_skill/missing.md")
 
 
 class TestGetMcpCallRules:

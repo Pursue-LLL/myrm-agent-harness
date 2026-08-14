@@ -31,35 +31,24 @@ def test_action_space_profiler_with_langchain_tools() -> None:
     assert score > 20
     assert score < 200
 
+
 def test_action_space_profiler_with_raw_schemas() -> None:
     """Test profiler with raw OpenAPI schema dictionaries."""
     raw_schemas = [
-        {
-            "description": "A very simple tool.",
-            "properties": {
-                "name": {"type": "string", "title": "Name"}
-            }
-        },
+        {"description": "A very simple tool.", "properties": {"name": {"type": "string", "title": "Name"}}},
         {
             "description": "A complex tool with nested dicts and arrays.",
             "properties": {
-                "data": {
-                    "type": "object",
-                    "properties": {
-                        "key1": {"type": "string"}
-                    }
-                },
-                "options": {
-                    "type": "array",
-                    "items": {"type": "string"}
-                }
-            }
-        }
+                "data": {"type": "object", "properties": {"key1": {"type": "string"}}},
+                "options": {"type": "array", "items": {"type": "string"}},
+            },
+        },
     ]
 
     score = ActionSpaceProfiler.calculate_score(raw_schemas)
     assert score > 20
     assert score < 200
+
 
 def test_estimate_external_load() -> None:
     """Test estimation for MCP and Built-ins."""

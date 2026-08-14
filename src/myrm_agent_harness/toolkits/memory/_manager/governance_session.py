@@ -100,9 +100,7 @@ class MemoryManagerGovernanceSessionMixin:
         self._session_count += 1
         if self._preference_strategy is not None:
             try:
-                existing_active = {
-                    f.key for f in await self._preference_strategy.get_active_preferences()
-                }
+                existing_active = {f.key for f in await self._preference_strategy.get_active_preferences()}
                 promoted = await self._preference_strategy.micro_rebuild()
                 if promoted:
                     logger.info("Preference micro-rebuild: %d promoted to Active", promoted)

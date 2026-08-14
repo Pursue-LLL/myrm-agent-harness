@@ -41,6 +41,7 @@ def _clean_ui_globals(monkeypatch):
         _current_message_id as _snapshot_msg_id_var,
     )
     from myrm_agent_harness.agent.middlewares._session_context import _active_message_id_var
+
     _active_message_id_var.set(None)
     _snapshot_msg_id_var.set(None)
     yield
@@ -231,7 +232,9 @@ class TestA2uiSpec:
     def test_parse_reference_empty_when_no_colon_types(self) -> None:
         assert parse_reference_allowed_types("> Allowed types without colon list") == ()
 
-    def test_seed_overwrites_when_bundled_content_changes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_seed_overwrites_when_bundled_content_changes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         dest = seed_reference_to_workspace(tmp_path)
         assert dest is not None
         monkeypatch.setattr(
@@ -424,9 +427,7 @@ class TestRenderUiSuccessAndEdges:
             )
             assert result.startswith("Failed to render UI: RuntimeError: registry exploded")
 
-    def test_render_ui_dispatches_realtime_ui_update_custom_event(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_render_ui_dispatches_realtime_ui_update_custom_event(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """render_ui must emit LangGraph custom ui_update for stream_dispatcher realtime path."""
         captured: list[tuple[str, object]] = []
 

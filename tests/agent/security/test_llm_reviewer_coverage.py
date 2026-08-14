@@ -88,9 +88,7 @@ async def test_transcript_classifier_allow():
         workspace_root="/tmp",
         intent_context="user wants to see files",
         taint_labels=frozenset(["EXTERNAL_NETWORK"]),
-        recent_tool_calls=(
-            RecentToolCall(tool_name="file_read_tool", args={"path": "/tmp/a.py"}),
-        ),
+        recent_tool_calls=(RecentToolCall(tool_name="file_read_tool", args={"path": "/tmp/a.py"}),),
     )
 
     assert res.decision == ReviewDecision.ALLOW
@@ -279,9 +277,7 @@ async def test_long_tool_args_truncated_in_prompt():
     classifier = TranscriptClassifier(mock_llm)
     await classifier.review(
         "echo test",
-        recent_tool_calls=(
-            RecentToolCall(tool_name="file_write_tool", args={"content": long_content}),
-        ),
+        recent_tool_calls=(RecentToolCall(tool_name="file_write_tool", args={"content": long_content}),),
     )
 
     messages = _get_messages_from_chain(chain)
@@ -362,7 +358,7 @@ async def test_trusted_domains_in_prompt():
 
     classifier = TranscriptClassifier(mock_llm)
     res = await classifier.review(
-        "Tool: web_fetch\nArgs: {\"url\": \"https://api.mycompany.com/data\"}",
+        'Tool: web_fetch\nArgs: {"url": "https://api.mycompany.com/data"}',
         trusted_domains=("api.mycompany.com", "internal.corp.net"),
     )
 

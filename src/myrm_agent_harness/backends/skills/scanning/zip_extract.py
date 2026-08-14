@@ -136,10 +136,7 @@ def _check_total_size(total: int, max_bytes: int) -> None:
         log_archive_security_violation(logger, violation)
         raise ArchiveSecurityError(
             violation,
-            (
-                f"Total uncompressed size {total / 1024 / 1024:.1f} MB "
-                f"exceeds {max_bytes / 1024 / 1024:.0f} MB limit"
-            ),
+            (f"Total uncompressed size {total / 1024 / 1024:.1f} MB exceeds {max_bytes / 1024 / 1024:.0f} MB limit"),
         )
 
 

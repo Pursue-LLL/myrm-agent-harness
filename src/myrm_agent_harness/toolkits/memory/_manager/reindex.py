@@ -64,7 +64,7 @@ def _extract_model_suffix(collection_name: str, prefix: str) -> str | None:
     idx = collection_name.find(prefix)
     if idx == -1:
         return None
-    return collection_name[idx + len(prefix):]
+    return collection_name[idx + len(prefix) :]
 
 
 class MemoryManagerReindexMixin:
@@ -125,12 +125,14 @@ class MemoryManagerReindexMixin:
             if count == 0:
                 continue
 
-            orphans.append(OrphanCollectionInfo(
-                collection_name=name,
-                memory_type=memory_type,
-                old_model_suffix=model_suffix,
-                document_count=count,
-            ))
+            orphans.append(
+                OrphanCollectionInfo(
+                    collection_name=name,
+                    memory_type=memory_type,
+                    old_model_suffix=model_suffix,
+                    document_count=count,
+                )
+            )
 
         return orphans
 
@@ -183,9 +185,7 @@ class MemoryManagerReindexMixin:
                     progress_cb(migrated + skipped + failed, total, "migrating")
 
             except Exception as e:
-                logger.warning(
-                    "Reindex failed for orphan %s: %s", orphan.collection_name, e
-                )
+                logger.warning("Reindex failed for orphan %s: %s", orphan.collection_name, e)
                 failed += orphan.document_count
 
         if progress_cb:
@@ -193,7 +193,9 @@ class MemoryManagerReindexMixin:
 
         logger.info(
             "Reindex completed: migrated=%d, skipped=%d, failed=%d",
-            migrated, skipped, failed,
+            migrated,
+            skipped,
+            failed,
         )
         return ReindexResult(migrated=migrated, skipped=skipped, failed=failed)
 
@@ -227,7 +229,8 @@ class MemoryManagerReindexMixin:
 
     @staticmethod
     def _documents_to_import_format(
-        documents: list[dict[str, object]], memory_type: str,
+        documents: list[dict[str, object]],
+        memory_type: str,
     ) -> dict[str, list[dict[str, object]]]:
         """Convert scrolled documents into the format expected by import_memories."""
         if not documents:

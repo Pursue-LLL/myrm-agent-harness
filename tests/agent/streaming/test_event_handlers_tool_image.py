@@ -343,9 +343,7 @@ async def test_process_updates_tool_call():
 async def test_process_updates_tool_result():
     """ToolMessage should be processed through _handle_tool_result."""
     stats = AgentRunStatistics()
-    tool_msg = ToolMessage(
-        content="Result text", name="bash_code_execute_tool", tool_call_id="tc_2"
-    )
+    tool_msg = ToolMessage(content="Result text", name="bash_code_execute_tool", tool_call_id="tc_2")
     data = {"agent": {"messages": [tool_msg]}}
 
     events = []

@@ -124,9 +124,7 @@ def estimate_request_tools_tokens(tools: Sequence[object]) -> int:
     """Estimate live request tool overhead using the same planning SSOT as Turn-1 inventory."""
     if not tools:
         return 0
-    description_total = sum(
-        get_token_count(_tool_description_text(tool)) for tool in tools
-    )
+    description_total = sum(get_token_count(_tool_description_text(tool)) for tool in tools)
     return description_total + len(tools) * SCHEMA_WRAPPER_TOKENS_PER_TOOL
 
 

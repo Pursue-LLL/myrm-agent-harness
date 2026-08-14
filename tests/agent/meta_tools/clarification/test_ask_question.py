@@ -200,9 +200,7 @@ async def test_sync_run_works_inside_running_event_loop(
     )
 
     async def mock_callback(form: AskQuestionInput) -> str:
-        raise AssertionError(
-            "sync path must not delegate to async callback under running loop"
-        )
+        raise AssertionError("sync path must not delegate to async callback under running loop")
 
     tool = AskQuestionTool(callback=mock_callback)
     result = tool._run(

@@ -10,12 +10,9 @@ from myrm_agent_harness.agent.skills.evolution.infra.queue import EvolutionQueue
 @pytest.fixture
 def sample_request():
     return EvolutionRequest(
-        agent_id="agent1",
-        tool_call_ids=["call1"],
-        skill_id="skill1",
-        evolution_type=EvolutionType.FIX,
-        reason="test"
+        agent_id="agent1", tool_call_ids=["call1"], skill_id="skill1", evolution_type=EvolutionType.FIX, reason="test"
     )
+
 
 @pytest.mark.asyncio
 async def test_queue_enqueue(sample_request):
@@ -24,9 +21,10 @@ async def test_queue_enqueue(sample_request):
     assert res is True
     assert queue._queues[QueuePriority.HIGH].qsize() == 1
 
+
 @pytest.mark.asyncio
 async def test_queue_enqueue_full_drops_oldest(sample_request):
-    queue = EvolutionQueue(max_queue_size=4) # max // 4 == 1
+    queue = EvolutionQueue(max_queue_size=4)  # max // 4 == 1
     await queue.enqueue(sample_request, priority=QueuePriority.NORMAL)
     assert queue._queues[QueuePriority.NORMAL].qsize() == 1
 
@@ -36,7 +34,7 @@ async def test_queue_enqueue_full_drops_oldest(sample_request):
         tool_call_ids=["call2"],
         skill_id="skill2",
         evolution_type=EvolutionType.OPTIMIZE_DESCRIPTION,
-        reason=""
+        reason="",
     )
     await queue.enqueue(req2, priority=QueuePriority.NORMAL)
     assert queue._queues[QueuePriority.NORMAL].qsize() == 1
@@ -44,6 +42,7 @@ async def test_queue_enqueue_full_drops_oldest(sample_request):
     # Verify the remaining item is req2
     item = queue._queues[QueuePriority.NORMAL].get_nowait()
     assert item.request.skill_id == "skill2"
+
 
 @pytest.mark.asyncio
 async def test_queue_start_stop():
@@ -60,20 +59,23 @@ async def test_queue_start_stop():
     assert queue._running is False
     assert len(queue._workers) == 0
 
+
 @pytest.mark.asyncio
 async def test_worker_process_evolution(sample_request):
     queue = EvolutionQueue(worker_count=1)
 
-    mock_handler = AsyncMock(return_value=EvolutionProposal(
-        agent_id="agent1",
-        skill_id="skill1",
-        proposed_content="pass",
-        original_content="pass_old",
-        diff="--- a\n+++ b",
-        score=0.9,
-        evolution_type=EvolutionType.FIX,
-        reasoning="fix"
-    ))
+    mock_handler = AsyncMock(
+        return_value=EvolutionProposal(
+            agent_id="agent1",
+            skill_id="skill1",
+            proposed_content="pass",
+            original_content="pass_old",
+            diff="--- a\n+++ b",
+            score=0.9,
+            evolution_type=EvolutionType.FIX,
+            reasoning="fix",
+        )
+    )
     queue.set_evolution_handler(mock_handler)
 
     await queue.enqueue(sample_request)
@@ -85,6 +87,7 @@ async def test_worker_process_evolution(sample_request):
 
     mock_handler.assert_called_once_with(sample_request)
     assert queue._processed_count == 1
+
 
 @pytest.mark.asyncio
 async def test_worker_process_evolution_error_retry(sample_request):
@@ -104,6 +107,7 @@ async def test_worker_process_evolution_error_retry(sample_request):
     assert mock_handler.call_count > 0
     # Wait, error tracking might have increased
     assert queue._failed_count >= 1
+
 
 def test_get_evolution_queue():
     q1 = get_evolution_queue()

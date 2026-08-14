@@ -119,9 +119,7 @@ class TestPtcRpcResponse:
 
 class TestPtcToolCallRecord:
     def test_basic(self):
-        rec = PtcToolCallRecord(
-            tool="bash", args_preview='{"cmd":"ls"}', duration_ms=1.5, success=True
-        )
+        rec = PtcToolCallRecord(tool="bash", args_preview='{"cmd":"ls"}', duration_ms=1.5, success=True)
         assert rec.success is True
         assert rec.error is None
 
@@ -293,9 +291,7 @@ class TestPtcDispatcher:
             return f"ran: {command}, bg={background}"
 
         dispatcher = PtcDispatcher([terminal])
-        req = PtcRpcRequest(
-            tool="terminal", args={"command": "ls", "background": True}
-        )
+        req = PtcRpcRequest(tool="terminal", args={"command": "ls", "background": True})
         resp = await dispatcher.dispatch(req)
         assert resp.error is None
         assert "bg=True" not in (resp.result or "")
@@ -389,9 +385,7 @@ class TestPtcRpcServer:
 
                 resp_header = await asyncio.wait_for(reader.readexactly(4), timeout=5)
                 resp_len = struct.unpack("!I", resp_header)[0]
-                resp_data = await asyncio.wait_for(
-                    reader.readexactly(resp_len), timeout=5
-                )
+                resp_data = await asyncio.wait_for(reader.readexactly(resp_len), timeout=5)
                 writer.close()
                 await writer.wait_closed()
 
@@ -402,7 +396,6 @@ class TestPtcRpcServer:
                     assert "limit reached" in resp.get("error", "")
         finally:
             await server.stop()
-
 
     @pytest.mark.asyncio
     async def test_tcp_mode_lifecycle(self):
@@ -530,9 +523,7 @@ class TestPtcInjection:
 
         context = ExecutionContext(code="print('hello world')", timeout=30)
         executor = InProcessExecutor()
-        result = await inject_ptc_for_python_execution(
-            context, executor, [mock_file_read]
-        )
+        result = await inject_ptc_for_python_execution(context, executor, [mock_file_read])
         assert result.success
         assert "hello world" in (result.stdout or "")
 
@@ -546,16 +537,10 @@ class TestPtcInjection:
         )
         from tests.toolkits.code_execution._executor_stub import InProcessExecutor
 
-        script = (
-            "import myrm_tools\n"
-            'result = myrm_tools.mock_file_read(path="/test/file.txt")\n'
-            "print(result)"
-        )
+        script = 'import myrm_tools\nresult = myrm_tools.mock_file_read(path="/test/file.txt")\nprint(result)'
         context = ExecutionContext(code=script, timeout=30)
         executor = InProcessExecutor()
-        result = await inject_ptc_for_python_execution(
-            context, executor, [mock_file_read]
-        )
+        result = await inject_ptc_for_python_execution(context, executor, [mock_file_read])
         assert result.success
         assert "content_of_/test/file.txt" in (result.stdout or "")
 
@@ -578,9 +563,7 @@ class TestPtcInjection:
         )
         context = ExecutionContext(code=script, timeout=30)
         executor = InProcessExecutor()
-        result = await inject_ptc_for_python_execution(
-            context, executor, [mock_file_read, mock_grep]
-        )
+        result = await inject_ptc_for_python_execution(context, executor, [mock_file_read, mock_grep])
         assert result.success
         assert "content_of_/a" in (result.stdout or "")
         assert "found_hello_in_/b" in (result.stdout or "")
@@ -597,9 +580,7 @@ class TestPtcInjection:
 
         context = ExecutionContext(code="raise ValueError('test error')", timeout=30)
         executor = InProcessExecutor()
-        result = await inject_ptc_for_python_execution(
-            context, executor, [mock_file_read]
-        )
+        result = await inject_ptc_for_python_execution(context, executor, [mock_file_read])
         assert not result.success
         assert "ValueError" in (result.stderr or "")
 
@@ -639,16 +620,14 @@ class TestPtcInjection:
 
         script = (
             "import myrm_tools\n"
-            "result = myrm_tools.json_parse('{\"key\": \"value\"}')\n"
+            'result = myrm_tools.json_parse(\'{"key": "value"}\')\n'
             "print(result['key'])\n"
             "quoted = myrm_tools.shell_quote('hello world')\n"
             "print(quoted)"
         )
         context = ExecutionContext(code=script, timeout=30)
         executor = InProcessExecutor()
-        result = await inject_ptc_for_python_execution(
-            context, executor, [mock_file_read]
-        )
+        result = await inject_ptc_for_python_execution(context, executor, [mock_file_read])
         assert result.success
         assert "value" in (result.stdout or "")
 
@@ -673,9 +652,7 @@ class TestPtcInjection:
             new_callable=AsyncMock,
             side_effect=OSError("Address already in use"),
         ):
-            result = await inject_ptc_for_python_execution(
-                context, executor, [mock_file_read]
-            )
+            result = await inject_ptc_for_python_execution(context, executor, [mock_file_read])
         assert result.success is False
         assert result.error is not None
         assert "PTC RPC server failed to start" in result.error
@@ -697,9 +674,7 @@ class TestPtcInjection:
         executor = InProcessExecutor()
         token = ptc_nesting_guard.set(True)
         try:
-            result = await inject_ptc_for_python_execution(
-                context, executor, [mock_file_read]
-            )
+            result = await inject_ptc_for_python_execution(context, executor, [mock_file_read])
         finally:
             ptc_nesting_guard.reset(token)
 
@@ -723,12 +698,8 @@ class TestPtcInjection:
             "pp = os.environ.get('PYTHONPATH', '')\n"
             "print('HAS_CUSTOM' if '/custom/path' in pp else 'MISSING')"
         )
-        context = ExecutionContext(
-            code=script, timeout=30, env={"PYTHONPATH": "/custom/path"}
-        )
+        context = ExecutionContext(code=script, timeout=30, env={"PYTHONPATH": "/custom/path"})
         executor = InProcessExecutor()
-        result = await inject_ptc_for_python_execution(
-            context, executor, [mock_file_read]
-        )
+        result = await inject_ptc_for_python_execution(context, executor, [mock_file_read])
         assert result.success
         assert "HAS_CUSTOM" in (result.stdout or "")

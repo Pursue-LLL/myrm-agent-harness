@@ -39,9 +39,7 @@ class TestEmitLoopGuardEvent:
             "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
             mock_dispatch,
         ):
-            await _emit_loop_guard_event(
-                "loop_guard_warn", "bash_code_execute_tool", "Repetition detected", "warning"
-            )
+            await _emit_loop_guard_event("loop_guard_warn", "bash_code_execute_tool", "Repetition detected", "warning")
 
         mock_dispatch.assert_called_once_with(
             "agent_status",
@@ -61,9 +59,7 @@ class TestEmitLoopGuardEvent:
             "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
             mock_dispatch,
         ):
-            await _emit_loop_guard_event(
-                "loop_guard_break", "file_write", "No-progress polling", "error"
-            )
+            await _emit_loop_guard_event("loop_guard_break", "file_write", "No-progress polling", "error")
 
         mock_dispatch.assert_called_once_with(
             "agent_status",
@@ -83,9 +79,7 @@ class TestEmitLoopGuardEvent:
             "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
             mock_dispatch,
         ):
-            await _emit_loop_guard_event(
-                "loop_guard_break", "bash_code_execute_tool", "reason", "error"
-            )
+            await _emit_loop_guard_event("loop_guard_break", "bash_code_execute_tool", "reason", "error")
 
     @pytest.mark.asyncio
     async def test_swallows_import_error(self) -> None:
@@ -94,9 +88,7 @@ class TestEmitLoopGuardEvent:
             "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
             side_effect=ImportError("module not found"),
         ):
-            await _emit_loop_guard_event(
-                "loop_guard_warn", "tool", "reason", "warning"
-            )
+            await _emit_loop_guard_event("loop_guard_warn", "tool", "reason", "warning")
 
 
 # ---------------------------------------------------------------------------
@@ -332,11 +324,7 @@ class TestPostCallGuardsEmitEvent:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard",
                 return_value=MagicMock(
-                    check_and_truncate=MagicMock(
-                        return_value=MagicMock(
-                            action=MagicMock(__eq__=lambda s, o: False)
-                        )
-                    )
+                    check_and_truncate=MagicMock(return_value=MagicMock(action=MagicMock(__eq__=lambda s, o: False)))
                 ),
             ),
             patch(
@@ -433,11 +421,7 @@ class TestPostCallGuardsEmitEvent:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard",
                 return_value=MagicMock(
-                    check_and_truncate=MagicMock(
-                        return_value=MagicMock(
-                            action=MagicMock(__eq__=lambda s, o: False)
-                        )
-                    )
+                    check_and_truncate=MagicMock(return_value=MagicMock(action=MagicMock(__eq__=lambda s, o: False)))
                 ),
             ),
             patch(
@@ -534,11 +518,7 @@ class TestPostCallGuardsEmitEvent:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard",
                 return_value=MagicMock(
-                    check_and_truncate=MagicMock(
-                        return_value=MagicMock(
-                            action=MagicMock(__eq__=lambda s, o: False)
-                        )
-                    )
+                    check_and_truncate=MagicMock(return_value=MagicMock(action=MagicMock(__eq__=lambda s, o: False)))
                 ),
             ),
             patch(

@@ -13,17 +13,23 @@ def test_metrics_properties_zero():
     assert m.derived_success_rate == 0.0
     assert m.captured_success_rate == 0.0
 
+
 def test_metrics_properties_nonzero():
     m = EvolutionMetrics(
-        total_evolutions=10, successful_evolutions=5,
-        fix_count=4, fix_success=2,
-        derived_count=4, derived_success=2,
-        captured_count=2, captured_success=1
+        total_evolutions=10,
+        successful_evolutions=5,
+        fix_count=4,
+        fix_success=2,
+        derived_count=4,
+        derived_success=2,
+        captured_count=2,
+        captured_success=1,
     )
     assert m.success_rate == 0.5
     assert m.fix_success_rate == 0.5
     assert m.derived_success_rate == 0.5
     assert m.captured_success_rate == 0.5
+
 
 def test_tracker_record_evolution():
     tracker = EvolutionMetricsTracker()
@@ -55,6 +61,7 @@ def test_tracker_record_evolution():
     assert top[0][0] == "skill1"  # total 2
     assert top[0][2] == 2
 
+
 def test_tracker_record_tool_call():
     tracker = EvolutionMetricsTracker()
     tracker.record_tool_call("toolA", 1.5, True)
@@ -67,6 +74,7 @@ def test_tracker_record_tool_call():
 
     report = tracker.get_report()
     assert report["tool_usage"]["total_calls"] == 2
+
 
 def test_tracker_record_summarization():
     tracker = EvolutionMetricsTracker()
@@ -81,6 +89,7 @@ def test_tracker_record_summarization():
     assert report["summarization"]["count"] == 1
     assert report["summarization"]["token_saved"] == 12
 
+
 def test_tracker_reset():
     tracker = EvolutionMetricsTracker()
     tracker.record_evolution("skill1", EvolutionType.FIX, True)
@@ -90,11 +99,13 @@ def test_tracker_reset():
     assert metrics.total_evolutions == 0
     assert len(tracker.get_top_skills()) == 0
 
+
 def test_get_metrics_tracker():
     # Test singleton
     t1 = get_metrics_tracker()
     t2 = get_metrics_tracker()
     assert t1 is t2
+
 
 def test_get_report_empty():
     tracker = EvolutionMetricsTracker()

@@ -18,13 +18,7 @@ from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
 from myrm_agent_harness.toolkits.web_search.web_searcher import SearchServiceConfig
 from myrm_agent_harness.utils.url_utils import extract_domain
 
-_ENV_TEST = (
-    Path(__file__).resolve().parents[3]
-    / ".."
-    / "myrm-agent"
-    / "myrm-agent-server"
-    / ".env.test"
-)
+_ENV_TEST = Path(__file__).resolve().parents[3] / ".." / "myrm-agent" / "myrm-agent-server" / ".env.test"
 
 
 def _load_env_test() -> None:
@@ -74,9 +68,7 @@ class TestDomainDiversityIntegration:
 
         domains = [extract_domain(r["url"]) for r in results]
         unique_domains = len(set(domains))
-        assert (
-            unique_domains >= 2
-        ), f"Expected >=2 unique domains, got {unique_domains}: {domains}"
+        assert unique_domains >= 2, f"Expected >=2 unique domains, got {unique_domains}: {domains}"
 
     @pytest.mark.asyncio
     async def test_multi_query_dedup_and_diversity(self) -> None:
@@ -99,8 +91,7 @@ class TestDomainDiversityIntegration:
         total = len(domains)
         dominance_ratio = top_count / total
         assert dominance_ratio < 0.8, (
-            f"Top domain '{top_domain}' dominates {dominance_ratio:.0%} "
-            f"({top_count}/{total}), expected <80%"
+            f"Top domain '{top_domain}' dominates {dominance_ratio:.0%} ({top_count}/{total}), expected <80%"
         )
 
     @pytest.mark.asyncio
@@ -142,9 +133,7 @@ class TestDomainDiversityIntegration:
 
         top5_domains = [extract_domain(r["url"]) for r in results[:5]]
         unique_in_top5 = len(set(top5_domains))
-        assert (
-            unique_in_top5 >= 2
-        ), f"Top 5 results all from same domain(s): {top5_domains}"
+        assert unique_in_top5 >= 2, f"Top 5 results all from same domain(s): {top5_domains}"
 
     @pytest.mark.asyncio
     async def test_explicit_time_range_month_wires_tavily_days(self) -> None:
@@ -159,9 +148,7 @@ class TestDomainDiversityIntegration:
             per_query_overrides: list[dict[str, str | int | bool] | None] | None,
         ) -> list[list[dict[str, object]]]:
             captured_overrides.extend(per_query_overrides or [])
-            return await original_search(
-                questions, search_results_per_query, per_query_overrides
-            )
+            return await original_search(questions, search_results_per_query, per_query_overrides)
 
         with patch.object(
             tools._searcher,

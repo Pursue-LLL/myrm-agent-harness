@@ -51,9 +51,7 @@ def parse_response_locale_policy(
     if not locale:
         return None
     formality_raw = str(raw.get("formality") or "formal-polite").strip().lower()
-    formality: FormalityLevel = (
-        "casual" if formality_raw == "casual" else "formal-polite"
-    )
+    formality: FormalityLevel = "casual" if formality_raw == "casual" else "formal-polite"
     return ResponseLocalePolicy(locale=locale, formality=formality)
 
 

@@ -76,9 +76,7 @@ class OdfParser(FileParser):
         root = ElementTree.fromstring(  # noqa: S314 — expat blocks external entities by default
             raw_xml
         )
-        texts = [
-            node.text.strip() for node in root.iter() if node.text and node.text.strip()
-        ]
+        texts = [node.text.strip() for node in root.iter() if node.text and node.text.strip()]
         joined = "\n".join(texts)
         logger.info("ODF parsed: %s, nodes=%d", path.name, len(texts))
         return joined

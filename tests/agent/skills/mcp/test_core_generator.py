@@ -17,9 +17,9 @@ from types import SimpleNamespace
 import pytest
 
 from myrm_agent_harness.agent.skills.mcp.core_generator import (
-    MCPSkillGenerator,
     SKILL_USAGE_TEMPLATE,
     USAGE_GUIDE_TOOL_THRESHOLD,
+    MCPSkillGenerator,
     mcp_skill_generator,
 )
 from myrm_agent_harness.backends.skills.types import SkillMetadata
@@ -156,16 +156,12 @@ class TestDescriptionResolution:
 
     def test_user_description_priority(self) -> None:
         gen = MCPSkillGenerator()
-        desc = gen._resolve_description(
-            "user desc", "instructions", [self._tool("a", "t")], "srv"
-        )
+        desc = gen._resolve_description("user desc", "instructions", [self._tool("a", "t")], "srv")
         assert desc == "user desc"
 
     def test_instructions_fallback(self) -> None:
         gen = MCPSkillGenerator()
-        desc = gen._resolve_description(
-            "", "**bold** instructions\nhere", [], "srv"
-        )
+        desc = gen._resolve_description("", "**bold** instructions\nhere", [], "srv")
         assert "bold" in desc and "**" not in desc
 
     def test_tool_based_description(self) -> None:
@@ -184,9 +180,7 @@ class TestDescriptionResolution:
 
 
 class TestToolList:
-    def _tool_list_meta(
-        self, count: int, schemas: dict[str, dict[str, object]] | None = None
-    ) -> SkillMetadata:
+    def _tool_list_meta(self, count: int, schemas: dict[str, dict[str, object]] | None = None) -> SkillMetadata:
         tools = [f"fn_{i}" for i in range(count)]
         return _skill_meta("weather", tools, schemas=schemas)
 
@@ -263,9 +257,7 @@ class TestTextProcessing:
 class TestCreateSkillMetadata:
     def test_builds_metadata_with_instructions_key(self) -> None:
         gen = MCPSkillGenerator()
-        tools = [
-            SimpleNamespace(name="get_temp", description="Get temp", args_schema=None)
-        ]
+        tools = [SimpleNamespace(name="get_temp", description="Get temp", args_schema=None)]
         meta = gen._create_skill_metadata(
             "weather", tools, user_description="Weather skill", instructions="Handle weather"
         )
@@ -304,7 +296,7 @@ class TestGenerateMetadataOnly:
                 self.tools_by_server: dict[str, list[object]] = {"ok": []}
                 self.instructions_by_server: dict[str, str] = {}
 
-            async def get_connection(self, _configs: list[object]) -> "_Manager":
+            async def get_connection(self, _configs: list[object]) -> _Manager:
                 return self
 
         async def _manager_factory() -> object:
@@ -332,7 +324,7 @@ class TestGenerateMetadataOnly:
                 }
                 self.instructions_by_server: dict[str, str] = {}
 
-            async def get_connection(self, _configs: list[object]) -> "_Manager":
+            async def get_connection(self, _configs: list[object]) -> _Manager:
                 return self
 
         async def _manager_factory() -> object:

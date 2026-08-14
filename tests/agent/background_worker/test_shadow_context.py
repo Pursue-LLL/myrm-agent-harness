@@ -107,9 +107,7 @@ class TestShadowExecutorMiddleware:
         assert inner_executor.writes == [allowed]
 
     @pytest.mark.asyncio
-    async def test_blocks_arbitrary_writes(
-        self, shadow_executor: ShadowExecutorMiddleware, workspace: str
-    ) -> None:
+    async def test_blocks_arbitrary_writes(self, shadow_executor: ShadowExecutorMiddleware, workspace: str) -> None:
         blocked = str(Path(workspace) / "src" / "main.py")
         with pytest.raises(PermissionError, match="Write access"):
             await shadow_executor.write_file(blocked, "hack")
@@ -119,9 +117,7 @@ class TestShadowExecutorMiddleware:
         inner = AsyncMock(spec=CodeExecutor)
         inner.config = None
         inner.workspace_path = workspace
-        inner.resolve_path = AsyncMock(
-            side_effect=lambda path: str(Path(workspace) / path.removeprefix("./"))
-        )
+        inner.resolve_path = AsyncMock(side_effect=lambda path: str(Path(workspace) / path.removeprefix("./")))
         inner.write_file = AsyncMock()
         shadow = ShadowExecutorMiddleware(inner)
 

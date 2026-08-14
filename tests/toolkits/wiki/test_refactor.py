@@ -1,4 +1,3 @@
-
 import pytest
 
 from myrm_agent_harness.toolkits.wiki.core.refactor import LinkRefactorEngine
@@ -9,6 +8,7 @@ def temp_concepts_dir(tmp_path):
     concepts_dir = tmp_path / "concepts"
     concepts_dir.mkdir()
     return concepts_dir
+
 
 def test_refactor_links_rename_file(temp_concepts_dir):
     # Setup
@@ -25,6 +25,7 @@ def test_refactor_links_rename_file(temp_concepts_dir):
     # Assert
     assert count == 1
     assert referencing_file.read_text() == "See [Old](new_name.md) for details."
+
 
 def test_refactor_links_move_file_to_folder(temp_concepts_dir):
     # Setup
@@ -43,6 +44,7 @@ def test_refactor_links_move_file_to_folder(temp_concepts_dir):
     # Assert
     assert count == 1
     assert referencing_file.read_text() == "Link: [File](folder/file.md)"
+
 
 def test_refactor_links_move_folder(temp_concepts_dir):
     # Setup

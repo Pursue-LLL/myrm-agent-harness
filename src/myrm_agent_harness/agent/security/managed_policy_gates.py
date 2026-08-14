@@ -22,9 +22,7 @@ def yolo_allowed(policy: ManagedApprovalPolicy) -> bool:
 
 def map_suppresses_yolo(policy: ManagedApprovalPolicy, agent_primary_model: str) -> bool:
     """Org MAP requires review path for this model (no YOLO fast path)."""
-    return policy.should_force_auto_review(
-        agent_primary_model
-    ) or policy.should_ignore_allowlist(agent_primary_model)
+    return policy.should_force_auto_review(agent_primary_model) or policy.should_ignore_allowlist(agent_primary_model)
 
 
 def yolo_allowed_for_model(

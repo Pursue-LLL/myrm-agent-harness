@@ -25,16 +25,12 @@ class TestCompletionCheckToolBranches:
         reset_completion_guard()
 
     def test_evidence_reason_branch(self) -> None:
-        result = _completion_check_tool.invoke(
-            {"evidence_reason": "freshness query without evidence tools"}
-        )
+        result = _completion_check_tool.invoke({"evidence_reason": "freshness query without evidence tools"})
         assert "CRITICAL COMPLETION CHECK" in result
         assert "freshness query without evidence tools" in result
 
     def test_deliverable_write_reason_branch(self) -> None:
-        result = _completion_check_tool.invoke(
-            {"deliverable_write_reason": "claimed file write without tool call"}
-        )
+        result = _completion_check_tool.invoke({"deliverable_write_reason": "claimed file write without tool call"})
         assert "CRITICAL COMPLETION CHECK" in result
         assert "claimed file write without tool call" in result
 

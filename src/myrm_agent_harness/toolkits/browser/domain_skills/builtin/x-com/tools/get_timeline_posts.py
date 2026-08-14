@@ -23,17 +23,13 @@ async def get_timeline_posts(session, args: dict) -> str:  # type: ignore[type-a
 
     refs = session.get_all_refs()
     article_refs = [
-        (ref_id, info)
-        for ref_id, info in refs.items()
-        if info.role == "article" and (info.name or "").strip()
+        (ref_id, info) for ref_id, info in refs.items() if info.role == "article" and (info.name or "").strip()
     ]
     if not article_refs:
         await session.snapshot()
         refs = session.get_all_refs()
         article_refs = [
-            (ref_id, info)
-            for ref_id, info in refs.items()
-            if info.role == "article" and (info.name or "").strip()
+            (ref_id, info) for ref_id, info in refs.items() if info.role == "article" and (info.name or "").strip()
         ]
 
     posts: list[dict[str, str]] = []
@@ -42,11 +38,13 @@ async def get_timeline_posts(session, args: dict) -> str:  # type: ignore[type-a
             break
         text = info.name or ""
         if len(text) > 10:
-            posts.append({
-                "ref": ref_id,
-                "text": text[:500],
-                "role": info.role,
-            })
+            posts.append(
+                {
+                    "ref": ref_id,
+                    "text": text[:500],
+                    "role": info.role,
+                }
+            )
 
     if not posts:
         snapshot_text = await session.extract_text(max_length=50000)

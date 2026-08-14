@@ -53,16 +53,10 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
             timestamp=datetime.now(UTC).isoformat(),
         )
 
-    def _build_denied_message(
-        self, request: ToolCallRequest, decision: GuardrailDecision
-    ) -> ToolMessage:
+    def _build_denied_message(self, request: ToolCallRequest, decision: GuardrailDecision) -> ToolMessage:
         tool_name = str(request.tool_call.get("name", "unknown_tool"))
         tool_call_id = str(request.tool_call.get("id", "missing_id"))
-        reason_text = (
-            decision.reasons[0].message
-            if decision.reasons
-            else "blocked by guardrail policy"
-        )
+        reason_text = decision.reasons[0].message if decision.reasons else "blocked by guardrail policy"
         reason_code = decision.reasons[0].code if decision.reasons else "oap.denied"
 
         return ToolMessage(
@@ -80,9 +74,7 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
             },
         )
 
-    async def on_tool_start(
-        self, tool: str, input_str: str, **kwargs: object
-    ) -> str | None:
+    async def on_tool_start(self, tool: str, input_str: str, **kwargs: object) -> str | None:
         """Legacy compatibility for string-based check if needed.
 
         We implement the actual interception in wrap_tool_call/awrap_tool_call instead.
@@ -173,9 +165,7 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
 
             if not decision.allow:
                 code = decision.reasons[0].code if decision.reasons else "unknown"
-                logger.warning(
-                    f"Guardrail denied: tool={gr.tool_name} provider={provider.name} code={code}"
-                )
+                logger.warning(f"Guardrail denied: tool={gr.tool_name} provider={provider.name} code={code}")
 
                 # Report to audit
                 from myrm_agent_harness.agent.security.audit import record_decision

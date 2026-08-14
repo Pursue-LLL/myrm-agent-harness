@@ -48,9 +48,7 @@ def test_load_and_write_wikiignore(temp_structure: WikiStructure) -> None:
     assert loaded == ("drafts/**", "*.bak")
 
 
-def test_scan_folder_respects_wikiignore(
-    temp_structure: WikiStructure, tmp_path
-) -> None:
+def test_scan_folder_respects_wikiignore(temp_structure: WikiStructure, tmp_path) -> None:
     source = tmp_path / "import-src"
     (source / "keep").mkdir(parents=True)
     (source / "drafts").mkdir()
@@ -66,12 +64,8 @@ def test_scan_folder_respects_wikiignore(
 def test_store_clip_assets_dedupes_by_url(temp_structure: WikiStructure) -> None:
     png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
     assets = (
-        ClipAssetInput(
-            source_url="https://example.com/a.png", content_type="image/png", data=png
-        ),
-        ClipAssetInput(
-            source_url="https://example.com/a.png", content_type="image/png", data=png
-        ),
+        ClipAssetInput(source_url="https://example.com/a.png", content_type="image/png", data=png),
+        ClipAssetInput(source_url="https://example.com/a.png", content_type="image/png", data=png),
     )
     url_map, stats = store_clip_assets(temp_structure, assets)
     assert len(url_map) == 1
@@ -278,8 +272,6 @@ async def test_publish_clip_ingress_localizes_remote_markdown_images(
         )
 
     assert result.written is True
-    content = temp_structure.get_raw_file_path(result.relative_path).read_text(
-        encoding="utf-8"
-    )
+    content = temp_structure.get_raw_file_path(result.relative_path).read_text(encoding="utf-8")
     assert "wiki/assets/" in content or "../wiki/assets/" in content
     assert "cdn.example.com" not in content

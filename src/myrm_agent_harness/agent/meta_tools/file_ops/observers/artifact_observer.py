@@ -53,9 +53,7 @@ class ArtifactObserver(FileOperationObserver):
         except Exception as e:
             logger.debug(f"Failed to register artifact: {e}")
 
-    async def on_file_modified(
-        self, path: str, old_content: str, new_content: str
-    ) -> None:
+    async def on_file_modified(self, path: str, old_content: str, new_content: str) -> None:
         try:
             from myrm_agent_harness.agent.artifacts.file_id_registry import register_file
             from myrm_agent_harness.agent.artifacts.registry import register_generated_files

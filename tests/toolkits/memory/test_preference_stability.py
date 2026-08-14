@@ -102,28 +102,16 @@ class TestStabilityScorer:
     def test_cue_weight_ordering(self) -> None:
         """Explicit > Implicit > Inferred"""
         now = datetime.now(UTC)
-        explicit = PreferenceFacet(
-            cue=CueFamily.EXPLICIT, evidence_count=1, last_seen=now
-        )
-        implicit = PreferenceFacet(
-            cue=CueFamily.IMPLICIT, evidence_count=1, last_seen=now
-        )
-        inferred = PreferenceFacet(
-            cue=CueFamily.INFERRED, evidence_count=1, last_seen=now
-        )
-        assert (
-            StabilityScorer.score(explicit)
-            > StabilityScorer.score(implicit)
-            > StabilityScorer.score(inferred)
-        )
+        explicit = PreferenceFacet(cue=CueFamily.EXPLICIT, evidence_count=1, last_seen=now)
+        implicit = PreferenceFacet(cue=CueFamily.IMPLICIT, evidence_count=1, last_seen=now)
+        inferred = PreferenceFacet(cue=CueFamily.INFERRED, evidence_count=1, last_seen=now)
+        assert StabilityScorer.score(explicit) > StabilityScorer.score(implicit) > StabilityScorer.score(inferred)
 
     def test_classify_thresholds(self) -> None:
         assert StabilityScorer.classify(2.0) == PreferenceLifecycle.ACTIVE
         assert StabilityScorer.classify(TAU_PROMOTE) == PreferenceLifecycle.ACTIVE
         assert StabilityScorer.classify(1.0) == PreferenceLifecycle.PROVISIONAL
-        assert (
-            StabilityScorer.classify(TAU_PROVISIONAL) == PreferenceLifecycle.PROVISIONAL
-        )
+        assert StabilityScorer.classify(TAU_PROVISIONAL) == PreferenceLifecycle.PROVISIONAL
         assert StabilityScorer.classify(0.5) == PreferenceLifecycle.CANDIDATE
         assert StabilityScorer.classify(TAU_CANDIDATE) == PreferenceLifecycle.CANDIDATE
         assert StabilityScorer.classify(0.2) == PreferenceLifecycle.DROPPED
@@ -141,9 +129,7 @@ class TestSQLitePreferenceFacetStore:
     @pytest.mark.asyncio
     async def test_upsert_and_find(self, store_path: str) -> None:
         store = SQLitePreferenceFacetStore(store_path)
-        facet = PreferenceFacet(
-            id="f1", key="lang", value="Python", category=PreferenceCategory.TOOLING
-        )
+        facet = PreferenceFacet(id="f1", key="lang", value="Python", category=PreferenceCategory.TOOLING)
         await store.upsert(facet)
         found = await store.find_by_key_value("lang", "Python")
         assert found is not None

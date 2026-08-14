@@ -31,9 +31,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def build_background_listeners(
-    *, session_id: str, config: RunnableConfig
-) -> tuple[FinishListener, ProgressListener]:
+def build_background_listeners(*, session_id: str, config: RunnableConfig) -> tuple[FinishListener, ProgressListener]:
     """Return ``(finish_listener, progress_listener)`` bound to this session/config."""
     from myrm_agent_harness.utils.event_utils import dispatch_custom_event
     from myrm_agent_harness.utils.runtime.background_job_finish_registry import (

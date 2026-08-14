@@ -48,9 +48,7 @@ def _fire_and_forget(coro: Coroutine[object, object, object]) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
-def reset_all_guards(
-    *, is_resume: bool = False, graph_recursion_limit: int = 100
-) -> None:
+def reset_all_guards(*, is_resume: bool = False, graph_recursion_limit: int = 100) -> None:
     """Reset all per-request guard state before a new agent run.
 
     Args:
@@ -116,11 +114,7 @@ def extract_query_text(query: object) -> str:
         return query
     if isinstance(query, list):
         return next(
-            (
-                p.get("text", "")
-                for p in query
-                if isinstance(p, dict) and p.get("type") == "text"
-            ),
+            (p.get("text", "") for p in query if isinstance(p, dict) and p.get("type") == "text"),
             "",
         )
     return str(query)
@@ -179,18 +173,14 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                     remaining = MAX_CHARS - current_chars
                     if remaining > 200:
                         truncated_content = content[:remaining] + "...[TRUNCATED]"
-                        serialized_msgs.insert(
-                            0, {"role": role, "content": truncated_content}
-                        )
+                        serialized_msgs.insert(0, {"role": role, "content": truncated_content})
                         current_chars += len(truncated_content)
                     break
 
                 serialized_msgs.insert(0, {"role": role, "content": content})
                 current_chars += msg_len
 
-        _fire_and_forget(
-            registry.enqueue(session_id, user_id, "cognitive_consolidation", {})
-        )
+        _fire_and_forget(registry.enqueue(session_id, user_id, "cognitive_consolidation", {}))
         if chat_id and serialized_msgs:
             _fire_and_forget(
                 registry.enqueue(
@@ -223,11 +213,7 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                 )
 
         if chat_id:
-            _fire_and_forget(
-                registry.enqueue(
-                    session_id, user_id, "context_compaction", {"chat_id": chat_id}
-                )
-            )
+            _fire_and_forget(registry.enqueue(session_id, user_id, "context_compaction", {"chat_id": chat_id}))
         schedule_idle_task(
             session_id,
             lambda: default_idle_callback(session_id, registry),

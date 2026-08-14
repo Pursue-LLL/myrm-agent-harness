@@ -40,4 +40,3 @@ def executor(tmp_path, monkeypatch):
     ex = LocalExecutor(config)
     ex.bind_workspace(str(tmp_path))
     return ex
-

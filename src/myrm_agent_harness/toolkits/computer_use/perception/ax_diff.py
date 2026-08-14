@@ -77,9 +77,7 @@ def _match_prev_to_curr(
                 continue
             cel = curr_refs[cid]
             if _bbox_close(prev_el, cel):
-                dist = abs(prev_el.bbox.center_x - cel.bbox.center_x) + abs(
-                    prev_el.bbox.center_y - cel.bbox.center_y
-                )
+                dist = abs(prev_el.bbox.center_x - cel.bbox.center_x) + abs(prev_el.bbox.center_y - cel.bbox.center_y)
                 if dist < best_dist:
                     best_dist = dist
                     best_id = cid
@@ -140,11 +138,13 @@ def compute_ref_diff(
         curr_el = curr_refs[curr_id]
         fields = _changed_fields(prev_el, curr_el)
         if fields:
-            diff.updated.append(UpdatedRef(
-                ref_id=curr_id,
-                element=curr_el,
-                changed_fields=fields,
-            ))
+            diff.updated.append(
+                UpdatedRef(
+                    ref_id=curr_id,
+                    element=curr_el,
+                    changed_fields=fields,
+                )
+            )
 
     mapped_prev_ids = set(mapping.keys())
     for prev_id in prev_refs:

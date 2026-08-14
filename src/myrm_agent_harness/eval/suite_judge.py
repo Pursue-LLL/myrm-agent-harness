@@ -156,10 +156,7 @@ def _output_tail(result: ExecutionResult) -> str:
     """Bounded tail of the suite command's stdout (stderr merges into stdout)."""
     tail = result.stdout.strip()
     if len(tail) > _OUTPUT_TAIL_CHARS:
-        return (
-            f"... (truncated {len(tail) - _OUTPUT_TAIL_CHARS} chars) "
-            f"{tail[-_OUTPUT_TAIL_CHARS:]}"
-        )
+        return f"... (truncated {len(tail) - _OUTPUT_TAIL_CHARS} chars) {tail[-_OUTPUT_TAIL_CHARS:]}"
     return tail
 
 
@@ -242,11 +239,7 @@ async def _read_reward_payload(
     """
     directory, name = target.rsplit("/", 1) if "/" in target else ("", target)
     candidates = [target]
-    candidates.extend(
-        f"{directory}/{alt}" if directory else alt
-        for alt in _REWARD_CANDIDATE_NAMES
-        if alt != name
-    )
+    candidates.extend(f"{directory}/{alt}" if directory else alt for alt in _REWARD_CANDIDATE_NAMES if alt != name)
     first_readable: tuple[str, str] | None = None
     for candidate in candidates:
         try:
@@ -303,16 +296,12 @@ async def evaluate_test_suite_assertion(
     # report — so only a hard execution error (timeout, crash, security block)
     # aborts before reading the result file, which is then unreliable.
     if result.error:
-        return _suite_failure(
-            f"Test suite command failed: {_command_failure_detail(result)}"
-        )
+        return _suite_failure(f"Test suite command failed: {_command_failure_detail(result)}")
 
     if target.endswith((".json", ".txt")):
         raw, target = await _read_reward_payload(target, executor)
         if raw is None:
-            return _suite_failure(
-                _with_output_tail(f"Reward file '{target}' unreadable", result)
-            )
+            return _suite_failure(_with_output_tail(f"Reward file '{target}' unreadable", result))
         reward = parse_reward_result(raw)
         if reward is not None:
             passed = reward >= 1.0
@@ -340,18 +329,14 @@ async def evaluate_test_suite_assertion(
                 tests_total=tests_total,
                 details=f"{tests_passed}/{tests_total} tests passed",
             )
-        return _suite_failure(
-            f"Reward file '{target}' contains no reward/pass_rate field"
-        )
+        return _suite_failure(f"Reward file '{target}' contains no reward/pass_rate field")
 
     # Default: JUnit XML.
     if target.endswith(".xml"):
         try:
             raw = await executor.read_file(target)
         except Exception as exc:
-            return _suite_failure(
-                _with_output_tail(f"JUnit file '{target}' unreadable: {exc}", result)
-            )
+            return _suite_failure(_with_output_tail(f"JUnit file '{target}' unreadable: {exc}", result))
         tests_passed, tests_total = parse_junit_result(raw)
         if tests_total <= 0:
             return _suite_failure(f"JUnit file '{target}' declares no tests")
@@ -367,9 +352,7 @@ async def evaluate_test_suite_assertion(
 
     # No explicit result file: fall back to command exit success (cmd_success).
     if result.success is False:
-        return _suite_failure(
-            f"Test suite command failed: {_command_failure_detail(result)}"
-        )
+        return _suite_failure(f"Test suite command failed: {_command_failure_detail(result)}")
     return TestSuiteResult(
         passed=True,
         pass_rate=1.0,

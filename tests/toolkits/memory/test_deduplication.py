@@ -145,9 +145,7 @@ class TestHashLayer:
         mem1 = _make_semantic("User prefers dark mode", embedding=_fake_embedding())
         mem2 = _make_semantic("User prefers dark mode", embedding=_fake_embedding())
 
-        result = await deduplicator.deduplicate_batch(
-            [mem1, mem2], mock_vector, mock_embedding, mock_config, None
-        )
+        result = await deduplicator.deduplicate_batch([mem1, mem2], mock_vector, mock_embedding, mock_config, None)
 
         assert len(result) == 1
         assert deduplicator.get_metrics().cache_hits >= 1
@@ -164,9 +162,7 @@ class TestHashLayer:
         mem1 = _make_semantic("User prefers dark mode", embedding=_fake_embedding())
         mem2 = _make_semantic("user  prefers  dark  mode!", embedding=_fake_embedding())
 
-        result = await deduplicator.deduplicate_batch(
-            [mem1, mem2], mock_vector, mock_embedding, mock_config, None
-        )
+        result = await deduplicator.deduplicate_batch([mem1, mem2], mock_vector, mock_embedding, mock_config, None)
 
         assert len(result) == 1
 
@@ -182,9 +178,7 @@ class TestHashLayer:
         mem1 = _make_semantic("User likes Python", embedding=_fake_embedding())
         mem2 = _make_semantic("User likes TypeScript", embedding=_fake_embedding())
 
-        result = await deduplicator.deduplicate_batch(
-            [mem1, mem2], mock_vector, mock_embedding, mock_config, None
-        )
+        result = await deduplicator.deduplicate_batch([mem1, mem2], mock_vector, mock_embedding, mock_config, None)
 
         assert len(result) == 2
 
@@ -548,10 +542,7 @@ class TestEarlyLock:
         config.semantic_collection = "test_semantic"
         config.episodic_collection = "test_episodic"
 
-        mems = [
-            _make_semantic(f"Python variant {i}", embedding=_fake_embedding())
-            for i in range(5)
-        ]
+        mems = [_make_semantic(f"Python variant {i}", embedding=_fake_embedding()) for i in range(5)]
 
         result = await dedup.deduplicate_batch(mems, vector, AsyncMock(), config, None)
 

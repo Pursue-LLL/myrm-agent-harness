@@ -143,9 +143,7 @@ def estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
             "description": tool.description or "",
             "parameters": schema,
         }
-        total += get_token_count(
-            json.dumps(entry, ensure_ascii=False, separators=(",", ":"))
-        )
+        total += get_token_count(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
     return total
 
 
@@ -162,9 +160,7 @@ def estimate_single_tool_tokens(tool: BaseTool) -> int:
     return get_token_count(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
 
 
-def _compact_description(
-    description: str, limit: int = DIRECT_MCP_DESCRIPTION_SOFT_LIMIT
-) -> str:
+def _compact_description(description: str, limit: int = DIRECT_MCP_DESCRIPTION_SOFT_LIMIT) -> str:
     """Compact verbose MCP tool descriptions while preserving a clear summary."""
     normalized = " ".join(description.split())
     if len(normalized) <= limit:
@@ -224,9 +220,7 @@ async def _generate_mcp_skills(
 
     for skill in mcp_skills:
         if skill.mcp:
-            server_configs = [
-                cfg for cfg in ptc_servers if cfg.name == skill.mcp.server
-            ]
+            server_configs = [cfg for cfg in ptc_servers if cfg.name == skill.mcp.server]
             if server_configs:
                 skill.mcp.config = [_config_to_dict(cfg) for cfg in server_configs]
             else:
@@ -267,9 +261,7 @@ async def route_mcp_servers(
     resolved_surface = (
         surface_mode
         if isinstance(surface_mode, MCPSurfaceMode)
-        else parse_mcp_surface_mode(
-            str(surface_mode) if surface_mode is not None else None
-        )
+        else parse_mcp_surface_mode(str(surface_mode) if surface_mode is not None else None)
     )
     from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
     from myrm_agent_harness.toolkits.mcp.connection_manager import (
@@ -289,9 +281,7 @@ async def route_mcp_servers(
         try:
             conn = await manager.get_connection([cfg])
         except Exception as e:
-            logger.warning(
-                "MCP server '%s' failed to connect, skipping: %s", cfg.name, e
-            )
+            logger.warning("MCP server '%s' failed to connect, skipping: %s", cfg.name, e)
             continue
 
         server_tools = conn.tools_by_server.get(cfg.name) or next(
@@ -337,9 +327,7 @@ async def route_mcp_servers(
             len(kept_bundles),
         )
     else:
-        kept_bundles, demoted_configs = demote_direct_servers_over_budget(
-            direct_bundles
-        )
+        kept_bundles, demoted_configs = demote_direct_servers_over_budget(direct_bundles)
         ptc_servers.extend(demoted_configs)
 
     mcp_direct_tools: list[BaseTool] = []

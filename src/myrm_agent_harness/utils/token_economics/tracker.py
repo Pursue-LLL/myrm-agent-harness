@@ -169,9 +169,7 @@ class TokenUsage:
             return parse_int(direct, 0, min_val=0)
         prompt_details = usage.get("prompt_tokens_details", {})
         if isinstance(prompt_details, dict):
-            return parse_int(
-                prompt_details.get("cache_creation_input_tokens"), 0, min_val=0
-            )
+            return parse_int(prompt_details.get("cache_creation_input_tokens"), 0, min_val=0)
         return 0
 
     def _extract_reasoning(self, usage: Mapping[str, object]) -> int:
@@ -198,18 +196,14 @@ class TokenUsage:
         """Serialize to dict for SSE/DB/frontend."""
         return {f: getattr(self, f) for f in _TOKEN_USAGE_FIELDS}
 
-    def get_cache_effectiveness(
-        self, cache_read_ratio: float = 0.1
-    ) -> dict[str, float]:
+    def get_cache_effectiveness(self, cache_read_ratio: float = 0.1) -> dict[str, float]:
         """Compute session-level cache effectiveness.
 
         Args:
             cache_read_ratio: Cache-read cost as fraction of base input cost.
                 Anthropic: 0.1 (90% off), OpenAI: 0.5 (50% off)
         """
-        return compute_prompt_cache_stats(
-            self.prompt_tokens, self.cached_tokens, cache_read_ratio=cache_read_ratio
-        )
+        return compute_prompt_cache_stats(self.prompt_tokens, self.cached_tokens, cache_read_ratio=cache_read_ratio)
 
 
 @dataclass(frozen=True)
@@ -286,21 +280,15 @@ class TokenTracker:
             if model_name not in self.model_usage:
                 self.model_usage[model_name] = TokenUsage()
             self.model_usage[model_name].add(usage)
-            self.model_cost[model_name] = (
-                self.model_cost.get(model_name, 0.0) + cost_usd
-            )
-            self.model_savings[model_name] = (
-                self.model_savings.get(model_name, 0.0) + cache_savings_usd
-            )
+            self.model_cost[model_name] = self.model_cost.get(model_name, 0.0) + cost_usd
+            self.model_savings[model_name] = self.model_savings.get(model_name, 0.0) + cache_savings_usd
 
         if self.tool_stack:
             active_tool = self.tool_stack[-1]
             if active_tool not in self.tool_usage:
                 self.tool_usage[active_tool] = TokenUsage()
             self.tool_usage[active_tool].add(usage)
-            self.tool_cost[active_tool] = (
-                self.tool_cost.get(active_tool, 0.0) + cost_usd
-            )
+            self.tool_cost[active_tool] = self.tool_cost.get(active_tool, 0.0) + cost_usd
 
         if duration_ms is not None:
             _trim_list(self.call_durations_ms)
@@ -312,9 +300,7 @@ class TokenTracker:
 
         self.total_cost_usd += cost_usd
         self.total_cache_savings_usd += cache_savings_usd
-        if cost_status == "actual" or (
-            self.cost_status == "unknown" and cost_status != "unknown"
-        ):
+        if cost_status == "actual" or (self.cost_status == "unknown" and cost_status != "unknown"):
             self.cost_status = cost_status
 
         if self.budget_checker is not None and cost_usd > 0:
@@ -354,11 +340,7 @@ class TokenTracker:
         sorted_ttft = sorted(self.call_ttft_ms) if self.call_ttft_ms else []
 
         total_duration_s = sum(self.call_durations_ms) / 1000.0
-        avg_tps = (
-            self.usage.completion_tokens / total_duration_s
-            if total_duration_s > 0
-            else 0.0
-        )
+        avg_tps = self.usage.completion_tokens / total_duration_s if total_duration_s > 0 else 0.0
 
         return LatencyStats(
             call_count=len(sorted_durations),
@@ -389,12 +371,8 @@ class TokenTracker:
             target = self.model_usage[model]
             for f in _TOKEN_USAGE_FIELDS:
                 setattr(target, f, getattr(target, f) + getattr(model_usage, f))
-            self.model_cost[model] = self.model_cost.get(
-                model, 0.0
-            ) + other.model_cost.get(model, 0.0)
-            self.model_savings[model] = self.model_savings.get(
-                model, 0.0
-            ) + other.model_savings.get(model, 0.0)
+            self.model_cost[model] = self.model_cost.get(model, 0.0) + other.model_cost.get(model, 0.0)
+            self.model_savings[model] = self.model_savings.get(model, 0.0) + other.model_savings.get(model, 0.0)
 
         for tool, tool_usage in other.tool_usage.items():
             if tool not in self.tool_usage:
@@ -402,18 +380,14 @@ class TokenTracker:
             target = self.tool_usage[tool]
             for f in _TOKEN_USAGE_FIELDS:
                 setattr(target, f, getattr(target, f) + getattr(tool_usage, f))
-            self.tool_cost[tool] = self.tool_cost.get(tool, 0.0) + other.tool_cost.get(
-                tool, 0.0
-            )
+            self.tool_cost[tool] = self.tool_cost.get(tool, 0.0) + other.tool_cost.get(tool, 0.0)
 
         self.call_durations_ms.extend(other.call_durations_ms)
         self.call_ttft_ms.extend(other.call_ttft_ms)
         self.call_count += other.call_count
         self.total_cost_usd += other.total_cost_usd
         self.total_cache_savings_usd += other.total_cache_savings_usd
-        if other.cost_status == "actual" or (
-            self.cost_status == "unknown" and other.cost_status != "unknown"
-        ):
+        if other.cost_status == "actual" or (self.cost_status == "unknown" and other.cost_status != "unknown"):
             self.cost_status = other.cost_status
         self.error_count += other.error_count
 
@@ -478,12 +452,8 @@ class _UsageLedgerType(Protocol):
     def append(self, record: object) -> None: ...
 
 
-_current_tracker: ContextVar[TokenTracker | None] = ContextVar(
-    "token_tracker", default=None
-)
-_current_ledger: ContextVar[_UsageLedgerType | None] = ContextVar(
-    "usage_ledger", default=None
-)
+_current_tracker: ContextVar[TokenTracker | None] = ContextVar("token_tracker", default=None)
+_current_ledger: ContextVar[_UsageLedgerType | None] = ContextVar("usage_ledger", default=None)
 
 
 def init_token_tracker(

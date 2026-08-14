@@ -12,9 +12,7 @@ from myrm_agent_harness.toolkits.llms.capability_learner import get_capability_l
 def test_openai_like_models_default_to_unsupported() -> None:
     learner = get_capability_learner()
     learner.clear()
-    assert (
-        model_supports_allowed_tools_tool_choice("openai-like/agnes-2.5-flash") is False
-    )
+    assert model_supports_allowed_tools_tool_choice("openai-like/agnes-2.5-flash") is False
 
 
 def test_minimax_models_default_to_unsupported() -> None:

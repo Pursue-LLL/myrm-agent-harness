@@ -37,9 +37,7 @@ class WikiStructure:
     DIRECTORY_OVERVIEW_FILENAME = ".overview.md"
     INDEX_CATALOG_RELATIVE_PATH = "wiki/index.md"
 
-    def __init__(
-        self, base_dir: Path | str, public_dirs: list[Path | str] | None = None
-    ):
+    def __init__(self, base_dir: Path | str, public_dirs: list[Path | str] | None = None):
         """
         Initialize wiki structure.
 
@@ -133,19 +131,11 @@ class WikiStructure:
 
     def list_concepts(self) -> list[Path]:
         """List all concept articles, including from public federated mounts."""
-        concepts = [
-            p
-            for p in sorted(self.concepts_dir.rglob("*.md"))
-            if not self._is_directory_sidecar(p)
-        ]
+        concepts = [p for p in sorted(self.concepts_dir.rglob("*.md")) if not self._is_directory_sidecar(p)]
         for p_dir in self.public_dirs:
             p_concepts = p_dir / "wiki" / "concepts"
             if p_concepts.exists():
-                concepts.extend(
-                    p
-                    for p in sorted(p_concepts.rglob("*.md"))
-                    if not self._is_directory_sidecar(p)
-                )
+                concepts.extend(p for p in sorted(p_concepts.rglob("*.md")) if not self._is_directory_sidecar(p))
         return concepts
 
     def get_purpose_path(self) -> Path:
@@ -234,9 +224,7 @@ class WikiStructure:
         if extensions is None:
             extensions = [".md", ".txt", ".org"]
 
-        ext_set = {
-            e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions
-        }
+        ext_set = {e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions}
 
         files: list[Path] = []
         ignore_patterns = self.load_wikiignore_patterns()

@@ -37,9 +37,7 @@ class TestExactMatchPrepass:
 
 class TestSemanticAssertionShortCircuit:
     async def _run(self, expected: str, actual: str) -> tuple[bool | None, str | None]:
-        assertion = SemanticAssertion(
-            type="llm_judge", expected=expected, threshold=1.0
-        )
+        assertion = SemanticAssertion(type="llm_judge", expected=expected, threshold=1.0)
         # acompletion is never reached on an exact match; if the code calls it,
         # the AsyncMock raises and the test fails loudly.
         with patch(

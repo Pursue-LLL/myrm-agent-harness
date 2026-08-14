@@ -71,9 +71,7 @@ class BaseAgent(BaseAgentModesMixin):
     ``_build_middlewares``, ``_build_tools``, ``_prepare_context``.
     """
 
-    ArtifactReadyHandler = Callable[
-        [dict[str, object]], Awaitable[dict[str, object] | None]
-    ]
+    ArtifactReadyHandler = Callable[[dict[str, object]], Awaitable[dict[str, object] | None]]
 
     def __init__(
         self,
@@ -144,9 +142,7 @@ class BaseAgent(BaseAgentModesMixin):
             )
         existing_names = {e.name for e in self._extensions}
         if ext.name in existing_names:
-            raise ValueError(
-                f"Extension name conflict: '{ext.name}' is already registered."
-            )
+            raise ValueError(f"Extension name conflict: '{ext.name}' is already registered.")
         self._extensions.append(ext)
 
     async def _ensure_initialized(self) -> None:
@@ -214,9 +210,7 @@ class BaseAgent(BaseAgentModesMixin):
                 get_tool_registry_sort_key,
             )
 
-            self._cached_tools.sort(
-                key=lambda t: get_tool_registry_sort_key(t.name, get_tool_layer(t.name))
-            )
+            self._cached_tools.sort(key=lambda t: get_tool_registry_sort_key(t.name, get_tool_layer(t.name)))
 
         logger.debug("BaseAgent: final tools=%s", [t.name for t in self._cached_tools])
 
@@ -234,9 +228,7 @@ class BaseAgent(BaseAgentModesMixin):
             model=llm,
             tools=self._cached_tools,
             system_prompt=self._cached_system_prompt,
-            middleware=cast(
-                list["AgentMiddleware[Any, Any]"], self._cached_middlewares
-            ),
+            middleware=cast(list["AgentMiddleware[Any, Any]"], self._cached_middlewares),
             context_schema=self.context_schema,
             checkpointer=self.checkpointer,
         )
@@ -253,14 +245,10 @@ class BaseAgent(BaseAgentModesMixin):
         schedule_init_preheat(llm, self._cached_system_prompt, model_name)
 
         if self._cached_system_prompt and needs_explicit_preheat(model_name):
-            self._cache_keepalive = CacheKeepAliveManager(
-                llm, self._cached_system_prompt, model_name
-            )
+            self._cache_keepalive = CacheKeepAliveManager(llm, self._cached_system_prompt, model_name)
             self._cache_keepalive.start()
 
-    def _rebuild_agent_with_llm(
-        self, new_llm: BaseChatModel
-    ) -> CompiledStateGraph[Any, Any, Any, Any]:
+    def _rebuild_agent_with_llm(self, new_llm: BaseChatModel) -> CompiledStateGraph[Any, Any, Any, Any]:
         """Rebuild agent graph with a different LLM for failover.
 
         Returns the newly compiled graph so the active stream
@@ -318,9 +306,7 @@ class BaseAgent(BaseAgentModesMixin):
             model=llm,
             tools=self._cached_tools,
             system_prompt=self._cached_system_prompt,
-            middleware=cast(
-                list["AgentMiddleware[Any, Any]"], self._cached_middlewares
-            ),
+            middleware=cast(list["AgentMiddleware[Any, Any]"], self._cached_middlewares),
             context_schema=self.context_schema,
             checkpointer=self.checkpointer,
         )
@@ -333,9 +319,7 @@ class BaseAgent(BaseAgentModesMixin):
         original_bind_tools = llm.bind_tools
         parallel = self.config.parallel_tool_calls
 
-        def patched_bind_tools(
-            tools: Sequence[dict[str, Any] | type | BaseTool | Any], **kwargs: Any
-        ) -> Any:
+        def patched_bind_tools(tools: Sequence[dict[str, Any] | type | BaseTool | Any], **kwargs: Any) -> Any:
             kwargs.setdefault("parallel_tool_calls", parallel)
             return original_bind_tools(tools, **kwargs)
 
@@ -356,9 +340,7 @@ class BaseAgent(BaseAgentModesMixin):
         """Build the middleware chain. Override in subclasses for customization."""
         from ._internals.agent_runtime import build_middlewares
 
-        return build_middlewares(
-            self._tool_registry, self.user_middlewares, self.config.engine_params
-        )
+        return build_middlewares(self._tool_registry, self.user_middlewares, self.config.engine_params)
 
     def _create_registry(self) -> ToolRegistry:
         """Create a fresh ToolRegistry for this build cycle."""
@@ -404,9 +386,7 @@ class BaseAgent(BaseAgentModesMixin):
         from myrm_agent_harness.agent.errors.agent_errors import AgentBusyError
 
         if self._is_running:
-            raise AgentBusyError(
-                "Agent is already running a task. Please wait for it to complete."
-            )
+            raise AgentBusyError("Agent is already running a task. Please wait for it to complete.")
 
         self._is_running = True
 
@@ -472,9 +452,7 @@ class BaseAgent(BaseAgentModesMixin):
         ):
             yield event
 
-    async def _setup_workspace(
-        self, context: dict[str, object] | None, message_id: str
-    ) -> dict[str, object]:
+    async def _setup_workspace(self, context: dict[str, object] | None, message_id: str) -> dict[str, object]:
         """Create workspace, bind executor, and set context vars."""
         from ._internals.run_lifecycle import setup_workspace
 
@@ -539,9 +517,7 @@ class BaseAgent(BaseAgentModesMixin):
         min_success_rate: float = 0.5,
         timeout: float | None = None,
     ) -> dict[str, object]:
-        return await self._subagent_manager.wait_children(
-            task_ids, min_success_rate=min_success_rate, timeout=timeout
-        )
+        return await self._subagent_manager.wait_children(task_ids, min_success_rate=min_success_rate, timeout=timeout)
 
     async def trigger_async_wakeup(self, result: SubAgentResult) -> None:
         """Trigger an async wakeup event for the parent agent.
@@ -570,9 +546,7 @@ class BaseAgent(BaseAgentModesMixin):
         if handler:
             try:
                 await handler.on_async_wakeup(result, agent_id, session_id)
-                logger.info(
-                    f"Triggered global wakeup handler for subagent {result.task_id} (session_id={session_id})"
-                )
+                logger.info(f"Triggered global wakeup handler for subagent {result.task_id} (session_id={session_id})")
             except Exception as e:
                 logger.error(f"Global wakeup handler failed: {e}")
 
@@ -609,9 +583,7 @@ class BaseAgent(BaseAgentModesMixin):
             thread_id=thread_id,
         )
 
-    async def restore_checkpoint_state(
-        self, checkpoint_data: dict[str, object]
-    ) -> None:
+    async def restore_checkpoint_state(self, checkpoint_data: dict[str, object]) -> None:
         """Restore execution state from checkpoint data.
 
         Restores messages to the checkpointer and runtime context to the agent.

@@ -209,9 +209,7 @@ class TestEdgeCases:
         async def end_hook(reason: str) -> None:
             received_end.append(reason)
 
-        coord = TakeoverCoordinator(
-            timeout_s=60, on_takeover_start=start_hook, on_takeover_end=end_hook
-        )
+        coord = TakeoverCoordinator(timeout_s=60, on_takeover_start=start_hook, on_takeover_end=end_hook)
         await coord.request_takeover()
         await coord.resume_agent()
         await coord.cleanup()

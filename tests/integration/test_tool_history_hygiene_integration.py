@@ -60,12 +60,7 @@ class TestGraceCallPipeline:
         ]
         repaired = repair_dangling_tool_calls(sanitize_tool_history(list(messages)))
 
-        ai_ids = [
-            tc["id"]
-            for m in repaired
-            if isinstance(m, AIMessage)
-            for tc in (m.tool_calls or [])
-        ]
+        ai_ids = [tc["id"] for m in repaired if isinstance(m, AIMessage) for tc in (m.tool_calls or [])]
         assert ai_ids == ["call_x", "call_x@2"]
         assert len(ai_ids) == len(set(ai_ids))
 

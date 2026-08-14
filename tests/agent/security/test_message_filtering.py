@@ -47,9 +47,7 @@ class TestFilterConfig:
         assert cfg.audit_enabled is True
 
     def test_custom(self):
-        cfg = FilterConfig(
-            enabled=False, whitelist_api_keys={"k1"}, audit_enabled=False
-        )
+        cfg = FilterConfig(enabled=False, whitelist_api_keys={"k1"}, audit_enabled=False)
         assert cfg.enabled is False
         assert "k1" in cfg.whitelist_api_keys
 
@@ -62,9 +60,7 @@ class TestFilterContext:
         assert ctx.metadata == {}
 
     def test_full(self):
-        ctx = FilterContext(
-            user_id="u1", api_key="k", request_id="r", metadata={"x": 1}
-        )
+        ctx = FilterContext(user_id="u1", api_key="k", request_id="r", metadata={"x": 1})
         assert ctx.api_key == "k"
         assert ctx.metadata["x"] == 1
 
@@ -89,9 +85,7 @@ class TestMessageFilterABC:
 class TestSystemRoleFilter:
     @pytest.fixture()
     def _cfg(self):
-        return FilterConfig(
-            enabled=True, whitelist_api_keys={"admin-key"}, audit_enabled=True
-        )
+        return FilterConfig(enabled=True, whitelist_api_keys={"admin-key"}, audit_enabled=True)
 
     @pytest.fixture()
     def _ctx(self):

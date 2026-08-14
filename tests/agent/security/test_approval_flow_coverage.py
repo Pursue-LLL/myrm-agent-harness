@@ -182,8 +182,7 @@ class TestAllowlistTTLCleanup:
         store._data["fresh_user"] = [AllowlistEntry(permission="network")]
         await allowlist.load_user("fresh_user")
 
-        assert "expired_user" not in allowlist._cache_meta, \
-            "expired_user should be cleaned from cache_meta"
+        assert "expired_user" not in allowlist._cache_meta, "expired_user should be cleaned from cache_meta"
         assert allowlist.check("fresh_user", "network")
 
     @pytest.mark.asyncio

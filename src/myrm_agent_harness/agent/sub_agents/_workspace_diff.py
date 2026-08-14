@@ -57,10 +57,7 @@ def diff_snapshots(
     """
     added = sorted(after.keys() - before.keys())
     removed = sorted(before.keys() - after.keys())
-    modified = sorted(
-        k for k in before.keys() & after.keys()
-        if before[k] != after[k]
-    )
+    modified = sorted(k for k in before.keys() & after.keys() if before[k] != after[k])
 
     if not added and not removed and not modified:
         return ""

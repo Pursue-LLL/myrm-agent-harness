@@ -35,9 +35,7 @@ def _build_minimal_pdf_bytes(text: str) -> bytes:
         b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
         b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
         b"/Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
-        f"4 0 obj\n<< /Length {stream_len} >>\nstream\n".encode("latin-1")
-        + stream_bytes
-        + b"\nendstream\nendobj\n",
+        f"4 0 obj\n<< /Length {stream_len} >>\nstream\n".encode("latin-1") + stream_bytes + b"\nendstream\nendobj\n",
         b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
     ]
 
@@ -648,14 +646,17 @@ class TestFetchUrlAsMarkdown:
 
         mock_response = type("MockResponse", (), {"status_code": 200, "text": html_content})()
 
-        with patch(
-            "myrm_agent_harness.toolkits.web_fetch.web_fetch_tools.crawl",
-            new_callable=AsyncMock,
-            side_effect=RuntimeError("FetchEngine unavailable"),
-        ), patch(
-            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
-            new_callable=AsyncMock,
-            return_value=mock_response,
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.web_fetch_tools.crawl",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("FetchEngine unavailable"),
+            ),
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+                new_callable=AsyncMock,
+                return_value=mock_response,
+            ),
         ):
             result = await _fetch_url_as_markdown("http://example.com/test")
 
@@ -672,15 +673,19 @@ class TestFetchUrlAsMarkdown:
 
         mock_response = type("MockResponse", (), {"status_code": 404, "text": ""})()
 
-        with patch(
-            "myrm_agent_harness.toolkits.web_fetch.web_fetch_tools.crawl",
-            new_callable=AsyncMock,
-            side_effect=RuntimeError("FetchEngine unavailable"),
-        ), patch(
-            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
-            new_callable=AsyncMock,
-            return_value=mock_response,
-        ), pytest.raises(ValueError, match="HTTP 404"):
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.web_fetch_tools.crawl",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("FetchEngine unavailable"),
+            ),
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+                new_callable=AsyncMock,
+                return_value=mock_response,
+            ),
+            pytest.raises(ValueError, match="HTTP 404"),
+        ):
             await _fetch_url_as_markdown("http://example.com/missing")
 
     @pytest.mark.asyncio
@@ -704,9 +709,7 @@ class TestIngestAutoCompile:
     """Tests for wiki_ingest auto-compilation trigger."""
 
     @pytest.mark.asyncio
-    async def test_ingest_calls_enqueue_file(
-        self, wiki_structure: WikiStructure, mock_llm: MagicMock
-    ) -> None:
+    async def test_ingest_calls_enqueue_file(self, wiki_structure: WikiStructure, mock_llm: MagicMock) -> None:
         """Test that wiki_ingest triggers enqueue_file on the compiler."""
         from unittest.mock import patch
 
@@ -757,9 +760,12 @@ class TestQueryArchiveNonBlocking:
             confidence_score=1.0,
         )
 
-        with patch.object(query_engine, "query", new=AsyncMock(return_value=mock_query_result)), patch(
-            "myrm_agent_harness.toolkits.wiki.wiki_agent_tools._archive_query_result",
-            side_effect=RuntimeError("disk full"),
+        with (
+            patch.object(query_engine, "query", new=AsyncMock(return_value=mock_query_result)),
+            patch(
+                "myrm_agent_harness.toolkits.wiki.wiki_agent_tools._archive_query_result",
+                side_effect=RuntimeError("disk full"),
+            ),
         ):
             result = await query_tool.ainvoke({"question": "test?"})
 
@@ -856,12 +862,15 @@ class TestParseBinaryDocument:
         doc_path = tmp_path / "sheet.txt"
         doc_path.write_text("tabular data", encoding="utf-8")
 
-        with patch(
-            "myrm_agent_harness.toolkits.file_parsers.is_supported",
-            return_value=True,
-        ), patch(
-            "myrm_agent_harness.toolkits.file_parsers.get_parser",
-        ) as get_parser:
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.is_supported",
+                return_value=True,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.get_parser",
+            ) as get_parser,
+        ):
             parser = MagicMock()
             parser.parse = AsyncMock(return_value="# Sheet\nData")
             get_parser.return_value = parser
@@ -888,10 +897,13 @@ class TestParseBinaryDocument:
         bad_path = tmp_path / "unknown.bin"
         bad_path.write_bytes(b"data")
 
-        with patch(
-            "myrm_agent_harness.toolkits.file_parsers.is_supported",
-            return_value=False,
-        ), pytest.raises(ValueError, match="Unsupported file type"):
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.is_supported",
+                return_value=False,
+            ),
+            pytest.raises(ValueError, match="Unsupported file type"),
+        ):
             await _parse_binary_document(str(bad_path))
 
     @pytest.mark.asyncio
@@ -902,12 +914,15 @@ class TestParseBinaryDocument:
         doc_path = tmp_path / "empty.txt"
         doc_path.write_text("", encoding="utf-8")
 
-        with patch(
-            "myrm_agent_harness.toolkits.file_parsers.is_supported",
-            return_value=True,
-        ), patch(
-            "myrm_agent_harness.toolkits.file_parsers.get_parser",
-        ) as get_parser:
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.is_supported",
+                return_value=True,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.file_parsers.get_parser",
+            ) as get_parser,
+        ):
             parser = MagicMock()
             parser.parse = AsyncMock(return_value="   ")
             get_parser.return_value = parser
@@ -920,34 +935,24 @@ class TestIngestPathTraversalDefense:
     """Real end-to-end path traversal defense: no mock on path security."""
 
     @pytest.mark.asyncio
-    async def test_traversal_filename_stripped_by_tool(
-        self, wiki_tools: list, wiki_structure: WikiStructure
-    ) -> None:
+    async def test_traversal_filename_stripped_by_tool(self, wiki_tools: list, wiki_structure: WikiStructure) -> None:
         """Malicious filename with ../ is stripped to just the leaf name."""
         ingest_tool = next(t for t in wiki_tools if t.name == "wiki_ingest_tool")
-        result = await ingest_tool.ainvoke(
-            {"source": "Payload content", "filename": "../../../etc/cron.d/evil.md"}
-        )
+        result = await ingest_tool.ainvoke({"source": "Payload content", "filename": "../../../etc/cron.d/evil.md"})
         assert "Successfully ingested" in result
         assert (wiki_structure.raw_dir / "evil.md").exists()
         assert not (wiki_structure.raw_dir.parent / "etc").exists()
 
     @pytest.mark.asyncio
-    async def test_absolute_path_filename_stripped(
-        self, wiki_tools: list, wiki_structure: WikiStructure
-    ) -> None:
+    async def test_absolute_path_filename_stripped(self, wiki_tools: list, wiki_structure: WikiStructure) -> None:
         """Absolute path in filename is stripped to leaf name."""
         ingest_tool = next(t for t in wiki_tools if t.name == "wiki_ingest_tool")
-        result = await ingest_tool.ainvoke(
-            {"source": "Payload", "filename": "/tmp/hacked.md"}
-        )
+        result = await ingest_tool.ainvoke({"source": "Payload", "filename": "/tmp/hacked.md"})
         assert "Successfully ingested" in result
         assert (wiki_structure.raw_dir / "hacked.md").exists()
 
     @pytest.mark.asyncio
-    async def test_traversal_with_folder_path(
-        self, wiki_tools: list, wiki_structure: WikiStructure
-    ) -> None:
+    async def test_traversal_with_folder_path(self, wiki_tools: list, wiki_structure: WikiStructure) -> None:
         """Traversal in filename combined with folder_path is still safe."""
         ingest_tool = next(t for t in wiki_tools if t.name == "wiki_ingest_tool")
         result = await ingest_tool.ainvoke(
@@ -961,36 +966,26 @@ class TestIngestPathTraversalDefense:
         assert (wiki_structure.raw_dir / "research" / "ai" / "passwd.md").exists()
 
     @pytest.mark.asyncio
-    async def test_normal_ingest_still_works(
-        self, wiki_tools: list, wiki_structure: WikiStructure
-    ) -> None:
+    async def test_normal_ingest_still_works(self, wiki_tools: list, wiki_structure: WikiStructure) -> None:
         """Normal filenames still work correctly after security hardening."""
         ingest_tool = next(t for t in wiki_tools if t.name == "wiki_ingest_tool")
-        result = await ingest_tool.ainvoke(
-            {"source": "Normal doc", "filename": "my-notes.md"}
-        )
+        result = await ingest_tool.ainvoke({"source": "Normal doc", "filename": "my-notes.md"})
         assert "Successfully ingested" in result
         assert (wiki_structure.raw_dir / "my-notes.md").exists()
         content = (wiki_structure.raw_dir / "my-notes.md").read_text()
         assert content == "Normal doc"
 
     @pytest.mark.asyncio
-    async def test_backslash_traversal(
-        self, wiki_tools: list, wiki_structure: WikiStructure
-    ) -> None:
+    async def test_backslash_traversal(self, wiki_tools: list, wiki_structure: WikiStructure) -> None:
         """Windows-style backslash traversal is rejected before write."""
         ingest_tool = next(t for t in wiki_tools if t.name == "wiki_ingest_tool")
-        result = await ingest_tool.ainvoke(
-            {"source": "Content", "filename": "..\\..\\evil.md"}
-        )
+        result = await ingest_tool.ainvoke({"source": "Content", "filename": "..\\..\\evil.md"})
         assert "Failed to ingest document" in result
         assert ".." in result
         assert not (wiki_structure.raw_dir.parent.parent / "evil.md").exists()
 
     @pytest.mark.asyncio
-    async def test_empty_filename_auto_generated(
-        self, wiki_tools: list, wiki_structure: WikiStructure
-    ) -> None:
+    async def test_empty_filename_auto_generated(self, wiki_tools: list, wiki_structure: WikiStructure) -> None:
         """Empty filename triggers auto-generated hash name, safely."""
         ingest_tool = next(t for t in wiki_tools if t.name == "wiki_ingest_tool")
         result = await ingest_tool.ainvoke({"source": "Auto-named content", "filename": ""})
@@ -999,21 +994,15 @@ class TestIngestPathTraversalDefense:
         assert len(raw_files) >= 1
 
     @pytest.mark.asyncio
-    async def test_filename_with_special_chars(
-        self, wiki_tools: list, wiki_structure: WikiStructure
-    ) -> None:
+    async def test_filename_with_special_chars(self, wiki_tools: list, wiki_structure: WikiStructure) -> None:
         """Filenames with spaces/special chars are preserved (no traversal)."""
         ingest_tool = next(t for t in wiki_tools if t.name == "wiki_ingest_tool")
-        result = await ingest_tool.ainvoke(
-            {"source": "Content", "filename": "my document (v2).md"}
-        )
+        result = await ingest_tool.ainvoke({"source": "Content", "filename": "my document (v2).md"})
         assert "Successfully ingested" in result
         assert (wiki_structure.raw_dir / "my document (v2).md").exists()
 
     @pytest.mark.asyncio
-    async def test_folder_path_traversal_sanitized(
-        self, wiki_tools: list, wiki_structure: WikiStructure
-    ) -> None:
+    async def test_folder_path_traversal_sanitized(self, wiki_tools: list, wiki_structure: WikiStructure) -> None:
         """Traversal in folder_path is sanitized by _sanitize_path."""
         ingest_tool = next(t for t in wiki_tools if t.name == "wiki_ingest_tool")
         result = await ingest_tool.ainvoke(
@@ -1027,14 +1016,10 @@ class TestIngestPathTraversalDefense:
         assert not (wiki_structure.raw_dir.parent / "etc" / "safe.md").exists()
 
     @pytest.mark.asyncio
-    async def test_double_dot_without_slash_accepted(
-        self, wiki_tools: list, wiki_structure: WikiStructure
-    ) -> None:
+    async def test_double_dot_without_slash_accepted(self, wiki_tools: list, wiki_structure: WikiStructure) -> None:
         """Filename '..evil.md' (no slash) is a valid name, not traversal."""
         ingest_tool = next(t for t in wiki_tools if t.name == "wiki_ingest_tool")
-        result = await ingest_tool.ainvoke(
-            {"source": "Content", "filename": "..evil.md"}
-        )
+        result = await ingest_tool.ainvoke({"source": "Content", "filename": "..evil.md"})
         assert "Successfully ingested" in result
         assert (wiki_structure.raw_dir / "..evil.md").exists()
 
@@ -1057,4 +1042,3 @@ class TestSplitIfLarge:
         assert len(chunks) > 1
         assert all(name.endswith(".md") for name, _ in chunks)
         assert chunks[0][0].startswith("Research/")
-

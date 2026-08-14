@@ -22,6 +22,7 @@ def test_parse_deepseek_dsml_basic():
     assert args["query"] == "python asyncio"
     assert args["options"]["limit"] == 5
 
+
 def test_parse_deepseek_dsml_unclosed():
     # Simulate streaming chunk that is cut off
     text = """<｜DSML｜tool_calls>
@@ -36,6 +37,7 @@ def test_parse_deepseek_dsml_unclosed():
     args = json.loads(call["function"]["arguments"])
     assert args["query"] == "python asyncio"
 
+
 def test_parse_deepseek_dsml_in_reasoning():
     reasoning = """<｜DSML｜tool_calls>
     <｜DSML｜invoke name="read_file">
@@ -46,6 +48,7 @@ def test_parse_deepseek_dsml_in_reasoning():
     calls = parse_tool_calls({"reasoning_content": reasoning})
     assert len(calls) == 1
     assert calls[0]["function"]["name"] == "read_file"
+
 
 def test_parse_deepseek_dsml_with_available_tools():
     text = """<｜DSML｜tool_calls>

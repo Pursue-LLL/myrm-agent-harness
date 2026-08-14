@@ -163,7 +163,9 @@ async def test_tool_snapshot_with_diff(browser_session: BrowserSession) -> None:
     # Second snapshot (incremental diff)
     result2 = await browser_snapshot.ainvoke({"scope": "content", "diff": True})
     # Diff should detect change: either shows new content or diff markers
-    assert "v2" in result2.lower() or "new" in result2.lower() or "button" in result2.lower() or "diff" in result2.lower()
+    assert (
+        "v2" in result2.lower() or "new" in result2.lower() or "button" in result2.lower() or "diff" in result2.lower()
+    )
 
 
 # =============================================================================

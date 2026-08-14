@@ -64,9 +64,7 @@ class TestSessionMethods:
         )
 
         session = manager.begin_session("chat-1")
-        event = session.add_event(
-            "User asked a question", event_type="question", related_entities=["Python"]
-        )
+        event = session.add_event("User asked a question", event_type="question", related_entities=["Python"])
 
         assert isinstance(event, EpisodicMemory)
         assert event.content == "User asked a question"
@@ -74,9 +72,7 @@ class TestSessionMethods:
         assert event.related_entities == ["Python"]
         assert session.buffer_size == 1
 
-    def test_session_add_rule(
-        self, mock_vector_store, mock_relational_store, mock_embedding, memory_config
-    ):
+    def test_session_add_rule(self, mock_vector_store, mock_relational_store, mock_embedding, memory_config):
         """Test add_rule method."""
         rule_obj = ProceduralMemory(
             id="rule-1",
@@ -117,6 +113,7 @@ class TestSessionMethods:
     ):
         """Test set_profile method."""
         from myrm_agent_harness.toolkits.memory._internal.memory_scanner import ScanResult, ScanVerdict
+
         mock_scan.side_effect = lambda x, **kwargs: ScanResult(verdict=ScanVerdict.CLEAN, cleaned_text=x)
         manager = MemoryManager(
             memory_config,
@@ -132,9 +129,7 @@ class TestSessionMethods:
         call_args = mock_relational_store.set_profile.call_args
         assert call_args[0][:2] == ("timezone", "UTC+8")
 
-    def test_session_search_buffer(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    def test_session_search_buffer(self, mock_vector_store, mock_embedding, memory_config):
         """Test search_buffer method."""
         manager = MemoryManager(
             memory_config,
@@ -154,9 +149,7 @@ class TestSessionMethods:
         assert all("Python" in m.content for m in results)
 
     @pytest.mark.asyncio
-    async def test_session_flush_empty_buffer(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_session_flush_empty_buffer(self, mock_vector_store, mock_embedding, memory_config):
         """Test flushing empty buffer returns empty list."""
         manager = MemoryManager(
             memory_config,
@@ -190,9 +183,7 @@ class TestSessionMethods:
         assert discarded_count == 3
         assert session.buffer_size == 0
 
-    def test_session_buffer_size_property(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    def test_session_buffer_size_property(self, mock_vector_store, mock_embedding, memory_config):
         """Test buffer_size property."""
         manager = MemoryManager(
             memory_config,
@@ -230,12 +221,8 @@ class TestSessionDrainPending:
         mgr = self._make_mock_manager()
 
         hook = ToolMemoryCaptureHook()
-        await hook.on_post_tool_failure(
-            "POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"}
-        )
-        await hook.on_post_tool_failure(
-            "POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"}
-        )
+        await hook.on_post_tool_failure("POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"})
+        await hook.on_post_tool_failure("POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"})
         assert len(hook.pending_rules) == 1
 
         session = MemorySession(manager=mgr, chat_id="chat-1", tool_capture_hook=hook)
@@ -254,12 +241,8 @@ class TestSessionDrainPending:
         mgr = self._make_mock_manager()
 
         hook = ToolMemoryCaptureHook()
-        await hook.on_post_tool_failure(
-            "POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"}
-        )
-        await hook.on_post_tool_failure(
-            "POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"}
-        )
+        await hook.on_post_tool_failure("POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"})
+        await hook.on_post_tool_failure("POST_TOOL_USE_FAILURE", {"tool_name": "web_fetch_tool", "error": "timeout"})
         pending_content = hook.pending_rules[0].content
 
         session = MemorySession(manager=mgr, chat_id="chat-1", tool_capture_hook=hook)

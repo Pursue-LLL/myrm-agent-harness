@@ -11,12 +11,30 @@ from myrm_agent_harness.toolkits.browser.snapshot.self_healer import SelfHealer
 @pytest.mark.asyncio
 async def test_self_healer_performance():
     page = AsyncMock(spec=Page)
-    ref_info = RefInfo(role="button", name="Submit", nth=0, bbox=BBox(x=10, y=10, width=100, height=30, centerX=60, centerY=25, viewport_x=10, viewport_y=10, viewport_width=1920, viewport_height=1080))
+    ref_info = RefInfo(
+        role="button",
+        name="Submit",
+        nth=0,
+        bbox=BBox(
+            x=10,
+            y=10,
+            width=100,
+            height=30,
+            centerX=60,
+            centerY=25,
+            viewport_x=10,
+            viewport_y=10,
+            viewport_width=1920,
+            viewport_height=1080,
+        ),
+    )
 
     mock_candidates_locator = AsyncMock(spec=Locator)
+
     # Simulate a fast JS evaluation
     async def mock_evaluate_all(*args, **kwargs):
         return [1, 15.5]
+
     mock_candidates_locator.evaluate_all.side_effect = mock_evaluate_all
 
     mock_healed_locator = AsyncMock(spec=Locator)
@@ -34,6 +52,7 @@ async def test_self_healer_performance():
     assert elapsed_ms < 50.0  # Should be virtually instantaneous in Python side, well under 50ms.
     print(f"\n[Performance] SelfHealer.heal executed in {elapsed_ms:.2f} ms")
 
+
 @pytest.mark.asyncio
 async def test_self_healer_no_bbox():
     page = AsyncMock(spec=Page)
@@ -43,10 +62,27 @@ async def test_self_healer_no_bbox():
     assert name is None
     assert dist == 0.0
 
+
 @pytest.mark.asyncio
 async def test_self_healer_success():
     page = AsyncMock(spec=Page)
-    ref_info = RefInfo(role="button", name="Submit", nth=0, bbox=BBox(x=10, y=10, width=100, height=30, centerX=60, centerY=25, viewport_x=10, viewport_y=10, viewport_width=1920, viewport_height=1080))
+    ref_info = RefInfo(
+        role="button",
+        name="Submit",
+        nth=0,
+        bbox=BBox(
+            x=10,
+            y=10,
+            width=100,
+            height=30,
+            centerX=60,
+            centerY=25,
+            viewport_x=10,
+            viewport_y=10,
+            viewport_width=1920,
+            viewport_height=1080,
+        ),
+    )
 
     mock_candidates_locator = AsyncMock(spec=Locator)
     # Return index 1 as the best match and distance 15.5
@@ -71,13 +107,30 @@ async def test_self_healer_success():
     assert args["origName"] == "Submit"
     assert args["origRole"] == "button"
 
+
 @pytest.mark.asyncio
 async def test_self_healer_cursor_roles():
     page = AsyncMock(spec=Page)
-    ref_info = RefInfo(role="clickable", name="Click Me", nth=0, bbox=BBox(x=10, y=10, width=100, height=30, centerX=60, centerY=25, viewport_x=10, viewport_y=10, viewport_width=1920, viewport_height=1080))
+    ref_info = RefInfo(
+        role="clickable",
+        name="Click Me",
+        nth=0,
+        bbox=BBox(
+            x=10,
+            y=10,
+            width=100,
+            height=30,
+            centerX=60,
+            centerY=25,
+            viewport_x=10,
+            viewport_y=10,
+            viewport_width=1920,
+            viewport_height=1080,
+        ),
+    )
 
     mock_candidates_locator = AsyncMock(spec=Locator)
-    mock_candidates_locator.evaluate_all.return_value = -1 # No match found
+    mock_candidates_locator.evaluate_all.return_value = -1  # No match found
 
     page.locator.return_value = mock_candidates_locator
 
@@ -96,9 +149,21 @@ async def test_self_healer_text_content_exception():
     """When text_content raises, healed_name should be None but locator still returned."""
     page = AsyncMock(spec=Page)
     ref_info = RefInfo(
-        role="button", name="Save", nth=0,
-        bbox=BBox(x=10, y=10, width=80, height=30, centerX=50, centerY=25,
-                  viewport_x=10, viewport_y=10, viewport_width=1920, viewport_height=1080),
+        role="button",
+        name="Save",
+        nth=0,
+        bbox=BBox(
+            x=10,
+            y=10,
+            width=80,
+            height=30,
+            centerX=50,
+            centerY=25,
+            viewport_x=10,
+            viewport_y=10,
+            viewport_width=1920,
+            viewport_height=1080,
+        ),
     )
     mock_candidates = AsyncMock(spec=Locator)
     mock_candidates.evaluate_all.return_value = [0, 5.0]
@@ -119,9 +184,21 @@ async def test_self_healer_evaluate_all_exception():
     """When JS evaluation itself throws, heal returns (None, None, 0.0)."""
     page = AsyncMock(spec=Page)
     ref_info = RefInfo(
-        role="link", name="Home", nth=0,
-        bbox=BBox(x=20, y=20, width=60, height=20, centerX=50, centerY=30,
-                  viewport_x=20, viewport_y=20, viewport_width=1920, viewport_height=1080),
+        role="link",
+        name="Home",
+        nth=0,
+        bbox=BBox(
+            x=20,
+            y=20,
+            width=60,
+            height=20,
+            centerX=50,
+            centerY=30,
+            viewport_x=20,
+            viewport_y=20,
+            viewport_width=1920,
+            viewport_height=1080,
+        ),
     )
     mock_candidates = AsyncMock(spec=Locator)
     mock_candidates.evaluate_all.side_effect = RuntimeError("page crashed")

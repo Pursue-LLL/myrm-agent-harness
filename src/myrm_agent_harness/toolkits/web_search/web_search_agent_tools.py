@@ -134,14 +134,12 @@ def create_web_search_tool(
             explicit_params = {"time_range": time_range}
 
         web_search = WebSearchTools(search_service_cfg, reranker_config=reranker_config)
-        sources_metadata, formatted_context = (
-            await web_search.fast_search_with_questions(
-                questions=questions,
-                search_results_per_query=10,
-                top_k=10,
-                explicit_params=explicit_params,
-                blocked_hostnames=blocked_hostnames,
-            )
+        sources_metadata, formatted_context = await web_search.fast_search_with_questions(
+            questions=questions,
+            search_results_per_query=10,
+            top_k=10,
+            explicit_params=explicit_params,
+            blocked_hostnames=blocked_hostnames,
         )
 
         from myrm_agent_harness.toolkits.web_search.citation_resolver import (
@@ -155,20 +153,13 @@ def create_web_search_tool(
                 wrap_with_external_sources_tag,
             )
 
-            content = wrap_with_external_sources_tag(
-                formatted_context, source="web_search"
-            )
+            content = wrap_with_external_sources_tag(formatted_context, source="web_search")
         else:
             content = formatted_context
 
         sufficiency_metadata: dict[str, object] = {}
 
-        if (
-            sufficiency_config
-            and sufficiency_config.enabled
-            and sufficiency_llm_config
-            and content
-        ):
+        if sufficiency_config and sufficiency_config.enabled and sufficiency_llm_config and content:
             from myrm_agent_harness.toolkits.retriever.sufficiency import (
                 evaluate_sufficiency,
             )
@@ -186,24 +177,16 @@ def create_web_search_tool(
                 "confidence": verdict.confidence,
                 "missing_aspects": list(verdict.missing_aspects),
                 "suggested_queries": list(verdict.suggested_queries),
-                "negative_constraint_violations": list(
-                    verdict.negative_constraint_violations
-                ),
+                "negative_constraint_violations": list(verdict.negative_constraint_violations),
             }
 
-            if (
-                not verdict.is_sufficient
-                and verdict.confidence >= sufficiency_config.confidence_threshold
-            ):
+            if not verdict.is_sufficient and verdict.confidence >= sufficiency_config.confidence_threshold:
                 guidance_parts: list[str] = []
                 if verdict.missing_aspects:
-                    guidance_parts.append(
-                        "**Missing information**: " + "; ".join(verdict.missing_aspects)
-                    )
+                    guidance_parts.append("**Missing information**: " + "; ".join(verdict.missing_aspects))
                 if verdict.suggested_queries:
                     guidance_parts.append(
-                        "**Suggested follow-up searches**: "
-                        + ", ".join(f'"{q}"' for q in verdict.suggested_queries)
+                        "**Suggested follow-up searches**: " + ", ".join(f'"{q}"' for q in verdict.suggested_queries)
                     )
                 if verdict.negative_constraint_violations:
                     guidance_parts.append(
@@ -220,11 +203,7 @@ def create_web_search_tool(
                 "sources": sources_metadata,
                 "search_queries": questions,
                 "total_results": len(sources_metadata),
-                **(
-                    {"sufficiency": sufficiency_metadata}
-                    if sufficiency_metadata
-                    else {}
-                ),
+                **({"sufficiency": sufficiency_metadata} if sufficiency_metadata else {}),
             },
         }
 

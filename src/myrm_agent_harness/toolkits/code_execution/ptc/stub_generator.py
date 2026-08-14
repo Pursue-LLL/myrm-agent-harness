@@ -206,23 +206,16 @@ def _generate_function(tool: BaseTool) -> str:
     args_build = "    args = {}\n"
     for name, _, required, json_type in params:
         if json_type in _STRUCTURED_PARAM_TYPES:
-            args_build += (
-                f"    if isinstance({name}, str):\n"
-                f"        {name} = json.loads({name})\n"
-            )
+            args_build += f"    if isinstance({name}, str):\n        {name} = json.loads({name})\n"
             if required:
                 args_build += f"    args['{name}'] = {name}\n"
             else:
-                args_build += (
-                    f"    if {name} is not None:\n        args['{name}'] = {name}\n"
-                )
+                args_build += f"    if {name} is not None:\n        args['{name}'] = {name}\n"
         elif json_type in _SCALAR_NON_STRING_TYPES:
             if required:
                 args_build += f"    args['{name}'] = {name}\n"
             else:
-                args_build += (
-                    f"    if {name} is not None:\n        args['{name}'] = {name}\n"
-                )
+                args_build += f"    if {name} is not None:\n        args['{name}'] = {name}\n"
         else:
             if required:
                 args_build += f"    args['{name}'] = {name}\n"
@@ -257,9 +250,7 @@ def generate_stubs(
 
     if use_tcp_fallback:
         preamble_lines = _PREAMBLE.split("\n")
-        module_doc_end = next(
-            i for i, line in enumerate(preamble_lines) if line.startswith("import json")
-        )
+        module_doc_end = next(i for i, line in enumerate(preamble_lines) if line.startswith("import json"))
         parts.append("\n".join(preamble_lines[:module_doc_end]))
         parts.append(
             "import json\n"

@@ -23,12 +23,8 @@ from myrm_agent_harness.agent.security.types import (
 @pytest.mark.asyncio
 async def test_mcp_readonly_tool_auto_approved():
     """Read-only MCP tool with registered annotations gets Fast-Path auto-approve."""
-    with patch(
-        "myrm_agent_harness.agent.middlewares.approval.batch_processor.resolve_safety_metadata"
-    ) as mock_meta:
-        mock_meta.return_value = SafetyMetadata(
-            is_read_only=True, is_open_world=False, is_concurrent_safe=True
-        )
+    with patch("myrm_agent_harness.agent.middlewares.approval.batch_processor.resolve_safety_metadata") as mock_meta:
+        mock_meta.return_value = SafetyMetadata(is_read_only=True, is_open_world=False, is_concurrent_safe=True)
 
         config = SecurityConfig(auto_mode_enabled=False, path_policy=PathPolicy())
         tool_call = ToolCall(
@@ -56,12 +52,8 @@ async def test_mcp_readonly_tool_auto_approved():
 @pytest.mark.asyncio
 async def test_mcp_writable_tool_stays_pending():
     """Non-read-only MCP tool stays in pending_approval (HITL prompt)."""
-    with patch(
-        "myrm_agent_harness.agent.middlewares.approval.batch_processor.resolve_safety_metadata"
-    ) as mock_meta:
-        mock_meta.return_value = SafetyMetadata(
-            is_read_only=False, is_open_world=False, is_destructive=True
-        )
+    with patch("myrm_agent_harness.agent.middlewares.approval.batch_processor.resolve_safety_metadata") as mock_meta:
+        mock_meta.return_value = SafetyMetadata(is_read_only=False, is_open_world=False, is_destructive=True)
 
         config = SecurityConfig(auto_mode_enabled=False, path_policy=PathPolicy())
         tool_call = ToolCall(
@@ -87,12 +79,8 @@ async def test_mcp_writable_tool_stays_pending():
 @pytest.mark.asyncio
 async def test_mcp_readonly_but_open_world_stays_pending():
     """Read-only but openWorld MCP tool stays in pending_approval."""
-    with patch(
-        "myrm_agent_harness.agent.middlewares.approval.batch_processor.resolve_safety_metadata"
-    ) as mock_meta:
-        mock_meta.return_value = SafetyMetadata(
-            is_read_only=True, is_open_world=True, is_concurrent_safe=True
-        )
+    with patch("myrm_agent_harness.agent.middlewares.approval.batch_processor.resolve_safety_metadata") as mock_meta:
+        mock_meta.return_value = SafetyMetadata(is_read_only=True, is_open_world=True, is_concurrent_safe=True)
 
         config = SecurityConfig(auto_mode_enabled=False, path_policy=PathPolicy())
         tool_call = ToolCall(
@@ -167,9 +155,8 @@ async def test_mcp_denied_by_rule_not_overridden():
 @pytest.mark.asyncio
 async def test_mcp_mixed_batch_readonly_and_writable():
     """Mixed batch: read-only tool auto-approved, writable tool stays pending."""
-    with patch(
-        "myrm_agent_harness.agent.middlewares.approval.batch_processor.resolve_safety_metadata"
-    ) as mock_meta:
+    with patch("myrm_agent_harness.agent.middlewares.approval.batch_processor.resolve_safety_metadata") as mock_meta:
+
         def side_effect(name):
             if name == "mcp__gmail__search_inbox":
                 return SafetyMetadata(is_read_only=True, is_open_world=False, is_concurrent_safe=True)
@@ -202,9 +189,7 @@ async def test_mcp_mixed_batch_readonly_and_writable():
 @pytest.mark.asyncio
 async def test_mcp_readonly_but_destructive_stays_pending():
     """Contradictory annotations (readOnly + destructive) stay pending (defensive)."""
-    with patch(
-        "myrm_agent_harness.agent.middlewares.approval.batch_processor.resolve_safety_metadata"
-    ) as mock_meta:
+    with patch("myrm_agent_harness.agent.middlewares.approval.batch_processor.resolve_safety_metadata") as mock_meta:
         mock_meta.return_value = SafetyMetadata(
             is_read_only=True, is_destructive=True, is_open_world=False, is_concurrent_safe=True
         )

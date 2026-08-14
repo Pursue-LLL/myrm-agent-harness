@@ -16,13 +16,19 @@ class TestMemoryManagerInitialization:
     def test_init_with_approval_requires_relational(self, mock_vector_store, mock_embedding, memory_config):
         """Test that approval_required=True requires relational backend."""
         with pytest.raises(MemoryError, match="approval_required=True requires a relational backend"):
-            MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, approval_required=True
+            MemoryManager(
+                memory_config,
+                user_id="test_user",
+                vector=mock_vector_store,
+                embedding=mock_embedding,
+                approval_required=True,
             )
 
     def test_init_with_dedup_llm(self, mock_vector_store, mock_embedding, memory_config):
         """Test initialization with dedup_llm creates deduplicator."""
         mock_llm = MagicMock()
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, dedup_llm=mock_llm
+        manager = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, dedup_llm=mock_llm
         )
 
         assert manager._deduplicator is not None
@@ -35,14 +41,22 @@ class TestMemoryManagerInitialization:
             "myrm_agent_harness.toolkits.memory.strategies.deduplicator.SmartDeduplicator",
             side_effect=Exception("Init failed"),
         ):
-            manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, dedup_llm=mock_llm
+            manager = MemoryManager(
+                memory_config,
+                user_id="test_user",
+                vector=mock_vector_store,
+                embedding=mock_embedding,
+                dedup_llm=mock_llm,
             )
 
             assert manager._deduplicator is None
 
     def test_properties_access(self, mock_vector_store, mock_relational_store, mock_embedding, memory_config):
         """Test all property accessors."""
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             relational=mock_relational_store,
             embedding=mock_embedding,
             approval_required=True,
@@ -56,7 +70,10 @@ class TestMemoryManagerInitialization:
         assert manager.approval_required is True
 
     def test_scope_and_namespaces_are_derived(self, mock_vector_store, mock_embedding, memory_config):
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             agent_id="planner",
             channel_id="telegram",
@@ -75,7 +92,10 @@ class TestMemoryManagerInitialization:
         assert manager.scope.channel_id == "telegram"
 
     def test_memory_policy_formalizes_read_write_boundaries(self, mock_vector_store, mock_embedding, memory_config):
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             memory_policy=AgentMemoryPolicy(
                 agent_id="planner",
@@ -101,7 +121,10 @@ class TestMemoryManagerInitialization:
         self, mock_vector_store, mock_embedding, memory_config
     ):
         with pytest.raises(ValueError, match="requires a matching scope ID"):
-            MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+            MemoryManager(
+                memory_config,
+                user_id="test_user",
+                vector=mock_vector_store,
                 embedding=mock_embedding,
                 memory_policy=AgentMemoryPolicy(agent_id="planner", write_policy=MemoryWritePolicy.TASK),
             )
@@ -110,7 +133,12 @@ class TestMemoryManagerInitialization:
         self, mock_vector_store, mock_relational_store, mock_embedding, memory_config
     ):
         """Test get_enabled_types with all backends."""
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, relational=mock_relational_store, embedding=mock_embedding
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
         )
 
         enabled = manager.get_enabled_types()
@@ -139,9 +167,7 @@ class TestMemoryManagerInitialization:
         assert MemoryType.SEMANTIC not in enabled
         assert MemoryType.EPISODIC not in enabled
 
-    def test_vector_is_persistent_reflects_store_flag(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    def test_vector_is_persistent_reflects_store_flag(self, mock_vector_store, mock_embedding, memory_config):
         """持久化状态必须透出底层 vector store 的真实能力。
 
         内存 fallback store（is_persistent=False）时 manager 必须报告非持久化，

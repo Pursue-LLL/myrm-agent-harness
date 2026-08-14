@@ -50,9 +50,7 @@ class TestWebSearchToolsBasic:
             )
         ]
 
-        with patch.object(
-            tools._searcher, "search", new_callable=AsyncMock, return_value=mock_results
-        ):
+        with patch.object(tools._searcher, "search", new_callable=AsyncMock, return_value=mock_results):
             results = await tools.search(query="test query", num_results=5)
 
             assert results is not None
@@ -67,11 +65,7 @@ class TestWebSearchToolsBasic:
         mock_results = [
             (
                 "query1",
-                [
-                    Document(
-                        page_content="content", metadata={"url": "https://example.com"}
-                    )
-                ],
+                [Document(page_content="content", metadata={"url": "https://example.com"})],
                 None,
             )
         ]
@@ -158,9 +152,7 @@ class TestWebSearchToolsBasic:
         config = SearchServiceConfig(search_service="perplexity", api_key="test-key")
         reranker_cfg = RerankerConfig(model="cohere/rerank-v3.5", api_key="test-key")
 
-        with patch(
-            "myrm_agent_harness.toolkits.retriever.reranker.get_reranker_service"
-        ) as mock_get:
+        with patch("myrm_agent_harness.toolkits.retriever.reranker.get_reranker_service") as mock_get:
             mock_get.return_value = Mock()
             tools = WebSearchTools(config=config, reranker_config=reranker_cfg)
 
@@ -198,9 +190,7 @@ class TestWebSearchToolsBasic:
                 tools._retriever_manager,
                 "bm25_retrieval_with_mapping",
                 new_callable=AsyncMock,
-                return_value={
-                    "query1": [(Document(page_content="c1", metadata={}), 0.9)]
-                },
+                return_value={"query1": [(Document(page_content="c1", metadata={}), 0.9)]},
             ),
             patch.object(
                 tools._retriever_manager,
@@ -241,9 +231,7 @@ class TestWebSearcher:
 
         # Mock search 方法
         mock_result = [SearchResult(title="T", link="https://e.com", snippet="S")]
-        with patch.object(
-            searcher, "search", new_callable=AsyncMock, return_value=mock_result
-        ):
+        with patch.object(searcher, "search", new_callable=AsyncMock, return_value=mock_result):
             results = await searcher.multi_query_parallel_search(
                 queries=["q1", "q2"],
                 results_per_query=5,  # 修正参数名
@@ -408,9 +396,7 @@ class TestLiteLLMSearch:
         with patch(
             "myrm_agent_harness.toolkits.web_search.litellm_search.search",
             new_callable=AsyncMock,
-            return_value={
-                "results": [{"title": "R1", "link": "https://e.com/1", "snippet": "S1"}]
-            },
+            return_value={"results": [{"title": "R1", "link": "https://e.com/1", "snippet": "S1"}]},
         ):
             results = await engine.search(query="test query", num_results=5)
 

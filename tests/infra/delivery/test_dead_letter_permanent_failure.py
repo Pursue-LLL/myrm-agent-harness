@@ -455,4 +455,3 @@ async def test_dlq_ttl_delete_failure_keeps_delivery(tmp_path, monkeypatch: pyte
     )
     await dlq._process_failed_messages()
     assert await dlq.get_failed_count() == 1
-

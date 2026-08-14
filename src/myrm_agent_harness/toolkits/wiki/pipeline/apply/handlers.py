@@ -70,7 +70,9 @@ def _merge_string_list(existing: object, incoming: tuple[str, ...]) -> list[str]
     return merged
 
 
-def _merge_claims_by_id(existing: tuple[WikiClaim, ...], incoming: tuple[dict[str, object], ...]) -> tuple[WikiClaim, ...]:
+def _merge_claims_by_id(
+    existing: tuple[WikiClaim, ...], incoming: tuple[dict[str, object], ...]
+) -> tuple[WikiClaim, ...]:
     by_id: dict[str, WikiClaim] = {claim.id: claim for claim in existing}
     for raw in incoming:
         parsed = _parse_claim_entry(raw)

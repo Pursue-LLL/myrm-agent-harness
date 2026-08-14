@@ -11,9 +11,11 @@ class DummyEvent:
         self.event_type = event_type
         self.data = data
 
+
 @pytest.fixture
 def mock_backend():
     return AsyncMock(spec=EventLogBackend)
+
 
 @pytest.mark.asyncio
 async def test_analyze_slice_no_backend():
@@ -21,11 +23,13 @@ async def test_analyze_slice_no_backend():
     result = await analyzer.analyze_slice("session_1", ["call_1"])
     assert result is None
 
+
 @pytest.mark.asyncio
 async def test_analyze_slice_no_tool_call_ids(mock_backend):
     analyzer = TraceAnalyzer(backend=mock_backend)
     result = await analyzer.analyze_slice("session_1", [])
     assert result is None
+
 
 @pytest.mark.asyncio
 async def test_analyze_slice_no_events(mock_backend):
@@ -33,6 +37,7 @@ async def test_analyze_slice_no_events(mock_backend):
     analyzer = TraceAnalyzer(backend=mock_backend)
     result = await analyzer.analyze_slice("session_1", ["call_1"])
     assert result is None
+
 
 @pytest.mark.asyncio
 async def test_analyze_slice_no_matching_events(mock_backend):
@@ -43,9 +48,12 @@ async def test_analyze_slice_no_matching_events(mock_backend):
     result = await analyzer.analyze_slice("session_1", ["call_1"])
     assert result is None
 
+
 @pytest.mark.asyncio
 async def test_analyze_slice_success(mock_backend):
-    event1 = DummyEvent(event_type="pre_tool_use", data={"tool_call_id": "call_1", "tool_name": "test_tool", "tool_input": {"args": 1}})
+    event1 = DummyEvent(
+        event_type="pre_tool_use", data={"tool_call_id": "call_1", "tool_name": "test_tool", "tool_input": {"args": 1}}
+    )
 
     event2 = DummyEvent(event_type="post_tool_use", data={"tool_call_id": "call_1", "tool_output": "success result"})
 
@@ -59,9 +67,12 @@ async def test_analyze_slice_success(mock_backend):
     assert "test_tool" in result.formatted_trace
     assert "success result" in result.formatted_trace
 
+
 @pytest.mark.asyncio
 async def test_analyze_slice_failure_incoherent(mock_backend):
-    event1 = DummyEvent(event_type="pre_tool_use", data={"tool_call_id": "call_1", "tool_name": "test_tool", "tool_input": {"args": 1}})
+    event1 = DummyEvent(
+        event_type="pre_tool_use", data={"tool_call_id": "call_1", "tool_name": "test_tool", "tool_input": {"args": 1}}
+    )
 
     event2 = DummyEvent(event_type="post_tool_use_failure", data={"tool_call_id": "call_1", "error": "error result"})
 
@@ -74,6 +85,7 @@ async def test_analyze_slice_failure_incoherent(mock_backend):
     # 1 call, 1 error -> 100% error rate -> incoherent
     assert result.is_coherent is False
     assert "error result" in result.formatted_trace
+
 
 @pytest.mark.asyncio
 async def test_extract_trajectory_with_code(mock_backend):
@@ -88,6 +100,7 @@ async def test_extract_trajectory_with_code(mock_backend):
     result = await analyzer.extract_trajectory_with_code("session_1", skill)
     assert "Trace history" in result
     assert "def test():\n    pass" in result
+
 
 @pytest.mark.asyncio
 async def test_extract_trajectory_no_backend():

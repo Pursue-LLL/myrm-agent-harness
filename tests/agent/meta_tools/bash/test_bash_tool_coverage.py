@@ -361,9 +361,7 @@ async def test_bash_tool_foreground_with_truncation_eviction_and_hint() -> None:
         ),
     ):
         tool = create_bash_code_execute_tool(
-            skills=[
-                SimpleNamespace(name="s", oauth_issuer="iss", storage_path="/skills/s")
-            ],
+            skills=[SimpleNamespace(name="s", oauth_issuer="iss", storage_path="/skills/s")],
             skill_env_map={"s": {}},
             global_env={"G": "1"},
         )
@@ -495,10 +493,7 @@ async def test_maybe_build_image_blocks_exception_str_fallback_and_overflow() ->
         ),
         patch(
             "myrm_agent_harness.agent.meta_tools.file_ops.utils.image_reader.read_image_as_content_blocks",
-            AsyncMock(
-                side_effect=[OSError("fail"), "text-fallback"]
-                + [[image_block]] * MAX_IMAGES_PER_RETURN
-            ),
+            AsyncMock(side_effect=[OSError("fail"), "text-fallback"] + [[image_block]] * MAX_IMAGES_PER_RETURN),
         ),
     ):
         blocks = await maybe_build_image_blocks(

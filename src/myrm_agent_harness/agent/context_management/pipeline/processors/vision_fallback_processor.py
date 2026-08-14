@@ -74,9 +74,7 @@ def _last_paragraph(text: str | None) -> str:
     return paragraphs[-1] if paragraphs else ""
 
 
-def _find_adjacent_assistant_hint(
-    messages: list[BaseMessage], index: int
-) -> str | None:
+def _find_adjacent_assistant_hint(messages: list[BaseMessage], index: int) -> str | None:
     """Find the closing paragraph of the nearest preceding AIMessage."""
     for i in range(index - 1, -1, -1):
         msg = messages[i]
@@ -165,9 +163,7 @@ async def apply_vision_fallback_to_messages(
     vision_fallback_model_cfgs: object | None = None,
 ) -> int:
     """Convert media blocks to vision-fallback text. Returns number of messages updated."""
-    if supports_vision or (
-        vision_fallback_model_cfg is None and vision_fallback_model_cfgs is None
-    ):
+    if supports_vision or (vision_fallback_model_cfg is None and vision_fallback_model_cfgs is None):
         return 0
 
     engine = create_vision_fallback_engine(
@@ -268,9 +264,7 @@ class VisionFallbackProcessor(BaseProcessor):
             return context
 
         supports_vision = bool(context.metadata.get("supports_vision", True))
-        file_content_reader = (
-            self._file_content_reader or self._resolve_file_content_reader(context)
-        )
+        file_content_reader = self._file_content_reader or self._resolve_file_content_reader(context)
         converted = await apply_vision_fallback_to_messages(
             context.messages,
             vision_cfg if vision_cfg is not None else vision_cfgs,

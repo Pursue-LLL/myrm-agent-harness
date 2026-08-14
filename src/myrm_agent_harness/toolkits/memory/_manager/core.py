@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     )
     from myrm_agent_harness.toolkits.memory.strategies.preference_stability_store import PreferenceFacetStoreProtocol
     from myrm_agent_harness.toolkits.memory.types import MemorySearchResult
+
     FTS5SearcherFunc = Callable[[str, int], Awaitable[list[MemorySearchResult]]]
 
 
@@ -192,8 +193,11 @@ class MemoryManagerCore:
             scope=self._scope,
         )
         self._maintenance_service = MaintenanceService(
-            config=config, vector=vector, graph=graph,
-            relational=relational, namespaces=self._namespaces,
+            config=config,
+            vector=vector,
+            graph=graph,
+            relational=relational,
+            namespaces=self._namespaces,
         )
         self._consolidation_llm: BaseChatModel | None = consolidation_llm
         self._fts5_searcher: FTS5SearcherFunc | None = fts5_searcher

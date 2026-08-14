@@ -56,7 +56,7 @@ class TestLinterRegistry:
 
 class TestParsePyrightOutput:
     def test_valid_json_output(self):
-        raw = '''{
+        raw = """{
             "generalDiagnostics": [
                 {
                     "file": "/workspace/src/main.py",
@@ -65,7 +65,7 @@ class TestParsePyrightOutput:
                     "range": {"start": {"line": 4, "character": 11}}
                 }
             ]
-        }'''
+        }"""
         result = _parse_pyright_output(raw)
         assert len(result) == 1
         assert result[0].file == "/workspace/src/main.py"
@@ -75,7 +75,7 @@ class TestParsePyrightOutput:
         assert "namee" in result[0].message
 
     def test_filters_warnings(self):
-        raw = '''{
+        raw = """{
             "generalDiagnostics": [
                 {
                     "file": "/workspace/src/main.py",
@@ -90,7 +90,7 @@ class TestParsePyrightOutput:
                     "range": {"start": {"line": 2, "character": 5}}
                 }
             ]
-        }'''
+        }"""
         result = _parse_pyright_output(raw)
         assert len(result) == 1
         assert result[0].severity == "error"
@@ -132,10 +132,7 @@ class TestParseGenericOutput:
         assert "not assignable" in result[0].message
 
     def test_multiple_errors(self):
-        raw = (
-            "src/a.ts(1,1): error TS001: First error\n"
-            "src/b.ts(2,3): error TS002: Second error\n"
-        )
+        raw = "src/a.ts(1,1): error TS001: First error\nsrc/b.ts(2,3): error TS002: Second error\n"
         result = _parse_generic_output(raw)
         assert len(result) == 2
 
@@ -179,10 +176,7 @@ class TestFilterDiagnostics:
         assert len(result) == 1
 
     def test_respects_max_limit(self):
-        diags = [
-            Diagnostic(file="main.py", line=i, col=1, severity="error", message=f"err {i}")
-            for i in range(1, 20)
-        ]
+        diags = [Diagnostic(file="main.py", line=i, col=1, severity="error", message=f"err {i}") for i in range(1, 20)]
         result = _filter_diagnostics(diags, "main.py", None, None)
         assert len(result) == 5
 
@@ -340,9 +334,7 @@ class TestRunAutoVerify:
 
         executor.execute_bash.side_effect = [which_result, lint_result]
 
-        result = await run_auto_verify(
-            executor, "/workspace/main.py", edit_line_start=8, edit_line_end=12
-        )
+        result = await run_auto_verify(executor, "/workspace/main.py", edit_line_start=8, edit_line_end=12)
         assert result is not None
         assert "Near edit" in result
         assert "Far away" not in result
@@ -432,9 +424,7 @@ class TestRunAutoVerify:
 
         executor.execute_bash.side_effect = [which_result, lint_result]
 
-        result = await run_auto_verify(
-            executor, "/workspace/main.py", edit_line_start=1, edit_line_end=3
-        )
+        result = await run_auto_verify(executor, "/workspace/main.py", edit_line_start=1, edit_line_end=3)
         assert result is None
 
     @pytest.mark.asyncio

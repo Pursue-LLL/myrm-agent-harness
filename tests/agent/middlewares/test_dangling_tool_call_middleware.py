@@ -219,12 +219,14 @@ class TestInvalidToolCalls:
             AIMessage(
                 content="Let me write that.",
                 tool_calls=[],
-                invalid_tool_calls=[{
-                    "name": "write_file",
-                    "args": "broken json",
-                    "id": "call_invalid_1",
-                    "error": "JSON parse failed",
-                }],
+                invalid_tool_calls=[
+                    {
+                        "name": "write_file",
+                        "args": "broken json",
+                        "id": "call_invalid_1",
+                        "error": "JSON parse failed",
+                    }
+                ],
             ),
             HumanMessage(content="try again"),
         ]
@@ -247,12 +249,14 @@ class TestInvalidToolCalls:
             AIMessage(
                 content="",
                 tool_calls=[],
-                invalid_tool_calls=[{
-                    "name": "bash",
-                    "args": "{broken",
-                    "id": "call_err_1",
-                    "error": error_msg,
-                }],
+                invalid_tool_calls=[
+                    {
+                        "name": "bash",
+                        "args": "{broken",
+                        "id": "call_err_1",
+                        "error": error_msg,
+                    }
+                ],
             ),
         ]
         patched = _build_patched_messages(messages)
@@ -268,12 +272,14 @@ class TestInvalidToolCalls:
             AIMessage(
                 content="",
                 tool_calls=[],
-                invalid_tool_calls=[{
-                    "name": "write_file",
-                    "args": "broken",
-                    "id": "call_big_1",
-                    "error": huge_error,
-                }],
+                invalid_tool_calls=[
+                    {
+                        "name": "write_file",
+                        "args": "broken",
+                        "id": "call_big_1",
+                        "error": huge_error,
+                    }
+                ],
             ),
         ]
         patched = _build_patched_messages(messages)
@@ -288,12 +294,14 @@ class TestInvalidToolCalls:
             AIMessage(
                 content="",
                 tool_calls=[{"id": "tc_valid", "name": "search", "args": {"q": "test"}}],
-                invalid_tool_calls=[{
-                    "name": "write_file",
-                    "args": "bad",
-                    "id": "tc_invalid",
-                    "error": "parse error",
-                }],
+                invalid_tool_calls=[
+                    {
+                        "name": "write_file",
+                        "args": "bad",
+                        "id": "tc_invalid",
+                        "error": "parse error",
+                    }
+                ],
             ),
         ]
         patched = _build_patched_messages(messages)
@@ -339,7 +347,9 @@ class TestInvalidToolCalls:
                 content="",
                 tool_calls=[{"id": "tc_standard", "name": "search", "args": {}}],
                 additional_kwargs={
-                    "tool_calls": [{"id": "raw_ignored", "type": "function", "function": {"name": "x", "arguments": "{}"}}]
+                    "tool_calls": [
+                        {"id": "raw_ignored", "type": "function", "function": {"name": "x", "arguments": "{}"}}
+                    ]
                 },
             ),
             ToolMessage(content="ok", tool_call_id="tc_standard", name="search"),

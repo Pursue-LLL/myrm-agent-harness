@@ -38,9 +38,7 @@ if TYPE_CHECKING:
     )
     from myrm_agent_harness.toolkits.retriever.embedding.factory import EmbeddingConfig
 
-_MARKET_INSTALLED_LINE = (
-    "NOT for installing new skills from external markets — use `skill_market_tool` for that."
-)
+_MARKET_INSTALLED_LINE = "NOT for installing new skills from external markets — use `skill_market_tool` for that."
 _MARKET_OFF_LINE = (
     "NOT for installing new skills from external markets. "
     "Install skills via product Settings → Skills → Discover, "

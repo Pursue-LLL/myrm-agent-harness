@@ -194,18 +194,24 @@ class TestLinuxBackendWindowText:
     @pytest.fixture
     def backend(self) -> object:
         from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
+
         return LinuxBackend(display_num=1)
 
     @pytest.mark.asyncio
     async def test_success(self, backend: object) -> None:
         from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
+
         assert isinstance(backend, LinuxBackend)
 
-        with patch.object(backend, "_run_cmd", side_effect=[
-            ("Terminal - bash", "", 0),
-            ("12345678", "", 0),
-            ('WM_CLASS(STRING) = "gnome-terminal", "Gnome-terminal"', "", 0),
-        ]):
+        with patch.object(
+            backend,
+            "_run_cmd",
+            side_effect=[
+                ("Terminal - bash", "", 0),
+                ("12345678", "", 0),
+                ('WM_CLASS(STRING) = "gnome-terminal", "Gnome-terminal"', "", 0),
+            ],
+        ):
             result = await backend.window_text()
 
         assert result.success is True
@@ -215,6 +221,7 @@ class TestLinuxBackendWindowText:
     @pytest.mark.asyncio
     async def test_failure(self, backend: object) -> None:
         from myrm_agent_harness.toolkits.computer_use.backends.linux import LinuxBackend
+
         assert isinstance(backend, LinuxBackend)
 
         with patch.object(

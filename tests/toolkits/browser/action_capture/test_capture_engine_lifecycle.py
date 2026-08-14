@@ -155,9 +155,7 @@ async def test_pause_and_resume_without_session_noop() -> None:
 async def test_bridge_ignores_events_when_session_missing() -> None:
     page = _FakePage()
     eng = await _make_engine(page)
-    await eng._on_action_event(
-        '{"action":"click","selector":"#x","value":"","url":"u","title":"","ts":1.0}'
-    )
+    await eng._on_action_event('{"action":"click","selector":"#x","value":"","url":"u","title":"","ts":1.0}')
     assert eng.session is None
 
 
@@ -166,9 +164,7 @@ async def test_bridge_ignores_events_when_paused() -> None:
     eng = await _make_engine(page)
     await eng.start()
     await eng.pause()
-    await eng._on_action_event(
-        '{"action":"click","selector":"#x","value":"","url":"u","title":"","ts":1.0}'
-    )
+    await eng._on_action_event('{"action":"click","selector":"#x","value":"","url":"u","title":"","ts":1.0}')
     assert len(eng.session.steps) == 0
 
 
@@ -187,9 +183,7 @@ async def test_bridge_handles_unknown_action(caplog: pytest.LogCaptureFixture) -
     eng = await _make_engine(page)
     await eng.start()
     with caplog.at_level("DEBUG", logger="myrm_agent_harness.toolkits.browser.action_capture.capture_engine"):
-        await eng._on_action_event(
-            '{"action":"teleport","selector":"#x","value":"","url":"u","title":"","ts":1.0}'
-        )
+        await eng._on_action_event('{"action":"teleport","selector":"#x","value":"","url":"u","title":"","ts":1.0}')
     assert "Unknown action type: teleport" in caplog.text
     assert len(eng.session.steps) == 0
 
@@ -200,9 +194,7 @@ async def test_screenshot_failure_is_tolerated() -> None:
     eng = await _make_engine(page)
     await eng.start()
 
-    await eng._on_action_event(
-        '{"action":"click","selector":"#x","value":"","url":"u","title":"","ts":1.0}'
-    )
+    await eng._on_action_event('{"action":"click","selector":"#x","value":"","url":"u","title":"","ts":1.0}')
     steps = eng.session.steps
     assert len(steps) == 1
     assert steps[0].screenshot_b64 is None
@@ -220,9 +212,7 @@ async def test_callback_exception_is_logged_and_continues(caplog: pytest.LogCapt
     await eng.start()
 
     with caplog.at_level("ERROR", logger="myrm_agent_harness.toolkits.browser.action_capture.capture_engine"):
-        await eng._on_action_event(
-            '{"action":"click","selector":"#x","value":"","url":"u","title":"","ts":1.0}'
-        )
+        await eng._on_action_event('{"action":"click","selector":"#x","value":"","url":"u","title":"","ts":1.0}')
     assert "Capture callback error" in caplog.text
     assert len(eng.session.steps) == 1
 

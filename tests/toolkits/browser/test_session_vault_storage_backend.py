@@ -56,11 +56,7 @@ class FakeStorageProvider:
             raise RuntimeError("provider unavailable")
         if self.list_result is not None:
             return self.list_result
-        return [
-            key
-            for key in self.store
-            if key.startswith(prefix)
-        ]
+        return [key for key in self.store if key.startswith(prefix)]
 
 
 @pytest.fixture
@@ -91,42 +87,30 @@ class TestStorageVaultBackend:
     def test_storage_key_valid_domain(self, storage_backend: StorageVaultBackend) -> None:
         assert storage_backend._storage_key("example.com") == "browser/sessions/example.com.enc"
 
-    def test_storage_key_url_encodes_special_chars(
-        self, storage_backend: StorageVaultBackend
-    ) -> None:
+    def test_storage_key_url_encodes_special_chars(self, storage_backend: StorageVaultBackend) -> None:
         assert storage_backend._storage_key("localhost:8080") == "browser/sessions/localhost%3A8080.enc"
 
     def test_storage_key_invalid_domain(self, storage_backend: StorageVaultBackend) -> None:
         with pytest.raises(InvalidDomainError):
             storage_backend._storage_key("a/../b")
 
-    async def test_read_existing(
-        self, storage_backend: StorageVaultBackend, provider: FakeStorageProvider
-    ) -> None:
+    async def test_read_existing(self, storage_backend: StorageVaultBackend, provider: FakeStorageProvider) -> None:
         provider.store["browser/sessions/example.com.enc"] = b"secret"
         assert await storage_backend.read("example.com") == b"secret"
 
-    async def test_read_missing_returns_none(
-        self, storage_backend: StorageVaultBackend
-    ) -> None:
+    async def test_read_missing_returns_none(self, storage_backend: StorageVaultBackend) -> None:
         assert await storage_backend.read("nope.com") is None
 
-    async def test_write(
-        self, storage_backend: StorageVaultBackend, provider: FakeStorageProvider
-    ) -> None:
+    async def test_write(self, storage_backend: StorageVaultBackend, provider: FakeStorageProvider) -> None:
         await storage_backend.write("example.com", b"data")
         assert provider.store["browser/sessions/example.com.enc"] == b"data"
 
-    async def test_delete_existing(
-        self, storage_backend: StorageVaultBackend, provider: FakeStorageProvider
-    ) -> None:
+    async def test_delete_existing(self, storage_backend: StorageVaultBackend, provider: FakeStorageProvider) -> None:
         provider.store["browser/sessions/example.com.enc"] = b"data"
         assert await storage_backend.delete("example.com") is True
         assert "browser/sessions/example.com.enc" not in provider.store
 
-    async def test_delete_missing_returns_false(
-        self, storage_backend: StorageVaultBackend
-    ) -> None:
+    async def test_delete_missing_returns_false(self, storage_backend: StorageVaultBackend) -> None:
         assert await storage_backend.delete("nope.com") is False
 
     async def test_list_all_decodes_domains(
@@ -162,9 +146,7 @@ class TestStorageVaultBackend:
         ):
             assert await storage_backend.list_all() == []
 
-    async def test_backup_corrupted(
-        self, storage_backend: StorageVaultBackend, provider: FakeStorageProvider
-    ) -> None:
+    async def test_backup_corrupted(self, storage_backend: StorageVaultBackend, provider: FakeStorageProvider) -> None:
         await storage_backend.backup_corrupted("example.com", b"corrupt")
         assert provider.store["browser/sessions/example.com.corrupted"] == b"corrupt"
 
@@ -181,33 +163,21 @@ class TestStorageVaultBackend:
 
 
 class TestSessionVaultEdgeBranches:
-    async def test_cache_put_skips_oversized_entry(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
-        vault = SessionVault(
-            FileVaultBackend(tmp_path), vault_key, cache_max_memory_mb=1
-        )
-        with patch.object(
-            SessionVault, "_estimate_entry_size", return_value=10**7
-        ):
+    async def test_cache_put_skips_oversized_entry(self, tmp_path: Path, vault_key: bytes) -> None:
+        vault = SessionVault(FileVaultBackend(tmp_path), vault_key, cache_max_memory_mb=1)
+        with patch.object(SessionVault, "_estimate_entry_size", return_value=10**7):
             await vault.save("big.com", {"cookies": [{"name": "x"}]})
         assert "big.com" not in vault._cache
 
-    async def test_cache_put_updates_existing_entry(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_cache_put_updates_existing_entry(self, tmp_path: Path, vault_key: bytes) -> None:
         vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
         await vault.save("example.com", {"cookies": [{"name": "a"}]})
         first_size = vault._cache["example.com"][2]
         await vault.save("example.com", {"cookies": [{"name": "a"}, {"name": "b"}]})
-        assert vault._cache["example.com"][0].storage_state == {
-            "cookies": [{"name": "a"}, {"name": "b"}]
-        }
+        assert vault._cache["example.com"][0].storage_state == {"cookies": [{"name": "a"}, {"name": "b"}]}
         assert vault._cache["example.com"][2] != first_size
 
-    async def test_save_serialization_failure(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_save_serialization_failure(self, tmp_path: Path, vault_key: bytes) -> None:
         vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
         with pytest.raises(ValueError):
             await vault.save("example.com", {"unserializable": object()})
@@ -224,16 +194,12 @@ class TestSessionVaultEdgeBranches:
     async def test_encrypt_failure(self, tmp_path: Path, vault_key: bytes) -> None:
         vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
         with (
-            patch.object(
-                type(vault._get_cipher()), "encrypt", side_effect=Exception("cipher boom")
-            ),
+            patch.object(type(vault._get_cipher()), "encrypt", side_effect=Exception("cipher boom")),
             pytest.raises(EncryptionError),
         ):
             await vault.save("example.com", {"cookies": []})
 
-    async def test_list_summaries_returns_metadata(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_list_summaries_returns_metadata(self, tmp_path: Path, vault_key: bytes) -> None:
         backend = FileVaultBackend(tmp_path)
         vault = SessionVault(backend, vault_key)
         await vault.save(
@@ -246,20 +212,16 @@ class TestSessionVaultEdgeBranches:
         assert summaries[0].cookie_count == 1
         assert summaries[0].local_storage_count == 1
 
-    async def test_list_summaries_skips_corrupted(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_list_summaries_skips_corrupted(self, tmp_path: Path, vault_key: bytes) -> None:
         backend = FileVaultBackend(tmp_path)
         vault = SessionVault(backend, vault_key)
         await vault.save("good.com", {"cookies": []})
-        corrupt = (tmp_path / "bad.com.enc")
+        corrupt = tmp_path / "bad.com.enc"
         corrupt.write_bytes(b"\x00\x01not-encrypted")
         summaries = await vault.list_summaries()
         assert [s.domain for s in summaries] == ["good.com"]
 
-    async def test_cleanup_expired_removed_count(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_cleanup_expired_removed_count(self, tmp_path: Path, vault_key: bytes) -> None:
         backend = FileVaultBackend(tmp_path)
         vault = SessionVault(backend, vault_key)
         await vault.save("expired.com", {"cookies": []}, ttl_days=-1)
@@ -268,9 +230,7 @@ class TestSessionVaultEdgeBranches:
         assert removed == 1
         assert "alive.com" in await backend.list_all()
 
-    async def test_load_singleflight_waiter_recovers(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_load_singleflight_waiter_recovers(self, tmp_path: Path, vault_key: bytes) -> None:
         vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
         # Pre-seed an in-flight future that already failed: the next load() acts
         # as the waiter, catches the exception, and falls through to retry.
@@ -300,16 +260,12 @@ class TestSessionVaultEdgeBranches:
         assert empty.avg_encryption_ms == 0.0
         assert empty.avg_decryption_ms == 0.0
 
-    def test_estimate_entry_size_fallback(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    def test_estimate_entry_size_fallback(self, tmp_path: Path, vault_key: bytes) -> None:
         vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
         entry = SessionEntry("a.com", object(), 0.0, None)
         assert vault._estimate_entry_size(entry) == 2048
 
-    async def test_cache_evict_one_evicts_oldest(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_cache_evict_one_evicts_oldest(self, tmp_path: Path, vault_key: bytes) -> None:
         vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
         await vault.save("a.com", {"cookies": [{"name": "x"}]})
         await vault.save("b.com", {"cookies": [{"name": "y"}]})
@@ -318,27 +274,19 @@ class TestSessionVaultEdgeBranches:
         assert "b.com" in vault._cache
         assert vault._metrics.cache_evictions == 1
 
-    async def test_list_summaries_empty(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_list_summaries_empty(self, tmp_path: Path, vault_key: bytes) -> None:
         vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
         assert await vault.list_summaries() == []
 
-    async def test_list_summaries_skips_missing_file(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_list_summaries_skips_missing_file(self, tmp_path: Path, vault_key: bytes) -> None:
         backend = FileVaultBackend(tmp_path)
         vault = SessionVault(backend, vault_key)
         await vault.save("good.com", {"cookies": []})
-        with patch.object(
-            backend, "list_all", return_value=["good.com", "ghost.com"]
-        ):
+        with patch.object(backend, "list_all", return_value=["good.com", "ghost.com"]):
             summaries = await vault.list_summaries()
         assert [s.domain for s in summaries] == ["good.com"]
 
-    async def test_cleanup_expired_with_domains(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_cleanup_expired_with_domains(self, tmp_path: Path, vault_key: bytes) -> None:
         backend = FileVaultBackend(tmp_path)
         vault = SessionVault(backend, vault_key)
         await vault.save("expired.com", {"cookies": []}, ttl_days=-1)
@@ -346,14 +294,10 @@ class TestSessionVaultEdgeBranches:
         assert await vault.cleanup_expired() == 1
         assert "alive.com" in await backend.list_all()
 
-    async def test_cleanup_expired_empty(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    async def test_cleanup_expired_empty(self, tmp_path: Path, vault_key: bytes) -> None:
         vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
         assert await vault.cleanup_expired() == 0
 
-    def test_cache_evict_one_empty_cache(
-        self, tmp_path: Path, vault_key: bytes
-    ) -> None:
+    def test_cache_evict_one_empty_cache(self, tmp_path: Path, vault_key: bytes) -> None:
         vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
         vault._cache_evict_one()  # no-op on empty cache

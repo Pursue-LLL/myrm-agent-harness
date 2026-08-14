@@ -63,9 +63,7 @@ def rewrite_skill_paths(command: str) -> tuple[str, str | None]:
         rewritten = rewritten.replace(pattern, "")
 
     if rewritten != command:
-        logger.debug(
-            "Rewrote skill path .claude/skills/%s/ to relative", detected_skill_name
-        )
+        logger.debug("Rewrote skill path .claude/skills/%s/ to relative", detected_skill_name)
 
     return rewritten, detected_skill_name
 

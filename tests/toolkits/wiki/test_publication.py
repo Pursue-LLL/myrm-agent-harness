@@ -77,9 +77,7 @@ Body.
 
 @pytest.mark.asyncio
 async def test_draft_status_excluded_from_search(wiki_structure: WikiStructure) -> None:
-    draft_content = (
-        "---\ntype: concept\npublish_status: draft\n---\n\n## Compiled Truth\nSecret draft content.\n"
-    )
+    draft_content = "---\ntype: concept\npublish_status: draft\n---\n\n## Compiled Truth\nSecret draft content.\n"
     indexer = WikiIndexer(wiki_structure)
     await indexer.upsert("draft/page", draft_content)
 
@@ -100,9 +98,7 @@ def test_repair_publication_grandfathers_missing_status(wiki_structure: WikiStru
 
 
 def test_repair_publication_skips_intentional_draft(wiki_structure: WikiStructure) -> None:
-    draft = (
-        "---\ntype: concept\npublish_status: draft\n---\n\n## Compiled Truth\nStale demoted body.\n"
-    )
+    draft = "---\ntype: concept\npublish_status: draft\n---\n\n## Compiled Truth\nStale demoted body.\n"
     article = wiki_structure.get_concept_file_path("Team/Budget")
     article.parent.mkdir(parents=True, exist_ok=True)
     article.write_text(draft, encoding="utf-8")
@@ -116,9 +112,7 @@ def test_repair_publication_skips_intentional_draft(wiki_structure: WikiStructur
 
 
 def test_repair_publication_skips_blocked(wiki_structure: WikiStructure) -> None:
-    blocked = (
-        "---\ntype: concept\npublish_status: blocked\n---\n\n## Compiled Truth\nBlocked body.\n"
-    )
+    blocked = "---\ntype: concept\npublish_status: blocked\n---\n\n## Compiled Truth\nBlocked body.\n"
     article = wiki_structure.get_concept_file_path("blocked/page")
     article.parent.mkdir(parents=True, exist_ok=True)
     article.write_text(blocked, encoding="utf-8")
@@ -133,9 +127,7 @@ def test_repair_publication_skips_blocked(wiki_structure: WikiStructure) -> None
 
 @pytest.mark.asyncio
 async def test_repair_publication_status_keeps_draft_out_of_search(wiki_structure: WikiStructure) -> None:
-    draft = (
-        "---\ntype: concept\npublish_status: draft\n---\n\n## Compiled Truth\nDo not republish.\n"
-    )
+    draft = "---\ntype: concept\npublish_status: draft\n---\n\n## Compiled Truth\nDo not republish.\n"
     article = wiki_structure.get_concept_file_path("stale/topic")
     article.parent.mkdir(parents=True, exist_ok=True)
     article.write_text(draft, encoding="utf-8")

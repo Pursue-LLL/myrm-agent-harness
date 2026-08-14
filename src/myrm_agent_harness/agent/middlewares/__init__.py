@@ -58,6 +58,9 @@ from myrm_agent_harness.agent.middlewares.concurrency.concurrency_limiter import
     create_concurrency_limiter,
     get_subagent_semaphore,
 )
+from myrm_agent_harness.agent.middlewares.concurrency.safety_dispatcher import (
+    create_safety_dispatcher,
+)
 from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_middleware import (
     create_context_pipeline_middleware,
 )
@@ -78,9 +81,6 @@ from myrm_agent_harness.agent.middlewares.plan_confirm_middleware import (
 )
 from myrm_agent_harness.agent.middlewares.progress_middleware import progress_middleware
 from myrm_agent_harness.agent.middlewares.rate_limit import RateLimitMiddleware
-from myrm_agent_harness.agent.middlewares.concurrency.safety_dispatcher import (
-    create_safety_dispatcher,
-)
 from myrm_agent_harness.agent.middlewares.subagent_limit_middleware import (
     subagent_limit_middleware,
 )

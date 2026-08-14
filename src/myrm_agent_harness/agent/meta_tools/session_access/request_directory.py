@@ -10,9 +10,7 @@ from pydantic import BaseModel, Field
 
 
 class RequestDirectoryInput(BaseModel):
-    reason: str = Field(
-        description="Explain why access to this directory is needed for the user's task."
-    )
+    reason: str = Field(description="Explain why access to this directory is needed for the user's task.")
     path: str = Field(
         default="",
         description="Suggested directory path (optional). User may pick a different folder.",

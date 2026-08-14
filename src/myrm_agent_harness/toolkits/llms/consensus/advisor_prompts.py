@@ -29,9 +29,7 @@ ADVISOR_SYSTEM = (
     "pretend you already did it."
 )
 
-_INJECTION_HEADER = (
-    "[Multi-model advisor perspectives — reference only; the acting agent decides and executes.]"
-)
+_INJECTION_HEADER = "[Multi-model advisor perspectives — reference only; the acting agent decides and executes.]"
 
 
 def build_advisor_injection_block(successful: list[ReferenceResponse]) -> str:
@@ -39,9 +37,7 @@ def build_advisor_injection_block(successful: list[ReferenceResponse]) -> str:
     if not successful:
         return ""
     numbered = "\n".join(
-        f"{idx + 1}. [{ref.model}]: {ref.content.strip()}"
-        for idx, ref in enumerate(successful)
-        if ref.content.strip()
+        f"{idx + 1}. [{ref.model}]: {ref.content.strip()}" for idx, ref in enumerate(successful) if ref.content.strip()
     )
     if not numbered:
         return ""

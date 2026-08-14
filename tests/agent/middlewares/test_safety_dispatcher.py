@@ -24,9 +24,7 @@ def _make_request(tool_name: str) -> object:
     return FakeRequest(tool_name)
 
 
-async def _invoke_middleware(
-    middleware: object, request: object, handler: Callable[..., Awaitable[object]]
-) -> object:
+async def _invoke_middleware(middleware: object, request: object, handler: Callable[..., Awaitable[object]]) -> object:
     """Invoke the middleware's awrap_tool_call hook directly."""
     return await middleware.awrap_tool_call(request, handler)  # type: ignore[attr-defined]
 

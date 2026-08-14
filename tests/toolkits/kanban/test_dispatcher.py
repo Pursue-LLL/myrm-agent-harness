@@ -79,7 +79,6 @@ def _make_task(
 
 
 class TestDispatcherLifecycle:
-
     @pytest.mark.asyncio
     async def test_start_stop(self) -> None:
         store = InMemoryKanbanStore()
@@ -118,7 +117,6 @@ class TestDispatcherLifecycle:
 
 
 class TestDispatchExecution:
-
     @pytest.mark.asyncio
     async def test_dispatch_claims_and_executes_ready_task(self) -> None:
         store = InMemoryKanbanStore()
@@ -202,9 +200,7 @@ class TestDispatchExecution:
         statuses = [t.status for t in snapshot if t is not None]
         assert statuses.count(TaskStatus.RUNNING) == 2
         assert statuses.count(TaskStatus.READY) == 1
-        assert sorted(t.task_id for t in snapshot if t and t.status == TaskStatus.READY) == [
-            "t3"
-        ]
+        assert sorted(t.task_id for t in snapshot if t and t.status == TaskStatus.READY) == ["t3"]
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +209,6 @@ class TestDispatchExecution:
 
 
 class TestRefreshBoard:
-
     @pytest.mark.asyncio
     async def test_refresh_board_updates_max_concurrent_tasks_live(self) -> None:
         """Hot-swapping board settings raises concurrency without a restart.
@@ -254,9 +249,7 @@ class TestRefreshBoard:
             d.refresh_board(other)
 
     @pytest.mark.asyncio
-    async def test_refresh_board_updates_zombie_timeout_live(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_refresh_board_updates_zombie_timeout_live(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Zombie loop re-reads board settings every cycle, so a hot-swapped
         ``zombie_timeout_seconds`` reaches ``list_zombie_tasks`` without a restart."""
         store = InMemoryKanbanStore()
@@ -299,7 +292,6 @@ class TestRefreshBoard:
 
 
 class TestStatusDriftGuard:
-
     @pytest.mark.asyncio
     async def test_aborts_when_status_drifts_after_claim(self) -> None:
         """If task status changes between claim and execute, execution aborts."""
@@ -355,7 +347,6 @@ class TestStatusDriftGuard:
 
 
 class TestHeartbeat:
-
     @pytest.mark.asyncio
     async def test_heartbeat_updates_timestamp(self) -> None:
         store = InMemoryKanbanStore()
@@ -382,7 +373,6 @@ class TestHeartbeat:
 
 
 class TestZombieDetection:
-
     @pytest.mark.asyncio
     async def test_zombie_task_is_reclaimed(self) -> None:
         store = InMemoryKanbanStore()
@@ -432,9 +422,7 @@ class TestZombieDetection:
         await asyncio.sleep(4.5)
         await d.stop()
 
-        assert store._hb_call_count >= 3, (
-            "Heartbeat loop should have continued past the error"
-        )
+        assert store._hb_call_count >= 3, "Heartbeat loop should have continued past the error"
         updated = await store.get_task("t1")
         assert updated is not None
         assert updated.status == TaskStatus.COMPLETED
@@ -462,9 +450,7 @@ class TestZombieDetection:
         assert fresh is not None
         await d._reclaim_task(fresh)
 
-        assert exec_task.done(), (
-            "Worker asyncio.Task should have been cancelled by _reclaim_task"
-        )
+        assert exec_task.done(), "Worker asyncio.Task should have been cancelled by _reclaim_task"
         await d.stop()
 
 
@@ -474,7 +460,6 @@ class TestZombieDetection:
 
 
 class TestStartupRescue:
-
     @pytest.mark.asyncio
     async def test_no_orphans_start_succeeds_silently(self) -> None:
         """When no RUNNING tasks exist, rescue is a no-op."""
@@ -633,7 +618,6 @@ class TestStartupRescue:
 
 
 class TestDependencyPromotion:
-
     @pytest.mark.asyncio
     async def test_child_promoted_when_parent_completes(self) -> None:
         store = InMemoryKanbanStore()
@@ -664,7 +648,6 @@ class TestDependencyPromotion:
 
 
 class TestGracefulStop:
-
     @pytest.mark.asyncio
     async def test_stop_waits_for_executing_tasks(self) -> None:
         store = InMemoryKanbanStore()
@@ -706,7 +689,6 @@ class TestGracefulStop:
 
 
 class TestRunnerException:
-
     @pytest.mark.asyncio
     async def test_runner_exception_handled_as_failure(self) -> None:
         store = InMemoryKanbanStore()
@@ -737,7 +719,6 @@ class TestRunnerException:
 
 
 class TestHeartbeatProgressNote:
-
     @pytest.mark.asyncio
     async def test_update_heartbeat_stores_note(self) -> None:
         store = InMemoryKanbanStore()
@@ -852,7 +833,6 @@ class TestHeartbeatProgressNote:
 
 
 class TestHeartbeatToolHandler:
-
     def _get_heartbeat_tool(self, store, task_id="t1"):
         tools = create_kanban_tools(store, mode="worker", current_task_id=task_id)
         return next(t for t in tools if t.name == "kanban_heartbeat")
@@ -940,7 +920,10 @@ class TestHeartbeatSSEEmitPath:
         dispatcher.on_event(lambda action, t: emitted.append((action, t)))
 
         tools = create_kanban_tools(
-            store, dispatcher, mode="worker", current_task_id="t1",
+            store,
+            dispatcher,
+            mode="worker",
+            current_task_id="t1",
         )
         heartbeat = next(t for t in tools if t.name == "kanban_heartbeat")
 
@@ -966,7 +949,10 @@ class TestHeartbeatSSEEmitPath:
         dispatcher.on_event(lambda action, t: emitted.append((action, t)))
 
         tools = create_kanban_tools(
-            store, dispatcher, mode="worker", current_task_id="t1",
+            store,
+            dispatcher,
+            mode="worker",
+            current_task_id="t1",
         )
         heartbeat = next(t for t in tools if t.name == "kanban_heartbeat")
 
@@ -984,7 +970,10 @@ class TestHeartbeatSSEEmitPath:
         await store.save_task(task)
 
         tools = create_kanban_tools(
-            store, None, mode="worker", current_task_id="t1",
+            store,
+            None,
+            mode="worker",
+            current_task_id="t1",
         )
         heartbeat = next(t for t in tools if t.name == "kanban_heartbeat")
 
@@ -1003,7 +992,6 @@ class TestHeartbeatSSEEmitPath:
 
 
 class TestTaskTimeout:
-
     def test_timeout_error_attributes(self) -> None:
         err = TaskTimeoutError(task_id="t1", elapsed_seconds=65.2, limit_seconds=60)
         assert err.task_id == "t1"
@@ -1344,7 +1332,9 @@ class TestPostExecutionStatusGuard:
                     stored.status = TaskStatus.READY
                     await store.save_task(stored)
                 raise TaskTimeoutError(
-                    task_id=t.task_id, elapsed_seconds=70.0, limit_seconds=60,
+                    task_id=t.task_id,
+                    elapsed_seconds=70.0,
+                    limit_seconds=60,
                 )
 
         d = KanbanDispatcher(store, _TimeoutAfterReclaim(), board)
@@ -1363,7 +1353,6 @@ class TestPostExecutionStatusGuard:
 
 
 class TestManualReclaimTask:
-
     @pytest.mark.asyncio
     async def test_reclaim_running_task_cancels_and_resets(self) -> None:
         """reclaim_task() cancels the executing worker and resets task to READY."""
@@ -1453,7 +1442,6 @@ class TestManualReclaimTask:
 
 
 class TestVerifierIntegration:
-
     @pytest.mark.asyncio
     async def test_verification_failure_triggers_failure_path(self) -> None:
         """When verifier rejects result, task should fail."""
@@ -1467,14 +1455,10 @@ class TestVerifierIntegration:
         await store.save_task(task)
 
         class _RejectVerifier:
-            async def verify(
-                self, task: KanbanTask, result: str
-            ) -> VerificationResult:
+            async def verify(self, task: KanbanTask, result: str) -> VerificationResult:
                 return VerificationResult(passed=False, reason="Bad output")
 
-        d = KanbanDispatcher(
-            store, _FakeRunner(succeed=True), board, verifier=_RejectVerifier()
-        )
+        d = KanbanDispatcher(store, _FakeRunner(succeed=True), board, verifier=_RejectVerifier())
         await d.start()
         await asyncio.sleep(1.0)
         await d.stop()
@@ -1484,9 +1468,7 @@ class TestVerifierIntegration:
         assert final.status == TaskStatus.FAILED
 
         events = await store.list_events("t1")
-        vf_events = [
-            e for e in events if e.kind == TaskEventKind.VERIFICATION_FAILED
-        ]
+        vf_events = [e for e in events if e.kind == TaskEventKind.VERIFICATION_FAILED]
         assert len(vf_events) >= 1
 
     @pytest.mark.asyncio
@@ -1502,14 +1484,10 @@ class TestVerifierIntegration:
         await store.save_task(task)
 
         class _ErrorVerifier:
-            async def verify(
-                self, task: KanbanTask, result: str
-            ) -> VerificationResult:
+            async def verify(self, task: KanbanTask, result: str) -> VerificationResult:
                 raise RuntimeError("Verification service unavailable")
 
-        d = KanbanDispatcher(
-            store, _FakeRunner(succeed=True), board, verifier=_ErrorVerifier()
-        )
+        d = KanbanDispatcher(store, _FakeRunner(succeed=True), board, verifier=_ErrorVerifier())
         await d.start()
         await asyncio.sleep(1.0)
         await d.stop()
@@ -1519,9 +1497,7 @@ class TestVerifierIntegration:
         assert final.status == TaskStatus.FAILED
 
         events = await store.list_events("t1")
-        vf_events = [
-            e for e in events if e.kind == TaskEventKind.VERIFICATION_FAILED
-        ]
+        vf_events = [e for e in events if e.kind == TaskEventKind.VERIFICATION_FAILED]
         assert len(vf_events) >= 1
 
 
@@ -1568,7 +1544,9 @@ class TestAgentSelfComplete:
         final_child = await store.get_task("child1")
         assert final_child is not None
         assert final_child.status in (
-            TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.COMPLETED,
+            TaskStatus.READY,
+            TaskStatus.RUNNING,
+            TaskStatus.COMPLETED,
         )
 
         runs = await store.list_runs("parent1")

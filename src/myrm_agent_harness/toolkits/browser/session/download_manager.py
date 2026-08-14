@@ -97,9 +97,7 @@ _FILENAME_SANITIZE_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 class DownloadConfig:
     """Download configuration."""
 
-    downloads_dir: Path = field(
-        default_factory=lambda: Path.home() / ".myrm" / "downloads"
-    )
+    downloads_dir: Path = field(default_factory=lambda: Path.home() / ".myrm" / "downloads")
     auto_download_pdf: bool = True
     max_file_size_mb: int = 100
     download_timeout_s: float = 60.0
@@ -155,9 +153,7 @@ class DownloadManager:
         """Get the most recent download result."""
         return self._downloads[-1] if self._downloads else None
 
-    async def download_url(
-        self, page: Page, url: str, timeout: float | None = None
-    ) -> DownloadResult | None:
+    async def download_url(self, page: Page, url: str, timeout: float | None = None) -> DownloadResult | None:
         """Actively download a file from a URL.
 
         Args:
@@ -177,17 +173,13 @@ class DownloadManager:
 
         try:
             async with self._semaphore:
-                async with page.expect_download(
-                    timeout=effective_timeout
-                ) as download_info:
+                async with page.expect_download(timeout=effective_timeout) as download_info:
                     await page.evaluate(f"() => window.location.href = {url!r}")
 
                 download = await download_info.value
                 return await self._process_download(download, auto=False)
         except Exception as e:
-            logger.warning(
-                "Failed to download URL %s: %s", redact_sensitive_text(url)[:80], e
-            )
+            logger.warning("Failed to download URL %s: %s", redact_sensitive_text(url)[:80], e)
             return None
 
     async def check_and_download_pdf(self, page: Page) -> DownloadResult | None:
@@ -216,9 +208,7 @@ class DownloadManager:
 
         try:
             async with self._semaphore:
-                async with page.expect_download(
-                    timeout=self._config.download_timeout_s * 1000
-                ) as download_info:
+                async with page.expect_download(timeout=self._config.download_timeout_s * 1000) as download_info:
                     await page.evaluate("() => window.print()")
 
                 download = await download_info.value
@@ -249,9 +239,7 @@ class DownloadManager:
         except Exception as e:
             logger.warning("Download handler error: %s", e)
 
-    async def _process_download(
-        self, download: Download, *, auto: bool
-    ) -> DownloadResult | None:
+    async def _process_download(self, download: Download, *, auto: bool) -> DownloadResult | None:
         """Process a Patchright Download object.
 
         Args:
@@ -320,14 +308,10 @@ class DownloadManager:
         self._downloads.append(result)
         self._downloaded_urls.add(url)
 
-        logger.info(
-            "Downloaded: %s (%d bytes) → %s", unique_name, file_size, target_path
-        )
+        logger.info("Downloaded: %s (%d bytes) → %s", unique_name, file_size, target_path)
         return result
 
-    async def _download_pdf_via_fetch(
-        self, page: Page, url: str
-    ) -> DownloadResult | None:
+    async def _download_pdf_via_fetch(self, page: Page, url: str) -> DownloadResult | None:
         """Fallback: download PDF via JS fetch (uses browser cache)."""
         try:
             filename = self._extract_filename_from_url(url, default_ext=".pdf")

@@ -40,9 +40,7 @@ def test_counts_from_reward() -> None:
     from myrm_agent_harness.eval.suite_judge import _counts_from_reward
 
     assert _counts_from_reward('{"tests_passed": 8, "tests_total": 10}') == (8, 10)
-    assert _counts_from_reward(
-        '{"tests": [{"name": "a", "passed": true}, {"name": "b", "passed": false}]}'
-    ) == (1, 2)
+    assert _counts_from_reward('{"tests": [{"name": "a", "passed": true}, {"name": "b", "passed": false}]}') == (1, 2)
     assert _counts_from_reward('{"tests": [{"passed": "true"}, {"passed": "no"}]}') == (1, 2)
     assert _counts_from_reward('{"tests_passed": 3, "tests_total": 10, "tests": []}') == (3, 10)
     # A shrunken suite cannot inflate the ratio: passed clamps to total.
@@ -128,4 +126,3 @@ def test_parse_junit_result_multi_suite() -> None:
         "</testsuites>"
     )
     assert parse_junit_result(xml) == (3, 5)
-

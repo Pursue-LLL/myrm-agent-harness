@@ -184,9 +184,7 @@ async def append_media_text_parts(
                     )
                     if engine is None:
                         raise ValueError("Vision fallback engine is not configured")
-                    fallback_text = await engine.describe_local_image(
-                        img_path, executor
-                    )
+                    fallback_text = await engine.describe_local_image(img_path, executor)
                     text_parts.append(f"[Image Analysis for {img_path}]:\n{fallback_text}")
                 except Exception as e:
                     logger.warning("Vision fallback failed for %s: %s", img_path, e)
@@ -286,16 +284,12 @@ async def process_text_paths(
         base_path_str = path_base(path_str)
 
         if ":" in path_str or not executor:
-            text_content_parts.append(
-                await _read_via_service(path_str, executor, skills, reason, config=config)
-            )
+            text_content_parts.append(await _read_via_service(path_str, executor, skills, reason, config=config))
             continue
 
         try:
             if base_path_str.startswith("/mcp/"):
-                text_content_parts.append(
-                    await _read_via_service(path_str, executor, skills, reason, config=config)
-                )
+                text_content_parts.append(await _read_via_service(path_str, executor, skills, reason, config=config))
                 continue
 
             workspace_path = Path(base_path_str)
@@ -333,14 +327,10 @@ async def process_text_paths(
                 content = await read_file_chunked(workspace_path, chunk_size_mb=chunk_size_mb)
                 text_content_parts.append(f"=== {base_path_str} ===\n{content}")
             else:
-                text_content_parts.append(
-                    await _read_via_service(path_str, executor, skills, reason, config=config)
-                )
+                text_content_parts.append(await _read_via_service(path_str, executor, skills, reason, config=config))
 
         except Exception as e:
             logger.exception("Error processing %s with mode=%s: %s", path_str, mode, e)
-            text_content_parts.append(
-                await _read_via_service(path_str, executor, skills, reason, config=config)
-            )
+            text_content_parts.append(await _read_via_service(path_str, executor, skills, reason, config=config))
 
     return text_content_parts

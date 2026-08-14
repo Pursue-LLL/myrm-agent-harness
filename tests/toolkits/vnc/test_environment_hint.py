@@ -50,7 +50,10 @@ class TestProbeXvfbResolution:
             patch(
                 "subprocess.run",
                 return_value=subprocess.CompletedProcess(
-                    ["xdpyinfo"], returncode=1, stdout="", stderr="error",
+                    ["xdpyinfo"],
+                    returncode=1,
+                    stdout="",
+                    stderr="error",
                 ),
             ),
         ):
@@ -62,8 +65,10 @@ class TestProbeXvfbResolution:
             patch(
                 "subprocess.run",
                 return_value=subprocess.CompletedProcess(
-                    ["xdpyinfo"], returncode=0,
-                    stdout="screen #0:\n  some other info\n", stderr="",
+                    ["xdpyinfo"],
+                    returncode=0,
+                    stdout="screen #0:\n  some other info\n",
+                    stderr="",
                 ),
             ),
         ):
@@ -71,16 +76,17 @@ class TestProbeXvfbResolution:
 
     def test_xdpyinfo_parses_resolution(self):
         xdpyinfo_output = (
-            "screen #0:\n"
-            "  dimensions:    1280x720 pixels (338x190 millimeters)\n"
-            "  resolution:    96x96 dots per inch\n"
+            "screen #0:\n  dimensions:    1280x720 pixels (338x190 millimeters)\n  resolution:    96x96 dots per inch\n"
         )
         with (
             patch("shutil.which", return_value="/usr/bin/xdpyinfo"),
             patch(
                 "subprocess.run",
                 return_value=subprocess.CompletedProcess(
-                    ["xdpyinfo"], returncode=0, stdout=xdpyinfo_output, stderr="",
+                    ["xdpyinfo"],
+                    returncode=0,
+                    stdout=xdpyinfo_output,
+                    stderr="",
                 ),
             ),
         ):
@@ -138,7 +144,6 @@ class TestGetEnvironmentHint:
             result = server.get_environment_hint()
             assert result == ""
             assert server._ENV_HINT_CACHE == ""
-
 
     def test_hint_is_single_line(self):
         with (
@@ -203,7 +208,10 @@ class TestProbeResolutionFormats:
             patch(
                 "subprocess.run",
                 return_value=subprocess.CompletedProcess(
-                    ["xdpyinfo"], returncode=0, stdout=output, stderr="",
+                    ["xdpyinfo"],
+                    returncode=0,
+                    stdout=output,
+                    stderr="",
                 ),
             ),
         ):

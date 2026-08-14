@@ -146,9 +146,7 @@ async def test_count_by_source_chat_id_integration() -> None:
     from myrm_agent_harness.toolkits.memory._manager.deletion import MemoryManagerDeletionMixin
 
     mixin = MagicMock(spec=MemoryManagerDeletionMixin)
-    mixin.list_memory_ids_by_metadata = AsyncMock(
-        return_value={"semantic": ["id1", "id2"], "episodic": ["id3"]}
-    )
+    mixin.list_memory_ids_by_metadata = AsyncMock(return_value={"semantic": ["id1", "id2"], "episodic": ["id3"]})
     mixin._relational = MagicMock()
     mixin._relational.count_pending_by_source_chat_id = AsyncMock(return_value=4)
 

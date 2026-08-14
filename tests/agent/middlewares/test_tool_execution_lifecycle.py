@@ -42,9 +42,7 @@ class TestResolveDynamicTool:
         )
 
         with (
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
                 return_value=None,
@@ -72,9 +70,7 @@ class TestResolveDynamicTool:
         )
 
         with (
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
                 return_value=None,
@@ -102,9 +98,7 @@ class TestResolveDynamicTool:
         )
 
         with (
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
                 return_value=None,
@@ -132,9 +126,7 @@ class TestResolveDynamicTool:
         )
 
         with (
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
                 return_value=None,
@@ -156,9 +148,7 @@ class TestResolveDynamicTool:
         )
 
         with (
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
                 return_value=None,
@@ -183,9 +173,7 @@ class TestResolveDynamicTool:
         )
 
         with (
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
                 return_value=[mock_tool],
@@ -205,9 +193,7 @@ class TestHandleExecutionError:
         from langgraph.errors import GraphInterrupt
 
         with pytest.raises(GraphInterrupt):
-            await handle_execution_error(
-                GraphInterrupt(), "test_tool", "c1", {}
-            )
+            await handle_execution_error(GraphInterrupt(), "test_tool", "c1", {})
 
     @pytest.mark.asyncio
     async def test_handles_tool_stuck_exception(self) -> None:
@@ -215,14 +201,10 @@ class TestHandleExecutionError:
 
         exc = ToolStuckException("stuck")
         with (
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"),
             patch("langgraph.types.interrupt") as mock_interrupt,
             patch("myrm_agent_harness.agent.hooks.executor.fire_hook", return_value=MagicMock()),
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.record_mutation_result"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.record_mutation_result"),
         ):
             result = await handle_execution_error(exc, "test_tool", "c1", {})
             mock_interrupt.assert_called_once()
@@ -232,13 +214,9 @@ class TestHandleExecutionError:
     async def test_handles_generic_exception(self) -> None:
         exc = RuntimeError("something broke")
         with (
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"),
             patch("myrm_agent_harness.agent.hooks.executor.fire_hook", return_value=MagicMock()),
-            patch(
-                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.record_mutation_result"
-            ),
+            patch("myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.record_mutation_result"),
         ):
             result = await handle_execution_error(exc, "test_tool", "c1", {})
             assert isinstance(result, ToolMessage)
@@ -249,9 +227,7 @@ class TestEmitToolHeartbeat:
     @pytest.mark.asyncio
     async def test_heartbeat_emits_events(self) -> None:
         with (
-            patch(
-                "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink"
-            ) as mock_sink_fn,
+            patch("myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink") as mock_sink_fn,
             patch("asyncio.sleep", side_effect=[None, asyncio.CancelledError()]),
         ):
             from unittest.mock import AsyncMock
@@ -271,6 +247,7 @@ class TestEmitToolHeartbeat:
                 "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
                 side_effect=RuntimeError("sink error"),
             ),
-            patch("asyncio.sleep", side_effect=[None, asyncio.CancelledError()]),pytest.raises(asyncio.CancelledError)
+            patch("asyncio.sleep", side_effect=[None, asyncio.CancelledError()]),
+            pytest.raises(asyncio.CancelledError),
         ):
             await emit_tool_heartbeat("test_tool", "c1", 0.0)

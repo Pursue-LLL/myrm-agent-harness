@@ -83,17 +83,13 @@ class TestRatingFactor:
 
 
 class TestSignalWeights:
-    @pytest.mark.parametrize(
-        "mem_type", ["SEMANTIC", "EPISODIC", "PROFILE", "CLAIM", "PROCEDURAL"]
-    )
+    @pytest.mark.parametrize("mem_type", ["SEMANTIC", "EPISODIC", "PROFILE", "CLAIM", "PROCEDURAL"])
     def test_weights_sum_to_one(self, mem_type: str):
         weights = get_default_signal_weights(mem_type)
         total = sum(weights.values())
         assert abs(total - 1.0) < 1e-6, f"{mem_type} weights sum to {total}"
 
-    @pytest.mark.parametrize(
-        "mem_type", ["SEMANTIC", "EPISODIC", "PROFILE", "CLAIM", "PROCEDURAL"]
-    )
+    @pytest.mark.parametrize("mem_type", ["SEMANTIC", "EPISODIC", "PROFILE", "CLAIM", "PROCEDURAL"])
     def test_has_rating_weight(self, mem_type: str):
         weights = get_default_signal_weights(mem_type)
         assert "rating" in weights
@@ -131,13 +127,7 @@ class TestForgettingWithRating:
 
     def test_config_weights_sum_to_one(self):
         cfg = ForgettingConfig()
-        total = (
-            cfg.time_weight
-            + cfg.access_weight
-            + cfg.importance_weight
-            + cfg.relation_weight
-            + cfg.rating_weight
-        )
+        total = cfg.time_weight + cfg.access_weight + cfg.importance_weight + cfg.relation_weight + cfg.rating_weight
         assert abs(total - 1.0) < 1e-6
 
 
@@ -151,15 +141,9 @@ class TestRetrieverRatingDimension:
         high_mem = base_mem.model_copy(update={"user_rating": 1.0})
         low_mem = base_mem.model_copy(update={"user_rating": 0.1})
 
-        base_result = MemorySearchResult(
-            memory=base_mem, score=0.8, memory_type=MemoryType.SEMANTIC
-        )
-        high_result = MemorySearchResult(
-            memory=high_mem, score=0.8, memory_type=MemoryType.SEMANTIC
-        )
-        low_result = MemorySearchResult(
-            memory=low_mem, score=0.8, memory_type=MemoryType.SEMANTIC
-        )
+        base_result = MemorySearchResult(memory=base_mem, score=0.8, memory_type=MemoryType.SEMANTIC)
+        high_result = MemorySearchResult(memory=high_mem, score=0.8, memory_type=MemoryType.SEMANTIC)
+        low_result = MemorySearchResult(memory=low_mem, score=0.8, memory_type=MemoryType.SEMANTIC)
 
         score_base = retriever._geometric_score(0.8, base_result)
         score_high = retriever._geometric_score(0.8, high_result)
@@ -174,9 +158,7 @@ class TestRetrieverRatingDimension:
 
 class TestRateMemory:
     @pytest.mark.asyncio
-    async def test_rate_memory_positive_uses_alpha(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_rate_memory_positive_uses_alpha(self, mock_vector_store, mock_embedding, memory_config):
         doc = VectorDocument(
             id="mem-1",
             content="test",
@@ -206,9 +188,7 @@ class TestRateMemory:
         assert abs(new_rating - 0.65) < 0.01
 
     @pytest.mark.asyncio
-    async def test_rate_memory_negative_uses_alpha_negative(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_rate_memory_negative_uses_alpha_negative(self, mock_vector_store, mock_embedding, memory_config):
         doc = VectorDocument(
             id="mem-1",
             content="test",
@@ -238,9 +218,7 @@ class TestRateMemory:
         assert abs(new_rating - 0.25) < 0.01
 
     @pytest.mark.asyncio
-    async def test_asymmetric_recovery_requires_more_positives(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_asymmetric_recovery_requires_more_positives(self, mock_vector_store, mock_embedding, memory_config):
         """A memory downgraded by one negative needs multiple positives to recover."""
         doc = VectorDocument(
             id="mem-1",
@@ -269,17 +247,13 @@ class TestRateMemory:
         doc.metadata["user_rating"] = after_neg
         mock_vector_store.get.return_value = [doc]
         await manager.rate_memory("mem-1", 5)
-        after_one_pos = mock_vector_store.upsert.call_args[0][1][0].metadata[
-            "user_rating"
-        ]
+        after_one_pos = mock_vector_store.upsert.call_args[0][1][0].metadata["user_rating"]
 
         # Still below neutral after one positive recovery
         assert after_one_pos < 0.5
 
     @pytest.mark.asyncio
-    async def test_rate_memory_not_found(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_rate_memory_not_found(self, mock_vector_store, mock_embedding, memory_config):
         mock_vector_store.get.return_value = []
 
         manager = MemoryManager(
@@ -294,9 +268,7 @@ class TestRateMemory:
         assert ok is False
 
     @pytest.mark.asyncio
-    async def test_rate_memory_wrong_user(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_rate_memory_wrong_user(self, mock_vector_store, mock_embedding, memory_config):
         doc = VectorDocument(
             id="mem-1",
             content="test",
@@ -319,9 +291,7 @@ class TestRateMemory:
         assert ok is False
 
     @pytest.mark.asyncio
-    async def test_rate_memory_explicit_collection(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_rate_memory_explicit_collection(self, mock_vector_store, mock_embedding, memory_config):
         """When collection is explicitly passed, only that collection is searched."""
         doc = VectorDocument(
             id="mem-1",
@@ -347,9 +317,7 @@ class TestRateMemory:
         mock_vector_store.get.assert_called_once_with("custom_collection", ["mem-1"])
 
     @pytest.mark.asyncio
-    async def test_rate_memory_clamped_score(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_rate_memory_clamped_score(self, mock_vector_store, mock_embedding, memory_config):
         """Scores outside [1,5] are clamped."""
         doc = VectorDocument(
             id="mem-1",
@@ -378,9 +346,7 @@ class TestRateMemory:
         assert abs(new_rating - 0.65) < 0.01
 
     @pytest.mark.asyncio
-    async def test_rate_memory_no_user_id_in_doc(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_rate_memory_no_user_id_in_doc(self, mock_vector_store, mock_embedding, memory_config):
         """When doc has no user_id (single-tenant), rate should still succeed."""
         doc = VectorDocument(
             id="mem-1",
@@ -405,9 +371,7 @@ class TestRateMemory:
         assert ok is True
 
     @pytest.mark.asyncio
-    async def test_rate_memory_vector_exception(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_rate_memory_vector_exception(self, mock_vector_store, mock_embedding, memory_config):
         """When vector.get raises, rate_memory should continue to next collection."""
         mock_vector_store.get.side_effect = RuntimeError("connection lost")
         mock_vector_store.collection_exists = AsyncMock(return_value=True)

@@ -50,11 +50,7 @@ def b(): pass
 def c(): pass
 """
     tree = _tree(src)
-    decorators = [
-        n.decorator_list[0]
-        for n in tree.body
-        if isinstance(n, ast.FunctionDef)
-    ]
+    decorators = [n.decorator_list[0] for n in tree.body if isinstance(n, ast.FunctionDef)]
     assert _decorator_is_tool(decorators[0]) is True
     assert _decorator_is_tool(decorators[1]) is True
     assert _decorator_is_tool(decorators[2]) is False
@@ -97,11 +93,7 @@ def fallback(): pass
 """
     tree = _tree(src)
     constants = _build_string_constants(tree)
-    decorators = {
-        n.name: n.decorator_list[0]
-        for n in tree.body
-        if isinstance(n, ast.FunctionDef)
-    }
+    decorators = {n.name: n.decorator_list[0] for n in tree.body if isinstance(n, ast.FunctionDef)}
     assert _tool_name_from_decorator(decorators["a"], "a", constants) == "local_name"
     assert _tool_name_from_decorator(decorators["b"], "b", constants) == "literal_name"
     assert _tool_name_from_decorator(decorators["c"], "c", constants) == "conversation_search_tool"
@@ -132,9 +124,9 @@ def top(): pass
 
 
 def test_collect_basetool_subclass_recognises_both_assign_styles() -> None:
-    src_annassign = "class MyTool(BaseTool):\n    name: str = \"ann_tool\"\n"
-    src_plain = "class MyTool(BaseTool):\n    name = \"plain_tool\"\n"
-    src_not_basetool = "class Other(BaseClass):\n    name = \"ignored\"\n"
+    src_annassign = 'class MyTool(BaseTool):\n    name: str = "ann_tool"\n'
+    src_plain = 'class MyTool(BaseTool):\n    name = "plain_tool"\n'
+    src_not_basetool = 'class Other(BaseClass):\n    name = "ignored"\n'
 
     for src, expected in [(src_annassign, "ann_tool"), (src_plain, "plain_tool")]:
         node = _tree(src).body[0]

@@ -176,14 +176,10 @@ class TestIndexRawText:
             )
 
         with sqlite3.connect(str(db_path)) as conn:
-            raw_cursor = conn.execute(
-                "SELECT * FROM wiki_fts WHERE concept_name = ?", ("raw:doc1",)
-            )
+            raw_cursor = conn.execute("SELECT * FROM wiki_fts WHERE concept_name = ?", ("raw:doc1",))
             assert raw_cursor.fetchone() is None
 
-            compiled_cursor = conn.execute(
-                "SELECT truth_content FROM wiki_fts WHERE concept_name = ?", ("doc1",)
-            )
+            compiled_cursor = conn.execute("SELECT truth_content FROM wiki_fts WHERE concept_name = ?", ("doc1",))
             row = compiled_cursor.fetchone()
             assert row is not None
             assert "compiled truth" in row[0]

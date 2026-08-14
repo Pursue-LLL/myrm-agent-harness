@@ -63,6 +63,4 @@ def test_concurrent_tokenize() -> None:
     assert len(results) == 2000
 
     for thread_id, i, tokens in results[::100]:
-        assert "machine" in tokens or "learning" in tokens or "algorithm" in tokens, (
-            f"thread {thread_id}-{i}: {tokens}"
-        )
+        assert "machine" in tokens or "learning" in tokens or "algorithm" in tokens, f"thread {thread_id}-{i}: {tokens}"

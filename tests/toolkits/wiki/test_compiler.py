@@ -22,9 +22,7 @@ def wiki_structure(tmp_path):
 @pytest.fixture
 def mock_llm():
     llm = AsyncMock()
-    llm.ainvoke.return_value = AIMessage(
-        content="## Compiled Truth\nGenerated article content."
-    )
+    llm.ainvoke.return_value = AIMessage(content="## Compiled Truth\nGenerated article content.")
     return llm
 
 
@@ -39,9 +37,7 @@ def mock_indexer():
 async def test_wiki_compiler_generate_article(wiki_structure, mock_llm, mock_indexer):
     config = WikiConfig()
     compile_config = WikiCompileConfig(require_approval=False)
-    compiler = WikiCompiler(
-        mock_llm, wiki_structure, config, compile_config, indexer=mock_indexer
-    )
+    compiler = WikiCompiler(mock_llm, wiki_structure, config, compile_config, indexer=mock_indexer)
 
     # We mock _generate_article directly since process() might involve multiple steps
     # We can test process but let's test the core generation first
@@ -72,9 +68,7 @@ async def test_wiki_compiler_generate_article(wiki_structure, mock_llm, mock_ind
 async def test_wiki_compiler_require_approval(wiki_structure, mock_llm, mock_indexer):
     config = WikiConfig()
     compile_config = WikiCompileConfig(require_approval=True)
-    compiler = WikiCompiler(
-        mock_llm, wiki_structure, config, compile_config, indexer=mock_indexer
-    )
+    compiler = WikiCompiler(mock_llm, wiki_structure, config, compile_config, indexer=mock_indexer)
 
     class DummyConcept:
         name = "Test Concept"
@@ -134,9 +128,7 @@ async def test_extract_concepts_from_doc(wiki_structure, mock_llm, mock_indexer)
 
 
 @pytest.mark.asyncio
-async def test_extract_concepts_from_doc_reasoning_fallback(
-    wiki_structure, mock_llm, mock_indexer
-):
+async def test_extract_concepts_from_doc_reasoning_fallback(wiki_structure, mock_llm, mock_indexer):
     """_extract_concepts_from_doc falls back to reasoning_content when content is empty."""
     from myrm_agent_harness.toolkits.wiki.core.config import (
         WikiCompileConfig,
@@ -170,9 +162,7 @@ async def test_extract_concepts_from_doc_reasoning_fallback(
 
 
 @pytest.mark.asyncio
-async def test_extract_concepts_from_doc_unreadable(
-    wiki_structure, mock_llm, mock_indexer
-):
+async def test_extract_concepts_from_doc_unreadable(wiki_structure, mock_llm, mock_indexer):
     """_extract_concepts_from_doc returns [] for an unreadable doc without raising."""
     from myrm_agent_harness.toolkits.wiki.core.config import (
         WikiCompileConfig,
@@ -240,12 +230,9 @@ def _restore_provenance_metadata(existing_content: str, new_content: str) -> str
 
 def test_restore_provenance_metadata_backfills_lost_source_chat():
     existing = (
-        "---\ntype: concept\nsource_chat: chat-abc\ncompound_provenance: chat-compound\n---\n"
-        "## Compiled Truth\nold\n"
+        "---\ntype: concept\nsource_chat: chat-abc\ncompound_provenance: chat-compound\n---\n## Compiled Truth\nold\n"
     )
-    new_llm_output = (
-        "---\ntype: concept\n---\n## Compiled Truth\nnew\n## Timeline\n- entry\n"
-    )
+    new_llm_output = "---\ntype: concept\n---\n## Compiled Truth\nnew\n## Timeline\n- entry\n"
     restored = _restore_provenance_metadata(existing, new_llm_output)
     assert "source_chat: chat-abc" in restored
     assert "compound_provenance: chat-compound" in restored
@@ -253,12 +240,8 @@ def test_restore_provenance_metadata_backfills_lost_source_chat():
 
 
 def test_restore_provenance_metadata_keeps_existing_authoritative():
-    existing = (
-        "---\ntype: concept\nsource_chat: chat-abc\n---\n## Compiled Truth\nold\n"
-    )
-    new_llm_output = (
-        "---\ntype: concept\nsource_chat: chat-different\n---\n## Compiled Truth\nnew\n"
-    )
+    existing = "---\ntype: concept\nsource_chat: chat-abc\n---\n## Compiled Truth\nold\n"
+    new_llm_output = "---\ntype: concept\nsource_chat: chat-different\n---\n## Compiled Truth\nnew\n"
     restored = _restore_provenance_metadata(existing, new_llm_output)
     assert "source_chat: chat-abc" in restored
     assert "chat-different" not in restored
@@ -282,16 +265,10 @@ def test_provenance_from_raw_sources_single_chat(wiki_structure: WikiStructure):
     )
 
     raw_dir = wiki_structure.raw_dir
-    raw_dir.joinpath("turn_chat-a_a.md").write_text(
-        "---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8"
-    )
-    raw_dir.joinpath("turn_chat-a_b.md").write_text(
-        "---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8"
-    )
+    raw_dir.joinpath("turn_chat-a_a.md").write_text("---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8")
+    raw_dir.joinpath("turn_chat-a_b.md").write_text("---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8")
 
-    provenance = provenance_from_raw_sources(
-        wiki_structure, ["turn_chat-a_a.md", "turn_chat-a_b.md"]
-    )
+    provenance = provenance_from_raw_sources(wiki_structure, ["turn_chat-a_a.md", "turn_chat-a_b.md"])
     assert provenance == {"source_chat": "chat-a"}
 
 
@@ -302,13 +279,9 @@ def test_provenance_from_raw_sources_vault_relative_prefix(wiki_structure: WikiS
     )
 
     raw_dir = wiki_structure.raw_dir
-    raw_dir.joinpath("turn_chat-a_a.md").write_text(
-        "---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8"
-    )
+    raw_dir.joinpath("turn_chat-a_a.md").write_text("---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8")
 
-    provenance = provenance_from_raw_sources(
-        wiki_structure, ["raw/turn_chat-a_a.md"]
-    )
+    provenance = provenance_from_raw_sources(wiki_structure, ["raw/turn_chat-a_a.md"])
     assert provenance == {"source_chat": "chat-a"}
 
 
@@ -319,16 +292,10 @@ def test_provenance_from_raw_sources_conflicting_chats(wiki_structure: WikiStruc
     )
 
     raw_dir = wiki_structure.raw_dir
-    raw_dir.joinpath("turn_chat-a_a.md").write_text(
-        "---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8"
-    )
-    raw_dir.joinpath("turn_chat-b_b.md").write_text(
-        "---\nsource_chat: chat-b\n---\n# Turn\n", encoding="utf-8"
-    )
+    raw_dir.joinpath("turn_chat-a_a.md").write_text("---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8")
+    raw_dir.joinpath("turn_chat-b_b.md").write_text("---\nsource_chat: chat-b\n---\n# Turn\n", encoding="utf-8")
 
-    provenance = provenance_from_raw_sources(
-        wiki_structure, ["turn_chat-a_a.md", "turn_chat-b_b.md"]
-    )
+    provenance = provenance_from_raw_sources(wiki_structure, ["turn_chat-a_a.md", "turn_chat-b_b.md"])
     assert provenance == {}
 
 
@@ -339,9 +306,7 @@ def test_provenance_from_raw_sources_missing_file(wiki_structure: WikiStructure)
     )
 
     raw_dir = wiki_structure.raw_dir
-    raw_dir.joinpath("note.md").write_text(
-        "---\nsource_url: https://example.com\n---\n# Note\n", encoding="utf-8"
-    )
+    raw_dir.joinpath("note.md").write_text("---\nsource_url: https://example.com\n---\n# Note\n", encoding="utf-8")
 
     provenance = provenance_from_raw_sources(wiki_structure, ["note.md", "missing.md"])
     assert provenance == {}

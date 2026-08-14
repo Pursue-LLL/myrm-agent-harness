@@ -30,7 +30,7 @@ _FORBIDDEN_SNIPPETS = (
 _SPAWN_CALL_PATTERN = re.compile(r"myrm_tools\.spawn_subagent\s*\(")
 _AGENT_TYPE_PATTERN = re.compile(r"""agent_type\s*=\s*["']([^"']+)["']""")
 _PLACEHOLDER_PATTERN = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
-_UNSAFE_TEMPLATE_ARG_CHARS = frozenset('"\n\r\\\'')
+_UNSAFE_TEMPLATE_ARG_CHARS = frozenset("\"\n\r\\'")
 
 
 def normalize_template_args(template_args: dict[str, str] | None) -> dict[str, str]:

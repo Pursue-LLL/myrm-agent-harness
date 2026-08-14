@@ -104,7 +104,11 @@ class TestReadImageThresholdStrategy:
         assert isinstance(result, list)
         assert len(result) == 2
         assert result[1]["type"] in ("image", "image_url")
-        b64_str = result[1].get("base64") or result[1].get("data") or result[1].get("image_url", {}).get("url", "").split(",")[-1]
+        b64_str = (
+            result[1].get("base64")
+            or result[1].get("data")
+            or result[1].get("image_url", {}).get("url", "").split(",")[-1]
+        )
         decoded = base64.b64decode(b64_str)
         assert decoded == small_bytes
 

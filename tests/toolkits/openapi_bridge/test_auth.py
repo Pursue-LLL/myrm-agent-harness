@@ -55,9 +55,7 @@ class TestAPIKeyAuth:
         assert headers == {}
 
     def test_query_location_provides_params(self):
-        config = AuthConfig(
-            type=AuthType.API_KEY, api_key="qkey", api_key_header="api_key", api_key_location="query"
-        )
+        config = AuthConfig(type=AuthType.API_KEY, api_key="qkey", api_key_header="api_key", api_key_location="query")
         provider = OpenAPIAuthProvider(config)
         params = provider.get_query_params()
         assert params == {"api_key": "qkey"}
@@ -86,6 +84,7 @@ class TestBasicAuth:
         assert headers["Authorization"].startswith("Basic ")
 
         import base64
+
         encoded = headers["Authorization"].split(" ")[1]
         decoded = base64.b64decode(encoded).decode()
         assert decoded == "admin:secret"
@@ -187,5 +186,8 @@ class TestOAuth2ClientCredentials:
         )
         provider = OpenAPIAuthProvider(config)
         # Simulate missing token_url by patching the config attribute
-        with patch.object(provider._config, "token_url", None), pytest.raises(ValueError, match="token_url not configured"):
+        with (
+            patch.object(provider._config, "token_url", None),
+            pytest.raises(ValueError, match="token_url not configured"),
+        ):
             await provider.get_headers()

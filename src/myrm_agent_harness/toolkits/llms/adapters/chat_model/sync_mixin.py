@@ -64,12 +64,8 @@ class ChatLiteLLMSyncMixin:
         _retry_metrics: EmptyRetryMetrics
         _create_chat_result: Callable[..., ChatResult]
         _convert_response_to_dict: Callable[..., dict[str, Any]]
-        _extract_tool_context_from_kwargs: Callable[
-            ..., tuple[list[str] | None, dict[str, dict[str, Any]] | None]
-        ]
-        _create_message_dicts: Callable[
-            ..., tuple[list[dict[str, Any]], dict[str, Any]]
-        ]
+        _extract_tool_context_from_kwargs: Callable[..., tuple[list[str] | None, dict[str, dict[str, Any]] | None]]
+        _create_message_dicts: Callable[..., tuple[list[dict[str, Any]], dict[str, Any]]]
         _inject_allowed_params: Callable[..., None]
         _apply_ephemeral_output_override: Callable[..., None]
 
@@ -82,9 +78,7 @@ class ChatLiteLLMSyncMixin:
     ) -> ChatResult:
         should_stream = kwargs.pop("streaming", self.streaming)
         if should_stream:
-            stream_iter = self._stream(
-                messages, stop=stop, run_manager=run_manager, **kwargs
-            )
+            stream_iter = self._stream(messages, stop=stop, run_manager=run_manager, **kwargs)
             return generate_from_stream(stream_iter)
 
         available_tools, tool_schemas = self._extract_tool_context_from_kwargs(kwargs)
@@ -114,9 +108,7 @@ class ChatLiteLLMSyncMixin:
                 started = time.perf_counter()
                 response = self.client.completion(messages=message_dicts, **params)
                 response = self._convert_response_to_dict(response)
-                result = self._create_chat_result(
-                    response, available_tools, tool_schemas
-                )
+                result = self._create_chat_result(response, available_tools, tool_schemas)
 
                 duration_ms = (time.perf_counter() - started) * 1000
                 self._record_non_stream_usage(
@@ -136,9 +128,7 @@ class ChatLiteLLMSyncMixin:
                 self._retry_metrics.sync_retry_count += 1
 
                 if attempt < max_attempts - 1:
-                    logger.warning(
-                        f" Empty choices (attempt {attempt + 1}), retrying..."
-                    )
+                    logger.warning(f" Empty choices (attempt {attempt + 1}), retrying...")
                     delay_ms = self.empty_retry_delay * 1000
                     self._retry_metrics.total_retry_delay_ms += delay_ms
                     time.sleep(self.empty_retry_delay)
@@ -152,11 +142,7 @@ class ChatLiteLLMSyncMixin:
 
                 if is_context_overflow(e):
                     available = parse_available_output_tokens_from_error(e)
-                    if (
-                        available is not None
-                        and available >= 500
-                        and attempt < max_attempts - 1
-                    ):
+                    if available is not None and available >= 500 and attempt < max_attempts - 1:
                         safe_tokens = max(1, available - 64)
                         logger.warning(
                             f" Context overflow, injecting ephemeral max_tokens={safe_tokens} (attempt {attempt + 1})"
@@ -170,9 +156,7 @@ class ChatLiteLLMSyncMixin:
                         raise e
 
                 model_name = self.model_name or self.model
-                logger.error(
-                    f" LiteLLM call failed: {type(e).__name__} - {e!s} (Model: {model_name})"
-                )
+                logger.error(f" LiteLLM call failed: {type(e).__name__} - {e!s} (Model: {model_name})")
                 raise
 
         if last_error:
@@ -215,9 +199,7 @@ class ChatLiteLLMSyncMixin:
             tool_call_chunks: list[ToolCallChunk] = []
             raw_tool_calls = delta.get("tool_calls")
             if emit_tool_call_chunks:
-                tool_call_chunks = build_tool_call_chunks(
-                    raw_tool_calls, tool_call_id_map
-                )
+                tool_call_chunks = build_tool_call_chunks(raw_tool_calls, tool_call_id_map)
             msg_chunk = AIMessageChunk(
                 content=content,
                 tool_call_chunks=tool_call_chunks,
@@ -245,9 +227,7 @@ class ChatLiteLLMSyncMixin:
                 msg_chunk = FunctionMessageChunk(content=content, name="")
             else:
                 # Fallback: assume it's a standard message chunk that only needs content and type
-                msg_chunk = default_chunk_class(
-                    content=content, type=default_chunk_class.__name__
-                )
+                msg_chunk = default_chunk_class(content=content, type=default_chunk_class.__name__)
 
         return ChatGenerationChunk(message=msg_chunk), msg_chunk.__class__
 
@@ -290,9 +270,7 @@ class ChatLiteLLMSyncMixin:
 
         prompt_tokens = int(usage_dict.get("prompt_tokens", 0) or 0)
         completion_tokens = int(usage_dict.get("completion_tokens", 0) or 0)
-        cost_result = compute_cost_by_tokens(
-            resolved_model, prompt_tokens, completion_tokens
-        )
+        cost_result = compute_cost_by_tokens(resolved_model, prompt_tokens, completion_tokens)
 
         record_token_usage(
             usage_dict,
@@ -388,28 +366,14 @@ class ChatLiteLLMSyncMixin:
                         agg.on_generation_chunk(cg_chunk, new_class)
 
                         # Filter content and reasoning_content through DSML buffer before yielding
-                        raw_content = (
-                            str(cg_chunk.message.content)
-                            if cg_chunk.message.content
-                            else ""
-                        )
+                        raw_content = str(cg_chunk.message.content) if cg_chunk.message.content else ""
                         safe_content = xml_content_buffer.process(raw_content)
 
-                        additional_kwargs = dict(
-                            getattr(cg_chunk.message, "additional_kwargs", {})
-                        )
+                        additional_kwargs = dict(getattr(cg_chunk.message, "additional_kwargs", {}))
                         raw_reasoning = additional_kwargs.get("reasoning_content", "")
-                        safe_reasoning = (
-                            xml_reasoning_buffer.process(str(raw_reasoning))
-                            if raw_reasoning
-                            else ""
-                        )
+                        safe_reasoning = xml_reasoning_buffer.process(str(raw_reasoning)) if raw_reasoning else ""
 
-                        if (
-                            safe_content
-                            or safe_reasoning
-                            or getattr(cg_chunk.message, "tool_call_chunks", [])
-                        ):
+                        if safe_content or safe_reasoning or getattr(cg_chunk.message, "tool_call_chunks", []):
                             msg_dict = dict(cg_chunk.message)
                             msg_dict.pop("type", None)
                             msg_dict["content"] = safe_content
@@ -424,15 +388,11 @@ class ChatLiteLLMSyncMixin:
                             safe_chunk = cg_chunk.message.__class__(**msg_dict)
                             safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
                             if run_manager:
-                                run_manager.on_llm_new_token(
-                                    safe_content, chunk=safe_cg_chunk
-                                )
+                                run_manager.on_llm_new_token(safe_content, chunk=safe_cg_chunk)
                             yield safe_cg_chunk
 
                 if agg.is_empty:
-                    raise EmptyStreamError(
-                        f"Stream produced no chunks. Model: {self.model_name or self.model}"
-                    )
+                    raise EmptyStreamError(f"Stream produced no chunks. Model: {self.model_name or self.model}")
 
                 # Flush buffers at the end of the stream
                 flushed_content = xml_content_buffer.flush()
@@ -440,15 +400,11 @@ class ChatLiteLLMSyncMixin:
                 if flushed_content or flushed_reasoning:
                     msg_dict = {"content": flushed_content}
                     if flushed_reasoning:
-                        msg_dict["additional_kwargs"] = {
-                            "reasoning_content": flushed_reasoning
-                        }
+                        msg_dict["additional_kwargs"] = {"reasoning_content": flushed_reasoning}
                     safe_chunk = agg.default_chunk_class(**msg_dict)
                     safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
                     if run_manager:
-                        run_manager.on_llm_new_token(
-                            flushed_content, chunk=safe_cg_chunk
-                        )
+                        run_manager.on_llm_new_token(flushed_content, chunk=safe_cg_chunk)
                     yield safe_cg_chunk
 
                 result = finalize_stream(
@@ -481,12 +437,8 @@ class ChatLiteLLMSyncMixin:
                 last_error = e
                 self._retry_metrics.stream_retry_count += 1
                 if attempt < max_attempts - 1:
-                    logger.warning(
-                        f" Empty stream (attempt {attempt + 1}), retrying..."
-                    )
-                    self._retry_metrics.total_retry_delay_ms += (
-                        self.empty_retry_delay * 1000
-                    )
+                    logger.warning(f" Empty stream (attempt {attempt + 1}), retrying...")
+                    self._retry_metrics.total_retry_delay_ms += self.empty_retry_delay * 1000
                     time.sleep(self.empty_retry_delay)
                 else:
                     logger.error(f" Empty stream after {max_attempts} attempts.")

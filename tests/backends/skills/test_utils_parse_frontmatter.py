@@ -108,9 +108,7 @@ def test_parse_skill_frontmatter_missing_required():
 name: Missing description
 ---
 pass"""
-    with pytest.raises(
-        SkillMetadataError, match="Required field 'description' missing"
-    ):
+    with pytest.raises(SkillMetadataError, match="Required field 'description' missing"):
         parse_skill_frontmatter(content, "test_3")
 
 

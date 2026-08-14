@@ -22,10 +22,7 @@ from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
 
 
 def test_root_facade_reexports_same_sanitize_callable() -> None:
-    assert (
-        root_formatting.sanitize_recalled_content
-        is surface_formatting.sanitize_recalled_content
-    )
+    assert root_formatting.sanitize_recalled_content is surface_formatting.sanitize_recalled_content
 
 
 def test_looks_like_wiki_document_rejects_empty_content() -> None:

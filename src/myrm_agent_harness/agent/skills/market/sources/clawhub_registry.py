@@ -86,9 +86,7 @@ def resolve_registry_base_url() -> str:
 
 def _response_is_clawhub_json(response: httpx.Response) -> tuple[bool, str]:
     content_type = response.headers.get("content-type", "").lower()
-    if "application/json" not in content_type and not content_type.startswith(
-        "application/"
-    ):
+    if "application/json" not in content_type and not content_type.startswith("application/"):
         return False, "not_clawhub_json"
 
     try:

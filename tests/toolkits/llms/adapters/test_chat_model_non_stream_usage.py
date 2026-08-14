@@ -26,9 +26,7 @@ from myrm_agent_harness.utils.token_economics.tracker import (
 )
 
 
-def _make_response(
-    *, include_usage: bool = True, finish_reason: str = "stop"
-) -> dict[str, Any]:
+def _make_response(*, include_usage: bool = True, finish_reason: str = "stop") -> dict[str, Any]:
     resp: dict[str, Any] = {
         "id": "chatcmpl-ns-1",
         "model": "test-model",
@@ -93,16 +91,12 @@ class TestSyncNonStreamUsage:
         assert len(result.generations) == 1
         assert get_pending_token_events() == []
 
-    def test_generate_skips_record_on_empty_choices(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_generate_skips_record_on_empty_choices(self, monkeypatch: pytest.MonkeyPatch) -> None:
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
         model.client.completion.return_value = _make_response()
         model.empty_retry_max_attempts = 1
-        monkeypatch.setattr(
-            model, "_create_chat_result", MagicMock(side_effect=EmptyChoicesError())
-        )
+        monkeypatch.setattr(model, "_create_chat_result", MagicMock(side_effect=EmptyChoicesError()))
 
         with pytest.raises(EmptyChoicesError):
             model._generate([HumanMessage(content="hi")])
@@ -133,9 +127,7 @@ class TestAsyncNonStreamUsage:
     async def test_agenerate_skips_record_when_usage_missing(self) -> None:
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
-        model.client.acreate = AsyncMock(
-            return_value=_make_response(include_usage=False)
-        )
+        model.client.acreate = AsyncMock(return_value=_make_response(include_usage=False))
 
         result = await model._agenerate([HumanMessage(content="hi")])
 
@@ -143,16 +135,12 @@ class TestAsyncNonStreamUsage:
         assert get_pending_token_events() == []
 
     @pytest.mark.asyncio
-    async def test_agenerate_skips_record_on_empty_choices(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_agenerate_skips_record_on_empty_choices(self, monkeypatch: pytest.MonkeyPatch) -> None:
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
         model.client.acreate = AsyncMock(return_value=_make_response())
         model.empty_retry_max_attempts = 1
-        monkeypatch.setattr(
-            model, "_create_chat_result", MagicMock(side_effect=EmptyChoicesError())
-        )
+        monkeypatch.setattr(model, "_create_chat_result", MagicMock(side_effect=EmptyChoicesError()))
 
         with pytest.raises(EmptyChoicesError):
             await model._agenerate([HumanMessage(content="hi")])

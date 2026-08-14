@@ -16,7 +16,7 @@ class TestParsePlanResponse:
 
     def test_prose_with_trailing_comma(self) -> None:
         raw = (
-            'Plan:\n'
+            "Plan:\n"
             '[{"action": "update", "content": "works at X", "memory_type": '
             '"semantic", "confidence": 0.9,},]\nThanks!'
         )

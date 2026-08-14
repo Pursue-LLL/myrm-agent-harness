@@ -350,9 +350,7 @@ class TestReviewTrajectoryWithLLM:
     @pytest.mark.asyncio
     async def test_handles_nothing_in_error_message(self):
         """Partial JSON output with result_type=nothing should not raise."""
-        llm, _ = self._make_llm_mock(
-            ValueError('{"result_type": "nothing"} partial output')
-        )
+        llm, _ = self._make_llm_mock(ValueError('{"result_type": "nothing"} partial output'))
         result = await review_trajectory_with_llm("<User>: test", llm)
         assert result is not None
         assert result.has_value is False
@@ -378,8 +376,6 @@ class TestReviewTrajectoryWithLLM:
     @pytest.mark.asyncio
     async def test_unknown_result_type_returns_no_value(self):
         """Unknown result_type triggers Pydantic validation error which is caught."""
-        llm, _ = self._make_llm_mock(
-            ValueError("result_type Input should be 'nothing', 'semantic_memory'...")
-        )
+        llm, _ = self._make_llm_mock(ValueError("result_type Input should be 'nothing', 'semantic_memory'..."))
         result = await review_trajectory_with_llm("<User>: test", llm)
         assert result is None

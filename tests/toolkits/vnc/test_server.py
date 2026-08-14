@@ -136,9 +136,7 @@ class TestHealthLoopBackoff:
         expected = [30, 60, 120, 240, 480, 480]
         for failures in range(6):
             backoff = _HEALTH_CHECK_INTERVAL_S * (2 ** min(failures, 4))
-            assert backoff == expected[failures], (
-                f"failures={failures}: expected {expected[failures]}, got {backoff}"
-            )
+            assert backoff == expected[failures], f"failures={failures}: expected {expected[failures]}, got {backoff}"
 
     def test_max_restart_attempts_constant(self) -> None:
         assert _MAX_RESTART_ATTEMPTS == 5
@@ -208,7 +206,6 @@ class TestHealthLoopBackoff:
         srv._start_websockify = mock_start_websockify
 
         loop_iterations = 0
-
 
         async def mock_sleep(duration: float) -> None:
             nonlocal loop_iterations

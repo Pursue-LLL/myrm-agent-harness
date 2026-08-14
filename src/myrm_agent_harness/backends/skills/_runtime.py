@@ -96,9 +96,7 @@ def build_skill_metadata(
     """
     available, unavailable_reason = check_requirements(frontmatter)
     scan_result = scan_skill_content(skill_name, content)
-    allowed_tools = (
-        frontmatter.allowed_tools.split() if frontmatter.allowed_tools else None
-    )
+    allowed_tools = frontmatter.allowed_tools.split() if frontmatter.allowed_tools else None
 
     scan_summary = compute_scan_summary(scan_result)
 
@@ -106,9 +104,7 @@ def build_skill_metadata(
     missing_credentials: list[str] = []
     if workspace_root and frontmatter.required_credential_files:
         validator = CredentialValidator(workspace_root)
-        result = validator.validate_credential_files(
-            frontmatter.required_credential_files
-        )
+        result = validator.validate_credential_files(frontmatter.required_credential_files)
         missing_credentials = result.missing_files
 
         if missing_credentials:

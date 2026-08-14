@@ -178,9 +178,7 @@ class DialogManager:
             logger.warning("DialogManager: failed to handle %s dialog: %s", dialog_type, exc)
             self._record(dialog_type, message, default_value, "error", "exception")
 
-    async def _handle_smart(
-        self, dialog: Dialog, dialog_type: str, message: str, default_value: str
-    ) -> None:
+    async def _handle_smart(self, dialog: Dialog, dialog_type: str, message: str, default_value: str) -> None:
         """SMART policy: alert/confirm/beforeunload→accept, prompt→dismiss."""
         if dialog_type in ("alert", "confirm", "beforeunload"):
             await dialog.accept(default_value)
@@ -189,9 +187,7 @@ class DialogManager:
             await dialog.dismiss()
             self._record(dialog_type, message, default_value, "dismissed", "smart")
 
-    async def _handle_wait_for_agent(
-        self, dialog: Dialog, dialog_type: str, message: str, default_value: str
-    ) -> None:
+    async def _handle_wait_for_agent(self, dialog: Dialog, dialog_type: str, message: str, default_value: str) -> None:
         """WAIT_FOR_AGENT: hold dialog open until Agent responds or timeout."""
         pending = _PendingDialog(
             dialog_type=dialog_type,

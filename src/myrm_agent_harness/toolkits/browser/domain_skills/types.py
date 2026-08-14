@@ -48,9 +48,6 @@ class DomainSkillManifest:
             return ""
         parts: list[str] = []
         for tool in self.python_tools.values():
-            args_str = ", ".join(
-                f"{k}{'?' if a.get('required') != 'true' else ''}"
-                for k, a in tool.args.items()
-            )
+            args_str = ", ".join(f"{k}{'?' if a.get('required') != 'true' else ''}" for k, a in tool.args.items())
             parts.append(f"{tool.name}({args_str})")
         return ", ".join(parts)

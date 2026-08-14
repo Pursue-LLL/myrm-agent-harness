@@ -217,9 +217,7 @@ async def test_standard_browser_snapshot_path_without_run_site_tool(
 
     refs = browser_session.get_all_refs()
     article_texts = [
-        info.name
-        for info in refs.values()
-        if info.role == "article" and len((info.name or "").strip()) > 10
+        info.name for info in refs.values() if info.role == "article" and len((info.name or "").strip()) > 10
     ]
     assert len(article_texts) >= 2
     assert any("First X-style" in text for text in article_texts)

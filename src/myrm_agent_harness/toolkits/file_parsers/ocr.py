@@ -235,9 +235,7 @@ class OCRParser(FileParser):
             bbox = raw_poly.tolist() if hasattr(raw_poly, "tolist") else raw_poly
             lines.append(OCRLine(text=text, confidence=confidence, bbox=bbox))
 
-        avg_confidence = (
-            sum(line.confidence for line in lines) / len(lines) if lines else 0.0
-        )
+        avg_confidence = sum(line.confidence for line in lines) / len(lines) if lines else 0.0
         return OCRResult(
             text="\n".join(line.text for line in lines),
             lines=lines,

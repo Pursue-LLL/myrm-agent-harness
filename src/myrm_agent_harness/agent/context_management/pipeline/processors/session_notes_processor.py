@@ -105,9 +105,7 @@ class SessionNotesProcessor(BaseProcessor):
         # Deduplicate against protected head and drop stale summary blocks from the kept tail
         protected_ids = {id(m) for m in protected_head}
         recent_messages = [
-            m
-            for m in context.messages[keep_start:]
-            if id(m) not in protected_ids and not is_summary_message(m)
+            m for m in context.messages[keep_start:] if id(m) not in protected_ids and not is_summary_message(m)
         ]
 
         context.messages = prepend_pre_compact_message(

@@ -85,9 +85,7 @@ class TestEngineInit:
             ConsensusEngine(reference_llms=[], aggregator_llm=_make_llm())
 
     def test_default_config(self):
-        engine = ConsensusEngine(
-            reference_llms=[_make_llm()], aggregator_llm=_make_llm()
-        )
+        engine = ConsensusEngine(reference_llms=[_make_llm()], aggregator_llm=_make_llm())
         assert engine._cfg.reference_temperature == 0.6
         assert engine._cfg.aggregator_temperature == 0.4
 
@@ -259,9 +257,7 @@ class TestRunStream:
     async def test_stream_insufficient_refs(self):
         fail = _make_failing_llm("fail")
         cfg = ConsensusConfig(min_successful=2, max_retries_per_model=1)
-        engine = ConsensusEngine(
-            reference_llms=[fail], aggregator_llm=_make_llm("agg"), config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[fail], aggregator_llm=_make_llm("agg"), config=cfg)
 
         events: list[ConsensusStreamEvent] = []
         async for event in engine.run_stream("q"):
@@ -301,9 +297,7 @@ class TestDegradation:
 
         agg.astream = _failing_stream
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_short, ref_long], aggregator_llm=agg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_short, ref_long], aggregator_llm=agg)
         result = await engine.run("q")
 
         assert result.success
@@ -315,9 +309,7 @@ class TestDegradation:
         agg = _make_llm("agg", "Synthesis")
         cfg = ConsensusConfig(min_successful=1, max_retries_per_model=1)
 
-        engine = ConsensusEngine(
-            reference_llms=[good, bad], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[good, bad], aggregator_llm=agg, config=cfg)
         result = await engine.run("q")
 
         assert result.success
@@ -329,9 +321,7 @@ class TestDegradation:
         agg = _make_llm("agg", "Final")
         cfg = ConsensusConfig(min_successful=1, max_retries_per_model=2)
 
-        engine = ConsensusEngine(
-            reference_llms=[empty], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[empty], aggregator_llm=agg, config=cfg)
         result = await engine.run("q")
 
         assert not result.reference_responses[0].success
@@ -350,9 +340,7 @@ class TestDegradation:
         agg.astream = _fail_astream
         agg.bind = MagicMock(return_value=agg)
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_short, ref_long], aggregator_llm=agg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_short, ref_long], aggregator_llm=agg)
 
         events: list[ConsensusStreamEvent] = []
         async for event in engine.run_stream("q"):
@@ -407,9 +395,7 @@ class TestTimeouts:
         slow.bind = MagicMock(return_value=slow)
 
         cfg = ConsensusConfig(timeout_total=0.1, max_retries_per_model=1)
-        engine = ConsensusEngine(
-            reference_llms=[slow], aggregator_llm=_make_llm("agg"), config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[slow], aggregator_llm=_make_llm("agg"), config=cfg)
         result = await engine.run("q")
 
         assert not result.reference_responses[0].success
@@ -433,9 +419,7 @@ class TestTimeouts:
             max_retries_per_model=1,
             min_successful=1,
         )
-        engine = ConsensusEngine(
-            reference_llms=[slow], aggregator_llm=_make_llm("agg"), config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[slow], aggregator_llm=_make_llm("agg"), config=cfg)
         result = await engine.run("q")
 
         assert not result.reference_responses[0].success
@@ -479,9 +463,7 @@ class TestTimeouts:
         agg.astream = _empty_then_ok
         agg.bind = MagicMock(return_value=agg)
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg)
         result = await engine.run("q")
 
         assert result.success
@@ -601,9 +583,7 @@ class TestTemperatureSeparation:
         agg = _make_llm("agg", "synthesis")
         cfg = ConsensusConfig(reference_temperature=0.9, aggregator_temperature=0.1)
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         result = await engine.run("q")
 
         assert result.success
@@ -617,9 +597,7 @@ class TestTemperatureSeparation:
         agg = _make_llm("agg", "synthesis")
         cfg = ConsensusConfig(reference_temperature=0.8, aggregator_temperature=0.2)
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         async for _ in engine.run_stream("q"):
             pass
 
@@ -648,9 +626,7 @@ class TestReferenceMaxTokens:
             reference_max_tokens=600,
         )
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         result = await engine.run("q")
 
         assert result.success
@@ -668,9 +644,7 @@ class TestReferenceMaxTokens:
             reference_max_tokens=400,
         )
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         async for _ in engine.run_stream("q"):
             pass
 
@@ -684,9 +658,7 @@ class TestReferenceMaxTokens:
         agg = _make_llm("agg", "synthesis")
         cfg = ConsensusConfig(reference_max_tokens=None)
 
-        engine = ConsensusEngine(
-            reference_llms=[ref], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref], aggregator_llm=agg, config=cfg)
         result = await engine.run("q")
 
         assert result.success
@@ -716,9 +688,7 @@ class TestReasoningEffort:
             aggregator_reasoning_effort="high",
         )
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         result = await engine.run("q")
 
         assert result.success
@@ -737,9 +707,7 @@ class TestReasoningEffort:
             aggregator_reasoning_effort="high",
         )
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         async for _ in engine.run_stream("q"):
             pass
 
@@ -755,9 +723,7 @@ class TestReasoningEffort:
             aggregator_reasoning_effort=None,
         )
 
-        engine = ConsensusEngine(
-            reference_llms=[ref], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref], aggregator_llm=agg, config=cfg)
         result = await engine.run("q")
 
         assert result.success
@@ -779,18 +745,12 @@ class TestReasoningEffort:
             aggregator_reasoning_effort="high",
         )
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         result = await engine.run("q")
 
         assert result.success
-        ref_a.bind.assert_called_with(
-            temperature=0.7, max_tokens=600, reasoning_effort="low"
-        )
-        ref_b.bind.assert_called_with(
-            temperature=0.7, max_tokens=600, reasoning_effort="low"
-        )
+        ref_a.bind.assert_called_with(temperature=0.7, max_tokens=600, reasoning_effort="low")
+        ref_b.bind.assert_called_with(temperature=0.7, max_tokens=600, reasoning_effort="low")
         agg.bind.assert_called_with(temperature=0.3, reasoning_effort="high")
 
     async def test_only_reference_reasoning_effort(self):
@@ -803,15 +763,11 @@ class TestReasoningEffort:
             aggregator_reasoning_effort=None,
         )
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         result = await engine.run("q")
 
         assert result.success
-        ref_a.bind.assert_called_with(
-            temperature=cfg.reference_temperature, reasoning_effort="low"
-        )
+        ref_a.bind.assert_called_with(temperature=cfg.reference_temperature, reasoning_effort="low")
         agg.bind.assert_called_with(temperature=cfg.aggregator_temperature)
 
     async def test_only_aggregator_reasoning_effort(self):
@@ -824,16 +780,12 @@ class TestReasoningEffort:
             aggregator_reasoning_effort="high",
         )
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         result = await engine.run("q")
 
         assert result.success
         ref_a.bind.assert_called_with(temperature=cfg.reference_temperature)
-        agg.bind.assert_called_with(
-            temperature=cfg.aggregator_temperature, reasoning_effort="high"
-        )
+        agg.bind.assert_called_with(temperature=cfg.aggregator_temperature, reasoning_effort="high")
 
     async def test_stream_only_reference_reasoning_effort(self):
         """Stream path: only reference side set."""
@@ -845,15 +797,11 @@ class TestReasoningEffort:
             aggregator_reasoning_effort=None,
         )
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         async for _ in engine.run_stream("q"):
             pass
 
-        ref_a.bind.assert_called_with(
-            temperature=cfg.reference_temperature, reasoning_effort="medium"
-        )
+        ref_a.bind.assert_called_with(temperature=cfg.reference_temperature, reasoning_effort="medium")
         agg.bind.assert_called_with(temperature=cfg.aggregator_temperature)
 
     async def test_stream_only_aggregator_reasoning_effort(self):
@@ -866,16 +814,12 @@ class TestReasoningEffort:
             aggregator_reasoning_effort="max",
         )
 
-        engine = ConsensusEngine(
-            reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[ref_a, ref_b], aggregator_llm=agg, config=cfg)
         async for _ in engine.run_stream("q"):
             pass
 
         ref_a.bind.assert_called_with(temperature=cfg.reference_temperature)
-        agg.bind.assert_called_with(
-            temperature=cfg.aggregator_temperature, reasoning_effort="max"
-        )
+        agg.bind.assert_called_with(temperature=cfg.aggregator_temperature, reasoning_effort="max")
 
 
 # -----------------------------------------------------------------------
@@ -1025,9 +969,7 @@ class TestSingleReferenceSkip:
         bad = _make_failing_llm("bad")
         agg = _make_llm("agg", "should not run")
         cfg = ConsensusConfig(min_successful=1, max_retries_per_model=1)
-        engine = ConsensusEngine(
-            reference_llms=[good, bad], aggregator_llm=agg, config=cfg
-        )
+        engine = ConsensusEngine(reference_llms=[good, bad], aggregator_llm=agg, config=cfg)
 
         result = await engine.run("q")
 
@@ -1049,9 +991,7 @@ class TestMidStreamFailure:
         fallback fires only when nothing has streamed yet.
         """
         ref_a = _make_llm("ref-a", "ALPHA reference content")
-        ref_b = _make_llm(
-            "ref-b", "BRAVO a much longer reference that would win best-ref"
-        )
+        ref_b = _make_llm("ref-b", "BRAVO a much longer reference that would win best-ref")
 
         agg = MagicMock()
         agg.model_name = "agg"
@@ -1372,9 +1312,7 @@ class TestChatHistory:
         agg_msgs = agg.astream_calls[0]
         agg_msg_types = [type(m).__name__ for m in agg_msgs]
         assert "ToolMessage" not in agg_msg_types
-        has_tool_calls = any(
-            m.additional_kwargs.get("tool_calls") for m in agg_msgs if hasattr(m, "additional_kwargs")
-        )
+        has_tool_calls = any(m.additional_kwargs.get("tool_calls") for m in agg_msgs if hasattr(m, "additional_kwargs"))
         assert not has_tool_calls
 
 

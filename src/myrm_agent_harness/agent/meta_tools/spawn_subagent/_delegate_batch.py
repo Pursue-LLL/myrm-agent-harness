@@ -254,10 +254,7 @@ async def execute_batch_delegation(
         ):
             from langgraph.types import interrupt
 
-            task_summaries = [
-                {"agent_type": t.agent_type, "objective": t.objective[:200]}
-                for t in tasks
-            ]
+            task_summaries = [{"agent_type": t.agent_type, "objective": t.objective[:200]} for t in tasks]
             interrupt_payload = {
                 "action_type": "batch_cost_approval",
                 "task_count": len(tasks),

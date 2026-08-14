@@ -50,9 +50,7 @@ class StalenessReviewConfig:
     max_removals_per_cycle: int = 5
     max_extension_days: int = 730
     keep_cooldown_days: int = 30
-    protected_categories: frozenset[str] = field(
-        default_factory=lambda: frozenset({"correction"})
-    )
+    protected_categories: frozenset[str] = field(default_factory=lambda: frozenset({"correction"}))
     recent_access_protection_days: int = 7
 
 
@@ -116,7 +114,7 @@ def select_stale_candidates(
             candidates.append((age_days - evd, mem))
 
     candidates.sort(key=lambda x: x[0], reverse=True)
-    return [m for _, m in candidates[:config.max_candidates_per_cycle]]
+    return [m for _, m in candidates[: config.max_candidates_per_cycle]]
 
 
 _STALENESS_REVIEW_SYSTEM = """You are a memory maintenance assistant. Your job is to review facts that have exceeded their expected validity period and decide whether each fact is still accurate.
@@ -149,9 +147,7 @@ class StalenessReviewer:
         self._llm = llm_func
         self._config = config or StalenessReviewConfig()
 
-    async def review(
-        self, candidates: Sequence[ForgettableMemory]
-    ) -> StalenessReviewResult:
+    async def review(self, candidates: Sequence[ForgettableMemory]) -> StalenessReviewResult:
         """Review stale candidates and return decisions."""
         cfg = self._config
         result = StalenessReviewResult(candidates_found=len(candidates))
@@ -165,14 +161,16 @@ class StalenessReviewer:
             if created.tzinfo is None:
                 created = created.replace(tzinfo=UTC)
             age_days = (datetime.now(UTC) - created).days
-            facts_for_review.append({
-                "id": mem.id,
-                "content": mem.content[:200],
-                "age_days": age_days,
-                "expected_valid_days": getattr(mem, "expected_valid_days", None),
-                "importance": getattr(mem, "importance", 0.5),
-                "access_count": mem.access_count,
-            })
+            facts_for_review.append(
+                {
+                    "id": mem.id,
+                    "content": mem.content[:200],
+                    "age_days": age_days,
+                    "expected_valid_days": getattr(mem, "expected_valid_days", None),
+                    "importance": getattr(mem, "importance", 0.5),
+                    "access_count": mem.access_count,
+                }
+            )
 
         prompt = (
             f"Review these {len(facts_for_review)} facts that have exceeded their expected validity:\n\n"
@@ -190,34 +188,27 @@ class StalenessReviewer:
         result.reviewed_count = len(decisions)
         remove_ids: set[str] = set()
 
-        id_to_evd: dict[str, int] = {
-            m.id: getattr(m, "expected_valid_days", 0) or 0
-            for m in candidates
-        }
+        id_to_evd: dict[str, int] = {m.id: getattr(m, "expected_valid_days", 0) or 0 for m in candidates}
 
         for decision in decisions:
             if decision.action == StalenessAction.REMOVE:
                 remove_ids.add(decision.memory_id)
             elif decision.action == StalenessAction.EXTEND:
                 result.extended_count += 1
-                result.extended_updates.append(
-                    (decision.memory_id, decision.extend_by_days)
-                )
+                result.extended_updates.append((decision.memory_id, decision.extend_by_days))
             else:
                 result.kept_count += 1
                 new_evd = id_to_evd.get(decision.memory_id, 0) + cfg.keep_cooldown_days
                 result.keep_cooldown_updates.append((decision.memory_id, new_evd))
 
         if len(remove_ids) > cfg.max_removals_per_cycle:
-            remove_ids = set(list(remove_ids)[:cfg.max_removals_per_cycle])
+            remove_ids = set(list(remove_ids)[: cfg.max_removals_per_cycle])
 
         result.removed_count = len(remove_ids)
         result.removed_ids = list(remove_ids)
         return result
 
-    def _parse_decisions(
-        self, raw: str, valid_ids: set[str]
-    ) -> list[StalenessDecision]:
+    def _parse_decisions(self, raw: str, valid_ids: set[str]) -> list[StalenessDecision]:
         """Parse LLM response into typed decisions."""
         data = parse_llm_json_list(raw)
         if data is None:
@@ -245,10 +236,12 @@ class StalenessReviewer:
                 else:
                     extend_by = 90
 
-            decisions.append(StalenessDecision(
-                memory_id=mid,
-                action=action,
-                reason=str(item.get("reason", "")),
-                extend_by_days=extend_by,
-            ))
+            decisions.append(
+                StalenessDecision(
+                    memory_id=mid,
+                    action=action,
+                    reason=str(item.get("reason", "")),
+                    extend_by_days=extend_by,
+                )
+            )
         return decisions

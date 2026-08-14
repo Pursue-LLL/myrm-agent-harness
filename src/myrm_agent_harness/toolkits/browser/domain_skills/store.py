@@ -162,11 +162,7 @@ class DomainSkillStore:
             return []
 
         with self._lock:
-            return [
-                m
-                for m in self._manifests.values()
-                if any(_domain_matches(hostname, d) for d in m.domains)
-            ]
+            return [m for m in self._manifests.values() if any(_domain_matches(hostname, d) for d in m.domains)]
 
     def get(self, skill_id: str) -> DomainSkillManifest | None:
         """Return manifest by ID."""
@@ -223,11 +219,7 @@ class DomainSkillStore:
         try:
             from urllib.parse import urlparse
 
-            parsed = (
-                urlparse(url)
-                if "://" in str(url)
-                else urlparse(f"https://{url}")
-            )
+            parsed = urlparse(url) if "://" in str(url) else urlparse(f"https://{url}")
             return _normalize_hostname(parsed.hostname or "")
         except Exception:
             return ""

@@ -36,9 +36,7 @@ async def test_sidecar_builder_incremental_skip(tmp_path):
     concept_file.write_text("## Compiled Truth\nRunbook steps and rollback plan.", encoding="utf-8")
 
     llm = AsyncMock()
-    llm.ainvoke.return_value = AIMessage(
-        content='{"abstract":"Ops summary","overview":"Ops detailed overview"}'
-    )
+    llm.ainvoke.return_value = AIMessage(content='{"abstract":"Ops summary","overview":"Ops detailed overview"}')
     indexer = _FakeIndexer()
     concept = ConceptInfo(
         name="Ops/Runbook",
@@ -82,9 +80,7 @@ async def test_sidecar_builder_clears_sidecars_when_no_concepts(tmp_path):
     concept_file.write_text("## Compiled Truth\nKnowledge.", encoding="utf-8")
 
     llm = AsyncMock()
-    llm.ainvoke.return_value = AIMessage(
-        content='{"abstract":"Domain summary","overview":"Domain overview"}'
-    )
+    llm.ainvoke.return_value = AIMessage(content='{"abstract":"Domain summary","overview":"Domain overview"}')
     indexer = _FakeIndexer()
     concept = ConceptInfo(
         name="Domain/Topic",
@@ -154,8 +150,7 @@ def test_parse_sidecar_payload_dirty_llm_outputs() -> None:
     """
     cases = [
         (
-            'Format like {"abstract": "x", "overview": "y"}. '
-            'Now real: {"abstract": "A", "overview": "O"}',
+            'Format like {"abstract": "x", "overview": "y"}. Now real: {"abstract": "A", "overview": "O"}',
             ("A", "O"),
         ),
         ('{"abstract": "A", "overview": "O",}', ("A", "O")),
@@ -176,9 +171,7 @@ def test_parse_sidecar_payload_requires_both_fields() -> None:
 
 def test_extract_truth_falls_back_to_full_content() -> None:
     assert WikiDirectorySidecarBuilder._extract_truth("no compiled block here") == "no compiled block here"
-    truth = WikiDirectorySidecarBuilder._extract_truth(
-        "## Compiled Truth\nFacts.\n\n## Related\nOther."
-    )
+    truth = WikiDirectorySidecarBuilder._extract_truth("## Compiled Truth\nFacts.\n\n## Related\nOther.")
     assert truth == "## Compiled Truth\nFacts."
 
 
@@ -250,9 +243,7 @@ async def test_generate_sidecar_pair_empty_inputs_and_llm_failure(tmp_path):
     llm = AsyncMock(side_effect=RuntimeError("llm down"))
     builder = WikiDirectorySidecarBuilder(llm, structure, WikiCompileConfig())
 
-    abstract, overview = await builder._generate_sidecar_pair(
-        directory="ops", file_summaries=[], child_abstracts=[]
-    )
+    abstract, overview = await builder._generate_sidecar_pair(directory="ops", file_summaries=[], child_abstracts=[])
     assert abstract == "No validated knowledge yet for this directory."
 
     abstract, overview = await builder._generate_sidecar_pair(

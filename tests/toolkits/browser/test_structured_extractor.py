@@ -313,9 +313,7 @@ class TestStructuredExtractorExtract:
     async def test_strategy1_array_unwraps(self) -> None:
         mock_llm = MagicMock()
         mock_model_instance = MagicMock(spec=BaseModel)
-        mock_model_instance.model_dump.return_value = {
-            "items": [{"name": "A"}, {"name": "B"}]
-        }
+        mock_model_instance.model_dump.return_value = {"items": [{"name": "A"}, {"name": "B"}]}
 
         mock_structured = MagicMock()
         mock_structured.ainvoke = AsyncMock(return_value=mock_model_instance)

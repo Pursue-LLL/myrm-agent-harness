@@ -26,6 +26,7 @@ def _clean_ui_globals(monkeypatch):
         _current_message_id as _snapshot_msg_id_var,
     )
     from myrm_agent_harness.agent.middlewares._session_context import _active_message_id_var
+
     _active_message_id_var.set(None)
     _snapshot_msg_id_var.set(None)
     yield

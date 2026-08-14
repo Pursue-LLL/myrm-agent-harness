@@ -56,10 +56,10 @@ class TestHashMonitor:
 
     def test_non_asset_array_keeps_order_sensitivity(self) -> None:
         monitor = HashMonitor(last_hash=None)
-        first = monitor.compute_delta('[1,2,3]')
+        first = monitor.compute_delta("[1,2,3]")
         monitor.update_baseline(first)
 
-        delta = monitor.compute_delta('[3,2,1]')
+        delta = monitor.compute_delta("[3,2,1]")
         assert delta == "[3,2,1]"
 
     def test_asset_array_with_rank_field_keeps_order_sensitivity(self) -> None:

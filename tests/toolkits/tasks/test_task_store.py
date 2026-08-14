@@ -397,14 +397,14 @@ async def test_list_tasks_date_and_multi_filters(temp_store):
     await temp_store.create_task(t_new)
 
     after = await temp_store.list_tasks(
-        TaskFilters(created_after=datetime.now(UTC) - timedelta(days=1), task_type=["audio_transcribe", "image_generate"])
+        TaskFilters(
+            created_after=datetime.now(UTC) - timedelta(days=1), task_type=["audio_transcribe", "image_generate"]
+        )
     )
     assert len(after) == 1
     assert after[0].task_id == "new"
 
-    before = await temp_store.list_tasks(
-        TaskFilters(created_before=datetime.now(UTC) - timedelta(days=1))
-    )
+    before = await temp_store.list_tasks(TaskFilters(created_before=datetime.now(UTC) - timedelta(days=1)))
     assert len(before) == 1
     assert before[0].task_id == "old"
 

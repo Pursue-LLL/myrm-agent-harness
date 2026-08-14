@@ -100,9 +100,7 @@ def test_api_protocols_are_extension_contracts() -> None:
     )
     for protocol_type in protocol_types:
         assert inspect.isclass(protocol_type)
-        assert issubclass(protocol_type, Protocol) or getattr(
-            protocol_type, "_is_protocol", False
-        )
+        assert issubclass(protocol_type, Protocol) or getattr(protocol_type, "_is_protocol", False)
 
 
 @pytest.mark.api

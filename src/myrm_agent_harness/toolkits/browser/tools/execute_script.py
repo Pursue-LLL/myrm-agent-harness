@@ -73,18 +73,18 @@ async def _require_privileged_api_approval(
     from myrm_agent_harness.core.security.audit import record_decision
 
     apis = ", ".join(violations)
-    logger.warning(
-        "[SCRIPT_PRIVILEGED_API] Detected privileged API access: %s", apis
-    )
+    logger.warning("[SCRIPT_PRIVILEGED_API] Detected privileged API access: %s", apis)
     record_decision("browser_execute_script_tool", "ASK", f"Privileged API: {apis}")
 
-    user_response = interrupt({
-        "action_type": "script_privileged_api",
-        "tool_name": "browser_execute_script_tool",
-        "reason": f"Script accesses privileged APIs that bypass network policy: {apis}",
-        "violations": violations,
-        "script_preview": script_preview[:500],
-    })
+    user_response = interrupt(
+        {
+            "action_type": "script_privileged_api",
+            "tool_name": "browser_execute_script_tool",
+            "reason": f"Script accesses privileged APIs that bypass network policy: {apis}",
+            "violations": violations,
+            "script_preview": script_preview[:500],
+        }
+    )
 
     if isinstance(user_response, dict) and user_response.get("decision") == "approve":
         record_decision("browser_execute_script_tool", "USER_APPROVED", f"Privileged API approved: {apis}")

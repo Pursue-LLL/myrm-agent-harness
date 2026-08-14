@@ -10,9 +10,7 @@ from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap impo
 
 
 def test_detect_capability_gap_browser_when_disabled() -> None:
-    hit = detect_capability_gap(
-        "please browse this website", frozenset({"web", "memory", "file_ops", "shell"})
-    )
+    hit = detect_capability_gap("please browse this website", frozenset({"web", "memory", "file_ops", "shell"}))
     assert hit is not None
     assert hit.tool_id == "browser"
 

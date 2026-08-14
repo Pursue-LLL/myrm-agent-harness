@@ -9,9 +9,11 @@ from myrm_agent_harness.agent.skills.evolution.safety.anti_loop_state import InM
 def anti_loop_state():
     return InMemoryAntiLoopState()
 
+
 @pytest.mark.asyncio
 async def test_is_evolution_addressed_initial(anti_loop_state):
     assert not await anti_loop_state.is_evolution_addressed("test_trigger", "key1", "skill1")
+
 
 @pytest.mark.asyncio
 async def test_mark_and_check(anti_loop_state):
@@ -20,6 +22,7 @@ async def test_mark_and_check(anti_loop_state):
     assert not await anti_loop_state.is_evolution_addressed("test_trigger", "key1", "skill2")
     assert not await anti_loop_state.is_evolution_addressed("test_trigger", "key2", "skill1")
     assert not await anti_loop_state.is_evolution_addressed("other_trigger", "key1", "skill1")
+
 
 @pytest.mark.asyncio
 async def test_mark_with_ttl(anti_loop_state):
@@ -37,6 +40,7 @@ async def test_mark_with_ttl(anti_loop_state):
     keys = await anti_loop_state.get_all_keys("test_trigger")
     assert "key1" not in keys
 
+
 @pytest.mark.asyncio
 async def test_clear_evolution_state(anti_loop_state):
     await anti_loop_state.mark_evolution_addressed("test_trigger", "key1", "skill1")
@@ -46,6 +50,7 @@ async def test_clear_evolution_state(anti_loop_state):
 
     # Test clearing non-existent state doesn't crash
     await anti_loop_state.clear_evolution_state("test_trigger", "key2")
+
 
 @pytest.mark.asyncio
 async def test_get_all_keys(anti_loop_state):
@@ -59,6 +64,7 @@ async def test_get_all_keys(anti_loop_state):
     empty_keys = await anti_loop_state.get_all_keys("other_trigger")
     assert empty_keys == set()
 
+
 @pytest.mark.asyncio
 async def test_skill_evolution_attempts(anti_loop_state):
     assert await anti_loop_state.get_skill_evolution_attempts("skill1") == 0
@@ -70,6 +76,7 @@ async def test_skill_evolution_attempts(anti_loop_state):
     new_count = await anti_loop_state.increment_skill_evolution_attempts("skill1")
     assert new_count == 2
     assert await anti_loop_state.get_skill_evolution_attempts("skill1") == 2
+
 
 @pytest.mark.asyncio
 async def test_prune_expired(anti_loop_state):

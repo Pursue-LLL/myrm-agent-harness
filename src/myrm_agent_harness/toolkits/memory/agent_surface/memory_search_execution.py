@@ -86,6 +86,7 @@ async def _run_with_timeout[T](
         )
         return None
 
+
 _CODE_PATH_PATTERN = re.compile(
     r"(\/[a-zA-Z0-9_\-\.]+)+\/?|[a-zA-Z0-9_\-\.]+\.(py|ts|tsx|js|jsx|json|yaml|yml|md|rs|go|java|c|cpp|h|hpp)"
 )
@@ -119,11 +120,7 @@ async def search_memory_corpus(
     )
     output: list[str] = []
     displayed_results: list[MemorySearchResult] = []
-    max_body_chars = (
-        MAX_RECALL_OUTPUT_CHARS
-        - recall_drift_defense_footer_chars()
-        - recall_preamble_overhead_chars()
-    )
+    max_body_chars = MAX_RECALL_OUTPUT_CHARS - recall_drift_defense_footer_chars() - recall_preamble_overhead_chars()
     output_chars = 0
     truncated_by_budget = False
 
@@ -158,25 +155,17 @@ async def search_memory_corpus(
 
     for result in results:
         cat = next(
-            (
-                key
-                for key, value in category_to_type.items()
-                if value == result.memory_type
-            ),
+            (key for key, value in category_to_type.items() if value == result.memory_type),
             result.memory_type.value,
         )
         memory = result.memory
         effective_time = max(memory.created_at, memory.updated_at)
         age = memory_age_label(effective_time)
         provenance = _channel_label(memory.scope.channel_id)
-        prefix = (
-            f"{provenance}[{cat}] (id: {memory.id}, score: {result.score:.2f}, {age}) "
-        )
+        prefix = f"{provenance}[{cat}] (id: {memory.id}, score: {result.score:.2f}, {age}) "
         suffix = ""
         if isinstance(memory, ClaimMemory):
-            relation_type = (
-                str(memory.metadata.get("latest_relationship_type", "")).strip().lower()
-            )
+            relation_type = str(memory.metadata.get("latest_relationship_type", "")).strip().lower()
             relation_suffix = f" relation={relation_type}" if relation_type else ""
             suffix += (
                 f" [claim_graph freshness={memory.freshness} contradiction={memory.contradiction_status} "
@@ -221,11 +210,7 @@ async def search_memory_corpus(
 
     if displayed_results:
         ratable_types = (MemoryType.SEMANTIC, MemoryType.EPISODIC)
-        cited_ids = [
-            r.memory.id
-            for r in displayed_results
-            if r.memory.id and r.memory_type in ratable_types
-        ]
+        cited_ids = [r.memory.id for r in displayed_results if r.memory.id and r.memory_type in ratable_types]
         cited_refs = [
             cited_memory_ref(r.memory, r.memory_type, r.score)
             for r in displayed_results

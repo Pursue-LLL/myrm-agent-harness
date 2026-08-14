@@ -87,9 +87,7 @@ async def test_compile_claim_graph_scoped_to_namespaces():
 
     vector.scroll.side_effect = _scroll
 
-    result = await compile_claim_graph(
-        vector, graph, config, namespaces=expected_namespaces
-    )
+    result = await compile_claim_graph(vector, graph, config, namespaces=expected_namespaces)
 
     assert result == 0
     vector.scroll.assert_awaited()

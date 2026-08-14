@@ -77,9 +77,7 @@ async def test_guardrail_allow_all(mock_request: ToolCallRequest) -> None:
 
 @pytest.mark.asyncio
 async def test_guardrail_deny(mock_request: ToolCallRequest) -> None:
-    middleware = GuardrailMiddleware(
-        providers=[MockAllowProvider(), MockDenyProvider()]
-    )
+    middleware = GuardrailMiddleware(providers=[MockAllowProvider(), MockDenyProvider()])
     result = await middleware.awrap_tool_call(mock_request, mock_handler)
 
     assert isinstance(result, ToolMessage)
@@ -93,9 +91,7 @@ async def test_guardrail_deny(mock_request: ToolCallRequest) -> None:
 async def test_guardrail_fail_closed_on_exception(
     mock_request: ToolCallRequest,
 ) -> None:
-    middleware = GuardrailMiddleware(
-        providers=[MockExceptionProvider()], fail_closed=True
-    )
+    middleware = GuardrailMiddleware(providers=[MockExceptionProvider()], fail_closed=True)
     result = await middleware.awrap_tool_call(mock_request, mock_handler)
 
     assert isinstance(result, ToolMessage)
@@ -105,9 +101,7 @@ async def test_guardrail_fail_closed_on_exception(
 
 @pytest.mark.asyncio
 async def test_guardrail_fail_open_on_exception(mock_request: ToolCallRequest) -> None:
-    middleware = GuardrailMiddleware(
-        providers=[MockExceptionProvider()], fail_closed=False
-    )
+    middleware = GuardrailMiddleware(providers=[MockExceptionProvider()], fail_closed=False)
     result = await middleware.awrap_tool_call(mock_request, mock_handler)
 
     assert isinstance(result, ToolMessage)

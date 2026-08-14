@@ -174,9 +174,7 @@ class TestPseudonymStoreClose:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=worker, args=(f"phone_{i}",)) for i in range(10)
-        ]
+        threads = [threading.Thread(target=worker, args=(f"phone_{i}",)) for i in range(10)]
         for t in threads:
             t.start()
         for t in threads:

@@ -62,9 +62,7 @@ class TestConsolidationRollbackResult:
         assert result.conflict_ids == []
 
     def test_with_values(self) -> None:
-        result = ConsolidationRollbackResult(
-            rolled_back=3, skipped_conflict=1, errors=0, conflict_ids=["id-x"]
-        )
+        result = ConsolidationRollbackResult(rolled_back=3, skipped_conflict=1, errors=0, conflict_ids=["id-x"])
         assert result.rolled_back == 3
         assert result.conflict_ids == ["id-x"]
 
@@ -283,9 +281,7 @@ class TestRollbackLastConsolidation:
 
         result = await rollback_last_consolidation(manager)
         assert result.rolled_back == 1
-        manager.update_memory.assert_called_once_with(
-            "mem-1", content="original content", metadata={}
-        )
+        manager.update_memory.assert_called_once_with("mem-1", content="original content", metadata={})
 
     @pytest.mark.asyncio
     async def test_skip_conflict_memory(self) -> None:

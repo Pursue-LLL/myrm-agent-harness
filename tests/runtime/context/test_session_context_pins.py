@@ -78,7 +78,18 @@ def test_add_pinned_file_skips_blank_path(persistent_root: str) -> None:
 def test_write_pinned_files_dedupes_and_caps(persistent_root: str) -> None:
     record = write_pinned_files(
         "session-1",
-        ["src/a.py", " src/a.py ", "src/b.py", "", "src/c.py", "src/d.py", "src/e.py", "src/f.py", "src/g.py", "src/h.py"],
+        [
+            "src/a.py",
+            " src/a.py ",
+            "src/b.py",
+            "",
+            "src/c.py",
+            "src/d.py",
+            "src/e.py",
+            "src/f.py",
+            "src/g.py",
+            "src/h.py",
+        ],
     )
     assert list(record.files) == [
         "src/a.py",

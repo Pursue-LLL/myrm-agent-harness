@@ -114,9 +114,7 @@ class TestCompressOutput:
         stdout = "\n".join(lines)
         preview = _create_smart_preview(stdout)
         head_text = (
-            preview.split("\n\n[Truncated:")[0].partition("\n")[2].lstrip("\n")
-            if "[Truncated:" in preview
-            else None
+            preview.split("\n\n[Truncated:")[0].partition("\n")[2].lstrip("\n") if "[Truncated:" in preview else None
         )
         footer = build_delivery_footer(
             evicted_basename="output_abcd1234.txt",
@@ -775,9 +773,7 @@ class TestSafety:
         ]
         for cmd, output in commands_and_outputs:
             result = compress(cmd, output, exit_code="1")
-            assert len(result) <= len(
-                output
-            ), f"Failure compression grew output for: {cmd}"
+            assert len(result) <= len(output), f"Failure compression grew output for: {cmd}"
 
 
 # ---------------------------------------------------------------------------
@@ -799,10 +795,7 @@ class TestCompilerErrorCompressor:
         result = compress("tsc --noEmit", output, exit_code="1")
         assert "Compiler output aggregated for clarity" in result
         assert "src/app/layout.tsx:" in result
-        assert (
-            "Line 10: [TS2322] Type 'string' is not assignable to type 'number'."
-            in result
-        )
+        assert "Line 10: [TS2322] Type 'string' is not assignable to type 'number'." in result
         assert "src/components/Button.tsx:" in result
         assert "Line 15: [TS2304] Cannot find name 'React'." in result
         assert "TS6133" not in result  # Warnings are ignored
@@ -837,10 +830,7 @@ class TestCompilerErrorCompressor:
         result = compress("eslint .", output, exit_code="1")
         assert "Compiler output aggregated for clarity" in result
         assert "/Users/project/src/app.ts:" in result
-        assert (
-            "Line 10: [no-unused-vars] 'foo' is assigned a value but never used"
-            in result
-        )
+        assert "Line 10: [no-unused-vars] 'foo' is assigned a value but never used" in result
         assert "/Users/project/src/utils.ts:" in result
         assert "Line 5: [no-undef] 'bar' is not defined" in result
         assert "comma-dangle" not in result  # Warnings are ignored
@@ -887,9 +877,7 @@ class TestLogCompressor:
                 f"2026-05-21 10:00:01.{i:03d} ERROR 12345 --- [main] com.zaxxer.hikari.pool.HikariPool : Connection refused to 127.0.0.1:5432"
             )
         for i in range(50):
-            lines.append(
-                f"2026-05-21 10:00:02.{i:03d} WARN 12345 --- [main] com.example.App : Retrying connection..."
-            )
+            lines.append(f"2026-05-21 10:00:02.{i:03d} WARN 12345 --- [main] com.example.App : Retrying connection...")
 
         output = "\n".join(lines)
         result = compressor.compress(output)
@@ -947,22 +935,12 @@ class TestLogCompressor:
             )
 
         # Add a single unique error and warning
-        lines.append(
-            "2026-05-21 10:00:01.000 ERROR 12345 --- [main] com.example.App : Unique error"
-        )
-        lines.append(
-            "2026-05-21 10:00:01.000 WARN 12345 --- [main] com.example.App : Unique warning"
-        )
-        lines.append(
-            "2026-05-21 10:00:01.000 INFO 12345 --- [main] com.example.App : Just some info"
-        )
-        lines.append(
-            "2026-05-21 10:00:01.000 INFO 12345 --- [main] com.example.App : Just some info"
-        )
+        lines.append("2026-05-21 10:00:01.000 ERROR 12345 --- [main] com.example.App : Unique error")
+        lines.append("2026-05-21 10:00:01.000 WARN 12345 --- [main] com.example.App : Unique warning")
+        lines.append("2026-05-21 10:00:01.000 INFO 12345 --- [main] com.example.App : Just some info")
+        lines.append("2026-05-21 10:00:01.000 INFO 12345 --- [main] com.example.App : Just some info")
         lines.append("")  # Empty line (will become empty normalized string)
-        lines.append(
-            "2026-05-21 10:00:01.000"
-        )  # Just timestamp (will become empty normalized string)
+        lines.append("2026-05-21 10:00:01.000")  # Just timestamp (will become empty normalized string)
 
         output = "\n".join(lines)
         result = compressor.compress(output)

@@ -82,9 +82,7 @@ class TestCalculateScore:
         assert score == expected
 
     def test_enum_adds_cost(self) -> None:
-        schema = {
-            "properties": {"mode": {"type": "string", "enum": ["a", "b", "c"]}}
-        }
+        schema = {"properties": {"mode": {"type": "string", "enum": ["a", "b", "c"]}}}
         score = ActionSpaceProfiler.calculate_score([schema])
         assert score == ActionSpaceProfiler.BASE_TOOL_COST + ActionSpaceProfiler.PARAM_COST + 3
 

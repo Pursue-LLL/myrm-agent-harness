@@ -106,18 +106,12 @@ class ChatLiteLLMAsyncMixin:
         _retry_metrics: EmptyRetryMetrics
         _create_chat_result: Callable[..., ChatResult]
         _convert_response_to_dict: Callable[..., dict[str, Any]]
-        _extract_tool_context_from_kwargs: Callable[
-            ..., tuple[list[str] | None, dict[str, dict[str, Any]] | None]
-        ]
-        _create_message_dicts: Callable[
-            ..., tuple[list[dict[str, Any]], dict[str, Any]]
-        ]
+        _extract_tool_context_from_kwargs: Callable[..., tuple[list[str] | None, dict[str, dict[str, Any]] | None]]
+        _create_message_dicts: Callable[..., tuple[list[dict[str, Any]], dict[str, Any]]]
         _inject_allowed_params: Callable[..., None]
         _apply_ephemeral_output_override: Callable[..., None]
         _inject_prompt_routing_key: Callable[..., None]
-        _process_chunk: Callable[
-            ..., tuple[ChatGenerationChunk | None, type[BaseMessageChunk]]
-        ]
+        _process_chunk: Callable[..., tuple[ChatGenerationChunk | None, type[BaseMessageChunk]]]
         _record_usage: Callable[..., None]
         _record_non_stream_usage: Callable[..., None]
 
@@ -153,23 +147,15 @@ class ChatLiteLLMAsyncMixin:
         should_stream = kwargs.pop("streaming", self.streaming)
         if should_stream:
             try:
-                stream_iter = self._astream(
-                    messages=messages, stop=stop, run_manager=run_manager, **kwargs
-                )
+                stream_iter = self._astream(messages=messages, stop=stop, run_manager=run_manager, **kwargs)
                 return await agenerate_from_stream(stream_iter)
             except TypeError as e:
                 if "'NoneType' object is not iterable" in str(e):
-                    logger.warning(
-                        " LangChain agenerate_from_stream bug, falling back to non-streaming"
-                    )
-                    return await self._agenerate(
-                        messages, stop, run_manager, stream=False, **kwargs
-                    )
+                    logger.warning(" LangChain agenerate_from_stream bug, falling back to non-streaming")
+                    return await self._agenerate(messages, stop, run_manager, stream=False, **kwargs)
                 raise
             except Exception:
-                logger.error(
-                    f" LiteLLM streaming failed (Model: {self.model_name or self.model})"
-                )
+                logger.error(f" LiteLLM streaming failed (Model: {self.model_name or self.model})")
                 raise
 
         available_tools, tool_schemas = self._extract_tool_context_from_kwargs(kwargs)
@@ -213,28 +199,20 @@ class ChatLiteLLMAsyncMixin:
                     span.set_attribute("llm.model_name", model_name)
                     span.set_attribute("llm.request.attempt", attempt + 1)
 
-                    response = await self.client.acreate(
-                        messages=message_dicts, **params
-                    )
+                    response = await self.client.acreate(messages=message_dicts, **params)
                     response = self._convert_response_to_dict(response)
 
                     if usage := response.get("usage"):
-                        span.set_attribute(
-                            "llm.token_count.prompt", usage.get("prompt_tokens", 0)
-                        )
+                        span.set_attribute("llm.token_count.prompt", usage.get("prompt_tokens", 0))
                         span.set_attribute(
                             "llm.token_count.completion",
                             usage.get("completion_tokens", 0),
                         )
-                        span.set_attribute(
-                            "llm.token_count.total", usage.get("total_tokens", 0)
-                        )
+                        span.set_attribute("llm.token_count.total", usage.get("total_tokens", 0))
 
                 log_llm_response(response)
 
-                result = self._create_chat_result(
-                    response, available_tools, tool_schemas
-                )
+                result = self._create_chat_result(response, available_tools, tool_schemas)
 
                 duration_ms = (time.perf_counter() - started) * 1000
                 self._record_non_stream_usage(
@@ -254,9 +232,7 @@ class ChatLiteLLMAsyncMixin:
                 self._retry_metrics.async_retry_count += 1
 
                 if attempt < max_attempts - 1:
-                    logger.warning(
-                        f" Empty choices (attempt {attempt + 1}), retrying..."
-                    )
+                    logger.warning(f" Empty choices (attempt {attempt + 1}), retrying...")
                     delay_ms = self.empty_retry_delay * 1000
                     self._retry_metrics.total_retry_delay_ms += delay_ms
                     await asyncio.sleep(self.empty_retry_delay)
@@ -270,11 +246,7 @@ class ChatLiteLLMAsyncMixin:
 
                 if is_context_overflow(e):
                     available = parse_available_output_tokens_from_error(e)
-                    if (
-                        available is not None
-                        and available >= 500
-                        and attempt < max_attempts - 1
-                    ):
+                    if available is not None and available >= 500 and attempt < max_attempts - 1:
                         safe_tokens = max(1, available - 64)
                         logger.warning(
                             f" Context overflow, injecting ephemeral max_tokens={safe_tokens} (attempt {attempt + 1})"
@@ -287,9 +259,7 @@ class ChatLiteLLMAsyncMixin:
                         )
                         raise e
 
-                logger.error(
-                    f" LiteLLM acreate failed (Model: {self.model_name or self.model}): {e!s}"
-                )
+                logger.error(f" LiteLLM acreate failed (Model: {self.model_name or self.model}): {e!s}")
                 raise
 
         if last_error:
@@ -311,9 +281,7 @@ class ChatLiteLLMAsyncMixin:
             global_sem or contextlib.nullcontext(),
             model_sem or contextlib.nullcontext(),
         ):
-            async for chunk in self._astream_inner(
-                messages, stop, run_manager, **kwargs
-            ):
+            async for chunk in self._astream_inner(messages, stop, run_manager, **kwargs):
                 yield chunk
 
     async def _astream_inner(
@@ -391,30 +359,16 @@ class ChatLiteLLMAsyncMixin:
                                 agg.on_generation_chunk(cg_chunk, new_class)
 
                                 # Filter content and reasoning_content through DSML buffer before yielding
-                                raw_content = (
-                                    str(cg_chunk.message.content)
-                                    if cg_chunk.message.content
-                                    else ""
-                                )
+                                raw_content = str(cg_chunk.message.content) if cg_chunk.message.content else ""
                                 safe_content = xml_content_buffer.process(raw_content)
 
-                                additional_kwargs = dict(
-                                    getattr(cg_chunk.message, "additional_kwargs", {})
-                                )
-                                raw_reasoning = additional_kwargs.get(
-                                    "reasoning_content", ""
-                                )
+                                additional_kwargs = dict(getattr(cg_chunk.message, "additional_kwargs", {}))
+                                raw_reasoning = additional_kwargs.get("reasoning_content", "")
                                 safe_reasoning = (
-                                    xml_reasoning_buffer.process(str(raw_reasoning))
-                                    if raw_reasoning
-                                    else ""
+                                    xml_reasoning_buffer.process(str(raw_reasoning)) if raw_reasoning else ""
                                 )
 
-                                if (
-                                    safe_content
-                                    or safe_reasoning
-                                    or getattr(cg_chunk.message, "tool_call_chunks", [])
-                                ):
+                                if safe_content or safe_reasoning or getattr(cg_chunk.message, "tool_call_chunks", []):
                                     msg_dict = dict(cg_chunk.message)
                                     msg_dict.pop("type", None)
                                     msg_dict["content"] = safe_content
@@ -427,20 +381,12 @@ class ChatLiteLLMAsyncMixin:
                                         msg_dict["additional_kwargs"] = ak
 
                                     safe_chunk = cg_chunk.message.__class__(**msg_dict)
-                                    safe_cg_chunk = ChatGenerationChunk(
-                                        message=safe_chunk
-                                    )
+                                    safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
                                     if run_manager:
-                                        await run_manager.on_llm_new_token(
-                                            safe_content, chunk=safe_cg_chunk
-                                        )
+                                        await run_manager.on_llm_new_token(safe_content, chunk=safe_cg_chunk)
                                     yield safe_cg_chunk
                 except TimeoutError as exc:
-                    timeout_val = (
-                        self.first_event_timeout
-                        if stall_phase == "first_event"
-                        else self.inter_chunk_timeout
-                    )
+                    timeout_val = self.first_event_timeout if stall_phase == "first_event" else self.inter_chunk_timeout
                     logger.warning(
                         " Stream stall detected (phase=%s, model=%s, timeout=%.0fs)",
                         stall_phase,
@@ -457,9 +403,7 @@ class ChatLiteLLMAsyncMixin:
                 logger.debug(f" Stream completed: total {agg.chunk_count} chunks")
 
                 if agg.is_empty:
-                    raise EmptyStreamError(
-                        f"Stream produced no chunks. Model: {model_name}"
-                    )
+                    raise EmptyStreamError(f"Stream produced no chunks. Model: {model_name}")
 
                 # Flush buffers at the end of the stream
                 flushed_content = xml_content_buffer.flush()
@@ -467,15 +411,11 @@ class ChatLiteLLMAsyncMixin:
                 if flushed_content or flushed_reasoning:
                     msg_dict = {"content": flushed_content}
                     if flushed_reasoning:
-                        msg_dict["additional_kwargs"] = {
-                            "reasoning_content": flushed_reasoning
-                        }
+                        msg_dict["additional_kwargs"] = {"reasoning_content": flushed_reasoning}
                     safe_chunk = agg.default_chunk_class(**msg_dict)
                     safe_cg_chunk = ChatGenerationChunk(message=safe_chunk)
                     if run_manager:
-                        await run_manager.on_llm_new_token(
-                            flushed_content, chunk=safe_cg_chunk
-                        )
+                        await run_manager.on_llm_new_token(flushed_content, chunk=safe_cg_chunk)
                     yield safe_cg_chunk
 
                 result = finalize_stream(
@@ -488,9 +428,7 @@ class ChatLiteLLMAsyncMixin:
                 )
                 if result.final_tool_chunk:
                     if run_manager:
-                        await run_manager.on_llm_new_token(
-                            "", chunk=result.final_tool_chunk
-                        )
+                        await run_manager.on_llm_new_token("", chunk=result.final_tool_chunk)
                     yield result.final_tool_chunk
                 else:
                     # Yield an empty chunk so LangGraph's messages stream triggers
@@ -510,12 +448,8 @@ class ChatLiteLLMAsyncMixin:
                 last_error = e
                 self._retry_metrics.stream_retry_count += 1
                 if attempt < max_attempts - 1:
-                    logger.warning(
-                        f" Empty stream (attempt {attempt + 1}), retrying..."
-                    )
-                    self._retry_metrics.total_retry_delay_ms += (
-                        self.empty_retry_delay * 1000
-                    )
+                    logger.warning(f" Empty stream (attempt {attempt + 1}), retrying...")
+                    self._retry_metrics.total_retry_delay_ms += self.empty_retry_delay * 1000
                     await asyncio.sleep(self.empty_retry_delay)
                 else:
                     logger.error(f" Empty stream after {max_attempts} attempts.")
@@ -529,11 +463,7 @@ class ChatLiteLLMAsyncMixin:
 
                 if is_context_overflow(e):
                     available = parse_available_output_tokens_from_error(e)
-                    if (
-                        available is not None
-                        and available >= 500
-                        and attempt < max_attempts - 1
-                    ):
+                    if available is not None and available >= 500 and attempt < max_attempts - 1:
                         safe_tokens = max(1, available - 64)
                         logger.warning(
                             f" Context overflow, injecting ephemeral max_tokens={safe_tokens} (attempt {attempt + 1})"

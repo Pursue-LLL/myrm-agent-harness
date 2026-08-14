@@ -35,10 +35,7 @@ _MIMO_HOSTS = ("api.xiaomimimo.com",)
 def _matches_prefix(model: str, prefixes: tuple[str, ...]) -> bool:
     """Check if model matches any of the given prefixes."""
     lower = (model or "").lower()
-    return any(
-        lower.startswith(p) or f"/{p}" in lower or f"/{p.rstrip('/')}" in lower
-        for p in prefixes
-    )
+    return any(lower.startswith(p) or f"/{p}" in lower or f"/{p.rstrip('/')}" in lower for p in prefixes)
 
 
 def _matches_host(base_url: str, hosts: tuple[str, ...]) -> bool:

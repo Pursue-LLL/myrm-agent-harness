@@ -50,18 +50,21 @@ def _ev(seq: int, etype: str, sid: str = "s1", ts: float = 1700000000.0, **data:
 
 # ---- get_tool_usage_stats ----
 
+
 @pytest.mark.asyncio
 async def test_tool_usage_stats_basic() -> None:
-    backend = InMemoryBackend({
-        "s1": [
-            _ev(1, "tool_start", tool_name="Read"),
-            _ev(2, "tool_end", tool_name="Read", duration_ms=100),
-            _ev(3, "tool_start", tool_name="Read"),
-            _ev(4, "tool_end", tool_name="Read", duration_ms=200),
-            _ev(5, "tool_start", tool_name="Shell"),
-            _ev(6, "tool_failure", tool_name="Shell", duration_ms=50, error_code="E001"),
-        ],
-    })
+    backend = InMemoryBackend(
+        {
+            "s1": [
+                _ev(1, "tool_start", tool_name="Read"),
+                _ev(2, "tool_end", tool_name="Read", duration_ms=100),
+                _ev(3, "tool_start", tool_name="Read"),
+                _ev(4, "tool_end", tool_name="Read", duration_ms=200),
+                _ev(5, "tool_start", tool_name="Shell"),
+                _ev(6, "tool_failure", tool_name="Shell", duration_ms=50, error_code="E001"),
+            ],
+        }
+    )
     stats = await get_tool_usage_stats(backend, "s1")
     assert len(stats) == 2
     read_stat = next(s for s in stats if s.tool_name == "Read")
@@ -76,15 +79,17 @@ async def test_tool_usage_stats_basic() -> None:
 
 @pytest.mark.asyncio
 async def test_tool_usage_stats_timeout_retry_tokens() -> None:
-    backend = InMemoryBackend({
-        "s1": [
-            _ev(1, "tool_start", tool_name="LLM"),
-            _ev(2, "tool_timeout", tool_name="LLM"),
-            _ev(3, "tool_retry", tool_name="LLM"),
-            _ev(4, "tool_token_usage", tool_name="LLM", tokens=500),
-            _ev(5, "tool_cancelled", tool_name="LLM", duration_ms=300),
-        ],
-    })
+    backend = InMemoryBackend(
+        {
+            "s1": [
+                _ev(1, "tool_start", tool_name="LLM"),
+                _ev(2, "tool_timeout", tool_name="LLM"),
+                _ev(3, "tool_retry", tool_name="LLM"),
+                _ev(4, "tool_token_usage", tool_name="LLM", tokens=500),
+                _ev(5, "tool_cancelled", tool_name="LLM", duration_ms=300),
+            ],
+        }
+    )
     stats = await get_tool_usage_stats(backend, "s1")
     assert len(stats) == 1
     s = stats[0]
@@ -102,15 +107,18 @@ async def test_tool_usage_stats_empty() -> None:
 
 # ---- get_activity_patterns ----
 
+
 @pytest.mark.asyncio
 async def test_activity_patterns_basic() -> None:
     now = time.time()
-    backend = InMemoryBackend({
-        "s1": [
-            _ev(1, "tool_start", ts=now, tool_name="Read"),
-            _ev(2, "tool_end", ts=now, tool_name="Read"),
-        ],
-    })
+    backend = InMemoryBackend(
+        {
+            "s1": [
+                _ev(1, "tool_start", ts=now, tool_name="Read"),
+                _ev(2, "tool_end", ts=now, tool_name="Read"),
+            ],
+        }
+    )
     patterns = await get_activity_patterns(backend, "s1")
     assert patterns.peak_tool == "Read"
     assert len(patterns.hourly_breakdown) >= 1
@@ -126,15 +134,18 @@ async def test_activity_patterns_empty() -> None:
 
 # ---- get_bash_audit_logs ----
 
+
 @pytest.mark.asyncio
 async def test_bash_audit_logs_filters() -> None:
-    backend = InMemoryBackend({
-        "s1": [
-            _ev(1, "bash_command_executed", command_type="read", risk_level="low"),
-            _ev(2, "bash_command_executed", command_type="write", risk_level="high"),
-            _ev(3, "bash_command_executed", command_type="read", risk_level="high"),
-        ],
-    })
+    backend = InMemoryBackend(
+        {
+            "s1": [
+                _ev(1, "bash_command_executed", command_type="read", risk_level="low"),
+                _ev(2, "bash_command_executed", command_type="write", risk_level="high"),
+                _ev(3, "bash_command_executed", command_type="read", risk_level="high"),
+            ],
+        }
+    )
     all_logs = await get_bash_audit_logs(backend, "s1")
     assert len(all_logs) == 3
 
@@ -150,16 +161,38 @@ async def test_bash_audit_logs_filters() -> None:
 
 # ---- get_bash_execution_stats ----
 
+
 @pytest.mark.asyncio
 async def test_bash_execution_stats() -> None:
     now = time.time()
-    backend = InMemoryBackend({
-        "s1": [
-            _ev(1, "bash_command_executed", ts=now, success=True, duration_ms=100, command="ls", command_type="read"),
-            _ev(2, "bash_command_executed", ts=now, success=True, duration_ms=200, command="cat", command_type="read"),
-            _ev(3, "bash_command_executed", ts=now, success=False, duration_ms=50, command="rm", command_type="write", error_message="permission denied"),
-        ],
-    })
+    backend = InMemoryBackend(
+        {
+            "s1": [
+                _ev(
+                    1, "bash_command_executed", ts=now, success=True, duration_ms=100, command="ls", command_type="read"
+                ),
+                _ev(
+                    2,
+                    "bash_command_executed",
+                    ts=now,
+                    success=True,
+                    duration_ms=200,
+                    command="cat",
+                    command_type="read",
+                ),
+                _ev(
+                    3,
+                    "bash_command_executed",
+                    ts=now,
+                    success=False,
+                    duration_ms=50,
+                    command="rm",
+                    command_type="write",
+                    error_message="permission denied",
+                ),
+            ],
+        }
+    )
     stats = await get_bash_execution_stats(backend, "s1")
     assert stats.total_commands == 3
     assert abs(stats.success_rate - 2 / 3) < 0.01
@@ -179,16 +212,27 @@ async def test_bash_execution_stats_empty() -> None:
 
 # ---- get_session_summary ----
 
+
 @pytest.mark.asyncio
 async def test_session_summary() -> None:
-    backend = InMemoryBackend({
-        "s1": [
-            _ev(1, "session_start"),
-            _ev(2, "tool_start", tool_name="Read"),
-            _ev(3, "tool_end", tool_name="Read", duration_ms=100),
-            _ev(4, "session_end", summary={"duration_ms": 5000, "task_metrics": {"compression_count": 2}, "token_economics": {"usage": {"prompt_tokens": 100}}}),
-        ],
-    })
+    backend = InMemoryBackend(
+        {
+            "s1": [
+                _ev(1, "session_start"),
+                _ev(2, "tool_start", tool_name="Read"),
+                _ev(3, "tool_end", tool_name="Read", duration_ms=100),
+                _ev(
+                    4,
+                    "session_end",
+                    summary={
+                        "duration_ms": 5000,
+                        "task_metrics": {"compression_count": 2},
+                        "token_economics": {"usage": {"prompt_tokens": 100}},
+                    },
+                ),
+            ],
+        }
+    )
     summary = await get_session_summary(backend, "s1")
     assert summary.session_id == "s1"
     assert summary.duration_ms == 5000.0
@@ -201,32 +245,37 @@ async def test_session_summary() -> None:
 
 @pytest.mark.asyncio
 async def test_session_summary_compactions_fallback() -> None:
-    backend = InMemoryBackend({
-        "s1": [
-            _ev(1, "session_end", summary={"duration_ms": 1000, "compactions": 3}),
-        ],
-    })
+    backend = InMemoryBackend(
+        {
+            "s1": [
+                _ev(1, "session_end", summary={"duration_ms": 1000, "compactions": 3}),
+            ],
+        }
+    )
     summary = await get_session_summary(backend, "s1")
     assert summary.task_metrics["compression_count"] == 3
 
 
 # ---- get_global_tool_stability ----
 
+
 @pytest.mark.asyncio
 async def test_global_tool_stability() -> None:
     now = time.time()
-    backend = InMemoryBackend({
-        "s1": [
-            _ev(1, "tool_start", ts=now, tool_name="Read"),
-            _ev(2, "tool_end", ts=now, tool_name="Read", duration_ms=100),
-            _ev(3, "tool_start", ts=now, tool_name="Read"),
-            _ev(4, "tool_failure", ts=now, tool_name="Read", duration_ms=200, error_code="IO_ERR"),
-        ],
-        "s2": [
-            _ev(1, "tool_start", ts=now, tool_name="Read"),
-            _ev(2, "tool_timeout", ts=now, tool_name="Read"),
-        ],
-    })
+    backend = InMemoryBackend(
+        {
+            "s1": [
+                _ev(1, "tool_start", ts=now, tool_name="Read"),
+                _ev(2, "tool_end", ts=now, tool_name="Read", duration_ms=100),
+                _ev(3, "tool_start", ts=now, tool_name="Read"),
+                _ev(4, "tool_failure", ts=now, tool_name="Read", duration_ms=200, error_code="IO_ERR"),
+            ],
+            "s2": [
+                _ev(1, "tool_start", ts=now, tool_name="Read"),
+                _ev(2, "tool_timeout", ts=now, tool_name="Read"),
+            ],
+        }
+    )
     result = await get_global_tool_stability(backend, ["s1", "s2"])
     assert result.global_total_calls == 3
     assert result.global_failure_rate > 0
@@ -239,14 +288,16 @@ async def test_global_tool_stability() -> None:
 @pytest.mark.asyncio
 async def test_global_tool_stability_with_tool_filter() -> None:
     now = time.time()
-    backend = InMemoryBackend({
-        "s1": [
-            _ev(1, "tool_start", ts=now, tool_name="Read"),
-            _ev(2, "tool_end", ts=now, tool_name="Read", duration_ms=50),
-            _ev(3, "tool_start", ts=now, tool_name="Shell"),
-            _ev(4, "tool_end", ts=now, tool_name="Shell", duration_ms=300),
-        ],
-    })
+    backend = InMemoryBackend(
+        {
+            "s1": [
+                _ev(1, "tool_start", ts=now, tool_name="Read"),
+                _ev(2, "tool_end", ts=now, tool_name="Read", duration_ms=50),
+                _ev(3, "tool_start", ts=now, tool_name="Shell"),
+                _ev(4, "tool_end", ts=now, tool_name="Shell", duration_ms=300),
+            ],
+        }
+    )
     result = await get_global_tool_stability(backend, ["s1"], tool_name="Read")
     assert result.global_total_calls == 1
 

@@ -29,9 +29,7 @@ def wiki_structure(temp_wiki_dir: Path) -> WikiStructure:
     short_concept.write_text("# Short Article\n\nShort.")
 
     broken_link_concept = structure.get_concept_file_path("Broken Links")
-    broken_link_concept.write_text(
-        "# Broken Links\n\n[Missing](missing.md) [External](https://example.com)"
-    )
+    broken_link_concept.write_text("# Broken Links\n\n[Missing](missing.md) [External](https://example.com)")
 
     todo_concept = structure.get_concept_file_path("TODO Article")
     todo_concept.write_text("# TODO Article\n\nTODO: Add more content")
@@ -72,10 +70,7 @@ async def test_check_completeness_finds_short_articles(linter: WikiLinter) -> No
     issues = await linter._check_completeness()
 
     assert len(issues) >= 1
-    assert any(
-        issue.issue_type == "incomplete" and "short" in issue.description.lower()
-        for issue in issues
-    )
+    assert any(issue.issue_type == "incomplete" and "short" in issue.description.lower() for issue in issues)
 
 
 @pytest.mark.asyncio
@@ -83,10 +78,7 @@ async def test_check_completeness_finds_todos(linter: WikiLinter) -> None:
     """Test completeness check finds TODO markers."""
     issues = await linter._check_completeness()
 
-    assert any(
-        issue.issue_type == "incomplete" and "TODO" in issue.description
-        for issue in issues
-    )
+    assert any(issue.issue_type == "incomplete" and "TODO" in issue.description for issue in issues)
 
 
 @pytest.mark.asyncio
@@ -118,9 +110,7 @@ async def test_lint_and_maintain_knowledge_gaps(
         "communities": [],
     }
     config = WikiConfig(enable_auto_maintenance=False)
-    linter_with_indexer = WikiLinter(
-        mock_llm, wiki_structure, config, indexer=mock_indexer
-    )
+    linter_with_indexer = WikiLinter(mock_llm, wiki_structure, config, indexer=mock_indexer)
 
     result = await linter_with_indexer.lint_and_maintain()
 
@@ -241,13 +231,9 @@ async def test_check_drift_full_mode_with_llm(
         encoding="utf-8",
     )
     raw_path = wiki_structure.raw_dir / "drift-source.md"
-    raw_path.write_text(
-        "Raw source content with the original number 42.", encoding="utf-8"
-    )
+    raw_path.write_text("Raw source content with the original number 42.", encoding="utf-8")
 
-    mock_llm.ainvoke.return_value = AIMessage(
-        content="DRIFT DETECTED: number changed from 42 to 43 in Drift Article."
-    )
+    mock_llm.ainvoke.return_value = AIMessage(content="DRIFT DETECTED: number changed from 42 to 43 in Drift Article.")
     config = WikiConfig(enable_auto_maintenance=True, enable_backlinks=False)
     linter = WikiLinter(mock_llm, wiki_structure, config)
     issues = await linter._check_drift()
@@ -264,8 +250,7 @@ async def test_check_drift_no_drift_marker(
 
     concept = wiki_structure.get_concept_file_path("Clean Article")
     concept.write_text(
-        "---\ntype: concept\nsources:\n  - clean-source.md\n---\n\n"
-        "# Clean Article\n\nAccurate article content.",
+        "---\ntype: concept\nsources:\n  - clean-source.md\n---\n\n# Clean Article\n\nAccurate article content.",
         encoding="utf-8",
     )
     raw_path = wiki_structure.raw_dir / "clean-source.md"
@@ -286,8 +271,7 @@ async def test_check_drift_reasoning_fallback(
     """Drift check extracts reasoning_content when content is empty."""
     concept = wiki_structure.get_concept_file_path("Reasoning Article")
     concept.write_text(
-        "---\ntype: concept\nsources:\n  - reasoning-source.md\n---\n\n"
-        "# Reasoning Article\n\nArticle content.",
+        "---\ntype: concept\nsources:\n  - reasoning-source.md\n---\n\n# Reasoning Article\n\nArticle content.",
         encoding="utf-8",
     )
     raw_path = wiki_structure.raw_dir / "reasoning-source.md"
@@ -295,9 +279,7 @@ async def test_check_drift_reasoning_fallback(
 
     mock_llm.ainvoke.return_value = MagicMock(
         content="",
-        additional_kwargs={
-            "reasoning_content": "DRIFT DETECTED: mismatch in Reasoning Article."
-        },
+        additional_kwargs={"reasoning_content": "DRIFT DETECTED: mismatch in Reasoning Article."},
     )
     config = WikiConfig(enable_auto_maintenance=True, enable_backlinks=False)
     linter = WikiLinter(mock_llm, wiki_structure, config)
@@ -314,9 +296,7 @@ async def test_discover_connections_llm_enrichment(
     from langchain_core.messages import AIMessage
 
     concept_a = wiki_structure.get_concept_file_path("Concept Alpha")
-    concept_a.write_text(
-        "---\ntype: concept\n---\n\n# Concept Alpha\n\nAlpha references Concept Beta."
-    )
+    concept_a.write_text("---\ntype: concept\n---\n\n# Concept Alpha\n\nAlpha references Concept Beta.")
     concept_b = wiki_structure.get_concept_file_path("Concept Beta")
     concept_b.write_text("---\ntype: concept\n---\n\n# Concept Beta\n\nStandalone.")
     concept_c = wiki_structure.get_concept_file_path("Concept Gamma")
@@ -327,9 +307,7 @@ async def test_discover_connections_llm_enrichment(
     linter = WikiLinter(mock_llm, wiki_structure, config)
     count = await linter._discover_connections()
     assert count >= 0
-    updated = wiki_structure.get_concept_file_path("Concept Alpha").read_text(
-        encoding="utf-8"
-    )
+    updated = wiki_structure.get_concept_file_path("Concept Alpha").read_text(encoding="utf-8")
     assert "[[Concept Beta]]" in updated
 
 
@@ -342,20 +320,14 @@ async def test_discover_connections_malformed_llm_array(
     from langchain_core.messages import AIMessage
 
     concept_a = wiki_structure.get_concept_file_path("Concept Alpha")
-    concept_a.write_text(
-        "---\ntype: concept\n---\n\n# Concept Alpha\n\nAlpha references Concept Beta."
-    )
+    concept_a.write_text("---\ntype: concept\n---\n\n# Concept Alpha\n\nAlpha references Concept Beta.")
     concept_b = wiki_structure.get_concept_file_path("Concept Beta")
     concept_b.write_text("---\ntype: concept\n---\n\n# Concept Beta\n\nStandalone.")
 
-    mock_llm.ainvoke.return_value = AIMessage(
-        content='Suggested links: ["Concept Beta",]'
-    )
+    mock_llm.ainvoke.return_value = AIMessage(content='Suggested links: ["Concept Beta",]')
     config = WikiConfig(enable_auto_maintenance=False, enable_backlinks=True)
     linter = WikiLinter(mock_llm, wiki_structure, config)
     count = await linter._discover_connections()
     assert count >= 0
-    updated = wiki_structure.get_concept_file_path("Concept Alpha").read_text(
-        encoding="utf-8"
-    )
+    updated = wiki_structure.get_concept_file_path("Concept Alpha").read_text(encoding="utf-8")
     assert "[[Concept Beta]]" in updated

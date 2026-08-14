@@ -236,9 +236,7 @@ class FlattenMeta:
 
     __slots__ = ("original_required", "was_flattened")
 
-    def __init__(
-        self, was_flattened: bool, original_required: list[str] | None = None
-    ) -> None:
+    def __init__(self, was_flattened: bool, original_required: list[str] | None = None) -> None:
         self.was_flattened = was_flattened
         self.original_required = original_required
 

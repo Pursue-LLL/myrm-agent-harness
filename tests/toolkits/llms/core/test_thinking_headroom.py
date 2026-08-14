@@ -126,9 +126,7 @@ class TestEnsureThinkingHeadroom:
             ("max", 65536),
         ],
     )
-    def test_thinking_model_with_effort_raises_to_floor(
-        self, effort: str, expected_floor: int
-    ) -> None:
+    def test_thinking_model_with_effort_raises_to_floor(self, effort: str, expected_floor: int) -> None:
         kwargs: dict = {"max_tokens": 4096, "reasoning_effort": effort}
         ensure_thinking_headroom("anthropic/claude-opus-5", kwargs)
         assert kwargs["max_tokens"] == expected_floor

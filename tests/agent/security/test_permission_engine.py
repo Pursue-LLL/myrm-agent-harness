@@ -197,7 +197,12 @@ class TestHasExplicitScheme:
         assert _has_explicit_scheme("localhost:3000") is False
 
     def test_no_scheme(self) -> None:
-        assert _has_explicit_scheme("example.com",) is False
+        assert (
+            _has_explicit_scheme(
+                "example.com",
+            )
+            is False
+        )
 
 
 class TestCheckNavigateScheme:
@@ -832,9 +837,7 @@ class TestRiskClassificationIntegration:
 class TestSecurityConfigSerialization:
     def test_security_config_to_dict_exports_permissions_and_yolo(self) -> None:
         config = SecurityConfig(
-            ruleset=(
-                PermissionRule(permission="shell_exec", pattern="*", action=PermissionAction.ASK),
-            ),
+            ruleset=(PermissionRule(permission="shell_exec", pattern="*", action=PermissionAction.ASK),),
             yolo_mode_enabled=True,
         )
         exported = security_config_to_dict(config)

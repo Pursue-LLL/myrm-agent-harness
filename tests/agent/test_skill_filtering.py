@@ -27,11 +27,7 @@ class MockSkillBackend:
 
     async def load_skills(self, skill_ids: list[str]) -> list[SkillMetadata]:
         id_set = set(skill_ids)
-        return [
-            s
-            for s in self._skills
-            if s.name in id_set or (s.storage_skill_id and s.storage_skill_id in id_set)
-        ]
+        return [s for s in self._skills if s.name in id_set or (s.storage_skill_id and s.storage_skill_id in id_set)]
 
 
 class MockSkillBackendNoLoadSupport:
@@ -99,9 +95,7 @@ async def test_desired_skill_ids_filters_correctly(sample_skills):
     llm = MagicMock()
     backend = MockSkillBackend(sample_skills)
 
-    agent = SkillAgent(
-        llm=llm, skill_backend=backend, desired_skill_ids=["skill1", "skill3"]
-    )
+    agent = SkillAgent(llm=llm, skill_backend=backend, desired_skill_ids=["skill1", "skill3"])
 
     skills = await agent._get_cached_skills()
     assert len(skills) == 2

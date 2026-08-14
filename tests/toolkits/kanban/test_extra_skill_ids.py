@@ -39,14 +39,18 @@ class TestKanbanTaskExtraSkillIds:
 
     def test_assigned_skills(self) -> None:
         task = KanbanTask(
-            task_id="t1", board_id="b1", title="Test",
+            task_id="t1",
+            board_id="b1",
+            title="Test",
             extra_skill_ids=["translation", "security-audit"],
         )
         assert task.extra_skill_ids == ["translation", "security-audit"]
 
     def test_to_dict_includes_skills(self) -> None:
         task = KanbanTask(
-            task_id="t1", board_id="b1", title="Test",
+            task_id="t1",
+            board_id="b1",
+            title="Test",
             extra_skill_ids=["web-search"],
         )
         d = task.to_dict()
@@ -70,14 +74,16 @@ class TestDecomposeChildSpecSkills:
 
     def test_assigned_skills(self) -> None:
         spec = DecomposeChildSpec(
-            title="Child", body="Body",
+            title="Child",
+            body="Body",
             extra_skill_ids=("translation", "code-review"),
         )
         assert spec.extra_skill_ids == ("translation", "code-review")
 
     def test_frozen(self) -> None:
         spec = DecomposeChildSpec(
-            title="Child", body="Body",
+            title="Child",
+            body="Body",
             extra_skill_ids=("a",),
         )
         with pytest.raises(AttributeError):
@@ -101,15 +107,19 @@ class TestKanbanAddTaskSkills:
 
     @pytest.mark.asyncio
     async def test_add_task_with_skills(
-        self, store: InMemoryKanbanStore, tool_map: dict,
+        self,
+        store: InMemoryKanbanStore,
+        tool_map: dict,
     ) -> None:
         await _make_board(store)
         add_fn = tool_map["kanban_add_task"]
-        result = json.loads(await add_fn.coroutine(
-            title="Translate docs",
-            board_id="b1",
-            skills="translation, security-audit",
-        ))
+        result = json.loads(
+            await add_fn.coroutine(
+                title="Translate docs",
+                board_id="b1",
+                skills="translation, security-audit",
+            )
+        )
         assert result["status"] == "added"
         task = await store.get_task(result["task"]["task_id"])
         assert task is not None
@@ -117,41 +127,56 @@ class TestKanbanAddTaskSkills:
 
     @pytest.mark.asyncio
     async def test_add_task_without_skills(
-        self, store: InMemoryKanbanStore, tool_map: dict,
+        self,
+        store: InMemoryKanbanStore,
+        tool_map: dict,
     ) -> None:
         await _make_board(store)
         add_fn = tool_map["kanban_add_task"]
-        result = json.loads(await add_fn.coroutine(
-            title="Normal task", board_id="b1",
-        ))
+        result = json.loads(
+            await add_fn.coroutine(
+                title="Normal task",
+                board_id="b1",
+            )
+        )
         task = await store.get_task(result["task"]["task_id"])
         assert task is not None
         assert task.extra_skill_ids == []
 
     @pytest.mark.asyncio
     async def test_add_task_skills_dedup(
-        self, store: InMemoryKanbanStore, tool_map: dict,
+        self,
+        store: InMemoryKanbanStore,
+        tool_map: dict,
     ) -> None:
         await _make_board(store)
         add_fn = tool_map["kanban_add_task"]
-        result = json.loads(await add_fn.coroutine(
-            title="Dedup task", board_id="b1",
-            skills="a, b, a, c, b",
-        ))
+        result = json.loads(
+            await add_fn.coroutine(
+                title="Dedup task",
+                board_id="b1",
+                skills="a, b, a, c, b",
+            )
+        )
         task = await store.get_task(result["task"]["task_id"])
         assert task is not None
         assert task.extra_skill_ids == ["a", "b", "c"]
 
     @pytest.mark.asyncio
     async def test_add_task_skills_strip_empty(
-        self, store: InMemoryKanbanStore, tool_map: dict,
+        self,
+        store: InMemoryKanbanStore,
+        tool_map: dict,
     ) -> None:
         await _make_board(store)
         add_fn = tool_map["kanban_add_task"]
-        result = json.loads(await add_fn.coroutine(
-            title="Strip task", board_id="b1",
-            skills=" , ,  x  , , y , ",
-        ))
+        result = json.loads(
+            await add_fn.coroutine(
+                title="Strip task",
+                board_id="b1",
+                skills=" , ,  x  , , y , ",
+            )
+        )
         task = await store.get_task(result["task"]["task_id"])
         assert task is not None
         assert task.extra_skill_ids == ["x", "y"]
@@ -165,7 +190,9 @@ class TestKanbanAddTaskSkills:
 class TestToDict:
     def test_to_dict_round_trip(self) -> None:
         task = KanbanTask(
-            task_id="t1", board_id="b1", title="Test",
+            task_id="t1",
+            board_id="b1",
+            title="Test",
             extra_skill_ids=["a", "b", "c"],
         )
         d = task.to_dict()

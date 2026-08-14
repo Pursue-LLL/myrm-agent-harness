@@ -77,7 +77,9 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_basic_context(
-        self, store: InMemoryKanbanStore, basic_task: KanbanTask,
+        self,
+        store: InMemoryKanbanStore,
+        basic_task: KanbanTask,
     ) -> None:
         ctx = await build_task_context(store, "t1")
         assert "# Task: Fix login bug" in ctx
@@ -88,7 +90,9 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_agent_id_shown(
-        self, store: InMemoryKanbanStore, basic_task: KanbanTask,
+        self,
+        store: InMemoryKanbanStore,
+        basic_task: KanbanTask,
     ) -> None:
         basic_task.agent_id = "agent-007"
         await store.save_task(basic_task)
@@ -97,11 +101,15 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_no_description(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         await store.save_board(board)
         task = KanbanTask(
-            task_id="t2", board_id="b1", title="No desc task",
+            task_id="t2",
+            board_id="b1",
+            title="No desc task",
             status=TaskStatus.READY,
         )
         await store.save_task(task)
@@ -110,11 +118,15 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_prior_attempts(
-        self, store: InMemoryKanbanStore, basic_task: KanbanTask,
+        self,
+        store: InMemoryKanbanStore,
+        basic_task: KanbanTask,
     ) -> None:
         run = await store.create_run("t1", "w1")
         await store.complete_run(
-            run.run_id, TaskRunOutcome.CRASHED, error="timeout",
+            run.run_id,
+            TaskRunOutcome.CRASHED,
+            error="timeout",
         )
         ctx = await build_task_context(store, "t1")
         assert "## Prior attempts" in ctx
@@ -124,39 +136,54 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_prior_attempts_with_summary(
-        self, store: InMemoryKanbanStore, basic_task: KanbanTask,
+        self,
+        store: InMemoryKanbanStore,
+        basic_task: KanbanTask,
     ) -> None:
         run = await store.create_run("t1", "w1")
         await store.complete_run(
-            run.run_id, TaskRunOutcome.COMPLETED, summary="Fixed the bug",
+            run.run_id,
+            TaskRunOutcome.COMPLETED,
+            summary="Fixed the bug",
         )
         ctx = await build_task_context(store, "t1")
         assert "Fixed the bug" in ctx
 
     @pytest.mark.asyncio
     async def test_many_attempts_truncated(
-        self, store: InMemoryKanbanStore, basic_task: KanbanTask,
+        self,
+        store: InMemoryKanbanStore,
+        basic_task: KanbanTask,
     ) -> None:
         for i in range(8):
             run = await store.create_run("t1", "w1")
             await store.complete_run(
-                run.run_id, TaskRunOutcome.CRASHED, error=f"error-{i}",
+                run.run_id,
+                TaskRunOutcome.CRASHED,
+                error=f"error-{i}",
             )
         ctx = await build_task_context(store, "t1")
         assert "3 earlier attempts omitted" in ctx
 
     @pytest.mark.asyncio
     async def test_parent_results(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         await store.save_board(board)
         parent = KanbanTask(
-            task_id="p1", board_id="b1", title="Parent Task",
-            status=TaskStatus.COMPLETED, result="Parent completed successfully",
+            task_id="p1",
+            board_id="b1",
+            title="Parent Task",
+            status=TaskStatus.COMPLETED,
+            result="Parent completed successfully",
         )
         await store.save_task(parent)
         child = KanbanTask(
-            task_id="c1", board_id="b1", title="Child Task",
+            task_id="c1",
+            board_id="b1",
+            title="Child Task",
             status=TaskStatus.READY,
         )
         await store.save_task(child)
@@ -169,16 +196,22 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_parent_no_result(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         await store.save_board(board)
         parent = KanbanTask(
-            task_id="p2", board_id="b1", title="Empty Parent",
+            task_id="p2",
+            board_id="b1",
+            title="Empty Parent",
             status=TaskStatus.COMPLETED,
         )
         await store.save_task(parent)
         child = KanbanTask(
-            task_id="c2", board_id="b1", title="Child Task 2",
+            task_id="c2",
+            board_id="b1",
+            title="Child Task 2",
             status=TaskStatus.READY,
         )
         await store.save_task(child)
@@ -189,16 +222,22 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_non_terminal_parent_excluded(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         await store.save_board(board)
         parent = KanbanTask(
-            task_id="p3", board_id="b1", title="Running Parent",
+            task_id="p3",
+            board_id="b1",
+            title="Running Parent",
             status=TaskStatus.RUNNING,
         )
         await store.save_task(parent)
         child = KanbanTask(
-            task_id="c3", board_id="b1", title="Child Task 3",
+            task_id="c3",
+            board_id="b1",
+            title="Child Task 3",
             status=TaskStatus.READY,
         )
         await store.save_task(child)
@@ -209,10 +248,13 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_user_comments(
-        self, store: InMemoryKanbanStore, basic_task: KanbanTask,
+        self,
+        store: InMemoryKanbanStore,
+        basic_task: KanbanTask,
     ) -> None:
         await store.append_event(
-            "t1", TaskEventKind.USER_COMMENT,
+            "t1",
+            TaskEventKind.USER_COMMENT,
             payload={"body": "Please fix ASAP", "author": "alice"},
         )
         ctx = await build_task_context(store, "t1")
@@ -222,11 +264,14 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_many_comments_truncated(
-        self, store: InMemoryKanbanStore, basic_task: KanbanTask,
+        self,
+        store: InMemoryKanbanStore,
+        basic_task: KanbanTask,
     ) -> None:
         for i in range(25):
             await store.append_event(
-                "t1", TaskEventKind.USER_COMMENT,
+                "t1",
+                TaskEventKind.USER_COMMENT,
                 payload={"body": f"comment-{i}", "author": "bot"},
             )
         ctx = await build_task_context(store, "t1")
@@ -234,7 +279,9 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_non_comment_events_excluded(
-        self, store: InMemoryKanbanStore, basic_task: KanbanTask,
+        self,
+        store: InMemoryKanbanStore,
+        basic_task: KanbanTask,
     ) -> None:
         await store.append_event("t1", TaskEventKind.CREATED)
         await store.append_event("t1", TaskEventKind.CLAIMED)
@@ -243,18 +290,24 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_parent_handoff_metadata(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         await store.save_board(board)
         parent = KanbanTask(
-            task_id="ph1", board_id="b1", title="Impl Task",
+            task_id="ph1",
+            board_id="b1",
+            title="Impl Task",
             status=TaskStatus.COMPLETED,
             result="Implemented login feature",
             metadata={"handoff": {"changed_files": ["auth.py"], "verification": ["pytest tests/auth/"]}},
         )
         await store.save_task(parent)
         child = KanbanTask(
-            task_id="ch1", board_id="b1", title="Review Task",
+            task_id="ch1",
+            board_id="b1",
+            title="Review Task",
             status=TaskStatus.READY,
         )
         await store.save_task(child)
@@ -267,17 +320,23 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_parent_no_handoff_metadata(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         await store.save_board(board)
         parent = KanbanTask(
-            task_id="ph2", board_id="b1", title="Simple Task",
+            task_id="ph2",
+            board_id="b1",
+            title="Simple Task",
             status=TaskStatus.COMPLETED,
             result="Done",
         )
         await store.save_task(parent)
         child = KanbanTask(
-            task_id="ch2", board_id="b1", title="Next Task",
+            task_id="ch2",
+            board_id="b1",
+            title="Next Task",
             status=TaskStatus.READY,
         )
         await store.save_task(child)
@@ -288,13 +347,18 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_parent_handoff_empty_dict_excluded(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         """Empty dict {} is falsy — should NOT produce Handoff line."""
         await store.save_board(board)
         parent = KanbanTask(
-            task_id="ph3", board_id="b1", title="Empty Handoff",
-            status=TaskStatus.COMPLETED, result="Done",
+            task_id="ph3",
+            board_id="b1",
+            title="Empty Handoff",
+            status=TaskStatus.COMPLETED,
+            result="Done",
             metadata={"handoff": {}},
         )
         await store.save_task(parent)
@@ -306,13 +370,18 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_parent_handoff_non_dict_list_excluded(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         """handoff is a list — isinstance(dict) guard should exclude it."""
         await store.save_board(board)
         parent = KanbanTask(
-            task_id="ph4", board_id="b1", title="List Handoff",
-            status=TaskStatus.COMPLETED, result="Done",
+            task_id="ph4",
+            board_id="b1",
+            title="List Handoff",
+            status=TaskStatus.COMPLETED,
+            result="Done",
             metadata={"handoff": ["file1.py", "file2.py"]},
         )
         await store.save_task(parent)
@@ -324,13 +393,18 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_parent_handoff_non_dict_string_excluded(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         """handoff is a string — should be excluded."""
         await store.save_board(board)
         parent = KanbanTask(
-            task_id="ph5", board_id="b1", title="Str Handoff",
-            status=TaskStatus.COMPLETED, result="Done",
+            task_id="ph5",
+            board_id="b1",
+            title="Str Handoff",
+            status=TaskStatus.COMPLETED,
+            result="Done",
             metadata={"handoff": "just a string"},
         )
         await store.save_task(parent)
@@ -342,13 +416,18 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_parent_metadata_without_handoff_key(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         """metadata exists but has no 'handoff' key."""
         await store.save_board(board)
         parent = KanbanTask(
-            task_id="ph6", board_id="b1", title="No Handoff Key",
-            status=TaskStatus.COMPLETED, result="Done",
+            task_id="ph6",
+            board_id="b1",
+            title="No Handoff Key",
+            status=TaskStatus.COMPLETED,
+            result="Done",
             metadata={"other_key": 42},
         )
         await store.save_task(parent)
@@ -360,13 +439,18 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_parent_handoff_chinese_readable(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         """Chinese chars in handoff should be directly readable (ensure_ascii=False)."""
         await store.save_board(board)
         parent = KanbanTask(
-            task_id="ph7", board_id="b1", title="中文任务",
-            status=TaskStatus.COMPLETED, result="完成",
+            task_id="ph7",
+            board_id="b1",
+            title="中文任务",
+            status=TaskStatus.COMPLETED,
+            result="完成",
             metadata={"handoff": {"changed_files": ["登录模块.py"]}},
         )
         await store.save_task(parent)
@@ -379,14 +463,19 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_parent_handoff_large_capped(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         """Large handoff dict should be capped at 4000 chars."""
         await store.save_board(board)
         large_files = [f"module_{i}.py" for i in range(500)]
         parent = KanbanTask(
-            task_id="ph8", board_id="b1", title="Large Handoff",
-            status=TaskStatus.COMPLETED, result="Done",
+            task_id="ph8",
+            board_id="b1",
+            title="Large Handoff",
+            status=TaskStatus.COMPLETED,
+            result="Done",
             metadata={"handoff": {"changed_files": large_files}},
         )
         await store.save_task(parent)
@@ -399,18 +488,26 @@ class TestBuildTaskContext:
 
     @pytest.mark.asyncio
     async def test_multiple_parents_mixed_handoff(
-        self, store: InMemoryKanbanStore, board: KanbanBoard,
+        self,
+        store: InMemoryKanbanStore,
+        board: KanbanBoard,
     ) -> None:
         """Multiple parents: one with handoff, one without."""
         await store.save_board(board)
         p1 = KanbanTask(
-            task_id="mp1", board_id="b1", title="Parent With Handoff",
-            status=TaskStatus.COMPLETED, result="Done A",
+            task_id="mp1",
+            board_id="b1",
+            title="Parent With Handoff",
+            status=TaskStatus.COMPLETED,
+            result="Done A",
             metadata={"handoff": {"api": "/v1/users"}},
         )
         p2 = KanbanTask(
-            task_id="mp2", board_id="b1", title="Parent No Handoff",
-            status=TaskStatus.COMPLETED, result="Done B",
+            task_id="mp2",
+            board_id="b1",
+            title="Parent No Handoff",
+            status=TaskStatus.COMPLETED,
+            result="Done B",
         )
         await store.save_task(p1)
         await store.save_task(p2)
@@ -477,12 +574,18 @@ class TestBuildMultimodalQuery:
 
     def test_mixed_image_and_document(self) -> None:
         image = TaskAttachment(
-            file_id="img", filename="ui.png", mime_type="image/png",
-            size_bytes=100, content_ref="http://x/img",
+            file_id="img",
+            filename="ui.png",
+            mime_type="image/png",
+            size_bytes=100,
+            content_ref="http://x/img",
         )
         doc = TaskAttachment(
-            file_id="doc", filename="notes.txt", mime_type="text/plain",
-            size_bytes=200, content_ref="http://x/doc",
+            file_id="doc",
+            filename="notes.txt",
+            mime_type="text/plain",
+            size_bytes=200,
+            content_ref="http://x/doc",
         )
         result = build_multimodal_query("mixed", [image, doc], has_vision=True)
         assert isinstance(result, list)

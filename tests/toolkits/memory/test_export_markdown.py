@@ -628,33 +628,35 @@ class TestExportRulesSafe:
     @pytest.fixture
     def mock_manager(self) -> AsyncMock:
         manager = AsyncMock()
-        manager.export_all = AsyncMock(return_value={
-            "procedural": [
-                {
-                    "id": "rule_001",
-                    "content": "Use TypeScript strict mode",
-                    "trigger": "user writes JS in /Users/bob/project/",
-                    "action": "Suggest TypeScript",
-                    "scope": {"namespaces": ["agent_work"]},
-                    "access_count": 5,
-                    "user_rating": 4,
-                    "source_chat_id": "chat_abc",
-                },
-                {
-                    "id": "rule_002",
-                    "content": "Avoid peanuts",
-                    "trigger": "restaurant recommendation",
-                    "action": "Filter peanut dishes",
-                    "scope": {"namespaces": ["agent_life"]},
-                },
-                {
-                    "id": "rule_003",
-                    "content": "Old rule without scope",
-                    "trigger": "any",
-                    "action": "do something",
-                },
-            ],
-        })
+        manager.export_all = AsyncMock(
+            return_value={
+                "procedural": [
+                    {
+                        "id": "rule_001",
+                        "content": "Use TypeScript strict mode",
+                        "trigger": "user writes JS in /Users/bob/project/",
+                        "action": "Suggest TypeScript",
+                        "scope": {"namespaces": ["agent_work"]},
+                        "access_count": 5,
+                        "user_rating": 4,
+                        "source_chat_id": "chat_abc",
+                    },
+                    {
+                        "id": "rule_002",
+                        "content": "Avoid peanuts",
+                        "trigger": "restaurant recommendation",
+                        "action": "Filter peanut dishes",
+                        "scope": {"namespaces": ["agent_life"]},
+                    },
+                    {
+                        "id": "rule_003",
+                        "content": "Old rule without scope",
+                        "trigger": "any",
+                        "action": "do something",
+                    },
+                ],
+            }
+        )
         return manager
 
     @pytest.mark.asyncio
@@ -662,6 +664,7 @@ class TestExportRulesSafe:
         from myrm_agent_harness.toolkits.memory._manager.import_export import (
             MemoryManagerImportExportMixin,
         )
+
         mixin = MemoryManagerImportExportMixin()
         mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
 
@@ -674,6 +677,7 @@ class TestExportRulesSafe:
         from myrm_agent_harness.toolkits.memory._manager.import_export import (
             MemoryManagerImportExportMixin,
         )
+
         mixin = MemoryManagerImportExportMixin()
         mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
 
@@ -686,6 +690,7 @@ class TestExportRulesSafe:
         from myrm_agent_harness.toolkits.memory._manager.import_export import (
             MemoryManagerImportExportMixin,
         )
+
         mixin = MemoryManagerImportExportMixin()
         mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
 
@@ -698,6 +703,7 @@ class TestExportRulesSafe:
         from myrm_agent_harness.toolkits.memory._manager.import_export import (
             MemoryManagerImportExportMixin,
         )
+
         mixin = MemoryManagerImportExportMixin()
         mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
 
@@ -711,6 +717,7 @@ class TestExportRulesSafe:
         from myrm_agent_harness.toolkits.memory._manager.import_export import (
             MemoryManagerImportExportMixin,
         )
+
         mixin = MemoryManagerImportExportMixin()
         mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
 
@@ -725,11 +732,13 @@ class TestExportRulesSafe:
         from myrm_agent_harness.toolkits.memory._manager.import_export import (
             MemoryManagerImportExportMixin,
         )
+
         mixin = MemoryManagerImportExportMixin()
         mixin.export_all = mock_manager.export_all  # type: ignore[assignment]
 
         results = await mixin.export_rules_safe(output_format="json")
         import json
+
         parsed = json.loads(str(results[0]["rendered"]))
         assert "content" in parsed
 
@@ -738,6 +747,7 @@ class TestExportRulesSafe:
         from myrm_agent_harness.toolkits.memory._manager.import_export import (
             MemoryManagerImportExportMixin,
         )
+
         secret_entry = {
             "id": "rule_secret",
             "content": "call api with app.api.key=mysecretvalue12345678",

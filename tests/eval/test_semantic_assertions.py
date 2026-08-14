@@ -28,9 +28,7 @@ async def test_evaluate_semantic_assertions_binary_pass(monkeypatch):
     monkeypatch.setattr("litellm.acompletion", mock_acompletion)
 
     assertions = [SemanticAssertion(type="llm_judge", expected="Must be polite")]
-    passed, _details = await evaluate_semantic_assertions(
-        assertions, "Hello, how can I help?"
-    )
+    passed, _details = await evaluate_semantic_assertions(assertions, "Hello, how can I help?")
     assert passed is True
 
 
@@ -54,9 +52,7 @@ async def test_evaluate_semantic_assertions_scoring_pass(monkeypatch):
     litellm_mock.acompletion = mock_acompletion
     monkeypatch.setitem(sys.modules, "litellm", litellm_mock)
 
-    assertions = [
-        SemanticAssertion(type="llm_judge", expected="Cover main points", threshold=0.7)
-    ]
+    assertions = [SemanticAssertion(type="llm_judge", expected="Cover main points", threshold=0.7)]
     passed, _details = await evaluate_semantic_assertions(assertions, "Some output")
     assert passed is True
 
@@ -81,12 +77,8 @@ async def test_evaluate_semantic_assertions_scoring_fail(monkeypatch):
     litellm_mock.acompletion = mock_acompletion
     monkeypatch.setitem(sys.modules, "litellm", litellm_mock)
 
-    assertions = [
-        SemanticAssertion(type="llm_judge", expected="Cover all points", threshold=0.7)
-    ]
-    passed, details = await evaluate_semantic_assertions(
-        assertions, "Incomplete output"
-    )
+    assertions = [SemanticAssertion(type="llm_judge", expected="Cover all points", threshold=0.7)]
+    passed, details = await evaluate_semantic_assertions(assertions, "Incomplete output")
     assert passed is False
     assert "score 0.40 < threshold 0.70" in details
 
@@ -128,11 +120,7 @@ async def test_evaluate_semantic_assertions_real_llm():
 
     os.environ.setdefault("MYRM_EVAL_JUDGE_MODEL", "gpt-4o-mini")
 
-    assertions = [
-        SemanticAssertion(
-            type="llm_judge", expected="The response must politely decline the request."
-        )
-    ]
+    assertions = [SemanticAssertion(type="llm_judge", expected="The response must politely decline the request.")]
 
     actual_output_pass = "I'm sorry, but I cannot fulfill that request right now."
     passed, details = await evaluate_semantic_assertions(assertions, actual_output_pass)
@@ -142,8 +130,6 @@ async def test_evaluate_semantic_assertions_real_llm():
     passed, details = await evaluate_semantic_assertions(assertions, actual_output_fail)
     assert passed is False
     assert "FAIL" in details
-
-
 
 
 class TestSemanticAssertionBranches:
@@ -177,9 +163,7 @@ class TestSemanticAssertionBranches:
         ]
         passed, _ = await evaluate_semantic_assertions(assertions, "output")
         assert passed is True
-        sent_prompt = litellm_mock.acompletion.await_args.kwargs["messages"][0][
-            "content"
-        ]
+        sent_prompt = litellm_mock.acompletion.await_args.kwargs["messages"][0]["content"]
         assert sent_prompt.startswith("Custom prompt")
 
     @pytest.mark.asyncio
@@ -199,9 +183,7 @@ class TestSemanticAssertionBranches:
         from myrm_agent_harness.eval.protocols import SemanticAssertion
 
         self._mock_litellm(monkeypatch, "PASS because it is good")
-        assertions = [
-            SemanticAssertion(type="llm_judge", expected="Be nice", threshold=0.7)
-        ]
+        assertions = [SemanticAssertion(type="llm_judge", expected="Be nice", threshold=0.7)]
         passed, _ = await evaluate_semantic_assertions(assertions, "output")
         assert passed is True
 
@@ -211,9 +193,7 @@ class TestSemanticAssertionBranches:
         from myrm_agent_harness.eval.protocols import SemanticAssertion
 
         self._mock_litellm(monkeypatch, "FAIL: not nice")
-        assertions = [
-            SemanticAssertion(type="llm_judge", expected="Be nice", threshold=0.7)
-        ]
+        assertions = [SemanticAssertion(type="llm_judge", expected="Be nice", threshold=0.7)]
         passed, details = await evaluate_semantic_assertions(assertions, "output")
         assert passed is False
         assert "score 0.00 < threshold" in details
@@ -224,9 +204,7 @@ class TestSemanticAssertionBranches:
         from myrm_agent_harness.eval.protocols import SemanticAssertion
 
         self._mock_litellm(monkeypatch, "definitely not a number")
-        assertions = [
-            SemanticAssertion(type="llm_judge", expected="Be nice", threshold=0.7)
-        ]
+        assertions = [SemanticAssertion(type="llm_judge", expected="Be nice", threshold=0.7)]
         passed, details = await evaluate_semantic_assertions(assertions, "output")
         assert passed is False
         assert "unparseable score" in details
@@ -308,9 +286,7 @@ class TestSemanticAssertionBranches:
                 judge_api_key="sk-assertion",
             )
         ]
-        await evaluate_semantic_assertions(
-            assertions, "output", judge_override=judge_override
-        )
+        await evaluate_semantic_assertions(assertions, "output", judge_override=judge_override)
         call_kwargs = litellm_mock.acompletion.await_args.kwargs
         assert call_kwargs["model"] == "deepseek/deepseek-chat"
         assert call_kwargs["api_key"] == "sk-caller"

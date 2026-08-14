@@ -35,4 +35,3 @@ def test_cron_manage_tool_in_cron_group() -> None:
 
     assert "cron_manage_tool" in TOOL_GROUP_MAP["cron"]
     assert get_tool_product_id("cron_manage_tool") == "cron"
-

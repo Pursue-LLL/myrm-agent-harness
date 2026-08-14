@@ -30,9 +30,7 @@ class TestBuildPromptPreview:
         assert "[user]" in preview
 
     def test_tool_calls_placeholder(self) -> None:
-        preview = build_prompt_preview(
-            [{"role": "assistant", "tool_calls": [{"id": "call-1"}]}]
-        )
+        preview = build_prompt_preview([{"role": "assistant", "tool_calls": [{"id": "call-1"}]}])
         assert "[assistant] <tool_calls>" in preview
 
     def test_empty_messages_returns_empty_string(self) -> None:

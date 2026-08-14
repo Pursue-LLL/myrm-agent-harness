@@ -91,7 +91,6 @@ class TestSteeringToken:
         assert len(msgs) == 10
         assert set(msgs) == {f"msg-{i}" for i in range(10)}
 
-
     def test_reset_turn_then_steer_and_activate_again(self) -> None:
         """After reset_turn, new steer+activate cycle works correctly."""
         token = SteeringToken()

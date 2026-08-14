@@ -16,12 +16,14 @@ def mock_store():
     skill.name = "test_skill"
     skill.content = "def test():\n    pass"
     from datetime import datetime, timedelta
-    skill.updated_at = datetime.now() - timedelta(seconds=4000) # Pass cooldown
+
+    skill.updated_at = datetime.now() - timedelta(seconds=4000)  # Pass cooldown
 
     store.get_skill.return_value = skill
     store.load_rejections.return_value = []
 
     return store
+
 
 @pytest.fixture
 def mock_llm():
@@ -32,6 +34,7 @@ def mock_llm():
     llm.ainvoke.return_value = response
     return llm
 
+
 @pytest.mark.asyncio
 async def test_screener_no_skill_id(mock_store):
     screener = EvolutionScreener(store=mock_store)
@@ -40,6 +43,7 @@ async def test_screener_no_skill_id(mock_store):
     result = await screener.screen_request(request)
     assert result.allowed is True
     assert result.phase == "none"
+
 
 @pytest.mark.asyncio
 async def test_screener_locked_skill(mock_store):
@@ -51,6 +55,7 @@ async def test_screener_locked_skill(mock_store):
     assert result.allowed is False
     assert result.phase == "locked"
 
+
 @pytest.mark.asyncio
 async def test_screener_static_interception(mock_store):
     screener = EvolutionScreener(store=mock_store)
@@ -58,26 +63,26 @@ async def test_screener_static_interception(mock_store):
     request = EvolutionRequest(
         evolution_type=EvolutionType.FIX,
         skill_id="test_skill",
-        reason="Traceback (most recent call last):\nTypeError: unsupported operand type(s) for +"
+        reason="Traceback (most recent call last):\nTypeError: unsupported operand type(s) for +",
     )
 
     result = await screener.screen_request(request)
     assert result.allowed is True
     assert result.phase == "static_interception"
 
+
 @pytest.mark.asyncio
 async def test_screener_llm_confirmation_yes(mock_store, mock_llm):
     screener = EvolutionScreener(store=mock_store, cheap_llm=mock_llm)
     # Generic error that doesn't trigger static interception
     request = EvolutionRequest(
-        evolution_type=EvolutionType.FIX,
-        skill_id="test_skill",
-        reason="CustomError: something went wrong"
+        evolution_type=EvolutionType.FIX, skill_id="test_skill", reason="CustomError: something went wrong"
     )
 
     result = await screener.screen_request(request)
     assert result.allowed is True
     assert result.phase == "llm_confirmation"
+
 
 @pytest.mark.asyncio
 async def test_screener_llm_confirmation_no(mock_store, mock_llm):
@@ -88,14 +93,13 @@ async def test_screener_llm_confirmation_no(mock_store, mock_llm):
 
     screener = EvolutionScreener(store=mock_store, cheap_llm=mock_llm)
     request = EvolutionRequest(
-        evolution_type=EvolutionType.FIX,
-        skill_id="test_skill",
-        reason="HTTP 500: Internal Server Error"
+        evolution_type=EvolutionType.FIX, skill_id="test_skill", reason="HTTP 500: Internal Server Error"
     )
 
     result = await screener.screen_request(request)
     assert result.allowed is False
     assert result.phase == "llm_confirmation"
+
 
 @pytest.mark.asyncio
 async def test_screener_llm_confirmation_json(mock_store, mock_llm):
@@ -106,14 +110,13 @@ async def test_screener_llm_confirmation_json(mock_store, mock_llm):
 
     screener = EvolutionScreener(store=mock_store, cheap_llm=mock_llm)
     request = EvolutionRequest(
-        evolution_type=EvolutionType.FIX,
-        skill_id="test_skill",
-        reason="Exception: division by zero"
+        evolution_type=EvolutionType.FIX, skill_id="test_skill", reason="Exception: division by zero"
     )
 
     result = await screener.screen_request(request)
     assert result.allowed is True
     assert result.confidence == 0.9
+
 
 @pytest.mark.asyncio
 async def test_screener_llm_confirmation_json_malformed(mock_store, mock_llm):
@@ -124,14 +127,13 @@ async def test_screener_llm_confirmation_json_malformed(mock_store, mock_llm):
 
     screener = EvolutionScreener(store=mock_store, cheap_llm=mock_llm)
     request = EvolutionRequest(
-        evolution_type=EvolutionType.FIX,
-        skill_id="test_skill",
-        reason="Exception: division by zero"
+        evolution_type=EvolutionType.FIX, skill_id="test_skill", reason="Exception: division by zero"
     )
 
     result = await screener.screen_request(request)
     assert result.allowed is True
     assert result.confidence == 0.9
+
 
 @pytest.mark.asyncio
 async def test_screener_intent_override(mock_store):
@@ -139,10 +141,7 @@ async def test_screener_intent_override(mock_store):
     screener = EvolutionScreener(store=mock_store, cooldown_seconds=3600)
 
     request = EvolutionRequest(
-        evolution_type=EvolutionType.FIX,
-        skill_id="test_skill",
-        reason="CustomError: error",
-        force_retry=True
+        evolution_type=EvolutionType.FIX, skill_id="test_skill", reason="CustomError: error", force_retry=True
     )
 
     result = await screener.screen_request(request)
@@ -150,6 +149,7 @@ async def test_screener_intent_override(mock_store):
     # Here mock_llm is None, so it bypasses LLM
     assert result.allowed is True
     assert result.phase == "none"
+
 
 @pytest.mark.asyncio
 async def test_screener_extract_signals(mock_store):

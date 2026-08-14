@@ -256,10 +256,7 @@ class ContentSanitizer:
                     for match_info in line_matches:
                         overlaps = False
                         for existing in filtered:
-                            if (
-                                match_info["start"] < existing["end"]
-                                and match_info["end"] > existing["start"]
-                            ):
+                            if match_info["start"] < existing["end"] and match_info["end"] > existing["start"]:
                                 overlaps = True
                                 break
                         if not overlaps:
@@ -269,11 +266,7 @@ class ContentSanitizer:
                     for match_info in filtered:
                         start = match_info["start"]
                         end = match_info["end"]
-                        modified_line = (
-                            modified_line[:start]
-                            + match_info["replacement"]
-                            + modified_line[end:]
-                        )
+                        modified_line = modified_line[:start] + match_info["replacement"] + modified_line[end:]
                         if match_info["reason"] not in reasons:
                             reasons.append(match_info["reason"])
 
@@ -307,9 +300,7 @@ class ContentSanitizer:
             except UnicodeDecodeError:
                 # Binary content cannot be treated as text — return an empty string
                 # so the result keeps its ``str`` contract.
-                return SanitizationResult(
-                    is_safe=True, redactions=[], sanitized_content=""
-                )
+                return SanitizationResult(is_safe=True, redactions=[], sanitized_content="")
         else:
             text_content = content
 

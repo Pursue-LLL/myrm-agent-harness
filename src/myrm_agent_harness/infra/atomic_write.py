@@ -67,8 +67,10 @@ def atomic_write(
             os.replace(tmp_path, target)
         except OSError as e:
             import errno
+
             if e.errno == errno.EXDEV:
                 import shutil
+
                 shutil.move(tmp_path, target)
             else:
                 raise

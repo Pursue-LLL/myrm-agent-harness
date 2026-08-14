@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -256,9 +255,7 @@ def _resolve_local_path(snap_path: str) -> Path:
     workspace_root = workspace_root_var.get()
     local = WorkspacePathResolver.to_local_path(snap_path, workspace_root or None)
     if local is None:
-        logger.warning(
-            "Could not map container snapshot path %s to a local path", snap_path
-        )
+        logger.warning("Could not map container snapshot path %s to a local path", snap_path)
         return Path(snap_path)
     return local
 

@@ -65,9 +65,7 @@ async def test_user_explicit_agent_self_instruction_kept() -> None:
 
     ctx = await load_context(relational)
 
-    assert ctx["agent_instructions"] == [
-        {"instruction": "Always write tests first", "priority": 0}
-    ]
+    assert ctx["agent_instructions"] == [{"instruction": "Always write tests first", "priority": 0}]
 
 
 @pytest.mark.asyncio
@@ -80,9 +78,7 @@ async def test_critical_tool_failure_rule_kept() -> None:
     ctx = await load_context(relational)
 
     assert len(ctx["agent_instructions"]) == 1
-    assert ctx["agent_instructions"][0]["instruction"].startswith(
-        "Consider alternative approach"
-    )
+    assert ctx["agent_instructions"][0]["instruction"].startswith("Consider alternative approach")
 
 
 @pytest.mark.asyncio
@@ -131,9 +127,7 @@ async def test_user_locked_tool_failure_rule_kept() -> None:
 
     ctx = await load_context(relational)
 
-    assert ctx["agent_instructions"] == [
-        {"instruction": "Use curl retry before web_fetch_tool", "priority": 0}
-    ]
+    assert ctx["agent_instructions"] == [{"instruction": "Use curl retry before web_fetch_tool", "priority": 0}]
 
 
 @pytest.mark.asyncio
@@ -158,6 +152,4 @@ async def test_locked_failure_rule_kept_alongside_auto_failure_rule() -> None:
 
     ctx = await load_context(relational)
 
-    assert ctx["agent_instructions"] == [
-        {"instruction": "Use curl retry before web_fetch_tool", "priority": 0}
-    ]
+    assert ctx["agent_instructions"] == [{"instruction": "Use curl retry before web_fetch_tool", "priority": 0}]

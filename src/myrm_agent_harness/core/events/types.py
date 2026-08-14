@@ -68,11 +68,7 @@ class AgentStreamEvent:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to raw dictionary for final SSE serialization."""
-        d: dict[str, Any] = {
-            "type": (
-                self.type.value if isinstance(self.type, AgentEventType) else self.type
-            )
-        }
+        d: dict[str, Any] = {"type": (self.type.value if isinstance(self.type, AgentEventType) else self.type)}
         if self.data is not None:
             d["data"] = self.data
         if self.messageId is not None:

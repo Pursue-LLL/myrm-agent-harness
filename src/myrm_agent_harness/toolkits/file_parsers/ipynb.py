@@ -90,12 +90,7 @@ class IpynbParser(FileParser):
         if not isinstance(cells, list) or not cells:
             worksheets = nb.get("worksheets", [])
             if isinstance(worksheets, list):
-                cells = [
-                    cell
-                    for ws in worksheets
-                    if isinstance(ws, dict)
-                    for cell in (ws.get("cells") or [])
-                ]
+                cells = [cell for ws in worksheets if isinstance(ws, dict) for cell in (ws.get("cells") or [])]
 
         if not cells:
             return raw

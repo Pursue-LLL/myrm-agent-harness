@@ -40,7 +40,5 @@ def test_release_wheel_includes_browser_ad_domains_asset(tmp_path: Path) -> None
         assert len(matches) == 1, f"missing {_WHEEL_ASSET_SUFFIX} in wheel"
 
         body = archive.read(matches[0]).decode("utf-8")
-        domain_lines = sum(
-            1 for line in body.splitlines() if line.strip() and not line.startswith("#")
-        )
+        domain_lines = sum(1 for line in body.splitlines() if line.strip() and not line.startswith("#"))
         assert domain_lines >= _MIN_DOMAIN_LINES, domain_lines

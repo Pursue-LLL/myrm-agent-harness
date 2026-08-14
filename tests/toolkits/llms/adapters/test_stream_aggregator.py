@@ -74,9 +74,7 @@ class TestStreamAggregator:
 
     def test_on_generation_chunk_records_reasoning(self) -> None:
         agg = StreamAggregator(AIMessageChunk)
-        msg = AIMessageChunk(
-            content="", additional_kwargs={"reasoning_content": "thinking..."}
-        )
+        msg = AIMessageChunk(content="", additional_kwargs={"reasoning_content": "thinking..."})
         chunk = ChatGenerationChunk(message=msg)
         agg.on_generation_chunk(chunk, AIMessageChunk)
         assert agg.reasoning == ["thinking..."]
@@ -109,9 +107,7 @@ class TestStreamAggregator:
                     }
                 ],
             ),
-            patch(
-                "myrm_agent_harness.toolkits.llms.adapters.stream_aggregator.aggregate_tool_call_chunk"
-            ) as mock_agg,
+            patch("myrm_agent_harness.toolkits.llms.adapters.stream_aggregator.aggregate_tool_call_chunk") as mock_agg,
         ):
             agg.aggregate_tool_calls_from_dict(chunk_dict)
             mock_agg.assert_called_once()
@@ -222,24 +218,15 @@ class TestStreamTextIntegrity:
                 return_value={},
             ),
             patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
-            patch(
-                "myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"
-            ),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
         ):
-            result = finalize_stream(
-                agg, None, "gpt-4o", is_async=False, record_usage_fn=record_fn
-            )
-        assert (
-            result.aggregated_response["choices"][0]["message"]["content"]
-            == "the the cat cat sat"
-        )
+            result = finalize_stream(agg, None, "gpt-4o", is_async=False, record_usage_fn=record_fn)
+        assert result.aggregated_response["choices"][0]["message"]["content"] == "the the cat cat sat"
 
 
 class TestStreamFinalization:
     def test_slots(self) -> None:
-        sf = StreamFinalization(
-            final_tool_chunk=None, aggregated_response={"model": "test"}
-        )
+        sf = StreamFinalization(final_tool_chunk=None, aggregated_response={"model": "test"})
         assert sf.final_tool_chunk is None
         assert sf.aggregated_response["model"] == "test"
 
@@ -267,20 +254,13 @@ class TestFinalizeStream:
                 return_value={},
             ),
             patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
-            patch(
-                "myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"
-            ),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
         ):
-            result = finalize_stream(
-                agg, None, "gpt-4o", is_async=False, record_usage_fn=record_fn
-            )
+            result = finalize_stream(agg, None, "gpt-4o", is_async=False, record_usage_fn=record_fn)
 
         assert isinstance(result, StreamFinalization)
         assert result.aggregated_response["model"] == "gpt-4o"
-        assert (
-            result.aggregated_response["choices"][0]["message"]["content"]
-            == "Hello World"
-        )
+        assert result.aggregated_response["choices"][0]["message"]["content"] == "Hello World"
         assert result.aggregated_response["choices"][0]["finish_reason"] == "stop"
         record_fn.assert_called_once()
 
@@ -303,13 +283,9 @@ class TestFinalizeStream:
                 return_value=([], []),
             ),
             patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
-            patch(
-                "myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"
-            ),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
         ):
-            result = finalize_stream(
-                agg, None, "o1", is_async=True, record_usage_fn=record_fn
-            )
+            result = finalize_stream(agg, None, "o1", is_async=True, record_usage_fn=record_fn)
 
         msg = result.aggregated_response["choices"][0]["message"]
         assert msg["reasoning_content"] == "step1 step2"
@@ -356,27 +332,18 @@ class TestFinalizeStream:
                 return_value=([], []),
             ),
             patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
-            patch(
-                "myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"
-            ),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
         ):
-            result = finalize_stream(
-                agg, {"search": {}}, "gpt-4o", is_async=False, record_usage_fn=record_fn
-            )
+            result = finalize_stream(agg, {"search": {}}, "gpt-4o", is_async=False, record_usage_fn=record_fn)
 
         assert result.final_tool_chunk is mock_chunk
-        assert (
-            result.aggregated_response["choices"][0]["message"]["tool_calls"]
-            == corrected
-        )
+        assert result.aggregated_response["choices"][0]["message"]["tool_calls"] == corrected
 
 
 class TestFinalizeStreamSafetyTermination:
     """Tests for safety termination detection in finalize_stream."""
 
-    def _make_agg_with_tool_calls(
-        self, finish_reason: str
-    ) -> StreamAggregator:
+    def _make_agg_with_tool_calls(self, finish_reason: str) -> StreamAggregator:
         agg = StreamAggregator(AIMessageChunk)
         agg.content = ["partial response"]
         agg.tool_calls = [
@@ -410,13 +377,9 @@ class TestFinalizeStreamSafetyTermination:
                 return_value=([], []),
             ),
             patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
-            patch(
-                "myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"
-            ),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
         ):
-            result = finalize_stream(
-                agg, {}, "gpt-4o", is_async=False, record_usage_fn=record_fn
-            )
+            result = finalize_stream(agg, {}, "gpt-4o", is_async=False, record_usage_fn=record_fn)
 
         msg = result.aggregated_response["choices"][0]["message"]
         assert "tool_calls" not in msg
@@ -445,13 +408,9 @@ class TestFinalizeStreamSafetyTermination:
                 return_value=([], []),
             ),
             patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
-            patch(
-                "myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"
-            ),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
         ):
-            result = finalize_stream(
-                agg, {}, "gpt-4o", is_async=False, record_usage_fn=record_fn
-            )
+            result = finalize_stream(agg, {}, "gpt-4o", is_async=False, record_usage_fn=record_fn)
 
         msg = result.aggregated_response["choices"][0]["message"]
         assert "tool_calls" not in msg
@@ -478,13 +437,9 @@ class TestFinalizeStreamSafetyTermination:
                 return_value=([], []),
             ),
             patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
-            patch(
-                "myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"
-            ),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
         ):
-            result = finalize_stream(
-                agg, {}, "gpt-4o", is_async=False, record_usage_fn=record_fn
-            )
+            result = finalize_stream(agg, {}, "gpt-4o", is_async=False, record_usage_fn=record_fn)
 
         msg = result.aggregated_response["choices"][0]["message"]
         assert "tool_calls" in msg
@@ -508,13 +463,9 @@ class TestFinalizeStreamSafetyTermination:
                 return_value=([], []),
             ),
             patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
-            patch(
-                "myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"
-            ),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
         ):
-            result = finalize_stream(
-                agg, {}, "gpt-4o", is_async=False, record_usage_fn=record_fn
-            )
+            result = finalize_stream(agg, {}, "gpt-4o", is_async=False, record_usage_fn=record_fn)
 
         msg = result.aggregated_response["choices"][0]["message"]
         assert msg["content"] == "I cannot help with that"
@@ -645,7 +596,7 @@ class TestXmlStreamBuffer:
         assert buf._is_prefix_of_start_tag("<invoke ") is True
         assert buf._is_prefix_of_start_tag("<invoke n") is True
         assert buf._is_prefix_of_start_tag("<invoke name=") is True
-        assert buf._is_prefix_of_start_tag("<invoke name=\"test") is True
+        assert buf._is_prefix_of_start_tag('<invoke name="test') is True
 
     def test_prefix_detection_non_matching(self) -> None:
         buf = XmlStreamBuffer()
@@ -717,20 +668,25 @@ class TestFinalizeStreamHallucinationFiltering:
         with (
             patch(
                 "myrm_agent_harness.toolkits.llms.adapters.stream_aggregator.build_final_tool_call_chunk",
-                return_value=(MagicMock(spec=ChatGenerationChunk), [{"function": {"name": "real_tool"}, "id": "c1", "type": "function"}], []),
+                return_value=(
+                    MagicMock(spec=ChatGenerationChunk),
+                    [{"function": {"name": "real_tool"}, "id": "c1", "type": "function"}],
+                    [],
+                ),
             ),
             patch(
                 "myrm_agent_harness.toolkits.llms.adapters.stream_aggregator.parse_tool_calls_from_reasoning",
                 return_value=([], []),
             ),
             patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
-            patch(
-                "myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"
-            ),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
         ):
             result = finalize_stream(
-                agg, {"real_tool": {}}, "gpt-4o",
-                is_async=False, record_usage_fn=record_fn,
+                agg,
+                {"real_tool": {}},
+                "gpt-4o",
+                is_async=False,
+                record_usage_fn=record_fn,
                 available_tools=["real_tool"],
             )
 
@@ -771,13 +727,14 @@ class TestFinalizeStreamContentParsedToolCalls:
                 return_value=[fake_tc],
             ),
             patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
-            patch(
-                "myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"
-            ),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
         ):
             result = finalize_stream(
-                agg, {"search": {}}, "gpt-4o",
-                is_async=False, record_usage_fn=record_fn,
+                agg,
+                {"search": {}},
+                "gpt-4o",
+                is_async=False,
+                record_usage_fn=record_fn,
             )
 
         assert agg.finish_reason == "tool_calls"

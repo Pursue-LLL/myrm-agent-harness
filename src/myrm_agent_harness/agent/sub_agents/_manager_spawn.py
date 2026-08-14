@@ -159,12 +159,8 @@ class SubagentSpawnMixin:
         context_manager = contextlib.nullcontext()
         if config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX:
             current_executor = get_executor()
-            if current_executor and not isinstance(
-                current_executor, ReadonlyExecutorProxy
-            ):
-                context_manager = ExecutorContextManager(
-                    ReadonlyExecutorProxy(current_executor)
-                )
+            if current_executor and not isinstance(current_executor, ReadonlyExecutorProxy):
+                context_manager = ExecutorContextManager(ReadonlyExecutorProxy(current_executor))
 
         with context_manager:
             return await self._run_subagent_core(
@@ -218,9 +214,7 @@ class SubagentSpawnMixin:
                 resume_command=resume_command,
                 parent_progress_sink=parent_progress_sink,
                 complexity_tier=complexity_tier,
-                on_running_token_usage=lambda usage: self.patch_child_running_token_usage(
-                    task_id, usage
-                ),
+                on_running_token_usage=lambda usage: self.patch_child_running_token_usage(task_id, usage),
                 internal=bool(self._children_internal.get(task_id, False)),
             )
             completed_normally = True
@@ -328,9 +322,7 @@ class SubagentSpawnMixin:
             )
 
             workspace_path = str(context.get("workspace_path", "") or "") or None
-            await register_active_teammate(
-                session_id, workspace_path, task_id, agent_type
-            )
+            await register_active_teammate(session_id, workspace_path, task_id, agent_type)
 
         observability_metadata = self._child_observability_metadata(task_id)  # type: ignore[attr-defined]
         budget_payload = observability_metadata.get("budget")
@@ -347,9 +339,7 @@ class SubagentSpawnMixin:
                     description=task_description,
                     role=config.delegation_role.value,
                     control_scope=config.control_scope.value,
-                    budget=to_json_object(
-                        budget_payload if isinstance(budget_payload, dict) else None
-                    ),
+                    budget=to_json_object(budget_payload if isinstance(budget_payload, dict) else None),
                 ),
             )
 
@@ -365,11 +355,7 @@ class SubagentSpawnMixin:
                             "description": task_description,
                             "role": config.delegation_role.value,
                             "control_scope": config.control_scope.value,
-                            "budget": (
-                                budget_payload
-                                if isinstance(budget_payload, dict)
-                                else {}
-                            ),
+                            "budget": (budget_payload if isinstance(budget_payload, dict) else {}),
                         },
                     }
                 )

@@ -11,7 +11,7 @@
 - CacheUsageFeedback: Strongly typed provider cache usage feedback for pruning decisions
 - CompactToolCall: Compact tool call dataclass (compressed tool call format)
 - CompressionIntent: Structured compression focus (injected by server / plane)
-- StructuredSummary: Structured summary dataclass (deterministic output, not free-form)
+- StructuredSummary: Structured summary dataclass (deterministic output, not free-form; includes dropped_manifest audit metadata — excluded from to_json to keep prompts clean)
 - ContextConfig: Context configuration (compress_threshold, summarize_threshold, keep_recent_calls, compress_start_ratio, compaction_inactivity_timeout_s, compaction_total_ceiling_s)
 - ToolProtectionConfig: Tool protection configuration (defines non-compressible tools)
 - EvictedToolCall: Evicted tool call dataclass (contains original uncompressed content)
@@ -576,6 +576,14 @@ class StructuredSummary:
     blocked_items: list[str] = field(default_factory=list)
     next_steps: list[str] = field(default_factory=list)
 
+    # User constraints that were dropped by this compaction (not preserved in the
+    # summary, protected head, or recent tail). Audit-only metadata for the
+    # "compression dropped a constraint vs. the model failed to follow it"
+    # fault-side attribution. Deliberately EXCLUDED from to_json(): persisting it
+    # would leak internal pipeline details into prompts and inflate prompt-cache
+    # payloads. It is surfaced to the GUI via the compaction STATUS event instead.
+    dropped_manifest: list[str] = field(default_factory=list)
+
     def to_json(self) -> str:
         """Serialize to JSON string (for incremental merge prompts)."""
         data: dict[str, object] = {
@@ -699,4 +707,3 @@ from .schemas_pre_compact import (  # noqa: F401, E402
     ContextPreCompactCallback,
     PreCompactInjection,
 )
-

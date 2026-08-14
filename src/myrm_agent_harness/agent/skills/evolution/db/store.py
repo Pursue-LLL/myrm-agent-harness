@@ -343,7 +343,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
     def _delete_skill_sync(self, skill_id: str) -> None:
         """Synchronous delete - called via asyncio.to_thread()."""
         with self._mu:
-            self._conn.execute("DELETE FROM skills WHERE skill_id = ?", (skill_id,)            )
+            self._conn.execute("DELETE FROM skills WHERE skill_id = ?", (skill_id,))
             self._conn.execute("DELETE FROM execution_analyses WHERE skill_id = ?", (skill_id,))
             self._conn.execute("DELETE FROM evolution_rejections WHERE skill_id = ?", (skill_id,))
             self._conn.execute("DELETE FROM evolution_constraints WHERE skill_id = ?", (skill_id,))

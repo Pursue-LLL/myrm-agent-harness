@@ -43,9 +43,7 @@ def test_normalize_recall_limit_handles_model_provided_values() -> None:
 
 
 @pytest.mark.asyncio
-async def test_memory_recall_caps_oversized_limit(
-    mock_vector_store, mock_embedding, memory_config
-) -> None:
+async def test_memory_recall_caps_oversized_limit(mock_vector_store, mock_embedding, memory_config) -> None:
     manager = MemoryManager(
         memory_config,
         user_id="test_user",
@@ -61,9 +59,7 @@ async def test_memory_recall_caps_oversized_limit(
 
 
 @pytest.mark.asyncio
-async def test_memory_recall_raises_tiny_limit_to_one(
-    mock_vector_store, mock_embedding, memory_config
-) -> None:
+async def test_memory_recall_raises_tiny_limit_to_one(mock_vector_store, mock_embedding, memory_config) -> None:
     manager = MemoryManager(
         memory_config,
         user_id="test_user",
@@ -79,9 +75,7 @@ async def test_memory_recall_raises_tiny_limit_to_one(
 
 
 @pytest.mark.asyncio
-async def test_memory_recall_truncates_oversized_output(
-    mock_vector_store, mock_embedding, memory_config
-) -> None:
+async def test_memory_recall_truncates_oversized_output(mock_vector_store, mock_embedding, memory_config) -> None:
     manager = MemoryManager(
         memory_config,
         user_id="test_user",
@@ -100,9 +94,7 @@ async def test_memory_recall_truncates_oversized_output(
     )
 
     with patch.object(MemoryManager, "search", search_mock):
-        result = await _recall_tool(manager).ainvoke(
-            {"query": "shared context", "limit": "10"}
-        )
+        result = await _recall_tool(manager).ainvoke({"query": "shared context", "limit": "10"})
 
     assert "id: mem-long" in result
     assert "[truncated" in result

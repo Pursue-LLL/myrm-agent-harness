@@ -29,13 +29,16 @@ class TestManualSolver:
         solver = ManualSolver()
         page = MagicMock()
 
-        with patch(
-            "myrm_agent_harness.toolkits.browser.captcha.detector.detect_captcha",
-            new_callable=AsyncMock,
-            return_value=None,
-        ), patch(
-            "myrm_agent_harness.toolkits.browser.captcha.manual_solver._POLL_INTERVAL_S",
-            0.01,
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.captcha.detector.detect_captcha",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.browser.captcha.manual_solver._POLL_INTERVAL_S",
+                0.01,
+            ),
         ):
             result = await solver.solve(_make_info(), page)
 
@@ -60,12 +63,15 @@ class TestManualSolver:
             call_count += 1
             return None if call_count >= 3 else still_blocked
 
-        with patch(
-            "myrm_agent_harness.toolkits.browser.captcha.detector.detect_captcha",
-            side_effect=mock_detect,
-        ), patch(
-            "myrm_agent_harness.toolkits.browser.captcha.manual_solver._POLL_INTERVAL_S",
-            0.01,
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.captcha.detector.detect_captcha",
+                side_effect=mock_detect,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.browser.captcha.manual_solver._POLL_INTERVAL_S",
+                0.01,
+            ),
         ):
             result = await solver.solve(_make_info(), page)
 
@@ -82,16 +88,20 @@ class TestManualSolver:
             reason="stuck",
         )
 
-        with patch(
-            "myrm_agent_harness.toolkits.browser.captcha.detector.detect_captcha",
-            new_callable=AsyncMock,
-            return_value=still_blocked,
-        ), patch(
-            "myrm_agent_harness.toolkits.browser.captcha.manual_solver._POLL_INTERVAL_S",
-            0.01,
-        ), patch(
-            "myrm_agent_harness.toolkits.browser.captcha.manual_solver._MAX_POLLS",
-            3,
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.browser.captcha.detector.detect_captcha",
+                new_callable=AsyncMock,
+                return_value=still_blocked,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.browser.captcha.manual_solver._POLL_INTERVAL_S",
+                0.01,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.browser.captcha.manual_solver._MAX_POLLS",
+                3,
+            ),
         ):
             result = await solver.solve(_make_info(), page)
 

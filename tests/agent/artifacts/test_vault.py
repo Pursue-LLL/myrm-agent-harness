@@ -41,7 +41,7 @@ class TestArtifactVault:
         uri = vault.put(content, "test.txt")
 
         assert uri.startswith(VAULT_PREFIX)
-        obj_id = uri[len(VAULT_PREFIX):]
+        obj_id = uri[len(VAULT_PREFIX) :]
 
         # Check physical file
         obj_path = vault.get_object_path(obj_id)
@@ -61,7 +61,7 @@ class TestArtifactVault:
         content = b"Binary\x00Data"
         uri = vault.put(content, "data.bin", content_type="application/octet-stream")
 
-        obj_id = uri[len(VAULT_PREFIX):]
+        obj_id = uri[len(VAULT_PREFIX) :]
         obj_path = vault.get_object_path(obj_id)
         assert obj_path.read_bytes() == content
 
@@ -85,7 +85,7 @@ class TestArtifactVault:
 
         uri = vault.put_file(source_file, "source.txt")
 
-        obj_id = uri[len(VAULT_PREFIX):]
+        obj_id = uri[len(VAULT_PREFIX) :]
         obj_path = vault.get_object_path(obj_id)
         assert obj_path.exists()
         assert obj_path.read_bytes() == content
@@ -143,7 +143,7 @@ class TestArtifactVault:
     def test_list_objects_corrupted_meta(self, vault: ArtifactVault):
         """Test listing objects with corrupted metadata file."""
         uri = vault.put("test", "test.txt")
-        obj_id = uri[len(VAULT_PREFIX):]
+        obj_id = uri[len(VAULT_PREFIX) :]
 
         # Corrupt the metadata file
         meta_path = vault._get_meta_path(obj_id)

@@ -25,8 +25,7 @@ import pytest
 pytestmark = pytest.mark.integration
 
 _SCRIPT_PATH = (
-    Path(__file__).resolve().parents[4]
-    / "src/myrm_agent_harness/toolkits/browser/action_capture/capture_script.js"
+    Path(__file__).resolve().parents[4] / "src/myrm_agent_harness/toolkits/browser/action_capture/capture_script.js"
 )
 
 Recorder = Callable[[str, str], str | None]
@@ -66,9 +65,7 @@ def recorder(capture_js: str) -> Recorder:
             pw = await async_playwright().start()
             browser = await pw.chromium.launch(headless=True)
             page = await browser.new_page()
-            await page.expose_function(
-                "__myrmCaptureCallback", lambda raw: steps.append(json.loads(raw))
-            )
+            await page.expose_function("__myrmCaptureCallback", lambda raw: steps.append(json.loads(raw)))
             await page.goto("about:blank")
             await page.evaluate(capture_js)
             assert await page.evaluate("window.__myrmCaptureActive") is True

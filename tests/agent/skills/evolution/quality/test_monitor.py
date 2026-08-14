@@ -18,6 +18,7 @@ def test_monitor_initialization():
         "avg_success_rate": 0.0,
     }
 
+
 def test_track_call_success_rate():
     monitor = ToolQualityMonitor(window_size=5)
 
@@ -38,6 +39,7 @@ def test_track_call_success_rate():
     assert len(metrics.window_calls) == 5
     assert metrics.total_calls == 6
 
+
 def test_latency_calculation():
     monitor = ToolQualityMonitor()
 
@@ -48,7 +50,8 @@ def test_latency_calculation():
 
     metrics = monitor._metrics["tool_lat"]
     assert metrics.baseline_latency == 350.0  # P50 (index 5)
-    assert metrics.p95_latency == 1000.0      # P95 (index 9)
+    assert metrics.p95_latency == 1000.0  # P95 (index 9)
+
 
 def test_server_error_rate():
     monitor = ToolQualityMonitor()
@@ -60,6 +63,7 @@ def test_server_error_rate():
 
     metrics = monitor._metrics["tool_err"]
     assert metrics.server_error_rate == 0.5  # 2 / 4
+
 
 def test_lru_eviction():
     monitor = ToolQualityMonitor(max_tools=2)
@@ -75,6 +79,7 @@ def test_lru_eviction():
     assert "tool_1" not in monitor._metrics
     assert "tool_2" in monitor._metrics
     assert "tool_3" in monitor._metrics
+
 
 def test_get_degraded_tools():
     monitor = ToolQualityMonitor()
@@ -112,6 +117,7 @@ def test_get_degraded_tools():
     d = degraded_dict["tool_bad_success"].to_dict()
     assert d["tool_key"] == "tool_bad_success"
 
+
 def test_get_recovered_tools():
     monitor = ToolQualityMonitor()
 
@@ -128,6 +134,7 @@ def test_get_recovered_tools():
 
     recovered = monitor.get_recovered_tools(["tool_recover"])
     assert "tool_recover" in recovered
+
 
 def test_empty_metrics():
     monitor = ToolQualityMonitor()

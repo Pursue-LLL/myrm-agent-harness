@@ -13,27 +13,18 @@ async def test_update_procedural_memory_reasoning_application():
     config = MemoryConfig(embedding_model="test")
     manager = MemoryManager(config, user_id="test_user", relational=mock_rel)
 
-    existing = ProceduralMemory(
-        id="mem-1",
-        content="abc",
-        trigger="t",
-        action="a",
-        source="agent_self"
-    )
+    existing = ProceduralMemory(id="mem-1", content="abc", trigger="t", action="a", source="agent_self")
 
     mock_rel.get_rule.return_value = existing
     mock_rel.update_rule.return_value = existing
 
-    await manager.update_memory(
-        "mem-1",
-        reasoning="new reasoning",
-        application="new app"
-    )
+    await manager.update_memory("mem-1", reasoning="new reasoning", application="new app")
 
     mock_rel.update_rule.assert_awaited_once()
     called_mem = mock_rel.update_rule.call_args[0][1]
     assert called_mem.reasoning == "new reasoning"
     assert called_mem.application == "new app"
+
 
 @pytest.mark.asyncio
 async def test_get_tool_rules_success():
@@ -46,4 +37,6 @@ async def test_get_tool_rules_success():
 
     rules = await manager.get_tool_rules("my_tool")
     assert rules == expected
-    mock_rel.list_rules_by_tool.assert_awaited_once_with("my_tool", active_only=True, limit=30, namespaces=manager._namespaces)
+    mock_rel.list_rules_by_tool.assert_awaited_once_with(
+        "my_tool", active_only=True, limit=30, namespaces=manager._namespaces
+    )

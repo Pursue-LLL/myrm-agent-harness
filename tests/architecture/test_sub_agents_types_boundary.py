@@ -44,6 +44,5 @@ def test_sub_agents_types_imports_hitl_policy_from_sub_agents_ssot() -> None:
     imports = collect_imports(_TYPES_FILE)
     has_canonical_ssot = any(module in _CANONICAL_SSOT_MODULES for _lineno, module in imports)
     assert has_canonical_ssot, (
-        "sub_agents/types.py must import HITL policy from "
-        "agent/sub_agents/hitl_tool_policy.py (canonical SSOT)."
+        "sub_agents/types.py must import HITL policy from agent/sub_agents/hitl_tool_policy.py (canonical SSOT)."
     )

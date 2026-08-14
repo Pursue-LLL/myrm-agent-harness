@@ -54,9 +54,7 @@ class RunDigest:
     elapsed_seconds: int
     headline: str
     recent_steps: tuple[RunDigestStep, ...] = field(default=())
-    updated_at: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, object]:
         return {

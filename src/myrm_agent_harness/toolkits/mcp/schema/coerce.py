@@ -22,7 +22,6 @@ observability counters.
 """
 
 import ast
-import contextlib
 import json
 import logging
 import re
@@ -74,9 +73,7 @@ def _looks_like_json_container_literal(value: str) -> bool:
     stripped = value.strip()
     if len(stripped) < 2:
         return False
-    return (stripped[0] == "{" and stripped[-1] == "}") or (
-        stripped[0] == "[" and stripped[-1] == "]"
-    )
+    return (stripped[0] == "{" and stripped[-1] == "}") or (stripped[0] == "[" and stripped[-1] == "]")
 
 
 def _extract_schema_types(schema: dict[str, Any]) -> list[str]:
@@ -164,11 +161,7 @@ def prepare_mcp_call_arguments(
             prepared[key] = value
             continue
         prop_schema = properties.get(key)
-        if (
-            key in required
-            and isinstance(prop_schema, dict)
-            and _schema_allows_null(prop_schema)
-        ):
+        if key in required and isinstance(prop_schema, dict) and _schema_allows_null(prop_schema):
             prepared[key] = None
     return prepared
 
@@ -197,9 +190,7 @@ def _value_conforms_to_schema_types(schema: dict[str, Any], value: Any) -> bool:
     if isinstance(value, list):
         return _schema_expects_type(schema, "array")
     if isinstance(value, int):
-        return _schema_expects_type(schema, "integer") or _schema_expects_type(
-            schema, "number"
-        )
+        return _schema_expects_type(schema, "integer") or _schema_expects_type(schema, "number")
     if isinstance(value, float):
         return _schema_expects_type(schema, "number")
     if isinstance(value, str):
@@ -279,25 +270,39 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
             elif lower_val == "false":
                 value = False
         elif expected_type in ("integer", "number"):
-            with contextlib.suppress(ValueError):
-                # Integer-first coercion: pure integer literals (no "." / "e" /
-                # "E") parse via int() so large IDs / snowflake IDs survive
-                # intact (Python ints are unbounded); decimal/exponent forms
-                # still go through float().  float() would silently lose
-                # precision on e.g. "9007199254740993" -> 9007199254740992.0.
+            try:
                 is_pure_int = not any(ch in clean_value for ch in ".eE")
-                value = (
-                    int(clean_value)
-                    if expected_type == "integer" or is_pure_int
-                    else float(clean_value)
-                )
+                if is_pure_int:
+                    # Pure integer literal: int() preserves arbitrary precision
+                    # (Python ints are unbounded).
+                    value = int(clean_value)
+                else:
+                    # Decimal/exponent form: parse exactly with Decimal and
+                    # keep an exact integer when the literal denotes one
+                    # (e.g. "25.0", "1e3", "9007199254740993.0" — int() would
+                    # reject the first two and float() would silently lose
+                    # precision on the last).  Non-integral values under a
+                    # "number" expectation still fall through to float().
+                    from decimal import Decimal, InvalidOperation
+
+                    try:
+                        decimal_value = Decimal(clean_value)
+                    except InvalidOperation:
+                        decimal_value = None
+                    if decimal_value is not None and decimal_value == decimal_value.to_integral_value():
+                        value = int(decimal_value)
+                    elif expected_type == "number":
+                        value = float(clean_value)
+                    else:
+                        # "integer" expectation with a genuinely fractional
+                        # literal: keep the string (mirrors openclaw's
+                        # Number.isInteger check which rejects non-integers).
+                        raise ValueError(f"{clean_value!r} is not an integer")
+            except ValueError:
+                pass
 
     # Reverse: got a non-string but expected string (e.g. LLM passed dict for station name)
-    if (
-        expected_type == "string"
-        and not isinstance(value, str)
-        and not _value_conforms_to_schema_types(schema, value)
-    ):
+    if expected_type == "string" and not isinstance(value, str) and not _value_conforms_to_schema_types(schema, value):
         if isinstance(value, dict):
             for text_key in ("name", "value", "text", "id"):
                 if text_key in value and isinstance(value[text_key], str):
@@ -332,9 +337,7 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
     return value
 
 
-def coerce_arguments_by_schema(
-    args_schema: dict[str, Any] | None, kwargs: dict[str, Any]
-) -> dict[str, Any]:
+def coerce_arguments_by_schema(args_schema: dict[str, Any] | None, kwargs: dict[str, Any]) -> dict[str, Any]:
     """Coerces argument types based on the schema requirements.
 
     If the schema expects an array, object, boolean, or number, but the LLM provided a string,

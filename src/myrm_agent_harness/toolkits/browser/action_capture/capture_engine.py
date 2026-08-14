@@ -70,9 +70,7 @@ logger = logging.getLogger(__name__)
 # a standalone NAVIGATE step. Mirrors BrowserSkill's `expects_navigation` semantics.
 _NAV_ACTION_WINDOW_S = 1.5
 
-_CAPTURE_JS = (
-    files(__package__).joinpath("capture_script.js").read_text(encoding="utf-8")
-)
+_CAPTURE_JS = files(__package__).joinpath("capture_script.js").read_text(encoding="utf-8")
 
 
 @runtime_checkable
@@ -138,10 +136,7 @@ class ActionCaptureEngine:
             self._session.status = "stopped"
             await self._inject_capture(active=False)
             session = self._session
-            logger.info(
-                f"Action capture stopped: session={session.session_id}, "
-                f"steps={len(session.steps)}"
-            )
+            logger.info(f"Action capture stopped: session={session.session_id}, steps={len(session.steps)}")
             return session
 
     async def pause(self) -> None:
@@ -169,9 +164,7 @@ class ActionCaptureEngine:
         """
         try:
             await self._page.evaluate(_CAPTURE_JS)
-            await self._page.evaluate(
-                f"window.__myrmCaptureActive = {'true' if active else 'false'}"
-            )
+            await self._page.evaluate(f"window.__myrmCaptureActive = {'true' if active else 'false'}")
         except Exception:
             logger.debug("Capture injection failed (page may have closed)")
 

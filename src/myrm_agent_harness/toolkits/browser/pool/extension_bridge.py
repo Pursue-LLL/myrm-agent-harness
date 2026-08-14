@@ -99,9 +99,7 @@ class ExtensionBridge(Protocol):
         """
         ...
 
-    async def connect_to_domain(
-        self, domain: str, *, timeout: float = 10.0
-    ) -> BrowserInstance:
+    async def connect_to_domain(self, domain: str, *, timeout: float = 10.0) -> BrowserInstance:
         """Connect to a specific authorized domain's tab.
 
         Args:

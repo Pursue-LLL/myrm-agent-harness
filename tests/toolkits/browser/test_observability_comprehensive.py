@@ -250,9 +250,10 @@ class TestBrowserObservability:
         obs = BrowserObservability(config)
         obs.mark_task_status(False)
 
-        with patch.object(Path, "unlink", side_effect=OSError("Permission denied")), patch(
-            "myrm_agent_harness.toolkits.browser.observability.logger"
-        ) as mock_logger:
+        with (
+            patch.object(Path, "unlink", side_effect=OSError("Permission denied")),
+            patch("myrm_agent_harness.toolkits.browser.observability.logger") as mock_logger,
+        ):
             obs.cleanup_recording()
 
             mock_logger.warning.assert_called()

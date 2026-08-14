@@ -26,9 +26,7 @@ from myrm_agent_harness.toolkits.memory.types import MemoryStatus, SemanticMemor
 
 pytestmark = [pytest.mark.integration, pytest.mark.timeout(30)]
 
-_ENV_TEST = (
-    Path(__file__).resolve().parents[3] / "myrm-agent" / "myrm-agent-server" / ".env.test"
-)
+_ENV_TEST = Path(__file__).resolve().parents[3] / "myrm-agent" / "myrm-agent-server" / ".env.test"
 
 
 @pytest.fixture(autouse=True)

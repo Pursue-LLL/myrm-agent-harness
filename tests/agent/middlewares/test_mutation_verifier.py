@@ -10,7 +10,6 @@ Covers:
 - Edge cases (empty path, None state, multiple files)
 """
 
-
 from myrm_agent_harness.agent.middlewares.tooling._mutation_verifier import (
     _FILE_MUTATING_TOOLS,
     _MAX_DISPLAY_FILES,
@@ -37,6 +36,7 @@ class TestResetAndEmptyState:
     def test_get_returns_empty_when_not_initialized(self) -> None:
         """Before reset is called, get should return empty dict (not crash)."""
         from contextvars import copy_context
+
         ctx = copy_context()
         result = ctx.run(get_failed_mutations)
         assert result == {}

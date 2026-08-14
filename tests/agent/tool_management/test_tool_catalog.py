@@ -50,9 +50,7 @@ def test_build_tool_catalog_row() -> None:
 
 
 def test_load_condition_uses_product_id_fallback() -> None:
-    condition = get_tool_load_condition(
-        "browser_navigate_tool", layer=ToolLayer.EXTENDED
-    )
+    condition = get_tool_load_condition("browser_navigate_tool", layer=ToolLayer.EXTENDED)
     assert condition == "enabled_builtin_tools: browser"
 
 
@@ -88,9 +86,7 @@ def test_validate_layer_product_rejects_unexpected_core_tool() -> None:
 
 
 def test_validate_layer_product_common_requires_product_id() -> None:
-    errors = validate_layer_product_consistency(
-        {"orphan_common_tool": ToolLayer.COMMON}
-    )
+    errors = validate_layer_product_consistency({"orphan_common_tool": ToolLayer.COMMON})
     assert any("must map to a GUI product_id" in err for err in errors)
 
 

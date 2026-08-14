@@ -48,22 +48,16 @@ class TestBuildExtractionPrompt:
     def test_existing_pending_included(self) -> None:
         msgs = _make_messages(2)
         pending = [{"kind": "open_loop", "reason": "waiting", "dedupe_key": "wait:1"}]
-        prompt = build_extraction_prompt(
-            msgs, now_iso=NOW_ISO, existing_pending=pending
-        )
+        prompt = build_extraction_prompt(msgs, now_iso=NOW_ISO, existing_pending=pending)
         assert "Existing Pending Commitments" in prompt
         assert "wait:1" in prompt
 
     def test_chinese_language_instruction(self) -> None:
-        prompt = build_extraction_prompt(
-            _make_messages(2), now_iso=NOW_ISO, language="zh"
-        )
+        prompt = build_extraction_prompt(_make_messages(2), now_iso=NOW_ISO, language="zh")
         assert "中文" in prompt
 
     def test_english_has_no_chinese_instruction(self) -> None:
-        prompt = build_extraction_prompt(
-            _make_messages(2), now_iso=NOW_ISO, language="en"
-        )
+        prompt = build_extraction_prompt(_make_messages(2), now_iso=NOW_ISO, language="en")
         assert "中文" not in prompt
 
 
@@ -376,9 +370,7 @@ class TestCommitmentExtractor:
 
     @pytest.mark.asyncio
     async def test_successful_extraction(self) -> None:
-        extractor = CommitmentExtractor(
-            config=CommitmentConfig(confidence_threshold=0.5)
-        )
+        extractor = CommitmentExtractor(config=CommitmentConfig(confidence_threshold=0.5))
 
         response_data = {
             "candidates": [

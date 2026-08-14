@@ -48,9 +48,7 @@ async def _create_task(
 
 
 class TestEdgeCRUD:
-    async def test_add_edge_creates_edge(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_add_edge_creates_edge(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "parent")
         await _create_task(store, "child")
         edge = await store.add_edge("parent", "child")
@@ -58,9 +56,7 @@ class TestEdgeCRUD:
         assert edge.parent_task_id == "parent"
         assert edge.child_task_id == "child"
 
-    async def test_add_edge_idempotent(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_add_edge_idempotent(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "p1")
         await _create_task(store, "c1")
         e1 = await store.add_edge("p1", "c1")
@@ -69,23 +65,17 @@ class TestEdgeCRUD:
         parents = await store.list_parents("c1")
         assert len(parents) == 1
 
-    async def test_remove_edge(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_remove_edge(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "p1")
         await _create_task(store, "c1")
         await store.add_edge("p1", "c1")
         assert await store.remove_edge("p1", "c1") is True
         assert await store.list_parents("c1") == []
 
-    async def test_remove_nonexistent_edge(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_remove_nonexistent_edge(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         assert await store.remove_edge("x", "y") is False
 
-    async def test_list_parents(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_list_parents(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "p1")
         await _create_task(store, "p2")
         await _create_task(store, "child")
@@ -94,9 +84,7 @@ class TestEdgeCRUD:
         parents = await store.list_parents("child")
         assert sorted(parents) == ["p1", "p2"]
 
-    async def test_list_children(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_list_children(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "parent")
         await _create_task(store, "c1")
         await _create_task(store, "c2")
@@ -105,9 +93,7 @@ class TestEdgeCRUD:
         children = await store.list_children("parent")
         assert sorted(children) == ["c1", "c2"]
 
-    async def test_purge_task_removes_edges(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_purge_task_removes_edges(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "p1")
         await _create_task(store, "c1")
         await store.add_edge("p1", "c1")
@@ -126,25 +112,19 @@ class TestEdgeCRUD:
 
 
 class TestCycleDetection:
-    async def test_self_loop_rejected(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_self_loop_rejected(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "t1")
         with pytest.raises(ValueError, match="cycle"):
             await store.add_edge("t1", "t1")
 
-    async def test_direct_cycle_rejected(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_direct_cycle_rejected(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "a")
         await _create_task(store, "b")
         await store.add_edge("a", "b")
         with pytest.raises(ValueError, match="cycle"):
             await store.add_edge("b", "a")
 
-    async def test_transitive_cycle_rejected(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_transitive_cycle_rejected(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "a")
         await _create_task(store, "b")
         await _create_task(store, "c")
@@ -153,9 +133,7 @@ class TestCycleDetection:
         with pytest.raises(ValueError, match="cycle"):
             await store.add_edge("c", "a")
 
-    async def test_diamond_dag_allowed(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_diamond_dag_allowed(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "a")
         await _create_task(store, "b")
         await _create_task(store, "c")
@@ -174,23 +152,17 @@ class TestCycleDetection:
 
 
 class TestDependenciesMet:
-    async def test_no_parents_met(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_no_parents_met(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "t1")
         assert await store.are_dependencies_met("t1") is True
 
-    async def test_all_parents_completed(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_all_parents_completed(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "p1", status=TaskStatus.COMPLETED)
         await _create_task(store, "child", status=TaskStatus.BACKLOG)
         await store.add_edge("p1", "child")
         assert await store.are_dependencies_met("child") is True
 
-    async def test_some_parents_not_terminal(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_some_parents_not_terminal(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "p1", status=TaskStatus.COMPLETED)
         await _create_task(store, "p2", status=TaskStatus.RUNNING)
         await _create_task(store, "child", status=TaskStatus.BACKLOG)
@@ -198,17 +170,13 @@ class TestDependenciesMet:
         await store.add_edge("p2", "child")
         assert await store.are_dependencies_met("child") is False
 
-    async def test_failed_parent_counts_as_met(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_failed_parent_counts_as_met(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "p1", status=TaskStatus.FAILED)
         await _create_task(store, "child", status=TaskStatus.BACKLOG)
         await store.add_edge("p1", "child")
         assert await store.are_dependencies_met("child") is True
 
-    async def test_archived_parent_counts_as_met(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_archived_parent_counts_as_met(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "p1", status=TaskStatus.ARCHIVED)
         await _create_task(store, "child", status=TaskStatus.BACKLOG)
         await store.add_edge("p1", "child")
@@ -221,9 +189,7 @@ class TestDependenciesMet:
 
 
 class TestDispatcherPromote:
-    async def test_promote_on_success(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_promote_on_success(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         """When parent completes, BACKLOG child should be promotable."""
         parent = await _create_task(store, "parent", status=TaskStatus.COMPLETED)
         child = await _create_task(store, "child", status=TaskStatus.BACKLOG)
@@ -252,9 +218,7 @@ class TestDispatcherPromote:
         promoted_events = [e for e in events if e.kind == TaskEventKind.PROMOTED]
         assert len(promoted_events) == 1
 
-    async def test_no_promote_when_deps_unmet(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_no_promote_when_deps_unmet(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "p1", status=TaskStatus.COMPLETED)
         await _create_task(store, "p2", status=TaskStatus.RUNNING)
         child = await _create_task(store, "child", status=TaskStatus.BACKLOG)
@@ -263,9 +227,7 @@ class TestDispatcherPromote:
 
         assert await store.are_dependencies_met(child.task_id) is False
 
-    async def test_multi_child_promotion(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_multi_child_promotion(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         parent = await _create_task(store, "parent", status=TaskStatus.COMPLETED)
         c1 = await _create_task(store, "c1", status=TaskStatus.BACKLOG)
         c2 = await _create_task(store, "c2", status=TaskStatus.BACKLOG)
@@ -286,9 +248,7 @@ class TestDispatcherPromote:
 class TestEdgeBoundary:
     """Edge cases and boundary conditions."""
 
-    async def test_long_chain_no_cycle(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_long_chain_no_cycle(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         """A→B→C→D→E is a valid chain, not a cycle."""
         for tid in ["a", "b", "c", "d", "e"]:
             await _create_task(store, tid)
@@ -299,9 +259,7 @@ class TestEdgeBoundary:
         assert await store.list_parents("e") == ["d"]
         assert await store.list_children("a") == ["b"]
 
-    async def test_multiple_parents_single_child(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_multiple_parents_single_child(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         """Child with 5 parents — all must be terminal for deps_met."""
         for i in range(5):
             await _create_task(store, f"p{i}", status=TaskStatus.READY)
@@ -325,9 +283,7 @@ class TestEdgeBoundary:
         await store.save_task(last)
         assert await store.are_dependencies_met(child.task_id) is True
 
-    async def test_delete_board_cascades_edges(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_delete_board_cascades_edges(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         """Deleting a board should clean up edges of all tasks."""
         p = await _create_task(store, "p1")
         c = await _create_task(store, "c1")
@@ -335,18 +291,14 @@ class TestEdgeBoundary:
         await store.delete_board(board.board_id)
         assert store._edges == []
 
-    async def test_child_already_ready_not_in_backlog(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_child_already_ready_not_in_backlog(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         """are_dependencies_met still returns True even if child is READY (not BACKLOG)."""
         p = await _create_task(store, "p1", status=TaskStatus.COMPLETED)
         c = await _create_task(store, "c1", status=TaskStatus.READY)
         await store.add_edge(p.task_id, c.task_id)
         assert await store.are_dependencies_met(c.task_id) is True
 
-    async def test_remove_then_readd_edge(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_remove_then_readd_edge(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "p")
         await _create_task(store, "c")
         await store.add_edge("p", "c")
@@ -355,9 +307,7 @@ class TestEdgeBoundary:
         await store.add_edge("p", "c")
         assert await store.list_parents("c") == ["p"]
 
-    async def test_two_independent_dags(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_two_independent_dags(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         """Two independent DAGs should not interfere with each other."""
         for tid in ["a1", "b1", "a2", "b2"]:
             await _create_task(store, tid)
@@ -367,9 +317,7 @@ class TestEdgeBoundary:
         assert await store.list_parents("b2") == ["a2"]
         assert await store.list_children("a1") == ["b1"]
 
-    async def test_no_edges_returns_empty_lists(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_no_edges_returns_empty_lists(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "solo")
         assert await store.list_parents("solo") == []
         assert await store.list_children("solo") == []
@@ -392,13 +340,16 @@ class TestAgentToolDependencyActions:
         add_task = self._get_tool(tools, "kanban_add_task")
 
         await _create_task(store, "parent", status=TaskStatus.READY)
-        result = await add_task.ainvoke({
-            "title": "Child",
-            "depends_on": "parent",
-        })
+        result = await add_task.ainvoke(
+            {
+                "title": "Child",
+                "depends_on": "parent",
+            }
+        )
         assert '"added"' in result
 
         import json
+
         child_id = json.loads(result)["task"]["task_id"]
         child = await store.get_task(child_id)
         assert child is not None
@@ -438,12 +389,14 @@ class TestAgentToolDependencyActions:
         await _create_task(store, "p1")
         await _create_task(store, "p2")
 
-        result = await add_task.ainvoke({
-            "title": "Child Task",
-            "description": "desc",
-            "priority": "normal",
-            "depends_on": "p1,p2",
-        })
+        result = await add_task.ainvoke(
+            {
+                "title": "Child Task",
+                "description": "desc",
+                "priority": "normal",
+                "depends_on": "p1,p2",
+            }
+        )
         import json
 
         data = json.loads(result)
@@ -464,10 +417,12 @@ class TestAgentToolDependencyActions:
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
         add_task = self._get_tool(tools, "kanban_add_task")
 
-        result = await add_task.ainvoke({
-            "title": "Solo Task",
-            "description": "desc",
-        })
+        result = await add_task.ainvoke(
+            {
+                "title": "Solo Task",
+                "description": "desc",
+            }
+        )
         import json
 
         data = json.loads(result)
@@ -484,11 +439,13 @@ class TestAgentToolDependencyActions:
         tools = create_kanban_tools(store, mode="orchestrator", default_board_id=board.board_id)
         add_task = self._get_tool(tools, "kanban_add_task")
 
-        result = await add_task.ainvoke({
-            "title": "Child",
-            "description": "desc",
-            "depends_on": "nonexistent",
-        })
+        result = await add_task.ainvoke(
+            {
+                "title": "Child",
+                "description": "desc",
+                "depends_on": "nonexistent",
+            }
+        )
         import json
 
         data = json.loads(result)
@@ -549,13 +506,9 @@ class TestPromotedEvent:
     async def test_promoted_event_kind_exists(self) -> None:
         assert TaskEventKind.PROMOTED == "promoted"
 
-    async def test_promoted_event_in_list(
-        self, store: InMemoryKanbanStore, board: KanbanBoard
-    ) -> None:
+    async def test_promoted_event_in_list(self, store: InMemoryKanbanStore, board: KanbanBoard) -> None:
         await _create_task(store, "t1")
-        await store.append_event(
-            "t1", TaskEventKind.PROMOTED, payload={"reason": "test"}
-        )
+        await store.append_event("t1", TaskEventKind.PROMOTED, payload={"reason": "test"})
         events = await store.list_events("t1")
         assert len(events) == 1
         assert events[0].kind == TaskEventKind.PROMOTED

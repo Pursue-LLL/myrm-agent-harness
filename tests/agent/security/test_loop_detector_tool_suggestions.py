@@ -36,7 +36,9 @@ class TestSuggestMemoryRecall:
     def test_low_limit(self) -> None:
         calls = [
             _make_call(
-                "memory_search_tool", {"limit": 5, "categories": list(["knowledge", "event", "preference", "rule"])}, "data"
+                "memory_search_tool",
+                {"limit": 5, "categories": list(["knowledge", "event", "preference", "rule"])},
+                "data",
             )
         ]
         result = suggest_memory_recall(calls)
@@ -45,7 +47,9 @@ class TestSuggestMemoryRecall:
     def test_no_suggestions_fallback(self) -> None:
         calls = [
             _make_call(
-                "memory_search_tool", {"categories": list(["knowledge", "event", "preference", "rule"]), "limit": 20}, "data"
+                "memory_search_tool",
+                {"categories": list(["knowledge", "event", "preference", "rule"]), "limit": 20},
+                "data",
             )
         ]
         result = suggest_memory_recall(calls)

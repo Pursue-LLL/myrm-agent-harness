@@ -61,9 +61,7 @@ class TestErrorClassification:
         for code in [400, 401, 403, 404, 405, 422]:
             exc = Exception()
             exc.status_code = code
-            assert not is_retryable_search_error(
-                exc
-            ), f"Status {code} should not be retryable"
+            assert not is_retryable_search_error(exc), f"Status {code} should not be retryable"
 
     def test_retryable_error_messages(self):
         """测试通过错误消息判断可重试"""
@@ -75,9 +73,7 @@ class TestErrorClassification:
             "Broken pipe error",
         ]
         for msg in test_cases:
-            assert is_retryable_search_error(
-                Exception(msg)
-            ), f"Message '{msg}' should be retryable"
+            assert is_retryable_search_error(Exception(msg)), f"Message '{msg}' should be retryable"
 
     def test_http_status_attribute(self):
         """测试 http_status 属性"""
@@ -94,9 +90,7 @@ class TestErrorClassification:
 
     def test_invalid_api_key_not_retryable(self):
         """无效 API key 不可重试"""
-        exc = _FakeAPIConnectionError(
-            'TavilyException - {"detail":{"error":"Invalid API key"}}'
-        )
+        exc = _FakeAPIConnectionError('TavilyException - {"detail":{"error":"Invalid API key"}}')
         assert not is_retryable_search_error(exc)
 
     def test_real_connection_refused_still_retryable(self):
@@ -304,9 +298,7 @@ class TestExtractKeyError:
         assert "quota exceeded" in msg.lower()
 
     def test_invalid_api_key(self, searcher: WebSearcher):
-        exc = _FakeAPIConnectionError(
-            'TavilyException - {"detail":{"error":"Invalid API key"}}'
-        )
+        exc = _FakeAPIConnectionError('TavilyException - {"detail":{"error":"Invalid API key"}}')
         msg = searcher._extract_key_error(exc)
         assert "invalid api key" in msg.lower()
 
@@ -330,9 +322,7 @@ class TestExtractKeyError:
         msg = searcher._extract_key_error(exc)
         assert "Exception:" in msg
 
-    def test_apiconnectionerror_not_matched_as_connection_error(
-        self, searcher: WebSearcher
-    ):
+    def test_apiconnectionerror_not_matched_as_connection_error(self, searcher: WebSearcher):
         """APIConnectionError 包装的未知错误不应返回 'Cannot connect'"""
         exc = _FakeAPIConnectionError("Something went wrong")
         msg = searcher._extract_key_error(exc)
@@ -363,9 +353,7 @@ class TestWebSearcherCacheLogLevel:
         with patch.object(searcher, "_get_search_service", return_value=mock_service):
             await searcher.search("test query", 5)
 
-        with patch(
-            "myrm_agent_harness.toolkits.web_search.web_searcher.logger"
-        ) as mock_logger:
+        with patch("myrm_agent_harness.toolkits.web_search.web_searcher.logger") as mock_logger:
             result = await searcher.search("test query", 5)
 
             assert len(result) == 1
@@ -409,9 +397,7 @@ class TestProviderChain:
 
         fallback_service = AsyncMock()
         fallback_service.search.return_value = [
-            SearchResult(
-                title="Fallback", link="https://fallback.com", snippet="Fallback result"
-            )
+            SearchResult(title="Fallback", link="https://fallback.com", snippet="Fallback result")
         ]
 
         async def mock_get_service(instance, bypass_gateway=False):
@@ -434,9 +420,7 @@ class TestProviderChain:
 
         cfg = self._chain_config(
             SearchServiceConfig(search_service="tavily", api_key="invalid-key"),
-            SearchServiceConfig(
-                search_service="searxng", api_base="http://localhost:8081"
-            ),
+            SearchServiceConfig(search_service="searxng", api_base="http://localhost:8081"),
         )
         metrics = WebSearchMetrics()
         searcher = WebSearcher(cfg, metrics=metrics)
@@ -448,9 +432,7 @@ class TestProviderChain:
 
         fallback_service = AsyncMock()
         fallback_service.search.return_value = [
-            SearchResult(
-                title="SearxNG", link="https://example.com", snippet="SearxNG result"
-            )
+            SearchResult(title="SearxNG", link="https://example.com", snippet="SearxNG result")
         ]
 
         async def mock_get_service(instance, bypass_gateway=False):
@@ -477,9 +459,10 @@ class TestProviderChain:
             'TavilyException - {"detail":{"error":"This request exceeds your plan\'s set usage limit."}}'
         )
 
-        with patch.object(
-            searcher, "_get_search_service", return_value=primary_service
-        ), pytest.raises(SearchAPIError, match="quota exceeded"):
+        with (
+            patch.object(searcher, "_get_search_service", return_value=primary_service),
+            pytest.raises(SearchAPIError, match="quota exceeded"),
+        ):
             await searcher.search("test", 5)
 
     @pytest.mark.asyncio
@@ -513,9 +496,7 @@ class TestProviderChain:
         from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
 
         cfg = self._chain_config(
-            SearchServiceConfig(
-                search_service="tavily", api_key="tvly-key", search_max_retries=2
-            ),
+            SearchServiceConfig(search_service="tavily", api_key="tvly-key", search_max_retries=2),
             SearchServiceConfig(search_service="perplexity", api_key="pplx-key"),
         )
         metrics = WebSearchMetrics()
@@ -524,9 +505,10 @@ class TestProviderChain:
         primary_service = AsyncMock()
         primary_service.search.side_effect = TimeoutError("Request timed out")
 
-        with patch.object(
-            WebSearcher, "_get_search_service", return_value=primary_service
-        ), pytest.raises(AllQueriesFailedError, match="timeout"):
+        with (
+            patch.object(WebSearcher, "_get_search_service", return_value=primary_service),
+            pytest.raises(AllQueriesFailedError, match="timeout"),
+        ):
             await searcher.search("test", 5)
 
         assert metrics.chain_hop_count == 0
@@ -585,9 +567,7 @@ class TestProviderChain:
 
         fallback_service = AsyncMock()
         fallback_service.search.return_value = [
-            SearchResult(
-                title="Cached", link="https://cached.com", snippet="Cached result"
-            )
+            SearchResult(title="Cached", link="https://cached.com", snippet="Cached result")
         ]
 
         async def mock_get_service(instance, bypass_gateway=False):

@@ -73,12 +73,8 @@ def parse_ptc_notify_params(params: dict[str, object]) -> NormalizedProgressFiel
     message = _validate_message(params.get("message"))
     level = normalize_level(params.get("level", "info"), strict=True)
     progress = _coerce_optional_bounded_int(params.get("progress"), lo=0, hi=100, field="progress")
-    step_index = _coerce_optional_bounded_int(
-        params.get("step_index"), lo=1, hi=MAX_STEP_BOUND, field="step_index"
-    )
-    total_steps = _coerce_optional_bounded_int(
-        params.get("total_steps"), lo=1, hi=MAX_STEP_BOUND, field="total_steps"
-    )
+    step_index = _coerce_optional_bounded_int(params.get("step_index"), lo=1, hi=MAX_STEP_BOUND, field="step_index")
+    total_steps = _coerce_optional_bounded_int(params.get("total_steps"), lo=1, hi=MAX_STEP_BOUND, field="total_steps")
 
     category_raw = params.get("category")
     category: str | None

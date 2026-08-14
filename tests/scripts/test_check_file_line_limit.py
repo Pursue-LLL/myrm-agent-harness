@@ -120,9 +120,7 @@ def test_main_full_mode_ok(scratch: Path, capsys: pytest.CaptureFixture[str]) ->
     assert "OK" in out
 
 
-def test_main_full_mode_violation(
-    scratch: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_main_full_mode_violation(scratch: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """CLI full scan with a violating file exits 1 and prints the violation."""
     from scripts.check_file_line_limit import main
 
@@ -141,7 +139,6 @@ def test_main_incremental_no_changes(
 ) -> None:
     """--incremental with an empty change set prints OK and exits 0."""
     from scripts.check_file_line_limit import main
-    from scripts.boundary_engine import get_changed_harness_files
 
     pkg = scratch / "src" / _REPO
     baseline = scratch / "file_line_baseline.txt"
@@ -149,20 +146,14 @@ def test_main_incremental_no_changes(
     def _no_changes(_root: Path) -> list[Path]:
         return []
 
-    monkeypatch.setattr(
-        "scripts.check_file_line_limit.get_changed_harness_files", _no_changes
-    )
-    rc = main(
-        ["--package-root", str(pkg), "--baseline", str(baseline), "--incremental"]
-    )
+    monkeypatch.setattr("scripts.check_file_line_limit.get_changed_harness_files", _no_changes)
+    rc = main(["--package-root", str(pkg), "--baseline", str(baseline), "--incremental"])
     out = capsys.readouterr().out
     assert rc == 0
     assert "no harness files changed" in out
 
 
-def test_main_incremental_git_unavailable(
-    scratch: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_main_incremental_git_unavailable(scratch: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """--incremental with git unavailable falls back to a full scan."""
     from scripts.check_file_line_limit import main
 
@@ -175,9 +166,7 @@ def test_main_incremental_git_unavailable(
         "scripts.check_file_line_limit.get_changed_harness_files",
         lambda _root: None,
     )
-    rc = main(
-        ["--package-root", str(pkg), "--baseline", str(baseline), "--incremental"]
-    )
+    rc = main(["--package-root", str(pkg), "--baseline", str(baseline), "--incremental"])
     assert rc == 0
 
 
@@ -195,9 +184,7 @@ def test_main_incremental_scoped_violation(
         "scripts.check_file_line_limit.get_changed_harness_files",
         lambda _root: [pkg / "sub" / "huge.py"],
     )
-    rc = main(
-        ["--package-root", str(pkg), "--baseline", str(baseline), "--incremental"]
-    )
+    rc = main(["--package-root", str(pkg), "--baseline", str(baseline), "--incremental"])
     err = capsys.readouterr().err
     assert rc == 1
     assert "huge.py" in err

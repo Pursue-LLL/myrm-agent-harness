@@ -78,9 +78,7 @@ def build_canonical_index(structure: WikiStructure) -> WikiCanonicalIndex:
         metadata, _ = load_frontmatter_metadata(content)
         raw_canonical = metadata.get(CANONICAL_ID_KEY)
         canonical_id = (
-            normalize_registry_key(str(raw_canonical))
-            if raw_canonical
-            else derive_canonical_id(concept_name)
+            normalize_registry_key(str(raw_canonical)) if raw_canonical else derive_canonical_id(concept_name)
         )
         by_canonical_id.setdefault(canonical_id, concept_name)
 

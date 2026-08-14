@@ -124,9 +124,7 @@ class TestAllowedBasePaths:
             from myrm_agent_harness.agent.config import FileIOConfig
 
             config = FileIOConfig(follow_symlinks=True)
-            validator = PathValidator(
-                allowed_base_paths=[allowed_dir], io_config=config
-            )
+            validator = PathValidator(allowed_base_paths=[allowed_dir], io_config=config)
             valid_path = os.path.join(allowed_dir, "test.txt")
             await validator._do_validate(_make_context(), valid_path)
 

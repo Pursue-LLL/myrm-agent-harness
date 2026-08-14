@@ -28,6 +28,7 @@ def _find_ruff() -> str:
     pytest.skip("ruff not found in venv or PATH")
     return ""  # unreachable, satisfies type checker
 
+
 _REQUIRED_NOISE_SUPPRESSIONS = frozenset(
     {
         "S101",  # assert (runtime invariant checks)
@@ -110,13 +111,9 @@ class TestRuffSecurityConfig:
             timeout=60,
         )
         stats_lines = [
-            line for line in result.stdout.strip().splitlines()
-            if line.strip() and not line.startswith("Found")
+            line for line in result.stdout.strip().splitlines() if line.strip() and not line.startswith("Found")
         ]
-        assert len(stats_lines) >= 1, (
-            "ruff S rules should detect at least 1 security diagnostic. "
-            f"Got: {result.stdout}"
-        )
+        assert len(stats_lines) >= 1, f"ruff S rules should detect at least 1 security diagnostic. Got: {result.stdout}"
 
     def test_suppressed_rules_absent_from_output(self) -> None:
         """Suppressed noise rules must not appear in ruff output."""

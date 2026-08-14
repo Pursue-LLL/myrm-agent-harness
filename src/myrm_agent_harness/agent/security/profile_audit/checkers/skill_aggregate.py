@@ -32,11 +32,7 @@ class SkillAggregateChecker(BaseChecker):
 
         for skill in audit_input.skill_scans:
             if skill.trust_recommendation in _DANGEROUS_RECOMMENDATIONS:
-                severity = (
-                    AuditSeverity.CRITICAL
-                    if skill.trust_recommendation == "reject"
-                    else AuditSeverity.HIGH
-                )
+                severity = AuditSeverity.CRITICAL if skill.trust_recommendation == "reject" else AuditSeverity.HIGH
                 findings.append(
                     AuditFinding(
                         checker="skill_aggregate",

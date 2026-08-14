@@ -60,9 +60,7 @@ async def test_evaluator_dry_run_validation():
 
     variants = [good_variant, bad_variant]
 
-    best, score, _reason, is_general = await evaluator.evaluate_variants(
-        MOCK_SKILL, variants, "feedback", "trace"
-    )
+    best, score, _reason, is_general = await evaluator.evaluate_variants(MOCK_SKILL, variants, "feedback", "trace")
 
     # Evaluator should pick the good variant, because the bad one gets 0 score due to AST failure
     assert best == good_variant
@@ -121,9 +119,7 @@ async def test_engine_capture_skill_from_trajectory():
         patch(
             "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
         ) as MockExtractor,  # noqa: N806 mock 类名别名
-        patch(
-            "myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.SandboxValidator"
-        ) as MockSandbox,  # noqa: N806 mock 类名别名
+        patch("myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.SandboxValidator") as MockSandbox,  # noqa: N806 mock 类名别名
     ):
         instance = MockExtractor.return_value
         instance.extract_from_trajectory = AsyncMock(return_value=mock_result)
@@ -131,15 +127,14 @@ async def test_engine_capture_skill_from_trajectory():
         sandbox_instance = MockSandbox.return_value
         sandbox_instance.dry_run_skill = AsyncMock(return_value=(True, "Passed"))
 
-        proposal = await engine.capture_skill_from_trajectory(
-            "some trajectory", "session-123"
-        )
+        proposal = await engine.capture_skill_from_trajectory("some trajectory", "session-123")
 
     assert proposal is not None
     assert proposal.evolution_type == EvolutionType.CAPTURED
     assert proposal.proposed_content == "## Instructions\n1. Do something."
     assert proposal.score == 0.9
     assert proposal.is_general is True
+
 
 @pytest.mark.asyncio
 async def test_engine_extract_skill_from_slice():
@@ -161,7 +156,9 @@ async def test_engine_extract_skill_from_slice():
 
     with (
         patch("myrm_agent_harness.agent.skills.evolution.core.engine.TraceAnalyzer") as MockTraceAnalyzer,  # noqa: N806 mock 类名别名
-        patch("myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor") as MockExtractor,  # noqa: N806 mock 类名别名
+        patch(
+            "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
+        ) as MockExtractor,  # noqa: N806 mock 类名别名
         patch("myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.SandboxValidator") as MockSandbox,  # noqa: N806 mock 类名别名
     ):
         engine = SkillEvolutionEngine(store=mock_store, llm=mock_llm, event_log_backend=MagicMock())
@@ -289,9 +286,7 @@ async def test_evaluator_syntax_error_validation():
     assert "SyntaxError" in reason
 
     # Hallucinated import (now caught by advanced import check)
-    is_valid, reason = evaluator._dry_run_validation(
-        "```python\nimport this_does_not_exist\n```"
-    )
+    is_valid, reason = evaluator._dry_run_validation("```python\nimport this_does_not_exist\n```")
     assert is_valid is False
     assert "ModuleNotFoundError" in reason
 
@@ -302,9 +297,7 @@ async def test_variant_generator_error_handling():
     mock_llm.ainvoke = AsyncMock(side_effect=Exception("LLM Error"))
     generator = VariantGenerator(mock_llm)
 
-    variants = await generator.generate_variants(
-        MOCK_SKILL, "feedback", "trace", num_variants=1
-    )
+    variants = await generator.generate_variants(MOCK_SKILL, "feedback", "trace", num_variants=1)
 
     # Should fallback to original skill
     assert len(variants) == 1
@@ -336,9 +329,7 @@ async def test_engine_evolve_multiple_concurrent():
     structured_llm.ainvoke = AsyncMock(return_value=rubric)
 
     mock_llm = MagicMock()
-    mock_llm.ainvoke = AsyncMock(
-        return_value=MagicMock(content="## Instructions\n1. Do better.")
-    )
+    mock_llm.ainvoke = AsyncMock(return_value=MagicMock(content="## Instructions\n1. Do better."))
     mock_llm.with_structured_output = MagicMock(return_value=structured_llm)
 
     engine = SkillEvolutionEngine(store=mock_store, llm=mock_llm)
@@ -384,18 +375,14 @@ async def test_engine_capture_skill_edge_cases():
     with patch(
         "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
     ) as MockExtractor:  # noqa: N806 mock 类名别名
-        MockExtractor.return_value.extract_from_trajectory = AsyncMock(
-            return_value=None
-        )
+        MockExtractor.return_value.extract_from_trajectory = AsyncMock(return_value=None)
         assert await engine.capture_skill_from_trajectory("t", "2") is None
 
     # 3. Not general
     with patch(
         "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
     ) as MockExtractor:  # noqa: N806 mock 类名别名
-        res = SkillCaptureResult(
-            is_general=False, confidence=1.0, safety_analysis="", name="x", content="x"
-        )
+        res = SkillCaptureResult(is_general=False, confidence=1.0, safety_analysis="", name="x", content="x")
         MockExtractor.return_value.extract_from_trajectory = AsyncMock(return_value=res)
         assert await engine.capture_skill_from_trajectory("t", "3") is None
 
@@ -403,9 +390,7 @@ async def test_engine_capture_skill_edge_cases():
     with patch(
         "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
     ) as MockExtractor:  # noqa: N806 mock 类名别名
-        res = SkillCaptureResult(
-            is_general=True, confidence=0.5, safety_analysis="", name="x", content="x"
-        )
+        res = SkillCaptureResult(is_general=True, confidence=0.5, safety_analysis="", name="x", content="x")
         MockExtractor.return_value.extract_from_trajectory = AsyncMock(return_value=res)
         assert await engine.capture_skill_from_trajectory("t", "4") is None
 
@@ -414,17 +399,11 @@ async def test_engine_capture_skill_edge_cases():
         patch(
             "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
         ) as MockExtractor,  # noqa: N806 mock 类名别名
-        patch(
-            "myrm_agent_harness.agent.skills.evolution.safety.validator.SkillValidator"
-        ) as MockValidator,  # noqa: N806 mock 类名别名
+        patch("myrm_agent_harness.agent.skills.evolution.safety.validator.SkillValidator") as MockValidator,  # noqa: N806 mock 类名别名
     ):
-        res = SkillCaptureResult(
-            is_general=True, confidence=0.9, safety_analysis="", name="x", content="x"
-        )
+        res = SkillCaptureResult(is_general=True, confidence=0.9, safety_analysis="", name="x", content="x")
         MockExtractor.return_value.extract_from_trajectory = AsyncMock(return_value=res)
-        MockValidator.return_value.validate.return_value = MagicMock(
-            valid=False, errors=["err"]
-        )
+        MockValidator.return_value.validate.return_value = MagicMock(valid=False, errors=["err"])
         assert await engine.capture_skill_from_trajectory("t", "5") is None
 
     # 6. Sandbox dry-run failure
@@ -432,21 +411,13 @@ async def test_engine_capture_skill_edge_cases():
         patch(
             "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
         ) as MockExtractor,  # noqa: N806 mock 类名别名
-        patch(
-            "myrm_agent_harness.agent.skills.evolution.safety.validator.SkillValidator"
-        ) as MockValidator,  # noqa: N806 mock 类名别名
-        patch(
-            "myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.SandboxValidator"
-        ) as MockSandbox,  # noqa: N806 mock 类名别名
+        patch("myrm_agent_harness.agent.skills.evolution.safety.validator.SkillValidator") as MockValidator,  # noqa: N806 mock 类名别名
+        patch("myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.SandboxValidator") as MockSandbox,  # noqa: N806 mock 类名别名
     ):
-        res = SkillCaptureResult(
-            is_general=True, confidence=0.9, safety_analysis="", name="x", content="x"
-        )
+        res = SkillCaptureResult(is_general=True, confidence=0.9, safety_analysis="", name="x", content="x")
         MockExtractor.return_value.extract_from_trajectory = AsyncMock(return_value=res)
         MockValidator.return_value.validate.return_value = MagicMock(valid=True)
-        MockSandbox.return_value.dry_run_skill = AsyncMock(
-            return_value=(False, "Failed")
-        )
+        MockSandbox.return_value.dry_run_skill = AsyncMock(return_value=(False, "Failed"))
         assert await engine.capture_skill_from_trajectory("t", "6") is None
 
 
@@ -560,7 +531,7 @@ async def test_proposal_builder_split_edit_summary():
         lineage=None,
     )
     variant_with_summary = (
-        'Updated skill content here\n---EDIT_SUMMARY---\n'
+        "Updated skill content here\n---EDIT_SUMMARY---\n"
         '{"preserved_sections": ["setup"], "changed_sections": ["validation"], "notes": "fixed"}'
     )
     proposal = builder.build_proposal(
@@ -592,7 +563,7 @@ async def test_proposal_builder_split_edit_summary_malformed():
         lineage=None,
     )
     variant_with_summary = (
-        'Updated skill content here\n---EDIT_SUMMARY---\n'
+        "Updated skill content here\n---EDIT_SUMMARY---\n"
         '{"preserved_sections": ["setup"], "changed_sections": ["validation"], "notes": "fixed",}'
     )
     proposal = builder.build_proposal(
@@ -611,10 +582,7 @@ async def test_proposal_builder_split_edit_summary_malformed():
 async def test_evaluator_strip_edit_summary():
     """BatchEvaluator._strip_edit_summary removes the metadata block."""
     evaluator = BatchEvaluator(llm=None)
-    content_with_summary = (
-        "Skill content body\n---EDIT_SUMMARY---\n"
-        '{"preserved_sections": ["all"]}'
-    )
+    content_with_summary = 'Skill content body\n---EDIT_SUMMARY---\n{"preserved_sections": ["all"]}'
     stripped = evaluator._strip_edit_summary(content_with_summary)
     assert stripped == "Skill content body"
     assert "EDIT_SUMMARY" not in stripped
@@ -764,10 +732,7 @@ async def test_description_eval_robust_json_parsing():
     """evaluate_description_variants tolerates prose framing + trailing commas in LLM score JSON."""
     mock_llm = MagicMock()
     mock_resp = MagicMock()
-    mock_resp.content = (
-        'Here is my assessment:\n'
-        '{"score": 0.9, "reasoning": "Clear trigger conditions",}'
-    )
+    mock_resp.content = 'Here is my assessment:\n{"score": 0.9, "reasoning": "Clear trigger conditions",}'
     mock_llm.ainvoke = AsyncMock(return_value=mock_resp)
 
     evaluator = BatchEvaluator(llm=mock_llm)

@@ -280,4 +280,3 @@ class TestHumanizeCommand:
         assert isinstance(explanation, dict)
         assert "en" in explanation
         assert "zh" in explanation
-

@@ -69,9 +69,7 @@ def test_yolo_allowed_for_model_respects_global_disable() -> None:
 
 def test_load_from_env_json() -> None:
     env = {
-        "MYRM_MANAGED_APPROVAL_POLICY_JSON": (
-            '{"ignoreAllowlistForModels":["gpt-*"],"disableYolo":true}'
-        ),
+        "MYRM_MANAGED_APPROVAL_POLICY_JSON": ('{"ignoreAllowlistForModels":["gpt-*"],"disableYolo":true}'),
     }
     policy = load_managed_approval_policy_from_env(env=env)
     assert policy.should_ignore_allowlist("gpt-4o") is True

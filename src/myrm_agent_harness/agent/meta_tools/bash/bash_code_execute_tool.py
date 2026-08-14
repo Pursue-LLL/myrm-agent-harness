@@ -113,9 +113,7 @@ def create_bash_code_execute_tool(
     """Create the bash code execution LangChain tool."""
 
     skill_paths = [s.storage_path for s in (skills or []) if s.storage_path]
-    skill_oauth_issuers = {
-        s.name: s.oauth_issuer for s in (skills or []) if s.oauth_issuer and s.name
-    }
+    skill_oauth_issuers = {s.name: s.oauth_issuer for s in (skills or []) if s.oauth_issuer and s.name}
 
     description = TOOL_DESCRIPTION + get_os_hint()
 
@@ -196,9 +194,7 @@ def create_bash_code_execute_tool(
                         message="run_in_background requires a bound session_id.",
                         user_hint="Background jobs are scoped per chat session.",
                     )
-                finish_listener, progress_listener = build_background_listeners(
-                    session_id=session_id, config=config
-                )
+                finish_listener, progress_listener = build_background_listeners(session_id=session_id, config=config)
                 info = await bash_executor.spawn_background(
                     command=command,
                     session_id=session_id,
@@ -292,11 +288,7 @@ def create_bash_code_execute_tool(
 
             office_warnings = result.get("office_warnings")
             if isinstance(office_warnings, list) and office_warnings:
-                warning_lines = "\n".join(
-                    f"Office: {item}"
-                    for item in office_warnings
-                    if isinstance(item, str)
-                )
+                warning_lines = "\n".join(f"Office: {item}" for item in office_warnings if isinstance(item, str))
                 if warning_lines:
                     formatted_content = f"{formatted_content}\n\n{warning_lines}"
 
@@ -315,16 +307,12 @@ def create_bash_code_execute_tool(
                     emit_evicted_ref,
                 )
 
-                preview_stdout = (
-                    formatted_content if isinstance(formatted_content, str) else None
-                )
+                preview_stdout = formatted_content if isinstance(formatted_content, str) else None
                 await emit_evicted_ref(
                     evicted_ref,
                     tool_name="bash_code_execute_tool",
                     preview_stdout=preview_stdout,
-                    stored_chars=_coerce_optional_int(
-                        result.get("evicted_stored_chars")
-                    ),
+                    stored_chars=_coerce_optional_int(result.get("evicted_stored_chars")),
                     total_lines=_coerce_optional_int(result.get("evicted_total_lines")),
                     storage_truncated=bool(result.get("evicted_storage_truncated")),
                     stream="stdout",
@@ -340,15 +328,9 @@ def create_bash_code_execute_tool(
                 await emit_evicted_ref(
                     stderr_evicted_ref,
                     tool_name="bash_code_execute_tool",
-                    stored_chars=_coerce_optional_int(
-                        result.get("stderr_evicted_stored_chars")
-                    ),
-                    total_lines=_coerce_optional_int(
-                        result.get("stderr_evicted_total_lines")
-                    ),
-                    storage_truncated=bool(
-                        result.get("stderr_evicted_storage_truncated")
-                    ),
+                    stored_chars=_coerce_optional_int(result.get("stderr_evicted_stored_chars")),
+                    total_lines=_coerce_optional_int(result.get("stderr_evicted_total_lines")),
+                    storage_truncated=bool(result.get("stderr_evicted_storage_truncated")),
                     stream="stderr",
                     config=config,
                 )
@@ -358,9 +340,7 @@ def create_bash_code_execute_tool(
                 metadata = result["mcp_metadata"]
 
             generated = result.get("generated_files")
-            generated_files: list[str] = (
-                list(generated) if isinstance(generated, list) else []
-            )
+            generated_files: list[str] = list(generated) if isinstance(generated, list) else []
             blocks = await maybe_build_image_blocks(
                 text_content=formatted_content,
                 generated_files=generated_files,

@@ -187,9 +187,7 @@ CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
     ),
 )
 
-BUILTIN_TOOL_ID_TO_GROUP: dict[str, str] = {
-    entry.tool_id: entry.tool_group for entry in CAPABILITY_GAP_REGISTRY
-}
+BUILTIN_TOOL_ID_TO_GROUP: dict[str, str] = {entry.tool_id: entry.tool_group for entry in CAPABILITY_GAP_REGISTRY}
 
 
 @dataclass(frozen=True, slots=True)

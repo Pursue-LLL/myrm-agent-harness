@@ -130,6 +130,4 @@ class BaseAgentModesMixin:
             config=cfg,
             privacy_redactor=_make_consensus_redactor() if cfg.privacy_filter != "off" else None,
         )
-        return await engine.run(
-            query, system_prompt=self.system_prompt, cancel_token=cancel_token
-        )
+        return await engine.run(query, system_prompt=self.system_prompt, cancel_token=cancel_token)

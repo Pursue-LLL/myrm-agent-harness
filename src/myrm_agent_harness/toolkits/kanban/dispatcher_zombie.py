@@ -41,7 +41,9 @@ class KanbanDispatcherZombieMixin:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.warning("Heartbeat update failed for task %s, will retry next interval", task_id[:8], exc_info=True)
+                logger.warning(
+                    "Heartbeat update failed for task %s, will retry next interval", task_id[:8], exc_info=True
+                )
 
     async def _rescue_orphaned_tasks(self) -> None:
         """Reclaim RUNNING tasks orphaned by a prior process crash.
@@ -107,10 +109,7 @@ class KanbanDispatcherZombieMixin:
             deps_met = await self._store.are_dependencies_met(task.task_id)  # type: ignore[attr-defined]
             if task.block_cycle_count >= block_limit:
                 target = TaskStatus.TRIAGE
-                task.error = (
-                    f"Escalated to triage after {task.block_cycle_count} block cycles "
-                    f"(limit {block_limit})"
-                )
+                task.error = f"Escalated to triage after {task.block_cycle_count} block cycles (limit {block_limit})"
             else:
                 target = TaskStatus.READY if deps_met else TaskStatus.BACKLOG
                 task.error = ""

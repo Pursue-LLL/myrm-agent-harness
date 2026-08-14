@@ -45,9 +45,7 @@ class TestClickDelay:
         cfg = HumanizeConfig.from_mode(HumanizeMode.DEFAULT)
         samples = [click_delay(cfg) for _ in range(1000)]
         mean = statistics.mean(samples)
-        assert (
-            abs(mean - cfg.click_delay_mean) < 15
-        ), f"Mean {mean} too far from {cfg.click_delay_mean}"
+        assert abs(mean - cfg.click_delay_mean) < 15, f"Mean {mean} too far from {cfg.click_delay_mean}"
 
 
 class TestTypeDelay:
@@ -69,9 +67,7 @@ class TestTypeDelay:
         cfg = HumanizeConfig.from_mode(HumanizeMode.CAREFUL)
         samples = [type_delay(cfg) for _ in range(1000)]
         mean = statistics.mean(samples)
-        assert (
-            abs(mean - cfg.type_delay_mean) < 15
-        ), f"Mean {mean} too far from {cfg.type_delay_mean}"
+        assert abs(mean - cfg.type_delay_mean) < 15, f"Mean {mean} too far from {cfg.type_delay_mean}"
 
 
 class TestBezierMove:

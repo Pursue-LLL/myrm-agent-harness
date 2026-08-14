@@ -21,9 +21,7 @@ async def test_create_skill_agent_clears_mcp_registry_when_no_mcp_servers() -> N
     )
 
     with (
-        patch(
-            "myrm_agent_harness.agent.skills.runtime.registry.skill_registry.clear_mcp_skills"
-        ) as clear_mock,
+        patch("myrm_agent_harness.agent.skills.runtime.registry.skill_registry.clear_mcp_skills") as clear_mock,
         patch(
             "myrm_agent_harness.agent._factory.builder.route_mcp_servers",
             new=AsyncMock(),
@@ -31,7 +29,8 @@ async def test_create_skill_agent_clears_mcp_registry_when_no_mcp_servers() -> N
         patch(
             "myrm_agent_harness.agent.skill_agent.SkillAgent",
             side_effect=RuntimeError("stop-after-mcp-section"),
-        ),pytest.raises(RuntimeError, match="stop-after-mcp-section")
+        ),
+        pytest.raises(RuntimeError, match="stop-after-mcp-section"),
     ):
         await create_skill_agent(
             spec=spec,

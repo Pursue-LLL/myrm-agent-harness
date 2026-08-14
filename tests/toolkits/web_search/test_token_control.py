@@ -111,9 +111,7 @@ class TestHelperFunctions:
         text = "x" * 1000
 
         # 模拟tiktoken不可用的场景（通过传入无效编码器）
-        result = truncate_by_tokens_with_boundary(
-            text, max_tokens=100, encoding_name="invalid_encoder"
-        )
+        result = truncate_by_tokens_with_boundary(text, max_tokens=100, encoding_name="invalid_encoder")
         assert len(result) <= 405  # 100 * 4 + "..." 后缀
 
 
@@ -151,9 +149,7 @@ class TestFormatDocumentsWithMetadata:
             for i in range(5)
         ]
 
-        _metadata, _text, stats = format_documents_with_metadata(
-            docs, total_max_tokens=500
-        )
+        _metadata, _text, stats = format_documents_with_metadata(docs, total_max_tokens=500)
 
         assert stats is not None
         assert stats.total_docs == 5
@@ -172,9 +168,7 @@ class TestFormatDocumentsWithMetadata:
             ),
         ]
 
-        _metadata, text, _ = format_documents_with_metadata(
-            docs, max_content_tokens=100
-        )
+        _metadata, text, _ = format_documents_with_metadata(docs, max_content_tokens=100)
 
         content_tokens = get_token_count(text)
         # Header约50 tokens + 内容<=100 tokens
@@ -192,9 +186,7 @@ class TestFormatDocumentsWithMetadata:
         ]
 
         # 全局预算500，单文档限制10000（但会被全局限制）
-        _metadata, _text, stats = format_documents_with_metadata(
-            docs, max_content_tokens=10000, total_max_tokens=500
-        )
+        _metadata, _text, stats = format_documents_with_metadata(docs, max_content_tokens=10000, total_max_tokens=500)
 
         assert stats is not None
         # 5个文档，每个header约50 tokens，总预算500
@@ -211,16 +203,12 @@ class TestFormatDocumentsWithMetadata:
             for i in range(5)
         ]
 
-        _metadata, text, _stats = format_documents_with_metadata(
-            docs, total_max_tokens=1000
-        )
+        _metadata, text, _stats = format_documents_with_metadata(docs, total_max_tokens=1000)
 
         # Top-3文档应该有更多内容
         lines = text.split("\n\n")
         doc_contents = [
-            line
-            for line in lines
-            if line and not line.startswith("【") and not line.startswith("relevant")
+            line for line in lines if line and not line.startswith("【") and not line.startswith("relevant")
         ]
 
         # 前3个文档的内容应该明显长于后2个
@@ -240,9 +228,7 @@ class TestFormatDocumentsWithMetadata:
             for i in range(5)
         ]
 
-        _metadata, _text, stats = format_documents_with_metadata(
-            docs, total_max_tokens=1000
-        )
+        _metadata, _text, stats = format_documents_with_metadata(docs, total_max_tokens=1000)
 
         assert stats is not None
         assert stats.original_tokens > stats.final_tokens
@@ -281,9 +267,7 @@ class TestFormatDocumentsWithMetadata:
             )
         ]
 
-        _metadata, text, _ = format_documents_with_metadata(
-            docs, questions=["query1", "query2"]
-        )
+        _metadata, text, _ = format_documents_with_metadata(docs, questions=["query1", "query2"])
 
         assert text.startswith("relevant results for keywords [query1, query2]:")
 
@@ -307,9 +291,7 @@ class TestTokenControlIntegration:
         ]
 
         # 限制总预算为5000 tokens
-        metadata, _text, stats = format_documents_with_metadata(
-            docs, total_max_tokens=5000
-        )
+        metadata, _text, stats = format_documents_with_metadata(docs, total_max_tokens=5000)
 
         assert len(metadata) == 10
         assert stats is not None
@@ -335,9 +317,7 @@ class TestTokenControlIntegration:
             ),
         ]
 
-        _metadata, text, stats = format_documents_with_metadata(
-            docs, total_max_tokens=500
-        )
+        _metadata, text, stats = format_documents_with_metadata(docs, total_max_tokens=500)
 
         assert stats is not None
         assert stats.final_tokens <= 500
@@ -359,9 +339,7 @@ class TestTokenControlIntegration:
 
         actual_tokens = get_token_count(text, encoding_name=PLANNING_ENCODING)
         if stats:
-            assert (
-                abs(actual_tokens - stats.final_tokens) < 10
-            )  # 允许小误差（header估算）
+            assert abs(actual_tokens - stats.final_tokens) < 10  # 允许小误差（header估算）
 
     def test_adaptive_estimation_short_header(self):
         """测试自适应估算：短header分支（<=20 tokens）"""
@@ -373,9 +351,7 @@ class TestTokenControlIntegration:
             for i in range(5)
         ]
 
-        sources, _context, stats = format_documents_with_metadata(
-            docs, total_max_tokens=500
-        )
+        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=500)
 
         assert stats.final_tokens <= 500
         assert len(sources) == 5
@@ -393,9 +369,7 @@ class TestTokenControlIntegration:
             for i in range(5)
         ]
 
-        sources, _context, stats = format_documents_with_metadata(
-            docs, total_max_tokens=600
-        )
+        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=600)
 
         assert stats.final_tokens <= 600
         assert len(sources) == 5
@@ -413,9 +387,7 @@ class TestTokenControlIntegration:
             for i in range(5)
         ]
 
-        sources, _context, stats = format_documents_with_metadata(
-            docs, total_max_tokens=800
-        )
+        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=800)
 
         assert stats.final_tokens <= 800
         assert len(sources) == 5
@@ -433,9 +405,7 @@ class TestTokenControlIntegration:
         ]
 
         with caplog.at_level(logging.ERROR):
-            sources, _context, stats = format_documents_with_metadata(
-                docs, questions=["test"], total_max_tokens=200
-            )
+            sources, _context, stats = format_documents_with_metadata(docs, questions=["test"], total_max_tokens=200)
 
         assert "Budget insufficient" in caplog.text or "truncating" in caplog.text
         assert stats.final_tokens <= 200
@@ -488,9 +458,7 @@ class TestTokenControlIntegration:
             "artificial intelligence",
         ]
 
-        _sources, context, stats = format_documents_with_metadata(
-            docs, questions=questions, total_max_tokens=800
-        )
+        _sources, context, stats = format_documents_with_metadata(docs, questions=questions, total_max_tokens=800)
 
         assert "relevant results for keywords" in context
         assert all(q in context for q in questions)
@@ -508,9 +476,7 @@ class TestTokenControlIntegration:
 
         long_questions = ["query keyword"] * 20
 
-        _sources, context, stats = format_documents_with_metadata(
-            docs, questions=long_questions, total_max_tokens=600
-        )
+        _sources, context, stats = format_documents_with_metadata(docs, questions=long_questions, total_max_tokens=600)
 
         assert stats.final_tokens <= 600
         assert "relevant results for keywords" in context
@@ -526,9 +492,7 @@ class TestTokenControlIntegration:
         ]
 
         # 精确计算使预算刚好等于overhead
-        sources, _context, stats = format_documents_with_metadata(
-            docs, total_max_tokens=120
-        )
+        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=120)
 
         assert stats.final_tokens <= 120
         assert len(sources) <= 3
@@ -546,9 +510,7 @@ class TestTokenControlIntegration:
             for i in range(20)
         ]
 
-        sources, _context, stats = format_documents_with_metadata(
-            docs, total_max_tokens=400
-        )
+        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=400)
 
         assert stats.final_tokens <= 400
         # 应裁剪到前N个文档
@@ -568,9 +530,7 @@ class TestTokenControlIntegration:
             for i in range(5)
         ]
 
-        sources, _context, stats = format_documents_with_metadata(
-            docs, total_max_tokens=5000
-        )
+        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=5000)
 
         assert stats.final_tokens <= 5000
         assert len(sources) == 5
@@ -582,9 +542,7 @@ class TestTokenControlIntegration:
 
         from myrm_agent_harness.utils.text_utils import get_token_count
 
-        docs = [
-            Document(page_content="C", metadata={"url": "https://a.co", "title": "T"})
-        ]
+        docs = [Document(page_content="C", metadata={"url": "https://a.co", "title": "T"})]
 
         # 构造questions占用大量预算
         questions = ["keyword query search"] * 10

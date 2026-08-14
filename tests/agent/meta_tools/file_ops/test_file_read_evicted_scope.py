@@ -30,9 +30,7 @@ def test_normalize_path_hint_strips_leading_dot_slash() -> None:
 
 def test_path_hint_allows_evicted_and_uploaded() -> None:
     chat_id = "chat-1"
-    assert _path_hint_allowed_for_evicted_uploaded(
-        f".context/{chat_id}/evicted/web_fetch_ab12cd34.md", chat_id
-    )
+    assert _path_hint_allowed_for_evicted_uploaded(f".context/{chat_id}/evicted/web_fetch_ab12cd34.md", chat_id)
     assert _path_hint_allowed_for_evicted_uploaded("_uploaded/report.pdf", chat_id)
     assert _path_hint_allowed_for_evicted_uploaded("_uploaded", chat_id)
 
@@ -60,9 +58,7 @@ async def test_scope_blocks_workspace_file(tmp_path) -> None:
                 return str(workspace / path)
 
         with pytest.raises(ToolError, match="blocked"):
-            await _assert_evicted_uploaded_read_scope(
-                ["secret.txt"], chat_id=chat_id, executor=_Executor()
-            )
+            await _assert_evicted_uploaded_read_scope(["secret.txt"], chat_id=chat_id, executor=_Executor())
     finally:
         workspace_root_var.reset(token_ws)
         chat_id_var.reset(token_chat)
@@ -86,9 +82,7 @@ async def test_scope_allows_evicted_file(tmp_path) -> None:
             async def resolve_path(self, path: str) -> str:
                 return str(workspace / path)
 
-        await _assert_evicted_uploaded_read_scope(
-            [rel], chat_id=chat_id, executor=_Executor()
-        )
+        await _assert_evicted_uploaded_read_scope([rel], chat_id=chat_id, executor=_Executor())
     finally:
         workspace_root_var.reset(token_ws)
         chat_id_var.reset(token_chat)
@@ -212,13 +206,17 @@ async def test_scope_resolve_value_error_falls_back_to_base(tmp_path) -> None:
 async def test_file_read_tool_evicted_policy_blocks_workspace_path() -> None:
     tool = create_file_read_tool(path_policy="evicted_uploaded")
     chat_id = "chat-tool-block"
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=MagicMock(workspace_path="/tmp"),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
-        return_value={"chat_id": chat_id},
-    ), pytest.raises(ToolError, match="blocked"):
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=MagicMock(workspace_path="/tmp"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
+            return_value={"chat_id": chat_id},
+        ),
+        pytest.raises(ToolError, match="blocked"),
+    ):
         await tool.ainvoke({"paths": ["src/main.py"]}, config=_DUMMY_CONFIG)
 
 
@@ -247,9 +245,7 @@ async def test_scope_allows_evicted_file_with_chat_prefix_chat_id(tmp_path) -> N
             async def resolve_path(self, path: str) -> str:
                 return str(workspace / path)
 
-        await _assert_evicted_uploaded_read_scope(
-            [rel], chat_id=chat_id, executor=_Executor()
-        )
+        await _assert_evicted_uploaded_read_scope([rel], chat_id=chat_id, executor=_Executor())
     finally:
         workspace_root_var.reset(token_ws)
         chat_id_var.reset(token_chat)
@@ -269,15 +265,19 @@ async def test_file_read_tool_evicted_policy_allows_spill_path(tmp_path) -> None
     mock_executor.workspace_path = str(workspace)
 
     tool = create_file_read_tool(path_policy="evicted_uploaded")
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
-        return_value={"chat_id": chat_id},
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        return_value=["spilled body"],
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
+            return_value={"chat_id": chat_id},
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            return_value=["spilled body"],
+        ),
     ):
         result = await tool.ainvoke({"paths": [rel]}, config=_DUMMY_CONFIG)
 
@@ -297,12 +297,15 @@ def test_file_read_input_normalize_paths_from_plain_string() -> None:
 @pytest.mark.asyncio
 async def test_file_read_tool_url_only_returns_error_message() -> None:
     tool = create_file_read_tool(path_policy="evicted_uploaded")
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=MagicMock(workspace_path="/tmp"),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
-        return_value={"chat_id": "chat-url"},
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=MagicMock(workspace_path="/tmp"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
+            return_value={"chat_id": "chat-url"},
+        ),
     ):
         result = await tool.ainvoke(
             {"paths": ["https://example.com/page"]},
@@ -318,13 +321,17 @@ async def test_assert_paths_allowed_for_read_blocks_disabled_skill() -> None:
         async def resolve_path(self, path: str) -> str:
             return f"/disabled-root/{path}"
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_disabled_skill_roots",
-        return_value=["/disabled-root"],
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.is_under_disabled_skill_root",
-        return_value=True,
-    ), pytest.raises(ToolError, match="Path blocked"):
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_disabled_skill_roots",
+            return_value=["/disabled-root"],
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.is_under_disabled_skill_root",
+            return_value=True,
+        ),
+        pytest.raises(ToolError, match="Path blocked"),
+    ):
         await _assert_paths_allowed_for_read(
             ["skill/readme.md"],
             _DUMMY_CONFIG,
@@ -345,15 +352,19 @@ async def test_file_read_preserve_in_context_wraps_output(tmp_path) -> None:
     mock_executor = MagicMock()
     mock_executor.workspace_path = str(workspace)
     tool = create_file_read_tool(path_policy="evicted_uploaded")
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
-        return_value={"chat_id": chat_id},
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        return_value=["keep me"],
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
+            return_value={"chat_id": chat_id},
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            return_value=["keep me"],
+        ),
     ):
         result = await tool.ainvoke(
             {"paths": [rel], "preserve_in_context": True},
@@ -376,12 +387,15 @@ async def test_assert_paths_allowed_for_read_resolve_value_error_continues() -> 
         async def resolve_path(self, path: str) -> str:
             raise ValueError("bad")
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_disabled_skill_roots",
-        return_value=["/skills"],
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.is_under_disabled_skill_root",
-        return_value=False,
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_disabled_skill_roots",
+            return_value=["/skills"],
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.is_under_disabled_skill_root",
+            return_value=False,
+        ),
     ):
         await _assert_paths_allowed_for_read(
             ["file.md"],
@@ -405,16 +419,21 @@ async def test_file_read_permission_error_raises_tool_error(tmp_path) -> None:
     mock_executor = MagicMock()
     mock_executor.workspace_path = str(workspace)
     tool = create_file_read_tool(path_policy="evicted_uploaded")
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
-        return_value={"chat_id": chat_id},
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        side_effect=PermissionError("denied"),
-    ), pytest.raises(ToolError, match="denied"):
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
+            return_value={"chat_id": chat_id},
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            side_effect=PermissionError("denied"),
+        ),
+        pytest.raises(ToolError, match="denied"),
+    ):
         await tool.ainvoke({"paths": [rel]}, config=_DUMMY_CONFIG)
 
 
@@ -429,20 +448,27 @@ async def test_file_read_not_found_raises_tool_error(tmp_path) -> None:
     mock_executor = MagicMock()
     mock_executor.workspace_path = str(workspace)
     tool = create_file_read_tool(path_policy="evicted_uploaded")
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
-        return_value={"chat_id": chat_id},
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        side_effect=FileNotFoundError("missing.md"),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.suggest_similar_paths",
-        return_value=[],
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.format_path_not_found_hint",
-        return_value="Try another path",
-    ), pytest.raises(ToolError, match=r"missing\.md"):
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
+            return_value={"chat_id": chat_id},
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            side_effect=FileNotFoundError("missing.md"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.suggest_similar_paths",
+            return_value=[],
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.format_path_not_found_hint",
+            return_value="Try another path",
+        ),
+        pytest.raises(ToolError, match=r"missing\.md"),
+    ):
         await tool.ainvoke({"paths": [rel]}, config=_DUMMY_CONFIG)

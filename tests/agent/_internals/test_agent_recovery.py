@@ -104,7 +104,6 @@ class TestTruncateOldestRounds:
 
 
 class TestEmergencyCompact:
-
     @pytest.mark.asyncio
     async def test_calls_compress(self):
         from myrm_agent_harness.agent._internals.agent_recovery import emergency_compact
@@ -131,7 +130,6 @@ class TestEmergencyCompact:
 
 
 class TestExtractErrorType:
-
     def test_standard_error(self):
         from myrm_agent_harness.agent._internals.agent_recovery import _extract_error_type
 
@@ -164,7 +162,6 @@ class TestExtractErrorType:
 
 
 class TestBuildErrorContext:
-
     def test_basic_output(self):
         from myrm_agent_harness.agent._internals.agent_recovery import build_error_context
 
@@ -222,7 +219,6 @@ class TestBuildErrorContext:
 
 
 class TestDiagnoseLlmError:
-
     def test_returns_tuple(self):
         from myrm_agent_harness.agent._internals.agent_recovery import diagnose_llm_error
 
@@ -256,7 +252,6 @@ class TestDiagnoseLlmError:
 
 
 class TestRebuildAgentWithLlm:
-
     def test_replaces_llm_and_rebuilds(self):
         from myrm_agent_harness.agent._internals.agent_recovery import rebuild_agent_with_llm
 
@@ -305,9 +300,7 @@ class TestRebuildAgentWithLlm:
                 "myrm_agent_harness.agent.context_management.preheat.needs_explicit_preheat",
                 return_value=True,
             ),
-            patch(
-                "myrm_agent_harness.agent.context_management.preheat.CacheKeepAliveManager"
-            ) as MockKAM,  # noqa: N806 mock 类名别名
+            patch("myrm_agent_harness.agent.context_management.preheat.CacheKeepAliveManager") as MockKAM,  # noqa: N806 mock 类名别名
         ):
             new_kam_instance = MagicMock()
             MockKAM.return_value = new_kam_instance
@@ -373,9 +366,7 @@ class TestRebuildAgentWithLlm:
                 "myrm_agent_harness.agent.context_management.preheat.needs_explicit_preheat",
                 return_value=True,
             ),
-            patch(
-                "myrm_agent_harness.agent.context_management.preheat.CacheKeepAliveManager"
-            ) as MockKAM,  # noqa: N806 mock 类名别名
+            patch("myrm_agent_harness.agent.context_management.preheat.CacheKeepAliveManager") as MockKAM,  # noqa: N806 mock 类名别名
         ):
             new_kam_instance = MagicMock()
             MockKAM.return_value = new_kam_instance

@@ -21,9 +21,7 @@ def test_create_skill_agent_requires_runtime_spec() -> None:
 def test_create_skill_agent_memory_extraction_defaults_true() -> None:
     from myrm_agent_harness.api import create_skill_agent
 
-    param = inspect.signature(create_skill_agent).parameters[
-        "enable_memory_auto_extraction"
-    ]
+    param = inspect.signature(create_skill_agent).parameters["enable_memory_auto_extraction"]
     assert param.default is True
 
 

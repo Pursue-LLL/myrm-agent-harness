@@ -147,9 +147,7 @@ class WikiDirectorySidecarBuilder:
                 skipped += 1
                 abstract_cache[directory] = abstract_path.read_text(encoding="utf-8")
 
-        removed = await self._remove_stale_sidecars(
-            stale_dirs=set(old_signatures) - set(new_signatures)
-        )
+        removed = await self._remove_stale_sidecars(stale_dirs=set(old_signatures) - set(new_signatures))
         self._write_state(new_signatures)
         return SidecarBuildResult(
             rebuilt_directories=rebuilt,
@@ -213,11 +211,7 @@ class WikiDirectorySidecarBuilder:
         return touched
 
     def _immediate_file_summaries(self, directory: str, files: list[_FileSemantic]) -> list[str]:
-        rows = [
-            f"{item.path.stem}: {item.summary}"
-            for item in files
-            if item.rel_dir == directory and item.summary
-        ]
+        rows = [f"{item.path.stem}: {item.summary}" for item in files if item.rel_dir == directory and item.summary]
         return rows[:_MAX_INPUT_ROWS]
 
     def _child_abstracts(
@@ -359,10 +353,7 @@ class WikiDirectorySidecarBuilder:
     def _write_state(self, signatures: dict[str, str]) -> None:
         payload = {
             "updated_at": datetime.now(UTC).isoformat(),
-            "signatures": {
-                self._state_key_encode(directory): signature
-                for directory, signature in signatures.items()
-            },
+            "signatures": {self._state_key_encode(directory): signature for directory, signature in signatures.items()},
         }
         self._state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -480,4 +471,3 @@ class WikiDirectorySidecarBuilder:
     @staticmethod
     def _state_key_decode(directory: str) -> str:
         return "" if directory == _ROOT_LABEL else directory
-

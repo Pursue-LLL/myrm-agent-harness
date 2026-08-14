@@ -156,18 +156,14 @@ class TestIncrementConsolidationCount:
         mock_manager.get_profile_attribute = AsyncMock(return_value=None)
         mock_manager.set_profile_attribute = AsyncMock()
         await increment_consolidation_count(mock_manager)
-        mock_manager.set_profile_attribute.assert_called_once_with(
-            "_system.consolidation_count", "1"
-        )
+        mock_manager.set_profile_attribute.assert_called_once_with("_system.consolidation_count", "1")
 
     @pytest.mark.asyncio
     async def test_increment_existing(self, mock_manager: AsyncMock):
         mock_manager.get_profile_attribute = AsyncMock(return_value="3")
         mock_manager.set_profile_attribute = AsyncMock()
         await increment_consolidation_count(mock_manager)
-        mock_manager.set_profile_attribute.assert_called_once_with(
-            "_system.consolidation_count", "4"
-        )
+        mock_manager.set_profile_attribute.assert_called_once_with("_system.consolidation_count", "4")
 
     @pytest.mark.asyncio
     async def test_skip_no_relational(self, mock_manager: AsyncMock):
@@ -234,9 +230,7 @@ class TestRunPatternDiscovery:
         assert "mature" in report.skip_reason
 
     @pytest.mark.asyncio
-    async def test_skip_unchanged_hash(
-        self, mock_manager: AsyncMock, mock_llm: AsyncMock
-    ):
+    async def test_skip_unchanged_hash(self, mock_manager: AsyncMock, mock_llm: AsyncMock):
         memories = [_make_memory(f"m{i}") for i in range(60)]
         mock_manager.count_memories = AsyncMock(return_value=60)
         mock_manager.list_memories = AsyncMock(return_value=memories)
@@ -256,9 +250,7 @@ class TestRunPatternDiscovery:
         mock_llm.with_structured_output.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_successful_discovery(
-        self, mock_manager: AsyncMock, mock_llm: AsyncMock
-    ):
+    async def test_successful_discovery(self, mock_manager: AsyncMock, mock_llm: AsyncMock):
         memories = [_make_memory(f"m{i}") for i in range(60)]
         mock_manager.count_memories = AsyncMock(return_value=60)
         mock_manager.list_memories = AsyncMock(return_value=memories)
@@ -296,9 +288,7 @@ class TestRunPatternDiscovery:
         mock_manager.add_event.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_low_confidence_filtered(
-        self, mock_manager: AsyncMock, mock_llm: AsyncMock
-    ):
+    async def test_low_confidence_filtered(self, mock_manager: AsyncMock, mock_llm: AsyncMock):
         memories = [_make_memory(f"m{i}") for i in range(60)]
         mock_manager.count_memories = AsyncMock(return_value=60)
         mock_manager.list_memories = AsyncMock(return_value=memories)
@@ -365,9 +355,7 @@ class TestGetLastPatternDiscoveryAt:
 
     @pytest.mark.asyncio
     async def test_valid_timestamp(self, mock_manager: AsyncMock):
-        mock_manager.get_profile_attribute = AsyncMock(
-            return_value="2026-05-19T12:00:00+00:00"
-        )
+        mock_manager.get_profile_attribute = AsyncMock(return_value="2026-05-19T12:00:00+00:00")
         result = await get_last_pattern_discovery_at(mock_manager)
         assert result is not None
         assert result.year == 2026

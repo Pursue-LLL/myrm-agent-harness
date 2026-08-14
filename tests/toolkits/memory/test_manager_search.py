@@ -111,7 +111,12 @@ class TestSearchOperations:
             ),
         ]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, channel_id="telegram"
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            channel_id="telegram",
         )
 
         results = await manager.search("memory", memory_types=[MemoryType.SEMANTIC], limit=5, use_rrf=False)
@@ -151,7 +156,12 @@ class TestSearchOperations:
             )
         ]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, channel_id="telegram"
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            channel_id="telegram",
         )
 
         await manager.search("scoped", memory_types=[MemoryType.SEMANTIC], limit=5)
@@ -164,7 +174,10 @@ class TestSearchOperations:
         mock_vector_store.count.return_value = 1
         mock_vector_store.search.return_value = []
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             memory_policy=AgentMemoryPolicy(
                 agent_id="planner",
@@ -233,7 +246,10 @@ class TestSearchOperations:
             )
         ]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             graph=mock_graph_store,
             channel_id="telegram",
@@ -282,7 +298,10 @@ class TestSearchOperations:
             )
         ]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             graph=mock_graph_store,
             channel_id="telegram",
@@ -334,7 +353,10 @@ class TestSearchOperations:
 
         mock_graph_store.find_nodes = _namespace_aware_find
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             graph=mock_graph_store,
             channel_id="telegram",
@@ -373,7 +395,8 @@ class TestSearchOperations:
             )
         ]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
+        manager = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
         )
 
         results = await manager.search("auth task", memory_types=[MemoryType.EPISODIC], limit=5, use_rrf=False)
@@ -381,9 +404,7 @@ class TestSearchOperations:
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_search_hides_archive_checkpoint_from_recall(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_search_hides_archive_checkpoint_from_recall(self, mock_vector_store, mock_embedding, memory_config):
         mock_embedding.embed.return_value = [0.1] * 768
         mock_vector_store.count.return_value = 1
         mock_vector_store.search.return_value = [
@@ -452,7 +473,12 @@ class TestSearchOperations:
         rule = ProceduralMemory(id="rule-1", content="Test rule", trigger="trigger", action="action")
         mock_relational_store.search_rules.return_value = [rule]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, relational=mock_relational_store, embedding=mock_embedding
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
         )
 
         results = await manager.search(
@@ -494,7 +520,12 @@ class TestSearchOperations:
         mock_vector_store.scroll.return_value = []
         mock_relational_store.search_rules.return_value = []
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, relational=mock_relational_store, embedding=mock_embedding
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
         )
 
         results = await manager.search(
@@ -537,7 +568,10 @@ class TestSearchOperations:
 
         mock_graph = AsyncMock()
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             relational=mock_relational_store,
             embedding=mock_embedding,
             graph=mock_graph,

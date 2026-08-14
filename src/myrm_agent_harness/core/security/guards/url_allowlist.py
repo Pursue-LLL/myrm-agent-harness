@@ -25,9 +25,7 @@ class SSRFSecurityError(ValueError):
     """Raised when an SSRF or DLP allowlist violation is detected."""
 
 
-_allowed_domains_var: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
-    "allowed_domains", default=None
-)
+_allowed_domains_var: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar("allowed_domains", default=None)
 
 
 class URLAllowlistGuard:
@@ -56,9 +54,7 @@ class URLAllowlistGuard:
             if hostname == domain or hostname.endswith(f".{domain}"):
                 return
 
-        logger.warning(
-            "DLP Shield blocked request to unauthorized domain: %s", hostname
-        )
+        logger.warning("DLP Shield blocked request to unauthorized domain: %s", hostname)
         raise SSRFSecurityError(
             f"Access to {hostname} is blocked. "
             f"The current skill is only allowed to access: {', '.join(allowed_domains)}"

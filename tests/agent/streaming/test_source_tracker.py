@@ -268,7 +268,5 @@ class TestSourceTrackerEdgeCases:
         assert len(batch1) == 1
         assert batch1[0]["index"] == 1  # overwritten by tracker
 
-        batch2 = tracker.add_batch(
-            [{"type": "mcp", "skill_name": "test", "index": 100}]
-        )
+        batch2 = tracker.add_batch([{"type": "mcp", "skill_name": "test", "index": 100}])
         assert len(batch2) == 0  # deduped (index excluded from hash)

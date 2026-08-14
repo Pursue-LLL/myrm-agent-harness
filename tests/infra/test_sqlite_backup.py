@@ -53,6 +53,7 @@ def _corrupt_db(db_path: Path) -> None:
 # _compute_sha256
 # ---------------------------------------------------------------
 
+
 class TestComputeSha256:
     def test_deterministic(self, tmp_path: Path) -> None:
         f = tmp_path / "a.bin"
@@ -70,6 +71,7 @@ class TestComputeSha256:
 # ---------------------------------------------------------------
 # _pragma_quick_check
 # ---------------------------------------------------------------
+
 
 class TestPragmaQuickCheck:
     def test_healthy_db(self, tmp_path: Path) -> None:
@@ -100,6 +102,7 @@ class TestPragmaQuickCheck:
 # _pragma_schema_version
 # ---------------------------------------------------------------
 
+
 class TestPragmaSchemaVersion:
     def test_healthy_db(self, tmp_path: Path) -> None:
         db = tmp_path / "ok.db"
@@ -112,6 +115,7 @@ class TestPragmaSchemaVersion:
 # ---------------------------------------------------------------
 # SQLiteBackupManager.create_backup
 # ---------------------------------------------------------------
+
 
 class TestCreateBackup:
     def test_basic_backup(self, tmp_path: Path) -> None:
@@ -191,6 +195,7 @@ class TestCreateBackup:
 # SQLiteBackupManager.verify_health
 # ---------------------------------------------------------------
 
+
 class TestVerifyHealth:
     def test_healthy(self, tmp_path: Path) -> None:
         db = tmp_path / "app.db"
@@ -215,6 +220,7 @@ class TestVerifyHealth:
 # ---------------------------------------------------------------
 # SQLiteBackupManager.restore_latest
 # ---------------------------------------------------------------
+
 
 class TestRestoreLatest:
     def test_restore_after_corruption(self, tmp_path: Path) -> None:
@@ -306,6 +312,7 @@ class TestRestoreLatest:
 # SQLiteBackupManager.list_backups
 # ---------------------------------------------------------------
 
+
 class TestListBackups:
     def test_empty_when_no_backups(self, tmp_path: Path) -> None:
         db = tmp_path / "app.db"
@@ -329,6 +336,7 @@ class TestListBackups:
 # ---------------------------------------------------------------
 # Retention policy
 # ---------------------------------------------------------------
+
 
 class TestRetention:
     def test_retention_enforced(self, tmp_path: Path) -> None:
@@ -371,6 +379,7 @@ class TestRetention:
 # Manifest robustness
 # ---------------------------------------------------------------
 
+
 class TestManifest:
     def test_corrupt_manifest_gracefully_handled(self, tmp_path: Path) -> None:
         db = tmp_path / "app.db"
@@ -406,6 +415,7 @@ class TestManifest:
 # ---------------------------------------------------------------
 # BackupRecord / RestoreResult dataclasses
 # ---------------------------------------------------------------
+
 
 class TestDataclasses:
     def test_backup_record_frozen(self) -> None:

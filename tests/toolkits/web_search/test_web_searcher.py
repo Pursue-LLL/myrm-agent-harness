@@ -240,16 +240,12 @@ class TestWebSearcherRetryAndErrors:
     @pytest.mark.asyncio
     async def test_retry_then_success(self):
         """可重试错误后成功应触发一次退避并最终成功"""
-        config = SearchServiceConfig(
-            search_service="tavily", api_key="test_key", search_max_retries=2
-        )
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key", search_max_retries=2)
         metrics = WebSearchMetrics()
         searcher = WebSearcher(config, metrics=metrics)
         mock_service = AsyncMock()
         ok = [SearchResult(link="https://ok.com", title="OK", snippet="S")]
-        mock_service.search = AsyncMock(
-            side_effect=[Exception("503 Service Unavailable"), ok]
-        )
+        mock_service.search = AsyncMock(side_effect=[Exception("503 Service Unavailable"), ok])
         searcher._search_service = mock_service
 
         unique_q = f"retry_ok_{id(searcher)}"
@@ -265,9 +261,7 @@ class TestWebSearcherRetryAndErrors:
     @pytest.mark.asyncio
     async def test_search_api_error_includes_context(self):
         """不可重试错误应立即失败并携带 ErrorContext"""
-        config = SearchServiceConfig(
-            search_service="tavily", api_key="test_key", search_max_retries=0
-        )
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key", search_max_retries=0)
         metrics = WebSearchMetrics()
         searcher = WebSearcher(config, metrics=metrics)
         mock_service = AsyncMock()
@@ -290,17 +284,18 @@ class TestWebSearcherRetryAndErrors:
         async def fake_process(
             q: str, n: int, override: dict[str, str] | None = None
         ) -> tuple[str, list, Exception | None]:
-            ctx = ErrorContext(
-                query=q, error_code="TestErr", metadata={"provider": "tavily"}
-            )
+            ctx = ErrorContext(query=q, error_code="TestErr", metadata={"provider": "tavily"})
             return q, [], SearchAPIError("failed", context=ctx)
 
-        with patch.object(
-            searcher,
-            "search_and_process",
-            new_callable=AsyncMock,
-            side_effect=fake_process,
-        ), pytest.raises(AllQueriesFailedError) as exc_info:
+        with (
+            patch.object(
+                searcher,
+                "search_and_process",
+                new_callable=AsyncMock,
+                side_effect=fake_process,
+            ),
+            pytest.raises(AllQueriesFailedError) as exc_info,
+        ):
             await searcher.multi_query_parallel_search(["a", "b"], 5)
 
         assert len(exc_info.value.failed_queries) == 2
@@ -321,16 +316,8 @@ class TestWebSearcherMultiQuery:
         mock_service = AsyncMock()
         mock_service.search = AsyncMock(
             side_effect=[
-                [
-                    SearchResult(
-                        link="https://test1.com", title="R1", content="C1", snippet="S1"
-                    )
-                ],
-                [
-                    SearchResult(
-                        link="https://test2.com", title="R2", content="C2", snippet="S2"
-                    )
-                ],
+                [SearchResult(link="https://test1.com", title="R1", content="C1", snippet="S1")],
+                [SearchResult(link="https://test2.com", title="R2", content="C2", snippet="S2")],
             ]
         )
         searcher._search_service = mock_service
@@ -383,11 +370,7 @@ class TestWebSearcherMultiQuery:
         mock_service = AsyncMock()
         mock_service.search = AsyncMock(
             side_effect=[
-                [
-                    SearchResult(
-                        link="https://test1.com", title="R1", content="C1", snippet="S1"
-                    )
-                ],
+                [SearchResult(link="https://test1.com", title="R1", content="C1", snippet="S1")],
                 Exception("Search failed"),
             ]
         )
@@ -416,11 +399,7 @@ class TestWebSearcherCache:
         searcher = WebSearcher(config)
 
         mock_service = AsyncMock()
-        mock_results = [
-            SearchResult(
-                link="https://cached.com", title="Cached", content="C", snippet="S"
-            )
-        ]
+        mock_results = [SearchResult(link="https://cached.com", title="Cached", content="C", snippet="S")]
         mock_service.search = AsyncMock(return_value=mock_results)
         searcher._search_service = mock_service
 
@@ -430,9 +409,7 @@ class TestWebSearcherCache:
         results2 = await searcher.search(unique_query, num_results=5)
 
         assert results1 == results2
-        assert (
-            mock_service.search.call_count == 1
-        ), "Second call should hit cache, not network"
+        assert mock_service.search.call_count == 1, "Second call should hit cache, not network"
 
     @pytest.mark.asyncio
     async def test_cache_miss_different_query(self):
@@ -443,16 +420,8 @@ class TestWebSearcherCache:
         mock_service = AsyncMock()
         mock_service.search = AsyncMock(
             side_effect=[
-                [
-                    SearchResult(
-                        link="https://r1.com", title="R1", content="C1", snippet="S1"
-                    )
-                ],
-                [
-                    SearchResult(
-                        link="https://r2.com", title="R2", content="C2", snippet="S2"
-                    )
-                ],
+                [SearchResult(link="https://r1.com", title="R1", content="C1", snippet="S1")],
+                [SearchResult(link="https://r2.com", title="R2", content="C2", snippet="S2")],
             ]
         )
         searcher._search_service = mock_service
@@ -509,23 +478,13 @@ class TestWebSearcherIntegration:
         mock_service = AsyncMock()
         mock_service.search = AsyncMock(
             side_effect=[
-                [
-                    SearchResult(
-                        link="https://r1.com", title="R1", content="C1", snippet="S1"
-                    )
-                ],
-                [
-                    SearchResult(
-                        link="https://r2.com", title="R2", content="C2", snippet="S2"
-                    )
-                ],
+                [SearchResult(link="https://r1.com", title="R1", content="C1", snippet="S1")],
+                [SearchResult(link="https://r2.com", title="R2", content="C2", snippet="S2")],
             ]
         )
         searcher._search_service = mock_service
 
-        results = await searcher.multi_query_parallel_search(
-            ["q1", "q2"], results_per_query=5
-        )
+        results = await searcher.multi_query_parallel_search(["q1", "q2"], results_per_query=5)
 
         # 返回格式是 [(query, docs, error), ...]
         assert len(results) == 2

@@ -18,10 +18,7 @@ class TestMcpToolShortName:
 
 class TestResolveMcpToolName:
     def test_exact_match(self) -> None:
-        assert (
-            resolve_mcp_tool_name("create_issue", ["create_issue", "list_prs"])
-            == "create_issue"
-        )
+        assert resolve_mcp_tool_name("create_issue", ["create_issue", "list_prs"]) == "create_issue"
 
     def test_hyphen_to_underscore(self) -> None:
         assert resolve_mcp_tool_name("create-issue", ["create_issue"]) == "create_issue"
@@ -30,21 +27,12 @@ class TestResolveMcpToolName:
         assert resolve_mcp_tool_name("create_issue", ["create-issue"]) == "create-issue"
 
     def test_server_prefix_strip(self) -> None:
-        assert (
-            resolve_mcp_tool_name("github:create_issue", ["create_issue"])
-            == "create_issue"
-        )
+        assert resolve_mcp_tool_name("github:create_issue", ["create_issue"]) == "create_issue"
 
     def test_mcp_double_underscore_suffix_match(self) -> None:
         tools = ["mcp__12306__get_current_date", "mcp__12306__get_tickets"]
-        assert (
-            resolve_mcp_tool_name("get_current_date", tools)
-            == "mcp__12306__get_current_date"
-        )
-        assert (
-            resolve_mcp_tool_name("get-current-date", tools)
-            == "mcp__12306__get_current_date"
-        )
+        assert resolve_mcp_tool_name("get_current_date", tools) == "mcp__12306__get_current_date"
+        assert resolve_mcp_tool_name("get-current-date", tools) == "mcp__12306__get_current_date"
 
     def test_ambiguous_suffix_returns_none(self) -> None:
         tools = ["mcp__a__search", "mcp__b__search"]

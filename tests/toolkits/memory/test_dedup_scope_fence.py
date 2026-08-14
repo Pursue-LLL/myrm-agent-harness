@@ -27,9 +27,7 @@ from myrm_agent_harness.toolkits.memory.types import MemoryScope, SemanticMemory
 from myrm_agent_harness.toolkits.vector.base import SearchResult, VectorDocument
 
 
-def _semantic(
-    content: str, *, ns: list[str], embedding: list[float] | None = None
-) -> SemanticMemory:
+def _semantic(content: str, *, ns: list[str], embedding: list[float] | None = None) -> SemanticMemory:
     return SemanticMemory(
         content=content,
         scope=MemoryScope(namespaces=ns),
@@ -54,15 +52,9 @@ class ScopeAwareVector:
     def __init__(self) -> None:
         self.docs: dict[str, VectorDocument] = {}
 
-    async def search(
-        self, collection, query_vector, *, limit=10, filters=None, score_threshold=None
-    ):
+    async def search(self, collection, query_vector, *, limit=10, filters=None, score_threshold=None):
         allow = set((filters or {}).get("primary_namespace", []))
-        hits = [
-            d
-            for d in self.docs.values()
-            if d.metadata.get("primary_namespace") in allow
-        ]
+        hits = [d for d in self.docs.values() if d.metadata.get("primary_namespace") in allow]
         if not hits:
             return []
         return [SearchResult(document=hits[0], score=0.97)]
@@ -265,12 +257,8 @@ async def test_hash_cache_does_not_suppress_across_scopes() -> None:
     vector.search = AsyncMock(return_value=[])
     config = _config()
 
-    out1 = await dedup.deduplicate_batch(
-        [_semantic("Same fact", ns=["agent:A"])], vector, AsyncMock(), config, None
-    )
-    out2 = await dedup.deduplicate_batch(
-        [_semantic("Same fact", ns=["agent:B"])], vector, AsyncMock(), config, None
-    )
+    out1 = await dedup.deduplicate_batch([_semantic("Same fact", ns=["agent:A"])], vector, AsyncMock(), config, None)
+    out2 = await dedup.deduplicate_batch([_semantic("Same fact", ns=["agent:B"])], vector, AsyncMock(), config, None)
 
     assert len(out1) == 1
     assert len(out2) == 1  # not suppressed by agent A's cache entry
@@ -284,12 +272,8 @@ async def test_hash_cache_still_suppresses_same_scope_duplicate() -> None:
     vector.search = AsyncMock(return_value=[])
     config = _config()
 
-    await dedup.deduplicate_batch(
-        [_semantic("Same fact", ns=["agent:A"])], vector, AsyncMock(), config, None
-    )
-    out2 = await dedup.deduplicate_batch(
-        [_semantic("Same fact", ns=["agent:A"])], vector, AsyncMock(), config, None
-    )
+    await dedup.deduplicate_batch([_semantic("Same fact", ns=["agent:A"])], vector, AsyncMock(), config, None)
+    out2 = await dedup.deduplicate_batch([_semantic("Same fact", ns=["agent:A"])], vector, AsyncMock(), config, None)
 
     assert len(out2) == 0  # same-scope duplicate suppressed
 
@@ -299,18 +283,14 @@ def test_hash_cache_load_drops_legacy_unscooped_keys() -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         path = str(Path(tmp_dir) / "hash_cache.json")
         Path(path).write_text(json.dumps({"hashes": ["legacy-hash-no-ns"]}))
-        dedup = SmartDeduplicator(
-            MagicMock(), persist_hash_cache=True, hash_cache_path=path
-        )
+        dedup = SmartDeduplicator(MagicMock(), persist_hash_cache=True, hash_cache_path=path)
         assert dedup._hash_cache == {}
 
 
 # ── R1: write-path fence ──────────────────────────────────────────────
 
 
-def _writer(
-    namespaces: list[str], *, scope_namespaces: list[str] | None = None
-) -> MemoryWriter:
+def _writer(namespaces: list[str], *, scope_namespaces: list[str] | None = None) -> MemoryWriter:
     async def _noop(memory):
         return memory
 
@@ -321,11 +301,7 @@ def _writer(
     config.security_scan_enabled = False
     return MemoryWriter(
         config=config,
-        scope=MemoryScope(
-            namespaces=(
-                scope_namespaces if scope_namespaces is not None else list(namespaces)
-            )
-        ),
+        scope=MemoryScope(namespaces=(scope_namespaces if scope_namespaces is not None else list(namespaces))),
         namespaces=list(namespaces),
         approval_required=False,
         bind_scope_func=lambda m: m,

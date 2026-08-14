@@ -73,7 +73,6 @@ def _make_task(
 
 
 class TestApprovalGate:
-
     @pytest.mark.asyncio
     async def test_require_approval_lands_in_in_review_not_completed(self) -> None:
         """A verified success on a require_approval task stops at IN_REVIEW."""
@@ -289,7 +288,6 @@ class TestApprovalGate:
 
 
 class TestReviewHistoryInContext:
-
     @pytest.mark.asyncio
     async def test_rejected_reason_appears_in_worker_context(self) -> None:
         """The worker context surfaces prior rejection reasons for adaptation."""
@@ -327,7 +325,6 @@ class TestReviewHistoryInContext:
 
 
 class TestOrchestratorAddTask:
-
     @pytest.mark.asyncio
     async def test_add_task_supports_require_approval(self) -> None:
         """kanban_add_task accepts require_approval and persists it."""

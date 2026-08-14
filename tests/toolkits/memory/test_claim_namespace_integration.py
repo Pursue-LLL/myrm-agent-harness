@@ -44,7 +44,11 @@ async def test_namespace_isolation_real_sqlite(graph: SQLiteGraphStore) -> None:
     await graph.create_node(["Claim"], _claim_props("global", "Shared deploy", "Shared deploy insight"))
 
     alice_results = await _search_claim_graph(
-        graph, query="deploy", current_channel_id=None, namespaces=["agent:alice"], limit=10,
+        graph,
+        query="deploy",
+        current_channel_id=None,
+        namespaces=["agent:alice"],
+        limit=10,
     )
     alice_titles = {r.memory.title for r in alice_results}
     assert "Alice deploy" in alice_titles
@@ -52,7 +56,11 @@ async def test_namespace_isolation_real_sqlite(graph: SQLiteGraphStore) -> None:
     assert "Bob deploy" not in alice_titles
 
     bob_results = await _search_claim_graph(
-        graph, query="deploy", current_channel_id=None, namespaces=["agent:bob"], limit=10,
+        graph,
+        query="deploy",
+        current_channel_id=None,
+        namespaces=["agent:bob"],
+        limit=10,
     )
     bob_titles = {r.memory.title for r in bob_results}
     assert "Bob deploy" in bob_titles
@@ -67,7 +75,11 @@ async def test_multi_namespace_merges_correctly(graph: SQLiteGraphStore) -> None
     await graph.create_node(["Claim"], _claim_props("agent:bob", "Bob metric", "Bob metric report"))
 
     results = await _search_claim_graph(
-        graph, query="metric", current_channel_id=None, namespaces=["agent:alice", "global"], limit=10,
+        graph,
+        query="metric",
+        current_channel_id=None,
+        namespaces=["agent:alice", "global"],
+        limit=10,
     )
     titles = {r.memory.title for r in results}
     assert "Alice metric" in titles
@@ -82,7 +94,11 @@ async def test_none_namespace_returns_all(graph: SQLiteGraphStore) -> None:
     await graph.create_node(["Claim"], _claim_props("agent:bob", "Bob claim", "Bob data"))
 
     results = await _search_claim_graph(
-        graph, query="claim data", current_channel_id=None, namespaces=None, limit=10,
+        graph,
+        query="claim data",
+        current_channel_id=None,
+        namespaces=None,
+        limit=10,
     )
     assert len(results) == 2
 
@@ -100,7 +116,11 @@ async def test_candidate_crowding_prevented(graph: SQLiteGraphStore) -> None:
     await graph.create_node(["Claim"], _claim_props("agent:alice", "Alice rare item", "Alice unique rare task"))
 
     results = await _search_claim_graph(
-        graph, query="task", current_channel_id=None, namespaces=["agent:alice"], limit=5,
+        graph,
+        query="task",
+        current_channel_id=None,
+        namespaces=["agent:alice"],
+        limit=5,
     )
     titles = {r.memory.title for r in results}
     assert "Alice rare item" in titles
@@ -122,8 +142,11 @@ async def test_limit_enforced_after_multi_namespace_merge(graph: SQLiteGraphStor
         )
 
     results = await _search_claim_graph(
-        graph, query="task", current_channel_id=None,
-        namespaces=["agent:alice", "global"], limit=5,
+        graph,
+        query="task",
+        current_channel_id=None,
+        namespaces=["agent:alice", "global"],
+        limit=5,
     )
     assert len(results) <= 5
     scores = [r.score for r in results]
@@ -136,7 +159,11 @@ async def test_no_matching_query_returns_empty(graph: SQLiteGraphStore) -> None:
     await graph.create_node(["Claim"], _claim_props("agent:alice", "Python coding", "Python programming language"))
 
     results = await _search_claim_graph(
-        graph, query="basketball", current_channel_id=None, namespaces=["agent:alice"], limit=10,
+        graph,
+        query="basketball",
+        current_channel_id=None,
+        namespaces=["agent:alice"],
+        limit=10,
     )
     assert len(results) == 0
 
@@ -148,7 +175,11 @@ async def test_empty_namespace_list_returns_all(graph: SQLiteGraphStore) -> None
     await graph.create_node(["Claim"], _claim_props("agent:bob", "Bob code", "Bob code deploy"))
 
     results = await _search_claim_graph(
-        graph, query="code", current_channel_id=None, namespaces=[], limit=10,
+        graph,
+        query="code",
+        current_channel_id=None,
+        namespaces=[],
+        limit=10,
     )
     titles = {r.memory.title for r in results}
     assert "Alice code" in titles

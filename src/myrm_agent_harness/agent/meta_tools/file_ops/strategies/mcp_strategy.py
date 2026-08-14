@@ -51,9 +51,7 @@ class MCPFileSystemStrategy(FileSystemStrategy):
         """
         self.skills = skills
 
-    async def read_file(
-        self, path: str, view_range: ViewRange | None = None
-    ) -> list[str]:
+    async def read_file(self, path: str, view_range: ViewRange | None = None) -> list[str]:
         """读取 MCP 函数文档"""
         doc = self._read_mcp_function_doc(path)
         return doc.split("\n")
@@ -167,9 +165,7 @@ class MCPFileSystemStrategy(FileSystemStrategy):
         """
         parts = path.split("/")
         if len(parts) < 4:
-            raise ValueError(
-                f"Invalid MCP path: {path} - Format: /mcp/{{skill_name}}/{{function_name}}"
-            )
+            raise ValueError(f"Invalid MCP path: {path} - Format: /mcp/{{skill_name}}/{{function_name}}")
 
         skill_name = parts[2]
         function_name = parts[3]
@@ -182,9 +178,7 @@ class MCPFileSystemStrategy(FileSystemStrategy):
         skill_meta = next((s for s in self.skills if s.name == skill_name), None)
         if not skill_meta:
             available = [s.name for s in self.skills]
-            raise FileNotFoundError(
-                f"Skill not found: {skill_name} (available: {available})"
-            )
+            raise FileNotFoundError(f"Skill not found: {skill_name} (available: {available})")
 
         # 检查是否是 MCP 技能
         if not skill_meta.is_mcp_skill:

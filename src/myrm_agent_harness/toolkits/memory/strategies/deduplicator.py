@@ -252,9 +252,7 @@ class SmartDeduplicator:
         hash_results: list[tuple[DeduplicatableMemory, str, bool]] = []
         batch_hashes: set[str] = set()
         for mem in memories:
-            content_hash = compute_normalized_hash(
-                mem.content, self._normalization_level
-            )
+            content_hash = compute_normalized_hash(mem.content, self._normalization_level)
             cache_key = _cache_key(mem, content_hash)
             is_hit = cache_key in self._hash_cache or cache_key in batch_hashes
             hash_results.append((mem, content_hash, is_hit))
@@ -264,9 +262,7 @@ class SmartDeduplicator:
             else:
                 batch_hashes.add(cache_key)
 
-        need_embedding = [
-            mem for mem, _, hit in hash_results if not hit and mem.embedding is None
-        ]
+        need_embedding = [mem for mem, _, hit in hash_results if not hit and mem.embedding is None]
         if need_embedding:
             texts = [mem.content for mem in need_embedding]
             embeddings = await embed_batch(texts, embedding, cache)
@@ -275,9 +271,7 @@ class SmartDeduplicator:
 
         results = await asyncio.gather(
             *[
-                self._process_single_with_hash(
-                    mem, content_hash, is_hit, vector, memory_config
-                )
+                self._process_single_with_hash(mem, content_hash, is_hit, vector, memory_config)
                 for mem, content_hash, is_hit in hash_results
             ]
         )
@@ -285,9 +279,7 @@ class SmartDeduplicator:
         final: list[DeduplicatableMemory] = []
         stats = {"hash_skip": 0, "vector_skip": 0, "created_new": 0, "updated": 0}
 
-        for mem, (decision, target_id, merged_content) in zip(
-            memories, results, strict=False
-        ):
+        for mem, (decision, target_id, merged_content) in zip(memories, results, strict=False):
             if decision == DeduplicationDecision.DUPLICATE:
                 if target_id is None:
                     stats["hash_skip"] += 1
@@ -305,9 +297,7 @@ class SmartDeduplicator:
             ):
                 if target_id and merged_content:
                     stats["updated"] += 1
-                    updated = await self._apply_update(
-                        mem, target_id, merged_content, decision, vector, memory_config
-                    )
+                    updated = await self._apply_update(mem, target_id, merged_content, decision, vector, memory_config)
                     if updated:
                         final.append(updated)
                     else:
@@ -330,9 +320,7 @@ class SmartDeduplicator:
         """Get current cache performance metrics."""
         return self._metrics
 
-    async def _adjust_capacity(
-        self, vector: VectorStoreProtocol, config: MemoryConfig
-    ) -> None:
+    async def _adjust_capacity(self, vector: VectorStoreProtocol, config: MemoryConfig) -> None:
         """Adjust cache capacity based on actual memory count.
 
         Adaptive strategy: cache_size = memory_count * multiplier
@@ -407,16 +395,10 @@ class SmartDeduplicator:
                 f"evictions={self._metrics.evictions}"
             )
 
-        collection = (
-            config.semantic_collection
-            if isinstance(memory, SemanticMemory)
-            else config.episodic_collection
-        )
+        collection = config.semantic_collection if isinstance(memory, SemanticMemory) else config.episodic_collection
         mem_type = memory.memory_type
 
-        high_thresh, low_thresh = _TYPE_THRESHOLDS.get(
-            mem_type, (self._high_thresh, self._low_thresh)
-        )
+        high_thresh, low_thresh = _TYPE_THRESHOLDS.get(mem_type, (self._high_thresh, self._low_thresh))
 
         if memory.embedding is None:
             return (DeduplicationDecision.NEW, None, None)
@@ -446,9 +428,7 @@ class SmartDeduplicator:
             self._target_cache[target_id] = memory.id
 
         try:
-            decision, merged_content = await self._llm_judge(
-                memory, candidates, vector, config
-            )
+            decision, merged_content = await self._llm_judge(memory, candidates, vector, config)
 
             if decision == DeduplicationDecision.NEW:
                 async with self._target_lock:
@@ -484,17 +464,9 @@ class SmartDeduplicator:
             VectorSearchResult,
         )
 
-        converter = (
-            doc_to_semantic
-            if isinstance(new_memory, SemanticMemory)
-            else doc_to_episodic
-        )
+        converter = doc_to_semantic if isinstance(new_memory, SemanticMemory) else doc_to_episodic
 
-        search_results = [
-            c
-            for c in candidates[:_LLM_CANDIDATES_LIMIT]
-            if isinstance(c, VectorSearchResult)
-        ]
+        search_results = [c for c in candidates[:_LLM_CANDIDATES_LIMIT] if isinstance(c, VectorSearchResult)]
         existing_mems = [converter(result.document) for result in search_results]
 
         context_parts = [
@@ -504,26 +476,14 @@ class SmartDeduplicator:
             "\nExisting similar memories:",
         ]
         has_recent = False
-        new_ts = (
-            new_memory.created_at
-            if new_memory.created_at.tzinfo
-            else new_memory.created_at.replace(tzinfo=UTC)
-        )
-        for idx, (result, mem) in enumerate(
-            zip(search_results, existing_mems, strict=False)
-        ):
-            mem_ts = (
-                mem.created_at
-                if mem.created_at.tzinfo
-                else mem.created_at.replace(tzinfo=UTC)
-            )
+        new_ts = new_memory.created_at if new_memory.created_at.tzinfo else new_memory.created_at.replace(tzinfo=UTC)
+        for idx, (result, mem) in enumerate(zip(search_results, existing_mems, strict=False)):
+            mem_ts = mem.created_at if mem.created_at.tzinfo else mem.created_at.replace(tzinfo=UTC)
             time_diff = (new_ts - mem_ts).total_seconds() / 3600
             within_window = time_diff < self._time_window_hours
             if within_window:
                 has_recent = True
-            time_marker = (
-                f" [RECENT <{self._time_window_hours}h]" if within_window else ""
-            )
+            time_marker = f" [RECENT <{self._time_window_hours}h]" if within_window else ""
             context_parts.append(
                 f"\n[{idx + 1}] (similarity={result.score:.2f}, "
                 f"time_diff={time_diff:.1f}h{time_marker}, access={mem.access_count}x)\n"
@@ -601,9 +561,7 @@ class SmartDeduplicator:
         )
 
         is_semantic = isinstance(new_memory, SemanticMemory)
-        collection = (
-            config.semantic_collection if is_semantic else config.episodic_collection
-        )
+        collection = config.semantic_collection if is_semantic else config.episodic_collection
         converter = doc_to_semantic if is_semantic else doc_to_episodic
 
         try:
@@ -619,9 +577,7 @@ class SmartDeduplicator:
             # Empty namespaces mean global scope (no boundary to enforce);
             # only refuse when both sides declare disjoint explicit scopes.
             if existing_ns and new_ns and not existing_ns & new_ns:
-                logger.warning(
-                    "Refusing cross-scope update on %s, creating NEW", target_id
-                )
+                logger.warning("Refusing cross-scope update on %s, creating NEW", target_id)
                 return new_memory
 
             existing.content = merged_content
@@ -636,11 +592,7 @@ class SmartDeduplicator:
                 if new_memory.metadata:
                     existing.metadata = {**existing.metadata, **new_memory.metadata}
 
-            if (
-                isinstance(new_memory, SemanticMemory)
-                and isinstance(existing, SemanticMemory)
-                and new_memory.tags
-            ):
+            if isinstance(new_memory, SemanticMemory) and isinstance(existing, SemanticMemory) and new_memory.tags:
                 existing.tags = list(dict.fromkeys(existing.tags + new_memory.tags))
 
             if new_memory.source_chat_id:
@@ -648,18 +600,12 @@ class SmartDeduplicator:
             if new_memory.source_message_id:
                 existing.source_message_id = new_memory.source_message_id
 
-            action = (
-                "REPLACE"
-                if decision == DeduplicationDecision.UPDATE_REPLACE
-                else "MERGE"
-            )
+            action = "REPLACE" if decision == DeduplicationDecision.UPDATE_REPLACE else "MERGE"
             timestamp = datetime.now(UTC).strftime("%m-%d %H:%M")
             summary = new_memory.content[:_HISTORY_SUMMARY_LENGTH]
             history_entry = f"{timestamp}|{action}|{summary}"
             existing.merge_history = (
-                f"{existing.merge_history}\n{history_entry}"
-                if existing.merge_history
-                else history_entry
+                f"{existing.merge_history}\n{history_entry}" if existing.merge_history else history_entry
             )
 
             if hasattr(existing, "importance"):

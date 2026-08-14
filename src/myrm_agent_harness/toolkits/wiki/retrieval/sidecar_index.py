@@ -226,10 +226,7 @@ class SidecarIndexMixin:
                     if pub_db.exists():
                         fts_tables.append(f"pub_{idx}.wiki_fts")
                 sidecar_filters = " OR ".join(["concept_name GLOB ?"] * len(allowed_levels))
-                patterns = tuple(
-                    f"{_SIDECAR_PREFIX}:{_SIDECAR_LEVEL_LABEL[level]}:*"
-                    for level in allowed_levels
-                )
+                patterns = tuple(f"{_SIDECAR_PREFIX}:{_SIDECAR_LEVEL_LABEL[level]}:*" for level in allowed_levels)
                 union_queries = " UNION ALL ".join(
                     (
                         f"SELECT concept_name, rank FROM {table} "

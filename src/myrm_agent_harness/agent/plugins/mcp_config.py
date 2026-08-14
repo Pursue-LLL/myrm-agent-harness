@@ -64,13 +64,9 @@ def decode_mcp_json(raw: bytes | None) -> dict[str, Any] | None:
     try:
         decoded = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise McpConfigError(
-            f"mcp.json is not valid JSON: {exc}", code="mcp_invalid_json"
-        ) from exc
+        raise McpConfigError(f"mcp.json is not valid JSON: {exc}", code="mcp_invalid_json") from exc
     if not isinstance(decoded, dict):
-        raise McpConfigError(
-            "mcp.json must be a top-level JSON object", code="mcp_invalid_root"
-        )
+        raise McpConfigError("mcp.json must be a top-level JSON object", code="mcp_invalid_root")
     return decoded
 
 
@@ -90,9 +86,7 @@ def validate_mcp_top_level(raw: dict[str, Any], plugin_schema: str | None) -> No
             f"mcp.json declares unsupported $schema: {schema!r}",
             code="mcp_unsupported_schema",
         )
-    if plugin_schema is not None and schema_version(schema) != schema_version(
-        plugin_schema
-    ):
+    if plugin_schema is not None and schema_version(schema) != schema_version(plugin_schema):
         raise McpConfigError(
             "mcp.json targets a different Agent Plugins version than plugin.json",
             code="mcp_version_mismatch",
@@ -105,9 +99,7 @@ def validate_mcp_top_level(raw: dict[str, Any], plugin_schema: str | None) -> No
         )
     servers = raw.get("mcpServers")
     if not isinstance(servers, dict):
-        raise McpConfigError(
-            "mcp.json 'mcpServers' must be an object", code="mcp_invalid_servers"
-        )
+        raise McpConfigError("mcp.json 'mcpServers' must be an object", code="mcp_invalid_servers")
 
 
 def parse_mcp_servers(raw: dict[str, Any]) -> list[PluginMcpServer]:
@@ -155,22 +147,13 @@ def _parse_stdio(name: str, entry: dict[str, Any]) -> PluginMcpServer | None:
 
     env = entry.get("env")
     if env is not None:
-        if not isinstance(env, dict) or not all(
-            isinstance(k, str) and isinstance(v, str) for k, v in env.items()
-        ):
+        if not isinstance(env, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in env.items()):
             return None
         if "PLUGIN_ROOT" in env or "PLUGIN_DATA" in env:
             return None  # reserved env names are prohibited (§9.1)
 
     cwd = entry.get("cwd")
-    if (
-        cwd is not None
-        and (
-            not isinstance(cwd, str)
-            or not _CWD_FORM_RE.match(cwd)
-            or _contains_escape(cwd)
-        )
-    ):
+    if cwd is not None and (not isinstance(cwd, str) or not _CWD_FORM_RE.match(cwd) or _contains_escape(cwd)):
         return None
 
     unknown = set(entry.keys()) - {"type", "command", "args", "env", "cwd"}
@@ -209,9 +192,7 @@ def _is_valid_command(command: str) -> bool:
     return bool(_BARE_COMMAND_RE.match(command))
 
 
-def _parse_remote(
-    name: str, entry: dict[str, Any], *, is_sse: bool
-) -> PluginMcpServer | None:
+def _parse_remote(name: str, entry: dict[str, Any], *, is_sse: bool) -> PluginMcpServer | None:
     url = entry.get("url")
     if not isinstance(url, str) or not url.strip():
         return None
@@ -244,11 +225,7 @@ def _parse_remote(
         command=None,
         args=None,
         url=url,
-        headers=(
-            {str(k): str(v) for k, v in headers.items()}
-            if isinstance(headers, dict)
-            else None
-        ),
+        headers=({str(k): str(v) for k, v in headers.items()} if isinstance(headers, dict) else None),
         cwd=None,
     )
 

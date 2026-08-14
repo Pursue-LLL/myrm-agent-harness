@@ -50,9 +50,7 @@ def mock_indexer() -> AsyncMock:
 
 
 def test_parse_json_response(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
-    concepts = parse_concepts_response(
-        '[{"name": "ML", "definition": "Machine Learning"}]', "test.md"
-    )
+    concepts = parse_concepts_response('[{"name": "ML", "definition": "Machine Learning"}]', "test.md")
     assert len(concepts) == 1
     assert concepts[0].name == "ML"
     assert concepts[0].definition == "Machine Learning"
@@ -80,9 +78,7 @@ def test_parse_empty_response(wiki_structure: WikiStructure, mock_llm: AsyncMock
     assert concepts == []
 
 
-def test_parse_prose_with_trailing_commas_and_bare_newlines(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+def test_parse_prose_with_trailing_commas_and_bare_newlines(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     concepts = parse_concepts_response(
         'Concepts found:\n[{"name": "ML", "definition": "Machine\nLearning", '
         '"related_concepts": ["AI"],},]\nThat is all.',
@@ -162,7 +158,9 @@ async def test_extract_concepts_from_doc(wiki_structure: WikiStructure, mock_llm
 
 
 @pytest.mark.asyncio
-async def test_extract_concepts_reasoning_model_content_empty(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
+async def test_extract_concepts_reasoning_model_content_empty(
+    wiki_structure: WikiStructure, mock_llm: AsyncMock
+) -> None:
     """Reasoning 模型 content 为空时回退到 additional_kwargs["reasoning_content"]。"""
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
     raw = wiki_structure.raw_dir / "test.md"
@@ -367,7 +365,9 @@ async def test_compile_all_no_files(wiki_structure: WikiStructure, mock_llm: Asy
 
 
 @pytest.mark.asyncio
-async def test_compile_all_incremental(wiki_structure: WikiStructure, mock_llm: AsyncMock, mock_indexer: AsyncMock) -> None:
+async def test_compile_all_incremental(
+    wiki_structure: WikiStructure, mock_llm: AsyncMock, mock_indexer: AsyncMock
+) -> None:
     raw = wiki_structure.raw_dir / "doc.md"
     raw.write_text("Machine learning is powerful.")
 
@@ -384,7 +384,9 @@ async def test_compile_all_incremental(wiki_structure: WikiStructure, mock_llm: 
 
 
 @pytest.mark.asyncio
-async def test_compile_all_full_strategy(wiki_structure: WikiStructure, mock_llm: AsyncMock, mock_indexer: AsyncMock) -> None:
+async def test_compile_all_full_strategy(
+    wiki_structure: WikiStructure, mock_llm: AsyncMock, mock_indexer: AsyncMock
+) -> None:
     raw = wiki_structure.raw_dir / "doc.md"
     raw.write_text("Data science content.")
 
@@ -499,9 +501,7 @@ async def test_visual_guidance_reaches_llm(
 async def test_extract_concepts_batch_parallel(wiki_structure: WikiStructure, mock_indexer: AsyncMock):
     """Test that _extract_concepts_batch runs in parallel when parallel_compilation=True."""
     llm = AsyncMock()
-    llm.ainvoke.return_value = AIMessage(
-        content='[{"name": "Concept1", "definition": "Def1", "related_concepts": []}]'
-    )
+    llm.ainvoke.return_value = AIMessage(content='[{"name": "Concept1", "definition": "Def1", "related_concepts": []}]')
     config = WikiConfig(parallel_compilation=True, max_parallel_workers=2)
     compiler = WikiCompiler(llm, wiki_structure, config, WikiCompileConfig(), indexer=mock_indexer)
 
@@ -589,9 +589,7 @@ async def test_extract_concepts_batch_merges_duplicates(wiki_structure: WikiStru
     async def mock_ainvoke(messages):
         nonlocal call_count
         call_count += 1
-        return AIMessage(
-            content='[{"name": "SharedConcept", "definition": "Def", "related_concepts": []}]'
-        )
+        return AIMessage(content='[{"name": "SharedConcept", "definition": "Def", "related_concepts": []}]')
 
     llm = AsyncMock()
     llm.ainvoke = mock_ainvoke
@@ -656,9 +654,7 @@ async def test_start_background_worker_already_running(wiki_structure: WikiStruc
 async def test_worker_loop_drains_queue(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test that _worker_loop processes pending items and exits on idle (lines 131-167)."""
     llm = AsyncMock()
-    llm.ainvoke.return_value = AIMessage(
-        content='[{"name": "WC", "definition": "Worker Concept"}]'
-    )
+    llm.ainvoke.return_value = AIMessage(content='[{"name": "WC", "definition": "Worker Concept"}]')
     config = WikiConfig(enable_backlinks=False)
     compile_config = WikiCompileConfig(require_approval=False, min_concept_mentions=1)
     compiler = WikiCompiler(llm, wiki_structure, config, compile_config, indexer=mock_indexer)
@@ -682,9 +678,7 @@ async def test_worker_loop_drains_queue(wiki_structure: WikiStructure, mock_inde
 async def test_worker_loop_retries_failed_items(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test _worker_loop auto-retries failed items (lines 140-144)."""
     llm = AsyncMock()
-    llm.ainvoke.return_value = AIMessage(
-        content='[{"name": "Retry", "definition": "Retried"}]'
-    )
+    llm.ainvoke.return_value = AIMessage(content='[{"name": "Retry", "definition": "Retried"}]')
     config = WikiConfig(enable_backlinks=False)
     compile_config = WikiCompileConfig(require_approval=False, min_concept_mentions=1)
     compiler = WikiCompiler(llm, wiki_structure, config, compile_config, indexer=mock_indexer)
@@ -762,9 +756,7 @@ async def test_worker_loop_stale_recovery(wiki_structure: WikiStructure, mock_in
 
 
 @pytest.mark.asyncio
-async def test_filter_changed_files_invalid_metadata_json(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_filter_changed_files_invalid_metadata_json(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """Test _filter_changed_files with corrupt metadata file (lines 245-247)."""
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
     raw = wiki_structure.raw_dir / "test.md"
@@ -778,9 +770,7 @@ async def test_filter_changed_files_invalid_metadata_json(
 
 
 @pytest.mark.asyncio
-async def test_filter_changed_files_unreadable_file(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_filter_changed_files_unreadable_file(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """Test _filter_changed_files with OSError reading file hash (lines 255-256)."""
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
     raw = wiki_structure.raw_dir / "ghost.md"
@@ -799,9 +789,7 @@ async def test_filter_changed_files_unreadable_file(
 
 
 @pytest.mark.asyncio
-async def test_extract_concepts_batch_gather_exception(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_extract_concepts_batch_gather_exception(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test _extract_concepts_batch handles BaseException from gather (lines 292-294)."""
     llm = AsyncMock()
     call_count = 0
@@ -833,9 +821,7 @@ async def test_extract_concepts_batch_gather_exception(
 
 
 @pytest.mark.asyncio
-async def test_extract_concepts_from_doc_external_path(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_extract_concepts_from_doc_external_path(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """Test _extract_concepts_from_doc with doc outside base_dir (lines 321-322)."""
     import tempfile
 
@@ -844,9 +830,7 @@ async def test_extract_concepts_from_doc_external_path(
         external_path = Path(f.name)
 
     try:
-        mock_llm.ainvoke.return_value = AIMessage(
-            content='[{"name": "External", "definition": "From outside"}]'
-        )
+        mock_llm.ainvoke.return_value = AIMessage(content='[{"name": "External", "definition": "From outside"}]')
         compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
         concepts = await compiler._extract_concepts_from_doc(external_path)
         assert len(concepts) == 1
@@ -858,9 +842,7 @@ async def test_extract_concepts_from_doc_external_path(
 # --- _parse_concepts_response: plain ``` code block ---
 
 
-def test_parse_concepts_response_plain_code_block(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+def test_parse_concepts_response_plain_code_block(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """Test parsing response wrapped in plain ``` code block."""
     concepts = parse_concepts_response(
         '```\n[{"name": "Wrapped", "definition": "In plain code block"}]\n```',
@@ -874,9 +856,7 @@ def test_parse_concepts_response_plain_code_block(
 
 
 @pytest.mark.asyncio
-async def test_generate_articles_batch_sequential(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_generate_articles_batch_sequential(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test _generate_articles_batch sequential path (lines 406, 418)."""
     llm = AsyncMock()
     llm.ainvoke.return_value = AIMessage(content="## Compiled Truth\nSeq article.")
@@ -884,17 +864,13 @@ async def test_generate_articles_batch_sequential(
     compile_config = WikiCompileConfig(require_approval=False, min_concept_mentions=1)
     compiler = WikiCompiler(llm, wiki_structure, config, compile_config, indexer=mock_indexer)
 
-    concepts = [
-        ConceptInfo(name="SeqArt", definition="Def", mentions=2, source_files=["a.md"])
-    ]
+    concepts = [ConceptInfo(name="SeqArt", definition="Def", mentions=2, source_files=["a.md"])]
     count = await compiler._generate_articles_batch(concepts)
     assert count.generated == 1
 
 
 @pytest.mark.asyncio
-async def test_generate_articles_batch_exception_in_gen(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_generate_articles_batch_exception_in_gen(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test _generate_articles_batch handles exception in _gen_one (lines 408-410)."""
     llm = AsyncMock()
     llm.ainvoke.side_effect = RuntimeError("LLM error")
@@ -902,9 +878,7 @@ async def test_generate_articles_batch_exception_in_gen(
     compile_config = WikiCompileConfig(require_approval=False, min_concept_mentions=1)
     compiler = WikiCompiler(llm, wiki_structure, config, compile_config, indexer=mock_indexer)
 
-    concepts = [
-        ConceptInfo(name="FailArt", definition="Def", mentions=2, source_files=["a.md"])
-    ]
+    concepts = [ConceptInfo(name="FailArt", definition="Def", mentions=2, source_files=["a.md"])]
     count = await compiler._generate_articles_batch(concepts)
     assert count.generated == 0
     assert count.blocked == 1
@@ -950,9 +924,7 @@ async def test_generate_article_require_approval(
 
 
 @pytest.mark.asyncio
-async def test_generate_article_no_indexer_fallback(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_generate_article_no_indexer_fallback(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """Test _generate_article creates indexer when none provided (lines 470-474)."""
     mock_llm.ainvoke.return_value = AIMessage(content="## Compiled Truth\nArticle.")
     compile_config = WikiCompileConfig(require_approval=False)
@@ -960,9 +932,7 @@ async def test_generate_article_no_indexer_fallback(
 
     concept = ConceptInfo(name="NoIdx", definition="Def", mentions=2, source_files=["a.md"])
 
-    with patch(
-        "myrm_agent_harness.toolkits.wiki.retrieval.indexer.WikiIndexer"
-    ) as mock_indexer_cls:
+    with patch("myrm_agent_harness.toolkits.wiki.retrieval.indexer.WikiIndexer") as mock_indexer_cls:
         mock_idx_instance = MagicMock()
         mock_idx_instance.upsert = AsyncMock()
         mock_idx_instance.extract_and_upsert_edges = MagicMock()
@@ -1008,9 +978,7 @@ async def test_generate_backlinks_no_article_file(
 
 
 @pytest.mark.asyncio
-async def test_generate_backlinks_no_indexer_fallback(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_generate_backlinks_no_indexer_fallback(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """Test _generate_backlinks creates indexer when none provided (lines 531-534)."""
     config = WikiConfig(enable_backlinks=True)
     compile_config = WikiCompileConfig(require_approval=False)
@@ -1023,9 +991,7 @@ async def test_generate_backlinks_no_indexer_fallback(
         ConceptInfo(name="LinkTest", definition="def", mentions=2, source_files=["a.md"], related_concepts=["Linked"]),
     ]
 
-    with patch(
-        "myrm_agent_harness.toolkits.wiki.retrieval.indexer.WikiIndexer"
-    ) as mock_indexer_cls:
+    with patch("myrm_agent_harness.toolkits.wiki.retrieval.indexer.WikiIndexer") as mock_indexer_cls:
         mock_idx_instance = MagicMock()
         mock_idx_instance.extract_and_upsert_edges = MagicMock()
         mock_indexer_cls.return_value = mock_idx_instance
@@ -1060,9 +1026,7 @@ async def test_generate_backlinks_read_exception(
 
 
 @pytest.mark.asyncio
-async def test_extract_concepts_batch_process_exception(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_extract_concepts_batch_process_exception(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """Test _extract_concepts_batch handles exception in _process_single_item (lines 277-280).
 
     Triggers the outer `except Exception` by making mark_completed raise.
@@ -1096,9 +1060,7 @@ def _write_nested_raw(structure: WikiStructure, rel_path: str, content: str) -> 
 
 
 @pytest.mark.asyncio
-async def test_ensure_compile_session_reuses_existing(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_ensure_compile_session_reuses_existing(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """_ensure_compile_session returns the cached session on subsequent calls (line 144)."""
     _write_nested_raw(wiki_structure, "sub/doc.md", "Nested doc content.")
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
@@ -1113,9 +1075,7 @@ async def test_ensure_compile_session_reuses_existing(
 
 
 @pytest.mark.asyncio
-async def test_compile_all_with_nested_survey_session(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_compile_all_with_nested_survey_session(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """compile_all with a nested vault runs the survey-sorted batch path (lines 183-253)."""
     llm = AsyncMock()
     llm.ainvoke.side_effect = [
@@ -1136,9 +1096,7 @@ async def test_compile_all_with_nested_survey_session(
     WikiCompiler._active_workers.pop(str(wiki_structure.base_dir), None)
 
 
-def test_get_compile_run_and_resume_compile_worker(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+def test_get_compile_run_and_resume_compile_worker(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """get_compile_run and resume_compile_worker delegate to the circuit (lines 274-278)."""
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
     snapshot = compiler.get_compile_run()
@@ -1148,9 +1106,7 @@ def test_get_compile_run_and_resume_compile_worker(
 
 
 @pytest.mark.asyncio
-async def test_maybe_pause_for_embed_failure(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_maybe_pause_for_embed_failure(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """_maybe_pause_for_embed_failure pauses the circuit on embed violation (lines 892-893)."""
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
     stats = _ArticleBatchStats(
@@ -1171,9 +1127,7 @@ async def test_generate_article_truncates_oversized_content(
     wiki_structure: WikiStructure, mock_llm: AsyncMock, mock_indexer: AsyncMock
 ) -> None:
     """_generate_article truncates content exceeding max_article_length (line 809)."""
-    mock_llm.ainvoke.return_value = AIMessage(
-        content="## Compiled Truth\n" + "x" * 2000
-    )
+    mock_llm.ainvoke.return_value = AIMessage(content="## Compiled Truth\n" + "x" * 2000)
     compile_config = WikiCompileConfig(require_approval=False, max_article_length=50)
     compiler = WikiCompiler(
         mock_llm,
@@ -1191,9 +1145,7 @@ async def test_generate_article_truncates_oversized_content(
 
 
 @pytest.mark.asyncio
-async def test_compile_all_paused_skips_drain(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_compile_all_paused_skips_drain(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """compile_all returns immediately while the circuit is paused (lines 422-425)."""
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
     _write_nested_raw(wiki_structure, "doc.md", "Content.")
@@ -1246,9 +1198,7 @@ async def test_extract_concepts_batch_base_exception_recorded(
 
 
 @pytest.mark.asyncio
-async def test_worker_loop_full_pipeline(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_worker_loop_full_pipeline(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """_worker_loop runs the full postprocess pipeline with backlinks (lines 349-379)."""
     llm = AsyncMock()
     llm.ainvoke.side_effect = [
@@ -1290,9 +1240,7 @@ async def test_worker_loop_full_pipeline(
 
 
 @pytest.mark.asyncio
-async def test_worker_loop_paused_skips_extraction(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_worker_loop_paused_skips_extraction(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """_worker_loop sleeps while the circuit is paused without calling the LLM (lines 315-317)."""
     llm = AsyncMock()
     compiler = WikiCompiler(llm, wiki_structure, WikiConfig(), indexer=mock_indexer)
@@ -1315,9 +1263,7 @@ async def test_worker_loop_paused_skips_extraction(
 
 
 @pytest.mark.asyncio
-async def test_worker_loop_recovers_stale_processing(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_worker_loop_recovers_stale_processing(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """_worker_loop recovers stale processing items at startup (line 310)."""
     llm = AsyncMock()
     llm.ainvoke.return_value = AIMessage(content='[{"name": "Recovered", "definition": "d"}]')
@@ -1331,9 +1277,7 @@ async def test_worker_loop_recovers_stale_processing(
     item_id = compiler._queue.get_pending_items(limit=1)[0]["id"]
     compiler._queue.mark_processing(item_id)
     with compiler._queue._get_conn() as conn:
-        conn.execute(
-            "UPDATE ingestion_queue SET updated_at = datetime('now', '-400 seconds')"
-        )
+        conn.execute("UPDATE ingestion_queue SET updated_at = datetime('now', '-400 seconds')")
 
     original_sleep = asyncio.sleep
 
@@ -1350,9 +1294,7 @@ async def test_worker_loop_recovers_stale_processing(
 
 
 @pytest.mark.asyncio
-async def test_build_extract_survey_context_chunk_group(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_build_extract_survey_context_chunk_group(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """_build_extract_survey_context renders chunk-group siblings (lines 221-230)."""
     _write_nested_raw(wiki_structure, "sub/report_chunk1.md", "Part one.")
     _write_nested_raw(wiki_structure, "sub/report_chunk2.md", "Part two.")
@@ -1368,9 +1310,7 @@ async def test_build_extract_survey_context_chunk_group(
 
 
 @pytest.mark.asyncio
-async def test_compile_all_should_pause_on_auth_failure(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_compile_all_should_pause_on_auth_failure(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """compile_all pauses the circuit when every extraction fails with AUTH (line 466)."""
     llm = AsyncMock()
     llm.ainvoke.side_effect = Exception("401 Invalid API key")
@@ -1404,18 +1344,14 @@ async def test_compile_all_no_concepts_sets_semantic_phase(
 
 
 @pytest.mark.asyncio
-async def test_compile_all_embed_pause_returns_early(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_compile_all_embed_pause_returns_early(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """compile_all returns early with pending stats on embed violation (line 487)."""
     from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
         EmbedInputTooLargeError,
     )
     from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
 
-    mock_llm.ainvoke.return_value = AIMessage(
-        content='[{"name": "Big", "definition": "d", "mentions": 2}]'
-    )
+    mock_llm.ainvoke.return_value = AIMessage(content='[{"name": "Big", "definition": "d", "mentions": 2}]')
     compiler = WikiCompiler(
         mock_llm,
         wiki_structure,
@@ -1446,9 +1382,7 @@ async def test_compile_all_embed_pause_returns_early(
 
 
 @pytest.mark.asyncio
-async def test_compile_all_synthesis_staged_log(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_compile_all_synthesis_staged_log(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """compile_all logs staged synthesis pages (line 506)."""
     llm = AsyncMock()
     llm.ainvoke.side_effect = [
@@ -1477,9 +1411,7 @@ async def test_compile_all_synthesis_staged_log(
 
 
 @pytest.mark.asyncio
-async def test_worker_loop_pauses_on_pause_kind_failure(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_worker_loop_pauses_on_pause_kind_failure(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """_worker_loop pauses after a batch with a non-retryable pause kind (lines 349-351)."""
     llm = AsyncMock()
     llm.ainvoke.side_effect = Exception("401 Invalid API key")
@@ -1501,9 +1433,7 @@ async def test_worker_loop_pauses_on_pause_kind_failure(
 
 
 @pytest.mark.asyncio
-async def test_worker_loop_exception_outer(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_worker_loop_exception_outer(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """_worker_loop catches exceptions escaping the drain body (line 383)."""
     llm = AsyncMock()
     compiler = WikiCompiler(llm, wiki_structure, WikiConfig(), indexer=mock_indexer)
@@ -1545,18 +1475,14 @@ async def test_generate_articles_batch_base_exception_blocked(
 
     compiler = WikiCompiler(llm, wiki_structure, WikiConfig(), indexer=mock_indexer)
     compiler._generate_article = _boom  # type: ignore[method-assign]
-    concepts = [
-        ConceptInfo(name="Fatal", definition="d", mentions=2, source_files=["a.md"])
-    ]
+    concepts = [ConceptInfo(name="Fatal", definition="d", mentions=2, source_files=["a.md"])]
     stats = await compiler._generate_articles_batch(concepts)
     assert stats.generated == 0
     assert stats.blocked == 1
 
 
 @pytest.mark.asyncio
-async def test_record_facet_seeds_matches_batch_paths(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_record_facet_seeds_matches_batch_paths(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """_record_facet_seeds records seeds for concepts whose sources are in the batch (lines 247-250)."""
     _write_nested_raw(wiki_structure, "sub/doc.md", "Nested doc content.")
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
@@ -1569,14 +1495,10 @@ async def test_record_facet_seeds_matches_batch_paths(
         mentions=1,
         source_files=["raw/sub/doc.md"],
     )
-    compiler._record_facet_seeds(
-        compiler._queue.get_pending_items(limit=5), [concept]
-    )
+    compiler._record_facet_seeds(compiler._queue.get_pending_items(limit=5), [concept])
     session = compiler._get_session()
     assert session is not None
-    assert any(
-        "Seed Concept" in seeds for seeds in session.facet_seeds.values()
-    )
+    assert any("Seed Concept" in seeds for seeds in session.facet_seeds.values())
 
 
 @pytest.mark.asyncio
@@ -1594,9 +1516,7 @@ async def test_build_extract_survey_context_empty_for_unmapped_path(
 
 
 @pytest.mark.asyncio
-async def test_record_facet_seeds_skips_unmapped_sources(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_record_facet_seeds_skips_unmapped_sources(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """_record_facet_seeds skips sources outside the batch or facet map (lines 247, 250)."""
     _write_nested_raw(wiki_structure, "sub/doc.md", "Nested doc content.")
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
@@ -1609,38 +1529,28 @@ async def test_record_facet_seeds_skips_unmapped_sources(
         mentions=1,
         source_files=["raw/not-in-batch.md", "raw/not-in-facet.md"],
     )
-    compiler._record_facet_seeds(
-        compiler._queue.get_pending_items(limit=5), [concept]
-    )
+    compiler._record_facet_seeds(compiler._queue.get_pending_items(limit=5), [concept])
     session = compiler._get_session()
     assert session is not None
-    assert all(
-        "Skipped" not in seeds for seeds in session.facet_seeds.values()
-    )
+    assert all("Skipped" not in seeds for seeds in session.facet_seeds.values())
 
 
 @pytest.mark.asyncio
-async def test_generate_articles_batch_pending_status(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_generate_articles_batch_pending_status(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """_generate_articles_batch counts pending results when approval is required (line 758)."""
     llm = AsyncMock()
     llm.ainvoke.return_value = AIMessage(content="## Compiled Truth\nPending article.")
     compile_config = WikiCompileConfig(require_approval=True, min_concept_mentions=1)
     compiler = WikiCompiler(llm, wiki_structure, WikiConfig(), compile_config, indexer=mock_indexer)
 
-    concepts = [
-        ConceptInfo(name="Approval", definition="Def", mentions=2, source_files=["a.md"])
-    ]
+    concepts = [ConceptInfo(name="Approval", definition="Def", mentions=2, source_files=["a.md"])]
     stats = await compiler._generate_articles_batch(concepts)
     assert stats.pending == 1
     assert stats.published == 0
 
 
 @pytest.mark.asyncio
-async def test_record_facet_seeds_skips_unmapped_facet(
-    wiki_structure: WikiStructure, mock_llm: AsyncMock
-) -> None:
+async def test_record_facet_seeds_skips_unmapped_facet(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     """_record_facet_seeds skips sources without a facet mapping (line 250)."""
     _write_nested_raw(wiki_structure, "sub/doc.md", "Nested doc content.")
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
@@ -1669,9 +1579,7 @@ async def test_record_facet_seeds_skips_unmapped_facet(
     compiler._record_facet_seeds([unmapped_item], [concept])
     session = compiler._get_session()
     assert session is not None
-    assert all(
-        "Unmapped" not in seeds for seeds in session.facet_seeds.values()
-    )
+    assert all("Unmapped" not in seeds for seeds in session.facet_seeds.values())
 
 
 @pytest.mark.asyncio
@@ -1686,18 +1594,14 @@ async def test_generate_articles_batch_unexpected_status_blocked(
 
     compiler = WikiCompiler(llm, wiki_structure, WikiConfig(), indexer=mock_indexer)
     compiler._generate_article = _weird  # type: ignore[method-assign]
-    concepts = [
-        ConceptInfo(name="Weird", definition="d", mentions=2, source_files=["a.md"])
-    ]
+    concepts = [ConceptInfo(name="Weird", definition="d", mentions=2, source_files=["a.md"])]
     stats = await compiler._generate_articles_batch(concepts)
     assert stats.generated == 0
     assert stats.blocked == 1
 
 
 @pytest.mark.asyncio
-async def test_worker_loop_pauses_on_embed_failure(
-    wiki_structure: WikiStructure, mock_indexer: AsyncMock
-) -> None:
+async def test_worker_loop_pauses_on_embed_failure(wiki_structure: WikiStructure, mock_indexer: AsyncMock) -> None:
     """_worker_loop pauses after an embed window violation (line 359)."""
     llm = AsyncMock()
     llm.ainvoke.return_value = AIMessage(content='[{"name": "Emb", "definition": "d"}]')
@@ -1721,9 +1625,7 @@ async def test_worker_loop_pauses_on_embed_failure(
         await original_sleep(0)
 
     with (
-        patch.object(
-            compiler, "_generate_articles_batch", new=AsyncMock(return_value=embed_stats)
-        ),
+        patch.object(compiler, "_generate_articles_batch", new=AsyncMock(return_value=embed_stats)),
         patch("asyncio.sleep", side_effect=fast_sleep),
     ):
         await compiler._worker_loop()

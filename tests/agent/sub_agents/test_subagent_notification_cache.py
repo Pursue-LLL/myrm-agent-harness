@@ -46,9 +46,7 @@ def executor(mock_context: MagicMock) -> StreamExecutor:
 
 
 @pytest.mark.asyncio
-async def test_no_notification_returns_false(
-    executor: StreamExecutor, mock_context: MagicMock
-) -> None:
+async def test_no_notification_returns_false(executor: StreamExecutor, mock_context: MagicMock) -> None:
     """Test _handle_subagent_notifications returns False when no notification."""
     mock_context.drain_subagent_notifications.return_value = ""
 
@@ -59,9 +57,7 @@ async def test_no_notification_returns_false(
 
 
 @pytest.mark.asyncio
-async def test_notification_no_message_injection(
-    executor: StreamExecutor, mock_context: MagicMock
-) -> None:
+async def test_notification_no_message_injection(executor: StreamExecutor, mock_context: MagicMock) -> None:
     """Test that subagent notification does NOT inject HumanMessage."""
     notification_text = """[Subagent 'worker' (task_id=abc123) completed successfully] (2.1s)
 Result: Python 3.13.1 released
@@ -85,9 +81,7 @@ Result: Python 3.13.1 released
 
 
 @pytest.mark.asyncio
-async def test_notification_emits_sse_event(
-    executor: StreamExecutor, mock_context: MagicMock
-) -> None:
+async def test_notification_emits_sse_event(executor: StreamExecutor, mock_context: MagicMock) -> None:
     """Test that SSE event is emitted for frontend notification."""
     notification_text = "[Subagent completed]"
     mock_context.drain_subagent_notifications.return_value = notification_text
@@ -103,9 +97,7 @@ async def test_notification_emits_sse_event(
 
 
 @pytest.mark.asyncio
-async def test_prompt_cache_prefix_preservation(
-    executor: StreamExecutor, mock_context: MagicMock
-) -> None:
+async def test_prompt_cache_prefix_preservation(executor: StreamExecutor, mock_context: MagicMock) -> None:
     """Test that message prefix remains stable for Prompt Cache."""
     notification_text = "[Subagent completed with result XYZ]"
     mock_context.drain_subagent_notifications.return_value = notification_text
@@ -132,9 +124,7 @@ async def test_prompt_cache_prefix_preservation(
 
 
 @pytest.mark.asyncio
-async def test_multiple_subagent_completions(
-    executor: StreamExecutor, mock_context: MagicMock
-) -> None:
+async def test_multiple_subagent_completions(executor: StreamExecutor, mock_context: MagicMock) -> None:
     """Test handling multiple subagent completions in one notification."""
     notification_text = """[Subagent 'worker1' (task_id=abc) completed] (1.0s)
 Result: Task 1 done
@@ -157,9 +147,7 @@ Result: Task 2 done
 
 
 @pytest.mark.asyncio
-async def test_cancelled_context_no_processing(
-    executor: StreamExecutor, mock_context: MagicMock
-) -> None:
+async def test_cancelled_context_no_processing(executor: StreamExecutor, mock_context: MagicMock) -> None:
     """Test that cancelled context skips notification processing."""
     mock_context.stats.was_cancelled = True
     mock_context.drain_subagent_notifications.return_value = "[Completed]"
@@ -172,16 +160,12 @@ async def test_cancelled_context_no_processing(
 
 
 @pytest.mark.asyncio
-async def test_notification_logging(
-    executor: StreamExecutor, mock_context: MagicMock
-) -> None:
+async def test_notification_logging(executor: StreamExecutor, mock_context: MagicMock) -> None:
     """Test that notification is logged with preview."""
     notification_text = "A" * 200  # Long notification
     mock_context.drain_subagent_notifications.return_value = notification_text
 
-    with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery_continuation.logger"
-    ) as mock_logger:
+    with patch("myrm_agent_harness.agent.streaming.stream_recovery_continuation.logger") as mock_logger:
         await executor._handle_subagent_notifications([])
 
         mock_logger.info.assert_called_once()

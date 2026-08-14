@@ -140,9 +140,7 @@ class TestCjkWordpieceBudget:
         # wordpiece input and silently truncates at the provider.
         assert is_cjk_wordpiece_model("sentence-transformers/all-MiniLM-L6-v2")
         assert is_cjk_wordpiece_model("all-MiniLM-L12-v2")
-        assert is_cjk_wordpiece_model(
-            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-        )
+        assert is_cjk_wordpiece_model("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
         assert is_cjk_wordpiece_model("intfloat/multilingual-e5-large")
         assert is_cjk_wordpiece_model("jina-embeddings-v2-base-zh")
         assert is_cjk_wordpiece_model("gte-large-zh")
@@ -255,8 +253,7 @@ class TestSplitForEmbedding:
         paragraphs = [
             "## Section {}\n\n{}".format(
                 i,
-                f"Detailed engineering notes about module {i} with extra context."
-                * 60,
+                f"Detailed engineering notes about module {i} with extra context." * 60,
             )
             for i in range(20)
         ]
@@ -285,7 +282,9 @@ class TestSplitForEmbedding:
                 return []
 
         monkeypatch.setattr(
-            _embed_budget, "TextChunker", lambda *a, **k: _EmptyChunker()  # type: ignore[no-any-return]
+            _embed_budget,
+            "TextChunker",
+            lambda *a, **k: _EmptyChunker(),  # type: ignore[no-any-return]
         )
         policy = EmbedWindowPolicy.for_model("text-embedding-3-small")
         text = "long" * 40000  # ~40000 o200k tokens — over budget, so the chunker runs
@@ -374,10 +373,7 @@ class TestWordpieceHeaderAwareChunking:
         policy = EmbedWindowPolicy.for_model("BAAI/bge-large-zh-v1.5")
         sections = []
         for i in range(6):
-            body = "\n".join(
-                f"第{i}节工程说明细节行{j}，包含足够长的中文描述内容用于测试。"
-                for j in range(6)
-            )
+            body = "\n".join(f"第{i}节工程说明细节行{j}，包含足够长的中文描述内容用于测试。" for j in range(6))
             sections.append(f"## 第{i}节标题\n\n{body}")
         text = "\n\n".join(sections)
         chunks = split_for_embedding(text, policy)
@@ -434,9 +430,7 @@ class _FakeVectorStore:
         self.upserted_docs: list[object] | None = None
         self.delete_calls = 0
 
-    async def delete_by_filter(
-        self, collection_name: str, filt: dict[str, str]
-    ) -> None:
+    async def delete_by_filter(self, collection_name: str, filt: dict[str, str]) -> None:
         self.delete_calls += 1
 
     async def delete(self, collection_name: str, ids: list[str]) -> None:

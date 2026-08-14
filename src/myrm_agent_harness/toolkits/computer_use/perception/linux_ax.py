@@ -15,10 +15,18 @@ logger = logging.getLogger(__name__)
 
 _MAX_ELEMENTS = 500
 
-_INTERACTIVE_ROLES: frozenset[str] = frozenset({
-    "push button", "check box", "text", "entry",
-    "menu item", "radio button", "combo box", "link",
-})
+_INTERACTIVE_ROLES: frozenset[str] = frozenset(
+    {
+        "push button",
+        "check box",
+        "text",
+        "entry",
+        "menu item",
+        "radio button",
+        "combo box",
+        "link",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -205,13 +213,30 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
     return ActionResult(success=True, output=f"AT-SPI {normalized} succeeded")
 
 
-_DBUS_AUTOMATABLE_APPS: frozenset[str] = frozenset({
-    "nautilus", "Files", "Thunderbird", "LibreOffice",
-    "gedit", "GNOME Terminal", "Rhythmbox", "Totem",
-    "Evince", "Eye of GNOME",
-    "Firefox", "GIMP", "Inkscape", "VLC", "Kate", "Konsole",
-    "WPS Office", "Okular", "Dolphin", "KCalc",
-})
+_DBUS_AUTOMATABLE_APPS: frozenset[str] = frozenset(
+    {
+        "nautilus",
+        "Files",
+        "Thunderbird",
+        "LibreOffice",
+        "gedit",
+        "GNOME Terminal",
+        "Rhythmbox",
+        "Totem",
+        "Evince",
+        "Eye of GNOME",
+        "Firefox",
+        "GIMP",
+        "Inkscape",
+        "VLC",
+        "Kate",
+        "Konsole",
+        "WPS Office",
+        "Okular",
+        "Dolphin",
+        "KCalc",
+    }
+)
 
 
 def _native_api_hint(app_name: str) -> str:

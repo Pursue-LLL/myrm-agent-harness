@@ -58,9 +58,7 @@ def _reset_manager() -> object:
 
 
 @pytest.mark.asyncio
-async def test_stdio_session_reused_single_spawn(
-    tmp_path, _reset_manager: object
-) -> None:
+async def test_stdio_session_reused_single_spawn(tmp_path, _reset_manager: object) -> None:
     script = tmp_path / "probe_server.py"
     script.write_text(_PROBE_SERVER_SRC, encoding="utf-8")
     spawn_log = tmp_path / "spawns.log"
@@ -95,9 +93,7 @@ async def test_stdio_session_reused_single_spawn(
 
 
 @pytest.mark.asyncio
-async def test_distinct_args_do_not_share_session(
-    tmp_path, _reset_manager: object
-) -> None:
+async def test_distinct_args_do_not_share_session(tmp_path, _reset_manager: object) -> None:
     script = tmp_path / "probe_server.py"
     script.write_text(_PROBE_SERVER_SRC, encoding="utf-8")
     spawn_log = tmp_path / "spawns.log"

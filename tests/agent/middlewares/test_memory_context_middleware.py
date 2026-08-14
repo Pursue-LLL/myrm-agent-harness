@@ -57,9 +57,7 @@ def _reset_runtime_memory_telemetry() -> None:
 async def test_has_memory_context_detects_marker():
     messages_with = [
         SystemMessage(content="System prompt"),
-        SystemMessage(
-            content="<user_memory_context>\nUser info\n</user_memory_context>"
-        ),
+        SystemMessage(content="<user_memory_context>\nUser info\n</user_memory_context>"),
         HumanMessage(content="Hello"),
     ]
     assert _has_memory_context(messages_with) is True
@@ -416,9 +414,7 @@ def test_format_mixed_static_and_learned():
     """Stable profile stays in `<user_memory_context>`; learned is untrusted-framed."""
     ctx = {"global_profile": {"name": "Carol"}}
     learned = {
-        "learned_rules": [
-            {"trigger": "deploy", "action": "run tests first", "content": "..."}
-        ],
+        "learned_rules": [{"trigger": "deploy", "action": "run tests first", "content": "..."}],
         "learned_preferences": [{"content": "uses Python 3.13"}],
     }
     stable, untrusted = _format_memory_context(ctx, learned)
@@ -449,10 +445,7 @@ def test_format_corrections_from_source_error():
     assert stable is not None
     assert untrusted is not None
     assert "## Corrections (must follow)" in stable
-    assert (
-        "use ruff instead of flake8" in stable
-        and "AVOID: flake8 is deprecated" in stable
-    )
+    assert "use ruff instead of flake8" in stable and "AVOID: flake8 is deprecated" in stable
     assert "## Learned Preferences" in untrusted
     assert "prefers dark theme" in untrusted
 
@@ -569,9 +562,7 @@ class TestInjectMemoryContext:
         req = _make_request(
             messages=[
                 SystemMessage(content="sys"),
-                SystemMessage(
-                    content=f"{MEMORY_CONTEXT_MARKER}>\ndata\n</user_memory_context>"
-                ),
+                SystemMessage(content=f"{MEMORY_CONTEXT_MARKER}>\ndata\n</user_memory_context>"),
                 HumanMessage(content="hi"),
             ]
         )
@@ -596,9 +587,7 @@ class TestInjectMemoryContext:
         handler.assert_awaited_once_with(req)
 
     @pytest.mark.asyncio
-    async def test_sets_not_applied_reason_when_runtime_context_missing(
-        self, _inject_fn
-    ):
+    async def test_sets_not_applied_reason_when_runtime_context_missing(self, _inject_fn):
         handler = AsyncMock()
         req = _make_request()
         req.runtime.context = None
@@ -664,12 +653,8 @@ class TestInjectMemoryContext:
         mock_manager._config.model_context_tokens = 8000
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
-        mock_manager.get_context = AsyncMock(
-            return_value={"global_profile": {"name": "Test"}}
-        )
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Test"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -682,9 +667,7 @@ class TestInjectMemoryContext:
         injected_messages = call_kwargs["messages"]
 
         stable_msgs = [
-            m
-            for m in injected_messages
-            if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
+            m for m in injected_messages if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
         ]
         assert len(stable_msgs) == 1
         assert get_memory_runtime_injection() == {
@@ -700,18 +683,14 @@ class TestInjectMemoryContext:
     async def test_reuses_prefetched_snapshot_without_refetch(self, _inject_fn):
         """When stream preflight already produced a snapshot, middleware reuses it."""
         handler = AsyncMock()
-        req = _make_request(
-            messages=[SystemMessage(content="sys"), HumanMessage(content="hello")]
-        )
+        req = _make_request(messages=[SystemMessage(content="sys"), HumanMessage(content="hello")])
         req.runtime.context = {
             "memory_brief_snapshot": {
                 "snapshot_id": "snap-prefetched",
                 "memory_ctx": {"global_profile": {"name": "Snapshot User"}},
                 "learned_ctx": {
                     "learned_rules": [],
-                    "learned_preferences": [
-                        {"content": "prefers concise replies", "id": "pref-1"}
-                    ],
+                    "learned_preferences": [{"content": "prefers concise replies", "id": "pref-1"}],
                 },
             }
         }
@@ -722,9 +701,7 @@ class TestInjectMemoryContext:
         mock_manager._config.model_context_tokens = 8000
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
-        mock_manager.get_context = AsyncMock(
-            return_value={"global_profile": {"name": "Should not be used"}}
-        )
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Should not be used"}})
         mock_manager.get_learned_context = AsyncMock(return_value=dict(_EMPTY_LEARNED))
 
         with patch(
@@ -738,12 +715,8 @@ class TestInjectMemoryContext:
         assert req.state.get("memory_brief_snapshot_id") == "snap-prefetched"
         req.override.assert_called_once()
         injected_messages = req.override.call_args[1]["messages"]
-        stable_payload = "\n".join(
-            str(m.content) for m in injected_messages if isinstance(m, SystemMessage)
-        )
-        untrusted_payload = "\n".join(
-            str(m.content) for m in injected_messages if isinstance(m, HumanMessage)
-        )
+        stable_payload = "\n".join(str(m.content) for m in injected_messages if isinstance(m, SystemMessage))
+        untrusted_payload = "\n".join(str(m.content) for m in injected_messages if isinstance(m, HumanMessage))
         assert "Snapshot User" in stable_payload
         # P0: learned snapshot is not injected — retrieval goes through memory_search_tool.
         assert MEMORY_UNTRUSTED_OPEN_MARKER not in untrusted_payload
@@ -764,9 +737,7 @@ class TestInjectMemoryContext:
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
 
-        async def exploding_get_context(
-            *args: object, **_: object
-        ) -> dict[str, object]:
+        async def exploding_get_context(*args: object, **_: object) -> dict[str, object]:
             raise RuntimeError("simulated_load_failure")
 
         mock_manager.get_context = exploding_get_context
@@ -826,9 +797,7 @@ class TestInjectMemoryContext:
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
         mock_manager.get_context = AsyncMock(side_effect=RuntimeError("db error"))
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -853,12 +822,8 @@ class TestInjectMemoryContext:
         mock_manager._config.model_context_tokens = 8000
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
-        mock_manager.get_context = AsyncMock(
-            return_value={"global_profile": {"name": "Test"}}
-        )
-        mock_manager.get_learned_context = AsyncMock(
-            side_effect=RuntimeError("learned db error")
-        )
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Test"}})
+        mock_manager.get_learned_context = AsyncMock(side_effect=RuntimeError("learned db error"))
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -875,9 +840,7 @@ class TestInjectMemoryContext:
 
         mock_manager = MagicMock()
         mock_manager.recall_mode = RecallMode.HYBRID
-        mock_manager.get_context = AsyncMock(
-            side_effect=RuntimeError("static db error")
-        )
+        mock_manager.get_context = AsyncMock(side_effect=RuntimeError("static db error"))
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -925,9 +888,7 @@ class TestInjectMemoryContext:
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
         mock_manager.get_context = AsyncMock(return_value={})
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -965,9 +926,7 @@ class TestInjectMemoryContext:
         mock_manager._config.model_context_tokens = 8000
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
-        mock_manager.get_context = AsyncMock(
-            return_value={"global_profile": {"name": "Test"}}
-        )
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Test"}})
         mock_manager.get_learned_context = AsyncMock(return_value=_EMPTY_LEARNED)
 
         with patch(
@@ -985,9 +944,7 @@ class TestInjectMemoryContext:
         assert human_count == 1
 
     @pytest.mark.asyncio
-    async def test_learned_only_uses_cold_start_without_untrusted_injection(
-        self, _inject_fn
-    ):
+    async def test_learned_only_uses_cold_start_without_untrusted_injection(self, _inject_fn):
         """P0: learned facts are not injected; empty profile gets stable cold-start guidance only."""
         handler = AsyncMock()
         req = _make_request(
@@ -1024,10 +981,7 @@ class TestInjectMemoryContext:
                 "sys"
                 if isinstance(m, SystemMessage)
                 else (
-                    "mem"
-                    if isinstance(m, HumanMessage)
-                    and MEMORY_UNTRUSTED_OPEN_MARKER in str(m.content)
-                    else "user"
+                    "mem" if isinstance(m, HumanMessage) and MEMORY_UNTRUSTED_OPEN_MARKER in str(m.content) else "user"
                 )
             )
             for m in injected
@@ -1085,9 +1039,7 @@ class TestInjectMemoryContext:
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
         mock_manager.get_context = AsyncMock(return_value={})
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -1126,9 +1078,7 @@ class TestInjectMemoryContext:
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
         mock_manager.get_context = AsyncMock(return_value={})
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -1164,9 +1114,7 @@ class TestInjectMemoryContext:
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
         mock_manager.get_context = AsyncMock(return_value={})
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
@@ -1175,15 +1123,11 @@ class TestInjectMemoryContext:
             await _inject_fn(req, handler)
 
         req.override.assert_called_once()
-        ai_msg = next(
-            m for m in req.override.call_args[1]["messages"] if isinstance(m, AIMessage)
-        )
+        ai_msg = next(m for m in req.override.call_args[1]["messages"] if isinstance(m, AIMessage))
         assert ai_msg.content == original_content
 
     @pytest.mark.asyncio
-    async def test_injects_untrusted_human_message_when_formatter_returns_untrusted(
-        self, _inject_fn
-    ):
+    async def test_injects_untrusted_human_message_when_formatter_returns_untrusted(self, _inject_fn):
         handler = AsyncMock()
         req = _make_request(
             messages=[
@@ -1198,12 +1142,8 @@ class TestInjectMemoryContext:
         mock_manager._config.model_context_tokens = 8000
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
-        mock_manager.get_context = AsyncMock(
-            return_value={"global_profile": {"name": "User"}}
-        )
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "User"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with (
             patch(
@@ -1227,9 +1167,7 @@ class TestInjectMemoryContext:
         assert "untrusted-learned-block" in str(human_msgs[0].content)
 
     @pytest.mark.asyncio
-    async def test_memory_budget_uses_base_chars_without_model_context_tokens(
-        self, _inject_fn
-    ):
+    async def test_memory_budget_uses_base_chars_without_model_context_tokens(self, _inject_fn):
         handler = AsyncMock()
         req = _make_request()
 
@@ -1239,12 +1177,8 @@ class TestInjectMemoryContext:
         mock_manager._config.model_context_tokens = None
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
-        mock_manager.get_context = AsyncMock(
-            return_value={"global_profile": {"name": "BudgetUser"}}
-        )
-        mock_manager.get_learned_context = AsyncMock(
-            return_value={"learned_rules": [], "learned_preferences": []}
-        )
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "BudgetUser"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
 
         with patch(
             "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",

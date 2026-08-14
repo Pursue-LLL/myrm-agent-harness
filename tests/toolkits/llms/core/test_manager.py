@@ -96,4 +96,3 @@ async def test_get_llm_from_config_uses_config_pool_strategy(monkeypatch: pytest
     llm = await LLMManager.get_llm_from_config(config, streaming=False)
 
     assert llm.credential_pool.strategy == CredentialPoolStrategy.FILL_FIRST
-

@@ -17,9 +17,7 @@ from myrm_agent_harness.toolkits.browser.pool import (
 from myrm_agent_harness.toolkits.browser.pool.config import LaunchMode
 
 _HAS_CHROMIUM = shutil.which("chromium") is not None or shutil.which("google-chrome") is not None
-requires_browser = pytest.mark.skipif(
-    not _HAS_CHROMIUM, reason="Chromium/Patchright not installed in this environment"
-)
+requires_browser = pytest.mark.skipif(not _HAS_CHROMIUM, reason="Chromium/Patchright not installed in this environment")
 
 
 @pytest.fixture

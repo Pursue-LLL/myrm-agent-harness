@@ -162,10 +162,7 @@ def build_note_body_skeleton(*, compiled_truth: str, timeline_entry: str | None 
     timeline_block = timeline or "_No timeline entries yet._"
     if timeline and not timeline.startswith("- "):
         timeline_block = f"- {timeline}"
-    return (
-        f"{COMPILED_TRUTH_HEADING}\n{truth}\n\n"
-        f"{TIMELINE_HEADING}\n{timeline_block}\n"
-    )
+    return f"{COMPILED_TRUTH_HEADING}\n{truth}\n\n{TIMELINE_HEADING}\n{timeline_block}\n"
 
 
 def extract_compiled_truth_summary(content: str) -> str:

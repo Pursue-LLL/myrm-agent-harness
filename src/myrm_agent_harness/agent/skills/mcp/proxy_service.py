@@ -76,9 +76,7 @@ def _validate_required_mcp_params(
         required = schema.get("required")
         if not isinstance(required, list) or not required:
             return None
-        missing = [
-            name for name in required if isinstance(name, str) and name not in params
-        ]
+        missing = [name for name in required if isinstance(name, str) and name not in params]
         if not missing:
             return None
         return {
@@ -106,13 +104,9 @@ class MCPSkillProxyService:
 
     def __init__(self) -> None:
         """初始化代理服务"""
-        self._cache: LRUCache[object] = LRUCache(
-            maxsize=1000, ttl=CACHE_TTL_SECONDS, id="mcp_skill_cache"
-        )
+        self._cache: LRUCache[object] = LRUCache(maxsize=1000, ttl=CACHE_TTL_SECONDS, id="mcp_skill_cache")
 
-    def _make_cache_key(
-        self, skill_name: str, tool_name: str, params: dict[str, object]
-    ) -> str:
+    def _make_cache_key(self, skill_name: str, tool_name: str, params: dict[str, object]) -> str:
         """生成缓存键
 
         Args:
@@ -175,14 +169,8 @@ class MCPSkillProxyService:
 
         skill_meta_for_schema = skill_registry.get_skill(skill_name)
         if skill_meta_for_schema and skill_meta_for_schema.mcp:
-            schema_entry = skill_meta_for_schema.mcp.tool_schemas.get(
-                matched_for_schema
-            )
-        input_schema = (
-            _resolve_mcp_input_schema(schema_entry)
-            if isinstance(schema_entry, dict)
-            else None
-        )
+            schema_entry = skill_meta_for_schema.mcp.tool_schemas.get(matched_for_schema)
+        input_schema = _resolve_mcp_input_schema(schema_entry) if isinstance(schema_entry, dict) else None
         cleaned_params = prepare_mcp_call_arguments(params, input_schema)
         cache_tool_name = matched_for_schema
         cache_key = self._make_cache_key(skill_name, cache_tool_name, cleaned_params)
@@ -200,18 +188,14 @@ class MCPSkillProxyService:
 
         self._cache.set(cache_key, result)
 
-        logger.info(
-            f"{log_prefix} MCP {skill_name}.{tool_name} completed in {elapsed_ms:.0f}ms"
-        )
+        logger.info(f"{log_prefix} MCP {skill_name}.{tool_name} completed in {elapsed_ms:.0f}ms")
         return result
 
     # =========================================================================
     # 调用实现
     # =========================================================================
 
-    async def _invoke_from_registry(
-        self, skill_name: str, tool_name: str, params: dict[str, object]
-    ) -> object:
+    async def _invoke_from_registry(self, skill_name: str, tool_name: str, params: dict[str, object]) -> object:
         """从 skill_registry 获取配置并调用工具
 
         Args:
@@ -257,9 +241,7 @@ class MCPSkillProxyService:
         if validation_error is not None:
             return validation_error
 
-        return await self._find_and_invoke(
-            mcp_config, mcp_server, matched_tool_name, params
-        )
+        return await self._find_and_invoke(mcp_config, mcp_server, matched_tool_name, params)
 
     async def _find_and_invoke(
         self,
@@ -317,9 +299,7 @@ class MCPSkillProxyService:
         # 从 mcp.config 中获取配置
         mcp_config_raw = skill_meta.mcp.config
         if not mcp_config_raw:
-            raise RuntimeError(
-                f"mcp_config not found in skill metadata for: {skill_meta.name}"
-            )
+            raise RuntimeError(f"mcp_config not found in skill metadata for: {skill_meta.name}")
 
         mcp_config: list[MCPConfig] = []
         for cfg in mcp_config_raw:
@@ -451,9 +431,7 @@ class MCPInvokeResult(TypedDict, total=False):
     error: str
 
 
-async def handle_mcp_invoke(
-    skill_name: str, tool_name: str, params: dict[str, object]
-) -> MCPInvokeResult:
+async def handle_mcp_invoke(skill_name: str, tool_name: str, params: dict[str, object]) -> MCPInvokeResult:
     """处理 MCP 工具调用（纯 Python，Web 框架无关）
 
     被 IPC Proxy 内部调用，也可供自定义集成使用。
@@ -472,7 +450,5 @@ async def handle_mcp_invoke(
         return MCPInvokeResult(success=True, result=result)
     except Exception as e:
         error_msg = f"{type(e).__name__}: {e}"
-        logger.warning(
-            f"handle_mcp_invoke failed: {skill_name}.{tool_name}, error: {error_msg}"
-        )
+        logger.warning(f"handle_mcp_invoke failed: {skill_name}.{tool_name}, error: {error_msg}")
         return MCPInvokeResult(success=False, error=error_msg)

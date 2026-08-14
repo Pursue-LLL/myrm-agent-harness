@@ -90,9 +90,7 @@ async def _set_acl(path: str, sid: str, permission: str, *, timeout: int = 30) -
         return False
 
 
-async def _apply_acls(
-    policy: SandboxPolicy, work_dir: str, sid: str
-) -> tuple[bool, list[tuple[str, str]]]:
+async def _apply_acls(policy: SandboxPolicy, work_dir: str, sid: str) -> tuple[bool, list[tuple[str, str]]]:
     """Apply filesystem ACLs for the AppContainer profile.
 
     Returns:
@@ -211,9 +209,7 @@ class AppContainerProvider:
         self._oem_encoding = get_oem_encoding()
 
         try:
-            return await self._launch_sandboxed_process(
-                shell_path, shell_args, work_dir, policy, env
-            )
+            return await self._launch_sandboxed_process(shell_path, shell_args, work_dir, policy, env)
         except OSError as e:
             logger.warning(f"AppContainer process launch failed: {e}")
             return None
@@ -306,16 +302,19 @@ class AppContainerProvider:
             cmd_line = f'"{shell_path}" {" ".join(shell_args)}'
 
             pi = PROCESS_INFORMATION()
-            creation_flags = (
-                EXTENDED_STARTUPINFO_PRESENT
-                | CREATE_UNICODE_ENVIRONMENT
-                | CREATE_NO_WINDOW
-            )
+            creation_flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW
 
             success = kernel32.CreateProcessW(
-                None, cmd_line, None, None, True,
-                creation_flags, env_block, work_dir,
-                ctypes.byref(si_ex), ctypes.byref(pi),
+                None,
+                cmd_line,
+                None,
+                None,
+                True,
+                creation_flags,
+                env_block,
+                work_dir,
+                ctypes.byref(si_ex),
+                ctypes.byref(pi),
             )
 
             if not success:
@@ -332,8 +331,12 @@ class AppContainerProvider:
             kernel32.CloseHandle(stdout_write)
 
             return await wrap_handles_as_process(
-                pi.hProcess, pi.dwProcessId, stdin_write, stdout_read,
-                kernel32, h_job,
+                pi.hProcess,
+                pi.dwProcessId,
+                stdin_write,
+                stdout_read,
+                kernel32,
+                h_job,
             )
 
         except Exception:
@@ -378,15 +381,18 @@ class AppContainerProvider:
             try:
                 proc = asyncio.get_event_loop().run_until_complete(
                     asyncio.create_subprocess_exec(
-                        "icacls", path, "/remove", f"*{self._container_sid}",
-                        "/T", "/C", "/Q",
+                        "icacls",
+                        path,
+                        "/remove",
+                        f"*{self._container_sid}",
+                        "/T",
+                        "/C",
+                        "/Q",
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                     )
                 )
-                asyncio.get_event_loop().run_until_complete(
-                    asyncio.wait_for(proc.communicate(), timeout=15)
-                )
+                asyncio.get_event_loop().run_until_complete(asyncio.wait_for(proc.communicate(), timeout=15))
             except (TimeoutError, OSError, RuntimeError):
                 _remove_acl_sync(path, self._container_sid)
 
@@ -437,9 +443,7 @@ class AppContainerProcess:
     def kill(self) -> None:
         self.send_signal(9)
 
-    async def communicate(
-        self, input: bytes | None = None
-    ) -> tuple[bytes, bytes]:
+    async def communicate(self, input: bytes | None = None) -> tuple[bytes, bytes]:
         """Send input and read all output."""
         if input and self.stdin:
             self.stdin.write(input)

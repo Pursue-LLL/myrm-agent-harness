@@ -20,7 +20,7 @@ from myrm_agent_harness.toolkits.browser.session.structured_extractor import (
         # object wrapped in markdown fence
         ('```json\n{"name": "Alice"}\n```', {"name": "Alice"}),
         # prose framing around the object
-        ("Here is the result: {\"name\": \"Alice\"} — enjoy", {"name": "Alice"}),
+        ('Here is the result: {"name": "Alice"} — enjoy', {"name": "Alice"}),
         # trailing comma in object
         ('{"name": "Alice",}', {"name": "Alice"}),
         # bare newline inside a string literal
@@ -41,7 +41,7 @@ def test_extract_json_object_robust(raw: str, expected: object) -> None:
         # array with trailing comma
         ('[{"name": "A"}, {"name": "B"},]', [{"name": "A"}, {"name": "B"}]),
         # prose framing around the array
-        ("Items: [{\"name\": \"A\"},] — done", [{"name": "A"}]),
+        ('Items: [{"name": "A"},] — done', [{"name": "A"}]),
     ],
 )
 def test_extract_json_array_robust(raw: str, expected: object) -> None:

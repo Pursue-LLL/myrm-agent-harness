@@ -281,9 +281,7 @@ class TestGeometricScoringVsSqlRanking:
         assert half_life == 0.0
 
         calc = SignalCalculator()
-        ancient = SemanticMemory(
-            content="profile preference", created_at=datetime.now(UTC) - timedelta(days=1000)
-        )
+        ancient = SemanticMemory(content="profile preference", created_at=datetime.now(UTC) - timedelta(days=1000))
         factor = calc.recency_factor(ancient, half_life)
         assert factor == 1.0
 
@@ -525,9 +523,7 @@ class TestDualChannelFusion:
         # Channel 2 (BM25): shared appears at rank 2
         ch2 = [
             MemorySearchResult(
-                memory=SemanticMemory(
-                    id="another-001", content="asyncio tutorial", importance=0.5
-                ),
+                memory=SemanticMemory(id="another-001", content="asyncio tutorial", importance=0.5),
                 score=0.85,
                 memory_type=MemoryType.SEMANTIC,
             ),
@@ -648,9 +644,7 @@ class TestEndToEndRankingPipeline:
         assert "Maybe user uses unittest sometimes" not in top2_contents
 
         # Correction should rank reasonably high
-        correction_idx = next(
-            i for i, r in enumerate(ranked) if r.id == "correction-001"
-        )
+        correction_idx = next(i for i, r in enumerate(ranked) if r.id == "correction-001")
         assert correction_idx < 3
 
     def test_full_pipeline_deterministic(self) -> None:

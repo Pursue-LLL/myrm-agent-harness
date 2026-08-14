@@ -59,9 +59,7 @@ class TestFilterTools:
 
     def test_l1_ask_question_cannot_be_allowlisted(self):
         tools = [_make_tool("ask_question_tool"), _make_tool("read_file")]
-        cfg = SubagentConfig(
-            system_prompt="s", tools=("ask_question_tool", "read_file")
-        )
+        cfg = SubagentConfig(system_prompt="s", tools=("ask_question_tool", "read_file"))
         result = filter_tools(cfg, tools)
         names = [t.name for t in result]
         assert "ask_question_tool" not in names
@@ -78,9 +76,7 @@ class TestFilterTools:
 
     def test_l2_disallowed_tools(self):
         tools = [_make_tool("read_file"), _make_tool("dangerous")]
-        cfg = SubagentConfig(
-            system_prompt="s", disallowed_tools=frozenset({"dangerous"})
-        )
+        cfg = SubagentConfig(system_prompt="s", disallowed_tools=frozenset({"dangerous"}))
         result = filter_tools(cfg, tools)
         names = [t.name for t in result]
         assert "dangerous" not in names
@@ -178,9 +174,7 @@ class TestMergeChildStats:
         child_usage = TokenUsage()
         child_stats = MagicMock()
         child_stats.token_usage = child_usage
-        child_stats.model_usage = {
-            "gpt-4": {"prompt_tokens": 100, "completion_tokens": 50, "cost_usd": 0.1}
-        }
+        child_stats.model_usage = {"gpt-4": {"prompt_tokens": 100, "completion_tokens": 50, "cost_usd": 0.1}}
         child_stats.cost_usd = 0.1
         child_stats.cost_status = "estimated"
 
@@ -251,9 +245,7 @@ class TestResolveLlm:
         resolver.resolve = AsyncMock(return_value=resolved_llm)
         cfg = SubagentConfig(system_prompt="s", model_resolver=resolver)
         parent = MagicMock()
-        result = await resolve_llm(
-            cfg, parent, task_description="search for pricing info"
-        )
+        result = await resolve_llm(cfg, parent, task_description="search for pricing info")
         assert result is resolved_llm
         resolver.resolve.assert_awaited_once_with(
             "default",
@@ -286,9 +278,7 @@ class TestResolveLlm:
 class TestBuildAgents:
     @pytest.mark.asyncio
     async def test_build_child_agent_bare(self):
-        cfg = SubagentConfig(
-            system_prompt="child prompt", max_turns=10, timeout_seconds=60
-        )
+        cfg = SubagentConfig(system_prompt="child prompt", max_turns=10, timeout_seconds=60)
         parent = MagicMock()
         parent.llm = MagicMock()
         parent.executor = MagicMock()
@@ -304,12 +294,7 @@ class TestBuildAgents:
             assert "child prompt" in call_kwargs["system_prompt"]
             assert call_kwargs["config"].recursion_limit == 20  # max_turns * 2
             mock_child._subagent_manager.inherit_runtime_limits.assert_called_once()
-            assert (
-                mock_child._subagent_manager.inherit_runtime_limits.call_args[1][
-                    "current_depth"
-                ]
-                == 1
-            )
+            assert mock_child._subagent_manager.inherit_runtime_limits.call_args[1]["current_depth"] == 1
 
     @pytest.mark.asyncio
     async def test_build_child_agent_recursion_limit_independent_of_parent(self):
@@ -339,17 +324,10 @@ class TestBuildAgents:
         await build_child_agent(cfg, [], "task", parent, 2)
         factory.build.assert_awaited_once()
         mock_child._subagent_manager.inherit_runtime_limits.assert_called_once()
-        assert (
-            mock_child._subagent_manager.inherit_runtime_limits.call_args[1][
-                "current_depth"
-            ]
-            == 3
-        )
+        assert mock_child._subagent_manager.inherit_runtime_limits.call_args[1]["current_depth"] == 3
 
     def test_build_standalone_agent(self):
-        cfg = SubagentConfig(
-            system_prompt="standalone", max_turns=5, timeout_seconds=30
-        )
+        cfg = SubagentConfig(system_prompt="standalone", max_turns=5, timeout_seconds=30)
         llm = MagicMock()
         MagicMock()
         with patch("myrm_agent_harness.agent.base_agent.BaseAgent") as mock_agent:

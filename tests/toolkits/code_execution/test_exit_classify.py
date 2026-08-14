@@ -1,6 +1,5 @@
 """Tests for non-zero exit code classification."""
 
-
 from myrm_agent_harness.toolkits.code_execution.executors.common.exit_classify import (
     _extract_base_command,
     classify_exit_code,

@@ -592,10 +592,7 @@ def test_cleanup_orphan_processes_handles_generic_exception():
 @psutil_required
 def test_check_orphan_processes_previews_only_first_pids():
     """Should preview only the first three pids when many orphans exist."""
-    orphans = [
-        {"pid": pid, "name": "chrome", "ppid": 1, "user_data_dir": "/tmp/x"}
-        for pid in (1111, 2222, 3333, 4444)
-    ]
+    orphans = [{"pid": pid, "name": "chrome", "ppid": 1, "user_data_dir": "/tmp/x"} for pid in (1111, 2222, 3333, 4444)]
 
     with patch(
         "myrm_agent_harness.toolkits.browser.doctor.orphans.find_orphan_automation_processes",

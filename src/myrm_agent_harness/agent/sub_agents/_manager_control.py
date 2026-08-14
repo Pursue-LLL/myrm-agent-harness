@@ -62,19 +62,13 @@ class SubagentControlMixin:
             # Cancel 请求已发出（IMMEDIATE task.cancel / GRACEFUL+CHECKPOINT flag）
             # 但 task 尚未 done 时仍留在 _children；此时应如实报告 cancelled，
             # 否则 SSE/REST 会持续向客户端广播 running，覆盖已取消的前端状态。
-            cancelled_requested = (
-                self._cancel_flags.get(task_id, False) or task.cancelled()
-            )
+            cancelled_requested = self._cancel_flags.get(task_id, False) or task.cancelled()
             children.append(
                 {
                     "task_id": task_id,
                     "agent_type": self._children_types.get(task_id, "unknown"),
                     "description": self._children_descriptions.get(task_id, ""),
-                    "status": (
-                        SubAgentStatus.CANCELLED.value
-                        if cancelled_requested
-                        else SubAgentStatus.RUNNING.value
-                    ),
+                    "status": (SubAgentStatus.CANCELLED.value if cancelled_requested else SubAgentStatus.RUNNING.value),
                     "done": task.done(),
                     "cancelled": task.cancelled(),
                     **metadata,
@@ -93,9 +87,7 @@ class SubagentControlMixin:
 
         return children
 
-    def patch_child_running_token_usage(
-        self, task_id: str, token_usage: dict[str, object]
-    ) -> None:
+    def patch_child_running_token_usage(self, task_id: str, token_usage: dict[str, object]) -> None:
         """Update running-child observability with cumulative token usage (REST + list)."""
         if task_id not in self._children_observability:
             return
@@ -103,9 +95,7 @@ class SubagentControlMixin:
         snapshot["token_usage"] = token_usage
         self._children_observability[task_id] = snapshot
 
-    async def _graceful_cancel_timeout_handler(
-        self, task_id: str, task: SubagentTask, timeout_seconds: float
-    ) -> None:
+    async def _graceful_cancel_timeout_handler(self, task_id: str, task: SubagentTask, timeout_seconds: float) -> None:
         """Force-cancel if graceful cancellation exceeds timeout."""
         try:
             await asyncio.sleep(timeout_seconds)
@@ -144,9 +134,7 @@ class SubagentControlMixin:
             self._cancel_flags[task_id] = True
             logger.info("[subagent:%s] Cancel flag set (GRACEFUL)", task_id)
             timeout_task = asyncio.create_task(
-                self._graceful_cancel_timeout_handler(
-                    task_id, task, config.graceful_cancel_timeout_seconds
-                )
+                self._graceful_cancel_timeout_handler(task_id, task, config.graceful_cancel_timeout_seconds)
             )
             self._graceful_cancel_timeouts[task_id] = timeout_task
         elif strategy == CancellationStrategy.CHECKPOINT:
@@ -167,16 +155,12 @@ class SubagentControlMixin:
                     checkpoint.progress * 100,
                 )
             except Exception as e:
-                logger.error(
-                    "[subagent:%s] Failed to create checkpoint: %s", task_id, e
-                )
+                logger.error("[subagent:%s] Failed to create checkpoint: %s", task_id, e)
 
             self._cancel_flags[task_id] = True
             logger.info("[subagent:%s] Cancel flag set (CHECKPOINT)", task_id)
             timeout_task = asyncio.create_task(
-                self._graceful_cancel_timeout_handler(
-                    task_id, task, config.graceful_cancel_timeout_seconds
-                )
+                self._graceful_cancel_timeout_handler(task_id, task, config.graceful_cancel_timeout_seconds)
             )
             self._graceful_cancel_timeouts[task_id] = timeout_task
 
@@ -198,9 +182,7 @@ class SubagentControlMixin:
                 continue
             if self.cancel_child(task_id):
                 cancelled += 1
-                logger.info(
-                    "[subagent:%s] Cancel requested (parent propagation)", task_id
-                )
+                logger.info("[subagent:%s] Cancel requested (parent propagation)", task_id)
         return cancelled
 
     def steer_child(self, task_id: str, message: str) -> bool:
@@ -211,14 +193,10 @@ class SubagentControlMixin:
             if task is None:
                 logger.warning("Cannot steer task %s: not found", task_id)
                 return False
-            logger.warning(
-                "Cannot steer task %s: no steering token (already completed?)", task_id
-            )
+            logger.warning("Cannot steer task %s: no steering token (already completed?)", task_id)
             return False
         st.steer(message)  # type: ignore[union-attr]
-        logger.info(
-            "[subagent:%s] Steering message queued (%d chars)", task_id, len(message)
-        )
+        logger.info("[subagent:%s] Steering message queued (%d chars)", task_id, len(message))
         return True
 
     async def wait_children(
@@ -262,9 +240,7 @@ class SubagentControlMixin:
         """Execute subagents in chain: A -> B -> C, each receiving previous result."""
         from .orchestrator import run_chain
 
-        return await run_chain(
-            self, configs, context, tool_registry_getter, cancel_token=cancel_token
-        )
+        return await run_chain(self, configs, context, tool_registry_getter, cancel_token=cancel_token)
 
     async def run_council(
         self,

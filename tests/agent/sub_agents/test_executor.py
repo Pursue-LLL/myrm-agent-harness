@@ -146,7 +146,6 @@ class TestRetryLogic:
             assert result.status == SubAgentStatus.FAILED
             assert mock_attempt.call_count == basic_config.max_retries
 
-
     @pytest.mark.asyncio
     async def test_zero_retries_returns_failed(self, executor):
         """max_retries=0 should immediately return FAILED without any attempt."""
@@ -154,10 +153,17 @@ class TestRetryLogic:
         parent_agent = MagicMock()
 
         result = await executor.run_with_retry(
-            task_id="t1", agent_type="sys", task_description="d",
-            config=config, context={}, tool_registry_getter=lambda: [],
-            start_time=0.0, parent_agent=parent_agent,
-            cancel_flags={}, children_agents={}, children_steering={},
+            task_id="t1",
+            agent_type="sys",
+            task_description="d",
+            config=config,
+            context={},
+            tool_registry_getter=lambda: [],
+            start_time=0.0,
+            parent_agent=parent_agent,
+            cancel_flags={},
+            children_agents={},
+            children_steering={},
         )
 
         assert result.success is False
@@ -171,7 +177,10 @@ class TestTimeoutHandling:
     async def test_timeout_retries_then_returns_timed_out(self, executor):
         """TimeoutError should retry and eventually return TIMED_OUT."""
         config = SubagentConfig(
-            system_prompt="s", max_retries=2, timeout_seconds=10, retry_backoff_seconds=0,
+            system_prompt="s",
+            max_retries=2,
+            timeout_seconds=10,
+            retry_backoff_seconds=0,
         )
         parent_agent = MagicMock()
 
@@ -179,10 +188,17 @@ class TestTimeoutHandling:
             mock.side_effect = TimeoutError("timed out")
 
             result = await executor.run_with_retry(
-                task_id="t1", agent_type="sys", task_description="d",
-                config=config, context={}, tool_registry_getter=lambda: [],
-                start_time=0.0, parent_agent=parent_agent,
-                cancel_flags={}, children_agents={}, children_steering={},
+                task_id="t1",
+                agent_type="sys",
+                task_description="d",
+                config=config,
+                context={},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                children_steering={},
             )
 
         assert result.success is False
@@ -193,22 +209,36 @@ class TestTimeoutHandling:
     async def test_timeout_retry_then_success(self, executor):
         """TimeoutError on first attempt, success on second."""
         config = SubagentConfig(
-            system_prompt="s", max_retries=2, timeout_seconds=10, retry_backoff_seconds=0,
+            system_prompt="s",
+            max_retries=2,
+            timeout_seconds=10,
+            retry_backoff_seconds=0,
         )
         parent_agent = MagicMock()
         ok = SubAgentResult(
-            success=True, task_id="t1", agent_type="sys", result="ok",
-            completed_at=0.0, status=SubAgentStatus.COMPLETED,
+            success=True,
+            task_id="t1",
+            agent_type="sys",
+            result="ok",
+            completed_at=0.0,
+            status=SubAgentStatus.COMPLETED,
         )
 
         with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock:
             mock.side_effect = [TimeoutError("t"), ok]
 
             result = await executor.run_with_retry(
-                task_id="t1", agent_type="sys", task_description="d",
-                config=config, context={}, tool_registry_getter=lambda: [],
-                start_time=0.0, parent_agent=parent_agent,
-                cancel_flags={}, children_agents={}, children_steering={},
+                task_id="t1",
+                agent_type="sys",
+                task_description="d",
+                config=config,
+                context={},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                children_steering={},
             )
 
         assert result.success is True
@@ -230,10 +260,17 @@ class TestBudgetExceeded:
             mock.side_effect = SubagentBudgetExceededError("over budget")
 
             result = await executor.run_with_retry(
-                task_id="t1", agent_type="sys", task_description="d",
-                config=config, context={}, tool_registry_getter=lambda: [],
-                start_time=0.0, parent_agent=parent_agent,
-                cancel_flags={}, children_agents={}, children_steering={},
+                task_id="t1",
+                agent_type="sys",
+                task_description="d",
+                config=config,
+                context={},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                children_steering={},
             )
 
         assert result.success is False
@@ -256,10 +293,17 @@ class TestCancellation:
             mock.side_effect = asyncio.CancelledError()
 
             result = await executor.run_with_retry(
-                task_id="t1", agent_type="sys", task_description="d",
-                config=config, context={}, tool_registry_getter=lambda: [],
-                start_time=0.0, parent_agent=parent_agent,
-                cancel_flags={}, children_agents={}, children_steering={},
+                task_id="t1",
+                agent_type="sys",
+                task_description="d",
+                config=config,
+                context={},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                children_steering={},
             )
 
         assert result.success is False
@@ -282,10 +326,17 @@ class TestCancellation:
             mock.side_effect = asyncio.CancelledError()
 
             result = await executor.run_with_retry(
-                task_id="t1", agent_type="sys", task_description="d",
-                config=config, context={}, tool_registry_getter=lambda: [],
-                start_time=0.0, parent_agent=parent_agent,
-                cancel_flags={}, children_agents=children_agents, children_steering={},
+                task_id="t1",
+                agent_type="sys",
+                task_description="d",
+                config=config,
+                context={},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents=children_agents,
+                children_steering={},
             )
 
         assert result.status == SubAgentStatus.CANCELLED
@@ -303,10 +354,17 @@ class TestCancellation:
             mock.side_effect = asyncio.CancelledError()
 
             result = await executor.run_with_retry(
-                task_id="t1", agent_type="sys", task_description="d",
-                config=config, context={}, tool_registry_getter=lambda: [],
-                start_time=0.0, parent_agent=parent_agent,
-                cancel_flags={}, children_agents={}, children_steering={},
+                task_id="t1",
+                agent_type="sys",
+                task_description="d",
+                config=config,
+                context={},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                children_steering={},
             )
 
         assert result.status == SubAgentStatus.CANCELLED
@@ -327,10 +385,17 @@ class TestCancellation:
             mock.side_effect = asyncio.CancelledError()
 
             result = await executor.run_with_retry(
-                task_id="t1", agent_type="sys", task_description="d",
-                config=config, context={}, tool_registry_getter=lambda: [],
-                start_time=0.0, parent_agent=parent_agent,
-                cancel_flags={}, children_agents=children_agents, children_steering={},
+                task_id="t1",
+                agent_type="sys",
+                task_description="d",
+                config=config,
+                context={},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents=children_agents,
+                children_steering={},
             )
 
         assert result.status == SubAgentStatus.CANCELLED
@@ -406,31 +471,46 @@ class TestCacheHitPivot:
         parent_agent.session_id = "test-session"
 
         parent_state = MagicMock()
-        parent_state.values = {"messages": [
-            SystemMessage(content="parent system"),
-            HumanMessage(content="user query"),
-            AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}]),
-            ToolMessage(content="file1.py\nfile2.py", tool_call_id="tc1"),
-            AIMessage(content="I found the files. Let me analyze them."),
-            AIMessage(content="", tool_calls=[{"name": "read_file", "args": {"path": "file1.py"}, "id": "tc2"}]),
-            ToolMessage(content="def main():\n    pass", tool_call_id="tc2"),
-            AIMessage(content="Here is my analysis of the code."),
-        ]}
+        parent_state.values = {
+            "messages": [
+                SystemMessage(content="parent system"),
+                HumanMessage(content="user query"),
+                AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}]),
+                ToolMessage(content="file1.py\nfile2.py", tool_call_id="tc1"),
+                AIMessage(content="I found the files. Let me analyze them."),
+                AIMessage(content="", tool_calls=[{"name": "read_file", "args": {"path": "file1.py"}, "id": "tc2"}]),
+                ToolMessage(content="def main():\n    pass", tool_call_id="tc2"),
+                AIMessage(content="Here is my analysis of the code."),
+            ]
+        }
         parent_agent.checkpointer.aget = AsyncMock(return_value=parent_state)
 
         child_agent = MagicMock()
+
         async def mock_run(*args, **kwargs):
             child_agent.run_kwargs = kwargs
             yield {"type": "message", "data": "test"}
+
         child_agent.run = mock_run
 
-        with patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent):
+        with patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent
+        ):
             await executor._run_single_attempt(
-                task_id="t", agent_type="a", task_description="task", config=config,
-                context={"session_id": "test-session"}, tool_registry_getter=lambda: [], start_time=0.0,
-                parent_tracker=None, parent_taint=None,
-                parent_agent=parent_agent, cancel_flags={}, children_agents={},
-                fire_hook=AsyncMock(), hook_event_cls=MagicMock()
+                task_id="t",
+                agent_type="a",
+                task_description="task",
+                config=config,
+                context={"session_id": "test-session"},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_tracker=None,
+                parent_taint=None,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                fire_hook=AsyncMock(),
+                hook_event_cls=MagicMock(),
             )
 
         kwargs = child_agent.run_kwargs
@@ -462,25 +542,35 @@ class TestCacheHitPivot:
         parent_agent.session_id = "test-session"
 
         parent_state = MagicMock()
-        parent_state.values = {"messages": [
-            SystemMessage(content="parent system"),
-            HumanMessage(content="user query")
-        ]}
+        parent_state.values = {"messages": [SystemMessage(content="parent system"), HumanMessage(content="user query")]}
         parent_agent.checkpointer.aget = AsyncMock(return_value=parent_state)
 
         child_agent = MagicMock()
+
         async def mock_run(*args, **kwargs):
             child_agent.run_kwargs = kwargs
             yield {"type": "message", "data": "test"}
+
         child_agent.run = mock_run
 
-        with patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent):
+        with patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent
+        ):
             await executor._run_single_attempt(
-                task_id="t", agent_type="a", task_description="task", config=config,
-                context={"session_id": "test-session"}, tool_registry_getter=lambda: [], start_time=0.0,
-                parent_tracker=None, parent_taint=None,
-                parent_agent=parent_agent, cancel_flags={}, children_agents={},
-                fire_hook=AsyncMock(), hook_event_cls=MagicMock()
+                task_id="t",
+                agent_type="a",
+                task_description="task",
+                config=config,
+                context={"session_id": "test-session"},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_tracker=None,
+                parent_taint=None,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                fire_hook=AsyncMock(),
+                hook_event_cls=MagicMock(),
             )
 
         kwargs = child_agent.run_kwargs
@@ -592,7 +682,10 @@ class TestFilterForkMessages:
             AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}]),
             ToolMessage(content="src/\npackage.json", tool_call_id="tc1"),
             AIMessage(content="I see the project structure. Let me create the login component."),
-            AIMessage(content="", tool_calls=[{"name": "write_file", "args": {"path": "login.tsx", "content": "..."}, "id": "tc2"}]),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "write_file", "args": {"path": "login.tsx", "content": "..."}, "id": "tc2"}],
+            ),
             ToolMessage(content="File written successfully", tool_call_id="tc2"),
             AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "npm test"}, "id": "tc3"}]),
             ToolMessage(content="PASS all tests", tool_call_id="tc3"),
@@ -708,21 +801,37 @@ class TestTaintInboundWarning:
 
         async def mock_run(**kwargs):
             yield {"type": "message", "data": "result text"}
+
         child_agent.run = mock_run
 
-        with patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent), \
-             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate", return_value="some result"), \
-             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state", return_value=None), \
-             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats"):
-
+        with (
+            patch(
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent
+            ),
+            patch(
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate",
+                return_value="some result",
+            ),
+            patch(
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state", return_value=None
+            ),
+            patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats"),
+        ):
             result = await executor._run_single_attempt(
-                task_id="t1", agent_type="research", task_description="fetch web data",
+                task_id="t1",
+                agent_type="research",
+                task_description="fetch web data",
                 config=basic_config,
-                context={"session_id": "test-session"}, tool_registry_getter=lambda: [],
+                context={"session_id": "test-session"},
+                tool_registry_getter=lambda: [],
                 start_time=0.0,
-                parent_tracker=None, parent_taint=parent_taint,
-                parent_agent=parent_agent, cancel_flags={}, children_agents={},
-                fire_hook=AsyncMock(), hook_event_cls=MagicMock()
+                parent_tracker=None,
+                parent_taint=parent_taint,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                fire_hook=AsyncMock(),
+                hook_event_cls=MagicMock(),
             )
 
         assert result.result is not None
@@ -750,21 +859,37 @@ class TestTaintInboundWarning:
 
         async def mock_run(**kwargs):
             yield {"type": "message", "data": "clean result"}
+
         child_agent.run = mock_run
 
-        with patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent), \
-             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate", return_value="clean result"), \
-             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state", return_value=None), \
-             patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats"):
-
+        with (
+            patch(
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent
+            ),
+            patch(
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate",
+                return_value="clean result",
+            ),
+            patch(
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state", return_value=None
+            ),
+            patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats"),
+        ):
             result = await executor._run_single_attempt(
-                task_id="t2", agent_type="research", task_description="read local file",
+                task_id="t2",
+                agent_type="research",
+                task_description="read local file",
                 config=basic_config,
-                context={"session_id": "test-session"}, tool_registry_getter=lambda: [],
+                context={"session_id": "test-session"},
+                tool_registry_getter=lambda: [],
                 start_time=0.0,
-                parent_tracker=None, parent_taint=parent_taint,
-                parent_agent=parent_agent, cancel_flags={}, children_agents={},
-                fire_hook=AsyncMock(), hook_event_cls=MagicMock()
+                parent_tracker=None,
+                parent_taint=parent_taint,
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                fire_hook=AsyncMock(),
+                hook_event_cls=MagicMock(),
             )
 
         assert result.result == "clean result"
@@ -812,9 +937,7 @@ class TestAutoVaultOrTruncate:
         config.max_result_tokens = 20
 
         with patch("myrm_agent_harness.agent.artifacts.vault.ArtifactVault", side_effect=Exception("vault error")):
-            result = _auto_vault_or_truncate(
-                "x" * 100, config, {"workspace_path": "/tmp/ws"}, "t1", "research"
-            )
+            result = _auto_vault_or_truncate("x" * 100, config, {"workspace_path": "/tmp/ws"}, "t1", "research")
         assert "Truncated" in result or len(result) <= 200
 
     def test_above_threshold_vault_success(self):
@@ -828,9 +951,7 @@ class TestAutoVaultOrTruncate:
         mock_vault.put.return_value = "vault://abc123"
 
         with patch("myrm_agent_harness.agent.artifacts.vault.ArtifactVault", return_value=mock_vault):
-            result = _auto_vault_or_truncate(
-                "x" * 100, config, {"workspace_path": "/tmp/ws"}, "t1", "research"
-            )
+            result = _auto_vault_or_truncate("x" * 100, config, {"workspace_path": "/tmp/ws"}, "t1", "research")
         assert "vault://abc123" in result
 
 
@@ -846,10 +967,10 @@ class TestParseHandoverState:
     def test_valid_handover_json(self):
         from myrm_agent_harness.agent.sub_agents.executor import _parse_handover_state
 
-        raw = '''Some result text
+        raw = """Some result text
 <handover>
 {"task_completed": ["item1"], "pending_todos": [], "risks_or_notes": [], "relevant_files": []}
-</handover>'''
+</handover>"""
 
         result = _parse_handover_state(raw, "t1")
         assert result is not None
@@ -858,11 +979,11 @@ class TestParseHandoverState:
     def test_handover_with_code_fence(self):
         from myrm_agent_harness.agent.sub_agents.executor import _parse_handover_state
 
-        raw = '''<handover>
+        raw = """<handover>
 ```json
 {"task_completed": ["done"], "pending_todos": [], "risks_or_notes": [], "relevant_files": []}
 ```
-</handover>'''
+</handover>"""
 
         result = _parse_handover_state(raw, "t1")
         assert result is not None
@@ -870,11 +991,11 @@ class TestParseHandoverState:
     def test_handover_with_plain_code_fence(self):
         from myrm_agent_harness.agent.sub_agents.executor import _parse_handover_state
 
-        raw = '''<handover>
+        raw = """<handover>
 ```
 {"task_completed": ["done"], "pending_todos": [], "risks_or_notes": [], "relevant_files": []}
 ```
-</handover>'''
+</handover>"""
 
         result = _parse_handover_state(raw, "t1")
         assert result is not None
@@ -907,11 +1028,16 @@ class TestExecuteWithRetry:
 
         with patch.object(executor, "_run_single_attempt", side_effect=mock_single_attempt):
             result = await executor.run_with_retry(
-                task_id="t1", agent_type="research",
-                task_description="test task", config=retry_config,
-                context={"session_id": "s"}, tool_registry_getter=lambda: [],
+                task_id="t1",
+                agent_type="research",
+                task_description="test task",
+                config=retry_config,
+                context={"session_id": "s"},
+                tool_registry_getter=lambda: [],
                 start_time=0.0,
-                parent_agent=parent_agent, cancel_flags={}, children_agents={},
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
                 children_steering={},
             )
 
@@ -927,11 +1053,16 @@ class TestExecuteWithRetry:
 
         with patch.object(executor, "_run_single_attempt", side_effect=mock_single_attempt):
             result = await executor.run_with_retry(
-                task_id="t1", agent_type="research",
-                task_description="test task", config=basic_config,
-                context={"session_id": "s"}, tool_registry_getter=lambda: [],
+                task_id="t1",
+                agent_type="research",
+                task_description="test task",
+                config=basic_config,
+                context={"session_id": "s"},
+                tool_registry_getter=lambda: [],
                 start_time=0.0,
-                parent_agent=parent_agent, cancel_flags={}, children_agents={},
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
                 children_steering={},
             )
 
@@ -1054,4 +1185,3 @@ class TestEmptyToolAllowlist:
         assert result.status == SubAgentStatus.FAILED
         assert "no tools after filtering" in result.error.lower()
         assert "blocked by delegation policy" in result.error.lower()
-

@@ -82,9 +82,7 @@ async def test_fallback_uses_extract_text_not_get_text_snapshot() -> None:
     session = MagicMock()
     session.get_all_refs.return_value = MappingProxyType({})
     session.snapshot = AsyncMock(return_value=MagicMock())
-    session.extract_text = AsyncMock(
-        return_value="Line one of fallback\n\nLine two of fallback paragraph"
-    )
+    session.extract_text = AsyncMock(return_value="Line one of fallback\n\nLine two of fallback paragraph")
 
     result = await get_timeline_posts(session, {"max_posts": 2})
     posts = json.loads(result)
@@ -120,9 +118,7 @@ async def test_fallback_flushes_trailing_paragraph() -> None:
     session = MagicMock()
     session.get_all_refs.return_value = MappingProxyType({})
     session.snapshot = AsyncMock(return_value=MagicMock())
-    session.extract_text = AsyncMock(
-        return_value="Only one long trailing paragraph without blank line ending"
-    )
+    session.extract_text = AsyncMock(return_value="Only one long trailing paragraph without blank line ending")
 
     result = await get_timeline_posts(session, {"max_posts": 5})
     posts = json.loads(result)

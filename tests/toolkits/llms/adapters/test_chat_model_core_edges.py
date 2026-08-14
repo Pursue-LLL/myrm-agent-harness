@@ -75,9 +75,7 @@ class TestAinvokeFallbacks:
     async def test_in_fallback_cleans_kwargs(self) -> None:
         with patch.object(BaseChatModel, "ainvoke", new_callable=AsyncMock) as mock_ainvoke:
             mock_ainvoke.return_value = AIMessage(content="ok")
-            result = await _make_model().ainvoke(
-                "hi", config=None, _in_fallback=True, temperature=0.5
-            )
+            result = await _make_model().ainvoke("hi", config=None, _in_fallback=True, temperature=0.5)
         assert result.content == "ok"
         mock_ainvoke.assert_awaited_once()
         fallback_kwargs = mock_ainvoke.await_args.kwargs
@@ -224,9 +222,7 @@ class TestCreateMessageDictsEdges:
 
     def test_ok_with_stop_only_in_input(self) -> None:
         llm = _make_model()
-        message_dicts, params = llm._create_message_dicts(
-            [HumanMessage(content="hi")], stop=["STOP"]
-        )
+        message_dicts, params = llm._create_message_dicts([HumanMessage(content="hi")], stop=["STOP"])
         assert message_dicts[0]["role"] == "user"
         assert params["stop"] == ["STOP"]
 

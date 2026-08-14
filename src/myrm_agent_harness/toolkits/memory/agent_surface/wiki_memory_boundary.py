@@ -101,9 +101,7 @@ def filter_wiki_document_vector_memories(
     kept: list[AnyMemory] = []
     dropped = 0
     for mem in memories:
-        if isinstance(
-            mem, (SemanticMemory, EpisodicMemory)
-        ) and looks_like_wiki_document(mem.content):
+        if isinstance(mem, (SemanticMemory, EpisodicMemory)) and looks_like_wiki_document(mem.content):
             dropped += 1
             continue
         kept.append(mem)

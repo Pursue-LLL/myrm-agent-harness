@@ -87,10 +87,7 @@ class VisionGeometryEngine:
             cropped.save(buffer, format="PNG")
         b64 = base64.standard_b64encode(buffer.getvalue()).decode("ascii")
         stem = PurePosixPath(path).stem
-        text = (
-            f"Cropped region {box.as_csv()} from {path} ({stem}). "
-            f"Inline crop data_url=data:image/png;base64,{b64}"
-        )
+        text = f"Cropped region {box.as_csv()} from {path} ({stem}). Inline crop data_url=data:image/png;base64,{b64}"
         return VisionResult(text=text, backend_kind=VisionBackendKind.GEOMETRY, model_id="crop")
 
 

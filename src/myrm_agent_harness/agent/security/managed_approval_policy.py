@@ -48,27 +48,19 @@ class ManagedApprovalPolicy:
     def should_ignore_allowlist(self, agent_primary_model: str) -> bool:
         if not agent_primary_model.strip():
             return False
-        return any(
-            self.matches_model(pattern, agent_primary_model)
-            for pattern in self.ignore_allowlist_for_models
-        )
+        return any(self.matches_model(pattern, agent_primary_model) for pattern in self.ignore_allowlist_for_models)
 
     def should_force_auto_review(self, agent_primary_model: str) -> bool:
         if not agent_primary_model.strip():
             return False
-        return any(
-            self.matches_model(pattern, agent_primary_model)
-            for pattern in self.force_auto_review_for_models
-        )
+        return any(self.matches_model(pattern, agent_primary_model) for pattern in self.force_auto_review_for_models)
 
     @classmethod
     def from_mapping(cls, raw: dict[str, object]) -> ManagedApprovalPolicy:
         ignore_raw = raw.get("ignoreAllowlistForModels", raw.get("ignore_allowlist_for_models"))
         force_raw = raw.get("forceAutoReviewForModels", raw.get("force_auto_review_for_models"))
         disable_yolo_raw = raw.get("disableYolo", raw.get("disable_yolo", False))
-        disable_allow_raw = raw.get(
-            "disableAllowAlways", raw.get("disable_allow_always", False)
-        )
+        disable_allow_raw = raw.get("disableAllowAlways", raw.get("disable_allow_always", False))
 
         return cls(
             ignore_allowlist_for_models=_parse_pattern_set(ignore_raw),

@@ -23,9 +23,7 @@ def mock_executor():
 class TestVerifyCommand:
     @pytest.mark.asyncio
     async def test_create_verify_success(self, mock_executor):
-        mock_executor.execute_bash.return_value = ExecutionResult(
-            success=True, exit_code=0, stdout="ok", stderr=""
-        )
+        mock_executor.execute_bash.return_value = ExecutionResult(success=True, exit_code=0, stdout="ok", stderr="")
 
         ctx = OperationContext(
             operation=OperationType.CREATE,
@@ -74,9 +72,7 @@ class TestVerifyCommand:
             mock_strategy.read_file.return_value = ["print('hello')"]
             mock_factory.return_value = mock_strategy
 
-            with pytest.raises(
-                ValueError, match="File created but verification failed"
-            ):
+            with pytest.raises(ValueError, match="File created but verification failed"):
                 await service._execute_create()
 
             mock_executor.execute_bash.assert_awaited_once()
@@ -84,9 +80,7 @@ class TestVerifyCommand:
 
     @pytest.mark.asyncio
     async def test_edit_verify_success(self, mock_executor):
-        mock_executor.execute_bash.return_value = ExecutionResult(
-            success=True, exit_code=0, stdout="ok", stderr=""
-        )
+        mock_executor.execute_bash.return_value = ExecutionResult(success=True, exit_code=0, stdout="ok", stderr="")
 
         ctx = OperationContext(
             operation=OperationType.STR_REPLACE,

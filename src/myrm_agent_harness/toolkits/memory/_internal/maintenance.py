@@ -123,9 +123,7 @@ async def dedup_semantics(
     if skipped:
         total = len(memories)
         rate = skipped / total * 100 if total > 0 else 0
-        logger.warning(
-            "Dedup: skipped %d/%d near-duplicates (rate=%.1f%%)", skipped, total, rate
-        )
+        logger.warning("Dedup: skipped %d/%d near-duplicates (rate=%.1f%%)", skipped, total, rate)
     return [m for m, is_dup in zip(memories, dup_flags, strict=False) if not is_dup]
 
 
@@ -193,9 +191,7 @@ async def run_forgetting(
                         try:
                             await graph.delete_subgraph(memory_id)
                         except Exception as e:
-                            logger.warning(
-                                "Graph cleanup failed for %s: %s", memory_id, e
-                            )
+                            logger.warning("Graph cleanup failed for %s: %s", memory_id, e)
                             result.errors.append((memory_id, str(e)))
 
             elif fg_cfg.mode == ForgettingMode.ARCHIVE:
@@ -208,9 +204,7 @@ async def run_forgetting(
                     doc.metadata["status"] = "archived"
                     doc.metadata["archived"] = True
                     doc.metadata["archived_at"] = now_iso
-                    doc.metadata["archive_reason"] = (
-                        f"retention={score.total_score:.3f}"
-                    )
+                    doc.metadata["archive_reason"] = f"retention={score.total_score:.3f}"
                     archive_docs.append(doc)
                 if archive_docs:
                     await vector.upsert(collection, archive_docs)
@@ -226,18 +220,12 @@ async def run_forgetting(
                 )
 
         if relational is not None:
-            await forget_procedural_rules(
-                relational, strategy, fg_cfg, result, namespaces
-            )
+            await forget_procedural_rules(relational, strategy, fg_cfg, result, namespaces)
 
         if result.forgotten_count:
-            logger.warning(
-                "Forgetting DELETE: removed %d memories", result.forgotten_count
-            )
+            logger.warning("Forgetting DELETE: removed %d memories", result.forgotten_count)
         if result.archived_count:
-            logger.warning(
-                "Forgetting ARCHIVE: archived %d memories", result.archived_count
-            )
+            logger.warning("Forgetting ARCHIVE: archived %d memories", result.archived_count)
 
     except Exception as e:
         logger.warning("Forgetting scan failed (non-fatal): %s", e)
@@ -302,9 +290,7 @@ async def _estimate_relation_counts(
     same namespaces as the candidate pool so cross-scope memories never
     inflate another agent's retention score.
     """
-    embeddable = [
-        (m.id, m.embedding) for m in memories if getattr(m, "embedding", None)
-    ]
+    embeddable = [(m.id, m.embedding) for m in memories if getattr(m, "embedding", None)]
     if not embeddable:
         return {}
 
@@ -342,16 +328,8 @@ async def bump_access_counts(
             if isinstance(mem, (SemanticMemory, EpisodicMemory)):
                 mem.access_count += 1
                 mem.last_accessed_at = now
-        sem_docs = [
-            semantic_to_doc(r.memory)
-            for r in results
-            if isinstance(r.memory, SemanticMemory)
-        ]
-        epi_docs = [
-            episodic_to_doc(r.memory)
-            for r in results
-            if isinstance(r.memory, EpisodicMemory)
-        ]
+        sem_docs = [semantic_to_doc(r.memory) for r in results if isinstance(r.memory, SemanticMemory)]
+        epi_docs = [episodic_to_doc(r.memory) for r in results if isinstance(r.memory, EpisodicMemory)]
         if sem_docs:
             await vector.upsert(config.semantic_collection, sem_docs)
         if epi_docs:
@@ -427,9 +405,7 @@ async def sweep_orphaned_blobs(
                     blob_hash = raw_exchange[len("blob://") :]
                     active_blobs.add(blob_hash)
         except Exception as e:
-            logger.error(
-                "Blob GC scroll failed. Aborting GC to prevent data loss: %s", e
-            )
+            logger.error("Blob GC scroll failed. Aborting GC to prevent data loss: %s", e)
             return 0
 
     # 3. Delete orphaned blobs

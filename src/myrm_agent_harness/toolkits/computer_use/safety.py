@@ -94,22 +94,61 @@ _SELF_WINDOW_TITLE_KEYWORDS: frozenset[str] = frozenset(
 _SENSITIVE_APPS: frozenset[str] = frozenset(
     {
         # Financial
-        "alipay", "\u652f\u4ed8\u5b9d",
-        "bank", "\u94f6\u884c", "\u62db\u5546\u94f6\u884c", "\u5de5\u5546\u94f6\u884c", "\u5efa\u8bbe\u94f6\u884c", "\u519c\u4e1a\u94f6\u884c",
-        "\u4ea4\u901a\u94f6\u884c", "\u4e2d\u4fe1\u94f6\u884c", "\u6c11\u751f\u94f6\u884c", "\u5174\u4e1a\u94f6\u884c",
-        "\u540c\u82b1\u987a", "\u4e1c\u65b9\u8d22\u5bcc", "\u96ea\u7403",
-        "chase", "wells fargo", "bank of america", "citi",
+        "alipay",
+        "\u652f\u4ed8\u5b9d",
+        "bank",
+        "\u94f6\u884c",
+        "\u62db\u5546\u94f6\u884c",
+        "\u5de5\u5546\u94f6\u884c",
+        "\u5efa\u8bbe\u94f6\u884c",
+        "\u519c\u4e1a\u94f6\u884c",
+        "\u4ea4\u901a\u94f6\u884c",
+        "\u4e2d\u4fe1\u94f6\u884c",
+        "\u6c11\u751f\u94f6\u884c",
+        "\u5174\u4e1a\u94f6\u884c",
+        "\u540c\u82b1\u987a",
+        "\u4e1c\u65b9\u8d22\u5bcc",
+        "\u96ea\u7403",
+        "chase",
+        "wells fargo",
+        "bank of america",
+        "citi",
         # Communication / privacy
-        "wechat", "\u5fae\u4fe1", "wecom", "\u4f01\u4e1a\u5fae\u4fe1",
-        "telegram", "signal", "whatsapp",
-        "\u9489\u9489", "dingtalk", "\u98de\u4e66", "feishu", "lark",
+        "wechat",
+        "\u5fae\u4fe1",
+        "wecom",
+        "\u4f01\u4e1a\u5fae\u4fe1",
+        "telegram",
+        "signal",
+        "whatsapp",
+        "\u9489\u9489",
+        "dingtalk",
+        "\u98de\u4e66",
+        "feishu",
+        "lark",
         # Password managers
-        "1password", "bitwarden", "lastpass", "keepass", "dashlane",
-        "keychain access", "\u94a5\u5319\u4e32\u8bbf\u95ee",
+        "1password",
+        "bitwarden",
+        "lastpass",
+        "keepass",
+        "dashlane",
+        "keychain access",
+        "\u94a5\u5319\u4e32\u8bbf\u95ee",
         # Terminal / shell — block GUI automation to prevent command injection
-        "terminal", "iterm", "iterm2", "warp",
-        "cmd", "powershell", "windows terminal", "wt",
-        "konsole", "gnome-terminal", "xterm", "alacritty", "kitty", "hyper",
+        "terminal",
+        "iterm",
+        "iterm2",
+        "warp",
+        "cmd",
+        "powershell",
+        "windows terminal",
+        "wt",
+        "konsole",
+        "gnome-terminal",
+        "xterm",
+        "alacritty",
+        "kitty",
+        "hyper",
     }
 )
 
@@ -129,17 +168,13 @@ def is_self_app(
             )
         if "todesktop" in lower_id and "cursor" in app_name.lower():
             return (
-                "Blocked: Agent cannot control the Cursor host application. "
-                "Complete approvals in the chat UI instead."
+                "Blocked: Agent cannot control the Cursor host application. Complete approvals in the chat UI instead."
             )
 
     lower_name = app_name.lower()
     for keyword in _SELF_APP_NAME_KEYWORDS:
         if keyword in lower_name:
-            return (
-                f"Blocked: Agent cannot control application '{app_name}'. "
-                "This appears to be the agent host UI."
-            )
+            return f"Blocked: Agent cannot control application '{app_name}'. This appears to be the agent host UI."
 
     lower_title = window_title.lower() if window_title else ""
     for keyword in _SELF_WINDOW_TITLE_KEYWORDS:

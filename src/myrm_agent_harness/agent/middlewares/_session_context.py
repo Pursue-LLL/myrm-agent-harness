@@ -51,38 +51,26 @@ if TYPE_CHECKING:
     )
     from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
-_security_config_var: ContextVar[SecurityConfig | None] = ContextVar(
-    "security_config", default=None
-)
+_security_config_var: ContextVar[SecurityConfig | None] = ContextVar("security_config", default=None)
 _workspace_root_var: ContextVar[str] = ContextVar("workspace_root", default="")
-_pseudonym_store_var: ContextVar[PseudonymStore | None] = ContextVar(
-    "pseudonym_store", default=None
-)
+_pseudonym_store_var: ContextVar[PseudonymStore | None] = ContextVar("pseudonym_store", default=None)
 _session_key_var: ContextVar[str] = ContextVar("approval_session_key", default="")
-_active_message_id_var: ContextVar[str | None] = ContextVar(
-    "active_message_id", default=None
-)
+_active_message_id_var: ContextVar[str | None] = ContextVar("active_message_id", default=None)
 _agent_id_var: ContextVar[str] = ContextVar("agent_id", default="")
 _agent_primary_model_var: ContextVar[str] = ContextVar("agent_primary_model", default="")
 _managed_approval_policy_var: ContextVar[ManagedApprovalPolicy | None] = ContextVar(
     "managed_approval_policy", default=None
 )
 _user_id_var: ContextVar[str] = ContextVar("approval_user_id", default="")
-_event_logger_var: ContextVar[EventLogger | None] = ContextVar(
-    "event_logger", default=None
-)
+_event_logger_var: ContextVar[EventLogger | None] = ContextVar("event_logger", default=None)
 _allowed_domains_map_var: ContextVar[dict[str, list[str] | None] | None] = ContextVar(
     "allowed_domains_map", default=None
 )
 _is_subagent_var: ContextVar[bool] = ContextVar("is_subagent", default=False)
-_subagent_task_id_var: ContextVar[str | None] = ContextVar(
-    "subagent_task_id", default=None
-)
+_subagent_task_id_var: ContextVar[str | None] = ContextVar("subagent_task_id", default=None)
 _is_shadow_agent_var: ContextVar[bool] = ContextVar("is_shadow_agent", default=False)
 _canary_token_var: ContextVar[str] = ContextVar("canary_token", default="")
-_goal_provider_var: ContextVar[GoalProvider | None] = ContextVar(
-    "goal_provider", default=None
-)
+_goal_provider_var: ContextVar[GoalProvider | None] = ContextVar("goal_provider", default=None)
 
 
 def set_goal_provider(provider: GoalProvider | None) -> None:
@@ -276,12 +264,8 @@ def reset_terminal_errors() -> None:
         _terminal_errors_var.set(registry)
 
 
-_active_tool_registry_var: ContextVar[ToolRegistry | None] = ContextVar(
-    "active_tool_registry", default=None
-)
-_active_resolved_tools_var: ContextVar[list[BaseTool] | None] = ContextVar(
-    "active_resolved_tools", default=None
-)
+_active_tool_registry_var: ContextVar[ToolRegistry | None] = ContextVar("active_tool_registry", default=None)
+_active_resolved_tools_var: ContextVar[list[BaseTool] | None] = ContextVar("active_resolved_tools", default=None)
 # LangGraph executes graph nodes in copied contexts, so ContextVar state set in
 # run_agent_loop does not survive into ToolNode execution. Mirror the loop-guard
 # pattern (ContextVar + session-key fallback) so runtime-only hooks such as
@@ -388,13 +372,9 @@ def get_canary_token() -> str:
     return _canary_token_var.get()
 
 
-_protected_paths_var: ContextVar[tuple[str, ...]] = ContextVar(
-    "protected_paths", default=()
-)
+_protected_paths_var: ContextVar[tuple[str, ...]] = ContextVar("protected_paths", default=())
 
-_turn_allowed_tool_names_var: ContextVar[frozenset[str] | None] = ContextVar(
-    "turn_allowed_tool_names", default=None
-)
+_turn_allowed_tool_names_var: ContextVar[frozenset[str] | None] = ContextVar("turn_allowed_tool_names", default=None)
 
 
 def set_protected_paths(patterns: tuple[str, ...]) -> None:

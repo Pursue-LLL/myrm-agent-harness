@@ -7,16 +7,17 @@ and vault overflow behaviors without launching real browsers.
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
+from myrm_agent_harness.toolkits.browser.session.browser_session_extraction_mixin import (
+    _DEFAULT_VAULT_SPILL_CHAR_THRESHOLD,
+    BrowserSessionExtractionMixin,
+)
 from myrm_agent_harness.toolkits.browser.session.browser_session_navigation_mixin import (
     _NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES,
     _NAVIGATE_INTERACTIVE_SUMMARY_MAX_TOKENS,
     BrowserSessionNavigationMixin,
-)
-from myrm_agent_harness.toolkits.browser.session.browser_session_extraction_mixin import (
-    _DEFAULT_VAULT_SPILL_CHAR_THRESHOLD,
-    BrowserSessionExtractionMixin,
 )
 from myrm_agent_harness.toolkits.browser.session.snapshot_result import SnapshotResult
 
@@ -29,7 +30,9 @@ class _DummyNavSession(BrowserSessionNavigationMixin):
     async def snapshot(self, **kwargs) -> SnapshotResult:
         self.snapshot_calls.append(kwargs)
         from types import MappingProxyType
+
         from myrm_agent_harness.toolkits.browser.snapshot import SnapshotMeta
+
         return SnapshotResult(
             aria_tree=self._aria_tree,
             refs=MappingProxyType({}),

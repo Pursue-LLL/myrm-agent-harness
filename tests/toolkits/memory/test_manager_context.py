@@ -82,7 +82,10 @@ class TestContextLoading:
         ]
         config = replace(memory_config, max_learned_context_chars=200)
 
-        manager = MemoryManager(config, user_id="test_user", relational=mock_relational_store,
+        manager = MemoryManager(
+            config,
+            user_id="test_user",
+            relational=mock_relational_store,
             vector=mock_vector_store,
             memory_policy=AgentMemoryPolicy(
                 agent_id="planner",

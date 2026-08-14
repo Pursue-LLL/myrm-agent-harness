@@ -11,7 +11,10 @@ from myrm_agent_harness.agent.hooks.output_spiller import (
 )
 
 # Realistic multi-word text that resists BPE compression
-_LONG_TEXT = "This is a realistic hook output that contains actual words and sentences. It provides context information about the tool execution results. " * 300  # ~6900 tokens
+_LONG_TEXT = (
+    "This is a realistic hook output that contains actual words and sentences. It provides context information about the tool execution results. "
+    * 300
+)  # ~6900 tokens
 
 
 @pytest.fixture

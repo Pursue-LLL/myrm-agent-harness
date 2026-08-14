@@ -1,6 +1,5 @@
 """Tests for security.profile_audit module — engine, scoring, and all checkers."""
 
-
 from myrm_agent_harness.agent.security.profile_audit import (
     AuditFinding,
     AuditSeverity,
@@ -136,7 +135,9 @@ class TestToolExposureChecker:
         assert tool_findings == []
 
     def test_single_safe_tool(self):
-        result = run_profile_audit(ProfileAuditInput(agent_id="a1", agent_name="Test", enabled_builtin_tools=("file_read",)))
+        result = run_profile_audit(
+            ProfileAuditInput(agent_id="a1", agent_name="Test", enabled_builtin_tools=("file_read",))
+        )
         tool_findings = [f for f in result.findings if f.checker == "tool_exposure"]
         assert tool_findings == []
 
@@ -172,7 +173,9 @@ class TestMCPAuthChecker:
         assert mcp_findings == []
 
     def test_high_severity_scan_findings(self):
-        mcp = MCPConfigInput(server_name="bad", transport_type="streamable-http", has_auth=True, finding_count=5, max_severity="critical")
+        mcp = MCPConfigInput(
+            server_name="bad", transport_type="streamable-http", has_auth=True, finding_count=5, max_severity="critical"
+        )
         result = run_profile_audit(ProfileAuditInput(agent_id="a1", agent_name="Test", mcp_configs=(mcp,)))
         mcp_findings = [f for f in result.findings if f.checker == "mcp_auth"]
         assert any("scan findings" in f.title for f in mcp_findings)
@@ -254,37 +257,43 @@ class TestPolicyGapChecker:
         assert gap_findings == []
 
     def test_network_tools_no_policy(self):
-        result = run_profile_audit(ProfileAuditInput(
-            agent_id="a1",
-            agent_name="Test",
-            enabled_builtin_tools=("net_fetch",),
-            security_policy=SecurityPolicyInput(),
-        ))
+        result = run_profile_audit(
+            ProfileAuditInput(
+                agent_id="a1",
+                agent_name="Test",
+                enabled_builtin_tools=("net_fetch",),
+                security_policy=SecurityPolicyInput(),
+            )
+        )
         gap_findings = [f for f in result.findings if f.checker == "policy_gap"]
         assert any("network policy" in f.title.lower() for f in gap_findings)
 
     def test_fs_tools_no_path_policy(self):
-        result = run_profile_audit(ProfileAuditInput(
-            agent_id="a1",
-            agent_name="Test",
-            enabled_builtin_tools=("file_write",),
-            security_policy=SecurityPolicyInput(),
-        ))
+        result = run_profile_audit(
+            ProfileAuditInput(
+                agent_id="a1",
+                agent_name="Test",
+                enabled_builtin_tools=("file_write",),
+                security_policy=SecurityPolicyInput(),
+            )
+        )
         gap_findings = [f for f in result.findings if f.checker == "policy_gap"]
         assert any("path policy" in f.title.lower() for f in gap_findings)
 
     def test_full_policy_no_gaps(self):
-        result = run_profile_audit(ProfileAuditInput(
-            agent_id="a1",
-            agent_name="Test",
-            enabled_builtin_tools=("net_fetch", "file_write", "shell_exec"),
-            security_policy=SecurityPolicyInput(
-                has_path_policy=True,
-                has_network_policy=True,
-                has_capability_restrictions=True,
-                domain_hitl_enabled=True,
-            ),
-        ))
+        result = run_profile_audit(
+            ProfileAuditInput(
+                agent_id="a1",
+                agent_name="Test",
+                enabled_builtin_tools=("net_fetch", "file_write", "shell_exec"),
+                security_policy=SecurityPolicyInput(
+                    has_path_policy=True,
+                    has_network_policy=True,
+                    has_capability_restrictions=True,
+                    domain_hitl_enabled=True,
+                ),
+            )
+        )
         gap_findings = [f for f in result.findings if f.checker == "policy_gap"]
         assert gap_findings == []
 
@@ -295,18 +304,14 @@ class TestIntegration:
             agent_id="a1",
             agent_name="Risky Agent",
             enabled_builtin_tools=("shell_exec", "file_write", "mcp_invoke", "net_fetch", "code_interpreter_tool"),
-            mcp_configs=(
-                MCPConfigInput(server_name="unsafe", transport_type="stdio", has_auth=False),
-            ),
-            skill_scans=(
-                SkillScanInput(skill_id="s1", skill_name="evil", score=10, trust_recommendation="reject"),
-            ),
+            mcp_configs=(MCPConfigInput(server_name="unsafe", transport_type="stdio", has_auth=False),),
+            skill_scans=(SkillScanInput(skill_id="s1", skill_name="evil", score=10, trust_recommendation="reject"),),
             subagents=(
-                SubagentInput(agent_id="sub1", agent_name="deep", has_own_subagents=True, has_own_mcps=True, has_own_tools=True),
+                SubagentInput(
+                    agent_id="sub1", agent_name="deep", has_own_subagents=True, has_own_mcps=True, has_own_tools=True
+                ),
             ),
-            cron_jobs=(
-                CronJobInput(job_id="j1", schedule="* * * * *", agent_id="a1", has_dangerous_tools=True),
-            ),
+            cron_jobs=(CronJobInput(job_id="j1", schedule="* * * * *", agent_id="a1", has_dangerous_tools=True),),
             security_policy=SecurityPolicyInput(),
         )
         result = run_profile_audit(audit_input)
@@ -333,4 +338,6 @@ class TestIntegration:
         result = run_profile_audit(audit_input)
         severities = [f.severity for f in result.findings]
         for i in range(len(severities) - 1):
-            assert severities[i] >= severities[i + 1], f"Finding {i} ({severities[i]}) < Finding {i+1} ({severities[i+1]})"
+            assert severities[i] >= severities[i + 1], (
+                f"Finding {i} ({severities[i]}) < Finding {i + 1} ({severities[i + 1]})"
+            )

@@ -129,11 +129,7 @@ async def build_task_context(store: KanbanStore, task_id: str) -> str:
             lines.append(f"@{author} ({ts}): {_cap(str(body), 2000)}")
         lines.append("")
 
-    review_events = [
-        e
-        for e in events
-        if e.kind in (TaskEventKind.REVIEW_REQUESTED, TaskEventKind.REJECTED)
-    ]
+    review_events = [e for e in events if e.kind in (TaskEventKind.REVIEW_REQUESTED, TaskEventKind.REJECTED)]
     if review_events:
         review_lines: list[str] = []
         for e in review_events[-2:]:

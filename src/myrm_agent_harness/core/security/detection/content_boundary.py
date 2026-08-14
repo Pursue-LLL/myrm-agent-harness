@@ -71,9 +71,7 @@ _INVISIBLE_CODEPOINTS: frozenset[int] = frozenset(
     }
 )
 
-_INVISIBLE_RE = re.compile(
-    "[" + "".join(f"\\u{cp:04X}" for cp in sorted(_INVISIBLE_CODEPOINTS)) + "]"
-)
+_INVISIBLE_RE = re.compile("[" + "".join(f"\\u{cp:04X}" for cp in sorted(_INVISIBLE_CODEPOINTS)) + "]")
 
 
 def strip_invisible_unicode(text: str) -> str:
@@ -186,9 +184,7 @@ _MARKER_NAMES = (
 )
 
 _MARKER_RE = re.compile(
-    r"<<<(?:"
-    + "|".join(re.escape(n) for n in _MARKER_NAMES)
-    + r')(?:\s+id="[^"]{1,128}")?\s*>>>',
+    r"<<<(?:" + "|".join(re.escape(n) for n in _MARKER_NAMES) + r')(?:\s+id="[^"]{1,128}")?\s*>>>',
     re.IGNORECASE,
 )
 
@@ -223,9 +219,7 @@ def _sanitize_markers(content: str, folded: str) -> str:
 _SUSPICIOUS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "ignore_instructions",
-        re.compile(
-            r"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?)", re.I
-        ),
+        re.compile(r"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?)", re.I),
     ),
     ("disregard", re.compile(r"disregard\s+(all\s+)?(previous|prior|above)", re.I)),
     (

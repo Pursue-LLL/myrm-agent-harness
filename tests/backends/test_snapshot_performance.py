@@ -175,21 +175,19 @@ def test_snapshot_scaling_comparison(tmp_path):
         }
 
         print(f"\n{size} skills:")
-        print(f"  Snapshot (DB):          {snapshot_time*1000:.3f}ms")
-        print(f"  Filesystem (I/O+parse): {fs_time*1000:.3f}ms")
+        print(f"  Snapshot (DB):          {snapshot_time * 1000:.3f}ms")
+        print(f"  Filesystem (I/O+parse): {fs_time * 1000:.3f}ms")
         print(f"  Speedup:                {results[size]['speedup']:.1f}x")
 
     # Under parallel CI / xdist load, timings are noisy — use a generous
     # tolerance (0.5x) instead of strict > 1.0 to avoid flaky failures.
     for size in results:
         if size >= 100:
-            assert (
-                results[size]["speedup"] > 0.5
-            ), f"Snapshot should not be drastically slower than filesystem for {size} skills"
+            assert results[size]["speedup"] > 0.5, (
+                f"Snapshot should not be drastically slower than filesystem for {size} skills"
+            )
 
     print("\nScaling behavior:")
     print(f"  10 skills:  {results[10]['speedup']:.2f}x")
     print(f"  200 skills: {results[200]['speedup']:.2f}x")
-    assert (
-        results[200]["speedup"] >= 0.5
-    ), "Snapshot should not be drastically slower than filesystem for 200 skills"
+    assert results[200]["speedup"] >= 0.5, "Snapshot should not be drastically slower than filesystem for 200 skills"

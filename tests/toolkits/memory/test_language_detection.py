@@ -545,9 +545,7 @@ class TestMemoryTypesDefaultLanguage:
 
     def test_procedural_memory_default_language(self):
         """Test ProceduralMemory default language is 'en'."""
-        procedural = ProceduralMemory(
-            content="Run tests", trigger="before deploy", action="run pytest"
-        )
+        procedural = ProceduralMemory(content="Run tests", trigger="before deploy", action="run pytest")
         assert procedural.language == "en"
 
     def test_can_set_language_to_zh(self):

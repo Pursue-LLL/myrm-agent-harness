@@ -546,9 +546,7 @@ class TestPerformance:
 
     def test_check_performance_with_full_window(self):
         """Test check() performance with full sliding window."""
-        guard = FrequencyGuard(
-            window_seconds=60.0, global_limit=1000, per_tool_limit=500
-        )
+        guard = FrequencyGuard(window_seconds=60.0, global_limit=1000, per_tool_limit=500)
 
         # Fill window
         for i in range(500):

@@ -82,12 +82,15 @@ async def test_swarm_fission_yield_resume_via_parallel_runner() -> None:
 
     manager.spawn_child = AsyncMock(side_effect=mock_spawn_child)
 
-    with patch(
-        "myrm_agent_harness.agent.parallel.fission.execute_swarm_fission",
-        new=AsyncMock(return_value=fission_resume),
-    ), patch(
-        "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-        create=True,
+    with (
+        patch(
+            "myrm_agent_harness.agent.parallel.fission.execute_swarm_fission",
+            new=AsyncMock(return_value=fission_resume),
+        ),
+        patch(
+            "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+            create=True,
+        ),
     ):
         result = await execute_dag_plan(
             plan=plan,

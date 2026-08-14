@@ -19,9 +19,7 @@ def mock_page() -> Page:
 def mock_llm() -> AsyncMock:
     llm = AsyncMock()
     # Return a valid JSON response
-    llm.ainvoke.return_value = AIMessage(
-        content='SCORE: 5\nREASON: The goal was achieved successfully.'
-    )
+    llm.ainvoke.return_value = AIMessage(content="SCORE: 5\nREASON: The goal was achieved successfully.")
     return llm
 
 
@@ -31,14 +29,10 @@ async def test_vision_verifier_no_llm(mock_page: Page):
     verifier = VisionVerifier(llm=None)
 
     # Mock FastComparator to simulate a visual change so it proceeds to Layer 3
-    verifier._comparator.compare = MagicMock(
-        return_value=MagicMock(similarity=0.5)
-    )
+    verifier._comparator.compare = MagicMock(return_value=MagicMock(similarity=0.5))
 
     success, msg = await verifier.verify_action(
-        page=mock_page,
-        baseline_screenshot=b"fake_baseline",
-        verify_goal="Check if button exists"
+        page=mock_page, baseline_screenshot=b"fake_baseline", verify_goal="Check if button exists"
     )
 
     assert success is True
@@ -51,14 +45,10 @@ async def test_vision_verifier_no_visual_change(mock_page: Page, mock_llm: Async
     verifier = VisionVerifier(llm=mock_llm)
 
     # Mock FastComparator to simulate NO visual change
-    verifier._comparator.compare = MagicMock(
-        return_value=MagicMock(similarity=0.995)
-    )
+    verifier._comparator.compare = MagicMock(return_value=MagicMock(similarity=0.995))
 
     success, msg = await verifier.verify_action(
-        page=mock_page,
-        baseline_screenshot=b"fake_baseline",
-        verify_goal="Check if button exists"
+        page=mock_page, baseline_screenshot=b"fake_baseline", verify_goal="Check if button exists"
     )
 
     assert success is False
@@ -72,14 +62,10 @@ async def test_vision_verifier_success(mock_page: Page, mock_llm: AsyncMock):
     verifier = VisionVerifier(llm=mock_llm)
 
     # Mock FastComparator to simulate a visual change
-    verifier._comparator.compare = MagicMock(
-        return_value=MagicMock(similarity=0.5)
-    )
+    verifier._comparator.compare = MagicMock(return_value=MagicMock(similarity=0.5))
 
     success, msg = await verifier.verify_action(
-        page=mock_page,
-        baseline_screenshot=b"fake_baseline",
-        verify_goal="Check if button exists"
+        page=mock_page, baseline_screenshot=b"fake_baseline", verify_goal="Check if button exists"
     )
 
     assert success is True
@@ -91,19 +77,13 @@ async def test_vision_verifier_success(mock_page: Page, mock_llm: AsyncMock):
 @pytest.mark.asyncio
 async def test_vision_verifier_llm_failure(mock_page: Page, mock_llm: AsyncMock):
     """Test Vision LLM returning a low score."""
-    mock_llm.ainvoke.return_value = AIMessage(
-        content='SCORE: 3\nREASON: The button is not visible.'
-    )
+    mock_llm.ainvoke.return_value = AIMessage(content="SCORE: 3\nREASON: The button is not visible.")
     verifier = VisionVerifier(llm=mock_llm)
 
-    verifier._comparator.compare = MagicMock(
-        return_value=MagicMock(similarity=0.5)
-    )
+    verifier._comparator.compare = MagicMock(return_value=MagicMock(similarity=0.5))
 
     success, msg = await verifier.verify_action(
-        page=mock_page,
-        baseline_screenshot=b"fake_baseline",
-        verify_goal="Check if button exists"
+        page=mock_page, baseline_screenshot=b"fake_baseline", verify_goal="Check if button exists"
     )
 
     assert success is False
@@ -114,19 +94,13 @@ async def test_vision_verifier_llm_failure(mock_page: Page, mock_llm: AsyncMock)
 @pytest.mark.asyncio
 async def test_vision_verifier_invalid_format(mock_page: Page, mock_llm: AsyncMock):
     """Test Vision LLM returning invalid format."""
-    mock_llm.ainvoke.return_value = AIMessage(
-        content='I cannot see the image'
-    )
+    mock_llm.ainvoke.return_value = AIMessage(content="I cannot see the image")
     verifier = VisionVerifier(llm=mock_llm)
 
-    verifier._comparator.compare = MagicMock(
-        return_value=MagicMock(similarity=0.5)
-    )
+    verifier._comparator.compare = MagicMock(return_value=MagicMock(similarity=0.5))
 
     success, msg = await verifier.verify_action(
-        page=mock_page,
-        baseline_screenshot=b"fake_baseline",
-        verify_goal="Check if button exists"
+        page=mock_page, baseline_screenshot=b"fake_baseline", verify_goal="Check if button exists"
     )
 
     assert success is False

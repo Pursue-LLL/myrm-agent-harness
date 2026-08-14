@@ -13,11 +13,10 @@ def mock_executor():
         mock_get.return_value = executor
         yield executor
 
+
 @pytest.mark.asyncio
 async def test_shell_criterion_success(mock_executor):
-    mock_executor.execute_bash.return_value = ExecutionResult(
-        exit_code=0, stdout="success", stderr=""
-    )
+    mock_executor.execute_bash.return_value = ExecutionResult(exit_code=0, stdout="success", stderr="")
 
     criterion = ShellCriterion(command="echo success")
     result = await criterion.verify()
@@ -28,11 +27,10 @@ async def test_shell_criterion_success(mock_executor):
     assert context.code == "echo success"
     assert context.timeout == 60
 
+
 @pytest.mark.asyncio
 async def test_shell_criterion_failure(mock_executor):
-    mock_executor.execute_bash.return_value = ExecutionResult(
-        exit_code=1, stdout="", stderr="command not found"
-    )
+    mock_executor.execute_bash.return_value = ExecutionResult(exit_code=1, stdout="", stderr="command not found")
 
     criterion = ShellCriterion(command="invalid_cmd")
     result = await criterion.verify()
@@ -40,6 +38,7 @@ async def test_shell_criterion_failure(mock_executor):
     assert result.passed is False
     assert "invalid_cmd" in result.reason
     assert "command not found" in result.error_logs
+
 
 @pytest.mark.asyncio
 async def test_shell_criterion_no_executor():
@@ -49,6 +48,7 @@ async def test_shell_criterion_no_executor():
 
         assert result.passed is False
         assert "Sandbox executor not found" in result.reason
+
 
 def test_shell_criterion_from_dict():
     data = {"type": "shell", "command": "pytest", "timeout_seconds": 120}

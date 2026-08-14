@@ -129,9 +129,7 @@ class WikiLinter:
                                 severity="medium",
                                 location=rel_path,
                                 description="Sensitive content redacted in raw source",
-                                action_kind=action_kind_for_issue_type(
-                                    "security_redacted"
-                                ),
+                                action_kind=action_kind_for_issue_type("security_redacted"),
                                 can_auto_fix=False,
                             )
                         )
@@ -145,9 +143,7 @@ class WikiLinter:
                                 severity="high",
                                 location=rel_path,
                                 description="Blocked raw source removed during maintenance",
-                                action_kind=action_kind_for_issue_type(
-                                    "security_removed"
-                                ),
+                                action_kind=action_kind_for_issue_type("security_removed"),
                                 can_auto_fix=False,
                             )
                         )
@@ -180,9 +176,7 @@ class WikiLinter:
 
         return all_issues, raw_scan
 
-    async def lint_and_maintain(
-        self, mode: MaintainMode = MaintainMode.FULL
-    ) -> LintResult:
+    async def lint_and_maintain(self, mode: MaintainMode = MaintainMode.FULL) -> LintResult:
         """
         Run health check and automatic maintenance.
 
@@ -228,9 +222,7 @@ class WikiLinter:
 
         removed_count = raw_scan.get("files_removed", 0)
         removed_paths_list = raw_scan.get("removed_paths", [])
-        raw_security_removed = (
-            int(removed_count) if isinstance(removed_count, int) else 0
-        )
+        raw_security_removed = int(removed_count) if isinstance(removed_count, int) else 0
         raw_security_removed_paths = (
             [str(path) for path in removed_paths_list if isinstance(path, str)]
             if isinstance(removed_paths_list, list)
@@ -334,12 +326,8 @@ class WikiLinter:
             article_path = Path(issue.location)
             if not article_path.exists():
                 return
-            rel = str(
-                article_path.relative_to(self._structure.concepts_dir).with_suffix("")
-            ).replace("\\", "/")
-            repair_file_frontmatter(
-                article_path, is_raw_import=False, relative_path=rel
-            )
+            rel = str(article_path.relative_to(self._structure.concepts_dir).with_suffix("")).replace("\\", "/")
+            repair_file_frontmatter(article_path, is_raw_import=False, relative_path=rel)
             logger.info("Repaired frontmatter type for %s", article_path.name)
             content = article_path.read_text(encoding="utf-8")
             await publish_concept_article(self._structure, self._indexer, rel, content)
@@ -370,9 +358,7 @@ class WikiLinter:
 
                 # Extract existing wikilinks to avoid duplicates
                 existing_links = set(re.findall(r"\[\[([^\]]+)\]\]", content))
-                existing_links_lower = {
-                    link.split("|")[0].strip().lower() for link in existing_links
-                }
+                existing_links_lower = {link.split("|")[0].strip().lower() for link in existing_links}
 
                 system_msg = SystemMessage(
                     content=(
@@ -406,10 +392,7 @@ class WikiLinter:
                 for link_name in suggested:
                     if not isinstance(link_name, str):
                         continue
-                    if (
-                        link_name.lower() in existing_links_lower
-                        or link_name.lower() == current_name.lower()
-                    ):
+                    if link_name.lower() in existing_links_lower or link_name.lower() == current_name.lower():
                         continue
                     # Verify concept exists
                     if link_name.lower() not in {n.lower() for n in concept_names}:
@@ -421,14 +404,8 @@ class WikiLinter:
                     logger.info(f"LLM discovered link: {current_name} -> {link_name}")
 
                 if article_modified:
-                    rel = str(
-                        concept_path.relative_to(
-                            self._structure.concepts_dir
-                        ).with_suffix("")
-                    ).replace("\\", "/")
-                    await publish_concept_article(
-                        self._structure, self._indexer, rel, content
-                    )
+                    rel = str(concept_path.relative_to(self._structure.concepts_dir).with_suffix("")).replace("\\", "/")
+                    await publish_concept_article(self._structure, self._indexer, rel, content)
 
             except Exception as e:
                 logger.warning(f"LLM link enrichment failed for {concept_path}: {e}")

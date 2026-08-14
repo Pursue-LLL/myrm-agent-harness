@@ -171,9 +171,7 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
 
         if pruned > 0:
             context.tokens_saved += tokens_saved
-            context.operations.append(
-                f"active_prune: replaced {pruned} tool results, saved ~{tokens_saved} tokens"
-            )
+            context.operations.append(f"active_prune: replaced {pruned} tool results, saved ~{tokens_saved} tokens")
             logger.info(
                 "[ActivePrune] pruned=%d saved=%d failures=%d",
                 pruned,

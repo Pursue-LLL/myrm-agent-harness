@@ -19,9 +19,7 @@ async def test_test_suite_junit_pass(executor, tmp_path):
         result_file=".wb_bench/results.xml",
     )
     scores: dict[str, float] = {}
-    passed, _ = await evaluate_sandbox_assertions(
-        [assertion], executor, scores_out=scores
-    )
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
     assert passed is True
     assert scores["pass_rate"] == 1.0
     assert scores["tests_total"] == 1.0
@@ -32,9 +30,7 @@ async def test_test_suite_junit_partial_fail(executor, tmp_path):
     """A pytest suite with failing tests is scored with the partial pass_rate."""
     tests_dir = tmp_path / ".wb_bench" / "tests"
     tests_dir.mkdir(parents=True)
-    (tests_dir / "test_app.py").write_text(
-        "def test_ok(): assert True\n\ndef test_bad(): assert False\n"
-    )
+    (tests_dir / "test_app.py").write_text("def test_ok(): assert True\n\ndef test_bad(): assert False\n")
 
     assertion = SandboxAssertion(
         type="test_suite",
@@ -42,9 +38,7 @@ async def test_test_suite_junit_partial_fail(executor, tmp_path):
         result_file=".wb_bench/results.xml",
     )
     scores: dict[str, float] = {}
-    passed, _ = await evaluate_sandbox_assertions(
-        [assertion], executor, scores_out=scores
-    )
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
     assert passed is False
     assert scores["pass_rate"] == 0.5
     assert scores["tests_passed"] == 1.0
@@ -59,9 +53,7 @@ async def test_test_suite_json_reward_pass(executor, tmp_path):
     (tests_dir / "scoring.py").write_text(
         "import json\njson.dump({'reward': 1.0}, open('.wb_bench/reward.json', 'w'))\n"
     )
-    (tests_dir / "test.sh").write_text(
-        "#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n"
-    )
+    (tests_dir / "test.sh").write_text("#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n")
 
     assertion = SandboxAssertion(
         type="test_suite",
@@ -69,9 +61,7 @@ async def test_test_suite_json_reward_pass(executor, tmp_path):
         result_file=".wb_bench/reward.json",
     )
     scores: dict[str, float] = {}
-    passed, _ = await evaluate_sandbox_assertions(
-        [assertion], executor, scores_out=scores
-    )
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
     assert passed is True
     assert scores["pass_rate"] == 1.0
 
@@ -132,9 +122,7 @@ async def test_test_suite_command_blocked_reports_block_error():
         target="WORKSPACE={workspace} python3 verifier.py",
         result_file="{workspace}/.wb_bench/logs/reward.txt",
     )
-    passed, details = await evaluate_sandbox_assertions(
-        [assertion], _BlockedExecutor()
-    )
+    passed, details = await evaluate_sandbox_assertions([assertion], _BlockedExecutor())
     assert passed is False
     assert "blocked" in details
     assert "unreadable" not in details
@@ -174,9 +162,7 @@ async def test_test_suite_timeout_includes_output_tail():
         target="WORKSPACE={workspace} python3 verifier.py",
         result_file="{workspace}/.wb_bench/logs/reward.txt",
     )
-    passed, details = await evaluate_sandbox_assertions(
-        [assertion], _TimeoutExecutor()
-    )
+    passed, details = await evaluate_sandbox_assertions([assertion], _TimeoutExecutor())
     assert passed is False
     assert "Timeout" in details
     assert "test_divide" in details
@@ -203,7 +189,7 @@ async def test_test_suite_nonzero_exit_without_result_file_includes_tail():
                 success=False,
                 exit_code=1,
                 stdout=(
-                    'Traceback (most recent call last):\n'
+                    "Traceback (most recent call last):\n"
                     '  File "scoring.py", line 12, in <module>\n'
                     "ValueError: unexpected reward shape"
                 ),
@@ -216,9 +202,7 @@ async def test_test_suite_nonzero_exit_without_result_file_includes_tail():
         type="test_suite",
         target="cd {workspace} && python3 scoring.py",
     )
-    passed, details = await evaluate_sandbox_assertions(
-        [assertion], _CrashExecutor()
-    )
+    passed, details = await evaluate_sandbox_assertions([assertion], _CrashExecutor())
     assert passed is False
     assert "non-zero exit" in details
     assert "ValueError: unexpected reward shape" in details
@@ -257,9 +241,7 @@ async def test_test_suite_junit_unreadable_includes_output_tail():
         target="cd {workspace} && python3 -m pytest --junitxml=results.xml",
         result_file="{workspace}/results.xml",
     )
-    passed, details = await evaluate_sandbox_assertions(
-        [assertion], _CollectCrashExecutor()
-    )
+    passed, details = await evaluate_sandbox_assertions([assertion], _CollectCrashExecutor())
     assert passed is False
     assert "unreadable" in details
     assert "No module named 'xlrd'" in details
@@ -280,7 +262,7 @@ async def test_test_suite_reward_unreadable_includes_output_tail():
                 success=False,
                 exit_code=1,
                 stdout=(
-                    'Traceback (most recent call last):\n'
+                    "Traceback (most recent call last):\n"
                     '  File "tests/scoring.py", line 20, in <module>\n'
                     "KeyError: 'tests_total'"
                 ),
@@ -294,9 +276,7 @@ async def test_test_suite_reward_unreadable_includes_output_tail():
         target="cd {workspace} && python3 tests/scoring.py",
         result_file="{workspace}/reward.json",
     )
-    passed, details = await evaluate_sandbox_assertions(
-        [assertion], _ScorerCrashExecutor()
-    )
+    passed, details = await evaluate_sandbox_assertions([assertion], _ScorerCrashExecutor())
     assert passed is False
     assert "unreadable" in details
     assert "KeyError: 'tests_total'" in details
@@ -310,9 +290,7 @@ async def test_test_suite_exit_code_success(executor):
         target="echo suite ok",
     )
     scores: dict[str, float] = {}
-    passed, _ = await evaluate_sandbox_assertions(
-        [assertion], executor, scores_out=scores
-    )
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
     assert passed is True
     assert scores["pass_rate"] == 1.0
 
@@ -325,9 +303,7 @@ async def test_test_suite_json_reward_partial_fail(executor, tmp_path):
     (tests_dir / "scoring.py").write_text(
         "import json\njson.dump({'reward': 0.5}, open('.wb_bench/reward.json', 'w'))\n"
     )
-    (tests_dir / "test.sh").write_text(
-        "#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n"
-    )
+    (tests_dir / "test.sh").write_text("#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n")
 
     assertion = SandboxAssertion(
         type="test_suite",
@@ -335,9 +311,7 @@ async def test_test_suite_json_reward_partial_fail(executor, tmp_path):
         result_file=".wb_bench/reward.json",
     )
     scores: dict[str, float] = {}
-    passed, _ = await evaluate_sandbox_assertions(
-        [assertion], executor, scores_out=scores
-    )
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
     assert passed is False
     assert scores["pass_rate"] == 0.5
 
@@ -348,13 +322,9 @@ async def test_test_suite_counts_only_reward_scored(executor, tmp_path):
     tests_dir = tmp_path / ".wb_bench" / "tests"
     tests_dir.mkdir(parents=True)
     (tests_dir / "scoring.py").write_text(
-        "import json\n"
-        "json.dump({'tests_passed': 8, 'tests_total': 10}, "
-        "open('.wb_bench/reward.json', 'w'))\n"
+        "import json\njson.dump({'tests_passed': 8, 'tests_total': 10}, open('.wb_bench/reward.json', 'w'))\n"
     )
-    (tests_dir / "test.sh").write_text(
-        "#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n"
-    )
+    (tests_dir / "test.sh").write_text("#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n")
 
     assertion = SandboxAssertion(
         type="test_suite",
@@ -362,9 +332,7 @@ async def test_test_suite_counts_only_reward_scored(executor, tmp_path):
         result_file=".wb_bench/reward.json",
     )
     scores: dict[str, float] = {}
-    passed, details = await evaluate_sandbox_assertions(
-        [assertion], executor, scores_out=scores
-    )
+    passed, details = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
     assert passed is False
     assert scores["pass_rate"] == 0.8
     assert scores["tests_total"] == 10.0
@@ -381,9 +349,7 @@ async def test_test_suite_reward_score_precedes_counts(executor, tmp_path):
         "json.dump({'reward': 0.9, 'tests_passed': 3, 'tests_total': 10}, "
         "open('.wb_bench/reward.json', 'w'))\n"
     )
-    (tests_dir / "test.sh").write_text(
-        "#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n"
-    )
+    (tests_dir / "test.sh").write_text("#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n")
 
     assertion = SandboxAssertion(
         type="test_suite",
@@ -391,9 +357,7 @@ async def test_test_suite_reward_score_precedes_counts(executor, tmp_path):
         result_file=".wb_bench/reward.json",
     )
     scores: dict[str, float] = {}
-    passed, _ = await evaluate_sandbox_assertions(
-        [assertion], executor, scores_out=scores
-    )
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
     assert passed is False
     assert scores["pass_rate"] == 0.9
 
@@ -419,9 +383,7 @@ async def test_test_suite_json_reward_no_field(executor, tmp_path):
     (tests_dir / "scoring.py").write_text(
         "import json\njson.dump({'message': 'ok'}, open('.wb_bench/reward.json', 'w'))\n"
     )
-    (tests_dir / "test.sh").write_text(
-        "#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n"
-    )
+    (tests_dir / "test.sh").write_text("#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n")
 
     assertion = SandboxAssertion(
         type="test_suite",
@@ -444,4 +406,3 @@ async def test_test_suite_junit_no_tests(executor, tmp_path):
     passed, details = await evaluate_sandbox_assertions([assertion], executor)
     assert passed is False
     assert "declares no tests" in details
-

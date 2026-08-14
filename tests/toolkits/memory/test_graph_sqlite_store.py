@@ -310,7 +310,7 @@ async def test_find_nodes_returns_newest_when_truncated(store: SQLiteGraphStore)
     for i in range(10):
         await conn.execute(
             "INSERT INTO graph_nodes (id, labels, properties, created_at) VALUES (?, ?, ?, ?)",
-            (f"n{i:02d}", '["Claim"]', f'{{"id":"n{i:02d}","seq":{i}}}', f"2025-01-{i+1:02d}T00:00:00"),
+            (f"n{i:02d}", '["Claim"]', f'{{"id":"n{i:02d}","seq":{i}}}', f"2025-01-{i + 1:02d}T00:00:00"),
         )
     await conn.commit()
 

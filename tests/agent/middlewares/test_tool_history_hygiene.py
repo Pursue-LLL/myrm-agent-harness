@@ -20,16 +20,12 @@ class TestDedupToolMessages:
             HumanMessage(content="store memory"),
             AIMessage(
                 content="",
-                tool_calls=[
-                    {"id": "memory_store:0", "name": "memory_store", "args": {"k": "a"}}
-                ],
+                tool_calls=[{"id": "memory_store:0", "name": "memory_store", "args": {"k": "a"}}],
             ),
             ToolMessage(content="stored a", tool_call_id="memory_store:0", name="memory_store"),
             AIMessage(
                 content="",
-                tool_calls=[
-                    {"id": "memory_store:0", "name": "memory_store", "args": {"k": "b"}}
-                ],
+                tool_calls=[{"id": "memory_store:0", "name": "memory_store", "args": {"k": "b"}}],
             ),
             ToolMessage(content="stored b", tool_call_id="memory_store:0", name="memory_store"),
         ]
@@ -149,7 +145,6 @@ class TestCrossTurnUniquify:
         ]
         assert _uniquify_cross_turn_tool_call_ids(messages) is None
 
-
     def test_third_occurrence_gets_suffix_at3(self) -> None:
         messages: list[BaseMessage] = []
         for turn in range(3):
@@ -159,17 +154,10 @@ class TestCrossTurnUniquify:
                     tool_calls=[{"id": "call_x", "name": "grep_tool", "args": {}}],
                 )
             )
-            messages.append(
-                ToolMessage(content=f"r{turn}", tool_call_id="call_x", name="grep_tool")
-            )
+            messages.append(ToolMessage(content=f"r{turn}", tool_call_id="call_x", name="grep_tool"))
         sanitized = sanitize_tool_history(messages)
-        ai_ids = [
-            m.tool_calls[0]["id"]
-            for m in sanitized
-            if isinstance(m, AIMessage) and m.tool_calls
-        ]
+        ai_ids = [m.tool_calls[0]["id"] for m in sanitized if isinstance(m, AIMessage) and m.tool_calls]
         assert ai_ids == ["call_x", "call_x@2", "call_x@3"]
-
 
     def test_cross_turn_reid_via_invalid_tool_calls(self) -> None:
         messages = [
@@ -186,9 +174,7 @@ class TestCrossTurnUniquify:
         ]
         sanitized = sanitize_tool_history(messages)
         invalid_ids = [
-            m.invalid_tool_calls[0]["id"]
-            for m in sanitized
-            if isinstance(m, AIMessage) and m.invalid_tool_calls
+            m.invalid_tool_calls[0]["id"] for m in sanitized if isinstance(m, AIMessage) and m.invalid_tool_calls
         ]
         assert invalid_ids == ["bad:0", "bad:0@2"]
         tool_messages = [m for m in sanitized if isinstance(m, ToolMessage)]
@@ -200,20 +186,12 @@ class TestCrossTurnUniquify:
         messages = [
             AIMessage(
                 content="",
-                additional_kwargs={
-                    "tool_calls": [
-                        {"id": "raw:0", "function": {"name": "a", "arguments": "{}"}}
-                    ]
-                },
+                additional_kwargs={"tool_calls": [{"id": "raw:0", "function": {"name": "a", "arguments": "{}"}}]},
             ),
             ToolMessage(content="r1", tool_call_id="raw:0", name="a"),
             AIMessage(
                 content="",
-                additional_kwargs={
-                    "tool_calls": [
-                        {"id": "raw:0", "function": {"name": "b", "arguments": "{}"}}
-                    ]
-                },
+                additional_kwargs={"tool_calls": [{"id": "raw:0", "function": {"name": "b", "arguments": "{}"}}]},
             ),
             ToolMessage(content="r2", tool_call_id="raw:0", name="b"),
         ]
@@ -283,11 +261,7 @@ class TestToolHistoryHygieneMiddleware:
 
         request.override.assert_called_once()
         passed_messages = request.override.call_args.kwargs["messages"]
-        ai_ids = [
-            m.tool_calls[0]["id"]
-            for m in passed_messages
-            if isinstance(m, AIMessage) and m.tool_calls
-        ]
+        ai_ids = [m.tool_calls[0]["id"] for m in passed_messages if isinstance(m, AIMessage) and m.tool_calls]
         assert ai_ids == ["call_x", "call_x@2"]
         handler.assert_awaited_once_with(overridden)
         assert result == "ok"

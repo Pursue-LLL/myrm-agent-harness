@@ -136,7 +136,6 @@ def test_multiple_meters():
     counter1.add(1)
     counter2.add(2)
 
-
     def test_get_meter_provider():
         """Test getting MeterProvider instance."""
         from myrm_agent_harness.infra.tracing.metrics.exporter import get_meter_provider

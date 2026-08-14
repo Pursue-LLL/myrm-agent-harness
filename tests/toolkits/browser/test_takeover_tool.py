@@ -61,10 +61,7 @@ class TestCreateTakeoverTool:
         )
 
         tool = create_takeover_tool(mock_session)
-        assert (
-            "take over" in tool.description.lower()
-            or "takeover" in tool.description.lower()
-        )
+        assert "take over" in tool.description.lower() or "takeover" in tool.description.lower()
 
     def test_tool_has_reason_arg(self, mock_session):
         from myrm_agent_harness.toolkits.browser.tools.takeover import (
@@ -94,9 +91,7 @@ class TestTakeoverToolNoPage:
             create_takeover_tool,
         )
 
-        mock_session_no_page._tab_controller.list_tabs = MagicMock(
-            side_effect=RuntimeError("tabs unavailable")
-        )
+        mock_session_no_page._tab_controller.list_tabs = MagicMock(side_effect=RuntimeError("tabs unavailable"))
         tool = create_takeover_tool(mock_session_no_page)
         result = asyncio.run(tool.ainvoke({"reason": "test"}))
         assert "Error" in result
@@ -183,9 +178,7 @@ class TestTakeoverToolInterruptFlow:
                 "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
                 new_callable=AsyncMock,
             ),
-            patch(
-                "langgraph.types.interrupt", return_value={"message": "Payment done"}
-            ),
+            patch("langgraph.types.interrupt", return_value={"message": "Payment done"}),
         ):
             result = asyncio.run(tool.ainvoke({"reason": "Complete payment"}))
             assert "Payment done" in result
@@ -198,9 +191,7 @@ class TestTakeoverToolInterruptFlow:
 
         tool = create_takeover_tool(mock_session)
         type(mock_session.page).url = property(
-            lambda self, _urls=iter(
-                ["https://example.com/checkout", "https://example.com/thank-you"]
-            ): next(_urls)
+            lambda self, _urls=iter(["https://example.com/checkout", "https://example.com/thank-you"]): next(_urls)
         )
 
         with (
@@ -266,9 +257,7 @@ class TestTakeoverToolRedaction:
             ),
             patch("langgraph.types.interrupt", return_value="done"),
         ):
-            result = asyncio.run(
-                tool.ainvoke({"reason": "Please complete OAuth login"})
-            )
+            result = asyncio.run(tool.ainvoke({"reason": "Please complete OAuth login"}))
 
         assert post_url not in result
         assert "4d3f9c2a1b8e7f6d5c4b3a2" not in result
@@ -361,9 +350,7 @@ class TestTakeoverToolRedaction:
 
         tool = create_takeover_tool(session)
 
-        takeover_logger = logging.getLogger(
-            "myrm_agent_harness.toolkits.browser.tools.takeover"
-        )
+        takeover_logger = logging.getLogger("myrm_agent_harness.toolkits.browser.tools.takeover")
         takeover_logger.setLevel(logging.INFO)
         with (
             caplog.at_level(logging.INFO, logger=takeover_logger.name),
@@ -403,9 +390,7 @@ class TestTakeoverToolScreenshotFailure:
             payload = first_call[0][1]
             assert payload["screenshot_base64"] is None
 
-    def test_resolves_page_via_tab_controller_when_session_page_missing(
-        self, mock_session_no_page
-    ):
+    def test_resolves_page_via_tab_controller_when_session_page_missing(self, mock_session_no_page):
         from myrm_agent_harness.toolkits.browser.tools.takeover import (
             create_takeover_tool,
         )
@@ -414,12 +399,8 @@ class TestTakeoverToolScreenshotFailure:
         page.is_closed = MagicMock(return_value=False)
         page.url = "https://bank.example/login"
         page.screenshot = AsyncMock(return_value=b"\xff\xd8\xff\xe0fake_jpeg")
-        mock_session_no_page._tab_controller.list_tabs = MagicMock(
-            return_value=["tab-1"]
-        )
-        mock_session_no_page._tab_controller.get_active_page = MagicMock(
-            return_value=page
-        )
+        mock_session_no_page._tab_controller.list_tabs = MagicMock(return_value=["tab-1"])
+        mock_session_no_page._tab_controller.get_active_page = MagicMock(return_value=page)
         mock_session_no_page.is_browser_managed = MagicMock(return_value=False)
 
         tool = create_takeover_tool(mock_session_no_page)
@@ -472,9 +453,7 @@ class TestTakeoverToolScreenshotFailure:
             create_takeover_tool,
         )
 
-        type(mock_session.page).url = property(
-            lambda _self: (_ for _ in ()).throw(RuntimeError("url unavailable"))
-        )
+        type(mock_session.page).url = property(lambda _self: (_ for _ in ()).throw(RuntimeError("url unavailable")))
         tool = create_takeover_tool(mock_session)
 
         with (

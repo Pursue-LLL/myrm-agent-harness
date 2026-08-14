@@ -190,9 +190,7 @@ class SkillAgent(
         self._on_skill_review_ready = on_skill_review_ready
         self._embedding_config: EmbeddingConfig | None = embedding_config
         self._default_skill_instances = default_skill_instances or {}
-        self._trusted_skill_ids: frozenset[str] = (
-            frozenset(trusted_skill_ids) if trusted_skill_ids else frozenset()
-        )
+        self._trusted_skill_ids: frozenset[str] = frozenset(trusted_skill_ids) if trusted_skill_ids else frozenset()
         self._skill_env_map = skill_env_map
         self._desired_skill_ids: list[str] | None = desired_skill_ids
         self._similarity_checker: SkillSimilarityChecker | None = similarity_checker
@@ -230,9 +228,7 @@ class SkillAgent(
 
         skills: list[SkillMetadata] = []
         try:
-            if self._desired_skill_ids is not None and hasattr(
-                self.skill_backend, "load_skills"
-            ):
+            if self._desired_skill_ids is not None and hasattr(self.skill_backend, "load_skills"):
                 skills = await self.skill_backend.load_skills(self._desired_skill_ids)
                 # Runtime MCP skills are request-scoped; union them even when
                 # desired_skill_ids filters the user/prebuilt catalog.
@@ -244,11 +240,7 @@ class SkillAgent(
                         list_exc,
                     )
                     all_skills = []
-                mcp_skills = [
-                    skill
-                    for skill in all_skills
-                    if getattr(skill, "is_mcp_skill", False)
-                ]
+                mcp_skills = [skill for skill in all_skills if getattr(skill, "is_mcp_skill", False)]
                 if mcp_skills:
                     by_name = {skill.name: skill for skill in skills}
                     for mcp_skill in mcp_skills:
@@ -273,10 +265,7 @@ class SkillAgent(
 
                 for skill in skills:
                     sid = skill.storage_skill_id or skill.name
-                    if (
-                        sid in self._trusted_skill_ids
-                        and skill.trust < SkillTrust.TRUSTED
-                    ):
+                    if sid in self._trusted_skill_ids and skill.trust < SkillTrust.TRUSTED:
                         skill.trust = SkillTrust.TRUSTED
         except Exception as e:
             logger.warning("Failed to load skills from skill_backend: %s", e)
@@ -284,9 +273,7 @@ class SkillAgent(
 
         return skills
 
-    async def load_skill_instance(
-        self, skill_name: str, instance_name: str
-    ) -> "SkillInstance":
+    async def load_skill_instance(self, skill_name: str, instance_name: str) -> "SkillInstance":
         """Load a skill instance with configuration and state.
 
         Provides programmatic access to multi-instance skill support. Combines:
@@ -317,9 +304,7 @@ class SkillAgent(
             >>> token = instance.get_env("GITHUB_TOKEN")
         """
         if self.state_manager is None:
-            raise ValueError(
-                "state_manager not configured. Pass SkillStateManager to SkillAgent.__init__"
-            )
+            raise ValueError("state_manager not configured. Pass SkillStateManager to SkillAgent.__init__")
 
         if self.skill_backend is None:
             raise ValueError("skill_backend not configured")
@@ -368,9 +353,7 @@ class SkillAgent(
         """流式运行 Agent(覆盖 BaseAgent),增加 Hook 生命周期和记忆会话管理."""
         preloaded_skills: list[SkillMetadata] = []
         if active_skill is None and isinstance(query, str):
-            query, active_skill, preloaded_skills = await self._preload_explicit_skill(
-                query
-            )
+            query, active_skill, preloaded_skills = await self._preload_explicit_skill(query)
 
         from myrm_agent_harness.backends.skills.usage_recorder import (
             reset_turn_usage_dedupe,
@@ -401,11 +384,7 @@ class SkillAgent(
         for skill_meta in preloaded_skills:
             if not any(s.name == skill_meta.name for s in get_loaded_skills()):
                 add_loaded_skill(skill_meta)
-        if (
-            active_skill
-            and not preloaded_skills
-            and not any(s.name == active_skill.name for s in get_loaded_skills())
-        ):
+        if active_skill and not preloaded_skills and not any(s.name == active_skill.name for s in get_loaded_skills()):
             add_loaded_skill(active_skill)
         await self._init_hook_lifecycle(active_skill, message_id, query)
         self._begin_memory_session(context, message_id)
@@ -438,12 +417,8 @@ class SkillAgent(
                     run_chat_id = str(raw_chat_id)
 
             # Create a background task for cleanup to ensure zero blocking of the UI thread
-            async def _background_cleanup(
-                active_skills: list[str], chat_id: str | None
-            ) -> None:
-                logger.info(
-                    "_background_cleanup executing for skills: %s", active_skills
-                )
+            async def _background_cleanup(active_skills: list[str], chat_id: str | None) -> None:
+                logger.info("_background_cleanup executing for skills: %s", active_skills)
                 try:
                     await self._cleanup_session(
                         query,
@@ -453,14 +428,10 @@ class SkillAgent(
                         run_chat_id=chat_id,
                     )
                 except Exception as e:
-                    logger.error(
-                        "Background session cleanup failed: %s", e, exc_info=True
-                    )
+                    logger.error("Background session cleanup failed: %s", e, exc_info=True)
 
             logger.info("Creating _background_cleanup task")
-            task = asyncio.create_task(
-                _background_cleanup(active_skills_list, run_chat_id)
-            )
+            task = asyncio.create_task(_background_cleanup(active_skills_list, run_chat_id))
             track_background_task(task)
 
             try:
@@ -468,9 +439,7 @@ class SkillAgent(
                 set_memory_manager(None)
                 reset_loaded_skills()
             except Exception as ctx_error:
-                logger.error(
-                    "Error cleaning up ContextVar: %s", ctx_error, exc_info=True
-                )
+                logger.error("Error cleaning up ContextVar: %s", ctx_error, exc_info=True)
 
     async def _init_hook_lifecycle(
         self,
@@ -496,10 +465,7 @@ class SkillAgent(
                 registry.register(event, hook_def)
 
         # Only register broadcaster if it's not already registered
-        if not any(
-            h.fn.__name__ == "on_pre_tool_use"
-            for h in registry._hooks.get("pre_tool_use", [])
-        ):
+        if not any(h.fn.__name__ == "on_pre_tool_use" for h in registry._hooks.get("pre_tool_use", [])):
             register_to_hook_registry(registry, get_event_logger())
 
         # Register evolution sliding window hooks if integration is active
@@ -521,8 +487,7 @@ class SkillAgent(
         )
 
         if not any(
-            getattr(h, "fn", None)
-            and getattr(h.fn, "__name__", "") == "on_approval_correction"
+            getattr(h, "fn", None) and getattr(h.fn, "__name__", "") == "on_approval_correction"
             for h in registry._hooks.get(HookEvent.APPROVAL_CORRECTION, [])
         ):
             correction_hook = CorrectionLearningHook()
@@ -532,17 +497,11 @@ class SkillAgent(
             )
 
         if skill and skill.hooks:
-            logger.info(
-                "Hooks activated: %s (%d hooks)", skill.name, registry.total_count
-            )
+            logger.info("Hooks activated: %s (%d hooks)", skill.name, registry.total_count)
         else:
-            logger.debug(
-                " Framework-level hooks activated (%d hooks)", registry.total_count
-            )
+            logger.debug(" Framework-level hooks activated (%d hooks)", registry.total_count)
 
-    def _begin_memory_session(
-        self, context: dict[str, object] | None, message_id: str | None
-    ) -> None:
+    def _begin_memory_session(self, context: dict[str, object] | None, message_id: str | None) -> None:
         if self.memory_manager is not None:
             chat_id = str((context or {}).get("chat_id", message_id or "default"))
             from myrm_agent_harness.agent.hooks import get_hook_executor

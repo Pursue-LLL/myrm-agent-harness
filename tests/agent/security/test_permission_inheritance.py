@@ -77,14 +77,10 @@ async def test_openapi_executor_credential_injection() -> None:
     user_credentials_ctx.set((cred1,))
 
     auth_cfg = AuthConfig(type=AuthType.NONE)
-    executor = OpenAPIExecutor(
-        base_url="https://api.jira.com", auth_config=auth_cfg, service_name="jira"
-    )
+    executor = OpenAPIExecutor(base_url="https://api.jira.com", auth_config=auth_cfg, service_name="jira")
 
     # `execute` 走 secure_request（SSRF shield 封装），patch 该封装而非 httpx 内部方法
-    with patch(
-        "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request"
-    ) as mock_sr:
+    with patch("myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request") as mock_sr:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.text = '{"status": "ok"}'
@@ -105,9 +101,7 @@ async def test_openapi_executor_credential_injection() -> None:
 @pytest.mark.asyncio
 async def test_openapi_executor_preemptive_refresh() -> None:
     """Verify OpenAPIExecutor preemptively triggers refresh callback on expired/expiring tokens."""
-    refreshed_cred = EphemeralUserCredential(
-        issuer="github", token="gh_fresh_token", expires_at=time.time() + 3600
-    )
+    refreshed_cred = EphemeralUserCredential(issuer="github", token="gh_fresh_token", expires_at=time.time() + 3600)
     mock_refresh_callback = AsyncMock(return_value=refreshed_cred)
 
     # Credential expiring in 1 minute (less than 5 minutes threshold)
@@ -120,13 +114,9 @@ async def test_openapi_executor_preemptive_refresh() -> None:
     user_credentials_ctx.set((expiring_cred,))
 
     auth_cfg = AuthConfig(type=AuthType.NONE)
-    executor = OpenAPIExecutor(
-        base_url="https://api.github.com", auth_config=auth_cfg, service_name="github"
-    )
+    executor = OpenAPIExecutor(base_url="https://api.github.com", auth_config=auth_cfg, service_name="github")
 
-    with patch(
-        "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request"
-    ) as mock_sr:
+    with patch("myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request") as mock_sr:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.text = '{"status": "ok"}'
@@ -157,13 +147,9 @@ async def test_openapi_executor_reactive_401_refresh() -> None:
     user_credentials_ctx.set((active_cred,))
 
     auth_cfg = AuthConfig(type=AuthType.NONE)
-    executor = OpenAPIExecutor(
-        base_url="https://api.feishu.cn", auth_config=auth_cfg, service_name="feishu"
-    )
+    executor = OpenAPIExecutor(base_url="https://api.feishu.cn", auth_config=auth_cfg, service_name="feishu")
 
-    with patch(
-        "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request"
-    ) as mock_sr:
+    with patch("myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request") as mock_sr:
         # First call returns 401, second returns 200
         mock_resp_401 = MagicMock()
         mock_resp_401.status_code = 401

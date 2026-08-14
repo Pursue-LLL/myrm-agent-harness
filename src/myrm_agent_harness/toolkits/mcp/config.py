@@ -97,10 +97,10 @@ class MCPConfig(BaseModel):
                 data["type"] = "streamable_http" if "/mcp" in url else "sse"
             else:
                 raise ValueError(
-                    f"MCPConfig '{data.get('name', '?')}': "
-                    "cannot infer 'type' — provide 'type', 'command', or 'url'"
+                    f"MCPConfig '{data.get('name', '?')}': cannot infer 'type' — provide 'type', 'command', or 'url'"
                 )
         return data
+
     args: list[str] | None = Field(default=None, description="Arguments for stdio connections")
     description: str = Field(
         default="",

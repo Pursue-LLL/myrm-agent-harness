@@ -37,6 +37,7 @@ class _StubLLM:
 
     async def ainvoke(self, messages: list[object], config: object = None) -> object:
         from langchain_core.messages import AIMessage
+
         return AIMessage(content="stub")
 
 
@@ -144,9 +145,7 @@ async def test_budget_exceeded_real_pipeline_returns_partial(
     assert "Budget exceeded" in result.error
 
 
-async def test_error_event_real_pipeline_returns_partial(
-    executor: SubagentExecutor, parent_agent: BaseAgent
-) -> None:
+async def test_error_event_real_pipeline_returns_partial(executor: SubagentExecutor, parent_agent: BaseAgent) -> None:
     """ERROR event triggers MyrmLLMError with partial_output.
 
     Verifies: ERROR event → MyrmLLMError(partial_output=messages) → retry mixin
@@ -187,9 +186,7 @@ async def test_error_event_real_pipeline_returns_partial(
     assert "rate limit" in result.error.lower() or "Subagent error" in result.error
 
 
-async def test_runtime_error_real_pipeline_returns_partial(
-    executor: SubagentExecutor, parent_agent: BaseAgent
-) -> None:
+async def test_runtime_error_real_pipeline_returns_partial(executor: SubagentExecutor, parent_agent: BaseAgent) -> None:
     """RuntimeError during streaming → partial_output attached → SubAgentResult.
 
     Verifies: RuntimeError mid-stream → except Exception → partial_output = messages
@@ -230,9 +227,7 @@ async def test_runtime_error_real_pipeline_returns_partial(
     assert "RuntimeError" in result.error
 
 
-async def test_truncation_real_pipeline(
-    executor: SubagentExecutor, parent_agent: BaseAgent
-) -> None:
+async def test_truncation_real_pipeline(executor: SubagentExecutor, parent_agent: BaseAgent) -> None:
     """Oversized partial output is truncated by retry mixin (real path)."""
     config = SubagentConfig(
         system_prompt="writer",
@@ -277,9 +272,7 @@ async def test_truncation_real_pipeline(
     assert len(result.result) == 100 + len("\n…[truncated]")
 
 
-async def test_hook_fired_real_pipeline(
-    executor: SubagentExecutor, parent_agent: BaseAgent
-) -> None:
+async def test_hook_fired_real_pipeline(executor: SubagentExecutor, parent_agent: BaseAgent) -> None:
     """SUBAGENT_STOP hook fires through real code path on budget exceeded."""
     config = SubagentConfig(
         system_prompt="helper",
@@ -296,12 +289,15 @@ async def test_hook_fired_real_pipeline(
     async def capture_hook(event: object, payload: dict[str, object]) -> None:
         hook_calls.append((event, payload))
 
-    with patch(
-        "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
-        return_value=child,
-    ), patch(
-        "myrm_agent_harness.agent.hooks.executor.fire_hook",
-        side_effect=capture_hook,
+    with (
+        patch(
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=child,
+        ),
+        patch(
+            "myrm_agent_harness.agent.hooks.executor.fire_hook",
+            side_effect=capture_hook,
+        ),
     ):
         result = await executor.run_with_retry(
             task_id="integration-hook",
@@ -325,9 +321,7 @@ async def test_hook_fired_real_pipeline(
     assert stop_payload["success"] is False
 
 
-async def test_timeout_error_real_pipeline_returns_partial(
-    executor: SubagentExecutor, parent_agent: BaseAgent
-) -> None:
+async def test_timeout_error_real_pipeline_returns_partial(executor: SubagentExecutor, parent_agent: BaseAgent) -> None:
     """TimeoutError from child_agent.run() → partial_output attached → SubAgentResult.
 
     Real EventForwarder is created; the timeout happens during iteration.
@@ -376,9 +370,7 @@ async def test_timeout_error_real_pipeline_returns_partial(
     assert "Timeout" in result.error
 
 
-async def test_retry_success_after_failure_no_partial_leak(
-    executor: SubagentExecutor, parent_agent: BaseAgent
-) -> None:
+async def test_retry_success_after_failure_no_partial_leak(executor: SubagentExecutor, parent_agent: BaseAgent) -> None:
     """First attempt fails with partial, retry succeeds → clean success result."""
     config = SubagentConfig(
         system_prompt="resilient",

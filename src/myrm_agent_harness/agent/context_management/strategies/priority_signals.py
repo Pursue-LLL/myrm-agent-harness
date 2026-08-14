@@ -76,9 +76,7 @@ def adjust_group_priority(
     return base_priority
 
 
-def group_matches_focus_signals(
-    group: object, *, focus_files: frozenset[str], focus_modules: frozenset[str]
-) -> bool:
+def group_matches_focus_signals(group: object, *, focus_files: frozenset[str], focus_modules: frozenset[str]) -> bool:
     """Return True when a tool-call group references focus file/module signals."""
     return _group_matches_focus_signals(group, focus_files=focus_files, focus_modules=focus_modules)
 

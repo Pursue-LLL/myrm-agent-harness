@@ -88,7 +88,9 @@ async def test_search_claim_graph_namespace_pre_filtering():
     )
 
     graph.find_nodes.assert_called_once_with(
-        ["Claim"], {"primary_namespace": "work"}, limit=500,
+        ["Claim"],
+        {"primary_namespace": "work"},
+        limit=500,
     )
     assert len(results) == 1
     assert results[0].id == "n1"
@@ -168,7 +170,11 @@ async def test_search_claim_graph_candidate_limit_calculation():
     graph.find_nodes.return_value = []
 
     await _search_claim_graph(
-        graph, query="test query", current_channel_id="ch1", namespaces=["test"], limit=10,
+        graph,
+        query="test query",
+        current_channel_id="ch1",
+        namespaces=["test"],
+        limit=10,
     )
     call_kwargs = graph.find_nodes.call_args
     assert call_kwargs[1]["limit"] == 500  # max(10*8=80, 500) = 500
@@ -176,7 +182,11 @@ async def test_search_claim_graph_candidate_limit_calculation():
     graph.reset_mock()
     graph.find_nodes.return_value = []
     await _search_claim_graph(
-        graph, query="test query", current_channel_id="ch1", namespaces=["test"], limit=100,
+        graph,
+        query="test query",
+        current_channel_id="ch1",
+        namespaces=["test"],
+        limit=100,
     )
     call_kwargs = graph.find_nodes.call_args
     assert call_kwargs[1]["limit"] == 800  # max(100*8=800, 500) = 800
@@ -267,11 +277,19 @@ async def test_search_claim_graph_mixed_cjk_english():
     ]
 
     results_en = await _search_claim_graph(
-        graph, query="nginx", current_channel_id="ch1", namespaces=["test"], limit=10,
+        graph,
+        query="nginx",
+        current_channel_id="ch1",
+        namespaces=["test"],
+        limit=10,
     )
     assert len(results_en) == 1
 
     results_cn = await _search_claim_graph(
-        graph, query="配置代理", current_channel_id="ch1", namespaces=["test"], limit=10,
+        graph,
+        query="配置代理",
+        current_channel_id="ch1",
+        namespaces=["test"],
+        limit=10,
     )
     assert len(results_cn) == 1

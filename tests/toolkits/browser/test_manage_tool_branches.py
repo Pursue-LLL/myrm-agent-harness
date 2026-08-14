@@ -126,6 +126,7 @@ class TestRecordingActions:
     async def test_trace_start(self, manage_tool) -> None:
         result = await manage_tool.ainvoke({"action": "trace_start"})
         assert "trace started" in result
+
     @pytest.mark.asyncio
     async def test_trace_stop(self, manage_tool) -> None:
         result = await manage_tool.ainvoke({"action": "trace_stop"})
@@ -240,10 +241,12 @@ class TestSiteExperienceActions:
         mock_store.save_experience = MagicMock(return_value=mock_exp)
 
         with patch(_SITE_EXP_STORE, return_value=mock_store):
-            result = await manage_tool.ainvoke({
-                "action": "save_site_experience",
-                "value": '{"domain":"example.com","known_traps":["login wall"]}',
-            })
+            result = await manage_tool.ainvoke(
+                {
+                    "action": "save_site_experience",
+                    "value": '{"domain":"example.com","known_traps":["login wall"]}',
+                }
+            )
             assert "saved experience" in result
 
     @pytest.mark.asyncio
@@ -327,9 +330,7 @@ class TestEmulateAction:
     @pytest.mark.asyncio
     async def test_emulate_success(self) -> None:
         session = MagicMock()
-        session.emulate_device = AsyncMock(
-            return_value="Emulated 'iPhone 15 Pro' (393x659 @ 3.0x, mobile UA + touch)."
-        )
+        session.emulate_device = AsyncMock(return_value="Emulated 'iPhone 15 Pro' (393x659 @ 3.0x, mobile UA + touch).")
         tool = create_manage_tool(session)
 
         result = await tool.ainvoke({"action": "emulate", "value": "iPhone 15 Pro"})
@@ -338,9 +339,7 @@ class TestEmulateAction:
     @pytest.mark.asyncio
     async def test_emulate_empty_value_lists_devices(self) -> None:
         session = MagicMock()
-        session.list_emulatable_devices = MagicMock(
-            return_value=["iPhone 15 Pro", "Pixel 8"]
-        )
+        session.list_emulatable_devices = MagicMock(return_value=["iPhone 15 Pro", "Pixel 8"])
         tool = create_manage_tool(session)
 
         result = await tool.ainvoke({"action": "emulate", "value": ""})

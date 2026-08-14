@@ -76,10 +76,13 @@ async def test_volcengine_search_raises_on_api_error_code() -> None:
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
     mock_http.__aexit__ = AsyncMock(return_value=None)
 
-    with patch(
-        "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
-        return_value=mock_http,
-    ), pytest.raises(SearchAPIError, match="10406"):
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            return_value=mock_http,
+        ),
+        pytest.raises(SearchAPIError, match="10406"),
+    ):
         await client.search("quota test", num_results=1)
 
 
@@ -94,10 +97,13 @@ async def test_volcengine_search_raises_on_http_429() -> None:
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
     mock_http.__aexit__ = AsyncMock(return_value=None)
 
-    with patch(
-        "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
-        return_value=mock_http,
-    ), pytest.raises(SearchAPIError, match="429"):
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            return_value=mock_http,
+        ),
+        pytest.raises(SearchAPIError, match="429"),
+    ):
         await client.search("rate limit test", num_results=1)
 
 
@@ -132,10 +138,13 @@ async def test_volcengine_search_timeout_raises() -> None:
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
     mock_http.__aexit__ = AsyncMock(return_value=None)
 
-    with patch(
-        "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
-        return_value=mock_http,
-    ), pytest.raises(SearchAPIError, match="timed out"):
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            return_value=mock_http,
+        ),
+        pytest.raises(SearchAPIError, match="timed out"),
+    ):
         await client.search("timeout test", num_results=1)
 
 
@@ -147,10 +156,13 @@ async def test_volcengine_search_http_error_raises() -> None:
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
     mock_http.__aexit__ = AsyncMock(return_value=None)
 
-    with patch(
-        "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
-        return_value=mock_http,
-    ), pytest.raises(SearchAPIError, match="HTTP error"):
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            return_value=mock_http,
+        ),
+        pytest.raises(SearchAPIError, match="HTTP error"),
+    ):
         await client.search("connect test", num_results=1)
 
 
@@ -164,10 +176,13 @@ async def test_volcengine_search_http_500_raises() -> None:
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
     mock_http.__aexit__ = AsyncMock(return_value=None)
 
-    with patch(
-        "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
-        return_value=mock_http,
-    ), pytest.raises(SearchAPIError, match="HTTP 500"):
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            return_value=mock_http,
+        ),
+        pytest.raises(SearchAPIError, match="HTTP 500"),
+    ):
         await client.search("server error", num_results=1)
 
 
@@ -181,10 +196,13 @@ async def test_volcengine_search_invalid_json_raises() -> None:
     mock_http.__aenter__ = AsyncMock(return_value=mock_http)
     mock_http.__aexit__ = AsyncMock(return_value=None)
 
-    with patch(
-        "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
-        return_value=mock_http,
-    ), pytest.raises(SearchAPIError, match="invalid JSON"):
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            return_value=mock_http,
+        ),
+        pytest.raises(SearchAPIError, match="invalid JSON"),
+    ):
         await client.search("bad json", num_results=1)
 
 

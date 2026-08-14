@@ -380,12 +380,14 @@ class TestPhaseInferenceHighCallCount:
             g.record_result("bash_code_execute_tool", {"cmd": f"echo {i}"}, "ok")
         g._metrics.total_calls = 55
         for _ in range(5):
-            g._window.append(CallRecord(
-                tool_name="bash_code_execute_tool",
-                args_hash="final",
-                args={"cmd": "final"},
-                success_level=SuccessLevel.FULL_SUCCESS,
-            ))
+            g._window.append(
+                CallRecord(
+                    tool_name="bash_code_execute_tool",
+                    args_hash="final",
+                    args={"cmd": "final"},
+                    success_level=SuccessLevel.FULL_SUCCESS,
+                )
+            )
         phase = g._infer_phase()
         assert phase == AgentPhase.EXECUTION
 

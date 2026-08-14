@@ -104,9 +104,7 @@ def test_filter_report_to_files_preserves_global_registry() -> None:
 def test_format_report_pass_path(monkeypatch: pytest.MonkeyPatch) -> None:
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0}
-    )
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0})
     report = ScanReport(declarations=[_decl("foo")], registered_names={"foo"})
     out = _format_report(report)
     assert "PASS - tool registry consistent" in out
@@ -117,16 +115,10 @@ def test_format_report_reports_missing_with_owner_metadata(
 ) -> None:
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0}
-    )
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0})
     src_file = _repo_root / "scripts" / "tool_registry_models.py"
     report = ScanReport(
-        declarations=[
-            ToolDeclaration(
-                name="never_registered", kind="decorator", file=src_file, line=10
-            )
-        ],
+        declarations=[ToolDeclaration(name="never_registered", kind="decorator", file=src_file, line=10)],
         registered_names=set(),
     )
     out = _format_report(report)
@@ -140,9 +132,7 @@ def test_format_report_incremental_suppresses_ghost_and_orphan(
     misleading false positives — they must be silently suppressed."""
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0}
-    )
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0})
     report = ScanReport(
         declarations=[_decl("foo")],
         registered_names={"foo", "ghost_tool"},
@@ -162,9 +152,7 @@ def test_format_report_reports_ghosts_and_orphans_and_duplicates(
     """Full mode emits the FAIL block for every category that has findings."""
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0}
-    )
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0})
     src_a = _repo_root / "scripts" / "tool_registry_engine.py"
     src_b = _repo_root / "scripts" / "tool_registry_models.py"
     report = ScanReport(
@@ -183,9 +171,7 @@ def test_format_report_reports_ghosts_and_orphans_and_duplicates(
     assert "FAIL" in out
 
 
-def _run_main(
-    monkeypatch: pytest.MonkeyPatch, argv: list[str], **scan_kwargs: object
-) -> tuple[int, str, str]:
+def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str], **scan_kwargs: object) -> tuple[int, str, str]:
     """Drive `main()` with synthetic argv and a stubbed `scan()`."""
     import scripts.validate_tool_registry as cli
 
@@ -198,9 +184,7 @@ def _run_main(
         return fake_report  # type: ignore[return-value]
 
     monkeypatch.setattr(cli, "scan", _fake_scan)
-    monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0}
-    )
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0})
     # main() compares real TOOL_* maps against the stubbed scan report; isolate metadata.
     monkeypatch.setattr(
         cli,
@@ -239,9 +223,7 @@ def test_main_incremental_runs_layer_product_gate(
     assert "tool catalog metadata" in out.lower() or "COMMON" in out
 
 
-def test_main_full_pass(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_main_full_pass(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     rc, out, _ = _run_main(
         monkeypatch,
         [],
@@ -274,9 +256,7 @@ def test_main_json_emits_mode_and_layer_counts(
     }
 
 
-def test_main_returns_2_on_scanner_crash(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_main_returns_2_on_scanner_crash(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     rc, _, err = _run_main(
         monkeypatch,
         [],
@@ -315,13 +295,7 @@ def test_layer_counts_aggregates_registered_layers() -> None:
     assert counts["CORE"] >= 7
     assert counts["COMMON"] >= 4
     assert counts["EXTENDED"] >= 40
-    assert (
-        sum(counts.values())
-        == counts["CORE"]
-        + counts["COMMON"]
-        + counts["EXTENDED"]
-        + counts["EXTERNAL"]
-    )
+    assert sum(counts.values()) == counts["CORE"] + counts["COMMON"] + counts["EXTENDED"] + counts["EXTERNAL"]
 
 
 def test_load_registry_metadata_keys_includes_todo_write() -> None:
@@ -342,9 +316,7 @@ def test_check_default_enabled_product_parity_passes() -> None:
 def test_format_report_metadata_ghosts(monkeypatch: pytest.MonkeyPatch) -> None:
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0}
-    )
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0})
     report = ScanReport(declarations=[_decl("foo")], registered_names={"foo"})
     out = _format_report(report, metadata_ghosts={"dead_meta_key"})
     assert "dead_meta_key" in out
@@ -369,9 +341,7 @@ def test_main_incremental_filters_to_changed_files(
     monkeypatch.setattr(cli, "scan", lambda: full)
     monkeypatch.setattr(cli, "get_changed_python_files", lambda _roots: [src_a])
     monkeypatch.setattr(cli, "load_registered_layers", lambda: dict(_TOOL_LAYERS))
-    monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0}
-    )
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0})
     # The governance gate compares string layer names against the real
     # `load_registered_layers()` contract; the stubbed `_TOOL_LAYERS` above holds
     # `ToolLayer` enum values, so isolate governance here — this test only
@@ -397,9 +367,7 @@ def test_main_prints_catalog_and_parity_errors(
     bad_layers = dict(_TOOL_LAYERS)
     bad_layers["todo_write"] = ToolLayer.COMMON
     monkeypatch.setattr(cli, "load_registered_layers", lambda: bad_layers)
-    monkeypatch.setattr(
-        cli, "_check_default_enabled_product_parity", lambda: ["parity drift"]
-    )
+    monkeypatch.setattr(cli, "_check_default_enabled_product_parity", lambda: ["parity drift"])
     rc, out, _ = _run_main(
         monkeypatch,
         [],
@@ -419,9 +387,7 @@ def test_main_generate_docs_already_up_to_date(
     good_doc = tmp_path / "good.md"
     good_doc.write_text(f"intro\n{_BLOCK_BEGIN}\nplaceholder\n{_BLOCK_END}\noutro\n")
     catalog_doc = tmp_path / "catalog.md"
-    catalog_doc.write_text(
-        "intro\n<!-- TOOL_CATALOG_BEGIN -->\nplaceholder\n<!-- TOOL_CATALOG_END -->\n"
-    )
+    catalog_doc.write_text("intro\n<!-- TOOL_CATALOG_BEGIN -->\nplaceholder\n<!-- TOOL_CATALOG_END -->\n")
     monkeypatch.setattr(cli, "_COUNT_DOC_TARGETS", (good_doc,))
     monkeypatch.setattr(cli, "_CATALOG_DOC_TARGET", catalog_doc)
     report = ScanReport(declarations=[_decl("foo")], registered_names={"foo"})
@@ -450,9 +416,7 @@ def test_main_generate_docs_rewrites_existing_marker_block(
     good_doc.write_text(f"intro\n{_BLOCK_BEGIN}\nold body\n{_BLOCK_END}\noutro\n")
     monkeypatch.setattr(cli, "_COUNT_DOC_TARGETS", (good_doc,))
     catalog_doc = tmp_path / "catalog.md"
-    catalog_doc.write_text(
-        "intro\n<!-- TOOL_CATALOG_BEGIN -->\nold\n<!-- TOOL_CATALOG_END -->\n"
-    )
+    catalog_doc.write_text("intro\n<!-- TOOL_CATALOG_BEGIN -->\nold\n<!-- TOOL_CATALOG_END -->\n")
     monkeypatch.setattr(cli, "_CATALOG_DOC_TARGET", catalog_doc)
     rc, out, _ = _run_main(
         monkeypatch,
@@ -506,9 +470,9 @@ def test_governance_coverage_all_permission_types_ruled_or_whitelisted() -> None
 
     ruleset_permissions = {rule.permission for rule in DEFAULT_RULESET}
     for perm in TOOL_PERMISSION_MAP.values():
-        assert (
-            perm in ruleset_permissions or perm in RULESET_COVERAGE_WHITELIST
-        ), f"permission type {perm!r} has no rule or whitelist declaration"
+        assert perm in ruleset_permissions or perm in RULESET_COVERAGE_WHITELIST, (
+            f"permission type {perm!r} has no rule or whitelist declaration"
+        )
 
 
 def test_governance_coverage_flags_uncovered_builtin_tool(
@@ -543,10 +507,7 @@ def test_governance_coverage_flags_unregistered_builtin_ghost(
         errors, _ = cli._check_governance_coverage()
     finally:
         registry.BUILTIN_TOOL_NAMES = original
-    assert any(
-        "phantom_registered_tool" in e and "not registered in _TOOL_LAYERS" in e
-        for e in errors
-    )
+    assert any("phantom_registered_tool" in e and "not registered in _TOOL_LAYERS" in e for e in errors)
 
 
 def test_governance_coverage_explicit_mcp_fallback_legal() -> None:
@@ -576,17 +537,12 @@ def test_governance_coverage_flags_builtin_fallback_overlap(
 
     registry = _governance_registry()
     original = registry.BUILTIN_TOOL_NAMES
-    registry.BUILTIN_TOOL_NAMES = frozenset(
-        original | registry.EXPLICIT_MCP_FALLBACK_TOOLS
-    )
+    registry.BUILTIN_TOOL_NAMES = frozenset(original | registry.EXPLICIT_MCP_FALLBACK_TOOLS)
     try:
         errors, _ = cli._check_governance_coverage()
     finally:
         registry.BUILTIN_TOOL_NAMES = original
-    assert any(
-        "both BUILTIN_TOOL_NAMES and EXPLICIT_MCP_FALLBACK_TOOLS" in e
-        for e in errors
-    )
+    assert any("both BUILTIN_TOOL_NAMES and EXPLICIT_MCP_FALLBACK_TOOLS" in e for e in errors)
 
 
 def test_governance_coverage_flags_invalid_whitelist_reason(
@@ -607,9 +563,7 @@ def test_governance_coverage_flags_invalid_whitelist_reason(
         errors, _ = cli._check_governance_coverage()
     finally:
         registry.RULESET_COVERAGE_WHITELIST = original
-    assert any(
-        "browser_read" in e and "not in AUTO_APPROVE_REASONS" in e for e in errors
-    )
+    assert any("browser_read" in e and "not in AUTO_APPROVE_REASONS" in e for e in errors)
 
 
 def test_governance_coverage_external_tools_annotated_server_managed() -> None:
@@ -639,11 +593,7 @@ def test_governance_coverage_flags_invalid_approve_reason(
         errors, _ = cli._check_governance_coverage()
     finally:
         registry.AUTO_APPROVED_BUILTIN_TOOLS = original
-    assert any(
-        "silent_new_tool='not_a_valid_reason'" in e
-        and "not in AUTO_APPROVE_REASONS" in e
-        for e in errors
-    )
+    assert any("silent_new_tool='not_a_valid_reason'" in e and "not in AUTO_APPROVE_REASONS" in e for e in errors)
 
 
 def test_governance_coverage_flags_ghost_declaration(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -667,9 +617,7 @@ def test_governance_coverage_flags_uncovered_permission_type(
 
     registry = _governance_registry()
     original = registry.RULESET_COVERAGE_WHITELIST
-    registry.RULESET_COVERAGE_WHITELIST = {
-        k: v for k, v in original.items() if k != "browser_read"
-    }
+    registry.RULESET_COVERAGE_WHITELIST = {k: v for k, v in original.items() if k != "browser_read"}
     try:
         errors, _ = cli._check_governance_coverage()
     finally:
@@ -694,9 +642,7 @@ def test_governance_coverage_flags_stale_whitelist_entry(
         errors, _ = cli._check_governance_coverage()
     finally:
         registry.RULESET_COVERAGE_WHITELIST = original
-    assert any(
-        "code_interpreter" in e and "stale whitelist entry" in e for e in errors
-    )
+    assert any("code_interpreter" in e and "stale whitelist entry" in e for e in errors)
 
 
 def test_governance_coverage_flags_orphan_whitelist_entry(
@@ -716,9 +662,7 @@ def test_governance_coverage_flags_orphan_whitelist_entry(
         errors, _ = cli._check_governance_coverage()
     finally:
         registry.RULESET_COVERAGE_WHITELIST = original
-    assert any(
-        "phantom_permission" in e and "orphan declaration" in e for e in errors
-    )
+    assert any("phantom_permission" in e and "orphan declaration" in e for e in errors)
 
 
 def test_governance_coverage_flags_missing_canonical_params(
@@ -728,9 +672,7 @@ def test_governance_coverage_flags_missing_canonical_params(
 
     registry = _governance_registry()
     original = registry.TOOL_CANONICAL_PARAMS
-    registry.TOOL_CANONICAL_PARAMS = {
-        k: v for k, v in original.items() if k != "cron_manage_tool"
-    }
+    registry.TOOL_CANONICAL_PARAMS = {k: v for k, v in original.items() if k != "cron_manage_tool"}
     try:
         errors, _ = cli._check_governance_coverage()
     finally:
@@ -786,7 +728,6 @@ def test_governance_coverage_consumes_registry_dynamic_ssot() -> None:
     """The gate must reference DYNAMICALLY_RESOLVED_TOOL_NAMES from the registry
     SSOT — it must not keep a local duplicate that can drift."""
     import scripts.validate_tool_registry as cli
-
     from myrm_agent_harness.core.security.tool_registry import (
         DYNAMICALLY_RESOLVED_TOOL_NAMES,
     )
@@ -803,9 +744,7 @@ def test_main_fails_and_prints_on_governance_errors(
 ) -> None:
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(
-        cli, "_check_governance_coverage", lambda: (["governance drift"], {})
-    )
+    monkeypatch.setattr(cli, "_check_governance_coverage", lambda: (["governance drift"], {}))
     rc, out, _ = _run_main(
         monkeypatch,
         [],

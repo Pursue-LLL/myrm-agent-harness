@@ -267,9 +267,7 @@ class TestSessionNotesManager:
         assert manager.notes.get_section("session_title").content == "Test Session"
 
     @pytest.mark.asyncio()
-    async def test_maybe_trigger_update_reasoning_model_content_empty(
-        self, small_config: SessionNotesConfig
-    ) -> None:
+    async def test_maybe_trigger_update_reasoning_model_content_empty(self, small_config: SessionNotesConfig) -> None:
         """Reasoning model with empty content must fall back to reasoning_content."""
         from langchain_core.messages import AIMessage
 
@@ -602,7 +600,9 @@ class TestSessionNotesProcessor:
         ids = [id(m) for m in result.messages]
         assert len(ids) == len(set(ids)), "rebuilt message list must not contain duplicates"
         # Stale summary block must not leak into the rebuilt list
-        assert not any("Previous conversation summary" in m.content for m in result.messages if isinstance(m.content, str))
+        assert not any(
+            "Previous conversation summary" in m.content for m in result.messages if isinstance(m.content, str)
+        )
         # head (system + first user turn) retained exactly once
         assert messages[0] in result.messages
         assert messages[2] in result.messages
@@ -619,9 +619,7 @@ class TestSessionNotesProcessor:
         )
 
         session_notes_block = next(
-            m
-            for m in result.messages
-            if isinstance(m.content, str) and "Session Notes Summary" in m.content
+            m for m in result.messages if isinstance(m.content, str) and "Session Notes Summary" in m.content
         )
         assert is_summary_message(session_notes_block)
         parsed = extract_existing_summary(result.messages)

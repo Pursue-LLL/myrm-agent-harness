@@ -135,9 +135,7 @@ def test_on_disk_wal_blocks_downgrade(tmp_path: Path) -> None:
     conn.commit()
     conn.close()
     # Even a definitive token must not downgrade a provably-WAL database.
-    assert should_fallback_to_delete(
-        sqlite3.OperationalError("operation not supported"), p
-    ) is False
+    assert should_fallback_to_delete(sqlite3.OperationalError("operation not supported"), p) is False
 
 
 # ── WAL fallback branch coverage with a duck-typed connection ────────

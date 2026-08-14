@@ -122,7 +122,9 @@ class TestSetProfileAttribute:
     @pytest.mark.asyncio
     async def test_set_profile_attribute_with_approval(self, mock_relational_store, memory_config):
         """Test set_profile_attribute with approval required returns pending_id."""
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         pending_id = await manager.set_profile_attribute("timezone", "UTC+8")
 
@@ -134,7 +136,9 @@ class TestSetProfileAttribute:
         """Test set_profile_attribute with duplicate pending returns empty."""
         mock_relational_store.pending_exists.return_value = True
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store, approval_required=True
+        )
 
         pending_id = await manager.set_profile_attribute("timezone", "UTC+8")
 
@@ -150,7 +154,10 @@ class TestCloseMethod:
         mock_graph = AsyncMock()
         mock_graph.close = AsyncMock()
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             relational=mock_relational_store,
             embedding=mock_embedding,
             graph=mock_graph,

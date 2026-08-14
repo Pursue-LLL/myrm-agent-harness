@@ -36,9 +36,7 @@ def test_get_runtime_tools_returns_runtime_only_entries() -> None:
     runtime.name = "_internal_hook"
 
     reg.register(turn1, source=ToolSource.META)
-    reg.register(
-        runtime, source=ToolSource.MIDDLEWARE, bind_mode=ToolBindMode.RUNTIME_ONLY
-    )
+    reg.register(runtime, source=ToolSource.MIDDLEWARE, bind_mode=ToolBindMode.RUNTIME_ONLY)
 
     assert {t.name for t in reg.resolve()} == {"visible_tool"}
     assert {t.name for t in reg.get_runtime_tools()} == {"_internal_hook"}

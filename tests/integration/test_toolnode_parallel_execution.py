@@ -41,7 +41,10 @@ def _reset() -> None:
 
 class FakeRequest:
     def __init__(self, name: str, *, tool_call_id: str | None = None, state: object | None = None) -> None:
-        self.tool_call: dict[str, str] = {"name": name, "id": tool_call_id if tool_call_id is not None else f"fake_{name}"}
+        self.tool_call: dict[str, str] = {
+            "name": name,
+            "id": tool_call_id if tool_call_id is not None else f"fake_{name}",
+        }
         self.state: object = state if state is not None else []
 
 
@@ -253,10 +256,13 @@ class TestBatchFailureAndStateResolution:
     async def test_batch_failure_skips_subsequent_unsafe_tools(self) -> None:
         """When an unsafe tool fails, subsequent unsafe tools in the same batch are skipped."""
         safety = create_safety_dispatcher()
-        ai_msg = AIMessage(content="", tool_calls=[
-            {"id": "call_a", "name": "real_file_write", "args": {}},
-            {"id": "call_b", "name": "real_bash", "args": {}},
-        ])
+        ai_msg = AIMessage(
+            content="",
+            tool_calls=[
+                {"id": "call_a", "name": "real_file_write", "args": {}},
+                {"id": "call_b", "name": "real_bash", "args": {}},
+            ],
+        )
         state_list = [ai_msg]
 
         async def fail_handler(req: object) -> ToolMessage:
@@ -318,12 +324,18 @@ class TestBatchFailureAndStateResolution:
     async def test_unrelated_batch_not_affected_by_other_failure(self) -> None:
         """A batch failure does not affect tools from a different batch."""
         safety = create_safety_dispatcher()
-        ai_msg_a = AIMessage(content="", tool_calls=[
-            {"id": "call_fail", "name": "real_file_write", "args": {}},
-        ])
-        ai_msg_b = AIMessage(content="", tool_calls=[
-            {"id": "call_ok", "name": "real_bash", "args": {}},
-        ])
+        ai_msg_a = AIMessage(
+            content="",
+            tool_calls=[
+                {"id": "call_fail", "name": "real_file_write", "args": {}},
+            ],
+        )
+        ai_msg_b = AIMessage(
+            content="",
+            tool_calls=[
+                {"id": "call_ok", "name": "real_bash", "args": {}},
+            ],
+        )
 
         async def fail_handler(req: object) -> ToolMessage:
             return ToolMessage(content="error", name="real_file_write", tool_call_id="call_fail", status="error")

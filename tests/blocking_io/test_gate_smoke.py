@@ -4,6 +4,7 @@ Tests in this directory are automatically gated by the blockbuster
 hookwrapper in conftest.py. The gate only fires for callers whose stack
 includes ``myrm_agent_harness.*``.
 """
+
 from __future__ import annotations
 
 import asyncio

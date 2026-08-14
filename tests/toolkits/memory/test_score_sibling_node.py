@@ -24,8 +24,13 @@ class TestTokenOverlap:
         score = _score_sibling_node(
             query_tokens={"python", "rust"},
             content="java and typescript",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         assert score == 0.0
 
@@ -33,8 +38,13 @@ class TestTokenOverlap:
         score = _score_sibling_node(
             query_tokens={"python", "rust"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         # base = min(0.55 + 1*0.08, 0.88) = 0.63, * decay^0 = 0.63, * (0.7+0.3*0.5)=0.85 → 0.5355
         assert 0.4 < score < 0.7
@@ -43,14 +53,24 @@ class TestTokenOverlap:
         score_one = _score_sibling_node(
             query_tokens={"python", "rust", "tutorial"},
             content="python guide",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         score_two = _score_sibling_node(
             query_tokens={"python", "rust", "tutorial"},
             content="python rust comparison",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         assert score_two > score_one
 
@@ -58,8 +78,13 @@ class TestTokenOverlap:
         score = _score_sibling_node(
             query_tokens=set(),
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         assert score == 0.0
 
@@ -68,9 +93,13 @@ class TestTokenOverlap:
         score = _score_sibling_node(
             query_tokens={"a", "b", "c", "d", "e", "f"},
             content="a b c d e f g h i j",
-            depth=1, distance_decay=1.0, importance=1.0,
+            depth=1,
+            distance_decay=1.0,
+            importance=1.0,
             created_at=_NOW - timedelta(days=1),
-            current_channel_id="ch1", channel_id="ch1", now=_NOW,
+            current_channel_id="ch1",
+            channel_id="ch1",
+            now=_NOW,
         )
         assert score <= 0.95
 
@@ -82,14 +111,24 @@ class TestDistanceDecay:
         score = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         score_no_decay = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=1.0, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=1.0,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         assert score == score_no_decay
 
@@ -97,14 +136,24 @@ class TestDistanceDecay:
         score_d1 = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         score_d2 = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=2, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=2,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         assert score_d2 < score_d1
         assert pytest.approx(score_d2 / score_d1, rel=0.05) == 0.5
@@ -117,14 +166,24 @@ class TestFreshness:
         score_fresh = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=_NOW - timedelta(days=3), current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=_NOW - timedelta(days=3),
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         score_none = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         assert score_fresh > score_none
 
@@ -132,14 +191,24 @@ class TestFreshness:
         score_aging = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=_NOW - timedelta(days=15), current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=_NOW - timedelta(days=15),
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         score_fresh = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=_NOW - timedelta(days=3), current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=_NOW - timedelta(days=3),
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         assert score_aging < score_fresh
 
@@ -147,14 +216,24 @@ class TestFreshness:
         score_stale = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=_NOW - timedelta(days=60), current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=_NOW - timedelta(days=60),
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         score_none = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         # Stale gets freshness boost of 0.0, but importance modulation applies after freshness
         # Both should be very close (stale may differ slightly due to order of operations)
@@ -168,14 +247,24 @@ class TestImportance:
         score_high = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=1.0,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=1.0,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         score_low = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.0,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.0,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         assert score_high > score_low
 
@@ -183,14 +272,24 @@ class TestImportance:
         score_neg = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=-0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=-0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         score_zero = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.0,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.0,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         assert score_neg == score_zero
 
@@ -198,14 +297,24 @@ class TestImportance:
         score_over = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=2.0,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=2.0,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         score_one = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=1.0,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=1.0,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         assert score_over == score_one
 
@@ -217,14 +326,24 @@ class TestChannelAffinity:
         score_same = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id="ch1", channel_id="ch1", now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id="ch1",
+            channel_id="ch1",
+            now=_NOW,
         )
         score_diff = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id="ch1", channel_id="ch2", now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id="ch1",
+            channel_id="ch2",
+            now=_NOW,
         )
         assert score_same > score_diff
         assert pytest.approx(score_same - score_diff, abs=0.001) == 0.06
@@ -233,13 +352,23 @@ class TestChannelAffinity:
         score_none = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id=None, channel_id=None, now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id=None,
+            channel_id=None,
+            now=_NOW,
         )
         score_diff = _score_sibling_node(
             query_tokens={"python"},
             content="python tutorial",
-            depth=1, distance_decay=0.5, importance=0.5,
-            created_at=None, current_channel_id="ch1", channel_id="ch2", now=_NOW,
+            depth=1,
+            distance_decay=0.5,
+            importance=0.5,
+            created_at=None,
+            current_channel_id="ch1",
+            channel_id="ch2",
+            now=_NOW,
         )
         assert score_none == score_diff

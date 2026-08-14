@@ -112,8 +112,7 @@ class InMemoryKanbanStore(KanbanStore):
             results = [
                 t
                 for t in results
-                if isinstance(t.metadata, dict)
-                and t.metadata.get(KANBAN_SOURCE_CHAT_METADATA_KEY) == source_chat_id
+                if isinstance(t.metadata, dict) and t.metadata.get(KANBAN_SOURCE_CHAT_METADATA_KEY) == source_chat_id
             ]
         results.sort(key=lambda t: t.created_at)
         results = results[offset:]

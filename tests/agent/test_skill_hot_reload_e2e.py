@@ -115,9 +115,9 @@ This skill returns: World
             f"Hot reload failed! Backend still loads version {skills_v2[0].version}, "
             f"expected 2.0.0. Snapshot may not have been updated."
         )
-        assert (
-            "Test skill version 2" in skills_v2[0].description
-        ), "Hot reload failed! Backend still loads old description"
+        assert "Test skill version 2" in skills_v2[0].description, (
+            "Hot reload failed! Backend still loads old description"
+        )
 
     finally:
         # Cleanup

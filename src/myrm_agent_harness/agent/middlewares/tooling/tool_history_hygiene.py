@@ -144,9 +144,7 @@ def _apply_within_message_tool_call_reid(msg: BaseMessage) -> tuple[bool, list[s
 
     invalid_tool_calls = getattr(msg, "invalid_tool_calls", None) or []
     if invalid_tool_calls:
-        updated, final_ids, list_changed = _reid_duplicate_tool_call_entries(
-            invalid_tool_calls
-        )
+        updated, final_ids, list_changed = _reid_duplicate_tool_call_entries(invalid_tool_calls)
         if list_changed:
             msg.invalid_tool_calls = updated
             changed = True
@@ -156,9 +154,7 @@ def _apply_within_message_tool_call_reid(msg: BaseMessage) -> tuple[bool, list[s
     if isinstance(additional_kwargs, dict) and "tool_calls" in additional_kwargs:
         raw_calls = additional_kwargs.get("tool_calls")
         if isinstance(raw_calls, list) and raw_calls:
-            updated, final_ids, list_changed = _reid_duplicate_tool_call_entries(
-                raw_calls
-            )
+            updated, final_ids, list_changed = _reid_duplicate_tool_call_entries(raw_calls)
             if list_changed:
                 updated_kwargs = dict(additional_kwargs)
                 updated_kwargs["tool_calls"] = updated
@@ -224,9 +220,7 @@ def _iter_ai_tool_call_ids_in_order(msg: BaseMessage) -> list[str]:
             seen.add(itc_id)
 
     if not ids:
-        raw_tool_calls = (getattr(msg, "additional_kwargs", None) or {}).get(
-            "tool_calls"
-        ) or []
+        raw_tool_calls = (getattr(msg, "additional_kwargs", None) or {}).get("tool_calls") or []
         for raw_tc in raw_tool_calls:
             if not isinstance(raw_tc, dict):
                 continue
@@ -286,9 +280,7 @@ def _replace_first_tool_call_id(
         changed = True
 
     invalid_tool_calls = getattr(msg, "invalid_tool_calls", None) or []
-    updated_invalid, replaced = _replace_id_in_dict_list(
-        invalid_tool_calls, old_id, new_id
-    )
+    updated_invalid, replaced = _replace_id_in_dict_list(invalid_tool_calls, old_id, new_id)
     if replaced:
         msg.invalid_tool_calls = updated_invalid
         changed = True

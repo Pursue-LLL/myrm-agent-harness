@@ -59,7 +59,8 @@ class TestFormatterCache:
         """ruff should win over black for .py if both available."""
         cache = _FormatterCache()
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.observers.format_observer._which", return_value="/usr/bin/found"
+            "myrm_agent_harness.agent.meta_tools.file_ops.observers.format_observer._which",
+            return_value="/usr/bin/found",
         ):
             result = await cache.resolve(".py")
             assert result is not None

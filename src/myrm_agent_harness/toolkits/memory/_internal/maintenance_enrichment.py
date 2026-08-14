@@ -32,6 +32,7 @@ from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, MemorySearc
 
 logger = logging.getLogger(__name__)
 
+
 def _content_hash(content: str) -> str:
     """Calculate normalized MD5 hash for content deduplication.
 
@@ -189,9 +190,7 @@ async def enrich_with_graph(
 
             if namespaces:
                 doc_ns = doc.metadata.get("namespaces")
-                if isinstance(doc_ns, list) and not any(
-                    ns in namespaces for ns in doc_ns if isinstance(ns, str)
-                ):
+                if isinstance(doc_ns, list) and not any(ns in namespaces for ns in doc_ns if isinstance(ns, str)):
                     continue
 
             # Content-level dedup

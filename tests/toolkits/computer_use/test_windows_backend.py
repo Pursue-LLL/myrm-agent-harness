@@ -30,8 +30,7 @@ def _mock_pyautogui() -> MagicMock:
     m = MagicMock()
     m.size.return_value = MagicMock(width=1920, height=1080)
     m.position.return_value = MagicMock(x=100, y=200)
-    for name in ("keyDown", "keyUp", "click", "scroll", "hscroll", "moveTo",
-                 "drag", "write", "press", "hotkey"):
+    for name in ("keyDown", "keyUp", "click", "scroll", "hscroll", "moveTo", "drag", "write", "press", "hotkey"):
         fn = MagicMock()
         fn.__name__ = name
         setattr(m, name, fn)
@@ -79,11 +78,15 @@ def _mock_windows_env():
     modules = {**_MOCK_MODULES_BASE, "pyautogui": mock_pyautogui}
     with patch.dict("sys.modules", modules):
         import ctypes as real_ctypes
-        with patch.object(real_ctypes, "windll", mock_windll, create=True), patch.object(
-            real_ctypes, "wstring_at", return_value="clipboard text", create=True
-        ), patch.object(real_ctypes, "create_unicode_buffer", return_value=MagicMock(value="Notepad")):
+
+        with (
+            patch.object(real_ctypes, "windll", mock_windll, create=True),
+            patch.object(real_ctypes, "wstring_at", return_value="clipboard text", create=True),
+            patch.object(real_ctypes, "create_unicode_buffer", return_value=MagicMock(value="Notepad")),
+        ):
             # Reload windows module with mocked ctypes
             import myrm_agent_harness.toolkits.computer_use.backends.windows as win_mod
+
             importlib.reload(win_mod)
             yield win_mod, mock_pyautogui, mock_windll
 
@@ -314,7 +317,9 @@ class TestWindowsBackendScreenInfo:
     def test_screen_info_returns_correct_type(self, backend, _mock_windows_env) -> None:
         win_mod, _, _ = _mock_windows_env
         with patch.object(
-            win_mod, "_detect_screen_info", return_value=(1920, 1080, 1.5),
+            win_mod,
+            "_detect_screen_info",
+            return_value=(1920, 1080, 1.5),
         ):
             info = backend.screen_info()
 
@@ -326,7 +331,9 @@ class TestWindowsBackendScreenInfo:
     def test_screen_info_cached(self, backend, _mock_windows_env) -> None:
         win_mod, _, _ = _mock_windows_env
         with patch.object(
-            win_mod, "_detect_screen_info", return_value=(1920, 1080, 2.0),
+            win_mod,
+            "_detect_screen_info",
+            return_value=(1920, 1080, 2.0),
         ) as mock_detect:
             backend.screen_info()
             backend.screen_info()
@@ -364,9 +371,15 @@ class TestWindowsBackendWindowText:
 
     @pytest.mark.asyncio
     async def test_window_text_success(self, backend) -> None:
-        with patch("asyncio.to_thread", return_value=WindowTextResult(
-            app_name="Notepad", window_title="Notepad", text="Hello", success=True,
-        )):
+        with patch(
+            "asyncio.to_thread",
+            return_value=WindowTextResult(
+                app_name="Notepad",
+                window_title="Notepad",
+                text="Hello",
+                success=True,
+            ),
+        ):
             result = await backend.window_text()
 
         assert result.success is True
@@ -387,15 +400,18 @@ class TestWindowsBackendWindowText:
         def mock_get_class_name(hwnd, buf, size):
             buf.value = "#32770"
             return len("#32770")
+
         mock_windll.user32.GetClassNameW.side_effect = mock_get_class_name
 
         def mock_get_window_text_length(hwnd):
             return len("Google Chrome")
+
         mock_windll.user32.GetWindowTextLengthW.side_effect = mock_get_window_text_length
 
         def mock_get_window_text(hwnd, buf, size):
             buf.value = "Google Chrome"
             return len("Google Chrome")
+
         mock_windll.user32.GetWindowTextW.side_effect = mock_get_window_text
 
         with patch("asyncio.to_thread", side_effect=lambda fn, *args: fn(*args)):
@@ -410,6 +426,7 @@ class TestWindowsBackendWindowText:
         def mock_get_class_name(hwnd, buf, size):
             buf.value = "Chrome_WidgetWin_1"
             return len("Chrome_WidgetWin_1")
+
         mock_windll.user32.GetClassNameW.side_effect = mock_get_class_name
 
         with patch("asyncio.to_thread", side_effect=lambda fn, *args: fn(*args)):
@@ -432,11 +449,13 @@ class TestWindowsBackendWindowText:
 
         def mock_get_window_text_length(hwnd):
             return len("Google Chrome")
+
         mock_windll.user32.GetWindowTextLengthW.side_effect = mock_get_window_text_length
 
         def mock_get_window_text(hwnd, buf, size):
             buf.value = "Google Chrome"
             return len("Google Chrome")
+
         mock_windll.user32.GetWindowTextW.side_effect = mock_get_window_text
 
         with patch("asyncio.to_thread", side_effect=lambda fn, *args: fn(*args)):
@@ -450,11 +469,13 @@ class TestWindowsBackendWindowText:
 
         def mock_get_window_text_length(hwnd):
             return len("Notepad")
+
         mock_windll.user32.GetWindowTextLengthW.side_effect = mock_get_window_text_length
 
         def mock_get_window_text(hwnd, buf, size):
             buf.value = "Notepad"
             return len("Notepad")
+
         mock_windll.user32.GetWindowTextW.side_effect = mock_get_window_text
 
         with patch("asyncio.to_thread", side_effect=lambda fn, *args: fn(*args)):
@@ -475,6 +496,7 @@ class TestCreateComputerSessionWindows:
             return_value=mock_platform_info,
         ):
             from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
+
             session = create_computer_session()
 
         assert isinstance(session._backend, win_mod.WindowsBackend)
@@ -495,8 +517,9 @@ class TestWindowsBackendScreenshot:
         async def mock_to_thread(fn, *args, **kwargs):
             return fn(*args, **kwargs) if not args else fn()
 
-        with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: asyncio.coroutine(lambda: fake_png)()), patch(
-            "asyncio.to_thread", return_value=fake_png
+        with (
+            patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: asyncio.coroutine(lambda: fake_png)()),
+            patch("asyncio.to_thread", return_value=fake_png),
         ):
             result = await backend.screenshot()
 
@@ -776,8 +799,9 @@ class TestWindowsBackendWindowTextExtraction:
 
     def test_import_error_returns_failure(self, _mock_windows_env) -> None:
         win_mod, _, _ = _mock_windows_env
-        with patch.dict("sys.modules", {"uiautomation": None}), patch(
-            "builtins.__import__", side_effect=ImportError("no module")
+        with (
+            patch.dict("sys.modules", {"uiautomation": None}),
+            patch("builtins.__import__", side_effect=ImportError("no module")),
         ):
             result = win_mod._extract_window_text_uia()
         assert result.success is False

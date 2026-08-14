@@ -89,13 +89,13 @@ def create_extract_tool(session: BrowserSession):
             description="JSON Schema string defining desired structured output (only for 'text' mode). "
             "When provided, the tool uses an LLM to extract data matching this schema from the page text, "
             "returning validated JSON instead of raw text. This keeps your context window clean. "
-            "Example: '{\"type\":\"object\",\"properties\":{\"title\":{\"type\":\"string\"},\"price\":{\"type\":\"string\"}}}'",
+            'Example: \'{"type":"object","properties":{"title":{"type":"string"},"price":{"type":"string"}}}\'',
         )
         already_collected: str = Field(
             default="",
             description="JSON array of previously collected items to avoid duplicates (only with 'schema'). "
             "When paginating/scrolling through results, pass prior items here so the extractor skips them. "
-            "Example: '[{\"title\":\"Item A\",\"price\":\"$10\"}]'",
+            'Example: \'[{"title":"Item A","price":"$10"}]\'',
         )
 
     @tool("browser_extract_tool", args_schema=ExtractInput)

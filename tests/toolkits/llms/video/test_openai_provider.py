@@ -89,9 +89,7 @@ class TestOpenAISoraDownload:
         cfg = _cfg()
         base = cfg.base_url or "https://api.openai.com/v1"
         respx.post(f"{base}/videos").mock(return_value=Response(200, json={"id": "vid-1"}))
-        respx.get(f"{base}/videos/vid-1").mock(
-            return_value=Response(200, json={"id": "vid-1", "status": "completed"})
-        )
+        respx.get(f"{base}/videos/vid-1").mock(return_value=Response(200, json={"id": "vid-1", "status": "completed"}))
         respx.get(f"{base}/videos/vid-1/content", params={"variant": "video"}).mock(
             return_value=Response(200, content=b"\x00\x01\x02")
         )

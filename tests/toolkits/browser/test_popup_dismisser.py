@@ -214,8 +214,13 @@ async def test_navigator_skips_dismiss_when_disabled():
 
     with patch("myrm_agent_harness.toolkits.browser.navigation.wait_for_page_ready") as mock_wait:
         mock_wait.return_value = MagicMock(
-            reason="both", elapsed_ms=100, dom_stable_ms=50, network_idle_ms=50,
-            dom_mutation_count=0, dom_reset_count=0, to_log_dict=lambda: {},
+            reason="both",
+            elapsed_ms=100,
+            dom_stable_ms=50,
+            network_idle_ms=50,
+            dom_mutation_count=0,
+            dom_reset_count=0,
+            to_log_dict=lambda: {},
         )
         with patch(
             "myrm_agent_harness.toolkits.browser.session.consent_dismisser.ConsentDismisser.dismiss"
@@ -243,8 +248,13 @@ async def test_navigator_calls_dismiss_when_enabled():
 
     with patch("myrm_agent_harness.toolkits.browser.navigation.wait_for_page_ready") as mock_wait:
         mock_wait.return_value = MagicMock(
-            reason="both", elapsed_ms=100, dom_stable_ms=50, network_idle_ms=50,
-            dom_mutation_count=0, dom_reset_count=0, to_log_dict=lambda: {},
+            reason="both",
+            elapsed_ms=100,
+            dom_stable_ms=50,
+            network_idle_ms=50,
+            dom_mutation_count=0,
+            dom_reset_count=0,
+            to_log_dict=lambda: {},
         )
         with patch(
             "myrm_agent_harness.toolkits.browser.session.consent_dismisser.ConsentDismisser.dismiss",

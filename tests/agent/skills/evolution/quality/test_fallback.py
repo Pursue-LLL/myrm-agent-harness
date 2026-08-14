@@ -17,6 +17,7 @@ def registry():
     reg.register_fallback("primary", ["fallback_1", "fallback_2"], cache_ttl=1)
     return reg
 
+
 def test_fallback_chain_order():
     chain = FallbackChain("primary", ["fallback_1", "fallback_2"])
 
@@ -26,6 +27,7 @@ def test_fallback_chain_order():
     # Mark fallback_2 as success
     chain.mark_success("fallback_2")
     assert chain.get_execution_order() == ["fallback_2", "primary", "fallback_1"]
+
 
 def test_fallback_cache():
     chain = FallbackChain("primary", ["fallback_1"], cache_ttl=1)
@@ -41,6 +43,7 @@ def test_fallback_cache():
     chain._cache["key1"] = ("result1", time.time() - 2)
     assert chain.get_cache("key1") is None
 
+
 @pytest.mark.asyncio
 async def test_execute_primary_success(registry):
     executor = AsyncMock()
@@ -52,6 +55,7 @@ async def test_execute_primary_success(registry):
 
     stats = registry.get_stats()
     assert stats["total_fallbacks"] == 0
+
 
 @pytest.mark.asyncio
 async def test_execute_fallback_success(registry):
@@ -69,6 +73,7 @@ async def test_execute_fallback_success(registry):
     assert stats["fallback_success_count"] == 1
     assert stats["fallback_success_rate"] == 1.0
 
+
 @pytest.mark.asyncio
 async def test_execute_all_fail(registry):
     executor = AsyncMock(side_effect=Exception("All fail"))
@@ -81,6 +86,7 @@ async def test_execute_all_fail(registry):
     assert stats["fallback_success_count"] == 0
     assert stats["fallback_success_rate"] == 0.0
 
+
 @pytest.mark.asyncio
 async def test_execute_no_fallback(registry):
     executor = AsyncMock(return_value="direct_result")
@@ -88,6 +94,7 @@ async def test_execute_no_fallback(registry):
     res, tool = await registry.execute_with_fallback("unknown_tool", executor)
     assert res == "direct_result"
     assert tool == "unknown_tool"
+
 
 @pytest.mark.asyncio
 async def test_execute_with_cache(registry):

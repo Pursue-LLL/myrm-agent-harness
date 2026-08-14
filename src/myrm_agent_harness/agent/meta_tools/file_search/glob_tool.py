@@ -239,11 +239,7 @@ def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
                 logger.warning(f"Glob search hit limit ({io_cfg.max_search_results}), results may be incomplete")
 
             if disabled_roots:
-                files = [
-                    f
-                    for f in files
-                    if not is_under_disabled_skill_root(str(f), disabled_roots)
-                ]
+                files = [f for f in files if not is_under_disabled_skill_root(str(f), disabled_roots)]
 
             # 搜索无结果不是错误，返回友好的消息
             if not files:

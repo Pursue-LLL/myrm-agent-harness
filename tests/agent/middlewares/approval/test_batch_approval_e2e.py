@@ -221,7 +221,3 @@ async def test_mixed_auto_and_manual(monkeypatch):
     assert modified_ai_msg.tool_calls[0]["id"] == "call_1"
     assert modified_ai_msg.tool_calls[1]["id"] == "call_2"
     assert modified_ai_msg.tool_calls[2]["id"] == "call_3"
-
-
-
-

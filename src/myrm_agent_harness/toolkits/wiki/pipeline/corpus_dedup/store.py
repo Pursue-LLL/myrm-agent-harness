@@ -270,10 +270,7 @@ class CorpusDedupStore:
 
     def collect_deferred_member_sets(self) -> set[frozenset[str]]:
         groups = self.list_groups(status=GroupStatus.DEFERRED)
-        return {
-            frozenset(member.relative_path for member in group.members)
-            for group in groups
-        }
+        return {frozenset(member.relative_path for member in group.members) for group in groups}
 
     def add_dismissed_pair(self, path_a: str, path_b: str) -> None:
         left, right = sorted((path_a, path_b))
@@ -333,10 +330,7 @@ class CorpusDedupStore:
                 INSERT INTO group_members (group_id, relative_path, size_bytes, mtime_ns)
                 VALUES (?, ?, ?, ?)
                 """,
-                [
-                    (group_id, member.relative_path, member.size_bytes, member.mtime_ns)
-                    for member in members
-                ],
+                [(group_id, member.relative_path, member.size_bytes, member.mtime_ns) for member in members],
             )
         return group_id
 
@@ -525,9 +519,7 @@ class CorpusDedupStore:
 
     def _get_meta(self, key: str) -> str:
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT value FROM dedup_meta WHERE key = ?", (key,)
-            ).fetchone()
+            row = conn.execute("SELECT value FROM dedup_meta WHERE key = ?", (key,)).fetchone()
         if row is None:
             return ""
         return str(row["value"])

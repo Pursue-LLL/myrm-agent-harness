@@ -43,18 +43,14 @@ class TestJsLiteralCompatibility:
         script = generate_wrapper_script()
         mcp_injection_pos = script.find('for key in ["skills"')
         js_compat_pos = script.find('exec_globals["null"]')
-        assert (
-            mcp_injection_pos < js_compat_pos
-        ), "JS literal bindings must appear after MCP client injection"
+        assert mcp_injection_pos < js_compat_pos, "JS literal bindings must appear after MCP client injection"
 
     def test_bindings_before_stdout_redirect(self) -> None:
         """JS literal bindings should appear before stdout redirection."""
         script = generate_wrapper_script()
         js_compat_pos = script.find('exec_globals["null"]')
         stdout_pos = script.find("sys.stdout = captured_stdout")
-        assert (
-            js_compat_pos < stdout_pos
-        ), "JS literal bindings must appear before stdout redirection"
+        assert js_compat_pos < stdout_pos, "JS literal bindings must appear before stdout redirection"
 
 
 class TestMatplotlibFigureCapture:
@@ -63,9 +59,7 @@ class TestMatplotlibFigureCapture:
     def test_emit_iterates_all_open_figures(self) -> None:
         """H1: capture must iterate all open figures, not just the active one."""
         script = generate_wrapper_script()
-        assert (
-            "plt.get_fignums()" in script
-        ), "must iterate every open figure so multi-figure scripts do not lose plots"
+        assert "plt.get_fignums()" in script, "must iterate every open figure so multi-figure scripts do not lose plots"
 
     def test_emit_closes_each_figure(self) -> None:
         """Closing per figure makes 'open figures' the single source of truth."""
@@ -81,10 +75,7 @@ class TestMatplotlibFigureCapture:
     def test_end_of_run_flush_present(self) -> None:
         """H2: figures created without plt.show() are flushed at end of run."""
         script = generate_wrapper_script()
-        assert (
-            'if _myrm_flush_figures is not None and "matplotlib.pyplot" in sys.modules:'
-            in script
-        )
+        assert 'if _myrm_flush_figures is not None and "matplotlib.pyplot" in sys.modules:' in script
 
     def test_vault_pointer_zero_copy(self) -> None:
         """Figures are surfaced as zero-copy vault:// pointers, not raw bytes."""
@@ -251,10 +242,7 @@ class TestAsyncExecutionModesEndToEnd:
             ("sync", "print('MARK_SYNC')", "MARK_SYNC"),
             (
                 "asyncio_run",
-                "import asyncio\n"
-                "async def main():\n"
-                "    print('MARK_ASYNC_RUN')\n"
-                "asyncio.run(main())",
+                "import asyncio\nasync def main():\n    print('MARK_ASYNC_RUN')\nasyncio.run(main())",
                 "MARK_ASYNC_RUN",
             ),
             (
@@ -264,10 +252,7 @@ class TestAsyncExecutionModesEndToEnd:
             ),
             (
                 "top_level_await",
-                "import asyncio\n"
-                "async def f():\n"
-                "    return 'MARK_TOP_AWAIT'\n"
-                "print(await f())",
+                "import asyncio\nasync def f():\n    return 'MARK_TOP_AWAIT'\nprint(await f())",
                 "MARK_TOP_AWAIT",
             ),
         ],

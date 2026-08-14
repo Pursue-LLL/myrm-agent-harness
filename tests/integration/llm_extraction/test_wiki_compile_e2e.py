@@ -27,14 +27,10 @@ def _make_structure(tmp_path) -> WikiStructure:
 async def test_extract_concepts_from_doc_real_llm(tmp_path, basic_llm) -> None:
     """A real LLM extracts non-empty concepts from a Chinese business document."""
     structure = _make_structure(tmp_path)
-    compiler = WikiCompiler(
-        basic_llm, structure, WikiConfig(), WikiCompileConfig()
-    )
+    compiler = WikiCompiler(basic_llm, structure, WikiConfig(), WikiCompileConfig())
     raw = structure.raw_dir / "marketing.md"
     raw.write_text(
-        "# 市场营销\n\n"
-        "事件营销是一种通过制造热点事件来提升品牌知名度的策略。"
-        "社交裂变利用用户分享实现低成本获客。",
+        "# 市场营销\n\n事件营销是一种通过制造热点事件来提升品牌知名度的策略。社交裂变利用用户分享实现低成本获客。",
         encoding="utf-8",
     )
 
@@ -76,9 +72,7 @@ async def test_compile_all_full_pipeline_real_llm(tmp_path, basic_llm) -> None:
     structure = _make_structure(tmp_path)
     raw = structure.raw_dir / "marketing.md"
     raw.write_text(
-        "# 市场营销\n\n"
-        "事件营销是一种通过制造热点事件来提升品牌知名度的策略。"
-        "社交裂变利用用户分享实现低成本获客。",
+        "# 市场营销\n\n事件营销是一种通过制造热点事件来提升品牌知名度的策略。社交裂变利用用户分享实现低成本获客。",
         encoding="utf-8",
     )
 
@@ -105,6 +99,4 @@ async def test_compile_all_full_pipeline_real_llm(tmp_path, basic_llm) -> None:
     generated = list(concepts_dir.rglob("*.md")) if concepts_dir.exists() else []
     assert generated, "concept article files should be written under concepts/"
     for article in generated:
-        assert article.read_text(encoding="utf-8").strip(), (
-            f"article {article} must not be empty"
-        )
+        assert article.read_text(encoding="utf-8").strip(), f"article {article} must not be empty"

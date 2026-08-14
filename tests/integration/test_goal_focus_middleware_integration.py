@@ -113,9 +113,7 @@ async def test_goal_focus_skips_continuation_prompt_in_full_chain(
     request = ModelRequest(
         model=AsyncMock(),
         messages=[
-            HumanMessage(
-                content="[Continuing toward your standing goal]\n\n<objective>Long running task</objective>"
-            ),
+            HumanMessage(content="[Continuing toward your standing goal]\n\n<objective>Long running task</objective>"),
         ],
         runtime=runtime,
     )

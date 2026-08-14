@@ -11,7 +11,9 @@ from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import (
 )
 
 
-def _build_tool_schema(name: str, properties: dict[str, object], required: list[str] | None = None) -> dict[str, object]:
+def _build_tool_schema(
+    name: str, properties: dict[str, object], required: list[str] | None = None
+) -> dict[str, object]:
     return {
         "type": "function",
         "function": {
@@ -66,11 +68,9 @@ class TestRecoverToolCallPayloads:
 
     def test_degraded_recovery_records_metric(self) -> None:
         raw = [
-            {"id": "call_1", "type": "function", "function": {"name": "t", "arguments": 'invalid json garbage'}},
+            {"id": "call_1", "type": "function", "function": {"name": "t", "arguments": "invalid json garbage"}},
         ]
-        with patch(
-            "myrm_agent_harness.observability.metrics.registry.metrics_registry"
-        ) as mock_reg:
+        with patch("myrm_agent_harness.observability.metrics.registry.metrics_registry") as mock_reg:
             recovered, _metadata = recover_tool_call_payloads(raw)
         assert len(recovered) == 1
         mock_reg.record_tool_arg_recovery.assert_called_once()
@@ -127,7 +127,9 @@ class TestBuildFinalToolCallChunk:
             assert "tool_call_recovery" in chunk.message.additional_kwargs
 
     def test_with_schema(self) -> None:
-        schema = _build_tool_schema("file_write", {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"])
+        schema = _build_tool_schema(
+            "file_write", {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]
+        )
         raw = [
             {
                 "id": "call_1",

@@ -53,9 +53,7 @@ class TestGetOperations:
         result = await manager.get_profile_attribute("timezone")
 
         assert result == "UTC+8"
-        mock_relational_store.get_profile.assert_called_once_with(
-            "timezone", namespaces=["global", "agent:default"]
-        )
+        mock_relational_store.get_profile.assert_called_once_with("timezone", namespaces=["global", "agent:default"])
 
     @pytest.mark.asyncio
     async def test_get_procedural_rule(self, mock_relational_store, memory_config):
@@ -76,7 +74,12 @@ class TestGetOperations:
         """Test get_memory logs warning when backend raises exception."""
         mock_vector_store.get.side_effect = Exception("Database error")
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, relational=mock_relational_store, embedding=mock_embedding
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
         )
 
         result = await manager.get_memory("mem-1")
@@ -136,7 +139,9 @@ class TestListAndCountOperations:
         assert result[0].content == "timezone: UTC+8"
         assert result[0].metadata["key"] == "timezone"
         assert result[0].metadata["value"] == "UTC+8"
-        mock_relational_store.list_profiles.assert_called_once_with(limit=10, offset=0, namespaces=["global", "agent:default"])
+        mock_relational_store.list_profiles.assert_called_once_with(
+            limit=10, offset=0, namespaces=["global", "agent:default"]
+        )
 
     @pytest.mark.asyncio
     async def test_count_by_type(self, mock_vector_store, mock_embedding, memory_config):
@@ -233,7 +238,10 @@ class TestUpdateOperations:
 
     @pytest.mark.asyncio
     async def test_store_semantic_persists_scope_metadata(self, mock_vector_store, mock_embedding, memory_config):
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             embedding=mock_embedding,
             agent_id="assistant",
             channel_id="telegram",
@@ -262,7 +270,8 @@ class TestDeleteOperations:
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
         mock_vector_store.get.return_value = [
-            VectorDocument(id=mid, content="c", vector=[], metadata={"user_id": "test_user"}) for mid in ("mem-1", "mem-2")
+            VectorDocument(id=mid, content="c", vector=[], metadata={"user_id": "test_user"})
+            for mid in ("mem-1", "mem-2")
         ]
         mock_vector_store.delete.return_value = 2
 
@@ -283,9 +292,7 @@ class TestDeleteOperations:
         result = await manager.delete_profile("timezone")
 
         assert result is True
-        mock_relational_store.delete_profile.assert_called_once_with(
-            "timezone", namespaces=["global", "agent:default"]
-        )
+        mock_relational_store.delete_profile.assert_called_once_with("timezone", namespaces=["global", "agent:default"])
 
     @pytest.mark.asyncio
     async def test_delete_by_type(self, mock_vector_store, mock_embedding, memory_config):
@@ -362,9 +369,7 @@ class TestDeleteOperations:
         mock_graph_store.delete_subgraph.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_delete_by_type_procedural_scoped_to_namespaces(
-        self, mock_relational_store, memory_config
-    ):
+    async def test_delete_by_type_procedural_scoped_to_namespaces(self, mock_relational_store, memory_config):
         """Procedural delete-by-type must be scoped to the manager's namespaces.
 
         Rules must be listed with a namespace filter and deleted one by one so
@@ -378,9 +383,7 @@ class TestDeleteOperations:
         mock_relational_store.list_rules.side_effect = [rules, []]
         mock_relational_store.delete_rule.return_value = True
 
-        manager = MemoryManager(
-            memory_config, user_id="test_user", relational=mock_relational_store
-        )
+        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
 
         count = await manager.delete_by_type(MemoryType.PROCEDURAL)
 
@@ -458,9 +461,7 @@ class TestDeleteOperations:
         mock_vector_store.delete.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_delete_by_type_uses_primary_namespace_filter(
-        self, mock_vector_store, mock_embedding, memory_config
-    ):
+    async def test_delete_by_type_uses_primary_namespace_filter(self, mock_vector_store, mock_embedding, memory_config):
         """Bulk type clears must filter on ``primary_namespace`` exactly so the
         wipe cannot cross into another agent's memories via ``global``."""
         mock_vector_store.delete_by_filter.return_value = 3
@@ -477,9 +478,7 @@ class TestDeleteOperations:
 
         assert count == 3
         mock_vector_store.delete_by_filter.assert_awaited_once()
-        assert mock_vector_store.delete_by_filter.await_args.args[1][
-            "primary_namespace"
-        ] == ["global", "agent:b"]
+        assert mock_vector_store.delete_by_filter.await_args.args[1]["primary_namespace"] == ["global", "agent:b"]
 
     @pytest.mark.asyncio
     async def test_delete_all(self, mock_vector_store, mock_relational_store, mock_embedding, memory_config):
@@ -487,7 +486,12 @@ class TestDeleteOperations:
         mock_relational_store.delete_all.return_value = 5
         mock_vector_store.delete_by_filter.return_value = 10
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, relational=mock_relational_store, embedding=mock_embedding
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
         )
 
         counts = await manager.delete_all()
@@ -504,7 +508,12 @@ class TestDeleteOperations:
         mock_relational_store.delete_all.side_effect = Exception("DB connection failed")
         mock_vector_store.delete_by_filter.return_value = 10
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, relational=mock_relational_store, embedding=mock_embedding
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
         )
 
         counts = await manager.delete_all()
@@ -519,7 +528,12 @@ class TestDeleteOperations:
         mock_relational_store.delete_all.return_value = 5
         mock_vector_store.delete_by_filter.side_effect = Exception("Vector delete failed")
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, relational=mock_relational_store, embedding=mock_embedding
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
         )
 
         counts = await manager.delete_all()
@@ -533,7 +547,12 @@ class TestDeleteOperations:
         """Test get_memory logs warning when backend raises exception."""
         mock_vector_store.get.side_effect = Exception("Database error")
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, relational=mock_relational_store, embedding=mock_embedding
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
         )
 
         result = await manager.get_memory("mem-1")
@@ -551,11 +570,17 @@ class TestGraphCascadeDelete:
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
         mock_vector_store.get.return_value = [
-            VectorDocument(id=mid, content="c", vector=[], metadata={"user_id": "test_user"}) for mid in ("mem-1", "mem-2")
+            VectorDocument(id=mid, content="c", vector=[], metadata={"user_id": "test_user"})
+            for mid in ("mem-1", "mem-2")
         ]
         mock_vector_store.delete.return_value = 2
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, graph=mock_graph_store
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            graph=mock_graph_store,
         )
 
         count = await manager.delete_memory("test_collection", ["mem-1", "mem-2"])
@@ -594,7 +619,12 @@ class TestGraphCascadeDelete:
         mock_vector_store.delete.return_value = 1
         mock_graph_store.delete_subgraph.side_effect = Exception("Graph error")
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, graph=mock_graph_store
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            graph=mock_graph_store,
         )
 
         count = await manager.delete_memory("test_collection", ["mem-1"])
@@ -610,7 +640,10 @@ class TestGraphCascadeDelete:
         mock_vector_store.delete_by_filter.return_value = 10
         mock_graph_store.delete_all_by_owner.return_value = 8
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             relational=mock_relational_store,
             embedding=mock_embedding,
             graph=mock_graph_store,
@@ -630,7 +663,10 @@ class TestGraphCascadeDelete:
         mock_vector_store.delete_by_filter.return_value = 10
         mock_graph_store.delete_all_by_owner.side_effect = Exception("Graph error")
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
             relational=mock_relational_store,
             embedding=mock_embedding,
             graph=mock_graph_store,

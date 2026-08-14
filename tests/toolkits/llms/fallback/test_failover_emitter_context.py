@@ -49,6 +49,7 @@ def test_recording_emitter_satisfies_protocol():
 @pytest.mark.asyncio
 async def test_context_var_default_is_none():
     """No emitter is bound by default outside any with-block."""
+
     # Use a fresh task to avoid leakage from siblings.
     async def _probe() -> FailoverEmitter | None:
         return get_active_failover_emitter()
@@ -136,9 +137,7 @@ async def test_emitter_receives_failover_during_managed_llm_failover():
         raise Exception("rate limit reached")
 
     async def _ok(*args, **kwargs):
-        return ChatResult(
-            generations=[ChatGeneration(message=HumanMessage(content="ok"))]
-        )
+        return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="ok"))])
 
     mock_main.agenerate = AsyncMock(side_effect=_fail)
     mock_fallback.agenerate = AsyncMock(side_effect=_ok)
@@ -172,9 +171,7 @@ async def test_emitter_and_callback_both_fire():
         raise Exception("transient failure")
 
     async def _ok(*args, **kwargs):
-        return ChatResult(
-            generations=[ChatGeneration(message=HumanMessage(content="ok"))]
-        )
+        return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="ok"))])
 
     mock_main.agenerate = AsyncMock(side_effect=_fail)
     mock_fallback.agenerate = AsyncMock(side_effect=_ok)
@@ -211,9 +208,7 @@ async def test_emitter_exception_does_not_break_request():
         raise Exception("transient failure")
 
     async def _ok(*args, **kwargs):
-        return ChatResult(
-            generations=[ChatGeneration(message=HumanMessage(content="ok"))]
-        )
+        return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="ok"))])
 
     mock_main.agenerate = AsyncMock(side_effect=_fail)
     mock_fallback.agenerate = AsyncMock(side_effect=_ok)
@@ -261,9 +256,7 @@ async def test_no_emitter_means_silent_path():
         raise Exception("transient failure")
 
     async def _ok(*args, **kwargs):
-        return ChatResult(
-            generations=[ChatGeneration(message=HumanMessage(content="ok"))]
-        )
+        return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="ok"))])
 
     mock_main.agenerate = AsyncMock(side_effect=_fail)
     mock_fallback.agenerate = AsyncMock(side_effect=_ok)

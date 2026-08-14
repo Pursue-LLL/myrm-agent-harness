@@ -156,9 +156,7 @@ class MediaResolverProcessor(BaseProcessor):
         )
 
         resolved_count = 0
-        for (msg_idx, item_idx, original_url), result in zip(
-            resolve_tasks, results, strict=True
-        ):
+        for (msg_idx, item_idx, original_url), result in zip(resolve_tasks, results, strict=True):
             if isinstance(result, Exception):
                 logger.warning("[MediaResolver] Failed to resolve %s: %s", original_url[:80], result)
                 continue

@@ -51,11 +51,14 @@ def test_should_retain_tool_message_for_focus_file_signal() -> None:
         tool_call_id="call_read",
         name="file_read_tool",
     )
-    assert should_retain_tool_message(
-        msg,
-        frozenset(),
-        focus_files=frozenset({"src/app/main.py"}),
-    ) is True
+    assert (
+        should_retain_tool_message(
+            msg,
+            frozenset(),
+            focus_files=frozenset({"src/app/main.py"}),
+        )
+        is True
+    )
 
 
 def test_should_retain_tool_message_for_focus_path_in_tool_args_only() -> None:
@@ -82,17 +85,23 @@ def test_should_retain_tool_message_for_focus_path_in_tool_args_only() -> None:
     tool_msg = messages[2]
     assert isinstance(tool_msg, ToolMessage)
 
-    assert should_retain_tool_message(
-        tool_msg,
-        frozenset(),
-        focus_files=frozenset({"src/auth/login.py"}),
-        group=groups[0],
-    ) is True
-    assert should_retain_tool_message(
-        tool_msg,
-        frozenset(),
-        focus_files=frozenset({"src/auth/login.py"}),
-    ) is False
+    assert (
+        should_retain_tool_message(
+            tool_msg,
+            frozenset(),
+            focus_files=frozenset({"src/auth/login.py"}),
+            group=groups[0],
+        )
+        is True
+    )
+    assert (
+        should_retain_tool_message(
+            tool_msg,
+            frozenset(),
+            focus_files=frozenset({"src/auth/login.py"}),
+        )
+        is False
+    )
 
 
 def test_should_retain_tool_message_for_goal_hint_in_tool_args_only() -> None:
@@ -119,12 +128,15 @@ def test_should_retain_tool_message_for_goal_hint_in_tool_args_only() -> None:
     tool_msg = messages[2]
     assert isinstance(tool_msg, ToolMessage)
 
-    assert should_retain_tool_message(
-        tool_msg,
-        frozenset(),
-        user_goal_hint="fix login timeout issue",
-        group=groups[0],
-    ) is True
+    assert (
+        should_retain_tool_message(
+            tool_msg,
+            frozenset(),
+            user_goal_hint="fix login timeout issue",
+            group=groups[0],
+        )
+        is True
+    )
 
 
 def test_build_tool_call_group_by_id() -> None:
@@ -145,11 +157,14 @@ def test_extract_user_goal_hint() -> None:
 
 def test_tool_message_matches_focus_signals() -> None:
     msg = ToolMessage(content="output from myrm-agent-server/app/main.py", tool_call_id="c1", name="grep")
-    assert tool_message_matches_focus_signals(
-        msg,
-        focus_files=frozenset({"./myrm-agent-server/app/main.py"}),
-        focus_modules=frozenset(),
-    ) is True
+    assert (
+        tool_message_matches_focus_signals(
+            msg,
+            focus_files=frozenset({"./myrm-agent-server/app/main.py"}),
+            focus_modules=frozenset(),
+        )
+        is True
+    )
 
 
 def test_extract_focus_files_and_modules() -> None:
@@ -231,9 +246,7 @@ def test_find_keep_recent_prune_cutoff_with_many_groups() -> None:
     messages: list = [HumanMessage(content="hi")]
     for i in range(6):
         tc_id = f"tc{i}"
-        messages.append(
-            AIMessage(content="", tool_calls=[{"id": tc_id, "name": "tool", "args": {}}])
-        )
+        messages.append(AIMessage(content="", tool_calls=[{"id": tc_id, "name": "tool", "args": {}}]))
         messages.append(ToolMessage(content=f"result{i}", name="tool", tool_call_id=tc_id))
 
     # keep 5 of 6 groups -> first protected group is tc1 at message index 4

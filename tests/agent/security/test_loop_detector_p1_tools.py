@@ -18,6 +18,7 @@ class TestSpawnSubagentSuggestions:
     def test_spawn_subagent_timeout_pattern(self) -> None:
         g = LoopGuard(no_progress_threshold=3, warn_threshold=99, break_threshold=99)
         from myrm_agent_harness.agent.security.guards.loop_guard import VERDICT_ALLOW
+
         g._check_consecutive_failures = lambda calls: VERDICT_ALLOW
         g._check_error_signature = lambda tool_name, result_text: VERDICT_ALLOW
 
@@ -31,7 +32,9 @@ class TestSpawnSubagentSuggestions:
 
         v = g.pre_check("delegate_task_tool", {"subagent_type": "explore", "prompt": "task_final"})
         g.record_result(
-            "delegate_task_tool", {"subagent_type": "explore", "prompt": "task_final"}, "Error: timeout exceeded after 300s"
+            "delegate_task_tool",
+            {"subagent_type": "explore", "prompt": "task_final"},
+            "Error: timeout exceeded after 300s",
         )
 
         # No-progress might or might not trigger depending on hash equality
@@ -55,6 +58,7 @@ class TestBrowserSnapshotSuggestions:
     def test_browser_snapshot_empty_result(self) -> None:
         g = LoopGuard(no_progress_threshold=3, warn_threshold=99, break_threshold=99)
         from myrm_agent_harness.agent.security.guards.loop_guard import VERDICT_ALLOW
+
         g._check_consecutive_failures = lambda calls: VERDICT_ALLOW
 
         for i in range(4):
@@ -65,7 +69,9 @@ class TestBrowserSnapshotSuggestions:
         g.record_result("browser_snapshot_tool", {"scope": "final"}, "")
 
         if v.action != LoopAction.ALLOW:
-            assert "browser_inspect_tool" in v.reason or "browser_interact_tool" in v.reason or v.action == LoopAction.WARN
+            assert (
+                "browser_inspect_tool" in v.reason or "browser_interact_tool" in v.reason or v.action == LoopAction.WARN
+            )
 
 
 class TestSkillToolsSuggestions:
@@ -84,6 +90,7 @@ class TestSkillToolsSuggestions:
     def test_skill_search_empty_result(self) -> None:
         g = LoopGuard(no_progress_threshold=3, warn_threshold=99, break_threshold=99)
         from myrm_agent_harness.agent.security.guards.loop_guard import VERDICT_ALLOW
+
         g._check_consecutive_failures = lambda calls: VERDICT_ALLOW
 
         for i in range(4):

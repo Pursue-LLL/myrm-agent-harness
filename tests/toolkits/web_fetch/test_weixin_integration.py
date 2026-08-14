@@ -48,9 +48,7 @@ async def test_non_weixin_url_skips_extractor() -> None:
                 "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_weixin_article",
                 new_callable=AsyncMock,
             ) as mock_extract,
-            patch.object(
-                engine, "_crawl_with_degradation", new_callable=AsyncMock
-            ) as mock_crawl,
+            patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl,
         ):
             mock_crawl.return_value = (
                 MagicMock(page_content="Article content", metadata={}),

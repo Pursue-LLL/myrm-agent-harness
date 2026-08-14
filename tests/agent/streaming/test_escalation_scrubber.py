@@ -1,6 +1,5 @@
 """Unit tests for EscalationScrubber — model self-escalation marker detection."""
 
-
 from myrm_agent_harness.agent.streaming.escalation_scrubber import (
     EscalationScrubber,
     _could_be_partial_marker,

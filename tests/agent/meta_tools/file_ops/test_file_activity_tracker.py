@@ -142,7 +142,6 @@ class TestFileActivityTracker:
         assert result_d_no_overlap is not None
         assert result_d_no_overlap.level == ConflictLevel.SAME_FILE_NON_OVERLAPPING
 
-
     def test_timestamp_auto_populated(self) -> None:
         """FileAccess timestamp should be auto-populated to current time."""
         import os

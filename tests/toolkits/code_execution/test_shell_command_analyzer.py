@@ -204,10 +204,7 @@ class TestSuspiciousPatterns:
     def test_kill_in_single_quotes_is_safe(self):
         """kill inside single quotes is not a real command."""
         threats = analyze_command("echo 'kill 12345'")
-        assert not any(
-            t.level == ThreatLevel.ESCALATE and "process termination" in t.detail.lower()
-            for t in threats
-        )
+        assert not any(t.level == ThreatLevel.ESCALATE and "process termination" in t.detail.lower() for t in threats)
 
 
 class TestSafeCommands:
@@ -841,7 +838,7 @@ class TestFindExecExemptionExtended:
         assert analyze_command(r"find . -exec cat {} \;   ") == ()
 
     def test_find_exec_with_path_quotes(self):
-        assert analyze_command(r'''find "/tmp/my dir" -name "*.txt" -exec wc -l {} \;''') == ()
+        assert analyze_command(r"""find "/tmp/my dir" -name "*.txt" -exec wc -l {} \;""") == ()
 
 
 class TestSuspiciousPatternsExtended:
@@ -958,6 +955,7 @@ class TestSystemManagementScenarios:
         """Windows WMI query is safe (read-only)."""
         threats = analyze_command("wmic startup list full")
         assert not any(t.level == ThreatLevel.BLOCK for t in threats)
+
 
 class TestRmLongFormOptions:
     """BLOCK-level: rm with long-form options (--force, --recursive, --no-preserve-root)."""
@@ -1128,7 +1126,7 @@ class TestConfigProtection:
     """Validate configuration and lockfile protection scenarios."""
 
     def test_eslint_sed_blocked(self):
-        assert has_block_threat("sed -i 's/\"no-console\": 1/\"no-console\": 0/' .eslintrc")
+        assert has_block_threat('sed -i \'s/"no-console": 1/"no-console": 0/\' .eslintrc')
 
     def test_package_lock_sed_blocked(self):
         """String manipulation of lockfiles is dangerous and blocked."""

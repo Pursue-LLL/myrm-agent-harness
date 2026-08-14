@@ -122,8 +122,7 @@ def create_interact_tool(session: BrowserSession):
                 latest = session.last_download
                 if latest:
                     result = (
-                        f"{result}\nFile downloaded: {latest.file_name} ({latest.file_size} bytes)\n"
-                        f"Path: {latest.path}"
+                        f"{result}\nFile downloaded: {latest.file_name} ({latest.file_size} bytes)\nPath: {latest.path}"
                     )
         return result
 
@@ -159,8 +158,12 @@ def create_interact_tool(session: BrowserSession):
                 return "Error: action is required for coordinate mode"
             return mark_untrusted(
                 await session.interact_at(
-                    action=action, x=x, y=y, text=text,
-                    target_x=target_x, target_y=target_y,
+                    action=action,
+                    x=x,
+                    y=y,
+                    text=text,
+                    target_x=target_x,
+                    target_y=target_y,
                     verify_goal=verify_goal,
                 )
             )

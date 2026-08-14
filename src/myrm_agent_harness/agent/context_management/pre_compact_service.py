@@ -57,9 +57,7 @@ class MemoryPreCompactConfig:
 class MemoryPreCompactService:
     """Recall durable memories before context compaction mutates the message list."""
 
-    def __init__(
-        self, manager: MemoryManager, config: MemoryPreCompactConfig | None = None
-    ) -> None:
+    def __init__(self, manager: MemoryManager, config: MemoryPreCompactConfig | None = None) -> None:
         self._manager = manager
         self._config = config or MemoryPreCompactConfig()
 
@@ -80,9 +78,7 @@ class MemoryPreCompactService:
         if not query:
             return None
 
-        budget_tokens = _dynamic_budget(
-            self._config.budget_tokens, token_pressure_ratio
-        )
+        budget_tokens = _dynamic_budget(self._config.budget_tokens, token_pressure_ratio)
         excluded_ids = _collect_memory_ids(messages)
 
         try:
@@ -105,13 +101,11 @@ class MemoryPreCompactService:
             return None
 
         filtered = [item for item in results if item.id not in excluded_ids]
-        archive_body, archive_ids, archive_tokens = (
-            await _fetch_archive_checkpoint_milestone(
-                self._manager,
-                chat_id=chat_id,
-                excluded_ids=excluded_ids,
-                budget_tokens=max(400, budget_tokens // 3),
-            )
+        archive_body, archive_ids, archive_tokens = await _fetch_archive_checkpoint_milestone(
+            self._manager,
+            chat_id=chat_id,
+            excluded_ids=excluded_ids,
+            budget_tokens=max(400, budget_tokens // 3),
         )
 
         if not filtered and not archive_body:

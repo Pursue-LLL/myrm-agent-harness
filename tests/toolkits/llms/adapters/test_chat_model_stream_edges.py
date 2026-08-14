@@ -88,7 +88,10 @@ def test_dump_payload_pairing(monkeypatch: pytest.MonkeyPatch, caplog: pytest.Lo
             [
                 {"role": "assistant", "tool_calls": [{"id": "call_1", "function": {"name": "f", "arguments": ""}}]},
                 {"role": "tool", "tool_call_id": "call_1", "content": "42"},
-                {"role": "assistant", "tool_calls": [{"id": "call_2", "function": {"id": "call_2", "name": "g", "arguments": ""}}]},
+                {
+                    "role": "assistant",
+                    "tool_calls": [{"id": "call_2", "function": {"id": "call_2", "name": "g", "arguments": ""}}],
+                },
             ]
         )
     assert "LLM_PAYLOAD_DUMP" in caplog.text
@@ -210,9 +213,7 @@ class TestProcessChunk:
 
     def test_fallback_generic_chunk(self) -> None:
         model = self._make()
-        cg, _ = model._process_chunk(
-            {"choices": [{"delta": {"content": "x"}}]}, HumanMessageChunk
-        )
+        cg, _ = model._process_chunk({"choices": [{"delta": {"content": "x"}}]}, HumanMessageChunk)
         assert cg is not None
         assert cg.message.content == "x"
 
@@ -290,11 +291,7 @@ class TestAsyncStreamEdges:
                     }
                 ]
             },
-            {
-                "choices": [
-                    {"delta": {"content": " world"}, "finish_reason": "stop"}
-                ]
-            },
+            {"choices": [{"delta": {"content": " world"}, "finish_reason": "stop"}]},
             {"choices": [], "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}},
         ]
         model.client.acreate = AsyncMock(return_value=_async_chunks(chunks))

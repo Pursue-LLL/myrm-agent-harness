@@ -75,9 +75,7 @@ def _stream_chunks() -> list[dict[str, Any]]:
                 }
             ]
         },
-        {
-            "choices": [{"delta": {"content": None}, "finish_reason": "tool_calls"}]
-        },
+        {"choices": [{"delta": {"content": None}, "finish_reason": "tool_calls"}]},
         {
             "choices": [],
             "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
@@ -183,20 +181,13 @@ class TestSyncFullStream:
     def test_stream_with_reasoning_tool_call_and_manager(self) -> None:
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
-        model.client.completion = MagicMock(
-            return_value=_sync_iter(_stream_chunks())
-        )
+        model.client.completion = MagicMock(return_value=_sync_iter(_stream_chunks()))
         manager = _SyncRunManager()
 
-        results = list(
-            model._stream([HumanMessage(content="hi")], run_manager=manager)
-        )
+        results = list(model._stream([HumanMessage(content="hi")], run_manager=manager))
 
         # tool-call chunk + content + sentinel are all yielded
-        assert any(
-            getattr(getattr(r.message, "tool_call_chunks", []), "__len__", lambda: 0)()
-            for r in results
-        )
+        assert any(getattr(getattr(r.message, "tool_call_chunks", []), "__len__", lambda: 0)() for r in results)
         assert len(results) >= 2
 
     def test_empty_stream_retry_succeeds(self) -> None:
@@ -244,11 +235,7 @@ class TestSyncFullStream:
         results = list(model._stream([HumanMessage(content="hi")]))
         assert len(results) >= 1
         flushed = next(
-            (
-                r
-                for r in results
-                if getattr(r.message, "additional_kwargs", {}).get("reasoning_content")
-            ),
+            (r for r in results if getattr(r.message, "additional_kwargs", {}).get("reasoning_content")),
             None,
         )
         assert flushed is not None
@@ -283,9 +270,7 @@ class TestAsyncAgenerateStreaming:
             await model._agenerate([HumanMessage(content="hi")])
 
     @pytest.mark.asyncio
-    async def test_agenerate_streaming_fallback_on_type_error(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_agenerate_streaming_fallback_on_type_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """agenerate_from_stream NoneType bug falls back to non-streaming."""
         import myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin as mod
 
@@ -300,21 +285,15 @@ class TestAsyncAgenerateStreaming:
         monkeypatch.setattr(
             mod,
             "agenerate_from_stream",
-            MagicMock(
-                side_effect=TypeError("'NoneType' object is not iterable")
-            ),
+            MagicMock(side_effect=TypeError("'NoneType' object is not iterable")),
         )
         monkeypatch.setattr(model, "_agenerate", _boom_agenerate)
 
-        result = await model._agenerate_inner(
-            [HumanMessage(content="hi")], streaming=True
-        )
+        result = await model._agenerate_inner([HumanMessage(content="hi")], streaming=True)
         assert isinstance(result, ChatResult)
 
     @pytest.mark.asyncio
-    async def test_agenerate_streaming_generic_error_raises(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_agenerate_streaming_generic_error_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Non-TypeError streaming failures propagate unchanged."""
         import myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin as mod
 
@@ -332,14 +311,10 @@ class TestAsyncAgenerateStreaming:
         monkeypatch.setattr(mod, "agenerate_from_stream", _agg_from_stream)
 
         with pytest.raises(RuntimeError, match="stream exploded"):
-            await model._agenerate_inner(
-                [HumanMessage(content="hi")], streaming=True
-            )
+            await model._agenerate_inner([HumanMessage(content="hi")], streaming=True)
 
     @pytest.mark.asyncio
-    async def test_async_stream_context_overflow_fast_fails(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_async_stream_context_overflow_fast_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
 
@@ -352,9 +327,7 @@ class TestAsyncAgenerateStreaming:
         import myrm_agent_harness.toolkits.llms.errors.classifier as cls
 
         monkeypatch.setattr(cls, "is_context_overflow", lambda e: True)
-        monkeypatch.setattr(
-            cls, "parse_available_output_tokens_from_error", lambda e: None
-        )
+        monkeypatch.setattr(cls, "parse_available_output_tokens_from_error", lambda e: None)
 
         with pytest.raises(ValueError, match="context length"):
             async for _ in model._astream([HumanMessage(content="hi")]):
@@ -382,20 +355,8 @@ class TestAsyncAgenerateStreaming:
                     }
                 ]
             },
-            {
-                "choices": [
-                    {
-                        "delta": {
-                            "tool_calls": [
-                                {"index": 0, "function": {"arguments": "{}"}}
-                            ]
-                        }
-                    }
-                ]
-            },
-            {
-                "choices": [{"delta": {"content": None}, "finish_reason": "tool_calls"}]
-            },
+            {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "{}"}}]}}]},
+            {"choices": [{"delta": {"content": None}, "finish_reason": "tool_calls"}]},
         ]
         model.client.acreate = AsyncMock(return_value=_async_iter(chunks))
 
@@ -413,25 +374,17 @@ class TestAsyncAgenerateStreaming:
         model.client = MagicMock()
         chunks: list[dict[str, Any]] = [
             {"choices": [{"delta": {"role": "assistant", "content": "hi"}}]},
-            {
-                "choices": [
-                    {"delta": {"content": None}, "finish_reason": "stop"}
-                ]
-            },
+            {"choices": [{"delta": {"content": None}, "finish_reason": "stop"}]},
         ]
         model.client.acreate = AsyncMock(return_value=_async_iter(chunks))
         manager = _AsyncRunManager()
 
-        async for _ in model._astream(
-            [HumanMessage(content="hi")], run_manager=manager
-        ):
+        async for _ in model._astream([HumanMessage(content="hi")], run_manager=manager):
             pass
         assert len(manager.tokens) >= 1
 
     @pytest.mark.asyncio
-    async def test_agenerate_streaming_non_none_type_error_raises(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_agenerate_streaming_non_none_type_error_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """TypeError without the NoneType marker is not treated as fallback."""
         import myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin as mod
 
@@ -444,14 +397,10 @@ class TestAsyncAgenerateStreaming:
         )
 
         with pytest.raises(TypeError, match="unrelated"):
-            await model._agenerate_inner(
-                [HumanMessage(content="hi")], streaming=True
-            )
+            await model._agenerate_inner([HumanMessage(content="hi")], streaming=True)
 
     @pytest.mark.asyncio
-    async def test_async_stream_context_overflow_injects_max_tokens(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_async_stream_context_overflow_injects_max_tokens(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Context overflow with available tokens retries with injected max_tokens."""
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
@@ -464,11 +413,7 @@ class TestAsyncAgenerateStreaming:
             return _async_iter(
                 [
                     {"choices": [{"delta": {"role": "assistant", "content": "ok"}}]},
-                    {
-                        "choices": [
-                            {"delta": {"content": None}, "finish_reason": "stop"}
-                        ]
-                    },
+                    {"choices": [{"delta": {"content": None}, "finish_reason": "stop"}]},
                 ]
             )
 
@@ -479,9 +424,7 @@ class TestAsyncAgenerateStreaming:
         import myrm_agent_harness.toolkits.llms.errors.classifier as cls
 
         monkeypatch.setattr(cls, "is_context_overflow", lambda e: True)
-        monkeypatch.setattr(
-            cls, "parse_available_output_tokens_from_error", lambda e: 800
-        )
+        monkeypatch.setattr(cls, "parse_available_output_tokens_from_error", lambda e: 800)
 
         collected = []
         async for chunk in model._astream([HumanMessage(content="hi")]):
@@ -507,16 +450,12 @@ class TestContextOverflowFastFail:
         import myrm_agent_harness.toolkits.llms.errors.classifier as cls
 
         monkeypatch.setattr(cls, "is_context_overflow", lambda e: True)
-        monkeypatch.setattr(
-            cls, "parse_available_output_tokens_from_error", lambda e: None
-        )
+        monkeypatch.setattr(cls, "parse_available_output_tokens_from_error", lambda e: None)
 
         with pytest.raises(ValueError, match="context length"):
             model._generate([HumanMessage(content="hi")])
 
     def test_context_overflow_classifier_regex(self) -> None:
         assert is_context_overflow(ValueError("prompt is too long"))
-        assert is_context_overflow(
-            ValueError("This model's maximum context length is 128000")
-        )
+        assert is_context_overflow(ValueError("This model's maximum context length is 128000"))
         assert not is_context_overflow(ValueError("rate limit"))

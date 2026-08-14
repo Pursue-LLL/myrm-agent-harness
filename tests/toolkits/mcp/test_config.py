@@ -112,8 +112,11 @@ class TestToolIncludeExcludeFields:
 
     def test_both_set(self) -> None:
         cfg = MCPConfig(
-            name="s", type="stdio", command="npx",
-            tool_include=["read"], tool_exclude=["delete"],
+            name="s",
+            type="stdio",
+            command="npx",
+            tool_include=["read"],
+            tool_exclude=["delete"],
         )
         assert cfg.tool_include == ["read"]
         assert cfg.tool_exclude == ["delete"]

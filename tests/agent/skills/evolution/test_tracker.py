@@ -16,7 +16,7 @@ def mock_store():
         content="pass",
         path="test.py",
         lineage=SkillLineage(evolution_type=EvolutionType.FIX),
-        metrics=SkillMetrics()
+        metrics=SkillMetrics(),
     )
     store.get_skill.return_value = skill_rec
     store.save_analysis = AsyncMock()
@@ -25,34 +25,28 @@ def mock_store():
     store.get_active_skills.return_value = [skill_rec]
     return store
 
+
 @pytest.mark.asyncio
 async def test_record_execution_success(mock_store):
     tracker = SkillQualityTracker(mock_store)
-    res = SkillExecutionResult(
-        skill_id="skill1",
-        success=True,
-        context={"task_id": "t1"}
-    )
+    res = SkillExecutionResult(skill_id="skill1", success=True, context={"task_id": "t1"})
     metrics = await tracker.record_execution(res)
 
     assert metrics.success_count == 1
     mock_store.save_analysis.assert_called_once()
     mock_store.update_metrics.assert_called_once()
 
+
 @pytest.mark.asyncio
 async def test_record_execution_failure(mock_store):
     tracker = SkillQualityTracker(mock_store)
-    res = SkillExecutionResult(
-        skill_id="skill1",
-        success=False,
-        error_message="failed",
-        context={"task_id": "t1"}
-    )
+    res = SkillExecutionResult(skill_id="skill1", success=False, error_message="failed", context={"task_id": "t1"})
     metrics = await tracker.record_execution(res)
 
     assert metrics.consecutive_failures == 1
     mock_store.save_analysis.assert_called_once()
     mock_store.update_metrics.assert_called_once()
+
 
 @pytest.mark.asyncio
 async def test_record_execution_not_found(mock_store):
@@ -63,6 +57,7 @@ async def test_record_execution_not_found(mock_store):
     with pytest.raises(ValueError, match="Skill not found"):
         await tracker.record_execution(res)
 
+
 @pytest.mark.asyncio
 async def test_get_skills_needing_fix(mock_store):
     tracker = SkillQualityTracker(mock_store)
@@ -70,6 +65,7 @@ async def test_get_skills_needing_fix(mock_store):
 
     assert len(skills) == 1
     mock_store.get_skills_needing_fix.assert_called_with(0.6)
+
 
 def test_get_quality_report(mock_store):
     tracker = SkillQualityTracker(mock_store)
@@ -79,6 +75,7 @@ def test_get_quality_report(mock_store):
     assert report["total_executions"] == 0
     assert "avg_success_rate" in report
 
+
 def test_get_quality_report_empty(mock_store):
     mock_store.get_active_skills.return_value = []
     tracker = SkillQualityTracker(mock_store)
@@ -86,6 +83,7 @@ def test_get_quality_report_empty(mock_store):
 
     assert report["total_skills"] == 0
     assert report["avg_success_rate"] == 0.0
+
 
 @pytest.mark.asyncio
 async def test_batch_record_executions(mock_store):
@@ -98,10 +96,16 @@ async def test_batch_record_executions(mock_store):
     def get_skill_side_effect(skill_id):
         if skill_id == "skill1":
             return SkillRecord(
-                skill_id="skill1", name="test", description="test", content="pass",
-                path="test.py", lineage=SkillLineage(evolution_type=EvolutionType.FIX), metrics=SkillMetrics()
+                skill_id="skill1",
+                name="test",
+                description="test",
+                content="pass",
+                path="test.py",
+                lineage=SkillLineage(evolution_type=EvolutionType.FIX),
+                metrics=SkillMetrics(),
             )
         return None
+
     mock_store.get_skill.side_effect = get_skill_side_effect
 
     updated = await tracker.batch_record_executions([res1, res2])

@@ -138,9 +138,7 @@ class NetworkIntelligence:
             # Keep the raw window for replay: network_replay re-sends the real
             # body, so it must not be redacted here. Display-time redaction
             # happens in get_summary.
-            post_data_original = (
-                post_data_raw[:_RAW_PREVIEW_WINDOW] if post_data_raw else None
-            )
+            post_data_original = post_data_raw[:_RAW_PREVIEW_WINDOW] if post_data_raw else None
 
             record = CdpRequestRecord(
                 request_id=request_id,
@@ -152,9 +150,7 @@ class NetworkIntelligence:
             )
             self._requests.append(record)
         except Exception as exc:
-            logger.debug(
-                "NetworkIntelligence: requestWillBeSent handler error: %s", exc
-            )
+            logger.debug("NetworkIntelligence: requestWillBeSent handler error: %s", exc)
 
     def _on_response_received(self, params: dict) -> None:
         """Handle CDP Network.responseReceived — update status and mime_type."""
@@ -219,7 +215,7 @@ class NetworkIntelligence:
 
             if len(body) > _BODY_PREVIEW_MAX_CHARS:
                 return (
-                    f"{redact_sensitive_text(body[: _BODY_RAW_WINDOW])[:_BODY_PREVIEW_MAX_CHARS]}\n\n"
+                    f"{redact_sensitive_text(body[:_BODY_RAW_WINDOW])[:_BODY_PREVIEW_MAX_CHARS]}\n\n"
                     f"... [truncated, total {len(body)} chars] "
                     f"MIME: {record.mime_type or 'unknown'}"
                 )

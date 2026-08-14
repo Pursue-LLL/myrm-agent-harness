@@ -18,7 +18,7 @@ def create_mock_skill(usage_count=0, success_rate=1.0, consecutive_failures=0):
         applied_count=usage_count,
         completed_count=usage_count,
         success_count=success_count,
-        consecutive_failures=consecutive_failures
+        consecutive_failures=consecutive_failures,
     )
     return SkillRecord(
         skill_id="test_skill",
@@ -27,8 +27,9 @@ def create_mock_skill(usage_count=0, success_rate=1.0, consecutive_failures=0):
         content="pass",
         path="test.py",
         lineage=SkillLineage(evolution_type=EvolutionType.DERIVED),
-        metrics=metrics
+        metrics=metrics,
     )
+
 
 def test_analyzer_insufficient_data():
     analyzer = SkillExecutionAnalyzer(usage_min=3)
@@ -38,6 +39,7 @@ def test_analyzer_insufficient_data():
     assert rec.confidence == 0.0
     assert "Insufficient usage data" in rec.reasons[0]
 
+
 def test_analyzer_should_fix_consecutive_failures():
     analyzer = SkillExecutionAnalyzer(usage_min=3)
     skill = create_mock_skill(usage_count=5, success_rate=0.4, consecutive_failures=3)
@@ -45,6 +47,7 @@ def test_analyzer_should_fix_consecutive_failures():
     assert rec.should_fix is True
     assert rec.confidence == 0.9
     assert any("consecutive failures" in r for r in rec.reasons)
+
 
 def test_analyzer_should_fix_low_success_rate():
     analyzer = SkillExecutionAnalyzer(fix_threshold=0.5, usage_min=3)
@@ -54,6 +57,7 @@ def test_analyzer_should_fix_low_success_rate():
     assert rec.confidence == 0.9
     assert any("Low success rate" in r for r in rec.reasons)
 
+
 def test_analyzer_should_derive():
     analyzer = SkillExecutionAnalyzer(usage_min=3)
     skill = create_mock_skill(usage_count=15, success_rate=0.8, consecutive_failures=0)
@@ -61,6 +65,7 @@ def test_analyzer_should_derive():
     assert rec.should_derive is True
     assert rec.confidence == 0.6
     assert any("stable and popular" in r for r in rec.reasons)
+
 
 def test_analyze_execution_history():
     analyzer = SkillExecutionAnalyzer()
@@ -71,12 +76,13 @@ def test_analyze_execution_history():
         success=False,
         error_message="Connection timeout occurred",
         root_cause="Network issue",
-        suggested_fix="Increase timeout"
+        suggested_fix="Increase timeout",
     )
     summary = analyzer.analyze_execution_history(skill, analysis)
     assert summary.get("error_type") == "timeout"
     assert summary.get("has_root_cause") is True
     assert summary.get("has_suggested_fix") is True
+
 
 def test_classify_error():
     analyzer = SkillExecutionAnalyzer()
@@ -86,11 +92,13 @@ def test_classify_error():
     assert analyzer._classify_error("TypeError: NoneType") == "type_error"
     assert analyzer._classify_error("Some weird bug") == "unknown"
 
+
 def test_estimate_relevance():
     analyzer = SkillExecutionAnalyzer()
     assert analyzer._estimate_relevance([]) == 0.0
     assert analyzer._estimate_relevance(["ctx1", "ctx2"]) == 0.4
     assert analyzer._estimate_relevance(["1", "2", "3", "4", "5", "6"]) == 1.0
+
 
 def test_should_evolve_now():
     analyzer = SkillExecutionAnalyzer(fix_threshold=0.5)
@@ -109,6 +117,7 @@ def test_should_evolve_now():
     evolve, reason = analyzer.should_evolve_now(skill_ok)
     assert evolve is False
     assert "performing adequately" in reason
+
 
 def test_analyze_skill_for_evolution_convenience():
     skill = create_mock_skill(usage_count=1)

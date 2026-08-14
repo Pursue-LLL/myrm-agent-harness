@@ -131,12 +131,7 @@ async def _ripgrep_search(
                         content = data["data"]["lines"]["text"].rstrip("\n")
                         line_type = data["type"]
 
-                        results.append({
-                            "file": path_text,
-                            "line": line_num,
-                            "content": content,
-                            "type": line_type
-                        })
+                        results.append({"file": path_text, "line": line_num, "content": content, "type": line_type})
 
                         if line_type == "match":
                             match_count += 1

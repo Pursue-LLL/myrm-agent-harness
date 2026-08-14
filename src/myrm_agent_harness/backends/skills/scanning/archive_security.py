@@ -78,11 +78,7 @@ def classify_archive_security_issue(error_or_text: BaseException | str) -> Archi
     text = error_or_text if isinstance(error_or_text, str) else str(error_or_text)
     normalized = text.lower()
 
-    if (
-        "too many entries" in normalized
-        or "zip 条目过多" in normalized
-        or "zip 文件条目数过多" in normalized
-    ):
+    if "too many entries" in normalized or "zip 条目过多" in normalized or "zip 文件条目数过多" in normalized:
         return ArchiveSecurityViolation(
             code=ArchiveSecurityCode.ENTRY_LIMIT_EXCEEDED,
             source="legacy_untyped_error",
@@ -162,4 +158,3 @@ def _format_metric_value(value: int | float | str | None) -> str:
     if isinstance(value, str):
         return value
     return f"{value:.4f}"
-

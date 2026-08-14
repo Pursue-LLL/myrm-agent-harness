@@ -46,7 +46,6 @@ _MAX_EPHEMERAL_OUTPUT_TOKENS = MAX_EPHEMERAL_OUTPUT_TOKENS
 
 
 class StreamTruncationRecoveryMixin:
-
     _ctx: StreamContext
     _compactor: StreamCompactor
     streaming_final_answer: bool

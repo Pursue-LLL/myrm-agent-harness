@@ -274,6 +274,9 @@ def _extract_endpoints(
     definitions = spec.get("definitions")
     if not isinstance(definitions, dict):
         definitions = None
+    top_parameters = spec.get("parameters")
+    if not isinstance(top_parameters, dict):
+        top_parameters = None
 
     endpoints: list[ParsedEndpoint] = []
     seen_op_ids: set[str] = set()
@@ -304,6 +307,7 @@ def _extract_endpoints(
                 is_swagger_2=is_swagger_2,
                 components=components,
                 definitions=definitions,
+                top_parameters=top_parameters,
             )
 
             endpoints.append(

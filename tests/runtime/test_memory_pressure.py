@@ -301,9 +301,10 @@ class TestMonitorProperties:
         assert monitor.is_under_pressure() is True
 
     def test_memory_source_detection(self):
-        with patch("myrm_agent_harness.runtime.memory_pressure._CGROUP_MEMORY_CURRENT") as mock_current, patch(
-            "myrm_agent_harness.runtime.memory_pressure._CGROUP_MEMORY_MAX"
-        ) as mock_max:
+        with (
+            patch("myrm_agent_harness.runtime.memory_pressure._CGROUP_MEMORY_CURRENT") as mock_current,
+            patch("myrm_agent_harness.runtime.memory_pressure._CGROUP_MEMORY_MAX") as mock_max,
+        ):
             mock_current.exists.return_value = False
             mock_max.exists.return_value = False
             monitor = MemoryPressureMonitor()

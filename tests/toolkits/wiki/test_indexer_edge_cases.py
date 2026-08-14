@@ -98,10 +98,7 @@ def test_extract_and_upsert_edges_markdown_links(wiki_structure):
     config = WikiConfig(enable_hybrid_search=False)
     indexer = WikiIndexer(wiki_structure, config)
 
-    content = (
-        "See [NeuralNet](NeuralNet.md) and also [[Transformer|GPT]] for details.\n"
-        "More at [[Attention]]."
-    )
+    content = "See [NeuralNet](NeuralNet.md) and also [[Transformer|GPT]] for details.\nMore at [[Attention]]."
     indexer.extract_and_upsert_edges("DeepLearning", content)
 
     with indexer._get_conn() as conn:

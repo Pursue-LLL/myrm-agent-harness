@@ -253,10 +253,7 @@ class TestResolveTlsPath:
     """_resolve_tls_path: ~ expansion, file/dir validation, actionable errors."""
 
     def test_file_returns_expanded_path(self, tls_certs: dict[str, str]) -> None:
-        assert (
-            MCPClientManager._resolve_tls_path(tls_certs["cert"], "client_cert", "s")
-            == tls_certs["cert"]
-        )
+        assert MCPClientManager._resolve_tls_path(tls_certs["cert"], "client_cert", "s") == tls_certs["cert"]
 
     def test_tilde_expansion(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HOME", str(tmp_path))
@@ -274,9 +271,7 @@ class TestResolveTlsPath:
 
     def test_directory_accepted_with_allow_dir(self, tls_certs: dict[str, str]) -> None:
         assert (
-            MCPClientManager._resolve_tls_path(
-                tls_certs["ca_dir"], "ssl_verify", "s", allow_dir=True
-            )
+            MCPClientManager._resolve_tls_path(tls_certs["ca_dir"], "ssl_verify", "s", allow_dir=True)
             == tls_certs["ca_dir"]
         )
 
@@ -309,9 +304,7 @@ class TestBuildSSLContext:
 
     def test_ssl_verify_ca_directory_capath(self, tls_certs: dict[str, str]) -> None:
         """A CA bundle directory (OpenSSL capath) is accepted, not just a PEM file."""
-        ctx = MCPClientManager._build_ssl_context(
-            FakeMCPServerConfig(ssl_verify=tls_certs["ca_dir"])
-        )
+        ctx = MCPClientManager._build_ssl_context(FakeMCPServerConfig(ssl_verify=tls_certs["ca_dir"]))
         assert ctx is not None
         assert ctx.verify_mode == ssl.CERT_REQUIRED
 

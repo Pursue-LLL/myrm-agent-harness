@@ -136,9 +136,7 @@ def _relative_raw_display(structure: WikiStructure, raw_path: Path) -> str:
         return raw_path.name
 
 
-def _merge_metadata_frontmatter(
-    existing_content: str | None, new_content: str, metadata: dict[str, str]
-) -> str:
+def _merge_metadata_frontmatter(existing_content: str | None, new_content: str, metadata: dict[str, str]) -> str:
     """Merge caller-supplied metadata into the frontmatter of a raw write.
 
     ``existing_content`` (the current on-disk file, when present) provides the
@@ -234,9 +232,7 @@ def _publish_raw_impl(
         # Caller metadata is structured provenance (e.g. source_chat), injected after the
         # content security scan — the scan targets free-text body content, not these keys.
         existing_content = raw_path.read_text(encoding="utf-8") if not created else None
-        write_content = _merge_metadata_frontmatter(
-            existing_content, write_content, request.metadata
-        )
+        write_content = _merge_metadata_frontmatter(existing_content, write_content, request.metadata)
 
     new_hash = compute_page_lease_hash(write_content)
     previous_hash: str | None = None
@@ -281,10 +277,7 @@ def _publish_raw_impl(
                     structure,
                     WikiMapEvent(
                         event_type=WikiMapEventType.RAW_SUPERSEDE,
-                        summary=(
-                            f"Extension re-clip replaced raw source "
-                            f"{_relative_raw_display(structure, raw_path)}"
-                        ),
+                        summary=(f"Extension re-clip replaced raw source {_relative_raw_display(structure, raw_path)}"),
                         details={
                             "caller": caller,
                             "reason": "extension_reclip_same_source_url",

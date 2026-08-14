@@ -31,9 +31,7 @@ class MockEventLogBackend(EventLogBackend):
                 self.session_events[event.session_id] = []
             self.session_events[event.session_id].append(event)
 
-    async def get_events(
-        self, session_id: str, event_filter: object | None = None
-    ) -> AsyncGenerator[StructuredEvent]:
+    async def get_events(self, session_id: str, event_filter: object | None = None) -> AsyncGenerator[StructuredEvent]:
         """Get events from mock storage with filtering."""
         events = self.session_events.get(session_id, [])
 

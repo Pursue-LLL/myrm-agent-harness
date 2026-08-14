@@ -116,20 +116,24 @@ class TestEntityGraphCreation:
         self, real_graph_store, mock_vector_store, mock_embedding, mock_cache, memory_config
     ):
         """Storing two memories referencing the same entity must reuse the same Entity node."""
-        mem1 = EpisodicMemory(
-            id="mem-1", content="Python is great", related_entities=["Python"], embedding=[0.1] * 768
-        )
-        mem2 = EpisodicMemory(
-            id="mem-2", content="Python tutorial", related_entities=["Python"], embedding=[0.2] * 768
-        )
+        mem1 = EpisodicMemory(id="mem-1", content="Python is great", related_entities=["Python"], embedding=[0.1] * 768)
+        mem2 = EpisodicMemory(id="mem-2", content="Python tutorial", related_entities=["Python"], embedding=[0.2] * 768)
 
         await store_episodic(
-            memory=mem1, vector=mock_vector_store, config=memory_config,
-            embedding=mock_embedding, cache=mock_cache, graph=real_graph_store,
+            memory=mem1,
+            vector=mock_vector_store,
+            config=memory_config,
+            embedding=mock_embedding,
+            cache=mock_cache,
+            graph=real_graph_store,
         )
         await store_episodic(
-            memory=mem2, vector=mock_vector_store, config=memory_config,
-            embedding=mock_embedding, cache=mock_cache, graph=real_graph_store,
+            memory=mem2,
+            vector=mock_vector_store,
+            config=memory_config,
+            embedding=mock_embedding,
+            cache=mock_cache,
+            graph=real_graph_store,
         )
 
         python_nodes = await real_graph_store.find_nodes(["Entity"], {"name": "Python"})
@@ -148,12 +152,20 @@ class TestEntityGraphCreation:
         )
 
         await store_episodic(
-            memory=mem1, vector=mock_vector_store, config=memory_config,
-            embedding=mock_embedding, cache=mock_cache, graph=real_graph_store,
+            memory=mem1,
+            vector=mock_vector_store,
+            config=memory_config,
+            embedding=mock_embedding,
+            cache=mock_cache,
+            graph=real_graph_store,
         )
         await store_episodic(
-            memory=mem2, vector=mock_vector_store, config=memory_config,
-            embedding=mock_embedding, cache=mock_cache, graph=real_graph_store,
+            memory=mem2,
+            vector=mock_vector_store,
+            config=memory_config,
+            embedding=mock_embedding,
+            cache=mock_cache,
+            graph=real_graph_store,
         )
 
         related = await real_graph_store.get_related_nodes("mem-chat1", "MENTIONS")
@@ -166,22 +178,20 @@ class TestEntityGraphCreation:
     ):
         """Batch storage must also create Entity nodes correctly."""
         memories = [
-            EpisodicMemory(
-                id="batch-1", content="Learning Go", related_entities=["Go"], embedding=[0.1] * 768
-            ),
-            EpisodicMemory(
-                id="batch-2", content="Go concurrency", related_entities=["Go"], embedding=[0.2] * 768
-            ),
-            EpisodicMemory(
-                id="batch-3", content="Rust vs Go", related_entities=["Rust", "Go"], embedding=[0.3] * 768
-            ),
+            EpisodicMemory(id="batch-1", content="Learning Go", related_entities=["Go"], embedding=[0.1] * 768),
+            EpisodicMemory(id="batch-2", content="Go concurrency", related_entities=["Go"], embedding=[0.2] * 768),
+            EpisodicMemory(id="batch-3", content="Rust vs Go", related_entities=["Rust", "Go"], embedding=[0.3] * 768),
         ]
 
         mock_cache.get_batch.return_value = [None, None, None]
 
         await store_episodics_batch(
-            memories=memories, vector=mock_vector_store, config=memory_config,
-            embedding=mock_embedding, cache=mock_cache, graph=real_graph_store,
+            memories=memories,
+            vector=mock_vector_store,
+            config=memory_config,
+            embedding=mock_embedding,
+            cache=mock_cache,
+            graph=real_graph_store,
         )
 
         go_nodes = await real_graph_store.find_nodes(["Entity"], {"name": "Go"})
@@ -206,16 +216,18 @@ class TestGraphEnrichmentNamespaceFilter:
         mock_vector = AsyncMock()
 
         seed_mem = EpisodicMemory(
-            id="seed-1", content="Seed memory about Python",
-            related_entities=["Python"], embedding=[0.1] * 768,
+            id="seed-1",
+            content="Seed memory about Python",
+            related_entities=["Python"],
+            embedding=[0.1] * 768,
         )
         seed_result = MemorySearchResult(
-            memory=seed_mem, score=0.9, memory_type=MemoryType.EPISODIC,
+            memory=seed_mem,
+            score=0.9,
+            memory_type=MemoryType.EPISODIC,
         )
 
-        mock_graph.get_related_nodes_with_depth = AsyncMock(
-            return_value=[("sibling-1", 1)]
-        )
+        mock_graph.get_related_nodes_with_depth = AsyncMock(return_value=[("sibling-1", 1)])
         mock_graph.find_nodes = AsyncMock(return_value=[])
 
         cross_ns_doc = VectorDocument(
@@ -236,8 +248,10 @@ class TestGraphEnrichmentNamespaceFilter:
         mock_vector.get = AsyncMock(return_value=[cross_ns_doc])
 
         config = MemoryConfig(
-            embedding_model="test", collection_prefix="test_memory",
-            bm25_top_k=50, bm25_max_corpus_size=5000,
+            embedding_model="test",
+            collection_prefix="test_memory",
+            bm25_top_k=50,
+            bm25_max_corpus_size=5000,
         )
 
         results = await enrich_with_graph(
@@ -260,16 +274,18 @@ class TestGraphEnrichmentNamespaceFilter:
         mock_vector = AsyncMock()
 
         seed_mem = EpisodicMemory(
-            id="seed-1", content="Seed memory about Python",
-            related_entities=["Python"], embedding=[0.1] * 768,
+            id="seed-1",
+            content="Seed memory about Python",
+            related_entities=["Python"],
+            embedding=[0.1] * 768,
         )
         seed_result = MemorySearchResult(
-            memory=seed_mem, score=0.9, memory_type=MemoryType.EPISODIC,
+            memory=seed_mem,
+            score=0.9,
+            memory_type=MemoryType.EPISODIC,
         )
 
-        mock_graph.get_related_nodes_with_depth = AsyncMock(
-            return_value=[("sibling-1", 1)]
-        )
+        mock_graph.get_related_nodes_with_depth = AsyncMock(return_value=[("sibling-1", 1)])
         mock_graph.find_nodes = AsyncMock(return_value=[])
 
         same_ns_doc = VectorDocument(
@@ -290,8 +306,10 @@ class TestGraphEnrichmentNamespaceFilter:
         mock_vector.get = AsyncMock(return_value=[same_ns_doc])
 
         config = MemoryConfig(
-            embedding_model="test", collection_prefix="test_memory",
-            bm25_top_k=50, bm25_max_corpus_size=5000,
+            embedding_model="test",
+            collection_prefix="test_memory",
+            bm25_top_k=50,
+            bm25_max_corpus_size=5000,
         )
 
         results = await enrich_with_graph(
@@ -314,16 +332,18 @@ class TestGraphEnrichmentNamespaceFilter:
         mock_vector = AsyncMock()
 
         seed_mem = EpisodicMemory(
-            id="seed-1", content="Seed memory about Python",
-            related_entities=["Python"], embedding=[0.1] * 768,
+            id="seed-1",
+            content="Seed memory about Python",
+            related_entities=["Python"],
+            embedding=[0.1] * 768,
         )
         seed_result = MemorySearchResult(
-            memory=seed_mem, score=0.9, memory_type=MemoryType.EPISODIC,
+            memory=seed_mem,
+            score=0.9,
+            memory_type=MemoryType.EPISODIC,
         )
 
-        mock_graph.get_related_nodes_with_depth = AsyncMock(
-            return_value=[("sibling-1", 1)]
-        )
+        mock_graph.get_related_nodes_with_depth = AsyncMock(return_value=[("sibling-1", 1)])
         mock_graph.find_nodes = AsyncMock(return_value=[])
 
         doc = VectorDocument(
@@ -344,8 +364,10 @@ class TestGraphEnrichmentNamespaceFilter:
         mock_vector.get = AsyncMock(return_value=[doc])
 
         config = MemoryConfig(
-            embedding_model="test", collection_prefix="test_memory",
-            bm25_top_k=50, bm25_max_corpus_size=5000,
+            embedding_model="test",
+            collection_prefix="test_memory",
+            bm25_top_k=50,
+            bm25_max_corpus_size=5000,
         )
 
         results = await enrich_with_graph(
@@ -437,14 +459,14 @@ class TestStorageGraphEdgeCases:
         assert result.id == "mem-none-entities"
 
     @pytest.mark.asyncio
-    async def test_batch_store_graph_none_succeeds(
-        self, mock_vector_store, mock_embedding, mock_cache, memory_config
-    ):
+    async def test_batch_store_graph_none_succeeds(self, mock_vector_store, mock_embedding, mock_cache, memory_config):
         """Batch storage with graph=None must succeed normally."""
         memories = [
             EpisodicMemory(
-                id="batch-no-graph-1", content="Test batch",
-                related_entities=["Entity1"], embedding=[0.1] * 768,
+                id="batch-no-graph-1",
+                content="Test batch",
+                related_entities=["Entity1"],
+                embedding=[0.1] * 768,
             ),
         ]
 
@@ -467,12 +489,16 @@ class TestStorageGraphEdgeCases:
         """Batch with mix of entities and no-entities: only entity-bearing items get indexed."""
         memories = [
             EpisodicMemory(
-                id="batch-has-entity", content="Python topic",
-                related_entities=["Python"], embedding=[0.1] * 768,
+                id="batch-has-entity",
+                content="Python topic",
+                related_entities=["Python"],
+                embedding=[0.1] * 768,
             ),
             EpisodicMemory(
-                id="batch-no-entity", content="General chat",
-                related_entities=[], embedding=[0.2] * 768,
+                id="batch-no-entity",
+                content="General chat",
+                related_entities=[],
+                embedding=[0.2] * 768,
             ),
         ]
 

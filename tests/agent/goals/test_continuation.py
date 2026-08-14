@@ -222,7 +222,11 @@ async def test_check_continuation_success(mock_goal_provider):
     assert decision.should_continue is True
     assert decision.verdict == "continue"
     mock_goal_provider.account_usage.assert_awaited_once_with(
-        "test-goal", token_delta=10, cost_delta=0.0, time_delta_seconds=1, turn_delta=1,
+        "test-goal",
+        token_delta=10,
+        cost_delta=0.0,
+        time_delta_seconds=1,
+        turn_delta=1,
     )  # cost_delta=0.0 because cost_this_turn was passed as 0.0 in this test
     assert len(collected_messages) == 1
     assert isinstance(collected_messages[0], HumanMessage)
@@ -233,6 +237,7 @@ async def test_check_continuation_success(mock_goal_provider):
 
 # --- _extract_last_ai_response tests ---
 
+
 def test_extract_last_ai_response_str_content():
     messages = [AIMessage(content="Hello world")]
     assert _extract_last_ai_response(messages) == "Hello world"
@@ -240,11 +245,13 @@ def test_extract_last_ai_response_str_content():
 
 def test_extract_last_ai_response_list_content():
     messages = [
-        AIMessage(content=[
-            {"type": "thinking", "text": "should be skipped"},
-            {"type": "text", "text": "visible text"},
-            "raw string part",
-        ])
+        AIMessage(
+            content=[
+                {"type": "thinking", "text": "should be skipped"},
+                {"type": "text", "text": "visible text"},
+                "raw string part",
+            ]
+        )
     ]
     result = _extract_last_ai_response(messages)
     assert "visible text" in result
@@ -262,6 +269,7 @@ def test_extract_last_ai_response_no_messages():
 
 
 # --- _judge_completion tests ---
+
 
 @pytest.mark.asyncio
 async def test_judge_completion_empty_response():
@@ -299,9 +307,7 @@ async def test_judge_completion_not_passed():
 @pytest.mark.asyncio
 async def test_judge_completion_parse_failed():
     provider = AsyncMock()
-    provider.evaluate_semantic.return_value = VerificationResult(
-        passed=False, reason="garbage text", parse_failed=True
-    )
+    provider.evaluate_semantic.return_value = VerificationResult(passed=False, reason="garbage text", parse_failed=True)
     goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
     reason, parse_failed, wait = await _judge_completion(provider, goal, "Still working on it.")
     assert reason == "garbage text"
@@ -346,6 +352,7 @@ async def test_judge_completion_wait():
 
 
 # --- Semantic judge integration in check_continuation ---
+
 
 @pytest.mark.asyncio
 async def test_check_continuation_semantic_judge_completes():
@@ -448,6 +455,7 @@ async def test_check_continuation_decision_has_turns_info():
 
 # --- Convergence detection tests ---
 
+
 @pytest.mark.asyncio
 async def test_convergence_completes_goal():
     """When no_progress_streak >= convergence_window, goal should COMPLETE."""
@@ -537,6 +545,7 @@ async def test_convergence_not_reached_yet():
 
 
 # --- Loop restart tests ---
+
 
 @pytest.mark.asyncio
 async def test_loop_restart_triggers():
@@ -673,6 +682,7 @@ async def test_convergence_takes_priority_over_loop_restart():
 
 # --- _wrapup_already_injected tests ---
 
+
 def test_wrapup_already_injected_empty_messages():
     assert _wrapup_already_injected([]) is False
 
@@ -711,6 +721,7 @@ def test_wrapup_already_injected_sentinel_only_checks_last_human():
 
 
 # --- build_wrapup_prompt tests ---
+
 
 def test_build_wrapup_prompt_basic():
     goal = Goal(
@@ -768,6 +779,7 @@ def test_build_wrapup_prompt_with_partial_budget():
 
 # --- Budget limited wrap-up with budget details ---
 
+
 @pytest.mark.asyncio
 async def test_budget_limited_wrapup_injects_budget_info():
     """Verify the wrap-up message contains budget details from the goal."""
@@ -810,6 +822,7 @@ async def test_budget_limited_wrapup_injects_budget_info():
 
 
 # --- Edge cases ---
+
 
 def test_wrapup_already_injected_non_string_content():
     """HumanMessage with list content (multimodal) should not crash."""
@@ -900,6 +913,7 @@ async def test_budget_limited_steering_takes_priority():
 
 
 # --- Judge parse failure auto-pause tests ---
+
 
 @pytest.mark.asyncio
 async def test_judge_parse_failure_increments_counter():
@@ -1154,14 +1168,21 @@ async def test_acceptance_verification_pass():
     """All criteria pass → return True without incrementing retries."""
     provider = AsyncMock()
     goal = Goal(
-        goal_id="g1", session_id="s1", objective="o",
+        goal_id="g1",
+        session_id="s1",
+        objective="o",
         status=GoalStatus.ACTIVE,
         acceptance_criteria=[{"type": "shell", "command": "echo ok"}],
     )
     mock_gk = MagicMock()
-    mock_gk.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=True, per_criterion=[
-        VerificationResult(passed=True, criterion_label="echo ok"),
-    ]))
+    mock_gk.verify_all = AsyncMock(
+        return_value=AggregatedVerificationResult(
+            passed=True,
+            per_criterion=[
+                VerificationResult(passed=True, criterion_label="echo ok"),
+            ],
+        )
+    )
     with patch(
         "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
         return_value=mock_gk,
@@ -1176,20 +1197,30 @@ async def test_acceptance_verification_fail_increments_retries():
     """Verification failure → increment retries, return False."""
     provider = AsyncMock()
     updated_goal = Goal(
-        goal_id="g1", session_id="s1", objective="o",
-        status=GoalStatus.ACTIVE, verification_retries=1,
+        goal_id="g1",
+        session_id="s1",
+        objective="o",
+        status=GoalStatus.ACTIVE,
+        verification_retries=1,
     )
     provider.increment_verification_retries.return_value = updated_goal
 
     goal = Goal(
-        goal_id="g1", session_id="s1", objective="o",
+        goal_id="g1",
+        session_id="s1",
+        objective="o",
         status=GoalStatus.ACTIVE,
         acceptance_criteria=[{"type": "shell", "command": "false"}],
     )
     mock_gk = MagicMock()
-    mock_gk.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=False, per_criterion=[
-        VerificationResult(passed=False, criterion_label="false", reason="cmd failed"),
-    ]))
+    mock_gk.verify_all = AsyncMock(
+        return_value=AggregatedVerificationResult(
+            passed=False,
+            per_criterion=[
+                VerificationResult(passed=False, criterion_label="false", reason="cmd failed"),
+            ],
+        )
+    )
     with patch(
         "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
         return_value=mock_gk,
@@ -1205,20 +1236,30 @@ async def test_acceptance_verification_fail_fuse_pauses():
     """Verification failure exceeding threshold → PAUSE the goal."""
     provider = AsyncMock()
     updated_goal = Goal(
-        goal_id="g1", session_id="s1", objective="o",
-        status=GoalStatus.ACTIVE, verification_retries=3,
+        goal_id="g1",
+        session_id="s1",
+        objective="o",
+        status=GoalStatus.ACTIVE,
+        verification_retries=3,
     )
     provider.increment_verification_retries.return_value = updated_goal
 
     goal = Goal(
-        goal_id="g1", session_id="s1", objective="o",
+        goal_id="g1",
+        session_id="s1",
+        objective="o",
         status=GoalStatus.ACTIVE,
         acceptance_criteria=[{"type": "shell", "command": "false"}],
     )
     mock_gk = MagicMock()
-    mock_gk.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=False, per_criterion=[
-        VerificationResult(passed=False, criterion_label="false", reason="still failing"),
-    ]))
+    mock_gk.verify_all = AsyncMock(
+        return_value=AggregatedVerificationResult(
+            passed=False,
+            per_criterion=[
+                VerificationResult(passed=False, criterion_label="false", reason="still failing"),
+            ],
+        )
+    )
     with patch(
         "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
         return_value=mock_gk,
@@ -1233,13 +1274,18 @@ async def test_acceptance_verification_crash_increments_retries():
     """Gatekeeper construction crash → increment retries (not silently ignore)."""
     provider = AsyncMock()
     updated_goal = Goal(
-        goal_id="g1", session_id="s1", objective="o",
-        status=GoalStatus.ACTIVE, verification_retries=1,
+        goal_id="g1",
+        session_id="s1",
+        objective="o",
+        status=GoalStatus.ACTIVE,
+        verification_retries=1,
     )
     provider.increment_verification_retries.return_value = updated_goal
 
     goal = Goal(
-        goal_id="g1", session_id="s1", objective="o",
+        goal_id="g1",
+        session_id="s1",
+        objective="o",
         status=GoalStatus.ACTIVE,
         acceptance_criteria=[{"type": "shell"}],
     )
@@ -1257,13 +1303,18 @@ async def test_acceptance_verification_crash_fuse_pauses():
     """Gatekeeper crash exceeding threshold → PAUSE the goal (fuse protection)."""
     provider = AsyncMock()
     updated_goal = Goal(
-        goal_id="g1", session_id="s1", objective="o",
-        status=GoalStatus.ACTIVE, verification_retries=3,
+        goal_id="g1",
+        session_id="s1",
+        objective="o",
+        status=GoalStatus.ACTIVE,
+        verification_retries=3,
     )
     provider.increment_verification_retries.return_value = updated_goal
 
     goal = Goal(
-        goal_id="g1", session_id="s1", objective="o",
+        goal_id="g1",
+        session_id="s1",
+        objective="o",
         status=GoalStatus.ACTIVE,
         acceptance_criteria=[{"type": "shell"}],
     )
@@ -1282,8 +1333,11 @@ async def test_acceptance_verification_crash_fuse_pauses():
 def test_make_tamper_decision_builds_continue():
     """_make_tamper_decision returns a continue decision with violation details."""
     goal = Goal(
-        goal_id="g1", session_id="s1", objective="o",
-        status=GoalStatus.ACTIVE, turns_used=5,
+        goal_id="g1",
+        session_id="s1",
+        objective="o",
+        status=GoalStatus.ACTIVE,
+        turns_used=5,
         budget=GoalBudget(max_turns=10),
     )
     violations = [

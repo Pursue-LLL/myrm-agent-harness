@@ -79,14 +79,9 @@ class WorkflowEventStore:
                 )
                 """
             )
-            columns = {
-                row[1]
-                for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()
-            }
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()}
             if "spawn_params_json" not in columns:
-                conn.execute(
-                    "ALTER TABLE subagent_events ADD COLUMN spawn_params_json TEXT NOT NULL DEFAULT ''"
-                )
+                conn.execute("ALTER TABLE subagent_events ADD COLUMN spawn_params_json TEXT NOT NULL DEFAULT ''")
 
     def get_cached_result(
         self,

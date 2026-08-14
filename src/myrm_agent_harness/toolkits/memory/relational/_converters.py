@@ -88,9 +88,7 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
         tool_priority = ToolRulePriority.NORMAL
 
     is_locked = bool(row[22]) if len(row) > 22 and row[22] else False
-    expected_valid_days = (
-        int(row[23]) if len(row) > 23 and row[23] is not None else None
-    )
+    expected_valid_days = int(row[23]) if len(row) > 23 and row[23] is not None else None
 
     return ProceduralMemory(
         id=str(row[0]),

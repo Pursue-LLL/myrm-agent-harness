@@ -65,7 +65,10 @@ def _create_manager(
     mock_embedding: AsyncMock,
     mock_graph_store: AsyncMock | None = None,
 ) -> MemoryManager:
-    return MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
+    return MemoryManager(
+        memory_config,
+        user_id="test_user",
+        vector=mock_vector_store,
         embedding=mock_embedding,
         graph=mock_graph_store,
         auto_warmup=False,

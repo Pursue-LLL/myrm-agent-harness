@@ -174,8 +174,7 @@ class WebCorpusStore:
                        (url, normalized_url, title, snippet, date, source,
                         agent_id, content_hash, created_at, last_accessed)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (url, norm_url, title, snippet, date, source,
-                     agent_id, content_hash, now, now),
+                    (url, norm_url, title, snippet, date, source, agent_id, content_hash, now, now),
                 )
 
     def search(
@@ -244,9 +243,7 @@ class WebCorpusStore:
             FROM web_corpus_meta
         """).fetchone()
 
-        disk_bytes = sum(
-            f.stat().st_size for f in self._content_dir.rglob("*") if f.is_file()
-        )
+        disk_bytes = sum(f.stat().st_size for f in self._content_dir.rglob("*") if f.is_file())
         disk_bytes += self._db_path.stat().st_size if self._db_path.exists() else 0
 
         oldest = None

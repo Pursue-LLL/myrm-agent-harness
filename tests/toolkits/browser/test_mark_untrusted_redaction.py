@@ -106,9 +106,7 @@ async def test_inspect_redacted_and_wrapped() -> None:
 @pytest.mark.asyncio
 async def test_navigate_redacted_and_wrapped() -> None:
     session = MagicMock()
-    session.navigate = AsyncMock(
-        return_value="Navigated to https://x.com/login (status=200, title=Login)"
-    )
+    session.navigate = AsyncMock(return_value="Navigated to https://x.com/login (status=200, title=Login)")
     tool = create_navigate_tool(session)  # type: ignore[arg-type]
 
     output = await tool.ainvoke({"url": "https://x.com/login"})

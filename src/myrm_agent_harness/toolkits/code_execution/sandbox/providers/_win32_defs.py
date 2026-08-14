@@ -227,9 +227,7 @@ def delete_appcontainer_profile(name: str) -> bool:
 # --- Process creation helpers ---
 
 
-def create_pipe(
-    kernel32: Any, *, inherit_read: bool
-) -> tuple[ctypes.wintypes.HANDLE, ctypes.wintypes.HANDLE]:
+def create_pipe(kernel32: Any, *, inherit_read: bool) -> tuple[ctypes.wintypes.HANDLE, ctypes.wintypes.HANDLE]:
     """Create an inheritable pipe pair."""
     read_handle = ctypes.wintypes.HANDLE()
     write_handle = ctypes.wintypes.HANDLE()
@@ -246,9 +244,7 @@ def create_pipe(
     sa.lpSecurityDescriptor = None
     sa.bInheritHandle = True
 
-    if not kernel32.CreatePipe(
-        ctypes.byref(read_handle), ctypes.byref(write_handle), ctypes.byref(sa), 0
-    ):
+    if not kernel32.CreatePipe(ctypes.byref(read_handle), ctypes.byref(write_handle), ctypes.byref(sa), 0):
         raise OSError("CreatePipe failed")
 
     if inherit_read:
@@ -282,9 +278,7 @@ def build_capabilities(
     return cap_sids, ctypes.cast(cap_array, ctypes.POINTER(SID_AND_ATTRIBUTES))
 
 
-def create_attribute_list(
-    kernel32: Any, sec_cap: SECURITY_CAPABILITIES
-) -> ctypes.c_void_p:
+def create_attribute_list(kernel32: Any, sec_cap: SECURITY_CAPABILITIES) -> ctypes.c_void_p:
     """Create process thread attribute list with security capabilities."""
     size = ctypes.c_size_t(0)
     kernel32.InitializeProcThreadAttributeList(None, 1, 0, ctypes.byref(size))
@@ -351,16 +345,12 @@ async def wrap_handles_as_process(
     )
     stdout_reader = protocol._stream_reader  # type: ignore[attr-defined]
 
-    w_transport, w_protocol = await loop.connect_write_pipe(
-        asyncio.BaseProtocol, stdin_file
-    )
+    w_transport, w_protocol = await loop.connect_write_pipe(asyncio.BaseProtocol, stdin_file)
     stdin_writer = asyncio.StreamWriter(w_transport, w_protocol, stdout_reader, loop)
 
     from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (
         AppContainerProcess,
     )
 
-    proc = AppContainerProcess(
-        process_handle, pid, stdin_writer, stdout_reader, kernel32, job_handle
-    )
+    proc = AppContainerProcess(process_handle, pid, stdin_writer, stdout_reader, kernel32, job_handle)
     return proc  # type: ignore[return-value]

@@ -28,12 +28,7 @@ from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
 
 pytestmark = [pytest.mark.integration, pytest.mark.timeout(90)]
 
-_ENV_TEST = (
-    Path(__file__).resolve().parents[3]
-    / "myrm-agent"
-    / "myrm-agent-server"
-    / ".env.test"
-)
+_ENV_TEST = Path(__file__).resolve().parents[3] / "myrm-agent" / "myrm-agent-server" / ".env.test"
 
 
 @pytest.fixture(autouse=True)
@@ -102,9 +97,7 @@ async def test_unsupported_gateway_skips_allowed_tools_but_execution_blocks(
                 SimpleNamespace(name="file_write_tool"),
             ]
             self.messages = [HumanMessage(content="请解释一下这个问题")]
-            self.model = SimpleNamespace(
-                model=model, model_name=model, api_base=base_url
-            )
+            self.model = SimpleNamespace(model=model, model_name=model, api_base=base_url)
             self.tool_choice: dict[str, object] | None = None
 
         def override(self, *, tool_choice: dict[str, object]) -> _FakeRequest:
@@ -130,9 +123,7 @@ async def test_real_llm_invoke_without_allowed_tools_succeeds() -> None:
     api_key, base_url, model = _get_basic_llm_config()
     assert model_supports_allowed_tools_tool_choice(model, api_base=base_url) is False
 
-    llm = create_litellm_model(
-        model, base_url=base_url, api_key=api_key, streaming=False
-    )
+    llm = create_litellm_model(model, base_url=base_url, api_key=api_key, streaming=False)
     result = await llm.ainvoke([HumanMessage(content="Reply with exactly: OK")])
     content = result.content
     assert isinstance(content, str)
@@ -150,9 +141,7 @@ async def test_agnes_real_llm_invoke_without_allowed_tools_succeeds() -> None:
     api_key, base_url, model = agnes
     assert model_supports_allowed_tools_tool_choice(model, api_base=base_url) is False
 
-    llm = create_litellm_model(
-        model, base_url=base_url, api_key=api_key, streaming=False
-    )
+    llm = create_litellm_model(model, base_url=base_url, api_key=api_key, streaming=False)
     result = await llm.ainvoke([HumanMessage(content="Reply with exactly: OK")])
     content = result.content
     assert isinstance(content, str)

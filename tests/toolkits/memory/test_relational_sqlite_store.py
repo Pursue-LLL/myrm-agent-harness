@@ -291,12 +291,8 @@ async def test_create_rule_persists_expected_valid_days(
 @pytest.mark.asyncio
 async def test_list_rules_by_tool_basic(store: SQLiteRelationalStore) -> None:
     """list_rules_by_tool returns only rules for the specified tool."""
-    await store.create_rule(
-        _make_tool_rule("web_fetch_tool", trigger="fetch timeout", action="retry")
-    )
-    await store.create_rule(
-        _make_tool_rule("bash_code_execute_tool", trigger="sudo", action="deny")
-    )
+    await store.create_rule(_make_tool_rule("web_fetch_tool", trigger="fetch timeout", action="retry"))
+    await store.create_rule(_make_tool_rule("bash_code_execute_tool", trigger="sudo", action="deny"))
     await store.create_rule(_make_rule("global trigger", "global action"))
 
     results = await store.list_rules_by_tool("web_fetch_tool")
@@ -315,9 +311,7 @@ async def test_list_rules_by_tool_active_only(store: SQLiteRelationalStore) -> N
     active = await store.list_rules_by_tool("bash_code_execute_tool", active_only=True)
     assert len(active) == 0
 
-    all_rules = await store.list_rules_by_tool(
-        "bash_code_execute_tool", active_only=False
-    )
+    all_rules = await store.list_rules_by_tool("bash_code_execute_tool", active_only=False)
     assert len(all_rules) == 1
 
 
@@ -325,9 +319,7 @@ async def test_list_rules_by_tool_active_only(store: SQLiteRelationalStore) -> N
 async def test_list_rules_by_tool_respects_limit(store: SQLiteRelationalStore) -> None:
     """Limit parameter is honored."""
     for i in range(5):
-        await store.create_rule(
-            _make_tool_rule("web_search_tool", trigger=f"q{i}", action=f"a{i}")
-        )
+        await store.create_rule(_make_tool_rule("web_search_tool", trigger=f"q{i}", action=f"a{i}"))
 
     results = await store.list_rules_by_tool("web_search_tool", limit=3)
     assert len(results) == 3
@@ -346,9 +338,7 @@ async def test_update_rule_preserves_tool_fields(store: SQLiteRelationalStore) -
     from myrm_agent_harness.toolkits.memory.types import ToolRulePriority
 
     created = await store.create_rule(_make_tool_rule("web_fetch_tool", "normal"))
-    updated_rule = _make_tool_rule(
-        "web_fetch_tool", "critical", "timeout retry", "use exponential backoff"
-    )
+    updated_rule = _make_tool_rule("web_fetch_tool", "critical", "timeout retry", "use exponential backoff")
     updated = await store.update_rule(created.id, updated_rule)
     assert updated.tool_rule_priority == ToolRulePriority.CRITICAL
 

@@ -46,11 +46,7 @@ def resolve_mcp_tool_name(tool_name: str, available_tools: list[str]) -> str | N
         return alt_hyphen
 
     target = _normalize_alias(normalized)
-    suffix_matches = [
-        tool
-        for tool in available_tools
-        if _normalize_alias(mcp_tool_short_name(tool)) == target
-    ]
+    suffix_matches = [tool for tool in available_tools if _normalize_alias(mcp_tool_short_name(tool)) == target]
     if len(suffix_matches) == 1:
         return suffix_matches[0]
 

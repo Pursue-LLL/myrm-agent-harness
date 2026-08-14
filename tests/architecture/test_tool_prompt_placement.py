@@ -31,12 +31,8 @@ async def test_web_search_tool_description_token_budget() -> None:
     )
 
     tool = create_web_search_tool(
-        search_service_cfg=SearchServiceConfig(
-            search_service="tavily", api_key="test-key"
-        ),
+        search_service_cfg=SearchServiceConfig(search_service="tavily", api_key="test-key"),
     )
     encoding = tiktoken.get_encoding("cl100k_base")
     tokens = len(encoding.encode(tool.description or ""))
-    assert (
-        tokens <= 2000
-    ), f"web_search_tool description bloated beyond quality baseline to {tokens} tok"
+    assert tokens <= 2000, f"web_search_tool description bloated beyond quality baseline to {tokens} tok"

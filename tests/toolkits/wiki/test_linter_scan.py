@@ -32,13 +32,8 @@ async def test_scan_structural_skips_raw_security_mutation(tmp_path: Path) -> No
     )
 
     linter = WikiLinter(_NoopLlm(), structure, WikiConfig())
-    issues, raw_scan = await linter.scan(
-        MaintainMode.STRUCTURAL, include_raw_security=False
-    )
+    issues, raw_scan = await linter.scan(MaintainMode.STRUCTURAL, include_raw_security=False)
 
     assert raw_scan == {}
     assert any(issue.issue_type == "broken_wikilink" for issue in issues)
-    assert all(
-        issue.action_kind in {"repair", "recompile", "navigate", "info"}
-        for issue in issues
-    )
+    assert all(issue.action_kind in {"repair", "recompile", "navigate", "info"} for issue in issues)

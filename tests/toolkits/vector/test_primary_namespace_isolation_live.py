@@ -201,19 +201,12 @@ async def test_empty_id_set_returns_zero_without_crash(embedded_store) -> None:
     )
     assert results == []
 
-    assert (
-        await embedded_store.count(
-            "mem_ids_empty", filters={"primary_namespace": ["global"], "id": []}
-        )
-        == 0
-    )
+    assert await embedded_store.count("mem_ids_empty", filters={"primary_namespace": ["global"], "id": []}) == 0
 
 
 @pytest.mark.asyncio
 async def test_delete_by_id_filter_removes_only_target(embedded_store) -> None:
-    await embedded_store.create_collection(
-        "mem_ids_delete", dimension=DIM, distance="cosine"
-    )
+    await embedded_store.create_collection("mem_ids_delete", dimension=DIM, distance="cosine")
     await embedded_store.upsert(
         "mem_ids_delete",
         [
@@ -232,9 +225,7 @@ async def test_delete_by_id_filter_removes_only_target(embedded_store) -> None:
 
     # ID-filtered deletion must reach the same HasIdCondition path as search and
     # remove only the targeted point, leaving the sibling untouched.
-    deleted = await embedded_store.delete_by_filter(
-        "mem_ids_delete", {"id": [d1_point_id]}
-    )
+    deleted = await embedded_store.delete_by_filter("mem_ids_delete", {"id": [d1_point_id]})
     assert deleted == 1
 
     remaining = await embedded_store.search(

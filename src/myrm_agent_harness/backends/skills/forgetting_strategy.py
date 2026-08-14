@@ -278,8 +278,7 @@ class DefaultForgettingStrategy:
                         skill_name=skill.name,
                         reason_type="stale",
                         reason_message=(
-                            f"Never used for {age_days} days "
-                            f"(stale threshold: {self._config.stale_after_days})"
+                            f"Never used for {age_days} days (stale threshold: {self._config.stale_after_days})"
                         ),
                         stats=stats,
                         target_status=SkillLifecycleStatus.STALE,

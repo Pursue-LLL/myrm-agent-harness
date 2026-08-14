@@ -77,12 +77,8 @@ class BackgroundJobStore:
                 )
                 """
             )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_background_jobs_session ON background_jobs(session_id)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_background_jobs_status ON background_jobs(status)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_background_jobs_session ON background_jobs(session_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_background_jobs_status ON background_jobs(status)")
 
     @staticmethod
     def new_job_id() -> str:

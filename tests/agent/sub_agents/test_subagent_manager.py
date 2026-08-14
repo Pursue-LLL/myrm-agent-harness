@@ -64,9 +64,7 @@ class FakeLLM:
     def bind_tools(self, tools: list[BaseTool], **kwargs: object) -> FakeLLM:
         return self
 
-    async def ainvoke(
-        self, messages: object, config: object | None = None
-    ) -> AIMessage:
+    async def ainvoke(self, messages: object, config: object | None = None) -> AIMessage:
         return AIMessage(content=self.response)
 
 
@@ -146,9 +144,7 @@ class FlakyLLM:
     def bind_tools(self, tools: list[BaseTool], **kwargs: object) -> FlakyLLM:
         return self
 
-    async def ainvoke(
-        self, messages: object, config: object | None = None
-    ) -> AIMessage:
+    async def ainvoke(self, messages: object, config: object | None = None) -> AIMessage:
         self.call_count += 1
         if self.call_count == 1:
             raise RuntimeError("transient failure")
@@ -167,9 +163,7 @@ class SlowLLM:
     def bind_tools(self, tools: list[BaseTool], **kwargs: object) -> SlowLLM:
         return self
 
-    async def ainvoke(
-        self, messages: object, config: object | None = None
-    ) -> AIMessage:
+    async def ainvoke(self, messages: object, config: object | None = None) -> AIMessage:
         await asyncio.sleep(60)
         return AIMessage(content="too late")
 
@@ -177,9 +171,7 @@ class SlowLLM:
 @pytest.mark.asyncio
 async def test_spawn_child_wait_true_returns_result_and_cleans_up() -> None:
     llm = FakeLLM("final child response")
-    agent = BaseAgent(
-        llm=llm, config=AgentRuntimeConfig(recursion_limit=10, timeout_seconds=5)
-    )
+    agent = BaseAgent(llm=llm, config=AgentRuntimeConfig(recursion_limit=10, timeout_seconds=5))
     manager: SubagentManager = agent._subagent_manager
 
     result = await manager.spawn_child(
@@ -212,9 +204,7 @@ async def test_spawn_child_wait_true_returns_result_and_cleans_up() -> None:
 @pytest.mark.asyncio
 async def test_spawn_child_wait_false_populates_completed_results(tmp_path) -> None:
     llm = FakeLLM("background child response")
-    agent = BaseAgent(
-        llm=llm, config=AgentRuntimeConfig(recursion_limit=10, timeout_seconds=5)
-    )
+    agent = BaseAgent(llm=llm, config=AgentRuntimeConfig(recursion_limit=10, timeout_seconds=5))
     manager = agent._subagent_manager
 
     result = await manager.spawn_child(
@@ -248,10 +238,7 @@ async def test_spawn_child_wait_false_populates_completed_results(tmp_path) -> N
 
     assert "child_wait_false" not in manager._children
     assert manager._children_results["child_wait_false"].success is True
-    assert (
-        "background child response"
-        in manager._children_results["child_wait_false"].result
-    )
+    assert "background child response" in manager._children_results["child_wait_false"].result
     listed = manager.list_children()
     completed = next(item for item in listed if item["task_id"] == "child_wait_false")
     assert completed["role"] == "leaf"
@@ -393,9 +380,7 @@ async def test_wait_children_counts_missing_task_as_failure() -> None:
         status=SubAgentStatus.COMPLETED,
     )
 
-    result = await manager.wait_children(
-        ["finished_task", "missing_task"], min_success_rate=0.5
-    )
+    result = await manager.wait_children(["finished_task", "missing_task"], min_success_rate=0.5)
 
     assert result["success"] is True
     assert result["success_rate"] == 0.5
@@ -692,9 +677,7 @@ async def test_delegate_task_tool_allowed_types_rejects_disallowed() -> None:
         allowed_types=["search"],
     )
 
-    result = await spawn_tool.ainvoke(
-        {"agent_type": "browser", "objective": "test", "wait": False}
-    )
+    result = await spawn_tool.ainvoke({"agent_type": "browser", "objective": "test", "wait": False})
     assert result["success"] is False
     assert "not allowed" in result["error"]
 
@@ -758,9 +741,7 @@ async def test_delegate_task_tool_readonly_filters_tools() -> None:
             "myrm_agent_harness.agent.sub_agents.manager.SubagentManager.spawn_child",
             new=mock_spawn,
         ):
-            result = await spawn_tool.ainvoke(
-                {"agent_type": "search", "task": "test", "readonly": True}
-            )
+            result = await spawn_tool.ainvoke({"agent_type": "search", "task": "test", "readonly": True})
             assert result["success"] is True
 
 
@@ -790,9 +771,7 @@ async def test_delegate_task_tool_batch_mode() -> None:
             {"agent_type": "search", "objective": "task 2", "readonly": False},
         ]
 
-        result = await delegate_tool.ainvoke(
-            {"mode": "batch", "tasks": tasks, "wait": True}
-        )
+        result = await delegate_tool.ainvoke({"mode": "batch", "tasks": tasks, "wait": True})
         assert result["success"] is True
         assert result["all_success"] is True
         assert len(result["results"]) == 2
@@ -847,9 +826,7 @@ def test_taint_propagation_with_secret_label() -> None:
     for label in child_taint.labels:
         parent_taint.record(label)
 
-    assert parent_taint.labels == frozenset(
-        {TaintLabel.SECRET, TaintLabel.EXTERNAL_NETWORK}
-    )
+    assert parent_taint.labels == frozenset({TaintLabel.SECRET, TaintLabel.EXTERNAL_NETWORK})
 
 
 def test_taint_propagation_no_op_when_clean() -> None:
@@ -936,9 +913,7 @@ class TestMergeChildStats:
     def test_non_tracker_parent_is_noop(self) -> None:
         from myrm_agent_harness.agent.sub_agents.builder import merge_child_stats
 
-        merge_child_stats(
-            "not_a_tracker", _make_stats(prompt=10, completion=5, total=15)
-        )
+        merge_child_stats("not_a_tracker", _make_stats(prompt=10, completion=5, total=15))
 
     def test_non_stats_child_is_noop(self) -> None:
         from myrm_agent_harness.agent.sub_agents.builder import merge_child_stats
@@ -1072,9 +1047,7 @@ class TestRunChain:
         from myrm_agent_harness.agent.sub_agents.orchestrator import run_chain
 
         mock_manager = MagicMock()
-        mock_manager.spawn_child = AsyncMock(
-            return_value={"success": True, "result": "dict_output"}
-        )
+        mock_manager.spawn_child = AsyncMock(return_value={"success": True, "result": "dict_output"})
 
         configs = [("a", SubagentConfig(system_prompt="a"), "Do A")]
         result = await run_chain(mock_manager, configs, {}, lambda: [])
@@ -1161,9 +1134,7 @@ class TestWaitChildrenTimeout:
 
         mock_manager = MagicMock()
         type(mock_manager).children = PropertyMock(return_value={})
-        type(mock_manager).child_results = PropertyMock(
-            return_value={"done": completed_result}
-        )
+        type(mock_manager).child_results = PropertyMock(return_value={"done": completed_result})
 
         result = await wait_children(mock_manager, ["done", "missing"])
 
@@ -1217,9 +1188,7 @@ class TestWaitChildrenTimeout:
         await asyncio.sleep(0.01)
 
         mock_manager = MagicMock()
-        type(mock_manager).children = PropertyMock(
-            return_value={"fast": fast_task, "slow": slow_task}
-        )
+        type(mock_manager).children = PropertyMock(return_value={"fast": fast_task, "slow": slow_task})
         type(mock_manager).child_results = PropertyMock(return_value={})
 
         result = await wait_children(mock_manager, ["fast", "slow"], timeout=0.1)
@@ -1262,9 +1231,7 @@ class TestWaitChildrenTimeout:
         await asyncio.sleep(0.01)
 
         mock_manager = MagicMock()
-        type(mock_manager).children = PropertyMock(
-            return_value={"fast": fast_task, "slow": slow_task}
-        )
+        type(mock_manager).children = PropertyMock(return_value={"fast": fast_task, "slow": slow_task})
         type(mock_manager).child_results = PropertyMock(return_value={})
 
         result = await wait_children(mock_manager, ["fast", "slow"], timeout=0.1)
@@ -1320,9 +1287,7 @@ class TestFilterToolsDisallowedTools:
         tool_c = MagicMock(spec=BaseTool)
         tool_c.name = "tool_c"
 
-        config = SubagentConfig(
-            system_prompt="test", disallowed_tools=frozenset({"tool_b"})
-        )
+        config = SubagentConfig(system_prompt="test", disallowed_tools=frozenset({"tool_b"}))
         result = filter_tools(config, [tool_a, tool_b, tool_c])
 
         names = {t.name for t in result}
@@ -1409,9 +1374,7 @@ class TestCostStatusDemotion:
         parent = TokenTracker()
         parent.cost_status = "actual"
 
-        child_stats = _make_stats(
-            prompt=0, completion=0, total=0, cost_status="estimated"
-        )
+        child_stats = _make_stats(prompt=0, completion=0, total=0, cost_status="estimated")
         merge_child_stats(parent, child_stats)
 
         assert parent.cost_status == "actual"
@@ -1423,9 +1386,7 @@ class TestCostStatusDemotion:
         parent = TokenTracker()
         parent.cost_status = "actual"
 
-        child_stats = _make_stats(
-            prompt=0, completion=0, total=0, cost_status="unknown"
-        )
+        child_stats = _make_stats(prompt=0, completion=0, total=0, cost_status="unknown")
         merge_child_stats(parent, child_stats)
 
         assert parent.cost_status == "actual"
@@ -1437,9 +1398,7 @@ class TestCostStatusDemotion:
         parent = TokenTracker()
         assert parent.cost_status == "unknown"
 
-        child_stats = _make_stats(
-            prompt=0, completion=0, total=0, cost_status="estimated"
-        )
+        child_stats = _make_stats(prompt=0, completion=0, total=0, cost_status="estimated")
         merge_child_stats(parent, child_stats)
 
         assert parent.cost_status == "estimated"
@@ -1520,9 +1479,7 @@ class TestAgentManageTools:
         )
 
         control_tool = create_subagent_control_tool(agent)
-        result = await control_tool.ainvoke(
-            {"action": "cancel", "task_id": "cancel_me"}
-        )
+        result = await control_tool.ainvoke({"action": "cancel", "task_id": "cancel_me"})
         assert result["success"] is True
         assert "cancelled" in result["message"].lower()
 
@@ -1537,9 +1494,7 @@ class TestAgentManageTools:
 
         agent = BaseAgent(llm=FakeLLM())
         control_tool = create_subagent_control_tool(agent)
-        result = await control_tool.ainvoke(
-            {"action": "cancel", "task_id": "nonexistent"}
-        )
+        result = await control_tool.ainvoke({"action": "cancel", "task_id": "nonexistent"})
         assert result["success"] is False
         assert "could not cancel" in result["message"].lower()
 
@@ -1740,9 +1695,7 @@ class TestInheritParentContext:
             "extra_key": "should_not_inherit",
         }
 
-        child_ctx = await executor._inherit_parent_context(
-            {"query": "test"}, "t1", agent
-        )
+        child_ctx = await executor._inherit_parent_context({"query": "test"}, "t1", agent)
         assert child_ctx["session_id"] == "sess-123"
         assert child_ctx["workspace_path"] == "/tmp/work"
         assert child_ctx["approval_session_key"] == "key-xyz"
@@ -1757,9 +1710,7 @@ class TestInheritParentContext:
         executor = SubagentExecutor()
 
         agent._last_context = {"session_id": "parent-sess"}
-        child_ctx = await executor._inherit_parent_context(
-            {"session_id": "child-sess"}, "t2", agent
-        )
+        child_ctx = await executor._inherit_parent_context({"session_id": "child-sess"}, "t2", agent)
         assert child_ctx["session_id"] == "child-sess"
 
     @pytest.mark.asyncio
@@ -1769,9 +1720,7 @@ class TestInheritParentContext:
         agent = BaseAgent(llm=FakeLLM())
         executor = SubagentExecutor()
 
-        child_ctx = await executor._inherit_parent_context(
-            {"query": "test"}, "t3", agent
-        )
+        child_ctx = await executor._inherit_parent_context({"query": "test"}, "t3", agent)
         assert child_ctx == {"query": "test"}
 
 
@@ -1896,9 +1845,7 @@ class TestCancelChildEdgeCases:
 class _MockChildAgent:
     """Mock child agent whose run() yields configurable events."""
 
-    def __init__(
-        self, events: list[dict[str, object]], last_run_stats: object = None
-    ) -> None:
+    def __init__(self, events: list[dict[str, object]], last_run_stats: object = None) -> None:
         self._events = events
         self.last_run_stats = last_run_stats
         self.checkpointer = None
@@ -1944,9 +1891,7 @@ class TestHookExceptionSafety:
             hook=SubAgentHook(on_spawn=_bad_spawn),
         )
 
-        mock_child = _MockChildAgent(
-            events=[{"type": "message", "data": "hi"}], last_run_stats=_FakeStats(50)
-        )
+        mock_child = _MockChildAgent(events=[{"type": "message", "data": "hi"}], last_run_stats=_FakeStats(50))
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
@@ -1982,9 +1927,7 @@ class TestHookExceptionSafety:
             hook=SubAgentHook(on_complete=_bad_complete),
         )
 
-        mock_child = _MockChildAgent(
-            events=[{"type": "message", "data": "done"}], last_run_stats=_FakeStats(20)
-        )
+        mock_child = _MockChildAgent(events=[{"type": "message", "data": "done"}], last_run_stats=_FakeStats(20))
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
@@ -2019,9 +1962,7 @@ class TestHookExceptionSafety:
             hook=SubAgentHook(on_error=_bad_error),
         )
 
-        async def _exploding_run(
-            query: str, chat_history: list[object], context: dict[str, object]
-        ):
+        async def _exploding_run(query: str, chat_history: list[object], context: dict[str, object]):
             raise RuntimeError("child exploded")
             yield
 
@@ -2408,15 +2349,11 @@ class TestTraceId:
         """trace_id is generated when not present in context."""
         from unittest.mock import patch
 
-        mock_child = _MockChildAgent(
-            events=[{"type": "message", "data": "ok"}], last_run_stats=_FakeStats(50)
-        )
+        mock_child = _MockChildAgent(events=[{"type": "message", "data": "ok"}], last_run_stats=_FakeStats(50))
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=5, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=5, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -2441,15 +2378,11 @@ class TestTraceId:
         """trace_id is inherited from parent context when present."""
         from unittest.mock import patch
 
-        mock_child = _MockChildAgent(
-            events=[{"type": "message", "data": "ok"}], last_run_stats=_FakeStats(50)
-        )
+        mock_child = _MockChildAgent(events=[{"type": "message", "data": "ok"}], last_run_stats=_FakeStats(50))
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=5, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=5, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -2518,9 +2451,7 @@ class TestTraceId:
     @pytest.mark.asyncio
     async def test_trace_id_omitted_in_to_dict_when_empty(self) -> None:
         """trace_id is omitted from to_dict() when empty."""
-        result = SubAgentResult(
-            success=True, task_id="t", agent_type="search", result="ok"
-        )
+        result = SubAgentResult(success=True, task_id="t", agent_type="search", result="ok")
         d = result.to_dict()
         assert "trace_id" not in d
 
@@ -2563,9 +2494,7 @@ class TestSteerChild:
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=5, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=5, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -2603,15 +2532,11 @@ class TestSteerChild:
         """steer_child returns False after child has completed."""
         from unittest.mock import patch
 
-        mock_child = _MockChildAgent(
-            events=[{"type": "message", "data": "done"}], last_run_stats=_FakeStats(10)
-        )
+        mock_child = _MockChildAgent(events=[{"type": "message", "data": "done"}], last_run_stats=_FakeStats(10))
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=5, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=5, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -2669,9 +2594,7 @@ class TestSteerSubagentTool:
 
         agent = BaseAgent(llm=FakeLLM())
         tool = create_subagent_control_tool(agent)
-        result = await tool.ainvoke(
-            {"action": "steer", "task_id": "unknown", "message": "fix this"}
-        )
+        result = await tool.ainvoke({"action": "steer", "task_id": "unknown", "message": "fix this"})
         assert result["success"] is False
 
     @pytest.mark.asyncio
@@ -2699,9 +2622,7 @@ class TestSteerSubagentTool:
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=10, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=10, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -2718,9 +2639,7 @@ class TestSteerSubagentTool:
             )
 
         tool = create_subagent_control_tool(agent)
-        result = await tool.ainvoke(
-            {"action": "steer", "task_id": "steer_ok", "message": "go left"}
-        )
+        result = await tool.ainvoke({"action": "steer", "task_id": "steer_ok", "message": "go left"})
         assert result["success"] is True
         assert result["task_id"] == "steer_ok"
 
@@ -2759,9 +2678,7 @@ class TestTraceIdExtended:
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=0.1, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=0.1, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -2840,13 +2757,9 @@ class TestTraceIdExtended:
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=5, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=5, max_retries=1)
 
-        mock_child = _MockChildAgent(
-            events=[{"type": "message", "data": "ok"}], last_run_stats=_FakeStats(10)
-        )
+        mock_child = _MockChildAgent(events=[{"type": "message", "data": "ok"}], last_run_stats=_FakeStats(10))
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=mock_child,
@@ -2909,9 +2822,7 @@ class TestSteeringTokenLifecycle:
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=10, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=10, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -2937,14 +2848,10 @@ class TestSteeringTokenLifecycle:
         """SteeringToken is removed from _children_steering after child completes."""
         from unittest.mock import patch
 
-        mock_child = _MockChildAgent(
-            events=[{"type": "message", "data": "done"}], last_run_stats=_FakeStats(10)
-        )
+        mock_child = _MockChildAgent(events=[{"type": "message", "data": "done"}], last_run_stats=_FakeStats(10))
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=5, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=5, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -2984,9 +2891,7 @@ class TestSteeringTokenLifecycle:
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=5, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=5, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -3031,9 +2936,7 @@ class TestSteerEdgeCases:
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=10, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=10, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -3074,9 +2977,7 @@ class TestSteerEdgeCases:
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager
-        config = SubagentConfig(
-            system_prompt="t", description="t", timeout_seconds=10, max_retries=1
-        )
+        config = SubagentConfig(system_prompt="t", description="t", timeout_seconds=10, max_retries=1)
 
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
@@ -3252,9 +3153,7 @@ class TestCancellationStrategy:
         """Cancel flag is cleaned up when subagent completes."""
         from unittest.mock import patch
 
-        mock_child = _MockChildAgent(
-            events=[{"type": "message", "data": "done"}], last_run_stats=_FakeStats(10)
-        )
+        mock_child = _MockChildAgent(events=[{"type": "message", "data": "done"}], last_run_stats=_FakeStats(10))
 
         agent = BaseAgent(llm=FakeLLM())
         manager = agent._subagent_manager

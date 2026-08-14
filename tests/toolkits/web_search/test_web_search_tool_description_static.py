@@ -53,9 +53,7 @@ def test_web_search_tool_description_preserves_rewrite_guardrails_en() -> None:
     for fragment in required_fragments:
         assert fragment in desc, f"missing rewrite guardrail fragment: {fragment!r}"
     for fragment in forbidden_fragments:
-        assert (
-            fragment not in desc
-        ), f"implementation detail leaked into prompt: {fragment!r}"
+        assert fragment not in desc, f"implementation detail leaked into prompt: {fragment!r}"
 
 
 def test_web_search_tool_description_preserves_rewrite_guardrails_zh() -> None:
@@ -76,25 +74,19 @@ def test_web_search_tool_description_preserves_rewrite_guardrails_zh() -> None:
     for fragment in required_fragments:
         assert fragment in desc, f"missing rewrite guardrail fragment: {fragment!r}"
     for fragment in forbidden_fragments:
-        assert (
-            fragment not in desc
-        ), f"implementation detail leaked into prompt: {fragment!r}"
+        assert fragment not in desc, f"implementation detail leaked into prompt: {fragment!r}"
 
 
 def test_create_web_search_tool_default_english_description() -> None:
     tool = create_web_search_tool(
-        search_service_cfg=SearchServiceConfig(
-            search_service="tavily", api_key="test-key"
-        ),
+        search_service_cfg=SearchServiceConfig(search_service="tavily", api_key="test-key"),
     )
     assert tool.description == WEB_SEARCH_TOOL_DESCRIPTION_EN
 
 
 def test_create_web_search_tool_chinese_locale() -> None:
     tool = create_web_search_tool(
-        search_service_cfg=SearchServiceConfig(
-            search_service="tavily", api_key="test-key"
-        ),
+        search_service_cfg=SearchServiceConfig(search_service="tavily", api_key="test-key"),
         description_locale="zh-CN",
     )
     assert tool.description == WEB_SEARCH_TOOL_DESCRIPTION_ZH

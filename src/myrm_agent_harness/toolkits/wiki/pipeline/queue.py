@@ -98,10 +98,7 @@ class WikiIngestionQueue:
             self._migrate_schema(conn)
 
     def _migrate_schema(self, conn: sqlite3.Connection) -> None:
-        columns = {
-            row[1]
-            for row in conn.execute("PRAGMA table_info(ingestion_queue)").fetchall()
-        }
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(ingestion_queue)").fetchall()}
         if "error_kind" not in columns:
             conn.execute("ALTER TABLE ingestion_queue ADD COLUMN error_kind TEXT")
         if "retry_after" not in columns:
@@ -134,9 +131,7 @@ class WikiIngestionQueue:
         )
 
         path_objects = [Path(path) for path in file_paths]
-        filtered = CorpusEligibilityFilter(self._structure).filter_raw_paths(
-            path_objects
-        )
+        filtered = CorpusEligibilityFilter(self._structure).filter_raw_paths(path_objects)
         if not filtered:
             return
         with self._get_conn() as conn:
@@ -254,9 +249,7 @@ class WikiIngestionQueue:
                     (safe_message, error_kind, item_id),
                 )
 
-    def get_transient_retryable_items(
-        self, max_retries: int = 3, limit: int = 5
-    ) -> list[QueueItem]:
+    def get_transient_retryable_items(self, max_retries: int = 3, limit: int = 5) -> list[QueueItem]:
         """Failed transient items eligible for automatic retry (respects backoff)."""
         with self._get_conn() as conn:
             cursor = conn.execute(
@@ -275,11 +268,7 @@ class WikiIngestionQueue:
                 (max_retries, limit * 3),
             )
             items = cast(list[QueueItem], [dict(row) for row in cursor.fetchall()])
-        return [
-            item
-            for item in items
-            if is_transient_error_kind(item.get("error_kind") or "")
-        ][:limit]
+        return [item for item in items if is_transient_error_kind(item.get("error_kind") or "")][:limit]
 
     def reset_for_retry(self, item_id: int) -> None:
         with self._get_conn() as conn:
@@ -297,14 +286,8 @@ class WikiIngestionQueue:
     def reset_transient_failed(self) -> int:
         """Reset only transient failed items back to pending."""
         with self._get_conn() as conn:
-            cursor = conn.execute(
-                "SELECT id, error_kind FROM ingestion_queue WHERE status = 'failed'"
-            )
-            reset_ids = [
-                row["id"]
-                for row in cursor.fetchall()
-                if is_transient_error_kind(row["error_kind"] or "")
-            ]
+            cursor = conn.execute("SELECT id, error_kind FROM ingestion_queue WHERE status = 'failed'")
+            reset_ids = [row["id"] for row in cursor.fetchall() if is_transient_error_kind(row["error_kind"] or "")]
             if not reset_ids:
                 return 0
             conn.executemany(
@@ -366,9 +349,7 @@ class WikiIngestionQueue:
 
     def get_stats(self) -> dict[str, int]:
         with self._get_conn() as conn:
-            cursor = conn.execute(
-                "SELECT status, COUNT(*) as count FROM ingestion_queue GROUP BY status"
-            )
+            cursor = conn.execute("SELECT status, COUNT(*) as count FROM ingestion_queue GROUP BY status")
             stats = {"pending": 0, "processing": 0, "completed": 0, "failed": 0}
             for row in cursor.fetchall():
                 status = row["status"]

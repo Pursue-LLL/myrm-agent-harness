@@ -60,9 +60,7 @@ async def delete_text_vectors(
             await vector.delete(collection_name, ids)
 
 
-def _validate_chunks_fit_window(
-    chunks: list[str], policy: EmbedWindowPolicy, parent_key: str
-) -> None:
+def _validate_chunks_fit_window(chunks: list[str], policy: EmbedWindowPolicy, parent_key: str) -> None:
     """Fail loud if a chunk still exceeds the provider window after splitting.
 
     Counts in the model's own budget unit (o200k tokens for BPE, wordpiece estimate
@@ -101,13 +99,9 @@ async def upsert_text_vectors(
 
     vectors = await embedding.embed_batch(chunks)
     if len(vectors) != len(chunks):
-        raise RuntimeError(
-            f"Embedding batch size mismatch for '{parent_key}': {len(vectors)} != {len(chunks)}"
-        )
+        raise RuntimeError(f"Embedding batch size mismatch for '{parent_key}': {len(vectors)} != {len(chunks)}")
 
-    await delete_text_vectors(
-        vector, collection_name, parent_key, metadata_key=metadata_key
-    )
+    await delete_text_vectors(vector, collection_name, parent_key, metadata_key=metadata_key)
 
     docs: list[VectorDocument] = []
     for index, (chunk, vec) in enumerate(zip(chunks, vectors, strict=True)):

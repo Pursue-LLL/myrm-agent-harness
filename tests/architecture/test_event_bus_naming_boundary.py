@@ -14,9 +14,7 @@ _SERVER_ROOT = _REPO_ROOT.parent / "myrm-agent" / "myrm-agent-server"
 _BROADCAST_EVENT_BUS_IMPORT = re.compile(
     r"from\s+myrm_agent_harness\.agent\.streaming\.broadcast\.event_bus\s+import\s+EventBus\b"
 )
-_APP_EVENT_BUS_IMPORT = re.compile(
-    r"from\s+app\.services\.event\.app_event_bus\s+import\s+[^#\n]*\bEventBus\b"
-)
+_APP_EVENT_BUS_IMPORT = re.compile(r"from\s+app\.services\.event\.app_event_bus\s+import\s+[^#\n]*\bEventBus\b")
 
 
 def _scan_py_files(root: Path) -> list[Path]:

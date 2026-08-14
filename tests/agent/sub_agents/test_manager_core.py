@@ -25,9 +25,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
 
 def _make_manager() -> SubagentManager:
     parent = MagicMock()
-    with patch(
-        "myrm_agent_harness.agent.hooks.graceful_shutdown.get_shutdown_manager"
-    ) as mock_sm:
+    with patch("myrm_agent_harness.agent.hooks.graceful_shutdown.get_shutdown_manager") as mock_sm:
         mock_sm.return_value = MagicMock()
         return SubagentManager(parent_agent=parent)
 
@@ -43,9 +41,7 @@ def _ok(task_id: str = "t1", agent_type: str = "w") -> SubAgentResult:
     )
 
 
-def _fail(
-    task_id: str = "t1", agent_type: str = "w", error: str = "boom"
-) -> SubAgentResult:
+def _fail(task_id: str = "t1", agent_type: str = "w", error: str = "boom") -> SubAgentResult:
     return SubAgentResult(
         success=False,
         task_id=task_id,
@@ -506,9 +502,7 @@ class TestCascadeCancelInFinally:
         mgr = _make_manager()
 
         child_agent = MagicMock()
-        child_agent.cancel_all_children = MagicMock(
-            side_effect=RuntimeError("cascade boom")
-        )
+        child_agent.cancel_all_children = MagicMock(side_effect=RuntimeError("cascade boom"))
         mgr._children_agents["t1"] = child_agent
 
         mock_result = _ok("t1")
@@ -592,9 +586,7 @@ class TestCleanupChild:
         mgr._children_descriptions["t1"] = "test"
         mgr._children_observability["t1"] = {"role": "leaf"}
 
-        with patch(
-            "myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"
-        ):
+        with patch("myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"):
             mgr._cleanup_child("t1", task)
 
         assert "t1" in mgr._children_results
@@ -609,9 +601,7 @@ class TestCleanupChild:
         mgr._children["t1"] = task
         mgr._children_types["t1"] = "worker"
 
-        with patch(
-            "myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"
-        ):
+        with patch("myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"):
             mgr._cleanup_child("t1", task)
 
         assert mgr._children_results["t1"].status == SubAgentStatus.CANCELLED
@@ -626,9 +616,7 @@ class TestCleanupChild:
         mgr._children["t1"] = task
         mgr._children_types["t1"] = "worker"
 
-        with patch(
-            "myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"
-        ):
+        with patch("myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"):
             mgr._cleanup_child("t1", task)
 
         assert mgr._children_results["t1"].status == SubAgentStatus.FAILED
@@ -649,9 +637,7 @@ class TestCleanupChild:
         mgr._children["t1"] = task
         mgr._children_types["t1"] = "worker"
 
-        with patch(
-            "myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"
-        ):
+        with patch("myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"):
             mgr._cleanup_child("t1", task)
 
         timeout_task.cancel.assert_called_once()
@@ -674,9 +660,7 @@ class TestCleanupChild:
         mgr._children["t1"] = task
         mgr._children_types["t1"] = "worker"
 
-        with patch(
-            "myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"
-        ):
+        with patch("myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"):
             mgr._cleanup_child("t1", task)
 
         assert mgr._children_results["t1"].completed_at > 0
@@ -703,9 +687,7 @@ class TestCleanupChild:
         ACTIVE_SUBAGENT_SESSIONS["t1"] = "chat_retain-1"
 
         try:
-            with patch(
-                "myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"
-            ):
+            with patch("myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"):
                 mgr._cleanup_child("t1", task)
             entry = COMPLETED_SUBAGENT_RESULTS.get("t1")
             assert entry is not None
@@ -739,9 +721,7 @@ class TestCleanupChild:
         ACTIVE_SUBAGENT_SESSIONS["t1"] = "chat_internal-1"
 
         try:
-            with patch(
-                "myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"
-            ):
+            with patch("myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"):
                 mgr._cleanup_child("t1", task)
             assert "t1" not in COMPLETED_SUBAGENT_RESULTS
         finally:
@@ -1013,9 +993,7 @@ class TestEmitGlobalSubagentEvent:
 
         mock_bus = MagicMock()
         mock_bus.publish.side_effect = RuntimeError("bus error")
-        with patch(
-            "myrm_agent_harness.runtime.events.get_event_bus", return_value=mock_bus
-        ):
+        with patch("myrm_agent_harness.runtime.events.get_event_bus", return_value=mock_bus):
             _emit_global_subagent_event(
                 "spawn",
                 "t1",

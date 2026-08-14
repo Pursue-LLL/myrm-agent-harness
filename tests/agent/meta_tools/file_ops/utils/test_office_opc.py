@@ -60,7 +60,7 @@ def test_office_scope_extensions() -> None:
 
 
 def test_extract_office_paths_from_command() -> None:
-    command = 'python -c "open(\'/tmp/out.docx\', \'wb\')"'
+    command = "python -c \"open('/tmp/out.docx', 'wb')\""
     paths = extract_office_paths_from_command(command)
     assert "/tmp/out.docx" in paths
 

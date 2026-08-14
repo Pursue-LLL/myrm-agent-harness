@@ -90,6 +90,7 @@ class BashInput(BaseModel):
         if len(text) < 10:
             raise ValueError("reason must be at least 10 characters explaining why this command runs")
         return text
+
     timeout: int | None = Field(
         default=None,
         description=(
@@ -121,5 +122,3 @@ class BashInput(BaseModel):
         ge=0,
         le=120,
     )
-
-

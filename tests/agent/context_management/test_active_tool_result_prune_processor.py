@@ -33,9 +33,7 @@ def _large_content(tokens: int = 3000) -> str:
     return "x " * (tokens * 4)
 
 
-def _make_tool_msg(
-    content: str, name: str = "grep_tool", tool_call_id: str = "tc1"
-) -> ToolMessage:
+def _make_tool_msg(content: str, name: str = "grep_tool", tool_call_id: str = "tc1") -> ToolMessage:
     return ToolMessage(content=content, name=name, tool_call_id=tool_call_id)
 
 
@@ -123,9 +121,7 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_prune_large_earlier_result_outside_keep_recent(self):
         offload = AsyncMock(return_value="/archive/test.gz")
-        proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=100, keep_recent_calls=2, on_prune_offload=offload
-        )
+        proc = ActiveToolResultPruneProcessor(threshold_tokens=100, keep_recent_calls=2, on_prune_offload=offload)
         large = _large_content(3000)
         messages = [HumanMessage(content="hi")]
         for i in range(3):
@@ -146,9 +142,7 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_keep_recent_protects_earlier_step_within_window(self):
         offload = AsyncMock(return_value="/archive/test.gz")
-        proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=100, keep_recent_calls=5, on_prune_offload=offload
-        )
+        proc = ActiveToolResultPruneProcessor(threshold_tokens=100, keep_recent_calls=5, on_prune_offload=offload)
         large = _large_content(3000)
         messages = [
             HumanMessage(content="hi"),
@@ -189,9 +183,7 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_skip_small_results(self):
         offload = AsyncMock(return_value="/archive/test.gz")
-        proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=5000, on_prune_offload=offload
-        )
+        proc = ActiveToolResultPruneProcessor(threshold_tokens=5000, on_prune_offload=offload)
         messages = [
             HumanMessage(content="hi"),
             _make_ai_msg([{"id": "tc1", "name": "grep_tool", "args": {}}]),
@@ -208,9 +200,7 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_latest_step_not_pruned(self):
         offload = AsyncMock(return_value="/archive/test.gz")
-        proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=100, on_prune_offload=offload
-        )
+        proc = ActiveToolResultPruneProcessor(threshold_tokens=100, on_prune_offload=offload)
         large = _large_content(3000)
         messages = [
             HumanMessage(content="hi"),
@@ -226,9 +216,7 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_fail_safe_on_offload_error(self):
         offload = AsyncMock(side_effect=RuntimeError("disk full"))
-        proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=100, on_prune_offload=offload
-        )
+        proc = ActiveToolResultPruneProcessor(threshold_tokens=100, on_prune_offload=offload)
         large = _large_content(3000)
         original_content = large
         messages = [
@@ -314,9 +302,7 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_skip_multimodal_tool_content(self):
         offload = AsyncMock(return_value="/archive/test.gz")
-        proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=100, keep_recent_calls=1, on_prune_offload=offload
-        )
+        proc = ActiveToolResultPruneProcessor(threshold_tokens=100, keep_recent_calls=1, on_prune_offload=offload)
         large = _large_content(3000)
         tool_msg = _make_tool_msg(large, tool_call_id="tc1")
         tool_msg.content = [{"type": "text", "text": large}]
@@ -335,9 +321,7 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_offload_failure_result_preserves_original(self):
         offload = AsyncMock(return_value={"success": False, "path": None})
-        proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=100, keep_recent_calls=1, on_prune_offload=offload
-        )
+        proc = ActiveToolResultPruneProcessor(threshold_tokens=100, keep_recent_calls=1, on_prune_offload=offload)
         large = _large_content(3000)
         messages = [
             HumanMessage(content="hi"),
@@ -354,9 +338,7 @@ class TestProcess:
     @pytest.mark.asyncio
     async def test_records_task_metrics_when_prune_succeeds(self):
         offload = AsyncMock(return_value="/archive/test.gz")
-        proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=100, keep_recent_calls=1, on_prune_offload=offload
-        )
+        proc = ActiveToolResultPruneProcessor(threshold_tokens=100, keep_recent_calls=1, on_prune_offload=offload)
         large = _large_content(3000)
         messages = [
             HumanMessage(content="hi"),

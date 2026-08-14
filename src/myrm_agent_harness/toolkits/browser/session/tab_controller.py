@@ -263,11 +263,13 @@ class TabController:
                 domain = urlparse(url).netloc if url and url != "about:blank" else "(blank)"
             except Exception:
                 domain = "(unavailable)"
-            result.append({
-                "tab_id": tab_id,
-                "domain": domain,
-                "active": tab_id == self._active_tab_id,
-            })
+            result.append(
+                {
+                    "tab_id": tab_id,
+                    "domain": domain,
+                    "active": tab_id == self._active_tab_id,
+                }
+            )
         return result
 
     def list_tabs(self) -> list[str]:
@@ -357,7 +359,9 @@ class TabController:
 
         logger.warning(
             "TabController: captured popup %s (parent=%s, total=%d)",
-            tab_id, parent_tab_id, len(self._tabs),
+            tab_id,
+            parent_tab_id,
+            len(self._tabs),
         )
 
     def _on_popup_close(self, tab_id: str) -> None:
@@ -384,7 +388,9 @@ class TabController:
 
         logger.warning(
             "TabController: popup %s closed, switched to %s (remaining=%d)",
-            tab_id, self._active_tab_id, len(self._tabs),
+            tab_id,
+            self._active_tab_id,
+            len(self._tabs),
         )
 
     async def _safe_notify(self, page: Page) -> None:

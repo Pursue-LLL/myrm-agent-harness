@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 class DummyTool(BaseTool):
     name: str = ""
     description: str = "dummy"
@@ -99,6 +100,7 @@ def _make_bare_agent() -> BaseAgent:
     agent._agent = None
 
     from myrm_agent_harness.agent.tool_management import ToolRegistry
+
     agent._tool_registry = ToolRegistry()
 
     agent._cached_tools = None
@@ -123,6 +125,7 @@ def _make_bare_agent() -> BaseAgent:
 # Protocol Tests
 # ---------------------------------------------------------------------------
 
+
 class TestAgentExtensionProtocol:
     def test_runtime_checkable(self):
         ext = StubExtension()
@@ -131,6 +134,7 @@ class TestAgentExtensionProtocol:
     def test_non_conforming_object_rejected(self):
         class NotAnExtension:
             pass
+
         assert not isinstance(NotAnExtension(), AgentExtension)
 
     def test_partial_implementation_rejected(self):
@@ -138,12 +142,14 @@ class TestAgentExtensionProtocol:
             @property
             def name(self) -> str:
                 return "partial"
+
         assert not isinstance(PartialExt(), AgentExtension)
 
 
 # ---------------------------------------------------------------------------
 # register_extension Tests
 # ---------------------------------------------------------------------------
+
 
 class TestRegisterExtension:
     def test_register_single(self):
@@ -181,6 +187,7 @@ class TestRegisterExtension:
 # ---------------------------------------------------------------------------
 # _ensure_initialized Extension Integration Tests
 # ---------------------------------------------------------------------------
+
 
 class TestEnsureInitializedExtensions:
     @pytest.mark.asyncio
@@ -277,6 +284,7 @@ class TestEnsureInitializedExtensions:
 # cleanup_tools Extension Shutdown Tests
 # ---------------------------------------------------------------------------
 
+
 class TestCleanupToolsExtensions:
     @pytest.mark.asyncio
     async def test_on_agent_shutdown_called(self):
@@ -311,6 +319,7 @@ class TestCleanupToolsExtensions:
 # ---------------------------------------------------------------------------
 # Idempotency & Edge Cases
 # ---------------------------------------------------------------------------
+
 
 class TestExtensionEdgeCases:
     @pytest.mark.asyncio
@@ -417,9 +426,7 @@ class TestExtensionEdgeCases:
 
         with (
             patch("myrm_agent_harness.agent.base_agent.create_agent") as mock_create,
-            patch(
-                "myrm_agent_harness.agent.tool_management.tool_layers.get_tool_layer"
-            ),
+            patch("myrm_agent_harness.agent.tool_management.tool_layers.get_tool_layer"),
         ):
             mock_create.return_value = MagicMock()
             await agent._ensure_initialized()

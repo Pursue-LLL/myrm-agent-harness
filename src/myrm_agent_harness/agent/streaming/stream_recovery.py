@@ -80,9 +80,7 @@ def _extract_retry_after_ms(exc: Exception) -> int | None:
     1. HTTP ``Retry-After`` header (seconds → ms)
     2. "retry after N seconds" in the error message
     """
-    headers: dict[str, str] | None = getattr(exc, "headers", None) or getattr(
-        exc, "response_headers", None
-    )
+    headers: dict[str, str] | None = getattr(exc, "headers", None) or getattr(exc, "response_headers", None)
     if headers:
         raw = headers.get("retry-after") or headers.get("Retry-After")
         if raw:
@@ -148,9 +146,7 @@ class StreamRecoveryMixin(
             return False
         if retries >= _MAX_OVERFLOW_RETRIES:
             self._ctx.stats.compression_exhausted = True
-            logger.warning(
-                " Context overflow recovery exhausted after %d retries", retries
-            )
+            logger.warning(" Context overflow recovery exhausted after %d retries", retries)
             return False
 
         ctx = self._ctx
@@ -187,14 +183,8 @@ class StreamRecoveryMixin(
         """Handle LLM failover: switch to backup model + retry. Returns True if should continue."""
         error_kind = classify_error(exc)
 
-        target_fallback_llm = (
-            self._safety_fallback_llm
-            if error_kind == ErrorKind.SAFETY_BLOCK
-            else self._fallback_llm
-        )
-        fallback_type = (
-            "safety_fallback" if error_kind == ErrorKind.SAFETY_BLOCK else "fallback"
-        )
+        target_fallback_llm = self._safety_fallback_llm if error_kind == ErrorKind.SAFETY_BLOCK else self._fallback_llm
+        fallback_type = "safety_fallback" if error_kind == ErrorKind.SAFETY_BLOCK else "fallback"
 
         logger.warning(
             " LLM error: %s (failoverable=%s, %s=%s)",
@@ -204,9 +194,7 @@ class StreamRecoveryMixin(
             "ready" if target_fallback_llm and not self.failover_used else "none",
         )
 
-        can_failover = error_kind.is_failoverable or (
-            error_kind == ErrorKind.AUTH and target_fallback_llm is not None
-        )
+        can_failover = error_kind.is_failoverable or (error_kind == ErrorKind.AUTH and target_fallback_llm is not None)
         if not can_failover or self.failover_used:
             return False
 
@@ -216,17 +204,12 @@ class StreamRecoveryMixin(
             return False
 
         if error_kind == ErrorKind.RATE_LIMIT:
-            logger.warning(
-                " Rate limit: deferring to transient retry (failover skipped)"
-            )
+            logger.warning(" Rate limit: deferring to transient retry (failover skipped)")
             return False
 
         if error_kind == ErrorKind.OVERLOADED:
             self._consecutive_overloaded += 1
-            if (
-                self._consecutive_overloaded
-                < _MAX_CONSECUTIVE_OVERLOADED_BEFORE_FAILOVER
-            ):
+            if self._consecutive_overloaded < _MAX_CONSECUTIVE_OVERLOADED_BEFORE_FAILOVER:
                 logger.warning(
                     " Overloaded (%d/%d): deferring to transient retry",
                     self._consecutive_overloaded,
@@ -240,15 +223,9 @@ class StreamRecoveryMixin(
             target_fallback_llm, "model", "backup"
         )
 
-        logger.warning(
-            " Failover: %s → switching to %s", error_kind.value, fallback_model
-        )
+        logger.warning(" Failover: %s → switching to %s", error_kind.value, fallback_model)
 
-        step_key = (
-            "safety_fallback_active"
-            if error_kind == ErrorKind.SAFETY_BLOCK
-            else "model_failover"
-        )
+        step_key = "safety_fallback_active" if error_kind == ErrorKind.SAFETY_BLOCK else "model_failover"
 
         await self._emit_recovery_event(
             step_key,
@@ -301,9 +278,7 @@ class StreamRecoveryMixin(
             return
         self.failover_unconfigured_notified = True
         step_key = (
-            "safety_fallback_unconfigured"
-            if error_kind == ErrorKind.SAFETY_BLOCK
-            else "model_failover_unconfigured"
+            "safety_fallback_unconfigured" if error_kind == ErrorKind.SAFETY_BLOCK else "model_failover_unconfigured"
         )
         logger.warning(
             " Failover skipped: no %s LLM configured (%s)",
@@ -355,9 +330,9 @@ class StreamRecoveryMixin(
 
         self.failover_used = True
         self._rebind_agent_after_rebuild(self._safety_fallback_llm)
-        fallback_model = getattr(
-            self._safety_fallback_llm, "model_name", None
-        ) or getattr(self._safety_fallback_llm, "model", "backup")
+        fallback_model = getattr(self._safety_fallback_llm, "model_name", None) or getattr(
+            self._safety_fallback_llm, "model", "backup"
+        )
 
         logger.warning(
             " Safety refusal fallback: finish_reason=%s → switching to %s",
@@ -396,15 +371,11 @@ class StreamRecoveryMixin(
         ctx = self._ctx
         escalation_target = ctx.escalation_target_llm
         if escalation_target is None:
-            logger.warning(
-                " Escalation marker detected but no escalation_target_llm configured — ignoring"
-            )
+            logger.warning(" Escalation marker detected but no escalation_target_llm configured — ignoring")
             return False
 
         if self._escalation_used:
-            logger.warning(
-                " Escalation already used this session — marker treated as normal content"
-            )
+            logger.warning(" Escalation already used this session — marker treated as normal content")
             return False
 
         self._escalation_used = True
@@ -451,9 +422,7 @@ class StreamRecoveryMixin(
         messages_dict = ctx.agent_input
         messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
         messages.clear()
-        original_messages = [
-            m for m in collected_messages if not _is_escalation_marker_message(m)
-        ]
+        original_messages = [m for m in collected_messages if not _is_escalation_marker_message(m)]
         messages.extend(original_messages)
         messages_dict["messages"] = cast("list[AnyMessage]", messages)
 
@@ -489,17 +458,13 @@ class StreamRecoveryMixin(
             if hasattr(self._ctx, "goal_provider") and self._ctx.goal_provider:
                 from myrm_agent_harness.agent.goals.types import GoalStatus
 
-                goal = await self._ctx.goal_provider.get_active_goal(
-                    self._ctx.message_id
-                )
+                goal = await self._ctx.goal_provider.get_active_goal(self._ctx.message_id)
                 if goal:
                     logger.warning(
                         " Goal %s paused due to exhausted transient retries (e.g. 429 Rate Limit)",
                         goal.goal_id,
                     )
-                    await self._ctx.goal_provider.update_status(
-                        goal.goal_id, GoalStatus.PAUSED
-                    )
+                    await self._ctx.goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
 
             return False
 
@@ -599,16 +564,8 @@ class StreamRecoveryMixin(
     _GRACE_FALLBACK_ZH = "本轮执行已达到迭代上限，任务尚未完成。你可以尝试更具体的指令，或者让我从上次中断的地方继续。"
 
     def _grace_fallback_text(self) -> str:
-        locale = (
-            self._ctx.merged_context.get("locale", "en")
-            if self._ctx.merged_context
-            else "en"
-        )
-        return (
-            self._GRACE_FALLBACK_ZH
-            if locale.startswith("zh")
-            else self._GRACE_FALLBACK_EN
-        )
+        locale = self._ctx.merged_context.get("locale", "en") if self._ctx.merged_context else "en"
+        return self._GRACE_FALLBACK_ZH if locale.startswith("zh") else self._GRACE_FALLBACK_EN
 
     async def _grace_call_summary(
         self,
@@ -644,9 +601,7 @@ class StreamRecoveryMixin(
                 "Respond in the same language as the conversation."
             ),
         )
-        repaired_messages = repair_dangling_tool_calls(
-            sanitize_tool_history(list(collected_messages))
-        )
+        repaired_messages = repair_dangling_tool_calls(sanitize_tool_history(list(collected_messages)))
         tail = repaired_messages[-20:]
         while tail and getattr(tail[0], "type", None) == "tool":
             tail = tail[1:]
@@ -661,19 +616,13 @@ class StreamRecoveryMixin(
             logger.warning("Grace call LLM invocation failed; using fallback message")
             summary_text = ""
 
-        await self._emit_message_pair(
-            summary_text.strip() if summary_text else self._grace_fallback_text()
-        )
+        await self._emit_message_pair(summary_text.strip() if summary_text else self._grace_fallback_text())
 
     async def _emit_message_pair(self, text: str) -> None:
         """Emit a MESSAGE + MESSAGE_END event pair."""
         mid = self._ctx.message_id
-        await self._compactor.put(
-            {"type": AgentEventType.MESSAGE.value, "data": text, "messageId": mid}
-        )
-        await self._compactor.put(
-            {"type": AgentEventType.MESSAGE_END.value, "data": "", "messageId": mid}
-        )
+        await self._compactor.put({"type": AgentEventType.MESSAGE.value, "data": text, "messageId": mid})
+        await self._compactor.put({"type": AgentEventType.MESSAGE_END.value, "data": "", "messageId": mid})
 
     async def _handle_empty_response(
         self,

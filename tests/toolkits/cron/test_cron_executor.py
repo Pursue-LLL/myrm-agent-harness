@@ -461,6 +461,7 @@ class TestRunAndRecord:
             return JobResult(success=True, output="never")
 
         runner.run = slow_run
+
         async def timeout_and_close(*args: object, **_kwargs: object) -> object:
             coro = args[0] if args else None
             if coro is not None and hasattr(coro, "close"):
@@ -521,7 +522,9 @@ class TestRunAndRecord:
             )
             mock_get.return_value = (mock_monitor, None)
 
-            with patch.object(executor._monitor_manager, "record_monitor_failure", new_callable=AsyncMock) as mock_record:
+            with patch.object(
+                executor._monitor_manager, "record_monitor_failure", new_callable=AsyncMock
+            ) as mock_record:
                 mock_record.return_value = 1
                 await executor.run_and_record(job, runner)
 
@@ -562,7 +565,9 @@ class TestRunAndRecord:
             )
             mock_get.return_value = (mock_monitor, None)
 
-            with patch.object(executor._monitor_manager, "record_monitor_failure", new_callable=AsyncMock) as mock_record:
+            with patch.object(
+                executor._monitor_manager, "record_monitor_failure", new_callable=AsyncMock
+            ) as mock_record:
                 mock_record.return_value = 2
                 await executor.run_and_record(job, runner)
 
@@ -597,7 +602,9 @@ class TestRunAndRecord:
             )
             mock_get.return_value = (mock_monitor, None)
 
-            with patch.object(executor._monitor_manager, "record_monitor_failure", new_callable=AsyncMock) as mock_record:
+            with patch.object(
+                executor._monitor_manager, "record_monitor_failure", new_callable=AsyncMock
+            ) as mock_record:
                 mock_record.side_effect = RuntimeError("monitor state store unavailable")
                 await executor.run_and_record(job, runner)
                 await executor.run_and_record(job, runner)
@@ -760,9 +767,7 @@ class TestRunnerSkip:
         executor, store, delivery = _make_executor()
         job = _make_job()
         runner = AsyncMock()
-        runner.run = AsyncMock(
-            return_value=JobResult(success=True, skipped=True, skip_reason="no-content")
-        )
+        runner.run = AsyncMock(return_value=JobResult(success=True, skipped=True, skip_reason="no-content"))
         await executor.run_and_record(job, runner)
 
         saved_run = store.save_run.call_args[0][0]
@@ -777,9 +782,7 @@ class TestRunnerSkip:
         executor, store, _delivery = _make_executor()
         job = _make_job()
         runner = AsyncMock()
-        runner.run = AsyncMock(
-            return_value=JobResult(success=True, skipped=True)
-        )
+        runner.run = AsyncMock(return_value=JobResult(success=True, skipped=True))
         await executor.run_and_record(job, runner)
 
         saved_run = store.save_run.call_args[0][0]
@@ -791,9 +794,7 @@ class TestRunnerSkip:
         executor, store, _ = _make_executor()
         job = _make_job()
         runner = AsyncMock()
-        runner.run = AsyncMock(
-            return_value=JobResult(success=True, skipped=True, skip_reason="no-content")
-        )
+        runner.run = AsyncMock(return_value=JobResult(success=True, skipped=True, skip_reason="no-content"))
         await executor.run_and_record(job, runner)
 
         assert job.last_status == RunStatus.SKIPPED
@@ -809,9 +810,7 @@ class TestRunnerSkip:
             delete_after_run=True,
         )
         runner = AsyncMock()
-        runner.run = AsyncMock(
-            return_value=JobResult(success=True, skipped=True, skip_reason="no-content")
-        )
+        runner.run = AsyncMock(return_value=JobResult(success=True, skipped=True, skip_reason="no-content"))
         await executor.run_and_record(job, runner)
 
         store.delete_job.assert_awaited_once_with("job-1")

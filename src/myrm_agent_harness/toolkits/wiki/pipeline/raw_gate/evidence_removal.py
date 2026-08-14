@@ -73,9 +73,7 @@ def _concept_references_raw(content: str, raw_rel: str) -> bool:
 def find_affected_concepts(structure: WikiStructure, raw_rel: str) -> list[str]:
     affected: list[str] = []
     for concept_path in structure.list_concepts():
-        rel = str(
-            concept_path.relative_to(structure.concepts_dir).with_suffix("")
-        ).replace("\\", "/")
+        rel = str(concept_path.relative_to(structure.concepts_dir).with_suffix("")).replace("\\", "/")
         try:
             content = concept_path.read_text(encoding="utf-8")
         except OSError:
@@ -97,9 +95,7 @@ async def remove_raw_evidence(
 ) -> RawEvidenceRemovalResult:
     """Remove or detach a raw file and re-anchor dependent compiled pages."""
     if caller != "settings":
-        raise RawGateError(
-            "forbidden_for_caller", "Raw evidence removal is settings-only."
-        )
+        raise RawGateError("forbidden_for_caller", "Raw evidence removal is settings-only.")
 
     trimmed_reason = reason.strip()
     if not trimmed_reason:
@@ -151,9 +147,7 @@ async def remove_raw_evidence(
             if scan.verdict == PersistScanVerdict.BLOCKED:
                 continue
             if scan.cleaned_text != body:
-                outcome = await publish_concept_article(
-                    structure, indexer, concept_name, scan.cleaned_text
-                )
+                outcome = await publish_concept_article(structure, indexer, concept_name, scan.cleaned_text)
                 if outcome == ArticlePublishOutcome.PUBLISHED:
                     republished.append(concept_name)
             else:
@@ -166,9 +160,7 @@ async def remove_raw_evidence(
                 concept_path = structure.get_concept_file_path(concept_name)
                 if not concept_path.exists():
                     continue
-                metadata, _ = load_frontmatter_metadata(
-                    concept_path.read_text(encoding="utf-8")
-                )
+                metadata, _ = load_frontmatter_metadata(concept_path.read_text(encoding="utf-8"))
                 for source in _coerce_sources(metadata):
                     if source == rel_path:
                         continue

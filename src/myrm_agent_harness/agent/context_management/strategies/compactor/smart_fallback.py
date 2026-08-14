@@ -135,10 +135,10 @@ async def apply_smart_fallback(
             if i in {idx for idx, _ in critical_messages} or i in high_group_indices:
                 continue
             priority = classify_message_priority(
-            msg,
-            is_last_iteration=is_last_iteration.get(id(msg), False),
-            failed_tool_call_ids=protected_tool_calls,
-        )
+                msg,
+                is_last_iteration=is_last_iteration.get(id(msg), False),
+                failed_tool_call_ids=protected_tool_calls,
+            )
             if priority == MessagePriority.MEDIUM_REASONING:
                 medium_messages.append((i, msg))
 

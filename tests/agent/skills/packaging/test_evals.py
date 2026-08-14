@@ -18,9 +18,7 @@ EVAL_CASES = [
     },
     {
         "message": "query sales for March",
-        "sandbox_assertions": [
-            {"type": "db_query", "query": "SELECT * FROM sales WHERE month='march'"}
-        ],
+        "sandbox_assertions": [{"type": "db_query", "query": "SELECT * FROM sales WHERE month='march'"}],
     },
 ]
 
@@ -54,9 +52,7 @@ def test_parse_evals_json_invalid_json():
 
 
 def test_parse_evals_json_unsupported_schema_version():
-    content = json.dumps(
-        {"schema_version": EVALS_SCHEMA_VERSION + 1, "skill_name": "s", "evals": []}
-    )
+    content = json.dumps({"schema_version": EVALS_SCHEMA_VERSION + 1, "skill_name": "s", "evals": []})
     assert parse_evals_json(content) is None
 
 

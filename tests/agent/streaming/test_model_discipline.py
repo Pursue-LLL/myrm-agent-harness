@@ -541,9 +541,9 @@ class TestEdgeCases:
         """Every family in _ENFORCEMENT_FAMILIES maps to some discipline."""
         for family in _ENFORCEMENT_FAMILIES:
             result = _get_family_discipline(f"test-{family}-v1")
-            assert result != "" or not _should_enforce(
-                f"test-{family}-v1"
-            ), f"Family '{family}' enforces but has no discipline"
+            assert result != "" or not _should_enforce(f"test-{family}-v1"), (
+                f"Family '{family}' enforces but has no discipline"
+            )
 
 
 # ============================================================================

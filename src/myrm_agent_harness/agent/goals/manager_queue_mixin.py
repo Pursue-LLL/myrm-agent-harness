@@ -158,9 +158,7 @@ class GoalManagerQueueMixin:
         logger.info("Updated objective for goal %s", goal_id)
         return goal
 
-    async def record_acceptance_results(
-        self, goal_id: str, results: list[dict[str, object]]
-    ) -> Goal:
+    async def record_acceptance_results(self, goal_id: str, results: list[dict[str, object]]) -> Goal:
         """Persist per-criterion acceptance verification results."""
         goal = await self._storage.get_goal(goal_id)
         if not goal:
@@ -169,10 +167,12 @@ class GoalManagerQueueMixin:
         goal.metadata["acceptance_results"] = results
 
         history: list[dict[str, object]] = goal.metadata.get("acceptance_history", [])  # type: ignore[assignment]
-        history.append({
-            "timestamp": datetime.now(UTC).isoformat(),
-            "results": results,
-        })
+        history.append(
+            {
+                "timestamp": datetime.now(UTC).isoformat(),
+                "results": results,
+            }
+        )
         goal.metadata["acceptance_history"] = history
 
         goal.updated_at = datetime.now(UTC)

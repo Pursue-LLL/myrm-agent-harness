@@ -165,9 +165,7 @@ def extract_latest_human_text(messages: list[object]) -> str | None:
 
 def _has_external_hint(text: str) -> bool:
     """True when the request explicitly asks for external material (links/sources/web)."""
-    return _contains_keyword(
-        text, _EXTERNAL_CITATION_KEYWORDS + _EXTERNAL_WEB_HINT_KEYWORDS
-    )
+    return _contains_keyword(text, _EXTERNAL_CITATION_KEYWORDS + _EXTERNAL_WEB_HINT_KEYWORDS)
 
 
 def _requires_external_evidence(user_text: str) -> bool:
@@ -177,11 +175,7 @@ def _requires_external_evidence(user_text: str) -> bool:
         # （如"最新改动的代码逻辑"），并非要外部新鲜数据——要求联网只会
         # 让 Agent 执行无意义的搜索。只要用户明确要求外部材料（链接/来源/
         # 搜索/网站），豁免即被抑制，仍强制外部证据。
-        if _contains_keyword(lowered, _EXTERNAL_LOCAL_WORK_KEYWORDS) and not (
-            _has_external_hint(lowered)
-        ):
-            return False
-        return True
+        return not _contains_keyword(lowered, _EXTERNAL_LOCAL_WORK_KEYWORDS) or _has_external_hint(lowered)
     has_citation = _contains_keyword(lowered, _EXTERNAL_CITATION_KEYWORDS)
     has_web_hint = _contains_keyword(lowered, _EXTERNAL_WEB_HINT_KEYWORDS)
     return has_citation and has_web_hint

@@ -21,9 +21,13 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
 _HOME_DIR_UNIX_RE = re.compile(r"(?:/Users/|/home/|/root/)[^\s/\"']+/")
 _HOME_DIR_WIN_RE = re.compile(r"[A-Z]:\\Users\\[^\s\\\"']+\\")
 
-_PERSONAL_FIELDS_TO_STRIP = frozenset({
-    "access_count", "user_rating", "source_chat_id",
-})
+_PERSONAL_FIELDS_TO_STRIP = frozenset(
+    {
+        "access_count",
+        "user_rating",
+        "source_chat_id",
+    }
+)
 
 
 def sanitize_paths_for_sharing(text: str) -> str:
@@ -103,12 +107,7 @@ def _memory_to_markdown(memory_dict: dict[str, object], memory_type: str) -> str
         return renderer(memory_dict, mem_id, content, created_at, updated_at, tags_line)
 
     frontmatter = (
-        f"---\n"
-        f"id: {mem_id}\n"
-        f"type: {memory_type}\n"
-        f"created_at: {created_at}\n"
-        f"updated_at: {updated_at}{tags_line}\n"
-        f"---\n"
+        f"---\nid: {mem_id}\ntype: {memory_type}\ncreated_at: {created_at}\nupdated_at: {updated_at}{tags_line}\n---\n"
     )
     return f"{frontmatter}\n{content}\n"
 
@@ -464,28 +463,25 @@ class MemoryManagerImportExportMixin:
                 else:
                     continue
 
-            sanitized = {
-                k: v for k, v in entry.items()
-                if k not in _PERSONAL_FIELDS_TO_STRIP and k != "embedding"
-            }
+            sanitized = {k: v for k, v in entry.items() if k not in _PERSONAL_FIELDS_TO_STRIP and k != "embedding"}
 
             for field in ("content", "trigger", "action", "reasoning", "application"):
                 val = sanitized.get(field)
                 if isinstance(val, str) and val:
-                    sanitized[field] = sanitize_paths_for_sharing(
-                        redact_sensitive_text(val)
-                    )
+                    sanitized[field] = sanitize_paths_for_sharing(redact_sensitive_text(val))
 
             if output_format == "json":
                 rendered = json.dumps(sanitized, ensure_ascii=False, indent=2)
             else:
                 rendered = _memory_to_markdown(sanitized, "procedural")
 
-            results.append({
-                "id": mem_id,
-                "content": str(sanitized.get("content", "")),
-                "rendered": rendered,
-            })
+            results.append(
+                {
+                    "id": mem_id,
+                    "content": str(sanitized.get("content", "")),
+                    "rendered": rendered,
+                }
+            )
 
         return results
 

@@ -34,8 +34,10 @@ class TestDecomposeChildSpec:
 
     def test_with_assignee_and_parents(self) -> None:
         spec = DecomposeChildSpec(
-            title="Deploy", body="Deploy to staging",
-            assignee="devops-bot", parent_indices=(0, 1),
+            title="Deploy",
+            body="Deploy to staging",
+            assignee="devops-bot",
+            parent_indices=(0, 1),
         )
         assert spec.assignee == "devops-bot"
         assert spec.parent_indices == (0, 1)
@@ -66,10 +68,14 @@ class TestDecomposeOutcome:
     def test_ok_true_fanout_true(self) -> None:
         child = DecomposeChildSpec(title="C1", body="Body")
         o = DecomposeOutcome(
-            task_id="t1", ok=True, fanout=True,
-            children=(child,), rationale="test",
+            task_id="t1",
+            ok=True,
+            fanout=True,
+            children=(child,),
+            rationale="test",
             reason="decomposed",
-            prompt_tokens=100, completion_tokens=200,
+            prompt_tokens=100,
+            completion_tokens=200,
         )
         assert o.ok
         assert o.fanout
@@ -79,12 +85,15 @@ class TestDecomposeOutcome:
 
     def test_ok_true_fanout_false_with_spec(self) -> None:
         o = DecomposeOutcome(
-            task_id="t1", ok=True, fanout=False,
+            task_id="t1",
+            ok=True,
+            fanout=False,
             reason="no_fanout",
             new_title="Refined title",
             new_body="Detailed body",
             new_assignee="research-bot",
-            prompt_tokens=50, completion_tokens=80,
+            prompt_tokens=50,
+            completion_tokens=80,
         )
         assert o.ok
         assert not o.fanout

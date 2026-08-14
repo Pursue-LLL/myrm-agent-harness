@@ -69,7 +69,11 @@ async def test_extract_digest_with_tool_failures():
             2,
             3.0,
             "tool_failure",
-            {"tool_name": "bash_code_execute_tool", "error": "Connection refused: database not running", "command": "psql -h localhost"},
+            {
+                "tool_name": "bash_code_execute_tool",
+                "error": "Connection refused: database not running",
+                "command": "psql -h localhost",
+            },
         ),
         make_event(3, 4.0, "session_end", {}),
     ]
@@ -93,7 +97,12 @@ async def test_extract_digest_with_user_interruption():
     events = [
         make_event(0, 1.0, "session_start", {"query": "Deploy to production"}),
         make_event(1, 2.0, "tool_start", {"tool_name": "bash_code_execute_tool"}),
-        make_event(2, 3.0, "tool_failure", {"tool_name": "bash_code_execute_tool", "error": "Permission denied: cannot write to /prod"}),
+        make_event(
+            2,
+            3.0,
+            "tool_failure",
+            {"tool_name": "bash_code_execute_tool", "error": "Permission denied: cannot write to /prod"},
+        ),
         make_event(3, 4.0, "user_interruption", {"correction_message": "Need to use sudo for production deployment"}),
         make_event(4, 5.0, "session_end", {}),
     ]
@@ -129,15 +138,31 @@ async def test_extract_digest_hotspots_sorting():
 
     # models.py: 10 reads, 2 writes
     for i in range(2, 12):
-        events.append(make_event(seq := seq + 1, float(i), "tool_start", {"tool_name": "file_read_tool", "file_path": "models.py"}))
+        events.append(
+            make_event(
+                seq := seq + 1, float(i), "tool_start", {"tool_name": "file_read_tool", "file_path": "models.py"}
+            )
+        )
     for i in range(12, 14):
-        events.append(make_event(seq := seq + 1, float(i), "tool_start", {"tool_name": "file_write_tool", "file_path": "models.py"}))
+        events.append(
+            make_event(
+                seq := seq + 1, float(i), "tool_start", {"tool_name": "file_write_tool", "file_path": "models.py"}
+            )
+        )
 
     # database.py: 5 reads, 5 writes (should be first due to higher write_count)
     for i in range(14, 19):
-        events.append(make_event(seq := seq + 1, float(i), "tool_start", {"tool_name": "file_read_tool", "file_path": "database.py"}))
+        events.append(
+            make_event(
+                seq := seq + 1, float(i), "tool_start", {"tool_name": "file_read_tool", "file_path": "database.py"}
+            )
+        )
     for i in range(19, 24):
-        events.append(make_event(seq := seq + 1, float(i), "tool_start", {"tool_name": "file_write_tool", "file_path": "database.py"}))
+        events.append(
+            make_event(
+                seq := seq + 1, float(i), "tool_start", {"tool_name": "file_write_tool", "file_path": "database.py"}
+            )
+        )
 
     events.append(make_event(seq := seq + 1, 25.0, "session_end", {}))
 
@@ -166,7 +191,9 @@ async def test_extract_digest_anti_patterns_limit():
 
     # Generate 15 tool failures
     for i in range(2, 17):
-        events.append(make_event(seq := seq + 1, float(i), "tool_failure", {"tool_name": f"tool_{i}", "error": f"Error {i}"}))
+        events.append(
+            make_event(seq := seq + 1, float(i), "tool_failure", {"tool_name": f"tool_{i}", "error": f"Error {i}"})
+        )
 
     events.append(make_event(seq := seq + 1, 18.0, "session_end", {}))
 
@@ -191,7 +218,11 @@ async def test_extract_digest_hotspots_limit():
 
     # Generate 25 different file operations
     for i in range(2, 27):
-        events.append(make_event(seq := seq + 1, float(i), "tool_start", {"tool_name": "file_write_tool", "file_path": f"file_{i}.py"}))
+        events.append(
+            make_event(
+                seq := seq + 1, float(i), "tool_start", {"tool_name": "file_write_tool", "file_path": f"file_{i}.py"}
+            )
+        )
 
     events.append(make_event(seq := seq + 1, 28.0, "session_end", {}))
 
@@ -247,7 +278,9 @@ async def test_extract_digest_with_short_error_message():
     """Test that tool failures with very short error messages are ignored."""
     events = [
         make_event(0, 1.0, "session_start", {"query": "Test"}),
-        make_event(1, 2.0, "tool_failure", {"tool_name": "bash_code_execute_tool", "error": "err"}),  # Too short (<= 5 chars)
+        make_event(
+            1, 2.0, "tool_failure", {"tool_name": "bash_code_execute_tool", "error": "err"}
+        ),  # Too short (<= 5 chars)
         make_event(2, 3.0, "session_end", {}),
     ]
 

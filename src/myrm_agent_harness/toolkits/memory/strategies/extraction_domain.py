@@ -76,13 +76,29 @@ _PRESET_HINTS: dict[DomainPreset, tuple[tuple[str, str], ...]] = {
 
 _AUTO_DETECT_KEYWORDS: dict[DomainPreset, tuple[str, ...]] = {
     DomainPreset.PERSONA: (
-        "companion", "friend", "伴侣", "生活助手", "personal", "日常", "life",
+        "companion",
+        "friend",
+        "伴侣",
+        "生活助手",
+        "personal",
+        "日常",
+        "life",
     ),
     DomainPreset.WORK_ASSISTANT: (
-        "work", "assistant", "工作", "办公", "professional", "productivity",
+        "work",
+        "assistant",
+        "工作",
+        "办公",
+        "professional",
+        "productivity",
     ),
     DomainPreset.RESEARCH: (
-        "research", "academic", "研究", "学术", "analysis", "scientist",
+        "research",
+        "academic",
+        "研究",
+        "学术",
+        "analysis",
+        "scientist",
     ),
 }
 

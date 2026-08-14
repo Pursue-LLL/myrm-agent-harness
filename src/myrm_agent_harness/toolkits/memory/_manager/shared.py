@@ -130,7 +130,6 @@ from myrm_agent_harness.toolkits.vector.base import VectorDocument
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-
     ConsolidationLLMFunc = Callable[[str, str], Awaitable[str]]
     FTS5SearcherFunc = Callable[[str, int], Awaitable[list[MemorySearchResult]]]
 

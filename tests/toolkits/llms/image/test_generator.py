@@ -202,6 +202,7 @@ class TestMediaCallback:
 
         try:
             import litellm
+
             with patch.object(litellm, "aimage_generation", new_callable=AsyncMock) as mock:
                 mock.return_value = _FakeResponse(data=[_FakeImageData(url=None, b64_json=b64_data)])
                 result = await gen.generate("test")
@@ -209,7 +210,9 @@ class TestMediaCallback:
                 callback.assert_called_once()
         except (ImportError, AttributeError):
             with patch("myrm_agent_harness.toolkits.llms.image.generator.litellm") as mock_litellm:
-                mock_litellm.aimage_generation = AsyncMock(return_value=_FakeResponse(data=[_FakeImageData(url=None, b64_json=b64_data)]))
+                mock_litellm.aimage_generation = AsyncMock(
+                    return_value=_FakeResponse(data=[_FakeImageData(url=None, b64_json=b64_data)])
+                )
                 result = await gen.generate("test")
                 assert result.persisted_url == "https://storage/persisted.png"
                 callback.assert_called_once()
@@ -228,6 +231,7 @@ class TestMediaCallback:
 
         try:
             import litellm
+
             with (
                 patch.object(litellm, "aimage_generation", new_callable=AsyncMock) as mock_gen,
                 patch(
@@ -254,7 +258,9 @@ class TestMediaCallback:
                     return_value=(fake_image_bytes, "image/png"),
                 ),
             ):
-                mock_litellm.aimage_generation = AsyncMock(return_value=_FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)]))
+                mock_litellm.aimage_generation = AsyncMock(
+                    return_value=_FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)])
+                )
                 result = await gen.generate("test")
 
                 assert result.persisted_url == "https://storage/persisted.png"
@@ -272,13 +278,16 @@ class TestMediaCallback:
 
         try:
             import litellm
+
             with patch.object(litellm, "aimage_generation", new_callable=AsyncMock) as mock:
                 mock.return_value = _FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)])
                 result = await gen.generate("test")
                 assert result.persisted_url is None
         except (ImportError, AttributeError):
             with patch("myrm_agent_harness.toolkits.llms.image.generator.litellm") as mock_litellm:
-                mock_litellm.aimage_generation = AsyncMock(return_value=_FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)]))
+                mock_litellm.aimage_generation = AsyncMock(
+                    return_value=_FakeResponse(data=[_FakeImageData(url="https://api/img.png", b64_json=None)])
+                )
                 result = await gen.generate("test")
                 assert result.persisted_url is None
 
@@ -294,6 +303,7 @@ class TestMediaCallback:
 
         try:
             import litellm
+
             with (
                 patch.object(litellm, "aimage_generation", new_callable=AsyncMock) as mock_gen,
                 patch(
@@ -318,7 +328,9 @@ class TestMediaCallback:
                     return_value=(b"image-bytes", "image/png"),
                 ),
             ):
-                mock_litellm.aimage_generation = AsyncMock(return_value=_FakeResponse(data=[_FakeImageData(url="https://api/img.png")]))
+                mock_litellm.aimage_generation = AsyncMock(
+                    return_value=_FakeResponse(data=[_FakeImageData(url="https://api/img.png")])
+                )
                 result = await gen.generate("test")
 
                 assert result.url == "https://api/img.png"

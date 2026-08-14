@@ -54,9 +54,7 @@ class EvolutionJudge:
         """
         self._judge_llm = judge_llm
 
-    async def evaluate(
-        self, original_content: str, evolved_content: str, error_message: str
-    ) -> JudgeResult:
+    async def evaluate(self, original_content: str, evolved_content: str, error_message: str) -> JudgeResult:
         """Evaluate evolved code.
 
         Args:
@@ -71,9 +69,7 @@ class EvolutionJudge:
             # If no judge LLM configured, default to manual review required (confidence 0.5)
             return JudgeResult(confidence=0.5, reason="No judge LLM configured")
 
-        prompt = self._build_judge_prompt(
-            original_content, evolved_content, error_message
-        )
+        prompt = self._build_judge_prompt(original_content, evolved_content, error_message)
 
         try:
             response = await self._judge_llm.ainvoke([HumanMessage(content=prompt)])
@@ -92,9 +88,7 @@ class EvolutionJudge:
         except Exception as e:
             logger.error("LLM judge evaluation failed: %s", e)
             # Fail-safe: default to manual review required
-            return JudgeResult(
-                confidence=0.5, reason=f"LLM judge evaluation failed: {e}"
-            )
+            return JudgeResult(confidence=0.5, reason=f"LLM judge evaluation failed: {e}")
 
     def _parse_llm_response(self, content: str) -> tuple[float, str]:
         """Parse LLM judge response.
@@ -125,9 +119,7 @@ class EvolutionJudge:
 
         return confidence, content.strip()
 
-    def _build_judge_prompt(
-        self, original_content: str, evolved_content: str, error_message: str
-    ) -> str:
+    def _build_judge_prompt(self, original_content: str, evolved_content: str, error_message: str) -> str:
         """Build prompt for LLM judge."""
         return f"""You are an expert Python code reviewer. Evaluate the quality and safety of an automated code fix.
 

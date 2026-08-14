@@ -213,9 +213,7 @@ def normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
         return f"[MCP tool error] {message}" if message else "[MCP tool error]"
 
     if structured is not None:
-        coerced.append(
-            {"type": "text", "text": json.dumps(structured, ensure_ascii=False)}
-        )
+        coerced.append({"type": "text", "text": json.dumps(structured, ensure_ascii=False)})
 
     has_image = any(b.get("type") == "image" for b in coerced)
     if has_image:
@@ -227,9 +225,7 @@ def normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
     return "\n".join(texts) if texts else ""
 
 
-def wrap_multimodal_text_blocks(
-    blocks: list[dict[str, object]], *, source: str
-) -> list[dict[str, object]]:
+def wrap_multimodal_text_blocks(blocks: list[dict[str, object]], *, source: str) -> list[dict[str, object]]:
     """Apply content-boundary defense to text blocks inside multimodal output.
 
     Plain ``str`` results are wrapped with ``wrap_untrusted``; multimodal
@@ -328,11 +324,7 @@ def extract_mcp_app_metadata(result: object) -> dict[str, object] | None:
     """
     if result is None:
         return None
-    meta = (
-        result.get("_meta")
-        if isinstance(result, dict)
-        else getattr(result, "meta", None)
-    )
+    meta = result.get("_meta") if isinstance(result, dict) else getattr(result, "meta", None)
     if not isinstance(meta, dict):
         return None
     ui = meta.get("ui")
@@ -342,9 +334,7 @@ def extract_mcp_app_metadata(result: object) -> dict[str, object] | None:
     if not isinstance(resource_uri, str) or not resource_uri:
         return None
     structured = (
-        result.get("structured_content")
-        if isinstance(result, dict)
-        else getattr(result, "structured_content", None)
+        result.get("structured_content") if isinstance(result, dict) else getattr(result, "structured_content", None)
     )
     extracted: dict[str, object] = {"resource_uri": resource_uri}
     if structured is not None:

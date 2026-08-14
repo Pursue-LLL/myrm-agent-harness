@@ -133,9 +133,7 @@ class TestTokenTracker:
     def test_model_usage_breakdown(self) -> None:
         tr = tt.TokenTracker()
         tr.record({"prompt_tokens": 10, "completion_tokens": 5}, model_name="gpt-4o")
-        tr.record(
-            {"prompt_tokens": 20, "completion_tokens": 10}, model_name="claude-3.5"
-        )
+        tr.record({"prompt_tokens": 20, "completion_tokens": 10}, model_name="claude-3.5")
         tr.record({"prompt_tokens": 5, "completion_tokens": 3}, model_name="gpt-4o")
         assert "gpt-4o" in tr.model_usage
         assert "claude-3.5" in tr.model_usage
@@ -267,9 +265,7 @@ class TestModuleLevelApi:
 
     def test_record_token_usage_and_pending(self) -> None:
         tt.init_token_tracker()
-        tt.record_token_usage(
-            {"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3}
-        )
+        tt.record_token_usage({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
         events = tt.get_pending_token_events()
         assert len(events) == 1
         assert events[0]["call_index"] == 1
@@ -281,13 +277,9 @@ class TestModuleLevelApi:
     def test_record_finish_reason(self) -> None:
         tt.init_token_tracker()
         tt.record_finish_reason("stop")
-        assert (
-            cast(tt.TokenTracker, tt.get_token_tracker()).last_finish_reason == "stop"
-        )
+        assert cast(tt.TokenTracker, tt.get_token_tracker()).last_finish_reason == "stop"
         tt.record_finish_reason("length")
-        assert (
-            cast(tt.TokenTracker, tt.get_token_tracker()).last_finish_reason == "length"
-        )
+        assert cast(tt.TokenTracker, tt.get_token_tracker()).last_finish_reason == "length"
 
     def test_get_pending_token_events_no_tracker(self) -> None:
         assert tt.get_pending_token_events() == []

@@ -104,18 +104,14 @@ class TestCollectPartialResults:
             auto_warmup=False,
         )
 
-        results = await manager.search(
-            "trigger", memory_types=[MemoryType.PROCEDURAL], limit=10, use_rrf=False
-        )
+        results = await manager.search("trigger", memory_types=[MemoryType.PROCEDURAL], limit=10, use_rrf=False)
 
         assert results == []
         assert manager.last_retrieval_trace is not None
         assert manager.last_retrieval_trace.degraded is True
 
     @pytest.mark.asyncio
-    async def test_no_backend_yields_empty_without_error(
-        self, fast_timeout_config
-    ) -> None:
+    async def test_no_backend_yields_empty_without_error(self, fast_timeout_config) -> None:
         """No relational/vector backend means no tasks: empty, non-degraded search."""
         manager = MemoryManager(
             fast_timeout_config,
@@ -123,9 +119,7 @@ class TestCollectPartialResults:
             auto_warmup=False,
         )
 
-        results = await manager.search(
-            "anything", memory_types=[MemoryType.SEMANTIC], limit=10, use_rrf=False
-        )
+        results = await manager.search("anything", memory_types=[MemoryType.SEMANTIC], limit=10, use_rrf=False)
 
         assert results == []
         assert manager.last_retrieval_trace is not None
@@ -150,9 +144,7 @@ class TestEmbedTimeoutFailOpen:
             auto_warmup=False,
         )
 
-        results = await manager.search(
-            "weather", memory_types=[MemoryType.SEMANTIC], limit=10, use_rrf=False
-        )
+        results = await manager.search("weather", memory_types=[MemoryType.SEMANTIC], limit=10, use_rrf=False)
 
         assert results == []
         trace = manager.last_retrieval_trace
@@ -174,9 +166,7 @@ class TestDegradationMetrics:
         assert snapshot.degradation_error_count == 1
 
     @pytest.mark.asyncio
-    async def test_collect_timeout_increments_global_metrics(
-        self, mock_relational_store, fast_timeout_config
-    ) -> None:
+    async def test_collect_timeout_increments_global_metrics(self, mock_relational_store, fast_timeout_config) -> None:
         """A collect timeout must be observable through the global search metrics."""
         metrics = get_search_metrics()
         before = metrics.snapshot().degradation_timeout_count
@@ -188,9 +178,7 @@ class TestDegradationMetrics:
             relational=mock_relational_store,
             auto_warmup=False,
         )
-        await manager.search(
-            "trigger", memory_types=[MemoryType.PROCEDURAL], limit=10, use_rrf=False
-        )
+        await manager.search("trigger", memory_types=[MemoryType.PROCEDURAL], limit=10, use_rrf=False)
 
         assert metrics.snapshot().degradation_timeout_count == before + 1
 
@@ -253,9 +241,7 @@ class TestWikiSessionsCorpusTimeout:
             MemorySearchBackends,
         )
 
-        backends = MemorySearchBackends(
-            query_web_corpus=AsyncMock(side_effect=_hang_forever)
-        )
+        backends = MemorySearchBackends(query_web_corpus=AsyncMock(side_effect=_hang_forever))
         text = await _search_web_corpus(backends, "query", 5, timeout_seconds=0.05)
 
         assert "timed out" in text.lower()
@@ -290,9 +276,7 @@ class TestMemorySearchToolCorpusBranches:
             search_policy=policy or MemorySearchPolicy(),
             search_backends=backends or MemorySearchBackends(),
         )
-        return next(
-            t for t in tools if getattr(t, "name", None) == "memory_search_tool"
-        )
+        return next(t for t in tools if getattr(t, "name", None) == "memory_search_tool")
 
     @staticmethod
     def _manager(fast_timeout_config: MemoryConfig) -> MemoryManager:
@@ -303,9 +287,7 @@ class TestMemorySearchToolCorpusBranches:
         )
 
     @pytest.mark.asyncio
-    async def test_wiki_corpus_happy_path_strips_heading(
-        self, fast_timeout_config
-    ) -> None:
+    async def test_wiki_corpus_happy_path_strips_heading(self, fast_timeout_config) -> None:
         from unittest.mock import AsyncMock
 
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
@@ -369,9 +351,7 @@ class TestMemorySearchToolCorpusBranches:
         assert "A matching conversation hit." in text
 
     @pytest.mark.asyncio
-    async def test_web_corpus_empty_result_returns_notice(
-        self, fast_timeout_config
-    ) -> None:
+    async def test_web_corpus_empty_result_returns_notice(self, fast_timeout_config) -> None:
         from unittest.mock import AsyncMock
 
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
@@ -391,21 +371,15 @@ class TestMemorySearchToolCorpusBranches:
         assert "No matching web pages found in local corpus." in text
 
     @pytest.mark.asyncio
-    async def test_profile_key_rejected_for_non_memory_corpus(
-        self, fast_timeout_config
-    ) -> None:
+    async def test_profile_key_rejected_for_non_memory_corpus(self, fast_timeout_config) -> None:
         tool = self._build_tool(self._manager(fast_timeout_config))
 
-        text = await tool.ainvoke(
-            {"query": "q", "corpus": "wiki", "profile_key": "timezone"}
-        )
+        text = await tool.ainvoke({"query": "q", "corpus": "wiki", "profile_key": "timezone"})
 
         assert "profile_key lookup is only supported for corpus=memory." in text
 
     @pytest.mark.asyncio
-    async def test_all_corpora_disabled_returns_no_corpora(
-        self, fast_timeout_config, monkeypatch
-    ) -> None:
+    async def test_all_corpora_disabled_returns_no_corpora(self, fast_timeout_config, monkeypatch) -> None:
         import myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools as tools_mod
 
         monkeypatch.setattr(
@@ -479,19 +453,13 @@ class TestMemorySearchToolCorpusBranches:
             ],
         )
         backends = MemorySearchBackends(
-            query_wiki=AsyncMock(
-                return_value=QueryResult(
-                    question="q", answer="Wiki answer.", related_articles=[]
-                )
-            ),
+            query_wiki=AsyncMock(return_value=QueryResult(question="q", answer="Wiki answer.", related_articles=[])),
             conversation_provider=provider,
             query_web_corpus=AsyncMock(return_value="Web result."),
         )
         tool = self._build_tool(
             self._manager(fast_timeout_config),
-            policy=MemorySearchPolicy(
-                allow_wiki=True, allow_sessions=True, allow_web=True
-            ),
+            policy=MemorySearchPolicy(allow_wiki=True, allow_sessions=True, allow_web=True),
             backends=backends,
         )
 
@@ -503,9 +471,7 @@ class TestMemorySearchToolCorpusBranches:
         assert "## Web" in text
 
     @pytest.mark.asyncio
-    async def test_all_corpora_partial_timeout_keeps_survivors(
-        self, fast_timeout_config
-    ) -> None:
+    async def test_all_corpora_partial_timeout_keeps_survivors(self, fast_timeout_config) -> None:
         from unittest.mock import AsyncMock
 
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
@@ -530,9 +496,7 @@ class TestMemorySearchToolCorpusBranches:
         assert "Web result." in text
 
     @pytest.mark.asyncio
-    async def test_web_corpus_unavailable_when_backend_missing(
-        self, fast_timeout_config
-    ) -> None:
+    async def test_web_corpus_unavailable_when_backend_missing(self, fast_timeout_config) -> None:
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
             MemorySearchBackends,
             MemorySearchPolicy,
@@ -562,9 +526,7 @@ class TestMemorySearchToolCorpusBranches:
 
         backends = MemorySearchBackends(
             query_wiki=AsyncMock(
-                return_value=QueryResult(
-                    question="q", answer="Slow wiki answer.", related_articles=[]
-                )
+                return_value=QueryResult(question="q", answer="Slow wiki answer.", related_articles=[])
             )
         )
 
@@ -595,11 +557,7 @@ class TestMemorySearchToolCorpusBranches:
         )
         manager = AsyncMock()
         manager.search = AsyncMock(
-            return_value=[
-                MemorySearchResult(
-                    memory=stale, score=0.9, memory_type=MemoryType.SEMANTIC
-                )
-            ]
+            return_value=[MemorySearchResult(memory=stale, score=0.9, memory_type=MemoryType.SEMANTIC)]
         )
         manager.active_session = None
         manager.last_retrieval_trace = None
@@ -756,11 +714,7 @@ class TestGraphEnrichTimeout:
 
         assert manager.last_retrieval_trace is not None
         assert manager.last_retrieval_trace.degraded is True
-        graph_step = next(
-            step
-            for step in manager.last_retrieval_trace.steps
-            if step.phase == "graph"
-        )
+        graph_step = next(step for step in manager.last_retrieval_trace.steps if step.phase == "graph")
         assert graph_step.status == "warning"
         assert len(results) >= 1  # collected candidates survive the graph skip
 
@@ -769,9 +723,7 @@ class TestCollectErrorDegradation:
     """A store task raising mid-collect must degrade recall instead of raising."""
 
     @pytest.mark.asyncio
-    async def test_store_error_marks_degraded(
-        self, mock_vector_store, mock_embedding, fast_timeout_config
-    ) -> None:
+    async def test_store_error_marks_degraded(self, mock_vector_store, mock_embedding, fast_timeout_config) -> None:
         metrics = get_search_metrics()
         before_error = metrics.snapshot().degradation_error_count
 
@@ -787,9 +739,7 @@ class TestCollectErrorDegradation:
             auto_warmup=False,
         )
 
-        results = await manager.search(
-            "weather", memory_types=[MemoryType.SEMANTIC], limit=10, use_rrf=False
-        )
+        results = await manager.search("weather", memory_types=[MemoryType.SEMANTIC], limit=10, use_rrf=False)
 
         assert results == []
         assert manager.last_retrieval_trace is not None
@@ -830,21 +780,11 @@ class TestMemorySaveManageBranches:
         assert text == "Unknown category: bogus"
 
     @pytest.mark.asyncio
-    async def test_manage_unknown_category_and_action(
-        self, fast_timeout_config
-    ) -> None:
+    async def test_manage_unknown_category_and_action(self, fast_timeout_config) -> None:
         manage = self._find(self._tools(fast_timeout_config), "memory_manage_tool")
 
-        assert (
-            await manage.coroutine(action="update", memory_id="m1", category="bogus")
-            == "Unknown category: bogus"
-        )
-        assert (
-            await manage.coroutine(
-                action="bogus", memory_id="m1", category="knowledge"
-            )
-            == "Unknown action: bogus"
-        )
+        assert await manage.coroutine(action="update", memory_id="m1", category="bogus") == "Unknown category: bogus"
+        assert await manage.coroutine(action="bogus", memory_id="m1", category="knowledge") == "Unknown action: bogus"
 
     @pytest.mark.asyncio
     async def test_save_not_enabled_guards(self, fast_timeout_config) -> None:
@@ -853,18 +793,14 @@ class TestMemorySaveManageBranches:
         assert "Profile memory is not enabled." in (
             await save.coroutine(content="x", category="preference", preference_key="k")
         )
-        assert "Procedural memory is not enabled." in (
-            await save.coroutine(content="x", category="instruction")
-        )
+        assert "Procedural memory is not enabled." in (await save.coroutine(content="x", category="instruction"))
 
     @pytest.mark.asyncio
     async def test_manage_not_enabled_guards(self, fast_timeout_config) -> None:
         manage = self._find(self._tools(fast_timeout_config), "memory_manage_tool")
 
         assert "knowledge memory is not enabled." in (
-            await manage.coroutine(
-                action="delete", memory_id="m1", category="knowledge"
-            )
+            await manage.coroutine(action="delete", memory_id="m1", category="knowledge")
         )
         assert "Procedural memory is not enabled." in (
             await manage.coroutine(action="delete", memory_id="m1", category="rule")

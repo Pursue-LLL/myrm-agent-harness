@@ -182,7 +182,7 @@ def validate_action_references(
     """
     action_ids: set[str] = set()
     errors: list[str] = []
-    for action in (actions or []):
+    for action in actions or []:
         if not isinstance(action, dict):
             continue
         action_id = str(action.get("id", ""))

@@ -139,8 +139,7 @@ _EXPECTED_SUBAGENT_EXECUTOR_MIXIN_MRO: tuple[type[object], ...] = (
 @pytest.mark.architecture
 def test_subagent_executor_mixin_mro_prefix() -> None:
     assert (
-        SubagentExecutor.__mro__[: len(_EXPECTED_SUBAGENT_EXECUTOR_MIXIN_MRO)]
-        == _EXPECTED_SUBAGENT_EXECUTOR_MIXIN_MRO
+        SubagentExecutor.__mro__[: len(_EXPECTED_SUBAGENT_EXECUTOR_MIXIN_MRO)] == _EXPECTED_SUBAGENT_EXECUTOR_MIXIN_MRO
     )
 
 

@@ -59,9 +59,7 @@ async def test_notify_dispatches_with_registered_config(monkeypatch: pytest.Monk
         seen["data"] = data
         seen["config"] = config
 
-    monkeypatch.setattr(
-        "myrm_agent_harness.utils.event_utils.dispatch_custom_event", fake_dispatch
-    )
+    monkeypatch.setattr("myrm_agent_harness.utils.event_utils.dispatch_custom_event", fake_dispatch)
 
     fake_config = {"configurable": {"thread_id": "abc"}}
     register_session_config("chat-N", fake_config)
@@ -84,9 +82,7 @@ async def test_notify_silent_when_dispatch_fails(monkeypatch: pytest.MonkeyPatch
     async def boom(*_a: Any, **_kw: Any) -> None:
         raise RuntimeError("stream gone")
 
-    monkeypatch.setattr(
-        "myrm_agent_harness.utils.event_utils.dispatch_custom_event", boom
-    )
+    monkeypatch.setattr("myrm_agent_harness.utils.event_utils.dispatch_custom_event", boom)
 
     token = _ipc_call_context.set(_ipc_ctx())
     try:
@@ -105,9 +101,7 @@ async def test_notify_forwards_structured_progress(
     async def fake_dispatch(name: str, data: Any, config: Any = None) -> None:
         seen["data"] = data
 
-    monkeypatch.setattr(
-        "myrm_agent_harness.utils.event_utils.dispatch_custom_event", fake_dispatch
-    )
+    monkeypatch.setattr("myrm_agent_harness.utils.event_utils.dispatch_custom_event", fake_dispatch)
 
     register_session_config("chat-PROG", {"configurable": {"thread_id": "x"}})
     token = _ipc_call_context.set(_ipc_ctx("chat-PROG"))
@@ -169,9 +163,7 @@ async def test_notify_rate_limited_drops_silently(
         nonlocal dispatch_calls
         dispatch_calls += 1
 
-    monkeypatch.setattr(
-        "myrm_agent_harness.utils.event_utils.dispatch_custom_event", fake_dispatch
-    )
+    monkeypatch.setattr("myrm_agent_harness.utils.event_utils.dispatch_custom_event", fake_dispatch)
 
     sid = "chat-RATELIMIT"
     register_session_config(sid, {"configurable": {"thread_id": "x"}})

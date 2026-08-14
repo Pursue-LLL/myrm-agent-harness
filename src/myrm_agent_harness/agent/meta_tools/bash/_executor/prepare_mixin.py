@@ -124,9 +124,7 @@ class BashExecutorPrepareMixin:
             if detection_result.code_type == CodeType.PYTHON:
                 use_python_execution = True
                 prepared_code = detection_result.extracted_code
-                logger.info(
-                    f" Python code detected ({detection_result.detection_reason})"
-                )
+                logger.info(f" Python code detected ({detection_result.detection_reason})")
                 if "python" in command and "-c" in command:
                     self._last_python_c_transform_hint = (
                         "Detected `python -c` wrapper — auto-rewrote to file-mode "
@@ -170,9 +168,7 @@ class BashExecutorPrepareMixin:
                 "'python3 -c' wrapper — the tool auto-detects Python."
             )
             if is_python_c
-            else (
-                f"Pre-execution syntax check failed: {error}. Fix the code before retrying."
-            )
+            else (f"Pre-execution syntax check failed: {error}. Fix the code before retrying.")
         )
 
         raise BashExecutionError(
@@ -216,18 +212,14 @@ class BashExecutorPrepareMixin:
         """Rewrite skill absolute paths to relative paths in code."""
         return rewrite_skill_paths(code)
 
-    def _convert_to_container_paths(
-        self, workspace_skill_paths: list[str], workspace: Workspace
-    ) -> list[str]:
+    def _convert_to_container_paths(self, workspace_skill_paths: list[str], workspace: Workspace) -> list[str]:
         """Convert local absolute paths to container paths (/workspace/...)."""
         workspace_root_str = self._workspace_manager.get_workspace_path(workspace)
         if not workspace_root_str:
             logger.warning(" workspace_root is empty, cannot convert paths")
             return []
 
-        return WorkspacePathResolver.to_container_paths(
-            workspace_skill_paths, workspace_root_str
-        )
+        return WorkspacePathResolver.to_container_paths(workspace_skill_paths, workspace_root_str)
 
     def _maybe_extend_timeout_for_mcp(
         self,

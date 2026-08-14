@@ -132,7 +132,7 @@ class TestDocumentReaderDocxIntegration:
         try:
             result = await read_document_as_text(tmp, executor)
             # In the merged table, "Span" appears only once, merged cell is empty
-            merged_section = result[result.index("## Merged Table"):]
+            merged_section = result[result.index("## Merged Table") :]
             table_lines = [line for line in merged_section.split("\n") if "|" in line and "---" not in line]
             header_cells = [c.strip() for c in table_lines[0].split("|")[1:-1]]
             assert header_cells[0] != ""

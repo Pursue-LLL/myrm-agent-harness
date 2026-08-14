@@ -105,9 +105,7 @@ class TestSignalExtraction:
         assert signals[0].feedback == "Don't visit this site"
         assert signals[0].arg_key is None
 
-    def test_multiple_arg_changes_in_single_correction(
-        self, hook: CorrectionLearningHook
-    ) -> None:
+    def test_multiple_arg_changes_in_single_correction(self, hook: CorrectionLearningHook) -> None:
         corrections = [
             {
                 "tool_name": "write_file",
@@ -147,9 +145,7 @@ class TestSignalExtraction:
         signals = hook._extract_signals(corrections)
         assert len(signals) == 0
 
-    def test_reject_without_feedback_uses_default(
-        self, hook: CorrectionLearningHook
-    ) -> None:
+    def test_reject_without_feedback_uses_default(self, hook: CorrectionLearningHook) -> None:
         corrections = [
             {
                 "tool_name": "dangerous_tool",
@@ -165,9 +161,7 @@ class TestSignalExtraction:
 class TestMemoryCreation:
     """Tests for memory object creation from signals."""
 
-    def test_path_preference_creates_semantic_memory(
-        self, hook: CorrectionLearningHook
-    ) -> None:
+    def test_path_preference_creates_semantic_memory(self, hook: CorrectionLearningHook) -> None:
         signal = CorrectionSignal(
             tool_name="write_file",
             decision_type="edit",
@@ -186,9 +180,7 @@ class TestMemoryCreation:
         assert "hitl_correction" in memory.tags
         assert "tool:write_file" in memory.tags
 
-    def test_command_rule_creates_procedural_memory(
-        self, hook: CorrectionLearningHook
-    ) -> None:
+    def test_command_rule_creates_procedural_memory(self, hook: CorrectionLearningHook) -> None:
         signal = CorrectionSignal(
             tool_name="shell",
             decision_type="edit",
@@ -204,9 +196,7 @@ class TestMemoryCreation:
         assert memory.tool_name == "shell"
         assert memory.tool_rule_priority == ToolRulePriority.NORMAL
 
-    def test_tool_rejection_creates_procedural_memory(
-        self, hook: CorrectionLearningHook
-    ) -> None:
+    def test_tool_rejection_creates_procedural_memory(self, hook: CorrectionLearningHook) -> None:
         signal = CorrectionSignal(
             tool_name="browser_navigate",
             decision_type="reject",
@@ -269,9 +259,7 @@ class TestDeduplication:
     """Tests for session-level deduplication."""
 
     @pytest.mark.asyncio
-    async def test_same_correction_deduped_in_session(
-        self, hook: CorrectionLearningHook
-    ) -> None:
+    async def test_same_correction_deduped_in_session(self, hook: CorrectionLearningHook) -> None:
         payload = {
             "session_id": "test-session",
             "corrections": (
@@ -296,9 +284,7 @@ class TestDeduplication:
         assert result2.output is None or result2.output == ""
 
     @pytest.mark.asyncio
-    async def test_different_tools_not_deduped(
-        self, hook: CorrectionLearningHook
-    ) -> None:
+    async def test_different_tools_not_deduped(self, hook: CorrectionLearningHook) -> None:
         payload1 = {
             "session_id": "test-session",
             "corrections": (
@@ -339,9 +325,7 @@ class TestRepetitionTracking:
     """Tests for cross-session repetition counter and priority promotion."""
 
     @pytest.mark.asyncio
-    async def test_repetition_counter_increments(
-        self, hook: CorrectionLearningHook
-    ) -> None:
+    async def test_repetition_counter_increments(self, hook: CorrectionLearningHook) -> None:
         hook2 = CorrectionLearningHook()
         payload = {
             "session_id": "s1",
@@ -371,9 +355,7 @@ class TestPersistence:
     """Tests for memory persistence via MemoryManager."""
 
     @pytest.mark.asyncio
-    async def test_persists_when_manager_available(
-        self, hook: CorrectionLearningHook
-    ) -> None:
+    async def test_persists_when_manager_available(self, hook: CorrectionLearningHook) -> None:
         mock_manager = AsyncMock()
         mock_manager._store_semantic = AsyncMock()
         mock_manager._store_procedural = AsyncMock()
@@ -433,9 +415,7 @@ class TestPersistence:
         assert result.output is not None
 
     @pytest.mark.asyncio
-    async def test_persistence_failure_requeues(
-        self, hook: CorrectionLearningHook
-    ) -> None:
+    async def test_persistence_failure_requeues(self, hook: CorrectionLearningHook) -> None:
         mock_manager = AsyncMock()
         mock_manager._store_semantic = AsyncMock(side_effect=RuntimeError("DB error"))
         mock_manager._store_procedural = AsyncMock()
@@ -515,9 +495,7 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_empty_corrections(self, hook: CorrectionLearningHook) -> None:
-        result = await hook.on_approval_correction(
-            "approval_correction", {"corrections": ()}
-        )
+        result = await hook.on_approval_correction("approval_correction", {"corrections": ()})
         assert result.success is True
         assert not result.output
 
@@ -528,9 +506,7 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_corrections_not_iterable(self, hook: CorrectionLearningHook) -> None:
-        result = await hook.on_approval_correction(
-            "approval_correction", {"corrections": 42}
-        )
+        result = await hook.on_approval_correction("approval_correction", {"corrections": 42})
         assert result.success is True
 
     def test_format_value_truncation(self) -> None:

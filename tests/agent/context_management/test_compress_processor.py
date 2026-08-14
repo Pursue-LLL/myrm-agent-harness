@@ -30,9 +30,7 @@ class _FakeBudget:
         self._dynamic_min_save = dynamic_min_save
         self.remaining_ratio = remaining_ratio
 
-    def calculate_dynamic_thresholds(
-        self, *, turn_count: int, estimated_remaining_turns: int = 10
-    ) -> tuple[int, int]:
+    def calculate_dynamic_thresholds(self, *, turn_count: int, estimated_remaining_turns: int = 10) -> tuple[int, int]:
         _ = (turn_count, estimated_remaining_turns)
         return self._dynamic_threshold, self._dynamic_min_save
 
@@ -40,9 +38,7 @@ class _FakeBudget:
         return self._dynamic_min_save
 
 
-def _build_context(
-    *, messages: list | None = None, metadata: dict[str, object] | None = None
-) -> ProcessorContext:
+def _build_context(*, messages: list | None = None, metadata: dict[str, object] | None = None) -> ProcessorContext:
     return ProcessorContext(
         messages=messages or [HumanMessage(content="Please continue")],
         user_query="Please continue",
@@ -66,9 +62,7 @@ class TestCompressProcessorProcess:
             HumanMessage(content="Please fix timeout"),
             AIMessage(
                 content="Call old tool",
-                tool_calls=[
-                    {"name": "bash", "args": {"command": "pytest old"}, "id": "call_1"}
-                ],
+                tool_calls=[{"name": "bash", "args": {"command": "pytest old"}, "id": "call_1"}],
             ),
             ToolMessage(content="Old result", tool_call_id="call_1", name="bash"),
             AIMessage(
@@ -81,22 +75,16 @@ class TestCompressProcessorProcess:
                     }
                 ],
             ),
-            ToolMessage(
-                content="Latest full result", tool_call_id="call_2", name="bash"
-            ),
+            ToolMessage(content="Latest full result", tool_call_id="call_2", name="bash"),
             AIMessage(content="Final answer"),
         ]
         compressed_messages = [
             HumanMessage(content="Please fix timeout"),
             AIMessage(
                 content="Call old tool",
-                tool_calls=[
-                    {"name": "bash", "args": {"command": "pytest old"}, "id": "call_1"}
-                ],
+                tool_calls=[{"name": "bash", "args": {"command": "pytest old"}, "id": "call_1"}],
             ),
-            ToolMessage(
-                content="COMPACTED: old result", tool_call_id="call_1", name="bash"
-            ),
+            ToolMessage(content="COMPACTED: old result", tool_call_id="call_1", name="bash"),
             AIMessage(
                 content="Call latest tool",
                 tool_calls=[
@@ -107,9 +95,7 @@ class TestCompressProcessorProcess:
                     }
                 ],
             ),
-            ToolMessage(
-                content="Latest full result", tool_call_id="call_2", name="bash"
-            ),
+            ToolMessage(content="Latest full result", tool_call_id="call_2", name="bash"),
             AIMessage(content="Final answer"),
         ]
         context = _build_context(
@@ -127,9 +113,7 @@ class TestCompressProcessorProcess:
         with (
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-                return_value=_FakeBudget(
-                    dynamic_threshold=100, dynamic_min_save=120, remaining_ratio=0.4
-                ),
+                return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=120, remaining_ratio=0.4),
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
@@ -158,9 +142,7 @@ class TestCompressProcessorProcess:
         assert compress_kwargs["dynamic_min_save"] == 120
         assert compress_kwargs["failed_tool_call_ids"] == frozenset({"call_2"})
         assert compress_kwargs["focus_files"] == frozenset({"src/app.py"})
-        assert compress_kwargs["focus_modules"] == frozenset(
-            {"agent.context_management"}
-        )
+        assert compress_kwargs["focus_modules"] == frozenset({"agent.context_management"})
         assert compress_kwargs["user_goal_hint"] == "fix login timeout"
 
         snapshot_kwargs = snapshot_callback.await_args.kwargs
@@ -178,16 +160,12 @@ class TestCompressProcessorProcess:
     @pytest.mark.asyncio
     async def test_process_applies_fallback_and_tracks_low_efficiency(self) -> None:
         snapshot_callback = AsyncMock(side_effect=RuntimeError("snapshot failed"))
-        processor = CompressProcessor(
-            max_context_tokens=10000, on_context_snapshot=snapshot_callback
-        )
+        processor = CompressProcessor(max_context_tokens=10000, on_context_snapshot=snapshot_callback)
         original_messages = [
             HumanMessage(content="Please continue"),
             AIMessage(
                 content="Call tool",
-                tool_calls=[
-                    {"name": "bash", "args": {"command": "pytest"}, "id": "call_1"}
-                ],
+                tool_calls=[{"name": "bash", "args": {"command": "pytest"}, "id": "call_1"}],
             ),
             ToolMessage(content="Large result", tool_call_id="call_1", name="bash"),
         ]
@@ -200,9 +178,7 @@ class TestCompressProcessorProcess:
         with (
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-                return_value=_FakeBudget(
-                    dynamic_threshold=100, dynamic_min_save=80, remaining_ratio=0.2
-                ),
+                return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=80, remaining_ratio=0.2),
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
@@ -316,9 +292,7 @@ class TestEcoMode:
         captured_config = {}
 
         async def mock_compress(messages, *, config=None, **kw):
-            captured_config["keep_recent_calls"] = (
-                config.keep_recent_calls if config else None
-            )
+            captured_config["keep_recent_calls"] = config.keep_recent_calls if config else None
             return messages, 0
 
         with (
@@ -334,9 +308,7 @@ class TestEcoMode:
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
                 side_effect=mock_compress,
             ),
-            patch.object(
-                processor, "_should_skip_for_cache_preservation", return_value=False
-            ),
+            patch.object(processor, "_should_skip_for_cache_preservation", return_value=False),
         ):
             await processor.process(context)
 
@@ -352,9 +324,7 @@ class TestEcoMode:
         captured_config = {}
 
         async def mock_compress(messages, *, config=None, **kw):
-            captured_config["keep_recent_calls"] = (
-                config.keep_recent_calls if config else None
-            )
+            captured_config["keep_recent_calls"] = config.keep_recent_calls if config else None
             return messages, 0
 
         with (
@@ -370,9 +340,7 @@ class TestEcoMode:
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
                 side_effect=mock_compress,
             ),
-            patch.object(
-                processor, "_should_skip_for_cache_preservation", return_value=False
-            ),
+            patch.object(processor, "_should_skip_for_cache_preservation", return_value=False),
         ):
             await processor.process(context)
 
@@ -382,7 +350,5 @@ class TestEcoMode:
         """Eco mode never reduces keep_recent_calls below 2."""
         processor = CompressProcessor(max_context_tokens=1000, keep_recent_calls=2)
         assert processor._is_eco_mode(_build_context(metadata={"eco_mode": True}))
-        eco_keep = effective_keep_recent_calls(
-            keep_recent_calls=processor.config.keep_recent_calls, eco_mode=True
-        )
+        eco_keep = effective_keep_recent_calls(keep_recent_calls=processor.config.keep_recent_calls, eco_mode=True)
         assert eco_keep == 2

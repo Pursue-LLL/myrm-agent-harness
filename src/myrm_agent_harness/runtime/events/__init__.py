@@ -38,9 +38,7 @@ def _wire_mcp_auth_expired_handler() -> None:
     from .system_events import MCPAuthExpiredEvent
 
     def _publish_auth_expired(server_name: str, error_detail: str) -> None:
-        get_event_bus().publish(
-            MCPAuthExpiredEvent(server_name=server_name, error_detail=error_detail)
-        )
+        get_event_bus().publish(MCPAuthExpiredEvent(server_name=server_name, error_detail=error_detail))
 
     register_mcp_auth_expired_handler(_publish_auth_expired)
 

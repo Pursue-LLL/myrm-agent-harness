@@ -151,25 +151,29 @@ class TestParseVerdict:
         self.config = SufficiencyConfig(enabled=True, confidence_threshold=0.6)
 
     def test_valid_sufficient_json(self):
-        raw = json.dumps({
-            "is_sufficient": True,
-            "confidence": 0.95,
-            "missing_aspects": [],
-            "suggested_queries": [],
-            "negative_constraint_violations": [],
-        })
+        raw = json.dumps(
+            {
+                "is_sufficient": True,
+                "confidence": 0.95,
+                "missing_aspects": [],
+                "suggested_queries": [],
+                "negative_constraint_violations": [],
+            }
+        )
         v = _parse_verdict(raw, self.config)
         assert v.is_sufficient is True
         assert v.confidence == 0.95
 
     def test_valid_insufficient_json(self):
-        raw = json.dumps({
-            "is_sufficient": False,
-            "confidence": 0.8,
-            "missing_aspects": ["pricing data"],
-            "suggested_queries": ["product pricing 2024"],
-            "negative_constraint_violations": ["mentions competitor"],
-        })
+        raw = json.dumps(
+            {
+                "is_sufficient": False,
+                "confidence": 0.8,
+                "missing_aspects": ["pricing data"],
+                "suggested_queries": ["product pricing 2024"],
+                "negative_constraint_violations": ["mentions competitor"],
+            }
+        )
         v = _parse_verdict(raw, self.config)
         assert v.is_sufficient is False
         assert v.missing_aspects == ("pricing data",)
@@ -177,13 +181,15 @@ class TestParseVerdict:
         assert v.negative_constraint_violations == ("mentions competitor",)
 
     def test_low_confidence_discarded(self):
-        raw = json.dumps({
-            "is_sufficient": False,
-            "confidence": 0.3,
-            "missing_aspects": ["something"],
-            "suggested_queries": [],
-            "negative_constraint_violations": [],
-        })
+        raw = json.dumps(
+            {
+                "is_sufficient": False,
+                "confidence": 0.3,
+                "missing_aspects": ["something"],
+                "suggested_queries": [],
+                "negative_constraint_violations": [],
+            }
+        )
         v = _parse_verdict(raw, self.config)
         assert v.is_sufficient is True
         assert v.confidence == 0.0
@@ -193,25 +199,29 @@ class TestParseVerdict:
         assert v is _FALLBACK_SUFFICIENT
 
     def test_markdown_code_block_stripping(self):
-        inner = json.dumps({
-            "is_sufficient": True,
-            "confidence": 0.9,
-            "missing_aspects": [],
-            "suggested_queries": [],
-            "negative_constraint_violations": [],
-        })
+        inner = json.dumps(
+            {
+                "is_sufficient": True,
+                "confidence": 0.9,
+                "missing_aspects": [],
+                "suggested_queries": [],
+                "negative_constraint_violations": [],
+            }
+        )
         raw = f"```json\n{inner}\n```"
         v = _parse_verdict(raw, self.config)
         assert v.is_sufficient is True
         assert v.confidence == 0.9
 
     def test_missing_confidence_defaults_zero(self):
-        raw = json.dumps({
-            "is_sufficient": False,
-            "missing_aspects": ["x"],
-            "suggested_queries": [],
-            "negative_constraint_violations": [],
-        })
+        raw = json.dumps(
+            {
+                "is_sufficient": False,
+                "missing_aspects": ["x"],
+                "suggested_queries": [],
+                "negative_constraint_violations": [],
+            }
+        )
         v = _parse_verdict(raw, self.config)
         assert v is _FALLBACK_SUFFICIENT
 
@@ -259,13 +269,15 @@ class TestEvaluateSufficiency:
     async def test_successful_evaluation(self, mock_llm_config):
         config = SufficiencyConfig(enabled=True)
         mock_response = MagicMock()
-        mock_response.content = json.dumps({
-            "is_sufficient": False,
-            "confidence": 0.85,
-            "missing_aspects": ["pricing info"],
-            "suggested_queries": ["product pricing"],
-            "negative_constraint_violations": [],
-        })
+        mock_response.content = json.dumps(
+            {
+                "is_sufficient": False,
+                "confidence": 0.85,
+                "missing_aspects": ["pricing info"],
+                "suggested_queries": ["product pricing"],
+                "negative_constraint_violations": [],
+            }
+        )
 
         mock_model = AsyncMock()
         mock_model.ainvoke.return_value = mock_response
@@ -298,13 +310,15 @@ class TestEvaluateSufficiency:
     async def test_negative_constraint_detection(self, mock_llm_config):
         config = SufficiencyConfig(enabled=True)
         mock_response = MagicMock()
-        mock_response.content = json.dumps({
-            "is_sufficient": False,
-            "confidence": 0.9,
-            "missing_aspects": [],
-            "suggested_queries": [],
-            "negative_constraint_violations": ["contains recommendation for competitor X"],
-        })
+        mock_response.content = json.dumps(
+            {
+                "is_sufficient": False,
+                "confidence": 0.9,
+                "missing_aspects": [],
+                "suggested_queries": [],
+                "negative_constraint_violations": ["contains recommendation for competitor X"],
+            }
+        )
 
         mock_model = AsyncMock()
         mock_model.ainvoke.return_value = mock_response
@@ -327,13 +341,15 @@ class TestEvaluateSufficiency:
     async def test_truncation_applied_to_long_snippets(self, mock_llm_config):
         config = SufficiencyConfig(enabled=True, max_snippets_for_eval=100)
         mock_response = MagicMock()
-        mock_response.content = json.dumps({
-            "is_sufficient": True,
-            "confidence": 0.9,
-            "missing_aspects": [],
-            "suggested_queries": [],
-            "negative_constraint_violations": [],
-        })
+        mock_response.content = json.dumps(
+            {
+                "is_sufficient": True,
+                "confidence": 0.9,
+                "missing_aspects": [],
+                "suggested_queries": [],
+                "negative_constraint_violations": [],
+            }
+        )
 
         mock_model = AsyncMock()
         mock_model.ainvoke.return_value = mock_response
@@ -362,13 +378,15 @@ class TestEvaluateSufficiency:
 
         class NoContentResponse:
             def __str__(self):
-                return json.dumps({
-                    "is_sufficient": True,
-                    "confidence": 0.7,
-                    "missing_aspects": [],
-                    "suggested_queries": [],
-                    "negative_constraint_violations": [],
-                })
+                return json.dumps(
+                    {
+                        "is_sufficient": True,
+                        "confidence": 0.7,
+                        "missing_aspects": [],
+                        "suggested_queries": [],
+                        "negative_constraint_violations": [],
+                    }
+                )
 
         mock_model = AsyncMock()
         mock_model.ainvoke.return_value = NoContentResponse()
@@ -404,13 +422,15 @@ class TestEvaluateSufficiency:
         """When verdict is sufficient, no guidance should be returned."""
         config = SufficiencyConfig(enabled=True)
         mock_response = MagicMock()
-        mock_response.content = json.dumps({
-            "is_sufficient": True,
-            "confidence": 0.95,
-            "missing_aspects": [],
-            "suggested_queries": [],
-            "negative_constraint_violations": [],
-        })
+        mock_response.content = json.dumps(
+            {
+                "is_sufficient": True,
+                "confidence": 0.95,
+                "missing_aspects": [],
+                "suggested_queries": [],
+                "negative_constraint_violations": [],
+            }
+        )
 
         mock_model = AsyncMock()
         mock_model.ainvoke.return_value = mock_response
@@ -434,13 +454,19 @@ class TestParseVerdictEdgeCases:
         self.config = SufficiencyConfig(enabled=True, confidence_threshold=0.6)
 
     def test_extra_whitespace_around_json(self):
-        raw = "   \n  " + json.dumps({
-            "is_sufficient": True,
-            "confidence": 0.8,
-            "missing_aspects": [],
-            "suggested_queries": [],
-            "negative_constraint_violations": [],
-        }) + "  \n  "
+        raw = (
+            "   \n  "
+            + json.dumps(
+                {
+                    "is_sufficient": True,
+                    "confidence": 0.8,
+                    "missing_aspects": [],
+                    "suggested_queries": [],
+                    "negative_constraint_violations": [],
+                }
+            )
+            + "  \n  "
+        )
         v = _parse_verdict(raw, self.config)
         assert v.is_sufficient is True
 
@@ -453,25 +479,29 @@ class TestParseVerdictEdgeCases:
         assert v is _FALLBACK_SUFFICIENT
 
     def test_confidence_at_exact_threshold(self):
-        raw = json.dumps({
-            "is_sufficient": False,
-            "confidence": 0.6,
-            "missing_aspects": ["data"],
-            "suggested_queries": ["query"],
-            "negative_constraint_violations": [],
-        })
+        raw = json.dumps(
+            {
+                "is_sufficient": False,
+                "confidence": 0.6,
+                "missing_aspects": ["data"],
+                "suggested_queries": ["query"],
+                "negative_constraint_violations": [],
+            }
+        )
         v = _parse_verdict(raw, self.config)
         assert v.is_sufficient is False
         assert v.confidence == 0.6
 
     def test_confidence_just_below_threshold(self):
-        raw = json.dumps({
-            "is_sufficient": False,
-            "confidence": 0.59,
-            "missing_aspects": ["data"],
-            "suggested_queries": [],
-            "negative_constraint_violations": [],
-        })
+        raw = json.dumps(
+            {
+                "is_sufficient": False,
+                "confidence": 0.59,
+                "missing_aspects": ["data"],
+                "suggested_queries": [],
+                "negative_constraint_violations": [],
+            }
+        )
         v = _parse_verdict(raw, self.config)
         assert v is _FALLBACK_SUFFICIENT
 

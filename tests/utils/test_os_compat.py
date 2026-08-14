@@ -57,9 +57,11 @@ def test_kill_process_group_posix(posix_env):
             return 54321
         return 11111
 
-    with patch("os.getpgid", side_effect=mock_getpgid), patch(
-        "os.getpid", return_value=11111
-    ), patch("os.killpg") as mock_killpg:
+    with (
+        patch("os.getpgid", side_effect=mock_getpgid),
+        patch("os.getpid", return_value=11111),
+        patch("os.killpg") as mock_killpg,
+    ):
         os_compat.kill_process_group(12345)
         mock_killpg.assert_called_once_with(54321, signal.SIGKILL)
 
@@ -67,9 +69,11 @@ def test_kill_process_group_posix(posix_env):
     def mock_getpgid_same(p):
         return 11111
 
-    with patch("os.getpgid", side_effect=mock_getpgid_same), patch(
-        "os.getpid", return_value=11111
-    ), patch("os.kill") as mock_kill:
+    with (
+        patch("os.getpgid", side_effect=mock_getpgid_same),
+        patch("os.getpid", return_value=11111),
+        patch("os.kill") as mock_kill,
+    ):
         os_compat.kill_process_group(12345)
         mock_kill.assert_called_once_with(12345, signal.SIGKILL)
 

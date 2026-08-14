@@ -57,9 +57,7 @@ def base_ctx():
 
 
 def _make_executor(ctx: StreamContext) -> StreamExecutor:
-    executor = StreamExecutor(
-        ctx=ctx, fallback_llm=None, safety_fallback_llm=None, rebuild_agent_fn=MagicMock()
-    )
+    executor = StreamExecutor(ctx=ctx, fallback_llm=None, safety_fallback_llm=None, rebuild_agent_fn=MagicMock())
     executor._compactor = FakeCompactor()
     return executor
 
@@ -190,8 +188,7 @@ async def test_emit_fatal_error_with_compression_exhausted(fire_hook_mock, base_
         await executor.execute()
 
     error_events = [
-        e for e in executor._compactor.events
-        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
     ]
     assert len(error_events) == 1
     assert error_events[0].get("compression_exhausted") is True
@@ -216,8 +213,7 @@ async def test_emit_fatal_error_with_llm_info(fire_hook_mock, base_ctx):
         await executor.execute()
 
     error_events = [
-        e for e in executor._compactor.events
-        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
     ]
     assert len(error_events) == 1
     assert "diagnostic_result" in error_events[0]
@@ -243,8 +239,7 @@ async def test_emit_fatal_error_diagnostic_failure(diag_mock, fire_hook_mock, ba
         await executor.execute()
 
     error_events = [
-        e for e in executor._compactor.events
-        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
     ]
     assert len(error_events) == 1
     assert "diagnostic will fail" in str(error_events[0].get("error", ""))
@@ -307,10 +302,7 @@ async def test_execute_redirect_breaks_and_preserves_partial(fire_hook_mock, bas
 
     assert call_count[0] == 2
     events = executor._compactor.events
-    redirected_events = [
-        e for e in events
-        if isinstance(e, dict) and e.get("type") == AgentEventType.REDIRECTED.value
-    ]
+    redirected_events = [e for e in events if isinstance(e, dict) and e.get("type") == AgentEventType.REDIRECTED.value]
     assert len(redirected_events) == 1
     assert redirected_events[0]["data"]["partial_preserved"] is True
 
@@ -445,8 +437,7 @@ async def test_execute_subagent_notification(fire_hook_mock, base_ctx):
 
     events = executor._compactor.events
     subagent_events = [
-        e for e in events
-        if isinstance(e, dict) and e.get("type") == AgentEventType.SUBAGENT_COMPLETION.value
+        e for e in events if isinstance(e, dict) and e.get("type") == AgentEventType.SUBAGENT_COMPLETION.value
     ]
     assert len(subagent_events) == 1
     assert "Subagent completed" in str(subagent_events[0].get("data", ""))
@@ -470,8 +461,7 @@ async def test_emit_fatal_error_includes_recovery_actions_for_api_key(fire_hook_
         await executor.execute()
 
     error_events = [
-        e for e in executor._compactor.events
-        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
     ]
     assert len(error_events) == 1
     assert "diagnostic_result" in error_events[0]
@@ -501,8 +491,7 @@ async def test_emit_fatal_error_includes_recovery_actions_for_billing(fire_hook_
         await executor.execute()
 
     error_events = [
-        e for e in executor._compactor.events
-        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
     ]
     assert len(error_events) == 1
     assert error_events[0]["diagnostic_result"]["error_type"] == "billing"
@@ -528,8 +517,7 @@ async def test_emit_fatal_error_includes_recovery_actions_for_model(fire_hook_mo
         await executor.execute()
 
     error_events = [
-        e for e in executor._compactor.events
-        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
     ]
     assert len(error_events) == 1
     assert error_events[0]["diagnostic_result"]["error_type"] == "model"
@@ -556,8 +544,7 @@ async def test_emit_fatal_error_no_recovery_actions_for_unknown(fire_hook_mock, 
         await executor.execute()
 
     error_events = [
-        e for e in executor._compactor.events
-        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
     ]
     assert len(error_events) == 1
     assert "diagnostic_result" in error_events[0]
@@ -568,9 +555,7 @@ async def test_emit_fatal_error_no_recovery_actions_for_unknown(fire_hook_mock, 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
 @patch("myrm_agent_harness.agent.errors.diagnostics.LLMErrorDiagnostic")
-async def test_emit_fatal_error_no_recovery_actions_on_diagnostic_failure(
-    diag_mock, fire_hook_mock, base_ctx
-):
+async def test_emit_fatal_error_no_recovery_actions_on_diagnostic_failure(diag_mock, fire_hook_mock, base_ctx):
     """When diagnostics crash, no recovery_actions field is emitted."""
     from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
 
@@ -588,8 +573,7 @@ async def test_emit_fatal_error_no_recovery_actions_on_diagnostic_failure(
         await executor.execute()
 
     error_events = [
-        e for e in executor._compactor.events
-        if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
     ]
     assert len(error_events) == 1
     assert "diagnostic_result" not in error_events[0]
@@ -658,8 +642,9 @@ async def test_execute_iteration_limit_in_goal_mode(fire_hook_mock, base_ctx):
 
     base_ctx.agent.astream = _astream_recursion_then_ok
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
-        executor, "_handle_goal_continuation", new_callable=AsyncMock, return_value=False
+    with (
+        patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock),
+        patch.object(executor, "_handle_goal_continuation", new_callable=AsyncMock, return_value=False),
     ):
         await executor.execute()
 
@@ -688,8 +673,9 @@ async def test_execute_teammate_messages_triggers_continue(fire_hook_mock, base_
             return True
         return await original_handle_teammate(collected)
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
-        executor, "_handle_teammate_messages", side_effect=_mock_teammate
+    with (
+        patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock),
+        patch.object(executor, "_handle_teammate_messages", side_effect=_mock_teammate),
     ):
         await executor.execute()
 
@@ -714,8 +700,9 @@ async def test_execute_escalation_triggers_continue(fire_hook_mock, base_ctx):
         escalation_call[0] += 1
         return escalation_call[0] == 1
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
-        executor, "_handle_escalation", side_effect=_mock_escalation
+    with (
+        patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock),
+        patch.object(executor, "_handle_escalation", side_effect=_mock_escalation),
     ):
         await executor.execute()
 
@@ -740,8 +727,9 @@ async def test_execute_length_truncation_triggers_continue(fire_hook_mock, base_
         trunc_call[0] += 1
         return trunc_call[0] == 1
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
-        executor, "_handle_length_truncation", side_effect=_mock_truncation
+    with (
+        patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock),
+        patch.object(executor, "_handle_length_truncation", side_effect=_mock_truncation),
     ):
         await executor.execute()
 
@@ -766,8 +754,9 @@ async def test_execute_safety_refusal_triggers_continue(fire_hook_mock, base_ctx
         refusal_call[0] += 1
         return refusal_call[0] == 1
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
-        executor, "_handle_safety_refusal_fallback", side_effect=_mock_refusal
+    with (
+        patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock),
+        patch.object(executor, "_handle_safety_refusal_fallback", side_effect=_mock_refusal),
     ):
         await executor.execute()
 
@@ -792,8 +781,9 @@ async def test_execute_empty_response_triggers_continue(fire_hook_mock, base_ctx
         empty_call[0] += 1
         return empty_call[0] == 1
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
-        executor, "_handle_empty_response", side_effect=_mock_empty
+    with (
+        patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock),
+        patch.object(executor, "_handle_empty_response", side_effect=_mock_empty),
     ):
         await executor.execute()
 
@@ -808,17 +798,13 @@ async def test_execute_escalation_scrubber_flush(fire_hook_mock, base_ctx):
     base_ctx.agent.astream = _mock_astream_normal
 
     executor._escalation_scrubber.flush = MagicMock(return_value="escalated text")
-    executor._reasoning_scrubber.process = MagicMock(
-        return_value=[(AgentEventType.MESSAGE, "clean text")]
-    )
+    executor._reasoning_scrubber.process = MagicMock(return_value=[(AgentEventType.MESSAGE, "clean text")])
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
-        executor, "_emit_event", new_callable=AsyncMock
-    ) as emit_mock:
+    with (
+        patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock),
+        patch.object(executor, "_emit_event", new_callable=AsyncMock) as emit_mock,
+    ):
         await executor.execute()
 
     emitted_dicts = [call.args[0] for call in emit_mock.call_args_list]
-    assert any(
-        d.get("type") == AgentEventType.MESSAGE.value and d.get("data") == "clean text"
-        for d in emitted_dicts
-    )
+    assert any(d.get("type") == AgentEventType.MESSAGE.value and d.get("data") == "clean text" for d in emitted_dicts)

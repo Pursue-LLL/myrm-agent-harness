@@ -61,9 +61,7 @@ class VenvManager:
             return Path(self.config.local.shared_venv_path)
         return DEFAULT_SHARED_VENV_PATH
 
-    def command_whitelist_paths(
-        self, extra_readonly_paths: tuple[str, ...]
-    ) -> list[Path] | None:
+    def command_whitelist_paths(self, extra_readonly_paths: tuple[str, ...]) -> list[Path] | None:
         """Merge venv whitelist with per-command read-only grading mounts.
 
         ``extra_readonly_paths`` lets post-episode graders (e.g. eval ``test_suite``)
@@ -92,9 +90,7 @@ class VenvManager:
         if not self.config.local.auto_create_venv:
             self._python_executable = sys.executable
             self._venv_initialized = True
-            logger.warning(
-                " [VenvManager] Using system Python (no shared venv configured)"
-            )
+            logger.warning(" [VenvManager] Using system Python (no shared venv configured)")
             return self._python_executable
 
         return await self._create_venv(venv_path)
@@ -158,9 +154,7 @@ class VenvManager:
             Rewritten command string.
         """
         stripped = command.strip()
-        if not (
-            stripped.startswith("pip install") or stripped.startswith("pip3 install")
-        ):
+        if not (stripped.startswith("pip install") or stripped.startswith("pip3 install")):
             return command
 
         await self.get_python_executable()

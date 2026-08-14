@@ -44,19 +44,11 @@ class RefNotFoundMetrics:
     failure_refs: dict[str, int] = field(default_factory=dict)
     failure_by_action: dict[str, int] = field(default_factory=dict)
 
-    _recent_failures: deque[bool] = field(
-        default_factory=lambda: deque(maxlen=100), init=False, repr=False
-    )
-    _cached_top_refs: list[tuple[str, int]] | None = field(
-        default=None, init=False, repr=False
-    )
-    _cached_top_actions: list[tuple[str, int]] | None = field(
-        default=None, init=False, repr=False
-    )
+    _recent_failures: deque[bool] = field(default_factory=lambda: deque(maxlen=100), init=False, repr=False)
+    _cached_top_refs: list[tuple[str, int]] | None = field(default=None, init=False, repr=False)
+    _cached_top_actions: list[tuple[str, int]] | None = field(default=None, init=False, repr=False)
 
-    def record_interaction(
-        self, failed: bool, ref: str | None = None, action: str | None = None
-    ) -> None:
+    def record_interaction(self, failed: bool, ref: str | None = None, action: str | None = None) -> None:
         """Record a single interaction result.
 
         Args:
@@ -72,9 +64,7 @@ class RefNotFoundMetrics:
             if ref:
                 self.failure_refs[ref] = self.failure_refs.get(ref, 0) + 1
             if action:
-                self.failure_by_action[action] = (
-                    self.failure_by_action.get(action, 0) + 1
-                )
+                self.failure_by_action[action] = self.failure_by_action.get(action, 0) + 1
             self._invalidate_cache()
 
     def _invalidate_cache(self) -> None:
@@ -100,18 +90,14 @@ class RefNotFoundMetrics:
     def top_failed_refs(self) -> list[tuple[str, int]]:
         """Top failed refs sorted by count descending (max 10, cached)."""
         if self._cached_top_refs is None:
-            self._cached_top_refs = sorted(
-                self.failure_refs.items(), key=lambda x: x[1], reverse=True
-            )[:10]
+            self._cached_top_refs = sorted(self.failure_refs.items(), key=lambda x: x[1], reverse=True)[:10]
         return self._cached_top_refs
 
     @property
     def top_failed_actions(self) -> list[tuple[str, int]]:
         """Top failed actions sorted by count descending (cached)."""
         if self._cached_top_actions is None:
-            self._cached_top_actions = sorted(
-                self.failure_by_action.items(), key=lambda x: x[1], reverse=True
-            )
+            self._cached_top_actions = sorted(self.failure_by_action.items(), key=lambda x: x[1], reverse=True)
         return self._cached_top_actions
 
     def to_dict(self) -> dict[str, object]:
@@ -175,10 +161,7 @@ class RefDiagnosticsMixin:
 
     def _log_metrics_if_needed(self) -> None:
         """Periodically log failure-rate statistics (every 100 interactions)."""
-        if (
-            self._metrics.total_interactions % 100 == 0
-            and self._metrics.total_failures > 0
-        ):
+        if self._metrics.total_interactions % 100 == 0 and self._metrics.total_failures > 0:
             logger.info(
                 "Ref failure metrics: "
                 f"global_rate={self._metrics.failure_rate:.1%}, "

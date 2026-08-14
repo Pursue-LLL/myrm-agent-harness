@@ -12,11 +12,14 @@ from myrm_agent_harness.toolkits.llms.video.video_engine import _resolve_image_i
 
 @pytest.mark.asyncio
 async def test_resolve_image_inputs_blocks_ssrf() -> None:
-    with patch(
-        "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
-        new_callable=AsyncMock,
-        side_effect=SSRFSecurityError("private IP"),
-    ), pytest.raises(ValueError, match="URL blocked by SSRF protection"):
+    with (
+        patch(
+            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+            new_callable=AsyncMock,
+            side_effect=SSRFSecurityError("private IP"),
+        ),
+        pytest.raises(ValueError, match="URL blocked by SSRF protection"),
+    ):
         await _resolve_image_inputs(["http://169.254.169.254/x.png"])
 
 
@@ -42,9 +45,12 @@ async def test_resolve_image_inputs_rejects_oversized_download() -> None:
     """A response exceeding the media cap is rejected via ContentTooLargeError."""
     from myrm_agent_harness.core.security.http.secure_fetch import ContentTooLargeError
 
-    with patch(
-        "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
-        new_callable=AsyncMock,
-        side_effect=ContentTooLargeError("too large"),
-    ), pytest.raises(ValueError, match="too large"):
+    with (
+        patch(
+            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+            new_callable=AsyncMock,
+            side_effect=ContentTooLargeError("too large"),
+        ),
+        pytest.raises(ValueError, match="too large"),
+    ):
         await _resolve_image_inputs(["https://example.com/huge.png"])

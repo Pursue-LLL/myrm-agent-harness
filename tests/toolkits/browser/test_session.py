@@ -36,13 +36,9 @@ def session_vault(tmp_path: Path) -> SessionVault:
 
 
 @pytest.fixture
-async def session(
-    browser_pool: GlobalBrowserPool, session_vault: SessionVault
-) -> BrowserSession:
+async def session(browser_pool: GlobalBrowserPool, session_vault: SessionVault) -> BrowserSession:
     """创建测试用的 BrowserSession with SessionVault"""
-    session = BrowserSession(
-        browser_pool, ContextType.AGENT, session_vault=session_vault
-    )
+    session = BrowserSession(browser_pool, ContextType.AGENT, session_vault=session_vault)
     await session.new_tab()
     yield session
     await session.close()

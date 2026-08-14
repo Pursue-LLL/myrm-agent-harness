@@ -56,7 +56,7 @@ class TestAuditPackageJson:
         assert any(f.threat_type == "supply_chain" and f.severity == "medium" for f in findings)
 
     def test_suspicious_eval_in_script(self):
-        pkg = {"name": "test", "scripts": {"start": 'node -e "require(\'child_process\').exec(\'rm -rf /\')"' }}
+        pkg = {"name": "test", "scripts": {"start": "node -e \"require('child_process').exec('rm -rf /')\""}}
         findings = audit_package_json(json.dumps(pkg))
         assert any("suspicious" in f.description.lower() for f in findings)
 
@@ -141,15 +141,11 @@ class TestPackageAuditFinding:
     """Dataclass behavior."""
 
     def test_frozen(self):
-        finding = PackageAuditFinding(
-            threat_type="test", severity="high", description="desc"
-        )
+        finding = PackageAuditFinding(threat_type="test", severity="high", description="desc")
         with pytest.raises(AttributeError):
             finding.threat_type = "changed"
 
     def test_defaults(self):
-        finding = PackageAuditFinding(
-            threat_type="test", severity="high", description="desc"
-        )
+        finding = PackageAuditFinding(threat_type="test", severity="high", description="desc")
         assert finding.file_path == ""
         assert finding.detail == ""

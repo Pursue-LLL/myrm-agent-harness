@@ -41,13 +41,17 @@ class TestStrategyDispatchLatency:
     """Benchmark credential pool dispatch latency under various conditions."""
 
     def test_acquire_with_zero_cooldown(
-        self, benchmark: pytest.fixture, pool: CredentialPool  # type: ignore
+        self,
+        benchmark: pytest.fixture,
+        pool: CredentialPool,  # type: ignore
     ) -> None:
         """Benchmark acquire() with no keys in cooldown (best case)."""
         benchmark(pool.acquire)
 
     def test_acquire_with_50_percent_cooldown(
-        self, benchmark: pytest.fixture, pool: CredentialPool  # type: ignore
+        self,
+        benchmark: pytest.fixture,
+        pool: CredentialPool,  # type: ignore
     ) -> None:
         """Benchmark acquire() with 50% of keys in cooldown."""
         # Put half the keys into cooldown
@@ -59,7 +63,9 @@ class TestStrategyDispatchLatency:
         benchmark(pool.acquire)
 
     def test_acquire_with_99_percent_cooldown(
-        self, benchmark: pytest.fixture, pool: CredentialPool  # type: ignore
+        self,
+        benchmark: pytest.fixture,
+        pool: CredentialPool,  # type: ignore
     ) -> None:
         """Benchmark acquire() with 99% of keys in cooldown (worst case)."""
         # Put 99% of keys into cooldown
@@ -72,7 +78,9 @@ class TestStrategyDispatchLatency:
         benchmark(pool.acquire)
 
     def test_acquire_sequential_100_calls(
-        self, benchmark: pytest.fixture, pool: CredentialPool  # type: ignore
+        self,
+        benchmark: pytest.fixture,
+        pool: CredentialPool,  # type: ignore
     ) -> None:
         """Benchmark 100 sequential acquire() calls to test state management overhead."""
 
@@ -87,14 +95,18 @@ class TestReportErrorLatency:
     """Benchmark credential pool error reporting latency."""
 
     def test_report_error_rate_limit(
-        self, benchmark: pytest.fixture, pool: CredentialPool  # type: ignore
+        self,
+        benchmark: pytest.fixture,
+        pool: CredentialPool,  # type: ignore
     ) -> None:
         """Benchmark report_error() for rate_limit errors."""
         key = pool.acquire()
         benchmark(pool.report_error, key, "rate_limit")
 
     def test_report_error_auth(
-        self, benchmark: pytest.fixture, pool: CredentialPool  # type: ignore
+        self,
+        benchmark: pytest.fixture,
+        pool: CredentialPool,  # type: ignore
     ) -> None:
         """Benchmark report_error() for auth errors (24h cooldown)."""
         key = pool.acquire()
@@ -105,13 +117,17 @@ class TestStatsLatency:
     """Benchmark credential pool stats generation latency."""
 
     def test_stats_with_zero_cooldown(
-        self, benchmark: pytest.fixture, pool: CredentialPool  # type: ignore
+        self,
+        benchmark: pytest.fixture,
+        pool: CredentialPool,  # type: ignore
     ) -> None:
         """Benchmark stats() with no keys in cooldown."""
         benchmark(pool.stats)
 
     def test_stats_with_50_percent_cooldown(
-        self, benchmark: pytest.fixture, pool: CredentialPool  # type: ignore
+        self,
+        benchmark: pytest.fixture,
+        pool: CredentialPool,  # type: ignore
     ) -> None:
         """Benchmark stats() with 50% of keys in cooldown."""
         total_keys = pool.size
@@ -125,9 +141,7 @@ class TestStatsLatency:
 class TestStrategyComparisonRealWorld:
     """Real-world scenario benchmarks comparing all strategies."""
 
-    def test_high_throughput_scenario(
-        self, benchmark: pytest.fixture, pool_keys: list[str], strategy: str
-    ) -> None:
+    def test_high_throughput_scenario(self, benchmark: pytest.fixture, pool_keys: list[str], strategy: str) -> None:
         """Simulate high-throughput scenario: 1000 requests with occasional rate limits."""
         pool = CredentialPool(pool_keys, strategy=strategy)
 
@@ -145,9 +159,7 @@ class TestStrategyComparisonRealWorld:
         result = benchmark(_simulate_high_throughput)
         assert result > 0
 
-    def test_primary_backup_scenario_fill_first_only(
-        self, benchmark: pytest.fixture, pool_keys: list[str]
-    ) -> None:
+    def test_primary_backup_scenario_fill_first_only(self, benchmark: pytest.fixture, pool_keys: list[str]) -> None:
         """Simulate primary/backup scenario (fill_first strategy only)."""
 
         def _simulate_primary_backup() -> tuple[int, int]:
@@ -187,9 +199,7 @@ class TestStrategyComparisonRealWorld:
 class TestLoadBalancingEfficiency:
     """Benchmark load balancing efficiency of LEAST_USED strategy."""
 
-    def test_least_used_load_distribution(
-        self, benchmark: pytest.fixture, pool_keys: list[str]
-    ) -> None:
+    def test_least_used_load_distribution(self, benchmark: pytest.fixture, pool_keys: list[str]) -> None:
         """Verify LEAST_USED distributes load evenly across keys."""
         pool = CredentialPool(pool_keys, strategy="least_used")
 

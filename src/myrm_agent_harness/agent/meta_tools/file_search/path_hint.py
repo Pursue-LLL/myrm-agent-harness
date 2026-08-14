@@ -61,7 +61,4 @@ def format_path_not_found_hint(target_path: str, suggestions: list[str]) -> str:
     if not suggestions:
         return f"The path '{target_path}' does not exist. Please check the path and try again."
     joined = ", ".join(f"'{s}'" for s in suggestions)
-    return (
-        f"The path '{target_path}' does not exist. "
-        f"Did you mean: {joined}?"
-    )
+    return f"The path '{target_path}' does not exist. Did you mean: {joined}?"

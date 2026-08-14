@@ -123,9 +123,7 @@ async def test_reindex_runs_asset_indexer_when_enabled(wiki_structure: WikiStruc
     indexer = _make_indexer(sidecars=False, assets=True)
 
     asset_indexer = MagicMock()
-    asset_indexer.index_all = AsyncMock(
-        return_value=AssetIndexResult(indexed=2, skipped=1, failed=0)
-    )
+    asset_indexer.index_all = AsyncMock(return_value=AssetIndexResult(indexed=2, skipped=1, failed=0))
 
     result = await reindex_published_vectors(
         wiki_structure,
@@ -264,9 +262,7 @@ async def test_reindex_asset_partial_failure(wiki_structure: WikiStructure) -> N
     concept_path.write_text("## Compiled Truth\nBody", encoding="utf-8")
     indexer = _make_indexer(sidecars=False, assets=True)
     asset_indexer = MagicMock()
-    asset_indexer.index_all = AsyncMock(
-        return_value=AssetIndexResult(indexed=1, skipped=0, failed=2)
-    )
+    asset_indexer.index_all = AsyncMock(return_value=AssetIndexResult(indexed=1, skipped=0, failed=2))
 
     result = await reindex_published_vectors(
         wiki_structure,

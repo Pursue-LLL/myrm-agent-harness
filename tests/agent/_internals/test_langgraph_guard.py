@@ -10,20 +10,24 @@ from myrm_agent_harness.agent.security.tool_registry import TOOL_SAFETY_METADATA
 
 apply_langgraph_tool_args_guard()
 
+
 @tool
 def safe_tool_1(x: int) -> str:
     """Safe tool 1."""
     return f"safe_1_{x}"
+
 
 @tool
 def safe_tool_2(x: int) -> str:
     """Safe tool 2."""
     return f"safe_2_{x}"
 
+
 @tool
 def unsafe_tool_success(x: int) -> str:
     """Unsafe tool that succeeds."""
     return f"unsafe_success_{x}"
+
 
 @tool
 def unsafe_tool_fail(x: int) -> str:
@@ -85,7 +89,7 @@ async def test_langgraph_guard_safe_concurrent():
         tool_calls=[
             ToolCall(name="safe_tool_1", args={"x": 1}, id="tc1"),
             ToolCall(name="safe_tool_2", args={"x": 2}, id="tc2"),
-        ]
+        ],
     )
 
     result = await graph.ainvoke({"messages": [ai_msg]})
@@ -96,6 +100,7 @@ async def test_langgraph_guard_safe_concurrent():
     assert msgs[-1].content == "safe_2_2"
     assert msgs[-2].status != "error"
     assert msgs[-1].status != "error"
+
 
 @pytest.mark.asyncio
 async def test_langgraph_guard_unsafe_short_circuit_async():
@@ -111,7 +116,7 @@ async def test_langgraph_guard_unsafe_short_circuit_async():
             ToolCall(name="safe_tool_1", args={"x": 1}, id="tc1"),
             ToolCall(name="unsafe_tool_fail", args={"x": 2}, id="tc2"),
             ToolCall(name="safe_tool_2", args={"x": 3}, id="tc3"),
-        ]
+        ],
     )
 
     result = await graph.ainvoke({"messages": [ai_msg]})
@@ -130,6 +135,7 @@ async def test_langgraph_guard_unsafe_short_circuit_async():
     assert "Aborted" in msgs[-1].content
     assert msgs[-1].name == "safe_tool_2"
 
+
 def test_langgraph_guard_unsafe_short_circuit_sync():
     node = ToolNode([safe_tool_1, unsafe_tool_fail, safe_tool_2], handle_tool_errors=True)
     builder = StateGraph(MessagesState)
@@ -143,7 +149,7 @@ def test_langgraph_guard_unsafe_short_circuit_sync():
             ToolCall(name="safe_tool_1", args={"x": 1}, id="tc1"),
             ToolCall(name="unsafe_tool_fail", args={"x": 2}, id="tc2"),
             ToolCall(name="safe_tool_2", args={"x": 3}, id="tc3"),
-        ]
+        ],
     )
 
     result = graph.invoke({"messages": [ai_msg]})

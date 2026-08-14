@@ -435,7 +435,9 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             if not skip_semaphore:
                 self._global_semaphore.release()
 
-    async def _get_least_loaded_browser(self, engine: BrowserEngine, launch_mode: LaunchMode | None = None) -> BrowserInstance:
+    async def _get_least_loaded_browser(
+        self, engine: BrowserEngine, launch_mode: LaunchMode | None = None
+    ) -> BrowserInstance:
         """Load-aware scheduling — select the least-loaded Browser for the given engine.
 
         Prefers Browsers that have not reached max_contexts_per_browser.
@@ -453,8 +455,7 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             return inst
 
         engine_browsers = [
-            b for b in self._browsers
-            if b.engine == engine.value and b.is_managed != prefer_external_browser
+            b for b in self._browsers if b.engine == engine.value and b.is_managed != prefer_external_browser
         ]
 
         if not engine_browsers:

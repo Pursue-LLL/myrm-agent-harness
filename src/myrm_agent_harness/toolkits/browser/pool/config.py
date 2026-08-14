@@ -114,9 +114,7 @@ class MemoryGuardConfig:
 
     def __post_init__(self) -> None:
         if not 50.0 <= self.max_memory_percent <= 99.0:
-            msg = (
-                f"max_memory_percent must be in [50, 99], got {self.max_memory_percent}"
-            )
+            msg = f"max_memory_percent must be in [50, 99], got {self.max_memory_percent}"
             raise ValueError(msg)
         if self.check_interval <= 0:
             msg = f"check_interval must be > 0, got {self.check_interval}"
@@ -173,9 +171,7 @@ class NavigationWaitConfig:
     """
 
     wait_timeout_ms: int = 2000
-    strategy: str = (
-        "smart"  # "networkidle" | "dom_stable" | "hybrid" | "smart" (recommended)
-    )
+    strategy: str = "smart"  # "networkidle" | "dom_stable" | "hybrid" | "smart" (recommended)
     quiet_ms: int = 500  # DOM stable quiet period
     grace_period_ms: int = 200  # hybrid strategy grace period
 
@@ -332,10 +328,7 @@ class HumanizeConfig:
             raise ValueError(msg)
         zone_lo, zone_hi = self.scroll_target_zone
         if not 0.0 <= zone_lo < zone_hi <= 1.0:
-            msg = (
-                f"scroll_target_zone ({zone_lo}, {zone_hi}) is invalid: "
-                "require 0.0 <= lo < hi <= 1.0"
-            )
+            msg = f"scroll_target_zone ({zone_lo}, {zone_hi}) is invalid: require 0.0 <= lo < hi <= 1.0"
             raise ValueError(msg)
         for name in (
             "scroll_delta_base",
@@ -376,14 +369,12 @@ class HumanizeConfig:
             )
 
 
-_BROWSER_MODE_TO_HUMANIZE: MappingProxyType[BrowserMode, HumanizeMode] = (
-    MappingProxyType(
-        {
-            BrowserMode.MINIMAL: HumanizeMode.FAST,
-            BrowserMode.STANDARD: HumanizeMode.DEFAULT,
-            BrowserMode.DEFENSIVE: HumanizeMode.CAREFUL,
-        },
-    )
+_BROWSER_MODE_TO_HUMANIZE: MappingProxyType[BrowserMode, HumanizeMode] = MappingProxyType(
+    {
+        BrowserMode.MINIMAL: HumanizeMode.FAST,
+        BrowserMode.STANDARD: HumanizeMode.DEFAULT,
+        BrowserMode.DEFENSIVE: HumanizeMode.CAREFUL,
+    },
 )
 
 
@@ -402,26 +393,24 @@ def _navigation_wait_for_mode(mode: BrowserMode) -> NavigationWaitConfig:
         return NavigationWaitConfig(wait_timeout_ms=3000)
 
 
-_MODE_BLUEPRINTS: MappingProxyType[BrowserMode, _ModeRobustnessBlueprint] = (
-    MappingProxyType(
-        {
-            BrowserMode.MINIMAL: _ModeRobustnessBlueprint(
-                throttle=ThrottleMode.NONE,
-                memory_guard_enabled=False,
-                circuit_breaker_enabled=False,
-            ),
-            BrowserMode.STANDARD: _ModeRobustnessBlueprint(
-                throttle=ThrottleMode.DOMAIN,
-                memory_guard_enabled=False,
-                circuit_breaker_enabled=False,
-            ),
-            BrowserMode.DEFENSIVE: _ModeRobustnessBlueprint(
-                throttle=ThrottleMode.DOMAIN,
-                memory_guard_enabled=True,
-                circuit_breaker_enabled=True,
-            ),
-        },
-    )
+_MODE_BLUEPRINTS: MappingProxyType[BrowserMode, _ModeRobustnessBlueprint] = MappingProxyType(
+    {
+        BrowserMode.MINIMAL: _ModeRobustnessBlueprint(
+            throttle=ThrottleMode.NONE,
+            memory_guard_enabled=False,
+            circuit_breaker_enabled=False,
+        ),
+        BrowserMode.STANDARD: _ModeRobustnessBlueprint(
+            throttle=ThrottleMode.DOMAIN,
+            memory_guard_enabled=False,
+            circuit_breaker_enabled=False,
+        ),
+        BrowserMode.DEFENSIVE: _ModeRobustnessBlueprint(
+            throttle=ThrottleMode.DOMAIN,
+            memory_guard_enabled=True,
+            circuit_breaker_enabled=True,
+        ),
+    },
 )
 
 
@@ -433,9 +422,7 @@ def _default_rate_limiter(throttle: ThrottleMode) -> RateLimiterConfig:
 
 def _default_memory_guard(enabled: bool) -> MemoryGuardConfig:
     if enabled:
-        return MemoryGuardConfig(
-            enabled=True, max_memory_percent=85.0, check_interval=5
-        )
+        return MemoryGuardConfig(enabled=True, max_memory_percent=85.0, check_interval=5)
     return MemoryGuardConfig(enabled=False)
 
 
@@ -476,9 +463,7 @@ def _policy_from_blueprint(bp: _ModeRobustnessBlueprint) -> RobustnessPolicy:
     )
 
 
-def _robustness_structurally_matches_mode(
-    policy: RobustnessPolicy, mode: BrowserMode
-) -> bool:
+def _robustness_structurally_matches_mode(policy: RobustnessPolicy, mode: BrowserMode) -> bool:
     bp = _blueprint_for_mode(mode)
     return (
         policy.rate_limiter.mode == bp.throttle
@@ -516,9 +501,7 @@ class BrowserConfig:
     extension_auth_token: str | None = None
     max_concurrent_pages: int = 30
     idle_timeout_seconds: int = 300
-    resource_block: ResourceBlockConfig = field(
-        default_factory=_resource_block_standard
-    )
+    resource_block: ResourceBlockConfig = field(default_factory=_resource_block_standard)
     default_emulation: EmulationConfig | None = None
     navigation_wait: NavigationWaitConfig | None = None
     robustness: RobustnessPolicy | None = None
@@ -533,19 +516,13 @@ class BrowserConfig:
             msg = f"idle_timeout_seconds must be >= 0 (0 disables idle eviction), got {self.idle_timeout_seconds}"
             raise ValueError(msg)
         if self.default_emulation is None:
-            object.__setattr__(
-                self, "default_emulation", _default_emulation_for_mode(self.mode)
-            )
+            object.__setattr__(self, "default_emulation", _default_emulation_for_mode(self.mode))
         if self.navigation_wait is None:
-            object.__setattr__(
-                self, "navigation_wait", _navigation_wait_for_mode(self.mode)
-            )
+            object.__setattr__(self, "navigation_wait", _navigation_wait_for_mode(self.mode))
         if self.humanize is None:
             object.__setattr__(self, "humanize", _humanize_for_mode(self.mode))
         if self.robustness is None:
-            object.__setattr__(
-                self, "robustness", RobustnessPolicy.from_mode(self.mode)
-            )
+            object.__setattr__(self, "robustness", RobustnessPolicy.from_mode(self.mode))
         elif not _robustness_structurally_matches_mode(self.robustness, self.mode):
             msg = (
                 "robustness is not structurally compatible with mode "

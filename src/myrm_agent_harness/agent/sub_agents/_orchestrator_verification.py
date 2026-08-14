@@ -66,11 +66,7 @@ __all__ = [
 # Derived from the dataclass so future SubAgentResult fields are picked up
 # automatically instead of silently drifting out of sync.
 _SYNC_MANAGED_FIELDS = frozenset({"task_id", "agent_type", "internal"})
-_SYNC_FIELDS = tuple(
-    field.name
-    for field in fields(SubAgentResult)
-    if field.name not in _SYNC_MANAGED_FIELDS
-)
+_SYNC_FIELDS = tuple(field.name for field in fields(SubAgentResult) if field.name not in _SYNC_MANAGED_FIELDS)
 
 
 def _format_worker_output_for_verifier(result: object) -> str:
@@ -122,11 +118,7 @@ def _spawn_dict_to_subagent_result(
     if not isinstance(raw_result, (dict, str)):
         raw_result = str(raw_result)
     status_raw = payload.get("status", SubAgentStatus.COMPLETED)
-    status = (
-        status_raw
-        if isinstance(status_raw, SubAgentStatus)
-        else SubAgentStatus.COMPLETED
-    )
+    status = status_raw if isinstance(status_raw, SubAgentStatus) else SubAgentStatus.COMPLETED
     return SubAgentResult(
         success=bool(payload.get("success", False)),
         task_id=task_id,
@@ -189,9 +181,7 @@ async def run_with_verification(
         else:
             # Internal retry workers get a unique id: parallel delegated tasks
             # share this manager and must not collide on a fixed-format id.
-            worker_task_id = (
-                f"verify-worker-{round_num}-{worker_type}-{uuid.uuid4().hex[:8]}"
-            )
+            worker_task_id = f"verify-worker-{round_num}-{worker_type}-{uuid.uuid4().hex[:8]}"
             worker_internal = True
 
         logger.info(
@@ -271,9 +261,7 @@ async def run_with_verification(
                 f"confidence={verdict.confidence})]\n"
                 f"<verification_evidence>\n{verdict.raw}\n</verification_evidence>"
             )
-            last_worker_result.result = _append_verification_block(
-                last_worker_result.result, pass_block
-            )
+            last_worker_result.result = _append_verification_block(last_worker_result.result, pass_block)
             _sync_business_result(business_result, last_worker_result, task_id)
             return business_result or last_worker_result
 
@@ -294,15 +282,9 @@ async def run_with_verification(
                 f"Fix the following issues and re-execute the task. Do NOT repeat the same mistakes.\n\n"
                 f"### Verification Findings\n\n{findings_text}"
             )
-            logger.info(
-                "[verification] Round %d — FAIL, retrying with feedback", round_num
-            )
+            logger.info("[verification] Round %d — FAIL, retrying with feedback", round_num)
 
-    evidence_str = (
-        f"\n<verification_evidence>\n{verdict.raw}\n</verification_evidence>"
-        if verdict
-        else ""
-    )
+    evidence_str = f"\n<verification_evidence>\n{verdict.raw}\n</verification_evidence>" if verdict else ""
     last_worker_result.success = False
     if verdict is not None:
         last_worker_result.verification = VerificationSummary(
@@ -314,9 +296,7 @@ async def run_with_verification(
             findings=tuple(verdict.findings),
         )
     fail_block = f"---\n[Verification: FAIL after {max_rounds} round(s)]{evidence_str}"
-    last_worker_result.result = _append_verification_block(
-        last_worker_result.result, fail_block
-    )
+    last_worker_result.result = _append_verification_block(last_worker_result.result, fail_block)
     _sync_business_result(business_result, last_worker_result, task_id)
     return business_result or last_worker_result
 

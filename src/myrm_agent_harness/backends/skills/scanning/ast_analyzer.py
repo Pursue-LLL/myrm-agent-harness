@@ -387,5 +387,3 @@ def _has_safe_loader(node: ast.Call) -> bool:
         if isinstance(arg, ast.Name):
             return arg.id == "SafeLoader"
     return False
-
-

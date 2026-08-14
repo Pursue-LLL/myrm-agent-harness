@@ -64,9 +64,7 @@ def _build_verifier_tool_registry_getter(
                 metadata = getattr(t, "metadata", {}) or {}
                 is_readonly = metadata.get("readonly", None)
 
-            is_mcp = getattr(t, "is_mcp", False) or (
-                getattr(t, "metadata", {}) or {}
-            ).get("is_mcp", False)
+            is_mcp = getattr(t, "is_mcp", False) or (getattr(t, "metadata", {}) or {}).get("is_mcp", False)
             if is_mcp and not is_readonly:
                 continue
 
@@ -111,9 +109,7 @@ async def _execute_verifier_round(
 
     # Unique verifier id: parallel delegated tasks on the same manager must not
     # collide on a fixed-format id (they all run as framework-internal nodes).
-    verifier_task_id = (
-        f"verify-check-{round_num}-{verifier_type}-{uuid.uuid4().hex[:8]}"
-    )
+    verifier_task_id = f"verify-check-{round_num}-{verifier_type}-{uuid.uuid4().hex[:8]}"
     workspace_path = context.get("workspace_path")
     workspace_diff = ""
     if pre_snapshot and workspace_path and isinstance(workspace_path, str):
@@ -143,9 +139,7 @@ async def _execute_verifier_round(
 
     if verifier_task_template:
         if "{worker_result}" in verifier_task_template:
-            verifier_task_desc = base_desc + verifier_task_template.replace(
-                "{worker_result}", worker_output
-            )
+            verifier_task_desc = base_desc + verifier_task_template.replace("{worker_result}", worker_output)
         else:
             verifier_task_desc = (
                 base_desc
@@ -167,28 +161,18 @@ async def _execute_verifier_round(
         verifier_type,
     )
 
-    verifier_tool_registry_getter = _build_verifier_tool_registry_getter(
-        tool_registry_getter, context
-    )
+    verifier_tool_registry_getter = _build_verifier_tool_registry_getter(tool_registry_getter, context)
 
     current_executor = get_executor()
-    use_readonly = (
-        round_verifier_config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX
-    )
+    use_readonly = round_verifier_config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX
 
     proxy_executor: ReadonlyExecutorProxy | None = None
     if current_executor and use_readonly:
         proxy_executor = ReadonlyExecutorProxy(current_executor)
     elif not current_executor and use_readonly:
-        logger.warning(
-            "[verification] No current executor found, cannot apply READ_ONLY_SANDBOX"
-        )
+        logger.warning("[verification] No current executor found, cannot apply READ_ONLY_SANDBOX")
 
-    ctx_mgr = (
-        ExecutorContextManager(proxy_executor)
-        if proxy_executor
-        else contextlib.nullcontext()
-    )
+    ctx_mgr = ExecutorContextManager(proxy_executor) if proxy_executor else contextlib.nullcontext()
     with ctx_mgr:
         verifier_result = await manager.spawn_child(
             task_id=verifier_task_id,
@@ -204,9 +188,7 @@ async def _execute_verifier_round(
 
     tracked_executor = proxy_executor or current_executor
     if tracked_executor:
-        context["_verifier_has_executed_code"] = getattr(
-            tracked_executor, "has_executed_code", False
-        )
+        context["_verifier_has_executed_code"] = getattr(tracked_executor, "has_executed_code", False)
 
     if isinstance(verifier_result, dict):
         verifier_result = SubAgentResult(

@@ -220,11 +220,7 @@ class PrivacyPolicy:
         Single source of truth for every memory-write path that initializes the
         store.
         """
-        return (
-            self.s2_action == PIIAction.PSEUDONYMIZE
-            or self.s3_action == PIIAction.PSEUDONYMIZE
-            or self.deep_scan
-        )
+        return self.s2_action == PIIAction.PSEUDONYMIZE or self.s3_action == PIIAction.PSEUDONYMIZE or self.deep_scan
 
 
 @dataclass(frozen=True, slots=True)
@@ -494,9 +490,7 @@ class SecurityConfig:
         For trusted local environments where the user accepts all risks.
         Equivalent to disabling the security subsystem.
         """
-        full_rules: PermissionRuleset = (
-            PermissionRule("*", "*", PermissionAction.ALLOW),
-        )
+        full_rules: PermissionRuleset = (PermissionRule("*", "*", PermissionAction.ALLOW),)
         return cls(
             capabilities=frozenset({Capability("*", "*")}),
             ruleset=full_rules,
@@ -547,9 +541,7 @@ class EphemeralUserCredential:
 
 
 # Session-bound user credentials context variable. Managed per coroutine.
-user_credentials_ctx: ContextVar[tuple[EphemeralUserCredential, ...]] = ContextVar(
-    "user_credentials_ctx", default=()
-)
+user_credentials_ctx: ContextVar[tuple[EphemeralUserCredential, ...]] = ContextVar("user_credentials_ctx", default=())
 
 
 @asynccontextmanager
@@ -613,9 +605,7 @@ def propagate_user_credentials(fn: Callable[_P, _R]) -> Callable[_P, _R]:  # noq
     return sync_wrapper
 
 
-class ToolClarificationError(
-    Exception
-):
+class ToolClarificationError(Exception):
     """Raised when a tool needs human clarification before proceeding.
 
     Used by HITL (Human-in-the-Loop) tools that require the user to

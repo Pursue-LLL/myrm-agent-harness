@@ -98,9 +98,7 @@ class _BashProcessInput(BaseModel):
     )
     since_cursor: int | None = Field(
         default=None,
-        description=(
-            "For output: monotonic cursor from a previous next_cursor for incremental polling."
-        ),
+        description=("For output: monotonic cursor from a previous next_cursor for incremental polling."),
     )
     timeout_seconds: int = Field(
         default=_WAIT_DEFAULT_SECONDS,
@@ -114,15 +112,12 @@ class _BashProcessInput(BaseModel):
     )
     filter: str | None = Field(
         default=None,
-        description=(
-            "For output: optional regex applied per line — only matching stdout/stderr lines are returned."
-        ),
+        description=("For output: optional regex applied per line — only matching stdout/stderr lines are returned."),
     )
     data: str = Field(
         default="",
         description=(
-            "For write_stdin/submit_stdin: text to send to the process stdin "
-            "(e.g. 'y' to confirm an installer prompt)."
+            "For write_stdin/submit_stdin: text to send to the process stdin (e.g. 'y' to confirm an installer prompt)."
         ),
     )
 
@@ -180,12 +175,8 @@ async def _handle_output(
             filter_output_lines,
         )
 
-        stdout = filter_output_lines(
-            list(stdout) if isinstance(stdout, list) else [], line_filter
-        )
-        stderr = filter_output_lines(
-            list(stderr) if isinstance(stderr, list) else [], line_filter
-        )
+        stdout = filter_output_lines(list(stdout) if isinstance(stdout, list) else [], line_filter)
+        stderr = filter_output_lines(list(stderr) if isinstance(stderr, list) else [], line_filter)
 
     poll_hint = streams.get("poll_hint")
     metadata: dict[str, object] = {
@@ -222,9 +213,7 @@ async def _handle_output(
     }
 
 
-async def _handle_wait(
-    session_id: str, pid: int, timeout_seconds: int
-) -> dict[str, object]:
+async def _handle_wait(session_id: str, pid: int, timeout_seconds: int) -> dict[str, object]:
     registry = get_background_registry()
     info = registry.get(pid)
     if info is None or info.session_id != session_id:
@@ -232,9 +221,7 @@ async def _handle_wait(
             "content": f"No background process with pid={pid} in this session.",
             "metadata": {"pid": pid, "found": False, "action": "wait"},
         }
-    result = await registry.wait_for_process(
-        pid, timeout_seconds=float(timeout_seconds)
-    )
+    result = await registry.wait_for_process(pid, timeout_seconds=float(timeout_seconds))
     still_running = bool(result.get("still_running"))
     content: dict[str, object] = {
         "pid": pid,
@@ -245,9 +232,7 @@ async def _handle_wait(
     }
     if still_running:
         live = registry.get(pid)
-        content["message"] = (
-            f"pid={pid} still running after {timeout_seconds}s; poll with action=output or wait again."
-        )
+        content["message"] = f"pid={pid} still running after {timeout_seconds}s; poll with action=output or wait again."
         if live is not None and live.status == "running":
             content["waiting_for_input"] = live.waiting_for_input
             content["last_output_at"] = live.last_output_at
@@ -279,11 +264,7 @@ async def _handle_kill(session_id: str, pid: int, force: bool) -> dict[str, obje
         }
     ok = await registry.kill(pid, force=force)
     return {
-        "content": (
-            f"Sent {'SIGKILL' if force else 'SIGTERM'} to pid={pid}"
-            if ok
-            else f"Failed to signal pid={pid}"
-        ),
+        "content": (f"Sent {'SIGKILL' if force else 'SIGTERM'} to pid={pid}" if ok else f"Failed to signal pid={pid}"),
         "metadata": {
             "pid": pid,
             "force": force,
@@ -378,9 +359,7 @@ def create_bash_process_tool() -> BaseTool:
 
         if action == "output":
             assert pid is not None
-            return await _handle_output(
-                session_id, pid, max_lines, since_cursor, filter
-            )
+            return await _handle_output(session_id, pid, max_lines, since_cursor, filter)
         if action == "wait":
             assert pid is not None
             return await _handle_wait(session_id, pid, timeout_seconds)
@@ -419,10 +398,7 @@ def create_bash_process_tool() -> BaseTool:
             )
 
         return {
-            "content": (
-                "Unknown action. Use list, output, wait, kill, write_stdin, "
-                "submit_stdin, or close_stdin."
-            ),
+            "content": ("Unknown action. Use list, output, wait, kill, write_stdin, submit_stdin, or close_stdin."),
             "metadata": {"error": "invalid_action"},
         }
 

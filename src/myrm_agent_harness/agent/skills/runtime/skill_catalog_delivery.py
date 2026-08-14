@@ -61,16 +61,10 @@ def build_bound_skills_block(
     hidden_skill_count: int = 0,
 ) -> str:
     """Render the full ``<bound_skills>`` block for HumanMessage prepend."""
-    catalog_xml = get_metadata_summary(
-        display_skills, hidden_skill_count=hidden_skill_count
-    )
+    catalog_xml = get_metadata_summary(display_skills, hidden_skill_count=hidden_skill_count)
     catalog_hash = compute_catalog_hash(catalog_xml)
-    hidden_attr = (
-        f' hidden_count="{hidden_skill_count}"' if hidden_skill_count > 0 else ""
-    )
-    return (
-        f'<bound_skills hash="{catalog_hash}"{hidden_attr}>\n{catalog_xml}\n</bound_skills>'
-    )
+    hidden_attr = f' hidden_count="{hidden_skill_count}"' if hidden_skill_count > 0 else ""
+    return f'<bound_skills hash="{catalog_hash}"{hidden_attr}>\n{catalog_xml}\n</bound_skills>'
 
 
 def _strip_message_content(content: str | list[object]) -> str | list[object]:
@@ -92,9 +86,7 @@ def _strip_message_content(content: str | list[object]) -> str | list[object]:
     return updated
 
 
-def _prepend_block_to_content(
-    content: str | list[object], block: str
-) -> str | list[object]:
+def _prepend_block_to_content(content: str | list[object], block: str) -> str | list[object]:
     prefix = f"{block}\n\n"
     if isinstance(content, str):
         body = content.strip()

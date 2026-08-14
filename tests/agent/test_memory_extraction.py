@@ -39,9 +39,7 @@ class TestBuildExtractionMessages:
         assert messages[0]["content"] == "[multimodal]"
 
     def test_empty_reply_omitted(self) -> None:
-        messages = build_extraction_messages(
-            query="hello", chat_history=None, assistant_reply=""
-        )
+        messages = build_extraction_messages(query="hello", chat_history=None, assistant_reply="")
         assert len(messages) == 1
 
     @patch("myrm_agent_harness.utils.chat_utils.convert_chat_history_simple")
@@ -89,9 +87,7 @@ class TestCreateExtractionLlmFunc:
     async def test_reasoning_model_content_empty_falls_back(self) -> None:
         """Reasoning 模型 content 为空时回退到 additional_kwargs["reasoning_content"]。"""
         mock_llm = AsyncMock()
-        mock_llm.ainvoke.return_value = MagicMock(
-            content="", additional_kwargs={"reasoning_content": "提取到的记忆"}
-        )
+        mock_llm.ainvoke.return_value = MagicMock(content="", additional_kwargs={"reasoning_content": "提取到的记忆"})
 
         func = create_extraction_llm_func(mock_llm)
         result = await func("system prompt", "user prompt")
@@ -186,9 +182,7 @@ class TestAutoExtractMemories:
                 "myrm_agent_harness.toolkits.memory.strategies.extractor.MemoryExtractor",
                 return_value=mock_extractor,
             ),
-            patch(
-                "myrm_agent_harness.toolkits.memory.strategies.extractor.ExtractionConfig"
-            ),
+            patch("myrm_agent_harness.toolkits.memory.strategies.extractor.ExtractionConfig"),
             patch(
                 "myrm_agent_harness.agent._internals.memory_extraction.persist_extracted_memories",
                 new_callable=AsyncMock,
@@ -263,9 +257,7 @@ class TestPersistExtractedMemories:
         mock_manager = MagicMock()
         mock_manager.store_batch = AsyncMock(return_value=[])
 
-        with patch(
-            "myrm_agent_harness.toolkits.memory.strategies.extractor.MemoryExtractor"
-        ) as mock_cls:
+        with patch("myrm_agent_harness.toolkits.memory.strategies.extractor.MemoryExtractor") as mock_cls:
             mock_extractor = MagicMock()
             mock_extractor.to_concrete_memories.return_value = []
             mock_cls.return_value = mock_extractor
@@ -309,9 +301,7 @@ class TestPersistExtractedMemories:
             )
 
         with (
-            patch(
-                "myrm_agent_harness.toolkits.memory.strategies.extractor.MemoryExtractor"
-            ) as mock_cls,
+            patch("myrm_agent_harness.toolkits.memory.strategies.extractor.MemoryExtractor") as mock_cls,
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_pseudonym_store",
                 return_value=store,
@@ -342,9 +332,7 @@ class TestPersistExtractedMemories:
         mock_manager = MagicMock()
         mock_manager.store_batch = AsyncMock(return_value=[mock_memory])
 
-        with patch(
-            "myrm_agent_harness.toolkits.memory.strategies.extractor.MemoryExtractor"
-        ) as mock_cls:
+        with patch("myrm_agent_harness.toolkits.memory.strategies.extractor.MemoryExtractor") as mock_cls:
             mock_extractor = MagicMock()
             mock_extractor.to_concrete_memories.return_value = [mock_memory]
             mock_cls.return_value = mock_extractor
@@ -378,9 +366,7 @@ class TestApplyDeepPIIScan:
                 "myrm_agent_harness.agent.middlewares._session_context.get_pseudonym_store",
                 return_value=None,
             ),
-            patch(
-                "myrm_agent_harness.agent._internals.memory_extraction.logger.warning"
-            ) as mock_warning,
+            patch("myrm_agent_harness.agent._internals.memory_extraction.logger.warning") as mock_warning,
         ):
             result = await _apply_deep_pii_scan([mock_memory], _mock_llm, mock_manager)
             assert result[0].content == "User has severe anxiety disorder"
@@ -503,9 +489,7 @@ class TestApplyDeepPIIScan:
             "myrm_agent_harness.agent.middlewares._session_context.get_pseudonym_store",
             return_value=store,
         ):
-            result = await _apply_deep_pii_scan(
-                [mem1, mem2, mem3], _mock_llm, mock_manager
-            )
+            result = await _apply_deep_pii_scan([mem1, mem2, mem3], _mock_llm, mock_manager)
             assert call_count == 1
             assert "asthma" not in result[0].content
             assert result[1].content == "Clean text without PII"
@@ -520,18 +504,14 @@ class TestGetUserRealName:
     @pytest.mark.asyncio
     async def test_returns_name_from_profile(self) -> None:
         mock_manager = MagicMock()
-        mock_manager.get_profile_attribute = AsyncMock(
-            side_effect=lambda k: "张三" if k == "name" else None
-        )
+        mock_manager.get_profile_attribute = AsyncMock(side_effect=lambda k: "张三" if k == "name" else None)
         name = await _get_user_real_name(mock_manager)
         assert name == "张三"
 
     @pytest.mark.asyncio
     async def test_returns_real_name_fallback(self) -> None:
         mock_manager = MagicMock()
-        mock_manager.get_profile_attribute = AsyncMock(
-            side_effect=lambda k: "John" if k == "real_name" else None
-        )
+        mock_manager.get_profile_attribute = AsyncMock(side_effect=lambda k: "John" if k == "real_name" else None)
         name = await _get_user_real_name(mock_manager)
         assert name == "John"
 
@@ -545,9 +525,7 @@ class TestGetUserRealName:
     @pytest.mark.asyncio
     async def test_returns_empty_on_exception(self) -> None:
         mock_manager = MagicMock()
-        mock_manager.get_profile_attribute = AsyncMock(
-            side_effect=RuntimeError("DB down")
-        )
+        mock_manager.get_profile_attribute = AsyncMock(side_effect=RuntimeError("DB down"))
         name = await _get_user_real_name(mock_manager)
         assert name == ""
 
@@ -563,9 +541,7 @@ class TestDefaultEnabledBehavior:
 
         sig = inspect.signature(SkillAgent.__init__)
         param = sig.parameters["enable_memory_auto_extraction"]
-        assert (
-            param.default is True
-        ), "enable_memory_auto_extraction should default to True"
+        assert param.default is True, "enable_memory_auto_extraction should default to True"
 
     def test_skill_agent_factory_default_value_is_true(self) -> None:
         """Verify create_skill_agent has enable_memory_auto_extraction=True by default."""
@@ -628,9 +604,7 @@ class TestSessionDateInExtractionPipeline:
             },
         ]
         config = ExtractionConfig()
-        await extract_memories_from_conversation(
-            messages, llm_func=spy_llm, config=config
-        )
+        await extract_memories_from_conversation(messages, llm_func=spy_llm, config=config)
 
         assert len(captured_prompts) == 1
         prompt = captured_prompts[0]

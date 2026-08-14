@@ -26,7 +26,7 @@ class _QuietHandler(BaseHTTPRequestHandler):
     def log_message(self, _format: str, *_args: object) -> None:
         pass
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(_PAGE_HTML)))
@@ -74,9 +74,7 @@ async def test_domain_allowlist_blocks_navigation() -> None:
     pool = GlobalBrowserPool(max_browsers=1)
     try:
         with _local_server() as url:
-            async with _session_with_allowlist(
-                pool, DomainAllowlist.from_strings(["example.com"])
-            ) as session:
+            async with _session_with_allowlist(pool, DomainAllowlist.from_strings(["example.com"])) as session:
                 await session.navigate(url)
                 pytest.fail("Expected navigation to be blocked")
     except PatchrightError as e:
@@ -92,9 +90,7 @@ async def test_domain_allowlist_allows_navigation() -> None:
     pool = GlobalBrowserPool(max_browsers=1)
     try:
         with _local_server() as url:
-            async with _session_with_allowlist(
-                pool, DomainAllowlist.from_strings(["127.0.0.1"])
-            ) as session:
+            async with _session_with_allowlist(pool, DomainAllowlist.from_strings(["127.0.0.1"])) as session:
                 result = await session.navigate(url)
                 assert isinstance(result, str)
     finally:

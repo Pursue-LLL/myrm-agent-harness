@@ -43,11 +43,7 @@ class TestExtractPythonFromBash:
         assert validate_python_syntax(result) is None
 
     def test_cat_heredoc_shell_wrapper_does_not_return_raw_command(self):
-        cmd = (
-            "cat > /tmp/x.py << EOF\n"
-            "from skills.mcp_12306_skill import get_tickets\n"
-            "EOF"
-        )
+        cmd = "cat > /tmp/x.py << EOF\nfrom skills.mcp_12306_skill import get_tickets\nEOF"
         result = extract_python_from_bash(cmd)
         assert result == "from skills.mcp_12306_skill import get_tickets"
 
@@ -66,21 +62,11 @@ class TestExtractPythonFromBash:
         assert extract_python_from_bash(cmd) is None
 
     def test_cat_heredoc_shell_script_returns_none(self):
-        cmd = (
-            "cat > run.sh << 'EOF'\n"
-            "#!/bin/bash\n"
-            "echo 'E2E_BEGIN_LINE ok'\n"
-            "EOF"
-        )
+        cmd = "cat > run.sh << 'EOF'\n#!/bin/bash\necho 'E2E_BEGIN_LINE ok'\nEOF"
         assert extract_python_from_bash(cmd) is None
 
     def test_cat_heredoc_python_file_still_extracted(self):
-        cmd = (
-            "cat > /tmp/run.py << 'EOF'\n"
-            "import os\n"
-            "print(os.getcwd())\n"
-            "EOF"
-        )
+        cmd = "cat > /tmp/run.py << 'EOF'\nimport os\nprint(os.getcwd())\nEOF"
         result = extract_python_from_bash(cmd)
         assert result is not None
         assert "import os" in result
@@ -107,18 +93,14 @@ class TestExtractPythonFromPipeStdin:
         assert result == "import myrm_tools"
 
     def test_echo_skills_pipe_allowed_extraction(self):
-        result = extract_python_from_pipe_stdin(
-            'echo "from skills.x import y" | python3'
-        )
+        result = extract_python_from_pipe_stdin('echo "from skills.x import y" | python3')
         assert result == "from skills.x import y"
 
     def test_python_c_not_pipe_stdin_surface(self):
         assert extract_python_from_pipe_stdin('python -c "print(1)"') is None
 
     def test_pipe_to_grep_not_python_stdin(self):
-        assert (
-            extract_python_from_pipe_stdin('echo "import myrm_tools" | grep x') is None
-        )
+        assert extract_python_from_pipe_stdin('echo "import myrm_tools" | grep x') is None
 
     def test_echo_unquoted_pipe_python3(self):
         result = extract_python_from_pipe_stdin("echo import myrm_tools | python3")
@@ -131,9 +113,7 @@ class TestExtractCatPyPathsFromPipeFeeders:
             extract_cat_py_paths_from_pipe_feeders,
         )
 
-        paths = extract_cat_py_paths_from_pipe_feeders(
-            "cat /workspace/run.py | python3"
-        )
+        paths = extract_cat_py_paths_from_pipe_feeders("cat /workspace/run.py | python3")
         assert paths == ["/workspace/run.py"]
 
     def test_cat_py_pipe_grep_not_extracted(self):

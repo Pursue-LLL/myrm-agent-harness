@@ -40,7 +40,9 @@ class TestIsBase64DataUrl:
 
 class TestGetImageUrl:
     def test_extracts_url(self) -> None:
-        assert get_image_url({"type": "image_url", "image_url": {"url": "https://a.com/b.png"}}) == "https://a.com/b.png"
+        assert (
+            get_image_url({"type": "image_url", "image_url": {"url": "https://a.com/b.png"}}) == "https://a.com/b.png"
+        )
 
     def test_missing_image_url_key(self) -> None:
         assert get_image_url({"type": "image_url"}) == ""
@@ -241,6 +243,7 @@ class TestTokenEstimationIntegration:
         image_overhead = tokens_with_image - tokens_text_only
         assert abs(image_overhead - IMAGE_TOKEN_ESTIMATE) < 10
 
+
 class TestMediaContentUtils:
     def test_is_media_content_item(self) -> None:
         assert is_media_content_item({"type": "image_url"}) is True
@@ -260,7 +263,7 @@ class TestMediaContentUtils:
         content = [
             {"type": "text", "text": "hello"},
             {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}},
-            {"type": "video_url", "video_url": {"url": "..."}}
+            {"type": "video_url", "video_url": {"url": "..."}},
         ]
         stripped = strip_all_media_from_content(content)
         assert len(stripped) == 3

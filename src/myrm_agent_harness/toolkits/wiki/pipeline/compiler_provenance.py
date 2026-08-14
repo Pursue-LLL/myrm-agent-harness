@@ -32,14 +32,10 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 
-PROVENANCE_METADATA_KEYS: frozenset[str] = frozenset(
-    {"source_chat", "source_message", "compound_provenance"}
-)
+PROVENANCE_METADATA_KEYS: frozenset[str] = frozenset({"source_chat", "source_message", "compound_provenance"})
 
 
-def provenance_from_raw_sources(
-    structure: WikiStructure, source_files: list[str]
-) -> dict[str, str]:
+def provenance_from_raw_sources(structure: WikiStructure, source_files: list[str]) -> dict[str, str]:
     """Collect provenance metadata from the raw source files of a concept.
 
     First-compile path: a brand-new concept article has no existing frontmatter to
@@ -47,9 +43,7 @@ def provenance_from_raw_sources(
     ``source_chat``. Inject it only when all non-empty values agree, so a concept
     merged from multiple unrelated chats does not get a misleading single link.
     """
-    collected: dict[str, list[str]] = {
-        key: [] for key in PROVENANCE_METADATA_KEYS
-    }
+    collected: dict[str, list[str]] = {key: [] for key in PROVENANCE_METADATA_KEYS}
     for source in source_files:
         # ``concept.source_files`` is derived from the vault-relative doc path
         # (``raw/turn_xxx.md``); ``get_raw_file_path`` expects a raw-relative name.
@@ -86,9 +80,7 @@ def restore_provenance_metadata(existing_content: str, new_content: str) -> str:
 
     existing_meta, _ = load_frontmatter_metadata(existing_content)
     provenance = {
-        key: value
-        for key, value in existing_meta.items()
-        if key in PROVENANCE_METADATA_KEYS and value is not None
+        key: value for key, value in existing_meta.items() if key in PROVENANCE_METADATA_KEYS and value is not None
     }
     if not provenance:
         return new_content

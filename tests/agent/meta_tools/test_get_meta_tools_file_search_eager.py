@@ -43,9 +43,7 @@ class TestFileSearchEager:
 
         returned_names = {t.name for t in tools}
         assert {"glob_tool", "grep_tool"}.issubset(returned_names)
-        assert {"file_read_tool", "file_write_tool", "file_edit_tool"}.issubset(
-            returned_names
-        )
+        assert {"file_read_tool", "file_write_tool", "file_edit_tool"}.issubset(returned_names)
 
     def test_glob_grep_not_runtime_only_registry(
         self,
@@ -113,9 +111,7 @@ class TestFileSearchEager:
             enable_answer_tool=False,
         )
         sync_discover_capability_tool(registry, skills=many_skills)
-        discover = next(
-            t for t in registry.resolve() if t.name == "skill_search_tool"
-        )
+        discover = next(t for t in registry.resolve() if t.name == "skill_search_tool")
         description = discover.description or ""
         assert "glob_tool" not in description
         assert "grep_tool" not in description

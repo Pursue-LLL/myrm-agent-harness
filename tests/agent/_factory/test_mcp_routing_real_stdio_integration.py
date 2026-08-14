@@ -18,9 +18,7 @@ from myrm_agent_harness.toolkits.mcp.connection_manager import MCPConnectionMana
 _MEGA_TOOL_COUNT = 55
 
 
-def _write_mega_mcp_server(
-    script_path: Path, tool_count: int = _MEGA_TOOL_COUNT
-) -> None:
+def _write_mega_mcp_server(script_path: Path, tool_count: int = _MEGA_TOOL_COUNT) -> None:
     lines = [
         "from mcp.server.mcpserver import MCPServer",
         "",
@@ -87,12 +85,10 @@ async def test_route_mcp_servers_real_stdio_mega_server_ptc_path(
 
         result = await route_mcp_servers([cfg])
 
-        assert (
-            result.direct_tools == []
-        ), f"expected PTC path (0 direct tools), got {len(result.direct_tools)}; threshold={threshold}"
-        assert (
-            len(result.skills) == 1
-        ), f"expected 1 PTC skill, got {len(result.skills)}"
+        assert result.direct_tools == [], (
+            f"expected PTC path (0 direct tools), got {len(result.direct_tools)}; threshold={threshold}"
+        )
+        assert len(result.skills) == 1, f"expected 1 PTC skill, got {len(result.skills)}"
 
         skill = result.skills[0]
         assert skill.mcp is not None

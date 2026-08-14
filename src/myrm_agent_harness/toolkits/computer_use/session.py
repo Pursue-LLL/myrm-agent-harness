@@ -141,9 +141,7 @@ class ComputerSession:
         elif result.scope == ForegroundPermissionScope.always:
             self._always_permission_granted = True
 
-        logger.info(
-            "Foreground permission granted (scope=%s): %s", result.scope.value, reason
-        )
+        logger.info("Foreground permission granted (scope=%s): %s", result.scope.value, reason)
         return None
 
     async def check_app_approval(
@@ -172,10 +170,7 @@ class ComputerSession:
                 resolved_title = str(fg_info.get("window_title", "") or "").strip()
 
         if not resolved_app:
-            if (
-                self._permission_callback is not None
-                or self._config.execution_mode == ExecutionMode.background_strict
-            ):
+            if self._permission_callback is not None or self._config.execution_mode == ExecutionMode.background_strict:
                 return ActionResult(
                     success=False,
                     error=(
@@ -306,9 +301,7 @@ class ComputerSession:
             )
 
         screen_x, screen_y = self._scaler.api_to_screen(x, y)
-        result = await self._backend.click(
-            screen_x, screen_y, button, clicks, modifiers=modifiers
-        )
+        result = await self._backend.click(screen_x, screen_y, button, clicks, modifiers=modifiers)
 
         if result.success:
             await asyncio.sleep(self._config.screenshot_delay)
@@ -364,9 +357,7 @@ class ComputerSession:
         assert self._scaler is not None
 
         screen_x, screen_y = self._scaler.api_to_screen(x, y)
-        result = await self._backend.scroll(
-            screen_x, screen_y, direction, amount, modifiers=modifiers
-        )
+        result = await self._backend.scroll(screen_x, screen_y, direction, amount, modifiers=modifiers)
 
         if result.success:
             await asyncio.sleep(self._config.screenshot_delay)

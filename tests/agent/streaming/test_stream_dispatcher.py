@@ -119,8 +119,7 @@ async def test_dispatch_custom_tool_evicted_ref_keeps_stream(ctx):
     events = [
         event
         for event in executor._compactor.events
-        if isinstance(event, AgentStreamEvent)
-        and event.type == AgentEventType.TOOL_EVICTED_REF
+        if isinstance(event, AgentStreamEvent) and event.type == AgentEventType.TOOL_EVICTED_REF
     ]
     assert len(events) == 1
     forwarded = events[0].data
@@ -141,10 +140,7 @@ async def test_dispatch_custom_tasks_steps(ctx):
     await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    assert any(
-        isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TASKS_STEPS
-        for e in events
-    )
+    assert any(isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TASKS_STEPS for e in events)
 
 
 @pytest.mark.asyncio
@@ -157,10 +153,7 @@ async def test_dispatch_custom_agent_status(ctx):
     await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    assert any(
-        isinstance(e, AgentStreamEvent) and e.type == AgentEventType.STATUS
-        for e in events
-    )
+    assert any(isinstance(e, AgentStreamEvent) and e.type == AgentEventType.STATUS for e in events)
 
 
 @pytest.mark.asyncio
@@ -188,10 +181,7 @@ async def test_dispatch_custom_ui_update(ctx):
 
     events = executor._compactor.events
     ui_events = [
-        event
-        for event in events
-        if isinstance(event, AgentStreamEvent)
-        and event.type == AgentEventType.UI_UPDATE
+        event for event in events if isinstance(event, AgentStreamEvent) and event.type == AgentEventType.UI_UPDATE
     ]
     assert len(ui_events) == 1
     assert ui_events[0].messageId == "disp_test"
@@ -210,11 +200,7 @@ async def test_dispatch_custom_capability_gap(ctx):
     await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    gap_events = [
-        e
-        for e in events
-        if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.CAPABILITY_GAP
-    ]
+    gap_events = [e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.CAPABILITY_GAP]
     assert len(gap_events) == 1
     assert gap_events[0].data == payload
 
@@ -230,11 +216,7 @@ async def test_dispatch_custom_skill_gap(ctx):
     await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    gap_events = [
-        e
-        for e in events
-        if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.SKILL_GAP
-    ]
+    gap_events = [e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.SKILL_GAP]
     assert len(gap_events) == 1
     assert gap_events[0].data == payload
 
@@ -258,8 +240,7 @@ async def test_dispatch_custom_browser_takeover_requested(ctx):
     takeover_events = [
         event
         for event in events
-        if isinstance(event, AgentStreamEvent)
-        and event.type == AgentEventType.BROWSER_TAKEOVER_REQUESTED
+        if isinstance(event, AgentStreamEvent) and event.type == AgentEventType.BROWSER_TAKEOVER_REQUESTED
     ]
     assert len(takeover_events) == 1
     assert takeover_events[0].data == payload
@@ -280,8 +261,7 @@ async def test_dispatch_custom_browser_takeover_completed(ctx):
     completed_events = [
         event
         for event in events
-        if isinstance(event, AgentStreamEvent)
-        and event.type == AgentEventType.BROWSER_TAKEOVER_COMPLETED
+        if isinstance(event, AgentStreamEvent) and event.type == AgentEventType.BROWSER_TAKEOVER_COMPLETED
     ]
     assert len(completed_events) == 1
     assert completed_events[0].data == payload
@@ -330,11 +310,7 @@ async def test_dispatch_updates_interrupt_tool_approval(ctx):
     await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    assert any(
-        isinstance(e, AgentStreamEvent)
-        and e.type == AgentEventType.TOOL_APPROVAL_REQUEST
-        for e in events
-    )
+    assert any(isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TOOL_APPROVAL_REQUEST for e in events)
 
 
 @pytest.mark.asyncio
@@ -350,10 +326,7 @@ async def test_dispatch_updates_interrupt(ctx):
     await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    assert any(
-        isinstance(e, AgentStreamEvent) and e.type == AgentEventType.APPROVAL_REQUIRED
-        for e in events
-    )
+    assert any(isinstance(e, AgentStreamEvent) and e.type == AgentEventType.APPROVAL_REQUIRED for e in events)
 
 
 @pytest.mark.asyncio
@@ -382,10 +355,7 @@ async def test_dispatch_updates_interrupt_clarification(ctx):
 
     events = executor._compactor.events
     clarify_events = [
-        e
-        for e in events
-        if isinstance(e, AgentStreamEvent)
-        and e.type == AgentEventType.CLARIFICATION_REQUIRED
+        e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.CLARIFICATION_REQUIRED
     ]
     assert len(clarify_events) == 1
     event_data = clarify_events[0].to_dict().get("data", {})
@@ -413,10 +383,7 @@ async def test_dispatch_updates_interrupt_directory_request(ctx):
 
     events = executor._compactor.events
     directory_events = [
-        e
-        for e in events
-        if isinstance(e, AgentStreamEvent)
-        and e.type == AgentEventType.DIRECTORY_REQUEST_REQUIRED
+        e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.DIRECTORY_REQUEST_REQUIRED
     ]
     assert len(directory_events) == 1
     event_data = directory_events[0].to_dict().get("data", {})
@@ -493,9 +460,5 @@ async def test_dispatch_messages_token_events(ctx):
         await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    token_usage_events = [
-        e
-        for e in events
-        if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TOKEN_USAGE
-    ]
+    token_usage_events = [e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TOKEN_USAGE]
     assert len(token_usage_events) >= 1

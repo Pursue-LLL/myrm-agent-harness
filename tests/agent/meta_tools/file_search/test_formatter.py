@@ -211,14 +211,16 @@ class TestDensification:
 
     def test_densified_saves_tokens(self) -> None:
         results = [
-            {"file": "src/features/dashboard/UserStatsCard.tsx", "line": i * 10, "content": f"const x = {i};", "type": "match"}
+            {
+                "file": "src/features/dashboard/UserStatsCard.tsx",
+                "line": i * 10,
+                "content": f"const x = {i};",
+                "type": "match",
+            }
             for i in range(8)
         ]
         dense_output = format_grep_results(results, "x", 50, 200, is_regex=False)
-        flat_lines = [
-            f"src/features/dashboard/UserStatsCard.tsx:{i * 10}: const x = {i};"
-            for i in range(8)
-        ]
+        flat_lines = [f"src/features/dashboard/UserStatsCard.tsx:{i * 10}: const x = {i};" for i in range(8)]
         flat_total_path_chars = sum(len("src/features/dashboard/UserStatsCard.tsx") for _ in range(8))
         dense_path_chars = len("src/features/dashboard/UserStatsCard.tsx")
         assert dense_path_chars < flat_total_path_chars
@@ -236,13 +238,14 @@ class TestDensification:
         assert "  --" in output
 
     def test_densified_non_code_capping_preserved(self) -> None:
-        results = [
-            {"file": "data.json", "line": i, "content": f'"key": {i}', "type": "match"}
-            for i in range(10)
-        ]
+        results = [{"file": "data.json", "line": i, "content": f'"key": {i}', "type": "match"} for i in range(10)]
         output = format_grep_results(results, "key", 1, 100, is_regex=False)
         assert "non-code matches omitted" in output
-        match_lines = [ln for ln in output.split("\n") if ln.strip().startswith(("  ", "data.json")) and "key" in ln and "omitted" not in ln]
+        match_lines = [
+            ln
+            for ln in output.split("\n")
+            if ln.strip().startswith(("  ", "data.json")) and "key" in ln and "omitted" not in ln
+        ]
         assert len(match_lines) <= NON_CODE_MATCH_CAP + 1
 
     def test_densified_with_context_lines(self) -> None:

@@ -165,7 +165,9 @@ class TestRunMaintenanceCycleNeglected:
 
         mock_vector_store.scroll.return_value = []
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False)
+        mgr = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
+        )
 
         scroll_mock = AsyncMock(return_value=[old_memory])
         with patch.object(MemoryManager, "_scroll_all_memories", scroll_mock):
@@ -180,7 +182,9 @@ class TestRunMaintenanceCycleNeglected:
     ) -> None:
         mock_vector_store.scroll.return_value = []
 
-        mgr = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False)
+        mgr = MemoryManager(
+            memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding, auto_warmup=False
+        )
 
         scroll_mock = AsyncMock(side_effect=RuntimeError("scroll failed"))
         with patch.object(MemoryManager, "_scroll_all_memories", scroll_mock):

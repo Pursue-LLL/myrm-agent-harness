@@ -93,9 +93,7 @@ class TestParseSync:
         with _patch_paddleocr("3.2.0"):
             parser = OCRParser()
             engine = parser._get_engine()
-            engine.predict.return_value = [
-                {"rec_texts": ["hello", "world"], "rec_scores": [0.9, 0.8], "dt_polys": []}
-            ]
+            engine.predict.return_value = [{"rec_texts": ["hello", "world"], "rec_scores": [0.9, 0.8], "dt_polys": []}]
 
             result = parser._parse_sync("/tmp/img.png")
 
@@ -230,9 +228,7 @@ class TestParseBytesAndParse:
         with _patch_paddleocr("3.2.0"):
             parser = OCRParser()
             engine = parser._get_engine()
-            engine.predict.return_value = [
-                {"rec_texts": ["scanned page"], "rec_scores": [0.9], "dt_polys": []}
-            ]
+            engine.predict.return_value = [{"rec_texts": ["scanned page"], "rec_scores": [0.9], "dt_polys": []}]
 
             text = await parser.parse_bytes(b"fake-png-bytes", suffix=".png")
 
@@ -272,9 +268,7 @@ class TestParseBytesAndParse:
     @pytest.mark.asyncio
     async def test_paddlex_low_confidence_lines_filtered(self):
         parser = OCRParser(confidence_threshold=0.8)
-        raw = [
-            {"rec_texts": ["keep", "drop"], "rec_scores": [0.95, 0.3], "dt_polys": []}
-        ]
+        raw = [{"rec_texts": ["keep", "drop"], "rec_scores": [0.95, 0.3], "dt_polys": []}]
         result = parser._process_raw_result(raw)
 
         assert result.text == "keep"

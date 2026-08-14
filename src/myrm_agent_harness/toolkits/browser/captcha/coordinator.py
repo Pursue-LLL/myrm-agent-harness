@@ -33,13 +33,15 @@ _DEFAULT_SOLVE_TIMEOUT_S = 120.0
 
 # Behavioral WAFs that no API solver or human can resolve via CAPTCHA interaction.
 # These require engine-level escalation (e.g. Camoufox) rather than solve attempts.
-_BEHAVIORAL_UNSOLVABLE_TYPES: frozenset[CaptchaType] = frozenset({
-    CaptchaType.DATADOME,
-    CaptchaType.KASADA,
-    CaptchaType.AKAMAI,
-    CaptchaType.IMPERVA,
-    CaptchaType.PERIMETERX,
-})
+_BEHAVIORAL_UNSOLVABLE_TYPES: frozenset[CaptchaType] = frozenset(
+    {
+        CaptchaType.DATADOME,
+        CaptchaType.KASADA,
+        CaptchaType.AKAMAI,
+        CaptchaType.IMPERVA,
+        CaptchaType.PERIMETERX,
+    }
+)
 
 
 class CaptchaCoordinator:
@@ -123,12 +125,15 @@ class CaptchaCoordinator:
         try:
             from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 
-            await dispatch_custom_event("browser_takeover_requested", {
-                "reason": f"CAPTCHA detected: {captcha_info.reason}",
-                "captcha_type": captcha_info.captcha_type.value,
-                "auto_detect_completion": True,
-                "is_managed": is_managed,
-            })
+            await dispatch_custom_event(
+                "browser_takeover_requested",
+                {
+                    "reason": f"CAPTCHA detected: {captcha_info.reason}",
+                    "captcha_type": captcha_info.captcha_type.value,
+                    "auto_detect_completion": True,
+                    "is_managed": is_managed,
+                },
+            )
         except Exception:
             pass
 
@@ -194,10 +199,13 @@ class CaptchaCoordinator:
         try:
             from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 
-            await dispatch_custom_event("browser_takeover_completed", {
-                "elapsed_ms": result.elapsed_ms,
-                "success": result.success,
-            })
+            await dispatch_custom_event(
+                "browser_takeover_completed",
+                {
+                    "elapsed_ms": result.elapsed_ms,
+                    "success": result.success,
+                },
+            )
         except Exception:
             pass
 

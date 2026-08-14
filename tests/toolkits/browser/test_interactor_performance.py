@@ -79,9 +79,7 @@ async def test_performance_simple_actions(interactor: Interactor) -> None:
         print(f"{'=' * 60}")
 
         # Assert performance target (1ms is reasonable for mock operations)
-        assert (
-            avg_per_call < 1.0
-        ), f"Performance regression: {avg_per_call:.4f}ms > 1.0ms"
+        assert avg_per_call < 1.0, f"Performance regression: {avg_per_call:.4f}ms > 1.0ms"
 
 
 @pytest.mark.asyncio
@@ -106,9 +104,7 @@ async def test_performance_special_actions(interactor: Interactor) -> None:
         return 0
 
     async def mock_wheel(_dx: int, dy: int) -> None:
-        state["top"] = min(
-            state["top"] + dy, max(0.0, state["height"] - state["client"])
-        )
+        state["top"] = min(state["top"] + dy, max(0.0, state["height"] - state["client"]))
 
     mock_page = interactor._page
     mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
@@ -137,9 +133,7 @@ async def test_performance_special_actions(interactor: Interactor) -> None:
         print(f"Average per call: {avg_per_call:.4f}ms")
         print(f"{'=' * 60}")
 
-        assert (
-            avg_per_call < 1.0
-        ), f"Performance regression: {avg_per_call:.4f}ms > 1.0ms"
+        assert avg_per_call < 1.0, f"Performance regression: {avg_per_call:.4f}ms > 1.0ms"
 
 
 @pytest.mark.asyncio

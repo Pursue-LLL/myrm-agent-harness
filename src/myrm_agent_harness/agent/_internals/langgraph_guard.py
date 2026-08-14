@@ -226,21 +226,14 @@ def apply_langgraph_tool_args_guard() -> None:
                 if len(stage) > 1:
                     for idx in stage:
                         tool_calls[idx]["__smart_concurrent_safe__"] = True
-                    coros = [
-                        self._arun_one(tool_calls[idx], input_type, tool_runtimes[idx])
-                        for idx in stage
-                    ]
+                    coros = [self._arun_one(tool_calls[idx], input_type, tool_runtimes[idx]) for idx in stage]
                     stage_outputs = await asyncio.gather(*coros)
                     for idx, out in zip(stage, stage_outputs, strict=False):
                         executed_mask[idx] = True
                         outputs.append(out)
 
                     failed_idx = next(
-                        (
-                            idx
-                            for idx, out in zip(stage, stage_outputs, strict=False)
-                            if _tool_output_failed(out)
-                        ),
+                        (idx for idx, out in zip(stage, stage_outputs, strict=False) if _tool_output_failed(out)),
                         None,
                     )
                     if failed_idx is not None:
@@ -253,9 +246,7 @@ def apply_langgraph_tool_args_guard() -> None:
                     continue
 
                 idx = stage[0]
-                out = await self._arun_one(
-                    tool_calls[idx], input_type, tool_runtimes[idx]
-                )
+                out = await self._arun_one(tool_calls[idx], input_type, tool_runtimes[idx])
                 executed_mask[idx] = True
                 outputs.append(out)
 
@@ -329,11 +320,7 @@ def apply_langgraph_tool_args_guard() -> None:
                         outputs.append(out)
 
                     failed_idx = next(
-                        (
-                            idx
-                            for idx, out in zip(stage, stage_outputs, strict=False)
-                            if _tool_output_failed(out)
-                        ),
+                        (idx for idx, out in zip(stage, stage_outputs, strict=False) if _tool_output_failed(out)),
                         None,
                     )
                     if failed_idx is not None:

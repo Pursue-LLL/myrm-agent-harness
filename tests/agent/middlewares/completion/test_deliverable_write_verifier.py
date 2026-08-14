@@ -13,9 +13,7 @@ from myrm_agent_harness.agent.security.guards.loop_guard.types import (
 )
 
 
-def _record(
-    tool_name: str, level: SuccessLevel = SuccessLevel.FULL_SUCCESS
-) -> CallRecord:
+def _record(tool_name: str, level: SuccessLevel = SuccessLevel.FULL_SUCCESS) -> CallRecord:
     return CallRecord(
         tool_name=tool_name,
         args_hash="h",
@@ -60,20 +58,10 @@ class TestHasSuccessfulFileWriteCalls:
         assert has_successful_file_write_calls([_record("file_write_tool")]) is True
 
     def test_non_failure_edit_true(self) -> None:
-        assert (
-            has_successful_file_write_calls(
-                [_record("file_edit_tool", SuccessLevel.PARTIAL_SUCCESS)]
-            )
-            is True
-        )
+        assert has_successful_file_write_calls([_record("file_edit_tool", SuccessLevel.PARTIAL_SUCCESS)]) is True
 
     def test_failed_write_false(self) -> None:
-        assert (
-            has_successful_file_write_calls(
-                [_record("file_write_tool", SuccessLevel.FAILURE)]
-            )
-            is False
-        )
+        assert has_successful_file_write_calls([_record("file_write_tool", SuccessLevel.FAILURE)]) is False
 
     def test_non_write_tool_false(self) -> None:
         assert has_successful_file_write_calls([_record("bash_code_execute_tool")]) is False
@@ -92,12 +80,7 @@ class TestCheckDeliverableWriteClaim:
         assert check_deliverable_write_claim("Just answering.", []) is None
 
     def test_claim_with_successful_write_returns_none(self) -> None:
-        assert (
-            check_deliverable_write_claim(
-                "Saved to `out/report.md`", [_record("file_write_tool")]
-            )
-            is None
-        )
+        assert check_deliverable_write_claim("Saved to `out/report.md`", [_record("file_write_tool")]) is None
 
     def test_claim_without_write_returns_reason(self) -> None:
         reason = check_deliverable_write_claim("Saved to `out/report.md`", [])

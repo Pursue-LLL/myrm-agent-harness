@@ -83,10 +83,12 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
         merged_items = merge_todo_items(current.todos if current else [], incoming, merge=merge)
 
         if len(merged_items) > MAX_TODOS:
-            return json.dumps({
-                "error": f"Maximum {MAX_TODOS} todos exceeded ({len(merged_items)} given). "
-                "Merge or simplify your plan.",
-            })
+            return json.dumps(
+                {
+                    "error": f"Maximum {MAX_TODOS} todos exceeded ({len(merged_items)} given). "
+                    "Merge or simplify your plan.",
+                }
+            )
 
         corrected_count = _enforce_single_in_progress(merged_items)
 

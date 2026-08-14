@@ -86,9 +86,7 @@ class TestSerializeStep:
         assert d["value"] == "***"
 
     def test_non_sensitive_value_unchanged(self) -> None:
-        step = _make_step(
-            action=ActionType.FILL, value="alice@example.com", element_role="textbox"
-        )
+        step = _make_step(action=ActionType.FILL, value="alice@example.com", element_role="textbox")
         d = serialize_step(step)
         assert d["value"] == "alice@example.com"
 
@@ -131,9 +129,7 @@ class TestSerializeSession:
 
 class TestNaturalLanguage:
     def test_click(self) -> None:
-        step = _make_step(
-            action=ActionType.CLICK, element_text="Submit", element_role="button"
-        )
+        step = _make_step(action=ActionType.CLICK, element_text="Submit", element_role="button")
         nl = step_to_natural_language(step)
         assert "Submit" in nl
         assert "button" in nl
@@ -164,9 +160,7 @@ class TestNaturalLanguage:
         assert "hello" in nl
 
     def test_fill(self) -> None:
-        step = _make_step(
-            action=ActionType.FILL, value="hello world", element_role="textbox"
-        )
+        step = _make_step(action=ActionType.FILL, value="hello world", element_role="textbox")
         nl = step_to_natural_language(step)
         assert "hello world" in nl
 

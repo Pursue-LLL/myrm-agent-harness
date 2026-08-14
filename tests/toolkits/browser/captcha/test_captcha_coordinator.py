@@ -112,13 +112,8 @@ class TestCoordinatorHandleCaptcha:
             result = await coord.handle_captcha(info, page)
 
         assert result.success is True
-        dispatch_calls = [
-            (c.args[0], c.args[1]) for c in mock_dispatch.call_args_list
-        ]
-        takeover_completed = [
-            payload for event, payload in dispatch_calls
-            if event == "browser_takeover_completed"
-        ]
+        dispatch_calls = [(c.args[0], c.args[1]) for c in mock_dispatch.call_args_list]
+        takeover_completed = [payload for event, payload in dispatch_calls if event == "browser_takeover_completed"]
         assert len(takeover_completed) == 1
         assert takeover_completed[0]["elapsed_ms"] == 3200.0
         assert takeover_completed[0]["success"] is True
@@ -141,11 +136,7 @@ class TestCoordinatorHandleCaptcha:
         ):
             await coord.handle_captcha(_make_info(), page, is_managed=False)
 
-        requested = [
-            call
-            for call in mock_dispatch.call_args_list
-            if call.args[0] == "browser_takeover_requested"
-        ]
+        requested = [call for call in mock_dispatch.call_args_list if call.args[0] == "browser_takeover_requested"]
         assert len(requested) == 1
         assert requested[0].args[1]["is_managed"] is False
 
@@ -167,13 +158,8 @@ class TestCoordinatorHandleCaptcha:
         ):
             await coord.handle_captcha(_make_info(), page)
 
-        dispatch_calls = [
-            (c.args[0], c.args[1]) for c in mock_dispatch.call_args_list
-        ]
-        takeover_completed = [
-            payload for event, payload in dispatch_calls
-            if event == "browser_takeover_completed"
-        ]
+        dispatch_calls = [(c.args[0], c.args[1]) for c in mock_dispatch.call_args_list]
+        takeover_completed = [payload for event, payload in dispatch_calls if event == "browser_takeover_completed"]
         assert len(takeover_completed) == 1
         assert takeover_completed[0]["success"] is False
 
@@ -241,15 +227,19 @@ class TestCoordinatorBehavioralSkip:
     """Behavioral WAF fast-fail tests."""
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("captcha_type", [
-        CaptchaType.DATADOME,
-        CaptchaType.KASADA,
-        CaptchaType.AKAMAI,
-        CaptchaType.IMPERVA,
-        CaptchaType.PERIMETERX,
-    ])
+    @pytest.mark.parametrize(
+        "captcha_type",
+        [
+            CaptchaType.DATADOME,
+            CaptchaType.KASADA,
+            CaptchaType.AKAMAI,
+            CaptchaType.IMPERVA,
+            CaptchaType.PERIMETERX,
+        ],
+    )
     async def test_behavioral_waf_skips_solver(
-        self, captcha_type: CaptchaType,
+        self,
+        captcha_type: CaptchaType,
     ) -> None:
         solver = _make_solver(success=True)
         coord = CaptchaCoordinator(solver)

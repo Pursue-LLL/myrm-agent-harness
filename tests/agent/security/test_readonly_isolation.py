@@ -17,17 +17,13 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
 )
 
-READONLY_BLOCKED_TOOLS = frozenset(
-    {"write_file", "execute_terminal_command", "bash_run_command", "git_commit"}
-)
+READONLY_BLOCKED_TOOLS = frozenset({"write_file", "execute_terminal_command", "bash_run_command", "git_commit"})
 READONLY_HINT = "[READONLY MODE]"
 
 
 def _apply_readonly(config: SubagentConfig) -> SubagentConfig:
     """Replicate the readonly logic from delegate_task_tool.py."""
-    readonly_blocked = frozenset(
-        {"write_file", "execute_terminal_command", "bash_run_command", "git_commit"}
-    )
+    readonly_blocked = frozenset({"write_file", "execute_terminal_command", "bash_run_command", "git_commit"})
     readonly_hint = (
         "\n\n[READONLY MODE] You are in read-only mode. "
         "You can only read and analyze \u2014 do NOT attempt file writes, "

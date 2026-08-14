@@ -259,10 +259,7 @@ async def test_run_doctor_with_launch() -> None:
     assert "browser_launch" in report.checks
 
     if report.checks["browser_launch"].status == CheckStatus.OK:
-        assert (
-            report.overall_healthy
-            or report.checks["browser_launch"].status == CheckStatus.WARNING
-        )
+        assert report.overall_healthy or report.checks["browser_launch"].status == CheckStatus.WARNING
 
 
 @pytest.mark.asyncio
@@ -553,9 +550,7 @@ async def test_check_extension_relay_uses_custom_base_url() -> None:
         result = await _check_extension_relay(base_url="http://127.0.0.1:18080")
 
     assert result.status == CheckStatus.OK
-    mock_client.get.assert_awaited_once_with(
-        "http://127.0.0.1:18080/api/v1/extension/setup-hints"
-    )
+    mock_client.get.assert_awaited_once_with("http://127.0.0.1:18080/api/v1/extension/setup-hints")
 
 
 @pytest.mark.asyncio

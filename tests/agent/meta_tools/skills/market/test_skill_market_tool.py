@@ -26,7 +26,9 @@ def market_backend() -> MagicMock:
     backend = MagicMock()
     backend.search = AsyncMock(return_value=[])
     backend.install = AsyncMock(
-        return_value=SkillInstallResult(success=True, skill_name="demo_skill", skill_id="demo", installed_path="/tmp/demo")
+        return_value=SkillInstallResult(
+            success=True, skill_name="demo_skill", skill_id="demo", installed_path="/tmp/demo"
+        )
     )
     return backend
 
@@ -42,9 +44,7 @@ def marketplace_tool(market_backend: MagicMock):
             scan_summary="clean",
         )
     )
-    uninstall = AsyncMock(
-        return_value=SkillInstallResult(success=True, skill_name="demo_skill", skill_id="demo")
-    )
+    uninstall = AsyncMock(return_value=SkillInstallResult(success=True, skill_name="demo_skill", skill_id="demo"))
     return create_skill_market_tool(
         market_backend,
         install_from_url_fn=install_from_url,

@@ -22,9 +22,7 @@ def buffer() -> ResilientStreamBuffer:
 
 class TestResilientStreamBuffer:
     @pytest.mark.asyncio
-    async def test_append_and_subscribe_basic(
-        self, buffer: ResilientStreamBuffer
-    ) -> None:
+    async def test_append_and_subscribe_basic(self, buffer: ResilientStreamBuffer) -> None:
         """Events appended before subscribe are all yielded."""
         await buffer.append('data: {"type":"message","data":"Hello"}\n\n')
         await buffer.append('data: {"type":"message","data":" World"}\n\n')
@@ -38,9 +36,7 @@ class TestResilientStreamBuffer:
         assert "World" in events[1]
 
     @pytest.mark.asyncio
-    async def test_subscribe_after_last_event_id(
-        self, buffer: ResilientStreamBuffer
-    ) -> None:
+    async def test_subscribe_after_last_event_id(self, buffer: ResilientStreamBuffer) -> None:
         """Reconnecting with Last-Event-ID only yields events AFTER that ID."""
         payloads = []
         for i in range(5):
@@ -63,9 +59,7 @@ class TestResilientStreamBuffer:
         assert "chunk4" in events[1]
 
     @pytest.mark.asyncio
-    async def test_no_duplicate_on_reconnect(
-        self, buffer: ResilientStreamBuffer
-    ) -> None:
+    async def test_no_duplicate_on_reconnect(self, buffer: ResilientStreamBuffer) -> None:
         """Simulates disconnect/reconnect — no event is duplicated."""
         for i in range(10):
             await buffer.append(f'data: {{"data":"token{i}"}}\n\n')
@@ -94,9 +88,7 @@ class TestResilientStreamBuffer:
             assert f"token{i + 5}" in ev
 
     @pytest.mark.asyncio
-    async def test_repeated_content_preserved(
-        self, buffer: ResilientStreamBuffer
-    ) -> None:
+    async def test_repeated_content_preserved(self, buffer: ResilientStreamBuffer) -> None:
         """Repeated identical payloads are NOT deduplicated."""
         for _ in range(3):
             await buffer.append('data: {"data":"the "}\n\n')
@@ -135,9 +127,7 @@ class TestResilientStreamBuffer:
         assert result == ""
 
     @pytest.mark.asyncio
-    async def test_subscribe_unknown_last_event_id_replays_all(
-        self, buffer: ResilientStreamBuffer
-    ) -> None:
+    async def test_subscribe_unknown_last_event_id_replays_all(self, buffer: ResilientStreamBuffer) -> None:
         """Unknown Last-Event-ID replays from the oldest available."""
         await buffer.append('data: {"data":"first"}\n\n')
         await buffer.append('data: {"data":"second"}\n\n')

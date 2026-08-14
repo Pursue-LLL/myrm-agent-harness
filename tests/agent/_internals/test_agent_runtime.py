@@ -115,9 +115,7 @@ class TestBuildMiddlewares:
         result = build_middlewares(create_registry(), [])
         class_names = _middleware_class_names(result)
         assert class_names[-2] == "SkillAttenuationMiddleware"
-        assert class_names.index("SkillAttenuationMiddleware") > class_names.index(
-            "ToolApprovalMiddleware"
-        )
+        assert class_names.index("SkillAttenuationMiddleware") > class_names.index("ToolApprovalMiddleware")
 
     def test_contains_core_middlewares(self):
         from myrm_agent_harness.agent._internals.agent_runtime import (
@@ -405,8 +403,7 @@ class TestApplyBoundSkillCatalogForStream:
         from pathlib import Path
 
         source = (
-            Path(__file__).resolve().parents[3]
-            / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
+            Path(__file__).resolve().parents[3] / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
         ).read_text(encoding="utf-8")
         inject_idx = source.index("inject_datetime_tags(messages, chat_history, query)")
         hook_idx = source.index(
@@ -465,9 +462,7 @@ class TestApplyBoundSkillCatalogForResume:
         agent._agent = mock_graph
 
         command = Command(resume={"decision": "approve"})
-        refreshed = await apply_bound_skill_catalog_for_resume(
-            agent, command, thread_id="thread-1"
-        )
+        refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id="thread-1")
 
         assert refreshed is not command
         assert refreshed.update is not None
@@ -517,9 +512,7 @@ class TestApplyBoundSkillCatalogForResume:
         agent._agent = mock_graph
 
         command = Command(resume="continue")
-        refreshed = await apply_bound_skill_catalog_for_resume(
-            agent, command, thread_id="thread-2"
-        )
+        refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id="thread-2")
 
         assert refreshed is command
         assert refreshed.update is None
@@ -574,9 +567,7 @@ class TestApplyBoundSkillCatalogForResume:
         agent._agent = mock_graph
 
         command = Command(resume={"decision": "approve"})
-        refreshed = await apply_bound_skill_catalog_for_resume(
-            agent, command, thread_id="thread-multimodal"
-        )
+        refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id="thread-multimodal")
 
         assert refreshed is not command
         updated_messages = refreshed.update.get("messages")
@@ -599,9 +590,7 @@ class TestApplyBoundSkillCatalogForResume:
 
         agent = SkillAgent(llm=AsyncMock(), skill_backend=None)
         command = Command(resume="continue")
-        refreshed = await apply_bound_skill_catalog_for_resume(
-            agent, command, thread_id="t-no-backend"
-        )
+        refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id="t-no-backend")
         assert refreshed is command
 
     @pytest.mark.asyncio
@@ -617,9 +606,7 @@ class TestApplyBoundSkillCatalogForResume:
 
         agent = MagicMock(spec=BaseAgent)
         command = Command(resume="continue")
-        refreshed = await apply_bound_skill_catalog_for_resume(
-            agent, command, thread_id="t-non-skill"
-        )
+        refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id="t-non-skill")
         assert refreshed is command
 
     @pytest.mark.asyncio
@@ -636,9 +623,7 @@ class TestApplyBoundSkillCatalogForResume:
         agent = SkillAgent(llm=AsyncMock(), skill_backend=AsyncMock())
         agent._agent = None
         command = Command(resume="continue")
-        refreshed = await apply_bound_skill_catalog_for_resume(
-            agent, command, thread_id="t-no-graph"
-        )
+        refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id="t-no-graph")
         assert refreshed is command
 
     @pytest.mark.asyncio
@@ -658,9 +643,7 @@ class TestApplyBoundSkillCatalogForResume:
         agent._agent = mock_graph
 
         command = Command(resume="continue")
-        refreshed = await apply_bound_skill_catalog_for_resume(
-            agent, command, thread_id="t-fail-state"
-        )
+        refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id="t-fail-state")
         assert refreshed is command
 
     @pytest.mark.asyncio
@@ -682,9 +665,7 @@ class TestApplyBoundSkillCatalogForResume:
         agent._agent = mock_graph
 
         command = Command(resume="continue")
-        refreshed = await apply_bound_skill_catalog_for_resume(
-            agent, command, thread_id="t-empty-msgs"
-        )
+        refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id="t-empty-msgs")
         assert refreshed is command
 
     @pytest.mark.asyncio
@@ -706,9 +687,7 @@ class TestApplyBoundSkillCatalogForResume:
         agent._agent = mock_graph
 
         command = Command(resume="continue")
-        refreshed = await apply_bound_skill_catalog_for_resume(
-            agent, command, thread_id="t-empty-values"
-        )
+        refreshed = await apply_bound_skill_catalog_for_resume(agent, command, thread_id="t-empty-values")
         assert refreshed is command
 
     @pytest.mark.asyncio
@@ -725,8 +704,7 @@ class TestApplyBoundSkillCatalogForResume:
         from pathlib import Path
 
         source = (
-            Path(__file__).resolve().parents[3]
-            / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
+            Path(__file__).resolve().parents[3] / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
         ).read_text(encoding="utf-8")
         assert "await apply_bound_skill_catalog_for_resume(" in source
 
@@ -796,9 +774,8 @@ class TestRunAgentLoopModelSlugSource:
         from pathlib import Path
 
         source = (
-            Path(__file__).resolve().parents[3]
-            / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
+            Path(__file__).resolve().parents[3] / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
         ).read_text(encoding="utf-8")
-        assert "parse_litellm_model(llm_model or \"\")" in source
+        assert 'parse_litellm_model(llm_model or "")' in source
         assert 'getattr(agent_state.llm, "model_name", None)' in source
         assert "agent_state.config.llm" not in source

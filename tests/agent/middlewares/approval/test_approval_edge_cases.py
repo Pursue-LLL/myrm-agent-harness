@@ -115,9 +115,7 @@ async def test_add_to_allowlist_tool_level():
         tool_args_hash="abc123",
     )
 
-    assert allowlist.check(
-        "user123", "code_interpreter", "bash_code_execute_tool", "xyz"
-    )
+    assert allowlist.check("user123", "code_interpreter", "bash_code_execute_tool", "xyz")
     assert not allowlist.check("user123", "code_interpreter", "other_tool", "xyz")
 
 
@@ -136,12 +134,8 @@ async def test_add_to_allowlist_exact_match():
         tool_args_hash="abc123",
     )
 
-    assert allowlist.check(
-        "user123", "code_interpreter", "bash_code_execute_tool", "abc123"
-    )
-    assert not allowlist.check(
-        "user123", "code_interpreter", "bash_code_execute_tool", "xyz"
-    )
+    assert allowlist.check("user123", "code_interpreter", "bash_code_execute_tool", "abc123")
+    assert not allowlist.check("user123", "code_interpreter", "bash_code_execute_tool", "xyz")
 
 
 @pytest.mark.asyncio
@@ -208,9 +202,7 @@ async def test_pattern_allowlist_auto_approves_bash_in_evaluate_tool_batch():
     )
     from myrm_agent_harness.agent.security.approval_flow import get_allowlist
 
-    config = SecurityConfig(
-        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
-    )
+    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
     set_approval_user_id("user123")
 
     allowlist = get_allowlist()
@@ -252,9 +244,7 @@ async def test_add_to_allowlist_no_user_id():
 
     allowlist = get_allowlist()
 
-    await add_to_allowlist_if_needed(
-        allow_always=True, user_id="", permission_type="network", tool_name="web_search"
-    )
+    await add_to_allowlist_if_needed(allow_always=True, user_id="", permission_type="network", tool_name="web_search")
 
     assert not allowlist.check("", "network", "web_search", None)
 
@@ -410,9 +400,7 @@ async def test_cron_capability_preapproval(monkeypatch):
 @pytest.mark.asyncio
 async def test_rate_limit_exceeded(monkeypatch):
     """Test that rate limiting denies tools when limit exceeded."""
-    config = SecurityConfig(
-        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
-    )
+    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
     set_security_config(config)
     set_workspace_root("/tmp")
     set_approval_session("test-session")
@@ -455,9 +443,7 @@ async def test_rate_limit_exceeded(monkeypatch):
 @pytest.mark.asyncio
 async def test_invalid_batch_response_type(monkeypatch):
     """Test error handling when interrupt returns invalid response type."""
-    config = SecurityConfig(
-        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
-    )
+    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
     set_security_config(config)
     set_workspace_root("/tmp")
     set_approval_session("test-session")
@@ -501,9 +487,7 @@ async def test_invalid_batch_response_type(monkeypatch):
 @pytest.mark.asyncio
 async def test_decision_count_mismatch(monkeypatch):
     """Test error handling when decision count doesn't match pending count."""
-    config = SecurityConfig(
-        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
-    )
+    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
     set_security_config(config)
     set_workspace_root("/tmp")
     set_approval_session("test-session")
@@ -587,9 +571,7 @@ async def test_deny_action_auto_rejected():
     assert result is not None
     messages = result["messages"]
     modified_ai_msg = messages[0]
-    assert (
-        len(modified_ai_msg.tool_calls) == 0
-    ), "Tool should be removed from tool_calls"
+    assert len(modified_ai_msg.tool_calls) == 0, "Tool should be removed from tool_calls"
 
     tool_messages = [msg for msg in messages[1:] if hasattr(msg, "tool_call_id")]
     assert len(tool_messages) == 1
@@ -599,9 +581,7 @@ async def test_deny_action_auto_rejected():
 @pytest.mark.asyncio
 async def test_allowlist_bypass_with_user_id(monkeypatch):
     """Test that tools are auto-approved when allowlist match found."""
-    config = SecurityConfig(
-        ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),)
-    )
+    config = SecurityConfig(ruleset=(PermissionRule("code_interpreter", "*", PermissionAction.ASK),))
     set_security_config(config)
     set_workspace_root("/tmp")
     set_approval_session("test-session")
@@ -742,9 +722,7 @@ async def test_all_auto_denied_branch(monkeypatch):
     assert len(modified_ai_msg.tool_calls) == 0, "All tools should be removed"
 
     tool_messages = [msg for msg in messages[1:] if hasattr(msg, "tool_call_id")]
-    assert (
-        len(tool_messages) == 2
-    ), "Should have 2 artificial ToolMessages for denied tools"
+    assert len(tool_messages) == 2, "Should have 2 artificial ToolMessages for denied tools"
 
 
 @pytest.mark.asyncio
@@ -754,9 +732,7 @@ async def test_allowlist_query_bypasses_ask_for_file_write():
     Uses file_write_tool (permission type: file_write, not affected by risk classifier)
     to test the actual allowlist query path in evaluate_tool_batch.
     """
-    config = SecurityConfig(
-        ruleset=(PermissionRule("file_write", "*", PermissionAction.ASK),)
-    )
+    config = SecurityConfig(ruleset=(PermissionRule("file_write", "*", PermissionAction.ASK),))
     set_security_config(config)
     set_workspace_root("/tmp")
     set_approval_session("test-session")
@@ -790,9 +766,7 @@ async def test_allowlist_query_bypasses_ask_for_file_write():
 
     result = await middleware.aafter_model(state, MockRuntime())
 
-    assert (
-        result is None
-    ), "file_write_tool in allowlist should auto-approve, no interrupt"
+    assert result is None, "file_write_tool in allowlist should auto-approve, no interrupt"
 
 
 # --- Middleware intent context, tool call extraction, and taint labels ---
@@ -853,9 +827,7 @@ async def test_middleware_yolo_from_runtime_context_when_contextvar_missing():
     }
 
     middleware = ToolApprovalMiddleware()
-    with patch(
-        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt"
-    ) as mock_interrupt:
+    with patch("myrm_agent_harness.agent.middlewares.approval.middleware.interrupt") as mock_interrupt:
         result = await middleware.aafter_model(state, runtime)
 
     mock_interrupt.assert_not_called()
@@ -1106,9 +1078,7 @@ async def test_middleware_fallback_auto_deny():
     ]
     auto_denied = [(1, ai_msg.tool_calls[1], " denied by policy")]
 
-    result = middleware._fallback_auto_deny(
-        ai_msg, pending_approval, auto_denied, "test-session"
-    )
+    result = middleware._fallback_auto_deny(ai_msg, pending_approval, auto_denied, "test-session")
 
     assert result is not None
     msgs = result["messages"]

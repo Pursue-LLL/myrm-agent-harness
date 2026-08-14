@@ -48,7 +48,8 @@ class TestTruncateDelegateCalls:
         msg = AIMessage(
             content="",
             tool_calls=[
-                _make_tool_call("delegate_task_tool", f"d{i}", {"task": f"t{i}"}) for i in range(MAX_CONCURRENT_SUBAGENTS)
+                _make_tool_call("delegate_task_tool", f"d{i}", {"task": f"t{i}"})
+                for i in range(MAX_CONCURRENT_SUBAGENTS)
             ],
         )
         result = _truncate_delegate_calls(msg, MAX_CONCURRENT_SUBAGENTS)

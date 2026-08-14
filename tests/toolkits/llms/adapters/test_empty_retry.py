@@ -228,7 +228,10 @@ def test_stream_end_to_end_tool_call_recovery(chat_model, messages):
                                     {
                                         "index": 0,
                                         "id": "call_1",
-                                        "function": {"name": "bash_code_execute_tool", "arguments": '{"command":"echo '},
+                                        "function": {
+                                            "name": "bash_code_execute_tool",
+                                            "arguments": '{"command":"echo ',
+                                        },
                                     }
                                 ],
                             },

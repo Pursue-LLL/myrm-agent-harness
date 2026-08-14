@@ -20,9 +20,14 @@ async def test_local_executor_module_not_found_uses_error_hint():
     executor = LocalExecutor(ExecutionConfig())
     context = ExecutionContext(session_id="test_session", code="import requests")
 
-    with patch("myrm_agent_harness.toolkits.code_execution.executors.local.executor.asyncio.create_subprocess_exec") as mock_exec:
+    with patch(
+        "myrm_agent_harness.toolkits.code_execution.executors.local.executor.asyncio.create_subprocess_exec"
+    ) as mock_exec:
         mock_process = AsyncMock()
-        mock_process.communicate.return_value = (b"", b"Traceback (most recent call last):\nModuleNotFoundError: No module named 'requests'")
+        mock_process.communicate.return_value = (
+            b"",
+            b"Traceback (most recent call last):\nModuleNotFoundError: No module named 'requests'",
+        )
         mock_process.returncode = 1
         mock_exec.return_value = mock_process
 
@@ -41,7 +46,9 @@ async def test_local_executor_pypi_mapping_in_hint():
     executor = LocalExecutor(ExecutionConfig())
     context = ExecutionContext(session_id="test_session", code="from PIL import Image")
 
-    with patch("myrm_agent_harness.toolkits.code_execution.executors.local.executor.asyncio.create_subprocess_exec") as mock_exec:
+    with patch(
+        "myrm_agent_harness.toolkits.code_execution.executors.local.executor.asyncio.create_subprocess_exec"
+    ) as mock_exec:
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"ModuleNotFoundError: No module named 'PIL'")
         mock_process.returncode = 1
@@ -60,7 +67,9 @@ async def test_local_executor_no_hint_for_syntax_errors():
     executor = LocalExecutor(ExecutionConfig())
     context = ExecutionContext(session_id="test_session", code="print('hello'")
 
-    with patch("myrm_agent_harness.toolkits.code_execution.executors.local.executor.asyncio.create_subprocess_exec") as mock_exec:
+    with patch(
+        "myrm_agent_harness.toolkits.code_execution.executors.local.executor.asyncio.create_subprocess_exec"
+    ) as mock_exec:
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"", b"SyntaxError: invalid syntax")
         mock_process.returncode = 1
@@ -78,7 +87,9 @@ async def test_local_executor_success():
     executor = LocalExecutor(ExecutionConfig())
     context = ExecutionContext(session_id="test_session", code="print('hello')")
 
-    with patch("myrm_agent_harness.toolkits.code_execution.executors.local.executor.asyncio.create_subprocess_exec") as mock_exec:
+    with patch(
+        "myrm_agent_harness.toolkits.code_execution.executors.local.executor.asyncio.create_subprocess_exec"
+    ) as mock_exec:
         mock_process = AsyncMock()
         mock_process.communicate.return_value = (b"hello\n", b"")
         mock_process.returncode = 0

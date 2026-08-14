@@ -18,11 +18,12 @@ def _make_mock_litellm() -> types.ModuleType:
         "model-no-cache-cost": {
             "input_cost_per_token": 0.000003,
             "output_cost_per_token": 0.000015,
-        }
+        },
     }
 
     def mock_get_model_info(model_name: str) -> dict | None:
         return mock_litellm.model_cost.get(model_name)
+
     mock_litellm.get_model_info = mock_get_model_info
 
     return mock_litellm
@@ -75,12 +76,7 @@ def test_cache_savings_negative_roi():
     """Test that cache savings can be negative if write premium exceeds read savings."""
     _install_mock_litellm()
 
-    usage = {
-        "prompt_tokens_details": {
-            "cached_tokens": 0,
-            "cache_creation_input_tokens": 1000
-        }
-    }
+    usage = {"prompt_tokens_details": {"cached_tokens": 0, "cache_creation_input_tokens": 1000}}
 
     # Write penalty = 1000 * 0.00000075 = 0.00075
     # Gross savings = 0

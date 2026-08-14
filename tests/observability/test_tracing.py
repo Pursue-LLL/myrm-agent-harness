@@ -54,8 +54,13 @@ class TestTracingLogFilter:
         session_token = TracingContext.set_session_id("s-001")
         try:
             record = logging.LogRecord(
-                name="test", level=logging.INFO, pathname="",
-                lineno=0, msg="hello", args=(), exc_info=None,
+                name="test",
+                level=logging.INFO,
+                pathname="",
+                lineno=0,
+                msg="hello",
+                args=(),
+                exc_info=None,
             )
             flt = TracingLogFilter()
             assert flt.filter(record) is True
@@ -67,8 +72,13 @@ class TestTracingLogFilter:
 
     def test_defaults_when_no_context(self) -> None:
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=0, msg="hello", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="hello",
+            args=(),
+            exc_info=None,
         )
         flt = TracingLogFilter()
         flt.filter(record)
@@ -79,8 +89,13 @@ class TestTracingLogFilter:
         token = TracingContext.set_trace_id("idem-001")
         try:
             record = logging.LogRecord(
-                name="test", level=logging.INFO, pathname="",
-                lineno=0, msg="msg", args=(), exc_info=None,
+                name="test",
+                level=logging.INFO,
+                pathname="",
+                lineno=0,
+                msg="msg",
+                args=(),
+                exc_info=None,
             )
             flt = TracingLogFilter()
             flt.filter(record)
@@ -93,8 +108,13 @@ class TestTracingLogFilter:
 class TestJsonFormatter:
     def test_output_is_valid_json(self) -> None:
         record = logging.LogRecord(
-            name="test.logger", level=logging.WARNING, pathname="",
-            lineno=0, msg="danger %s", args=("zone",), exc_info=None,
+            name="test.logger",
+            level=logging.WARNING,
+            pathname="",
+            lineno=0,
+            msg="danger %s",
+            args=("zone",),
+            exc_info=None,
         )
         record.trace_id = "deadbeef"  # type: ignore[attr-defined]
         record.session_id = "s-42"  # type: ignore[attr-defined]
@@ -119,8 +139,13 @@ class TestJsonFormatter:
             exc_info = sys.exc_info()
 
         record = logging.LogRecord(
-            name="test", level=logging.ERROR, pathname="",
-            lineno=0, msg="failed", args=(), exc_info=exc_info,
+            name="test",
+            level=logging.ERROR,
+            pathname="",
+            lineno=0,
+            msg="failed",
+            args=(),
+            exc_info=exc_info,
         )
         record.trace_id = "-"  # type: ignore[attr-defined]
         record.session_id = "-"  # type: ignore[attr-defined]
@@ -132,8 +157,13 @@ class TestJsonFormatter:
 
     def test_fallback_when_no_trace_attrs(self) -> None:
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=0, msg="no ctx", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="no ctx",
+            args=(),
+            exc_info=None,
         )
         formatter = JsonFormatter()
         data = json.loads(formatter.format(record))
@@ -142,8 +172,13 @@ class TestJsonFormatter:
 
     def test_exc_info_boolean_true_handled(self) -> None:
         record = logging.LogRecord(
-            name="test", level=logging.ERROR, pathname="",
-            lineno=0, msg="fail", args=(), exc_info=True,
+            name="test",
+            level=logging.ERROR,
+            pathname="",
+            lineno=0,
+            msg="fail",
+            args=(),
+            exc_info=True,
         )
         record.trace_id = "-"  # type: ignore[attr-defined]
         record.session_id = "-"  # type: ignore[attr-defined]
@@ -153,8 +188,12 @@ class TestJsonFormatter:
 
     def test_redaction_applied(self) -> None:
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="",
-            lineno=0, msg="key=sk-proj-abc123def456ghi789jkl012", args=(),
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="key=sk-proj-abc123def456ghi789jkl012",
+            args=(),
             exc_info=None,
         )
         record.trace_id = "-"  # type: ignore[attr-defined]

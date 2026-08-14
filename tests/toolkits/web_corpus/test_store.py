@@ -133,6 +133,7 @@ def test_hit_miss_counting(store: WebCorpusStore) -> None:
 def test_list_stale(store: WebCorpusStore) -> None:
     store.upsert(url="https://old.com", title="Old", snippet="old")
     from datetime import datetime
+
     future = datetime(2099, 1, 1, tzinfo=UTC).isoformat()
     stale = store.list_stale(future)
     assert len(stale) == 1

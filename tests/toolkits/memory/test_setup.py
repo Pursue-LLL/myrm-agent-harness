@@ -14,9 +14,7 @@ async def test_create_local_memory_manager(tmp_path: Path):
 
     embedding_config = EmbeddingConfig(model="openai/text-embedding-3-small", api_key="sk-test")
 
-    manager = await create_local_memory_manager(
-        base_path=base_path, embedding_config=embedding_config
-    )
+    manager = await create_local_memory_manager(base_path=base_path, embedding_config=embedding_config)
 
     assert isinstance(manager, MemoryManager)
 
@@ -45,9 +43,7 @@ async def test_create_local_memory_manager_passes_memory_policy(tmp_path: Path):
             "myrm_agent_harness.toolkits.memory.setup.create_vector_store", AsyncMock(return_value=mock_vector_store)
         ),
     ):
-        manager = await create_local_memory_manager(
-            base_path=base_path, embedding_config=embedding_config
-        )
+        manager = await create_local_memory_manager(base_path=base_path, embedding_config=embedding_config)
 
     assert isinstance(manager, MemoryManager)
     assert manager.user_id == "sandbox_user"
@@ -71,9 +67,7 @@ async def test_create_local_memory_manager_probes_dimension_when_missing(tmp_pat
             "myrm_agent_harness.toolkits.memory.setup.create_vector_store", AsyncMock(return_value=mock_vector_store)
         ) as mock_create_vector_store,
     ):
-        manager = await create_local_memory_manager(
-            base_path=base_path, embedding_config=embedding_config
-        )
+        manager = await create_local_memory_manager(base_path=base_path, embedding_config=embedding_config)
 
     mock_embedding_service.embed.assert_awaited_once_with("dimension probe")
     assert mock_create_vector_store.await_args.args[0].embedding_dimension == 384
@@ -97,9 +91,7 @@ async def test_create_local_memory_manager_falls_back_to_default_dimension_on_pr
             "myrm_agent_harness.toolkits.memory.setup.create_vector_store", AsyncMock(return_value=mock_vector_store)
         ) as mock_create_vector_store,
     ):
-        manager = await create_local_memory_manager(
-            base_path=base_path, embedding_config=embedding_config
-        )
+        manager = await create_local_memory_manager(base_path=base_path, embedding_config=embedding_config)
 
     assert mock_create_vector_store.await_args.args[0].embedding_dimension == 1536
     await manager.close()
@@ -152,9 +144,7 @@ async def test_create_local_memory_manager_async_conversation_collection(tmp_pat
             "myrm_agent_harness.toolkits.memory.setup.create_vector_store", AsyncMock(return_value=mock_vector_store)
         ),
     ):
-        manager = await create_local_memory_manager(
-            base_path=base_path, embedding_config=embedding_config
-        )
+        manager = await create_local_memory_manager(base_path=base_path, embedding_config=embedding_config)
 
     assert isinstance(manager, MemoryManager)
     mock_vector_store._client.create_collection.assert_awaited_once()
@@ -177,9 +167,7 @@ async def test_create_local_memory_manager_continues_when_collection_ensure_fail
             "myrm_agent_harness.toolkits.memory.setup.create_vector_store", AsyncMock(return_value=mock_vector_store)
         ),
     ):
-        manager = await create_local_memory_manager(
-            base_path=base_path, embedding_config=embedding_config
-        )
+        manager = await create_local_memory_manager(base_path=base_path, embedding_config=embedding_config)
 
     assert isinstance(manager, MemoryManager)
     await manager.close()

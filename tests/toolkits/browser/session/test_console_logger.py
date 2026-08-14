@@ -31,9 +31,7 @@ class TestConsoleEntry:
     """ConsoleEntry dataclass behavior."""
 
     def test_basic_fields(self) -> None:
-        entry = ConsoleEntry(
-            level="log", text="Hello", url="http://x.com:10", timestamp=1.0
-        )
+        entry = ConsoleEntry(level="log", text="Hello", url="http://x.com:10", timestamp=1.0)
         assert entry.level == "log"
         assert entry.text == "Hello"
         assert entry.url == "http://x.com:10"
@@ -123,9 +121,7 @@ class TestConsoleLoggerCbConsole:
         msg.type = "log"
 
         broken_msg = MagicMock()
-        type(broken_msg).text = property(
-            lambda self: (_ for _ in ()).throw(RuntimeError("boom"))
-        )
+        type(broken_msg).text = property(lambda self: (_ for _ in ()).throw(RuntimeError("boom")))
 
         logger._cb_console(broken_msg)
         assert len(logger._entries) == 0
@@ -325,17 +321,9 @@ class TestConsoleLoggerGetSummary:
 
     def test_multiple_levels(self) -> None:
         logger = ConsoleLogger()
-        logger._entries.append(
-            ConsoleEntry(level="log", text="info msg", url="", timestamp=time.time())
-        )
-        logger._entries.append(
-            ConsoleEntry(
-                level="warning", text="warn msg", url="", timestamp=time.time()
-            )
-        )
-        logger._entries.append(
-            ConsoleEntry(level="error", text="err msg", url="", timestamp=time.time())
-        )
+        logger._entries.append(ConsoleEntry(level="log", text="info msg", url="", timestamp=time.time()))
+        logger._entries.append(ConsoleEntry(level="warning", text="warn msg", url="", timestamp=time.time()))
+        logger._entries.append(ConsoleEntry(level="error", text="err msg", url="", timestamp=time.time()))
 
         result = logger.get_summary()
 
@@ -346,15 +334,9 @@ class TestConsoleLoggerGetSummary:
 
     def test_errors_only_filters(self) -> None:
         logger = ConsoleLogger()
-        logger._entries.append(
-            ConsoleEntry(level="log", text="info", url="", timestamp=time.time())
-        )
-        logger._entries.append(
-            ConsoleEntry(level="error", text="err", url="", timestamp=time.time())
-        )
-        logger._entries.append(
-            ConsoleEntry(level="warning", text="warn", url="", timestamp=time.time())
-        )
+        logger._entries.append(ConsoleEntry(level="log", text="info", url="", timestamp=time.time()))
+        logger._entries.append(ConsoleEntry(level="error", text="err", url="", timestamp=time.time()))
+        logger._entries.append(ConsoleEntry(level="warning", text="warn", url="", timestamp=time.time()))
 
         result = logger.get_summary(errors_only=True)
 
@@ -366,11 +348,7 @@ class TestConsoleLoggerGetSummary:
     def test_max_30_shown(self) -> None:
         logger = ConsoleLogger(max_entries=200)
         for i in range(50):
-            logger._entries.append(
-                ConsoleEntry(
-                    level="error", text=f"err-{i}", url="", timestamp=time.time()
-                )
-            )
+            logger._entries.append(ConsoleEntry(level="error", text=f"err-{i}", url="", timestamp=time.time()))
 
         result = logger.get_summary()
 
@@ -381,9 +359,7 @@ class TestConsoleLoggerGetSummary:
 
     def test_url_omitted_when_empty(self) -> None:
         logger = ConsoleLogger()
-        logger._entries.append(
-            ConsoleEntry(level="log", text="no url", url="", timestamp=time.time())
-        )
+        logger._entries.append(ConsoleEntry(level="log", text="no url", url="", timestamp=time.time()))
 
         result = logger.get_summary()
 
@@ -392,9 +368,7 @@ class TestConsoleLoggerGetSummary:
 
     def test_header_format(self) -> None:
         logger = ConsoleLogger()
-        logger._entries.append(
-            ConsoleEntry(level="log", text="x", url="", timestamp=time.time())
-        )
+        logger._entries.append(ConsoleEntry(level="log", text="x", url="", timestamp=time.time()))
 
         result = logger.get_summary()
 
@@ -414,9 +388,7 @@ class TestConsoleLoggerRedaction:
 
     def test_get_summary_redacts_env_credential(self) -> None:
         logger = ConsoleLogger()
-        logger._entries.append(
-            self._entry('Login failed for OPENAI_API_KEY="sk-proj-abcdefghijklmnop"')
-        )
+        logger._entries.append(self._entry('Login failed for OPENAI_API_KEY="sk-proj-abcdefghijklmnop"'))
 
         result = logger.get_summary()
 
@@ -426,9 +398,7 @@ class TestConsoleLoggerRedaction:
 
     def test_get_summary_redacts_password_in_json(self) -> None:
         logger = ConsoleLogger()
-        logger._entries.append(
-            self._entry('{"op":"login","password":"mysecretvalue12345678"}')
-        )
+        logger._entries.append(self._entry('{"op":"login","password":"mysecretvalue12345678"}'))
 
         result = logger.get_summary()
 
@@ -465,9 +435,7 @@ class TestConsoleLoggerRedaction:
 
         result = logger.get_summary()
 
-        entry_line = next(
-            line for line in result.splitlines() if line.startswith("[LOG]")
-        )
+        entry_line = next(line for line in result.splitlines() if line.startswith("[LOG]"))
         assert len(entry_line) <= len("[LOG] ") + _MAX_TEXT_LENGTH
 
 

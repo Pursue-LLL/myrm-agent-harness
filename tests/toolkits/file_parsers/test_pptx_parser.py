@@ -287,9 +287,7 @@ class TestPptxParserStructure:
             parser = PptxParser(output_format="structure")
             result = await parser.parse(tmp)
             data = json.loads(result)
-            title_shape = next(
-                s for s in data["slides"][0]["shapes"] if s["type"] == "title"
-            )
+            title_shape = next(s for s in data["slides"][0]["shapes"] if s["type"] == "title")
             assert len(title_shape["text_preview"]) == 200
         finally:
             os.unlink(tmp)

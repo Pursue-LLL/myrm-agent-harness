@@ -118,9 +118,7 @@ def test_curator_active_to_stale(curator: SkillCurator):
 
 
 def test_curator_stale_to_archived(curator: SkillCurator):
-    skill = create_mock_skill(
-        "test", status=SkillLifecycleStatus.STALE, days_idle=100, days_old=110
-    )
+    skill = create_mock_skill("test", status=SkillLifecycleStatus.STALE, days_idle=100, days_old=110)
     result = curator.run([skill])
 
     assert result.total_transitions == 1

@@ -54,9 +54,7 @@ class TestWorkerLifecycleGuidance:
         assert "runtime limit" not in result
 
     def test_both_params_combined(self) -> None:
-        result = get_worker_lifecycle_guidance(
-            zombie_timeout_seconds=300, max_runtime_seconds=1800
-        )
+        result = get_worker_lifecycle_guidance(zombie_timeout_seconds=300, max_runtime_seconds=1800)
         assert "every ~150s" in result
         assert "runtime limit of 1800s" in result
 

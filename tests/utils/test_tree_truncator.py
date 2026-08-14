@@ -36,6 +36,7 @@ def test_html_truncation():
     assert "AAAA" in result_str
     assert "[TRUNCATED]" in result_str
 
+
 def test_aria_truncation():
     # Construct a tree
     # root
@@ -44,13 +45,15 @@ def test_aria_truncation():
     #  |- nav (role=navigation)
     #      |- link (role=link)
 
-    main_node = EnhancedNode(node=AriaNode(role="main", name="Main Content"), children=(
-        EnhancedNode(node=AriaNode(role="button", name="Click Me " * 10)),
-    ))
+    main_node = EnhancedNode(
+        node=AriaNode(role="main", name="Main Content"),
+        children=(EnhancedNode(node=AriaNode(role="button", name="Click Me " * 10)),),
+    )
 
-    nav_node = EnhancedNode(node=AriaNode(role="navigation", name="Nav Menu"), children=(
-        EnhancedNode(node=AriaNode(role="link", name="Link " * 100)),
-    ))
+    nav_node = EnhancedNode(
+        node=AriaNode(role="navigation", name="Nav Menu"),
+        children=(EnhancedNode(node=AriaNode(role="link", name="Link " * 100)),),
+    )
 
     root = EnhancedNode(node=AriaNode(role="document", name="Doc"), children=(main_node, nav_node))
 
@@ -61,7 +64,7 @@ def test_aria_truncation():
 
     # 2. Truncation
     # Link is huge, Nav weight is 0.2. Main weight is 2.0.
-    nodes, was_truncated = truncate_aria_tree([root], max_tokens=20) # 80 chars
+    nodes, was_truncated = truncate_aria_tree([root], max_tokens=20)  # 80 chars
     assert was_truncated
     assert len(nodes) == 1
 
@@ -72,6 +75,7 @@ def test_aria_truncation():
         return any(has_truncated(c) for c in n.children)
 
     assert has_truncated(nodes[0])
+
 
 def test_weights():
     # HTML

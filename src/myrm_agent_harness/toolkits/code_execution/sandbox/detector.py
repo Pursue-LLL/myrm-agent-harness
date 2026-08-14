@@ -98,8 +98,7 @@ def detect_sandbox_provider(
 
         if mode == SandboxMode.ENABLE:
             raise RuntimeError(
-                "OS-level sandbox required but AppContainer not available. "
-                "Requires Windows 10+ with icacls.exe."
+                "OS-level sandbox required but AppContainer not available. Requires Windows 10+ with icacls.exe."
             )
         logger.warning(" Windows: AppContainer unavailable — running without sandbox")
         return NullProvider(), SandboxStatus(

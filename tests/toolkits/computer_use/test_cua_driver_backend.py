@@ -22,6 +22,7 @@ from myrm_agent_harness.toolkits.computer_use.types import (
 
 # ── Fixtures ──────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def mock_fallback():
     """Create a mock fallback backend with all ComputerBackend methods."""
@@ -59,6 +60,7 @@ def _stub_resolve(backend: CuaDriverBackend, pid: int = 12345) -> None:
 
 
 # ── Delegation tests: non-input ops always go to fallback ─────────
+
 
 @pytest.mark.asyncio
 async def test_screenshot_delegates_to_fallback(backend: CuaDriverBackend, mock_fallback: MagicMock):
@@ -101,6 +103,7 @@ async def test_check_permissions_delegates(backend: CuaDriverBackend, mock_fallb
 
 
 # ── Fallback on MCP failure ───────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_click_falls_back_on_mcp_failure(backend: CuaDriverBackend, mock_fallback: MagicMock):
@@ -170,6 +173,7 @@ async def test_mouse_move_falls_back_on_mcp_failure(backend: CuaDriverBackend, m
 
 
 # ── Success path via cua-driver ───────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_click_via_cua_driver_success(backend: CuaDriverBackend):
@@ -278,19 +282,18 @@ async def test_drag_via_cua_driver(backend: CuaDriverBackend):
 
 # ── resolve_target (PID resolution) ──────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_resolve_target_from_list_windows(backend: CuaDriverBackend):
     """_resolve_target should pick the frontmost on-screen window's PID."""
-    structured = {
-        "windows": [
-            {"app_name": "Safari", "pid": 123, "window_id": 456, "z_index": 0, "is_on_screen": True}
-        ]
-    }
+    structured = {"windows": [{"app_name": "Safari", "pid": 123, "window_id": 456, "z_index": 0, "is_on_screen": True}]}
     backend._mcp._started = True
-    backend._mcp.call_tool = AsyncMock(side_effect=[
-        {"data": None, "images": [], "structuredContent": structured, "isError": False},
-        _make_mcp_result("ok"),
-    ])
+    backend._mcp.call_tool = AsyncMock(
+        side_effect=[
+            {"data": None, "images": [], "structuredContent": structured, "isError": False},
+            _make_mcp_result("ok"),
+        ]
+    )
 
     result = await backend.click(100, 200)
     assert result.success is True
@@ -303,16 +306,16 @@ async def test_resolve_target_no_caching(backend: CuaDriverBackend):
     windows_safari = {
         "windows": [{"app_name": "Safari", "pid": 100, "window_id": 1, "z_index": 0, "is_on_screen": True}]
     }
-    windows_notes = {
-        "windows": [{"app_name": "Notes", "pid": 200, "window_id": 2, "z_index": 0, "is_on_screen": True}]
-    }
+    windows_notes = {"windows": [{"app_name": "Notes", "pid": 200, "window_id": 2, "z_index": 0, "is_on_screen": True}]}
     backend._mcp._started = True
-    backend._mcp.call_tool = AsyncMock(side_effect=[
-        {"data": None, "images": [], "structuredContent": windows_safari, "isError": False},
-        _make_mcp_result("ok"),
-        {"data": None, "images": [], "structuredContent": windows_notes, "isError": False},
-        _make_mcp_result("ok"),
-    ])
+    backend._mcp.call_tool = AsyncMock(
+        side_effect=[
+            {"data": None, "images": [], "structuredContent": windows_safari, "isError": False},
+            _make_mcp_result("ok"),
+            {"data": None, "images": [], "structuredContent": windows_notes, "isError": False},
+            _make_mcp_result("ok"),
+        ]
+    )
 
     await backend.click(10, 20)
     first_click_args = backend._mcp.call_tool.call_args_list[1]
@@ -324,6 +327,7 @@ async def test_resolve_target_no_caching(backend: CuaDriverBackend):
 
 
 # ── _extract_result ───────────────────────────────────────────────
+
 
 def test_extract_result_text():
     result = SimpleNamespace(
@@ -382,6 +386,7 @@ def test_extract_result_no_error_fields_defaults_false():
 
 # ── is_cua_driver_available ───────────────────────────────────────
 
+
 def test_is_cua_driver_available_false():
     with patch("shutil.which", return_value=None):
         assert is_cua_driver_available() is False
@@ -393,6 +398,7 @@ def test_is_cua_driver_available_true():
 
 
 # ── Session factory fallback ──────────────────────────────────────
+
 
 def test_session_factory_no_cua_driver():
     """When cua-driver is absent, factory should return native backend unchanged."""
@@ -422,6 +428,7 @@ def test_session_factory_with_cua_driver():
 
 # ── Error result from cua-driver triggers fallback ────────────────
 
+
 @pytest.mark.asyncio
 async def test_click_falls_back_on_cua_error_result(backend: CuaDriverBackend, mock_fallback: MagicMock):
     """When cua-driver returns isError=True, click should fall back."""
@@ -435,6 +442,7 @@ async def test_click_falls_back_on_cua_error_result(backend: CuaDriverBackend, m
 
 
 # ── ComputerSession.close() lifecycle ─────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_computer_session_close_calls_backend_close():
@@ -465,6 +473,7 @@ async def test_computer_session_close_noop_for_native_backend():
 
 
 # ── create_computer_session Linux path guard tests ────────────────
+
 
 def _mock_linux_platform():
     """Create a mock PlatformInfo that reports Linux."""
@@ -512,6 +521,7 @@ def test_create_computer_session_linux_without_cua_driver():
 
 # ── _try_wrap_with_cua_driver ImportError branch ──────────────────
 
+
 def test_try_wrap_returns_native_on_import_error():
     """When mcp SDK is missing (ImportError), _try_wrap returns native backend."""
     import importlib
@@ -534,6 +544,7 @@ def test_try_wrap_returns_native_on_import_error():
 
 # ── create_computer_session config passthrough ────────────────────
 
+
 def test_create_computer_session_passes_config():
     """Config parameter must propagate to ComputerSession."""
     from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
@@ -550,6 +561,7 @@ def test_create_computer_session_passes_config():
 
 
 # ── Linux + mcp SDK missing (ImportError) ─────────────────────────
+
 
 def test_create_computer_session_linux_mcp_sdk_missing():
     """Linux + mcp SDK not installed → graceful fallback to LinuxBackend."""

@@ -4,7 +4,6 @@ Covers CustomModelDef and LLMConfig: construction, validation, immutability,
 from_env(), and type identity with the agent.config.llm re-export.
 """
 
-
 import pytest
 from pydantic import ValidationError
 

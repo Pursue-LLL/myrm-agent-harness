@@ -109,8 +109,11 @@ class TestTaskAttachment:
             "data:image/png;base64,iVBORw0KGgo=",
         ]:
             att = TaskAttachment(
-                file_id="f1", filename="test", mime_type="image/png",
-                size_bytes=1, content_ref=ref,
+                file_id="f1",
+                filename="test",
+                mime_type="image/png",
+                size_bytes=1,
+                content_ref=ref,
             )
             assert att.content_ref == ref
             assert att.to_dict()["content_ref"] == ref
@@ -178,9 +181,7 @@ class TestKanbanTaskAttachments:
         """Each KanbanTask instance should have its own attachments list."""
         t1 = KanbanTask(task_id="t1", board_id="b1", title="A")
         t2 = KanbanTask(task_id="t2", board_id="b1", title="B")
-        t1.attachments.append(
-            TaskAttachment("f1", "a.png", "image/png", 100, "http://x")
-        )
+        t1.attachments.append(TaskAttachment("f1", "a.png", "image/png", 100, "http://x"))
         assert len(t1.attachments) == 1
         assert len(t2.attachments) == 0
 
@@ -202,12 +203,11 @@ class TestKanbanTaskAttachments:
         assert att_dict == att.to_dict()
 
     def test_multiple_attachments_serialization(self) -> None:
-        atts = [
-            TaskAttachment(f"f{i}", f"file{i}.png", "image/png", i * 100, f"http://x/{i}")
-            for i in range(5)
-        ]
+        atts = [TaskAttachment(f"f{i}", f"file{i}.png", "image/png", i * 100, f"http://x/{i}") for i in range(5)]
         task = KanbanTask(
-            task_id="t1", board_id="b1", title="Multi",
+            task_id="t1",
+            board_id="b1",
+            title="Multi",
             attachments=atts,
         )
         d = task.to_dict()

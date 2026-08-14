@@ -114,7 +114,10 @@ class TestFireAndForget:
             _fire_and_forget(slow_task())
             await asyncio.sleep(0)
             for task in asyncio.all_tasks():
-                if task.get_coro().__qualname__ == "TestFireAndForget.test_cancelled_task_no_warning.<locals>.slow_task":
+                if (
+                    task.get_coro().__qualname__
+                    == "TestFireAndForget.test_cancelled_task_no_warning.<locals>.slow_task"
+                ):
                     task.cancel()
                     break
             await asyncio.sleep(0.05)

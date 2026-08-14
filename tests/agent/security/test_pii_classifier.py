@@ -237,9 +237,7 @@ class TestCoverageGaps:
         assert result.level == SensitivityLevel.S1
 
     def test_credential_leak_delegates_to_s3(self):
-        result = classify_content(
-            "the token is sk-ant-abcdefghijklmnopqrstuvwxyz123456", _ENABLED
-        )
+        result = classify_content("the token is sk-ant-abcdefghijklmnopqrstuvwxyz123456", _ENABLED)
         assert result.level == SensitivityLevel.S3
         assert any(p.startswith("credential:") for p in result.patterns)
 

@@ -37,7 +37,11 @@ class TestExecuteWithRetrySuccess:
     async def test_success_first_attempt(self) -> None:
         handler = AsyncMock(return_value=ToolMessage(content="ok", name="my_tool", tool_call_id="tc_1"))
         result = await execute_with_retry(
-            _make_request(), handler, "my_tool", "tc_1", allowed_domains=None,
+            _make_request(),
+            handler,
+            "my_tool",
+            "tc_1",
+            allowed_domains=None,
         )
         assert isinstance(result, ToolMessage)
         assert result.content == "ok"
@@ -54,12 +58,20 @@ class TestExecuteWithRetryTimeout:
 
         with (
             patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_tool_timeout", return_value=0.01),
-            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_timeout_event", new_callable=AsyncMock),
-            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_retry_event", new_callable=AsyncMock),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_timeout_event", new_callable=AsyncMock
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_retry_event", new_callable=AsyncMock
+            ),
         ):
             with pytest.raises(ToolError) as exc_info:
                 await execute_with_retry(
-                    _make_request(), slow_handler, "slow_tool", "tc_1", allowed_domains=None,
+                    _make_request(),
+                    slow_handler,
+                    "slow_tool",
+                    "tc_1",
+                    allowed_domains=None,
                 )
             assert exc_info.value.error_code == "TIMEOUT_MAX_RETRIES"
             assert "timed out" in str(exc_info.value)
@@ -77,11 +89,19 @@ class TestExecuteWithRetryTimeout:
 
         with (
             patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_tool_timeout", return_value=0.01),
-            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_timeout_event", new_callable=AsyncMock),
-            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_retry_event", new_callable=AsyncMock),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_timeout_event", new_callable=AsyncMock
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_retry_event", new_callable=AsyncMock
+            ),
         ):
             result = await execute_with_retry(
-                _make_request(), intermittent_handler, "t", "tc_1", allowed_domains=None,
+                _make_request(),
+                intermittent_handler,
+                "t",
+                "tc_1",
+                allowed_domains=None,
             )
             assert result.content == "ok"
             assert call_count == 2
@@ -98,7 +118,11 @@ class TestExecuteWithRetryErrors:
         )
         handler = AsyncMock(side_effect=err)
         result = await execute_with_retry(
-            _make_request(), handler, "my_tool", "tc_1", allowed_domains=None,
+            _make_request(),
+            handler,
+            "my_tool",
+            "tc_1",
+            allowed_domains=None,
         )
         assert isinstance(result, ToolMessage)
         assert result.status == "error"
@@ -110,7 +134,11 @@ class TestExecuteWithRetryErrors:
         handler = AsyncMock(side_effect=BrowserError("browser crash"))
         with pytest.raises(BrowserError):
             await execute_with_retry(
-                _make_request(), handler, "browser_tool", "tc_1", allowed_domains=None,
+                _make_request(),
+                handler,
+                "browser_tool",
+                "tc_1",
+                allowed_domains=None,
             )
 
     @pytest.mark.asyncio
@@ -121,7 +149,11 @@ class TestExecuteWithRetryErrors:
         ):
             with pytest.raises(ToolError) as exc_info:
                 await execute_with_retry(
-                    _make_request(), handler, "search_tool", "tc_1", allowed_domains=None,
+                    _make_request(),
+                    handler,
+                    "search_tool",
+                    "tc_1",
+                    allowed_domains=None,
                 )
             assert exc_info.value.error_code == "MAX_RETRIES_EXCEEDED"
             assert handler.await_count == 2
@@ -141,7 +173,11 @@ class TestExecuteWithRetryErrors:
             patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.asyncio.sleep", new_callable=AsyncMock),
         ):
             result = await execute_with_retry(
-                _make_request(), intermittent_handler, "search_tool", "tc_1", allowed_domains=None,
+                _make_request(),
+                intermittent_handler,
+                "search_tool",
+                "tc_1",
+                allowed_domains=None,
             )
             assert result.content == "ok"
             assert call_count == 2
@@ -153,23 +189,34 @@ class TestExecuteWithRetryErrors:
         handler = AsyncMock(side_effect=GraphInterrupt())
         with pytest.raises(GraphInterrupt):
             await execute_with_retry(
-                _make_request(), handler, "my_tool", "tc_1", allowed_domains=None,
+                _make_request(),
+                handler,
+                "my_tool",
+                "tc_1",
+                allowed_domains=None,
             )
 
     @pytest.mark.asyncio
     async def test_timeout_with_event_logger(self) -> None:
         """Verify event_logger.log is called on timeout/retry when available."""
         event_logger = AsyncMock()
+
         async def slow(req: MagicMock) -> ToolMessage:
             await asyncio.sleep(999)
             return ToolMessage(content="x", name="t", tool_call_id="id")
 
         with (
-            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_event_logger", return_value=event_logger),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_event_logger", return_value=event_logger
+            ),
             patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_terminal_errors", return_value=set()),
             patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_tool_timeout", return_value=0.01),
-            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_timeout_event", new_callable=AsyncMock),
-            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_retry_event", new_callable=AsyncMock),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_timeout_event", new_callable=AsyncMock
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_retry_event", new_callable=AsyncMock
+            ),
             pytest.raises(ToolError),
         ):
             await execute_with_retry(_make_request(), slow, "t", "tc_1", allowed_domains=None)
@@ -181,7 +228,9 @@ class TestExecuteWithRetryErrors:
         event_logger = AsyncMock()
         handler = AsyncMock(side_effect=RuntimeError("transient"))
         with (
-            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_event_logger", return_value=event_logger),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_event_logger", return_value=event_logger
+            ),
             patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_terminal_errors", return_value=set()),
             patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.asyncio.sleep", new_callable=AsyncMock),
             pytest.raises(ToolError),
@@ -202,7 +251,11 @@ class TestExecuteWithRetryErrors:
             return_value=terminal_errors,
         ):
             result = await execute_with_retry(
-                _make_request(), handler, "file_tool", "tc_1", allowed_domains=None,
+                _make_request(),
+                handler,
+                "file_tool",
+                "tc_1",
+                allowed_domains=None,
             )
             assert isinstance(result, ToolMessage)
             assert "sandbox_ro" in terminal_errors

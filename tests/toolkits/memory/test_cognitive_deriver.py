@@ -21,7 +21,9 @@ class _FakeGraphStore:
         self.relationships: list[tuple[str, str, str, dict[str, Any]]] = []
         self.updated_nodes: list[tuple[str, dict[str, Any]]] = []
 
-    async def get_or_create_node(self, labels: list[str], match_keys: list[str], properties: dict[str, Any]) -> _FakeNode:
+    async def get_or_create_node(
+        self, labels: list[str], match_keys: list[str], properties: dict[str, Any]
+    ) -> _FakeNode:
         # Create or return existing node
         for node in self.nodes:
             if node.id == properties["id"]:
@@ -55,6 +57,7 @@ class _FakeMemoryManager:
         self.stored_memories.append(memory)
         return memory
 
+
 @pytest.mark.asyncio
 async def test_cognitive_deriver_core_preference() -> None:
     llm_resp = json.dumps(
@@ -81,6 +84,7 @@ async def test_cognitive_deriver_core_preference() -> None:
     assert isinstance(mem, SemanticMemory)
     assert "reply_style" in mem.content
     assert mem.metadata.get("preference_key") == "reply_style"
+
 
 @pytest.mark.asyncio
 async def test_cognitive_deriver_success() -> None:
@@ -151,7 +155,7 @@ async def test_cognitive_deriver_low_confidence() -> None:
             {
                 "preference_key": "code_only",
                 "preference_claim": "User wants only code",
-                "confidence": 0.5, # Below 0.8 threshold
+                "confidence": 0.5,  # Below 0.8 threshold
                 "scope": "global",
                 "change_kind": "support",
             }
@@ -171,7 +175,7 @@ async def test_cognitive_deriver_low_confidence() -> None:
 @pytest.mark.asyncio
 async def test_cognitive_deriver_prose_trailing_comma() -> None:
     llm_resp = (
-        'Preferences found:\n'
+        "Preferences found:\n"
         '[{"preference_key": "reply_style", "preference_claim": "User prefers '
         'concise answers", "confidence": 0.95, "scope": "global", '
         '"change_kind": "support",}]'
@@ -196,4 +200,3 @@ async def test_cognitive_deriver_invalid_json() -> None:
 
     assert result["success"] is False
     assert len(manager.stored_memories) == 0
-

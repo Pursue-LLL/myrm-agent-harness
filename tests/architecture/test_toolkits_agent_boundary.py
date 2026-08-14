@@ -34,10 +34,7 @@ def _collect_imports(py_file: Path) -> list[tuple[int, str]]:
 
 
 def _matches_forbidden(module: str) -> bool:
-    return any(
-        module == prefix or module.startswith(f"{prefix}.")
-        for prefix in FORBIDDEN_PREFIXES
-    )
+    return any(module == prefix or module.startswith(f"{prefix}.") for prefix in FORBIDDEN_PREFIXES)
 
 
 @pytest.mark.architecture

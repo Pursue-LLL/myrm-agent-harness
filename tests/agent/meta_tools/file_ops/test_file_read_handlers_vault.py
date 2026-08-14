@@ -80,16 +80,20 @@ async def test_read_vault_paths_to_parts_truncation_event(tmp_path: Path) -> Non
     vault = ArtifactVault(ws)
     huge = "x\n" * 50000
     pointer = vault.put(huge, "huge.md")
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.utils.vault_read.resolve_workspace_root",
-        return_value=ws,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.utils.vault_read.truncate_file_output",
-        return_value=("short preview", True, {"truncated": True}),
-    ), patch(
-        "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
-        new_callable=AsyncMock,
-    ) as mock_event:
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.utils.vault_read.resolve_workspace_root",
+            return_value=ws,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.utils.vault_read.truncate_file_output",
+            return_value=("short preview", True, {"truncated": True}),
+        ),
+        patch(
+            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+            new_callable=AsyncMock,
+        ) as mock_event,
+    ):
         parts = await read_vault_paths_to_parts([pointer], MagicMock(), "all", config=_DUMMY_CONFIG)
     assert "short preview" in parts[0]
     mock_event.assert_awaited_once()

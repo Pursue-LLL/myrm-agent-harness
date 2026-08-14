@@ -456,9 +456,7 @@ class TestShannonEntropy:
         assert "high_entropy_token" not in scan_for_leaks("id: 550e8400-e29b-41d4-a716-446655440000")
 
     def test_git_hash_not_flagged(self) -> None:
-        assert "high_entropy_token" not in scan_for_leaks(
-            "commit a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0"
-        )
+        assert "high_entropy_token" not in scan_for_leaks("commit a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0")
 
     def test_sha256_not_flagged(self) -> None:
         assert "high_entropy_token" not in scan_for_leaks(
@@ -466,14 +464,10 @@ class TestShannonEntropy:
         )
 
     def test_url_path_not_flagged(self) -> None:
-        assert "high_entropy_token" not in scan_for_leaks(
-            "https://example.com/docs/2024-report-a1b2c3d4e5f6g7h8.pdf"
-        )
+        assert "high_entropy_token" not in scan_for_leaks("https://example.com/docs/2024-report-a1b2c3d4e5f6g7h8.pdf")
 
     def test_base64_with_special_chars_not_flagged(self) -> None:
-        assert "high_entropy_token" not in scan_for_leaks(
-            "SGVsbG8gV29ybGQhIFRo+aXMgaXMgYS/B0ZXN0Lg=="
-        )
+        assert "high_entropy_token" not in scan_for_leaks("SGVsbG8gV29ybGQhIFRo+aXMgaXMgYS/B0ZXN0Lg==")
 
     def test_short_token_not_flagged(self) -> None:
         assert "high_entropy_token" not in scan_for_leaks("token: aB3xK9mW2pQ7vL4")
@@ -496,10 +490,7 @@ class TestShannonEntropy:
 
     def test_non_ascii_content_not_flagged(self) -> None:
         """Non-ASCII content (CJK, etc.) should not trigger entropy detection."""
-        chinese = (
-            "## 明天北京到上海卧铺票查询结果 共找到8趟有卧铺的列车\n"
-            "| 1461 | 北京 | 上海 | 硬卧 | 283.5元 | 1张 |"
-        )
+        chinese = "## 明天北京到上海卧铺票查询结果 共找到8趟有卧铺的列车\n| 1461 | 北京 | 上海 | 硬卧 | 283.5元 | 1张 |"
         assert "high_entropy_token" not in scan_for_leaks(chinese)
 
     def test_japanese_content_not_flagged(self) -> None:
@@ -550,14 +541,10 @@ class TestBlockchainPatterns:
     """Blockchain address and mnemonic detection."""
 
     def test_ethereum_address(self) -> None:
-        assert "ethereum_address" in scan_for_leaks(
-            "Wallet: 0x742d35Cc6634C0532925a3b844Bc9e7595f2bD8E"
-        )
+        assert "ethereum_address" in scan_for_leaks("Wallet: 0x742d35Cc6634C0532925a3b844Bc9e7595f2bD8E")
 
     def test_ethereum_address_lowercase(self) -> None:
-        assert "ethereum_address" in scan_for_leaks(
-            "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae"
-        )
+        assert "ethereum_address" in scan_for_leaks("0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae")
 
     def test_ethereum_address_too_short(self) -> None:
         assert "ethereum_address" not in scan_for_leaks("0x742d35Cc6634C053")
@@ -570,20 +557,17 @@ class TestBlockchainPatterns:
 
     def test_mnemonic_with_recovery_keyword(self) -> None:
         assert "mnemonic_phrase" in scan_for_leaks(
-            "recovery phrase: abandon ability able about above "
-            "absent absorb abstract absurd abuse access accident"
+            "recovery phrase: abandon ability able about above absent absorb abstract absurd abuse access accident"
         )
 
     def test_mnemonic_with_seed_keyword(self) -> None:
         assert "mnemonic_phrase" in scan_for_leaks(
-            "seed words = abandon ability able about above "
-            "absent absorb abstract absurd abuse access accident"
+            "seed words = abandon ability able about above absent absorb abstract absurd abuse access accident"
         )
 
     def test_mnemonic_with_mnemonic_keyword(self) -> None:
         assert "mnemonic_phrase" in scan_for_leaks(
-            'mnemonic: "abandon ability able about above '
-            'absent absorb abstract absurd abuse access accident"'
+            'mnemonic: "abandon ability able about above absent absorb abstract absurd abuse access accident"'
         )
 
     def test_mnemonic_24_words(self) -> None:
@@ -597,8 +581,7 @@ class TestBlockchainPatterns:
 
     def test_mnemonic_redaction(self) -> None:
         content = (
-            "recovery phrase: abandon ability able about above "
-            "absent absorb abstract absurd abuse access accident"
+            "recovery phrase: abandon ability able about above absent absorb abstract absurd abuse access accident"
         )
         result = redact_leaks(content)
         assert "[REDACTED:mnemonic_phrase]" in result
@@ -642,14 +625,10 @@ class TestCloudInfraPatterns:
         assert "[REDACTED:discord_webhook]" in result
 
     def test_discord_bot_token(self) -> None:
-        assert "discord_bot_token" in scan_for_leaks(
-            "MTI3NjU0MzIxMDk4.O1dBmQ.Rv-N3456789abcdefghijklmno"
-        )
+        assert "discord_bot_token" in scan_for_leaks("MTI3NjU0MzIxMDk4.O1dBmQ.Rv-N3456789abcdefghijklmno")
 
     def test_discord_bot_token_longer(self) -> None:
-        assert "discord_bot_token" in scan_for_leaks(
-            "MTI3NjU0MzIxMDk4NTIwNjU2MA.GpfL_n.abcdefghijklmnopqrstuvwxyz012"
-        )
+        assert "discord_bot_token" in scan_for_leaks("MTI3NjU0MzIxMDk4NTIwNjU2MA.GpfL_n.abcdefghijklmnopqrstuvwxyz012")
 
     def test_discord_bot_token_redaction(self) -> None:
         token = "MTI3NjU0MzIxMDk4.O1dBmQ.Rv-N3456789abcdefghijklmno"

@@ -42,18 +42,10 @@ _TASK_TYPE_MAP: dict[CaptchaType, str] = {
 }
 
 _SITEKEY_PATTERNS: dict[CaptchaType, re.Pattern[str]] = {
-    CaptchaType.RECAPTCHA: re.compile(
-        r'data-sitekey=["\']([a-zA-Z0-9_-]{40})["\']', re.I
-    ),
-    CaptchaType.HCAPTCHA: re.compile(
-        r'data-sitekey=["\']([a-f0-9-]{36,})["\']', re.I
-    ),
-    CaptchaType.CLOUDFLARE_TURNSTILE: re.compile(
-        r'data-sitekey=["\']([a-zA-Z0-9_-]{30,})["\']', re.I
-    ),
-    CaptchaType.CLOUDFLARE_CHALLENGE: re.compile(
-        r'data-sitekey=["\']([a-zA-Z0-9_-]{30,})["\']', re.I
-    ),
+    CaptchaType.RECAPTCHA: re.compile(r'data-sitekey=["\']([a-zA-Z0-9_-]{40})["\']', re.I),
+    CaptchaType.HCAPTCHA: re.compile(r'data-sitekey=["\']([a-f0-9-]{36,})["\']', re.I),
+    CaptchaType.CLOUDFLARE_TURNSTILE: re.compile(r'data-sitekey=["\']([a-zA-Z0-9_-]{30,})["\']', re.I),
+    CaptchaType.CLOUDFLARE_CHALLENGE: re.compile(r'data-sitekey=["\']([a-zA-Z0-9_-]{30,})["\']', re.I),
 }
 
 
@@ -127,9 +119,7 @@ class ApiSolver:
             message="" if injected else "Token injection failed",
         )
 
-    async def _extract_sitekey(
-        self, page: Page, captcha_type: CaptchaType
-    ) -> str | None:
+    async def _extract_sitekey(self, page: Page, captcha_type: CaptchaType) -> str | None:
         """Extract the site key from page HTML using regex."""
         pattern = _SITEKEY_PATTERNS.get(captcha_type)
         if not pattern:
@@ -160,9 +150,7 @@ class ApiSolver:
         }
         try:
             async with create_httpx_client(timeout=_CREATE_TASK_TIMEOUT) as client:
-                resp = await client.post(
-                    f"{_CAPSOLVER_BASE}/createTask", json=payload
-                )
+                resp = await client.post(f"{_CAPSOLVER_BASE}/createTask", json=payload)
                 data = resp.json()
                 if data.get("errorId", 1) == 0:
                     return data.get("taskId")
@@ -181,17 +169,13 @@ class ApiSolver:
             for _ in range(_MAX_POLL_ATTEMPTS):
                 await asyncio.sleep(_POLL_INTERVAL_S)
                 try:
-                    resp = await client.post(
-                        f"{_CAPSOLVER_BASE}/getTaskResult", json=payload
-                    )
+                    resp = await client.post(f"{_CAPSOLVER_BASE}/getTaskResult", json=payload)
                     data = resp.json()
                     status = data.get("status")
                     if status == "ready":
                         solution = data.get("solution", {})
                         return (
-                            solution.get("gRecaptchaResponse")
-                            or solution.get("token")
-                            or solution.get("cf_clearance")
+                            solution.get("gRecaptchaResponse") or solution.get("token") or solution.get("cf_clearance")
                         )
                     if status == "failed":
                         logger.warning("CapSolver task failed: %s", data.get("errorDescription"))
@@ -201,9 +185,7 @@ class ApiSolver:
                     continue
         return None
 
-    async def _inject_token(
-        self, page: Page, token: str, captcha_type: CaptchaType
-    ) -> bool:
+    async def _inject_token(self, page: Page, token: str, captcha_type: CaptchaType) -> bool:
         """Inject the solved token into the page and trigger verification."""
         try:
             if captcha_type == CaptchaType.RECAPTCHA:

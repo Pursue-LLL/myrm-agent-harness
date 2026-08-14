@@ -18,8 +18,7 @@ from myrm_agent_harness.agent.sub_agents.checkpoint.saver import (
 )
 
 _PUBLISH_EVENT_PATH = (
-    "myrm_agent_harness.agent.sub_agents.checkpoint.orphan_recovery"
-    ".OrphanRecoveryManager._publish_event"
+    "myrm_agent_harness.agent.sub_agents.checkpoint.orphan_recovery.OrphanRecoveryManager._publish_event"
 )
 
 
@@ -50,6 +49,7 @@ def _make_checkpoint(
 
 def _reset_singleton() -> None:
     import myrm_agent_harness.agent.sub_agents.checkpoint.orphan_recovery as mod
+
     mod._instance = None
 
 
@@ -147,7 +147,11 @@ class TestScanAndNotify:
         with patch(_PUBLISH_EVENT_PATH) as mock_pub:
             await mgr._scan_and_notify()
             mock_pub.assert_called_once_with(
-                "orphan-1", "planner", "sess-1", "orphan_detected", "Test task",
+                "orphan-1",
+                "planner",
+                "sess-1",
+                "orphan_detected",
+                "Test task",
             )
 
     @pytest.mark.asyncio
@@ -242,7 +246,11 @@ class TestPublishEvent:
             return_value=mock_bus,
         ):
             OrphanRecoveryManager._publish_event(
-                "task-1", "researcher", "sess-1", "orphan_detected", "desc",
+                "task-1",
+                "researcher",
+                "sess-1",
+                "orphan_detected",
+                "desc",
             )
             mock_bus.publish.assert_called_once()
             event = mock_bus.publish.call_args[0][0]
@@ -256,7 +264,10 @@ class TestPublishEvent:
             side_effect=RuntimeError("bus broken"),
         ):
             OrphanRecoveryManager._publish_event(
-                "task-1", "researcher", "sess-1", "orphan_detected",
+                "task-1",
+                "researcher",
+                "sess-1",
+                "orphan_detected",
             )
 
     def test_publish_event_default_description(self) -> None:
@@ -266,7 +277,10 @@ class TestPublishEvent:
             return_value=mock_bus,
         ):
             OrphanRecoveryManager._publish_event(
-                "task-1", "researcher", "sess-1", "orphan_detected",
+                "task-1",
+                "researcher",
+                "sess-1",
+                "orphan_detected",
             )
             event = mock_bus.publish.call_args[0][0]
             assert event.data.description == ""
@@ -314,7 +328,11 @@ class TestPublishEventFieldValidation:
             return_value=mock_bus,
         ):
             OrphanRecoveryManager._publish_event(
-                "t1", "planner", "s1", "orphan_detected", "my task",
+                "t1",
+                "planner",
+                "s1",
+                "orphan_detected",
+                "my task",
             )
             event = mock_bus.publish.call_args[0][0]
             assert event.data.agent_type == "planner"
@@ -329,7 +347,10 @@ class TestPublishEventFieldValidation:
             return_value=mock_bus,
         ):
             OrphanRecoveryManager._publish_event(
-                "t1", "researcher", "s1", "orphan_detected",
+                "t1",
+                "researcher",
+                "s1",
+                "orphan_detected",
             )
         after = time.time()
         event = mock_bus.publish.call_args[0][0]
@@ -342,7 +363,10 @@ class TestPublishEventFieldValidation:
             return_value=mock_bus,
         ):
             OrphanRecoveryManager._publish_event(
-                "t1", "researcher", "s1", "custom_event",
+                "t1",
+                "researcher",
+                "s1",
+                "custom_event",
             )
             event = mock_bus.publish.call_args[0][0]
             assert event.event_name == "custom_event"
@@ -354,10 +378,13 @@ class TestEndToEndScanFlow:
     @pytest.mark.asyncio
     async def test_full_scan_flow(self) -> None:
         cp1 = _make_checkpoint(
-            task_id="interrupted-1", agent_type="coder", resumable=True,
+            task_id="interrupted-1",
+            agent_type="coder",
+            resumable=True,
         )
         cp2 = _make_checkpoint(
-            task_id="completed-1", resumable=False,
+            task_id="completed-1",
+            resumable=False,
         )
         storage = MagicMock(spec=SubagentCheckpointStorage)
         storage.list_checkpoints = AsyncMock(return_value=[cp1, cp2])
@@ -400,7 +427,9 @@ class TestEndToEndScanFlow:
     @pytest.mark.asyncio
     async def test_scan_passes_correct_session_id(self) -> None:
         cp = _make_checkpoint(
-            task_id="t1", session_id="unique-sess-42", resumable=True,
+            task_id="t1",
+            session_id="unique-sess-42",
+            resumable=True,
         )
         storage = MagicMock(spec=SubagentCheckpointStorage)
         storage.list_checkpoints = AsyncMock(return_value=[cp])
@@ -420,7 +449,8 @@ class TestEndToEndScanFlow:
     @pytest.mark.asyncio
     async def test_scan_passes_correct_task_description(self) -> None:
         cp = _make_checkpoint(
-            task_id="t1", resumable=True,
+            task_id="t1",
+            resumable=True,
             task_description="Research quantum computing",
         )
         storage = MagicMock(spec=SubagentCheckpointStorage)

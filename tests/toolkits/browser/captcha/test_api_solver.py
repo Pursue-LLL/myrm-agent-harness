@@ -239,9 +239,7 @@ class TestApiSolverPollResult:
         }
 
         mock_client = AsyncMock()
-        mock_client.post = AsyncMock(
-            side_effect=[RuntimeError("network"), ready_response]
-        )
+        mock_client.post = AsyncMock(side_effect=[RuntimeError("network"), ready_response])
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
@@ -267,9 +265,7 @@ class TestApiSolverCreateTaskException:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            task_id = await solver._create_task(
-                "ReCaptchaV2TaskProxyLess", "https://example.com", "sitekey"
-            )
+            task_id = await solver._create_task("ReCaptchaV2TaskProxyLess", "https://example.com", "sitekey")
 
         assert task_id is None
 
