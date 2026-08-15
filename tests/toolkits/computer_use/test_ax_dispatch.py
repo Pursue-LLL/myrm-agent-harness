@@ -35,7 +35,9 @@ def _backend_named(name: str) -> MagicMock:
     ],
 )
 def test_capture_snapshot_routes_scope_and_app_name(platform: str, module: str) -> None:
-    meta = SnapshotMeta(ref_count=1, app_name="Mail", scope="target")
+    meta = SnapshotMeta(
+        ref_count=1, app_name="Mail", window_title="Inbox", scope="target"
+    )
     snapshot = MagicMock(meta=meta, refs={"d0": MagicMock()})
     backend = _backend_named(platform)
 
@@ -61,7 +63,9 @@ def test_capture_snapshot_routes_scope_and_app_name(platform: str, module: str) 
 def test_capture_snapshot_routes_foreground_without_app(
     platform: str, module: str
 ) -> None:
-    meta = SnapshotMeta(ref_count=0, app_name="Finder", scope="foreground")
+    meta = SnapshotMeta(
+        ref_count=0, app_name="Finder", window_title="", scope="foreground"
+    )
     snapshot = MagicMock(meta=meta, refs={})
     backend = _backend_named(platform)
 
@@ -134,3 +138,32 @@ def test_invoke_element_unsupported_returns_error() -> None:
     result = invoke_element(_backend_named("UnsupportedBackend"), element, "click")
     assert result.success is False
     assert "Unsupported backend" in (result.error or "")
+
+
+def test_desktop_snapshot_tool_schema_exposes_target_scope_and_app_name() -> None:
+    """The real desktop_snapshot_tool must advertise scope='target' and app_name to the LLM."""
+    from unittest.mock import AsyncMock
+
+    from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import (
+        create_desktop_tools,
+    )
+    from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
+
+    backend = MagicMock()
+    backend.is_browser_active = AsyncMock(return_value=False)
+    session = DesktopSession(backend=backend, config=MagicMock())
+    tools = create_desktop_tools(session)
+    snapshot_tool = next(t for t in tools if t.name == "desktop_snapshot_tool")
+
+    schema = snapshot_tool.get_input_schema()
+    props = schema["properties"]
+    assert "scope" in props
+    assert "app_name" in props
+
+    scope_schema = props["scope"]
+    assert "target" in scope_schema.get("enum", [])
+    assert "foreground" in scope_schema.get("enum", [])
+
+    app_desc = props["app_name"].get("description", "")
+    assert "app name" in app_desc
+    assert "target" in app_desc
