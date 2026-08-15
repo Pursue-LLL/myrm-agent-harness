@@ -595,3 +595,44 @@ class TestAgentPluginParser:
         """
         with pytest.raises(zipfile.BadZipFile):
             AgentPluginParser().parse_zip(b"\x00\x01not a real zip")
+
+
+class TestParseResultFiles:
+    """``PluginParseResult.files`` retains non-skill files for bundled MCP servers."""
+
+    def test_retains_non_skill_files(self) -> None:
+        zip_bytes = build_plugin_zip(
+            {
+                "plugin.json": default_plugin_json(),
+                "mcp.json": json.dumps(
+                    {
+                        "$schema": MCP_SCHEMA,
+                        "mcpServers": {
+                            "pdf": {"type": "stdio", "command": "./bin/pdf"}
+                        },
+                    }
+                ),
+                "bin/pdf": "#!/bin/sh\necho ok",
+                "skills/s/SKILL.md": "---\n---\nS.",
+                "skills/s/tools/t.py": "print('t')",
+            }
+        )
+        result = AgentPluginParser().parse_zip(zip_bytes)
+        assert result.files.keys() == {"plugin.json", "mcp.json", "bin/pdf"}
+        assert result.files["bin/pdf"] == b"#!/bin/sh\necho ok"
+        # Skill files never leak into the top-level files tree.
+        assert "skills/s/SKILL.md" not in result.files
+        assert "skills/s/tools/t.py" not in result.files
+        # The same skill file remains on the PluginSkill.files (unchanged).
+        assert "SKILL.md" in result.skills[0].files
+
+    def test_files_empty_without_extra_entries(self) -> None:
+        zip_bytes = build_plugin_zip({"plugin.json": default_plugin_json()})
+        result = AgentPluginParser().parse_zip(zip_bytes)
+        assert result.files == {"plugin.json"}
+
+    def test_files_empty_on_fatal_manifest_failure(self) -> None:
+        zip_bytes = build_plugin_zip({"plugin.json": "not json"})
+        result = AgentPluginParser().parse_zip(zip_bytes)
+        assert result.meta is None
+        assert result.files == {}

@@ -130,6 +130,60 @@ class TestBuildClientTarget:
         assert isinstance(target, StdioServerParameters)
         assert target.args == []
 
+    def test_stdio_reads_env_cwd_from_extra_params(self) -> None:
+        from mcp import StdioServerParameters
+
+        cfg = FakeMCPServerConfig(
+            type="stdio",
+            url=None,
+            command="python",
+            args=["server.py"],
+            extra_params={
+                "env": {"API_KEY": "abc", "EMPTY": ""},
+                "cwd": "/srv/workdir",
+            },
+        )
+        target = MCPClientManager.build_client_target(cfg)
+        assert isinstance(target, StdioServerParameters)
+        assert target.env == {"API_KEY": "abc"}
+        assert target.cwd == "/srv/workdir"
+
+    def test_stdio_expands_plugin_placeholders(self) -> None:
+        from mcp import StdioServerParameters
+
+        cfg = FakeMCPServerConfig(
+            type="stdio",
+            url=None,
+            command="${PLUGIN_ROOT}/bin/pdf",
+            args=["--data", "${PLUGIN_DATA}/cache", "--keep", "${OTHER_VAR}"],
+            extra_params={
+                "plugin_root": "/data/plugins/demo-plugin",
+                "data_root": "/data/plugins/demo-plugin_data",
+                "cwd": "./",
+            },
+        )
+        target = MCPClientManager.build_client_target(cfg)
+        assert isinstance(target, StdioServerParameters)
+        assert target.command == "/data/plugins/demo-plugin/bin/pdf"
+        assert target.args == [
+            "--data",
+            "/data/plugins/demo-plugin_data/cache",
+            # Unknown placeholders are never substituted or dropped.
+            "--keep",
+            "${OTHER_VAR}",
+        ]
+        # A "./" cwd with a configured plugin root resolves to the root itself.
+        assert target.cwd == "/data/plugins/demo-plugin"
+
+    def test_stdio_no_extra_params_keeps_null_env_cwd(self) -> None:
+        from mcp import StdioServerParameters
+
+        cfg = FakeMCPServerConfig(type="stdio", url=None, command="mcp-server", args=None)
+        target = MCPClientManager.build_client_target(cfg)
+        assert isinstance(target, StdioServerParameters)
+        assert target.env is None
+        assert target.cwd is None
+
     def test_unsupported_type_raises(self) -> None:
         cfg = FakeMCPServerConfig(type="websocket")
         with pytest.raises(ValueError, match="Unsupported transport type"):
