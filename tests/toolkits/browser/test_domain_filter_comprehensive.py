@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import FrozenInstanceError
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -586,23 +587,36 @@ async def test_main_thread_hardening_injects_script() -> None:
 
 
 def test_schedule_cdp_audit_creates_task() -> None:
-    """Test _schedule_cdp_audit creates background task."""
+    """Test _schedule_cdp_audit schedules a background task that runs install."""
     from unittest.mock import patch
 
+    from myrm_agent_harness.toolkits.browser import domain_filter
     from myrm_agent_harness.toolkits.browser.domain_filter import _schedule_cdp_audit
 
     page = MagicMock()
     allowlist = DomainAllowlist(patterns=("example.com",))
 
-    mock_loop = MagicMock()
-    mock_task = MagicMock()
-    mock_loop.create_task = MagicMock(return_value=mock_task)
+    install_called = False
 
-    with patch("asyncio.get_running_loop", return_value=mock_loop):
-        _schedule_cdp_audit(page, allowlist)
+    async def fake_install(page: object, allowlist: object) -> None:
+        nonlocal install_called
+        install_called = True
 
-        mock_loop.create_task.assert_called_once()
-        mock_task.add_done_callback.assert_called_once()
+    loop = asyncio.new_event_loop()
+    try:
+        with patch.object(
+            domain_filter,
+            "_install_cdp_audit",
+            new=fake_install,
+        ):
+            with patch("asyncio.get_running_loop", return_value=loop):
+                _schedule_cdp_audit(page, allowlist)
+            pending = asyncio.all_tasks(loop)
+            loop.run_until_complete(asyncio.gather(*pending))
+        assert install_called
+        assert not domain_filter._cdp_audit_tasks
+    finally:
+        loop.close()
 
 
 def test_schedule_cdp_audit_no_running_loop() -> None:

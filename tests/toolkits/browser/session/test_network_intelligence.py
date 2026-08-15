@@ -290,6 +290,7 @@ class TestNetworkIntelligence:
     async def test_attach_success(self):
         mock_page = MagicMock()
         mock_cdp = AsyncMock()
+        mock_cdp.on = MagicMock()
         mock_page.context.new_cdp_session = AsyncMock(return_value=mock_cdp)
 
         ni = NetworkIntelligence()
@@ -314,6 +315,7 @@ class TestNetworkIntelligence:
     async def test_attach_idempotent(self):
         mock_page = MagicMock()
         mock_cdp = AsyncMock()
+        mock_cdp.on = MagicMock()
         mock_page.context.new_cdp_session = AsyncMock(return_value=mock_cdp)
 
         ni = NetworkIntelligence()
@@ -326,6 +328,7 @@ class TestNetworkIntelligence:
     async def test_detach(self):
         mock_page = MagicMock()
         mock_cdp = AsyncMock()
+        mock_cdp.on = MagicMock()
         mock_page.context.new_cdp_session = AsyncMock(return_value=mock_cdp)
 
         ni = NetworkIntelligence()

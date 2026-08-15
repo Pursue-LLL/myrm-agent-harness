@@ -38,6 +38,7 @@ from myrm_agent_harness.agent._internals.agent_recovery import (
 from myrm_agent_harness.agent._internals.agent_recovery import (
     truncate_oldest_rounds as _truncate_oldest_rounds,
 )
+from myrm_agent_harness.agent.errors.fault_side import FaultSide
 from myrm_agent_harness.agent.streaming.stream_recovery_continuation import (
     StreamContinuationRecoveryMixin,
 )
@@ -548,6 +549,9 @@ class StreamRecoveryMixin(
                 "data": {
                     "limit": recursion_limit,
                     "nodes_completed": ctx.stats.node_execution_count,
+                    # Recursion limit is an engine pipeline guard, not a model or
+                    # tool failure — attribute to HARNESS_PIPELINE.
+                    "fault_side": FaultSide.HARNESS_PIPELINE.value,
                 },
                 "messageId": ctx.message_id,
             }

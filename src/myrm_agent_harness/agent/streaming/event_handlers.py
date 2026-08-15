@@ -203,6 +203,9 @@ async def _handle_tool_result(
                     "limit_type": "max_tool_calls",
                     "tool_name": tool_name,
                     "message": error_content,
+                    # Engine budget limit — the agent pipeline stopped the run,
+                    # not the model or a tool: attribute to HARNESS_PIPELINE.
+                    "fault_side": FaultSide.HARNESS_PIPELINE.value,
                 },
                 "messageId": message_id,
             }
@@ -213,6 +216,7 @@ async def _handle_tool_result(
                     "limit_type": "max_replan_attempts",
                     "tool_name": tool_name,
                     "message": error_content,
+                    "fault_side": FaultSide.HARNESS_PIPELINE.value,
                 },
                 "messageId": message_id,
             }

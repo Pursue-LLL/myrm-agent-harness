@@ -58,6 +58,12 @@ if TYPE_CHECKING:
 
     from myrm_agent_harness.toolkits.browser.pool.config import ResourceBlockConfig
 
+# Strong references to fire-and-forget CDP audit tasks. Without a reference the
+# task can be garbage-collected mid-flight (e.g. when the event loop closes
+# while a mock/attached CDP session is being awaited), producing a
+# "coroutine never awaited" RuntimeWarning on shutdown.
+_cdp_audit_tasks: set[asyncio.Task[None]] = set()
+
 logger = logging.getLogger(__name__)
 
 
@@ -448,7 +454,13 @@ def _schedule_cdp_audit(page: Page, allowlist: DomainAllowlist) -> None:
     try:
         loop = asyncio.get_running_loop()
         task = loop.create_task(_install_cdp_audit(page, allowlist))
+        _cdp_audit_tasks.add(task)
+
+        def _discard(task: asyncio.Task[None]) -> None:
+            _cdp_audit_tasks.discard(task)
+
         task.add_done_callback(_log_task_exception)
+        task.add_done_callback(_discard)
     except RuntimeError:
         pass
 

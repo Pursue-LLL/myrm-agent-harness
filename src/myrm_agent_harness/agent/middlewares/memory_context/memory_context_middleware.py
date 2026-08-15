@@ -273,11 +273,11 @@ class MemoryContextMiddleware(AgentMiddleware):
             # P0: keep Turn1 prefix cache-stable — learned facts are retrieved via memory_search_tool.
             learned_ctx = {"learned_rules": [], "learned_preferences": []}
 
-        sessions_corpus_enabled = _memory_search_tool_bound(request)
+        memory_search_enabled = _memory_search_tool_bound(request)
         stable_formatted, untrusted_formatted = _format_memory_context(
             memory_ctx,
             learned_ctx,
-            sessions_corpus_enabled=sessions_corpus_enabled,
+            memory_search_enabled=memory_search_enabled,
         )
         if not stable_formatted and not untrusted_formatted:
             _set_memory_injection_status(

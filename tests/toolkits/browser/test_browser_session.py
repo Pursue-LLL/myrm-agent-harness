@@ -716,6 +716,10 @@ async def test_ensure_components_direct_call() -> None:
 
         mock_page = AsyncMock()
         mock_page.url = "https://test.com"
+        mock_page.on = MagicMock()
+        mock_cdp = AsyncMock()
+        mock_cdp.on = MagicMock()
+        mock_page.context.new_cdp_session = AsyncMock(return_value=mock_cdp)
 
         mock_tab_controller = MagicMock()
         mock_tab_controller.get_active_page = MagicMock(return_value=mock_page)

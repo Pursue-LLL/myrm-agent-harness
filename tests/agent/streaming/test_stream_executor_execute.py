@@ -254,6 +254,63 @@ async def test_emit_fatal_error_attributes_env_fault_side(fire_hook_mock, base_c
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_emit_fatal_error_persists_to_event_logger(fire_hook_mock, base_ctx):
+    """Fatal errors must be persisted to the event journal so trace
+    reconstruction (trace_builder) sees LLM fatal errors."""
+    from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
+
+    event_logger = AsyncMock()
+    base_ctx.event_logger = event_logger
+    executor = _make_executor(base_ctx)
+
+    async def _astream_fatal(*args, **kwargs):
+        raise RuntimeError("Insufficient quota for billing")
+        yield
+
+    base_ctx.agent.astream = _astream_fatal
+
+    with pytest.raises(MyrmLLMError):
+        await executor.execute()
+
+    event_logger.log.assert_awaited_once()
+    call_args = event_logger.log.call_args
+    assert call_args.args[0] == "error"
+    persisted = call_args.args[1]
+    # Transport-only fields stripped before persistence
+    assert "type" not in persisted
+    assert "messageId" not in persisted
+    # Attribution + diagnostics preserved for the post-mortem view
+    assert persisted["fault_side"] == "env"
+    assert persisted["error_kind"] is not None
+    assert persisted["error_type"] == "RuntimeError"
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_emit_fatal_error_no_event_logger_ok(fire_hook_mock, base_ctx):
+    """No event_logger configured → fatal error still emitted via compactor."""
+    from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
+
+    executor = _make_executor(base_ctx)
+
+    async def _astream_fatal(*args, **kwargs):
+        raise RuntimeError("Insufficient quota for billing")
+        yield
+
+    base_ctx.agent.astream = _astream_fatal
+
+    with pytest.raises(MyrmLLMError):
+        await executor.execute()
+
+    error_events = [
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+    ]
+    assert len(error_events) == 1
+    assert error_events[0].get("fault_side") == "env"
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
 @patch("myrm_agent_harness.agent.errors.diagnostics.LLMErrorDiagnostic")
 async def test_emit_fatal_error_diagnostic_failure(diag_mock, fire_hook_mock, base_ctx):
     """Diagnostic generation failure still emits error event (without diagnostic_result)."""

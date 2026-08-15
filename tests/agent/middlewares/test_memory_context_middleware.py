@@ -219,15 +219,20 @@ def test_format_empty_returns_cold_start():
     assert untrusted2 is None
 
 
-def test_format_memory_search_omits_sessions_corpus_by_default():
+def test_format_memory_search_disabled_when_tool_not_bound():
+    """CONTEXT mode (memory_search_tool not bound) must not inject tool guidance."""
     learned = {
         "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
         "learned_rules": [],
     }
-    _stable, untrusted = _format_memory_context({}, learned)
+    _stable, untrusted = _format_memory_context(
+        {},
+        learned,
+        memory_search_enabled=False,
+    )
     assert untrusted is not None
-    assert "memory_search_tool" in untrusted
-    assert "corpus=sessions" not in untrusted
+    assert "memory_search_tool" not in untrusted
+    assert "## Memory Search" not in untrusted
 
 
 def test_format_memory_search_includes_sessions_corpus_when_enabled():
@@ -238,9 +243,10 @@ def test_format_memory_search_includes_sessions_corpus_when_enabled():
     _stable, untrusted = _format_memory_context(
         {},
         learned,
-        sessions_corpus_enabled=True,
+        memory_search_enabled=True,
     )
     assert untrusted is not None
+    assert "memory_search_tool" in untrusted
     assert "corpus=sessions" in untrusted
 
 
@@ -318,6 +324,33 @@ def test_format_stable_only_includes_guidance_tail():
     assert "<cite:MEMORY_ID>" in stable
     assert "## Memory Search" in stable
     assert "memory_search_tool" in stable
+
+
+def test_format_stable_only_omits_guidance_when_tool_not_bound():
+    """CONTEXT warm stable-only must not carry citation/search guidance (no bound tools)."""
+    ctx = {"global_profile": {"name": "Alice"}}
+    stable, untrusted = _format_memory_context(
+        ctx,
+        _EMPTY_LEARNED,
+        memory_search_enabled=False,
+    )
+    assert stable is not None
+    assert untrusted is None
+    assert "## Citation Requirements" not in stable
+    assert "<cite:MEMORY_ID>" not in stable
+    assert "## Memory Search" not in stable
+    assert "memory_search_tool" not in stable
+
+
+def test_format_cold_start_context_mode_no_injection():
+    """CONTEXT cold-start must not inject learning guidance (no memory tools bound)."""
+    stable, untrusted = _format_memory_context(
+        {},
+        _EMPTY_LEARNED,
+        memory_search_enabled=False,
+    )
+    assert stable is None
+    assert untrusted is None
 
 
 def test_format_stable_plus_untrusted_guidance_not_duplicated():
@@ -538,11 +571,21 @@ def _make_request(
     messages: list | None = None,
     state_messages: list | None = None,
     has_runtime_context: bool = True,
+    tools: list | None = None,
 ):
-    """Build a minimal mock ModelRequest for inject_memory_context."""
+    """Build a minimal mock ModelRequest for inject_memory_context.
+
+    Defaults to HYBRID-like tools (memory_search_tool bound Turn1, matching
+    DEFAULT_ENABLED_BUILTIN_TOOLS) so warm/cold injection paths run with
+    memory-search guidance enabled.
+    """
     req = MagicMock()
     req.messages = messages or [HumanMessage(content="Hello")]
     req.state = {"messages": state_messages if state_messages is not None else []}
+
+    if tools is None:
+        tools = [MagicMock(name="memory_search_tool")]
+    req.tools = tools
 
     if has_runtime_context:
         req.runtime = MagicMock()

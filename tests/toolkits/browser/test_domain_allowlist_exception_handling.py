@@ -16,6 +16,7 @@ async def test_create_context_cleanup_on_install_failure() -> None:
 
     mock_browser = MagicMock()
     mock_context = AsyncMock()
+    mock_context.set_default_timeout = MagicMock()
     mock_browser.new_context = AsyncMock(return_value=mock_context)
 
     allowlist = DomainAllowlist.from_strings(["example.com"])
@@ -45,6 +46,7 @@ async def test_create_context_no_cleanup_on_success() -> None:
 
     mock_browser = MagicMock()
     mock_context = AsyncMock()
+    mock_context.set_default_timeout = MagicMock()
     mock_browser.new_context = AsyncMock(return_value=mock_context)
 
     allowlist = DomainAllowlist.from_strings(["example.com"])

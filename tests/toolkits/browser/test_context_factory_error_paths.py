@@ -16,6 +16,7 @@ async def test_create_context_domain_filter_install_failure():
 
     mock_browser = MagicMock()
     mock_context = AsyncMock()
+    mock_context.set_default_timeout = MagicMock()
     mock_browser.new_context = AsyncMock(return_value=mock_context)
 
     # Mock domain_filter.install_domain_filter 抛出异常（它是在方法内部导入的）
@@ -39,6 +40,7 @@ async def test_install_domain_filter_called():
 
     mock_browser = MagicMock()
     mock_context = AsyncMock()
+    mock_context.set_default_timeout = MagicMock()
     mock_browser.new_context = AsyncMock(return_value=mock_context)
 
     # Mock domain_filter.install_domain_filter 成功

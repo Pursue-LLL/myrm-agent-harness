@@ -364,7 +364,8 @@ agent/_internals/agent_runtime.py run_agent_loop 外层 except（executor 外层
     │   - recovery_actions: list[str]（本地化恢复动作，可选）
     │   - cooldown_remaining_ms: int（瞬态错误的重试倒计时，可选）
     ↓
-SSE推送到前端
+SSE推送到前端（compactor.put）
+    │ event_logger.log("error", ...)（同字段去 type/messageId 后持久化，供 trace 重建）
     ↓
 agentControlEvents.ts（前端消费）
     │ 优先消费 diagnostic_result（user_message + resolution_steps）
@@ -372,6 +373,8 @@ agentControlEvents.ts（前端消费）
     ↓
 ProgressSteps.tsx（UI展示）
     └ 显示本地化错误消息 + fault_side badge + hint提示 + 恢复动作 + 倒计时
+
+event_log 持久化的 error 事件由 trace_builder 重建为 ExecutionTrace.errors（含 fault_side / error_kind / recovery_actions / diagnostic_result），确保会话分析时间线的 outcome 与首不可恢复点对 LLM 致命错误也准确。
 ```
 
 ### 核心组件

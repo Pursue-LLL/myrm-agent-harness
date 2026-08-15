@@ -114,38 +114,53 @@ def _memory_search_tool_bound(request: ModelRequest) -> bool:
     return False
 
 
-def _memory_search_guidance(*, sessions_corpus_enabled: bool) -> str:
-    lines = [
-        "## Memory Search",
-        (
-            "Use memory_search_tool with corpus=memory (default) for durable user facts, preferences, "
-            "profile data, rules, and project conventions."
-        ),
-    ]
-    if sessions_corpus_enabled:
-        lines.append(
-            "Use corpus=sessions for prior chat evidence, earlier decisions, branch/fork context, "
-            'or requests like "last time", "previously", and "continue that discussion". '
-            "Use corpus=wiki when wiki is enabled; corpus=all searches every enabled corpus."
-        )
-    lines.append(
-        "Memories and recalled conversations are point-in-time records. "
-        "If recalled info conflicts with current observations, trust what you see now."
+def _memory_search_guidance(*, memory_search_enabled: bool) -> str:
+    """Memory-search tool guidance; empty when the tool is not bound (e.g. RecallMode.CONTEXT)."""
+    if not memory_search_enabled:
+        return ""
+    return "\n".join(
+        [
+            "## Memory Search",
+            (
+                "Use memory_search_tool with corpus=memory (default) for durable user facts, preferences, "
+                "profile data, rules, and project conventions."
+            ),
+            (
+                "Use corpus=sessions for prior chat evidence, earlier decisions, branch/fork context, "
+                'or requests like "last time", "previously", and "continue that discussion". '
+                "Use corpus=wiki when wiki is enabled; corpus=all searches every enabled corpus."
+            ),
+            (
+                "Memories and recalled conversations are point-in-time records. "
+                "If recalled info conflicts with current observations, trust what you see now."
+            ),
+        ]
     )
-    return "\n".join(lines)
 
 
-def _memory_guidance_tail(*, sessions_corpus_enabled: bool) -> str:
-    """Shared guidance tail appended to warm memory contexts (citations + memory search)."""
+def _memory_guidance_tail(*, memory_search_enabled: bool) -> str:
+    """Shared guidance tail for warm memory contexts (citations + memory search).
+
+    Returned empty when memory_search_tool is not bound (e.g. RecallMode.CONTEXT):
+    there are no tool-grounded IDs to cite and no search guidance applies.
+    """
+    if not memory_search_enabled:
+        return ""
     return f"""## Citation Requirements
-When your answer directly relies on any provided memory or rule (from either stable or learned contexts), you MUST append a citation tag at the end of the relevant sentence or paragraph.
+When your answer directly relies on a memory or rule with an explicit [ID: ...] label (shown above), or on memory_search_tool results, you MUST append a citation tag at the end of the relevant sentence or paragraph.
 Format: <cite:MEMORY_ID>
 Example: "Based on your preference for concise answers <cite:mem-123>, here is the script."
+Only cite an ID that is explicitly shown above or returned by memory_search_tool.
 
-{_memory_search_guidance(sessions_corpus_enabled=sessions_corpus_enabled)}"""
+{_memory_search_guidance(memory_search_enabled=memory_search_enabled)}"""
 
 
-def _build_cold_start_context(*, sessions_corpus_enabled: bool) -> str:
+def _build_cold_start_context(*, memory_search_enabled: bool) -> str:
+    """Cold-start discovery context for a user with no memories yet.
+
+    Only invoked when memory tools are bound (HYBRID). The CONTEXT path skips
+    injection entirely because learning guidance would point at unbound tools.
+    """
     return f"""<user_memory_context>
 # New User — Discovery Mode
 
@@ -157,18 +172,18 @@ No memories yet. Actively learn about this user during the conversation:
 
 This guidance will be replaced by real user context as memories accumulate.
 
-{_memory_guidance_tail(sessions_corpus_enabled=sessions_corpus_enabled)}
+{_memory_guidance_tail(memory_search_enabled=memory_search_enabled)}
 </user_memory_context>"""
 
 
-_COLD_START_CONTEXT = _build_cold_start_context(sessions_corpus_enabled=False)
+_COLD_START_CONTEXT = _build_cold_start_context(memory_search_enabled=True)
 
 
 def _format_memory_context(
     ctx: dict[str, object],
     learned: dict[str, list[dict[str, str]]],
     *,
-    sessions_corpus_enabled: bool = False,
+    memory_search_enabled: bool = True,
 ) -> tuple[str | None, str | None]:
     stable_sections: list[BudgetedSection] = []
     untrusted_sections: list[BudgetedSection] = []
@@ -264,9 +279,13 @@ def _format_memory_context(
 
     is_cold = not stable_sections and not untrusted_sections
 
-    # Cold start: guide the agent to actively learn about the user
+    # Cold start: guide the agent to actively learn about the user. Skipped when
+    # memory tools are not bound (e.g. RecallMode.CONTEXT) — learning guidance
+    # would point the model at tools it cannot call.
     if is_cold:
-        return _build_cold_start_context(sessions_corpus_enabled=sessions_corpus_enabled), None
+        if not memory_search_enabled:
+            return None, None
+        return _build_cold_start_context(memory_search_enabled=True), None
 
     truncation_message = (
         "\n... (Some lower-priority memory items were truncated to preserve prompt stability. "
@@ -296,21 +315,18 @@ def _format_memory_context(
         # When only stable context is injected (the common warm case), carry the
         # same citations + memory-search guidance that cold-start and learned
         # injections provide, so the model consistently cites recalled memory IDs.
-        guidance_tail = (
-            f"\n\n{_memory_guidance_tail(sessions_corpus_enabled=sessions_corpus_enabled)}"
-            if not untrusted_body
-            else ""
-        )
+        guidance_tail = ""
+        if not untrusted_body:
+            guidance_tail = _memory_guidance_tail(memory_search_enabled=memory_search_enabled)
+        tail_block = f"\n\n{guidance_tail}" if guidance_tail else ""
         stable_formatted = f"""<user_memory_context>
-{scope_boundary}{base_header}{stable_body}{guidance_tail}
+{scope_boundary}{base_header}{stable_body}{tail_block}
 </user_memory_context>"""
 
     untrusted_formatted = None
     if untrusted_body:
         wrapped_body = wrap_untrusted(untrusted_body, source="memory_context")
-
-        untrusted_formatted = f"""{wrapped_body}
-
-{_memory_guidance_tail(sessions_corpus_enabled=sessions_corpus_enabled)}"""
+        tail = _memory_guidance_tail(memory_search_enabled=memory_search_enabled)
+        untrusted_formatted = f"{wrapped_body}\n\n{tail}" if tail else wrapped_body
 
     return stable_formatted, untrusted_formatted

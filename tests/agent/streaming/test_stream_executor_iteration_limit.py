@@ -88,6 +88,8 @@ async def test_handle_iteration_limit_emits_event_and_grace_fallback():
     assert len(limit_events) == 1
     assert limit_events[0]["data"]["limit"] == 80
     assert limit_events[0]["data"]["nodes_completed"] == 35
+    # Recursion limit is an engine pipeline guard, not a tool/model failure.
+    assert limit_events[0]["data"]["fault_side"] == "harness_pipeline"
 
     msg_events = [e for e in events if e["type"] == AgentEventType.MESSAGE.value]
     assert len(msg_events) == 1

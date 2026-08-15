@@ -28,6 +28,8 @@ async def test_handle_tool_result_engine_limit_tool_calls():
     assert events[1]["type"] == AgentEventType.ENGINE_LIMIT_REACHED.value
     assert events[1]["data"]["limit_type"] == "max_tool_calls"
     assert events[1]["data"]["tool_name"] == "bash_code_execute_tool"
+    # Engine budget limit is an agent-pipeline guard, not a tool/model failure.
+    assert events[1]["data"]["fault_side"] == "harness_pipeline"
 
 
 @pytest.mark.asyncio
@@ -52,3 +54,4 @@ async def test_handle_tool_result_engine_limit_replan():
     assert events[1]["type"] == AgentEventType.ENGINE_LIMIT_REACHED.value
     assert events[1]["data"]["limit_type"] == "max_replan_attempts"
     assert events[1]["data"]["tool_name"] == "some_tool"
+    assert events[1]["data"]["fault_side"] == "harness_pipeline"

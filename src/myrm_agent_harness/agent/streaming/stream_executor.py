@@ -530,6 +530,16 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
 
         await self._compactor.put(error_event)
 
+        # Persist the fatal error to the event journal so post-mortem trace
+        # reconstruction (trace_builder) sees LLM fatal errors, not just tool
+        # failures. Mirrors StreamDispatcherMixin._emit_event's logging path:
+        # type/messageId are transport-only fields, stripped before persistence.
+        if ctx.event_logger is not None:
+            persisted = dict(error_event)
+            persisted.pop("type", None)
+            persisted.pop("messageId", None)
+            await ctx.event_logger.log(AgentEventType.ERROR.value, persisted)
+
         raise MyrmLLMError(
             error_code=failover_reason,
             default_msg=error_msg,

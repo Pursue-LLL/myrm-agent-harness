@@ -797,3 +797,9 @@ class TestRunAgentLoopOuterErrorFaultSide:
         assert 'classify_fault_side(error_kind=error_kind.value)' in source
         # recovery_actions must be generated when a diagnostic payload exists.
         assert "LLMErrorDiagnostic.get_recovery_actions" in source
+        # The outer-loop error_event must be persisted to the event journal
+        # (transport-only fields stripped) so trace reconstruction sees fatal
+        # errors raised outside the executor.
+        assert 'event_logger.log(AgentEventType.ERROR.value, persisted)' in source
+        assert 'persisted.pop("type", None)' in source
+        assert 'persisted.pop("messageId", None)' in source
