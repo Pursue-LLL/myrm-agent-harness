@@ -102,4 +102,5 @@ OpenAPIServiceConfig (user config)
 | Layer | Tests |
 | --- | --- |
 | Unit / integration | `tests/agent/_factory/test_builder_openapi_*.py`, `tests/integration/test_openapi_fail_loud_integration.py` |
+| Live HTTP integration | `tests/toolkits/openapi_bridge/test_live_http_integration.py`（`-m integration`：真实本地 HTTP server 全链路——spec fetch → tool 生成 → coercion → 真实请求，服务端类型断言，含 2^53 边界大整数/float-form 字面量无损） |
 | Chrome E2E | `myrm-agent-server/tests/e2e/test_openapi_fail_loud_chrome_e2e.py` |

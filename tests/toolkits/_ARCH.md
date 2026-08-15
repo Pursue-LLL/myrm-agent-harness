@@ -18,6 +18,7 @@ Mirrors `src/myrm_agent_harness/toolkits/<name>/` — one subdirectory per shipp
 | `code_execution/` | `toolkits/code_execution/` | Sandbox / security |
 | `mcp/` | `toolkits/mcp/` | MCP client pool |
 | `memory/` | `toolkits/memory/` | Memory manager |
+| `openapi_bridge/` | `toolkits/openapi_bridge/` | Spec parsing / tool generation / HTTP executor |
 | `wiki/` | `toolkits/wiki/` | Wiki pipeline |
 | *(other subdirs)* | same-name under `src/.../toolkits/` | See disk listing |
 
