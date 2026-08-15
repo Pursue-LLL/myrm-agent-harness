@@ -363,6 +363,20 @@ class TestCompressTransparencyAndOutput:
         assert result is None
         assert out.exists()
 
+    def test_compress_png_imagequant_output_path(self, compressor, tmp_path):
+        # Noise-heavy PNG: quantization shrinks it well under 90% of the
+        # original, exercising the imagequant file-output branch.
+        img = Image.effect_noise((1024, 1024), 200).convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, "PNG")
+        buf.seek(0)
+        out = tmp_path / "out.png"
+        result = compressor.compress(
+            buf, output_path=str(out), quality=0.5, max_dimension=512
+        )
+        assert result is None
+        assert out.exists()
+
 
 class TestCompressPngImagequantBranches:
     """PNG quantization fallbacks and quality tiers."""
