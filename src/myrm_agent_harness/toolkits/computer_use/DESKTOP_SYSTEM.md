@@ -76,9 +76,11 @@ desktop_vision_tool (only when AX empty or interact failed)
 
 | Platform | AX Snapshot | AX Invoke | Vision Fallback |
 |----------|-------------|-----------|-----------------|
-| macOS | Accessibility API (supports targeted capture by app name; auto-fallback to foreground) | ✅ (targeted invoke by app name) | ✅ |
-| Windows | UI Automation | ✅ | ✅ |
-| Linux | AT-SPI (pyatspi) | ✅ | ✅ |
+| macOS | Accessibility API (targeted capture by app name with auto-fallback to foreground) | ✅ (targeted invoke by app name) | ✅ |
+| Windows | UI Automation (targeted capture by process name via shared `_locate_window`) | ✅ (targeted invoke shares `_locate_window`) | ✅ |
+| Linux | AT-SPI (pyatspi; targeted capture scoped to a matching application) | ✅ (targeted invoke scoped to a matching application) | ✅ |
+
+> **Targeted scope** (`scope='target'` + `app_name`): captures the target app's main window tree without changing the foreground, on all three platforms. Snapshot and invoke share the same window-location logic on each platform so `@dref` indices stay consistent. When the target cannot be located the call signals it: macOS auto-falls back to the foreground (the header `scope` field reflects `foreground`), while Windows and Linux return an explicit "target window not found" error instead of silently returning the wrong window.
 
 ---
 

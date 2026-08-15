@@ -8,13 +8,16 @@
 - pathlib::Path (POS: Python标准库，路径操作)
 - time (POS: Python标准库，时间戳)
 - typing::Dict, List (POS: Python类型提示)
+- infra.atomic_write::atomic_write (POS: 崩溃一致性文件写入工具，temp file + fsync + atomic rename)
+- utils.logger_utils::get_agent_logger (POS: Agent 日志工具)
 
 [OUTPUT]
 - SubagentCheckpoint: 子Agent执行检查点数据类
-- SubagentCheckpointStorage: 子Agent检查点存储（JSON文件后端）
+- SubagentCheckpointStorage: 子Agent检查点存储（JSON文件后端，崩溃一致原子写）
+- CheckpointCorruptedError: 检查点文件存在但无法解析时抛出的语义化异常
 
 [POS]
-Subagent checkpoint persistence module. Saves and restores subagent execution state to persistent storage (local JSON files).
+Subagent checkpoint persistence module. Saves and restores subagent execution state to persistent storage (local JSON files) with crash-consistent atomic writes.
 
 """
 
@@ -27,13 +30,22 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.utils import os_compat as fcntl
+from myrm_agent_harness.infra.atomic_write import atomic_write
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
     pass
 
 logger = get_agent_logger(__name__)
+
+
+class CheckpointCorruptedError(Exception):
+    """Raised when a checkpoint file exists but cannot be parsed.
+
+    A corrupted checkpoint carries no recoverable state. Callers should
+    surface it as a user-actionable condition (e.g. HTTP 400) and may safely
+    delete the underlying file.
+    """
 
 
 def _default_checkpoint_storage_path() -> Path:
@@ -139,8 +151,9 @@ class SubagentCheckpointStorage:
     Storage structure:
         {MYRM_DATA_DIR or .myrm}/checkpoints/{task_id}.json
 
-    Thread-safety: Uses fcntl.lockf() for file-level locking to prevent
-    concurrent write corruption when multiple subagents save simultaneously.
+    Crash safety: Writes go through :func:`atomic_write` (temp file + fsync +
+    atomic rename), so a crash never leaves a partial JSON file and concurrent
+    save/load always observe a complete file without needing file locks.
     """
 
     def __init__(self, storage_path: Path | None = None) -> None:
@@ -168,26 +181,28 @@ class SubagentCheckpointStorage:
         self.save_sync(checkpoint)
 
     def save_sync(self, checkpoint: SubagentCheckpoint) -> None:
-        """Save checkpoint to disk with file locking.
+        """Save checkpoint to disk atomically.
 
-        Uses fcntl.lockf() to prevent concurrent writes from corrupting
-        the JSON file when multiple subagents save simultaneously.
+        Uses :func:`~myrm_agent_harness.infra.atomic_write.atomic_write`
+        (temp file + fsync + atomic rename) so a crash mid-write never leaves
+        a partial JSON file. The atomic rename also makes concurrent
+        save/load safe without file locks: readers always observe either the
+        previous complete file or the new complete file.
 
         Args:
             checkpoint: Checkpoint to save
         """
         task_id = _validate_checkpoint_task_id(checkpoint.task_id)
         file_path = self._storage_path / f"{task_id}.json"
-        checkpoint_dict = checkpoint.to_dict()
+        payload = json.dumps(
+            checkpoint.to_dict(),
+            indent=2,
+            ensure_ascii=False,
+        )
 
         start_time = time.perf_counter()
         try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                fcntl.lockf(f, fcntl.LOCK_EX)
-                try:
-                    json.dump(checkpoint_dict, f, indent=2, ensure_ascii=False)
-                finally:
-                    fcntl.lockf(f, fcntl.LOCK_UN)
+            atomic_write(file_path, payload)
             logger.info(
                 " Checkpoint saved: %s (progress=%.1f%%, size=%dB)",
                 checkpoint.task_id,
@@ -212,13 +227,17 @@ class SubagentCheckpointStorage:
             raise
 
     async def load(self, task_id: str) -> SubagentCheckpoint | None:
-        """Load checkpoint from disk with shared file lock.
+        """Load checkpoint from disk.
 
         Args:
             task_id: Task ID to load
 
         Returns:
             Checkpoint if exists, None otherwise
+
+        Raises:
+            CheckpointCorruptedError: If the checkpoint file exists but
+                cannot be parsed (partial/corrupt JSON or unknown schema)
         """
         task_id = _validate_checkpoint_task_id(task_id)
         start_time = time.perf_counter()
@@ -229,11 +248,7 @@ class SubagentCheckpointStorage:
 
         try:
             with open(file_path, encoding="utf-8") as f:
-                fcntl.lockf(f, fcntl.LOCK_SH)
-                try:
-                    data = json.load(f)
-                finally:
-                    fcntl.lockf(f, fcntl.LOCK_UN)
+                data = json.load(f)
             checkpoint = SubagentCheckpoint.from_dict(data)
             logger.info(
                 "Checkpoint loaded: %s (progress=%.1f%%)",
@@ -249,6 +264,15 @@ class SubagentCheckpointStorage:
                 self.metrics.resume_total_ms += elapsed_ms
 
             return checkpoint
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            # Track failure
+            if self.metrics:
+                self.metrics.resume_count += 1
+                self.metrics.resume_failure_count += 1
+            logger.error("Checkpoint corrupted %s: %s", task_id, e)
+            raise CheckpointCorruptedError(
+                f"checkpoint {task_id} is corrupted and cannot be resumed"
+            ) from e
         except Exception as e:
             # Track failure
             if self.metrics:
@@ -336,6 +360,15 @@ class SubagentCheckpointStorage:
                             checkpoint.task_id,
                             age / 86400,
                         )
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    # Unparseable checkpoint carries no recoverable state;
+                    # discard it so the TTL cleanup doesn't leak corrupted files.
+                    file_path.unlink(missing_ok=True)
+                    deleted += 1
+                    logger.warning(
+                        "Deleted corrupted checkpoint file: %s",
+                        file_path,
+                    )
                 except Exception as e:
                     logger.warning("Failed to process checkpoint %s: %s", file_path, e)
                     continue

@@ -64,3 +64,14 @@ async def test_snapshot_tool_ignores_browser_check_errors(session: DesktopSessio
     snapshot_tool = next(t for t in tools if t.name == "desktop_snapshot_tool")
     result = await snapshot_tool.ainvoke({})
     assert result == "plain tree"
+
+
+@pytest.mark.asyncio
+async def test_snapshot_tool_forwards_target_scope_and_app_name(session: DesktopSession) -> None:
+    session._backend.is_browser_active = AsyncMock(return_value=False)
+    session.desktop_snapshot = AsyncMock(return_value="tree text")
+    tools = create_desktop_tools(session)
+    snapshot_tool = next(t for t in tools if t.name == "desktop_snapshot_tool")
+    result = await snapshot_tool.ainvoke({"scope": "target", "app_name": "Mail"})
+    assert result == "tree text"
+    session.desktop_snapshot.assert_awaited_once_with(scope="target", app_name="Mail", include_screenshot=False)

@@ -1308,6 +1308,34 @@ class TestToolFilterParams:
 
 
 @pytest.mark.asyncio
+async def test_proxy_preserves_config_named_argument_via_ainvoke() -> None:
+    """A proxy tool whose argument is named ``config`` must forward it intact.
+
+    langchain's ``StructuredTool._arun`` swallows a ``config`` keyword argument;
+    SafeStructuredTool proxies must keep it in the payload routed to the actor.
+    """
+    init_calls: list[int] = []
+    tool = _FakeTool("alpha", result="viaproxy")
+    tool.args_schema = {
+        "type": "object",
+        "properties": {"config": {"type": "object"}},
+        "required": ["config"],
+    }
+    client_cls, convert = _install_fake_client(init_calls, [tool])
+
+    actor = MCPSessionActor("srv", {"transport": "stdio"})
+    with _patched(client_cls, convert):
+        await actor.start()
+        try:
+            proxy = actor.tools[0]
+            result = await proxy.ainvoke({"config": {"scope": "prod"}})
+            assert result == "viaproxy"
+            assert tool.invocations == [{"config": {"scope": "prod"}}]
+        finally:
+            await actor.close()
+
+
+@pytest.mark.asyncio
 async def test_proxy_routes_to_rebound_tool_after_reconnect() -> None:
     """After _tools dict is replaced (reconnect), _invoke resolves the new tool."""
     actor = MCPSessionActor("srv", {"transport": "stdio"})

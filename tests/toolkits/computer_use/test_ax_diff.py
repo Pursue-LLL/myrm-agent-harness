@@ -1,6 +1,11 @@
 """Tests for perception/ax_diff.py — incremental AX tree diff."""
 
-from myrm_agent_harness.toolkits.computer_use.dref.types import BBox, ElementRef, SnapshotMeta
+from myrm_agent_harness.toolkits.computer_use.dref.types import (
+    BBox,
+    ElementRef,
+    SnapshotMeta,
+    SnapshotScope,
+)
 from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import (
     RefDiff,
     compute_ref_diff,
@@ -11,7 +16,7 @@ from myrm_agent_harness.toolkits.computer_use.perception.renderer import (
 )
 
 
-def _make_meta(app: str = "WPS", scope: str = "window_title") -> SnapshotMeta:
+def _make_meta(app: str = "WPS", scope: SnapshotScope = "foreground") -> SnapshotMeta:
     return SnapshotMeta(ref_count=0, app_name=app, window_title="Sheet1", scope=scope)
 
 
@@ -171,7 +176,7 @@ class TestRenderDiffTree:
         assert enriched.token_estimate > 0
 
     def test_diff_much_smaller_than_full(self) -> None:
-        meta = SnapshotMeta(ref_count=80, app_name="WPS", window_title="Sheet1", scope="window_title")
+        meta = SnapshotMeta(ref_count=80, app_name="WPS", window_title="Sheet1", scope="target")
         refs = {f"d{i}": _make_ref(f"d{i}", "AXButton", f"Button{i}", x=i * 10) for i in range(80)}
 
         full_text, _ = render_snapshot_tree(meta, refs)

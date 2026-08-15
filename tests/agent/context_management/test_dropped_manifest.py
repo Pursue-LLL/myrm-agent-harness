@@ -125,6 +125,22 @@ class TestBuildDroppedManifest:
         )
         assert result == []
 
+    def test_ignores_dropped_system_messages(self) -> None:
+        keep_msg = HumanMessage(content="Current question")
+        # Harness-injected system prompts (memory context templates, agent
+        # instructions) must never surface as "dropped user constraints" —
+        # that would leak pipeline internals into the GUI.
+        dropped_system = SystemMessage(
+            content="Remember: you MUST append a <cite:MEMORY_ID> citation tag"
+        )
+        msgs = [keep_msg, dropped_system]
+        result = build_dropped_manifest(
+            msgs,
+            protected_ids={id(keep_msg)},
+            recent_ids=set(),
+        )
+        assert result == []
+
     def test_truncates_long_snippets(self) -> None:
         keep_msg = HumanMessage(content="Current question")
         long_content = "Remember: " + "x" * 500

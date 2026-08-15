@@ -35,17 +35,17 @@ class TestResolveTargetApp:
     def test_foreground_scope_returns_none(self) -> None:
         assert _resolve_target_app("foreground", None) is None
 
-    def test_foreground_scope_ignores_window_title(self) -> None:
+    def test_foreground_scope_ignores_app_name(self) -> None:
         assert _resolve_target_app("foreground", "TextEdit") is None
 
-    def test_window_title_scope_with_title(self) -> None:
-        assert _resolve_target_app("window_title", "TextEdit") == "TextEdit"
+    def test_target_scope_with_app_name(self) -> None:
+        assert _resolve_target_app("target", "TextEdit") == "TextEdit"
 
-    def test_window_title_scope_without_title(self) -> None:
-        assert _resolve_target_app("window_title", None) is None
+    def test_target_scope_without_app_name(self) -> None:
+        assert _resolve_target_app("target", None) is None
 
-    def test_window_title_scope_empty_string(self) -> None:
-        assert _resolve_target_app("window_title", "") is None
+    def test_target_scope_empty_string(self) -> None:
+        assert _resolve_target_app("target", "") is None
 
     def test_full_screen_scope_returns_none(self) -> None:
         assert _resolve_target_app("full_screen", None) is None
@@ -197,9 +197,9 @@ class TestCaptureAxSnapshot:
         with patch(
             "myrm_agent_harness.toolkits.computer_use.perception.macos_ax.subprocess.run", return_value=mock_result
         ):
-            snapshot = capture_ax_snapshot("window_title", "TextEdit")
+            snapshot = capture_ax_snapshot("target", "TextEdit")
             assert snapshot.meta.app_name == "TextEdit"
-            assert snapshot.meta.scope == "window_title"
+            assert snapshot.meta.scope == "target"
 
     def test_targeted_fails_falls_back_to_foreground(self) -> None:
         call_count = 0
@@ -218,7 +218,7 @@ class TestCaptureAxSnapshot:
         with patch(
             "myrm_agent_harness.toolkits.computer_use.perception.macos_ax.subprocess.run", side_effect=side_effect
         ):
-            snapshot = capture_ax_snapshot("window_title", "NonExistentApp")
+            snapshot = capture_ax_snapshot("target", "NonExistentApp")
             assert snapshot.meta.scope == "foreground"
             assert snapshot.meta.app_name == "Finder"
             assert call_count == 2

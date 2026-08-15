@@ -837,12 +837,16 @@ async def run_agent_loop(
                             error_event["recovery_actions"] = recovery_actions
                 # Persist the error to the event journal so trace reconstruction
                 # sees fatal errors raised outside the executor (e.g. during task
-                # teardown). Mirrors the executor's persistence path.
+                # teardown). Mirrors the executor's persistence path. Best-effort:
+                # logging must never mask the outer-loop error being reported.
                 if event_logger is not None:
-                    persisted = dict(error_event)
-                    persisted.pop("type", None)
-                    persisted.pop("messageId", None)
-                    await event_logger.log(AgentEventType.ERROR.value, persisted)
+                    try:
+                        persisted = dict(error_event)
+                        persisted.pop("type", None)
+                        persisted.pop("messageId", None)
+                        await event_logger.log(AgentEventType.ERROR.value, persisted)
+                    except Exception as log_err:
+                        logger.error("Failed to persist outer-loop error event: %s", log_err)
                 yield error_event
 
         finally:

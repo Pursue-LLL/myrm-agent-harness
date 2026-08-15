@@ -42,11 +42,11 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
     class SnapshotInput(BaseModel):
         scope: SnapshotScope = Field(
             default="foreground",
-            description="Snapshot scope: 'foreground' (default), 'window_title', or 'full_screen'.",
+            description="Snapshot scope: 'foreground' (default, active app window), 'target' (a specific app by name), or 'full_screen'.",
         )
-        window_title: str = Field(
+        app_name: str = Field(
             default="",
-            description="Optional window title filter when scope='window_title'.",
+            description="Target app name (e.g. 'Mail', 'Excel') when scope='target'. Captures that app's main window without changing the foreground.",
         )
         include_screenshot: bool = Field(
             default=False,
@@ -56,7 +56,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
     @tool("desktop_snapshot_tool", args_schema=SnapshotInput)
     async def desktop_snapshot(
         scope: SnapshotScope = "foreground",
-        window_title: str = "",
+        app_name: str = "",
         include_screenshot: bool = False,
     ) -> str | list[object]:
         """Capture the desktop accessibility tree with @dref element IDs.
@@ -66,7 +66,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         """
         result = await session.desktop_snapshot(
             scope=scope,
-            window_title=window_title or None,
+            app_name=app_name or None,
             include_screenshot=include_screenshot,
         )
 

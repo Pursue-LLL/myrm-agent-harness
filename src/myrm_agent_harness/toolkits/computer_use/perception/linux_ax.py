@@ -35,7 +35,7 @@ class LinuxAxSnapshot:
     refs: dict[str, ElementRef]
 
 
-def _try_pyatspi_snapshot() -> LinuxAxSnapshot | None:
+def _try_pyatspi_snapshot(target_app: str | None = None) -> LinuxAxSnapshot | None:
     try:
         import pyatspi  # type: ignore[import-untyped]
     except ImportError:
@@ -93,8 +93,18 @@ def _try_pyatspi_snapshot() -> LinuxAxSnapshot | None:
         except Exception:
             return
 
+    target_lower = target_app.strip().lower() if target_app else ""
     for idx in range(desktop.childCount):
-        walk(desktop.getChildAtIndex(idx))
+        child = desktop.getChildAtIndex(idx)
+        if target_lower:
+            try:
+                child_role = child.getRoleName()
+                child_name = child.name or ""
+            except Exception:
+                continue
+            if child_role != "application" or child_name.strip().lower() != target_lower:
+                continue
+        walk(child)
 
     if not refs:
         return None
@@ -103,15 +113,22 @@ def _try_pyatspi_snapshot() -> LinuxAxSnapshot | None:
         ref_count=len(refs),
         app_name=app_name,
         window_title=window_title,
-        scope="foreground",
+        scope="foreground" if not target_lower else "target",
         app_id=app_id,
         truncated=counter >= _MAX_ELEMENTS,
     )
     return LinuxAxSnapshot(meta=meta, refs=refs)
 
 
-def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -> LinuxAxSnapshot:
-    del scope, window_title
+def capture_ax_snapshot(scope: SnapshotScope, app_name: str | None = None) -> LinuxAxSnapshot:
+    if scope == "target":
+        if not app_name:
+            raise AXTreeEmptyError("target scope requires app_name")
+        snapshot = _try_pyatspi_snapshot(target_app=app_name)
+        if snapshot is None:
+            raise AXTreeEmptyError(f"target window not found for app '{app_name}'")
+        return snapshot
+
     pyatspi_snapshot = _try_pyatspi_snapshot()
     if pyatspi_snapshot is not None:
         return pyatspi_snapshot
@@ -137,7 +154,12 @@ def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -
     raise AXTreeEmptyError("AT-SPI tree unavailable in this environment. Install pyatspi or use desktop_vision_tool.")
 
 
-def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionResult:
+def invoke_ax_element(
+    backend_key: str,
+    action: str,
+    text: str = "",
+    app_name: str | None = None,
+) -> ActionResult:
     """Invoke an AT-SPI element by flat-index (mirrors Windows UIA pattern)."""
     try:
         index = int(backend_key)
@@ -179,8 +201,18 @@ def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionRe
         except Exception:
             return
 
+    target_lower = app_name.strip().lower() if app_name else ""
     for i in range(desktop.childCount):
-        _collect(desktop.getChildAtIndex(i))
+        node = desktop.getChildAtIndex(i)
+        if target_lower:
+            try:
+                node_role = node.getRoleName()
+                node_name = node.name or ""
+            except Exception:
+                continue
+            if node_role != "application" or node_name.strip().lower() != target_lower:
+                continue
+        _collect(node)
 
     if index >= len(interactive):
         return ActionResult(success=False, error=f"Stale element index {index}")

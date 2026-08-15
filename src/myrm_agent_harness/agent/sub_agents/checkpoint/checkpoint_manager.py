@@ -345,6 +345,8 @@ class SubagentCheckpointManager:
 
         Raises:
             ValueError: If checkpoint not found or not resumable
+            CheckpointCorruptedError: If the checkpoint file exists but
+                cannot be parsed (partial/corrupt JSON or unknown schema)
 
         Note:
             Returns checkpoint data in result.checkpoint_data.

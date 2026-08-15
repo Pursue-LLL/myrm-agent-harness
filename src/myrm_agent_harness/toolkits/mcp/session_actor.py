@@ -51,14 +51,11 @@ import re
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
 
-from langchain_core.tools import BaseTool, StructuredTool
+from langchain_core.tools import BaseTool
 
 from .config import sanitize_mcp_name_component
-
-if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+from .structured_tool import SafeStructuredTool
 
 logger = logging.getLogger(__name__)
 
@@ -962,7 +959,7 @@ class MCPSessionActor:
             return self._tools.get(prefixed)
         return None
 
-    def _make_proxy(self, real_tool: BaseTool) -> BaseTool:
+    def _make_proxy(self, real_tool: BaseTool) -> SafeStructuredTool:
         """Build a schema-identical proxy that routes execution through the queue.
 
         The proxy resolves the executable tool lazily on each call, so after a
@@ -974,12 +971,11 @@ class MCPSessionActor:
         async def _proxy(**params: object) -> object:
             return await self.call(tool_name, params)
 
-        coroutine: Callable[..., Awaitable[object]] = _proxy
-        return StructuredTool(
+        return SafeStructuredTool(
             name=tool_name,
             description=real_tool.description,
             args_schema=real_tool.args_schema or {"type": "object", "properties": {}},
-            coroutine=coroutine,
+            coroutine=_proxy,
             response_format="content",
             metadata=real_tool.metadata,
         )

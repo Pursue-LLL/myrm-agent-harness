@@ -30,7 +30,6 @@ from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
 # Message role constants (mirrors langchain_core.messages types without importing
 # the heavyweight hierarchy in this hot audit path).
 _ROLE_USER = "human"
-_ROLE_SYSTEM = "system"
 
 # Max number of constraint snippets retained per compaction. Keeps the event
 # payload small while still giving the user a concrete sense of what was lost.
@@ -140,6 +139,12 @@ def build_dropped_manifest(
     a constraint signal (e.g. "must", "never", "不要", "必须"), redact PII and
     credentials, truncate, and deduplicate.
 
+    Only user messages are eligible: system messages carry harness-injected
+    prompts (memory context templates, agent instructions), which must never be
+    surfaced to the GUI as "dropped user constraints" — that would leak pipeline
+    internals and mislead the user into blaming compression for lost harness
+    instructions.
+
     Pure function — no I/O, no LLM calls, no prompt tokens. Callers should pass
     the id() sets used to build the new message list.
 
@@ -155,7 +160,7 @@ def build_dropped_manifest(
     seen: set[str] = set()
 
     for message in messages:
-        if _role_of(message) not in (_ROLE_USER, _ROLE_SYSTEM):
+        if _role_of(message) != _ROLE_USER:
             continue
         if id(message) in protected_ids or id(message) in recent_ids:
             continue

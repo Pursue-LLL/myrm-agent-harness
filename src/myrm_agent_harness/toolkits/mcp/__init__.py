@@ -53,6 +53,7 @@ from .security import (
     ResolvedURL,
     URLValidationError,
 )
+from .structured_tool import SafeStructuredTool
 
 __all__ = [
     "MCPAgent",
@@ -69,6 +70,7 @@ __all__ = [
     "MCPURLValidator",
     "OversizedResultHandler",
     "ResolvedURL",
+    "SafeStructuredTool",
     "URLValidationError",
     "build_authorization_url",
     "generate_pkce_pair",

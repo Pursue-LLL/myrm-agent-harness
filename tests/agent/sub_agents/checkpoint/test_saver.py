@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import time
 
 import pytest
 
-from myrm_agent_harness.agent.sub_agents.checkpoint.saver import SubagentCheckpoint, SubagentCheckpointStorage
+from myrm_agent_harness.agent.sub_agents.checkpoint.saver import (
+    CheckpointCorruptedError,
+    SubagentCheckpoint,
+    SubagentCheckpointStorage,
+)
 
 
 def _make_checkpoint(
@@ -158,6 +161,31 @@ class TestSubagentCheckpointStorage:
         assert deleted == 0
 
     @pytest.mark.asyncio
+    async def test_save_leaves_no_temp_files(self, tmp_path) -> None:
+        """Atomic save must not leave temp files behind."""
+        storage = SubagentCheckpointStorage(storage_path=tmp_path / "ckpts")
+        await storage.save(_make_checkpoint(task_id="task-1"))
+
+        leftover = [p for p in storage._storage_path.iterdir() if p.name.startswith(".atomic_")]
+        assert leftover == []
+
+    @pytest.mark.asyncio
+    async def test_save_overwrites_atomically(self, tmp_path) -> None:
+        """Re-saving the same task must produce a complete single file."""
+        storage = SubagentCheckpointStorage(storage_path=tmp_path / "ckpts")
+        cp1 = _make_checkpoint(task_id="task-1", progress=0.3)
+        await storage.save(cp1)
+        cp2 = _make_checkpoint(task_id="task-1", progress=0.9)
+        await storage.save(cp2)
+
+        files = [p for p in storage._storage_path.glob("*.json")]
+        assert len(files) == 1
+
+        loaded = await storage.load("task-1")
+        assert loaded is not None
+        assert loaded.progress == 0.9
+
+    @pytest.mark.asyncio
     async def test_metrics_tracking_on_save(self, tmp_path) -> None:
         storage = SubagentCheckpointStorage(storage_path=tmp_path / "ckpts")
         cp = _make_checkpoint()
@@ -202,8 +230,47 @@ class TestSubagentCheckpointStorage:
         file_path = storage._storage_path / "corrupt.json"
         file_path.write_text("not valid json", encoding="utf-8")
 
-        with pytest.raises(json.JSONDecodeError):
+        with pytest.raises(CheckpointCorruptedError, match="corrupted"):
             await storage.load("corrupt")
+
+    @pytest.mark.asyncio
+    async def test_load_corrupt_file_tracks_failure_metric(self, tmp_path) -> None:
+        storage = SubagentCheckpointStorage(storage_path=tmp_path / "ckpts")
+        file_path = storage._storage_path / "corrupt.json"
+        file_path.write_text("not valid json", encoding="utf-8")
+
+        with pytest.raises(CheckpointCorruptedError):
+            await storage.load("corrupt")
+
+        if storage.metrics:
+            assert storage.metrics.resume_count == 1
+            assert storage.metrics.resume_failure_count == 1
+            assert storage.metrics.resume_success_count == 0
+
+    @pytest.mark.asyncio
+    async def test_cleanup_deletes_corrupt_files(self, tmp_path) -> None:
+        storage = SubagentCheckpointStorage(storage_path=tmp_path / "ckpts")
+
+        await storage.save(_make_checkpoint(task_id="good"))
+        corrupt = storage._storage_path / "bad.json"
+        corrupt.write_text("not valid json", encoding="utf-8")
+
+        deleted = await storage.cleanup_old_checkpoints(ttl_seconds=86400 * 7)
+        # "bad.json" is deleted because it's corrupt; "good.json" is fresh.
+        assert deleted == 1
+        assert not corrupt.exists()
+        assert (storage._storage_path / "good.json").exists()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_deletes_corrupt_files_even_with_expired_ttl(self, tmp_path) -> None:
+        """Corrupt files are always cleaned up regardless of TTL expiry."""
+        storage = SubagentCheckpointStorage(storage_path=tmp_path / "ckpts")
+        corrupt = storage._storage_path / "bad.json"
+        corrupt.write_text("not valid json", encoding="utf-8")
+
+        deleted = await storage.cleanup_old_checkpoints(ttl_seconds=0)
+        assert deleted == 1
+        assert not corrupt.exists()
 
     @pytest.mark.asyncio
     async def test_list_skips_corrupt_files(self, tmp_path) -> None:

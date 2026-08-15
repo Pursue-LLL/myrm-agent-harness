@@ -228,10 +228,10 @@ class MacAxSnapshot:
     refs: dict[str, ElementRef]
 
 
-def _resolve_target_app(scope: SnapshotScope, window_title: str | None) -> str | None:
+def _resolve_target_app(scope: SnapshotScope, app_name: str | None) -> str | None:
     """Extract target app name from scope. Returns None for foreground mode."""
-    if scope == "window_title" and window_title:
-        return window_title
+    if scope == "target" and app_name:
+        return app_name
     return None
 
 
@@ -313,8 +313,8 @@ def _parse_ax_output(
     return MacAxSnapshot(meta=meta, refs=refs)
 
 
-def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -> MacAxSnapshot:
-    target_app = _resolve_target_app(scope, window_title)
+def capture_ax_snapshot(scope: SnapshotScope, app_name: str | None = None) -> MacAxSnapshot:
+    target_app = _resolve_target_app(scope, app_name)
 
     if target_app is not None:
         targeted_script = _build_ax_snapshot_script(target_app=target_app)

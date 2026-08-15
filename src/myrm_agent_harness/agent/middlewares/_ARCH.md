@@ -20,10 +20,8 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `goal_focus_middleware.py` | Core | ACTIVE goal objective injection into last HumanMessage. | ✅ |
 | `moa_advisor_middleware.py` | Core | Agent-loop MoA advisor overlay — ref fan-out, transient HumanMessage tail, skip SSE for budget pressure and insufficient refs (`moa_overlay_skipped`). | ✅ |
 | `rate_limit.py` | Core | Proactive provider 429 throttling. | ✅ |
-| `replan_middleware.py` | Core | Dynamic replan loop on tool errors. | ✅ |
-| `security_boundary_middleware.py` | Core | Security boundary enforcement. | ✅ |
-| `security_guardrail_middleware.py` | Core | Security guardrail enforcement. | ✅ |
-| `session_access_middleware.py` | Core | Inject per-turn HITL session directory access context (`<session-access>` block) before each model call; dedup via marker. | ✅ |
+    | `replan_middleware.py` | Core | Dynamic replan loop on tool errors. | ✅ |
+    | `session_access_middleware.py` | Core | Inject per-turn HITL session directory access context (`<session-access>` block) before each model call; dedup via marker. | ✅ |
 | `subagent_limit_middleware.py` | Core | Max concurrent subagents per turn. | ✅ |
 | `sync_hook_parity.py` | Internal | `SyncHookParityAdapter` wraps middlewares missing sync `wrap_tool_call`/`wrap_model_call` so sync ToolNode paths don't raise; `apply_sync_hook_parity()` auto-wraps the middleware list. | ✅ |
 

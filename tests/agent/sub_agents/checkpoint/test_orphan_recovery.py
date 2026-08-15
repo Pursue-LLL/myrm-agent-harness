@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -99,6 +100,12 @@ class TestScheduleScan:
                 assert mgr._running is True
                 assert mgr._recovery_task is not None
         finally:
+            # Cancel and drain the scheduled task so the loop can close
+            # without leaking a never-awaited coroutine.
+            if mgr._recovery_task is not None:
+                mgr._recovery_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    loop.run_until_complete(mgr._recovery_task)
             loop.close()
 
     def test_schedule_scan_handles_no_event_loop(self) -> None:

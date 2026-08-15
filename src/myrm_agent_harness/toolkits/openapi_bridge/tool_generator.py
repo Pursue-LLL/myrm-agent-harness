@@ -4,7 +4,8 @@ Converts parsed OpenAPI endpoints into LangChain StructuredTool instances
 with namespace isolation, parameter constraint propagation, and proper descriptions.
 
 [INPUT]
-- langchain_core.tools::StructuredTool (POS: LangChain tool factory)
+- langchain_core.tools::StructuredTool (POS: LangChain tool factory base)
+- mcp.structured_tool::SafeStructuredTool (POS: reserved-name-safe StructuredTool subclass)
 - .spec_parser::ParsedSpec (POS: parsed spec intermediate representation)
 - .http_executor::OpenAPIExecutor (POS: HTTP request executor)
 - .config::OpenAPIServiceConfig, ParsedEndpoint (POS: configuration models)
@@ -27,9 +28,10 @@ import re
 import time
 from typing import Any, ClassVar
 
-from langchain_core.tools import BaseTool, StructuredTool
+from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.toolkits.mcp.schema import coerce_arguments_by_schema
+from myrm_agent_harness.toolkits.mcp.structured_tool import SafeStructuredTool
 
 from .config import OpenAPIServiceConfig, ParsedEndpoint
 from .http_executor import OpenAPIExecutor
@@ -46,7 +48,7 @@ async def generate_tools(
 ) -> list[BaseTool]:
     """Generate LangChain tools from an OpenAPI service configuration.
 
-    Each selected endpoint becomes a StructuredTool with:
+    Each selected endpoint becomes a SafeStructuredTool with:
     - Namespaced name: {service_name}_{operation_id}
     - Description from endpoint summary/description
     - Parameters extracted from path/query/body schema
@@ -57,7 +59,7 @@ async def generate_tools(
         spec: Parsed spec with resolved endpoints
 
     Returns:
-        List of LangChain StructuredTool instances ready for agent use
+        List of LangChain SafeStructuredTool instances ready for agent use
     """
     base_url = config.base_url or spec.base_url
     if not base_url:
@@ -101,7 +103,7 @@ def _create_tool_for_endpoint(
     executor: OpenAPIExecutor,
     spec: ParsedSpec,
 ) -> BaseTool | None:
-    """Create a single StructuredTool for an endpoint."""
+    """Create a single SafeStructuredTool for an endpoint."""
     tool_name = f"{service_name}_{endpoint.operation_id}"
 
     # Build description
@@ -182,7 +184,7 @@ def _create_tool_for_endpoint(
     param_schema = _build_param_schema(endpoint, path_params)
 
     try:
-        tool = StructuredTool.from_function(
+        tool = SafeStructuredTool.from_function(
             func=lambda **kwargs: None,
             coroutine=_execute_endpoint,
             name=tool_name,

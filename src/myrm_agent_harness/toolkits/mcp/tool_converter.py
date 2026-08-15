@@ -1,15 +1,17 @@
 """MCP tool schema → LangChain BaseTool converter.
 
-Converts MCP ``Tool`` objects (from ``client.list_tools()``) into LangChain
-``StructuredTool`` instances whose ``ainvoke`` calls the provided
-session/client's ``call_tool`` method. The input schema is normalized:
+Converts MCP ``Tool`` objects (from ``client.list_tools()``) into
+``SafeStructuredTool`` instances (a ``StructuredTool`` subclass whose ``_arun``
+never swallows ``config``/``run_manager`` arguments — see
+``structured_tool.py``) whose ``ainvoke`` calls the provided session/client's
+``call_tool`` method. The input schema is normalized:
 ``$ref``/``$defs`` are inlined, property-level const unions collapse into
 ``enum`` (Rust/TypeScript servers), and top-level composite keywords
 (``anyOf``/``oneOf``/``allOf``) are flattened so MCPServer nested/optional
 models and kimi-cu-style multi-branch tools never degrade to empty schemas.
 
 The normalized JSON Schema dict is passed through unchanged as the
-``StructuredTool`` ``args_schema`` — never rebuilt into a Pydantic model.
+``SafeStructuredTool`` ``args_schema`` — never rebuilt into a Pydantic model.
 This preserves every semantic detail (``description``, ``enum``,
 ``minimum``/``maximum``, nested ``properties``) for the LLM: LangChain's
 ``convert_to_openai_tool`` serializes a dict ``args_schema`` verbatim,
@@ -32,7 +34,7 @@ owned by ``result_processing.normalize_mcp_result`` /
 - schema::collapse_const_unions, flatten_top_level_composite, flatten_json_schema, prepare_mcp_call_arguments (POS: MCP inbound tool schema normalization)
 
 [OUTPUT]
-- convert_mcp_tools: MCP Tool list → LangChain StructuredTool list
+- convert_mcp_tools: MCP Tool list → LangChain SafeStructuredTool list
 
 [POS]
 MCP-to-LangChain tool schema bridge using ``mcp`` SDK 2.x natively.
@@ -45,14 +47,13 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from langchain_core.tools import StructuredTool
-
 from myrm_agent_harness.toolkits.mcp.schema import (
     collapse_const_unions,
     flatten_json_schema,
     flatten_top_level_composite,
     prepare_mcp_call_arguments,
 )
+from myrm_agent_harness.toolkits.mcp.structured_tool import SafeStructuredTool
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +62,8 @@ def convert_mcp_tools(
     tools: list[Any],
     call_tool_fn: Callable[..., Awaitable[object]],
     server_name: str = "",
-) -> list[StructuredTool]:
-    """Convert MCP Tool objects to LangChain StructuredTool instances.
+) -> list[SafeStructuredTool]:
+    """Convert MCP Tool objects to LangChain SafeStructuredTool instances.
 
     Args:
         tools: List of ``mcp.types.Tool`` objects from ``client.list_tools()``.
@@ -71,11 +72,11 @@ def convert_mcp_tools(
         server_name: Server name for logging.
 
     Returns:
-        List of LangChain ``StructuredTool`` instances.  Each tool's coroutine
-        resolves ``CallToolResult`` from ``call_tool_fn`` unchanged — content
-        normalization is deferred to ``MCPAgent`` (see module docstring).
+        List of LangChain ``SafeStructuredTool`` instances.  Each tool's
+        coroutine resolves ``CallToolResult`` from ``call_tool_fn`` unchanged —
+        content normalization is deferred to ``MCPAgent`` (see module docstring).
     """
-    result: list[StructuredTool] = []
+    result: list[SafeStructuredTool] = []
     for tool in tools:
         tool_name: str = tool.name
         description: str = getattr(tool, "description", "") or ""
@@ -122,7 +123,7 @@ def convert_mcp_tools(
 
             return _invoke
 
-        lc_tool = StructuredTool(
+        lc_tool = SafeStructuredTool(
             name=tool_name,
             description=description,
             args_schema=input_schema,

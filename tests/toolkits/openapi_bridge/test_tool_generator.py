@@ -158,6 +158,42 @@ class TestToolExecution:
         assert call_kwargs["path_params"] == {"petId": "123"}
 
     @pytest.mark.asyncio
+    async def test_config_argument_reaches_executor_via_ainvoke(self):
+        """A body field named ``config`` must survive ``ainvoke`` dispatch.
+
+        langchain's ``StructuredTool._arun`` swallows a ``config`` keyword
+        argument into its own ``config`` parameter; SafeStructuredTool keeps it
+        in the dispatched kwargs so the REST body is not silently emptied.
+        """
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="setConfig",
+                method="POST",
+                path="/config",
+                summary="Set config",
+                param_schema={
+                    "type": "object",
+                    "properties": {"config": {"type": "object"}},
+                },
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = "{}"
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].ainvoke({"config": {"retention_days": 30}})
+
+        call_kwargs = mock_executor.execute.call_args[1]
+        assert call_kwargs["body"] == {"config": {"retention_days": 30}}
+
+    @pytest.mark.asyncio
     async def test_post_body_handling(self):
         """Verify POST params (non-path) are routed to request body."""
         endpoints = [

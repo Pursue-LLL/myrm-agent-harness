@@ -30,17 +30,17 @@ logger = logging.getLogger(__name__)
 def capture_snapshot(
     backend: ComputerBackend,
     scope: SnapshotScope,
-    window_title: str | None = None,
+    app_name: str | None = None,
 ) -> tuple[SnapshotMeta, dict[str, ElementRef]]:
     platform = type(backend).__name__
     if platform == "MacOSBackend":
-        snapshot = macos_ax.capture_ax_snapshot(scope, window_title)
+        snapshot = macos_ax.capture_ax_snapshot(scope, app_name)
         return snapshot.meta, snapshot.refs
     if platform == "WindowsBackend":
-        snapshot = windows_ax.capture_ax_snapshot(scope, window_title)
+        snapshot = windows_ax.capture_ax_snapshot(scope, app_name)
         return snapshot.meta, snapshot.refs
     if platform == "LinuxBackend":
-        snapshot = linux_ax.capture_ax_snapshot(scope, window_title)
+        snapshot = linux_ax.capture_ax_snapshot(scope, app_name)
         return snapshot.meta, snapshot.refs
     raise RuntimeError(f"Unsupported backend for AX snapshot: {platform}")
 
@@ -73,7 +73,7 @@ def invoke_element(
     if platform == "MacOSBackend":
         return macos_ax.invoke_ax_element(element.backend_key, action, text, app_name=app_name)
     if platform == "WindowsBackend":
-        return windows_ax.invoke_ax_element(element.backend_key, action, text)
+        return windows_ax.invoke_ax_element(element.backend_key, action, text, app_name=app_name)
     if platform == "LinuxBackend":
-        return linux_ax.invoke_ax_element(element.backend_key, action, text)
+        return linux_ax.invoke_ax_element(element.backend_key, action, text, app_name=app_name)
     return ActionResult(success=False, error=f"Unsupported backend for AX invoke: {platform}")

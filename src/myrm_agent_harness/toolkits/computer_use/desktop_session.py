@@ -147,13 +147,13 @@ class DesktopSession(ComputerSession):
     async def desktop_snapshot(
         self,
         scope: SnapshotScope = "foreground",
-        window_title: str | None = None,
+        app_name: str | None = None,
         include_screenshot: bool = False,
     ) -> str | list[object]:
         from myrm_agent_harness.toolkits.computer_use import safety
 
         try:
-            meta, refs = capture_snapshot(self._backend, scope, window_title)
+            meta, refs = capture_snapshot(self._backend, scope, app_name)
         except AXPermissionRequiredError as exc:
             await self._emit_permission_view_update()
             return str(exc)
@@ -287,8 +287,8 @@ class DesktopSession(ComputerSession):
             await asyncio.sleep(self._config.screenshot_delay)
             if self._refs.meta and self._refs.meta.app_name:
                 follow_up = await self.desktop_snapshot(
-                    scope="window_title",
-                    window_title=self._refs.meta.app_name,
+                    scope="target",
+                    app_name=self._refs.meta.app_name,
                     include_screenshot=False,
                 )
             else:

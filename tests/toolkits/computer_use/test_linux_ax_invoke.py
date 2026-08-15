@@ -13,6 +13,10 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from myrm_agent_harness.toolkits.computer_use.dref.errors import AXTreeEmptyError
+
 
 class TestInvokeInputValidation:
     """Input validation guard at invoke_ax_element entry."""
@@ -293,3 +297,165 @@ class TestInvokeActionDispatch:
 
         assert result.success is True
         mock_good_action.doAction.assert_called_with(0)
+
+
+class TestInvokeTargetApp:
+    """Scope invoke to a single AT-SPI application by name."""
+
+    def _make_desktop_with_two_apps(self) -> tuple[MagicMock, MagicMock, MagicMock]:
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 2
+
+        slack_button = MagicMock()
+        slack_button.getRoleName.return_value = "push button"
+        slack_button.getState.return_value = MagicMock()
+        slack_button.childCount = 0
+        slack_extents = MagicMock()
+        slack_extents.width = 100
+        slack_extents.height = 30
+        slack_button.queryComponent.return_value.getExtents.return_value = slack_extents
+        slack_action = MagicMock()
+        slack_action.getNActions.return_value = 1
+        slack_button.queryAction.return_value = slack_action
+
+        slack_app = MagicMock()
+        slack_app.getRoleName.return_value = "application"
+        slack_app.name = "Slack"
+        slack_app.childCount = 1
+        slack_app.getChildAtIndex.side_effect = lambda i: slack_button if i == 0 else None
+
+        notes_app = MagicMock()
+        notes_app.getRoleName.return_value = "application"
+        notes_app.name = "Notes"
+        notes_app.childCount = 0
+
+        mock_desktop.getChildAtIndex.side_effect = lambda i: [slack_app, notes_app][i]
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+        return mock_pyatspi, slack_button, notes_app
+
+    def test_target_app_scopes_collection(self) -> None:
+        mock_pyatspi, slack_button, _ = self._make_desktop_with_two_apps()
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            result = linux_ax.invoke_ax_element("0", "click", app_name="Slack")
+
+        assert result.success is True
+        slack_button.queryAction.return_value.doAction.assert_called_with(0)
+
+    def test_target_app_not_found_stale_index(self) -> None:
+        mock_pyatspi, _, _ = self._make_desktop_with_two_apps()
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            result = linux_ax.invoke_ax_element("0", "click", app_name="NonExistent")
+
+        assert result.success is False
+        assert "Stale element index" in (result.error or "")
+
+
+class TestCaptureTargetApp:
+    """capture_ax_snapshot(scope='target', app_name=...) on Linux."""
+
+    def _make_desktop(self) -> MagicMock:
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 2
+
+        slack_button = MagicMock()
+        slack_button.getRoleName.return_value = "push button"
+        slack_button.name = "Send"
+        slack_button.getState.return_value = MagicMock()
+        slack_button.childCount = 0
+        slack_extents = MagicMock()
+        slack_extents.width = 100
+        slack_extents.height = 30
+        slack_extents.x = 5
+        slack_extents.y = 10
+        slack_button.queryComponent.return_value.getExtents.return_value = slack_extents
+
+        slack_window = MagicMock()
+        slack_window.getRoleName.return_value = "frame"
+        slack_window.name = "Slack #general"
+        slack_window.childCount = 1
+        slack_window.getChildAtIndex.side_effect = lambda i: slack_button if i == 0 else None
+
+        slack_app = MagicMock()
+        slack_app.getRoleName.return_value = "application"
+        slack_app.name = "Slack"
+        slack_app.childCount = 1
+        slack_app.getChildAtIndex.side_effect = lambda i: slack_window if i == 0 else None
+
+        notes_app = MagicMock()
+        notes_app.getRoleName.return_value = "application"
+        notes_app.name = "Notes"
+        notes_app.childCount = 0
+
+        mock_desktop.getChildAtIndex.side_effect = lambda i: [slack_app, notes_app][i]
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+        return mock_pyatspi
+
+    def test_target_success(self) -> None:
+        mock_pyatspi = self._make_desktop()
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            snapshot = linux_ax.capture_ax_snapshot("target", "Slack")
+
+        assert snapshot.meta.scope == "target"
+        assert snapshot.meta.app_name == "Slack"
+        assert snapshot.meta.window_title == "Slack #general"
+        assert len(snapshot.refs) == 1
+        ref = next(iter(snapshot.refs.values()))
+        assert ref.name == "Send"
+
+    def test_target_requires_app_name(self) -> None:
+        mock_pyatspi = self._make_desktop()
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            with pytest.raises(AXTreeEmptyError, match="target scope requires app_name"):
+                linux_ax.capture_ax_snapshot("target")
+
+    def test_target_not_found_raises(self) -> None:
+        mock_pyatspi = self._make_desktop()
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            with pytest.raises(AXTreeEmptyError, match="target window not found"):
+                linux_ax.capture_ax_snapshot("target", "NonExistent")
+
+    def test_foreground_collects_all_apps(self) -> None:
+        mock_pyatspi = self._make_desktop()
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            snapshot = linux_ax.capture_ax_snapshot("foreground")
+
+        assert snapshot.meta.scope == "foreground"
+        assert len(snapshot.refs) == 1

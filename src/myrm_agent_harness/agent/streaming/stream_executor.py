@@ -534,11 +534,15 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
         # reconstruction (trace_builder) sees LLM fatal errors, not just tool
         # failures. Mirrors StreamDispatcherMixin._emit_event's logging path:
         # type/messageId are transport-only fields, stripped before persistence.
+        # Best-effort: logging must never mask the original fatal error.
         if ctx.event_logger is not None:
-            persisted = dict(error_event)
-            persisted.pop("type", None)
-            persisted.pop("messageId", None)
-            await ctx.event_logger.log(AgentEventType.ERROR.value, persisted)
+            try:
+                persisted = dict(error_event)
+                persisted.pop("type", None)
+                persisted.pop("messageId", None)
+                await ctx.event_logger.log(AgentEventType.ERROR.value, persisted)
+            except Exception as log_err:
+                logger.error("Failed to persist fatal error event: %s", log_err)
 
         raise MyrmLLMError(
             error_code=failover_reason,

@@ -385,7 +385,7 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "skill_market_tool": ["action", "skill_id"],
     "skill_manage_tool": ["action", "name"],
     "skill_search_tool": ["query"],
-    "desktop_snapshot_tool": ["scope", "window_title", "include_screenshot"],
+    "desktop_snapshot_tool": ["scope", "app_name", "include_screenshot"],
     "desktop_interact_tool": ["ref", "action", "text"],
     "desktop_vision_tool": [
         "action",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 from myrm_agent_harness.toolkits.computer_use.dref.errors import AXPermissionRequiredError, AXTreeEmptyError
 from myrm_agent_harness.toolkits.computer_use.dref.types import BBox, ElementRef, SnapshotMeta, SnapshotScope
@@ -86,46 +87,103 @@ def _resolve_windows_app_id(control: object) -> str:
     return ""
 
 
-def capture_ax_snapshot(scope: SnapshotScope, window_title: str | None = None) -> WindowsAxSnapshot:
-    del scope, window_title
+def _locate_window(app_name: str) -> object | None:
+    """Locate the top-level window of a target app by process name.
+
+    Matches by exact process name first, then falls back to a window-title
+    substring match. Shared by capture and invoke so backend_key indices stay
+    consistent between the snapshot and the action.
+    """
+    try:
+        import uiautomation as auto
+    except ImportError:
+        return None
+
+    target_lower = app_name.strip().lower()
+    if not target_lower:
+        return None
+
+    root = auto.GetRootControl()
+    if root is None:
+        return None
+
+    best_title_match: object | None = None
+    try:
+        windows = root.GetChildren()
+    except Exception:
+        return None
+
+    for window in windows:
+        try:
+            pid = int(getattr(window, "ProcessId", 0) or 0)
+            if pid <= 0:
+                continue
+            process_name = auto.GetProcessNameByPid(pid)
+            if process_name and process_name.strip().lower().removesuffix(".exe") == target_lower:
+                return cast(object, window)
+            title = (getattr(window, "Name", "") or "").strip()
+            if title and target_lower in title.lower() and best_title_match is None:
+                best_title_match = window
+        except Exception:
+            continue
+    return best_title_match
+
+
+def capture_ax_snapshot(scope: SnapshotScope, app_name: str | None = None) -> WindowsAxSnapshot:
     try:
         import uiautomation as auto
     except ImportError as exc:
         raise AXTreeEmptyError("uiautomation not installed") from exc
 
-    control = auto.GetForegroundControl()
-    if control is None:
-        raise AXTreeEmptyError("no foreground window")
+    if scope == "target":
+        if not app_name:
+            raise AXTreeEmptyError("target scope requires app_name")
+        control = _locate_window(app_name)
+        if control is None:
+            raise AXTreeEmptyError(f"target window not found for app '{app_name}'")
+    else:
+        control = auto.GetForegroundControl()
+        if control is None:
+            raise AXTreeEmptyError("no foreground window")
 
-    app_name = control.Name or ""
-    window_title_value = app_name
+    window_name = getattr(control, "Name", "") or ""
     app_id = _resolve_windows_app_id(control)
     refs: dict[str, ElementRef] = {}
     _collect_controls(control, refs, [0])
     if not refs:
-        raise AXTreeEmptyError(app_name or "foreground window")
+        raise AXTreeEmptyError(window_name or "foreground window")
 
     meta = SnapshotMeta(
         ref_count=len(refs),
-        app_name=app_name,
-        window_title=window_title_value,
-        scope="foreground",
+        app_name=window_name,
+        window_title=window_name,
+        scope=scope,
         app_id=app_id,
         truncated=len(refs) >= _MAX_ELEMENTS,
     )
     return WindowsAxSnapshot(meta=meta, refs=refs)
 
 
-def invoke_ax_element(backend_key: str, action: str, text: str = "") -> ActionResult:
+def invoke_ax_element(
+    backend_key: str,
+    action: str,
+    text: str = "",
+    app_name: str | None = None,
+) -> ActionResult:
     try:
         import uiautomation as auto
     except ImportError:
         return ActionResult(success=False, error="uiautomation not installed on Windows")
 
     index = int(backend_key)
-    control = auto.GetForegroundControl()
-    if control is None:
-        return ActionResult(success=False, error="No foreground window")
+    if app_name:
+        control = _locate_window(app_name)
+        if control is None:
+            return ActionResult(success=False, error=f"target window not found for app '{app_name}'")
+    else:
+        control = auto.GetForegroundControl()
+        if control is None:
+            return ActionResult(success=False, error="No foreground window")
 
     flat: list[object] = []
 

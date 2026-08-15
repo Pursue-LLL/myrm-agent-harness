@@ -198,6 +198,56 @@ async def test_convert_multi_tool_closure_captures_own_name_and_schema():
     ]
 
 
+async def test_convert_config_named_argument_reaches_server():
+    """A tool argument named ``config`` must reach call_tool_fn unchanged.
+
+    langchain's ``StructuredTool._arun`` has a keyword-only ``config`` parameter
+    that would swallow a same-named user argument; SafeStructuredTool's override
+    must keep it in the dispatched payload.
+    """
+    captured: list[tuple[str, dict[str, Any]]] = []
+
+    async def capture_call(name: str, args: dict[str, Any]) -> SimpleNamespace:
+        captured.append((name, args))
+        return SimpleNamespace(content=[SimpleNamespace(text="ok")])
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {"config": {"type": "object"}, "tags": {"type": "array"}},
+        "required": ["config"],
+    }
+    tools = convert_mcp_tools(
+        [_make_mcp_tool("apply", input_schema=schema)],
+        capture_call,
+    )
+    await tools[0].ainvoke({"config": {"env": "dev"}, "tags": ["x"]})
+    assert captured[0] == (
+        "apply",
+        {"config": {"env": "dev"}, "tags": ["x"]},
+    )
+
+
+async def test_convert_run_manager_named_argument_reaches_server():
+    """A tool argument named ``run_manager`` must reach call_tool_fn unchanged."""
+    captured: list[tuple[str, dict[str, Any]]] = []
+
+    async def capture_call(name: str, args: dict[str, Any]) -> SimpleNamespace:
+        captured.append((name, args))
+        return SimpleNamespace(content=[SimpleNamespace(text="ok")])
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {"run_manager": {"type": "object"}},
+        "required": ["run_manager"],
+    }
+    tools = convert_mcp_tools(
+        [_make_mcp_tool("manage", input_schema=schema)],
+        capture_call,
+    )
+    await tools[0].ainvoke({"run_manager": {"scope": "team"}})
+    assert captured[0] == ("manage", {"run_manager": {"scope": "team"}})
+
+
 async def test_convert_tool_invocation():
     captured: list[tuple[str, dict[str, Any]]] = []
 
