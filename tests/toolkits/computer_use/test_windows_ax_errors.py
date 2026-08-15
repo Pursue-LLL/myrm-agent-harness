@@ -108,8 +108,10 @@ class TestCollectControlsErrors:
     def test_value_pattern_failure_tolerated(self) -> None:
         control = _make_interactive_control()
         control.GetValuePattern.side_effect = Exception("value")
+        root = MagicMock()
+        root.GetChildren.return_value = [control]
         refs: dict = {}
-        windows_ax._collect_controls(control, refs, [0])
+        windows_ax._collect_controls(root, refs, [0])
         assert "d0" in refs
         assert refs["d0"].value == ""
 
@@ -183,7 +185,7 @@ class TestCaptureSnapshotErrors:
 
     def test_no_interactive_refs(self) -> None:
         non_interactive = MagicMock()
-        non_interactive.ControlTypeName = "TextControl"
+        non_interactive.ControlTypeName = "GroupControl"
         non_interactive.GetChildren.return_value = []
         foreground = MagicMock()
         foreground.Name = "Main Window"

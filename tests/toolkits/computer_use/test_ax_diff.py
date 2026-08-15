@@ -120,6 +120,43 @@ class TestComputeRefDiff:
         assert diff.use_full_view is False
         assert len(diff.updated) == 0
 
+    def test_duplicate_identity_keeps_used_candidate(self) -> None:
+        """Two prev refs sharing (role, name) must not both map to one curr ref.
+
+        The second candidate is skipped via the `used_curr` guard, so the mapping
+        stays one-to-one and no phantom updated entries appear.
+        """
+        meta = _make_meta()
+        prev = {
+            "d1": _make_ref("d1", "AXButton", "OK", x=10, y=20),
+            "d2": _make_ref("d2", "AXButton", "OK", x=30, y=40),
+        }
+        curr = {"d1": _make_ref("d1", "AXButton", "OK", x=10, y=20)}
+        diff = compute_ref_diff(prev, curr, meta, meta)
+        assert diff.use_full_view is False
+        assert len(diff.added) == 0
+        assert len(diff.updated) == 0
+        assert "d2" in diff.removed
+
+    def test_high_change_ratio_after_match(self) -> None:
+        """Enough matched refs to pass identity confidence, but change ratio > 0.6."""
+        meta = _make_meta()
+        stable = [
+            _make_ref(f"d{i}", "AXButton", f"Btn{i}", x=i * 10)
+            for i in range(5)
+        ]
+        prev = {r.ref_id: r for r in stable}
+        prev["d10"] = _make_ref("d10", "AXButton", "Cancel", x=200, y=60)
+        prev["d11"] = _make_ref("d11", "AXButton", "Retry", x=200, y=90)
+        prev["d12"] = _make_ref("d12", "AXButton", "Skip", x=200, y=120)
+        curr = {r.ref_id: r for r in stable}
+        curr["d20"] = _make_ref("d20", "AXButton", "New1", x=300, y=60)
+        curr["d21"] = _make_ref("d21", "AXButton", "New2", x=300, y=90)
+        curr["d22"] = _make_ref("d22", "AXButton", "New3", x=300, y=120)
+        diff = compute_ref_diff(prev, curr, meta, meta)
+        assert diff.use_full_view is True
+        assert "high_change_ratio" in diff.full_view_reason
+
     def test_low_identity_confidence_full_view(self) -> None:
         meta = _make_meta()
         prev = {

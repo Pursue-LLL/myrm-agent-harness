@@ -5,6 +5,12 @@ to base64 data URLs right before sending to the LLM. This allows messages
 to store lightweight URL references in checkpoints and history while still
 providing full image data to models that need it.
 
+Send-time responsive compression: every resolved image passes through
+``image_compressor.compress_if_needed`` so oversized images (Tauri local
+paths, third-party HTTP URLs) are downsampled to 2048px before hitting
+provider per-image byte/dimension limits. Small images and animated GIFs
+pass through untouched (zero-cost fast path).
+
 Positioned AFTER MediaFilterProcessor in the pipeline:
 - MediaFilter strips historical media → fewer URLs to resolve
 - MediaResolver only resolves URLs in messages that survive filtering
@@ -13,6 +19,7 @@ Positioned AFTER MediaFilterProcessor in the pipeline:
 - base::BaseProcessor, ProcessorContext (POS: processor base class)
 - utils.image_utils (POS: image content detection utilities)
 - core.security.http.secure_fetch::secure_get (POS: SSRF-protected HTTP fetch)
+- utils.media.image_compressor::image_compressor (POS: send-time compression)
 
 [OUTPUT]
 - MediaResolverProcessor: resolves URL references to base64 for LLM consumption
@@ -40,6 +47,7 @@ from myrm_agent_harness.utils.image_utils import (
     is_image_content_item,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.media.image_compressor import image_compressor
 
 from ..base import BaseProcessor, ProcessorContext
 
@@ -95,7 +103,7 @@ async def _resolve_api_file_path(
         try:
             data = await file_content_reader(file_id)
             if data:
-                return _bytes_to_data_url(data, file_id)
+                return _bytes_to_data_url(_compress_for_send(data), file_id)
         except Exception as exc:
             logger.debug(
                 "[MediaResolver] File reader failed for %s, falling back to HTTP: %s",
@@ -202,7 +210,7 @@ def _resolve_local_file(path_str: str) -> str | None:
             logger.warning("[MediaResolver] Local file too large (%d bytes): %s", size, path_str)
             return None
         data = p.read_bytes()
-        return _bytes_to_data_url(data, path_str)
+        return _bytes_to_data_url(_compress_for_send(data), path_str)
     except Exception as exc:
         logger.warning("[MediaResolver] Local file read failed for %s: %s", path_str, exc)
         return None
@@ -234,11 +242,16 @@ async def _resolve_http(url: str) -> str | None:
         if not mime or not mime.startswith("image/"):
             mime = _detect_mime(data)
 
-        b64 = base64.b64encode(data).decode("ascii")
+        b64 = base64.b64encode(_compress_for_send(data)).decode("ascii")
         return f"data:{mime};base64,{b64}"
     except Exception as exc:
         logger.warning("[MediaResolver] HTTP fetch failed for %s: %s", url[:80], exc)
         return None
+
+
+def _compress_for_send(data: bytes) -> bytes:
+    """Send-time responsive image compression (never fails — falls back to original)."""
+    return image_compressor.compress_if_needed(data)
 
 
 def _bytes_to_data_url(data: bytes, hint: str = "") -> str:

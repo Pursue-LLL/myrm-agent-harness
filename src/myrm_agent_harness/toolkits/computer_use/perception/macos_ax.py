@@ -547,8 +547,6 @@ def inspect_foreground() -> dict[str, str | int | bool]:
         }
     except AXTreeEmptyError as exc:
         app_name, window_title, app_id = _read_foreground_meta()
-        if not app_name and "(" in str(exc) and str(exc).endswith(")"):
-            app_name = str(exc).rsplit("(", 1)[-1].rstrip(")").strip()
         base_rec = _SNAPSHOT_RECOMMENDATION_BASE
         if app_name:
             native_hint = _native_api_hint(app_name)

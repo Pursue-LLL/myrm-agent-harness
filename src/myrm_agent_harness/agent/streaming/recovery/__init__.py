@@ -1,10 +1,10 @@
 """Streaming recovery strategies — composed mixins for StreamRecoveryMixin.
 
 [INPUT]
-- recovery.stream_recovery (POS: 恢复策略组合主 Mixin)
-- recovery.stream_recovery_continuation (POS: steering/subagent/goal continuation recovery)
-- recovery.stream_recovery_oneshot (POS: one-shot recovery strategies)
-- recovery.stream_recovery_truncation (POS: length truncation recovery)
+- recovery.stream_recovery::StreamRecoveryMixin (POS: 恢复策略组合主 Mixin)
+- recovery.stream_recovery_continuation::StreamContinuationRecoveryMixin (POS: steering/subagent/goal continuation recovery)
+- recovery.stream_recovery_oneshot::OneshotRecoveryMixin (POS: one-shot recovery strategies)
+- recovery.stream_recovery_truncation::StreamTruncationRecoveryMixin (POS: length truncation recovery)
 
 [OUTPUT]
 - StreamRecoveryMixin, StreamContinuationRecoveryMixin, OneshotRecoveryMixin, StreamTruncationRecoveryMixin

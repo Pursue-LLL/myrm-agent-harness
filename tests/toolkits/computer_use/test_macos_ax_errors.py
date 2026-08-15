@@ -12,6 +12,8 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import patch
 
+import pytest
+
 from myrm_agent_harness.toolkits.computer_use.dref.errors import (
     AXPermissionRequiredError,
     AXTreeEmptyError,
@@ -69,17 +71,17 @@ class TestReadForegroundMeta:
 class TestParseAxOutputFiltering:
     def test_role_outside_filter_skipped(self) -> None:
         stdout = f"{_META_LINE}\n1|||AXUnknownRole|||Foo||||||10|||20|||80|||30\n"
-        snapshot = _parse_ax_output(
-            _completed(stdout), effective_scope="foreground"
-        )
-        assert len(snapshot.refs) == 0
+        with pytest.raises(AXTreeEmptyError):
+            _parse_ax_output(
+                _completed(stdout), effective_scope="foreground"
+            )
 
     def test_malformed_bbox_skipped(self) -> None:
         stdout = f"{_META_LINE}\n1|||AXButton|||OK||||||10|||abc|||80|||30\n"
-        snapshot = _parse_ax_output(
-            _completed(stdout), effective_scope="foreground"
-        )
-        assert len(snapshot.refs) == 0
+        with pytest.raises(AXTreeEmptyError):
+            _parse_ax_output(
+                _completed(stdout), effective_scope="foreground"
+            )
 
 
 class TestInvokeAxElementPlainError:

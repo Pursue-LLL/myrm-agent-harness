@@ -11,6 +11,7 @@ Covers:
 
 from __future__ import annotations
 
+import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -475,3 +476,392 @@ class TestCaptureTargetApp:
 
         assert snapshot.meta.scope == "foreground"
         assert len(snapshot.refs) == 1
+
+
+class TestTryPyatspiSnapshotEdges:
+    """_try_pyatspi_snapshot defensive branches."""
+
+    def test_import_error_returns_none(self) -> None:
+        import builtins
+
+        original_import = builtins.__import__
+
+        def mock_import(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if name == "pyatspi":
+                raise ImportError("No module named 'pyatspi'")
+            return original_import(name, *args, **kwargs)
+
+        from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+        with patch.object(builtins, "__import__", side_effect=mock_import):
+            assert linux_ax._try_pyatspi_snapshot() is None
+
+    def test_empty_desktop_returns_none(self) -> None:
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 0
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            assert linux_ax._try_pyatspi_snapshot() is None
+
+    def test_max_elements_cap(self) -> None:
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 1
+
+        button = MagicMock()
+        button.getRoleName.return_value = "push button"
+        button.name = "A"
+        button.getState.return_value = MagicMock()
+        button.childCount = 0
+        extents = MagicMock()
+        extents.width = 100
+        extents.height = 30
+        button.queryComponent.return_value.getExtents.return_value = extents
+
+        app = MagicMock()
+        app.getRoleName.return_value = "application"
+        app.name = "Slack"
+        app.getState.return_value = MagicMock()
+        app.childCount = 2
+        app.getChildAtIndex.side_effect = lambda i: button if i == 0 else MagicMock()
+        mock_desktop.getChildAtIndex.return_value = app
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            original = linux_ax._MAX_ELEMENTS
+            linux_ax._MAX_ELEMENTS = 1
+            try:
+                snapshot = linux_ax._try_pyatspi_snapshot()
+            finally:
+                linux_ax._MAX_ELEMENTS = original
+        assert snapshot is not None
+        assert len(snapshot.refs) == 1
+        assert snapshot.meta.truncated is True
+
+    def test_walk_get_state_exception_skips_node(self) -> None:
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 1
+
+        bad = MagicMock()
+        bad.getRoleName.return_value = "push button"
+        bad.name = "Bad"
+        bad.getState.side_effect = Exception("broken")
+        bad.childCount = 0
+        mock_desktop.getChildAtIndex.return_value = bad
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            assert linux_ax._try_pyatspi_snapshot() is None
+
+    def test_walk_child_count_exception_returns(self) -> None:
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 1
+
+        app = MagicMock()
+        app.getRoleName.return_value = "application"
+        app.name = "Slack"
+        app.getState.return_value = MagicMock()
+        app.childCount = 1
+        app.getChildAtIndex.side_effect = Exception("boom")
+        mock_desktop.getChildAtIndex.return_value = app
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            assert linux_ax._try_pyatspi_snapshot() is None
+
+    def test_target_loop_role_exception_continues(self) -> None:
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 1
+
+        bad = MagicMock()
+        bad.getRoleName.side_effect = Exception("boom")
+        mock_desktop.getChildAtIndex.return_value = bad
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            assert linux_ax._try_pyatspi_snapshot(target_app="Slack") is None
+
+
+class TestCaptureXdotoolFallback:
+    """capture_ax_snapshot foreground xdotool fallback branches."""
+
+    def test_xdotool_missing_raises(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+        with (
+            patch.object(linux_ax, "_try_pyatspi_snapshot", return_value=None),
+            patch("shutil.which", return_value=None),
+            pytest.raises(AXTreeEmptyError, match="xdotool missing"),
+        ):
+            linux_ax.capture_ax_snapshot("foreground")
+
+    def test_xdotool_timeout_raises(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+        with (
+            patch.object(linux_ax, "_try_pyatspi_snapshot", return_value=None),
+            patch("shutil.which", return_value="/usr/bin/xdotool"),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(cmd="xdotool", timeout=5),
+            ),
+            pytest.raises(AXTreeEmptyError, match="Linux AX snapshot failed"),
+        ):
+            linux_ax.capture_ax_snapshot("foreground")
+
+    def test_xdotool_empty_title_raises(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+        proc = subprocess.CompletedProcess(
+            args=[], returncode=1, stdout="", stderr=""
+        )
+        with (
+            patch.object(linux_ax, "_try_pyatspi_snapshot", return_value=None),
+            patch("shutil.which", return_value="/usr/bin/xdotool"),
+            patch("subprocess.run", return_value=proc),
+            pytest.raises(AXTreeEmptyError, match="no active window title"),
+        ):
+            linux_ax.capture_ax_snapshot("foreground")
+
+    def test_xdotool_has_title_raises_atspi_unavailable(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+        proc = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="Slack #general\n", stderr=""
+        )
+        with (
+            patch.object(linux_ax, "_try_pyatspi_snapshot", return_value=None),
+            patch("shutil.which", return_value="/usr/bin/xdotool"),
+            patch("subprocess.run", return_value=proc),
+            pytest.raises(AXTreeEmptyError, match="AT-SPI tree unavailable"),
+        ):
+            linux_ax.capture_ax_snapshot("foreground")
+
+
+class TestInvokeRemainingEdges:
+    """invoke_ax_element remaining defensive branches."""
+
+    def _make_interactive_button(self, name: str = "Send") -> MagicMock:
+        button = MagicMock()
+        button.getRoleName.return_value = "push button"
+        button.getState.return_value = MagicMock()
+        button.childCount = 0
+        extents = MagicMock()
+        extents.width = 100
+        extents.height = 30
+        button.queryComponent.return_value.getExtents.return_value = extents
+        action = MagicMock()
+        action.getNActions.return_value = 1
+        button.queryAction.return_value = action
+        return button
+
+    def test_collect_early_exit_after_index(self) -> None:
+        """Once interactive list exceeds the requested index, traversal stops early."""
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 2
+
+        app1 = MagicMock()
+        app1.getRoleName.return_value = "application"
+        app1.name = "Slack"
+        app1.getState.return_value = MagicMock()
+        app1.childCount = 1
+        button1 = self._make_interactive_button("Send")
+        app1.getChildAtIndex.side_effect = lambda i: button1 if i == 0 else None
+
+        app2 = MagicMock()
+        app2.getRoleName.return_value = "application"
+        app2.name = "Notes"
+        app2.getState.return_value = MagicMock()
+        app2.childCount = 1
+        button2 = self._make_interactive_button("New")
+        app2.getChildAtIndex.side_effect = lambda i: button2 if i == 0 else None
+
+        mock_desktop.getChildAtIndex.side_effect = lambda i: (
+            [app1, app2][i]
+        )
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            result = linux_ax.invoke_ax_element("0", "click")
+        assert result.success is True
+        button1.queryAction.return_value.doAction.assert_called_with(0)
+        assert not button2.queryAction.return_value.doAction.called
+
+    def test_collect_child_exception_returns(self) -> None:
+        """A child whose getChildAtIndex raises inside _collect is skipped."""
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 1
+
+        app = MagicMock()
+        app.getRoleName.return_value = "application"
+        app.name = "Slack"
+        app.getState.return_value = MagicMock()
+        app.childCount = 1
+        app.getChildAtIndex.side_effect = Exception("boom")
+
+        mock_desktop.getChildAtIndex.return_value = app
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            result = linux_ax.invoke_ax_element("0", "click")
+        assert result.success is False
+        assert "Stale element index" in (result.error or "")
+
+    def test_click_action_exception_grabfocus(self) -> None:
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 1
+
+        button = MagicMock()
+        button.getRoleName.return_value = "push button"
+        button.getState.return_value = MagicMock()
+        button.childCount = 0
+        extents = MagicMock()
+        extents.width = 100
+        extents.height = 30
+        button.queryComponent.return_value.getExtents.return_value = extents
+        button.queryAction.side_effect = Exception("no action")
+        mock_desktop.getChildAtIndex.return_value = button
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            result = linux_ax.invoke_ax_element("0", "click")
+        assert result.success is True
+        button.queryComponent.return_value.grabFocus.assert_called()
+
+    def test_outer_action_exception_returns_error(self) -> None:
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 1
+
+        button = MagicMock()
+        button.getRoleName.return_value = "push button"
+        button.getState.return_value = MagicMock()
+        button.childCount = 0
+        extents = MagicMock()
+        extents.width = 100
+        extents.height = 30
+        button.queryComponent.return_value.getExtents.return_value = extents
+        button.queryComponent.return_value.grabFocus.side_effect = Exception("fatal")
+        button.queryAction.side_effect = Exception("no action")
+        mock_desktop.getChildAtIndex.return_value = button
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            result = linux_ax.invoke_ax_element("0", "click")
+        assert result.success is False
+        assert "fatal" in (result.error or "")
+
+    def test_target_loop_role_exception_continues(self) -> None:
+        mock_pyatspi = MagicMock()
+        mock_desktop = MagicMock()
+        mock_desktop.childCount = 1
+        bad = MagicMock()
+        bad.getRoleName.side_effect = Exception("boom")
+        mock_desktop.getChildAtIndex.return_value = bad
+        mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
+
+        with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):
+            from importlib import reload
+
+            from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+            reload(linux_ax)
+            result = linux_ax.invoke_ax_element("0", "click", app_name="Slack")
+        assert result.success is False
+        assert "Stale element index" in (result.error or "")
+
+
+class TestLinuxInspectForeground:
+    """linux_ax.inspect_foreground branches."""
+
+    def test_empty_tree_branch(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+        with (
+            patch.object(
+                linux_ax, "capture_ax_snapshot", side_effect=AXTreeEmptyError("boom")
+            ),
+        ):
+            result = linux_ax.inspect_foreground()
+        assert result["app_name"] == ""
+        assert "boom" in result["recommendation"]
+
+    def test_success_branch_with_hint(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.dref.types import (
+            BBox,
+            ElementRef,
+            SnapshotMeta,
+        )
+        from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
+
+        meta = SnapshotMeta(
+            ref_count=2, app_name="nautilus", window_title="Files", scope="foreground"
+        )
+        refs = {
+            "d0": ElementRef(
+                ref_id="d0",
+                role="push button",
+                name="Open",
+                bbox=BBox(x=0, y=0, width=10, height=10),
+                backend_key="0",
+            )
+        }
+        snapshot = linux_ax.LinuxAxSnapshot(meta=meta, refs=refs)
+        with patch.object(linux_ax, "capture_ax_snapshot", return_value=snapshot):
+            result = linux_ax.inspect_foreground()
+        assert result["app_name"] == "nautilus"
+        assert result["interactive_estimate"] == 2
+        assert "D-Bus" in result["recommendation"]

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import base64
+import io
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
 from langchain_core.messages import HumanMessage
+from PIL import Image
 
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.pipeline.processors.media_resolver import (
@@ -19,6 +21,14 @@ from myrm_agent_harness.agent.context_management.pipeline.processors.media_resol
 
 def _make_context(messages: list) -> ProcessorContext:
     return ProcessorContext(messages=messages, user_query="test")
+
+
+def _make_large_jpeg_bytes(width: int = 6000, height: int = 4000) -> bytes:
+    """Generate an oversized JPEG (dimensions + bytes both exceed send limits)."""
+    img = Image.new("RGB", (width, height), color=(100, 150, 200))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=95)
+    return buf.getvalue()
 
 
 def _img_url(url: str, text: str = "look") -> HumanMessage:
@@ -190,6 +200,88 @@ class TestResolveLocalFile:
     def test_returns_none_for_directory(self) -> None:
         result = _resolve_local_file("/tmp")
         assert result is None
+
+
+class TestSendTimeCompression:
+    """Send-time responsive compression applied during URL resolution."""
+
+    @pytest.mark.asyncio
+    async def test_oversized_local_file_compressed(self) -> None:
+        """Oversized local images are downsampled before base64 encoding."""
+        raw = _make_large_jpeg_bytes()
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
+            f.write(raw)
+            f.flush()
+            path = f.name
+
+        try:
+            proc = MediaResolverProcessor()
+            ctx = _make_context([_img_url(f"file://{path}")])
+            result = await proc.process(ctx)
+
+            url = result.messages[0].content[1]["image_url"]["url"]
+            b64_part = url.split(";base64,")[1]
+            decoded = base64.b64decode(b64_part)
+            assert len(decoded) < len(raw)
+            with Image.open(io.BytesIO(decoded)) as img:
+                assert max(img.size) <= 2048
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_small_local_file_passes_through_unchanged(self) -> None:
+        """Small local images bypass compression entirely."""
+        raw = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+            f.write(raw)
+            f.flush()
+            path = f.name
+
+        try:
+            proc = MediaResolverProcessor()
+            ctx = _make_context([_img_url(f"file://{path}")])
+            result = await proc.process(ctx)
+
+            url = result.messages[0].content[1]["image_url"]["url"]
+            b64_part = url.split(";base64,")[1]
+            assert base64.b64decode(b64_part) == raw
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_api_path_compressed_via_reader(self) -> None:
+        """Oversized images from the file_content_reader are compressed."""
+        raw = _make_large_jpeg_bytes()
+        reader = AsyncMock(return_value=raw)
+
+        proc = MediaResolverProcessor(file_content_reader=reader)
+        ctx = _make_context([_img_url("/api/media/files/file_abc123/content")])
+        result = await proc.process(ctx)
+
+        url = result.messages[0].content[1]["image_url"]["url"]
+        decoded = base64.b64decode(url.split(";base64,")[1])
+        assert len(decoded) < len(raw)
+        reader.assert_awaited_once_with("file_abc123")
+
+    @pytest.mark.asyncio
+    async def test_animated_gif_api_path_preserved(self) -> None:
+        """Animated GIFs from the reader keep their animation frames."""
+        images = [
+            Image.new("RGB", (64, 64), color=(255, 0, 0)),
+            Image.new("RGB", (64, 64), color=(0, 255, 0)),
+        ]
+        buf = io.BytesIO()
+        images[0].save(buf, format="GIF", save_all=True, append_images=images[1:], duration=100, loop=0)
+        gif_bytes = buf.getvalue()
+        reader = AsyncMock(return_value=gif_bytes)
+
+        proc = MediaResolverProcessor(file_content_reader=reader)
+        ctx = _make_context([_img_url("/api/media/files/file_gif/content")])
+        result = await proc.process(ctx)
+
+        url = result.messages[0].content[1]["image_url"]["url"]
+        decoded = base64.b64decode(url.split(";base64,")[1])
+        assert decoded == gif_bytes
 
 
 def test_internal_api_origin_uses_port_env(monkeypatch: pytest.MonkeyPatch) -> None:

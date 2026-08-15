@@ -8,6 +8,8 @@
 [POS]
 Pure image compression utility. Supports jpg/jpeg/png formats.
 Uses Pillow for jpg/jpeg/webp, imagequant for PNG (with Pillow fallback).
+Also exposes ``compress_if_needed`` — responsive send-time compression with
+animated-GIF protection and fail-safe fallback to the original bytes.
 """
 
 from __future__ import annotations
@@ -112,6 +114,65 @@ class ImageCompressor:
                 if hasattr(input_path, "seek"):
                     input_path.seek(0)
                 return self._compress_with_pillow(input_path, output_path, quality, f".{format_name}", max_dimension, output_format)
+
+    def compress_if_needed(
+        self,
+        raw_bytes: bytes,
+        *,
+        max_dimension: int = SEND_COMPRESS_MAX_DIMENSION,
+        quality: float = SEND_COMPRESS_QUALITY,
+        trigger_bytes: int = SEND_COMPRESS_TRIGGER_BYTES,
+        output_format: str | None = None,
+    ) -> bytes:
+        """Responsive send-time compression: compress only when the image actually exceeds limits.
+
+        Behavior:
+        - Animated GIFs (n_frames > 1): returned unchanged to preserve animation.
+        - Images at or under both ``max_dimension`` and ``trigger_bytes``: returned unchanged
+          (zero-cost fast path — upload/URL images already compressed upstream).
+        - Oversized images: compressed via :meth:`compress`. Falls back to the original bytes
+          on any failure so send-time compression can never break a call.
+
+        Returns:
+            Compressed or original bytes (never None).
+        """
+        if not raw_bytes:
+            return raw_bytes
+
+        try:
+            Image.MAX_IMAGE_PIXELS = None
+            with Image.open(io.BytesIO(raw_bytes)) as probe:
+                format_name = (probe.format or "").lower()
+                # Animated GIF: preserve animation — do not re-encode to a static frame.
+                if format_name == "gif":
+                    try:
+                        if probe.n_frames > 1:
+                            return raw_bytes
+                    except (AttributeError, OSError):
+                        pass
+                width, height = probe.size
+        except Exception as exc:
+            logger.warning("Image probe failed in compress_if_needed: %s", exc)
+            return raw_bytes
+
+        if width <= max_dimension and height <= max_dimension and len(raw_bytes) <= trigger_bytes:
+            return raw_bytes
+
+        try:
+            compressed = self.compress(
+                io.BytesIO(raw_bytes),
+                output_path=None,
+                quality=quality,
+                max_dimension=max_dimension,
+                output_format=output_format,
+            )
+        except Exception as exc:
+            logger.warning("Image compression failed in compress_if_needed: %s", exc)
+            return raw_bytes
+
+        if not compressed or len(compressed) >= len(raw_bytes):
+            return raw_bytes
+        return compressed
 
     def _resize_if_needed(self, img: Image.Image, max_dimension: int | None) -> Image.Image:
         """Resize image if it exceeds max_dimension."""
@@ -300,3 +361,14 @@ class ImageCompressor:
 
 # Global instance
 image_compressor = ImageCompressor()
+
+
+def _resolve_save_format(format_suffix: str, output_format: str | None) -> str:
+    """Map input/forced format to a Pillow save format.
+
+    - output_format wins when provided ("jpeg"→JPEG, "png"→PNG, "webp"→WEBP).
+    - Otherwise derives from the source suffix (jpg/jpeg→JPEG, anything else→WEBP).
+    """
+    if output_format:
+        return output_format.upper()
+    return "JPEG" if format_suffix in [".jpg", ".jpeg"] else "WEBP"

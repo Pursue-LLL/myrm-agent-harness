@@ -59,12 +59,12 @@ def _collect_controls(
             name = getattr(child, "Name", "") or ""
             value = ""
             try:
-                pattern = child.GetValuePattern()  # type: ignore[attr-defined]
+                pattern = child.GetValuePattern()
                 value = pattern.Value if pattern else ""
             except Exception:
                 pass
             try:
-                rect = child.BoundingRectangle  # type: ignore[attr-defined]
+                rect = child.BoundingRectangle
             except Exception:
                 rect = None
             if rect and rect.width() > 0 and rect.height() > 0:
@@ -88,7 +88,7 @@ def _collect_controls(
 
 def _resolve_windows_app_id(control: object) -> str:
     try:
-        import uiautomation as auto
+        import uiautomation as auto  # type: ignore[import-not-found]
 
         pid = int(getattr(control, "ProcessId", 0) or 0)
         if pid <= 0:
@@ -147,11 +147,8 @@ def _locate_window(app_name: str) -> object | None:
         except Exception:
             continue
     for window in windows:
-        try:
-            if _process_name(window) == target_lower:
-                return cast(object, window)
-        except Exception:
-            continue
+        if _process_name(window) == target_lower:
+            return cast(object, window)
     for window in windows:
         try:
             title = _title(window)

@@ -115,6 +115,71 @@ class TestLocateWindow:
         with _module_with_auto(auto) as module:
             assert module._locate_window("") is None
 
+    def test_uiautomation_import_error_returns_none(self) -> None:
+        import builtins
+
+        original_import = builtins.__import__
+
+        def mock_import(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if name == "uiautomation":
+                raise ImportError("No module named 'uiautomation'")
+            return original_import(name, *args, **kwargs)
+
+        with patch.object(builtins, "__import__", side_effect=mock_import):
+            assert windows_ax._locate_window("Mail") is None
+
+    def test_root_none_returns_none(self) -> None:
+        auto = _make_auto({}, [])
+        auto.GetRootControl.return_value = None
+        with _module_with_auto(auto) as module:
+            assert module._locate_window("Mail") is None
+
+    def test_get_children_exception_returns_none(self) -> None:
+        auto = _make_auto({}, [])
+        auto.GetRootControl.return_value.GetChildren.side_effect = Exception("boom")
+        with _module_with_auto(auto) as module:
+            assert module._locate_window("Mail") is None
+
+    def test_window_with_zero_pid_skipped(self) -> None:
+        win = _make_window("Notes - Overview", 0)
+        auto = _make_auto({}, [win])
+        with _module_with_auto(auto) as module:
+            assert module._locate_window("Mail") is None
+
+    def test_process_name_exception_falls_through(self) -> None:
+        win = _make_window("Notes - Overview", 100)
+        auto = _make_auto({100: "Mail"}, [win])
+        auto.GetProcessNameByPid.side_effect = Exception("boom")
+        with _module_with_auto(auto) as module:
+            assert module._locate_window("Mail") is None
+
+    def test_title_access_exception_skips_window(self) -> None:
+        """A window whose Name access raises must not abort the search loops."""
+        good = _make_window("Q3 Report - Excel", 200)
+        bad = _make_window("Anything", 100)
+        bad.Name = None
+
+        class _BrokenNameWindow:
+            ProcessId = 100
+
+            @property
+            def Name(self) -> str:  # noqa: N802
+                raise Exception("access denied")
+
+            def GetChildren(self) -> list[object]:  # noqa: N802
+                return []
+
+        auto = _make_auto({100: "Mail", 200: "EXCEL.EXE"}, [_BrokenNameWindow(), good])
+        with _module_with_auto(auto) as module:
+            assert module._locate_window("Q3 Report - Excel") is good
+
+    def test_title_substring_matches_when_process_differs(self) -> None:
+        """Third pass matches on title substring when title and process name differ."""
+        win = _make_window("Archive 2023 Q3 Report - Excel", 500)
+        auto = _make_auto({500: "WINWORD"}, [win])
+        with _module_with_auto(auto) as module:
+            assert module._locate_window("Q3 Report - Excel") is win
+
 
 class TestCaptureTarget:
     def test_target_success(self) -> None:
@@ -291,3 +356,236 @@ class TestIndexConsistency:
         assert capture_order == ["A"]
         assert len(interactive) == 1
         assert getattr(interactive[0], "Name", "") == "A"
+
+
+class TestCollectControlsEdges:
+    """_collect_controls defensive branches: exceptions, empty rect, MAX cap."""
+
+    def test_max_elements_cap_returns(self) -> None:
+        button = _make_button()
+        root = _make_window("Root", 1)
+        root.GetChildren.return_value = [button]
+        refs: dict[str, object] = {}
+        _collect_controls(root, refs, [500])  # type: ignore[arg-type]
+        assert refs == {}
+
+    def test_get_children_exception_returns(self) -> None:
+        root = _make_window("Root", 1)
+        root.GetChildren.side_effect = Exception("COM error")
+        refs: dict[str, object] = {}
+        _collect_controls(root, refs, [0])  # type: ignore[arg-type]
+        assert refs == {}
+
+    def test_get_value_pattern_exception_keeps_name(self) -> None:
+        button = _make_button("Compose")
+        button.GetValuePattern.side_effect = Exception("no pattern")
+        root = _make_window("Root", 1)
+        root.GetChildren.return_value = [button]
+        refs: dict[str, object] = {}
+        _collect_controls(root, refs, [0])  # type: ignore[arg-type]
+        assert refs["d0"].name == "Compose"  # type: ignore[index]
+
+    def test_bounding_rect_exception_skips(self) -> None:
+        class _NoRectButton:
+            ControlTypeName = "ButtonControl"
+            Name = "Compose"
+            ProcessId = 100
+
+            def GetValuePattern(self) -> None:  # noqa: N802
+                return None
+
+            @property
+            def BoundingRectangle(self) -> object:  # noqa: N802
+                raise Exception("no rect")
+
+            def GetChildren(self) -> list[object]:  # noqa: N802
+                return []
+
+        root = _make_window("Root", 1)
+        root.GetChildren.return_value = [_NoRectButton()]
+        refs: dict[str, object] = {}
+        _collect_controls(root, refs, [0])  # type: ignore[arg-type]
+        assert refs == {}
+
+    def test_zero_size_rect_skipped(self) -> None:
+        button = _make_button("Compose")
+        rect = MagicMock()
+        rect.left = 0
+        rect.top = 0
+        rect.width.return_value = 0
+        rect.height.return_value = 30
+        button.BoundingRectangle = rect
+        root = _make_window("Root", 1)
+        root.GetChildren.return_value = [button]
+        refs: dict[str, object] = {}
+        _collect_controls(root, refs, [0])  # type: ignore[arg-type]
+        assert refs == {}
+
+
+class TestResolveWindowsAppId:
+    """_resolve_windows_app_id defensive branches."""
+
+    def test_zero_pid_returns_empty(self) -> None:
+        control = _make_window("Mail - Inbox", 0)
+        auto = _make_auto({0: "Mail"}, [control])
+        with _module_with_auto(auto) as module:
+            assert module._resolve_windows_app_id(control) == ""
+
+    def test_exception_returns_empty(self) -> None:
+        control = _make_window("Mail - Inbox", 100)
+        auto = _make_auto({100: "Mail"}, [control])
+        auto.GetProcessNameByPid.side_effect = Exception("boom")
+        with _module_with_auto(auto) as module:
+            assert module._resolve_windows_app_id(control) == ""
+
+    def test_process_name_prefixed(self) -> None:
+        control = _make_window("Mail - Inbox", 100)
+        auto = _make_auto({100: "Mail"}, [control])
+        with _module_with_auto(auto) as module:
+            assert module._resolve_windows_app_id(control) == "win:mail"
+
+
+class TestCaptureEdges:
+    """capture_ax_snapshot defensive branches."""
+
+    def test_uiautomation_missing_raises(self) -> None:
+        import builtins
+
+        original_import = builtins.__import__
+
+        def mock_import(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if name == "uiautomation":
+                raise ImportError("No module named 'uiautomation'")
+            return original_import(name, *args, **kwargs)
+
+        import myrm_agent_harness.toolkits.computer_use.perception.windows_ax as module
+
+        with (
+            patch.object(builtins, "__import__", side_effect=mock_import),
+            pytest.raises(AXTreeEmptyError, match="uiautomation not installed"),
+        ):
+            module.capture_ax_snapshot("foreground")
+
+    def test_foreground_none_raises(self) -> None:
+        auto = _make_auto({}, [])
+        auto.GetForegroundControl.return_value = None
+        with _module_with_auto(auto) as module, pytest.raises(
+            AXTreeEmptyError, match="no foreground window"
+        ):
+            module.capture_ax_snapshot("foreground")
+
+    def test_no_refs_raises(self) -> None:
+        window = _make_window("Mail - Inbox", 100)
+        window.GetChildren.return_value = []
+        auto = _make_auto({100: "Mail"}, [window])
+        with _module_with_auto(auto) as module, pytest.raises(
+            AXTreeEmptyError, match="Mail - Inbox"
+        ):
+            module.capture_ax_snapshot("foreground")
+
+
+class TestInvokeEdges:
+    """invoke_ax_element defensive branches."""
+
+    def test_uiautomation_missing_returns_error(self) -> None:
+        import builtins
+
+        original_import = builtins.__import__
+
+        def mock_import(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if name == "uiautomation":
+                raise ImportError("No module named 'uiautomation'")
+            return original_import(name, *args, **kwargs)
+
+        import myrm_agent_harness.toolkits.computer_use.perception.windows_ax as module
+
+        with patch.object(builtins, "__import__", side_effect=mock_import):
+            result = module.invoke_ax_element("0", "click")
+        assert not result.success
+        assert "uiautomation not installed" in (result.error or "")
+
+    def test_foreground_none_returns_error(self) -> None:
+        auto = _make_auto({}, [])
+        auto.GetForegroundControl.return_value = None
+        with _module_with_auto(auto) as module:
+            result = module.invoke_ax_element("0", "click")
+        assert not result.success
+        assert "No foreground window" in (result.error or "")
+
+    def test_flatten_exception_skips_branch(self) -> None:
+        """A node whose GetChildren raises inside _flatten must not abort the walk."""
+        button = _make_button()
+        broken = _make_window("Broken", 1)
+        broken.GetChildren.side_effect = Exception("boom")
+        window = _make_window("Mail - Inbox", 100)
+        window.GetChildren.return_value = [broken, button]
+        auto = _make_auto({100: "Mail"}, [window])
+        with _module_with_auto(auto) as module:
+            result = module.invoke_ax_element("0", "click", app_name="Mail")
+        assert result.success is True
+        button.Click.assert_called_once()
+
+    def test_stale_index_returns_error(self) -> None:
+        window = _make_window("Mail - Inbox", 100)
+        window.GetChildren.return_value = []
+        auto = _make_auto({100: "Mail"}, [window])
+        with _module_with_auto(auto) as module:
+            result = module.invoke_ax_element("5", "click")
+        assert not result.success
+        assert "Stale element index" in (result.error or "")
+
+    def test_fill_sends_keys(self) -> None:
+        edit = _make_button("Search")
+        edit.ControlTypeName = "EditControl"
+        window = _make_window("Mail - Inbox", 100)
+        window.GetChildren.return_value = [edit]
+        auto = _make_auto({100: "Mail"}, [window])
+        with _module_with_auto(auto) as module:
+            result = module.invoke_ax_element("0", "fill", "hello", app_name="Mail")
+        assert result.success is True
+        edit.SendKeys.assert_called_once_with("hello")
+
+    def test_unsupported_action_returns_error(self) -> None:
+        button = _make_button()
+        window = _make_window("Mail - Inbox", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "Mail"}, [window])
+        with _module_with_auto(auto) as module:
+            result = module.invoke_ax_element("0", "swipe", app_name="Mail")
+        assert not result.success
+        assert "Unsupported action" in (result.error or "")
+
+    def test_action_exception_returns_error(self) -> None:
+        button = _make_button()
+        button.Click.side_effect = Exception("COM failure")
+        window = _make_window("Mail - Inbox", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "Mail"}, [window])
+        with _module_with_auto(auto) as module:
+            result = module.invoke_ax_element("0", "click", app_name="Mail")
+        assert not result.success
+        assert "COM failure" in (result.error or "")
+
+
+class TestWindowsInspectForeground:
+    """windows_ax.inspect_foreground branches."""
+
+    def test_empty_tree_branch(self) -> None:
+        window = _make_window("Mail - Inbox", 100)
+        window.GetChildren.return_value = []
+        auto = _make_auto({100: "Mail"}, [window])
+        with _module_with_auto(auto) as module:
+            result = module.inspect_foreground()
+        assert result["app_name"] == ""
+        assert "desktop_vision_tool" in result["recommendation"]
+
+    def test_success_branch_with_hint(self) -> None:
+        button = _make_button()
+        window = _make_window("Microsoft Excel - Book1", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "EXCEL.EXE"}, [window])
+        with _module_with_auto(auto) as module:
+            result = module.inspect_foreground()
+        assert result["app_name"] == "Microsoft Excel - Book1"
+        assert result["interactive_estimate"] == 1
+        assert "COM/PowerShell" in result["recommendation"]

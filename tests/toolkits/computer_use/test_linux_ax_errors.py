@@ -50,26 +50,27 @@ def _make_app(name: str, children: list[MagicMock]) -> MagicMock:
 
 
 def _reload_with(pyatspi: MagicMock | None):
-    sys_modules = {"pyatspi": pyatspi} if pyatspi is not None else {"pyatspi": None}
+    import sys as _sys
 
     from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
 
     if pyatspi is not None:
-        with patch.dict("sys.modules", sys_modules):
-            from importlib import reload
+        # pyatspi is imported lazily inside functions, so the mock must stay in
+        # sys.modules beyond the reload window for invoke/capture to see it.
+        _sys.modules["pyatspi"] = pyatspi
+        from importlib import reload
 
-            reload(linux_ax)
+        reload(linux_ax)
     else:
-        import builtins as _builtins
-
-        original_import = _builtins.__import__
+        _sys.modules.pop("pyatspi", None)
+        original_import = builtins.__import__
 
         def mock_import(name: str, *args, **kwargs):  # type: ignore[no-untyped-def]
             if name == "pyatspi":
                 raise ImportError("No module named 'pyatspi'")
             return original_import(name, *args, **kwargs)
 
-        with patch.object(_builtins, "__import__", side_effect=mock_import):
+        with patch.object(builtins, "__import__", side_effect=mock_import):
             from importlib import reload
 
             reload(linux_ax)
@@ -176,9 +177,9 @@ class TestCaptureXdotoolFallback:
         self._import_patch.start()
 
     def _reload_no_pyatspi(self):
-        from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
-
         from importlib import reload
+
+        from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
 
         reload(linux_ax)
         return linux_ax
@@ -187,9 +188,11 @@ class TestCaptureXdotoolFallback:
         self._no_pyatspi_module()
         try:
             module = self._reload_no_pyatspi()
-            with patch.object(module.shutil, "which", return_value=None):
-                with pytest.raises(AXTreeEmptyError, match="xdotool missing"):
-                    module.capture_ax_snapshot("foreground")
+            with (
+                patch.object(module.shutil, "which", return_value=None),
+                pytest.raises(AXTreeEmptyError, match="xdotool missing"),
+            ):
+                module.capture_ax_snapshot("foreground")
         finally:
             self._import_patch.stop()
 
@@ -204,9 +207,9 @@ class TestCaptureXdotoolFallback:
                     "run",
                     side_effect=subprocess.TimeoutExpired("xdotool", 5),
                 ),
+                pytest.raises(AXTreeEmptyError, match="snapshot failed"),
             ):
-                with pytest.raises(AXTreeEmptyError, match="snapshot failed"):
-                    module.capture_ax_snapshot("foreground")
+                module.capture_ax_snapshot("foreground")
         finally:
             self._import_patch.stop()
 
@@ -220,9 +223,9 @@ class TestCaptureXdotoolFallback:
             with (
                 patch.object(module.shutil, "which", return_value="/usr/bin/xdotool"),
                 patch.object(module.subprocess, "run", return_value=result),
+                pytest.raises(AXTreeEmptyError, match="no active window title"),
             ):
-                with pytest.raises(AXTreeEmptyError, match="no active window title"):
-                    module.capture_ax_snapshot("foreground")
+                module.capture_ax_snapshot("foreground")
         finally:
             self._import_patch.stop()
 
@@ -236,9 +239,9 @@ class TestCaptureXdotoolFallback:
             with (
                 patch.object(module.shutil, "which", return_value="/usr/bin/xdotool"),
                 patch.object(module.subprocess, "run", return_value=result),
+                pytest.raises(AXTreeEmptyError, match="desktop_vision_tool"),
             ):
-                with pytest.raises(AXTreeEmptyError, match="desktop_vision_tool"):
-                    module.capture_ax_snapshot("foreground")
+                module.capture_ax_snapshot("foreground")
         finally:
             self._import_patch.stop()
 
@@ -301,6 +304,9 @@ class TestInvokeActionFailures:
         action_if = MagicMock()
         action_if.getNActions.side_effect = Exception("broken action")
         button.queryAction.return_value = action_if
+        button.queryComponent.return_value.grabFocus.side_effect = Exception(
+            "broken action"
+        )
         module = _reload_with(_desktop_with_children([button]))
         result = module.invoke_ax_element("0", "click")
         assert result.success is False
@@ -308,27 +314,27 @@ class TestInvokeActionFailures:
 
 
 class TestInspectForegroundLinux:
-    @patch(
-        "myrm_agent_harness.toolkits.computer_use.perception.linux_ax.capture_ax_snapshot",
-        side_effect=AXTreeEmptyError("AT-SPI empty"),
-    )
-    def test_empty_tree_returns_recommendation(self, mock_snapshot) -> None:
+    def test_empty_tree_returns_recommendation(self) -> None:
         module = _reload_with(None)
-        result = module.inspect_foreground()
+        with patch.object(
+            module,
+            "capture_ax_snapshot",
+            side_effect=AXTreeEmptyError("AT-SPI empty"),
+        ):
+            result = module.inspect_foreground()
         assert result["needs_permission"] is False
         assert "AT-SPI empty" in result["recommendation"]
 
-    @patch(
-        "myrm_agent_harness.toolkits.computer_use.perception.linux_ax.capture_ax_snapshot"
-    )
-    def test_success_path_appends_hint(self, mock_snapshot) -> None:
+    def test_success_path_appends_hint(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         meta = SnapshotMeta(
             ref_count=4, app_name="nautilus", window_title="Files", scope="foreground"
         )
-        mock_snapshot.return_value = MagicMock(meta=meta, refs={})
         module = _reload_with(None)
-        result = module.inspect_foreground()
+        with patch.object(
+            module, "capture_ax_snapshot", return_value=MagicMock(meta=meta, refs={})
+        ):
+            result = module.inspect_foreground()
         assert result["app_name"] == "nautilus"
         assert "D-Bus" in result["recommendation"]

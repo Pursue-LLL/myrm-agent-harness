@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING
 from langchain_core.messages.content import ContentBlock, create_image_block, create_text_block
 
 from myrm_agent_harness.utils.image_utils import MAX_IMAGE_PAYLOAD_BYTES, MAX_IMAGE_READ_BYTES
+from myrm_agent_harness.utils.media.image_compressor import image_compressor
 from myrm_agent_harness.utils.mime_types import IMAGE_EXTENSIONS
 from myrm_agent_harness.utils.mime_types import IMAGE_MIME_TYPES as MIME_TYPES
 
@@ -41,6 +42,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _INLINE_THRESHOLD = 5 * 1024 * 1024
+_REACTIVE_MAX_DIMENSION = 4096
+_REACTIVE_QUALITY = 0.8
 
 
 def is_image_path(path: str) -> bool:
@@ -119,7 +122,7 @@ def _needs_compression(raw_bytes: bytes) -> bool:
         Image.MAX_IMAGE_PIXELS = None  # Prevent DecompressionBombError for large resolutions
         with Image.open(io.BytesIO(raw_bytes)) as img:
             w, h = img.size
-            return w > 4096 or h > 4096
+            return w > _REACTIVE_MAX_DIMENSION or h > _REACTIVE_MAX_DIMENSION
     except Exception as e:
         logger.debug("Failed to check image resolution: %s", e)
         return False
@@ -130,30 +133,16 @@ def _reactive_compress(raw_bytes: bytes) -> bytes | None:
 
     Always outputs JPEG regardless of input format — JPEG is universally
     supported and achieves much better compression for photographic content.
+    Returns None when compression is not possible (corrupt/unsupported input).
     """
     try:
-        from PIL import Image, ImageOps
-
-        Image.MAX_IMAGE_PIXELS = None  # Prevent DecompressionBombError
-        img = Image.open(io.BytesIO(raw_bytes))
-        img = ImageOps.exif_transpose(img)
-        w, h = img.size
-        max_dim = 4096
-        if w > max_dim or h > max_dim:
-            ratio = min(max_dim / w, max_dim / h)
-            img = img.resize((int(w * ratio), int(h * ratio)), Image.Resampling.LANCZOS)
-
-        if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
-            img = img.convert("RGBA")
-            bg = Image.new("RGB", img.size, (255, 255, 255))
-            bg.paste(img, mask=img.split()[3])
-            img = bg
-        elif img.mode != "RGB":
-            img = img.convert("RGB")
-
-        out = io.BytesIO()
-        img.save(out, format="JPEG", quality=80, optimize=True)
-        return out.getvalue()
+        return image_compressor.compress(
+            io.BytesIO(raw_bytes),
+            output_path=None,
+            quality=_REACTIVE_QUALITY,
+            max_dimension=_REACTIVE_MAX_DIMENSION,
+            output_format="jpeg",
+        )
     except Exception as e:
         logger.warning("Reactive image compression failed: %s", e)
         return None
