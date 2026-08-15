@@ -83,6 +83,7 @@ class SnapshotManager:
         include_iframes: bool = True,
         max_depth: int | None = None,
         include_bbox: bool = False,
+        update_baseline: bool = True,
     ) -> SnapshotResult:
         """Generate an ARIA snapshot (including iframe traversal).
 
@@ -96,6 +97,9 @@ class SnapshotManager:
             include_iframes: Include iframe content (auto-traverses all iframes).
             max_depth: Optional depth limit (None = Fast Path, int = Custom Path).
             include_bbox: Collect bbox data (auto-enabled in debug mode).
+            update_baseline: Record this tree as the next diff baseline. Internal
+                previews (navigation summary, inspector refresh) pass False so they
+                never pollute the user-facing diff state.
 
         Returns:
             SnapshotResult containing the ARIA tree and refs (iframe refs format: f1_e0, f2_e1).
@@ -131,7 +135,8 @@ class SnapshotManager:
         if is_diff_output:
             aria_tree = self._diff.generate_diff(original_tree, refs, max_tokens, _ESTIMATED_CHARS_PER_TOKEN)
 
-        self._diff.update_baseline(original_tree, refs)
+        if update_baseline:
+            self._diff.update_baseline(original_tree, refs)
 
         if suggestion:
             aria_tree = f" Optimization tip: {suggestion}\n\n{aria_tree}"

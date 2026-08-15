@@ -117,6 +117,7 @@ class BrowserSessionNavigationMixin:
                 compact=True,
                 diff=False,
                 max_tokens=_NAVIGATE_INTERACTIVE_SUMMARY_MAX_TOKENS,
+                update_baseline=False,
             )
             lines = [line for line in snap.aria_tree.splitlines() if line.strip()]
             if not lines:

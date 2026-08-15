@@ -286,6 +286,7 @@ class BrowserSession(
         include_bbox: bool = False,
         *,
         publish_inspector_view: bool = True,
+        update_baseline: bool = True,
     ) -> SnapshotResult:
         """Generate ARIA snapshot (with iframe traversal)"""
         await self._ensure_components()
@@ -305,6 +306,7 @@ class BrowserSession(
             include_iframes=include_iframes,
             max_depth=max_depth,
             include_bbox=include_bbox,
+            update_baseline=update_baseline,
         )
 
         page = self._tab_controller.get_active_page()

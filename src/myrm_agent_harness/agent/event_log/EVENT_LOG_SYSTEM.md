@@ -24,7 +24,7 @@ BaseAgent.run()
 │ (logger.py) │     │ FileEventLogBackend │
 └─────────────┘     └──────────────────┘
       │
-      ├─ trace_builder.py — llm_request + token_usage → LLMCallRecord；tool_start/tool_end 按 tool_call_id 配对 → 指令血缘
+      ├─ trace_builder.py — llm_request + token_usage → LLMCallRecord；tool_start/tool_end 按 tool_call_id 配对，`tasks_steps` 流式步骤读侧兼容 → 指令血缘
       ├─ analytics.py / analytics_queries.py — 读侧聚合
       ├─ evidence_extractor.py — Trace 证据挖掘（idle → skill evolution）
       ├─ llm_observability.py — prompt preview 截断记录

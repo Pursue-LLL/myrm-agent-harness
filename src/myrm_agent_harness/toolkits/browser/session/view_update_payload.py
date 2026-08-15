@@ -112,6 +112,7 @@ async def capture_browser_view_update_data(
             include_bbox=True,
             max_tokens=4000,
             publish_inspector_view=False,
+            update_baseline=False,
         )
 
     refs_data = refs_data_from_snapshot_result(snapshot_result)

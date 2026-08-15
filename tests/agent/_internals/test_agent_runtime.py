@@ -779,3 +779,21 @@ class TestRunAgentLoopModelSlugSource:
         assert 'parse_litellm_model(llm_model or "")' in source
         assert 'getattr(agent_state.llm, "model_name", None)' in source
         assert "agent_state.config.llm" not in source
+
+
+class TestRunAgentLoopOuterErrorFaultSide:
+    """Regression: the outer-loop error_event must carry deterministic fault
+    side + recovery actions so the GUI's trace timeline shows who owns the
+    failure even when the executor loop itself raises (measurement decay guard
+    — this branch previously dropped fault_side/recovery_actions)."""
+
+    def test_outer_error_event_attributes_fault_side(self) -> None:
+        from pathlib import Path
+
+        source = (
+            Path(__file__).resolve().parents[3] / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
+        ).read_text(encoding="utf-8")
+        # fault_side must be computed via the pure-rules classifier, not guessed.
+        assert 'classify_fault_side(error_kind=error_kind.value)' in source
+        # recovery_actions must be generated when a diagnostic payload exists.
+        assert "LLMErrorDiagnostic.get_recovery_actions" in source

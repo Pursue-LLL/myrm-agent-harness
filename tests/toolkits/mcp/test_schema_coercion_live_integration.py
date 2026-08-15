@@ -89,6 +89,27 @@ if __name__ == "__main__":
     server.run(transport="stdio")
 """
 
+# A third real server with a *required* nullable field (no default): when the
+# LLM omits it, the harness must inject an explicit None so the server-side
+# nullable contract is honoured on the wire.
+_REQNULL_SERVER_SRC = """
+import sys
+from typing import Optional
+
+from mcp.server.mcpserver import MCPServer
+
+server = MCPServer("reqnull-coercion-probe")
+
+
+@server.tool()
+def note_tool(tag: str, note: Optional[str]) -> str:
+    return f"tag={tag!r} note={note!r} note_type={type(note).__name__}"
+
+
+if __name__ == "__main__":
+    server.run(transport="stdio")
+"""
+
 
 @pytest_asyncio.fixture
 async def _probe_actor(tmp_path) -> object:
@@ -126,6 +147,24 @@ async def _nested_actor(tmp_path) -> object:
         await actor.close()
 
 
+@pytest_asyncio.fixture
+async def _reqnull_actor(tmp_path) -> object:
+    """A live stdio MCP session exposing the ``note_tool`` tool via the actor."""
+    script = tmp_path / "reqnull_coercion_probe_server.py"
+    script.write_text(_REQNULL_SERVER_SRC, encoding="utf-8")
+
+    actor = MCPSessionActor(
+        "reqnull-coercion-probe",
+        {"transport": "stdio", "command": sys.executable, "args": [str(script)]},
+        connect_timeout=20.0,
+    )
+    await actor.start()
+    try:
+        yield actor
+    finally:
+        await actor.close()
+
+
 async def _lookup(actor: object, **params: object) -> str:
     result = await actor.call("lookup", params)  # type: ignore[attr-defined]
     assert isinstance(result, str), result
@@ -134,6 +173,12 @@ async def _lookup(actor: object, **params: object) -> str:
 
 async def _analyze(actor: object, **params: object) -> str:
     result = await actor.call("analyze", params)  # type: ignore[attr-defined]
+    assert isinstance(result, str), result
+    return result
+
+
+async def _note(actor: object, **params: object) -> str:
+    result = await actor.call("note_tool", params)  # type: ignore[attr-defined]
     assert isinstance(result, str), result
     return result
 
@@ -256,3 +301,47 @@ async def test_optional_null_stripped_server_default_used(_nested_actor: object)
         label=None,
     )
     assert "label='default' label_type=str" in result
+
+
+@pytest.mark.asyncio
+async def test_bool_string_literals_coerced_to_boolean(_probe_actor: object) -> None:
+    """'true' / 'false' strings for a boolean field arrive as real bools."""
+    for literal, expected in (("true", "True"), ("false", "False")):
+        result = await _lookup(_probe_actor, id="1", score="1", active=literal, tags=["x"])
+        assert f"active={expected} active_type=bool" in result, literal
+
+
+@pytest.mark.asyncio
+async def test_required_nullable_omitted_injects_explicit_none(_reqnull_actor: object) -> None:
+    """A required+nullable argument omitted by the LLM is injected as explicit
+    None so the server-side nullable contract is honoured on the wire."""
+    result = await _note(_reqnull_actor, tag="x")
+    assert "note=None note_type=NoneType" in result
+
+
+@pytest.mark.asyncio
+async def test_markdown_wrapped_json_array_parsed(_probe_actor: object) -> None:
+    """A markdown-fenced JSON array (common LLM output) is parsed to a real list."""
+    result = await _lookup(
+        _probe_actor,
+        id="1",
+        score="1",
+        active=True,
+        tags='```json\n["a", "b"]\n```',
+    )
+    assert "tags=['a', 'b'] tags_type=list" in result
+
+
+@pytest.mark.asyncio
+async def test_negative_big_integer_exact(_probe_actor: object) -> None:
+    """Negative big integers survive the wire with exact precision."""
+    result = await _lookup(_probe_actor, id="-9007199254740993", score="1", active=True, tags=["x"])
+    assert "id=-9007199254740993 id_type=int" in result
+
+
+@pytest.mark.asyncio
+async def test_huge_digit_string_stays_string_rejected_readably(_probe_actor: object) -> None:
+    """A 5000-digit literal stays a string (int_max_str_digits guard) and the
+    server rejects it with a readable error — no crash, no silent corruption."""
+    result = await _lookup(_probe_actor, id="1" + "0" * 5000, score="1", active=True, tags=["x"])
+    assert "MCP tool error" in result and "Exceeds the limit" in result

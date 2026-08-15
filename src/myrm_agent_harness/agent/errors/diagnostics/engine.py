@@ -407,12 +407,16 @@ class LLMErrorDiagnostic:
     }
 
     @staticmethod
-    def get_recovery_actions(error_type: str, locale: str = "en") -> list[dict[str, str]]:
+    def get_recovery_actions(error_type: str, locale: str | None = "en") -> list[dict[str, str]]:
         """Return localized actionable recovery buttons for the given error type.
 
         Each action is a dict with {id, label, url} matching the frontend RecoveryAction type.
         Only error types with clear, single-click resolutions produce actions.
+        ``None`` locale falls back to framework auto-detection (mirrors ``diagnose``).
         """
+        if not locale:
+            locale = get_locale_manager().detect_locale()
+
         defs = LLMErrorDiagnostic._RECOVERY_ACTION_DEFS.get(error_type)
         if not defs:
             return []

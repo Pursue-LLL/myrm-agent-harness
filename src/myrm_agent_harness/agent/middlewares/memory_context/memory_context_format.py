@@ -135,6 +135,16 @@ def _memory_search_guidance(*, sessions_corpus_enabled: bool) -> str:
     return "\n".join(lines)
 
 
+def _memory_guidance_tail(*, sessions_corpus_enabled: bool) -> str:
+    """Shared guidance tail appended to warm memory contexts (citations + memory search)."""
+    return f"""## Citation Requirements
+When your answer directly relies on any provided memory or rule (from either stable or learned contexts), you MUST append a citation tag at the end of the relevant sentence or paragraph.
+Format: <cite:MEMORY_ID>
+Example: "Based on your preference for concise answers <cite:mem-123>, here is the script."
+
+{_memory_search_guidance(sessions_corpus_enabled=sessions_corpus_enabled)}"""
+
+
 def _build_cold_start_context(*, sessions_corpus_enabled: bool) -> str:
     return f"""<user_memory_context>
 # New User — Discovery Mode
@@ -147,12 +157,7 @@ No memories yet. Actively learn about this user during the conversation:
 
 This guidance will be replaced by real user context as memories accumulate.
 
-## Citation Requirements
-When your answer directly relies on any provided memory or rule (from either stable or learned contexts), you MUST append a citation tag at the end of the relevant sentence or paragraph.
-Format: <cite:MEMORY_ID>
-Example: "Based on your preference for concise answers <cite:mem-123>, here is the script."
-
-{_memory_search_guidance(sessions_corpus_enabled=sessions_corpus_enabled)}
+{_memory_guidance_tail(sessions_corpus_enabled=sessions_corpus_enabled)}
 </user_memory_context>"""
 
 
@@ -288,8 +293,16 @@ def _format_memory_context(
             "Matching memories are guidance; contradicting ones must be ignored.\n\n"
         )
         base_header = "# User Context (stable)\n\n"
+        # When only stable context is injected (the common warm case), carry the
+        # same citations + memory-search guidance that cold-start and learned
+        # injections provide, so the model consistently cites recalled memory IDs.
+        guidance_tail = (
+            f"\n\n{_memory_guidance_tail(sessions_corpus_enabled=sessions_corpus_enabled)}"
+            if not untrusted_body
+            else ""
+        )
         stable_formatted = f"""<user_memory_context>
-{scope_boundary}{base_header}{stable_body}
+{scope_boundary}{base_header}{stable_body}{guidance_tail}
 </user_memory_context>"""
 
     untrusted_formatted = None
@@ -298,12 +311,6 @@ def _format_memory_context(
 
         untrusted_formatted = f"""{wrapped_body}
 
-## Citation Requirements
-When your answer directly relies on any provided memory or rule (from either stable or learned contexts), you MUST append a citation tag at the end of the relevant sentence or paragraph.
-Format: <cite:MEMORY_ID>
-Example: "Based on your preference for concise answers <cite:mem-123>, here is the script."
-
-## Memory Search
-{_memory_search_guidance(sessions_corpus_enabled=sessions_corpus_enabled)}"""
+{_memory_guidance_tail(sessions_corpus_enabled=sessions_corpus_enabled)}"""
 
     return stable_formatted, untrusted_formatted

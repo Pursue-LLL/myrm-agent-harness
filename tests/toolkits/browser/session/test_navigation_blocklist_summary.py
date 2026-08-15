@@ -43,7 +43,8 @@ def test_hostname_blocked_by_policy_empty_blocklist() -> None:
 @pytest.mark.asyncio
 async def test_append_navigate_interactive_summary_caps_lines() -> None:
     probe = _NavigationProbe()
-    lines = [f'- button "B{i}" [ref=e{i}]' for i in range(30)]
+    total_lines = _NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES + 20
+    lines = [f'- button "B{i}" [ref=e{i}]' for i in range(total_lines)]
     snap = MagicMock()
     snap.aria_tree = "\n".join(lines)
     probe.snapshot = AsyncMock(return_value=snap)
@@ -52,7 +53,8 @@ async def test_append_navigate_interactive_summary_caps_lines() -> None:
 
     assert "Navigated OK" in result
     assert f"max {_NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES}" in result
-    assert "10 more refs" in result
+    excess = total_lines - _NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES
+    assert f"{excess} more refs" in result
 
 
 @pytest.mark.asyncio

@@ -351,10 +351,11 @@ class MyToolkitError(Exception):
 ```
 LLM执行异常（RateLimitError / AuthenticationError / TimeoutError / etc.）
     ↓
-stream_executor.py `_emit_fatal_error`（异常捕获）
+stream_executor.py `_emit_fatal_error`（异常捕获，executor 内层）
+agent/_internals/agent_runtime.py run_agent_loop 外层 except（executor 外层兜底）
     │ classify_error(exc) → ErrorKind（toolkits/llms/errors/classifier.py）
     │ LLMErrorDiagnostic.diagnose(exc, ErrorContext) → DiagnosticResult（本地化 user_message + resolution_steps + is_retryable）
-    │ 构建 error_event:
+    │ 构建 error_event（两条路径字段结构一致）:
     │   - error_kind: str（如 "rate_limit"）
     │   - error_type: str
     │   - failover_reason: str

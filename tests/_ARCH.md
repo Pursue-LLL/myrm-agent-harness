@@ -75,6 +75,19 @@ Real Chromium tests under `tests/toolkits/browser/` must carry `integration` or 
 4. **`run_site_tool` 输出经 `mark_untrusted` 包裹**（BROWSER_SYSTEM.md 统一安全出口）。
    程序化消费必须走 `extract_wrapped_payload()` 解包后再 `json.loads`，不要直接对裸结果解析。
 
+5. **浏览器可用性检测禁止用 `shutil.which("chromium")`**：macOS/Windows 上 patchright 管理的
+   Chromium 装在 Playwright 缓存目录（`~/Library/Caches/ms-playwright` 或 `$PLAYWRIGHT_BROWSERS_PATH`），
+   不在 PATH，导致 `requires_browser` 误判跳过整个浏览器池测试（曾经 31 个池/并发测试静默未跑）。
+   统一走 `tests/toolkits/browser/_browser_available.py::chromium_available()`——
+   它通过 patchright registry 解析真实 `executable_path` 并检查文件存在。
+
+6. **导航摘要/Inspector 预览快照禁止污染 diff baseline**：`BrowserSession.navigate` 内部
+   `_append_navigate_interactive_summary` 与 `view_update_payload.capture_browser_view_update_data`
+   会用 `snapshot(diff=False, compact=True, scope="interactive")` 做只读预览。若这些调用也更新
+   `SnapshotDiffEngine` baseline（`get_snapshot` 默认行为），用户导航后首次 `snapshot(diff=True)`
+   就会拿到与 interactive/compact 范围对比的无效 diff。预览用途必须显式传
+   `update_baseline=False`（`get_snapshot`/`BrowserSession.snapshot` 新增参数，默认 True 保持契约）。
+
 ## Key Dependencies
 
 - `pyproject.toml` `[tool.pytest.ini_options]` markers and `addopts`

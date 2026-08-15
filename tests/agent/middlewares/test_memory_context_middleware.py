@@ -302,6 +302,39 @@ def test_format_complete_static():
     assert "</user_memory_context>" in stable
 
 
+def test_format_stable_only_includes_guidance_tail():
+    """Warm stable-only injection must carry Citation Requirements + Memory Search guidance.
+
+    The middleware always passes empty learned context (P0 cache-stable design), so
+    the untrusted branch never fires at runtime. Without this tail, warm users with
+    stable profile/rules would never be told to emit <cite:MEMORY_ID> tags, silently
+    disabling the LLM-side citation channel that cold-start users do get.
+    """
+    ctx = {"global_profile": {"name": "Alice"}}
+    stable, untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+    assert stable is not None
+    assert untrusted is None
+    assert "## Citation Requirements" in stable
+    assert "<cite:MEMORY_ID>" in stable
+    assert "## Memory Search" in stable
+    assert "memory_search_tool" in stable
+
+
+def test_format_stable_plus_untrusted_guidance_not_duplicated():
+    """Guidance tail appears exactly once when both stable and learned are injected."""
+    ctx = {"global_profile": {"name": "Alice"}}
+    learned = {
+        "learned_rules": [],
+        "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
+    }
+    stable, untrusted = _format_memory_context(ctx, learned)
+    assert stable is not None
+    assert untrusted is not None
+    assert "## Citation Requirements" not in stable
+    assert untrusted.count("## Citation Requirements") == 1
+    assert untrusted.count("<cite:MEMORY_ID>") == 1
+
+
 # ---------------------------------------------------------------------------
 # _format_memory_context — learned context
 # ---------------------------------------------------------------------------

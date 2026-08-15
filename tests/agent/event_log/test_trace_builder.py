@@ -829,6 +829,190 @@ class TestLineageAttribution:
 
 
 # ---------------------------------------------------------------------------
+# tasks_steps progress events (updates-stream tool invocations)
+# ---------------------------------------------------------------------------
+
+
+class TestTasksStepsProgress:
+    """The streaming layer reports tool invocations as ``tasks_steps`` events.
+
+    ``streaming.event_handlers._handle_tool_calls`` emits ``step_key``,
+    ``tool_call_id``, ``tool_name``, ``reason``, ``data`` and ``messageId``;
+    ``_handle_tool_result`` emits error steps with ``status=error`` and the
+    same messageId but no tool_call_id.
+    """
+
+    @pytest.mark.asyncio
+    async def test_start_step_creates_lineaged_record(self) -> None:
+        """A running tasks_steps step must create a lineaged ToolCallRecord."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-7",
+                tool_name="bash_code_execute_tool",
+                reason="get cwd",
+                data=[{"text": "run: pwd"}],
+                messageId="msg-1",
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.tool_name == "bash_code_execute_tool"
+        assert tc.tool_call_id == "call-7"
+        assert tc.message_id == "msg-1"
+        assert tc.start_time > 0
+        assert tc.end_time is None
+        assert tc.success is True
+        # Display rows / bookkeeping keys must not leak into input_data.
+        assert tc.input_data == {}
+        d = trace.to_dict()
+        assert d["tool_calls"][0]["tool_call_id"] == "call-7"
+        assert d["tool_calls"][0]["message_id"] == "msg-1"
+
+    @pytest.mark.asyncio
+    async def test_error_step_closes_running_record_by_context(self) -> None:
+        """An error step (no tool_call_id) must close the matching running record."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-8",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-2",
+            ),
+            _event(
+                3,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool_error",
+                tool_name="bash_code_execute_tool",
+                status="error",
+                error="exit code 1",
+                messageId="msg-2",
+                fault_side="harness_tool",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.tool_call_id == "call-8"
+        assert tc.success is False
+        assert tc.error == "exit code 1"
+        assert tc.end_time is not None
+        assert tc.fault_side == "harness_tool"
+
+    @pytest.mark.asyncio
+    async def test_tasks_step_start_then_tool_end_no_duplicate(self) -> None:
+        """A tasks_steps start + tool_end for the same call must be one record."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-9",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-3",
+            ),
+            _event(
+                3,
+                "tool_end",
+                tool_name="bash_code_execute_tool",
+                tool_call_id="call-9",
+                duration_ms=25.0,
+                output="ok\n",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.tool_call_id == "call-9"
+        assert tc.success is True
+        assert tc.end_time is not None
+        assert tc.duration_ms == 25.0
+        assert tc.output_data == "ok\n"
+
+    @pytest.mark.asyncio
+    async def test_plan_steps_without_tool_name_ignored(self) -> None:
+        """Todo/progress plan steps (is_plan, no tool_name) are not tool calls."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="progress_root",
+                is_plan=True,
+                status="in_progress",
+                data=[{"text": "Task progress"}],
+            ),
+            _event(
+                3,
+                "tasks_steps",
+                step_key="reviewing_sources",
+                tool_name=None,
+                count=1,
+                data=[{"url": "https://example.com"}],
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_duplicate_running_steps_dedup_by_call_id(self) -> None:
+        """Repeated running steps for the same tool_call_id must not duplicate."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-1",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-1",
+            ),
+            _event(
+                3,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-1",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-1",
+            ),
+            _event(
+                4,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-1",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-1",
+            ),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].tool_call_id == "call-1"
+
+
+# ---------------------------------------------------------------------------
 # Fault-side attribution & first-irrecoverable
 # ---------------------------------------------------------------------------
 

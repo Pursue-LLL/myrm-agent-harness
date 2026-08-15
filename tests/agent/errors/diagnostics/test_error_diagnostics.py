@@ -345,3 +345,8 @@ class TestGetRecoveryActions:
     def test_locale_prefix_fallback_zh_tw_to_zh_cn(self):
         actions = LLMErrorDiagnostic.get_recovery_actions("billing", locale="zh_TW")
         assert actions[0]["label"] == "充值余额"
+
+    def test_none_locale_falls_back_to_detected(self):
+        actions = LLMErrorDiagnostic.get_recovery_actions("api_key", locale=None)
+        assert len(actions) == 1
+        assert actions[0]["id"] == "update_key"

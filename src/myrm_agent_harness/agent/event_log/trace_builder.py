@@ -19,6 +19,7 @@ on demand without caching or mutation.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from .trace_types import ExecutionTrace, LLMCallRecord, ToolCallRecord, TraceMetadata, TraceOutcome
@@ -26,6 +27,29 @@ from .types import EventFilter, StructuredEvent
 
 if TYPE_CHECKING:
     from .protocols import EventLogBackend
+
+# Keys on a tasks_steps payload that carry step/bookkeeping metadata rather than
+# tool input — stripped before storing input_data.
+_TASK_STEP_META_KEYS: frozenset[str] = frozenset(
+    {
+        "_agent_id",
+        "count",
+        "data",  # display rows (text), not tool input
+        "messageId",
+        "message_id",
+        "reason",
+        "status",
+        "step_key",
+        "tool_call_id",
+        "tool_name",
+    }
+)
+# A tasks_steps step may carry a terminal status; any other status (including an
+# absent one) is treated as "still running" and recorded with no end time.
+_TERMINAL_TOOL_STATUSES: frozenset[str] = frozenset(
+    {"cancelled", "completed", "done", "error", "failed", "succeeded", "success"}
+)
+_FAILURE_TOOL_STATUSES: frozenset[str] = frozenset({"cancelled", "error", "failed"})
 
 
 async def build_trace(
@@ -214,6 +238,121 @@ def _pop_pending(
     return pt
 
 
+def _find_tool_record(
+    tool_calls: list[ToolCallRecord], tool_call_id: str | None
+) -> ToolCallRecord | None:
+    """Find an already-recorded tool call by its ``tool_call_id``.
+
+    The same invocation can surface both as a ``tasks_steps`` progress event and
+    as ``tool_start``/``tool_end`` pair — the id keeps them as one record.
+    """
+    if not tool_call_id:
+        return None
+    for tc in tool_calls:
+        if tc.tool_call_id == tool_call_id:
+            return tc
+    return None
+
+
+def _replace_tool_record(
+    trace: ExecutionTrace,
+    existing: ToolCallRecord,
+    **changes: object,
+) -> None:
+    """Swap ``existing`` with a copy carrying ``changes`` (frozen record)."""
+    trace.tool_calls = [
+        replace(existing, **changes) if tc is existing else tc for tc in trace.tool_calls
+    ]
+
+
+def _find_open_record_by_context(
+    tool_calls: list[ToolCallRecord], tool_name: str, message_id: str | None
+) -> ToolCallRecord | None:
+    """Find the most recent open (unclosed) record for a tool+message context.
+
+    Error-status ``tasks_steps`` steps (see streaming.event_handlers) carry
+    tool_name + messageId but no tool_call_id; closing the matching running
+    record keeps the lineage intact instead of creating a duplicate.
+    """
+    if not message_id:
+        return None
+    for tc in reversed(tool_calls):
+        if tc.tool_name == tool_name and tc.message_id == message_id and tc.end_time is None:
+            return tc
+    return None
+
+
+def _process_tasks_step(event: StructuredEvent, trace: ExecutionTrace) -> None:
+    """Merge a ``tasks_steps`` progress event into the trace.
+
+    The streaming layer emits tool invocations as ``tasks_steps`` events (see
+    ``streaming.event_handlers._handle_tool_calls``) in addition to — or instead
+    of — ``tool_start``/``tool_end`` lifecycle events.  A step that names a tool
+    therefore represents one tool invocation: record it immediately, then let a
+    later terminal ``tool_end``/``tool_failure`` or error-status step refine it.
+    """
+    data = event.data
+    tool_name = data.get("tool_name")
+    if not isinstance(tool_name, str) or not tool_name:
+        return  # plan steps / source reviews carry no tool_name
+
+    tool_call_id = _str_or_none(data.get("tool_call_id"))
+    message_id = _str_or_none(data.get("message_id")) or _str_or_none(data.get("messageId"))
+    status = _str_or_none(data.get("status"))
+    step_key = _str_or_none(data.get("step_key")) or ""
+
+    is_failure = status in _FAILURE_TOOL_STATUSES or step_key.endswith("_error")
+    is_terminal = status in _TERMINAL_TOOL_STATUSES or is_failure
+
+    existing = _find_tool_record(trace.tool_calls, tool_call_id)
+    if existing is None and is_failure:
+        existing = _find_open_record_by_context(trace.tool_calls, tool_name, message_id)
+    if existing is not None:
+        if is_failure:
+            _replace_tool_record(
+                trace,
+                existing,
+                end_time=event.timestamp,
+                success=False,
+                error=_str_or_none(data.get("error")) or existing.error,
+                fault_side=_str_or_none(data.get("fault_side")) or existing.fault_side,
+            )
+        elif is_terminal:
+            _replace_tool_record(trace, existing, end_time=event.timestamp)
+        return
+
+    input_data = {k: v for k, v in data.items() if k not in _TASK_STEP_META_KEYS}
+
+    if is_failure:
+        trace.tool_calls.append(
+            ToolCallRecord(
+                sequence=event.sequence,
+                tool_name=tool_name,
+                start_time=event.timestamp,
+                end_time=event.timestamp,
+                success=False,
+                error=_str_or_none(data.get("error")),
+                tool_call_id=tool_call_id,
+                message_id=message_id,
+                input_data=input_data,
+                fault_side=_str_or_none(data.get("fault_side")),
+            )
+        )
+        return
+
+    trace.tool_calls.append(
+        ToolCallRecord(
+            sequence=event.sequence,
+            tool_name=tool_name,
+            start_time=event.timestamp,
+            success=not is_terminal,  # running steps are presumed success until closed
+            tool_call_id=tool_call_id,
+            message_id=message_id,
+            input_data=input_data,
+        )
+    )
+
+
 def _int_or_zero(value: object) -> int:
     if isinstance(value, bool):
         return 0
@@ -285,30 +424,49 @@ def _process_event(
     elif et == "tool_start":
         tool_name = data.get("tool_name")
         if isinstance(tool_name, str):
-            pending.setdefault(tool_name, []).append(
-                _PendingTool(
-                    sequence=event.sequence,
-                    tool_name=tool_name,
-                    start_time=event.timestamp,
-                    input_data={k: v for k, v in data.items() if not k.startswith("_") and k != "tool_name"},
-                    tool_call_id=_str_or_none(data.get("tool_call_id")),
-                    message_id=_str_or_none(data.get("message_id")),
+            tool_call_id = _str_or_none(data.get("tool_call_id"))
+            # The same invocation may already be recorded from a tasks_steps
+            # progress event; keep it as one record instead of duplicating.
+            if _find_tool_record(trace.tool_calls, tool_call_id) is None:
+                pending.setdefault(tool_name, []).append(
+                    _PendingTool(
+                        sequence=event.sequence,
+                        tool_name=tool_name,
+                        start_time=event.timestamp,
+                        input_data={k: v for k, v in data.items() if not k.startswith("_") and k != "tool_name"},
+                        tool_call_id=tool_call_id,
+                        message_id=_str_or_none(data.get("message_id")),
+                    )
                 )
-            )
 
     elif et == "tool_end":
         tool_name = data.get("tool_name")
         if isinstance(tool_name, str):
-            pt = _pop_pending(pending, tool_name, _str_or_none(data.get("tool_call_id")))
-            if pt:
-                duration_ms = data.get("duration_ms")
+            tool_call_id = _str_or_none(data.get("tool_call_id"))
+            pt = _pop_pending(pending, tool_name, tool_call_id)
+            existing = _find_tool_record(trace.tool_calls, tool_call_id)
+            duration_ms = data.get("duration_ms")
+            duration = float(duration_ms) if isinstance(duration_ms, (int, float)) else None
+            if existing is not None:
+                # The same invocation may already be recorded from a tasks_steps
+                # progress event even when no pending tool_start was seen.
+                _replace_tool_record(
+                    trace,
+                    existing,
+                    end_time=event.timestamp,
+                    duration_ms=duration,
+                    success=True,
+                    output_summary=_str_or_none(data.get("output_summary")),
+                    output_data=data.get("output") or data.get("result"),
+                )
+            elif pt is not None:
                 trace.tool_calls.append(
                     ToolCallRecord(
                         sequence=pt.sequence,
                         tool_name=pt.tool_name,
                         start_time=pt.start_time,
                         end_time=event.timestamp,
-                        duration_ms=(float(duration_ms) if isinstance(duration_ms, (int, float)) else None),
+                        duration_ms=duration,
                         success=True,
                         tool_call_id=pt.tool_call_id,
                         message_id=pt.message_id,
@@ -321,24 +479,57 @@ def _process_event(
     elif et == "tool_failure":
         tool_name = data.get("tool_name")
         if isinstance(tool_name, str):
-            pt = _pop_pending(pending, tool_name, _str_or_none(data.get("tool_call_id")))
+            tool_call_id = _str_or_none(data.get("tool_call_id"))
+            pt = _pop_pending(pending, tool_name, tool_call_id)
             error_msg = data.get("error") or data.get("error_message") or ""
             duration_ms = data.get("duration_ms")
-            trace.tool_calls.append(
-                ToolCallRecord(
-                    sequence=pt.sequence if pt else event.sequence,
-                    tool_name=tool_name,
-                    start_time=pt.start_time if pt else event.timestamp,
+            duration = float(duration_ms) if isinstance(duration_ms, (int, float)) else None
+            existing = _find_tool_record(trace.tool_calls, tool_call_id)
+            if existing is not None:
+                _replace_tool_record(
+                    trace,
+                    existing,
                     end_time=event.timestamp,
-                    duration_ms=(float(duration_ms) if isinstance(duration_ms, (int, float)) else None),
+                    duration_ms=duration,
                     success=False,
                     error=str(error_msg) if error_msg else None,
-                    tool_call_id=pt.tool_call_id if pt else _str_or_none(data.get("tool_call_id")),
-                    message_id=pt.message_id if pt else _str_or_none(data.get("message_id")),
-                    input_data=pt.input_data if pt else {},
-                    fault_side=_str_or_none(data.get("fault_side")),
+                    fault_side=_str_or_none(data.get("fault_side")) or existing.fault_side,
                 )
-            )
+            elif pt is not None:
+                trace.tool_calls.append(
+                    ToolCallRecord(
+                        sequence=pt.sequence,
+                        tool_name=tool_name,
+                        start_time=pt.start_time,
+                        end_time=event.timestamp,
+                        duration_ms=duration,
+                        success=False,
+                        error=str(error_msg) if error_msg else None,
+                        tool_call_id=pt.tool_call_id,
+                        message_id=pt.message_id,
+                        input_data=pt.input_data,
+                        fault_side=_str_or_none(data.get("fault_side")),
+                    )
+                )
+            else:
+                trace.tool_calls.append(
+                    ToolCallRecord(
+                        sequence=event.sequence,
+                        tool_name=tool_name,
+                        start_time=event.timestamp,
+                        end_time=event.timestamp,
+                        duration_ms=(float(duration_ms) if isinstance(duration_ms, (int, float)) else None),
+                        success=False,
+                        error=str(error_msg) if error_msg else None,
+                        tool_call_id=tool_call_id,
+                        message_id=_str_or_none(data.get("message_id")),
+                        input_data={},
+                        fault_side=_str_or_none(data.get("fault_side")),
+                    )
+                )
+
+    elif et == "tasks_steps":
+        _process_tasks_step(event, trace)
 
     elif et == "error":
         error_entry: dict[str, object] = {

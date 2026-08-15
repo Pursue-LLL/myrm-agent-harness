@@ -73,6 +73,7 @@ from myrm_agent_harness.agent.streaming.utils import (
     set_user_timezone,
     validate_context,
 )
+from myrm_agent_harness.agent.errors.fault_side import classify_fault_side
 from myrm_agent_harness.agent.types import AgentRunStatistics
 from myrm_agent_harness.toolkits.llms.errors.classifier import classify_error
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -820,9 +821,20 @@ async def run_agent_loop(
                     "error_kind": error_kind.value,
                     "messageId": message_id,
                 }
+                # Deterministic fault-side attribution (pure rules, no LLM).
+                error_event["fault_side"] = classify_fault_side(error_kind=error_kind.value).value
                 # Add diagnostic_result if available
                 if diagnostic_dict:
                     error_event["diagnostic_result"] = diagnostic_dict
+                    diagnostic_type = diagnostic_dict.get("error_type")
+                    if isinstance(diagnostic_type, str):
+                        from myrm_agent_harness.agent.errors.diagnostics import LLMErrorDiagnostic
+
+                        recovery_actions = LLMErrorDiagnostic.get_recovery_actions(
+                            diagnostic_type, locale=agent_state.config.locale
+                        )
+                        if recovery_actions:
+                            error_event["recovery_actions"] = recovery_actions
                 yield error_event
 
         finally:
