@@ -152,7 +152,7 @@ class ToolCallBroadcaster:
 
         Args:
             event_type: "post_tool_use_failure"
-            payload: {tool_name, error, tool_call_id, session_id, message_id}
+            payload: {tool_name, error, tool_call_id, error_category, session_id, message_id}
 
         Returns:
             HookResult with success=True.

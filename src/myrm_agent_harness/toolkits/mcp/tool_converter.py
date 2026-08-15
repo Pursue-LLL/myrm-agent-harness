@@ -1,8 +1,8 @@
 """MCP tool schema → LangChain BaseTool converter.
 
 Converts MCP ``Tool`` objects (from ``client.list_tools()``) into
-``SafeStructuredTool`` instances (a ``StructuredTool`` subclass whose ``_arun``
-never swallows ``config``/``run_manager`` arguments — see
+``SafeStructuredTool`` instances (a ``StructuredTool`` subclass whose ``_run``/
+``_arun`` never swallow ``config``/``run_manager`` arguments — see
 ``structured_tool.py``) whose ``ainvoke`` calls the provided session/client's
 ``call_tool`` method. The input schema is normalized:
 ``$ref``/``$defs`` are inlined, property-level const unions collapse into

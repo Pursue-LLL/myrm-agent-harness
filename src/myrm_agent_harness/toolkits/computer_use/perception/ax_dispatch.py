@@ -20,8 +20,16 @@ from __future__ import annotations
 import logging
 
 from myrm_agent_harness.toolkits.computer_use.backends.protocols import ComputerBackend
-from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta, SnapshotScope
-from myrm_agent_harness.toolkits.computer_use.perception import linux_ax, macos_ax, windows_ax
+from myrm_agent_harness.toolkits.computer_use.dref.types import (
+    ElementRef,
+    SnapshotMeta,
+    SnapshotScope,
+)
+from myrm_agent_harness.toolkits.computer_use.perception import (
+    linux_ax,
+    macos_ax,
+    windows_ax,
+)
 from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 
 logger = logging.getLogger(__name__)
@@ -71,9 +79,17 @@ def invoke_element(
 ) -> ActionResult:
     platform = type(backend).__name__
     if platform == "MacOSBackend":
-        return macos_ax.invoke_ax_element(element.backend_key, action, text, app_name=app_name)
+        return macos_ax.invoke_ax_element(
+            element.backend_key, action, text, app_name=app_name
+        )
     if platform == "WindowsBackend":
-        return windows_ax.invoke_ax_element(element.backend_key, action, text, app_name=app_name)
+        return windows_ax.invoke_ax_element(
+            element.backend_key, action, text, app_name=app_name
+        )
     if platform == "LinuxBackend":
-        return linux_ax.invoke_ax_element(element.backend_key, action, text, app_name=app_name)
-    return ActionResult(success=False, error=f"Unsupported backend for AX invoke: {platform}")
+        return linux_ax.invoke_ax_element(
+            element.backend_key, action, text, app_name=app_name
+        )
+    return ActionResult(
+        success=False, error=f"Unsupported backend for AX invoke: {platform}"
+    )

@@ -213,7 +213,7 @@ def classify_diagnostic_fault_side(error_type: str | None) -> FaultSide:
     """Map a diagnostic ``error_type`` string to a fault side.
 
     ``error_type`` comes from ``DiagnosticResult.error_type`` (e.g. ``"api_key"``,
-    ``"connection"``, ``"response_format"``).  This is the diagnostic-level
+    ``"connection"``, ``"response_format_error"``).  This is the diagnostic-level
     fallback when only the localized diagnostic is available (no ErrorKind).
 
     Returns UNKNOWN for ``None`` or unrecognized types (abstain).

@@ -764,7 +764,7 @@ class MCPSessionActor:
             self._proxy_tools = [self._make_proxy(tool) for tool in processed]
             self._ready.set()
 
-    def _make_notification_handler(self):
+    def _make_notification_handler(self) -> Callable[[object], Awaitable[None]] | None:
         """Build a ``message_handler`` for ``mcp.ClientSession``.
 
         In MCP SDK 2.x, notifications are delivered as their concrete types

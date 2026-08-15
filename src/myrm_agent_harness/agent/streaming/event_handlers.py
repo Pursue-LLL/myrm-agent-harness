@@ -179,6 +179,10 @@ async def _handle_tool_result(
         event = {
             "type": AgentEventType.TASKS_STEPS.value,
             "step_key": f"{get_step_key(tool_name)}_error",
+            # Carry the tool_call_id like the success path does so trace_builder
+            # can pair this error step with the tool_failure record instead of
+            # creating a duplicate entry.
+            "tool_call_id": msg.tool_call_id or None,
             "tool_name": tool_name,
             "status": "error",
             "error": scrub_sensitive_info(error_content),

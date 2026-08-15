@@ -76,7 +76,7 @@ desktop_vision_tool (only when AX empty or interact failed)
 
 | Platform | AX Snapshot | AX Invoke | Vision Fallback |
 |----------|-------------|-----------|-----------------|
-| macOS | Accessibility API (targeted capture by app name with auto-fallback to foreground) | ✅ (targeted invoke by app name) | ✅ |
+| macOS | Accessibility API (targeted capture by app name; exact name with contains fallback; auto-fallback to foreground when not found) | ✅ (targeted invoke by app name) | ✅ |
 | Windows | UI Automation (targeted capture by process name via shared `_locate_window`) | ✅ (targeted invoke shares `_locate_window`) | ✅ |
 | Linux | AT-SPI (pyatspi; targeted capture scoped to a matching application) | ✅ (targeted invoke scoped to a matching application) | ✅ |
 

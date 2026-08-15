@@ -24,7 +24,10 @@ from myrm_agent_harness.toolkits.computer_use.dref.errors import (
     DRefStaleError,
 )
 from myrm_agent_harness.toolkits.computer_use.dref.registry import DRefRegistry
-from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotScope
+from myrm_agent_harness.toolkits.computer_use.dref.types import (
+    ElementRef,
+    SnapshotScope,
+)
 from myrm_agent_harness.toolkits.computer_use.execution.healer import try_bbox_click
 from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import compute_ref_diff
 from myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch import (
@@ -32,9 +35,17 @@ from myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch import (
     inspect_backend,
     invoke_element,
 )
-from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import refs_for_view_update
-from myrm_agent_harness.toolkits.computer_use.perception.renderer import render_diff_tree, render_snapshot_tree
-from myrm_agent_harness.toolkits.computer_use.session import ComputerSession, create_computer_session
+from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
+    refs_for_view_update,
+)
+from myrm_agent_harness.toolkits.computer_use.perception.renderer import (
+    render_diff_tree,
+    render_snapshot_tree,
+)
+from myrm_agent_harness.toolkits.computer_use.session import (
+    ComputerSession,
+    create_computer_session,
+)
 from myrm_agent_harness.toolkits.computer_use.som_overlay import (
     apply_som_overlay_to_jpeg_base64,
     build_som_index_map,
@@ -99,9 +110,13 @@ class DesktopSession(ComputerSession):
         try:
             if interact_ref is not None:
                 meta, refs = capture_snapshot(self._backend, "foreground", None)
-                blocked = safety.is_sensitive_app(meta.app_name, meta.window_title, meta.app_id)
+                blocked = safety.is_sensitive_app(
+                    meta.app_name, meta.window_title, meta.app_id
+                )
                 if blocked:
-                    logger.warning("[SECURITY] Sensitive app guard (interact): %s", blocked)
+                    logger.warning(
+                        "[SECURITY] Sensitive app guard (interact): %s", blocked
+                    )
                     return f"Safety: {blocked}"
                 if interact_ref not in refs:
                     return (
@@ -162,7 +177,9 @@ class DesktopSession(ComputerSession):
 
         blocked = safety.is_sensitive_app(meta.app_name, meta.window_title, meta.app_id)
         if blocked:
-            logger.warning("[SECURITY] Sensitive app guard: %s (app=%s)", blocked, meta.app_name)
+            logger.warning(
+                "[SECURITY] Sensitive app guard: %s (app=%s)", blocked, meta.app_name
+            )
             return f"Safety: {blocked}"
 
         prev_refs = self._refs.all_refs()
@@ -182,7 +199,9 @@ class DesktopSession(ComputerSession):
                 use_diff = True
 
         if not use_diff:
-            tree_text, enriched_meta = render_snapshot_tree(meta, refs, som_index_map=som_index_map)
+            tree_text, enriched_meta = render_snapshot_tree(
+                meta, refs, som_index_map=som_index_map
+            )
         else:
             tree_text = diff_text
 
@@ -209,7 +228,11 @@ class DesktopSession(ComputerSession):
 
         header = f"Desktop snapshot ready ({enriched_meta.ref_count} refs, ~{enriched_meta.token_estimate} tokens)."
         if include_screenshot and screenshot_b64:
-            from langchain_core.messages.content import ContentBlock, create_image_block, create_text_block
+            from langchain_core.messages.content import (
+                ContentBlock,
+                create_image_block,
+                create_text_block,
+            )
 
             blocks: list[ContentBlock] = [
                 create_text_block(f"{header}\n\n{tree_text}"),
@@ -240,7 +263,9 @@ class DesktopSession(ComputerSession):
             return f"Control denied: {app_denied.error}"
 
         try:
-            stale_error = await self._revalidate_if_stale_after_approval(interact_ref=ref)
+            stale_error = await self._revalidate_if_stale_after_approval(
+                interact_ref=ref
+            )
             if stale_error is not None:
                 return stale_error
 
@@ -253,7 +278,9 @@ class DesktopSession(ComputerSession):
             effective_text = text
 
             if action == "fill_credential":
-                from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
+                from myrm_agent_harness.core.security.credential_vault import (
+                    get_global_credential_vault,
+                )
 
                 vault = get_global_credential_vault()
                 is_totp = text.endswith("-totp")
@@ -277,7 +304,9 @@ class DesktopSession(ComputerSession):
                 app_name=snapshot_app,
             )
             if not ax_result.success:
-                bbox_result = await try_bbox_click(self, element, effective_action, effective_text, modifiers)
+                bbox_result = await try_bbox_click(
+                    self, element, effective_action, effective_text, modifiers
+                )
                 if not bbox_result.success:
                     return (
                         f"desktop_interact failed for @{element.ref_id}: "
@@ -368,11 +397,19 @@ class DesktopSession(ComputerSession):
             finally:
                 self.clear_operation_foreground_waiver()
 
-        if action in ("left_click", "right_click", "middle_click", "double_click", "triple_click"):
+        if action in (
+            "left_click",
+            "right_click",
+            "middle_click",
+            "double_click",
+            "triple_click",
+        ):
             if coordinate is None or len(coordinate) != 2:
                 return "Error: coordinate [x, y] is required for click actions"
             clicks = {"double_click": 2, "triple_click": 3}.get(action, 1)
-            button = {"right_click": "right", "middle_click": "middle"}.get(action, "left")
+            button = {"right_click": "right", "middle_click": "middle"}.get(
+                action, "left"
+            )
             result = await self.click_at(
                 coordinate[0],
                 coordinate[1],
@@ -428,11 +465,19 @@ class DesktopSession(ComputerSession):
         if not result.success:
             return f"Vision action '{action}' failed: {result.error}"
         if result.screenshot_base64:
-            return self._build_multimodal_response(result, f"Vision action '{action}' completed.")
+            return self._build_multimodal_response(
+                result, f"Vision action '{action}' completed."
+            )
         return f"Vision action '{action}' completed."
 
-    def _build_multimodal_response(self, result: ActionResult, action_description: str) -> list[object]:
-        from langchain_core.messages.content import ContentBlock, create_image_block, create_text_block
+    def _build_multimodal_response(
+        self, result: ActionResult, action_description: str
+    ) -> list[object]:
+        from langchain_core.messages.content import (
+            ContentBlock,
+            create_image_block,
+            create_text_block,
+        )
 
         info = self.screen_info
         ctx = self.screen_context
@@ -462,11 +507,18 @@ class DesktopSession(ComputerSession):
         som_index_map: dict[str, int] | None = None,
     ) -> None:
         from myrm_agent_harness.core.events.types import AgentEventType
-        from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta
-        from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
+        from myrm_agent_harness.toolkits.computer_use.dref.types import (
+            ElementRef,
+            SnapshotMeta,
+        )
+        from myrm_agent_harness.utils.runtime.progress_sink import (
+            get_tool_progress_sink,
+        )
 
         assert isinstance(meta, SnapshotMeta)
-        element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
+        element_refs = {
+            key: value for key, value in refs.items() if isinstance(value, ElementRef)
+        }
         viewport_width = screenshot_size[0] or self.screen_info.width
         viewport_height = screenshot_size[1] or self.screen_info.height
         payload = {
@@ -527,7 +579,9 @@ class DesktopSession(ComputerSession):
         refs = self._refs.all_refs()
         if meta is None or not refs:
             return None
-        element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
+        element_refs = {
+            key: value for key, value in refs.items() if isinstance(value, ElementRef)
+        }
         if not element_refs:
             return None
         info = self.screen_info
@@ -579,9 +633,13 @@ class DesktopSession(ComputerSession):
         shot = await self.take_screenshot()
         screenshot_b64 = shot.screenshot_base64 if shot.success else ""
         screenshot_size = shot.screenshot_size if shot.success else (0, 0)
-        element_refs = {key: value for key, value in refs.items() if isinstance(value, ElementRef)}
+        element_refs = {
+            key: value for key, value in refs.items() if isinstance(value, ElementRef)
+        }
         if screenshot_b64:
-            screenshot_b64 = self._annotate_screenshot_som(screenshot_b64, element_refs, som_index_map)
+            screenshot_b64 = self._annotate_screenshot_som(
+                screenshot_b64, element_refs, som_index_map
+            )
         viewport_width = screenshot_size[0] or self.screen_info.width
         viewport_height = screenshot_size[1] or self.screen_info.height
 

@@ -16,7 +16,9 @@ import pytest
 
 import myrm_agent_harness.toolkits.computer_use.perception.windows_ax as windows_ax
 from myrm_agent_harness.toolkits.computer_use.dref.errors import AXTreeEmptyError
-from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import _collect_controls
+from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import (
+    _collect_controls,
+)
 
 
 def _make_button(name: str = "Compose") -> MagicMock:
@@ -131,16 +133,18 @@ class TestCaptureTarget:
 
     def test_target_requires_app_name(self) -> None:
         auto = _make_auto({}, [])
-        with _module_with_auto(auto) as module, pytest.raises(
-            AXTreeEmptyError, match="target scope requires app_name"
+        with (
+            _module_with_auto(auto) as module,
+            pytest.raises(AXTreeEmptyError, match="target scope requires app_name"),
         ):
             module.capture_ax_snapshot("target")
 
     def test_target_not_found_raises(self) -> None:
         win = _make_window("Notes", 300)
         auto = _make_auto({300: "Notes"}, [win])
-        with _module_with_auto(auto) as module, pytest.raises(
-            AXTreeEmptyError, match="target window not found"
+        with (
+            _module_with_auto(auto) as module,
+            pytest.raises(AXTreeEmptyError, match="target window not found"),
         ):
             module.capture_ax_snapshot("target", "Slack")
 
@@ -226,7 +230,10 @@ class TestIndexConsistency:
         _flatten(root)
         interactive: list[object] = []
         for node in flat:
-            if getattr(node, "ControlTypeName", "") not in windows_ax._INTERACTIVE_TYPES:
+            if (
+                getattr(node, "ControlTypeName", "")
+                not in windows_ax._INTERACTIVE_TYPES
+            ):
                 continue
             try:
                 rect = getattr(node, "BoundingRectangle", None)
@@ -268,7 +275,10 @@ class TestIndexConsistency:
         _flatten(root)
         interactive: list[object] = []
         for node in flat:
-            if getattr(node, "ControlTypeName", "") not in windows_ax._INTERACTIVE_TYPES:
+            if (
+                getattr(node, "ControlTypeName", "")
+                not in windows_ax._INTERACTIVE_TYPES
+            ):
                 continue
             try:
                 rect = getattr(node, "BoundingRectangle", None)

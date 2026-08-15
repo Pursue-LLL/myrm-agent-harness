@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from myrm_agent_harness.agent.errors.diagnostics.i18n.constants import REQUIRED_ERROR_TYPES
 from myrm_agent_harness.agent.errors.fault_side import (
     FaultSide,
     classify_diagnostic_fault_side,
@@ -11,6 +12,8 @@ from myrm_agent_harness.agent.errors.fault_side import (
     classify_llm_fault_side,
     classify_tool_fault_side,
 )
+from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
+from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
 
 class TestClassifyLlmFaultSide:
@@ -134,6 +137,7 @@ class TestClassifyDiagnosticFaultSide:
 
 
 class TestClassifyFaultSideUnified:
+
     def test_priority_error_kind_wins(self) -> None:
         # error_kind (most specific) should win over category/type.
         assert (
@@ -178,3 +182,54 @@ class TestClassifyFaultSideUnified:
         assert FaultSide.GRADER.value == "grader"
         assert FaultSide.OWNER.value == "owner"
         assert FaultSide.UNKNOWN.value == "unknown"
+
+
+class TestEnumCoverageGuard:
+    """Regression guard: every canonical enum member must be classifiable.
+
+    When a new ToolErrorCategory or ErrorKind member is added but the
+    corresponding fault-side set is not updated, classification silently
+    degrades to UNKNOWN (frontend badge disappears). These tests fail loudly
+    instead, so the sets stay in sync with the enums.
+    """
+
+    @pytest.mark.parametrize("category", list(ToolErrorCategory))
+    def test_all_tool_error_categories_classifiable(self, category: ToolErrorCategory) -> None:
+        assert classify_tool_fault_side(category.value) is not FaultSide.UNKNOWN, (
+            f"ToolErrorCategory.{category.name} is not mapped in fault_side — add it to "
+            "_HARNESS_TOOL_CATEGORIES or _OWNER_TOOL_CATEGORIES"
+        )
+
+    @pytest.mark.parametrize("kind", [k for k in ErrorKind if k is not ErrorKind.UNKNOWN])
+    def test_all_error_kinds_classifiable(self, kind: ErrorKind) -> None:
+        assert classify_llm_fault_side(kind.value) is not FaultSide.UNKNOWN, (
+            f"ErrorKind.{kind.name} is not mapped in fault_side — add it to "
+            "_ENV_LLM_KINDS, _MODEL_LLM_KINDS, or _OWNER_LLM_KINDS"
+        )
+
+    @pytest.mark.parametrize(
+        "error_type",
+        [t for t in REQUIRED_ERROR_TYPES if t != "unknown"],
+    )
+    def test_all_required_diagnostic_types_classifiable(self, error_type: str) -> None:
+        assert classify_diagnostic_fault_side(error_type) is not FaultSide.UNKNOWN, (
+            f"Diagnostic error_type {error_type!r} is not mapped in fault_side — add it to "
+            "_ENV_DIAGNOSTIC_TYPES, _MODEL_DIAGNOSTIC_TYPES, or _OWNER_DIAGNOSTIC_TYPES"
+        )
+
+    @pytest.mark.parametrize(
+        "error_type",
+        [
+            "thinking_budget_exhausted",
+            "tool_call_truncated",
+            "tool_call_retry",
+            "text_continuation",
+            "text_continuation_exhausted",
+        ],
+    )
+    def test_truncation_diagnostic_types_classifiable(self, error_type: str) -> None:
+        # Truncation types are produced by LLMErrorDiagnostic.diagnose_truncation
+        # (stream_recovery_truncation.py) — keep them mapped to MODEL.
+        assert classify_diagnostic_fault_side(error_type) is FaultSide.MODEL, (
+            f"Truncation error_type {error_type!r} must map to MODEL"
+        )

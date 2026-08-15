@@ -8,7 +8,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Module docstring. Submodules imported directly. | — |
-| audit.py | Core | Audit log writer — records security events to structured log. `SecurityDecision` carries optional `tool_call_id` (anchors a decision to a specific tool call) + `labels` tag set (step-level security labels propagated along lineage). | ✅ |
+| audit.py | Core | Audit log writer — records security events to structured log. `SecurityDecision` carries optional `tool_call_id` that anchors a decision to the specific tool invocation that fired it (downstream lineage views attach the decision to the exact call). | ✅ |
 | execution_policy.py | Core | Execution policy enums and interception contracts. | ✅ |
 | path_security.py | Core | Path security — dangerous path sets, boundary checks, safe path joining. | ✅ |
 | redact/ | Core | Output redaction domain — regex SSOT (`patterns.py`) + bounded-replace engine & public APIs (`engine.py`) + facade (`__init__.py`): token prefixes, ENV/JSON/Auth/header/URL userinfo/query/bare-token/JWT, YAML/colon + form-urlencoded configs, word-boundary key validation, dotted-short-name keys (app.api.key=), CLI `=` flags, control-split bypass guard + double-match collapse guard; `redact_for_llm` (nested diagnostic value → str) + `redact_for_display` (args → dict). See `redact/_ARCH.md`. | ✅ |

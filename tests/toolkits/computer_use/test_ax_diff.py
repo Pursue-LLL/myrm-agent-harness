@@ -20,7 +20,9 @@ def _make_meta(app: str = "WPS", scope: SnapshotScope = "foreground") -> Snapsho
     return SnapshotMeta(ref_count=0, app_name=app, window_title="Sheet1", scope=scope)
 
 
-def _make_ref(ref_id: str, role: str, name: str, value: str = "", x: int = 0, y: int = 0) -> ElementRef:
+def _make_ref(
+    ref_id: str, role: str, name: str, value: str = "", x: int = 0, y: int = 0
+) -> ElementRef:
     return ElementRef(
         ref_id=ref_id,
         role=role,
@@ -80,7 +82,10 @@ class TestComputeRefDiff:
 
     def test_added_and_removed(self) -> None:
         meta = _make_meta()
-        stable = {f"d{i}": _make_ref(f"d{i}", "AXButton", f"Stable{i}", x=i * 20) for i in range(5)}
+        stable = {
+            f"d{i}": _make_ref(f"d{i}", "AXButton", f"Stable{i}", x=i * 20)
+            for i in range(5)
+        }
         prev = {**stable, "d10": _make_ref("d10", "AXButton", "Cancel", x=200, y=60)}
         curr = {**stable, "d11": _make_ref("d11", "AXButton", "Confirm", x=200, y=100)}
         diff = compute_ref_diff(prev, curr, meta, meta)
@@ -92,11 +97,20 @@ class TestComputeRefDiff:
 
     def test_high_change_ratio_full_view(self) -> None:
         meta = _make_meta()
-        prev = {f"d{i}": _make_ref(f"d{i}", "AXButton", f"Btn{i}", x=i * 10) for i in range(10)}
-        curr = {f"d{i}": _make_ref(f"d{i}", "AXButton", f"New{i}", x=i * 10 + 200) for i in range(10)}
+        prev = {
+            f"d{i}": _make_ref(f"d{i}", "AXButton", f"Btn{i}", x=i * 10)
+            for i in range(10)
+        }
+        curr = {
+            f"d{i}": _make_ref(f"d{i}", "AXButton", f"New{i}", x=i * 10 + 200)
+            for i in range(10)
+        }
         diff = compute_ref_diff(prev, curr, meta, meta)
         assert diff.use_full_view is True
-        assert "low_identity_confidence" in diff.full_view_reason or "high_change_ratio" in diff.full_view_reason
+        assert (
+            "low_identity_confidence" in diff.full_view_reason
+            or "high_change_ratio" in diff.full_view_reason
+        )
 
     def test_bbox_change_ignored(self) -> None:
         meta = _make_meta()
@@ -108,15 +122,24 @@ class TestComputeRefDiff:
 
     def test_low_identity_confidence_full_view(self) -> None:
         meta = _make_meta()
-        prev = {f"d{i}": _make_ref(f"d{i}", "AXButton", f"A{i}", x=i * 10) for i in range(10)}
-        curr = {f"d{i}": _make_ref(f"d{i}", "AXButton", f"Z{i}", x=i * 10) for i in range(10)}
+        prev = {
+            f"d{i}": _make_ref(f"d{i}", "AXButton", f"A{i}", x=i * 10)
+            for i in range(10)
+        }
+        curr = {
+            f"d{i}": _make_ref(f"d{i}", "AXButton", f"Z{i}", x=i * 10)
+            for i in range(10)
+        }
         diff = compute_ref_diff(prev, curr, meta, meta)
         assert diff.use_full_view is True
         assert "low_identity_confidence" in diff.full_view_reason
 
     def test_multiple_updated_fields(self) -> None:
         meta = _make_meta()
-        stable = {f"d{i}": _make_ref(f"d{i}", "AXButton", f"Btn{i}", x=i * 20) for i in range(5)}
+        stable = {
+            f"d{i}": _make_ref(f"d{i}", "AXButton", f"Btn{i}", x=i * 20)
+            for i in range(5)
+        }
         prev_el = ElementRef(
             ref_id="d10",
             role="AXTextField",
@@ -158,7 +181,9 @@ class TestRenderDiffTree:
 
     def test_single_update_output(self) -> None:
         meta = _make_meta()
-        from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import UpdatedRef
+        from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import (
+            UpdatedRef,
+        )
 
         diff = RefDiff(
             updated=[
@@ -176,12 +201,19 @@ class TestRenderDiffTree:
         assert enriched.token_estimate > 0
 
     def test_diff_much_smaller_than_full(self) -> None:
-        meta = SnapshotMeta(ref_count=80, app_name="WPS", window_title="Sheet1", scope="target")
-        refs = {f"d{i}": _make_ref(f"d{i}", "AXButton", f"Button{i}", x=i * 10) for i in range(80)}
+        meta = SnapshotMeta(
+            ref_count=80, app_name="WPS", window_title="Sheet1", scope="target"
+        )
+        refs = {
+            f"d{i}": _make_ref(f"d{i}", "AXButton", f"Button{i}", x=i * 10)
+            for i in range(80)
+        }
 
         full_text, _ = render_snapshot_tree(meta, refs)
 
-        from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import UpdatedRef
+        from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import (
+            UpdatedRef,
+        )
 
         diff = RefDiff(
             updated=[

@@ -83,7 +83,6 @@ class SecurityDecision:
     tainted: bool = False
     timestamp: float = field(default_factory=time.time)
     tool_call_id: str | None = None
-    labels: frozenset[str] = frozenset()
 
     def to_dict(self) -> dict[str, object]:
         result: dict[str, object] = {
@@ -95,8 +94,6 @@ class SecurityDecision:
         }
         if self.tool_call_id:
             result["tool_call_id"] = self.tool_call_id
-        if self.labels:
-            result["labels"] = sorted(self.labels)
         return result
 
 
@@ -110,21 +107,18 @@ def record_decision(
     *,
     tainted: bool = False,
     tool_call_id: str | None = None,
-    labels: frozenset[str] | tuple[str, ...] = (),
 ) -> None:
     """Append a security decision to the current session's audit log.
 
     ``tool_call_id`` links the decision to the concrete tool invocation it
     fired on (when available) so downstream lineage views can attach security
-    tags to the exact call. ``labels`` carries optional step-level security
-    tags that propagate along the instruction lineage.
+    tags to the exact call.
     """
     try:
         log = _audit_log_var.get()
     except LookupError:
         log = []
         _audit_log_var.set(log)
-    label_set = labels if isinstance(labels, frozenset) else frozenset(labels)
     log.append(
         SecurityDecision(
             tool_name=tool_name,
@@ -132,7 +126,6 @@ def record_decision(
             reason=reason,
             tainted=tainted,
             tool_call_id=tool_call_id,
-            labels=label_set,
         )
     )
 

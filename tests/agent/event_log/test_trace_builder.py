@@ -947,6 +947,57 @@ class TestTasksStepsProgress:
         assert tc.output_data == "ok\n"
 
     @pytest.mark.asyncio
+    async def test_error_step_with_call_id_merges_into_tool_failure(self) -> None:
+        """An error-status tasks_steps step carrying the tool_call_id must merge
+        into the tool_failure record instead of creating a duplicate.
+
+        ``streaming.event_handlers._handle_tool_result`` emits error steps with
+        ``tool_call_id`` so trace_builder can pair them with the lifecycle
+        ``tool_failure`` event of the same invocation.
+        """
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tool_start",
+                tool_name="bash_code_execute_tool",
+                tool_call_id="call-10",
+                message_id="msg-4",
+            ),
+            _event(
+                3,
+                "tool_failure",
+                tool_name="bash_code_execute_tool",
+                tool_call_id="call-10",
+                message_id="msg-4",
+                error="exit code 1",
+                fault_side="owner",
+            ),
+            _event(
+                4,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool_error",
+                tool_call_id="call-10",
+                tool_name="bash_code_execute_tool",
+                status="error",
+                error="exit code 1",
+                messageId="msg-4",
+                fault_side="owner",
+            ),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.tool_call_id == "call-10"
+        assert tc.success is False
+        assert tc.error == "exit code 1"
+        assert tc.fault_side == "owner"
+        assert tc.message_id == "msg-4"
+
+    @pytest.mark.asyncio
     async def test_plan_steps_without_tool_name_ignored(self) -> None:
         """Todo/progress plan steps (is_plan, no tool_name) are not tool calls."""
         events = [

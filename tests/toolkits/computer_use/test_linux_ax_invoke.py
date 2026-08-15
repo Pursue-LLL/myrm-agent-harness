@@ -23,21 +23,27 @@ class TestInvokeInputValidation:
 
     def test_non_numeric_backend_key(self) -> None:
         """int('d3') would raise ValueError without guard."""
-        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import invoke_ax_element
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import (
+            invoke_ax_element,
+        )
 
         result = invoke_ax_element("d3", "click")
         assert result.success is False
         assert "Invalid backend_key" in (result.error or "")
 
     def test_empty_string_backend_key(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import invoke_ax_element
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import (
+            invoke_ax_element,
+        )
 
         result = invoke_ax_element("", "click")
         assert result.success is False
         assert "Invalid backend_key" in (result.error or "")
 
     def test_negative_index(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import invoke_ax_element
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import (
+            invoke_ax_element,
+        )
 
         result = invoke_ax_element("-1", "click")
         assert result.success is False
@@ -54,7 +60,9 @@ class TestInvokeInputValidation:
         assert "out of range" in (result.error or "")
 
     def test_very_large_index(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import invoke_ax_element
+        from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import (
+            invoke_ax_element,
+        )
 
         result = invoke_ax_element("99999", "click")
         assert result.success is False
@@ -323,7 +331,9 @@ class TestInvokeTargetApp:
         slack_app.getRoleName.return_value = "application"
         slack_app.name = "Slack"
         slack_app.childCount = 1
-        slack_app.getChildAtIndex.side_effect = lambda i: slack_button if i == 0 else None
+        slack_app.getChildAtIndex.side_effect = lambda i: (
+            slack_button if i == 0 else None
+        )
 
         notes_app = MagicMock()
         notes_app.getRoleName.return_value = "application"
@@ -387,13 +397,17 @@ class TestCaptureTargetApp:
         slack_window.getRoleName.return_value = "frame"
         slack_window.name = "Slack #general"
         slack_window.childCount = 1
-        slack_window.getChildAtIndex.side_effect = lambda i: slack_button if i == 0 else None
+        slack_window.getChildAtIndex.side_effect = lambda i: (
+            slack_button if i == 0 else None
+        )
 
         slack_app = MagicMock()
         slack_app.getRoleName.return_value = "application"
         slack_app.name = "Slack"
         slack_app.childCount = 1
-        slack_app.getChildAtIndex.side_effect = lambda i: slack_window if i == 0 else None
+        slack_app.getChildAtIndex.side_effect = lambda i: (
+            slack_window if i == 0 else None
+        )
 
         notes_app = MagicMock()
         notes_app.getRoleName.return_value = "application"
@@ -431,7 +445,9 @@ class TestCaptureTargetApp:
             from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
 
             reload(linux_ax)
-            with pytest.raises(AXTreeEmptyError, match="target scope requires app_name"):
+            with pytest.raises(
+                AXTreeEmptyError, match="target scope requires app_name"
+            ):
                 linux_ax.capture_ax_snapshot("target")
 
     def test_target_not_found_raises(self) -> None:

@@ -90,6 +90,20 @@ class MetricsRegistry:
             registry=self.registry,
         )
 
+        self.agent_hook_failures_total = Counter(
+            "agent_hook_failures_total",
+            "Total number of post-tool hook failures",
+            ["agent_id", "tool_name", "hook_event"],
+            registry=self.registry,
+        )
+
+        self.agent_approval_denied_total = Counter(
+            "agent_approval_denied_total",
+            "Total number of auto-denied approval requests",
+            ["agent_id", "tool_name", "reason"],
+            registry=self.registry,
+        )
+
     def record_execution(self, agent_id: str, duration_s: float, status: str = "success") -> None:
         """Record agent execution duration."""
         if self.enabled:
@@ -118,6 +132,24 @@ class MetricsRegistry:
                 tool_name=tool_name,
                 strategy=strategy,
                 safe=str(safe).lower(),
+            ).inc()
+
+    def record_hook_failure(self, agent_id: str, tool_name: str, hook_event: str) -> None:
+        """Record a post-tool hook failure."""
+        if self.enabled:
+            self.agent_hook_failures_total.labels(
+                agent_id=agent_id,
+                tool_name=tool_name,
+                hook_event=hook_event,
+            ).inc()
+
+    def record_approval_denied(self, agent_id: str, tool_name: str, reason: str) -> None:
+        """Record an auto-denied approval request."""
+        if self.enabled:
+            self.agent_approval_denied_total.labels(
+                agent_id=agent_id,
+                tool_name=tool_name,
+                reason=reason,
             ).inc()
 
     def generate_metrics_text(self) -> str:

@@ -23,7 +23,10 @@ import logging
 import subprocess
 from dataclasses import dataclass
 
-from myrm_agent_harness.toolkits.computer_use.dref.errors import AXPermissionRequiredError, AXTreeEmptyError
+from myrm_agent_harness.toolkits.computer_use.dref.errors import (
+    AXPermissionRequiredError,
+    AXTreeEmptyError,
+)
 from myrm_agent_harness.toolkits.computer_use.dref.types import (
     INTERACTIVE_AX_ROLES,
     BBox,
@@ -31,7 +34,9 @@ from myrm_agent_harness.toolkits.computer_use.dref.types import (
     SnapshotMeta,
     SnapshotScope,
 )
-from myrm_agent_harness.toolkits.computer_use.perception.overlay_roles import normalize_desktop_role
+from myrm_agent_harness.toolkits.computer_use.perception.overlay_roles import (
+    normalize_desktop_role,
+)
 from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 
 logger = logging.getLogger(__name__)
@@ -101,7 +106,15 @@ def _build_app_selector(target_app: str | None) -> str:
     if bundle_id:
         return f'set targetApp to first application process whose bundle identifier is "{bundle_id}"'
     escaped = target_app.replace('"', '\\"')
-    return f'set targetApp to application process "{escaped}"'
+    # Exact name first; contains fallback so short names like "Excel" match "Microsoft Excel".
+    # AppleScript's `whose A or B` does not guarantee exact-priority, so use try/on error.
+    return (
+        "try\n"
+        f'    set targetApp to first application process whose name is "{escaped}"\n'
+        "on error\n"
+        f'    set targetApp to first application process whose name contains "{escaped}"\n'
+        "end try"
+    )
 
 
 def _build_ax_snapshot_script(*, target_app: str | None = None) -> str:
@@ -280,13 +293,17 @@ def _parse_ax_output(
         if role not in INTERACTIVE_AX_ROLES and role not in set(_SNAPSHOT_ROLE_FILTER):
             continue
         try:
-            bbox = BBox(int(float(x_s)), int(float(y_s)), int(float(w_s)), int(float(h_s)))
+            bbox = BBox(
+                int(float(x_s)), int(float(y_s)), int(float(w_s)), int(float(h_s))
+            )
         except ValueError:
             continue
         if bbox.width <= 0 or bbox.height <= 0:
             continue
         ref_id = f"d{ref_index}"
-        actions = ("click", "fill") if role in {"AXTextField", "AXTextArea"} else ("click",)
+        actions = (
+            ("click", "fill") if role in {"AXTextField", "AXTextArea"} else ("click",)
+        )
         refs[ref_id] = ElementRef(
             ref_id=ref_id,
             role=role,
@@ -313,7 +330,9 @@ def _parse_ax_output(
     return MacAxSnapshot(meta=meta, refs=refs)
 
 
-def capture_ax_snapshot(scope: SnapshotScope, app_name: str | None = None) -> MacAxSnapshot:
+def capture_ax_snapshot(
+    scope: SnapshotScope, app_name: str | None = None
+) -> MacAxSnapshot:
     target_app = _resolve_target_app(scope, app_name)
 
     if target_app is not None:
@@ -401,11 +420,22 @@ def invoke_ax_element(
     normalized_action = action.lower()
     if normalized_action in {"dblclick", "double_click"}:
         normalized_action = "click"
-    if normalized_action not in {"click", "fill", "set_value", "press", "focus", "hover"}:
+    if normalized_action not in {
+        "click",
+        "fill",
+        "set_value",
+        "press",
+        "focus",
+        "hover",
+    }:
         return ActionResult(success=False, error=f"Unsupported AX action: {action}")
 
-    ax_action = "fill" if normalized_action in {"fill", "type", "set_value"} else "click"
-    invoke_script = _build_ax_invoke_script(target_app=app_name) if app_name else _AX_INVOKE_SCRIPT
+    ax_action = (
+        "fill" if normalized_action in {"fill", "type", "set_value"} else "click"
+    )
+    invoke_script = (
+        _build_ax_invoke_script(target_app=app_name) if app_name else _AX_INVOKE_SCRIPT
+    )
     try:
         result = subprocess.run(
             ["osascript", "-e", invoke_script, ax_action, backend_key, text],
@@ -419,11 +449,15 @@ def invoke_ax_element(
     if result.returncode != 0:
         stderr = result.stderr.strip()
         if "不允许辅助访问" in stderr or "not allowed assistive" in stderr.lower():
-            return ActionResult(success=False, error="Accessibility permission required on macOS")
+            return ActionResult(
+                success=False, error="Accessibility permission required on macOS"
+            )
         return ActionResult(success=False, error=stderr or "AX invoke failed")
 
     if result.stdout.strip() != "OK":
-        return ActionResult(success=False, error=result.stdout.strip() or "AX invoke failed")
+        return ActionResult(
+            success=False, error=result.stdout.strip() or "AX invoke failed"
+        )
     return ActionResult(success=True, output=f"AX {ax_action} succeeded")
 
 

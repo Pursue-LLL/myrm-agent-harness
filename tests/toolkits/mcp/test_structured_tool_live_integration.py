@@ -2,9 +2,10 @@
 
 Boots a real stdio MCP server whose tools declare arguments named ``config``
 and ``run_manager`` (reserved keyword-only params in langchain-core
-``BaseTool._arun``), then drives the *full* production path — proxy tool
+``BaseTool._arun``), then drives the *full* production paths — proxy tool
 ``ainvoke`` → ``SafeStructuredTool._arun`` → actor queue → real wire
-``call_tool`` — asserting the server actually receives the arguments. Nothing
+``call_tool``, plus a real LangGraph ``ToolNode`` executing a model-issued
+``tool_calls`` — asserting the server actually receives the arguments. Nothing
 is mocked on the wire path; only the LLM-produced argument dict is simulated.
 
 Regression guard: before the SafeStructuredTool fix, langchain's
@@ -102,6 +103,66 @@ async def test_run_manager_argument_reaches_server_via_proxy_ainvoke(_actor: obj
     result = await proxy.ainvoke({"run_manager": {"scope": "team"}})
     assert isinstance(result, str)
     assert "run_manager={'scope': 'team'}" in result
+
+
+@pytest.mark.asyncio
+async def test_tool_call_input_reaches_server(_actor: object) -> None:
+    """LangGraph ToolNode invokes tools with ``{"type": "tool_call", "args": ...}``
+    dicts (``_execute_tool_async`` → ``tool.ainvoke(call_args, config)``); a
+    ``config`` tool argument must survive that exact production shape end-to-end.
+    """
+    proxy = _find_tool(_actor, "apply_config")
+    call = {
+        "type": "tool_call",
+        "name": proxy.name,
+        "id": "call-wire-1",
+        "args": {"config": {"env": "staging"}, "tags": ["wire"]},
+    }
+    result = await proxy.ainvoke(call)
+    assert "config={'env': 'staging'}" in result.content
+    assert "tags=['wire']" in result.content
+
+
+@pytest.mark.asyncio
+async def test_real_tool_node_executes_config_tool(_actor: object) -> None:
+    """The full production executor — LangGraph ``ToolNode`` — drives the MCP
+    proxy tool from a model-issued ``tool_calls``; the ``config`` argument must
+    reach the real stdio server and the returned ``ToolMessage`` must carry it.
+
+    This exercises the exact ``_execute_tool_async`` code path (inject args →
+    ``{**args, "type": "tool_call"}`` → ``ainvoke``) that agents hit in the wild.
+    """
+    from langchain_core.messages import AIMessage
+    from langgraph.prebuilt import ToolNode
+    from langgraph.runtime import Runtime
+
+    proxy = _find_tool(_actor, "apply_config")
+    node = ToolNode([proxy])
+    runtime = Runtime(context=None, store=None)
+    config = {"configurable": {"__pregel_runtime": runtime}}
+    result = await node.ainvoke(
+        {
+            "messages": [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": proxy.name,
+                            "args": {"config": {"env": "prod"}, "tags": ["tn"]},
+                            "id": "call-tn-1",
+                        }
+                    ],
+                )
+            ]
+        },
+        config,
+    )
+    messages = result["messages"]
+    tool_message = next(
+        m for m in messages if getattr(m, "tool_call_id", None) == "call-tn-1"
+    )
+    assert "config={'env': 'prod'}" in tool_message.content
+    assert "tags=['tn']" in tool_message.content
 
 
 def _find_tool(actor: object, suffix: str) -> object:

@@ -6,8 +6,16 @@ import logging
 from dataclasses import dataclass
 from typing import cast
 
-from myrm_agent_harness.toolkits.computer_use.dref.errors import AXPermissionRequiredError, AXTreeEmptyError
-from myrm_agent_harness.toolkits.computer_use.dref.types import BBox, ElementRef, SnapshotMeta, SnapshotScope
+from myrm_agent_harness.toolkits.computer_use.dref.errors import (
+    AXPermissionRequiredError,
+    AXTreeEmptyError,
+)
+from myrm_agent_harness.toolkits.computer_use.dref.types import (
+    BBox,
+    ElementRef,
+    SnapshotMeta,
+    SnapshotScope,
+)
 from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 
 logger = logging.getLogger(__name__)
@@ -33,7 +41,9 @@ class WindowsAxSnapshot:
     refs: dict[str, ElementRef]
 
 
-def _collect_controls(control: object, refs: dict[str, ElementRef], counter: list[int]) -> None:
+def _collect_controls(
+    control: object, refs: dict[str, ElementRef], counter: list[int]
+) -> None:
     if counter[0] >= _MAX_ELEMENTS:
         return
     try:
@@ -65,7 +75,11 @@ def _collect_controls(control: object, refs: dict[str, ElementRef], counter: lis
                     name=name or value,
                     bbox=BBox(rect.left, rect.top, rect.width(), rect.height()),
                     backend_key=str(counter[0]),
-                    actions=("click", "fill") if control_type == "EditControl" else ("click",),
+                    actions=(
+                        ("click", "fill")
+                        if control_type == "EditControl"
+                        else ("click",)
+                    ),
                     value=value,
                 )
                 counter[0] += 1
@@ -148,7 +162,9 @@ def _locate_window(app_name: str) -> object | None:
     return None
 
 
-def capture_ax_snapshot(scope: SnapshotScope, app_name: str | None = None) -> WindowsAxSnapshot:
+def capture_ax_snapshot(
+    scope: SnapshotScope, app_name: str | None = None
+) -> WindowsAxSnapshot:
     try:
         import uiautomation as auto
     except ImportError as exc:
@@ -192,13 +208,17 @@ def invoke_ax_element(
     try:
         import uiautomation as auto
     except ImportError:
-        return ActionResult(success=False, error="uiautomation not installed on Windows")
+        return ActionResult(
+            success=False, error="uiautomation not installed on Windows"
+        )
 
     index = int(backend_key)
     if app_name:
         control = _locate_window(app_name)
         if control is None:
-            return ActionResult(success=False, error=f"target window not found for app '{app_name}'")
+            return ActionResult(
+                success=False, error=f"target window not found for app '{app_name}'"
+            )
     else:
         control = auto.GetForegroundControl()
         if control is None:
@@ -234,7 +254,14 @@ def invoke_ax_element(
     try:
         if normalized in {"fill", "type", "set_value"}:
             target.SendKeys(text)  # type: ignore[attr-defined]
-        elif normalized in {"click", "press", "hover", "focus", "dblclick", "double_click"}:
+        elif normalized in {
+            "click",
+            "press",
+            "hover",
+            "focus",
+            "dblclick",
+            "double_click",
+        }:
             target.Click()  # type: ignore[attr-defined]
         else:
             return ActionResult(success=False, error=f"Unsupported action: {action}")

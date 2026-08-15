@@ -421,12 +421,11 @@ async def emit_hook_failure_event(tool_name: str, post_hook_result: Any, agent_e
     """Emit observability events for hook failures."""
     try:
         from myrm_agent_harness.observability.metrics.registry import (
-            get_metrics_registry,
+            metrics_registry,
         )
 
-        mr = get_metrics_registry()
-        if mr and mr.enabled:
-            mr.record_hook_failure(agent_id="base_agent", tool_name=tool_name, hook_event="post_tool_use")
+        if metrics_registry and metrics_registry.enabled:
+            metrics_registry.record_hook_failure(agent_id="base_agent", tool_name=tool_name, hook_event="post_tool_use")
     except ImportError:
         pass
 

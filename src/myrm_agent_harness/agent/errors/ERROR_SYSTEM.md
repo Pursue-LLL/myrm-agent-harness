@@ -39,11 +39,13 @@ tool_interceptor_middleware  ← 统一 catch 点（含超时和重试保护）
     ↓
 event_handlers._handle_tool_result()  ← 事件转换层
     │ 检测 status=="error"
-    │ 发送 TASKS_STEPS 事件（step_key="{tool_name}_tool_error", status="error"）
+    │ 发送 TASKS_STEPS 事件（step_key="{tool_name}_tool_error", status="error", tool_call_id=msg.tool_call_id）
     │ fault_side 归因：ToolMessage.error_category（ToolErrorCategory）→ classify_tool_fault_side()
     │   - guard/guardrail 类（pii_guard/estop/loop_guard/guardrail_blocked 等）→ owner（用户内容/配置触发）
     │   - 执行类（timeout/oom/syntax/not_found 等）→ harness_tool（内置工具自身失败）
     │   - 无 error_category 时默认 harness_tool
+    │ tool_call_id 与成功路径一致：trace_builder 借此将 error 步骤与
+    │   tool_failure 生命周期事件合并为同一条记录，避免 trace 双写
     ↓
 SSE 推送到前端
     ↓

@@ -45,6 +45,9 @@ async def test_str_enum_category_propagates() -> None:
     assert step_event["error_category"] == "permission_denied"
     assert isinstance(step_event["error_category"], str)
     assert step_event["error_hint"] == "Try 'chmod +x' or run in sandbox"
+    # Error steps carry the tool_call_id so trace_builder can pair them with
+    # the lifecycle tool_failure event (no duplicate trace records).
+    assert step_event["tool_call_id"] == "call_1"
 
 
 @pytest.mark.asyncio

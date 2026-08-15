@@ -8,7 +8,12 @@ import subprocess
 from dataclasses import dataclass
 
 from myrm_agent_harness.toolkits.computer_use.dref.errors import AXTreeEmptyError
-from myrm_agent_harness.toolkits.computer_use.dref.types import BBox, ElementRef, SnapshotMeta, SnapshotScope
+from myrm_agent_harness.toolkits.computer_use.dref.types import (
+    BBox,
+    ElementRef,
+    SnapshotMeta,
+    SnapshotScope,
+)
 from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 
 logger = logging.getLogger(__name__)
@@ -83,7 +88,11 @@ def _try_pyatspi_snapshot(target_app: str | None = None) -> LinuxAxSnapshot | No
                     name=name,
                     bbox=BBox(extents.x, extents.y, extents.width, extents.height),
                     backend_key=str(counter),
-                    actions=("click", "fill") if role_name in {"text", "entry"} else ("click",),
+                    actions=(
+                        ("click", "fill")
+                        if role_name in {"text", "entry"}
+                        else ("click",)
+                    ),
                 )
                 counter += 1
 
@@ -102,7 +111,10 @@ def _try_pyatspi_snapshot(target_app: str | None = None) -> LinuxAxSnapshot | No
                 child_name = child.name or ""
             except Exception:
                 continue
-            if child_role != "application" or child_name.strip().lower() != target_lower:
+            if (
+                child_role != "application"
+                or child_name.strip().lower() != target_lower
+            ):
                 continue
         walk(child)
 
@@ -120,7 +132,9 @@ def _try_pyatspi_snapshot(target_app: str | None = None) -> LinuxAxSnapshot | No
     return LinuxAxSnapshot(meta=meta, refs=refs)
 
 
-def capture_ax_snapshot(scope: SnapshotScope, app_name: str | None = None) -> LinuxAxSnapshot:
+def capture_ax_snapshot(
+    scope: SnapshotScope, app_name: str | None = None
+) -> LinuxAxSnapshot:
     if scope == "target":
         if not app_name:
             raise AXTreeEmptyError("target scope requires app_name")
@@ -151,7 +165,9 @@ def capture_ax_snapshot(scope: SnapshotScope, app_name: str | None = None) -> Li
     if not title:
         raise AXTreeEmptyError("no active window title")
 
-    raise AXTreeEmptyError("AT-SPI tree unavailable in this environment. Install pyatspi or use desktop_vision_tool.")
+    raise AXTreeEmptyError(
+        "AT-SPI tree unavailable in this environment. Install pyatspi or use desktop_vision_tool."
+    )
 
 
 def invoke_ax_element(
@@ -166,12 +182,17 @@ def invoke_ax_element(
     except (ValueError, TypeError):
         return ActionResult(success=False, error=f"Invalid backend_key: {backend_key}")
     if index < 0 or index >= _MAX_ELEMENTS:
-        return ActionResult(success=False, error=f"Index {index} out of range [0, {_MAX_ELEMENTS})")
+        return ActionResult(
+            success=False, error=f"Index {index} out of range [0, {_MAX_ELEMENTS})"
+        )
 
     try:
         import pyatspi  # type: ignore[import-untyped]
     except ImportError:
-        return ActionResult(success=False, error="pyatspi not available; use desktop_vision_tool fallback")
+        return ActionResult(
+            success=False,
+            error="pyatspi not available; use desktop_vision_tool fallback",
+        )
 
     desktop = pyatspi.Registry.getDesktop(0)
     if desktop.childCount == 0:
@@ -228,8 +249,19 @@ def invoke_ax_element(
                 action_if = target.queryAction()  # type: ignore[attr-defined]
                 if action_if.getNActions() > 0:  # type: ignore[attr-defined]
                     action_if.doAction(0)  # type: ignore[attr-defined]
-                subprocess.run(["xdotool", "type", "--clearmodifiers", text], timeout=5, check=False)
-        elif normalized in {"click", "press", "hover", "focus", "dblclick", "double_click"}:
+                subprocess.run(
+                    ["xdotool", "type", "--clearmodifiers", text],
+                    timeout=5,
+                    check=False,
+                )
+        elif normalized in {
+            "click",
+            "press",
+            "hover",
+            "focus",
+            "dblclick",
+            "double_click",
+        }:
             try:
                 action_if = target.queryAction()  # type: ignore[attr-defined]
                 if action_if.getNActions() > 0:  # type: ignore[attr-defined]

@@ -15,7 +15,7 @@ instances with namespace isolation, and handles HTTP execution with authenticati
 | auth.py | Core | Authentication resolver: API Key, Bearer, Basic, OAuth2 client_credentials. Caches OAuth2 tokens. | ✅ |
 | http_executor.py | Core | Async HTTP executor via `secure_request` (SSRF + redirect-safe). Path params, auth (incl. ephemeral user credential injection), timeout/retry. | ✅ |
 | param_schema.py | Core | Merged per-endpoint parameter JSON Schema extraction (path/query/body) with local `$ref` inlining via `mcp.schema.normalize::flatten_json_schema`. | ✅ |
-| tool_generator.py | Core | Endpoint → `SafeStructuredTool` converter. Namespace isolation, parameter schema propagation. OpenAPIBridge facade. Uses `SafeStructuredTool` (from `mcp.structured_tool`) so an endpoint parameter named `config`/`run_manager` is never swallowed by langchain-core's `_arun`. | ✅ |
+| tool_generator.py | Core | Endpoint → `SafeStructuredTool` converter. Namespace isolation, parameter schema propagation. OpenAPIBridge facade. Uses `SafeStructuredTool` (from `mcp.structured_tool`) so an endpoint parameter named `config`/`run_manager` is never swallowed by langchain-core's `_run`/`_arun`. | ✅ |
 
 ## Key Dependencies
 

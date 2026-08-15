@@ -7,6 +7,8 @@ layer fully exercised without middleware orchestration.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 from langchain.agents.middleware import ModelRequest
 from langchain_core.messages import HumanMessage
@@ -17,13 +19,13 @@ from myrm_agent_harness.agent.context_management.infra.schemas import (
     CompressionIntent,
 )
 from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_helpers import (
+    _canonical_json,
+    _to_json_safe,
     estimate_request_context_tokens,
     extract_compression_intent,
     extract_tool_names_and_schemas,
     resolve_cache_usage_feedback,
     resolve_context_budget_metadata,
-    _canonical_json,
-    _to_json_safe,
 )
 
 
@@ -44,13 +46,13 @@ class _ToolWithSchema:
 class _ToolWithCallSchema:
     name = "tool_b"
     description = "tool b description"
-    tool_call_schema = {"name": "tool_b", "parameters": {"type": "object"}}
+    tool_call_schema: ClassVar[dict[str, object]] = {"name": "tool_b", "parameters": {"type": "object"}}
 
 
 class _ToolFallback:
     name = "tool_c"
     description = "tool c description"
-    args = {"x": 1}
+    args: ClassVar[dict[str, object]] = {"x": 1}
 
 
 class TestExtractCompressionIntent:
@@ -112,7 +114,6 @@ class TestResolveContextBudgetMetadata:
         assert resolve_context_budget_metadata(request) == {}
 
     def test_with_tracker_last_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from unittest.mock import MagicMock
 
         from myrm_agent_harness.utils.token_economics.tracker import TokenTracker, TokenUsage
 
@@ -190,7 +191,6 @@ class TestExtractToolNamesAndSchemas:
 
 class TestEstimateRequestContextTokens:
     def test_returns_positive_estimate(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
 
         monkeypatch.setattr(
             "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",

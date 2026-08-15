@@ -418,10 +418,9 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
 
         try:
             from myrm_agent_harness.observability.metrics.registry import (
-                get_metrics_registry,
+                metrics_registry,
             )
 
-            metrics_registry = get_metrics_registry()
             if metrics_registry and metrics_registry.enabled:
                 for _, tool_call, _, _, _ in pending_approval:
                     metrics_registry.record_approval_denied(

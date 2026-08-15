@@ -52,6 +52,7 @@ from langchain_core.runnables.config import RunnableConfig
 from langgraph.types import Command
 
 from myrm_agent_harness.agent.artifacts import ArtifactContextManager
+from myrm_agent_harness.agent.errors.fault_side import classify_fault_side
 from myrm_agent_harness.agent.event_log.logger import EventLogger
 from myrm_agent_harness.agent.middlewares._session_context import (
     EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY,
@@ -73,7 +74,6 @@ from myrm_agent_harness.agent.streaming.utils import (
     set_user_timezone,
     validate_context,
 )
-from myrm_agent_harness.agent.errors.fault_side import classify_fault_side
 from myrm_agent_harness.agent.types import AgentRunStatistics
 from myrm_agent_harness.toolkits.llms.errors.classifier import classify_error
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
