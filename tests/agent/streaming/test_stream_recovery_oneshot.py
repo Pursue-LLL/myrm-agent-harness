@@ -6,11 +6,13 @@ _handle_image_shrink, _handle_long_context_tier, and _shrink_oversized_images.
 
 import asyncio
 import base64
+import io
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
+from PIL import Image
 
 from myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot import (
     _shrink_oversized_images,
@@ -547,6 +549,72 @@ class TestShrinkOversizedImages:
             mock_instance.compress.side_effect = RuntimeError("compression failed")
             count = _shrink_oversized_images(messages)
         assert count == 0
+
+    def test_compressed_none_marks_unshrinkable(self) -> None:
+        large_url = _make_large_base64_image(5 * 1024 * 1024)
+        messages = [
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": large_url}},
+                ]
+            ),
+        ]
+        with patch("myrm_agent_harness.utils.media.image_compressor.ImageCompressor") as mock_compressor:
+            mock_instance = mock_compressor.return_value
+            mock_instance.compress.return_value = None
+            count = _shrink_oversized_images(messages)
+        assert count == 0  # None result → unshrinkable, abort retry
+
+    def test_no_size_gain_marks_unshrinkable(self) -> None:
+        """Byte-triggered shrink that does not reduce size must abort the retry."""
+        large_url = _make_large_base64_image(5 * 1024 * 1024)
+        messages = [
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": large_url}},
+                ]
+            ),
+        ]
+        with patch("myrm_agent_harness.utils.media.image_compressor.ImageCompressor") as mock_compressor:
+            mock_instance = mock_compressor.return_value
+            # Return a payload larger than the decoded original (~5.24 MiB).
+            mock_instance.compress.return_value = b"\x00" * (6 * 1024 * 1024)
+            count = _shrink_oversized_images(messages)
+        assert count == 0
+
+    def test_new_dimension_still_oversized_marks_unshrinkable(self) -> None:
+        """Compressed image whose dimensions still exceed the limit aborts retry."""
+        buf = io.BytesIO()
+        Image.new("RGB", (4000, 3000), color=(100, 150, 200)).save(
+            buf, format="JPEG", quality=90
+        )
+        oversized_compressed = buf.getvalue()
+        large_url = _make_large_base64_image(5 * 1024 * 1024)
+        messages = [
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": large_url}},
+                ]
+            ),
+        ]
+        with patch("myrm_agent_harness.utils.media.image_compressor.ImageCompressor") as mock_compressor:
+            mock_instance = mock_compressor.return_value
+            mock_instance.compress.return_value = oversized_compressed
+            count = _shrink_oversized_images(messages, max_dimension=2000)
+        assert count == 0
+
+    def test_skips_malformed_part_shapes(self) -> None:
+        """Non-dict parts and non-dict image_url values are skipped safely."""
+        small_url = f"data:image/png;base64,{base64.b64encode(b'tiny').decode()}"
+        messages = [
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": "hello"},
+                    {"type": "image_url", "image_url": small_url},
+                ]
+            ),
+        ]
+        assert _shrink_oversized_images(messages) == 0
 
 
 # ============================================================================

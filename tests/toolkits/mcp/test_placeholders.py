@@ -34,7 +34,10 @@ class TestExpandPlaceholders:
     def test_single_pass_non_recursive(self) -> None:
         # A substituted root value must never be re-expanded (single textual pass).
         nested_root = "${PLUGIN_ROOT}"
-        assert expand_placeholders("${PLUGIN_ROOT}", plugin_root=nested_root) == "${PLUGIN_ROOT}"
+        assert (
+            expand_placeholders("${PLUGIN_ROOT}", plugin_root=nested_root)
+            == "${PLUGIN_ROOT}"
+        )
 
 
 class TestResolveStdioLaunch:

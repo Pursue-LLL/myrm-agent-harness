@@ -1,13 +1,18 @@
 """Real-wire integration tests for plugin-root env injection (``placeholders``).
 
 These spin up a *real* stdio MCP server subprocess and drive it through the
-production connection pool — no mocks on the transport. They verify that the
-``PLUGIN_ROOT`` / ``PLUGIN_DATA`` environment variables mandated by Agent
-Plugins 1.0.0 §9.1 are actually visible inside the plugin subprocess:
+production connection pool — no mocks on the transport. They verify, against a
+real subprocess boundary, every runtime behavior the Agent Plugins 1.0.0 spec
+mandates for bundled servers:
 
-- configured plugin roots are injected with the persisted absolute paths;
+- configured plugin roots are injected as ``PLUGIN_ROOT`` / ``PLUGIN_DATA`` (§9.1);
 - without configured roots nothing is injected (the vars stay unset);
-- ``cwd``/``args`` placeholder expansion takes effect on the real subprocess.
+- empty-string roots are treated as unconfigured (no bogus ``""`` injection);
+- partial injection: each reserved var is injected independently;
+- ``${PLUGIN_ROOT}`` / ``${PLUGIN_DATA}`` placeholders expand in ``cwd``, ``args``
+  and ``env`` values at spawn time;
+- a ``./``-relative ``command`` runs from the plugin root even without an
+  explicit ``cwd`` (§7.2.1).
 
 This is the wire-level complement to the pure unit tests in
 ``test_placeholders.py``.
@@ -24,7 +29,7 @@ from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 from myrm_agent_harness.toolkits.mcp.connection_manager import MCPConnectionManager
 
 # A real MCP server that reports the runtime environment it actually received:
-# the reserved plugin vars, the working directory, and its argv.
+# the reserved plugin vars, a custom env var, the working directory, and argv.
 _ENV_PROBE_SERVER_SRC = """
 import json
 import os
@@ -40,6 +45,7 @@ def probe() -> str:
     return json.dumps({
         "PLUGIN_ROOT": os.environ.get("PLUGIN_ROOT", "UNSET"),
         "PLUGIN_DATA": os.environ.get("PLUGIN_DATA", "UNSET"),
+        "CUSTOM_ENV": os.environ.get("CUSTOM_ENV", "UNSET"),
         "CWD": os.getcwd(),
         "ARGV": list(sys.argv),
     })
@@ -57,6 +63,14 @@ def _reset_manager() -> object:
     MCPConnectionManager._instance = None
 
 
+def _make_roots(tmp_path: object) -> tuple[str, str]:
+    plugin_root = tmp_path / "plugin_root"
+    data_root = tmp_path / "plugin_data"
+    plugin_root.mkdir()
+    data_root.mkdir()
+    return str(plugin_root), str(data_root)
+
+
 def _write_probe_script(tmp_path: object) -> str:
     script = tmp_path / "env_probe_server.py"
     script.write_text(_ENV_PROBE_SERVER_SRC, encoding="utf-8")
@@ -70,12 +84,16 @@ def _extract_json(raw: str) -> dict[str, object]:
     return json.loads(body.splitlines()[0])
 
 
-async def _probe(script: str, extra_params: dict[str, object] | None) -> dict[str, object]:
+async def _probe(
+    command: str,
+    args: list[str],
+    extra_params: dict[str, object] | None,
+) -> dict[str, object]:
     cfg = MCPConfig(
         name="envprobe",
         type="stdio",
-        command=sys.executable,
-        args=[script],
+        command=command,
+        args=args,
         description="env probe",
         extra_params=extra_params,
         connect_timeout=30.0,
@@ -93,18 +111,15 @@ async def test_stdio_injects_plugin_roots_into_subprocess_env(
     tmp_path: object, _reset_manager: object
 ) -> None:
     """Configured plugin roots must reach the subprocess as reserved vars (§9.1)."""
-    script = _write_probe_script(tmp_path)
-    plugin_root = tmp_path / "plugin_root"
-    data_root = tmp_path / "plugin_data"
-    plugin_root.mkdir()
-    data_root.mkdir()
+    plugin_root, data_root = _make_roots(tmp_path)
 
     report = await _probe(
-        script,
-        {"plugin_root": str(plugin_root), "data_root": str(data_root)},
+        sys.executable,
+        [_write_probe_script(tmp_path)],
+        {"plugin_root": plugin_root, "data_root": data_root},
     )
-    assert report["PLUGIN_ROOT"] == str(plugin_root)
-    assert report["PLUGIN_DATA"] == str(data_root)
+    assert report["PLUGIN_ROOT"] == plugin_root
+    assert report["PLUGIN_DATA"] == data_root
 
 
 @pytest.mark.integration
@@ -112,31 +127,83 @@ async def test_stdio_skips_injection_without_configured_roots(
     tmp_path: object, _reset_manager: object
 ) -> None:
     """Without configured roots the reserved vars must stay unset in the subprocess."""
-    script = _write_probe_script(tmp_path)
-
-    report = await _probe(script, None)
+    report = await _probe(sys.executable, [_write_probe_script(tmp_path)], None)
     assert report["PLUGIN_ROOT"] == "UNSET"
     assert report["PLUGIN_DATA"] == "UNSET"
 
 
 @pytest.mark.integration
-async def test_stdio_expands_cwd_placeholder_on_real_subprocess(
+async def test_stdio_treats_empty_string_root_as_unconfigured(
     tmp_path: object, _reset_manager: object
 ) -> None:
-    """``cwd: ${PLUGIN_ROOT}`` must resolve to the persisted root at spawn time."""
-    script = _write_probe_script(tmp_path)
-    plugin_root = tmp_path / "plugin_root"
-    data_root = tmp_path / "plugin_data"
-    plugin_root.mkdir()
-    data_root.mkdir()
+    """Empty-string roots must not inject bogus ``""`` values (regression guard)."""
+    plugin_root, data_root = _make_roots(tmp_path)
 
     report = await _probe(
-        script,
+        sys.executable,
+        [_write_probe_script(tmp_path)],
+        {"plugin_root": "", "data_root": data_root},
+    )
+    assert report["PLUGIN_ROOT"] == "UNSET"
+    assert report["PLUGIN_DATA"] == data_root
+
+
+@pytest.mark.integration
+async def test_stdio_injects_each_reserved_var_independently(
+    tmp_path: object, _reset_manager: object
+) -> None:
+    """Partial configuration: only the configured root is injected (§9.1 per-var)."""
+    plugin_root, data_root = _make_roots(tmp_path)
+
+    report = await _probe(
+        sys.executable,
+        [_write_probe_script(tmp_path)],
+        {"plugin_root": plugin_root},
+    )
+    assert report["PLUGIN_ROOT"] == plugin_root
+    assert report["PLUGIN_DATA"] == "UNSET"
+
+
+@pytest.mark.integration
+async def test_stdio_expands_placeholders_in_env_args_and_cwd(
+    tmp_path: object, _reset_manager: object
+) -> None:
+    """``${PLUGIN_ROOT}`` / ``${PLUGIN_DATA}`` must expand in env/args/cwd (§9)."""
+    plugin_root, data_root = _make_roots(tmp_path)
+    script = _write_probe_script(tmp_path)
+
+    report = await _probe(
+        sys.executable,
+        [script, "${PLUGIN_ROOT}/args-res", "${PLUGIN_DATA}/data-res"],
         {
-            "plugin_root": str(plugin_root),
-            "data_root": str(data_root),
+            "plugin_root": plugin_root,
+            "data_root": data_root,
+            "env": {"CUSTOM_ENV": "${PLUGIN_ROOT}/env-res"},
             "cwd": "${PLUGIN_ROOT}",
         },
     )
-    assert report["PLUGIN_ROOT"] == str(plugin_root)
-    assert report["CWD"] == str(plugin_root)
+    assert report["PLUGIN_ROOT"] == plugin_root
+    assert report["PLUGIN_DATA"] == data_root
+    assert report["CUSTOM_ENV"] == f"{plugin_root}/env-res"
+    assert report["CWD"] == plugin_root
+    assert report["ARGV"][-2:] == [f"{plugin_root}/args-res", f"{data_root}/data-res"]
+
+
+@pytest.mark.integration
+async def test_stdio_dot_slash_command_runs_from_plugin_root(
+    tmp_path: object, _reset_manager: object
+) -> None:
+    """A ``./``-relative command implies the plugin root as cwd (§7.2.1)."""
+    plugin_root, data_root = _make_roots(tmp_path)
+    bin_dir = tmp_path / "plugin_root" / "bin"
+    bin_dir.mkdir()
+    probe_bin = bin_dir / "probe.py"
+    probe_bin.write_text(
+        f"#!{sys.executable}\n" + _ENV_PROBE_SERVER_SRC, encoding="utf-8"
+    )
+    probe_bin.chmod(0o755)
+
+    report = await _probe("./bin/probe.py", [], {"plugin_root": plugin_root, "data_root": data_root})
+    assert report["PLUGIN_ROOT"] == plugin_root
+    assert report["CWD"] == plugin_root
+    assert report["ARGV"][0].endswith("bin/probe.py")

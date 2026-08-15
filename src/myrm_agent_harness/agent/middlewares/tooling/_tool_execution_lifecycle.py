@@ -87,7 +87,9 @@ def resolve_dynamic_tool(request: ToolCallRequest) -> ToolCallRequest:
             return request.override(tool=resolved_tool)
 
     if registry is None:
-        logger.warning("Dynamic tool resolve: no active ToolRegistry for '%s'", call_name)
+        logger.warning(
+            "Dynamic tool resolve: no active ToolRegistry for '%s'", call_name
+        )
     else:
         logger.warning(
             "Dynamic tool resolve: no match for '%s' among %d tools",
@@ -102,7 +104,9 @@ def resolve_dynamic_tool(request: ToolCallRequest) -> ToolCallRequest:
 # ---------------------------------------------------------------------------
 
 
-async def emit_tool_heartbeat(tool_name: str, tool_call_id: str, start_time: float) -> None:
+async def emit_tool_heartbeat(
+    tool_name: str, tool_call_id: str, start_time: float
+) -> None:
     """Emit periodic heartbeat events for long-running tools."""
     from myrm_agent_harness.agent.streaming.types import AgentEventType
     from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
@@ -252,9 +256,13 @@ async def handle_execution_error(
         diagnostic_info = getattr(e, "diagnostic_info", None)
         if isinstance(diagnostic_info, dict):
             raw_category = diagnostic_info.get("error_category")
-            error_category = raw_category if isinstance(raw_category, str) and raw_category else None
+            error_category = (
+                raw_category if isinstance(raw_category, str) and raw_category else None
+            )
 
-    from myrm_agent_harness.agent.middlewares._session_context import get_terminal_errors
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
     from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
         classify_terminal_error,
     )

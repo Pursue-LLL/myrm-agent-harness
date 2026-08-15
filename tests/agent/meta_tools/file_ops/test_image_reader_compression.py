@@ -17,7 +17,9 @@ from PIL import Image
 
 from myrm_agent_harness.agent.meta_tools.file_ops.utils.image_reader import (
     _INLINE_THRESHOLD,
+    _needs_compression,
     _reactive_compress,
+    is_image_path,
     read_image_as_content_blocks,
 )
 
@@ -190,3 +192,41 @@ class TestReadImageThresholdStrategy:
         result = await read_image_as_content_blocks("x.jpg", executor, False)
         assert isinstance(result, str)
         assert "does not support vision" in result
+
+
+class TestImageReaderEdgeBranches:
+    """Path detection, read-failure fallback, and probe-failure branches."""
+
+    def test_is_image_path_true(self) -> None:
+        assert is_image_path("photo.PNG")
+        assert is_image_path("sub/dir/pic.jpg")
+        assert not is_image_path("notes.txt")
+
+    @pytest.mark.asyncio
+    async def test_read_failure_returns_text(self) -> None:
+        executor = AsyncMock()
+        executor.read_file_bytes.side_effect = RuntimeError("io error")
+
+        result = await read_image_as_content_blocks("x.jpg", executor, True)
+        assert isinstance(result, str)
+        assert "Failed to read" in result
+
+    @pytest.mark.asyncio
+    async def test_file_not_found_reraises(self) -> None:
+        executor = AsyncMock()
+        executor.read_file_bytes.side_effect = FileNotFoundError("gone")
+
+        with pytest.raises(FileNotFoundError):
+            await read_image_as_content_blocks("x.jpg", executor, True)
+
+    def test_needs_compression_probe_failure_is_false(self) -> None:
+        assert _needs_compression(b"not an image at all") is False
+
+    def test_needs_compression_dimension_trigger(self) -> None:
+        raw = _make_jpeg_bytes(5000, 4000)
+        assert len(raw) <= _INLINE_THRESHOLD
+        assert _needs_compression(raw) is True
+
+    def test_needs_compression_small_passthrough(self) -> None:
+        raw = _make_jpeg_bytes(800, 600)
+        assert _needs_compression(raw) is False

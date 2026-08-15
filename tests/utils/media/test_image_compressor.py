@@ -271,3 +271,174 @@ class TestCompressIfNeeded:
             raw, trigger_bytes=b64_len, max_dimension=4096
         )
         assert result is raw
+
+
+class TestCompressInputBranches:
+    """compress() argument validation, path input, and bytes input."""
+
+    def test_compress_rejects_out_of_range_quality(self, compressor):
+        with pytest.raises(ValueError):
+            compressor.compress(create_test_image(64, 64), quality=1.5)
+
+    def test_compress_rejects_unsupported_output_format(self, compressor):
+        with pytest.raises(ValueError):
+            compressor.compress(create_test_image(64, 64), output_format="gif")
+
+    def test_compress_accepts_raw_bytes_input(self, compressor):
+        raw = _make_jpeg_bytes(200, 200)
+        result = compressor.compress(raw, max_dimension=512)
+        assert result is not None
+        assert Image.open(io.BytesIO(result)).size == (200, 200)
+
+    def test_compress_path_jpeg(self, compressor, tmp_path):
+        p = tmp_path / "img.jpg"
+        Image.new("RGB", (100, 100), color="green").save(p, "JPEG")
+        result = compressor.compress(str(p), max_dimension=512)
+        assert result is not None
+        assert Image.open(io.BytesIO(result)).format == "JPEG"
+
+    def test_compress_path_png(self, compressor, tmp_path):
+        p = tmp_path / "img.png"
+        Image.new("RGBA", (100, 100), color=(255, 0, 0, 128)).save(p, "PNG")
+        result = compressor.compress(str(p), max_dimension=512)
+        assert result is not None
+        assert Image.open(io.BytesIO(result)).format == "PNG"
+
+    def test_compress_missing_path_raises(self, compressor, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            compressor.compress(str(tmp_path / "missing.jpg"))
+
+    def test_compress_unsupported_path_suffix_raises(self, compressor, tmp_path):
+        p = tmp_path / "img.gif"
+        p.write_bytes(b"GIF89a")
+        with pytest.raises(ValueError):
+            compressor.compress(str(p))
+
+    def test_compress_undetectable_format_raises(self, compressor, monkeypatch):
+        from unittest.mock import MagicMock
+
+        fake_img = MagicMock()
+        fake_img.format = None
+        monkeypatch.setattr(Image, "open", lambda *a, **kw: fake_img)
+        with pytest.raises(ValueError):
+            compressor.compress(io.BytesIO(b"garbage"))
+
+
+class TestCompressTransparencyAndOutput:
+    """Transparent→RGB flattening, mode conversion, and file output."""
+
+    def test_compress_png_alpha_to_jpeg_flattened(self, compressor):
+        img = Image.new("RGBA", (64, 64), color=(255, 0, 0, 128))
+        buf = io.BytesIO()
+        img.save(buf, "PNG")
+        buf.seek(0)
+        result = compressor.compress(buf, output_format="jpeg", max_dimension=512)
+        assert result is not None
+        out = Image.open(io.BytesIO(result))
+        assert out.format == "JPEG"
+        assert out.mode == "RGB"
+
+    def test_compress_grayscale_mode_converted(self, compressor):
+        img = Image.new("L", (64, 64), color=128)
+        buf = io.BytesIO()
+        img.save(buf, "JPEG")
+        buf.seek(0)
+        result = compressor.compress(buf, max_dimension=512)
+        assert result is not None
+        assert Image.open(io.BytesIO(result)).mode == "RGB"
+
+    def test_compress_to_output_path_returns_none(self, compressor, tmp_path):
+        out = tmp_path / "out.jpg"
+        result = compressor.compress(
+            create_test_image(64, 64, "JPEG"), output_path=str(out)
+        )
+        assert result is None
+        assert out.exists()
+
+    def test_compress_png_to_output_path_returns_none(self, compressor, tmp_path):
+        out = tmp_path / "out.png"
+        result = compressor.compress(
+            create_test_image(64, 64, "PNG"), output_path=str(out)
+        )
+        assert result is None
+        assert out.exists()
+
+
+class TestCompressPngImagequantBranches:
+    """PNG quantization fallbacks and quality tiers."""
+
+    def test_compress_png_falls_back_when_imagequant_unavailable(
+        self, compressor, monkeypatch
+    ):
+        import sys
+
+        monkeypatch.setitem(sys.modules, "imagequant", None)
+        raw = create_test_image(64, 64, "PNG").getvalue()
+        result = compressor.compress(io.BytesIO(raw), max_dimension=512)
+        assert result is not None
+        assert Image.open(io.BytesIO(result)).format == "PNG"
+
+    def test_compress_png_palette_mode_falls_back(self, compressor):
+        img = Image.new("P", (64, 64))
+        img.putpalette([0, 0, 0, 255, 255, 255] * 86)
+        buf = io.BytesIO()
+        img.save(buf, "PNG")
+        buf.seek(0)
+        result = compressor.compress(buf, max_dimension=512)
+        assert result is not None
+
+    def test_compress_png_alpha_high_quality_falls_back(self, compressor):
+        img = Image.new("RGBA", (64, 64), color=(255, 0, 0, 128))
+        buf = io.BytesIO()
+        img.save(buf, "PNG")
+        buf.seek(0)
+        result = compressor.compress(buf, quality=0.9, max_dimension=512)
+        assert result is not None
+
+    def test_compress_png_low_quality_tier(self, compressor):
+        result = compressor.compress(
+            create_test_image(64, 64, "PNG"), quality=0.2, max_dimension=512
+        )
+        assert result is not None
+
+    def test_compress_png_mid_quality_tier(self, compressor):
+        result = compressor.compress(
+            create_test_image(64, 64, "PNG"), quality=0.5, max_dimension=512
+        )
+        assert result is not None
+
+
+class TestCompressIfNeededFallbacks:
+    """Fail-safe branches inside compress_if_needed."""
+
+    def test_internal_compress_failure_falls_back(self, compressor, monkeypatch):
+        raw = _make_jpeg_bytes(3000, 2000)
+        with monkeypatch.context() as m:
+            m.setattr(
+                compressor,
+                "compress",
+                lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")),
+            )
+            assert compressor.compress_if_needed(raw) is raw
+
+    def test_animation_probe_exception_continues(self, compressor, monkeypatch):
+        class _Probe:
+            format = "gif"
+            size = (800, 600)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return None
+
+            @property
+            def n_frames(self):
+                raise OSError("frame metadata unreadable")
+
+        monkeypatch.setattr(Image, "open", lambda *a, **kw: _Probe())
+        raw = _make_gif_bytes(frames=2)
+        result = compressor.compress_if_needed(raw, max_dimension=4096)
+        # Probe exception is swallowed; the image falls through to the
+        # size/bytes check and (small enough) passes through untouched.
+        assert result is raw

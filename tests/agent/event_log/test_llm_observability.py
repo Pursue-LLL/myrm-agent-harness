@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -63,8 +64,57 @@ class TestRecordLlmRequest:
     async def test_swallows_logger_errors(self) -> None:
         mock_logger = AsyncMock()
         mock_logger.log.side_effect = RuntimeError("event log unavailable")
-        with patch(
-            "myrm_agent_harness.agent.middlewares._session_context.get_event_logger",
-            return_value=mock_logger,
-        ):
+        with patch.object(_session_context, "get_event_logger", return_value=mock_logger):
             await record_llm_request("gpt-4o", [])
+
+
+class TestInstallHook:
+    """install_llm_observability_hook registration semantics."""
+
+    def test_installs_register_request_hook_once(self) -> None:
+        from myrm_agent_harness.agent.event_log import llm_observability as mod
+
+        mod._observability_hook_installed = False
+        try:
+            with patch(
+                "myrm_agent_harness.toolkits.llms.utils.logger.register_request_hook"
+            ) as mock_register:
+                mod.install_llm_observability_hook()
+                mod.install_llm_observability_hook()
+            mock_register.assert_called_once()
+        finally:
+            mod._observability_hook_installed = False
+
+    @pytest.mark.asyncio
+    async def test_sync_hook_bridges_to_async_recording(self) -> None:
+        from myrm_agent_harness.agent.event_log import llm_observability as mod
+
+        mod._observability_hook_installed = False
+        try:
+            with patch(
+                "myrm_agent_harness.toolkits.llms.utils.logger.register_request_hook"
+            ) as mock_register:
+                mod.install_llm_observability_hook()
+                hook = mock_register.call_args[0][0]
+                hook("gpt-4o", [{"role": "user", "content": "hi"}])
+                for _ in range(10):
+                    if not mod._pending_tasks:
+                        break
+                    await asyncio.sleep(0)
+        finally:
+            mod._observability_hook_installed = False
+        assert not mod._pending_tasks
+
+    def test_sync_hook_without_running_loop_is_noop(self) -> None:
+        from myrm_agent_harness.agent.event_log import llm_observability as mod
+
+        mod._observability_hook_installed = False
+        try:
+            with patch(
+                "myrm_agent_harness.toolkits.llms.utils.logger.register_request_hook"
+            ) as mock_register:
+                mod.install_llm_observability_hook()
+                hook = mock_register.call_args[0][0]
+                hook("gpt-4o", [])  # no running loop → RuntimeError swallowed
+        finally:
+            mod._observability_hook_installed = False
