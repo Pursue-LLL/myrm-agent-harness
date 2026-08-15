@@ -834,7 +834,10 @@ tools = create_memory_tools(manager=manager)
 | **Stable** | Profile、Self-Instructions、Behavioral Rules、Corrections | `SystemMessage`，包裹 `<user_memory_context>` | ✅ 与同用户前缀稳定对齐 |
 | **Learned（advisory）** | Learned Preferences / Learned Rules | `HumanMessage`，注入 `[Created: YYYY-MM-DD]` 绝对时间戳，并经 `wrap_untrusted(...)` 包裹（`<<<UNTRUSTED_DATA id="…">>>`），与 SECURITY_BOUNDARY 规则对齐 | ⚠️ 随机边界 id 前缀每请求变化；带静态绝对时间戳，保留 Prompt Caching |
 
-**统一 guidance tail**：无论注入的是 stable 还是 learned 上下文，`<user_memory_context>`/`<<<UNTRUSTED_DATA>>>` 末尾均携带同一份 `_memory_guidance_tail()`——包含 **Citation Requirements**（要求模型在引用记忆/规则时输出 `<cite:MEMORY_ID>` 标签，供业务层提取展示）与 **Memory Search** 指引（何时用 `memory_search_tool` 及 corpus 语义）。保证冷启动、stable-only、learned 三条路径的引用行为一致。
+**统一 guidance tail（按工具绑定条件化）**：guidance tail 是否注入由 `memory_search_enabled` 决定（middleware 检测 `memory_search_tool` 是否绑定，HYBRID 模式为 True，CONTEXT 模式为 False）。
+
+- **HYBRID（memory_search_enabled=True）**：cold-start、stable-only、learned 三条注入路径末尾均携带同一份 `_memory_guidance_tail()`——包含 **Citation Requirements**（仅要求模型在引用带显式 `[ID: ...]` 标签的记忆或 `memory_search_tool` 检索结果时输出 `<cite:MEMORY_ID>` 标签，供业务层提取展示，并明确禁止为无 ID 条目编造标签）与 **Memory Search** 指引（何时用 `memory_search_tool` 及 corpus 语义）。保证三条路径的引用行为一致。
+- **CONTEXT（memory_search_enabled=False）**：不注入 guidance tail，cold-start 也整体跳过注入——学习指引会指向未绑定的工具，避免模型幻觉调用不存在的 `memory_search_tool`。
 
 **一次性注入**：若消息前部已包含 `<user_memory_context` **或** `<<<UNTRUSTED_DATA`，则跳过，避免/learned-only 路径被重复写入。
 

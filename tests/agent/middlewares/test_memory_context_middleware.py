@@ -8,6 +8,7 @@ ContextVar integration, and awrap_model_call injection semantics.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -584,7 +585,7 @@ def _make_request(
     req.state = {"messages": state_messages if state_messages is not None else []}
 
     if tools is None:
-        tools = [MagicMock(name="memory_search_tool")]
+        tools = [SimpleNamespace(name="memory_search_tool")]
     req.tools = tools
 
     if has_runtime_context:
