@@ -92,11 +92,16 @@ async def create_local_memory_manager(
     qdrant_path = base_path / "vector_store"
     embedding_service = get_embedding_service(embedding_config)
 
-    # We need to determine the embedding dimension
-    # If the service doesn't provide it synchronously, we might need a dummy embed call
-    # But usually EmbeddingConfig or EmbeddingService has it. Let's assume it's available or we default to 1536.
-    dim = getattr(embedding_service, "dimension", 1536)
-    if dim <= 0:
+    # Determine the embedding dimension. `dimension` may be a property that raises
+    # until a first embed completes (auto-detect backends), so both "attribute
+    # missing" and "property raised" must fall through to the probe path instead
+    # of crashing startup for self-hosted/unknown embedding models.
+    try:
+        dim = getattr(embedding_service, "dimension", 0)
+    except Exception as e:  # property raised (e.g. dimension not yet detected)
+        logger.debug("Embedding dimension not available yet (%s); probing.", e)
+        dim = 0
+    if not isinstance(dim, int) or dim <= 0:
         try:
             test_vec = await embedding_service.embed("dimension probe")
             dim = len(test_vec)

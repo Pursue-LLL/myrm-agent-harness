@@ -15,6 +15,7 @@ LLM-based structured summarization strategy with quality gate, circuit breaker, 
 | `summary_prompts.py` | Core | Prompt templates for structured JSON summary and merge operations. |
 | `summarize_circuit_guard.py` | Core | Circuit breaker shared by turn pipeline and server compact paths. |
 | `progress_timeout.py` | Core | Progress-aware timeout primitives for detecting stalled summarization (InactivityTimeoutError, TotalCeilingTimeoutError). |
+| `dropped_manifest.py` | Core | Dropped-constraint manifest builder for the compaction pipeline. Records redacted+truncated constraint snippets evicted by compaction so the GUI can distinguish "compaction dropped my constraint" from "the model ignored it" (fault-side attribution). Zero prompt cost — attached to StructuredSummary as audit metadata, excluded from `to_json()` so prompt-cache payloads never inflate. Exports `build_dropped_manifest` (pure) + `contains_constraint_marker` (shared matcher). |
 
 ## Key Dependencies
 
