@@ -2,7 +2,7 @@
 
 import pytest
 
-from myrm_agent_harness.agent.streaming.stream_recovery import _extract_retry_after_ms
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery import _extract_retry_after_ms
 
 
 class _FakeExcWithHeadersError(Exception):

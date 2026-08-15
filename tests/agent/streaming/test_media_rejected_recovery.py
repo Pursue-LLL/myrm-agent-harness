@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from myrm_agent_harness.agent.streaming.stream_recovery_oneshot import (
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot import (
     OneshotRecoveryMixin,
     _resolve_model_name_from_ctx,
     _strip_all_media_from_messages,

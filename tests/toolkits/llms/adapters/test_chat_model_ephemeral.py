@@ -25,7 +25,7 @@ def messages():
 
 def test_apply_ephemeral_override_sets_max_tokens():
     """When ContextVar is set, _apply_ephemeral_output_override applies it and resets."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
         set_ephemeral_max_output_tokens,
     )
@@ -41,7 +41,7 @@ def test_apply_ephemeral_override_sets_max_tokens():
 
 def test_apply_ephemeral_override_noop_when_unset():
     """When ContextVar is None, _apply_ephemeral_output_override is a no-op."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         reset_ephemeral_max_output_tokens,
     )
 

@@ -256,28 +256,32 @@ async def test_emit_hook_failure_event():
     from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
         emit_hook_failure_event as _emit_hook_failure_event,
     )
+    from myrm_agent_harness.agent.streaming.types import AgentEventType
+    from myrm_agent_harness.core.hooks.types import AggregatedHookResult, HookResult
 
-    mock_hook_result = MagicMock()
-    mock_hook_result.reason = "test reason"
-
-    mock_res1 = MagicMock()
-    mock_res1.blocked = True
-    mock_res1.hook_name = "hook1"
-    mock_res1.output = "output1"
-    mock_res1.reason = "reason1"
-
-    mock_hook_result.results = [mock_res1]
-
-    mock_agent_event_type = MagicMock()
-    mock_agent_event_type.HOOK_FAILED.value = "hook_failed"
+    hook_result = AggregatedHookResult(
+        results=(
+            HookResult(
+                hook_type="callable",
+                success=False,
+                blocked=True,
+                reason="Policy violation detected",
+            ),
+        )
+    )
 
     with patch("myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink") as mock_sink:
         mock_sink_inst = AsyncMock()
         mock_sink.return_value = mock_sink_inst
 
-        await _emit_hook_failure_event("test_tool", mock_hook_result, mock_agent_event_type)
+        await _emit_hook_failure_event("test_tool", hook_result, AgentEventType)
 
         assert mock_sink_inst.emit.call_count == 1
+        event = mock_sink_inst.emit.call_args.args[0]
+        assert event["type"] == AgentEventType.TOOL_FAILURE.value
+        assert event["data"]["tool_name"] == "test_tool"
+        assert event["data"]["hook_event"] == "post_tool_use"
+        assert event["data"]["error"] == "Policy violation detected"
 
     def test_check_circuit_breaker():
         from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (

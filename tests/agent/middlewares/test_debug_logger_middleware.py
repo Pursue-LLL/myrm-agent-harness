@@ -10,7 +10,9 @@ import pytest
 from langchain.agents.middleware import ModelRequest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from myrm_agent_harness.agent.middlewares.debug_logger_middleware import DebugLoggerMiddleware
+from myrm_agent_harness.agent.middlewares.debug_logger_middleware import (
+    DebugLoggerMiddleware,
+)
 
 
 @pytest.fixture
@@ -23,8 +25,19 @@ def _build_request(content: object) -> ModelRequest:
     messages = [
         SystemMessage(content="system"),
         HumanMessage(content="hello"),
-        AIMessage(content="", tool_calls=[{"name": "bash_code_execute_tool", "args": {"code": "pwd"}, "id": "call_1"}]),
-        ToolMessage(content=content, tool_call_id="call_1", name="bash_code_execute_tool"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "bash_code_execute_tool",
+                    "args": {"code": "pwd"},
+                    "id": "call_1",
+                }
+            ],
+        ),
+        ToolMessage(
+            content=content, tool_call_id="call_1", name="bash_code_execute_tool"
+        ),
     ]
     return ModelRequest(model=AsyncMock(), messages=messages)
 
@@ -32,12 +45,16 @@ def _build_request(content: object) -> ModelRequest:
 @pytest.mark.asyncio
 async def test_string_content_passes_through(middleware: DebugLoggerMiddleware) -> None:
     handler = AsyncMock()
-    await middleware.awrap_model_call(_build_request("ls: No such file or directory"), handler)
+    await middleware.awrap_model_call(
+        _build_request("ls: No such file or directory"), handler
+    )
     handler.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_list_content_structured_tool_result(middleware: DebugLoggerMiddleware) -> None:
+async def test_list_content_structured_tool_result(
+    middleware: DebugLoggerMiddleware,
+) -> None:
     # 回归：结构化/多部分工具结果 content 为 list，此前在 startswith 处崩溃
     content = [
         {"type": "text", "text": "workspace contains 3 files"},
@@ -99,7 +116,9 @@ async def test_no_system_source_branch(middleware: DebugLoggerMiddleware) -> Non
 
 def test_format_content_ellipsis() -> None:
     """Long content is truncated with an omitted-chars summary."""
-    from myrm_agent_harness.agent.middlewares.debug_logger_middleware import _format_content
+    from myrm_agent_harness.agent.middlewares.debug_logger_middleware import (
+        _format_content,
+    )
 
     long = "x" * 500
     result = _format_content(long)
@@ -108,6 +127,8 @@ def test_format_content_ellipsis() -> None:
 
 
 def test_format_content_empty() -> None:
-    from myrm_agent_harness.agent.middlewares.debug_logger_middleware import _format_content
+    from myrm_agent_harness.agent.middlewares.debug_logger_middleware import (
+        _format_content,
+    )
 
     assert _format_content("") == "(empty)"

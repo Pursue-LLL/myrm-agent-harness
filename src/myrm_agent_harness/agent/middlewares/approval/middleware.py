@@ -71,7 +71,9 @@ logger = logging.getLogger(__name__)
 class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
     """Tool approval middleware using after_model hook for batch approval."""
 
-    async def aafter_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
+    async def aafter_model(
+        self, state: dict[str, Any], runtime: Any
+    ) -> dict[str, Any] | None:
         """Intercept AIMessage with tool_calls before execution.
 
         Orchestrates batch approval flow: evaluate → interrupt → apply decisions.
@@ -82,7 +84,9 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             config = runtime_config
             set_security_config(config)
         elif config is None:
-            runtime_sec = getattr(getattr(runtime, "config", None), "security_config", None)
+            runtime_sec = getattr(
+                getattr(runtime, "config", None), "security_config", None
+            )
             if runtime_sec is not None:
                 config = runtime_sec
                 set_security_config(config)
@@ -96,14 +100,18 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
                     "applying fail-closed web_chat defaults (session=%s)",
                     get_approval_session(),
                 )
-                config = build_channel_security_config("web_chat", None, local_mode=True)
+                config = build_channel_security_config(
+                    "web_chat", None, local_mode=True
+                )
                 set_security_config(config)
 
         messages = state.get("messages", [])
         if not messages:
             return None
 
-        last_ai_msg = next((msg for msg in reversed(messages) if isinstance(msg, AIMessage)), None)
+        last_ai_msg = next(
+            (msg for msg in reversed(messages) if isinstance(msg, AIMessage)), None
+        )
         if not last_ai_msg or not last_ai_msg.tool_calls:
             return None
 
@@ -120,7 +128,9 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
         from langchain_core.messages import HumanMessage
 
         recent_human_msgs = [
-            msg.content for msg in messages[-10:] if isinstance(msg, HumanMessage) and isinstance(msg.content, str)
+            msg.content
+            for msg in messages[-10:]
+            if isinstance(msg, HumanMessage) and isinstance(msg.content, str)
         ]
         intent_context = "\n".join(recent_human_msgs) if recent_human_msgs else None
 
@@ -182,7 +192,9 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             if user_id:
                 rate_limiter = get_approval_rate_limiter()
                 if not rate_limiter.check_limit(user_id):
-                    logger.warning("[RATE_LIMIT] Approval rate limit exceeded for user %s", user_id)
+                    logger.warning(
+                        "[RATE_LIMIT] Approval rate limit exceeded for user %s", user_id
+                    )
                     for (
                         idx,
                         tool_call,
@@ -212,7 +224,11 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
 
                 for idx, tool_call in enumerate(last_ai_msg.tool_calls):
                     denied = next(
-                        ((d_idx, tc, msg) for d_idx, tc, msg in auto_denied if d_idx == idx),
+                        (
+                            (d_idx, tc, msg)
+                            for d_idx, tc, msg in auto_denied
+                            if d_idx == idx
+                        ),
                         None,
                     )
                     if denied:
@@ -256,8 +272,12 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
 
             task_id = get_subagent_task_id()
             if not task_id:
-                logger.warning("Subagent context active but no task_id found. Falling back to auto-deny.")
-                return self._fallback_auto_deny(last_ai_msg, pending_approval, auto_denied, session_key)
+                logger.warning(
+                    "Subagent context active but no task_id found. Falling back to auto-deny."
+                )
+                return self._fallback_auto_deny(
+                    last_ai_msg, pending_approval, auto_denied, session_key
+                )
             payload["action_type"] = action_type
             payload["subagent_task_id"] = task_id
 
@@ -268,7 +288,9 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
                 "requiring user approval — auto-denying. session_key=%s",
                 session_key,
             )
-            return self._fallback_auto_deny(last_ai_msg, pending_approval, auto_denied, session_key)
+            return self._fallback_auto_deny(
+                last_ai_msg, pending_approval, auto_denied, session_key
+            )
 
         batch_response = interrupt(payload)
         decisions = self._normalize_batch_decisions(
@@ -282,14 +304,16 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             len(decisions),
         )
 
-        revised_tool_calls, artificial_tool_messages, guidance_messages = await apply_approval_decisions(
-            decisions,
-            last_ai_msg,
-            auto_denied,
-            pending_approval,
-            interrupt_indices,
-            args_hashes,
-            config=config,
+        revised_tool_calls, artificial_tool_messages, guidance_messages = (
+            await apply_approval_decisions(
+                decisions,
+                last_ai_msg,
+                auto_denied,
+                pending_approval,
+                interrupt_indices,
+                args_hashes,
+                config=config,
+            )
         )
 
         # Fire APPROVAL_CORRECTION hook for edit/reject decisions so memory system can learn
@@ -314,12 +338,18 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
                 phase,
                 type(batch_response),
             )
-            return [{"type": "reject", "feedback": "Invalid batch response"} for _ in range(expected_count)]
+            return [
+                {"type": "reject", "feedback": "Invalid batch response"}
+                for _ in range(expected_count)
+            ]
 
         if "decision" in batch_response and "decisions" not in batch_response:
             global_decision = batch_response["decision"]
             global_feedback = batch_response.get("feedback")
-            normalized = [{"type": global_decision, "feedback": global_feedback} for _ in range(expected_count)]
+            normalized = [
+                {"type": global_decision, "feedback": global_feedback}
+                for _ in range(expected_count)
+            ]
         else:
             raw = batch_response.get("decisions", [])
             normalized = raw if isinstance(raw, list) else []
@@ -331,7 +361,10 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
                 expected_count,
                 len(normalized),
             )
-            return [{"type": "reject", "feedback": "Decision count mismatch"} for _ in range(expected_count)]
+            return [
+                {"type": "reject", "feedback": "Decision count mismatch"}
+                for _ in range(expected_count)
+            ]
         return normalized
 
     @staticmethod
@@ -355,7 +388,11 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
 
             _idx, tool_call, _perm_type, _reason, _ = pending_approval[i]
             tool_name = tool_call.get("name", "unknown")
-            original_args = dict(tool_call.get("args", {})) if isinstance(tool_call.get("args"), dict) else {}
+            original_args = (
+                dict(tool_call.get("args", {}))
+                if isinstance(tool_call.get("args"), dict)
+                else {}
+            )
 
             correction: dict[str, object] = {
                 "tool_name": tool_name,
@@ -366,7 +403,11 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             if decision_type == "edit":
                 edited_args = decision.get("args")
                 correction["original_args"] = original_args
-                correction["edited_args"] = dict(edited_args) if isinstance(edited_args, dict) else original_args
+                correction["edited_args"] = (
+                    dict(edited_args)
+                    if isinstance(edited_args, dict)
+                    else original_args
+                )
             else:
                 correction["original_args"] = original_args
                 correction["edited_args"] = None
@@ -386,7 +427,9 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             )
 
             # Emit SSE event with learning summaries for frontend toast
-            summaries = [r.output for r in result.results if r.output] if result.results else []
+            summaries = (
+                [r.output for r in result.results if r.output] if result.results else []
+            )
             if summaries:
                 try:
                     from myrm_agent_harness.utils.event_utils import (

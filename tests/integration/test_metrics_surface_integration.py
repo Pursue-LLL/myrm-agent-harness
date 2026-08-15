@@ -31,6 +31,8 @@ _ACTIVE_METRICS = (
     "agent_tool_calls_total",
     "agent_tokens_total",
     "agent_tool_arg_recovery_total",
+    "agent_hook_failures_total",
+    "agent_approval_denied_total",
     "myrm_time_to_first_action_seconds",
     "myrm_tool_execution_total",
     "myrm_tool_execution_failed_total",
@@ -47,6 +49,8 @@ def test_scrape_output_matches_active_metric_surface() -> None:
     registry.record_tool_call("it-agent", "web_search", "success")
     registry.record_tokens("it-agent", "test-model", 10, 5)
     registry.record_tool_arg_recovery("it-agent", "web_search", "fallback", safe=False)
+    registry.record_hook_failure("it-agent", "bash", "post_tool_use")
+    registry.record_approval_denied("it-agent", "bash_code_execute_tool", "subagent_auto_deny")
     agent_metrics.record_ttfa_run_start()
     agent_metrics.record_ttfa_first_action("it-agent")
     agent_metrics.tool_execution_total.labels(tool_name="web_search").inc()

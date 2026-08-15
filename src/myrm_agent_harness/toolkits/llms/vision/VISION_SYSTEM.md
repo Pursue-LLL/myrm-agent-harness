@@ -106,7 +106,7 @@ if not supports_vision and vision_fallback_model_cfg:
 **职责**:
 - 在 `MediaFilterProcessor` 之前，将 HumanMessage / ToolMessage 内的图像块（base64、`/api/media/...` URL、HTTP(S)、`file://`）转为 `[Image Analysis]` 文本
 - 非 base64 引用通过 `resolve_image_reference_to_data_url()` 解析；业务层注入 `file_content_reader`（`files_service.get_content`）直读上传文件，HTTP loopback 仅作 fallback（`PORT` env，默认 8080）
-- `apply_vision_fallback_to_messages()` 同时供 `stream_recovery_oneshot.py` 在 `MEDIA_REJECTED` 时先尝试降级再 strip
+- `apply_vision_fallback_to_messages()` 同时供 `streaming/recovery/stream_recovery_oneshot.py` 在 `MEDIA_REJECTED` 时先尝试降级再 strip
 - 同条 message 内 text + image 并存时，优先用同条 text 作为 prompt；ToolMessage 优先取相邻 AIMessage 最后一段（assistant hint），其次取相邻 HumanMessage 用户文本；hint 通过 `build_vision_prompt()` 注入三段式 prompt
 
 **配置注入**：各 ExecutionSurface 经 `extract_vision_fallback_model_config()` 解析 `defaultModelConfig.visionFallbackModel` 并写入 `GeneralAgentParams.vision_fallback_model_cfg` → harness `merged_context`。`file_content_reader` 由 server `GeneralAgent` / `create_context_pipeline_middleware` 注入。

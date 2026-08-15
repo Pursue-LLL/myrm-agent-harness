@@ -22,6 +22,14 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
+# SSOT — send-time compression defaults shared by MediaResolver and upload flows.
+# Sized to land well under Anthropic's 5 MiB per-image ceiling after base64
+# expansion (4 MiB raw ≈ 5.3 MiB base64), while keeping 2048px fidelity for
+# vision analysis.
+SEND_COMPRESS_MAX_DIMENSION = 2048
+SEND_COMPRESS_QUALITY = 0.75
+SEND_COMPRESS_TRIGGER_BYTES = 4 * 1024 * 1024
+
 
 class ImageCompressor:
     """Image compression tool supporting jpg/jpeg/png formats.
@@ -39,6 +47,7 @@ class ImageCompressor:
         output_path: str | Path | None = None,
         quality: float = 0.8,
         max_dimension: int | None = 2048,
+        output_format: str | None = None,
     ) -> bytes | None:
         """Compress image.
 
@@ -47,6 +56,8 @@ class ImageCompressor:
             output_path: Output image path, if None returns bytes
             quality: Compression quality (0.0-1.0), 0=lowest, 1=highest
             max_dimension: Maximum dimension (width or height). If exceeded, image is downsampled.
+            output_format: Optional forced output format ("jpeg"/"png"/"webp"). Defaults to
+                source-format-derived behavior (jpg/jpeg→JPEG, webp→WEBP, png→PNG via imagequant).
 
         Returns:
             Compressed image bytes if output_path is None, otherwise None
@@ -57,6 +68,9 @@ class ImageCompressor:
         """
         if quality < 0 or quality > 1:
             raise ValueError("quality must be between 0 and 1")
+
+        if output_format is not None and output_format.lower() not in {"jpeg", "png", "webp"}:
+            raise ValueError(f"Unsupported output_format: {output_format}")
 
         if isinstance(input_path, bytes):
             input_path = io.BytesIO(input_path)
@@ -73,10 +87,10 @@ class ImageCompressor:
                 raise ValueError(f"Unsupported format: {suffix}")
 
             # Select compression method based on format
-            if suffix == ".png":
+            if suffix == ".png" and output_format is None:
                 return self._compress_png(input_path, output_path, quality, max_dimension)
             else:
-                return self._compress_with_pillow(input_path, output_path, quality, suffix, max_dimension)
+                return self._compress_with_pillow(input_path, output_path, quality, suffix, max_dimension, output_format)
         else:
             # File object, need to read to determine format
             img = Image.open(input_path)
@@ -84,7 +98,7 @@ class ImageCompressor:
                 raise ValueError("Cannot detect image format")
             format_name = img.format.lower()
 
-            if format_name == "png":
+            if format_name == "png" and output_format is None:
                 # PNG requires temporary file
                 import tempfile
 
@@ -97,7 +111,7 @@ class ImageCompressor:
                 # Reset file pointer
                 if hasattr(input_path, "seek"):
                     input_path.seek(0)
-                return self._compress_with_pillow(input_path, output_path, quality, f".{format_name}", max_dimension)
+                return self._compress_with_pillow(input_path, output_path, quality, f".{format_name}", max_dimension, output_format)
 
     def _resize_if_needed(self, img: Image.Image, max_dimension: int | None) -> Image.Image:
         """Resize image if it exceeds max_dimension."""
@@ -118,6 +132,7 @@ class ImageCompressor:
         quality: float,
         format_suffix: str,
         max_dimension: int | None,
+        output_format: str | None = None,
     ) -> bytes | None:
         """Compress image using Pillow (for jpg/jpeg/webp)."""
         # Convert 0-1 quality to Pillow's 1-100
@@ -137,7 +152,7 @@ class ImageCompressor:
         img = self._resize_if_needed(img, max_dimension)
 
         # Convert to RGB if needed for JPEG
-        if format_suffix in [".jpg", ".jpeg"]:
+        if format_suffix in [".jpg", ".jpeg"] or output_format == "jpeg":
             if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
                 img = img.convert("RGBA")
                 background = Image.new("RGB", img.size, (255, 255, 255))
@@ -147,7 +162,7 @@ class ImageCompressor:
                 img = img.convert("RGB")
 
         # Determine save format
-        save_format = "JPEG" if format_suffix in [".jpg", ".jpeg"] else "WEBP"
+        save_format = _resolve_save_format(format_suffix, output_format)
 
         # Compress and save
         if output_path:

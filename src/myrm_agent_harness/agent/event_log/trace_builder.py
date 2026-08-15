@@ -3,6 +3,14 @@
 Reads events from EventLogBackend and aggregates them into a structured
 ExecutionTrace for task-level replay, scoring, and pattern extraction.
 
+The aggregation is split across focused helper modules to keep each one small
+and single-purpose:
+
+- ``_pairing`` — tool-call pairing state machine (tool_start → tool_end)
+- ``_llm`` — llm_request → token_usage aggregation into LLMCallRecord
+- ``_tasks_steps`` — merging streaming ``tasks_steps`` progress events
+- ``_common`` — shared string/number coercion helpers
+
 [INPUT]
 - event_log.protocol::EventLogBackend (POS: Protocol contract)
 - event_log.types::StructuredEvent, EventFilter (POS: Single source of truth for event log data structures)
@@ -19,37 +27,22 @@ on demand without caching or mutation.
 
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from .trace_types import ExecutionTrace, LLMCallRecord, ToolCallRecord, TraceMetadata, TraceOutcome
+from ._common import _str_or_none
+from ._llm import _handle_llm_request, _handle_token_usage, _PendingLLMRequest
+from ._pairing import (
+    _find_tool_record,
+    _PendingTool,
+    _pop_pending,
+    _replace_tool_record,
+)
+from ._tasks_steps import _process_tasks_step
+from .trace_types import ExecutionTrace, ToolCallRecord, TraceMetadata, TraceOutcome
 from .types import EventFilter, StructuredEvent
 
 if TYPE_CHECKING:
     from .protocols import EventLogBackend
-
-# Keys on a tasks_steps payload that carry step/bookkeeping metadata rather than
-# tool input — stripped before storing input_data.
-_TASK_STEP_META_KEYS: frozenset[str] = frozenset(
-    {
-        "_agent_id",
-        "count",
-        "data",  # display rows (text), not tool input
-        "messageId",
-        "message_id",
-        "reason",
-        "status",
-        "step_key",
-        "tool_call_id",
-        "tool_name",
-    }
-)
-# A tasks_steps step may carry a terminal status; any other status (including an
-# absent one) is treated as "still running" and recorded with no end time.
-_TERMINAL_TOOL_STATUSES: frozenset[str] = frozenset(
-    {"cancelled", "completed", "done", "error", "failed", "succeeded", "success"}
-)
-_FAILURE_TOOL_STATUSES: frozenset[str] = frozenset({"cancelled", "error", "failed"})
 
 
 async def build_trace(
@@ -150,55 +143,6 @@ def _aggregate_events(session_id: str, events: list[StructuredEvent]) -> Executi
     return trace
 
 
-class _PendingTool:
-    """Tracks a tool_start waiting for its tool_end/tool_failure."""
-
-    __slots__ = (
-        "input_data",
-        "message_id",
-        "sequence",
-        "start_time",
-        "tool_call_id",
-        "tool_name",
-    )
-
-    def __init__(
-        self,
-        sequence: int,
-        tool_name: str,
-        start_time: float,
-        input_data: dict[str, object],
-        tool_call_id: str | None = None,
-        message_id: str | None = None,
-    ) -> None:
-        self.sequence = sequence
-        self.tool_name = tool_name
-        self.start_time = start_time
-        self.input_data = input_data
-        self.tool_call_id = tool_call_id
-        self.message_id = message_id
-
-
-class _PendingLLMRequest:
-    """Tracks an llm_request waiting for its token_usage completion."""
-
-    __slots__ = ("message_count", "model_name", "prompt_preview", "sequence", "start_time")
-
-    def __init__(
-        self,
-        sequence: int,
-        start_time: float,
-        model_name: str | None,
-        prompt_preview: str | None,
-        message_count: int,
-    ) -> None:
-        self.sequence = sequence
-        self.start_time = start_time
-        self.model_name = model_name
-        self.prompt_preview = prompt_preview
-        self.message_count = message_count
-
-
 def _extract_metadata(event: StructuredEvent) -> TraceMetadata:
     """Extract context dimensions from the first event's data."""
     data = event.data
@@ -208,159 +152,6 @@ def _extract_metadata(event: StructuredEvent) -> TraceMetadata:
         task_type=_str_or_none(data.get("_task_type")),
         trace_id=_str_or_none(data.get("_trace_id")),
     )
-
-
-def _pop_pending(
-    pending: dict[str, list[_PendingTool]], tool_name: str, tool_call_id: str | None = None
-) -> _PendingTool | None:
-    """Pop the matching pending tool.
-
-    Prefers an exact ``tool_call_id`` match (concurrent/re-entrant invocations
-    of the same tool must not be paired by name alone); falls back to the
-    oldest entry for ``tool_name`` (FIFO) when the id is absent — e.g. legacy
-    or id-less event streams.
-    """
-    queue = pending.get(tool_name)
-    if not queue:
-        return None
-
-    if tool_call_id:
-        for idx, pt in enumerate(queue):
-            if pt.tool_call_id == tool_call_id:
-                queue.pop(idx)
-                if not queue:
-                    del pending[tool_name]
-                return pt
-
-    pt = queue.pop(0)
-    if not queue:
-        del pending[tool_name]
-    return pt
-
-
-def _find_tool_record(
-    tool_calls: list[ToolCallRecord], tool_call_id: str | None
-) -> ToolCallRecord | None:
-    """Find an already-recorded tool call by its ``tool_call_id``.
-
-    The same invocation can surface both as a ``tasks_steps`` progress event and
-    as ``tool_start``/``tool_end`` pair — the id keeps them as one record.
-    """
-    if not tool_call_id:
-        return None
-    for tc in tool_calls:
-        if tc.tool_call_id == tool_call_id:
-            return tc
-    return None
-
-
-def _replace_tool_record(
-    trace: ExecutionTrace,
-    existing: ToolCallRecord,
-    **changes: object,
-) -> None:
-    """Swap ``existing`` with a copy carrying ``changes`` (frozen record)."""
-    trace.tool_calls = [
-        replace(existing, **changes) if tc is existing else tc for tc in trace.tool_calls
-    ]
-
-
-def _find_open_record_by_context(
-    tool_calls: list[ToolCallRecord], tool_name: str, message_id: str | None
-) -> ToolCallRecord | None:
-    """Find the most recent open (unclosed) record for a tool+message context.
-
-    Error-status ``tasks_steps`` steps (see streaming.event_handlers) carry
-    tool_name + messageId but no tool_call_id; closing the matching running
-    record keeps the lineage intact instead of creating a duplicate.
-    """
-    if not message_id:
-        return None
-    for tc in reversed(tool_calls):
-        if tc.tool_name == tool_name and tc.message_id == message_id and tc.end_time is None:
-            return tc
-    return None
-
-
-def _process_tasks_step(event: StructuredEvent, trace: ExecutionTrace) -> None:
-    """Merge a ``tasks_steps`` progress event into the trace.
-
-    The streaming layer emits tool invocations as ``tasks_steps`` events (see
-    ``streaming.event_handlers._handle_tool_calls``) in addition to — or instead
-    of — ``tool_start``/``tool_end`` lifecycle events.  A step that names a tool
-    therefore represents one tool invocation: record it immediately, then let a
-    later terminal ``tool_end``/``tool_failure`` or error-status step refine it.
-    """
-    data = event.data
-    tool_name = data.get("tool_name")
-    if not isinstance(tool_name, str) or not tool_name:
-        return  # plan steps / source reviews carry no tool_name
-
-    tool_call_id = _str_or_none(data.get("tool_call_id"))
-    message_id = _str_or_none(data.get("message_id")) or _str_or_none(data.get("messageId"))
-    status = _str_or_none(data.get("status"))
-    step_key = _str_or_none(data.get("step_key")) or ""
-
-    is_failure = status in _FAILURE_TOOL_STATUSES or step_key.endswith("_error")
-    is_terminal = status in _TERMINAL_TOOL_STATUSES or is_failure
-
-    existing = _find_tool_record(trace.tool_calls, tool_call_id)
-    if existing is None and is_failure:
-        existing = _find_open_record_by_context(trace.tool_calls, tool_name, message_id)
-    if existing is not None:
-        if is_failure:
-            _replace_tool_record(
-                trace,
-                existing,
-                end_time=event.timestamp,
-                success=False,
-                error=_str_or_none(data.get("error")) or existing.error,
-                fault_side=_str_or_none(data.get("fault_side")) or existing.fault_side,
-            )
-        elif is_terminal:
-            _replace_tool_record(trace, existing, end_time=event.timestamp)
-        return
-
-    input_data = {k: v for k, v in data.items() if k not in _TASK_STEP_META_KEYS}
-
-    if is_failure:
-        trace.tool_calls.append(
-            ToolCallRecord(
-                sequence=event.sequence,
-                tool_name=tool_name,
-                start_time=event.timestamp,
-                end_time=event.timestamp,
-                success=False,
-                error=_str_or_none(data.get("error")),
-                tool_call_id=tool_call_id,
-                message_id=message_id,
-                input_data=input_data,
-                fault_side=_str_or_none(data.get("fault_side")),
-            )
-        )
-        return
-
-    trace.tool_calls.append(
-        ToolCallRecord(
-            sequence=event.sequence,
-            tool_name=tool_name,
-            start_time=event.timestamp,
-            success=not is_terminal,  # running steps are presumed success until closed
-            tool_call_id=tool_call_id,
-            message_id=message_id,
-            input_data=input_data,
-        )
-    )
-
-
-def _int_or_zero(value: object) -> int:
-    if isinstance(value, bool):
-        return 0
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    return 0
 
 
 def _find_first_irrecoverable(
@@ -553,55 +344,10 @@ def _process_event(
         trace.errors.append(error_entry)
 
     elif et == "llm_request":
-        pending_llm.append(
-            _PendingLLMRequest(
-                sequence=event.sequence,
-                start_time=event.timestamp,
-                model_name=_str_or_none(data.get("model_name")),
-                prompt_preview=_str_or_none(data.get("prompt_preview")),
-                message_count=_int_or_zero(data.get("message_count")),
-            )
-        )
+        _handle_llm_request(event, pending_llm)
 
     elif et == "token_usage":
-        payload_data = data.get("data") if isinstance(data.get("data"), dict) else data
-        usage = payload_data.get("usage", {})
-        if isinstance(usage, dict):
-            duration_ms_raw = payload_data.get("duration_ms")
-            duration_ms = float(duration_ms_raw) if isinstance(duration_ms_raw, (int, float)) else None
-            pending_req = pending_llm.pop(0) if pending_llm else None
-            end_time = event.timestamp
-            if pending_req:
-                start_time = pending_req.start_time
-                sequence = pending_req.sequence
-                model_name = pending_req.model_name or _str_or_none(payload_data.get("model_name"))
-                prompt_preview = pending_req.prompt_preview
-                message_count = pending_req.message_count
-            else:
-                sequence = event.sequence
-                model_name = _str_or_none(payload_data.get("model_name"))
-                prompt_preview = None
-                message_count = 0
-                if duration_ms is not None:
-                    start_time = end_time - duration_ms / 1000.0
-                else:
-                    start_time = end_time
-
-            trace.llm_calls.append(
-                LLMCallRecord(
-                    sequence=sequence,
-                    start_time=start_time,
-                    end_time=end_time,
-                    model_name=model_name,
-                    prompt_preview=prompt_preview,
-                    message_count=message_count,
-                    duration_ms=duration_ms,
-                    ttft_ms=(float(payload_data.get("ttft_ms")) if payload_data.get("ttft_ms") is not None else None),
-                    prompt_tokens=int(usage.get("prompt_tokens", 0)),
-                    completion_tokens=int(usage.get("completion_tokens", 0)),
-                    total_tokens=int(usage.get("total_tokens", 0)),
-                )
-            )
+        _handle_token_usage(event, trace, pending_llm)
 
     elif et == "tool_approval_request":
         trace.human_feedback.append(
@@ -612,8 +358,3 @@ def _process_event(
                 "approved": data.get("approved"),
             }
         )
-
-
-def _str_or_none(value: object) -> str | None:
-    """Safely extract a string or return None."""
-    return str(value) if isinstance(value, str) else None

@@ -268,7 +268,9 @@ async def test_middleware_emits_overlay_skipped_on_insufficient_refs() -> None:
 
 @pytest.mark.asyncio
 async def test_emit_ref_done_no_sink_is_noop() -> None:
-    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _emit_ref_done
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+        _emit_ref_done,
+    )
 
     with patch(
         "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
@@ -279,7 +281,9 @@ async def test_emit_ref_done_no_sink_is_noop() -> None:
 
 @pytest.mark.asyncio
 async def test_emit_overlay_active_no_sink_is_noop() -> None:
-    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _emit_overlay_active
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+        _emit_overlay_active,
+    )
 
     with patch(
         "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
@@ -290,7 +294,9 @@ async def test_emit_overlay_active_no_sink_is_noop() -> None:
 
 @pytest.mark.asyncio
 async def test_emit_overlay_skipped_no_sink_is_noop() -> None:
-    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _emit_overlay_skipped
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+        _emit_overlay_skipped,
+    )
 
     with patch(
         "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
@@ -300,7 +306,9 @@ async def test_emit_overlay_skipped_no_sink_is_noop() -> None:
 
 
 def test_budget_pressure_active_tracker_none() -> None:
-    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _budget_pressure_active
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+        _budget_pressure_active,
+    )
 
     with patch(
         "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
@@ -310,7 +318,9 @@ def test_budget_pressure_active_tracker_none() -> None:
 
 
 def test_budget_pressure_active_status_ok() -> None:
-    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _budget_pressure_active
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+        _budget_pressure_active,
+    )
 
     tracker = MagicMock()
     tracker.last_budget_status = "ok"
@@ -322,7 +332,9 @@ def test_budget_pressure_active_status_ok() -> None:
 
 
 def test_budget_pressure_active_status_pressure() -> None:
-    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _budget_pressure_active
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+        _budget_pressure_active,
+    )
 
     tracker = MagicMock()
     tracker.last_budget_status = "high"
@@ -334,7 +346,9 @@ def test_budget_pressure_active_status_pressure() -> None:
 
 
 def test_budget_pressure_active_exception_safe() -> None:
-    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _budget_pressure_active
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+        _budget_pressure_active,
+    )
 
     def _raise():
         raise RuntimeError("tracker down")

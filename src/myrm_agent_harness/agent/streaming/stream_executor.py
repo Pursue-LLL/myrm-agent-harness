@@ -7,7 +7,7 @@
 - agent.streaming.source_tracker::SourceTracker (POS: 源追踪器)
 - agent.streaming.reasoning_scrubber::ReasoningScrubber (POS: 流式清洗器)
 - agent.streaming.escalation_scrubber::EscalationScrubber (POS: 流式层升级标记检测)
-- agent.streaming.stream_recovery_truncation::reset_ephemeral_max_output_tokens (POS: ephemeral output token cleanup)
+- agent.streaming.recovery.stream_recovery_truncation::reset_ephemeral_max_output_tokens (POS: ephemeral output token cleanup)
 - agent.types::AgentEventType, AgentRunStatistics (POS: 类型定义)
 
 [OUTPUT]
@@ -47,7 +47,7 @@ from .reasoning_scrubber import ReasoningScrubber
 from .source_tracker import SourceTracker
 from .stream_compactor import StreamCompactor
 from .stream_dispatcher import StreamDispatcherMixin
-from .stream_recovery import StreamRecoveryMixin, _extract_retry_after_ms
+from .recovery.stream_recovery import StreamRecoveryMixin, _extract_retry_after_ms
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -396,7 +396,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
             await self._emit_fatal_error(e)
 
         finally:
-            from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+            from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
                 reset_ephemeral_max_output_tokens,
             )
 

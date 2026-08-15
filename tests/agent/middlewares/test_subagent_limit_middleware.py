@@ -61,12 +61,17 @@ class TestTruncateDelegateCalls:
         assert result is None
 
     def test_exceeds_limit_truncates(self):
-        tool_calls = [_make_tool_call("delegate_task_tool", f"d{i}", {"task": f"task_{i}"}) for i in range(5)]
+        tool_calls = [
+            _make_tool_call("delegate_task_tool", f"d{i}", {"task": f"task_{i}"})
+            for i in range(5)
+        ]
         msg = AIMessage(content="spawning", tool_calls=tool_calls)
         result = _truncate_delegate_calls(msg, 3)
 
         assert result is not None
-        delegate_calls = [tc for tc in result.tool_calls if tc["name"] == "delegate_task_tool"]
+        delegate_calls = [
+            tc for tc in result.tool_calls if tc["name"] == "delegate_task_tool"
+        ]
         assert len(delegate_calls) == 3
 
     def test_preserves_non_delegate_calls(self):
@@ -96,12 +101,17 @@ class TestTruncateDelegateCalls:
         result = _truncate_delegate_calls(msg, 1)
 
         assert result is not None
-        delegate_calls = [tc for tc in result.tool_calls if tc["name"] == "delegate_task_tool"]
+        delegate_calls = [
+            tc for tc in result.tool_calls if tc["name"] == "delegate_task_tool"
+        ]
         assert len(delegate_calls) == 1
         assert delegate_calls[0]["id"] == "d1"
 
     def test_preserves_content(self):
-        tool_calls = [_make_tool_call("delegate_task_tool", f"d{i}", {"task": f"t{i}"}) for i in range(5)]
+        tool_calls = [
+            _make_tool_call("delegate_task_tool", f"d{i}", {"task": f"t{i}"})
+            for i in range(5)
+        ]
         msg = AIMessage(content="I will delegate these tasks", tool_calls=tool_calls)
         result = _truncate_delegate_calls(msg, 2)
 
@@ -111,11 +121,16 @@ class TestTruncateDelegateCalls:
     def test_batch_mode_delegate_counts_as_single_call(self):
         """mode=batch is one delegate_task_tool call and respects the per-response limit."""
         tool_calls = [
-            _make_tool_call("delegate_task_tool", "d1", {"mode": "single", "task": "a"}),
+            _make_tool_call(
+                "delegate_task_tool", "d1", {"mode": "single", "task": "a"}
+            ),
             _make_tool_call(
                 "delegate_task_tool",
                 "b1",
-                {"mode": "batch", "tasks": [{"agent_type": "search", "objective": "x"}]},
+                {
+                    "mode": "batch",
+                    "tasks": [{"agent_type": "search", "objective": "x"}],
+                },
             ),
             _make_tool_call("delegate_task_tool", "d2", {"task": "b"}),
             _make_tool_call("delegate_task_tool", "d3", {"task": "c"}),
@@ -124,7 +139,9 @@ class TestTruncateDelegateCalls:
         result = _truncate_delegate_calls(msg, 2)
 
         assert result is not None
-        delegate_calls = [tc for tc in result.tool_calls if tc["name"] == "delegate_task_tool"]
+        delegate_calls = [
+            tc for tc in result.tool_calls if tc["name"] == "delegate_task_tool"
+        ]
         assert len(delegate_calls) == 2
 
 
@@ -144,14 +161,18 @@ class TestAwrapModelCall:
     @pytest.mark.asyncio
     async def test_non_ai_last_message_passthrough(self) -> None:
         middleware = SubagentLimitMiddleware()
-        handler = AsyncMock(return_value=ModelResponse(result=[HumanMessage(content="hi")]))
+        handler = AsyncMock(
+            return_value=ModelResponse(result=[HumanMessage(content="hi")])
+        )
         response = await middleware.awrap_model_call(self._request(), handler)
         assert response.result[0].content == "hi"
 
     @pytest.mark.asyncio
     async def test_ai_message_without_excess_passthrough(self) -> None:
         middleware = SubagentLimitMiddleware()
-        response_msg = AIMessage(content="ok", tool_calls=[_make_tool_call("file_read_tool", "f1")])
+        response_msg = AIMessage(
+            content="ok", tool_calls=[_make_tool_call("file_read_tool", "f1")]
+        )
         handler = AsyncMock(return_value=ModelResponse(result=[response_msg]))
         response = await middleware.awrap_model_call(self._request(), handler)
         assert response.result == [response_msg]
@@ -159,9 +180,16 @@ class TestAwrapModelCall:
     @pytest.mark.asyncio
     async def test_ai_message_with_excess_truncates(self) -> None:
         middleware = SubagentLimitMiddleware()
-        tool_calls = [_make_tool_call("delegate_task_tool", f"d{i}", {"task": f"t{i}"}) for i in range(5)]
+        tool_calls = [
+            _make_tool_call("delegate_task_tool", f"d{i}", {"task": f"t{i}"})
+            for i in range(5)
+        ]
         response_msg = AIMessage(content="spawning", tool_calls=tool_calls)
         handler = AsyncMock(return_value=ModelResponse(result=[response_msg]))
         response = await middleware.awrap_model_call(self._request(), handler)
-        delegate_calls = [tc for tc in response.result[-1].tool_calls if tc["name"] == "delegate_task_tool"]
+        delegate_calls = [
+            tc
+            for tc in response.result[-1].tool_calls
+            if tc["name"] == "delegate_task_tool"
+        ]
         assert len(delegate_calls) == MAX_CONCURRENT_SUBAGENTS

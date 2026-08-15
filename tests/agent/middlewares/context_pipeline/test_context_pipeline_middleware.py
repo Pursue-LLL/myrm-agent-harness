@@ -46,13 +46,17 @@ def _mock_llm() -> MagicMock:
     return llm
 
 
-def _request(llm: MagicMock, *, context: dict[str, object] | None = None) -> ModelRequest:
+def _request(
+    llm: MagicMock, *, context: dict[str, object] | None = None
+) -> ModelRequest:
     from langgraph.runtime import Runtime
 
     return ModelRequest(
         model=llm,
         messages=[HumanMessage(content="hi")],
-        runtime=Runtime(context=context or {"chat_id": "chat-1", "max_context_tokens": 128000}),
+        runtime=Runtime(
+            context=context or {"chat_id": "chat-1", "max_context_tokens": 128000}
+        ),
     )
 
 
@@ -93,7 +97,9 @@ class TestFactory:
 
     def test_custom_pipeline_used_as_is(self) -> None:
         pipeline = ContextPipeline([_NoOpProcessor()])
-        middleware = create_context_pipeline_middleware(llm=_mock_llm(), pipeline=pipeline)
+        middleware = create_context_pipeline_middleware(
+            llm=_mock_llm(), pipeline=pipeline
+        )
         assert middleware is not None
 
 
@@ -101,7 +107,9 @@ class TestAwrapModelCall:
     @pytest.mark.asyncio
     async def test_basic_passthrough(self) -> None:
         pipeline = ContextPipeline([_NoOpProcessor()])
-        middleware = create_context_pipeline_middleware(llm=_mock_llm(), pipeline=pipeline)
+        middleware = create_context_pipeline_middleware(
+            llm=_mock_llm(), pipeline=pipeline
+        )
         llm = _mock_llm()
         request = _request(llm)
         handler = AsyncMock(return_value=ModelResponse(result=[]))
@@ -141,7 +149,9 @@ class TestAwrapModelCall:
         llm = _mock_llm()
         pipeline = ContextPipeline([_NoOpProcessor()])
         notes_llm = _mock_llm()
-        on_notes_load = AsyncMock(return_value='{"_meta": {"last_updated_message_idx": 0}, "progress": "notes"}')
+        on_notes_load = AsyncMock(
+            return_value='{"_meta": {"last_updated_message_idx": 0}, "progress": "notes"}'
+        )
         middleware = create_context_pipeline_middleware(
             llm=llm,
             pipeline=pipeline,
@@ -323,7 +333,12 @@ class TestAwrapModelCall:
         # guard must drop the orphan call, so guarded_messages is not the same object.
         messages = [
             HumanMessage(content="run"),
-            AIMessage(content="", tool_calls=[{"id": "call_1", "name": "bash_code_execute_tool", "args": {}}]),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "call_1", "name": "bash_code_execute_tool", "args": {}}
+                ],
+            ),
         ]
         pipeline.process = AsyncMock(return_value=_result(messages))
         middleware = create_context_pipeline_middleware(llm=llm, pipeline=pipeline)
@@ -344,14 +359,20 @@ class TestHelpers:
                     {"id": "2", "name": "bash_code_execute_tool", "args": {}},
                 ],
             ),
-            AIMessage(content="", tool_calls=[{"id": "3", "name": "bash_code_execute_tool", "args": {}}]),
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "3", "name": "bash_code_execute_tool", "args": {}}],
+            ),
             ToolMessage(content="ok", tool_call_id="1"),
             HumanMessage(content="b"),
         ]
         assert _count_tool_calls(messages) == 3
 
     def test_count_tool_calls_ignores_non_ai(self) -> None:
-        messages = [HumanMessage(content="a"), ToolMessage(content="ok", tool_call_id="1")]
+        messages = [
+            HumanMessage(content="a"),
+            ToolMessage(content="ok", tool_call_id="1"),
+        ]
         assert _count_tool_calls(messages) == 0
 
     def test_extract_last_message_db_id_dict_context(self) -> None:

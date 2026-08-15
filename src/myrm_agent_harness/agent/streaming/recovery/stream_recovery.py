@@ -6,9 +6,9 @@
 - toolkits.llms.reliability.jittered_backoff (POS: jittered backoff)
 - toolkits.llms.adapters.safety_termination_detector (POS: Safety termination detector)
 - utils.token_economics.tracker (POS: LLM call metadata tracker)
-- agent.streaming.stream_recovery_oneshot (POS: one-shot recovery strategies)
-- agent.streaming.stream_recovery_continuation (POS: steering, subagent, and goal continuation recovery)
-- agent.streaming.stream_recovery_truncation (POS: length truncation recovery)
+- agent.streaming.recovery.stream_recovery_oneshot (POS: one-shot recovery strategies)
+- agent.streaming.recovery.stream_recovery_continuation (POS: steering, subagent, and goal continuation recovery)
+- agent.streaming.recovery.stream_recovery_truncation (POS: length truncation recovery)
 - agent.streaming.escalation_scrubber::EscalationScrubber (POS: 流式层升级标记检测)
 - utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
 
@@ -39,14 +39,14 @@ from myrm_agent_harness.agent._internals.agent_recovery import (
     truncate_oldest_rounds as _truncate_oldest_rounds,
 )
 from myrm_agent_harness.agent.errors.fault_side import FaultSide
-from myrm_agent_harness.agent.streaming.stream_recovery_continuation import (
+from .stream_recovery_continuation import (
     StreamContinuationRecoveryMixin,
 )
-from myrm_agent_harness.agent.streaming.stream_recovery_oneshot import (
+from .stream_recovery_oneshot import (
     OneshotRecoveryMixin,
     _resolve_model_name_from_ctx,
 )
-from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+from .stream_recovery_truncation import (
     StreamTruncationRecoveryMixin,
 )
 from myrm_agent_harness.agent.streaming.types import AgentEventType

@@ -188,6 +188,76 @@ async def test_hybrid_real_assembly_injects_rules(
 
 
 @pytest.mark.asyncio
+async def test_hybrid_real_assembly_injects_working_state(
+    manager_factory: Callable[[RecallMode], MemoryManager],
+    memory_search_tool: object,
+) -> None:
+    """Real working_state profile keys flow into the Active Working Context section."""
+    from datetime import datetime, timezone
+
+    from myrm_agent_harness.toolkits.memory._internal.storage_context import (
+        WORKING_STATE_PROFILE_KEY,
+        WORKING_STATE_UPDATED_AT_KEY,
+    )
+
+    manager = manager_factory(RecallMode.HYBRID)
+    store = manager._relational
+    assert store is not None
+    await store.set_profile(
+        WORKING_STATE_PROFILE_KEY,
+        "mid-task: drafting the migration plan",
+        scope=manager._scope,
+    )
+    await store.set_profile(
+        WORKING_STATE_UPDATED_AT_KEY,
+        datetime.now(timezone.utc).isoformat(),
+        scope=manager._scope,
+    )
+
+    set_memory_manager(manager)
+    request = _make_request(
+        messages=[SystemMessage(content="sys prefix"), HumanMessage(content="hello")],
+        tools=[memory_search_tool],
+    )
+
+    messages, status = await _run_middleware(request)
+
+    assert status["state"] == "applied"
+    stable_payload = "\n".join(
+        str(m.content) for m in messages if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
+    )
+    assert "## Active Working Context" in stable_payload
+    assert "mid-task: drafting the migration plan" in stable_payload
+
+
+@pytest.mark.asyncio
+async def test_hybrid_real_assembly_injects_agent_instructions(
+    manager_factory: Callable[[RecallMode], MemoryManager],
+    memory_search_tool: object,
+) -> None:
+    """Real AGENT_SELF procedural memories render as Your Self-Instructions."""
+    from myrm_agent_harness.toolkits.memory.types import RuleSource
+
+    manager = manager_factory(RecallMode.HYBRID)
+    await manager.add_rule("always", "be concise", priority=5, source=RuleSource.AGENT_SELF)
+
+    set_memory_manager(manager)
+    request = _make_request(
+        messages=[SystemMessage(content="sys prefix"), HumanMessage(content="hello")],
+        tools=[memory_search_tool],
+    )
+
+    messages, status = await _run_middleware(request)
+
+    assert status["state"] == "applied"
+    stable_payload = "\n".join(
+        str(m.content) for m in messages if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
+    )
+    assert "## Your Self-Instructions" in stable_payload
+    assert "be concise" in stable_payload
+
+
+@pytest.mark.asyncio
 async def test_hybrid_real_assembly_cold_start(
     manager_factory: Callable[[RecallMode], MemoryManager],
     memory_search_tool: object,
@@ -209,6 +279,62 @@ async def test_hybrid_real_assembly_cold_start(
     stable = str(stable_msgs[0].content)
     assert MEMORY_CONTEXT_MARKER in stable
     assert "## Memory Search" in stable
+
+
+@pytest.mark.asyncio
+async def test_hybrid_real_assembly_budget_truncation_notice(
+    manager_factory: Callable[[RecallMode], MemoryManager],
+    memory_search_tool: object,
+) -> None:
+    """Real oversized profile set is clipped and the notice references the bound search tool."""
+    manager = manager_factory(RecallMode.HYBRID)
+    store = manager._relational
+    assert store is not None
+    for i in range(80):
+        await store.set_profile(f"k{i}", "w" * 300, scope=manager._scope)
+
+    set_memory_manager(manager)
+    request = _make_request(
+        messages=[SystemMessage(content="sys prefix"), HumanMessage(content="hello")],
+        tools=[memory_search_tool],
+    )
+
+    messages, status = await _run_middleware(request)
+
+    assert status["state"] == "applied"
+    stable_payload = "\n".join(
+        str(m.content) for m in messages if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
+    )
+    assert "... (Some lower-priority memory items were truncated" in stable_payload
+    assert "Use memory_search_tool to search for more" in stable_payload
+
+
+@pytest.mark.asyncio
+async def test_context_real_assembly_budget_truncation_notice_omits_tool(
+    manager_factory: Callable[[RecallMode], MemoryManager],
+) -> None:
+    """CONTEXT truncation notice must not reference the unbound memory_search_tool."""
+    manager = manager_factory(RecallMode.CONTEXT)
+    store = manager._relational
+    assert store is not None
+    for i in range(80):
+        await store.set_profile(f"k{i}", "w" * 300, scope=manager._scope)
+
+    set_memory_manager(manager)
+    request = _make_request(
+        messages=[SystemMessage(content="sys prefix"), HumanMessage(content="hello")],
+        tools=[],
+    )
+
+    messages, status = await _run_middleware(request)
+
+    assert status["state"] == "applied"
+    stable_payload = "\n".join(
+        str(m.content) for m in messages if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
+    )
+    assert "... (Some lower-priority memory items were truncated" in stable_payload
+    assert "memory_search_tool" not in stable_payload
+    assert "Use memory_search_tool to search for more" not in stable_payload
 
 
 @pytest.mark.asyncio

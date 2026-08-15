@@ -25,7 +25,10 @@ from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware 
 
 class TestSanitizeToolName:
     def test_strips_whitespace(self) -> None:
-        assert _sanitize_tool_name("  bash_code_execute_tool  ") == "bash_code_execute_tool"
+        assert (
+            _sanitize_tool_name("  bash_code_execute_tool  ")
+            == "bash_code_execute_tool"
+        )
 
     def test_empty_falls_back(self) -> None:
         assert _sanitize_tool_name("") == "unknown"
@@ -125,7 +128,9 @@ class TestSanitizeAiMessage:
             tool_calls=[],
             invalid_tool_calls=[{"id": "c1", "name": "", "error": "err", "args": None}],
             additional_kwargs={
-                "tool_calls": [{"id": "c2", "function": {"name": "", "arguments": None}}]
+                "tool_calls": [
+                    {"id": "c2", "function": {"name": "", "arguments": None}}
+                ]
             },
         )
         assert _sanitize_ai_message(msg) is True
@@ -144,7 +149,9 @@ class TestRepairDanglingToolCalls:
     def test_returns_patched(self) -> None:
         messages = [
             HumanMessage(content="go"),
-            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]),
+            AIMessage(
+                content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]
+            ),
         ]
         result = repair_dangling_tool_calls(messages)
         assert len(result) == 3
@@ -159,7 +166,9 @@ class TestSyncWrapModelCall:
     def test_sync_wrap_model_call_patches(self) -> None:
         messages = [
             HumanMessage(content="go"),
-            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]),
+            AIMessage(
+                content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]
+            ),
         ]
         sentinel = MagicMock()
         request = MagicMock()

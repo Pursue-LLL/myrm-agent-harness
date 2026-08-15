@@ -6,7 +6,7 @@ Subagent completion uses **cache-safe delivery paths**: dynamic content never en
 
 | Path | Trigger | Delivery | Code |
 |------|---------|----------|------|
-| In-stream completion | Parent agent still streaming | SSE `SUBAGENT_COMPLETION` only; **no** message injection | `streaming/stream_recovery_continuation.py` |
+| In-stream completion | Parent agent still streaming | SSE `SUBAGENT_COMPLETION` only; **no** message injection | `streaming/recovery/stream_recovery_continuation.py` |
 | Background wakeup | `wait=false` child completes while parent idle | User/HumanMessage with `<system_notification type='async_result'>` + headless rerun | `myrm-agent-server/.../wakeup_handler.py` |
 | Active query | LLM needs result details | `subagent_control_tool` (action=list) | `meta_tools/spawn_subagent/` |
 

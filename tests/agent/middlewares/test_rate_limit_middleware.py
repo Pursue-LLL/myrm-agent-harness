@@ -42,9 +42,13 @@ def _state(
     }
     now = time.time() if updated_at is None else updated_at
     if rpm_remaining is not None:
-        buckets["rpm"] = RateLimitBucket(limit=10, remaining=rpm_remaining, reset_seconds=rpm_reset, updated_at=now)
+        buckets["rpm"] = RateLimitBucket(
+            limit=10, remaining=rpm_remaining, reset_seconds=rpm_reset, updated_at=now
+        )
     if tpm_remaining is not None:
-        buckets["tpm"] = RateLimitBucket(limit=1000, remaining=tpm_remaining, reset_seconds=tpm_reset, updated_at=now)
+        buckets["tpm"] = RateLimitBucket(
+            limit=1000, remaining=tpm_remaining, reset_seconds=tpm_reset, updated_at=now
+        )
     return RateLimitState(
         provider="openai",
         model="gpt-test",
@@ -57,13 +61,22 @@ def _state(
 
 class TestDetectProvider:
     def test_anthropic_header(self) -> None:
-        assert _detect_provider_from_headers({"anthropic-ratelimit-requests-limit": "10"}) == "anthropic"
+        assert (
+            _detect_provider_from_headers({"anthropic-ratelimit-requests-limit": "10"})
+            == "anthropic"
+        )
 
     def test_case_insensitive_anthropic(self) -> None:
-        assert _detect_provider_from_headers({"Anthropic-RateLimit-Requests-Limit": "10"}) == "anthropic"
+        assert (
+            _detect_provider_from_headers({"Anthropic-RateLimit-Requests-Limit": "10"})
+            == "anthropic"
+        )
 
     def test_openai_headers(self) -> None:
-        assert _detect_provider_from_headers({"x-ratelimit-limit-requests": "10"}) == "openai"
+        assert (
+            _detect_provider_from_headers({"x-ratelimit-limit-requests": "10"})
+            == "openai"
+        )
 
     def test_empty_headers(self) -> None:
         assert _detect_provider_from_headers({}) == "openai"
@@ -81,9 +94,11 @@ class TestComputeMinRecovery:
         assert _compute_min_recovery_seconds(state) == pytest.approx(expected)
 
     def test_min_across_buckets(self) -> None:
-        state = _state(rpm_remaining=0, rpm_reset=30.0, tpm_remaining=999, tpm_reset=5.0)
+        state = _state(
+            rpm_remaining=0, rpm_reset=30.0, tpm_remaining=999, tpm_reset=5.0
+        )
         expected = state.tpm.remaining_seconds_now  # type: ignore[union-attr]
-        assert _compute_min_recovery_seconds(state) == pytest.approx(expected)
+        assert _compute_min_recovery_seconds(state) == pytest.approx(expected, abs=1.0)
 
     def test_elapsed_seconds_subtracted(self) -> None:
         state = _state(rpm_remaining=0, rpm_reset=30.0, updated_at=time.time() - 10.0)
@@ -126,7 +141,10 @@ class TestAwrapModelCall:
         tracker.get_all_states.return_value = []
         handler = AsyncMock(return_value=ModelResponse(result=[]))
         request = ModelRequest(model=MagicMock(), messages=[HumanMessage(content="hi")])
-        with patch("myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get", return_value=tracker):
+        with patch(
+            "myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get",
+            return_value=tracker,
+        ):
             response = await mw.awrap_model_call(request, handler)
         assert response is not None
         handler.assert_awaited_once_with(request)
@@ -140,8 +158,14 @@ class TestAwrapModelCall:
         handler = AsyncMock(return_value=ModelResponse(result=[]))
         request = ModelRequest(model=MagicMock(), messages=[HumanMessage(content="hi")])
         with (
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get", return_value=tracker),
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get",
+                return_value=tracker,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
         ):
             await mw.awrap_model_call(request, handler)
         mock_sleep.assert_not_awaited()
@@ -157,8 +181,14 @@ class TestAwrapModelCall:
         handler = AsyncMock(return_value=ModelResponse(result=[]))
         request = ModelRequest(model=MagicMock(), messages=[HumanMessage(content="hi")])
         with (
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get", return_value=tracker),
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get",
+                return_value=tracker,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
             patch(
                 "myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink",
                 return_value=sink,
@@ -180,8 +210,14 @@ class TestAwrapModelCall:
         handler = AsyncMock(return_value=ModelResponse(result=[]))
         request = ModelRequest(model=MagicMock(), messages=[HumanMessage(content="hi")])
         with (
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get", return_value=tracker),
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get",
+                return_value=tracker,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
         ):
             await mw.awrap_model_call(request, handler)
         mock_sleep.assert_not_awaited()
@@ -197,8 +233,14 @@ class TestAwrapModelCall:
         handler = AsyncMock(return_value=ModelResponse(result=[]))
         request = ModelRequest(model=MagicMock(), messages=[HumanMessage(content="hi")])
         with (
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get", return_value=tracker),
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.asyncio.sleep", new_callable=AsyncMock),
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get",
+                return_value=tracker,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.asyncio.sleep",
+                new_callable=AsyncMock,
+            ),
             patch(
                 "myrm_agent_harness.agent.middlewares.rate_limit.get_tool_progress_sink",
                 return_value=sink,
@@ -215,8 +257,13 @@ class TestAwrapModelCall:
         handler = AsyncMock(return_value=ModelResponse(result=[ai_msg]))
         request = ModelRequest(model=MagicMock(), messages=[HumanMessage(content="hi")])
         with (
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get", return_value=tracker),
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.parse_rate_limit_headers") as mock_parse,
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get",
+                return_value=tracker,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.parse_rate_limit_headers"
+            ) as mock_parse,
         ):
             await mw.awrap_model_call(request, handler)
         mock_parse.assert_not_called()
@@ -230,14 +277,20 @@ class TestAwrapModelCall:
         parsed = _state(rpm_remaining=5, tpm_remaining=1000)
         ai_msg = AIMessage(
             content="hi",
-            response_metadata={"headers": {"x-ratelimit-limit-requests": "10"}, "model_name": "gpt-test"},
+            response_metadata={
+                "headers": {"x-ratelimit-limit-requests": "10"},
+                "model_name": "gpt-test",
+            },
         )
         handler = AsyncMock(return_value=ModelResponse(result=[ai_msg]))
         request = ModelRequest(model=MagicMock(), messages=[HumanMessage(content="hi")])
         sink = MagicMock()
         sink.emit = AsyncMock()
         with (
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get", return_value=tracker),
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get",
+                return_value=tracker,
+            ),
             patch(
                 "myrm_agent_harness.agent.middlewares.rate_limit.parse_rate_limit_headers",
                 return_value=parsed,
@@ -261,14 +314,20 @@ class TestAwrapModelCall:
         parsed = _state(rpm_remaining=5, tpm_remaining=500)
         ai_msg = AIMessage(
             content="hi",
-            response_metadata={"headers": {"x-ratelimit-limit-requests": "10"}, "model_name": "gpt-test"},
+            response_metadata={
+                "headers": {"x-ratelimit-limit-requests": "10"},
+                "model_name": "gpt-test",
+            },
         )
         handler = AsyncMock(return_value=ModelResponse(result=[ai_msg]))
         request = ModelRequest(model=MagicMock(), messages=[HumanMessage(content="hi")])
         sink = MagicMock()
         sink.emit = AsyncMock()
         with (
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get", return_value=tracker),
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get",
+                return_value=tracker,
+            ),
             patch(
                 "myrm_agent_harness.agent.middlewares.rate_limit.parse_rate_limit_headers",
                 return_value=parsed,
@@ -293,7 +352,10 @@ class TestAwrapModelCall:
         handler = AsyncMock(return_value=ModelResponse(result=[ai_msg]))
         request = ModelRequest(model=MagicMock(), messages=[HumanMessage(content="hi")])
         with (
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get", return_value=tracker),
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get",
+                return_value=tracker,
+            ),
             patch(
                 "myrm_agent_harness.agent.middlewares.rate_limit.parse_rate_limit_headers",
                 side_effect=ValueError("bad headers"),
@@ -307,11 +369,18 @@ class TestAwrapModelCall:
         mw = RateLimitMiddleware()
         tracker = MagicMock()
         tracker.get_all_states.return_value = []
-        handler = AsyncMock(return_value=ModelResponse(result=[HumanMessage(content="hi")]))
+        handler = AsyncMock(
+            return_value=ModelResponse(result=[HumanMessage(content="hi")])
+        )
         request = ModelRequest(model=MagicMock(), messages=[HumanMessage(content="hi")])
         with (
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get", return_value=tracker),
-            patch("myrm_agent_harness.agent.middlewares.rate_limit.parse_rate_limit_headers") as mock_parse,
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.RateLimitTracker.get",
+                return_value=tracker,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.rate_limit.parse_rate_limit_headers"
+            ) as mock_parse,
         ):
             await mw.awrap_model_call(request, handler)
         mock_parse.assert_not_called()

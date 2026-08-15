@@ -16,9 +16,15 @@ from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 def setup_configs():
     original = dict(SUBAGENT_CONFIGS)
     SUBAGENT_CONFIGS.clear()
-    SUBAGENT_CONFIGS["search"] = SubagentConfig(concurrency_limit=10, description="", system_prompt="")
-    SUBAGENT_CONFIGS["browser"] = SubagentConfig(concurrency_limit=3, description="", system_prompt="")
-    SUBAGENT_CONFIGS["analysis"] = SubagentConfig(concurrency_limit=5, description="", system_prompt="")
+    SUBAGENT_CONFIGS["search"] = SubagentConfig(
+        concurrency_limit=10, description="", system_prompt=""
+    )
+    SUBAGENT_CONFIGS["browser"] = SubagentConfig(
+        concurrency_limit=3, description="", system_prompt=""
+    )
+    SUBAGENT_CONFIGS["analysis"] = SubagentConfig(
+        concurrency_limit=5, description="", system_prompt=""
+    )
     yield
     SUBAGENT_CONFIGS.clear()
     SUBAGENT_CONFIGS.update(original)
@@ -153,7 +159,9 @@ class TestMiddlewareExecution:
 
     @pytest.fixture(autouse=True)
     def _clear_semaphores(self):
-        from myrm_agent_harness.agent.middlewares.concurrency import concurrency_limiter as mod
+        from myrm_agent_harness.agent.middlewares.concurrency import (
+            concurrency_limiter as mod,
+        )
 
         original = dict(mod._semaphores)
         mod._semaphores.clear()
@@ -167,7 +175,9 @@ class TestMiddlewareExecution:
 
         from langgraph.prebuilt.tool_node import ToolCallRequest
 
-        return ToolCallRequest(tool=MagicMock(), state={}, runtime=MagicMock(), tool_call=tool_call)
+        return ToolCallRequest(
+            tool=MagicMock(), state={}, runtime=MagicMock(), tool_call=tool_call
+        )
 
     @pytest.mark.asyncio
     async def test_no_agent_type_passthrough(self):
@@ -182,7 +192,9 @@ class TestMiddlewareExecution:
     @pytest.mark.asyncio
     async def test_unknown_agent_type_passthrough(self):
         middleware = create_concurrency_limiter()
-        request = self._request({"name": "spawn", "args": {"agent_type": "ghost"}, "id": "c2"})
+        request = self._request(
+            {"name": "spawn", "args": {"agent_type": "ghost"}, "id": "c2"}
+        )
         handler = AsyncMock(return_value=ToolMessage(content="done", tool_call_id="c2"))
         result = await middleware.awrap_tool_call(request, handler)
         assert result.content == "done"
@@ -190,7 +202,9 @@ class TestMiddlewareExecution:
     @pytest.mark.asyncio
     async def test_known_agent_type_acquires_semaphore(self):
         middleware = create_concurrency_limiter()
-        request = self._request({"name": "spawn", "args": {"agent_type": "search"}, "id": "c3"})
+        request = self._request(
+            {"name": "spawn", "args": {"agent_type": "search"}, "id": "c3"}
+        )
         handler = AsyncMock(return_value=ToolMessage(content="done", tool_call_id="c3"))
         result = await middleware.awrap_tool_call(request, handler)
         assert result.content == "done"

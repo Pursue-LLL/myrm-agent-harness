@@ -1,6 +1,6 @@
 """Agent recovery strategies — context overflow, LLM failover, structured error context.
 
-Shared recovery functions used by ``base_agent.py``, ``streaming/stream_recovery.py``,
+Shared recovery functions used by ``base_agent.py``, ``streaming/recovery/stream_recovery.py``,
 and ``middlewares/replan_middleware.py``.
 
 [INPUT]

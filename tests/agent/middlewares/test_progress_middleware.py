@@ -8,7 +8,11 @@ import pytest
 from langchain.agents.middleware import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage
 
-from myrm_agent_harness.agent.meta_tools.progress.schemas import TodoItem, TodoStatus, TodoStore
+from myrm_agent_harness.agent.meta_tools.progress.schemas import (
+    TodoItem,
+    TodoStatus,
+    TodoStore,
+)
 from myrm_agent_harness.agent.middlewares.progress_middleware import progress_middleware
 
 
@@ -23,7 +27,9 @@ async def test_no_store_passthrough() -> None:
 
 @pytest.mark.asyncio
 async def test_no_todos_passthrough() -> None:
-    middleware = progress_middleware(AsyncMock(return_value=TodoStore(goal="g", todos=[])))
+    middleware = progress_middleware(
+        AsyncMock(return_value=TodoStore(goal="g", todos=[]))
+    )
     request = ModelRequest(model=AsyncMock(), messages=[HumanMessage(content="hi")])
     handler = AsyncMock(return_value=ModelResponse(result=[]))
     await middleware.awrap_model_call(request, handler)
@@ -32,7 +38,9 @@ async def test_no_todos_passthrough() -> None:
 
 @pytest.mark.asyncio
 async def test_all_completed_passthrough() -> None:
-    store = TodoStore(goal="g", todos=[TodoItem(id="t1", content="done", status=TodoStatus.COMPLETED)])
+    store = TodoStore(
+        goal="g", todos=[TodoItem(id="t1", content="done", status=TodoStatus.COMPLETED)]
+    )
     middleware = progress_middleware(AsyncMock(return_value=store))
     request = ModelRequest(model=AsyncMock(), messages=[HumanMessage(content="hi")])
     handler = AsyncMock(return_value=ModelResponse(result=[]))
@@ -52,7 +60,11 @@ async def test_injects_into_last_string_human_message() -> None:
     middleware = progress_middleware(AsyncMock(return_value=store))
     request = ModelRequest(
         model=AsyncMock(),
-        messages=[HumanMessage(content="hi"), AIMessage(content="ok"), HumanMessage(content="do it")],
+        messages=[
+            HumanMessage(content="hi"),
+            AIMessage(content="ok"),
+            HumanMessage(content="do it"),
+        ],
     )
     handler = AsyncMock(return_value=ModelResponse(result=[]))
     await middleware.awrap_model_call(request, handler)
@@ -76,7 +88,9 @@ async def test_injects_into_list_content_human_message() -> None:
     passed_request = handler.await_args.args[0]
     last_msg = passed_request.messages[-1]
     assert isinstance(last_msg.content, list)
-    assert any(part.get("type") == "text" and "t1" in part["text"] for part in last_msg.content)
+    assert any(
+        part.get("type") == "text" and "t1" in part["text"] for part in last_msg.content
+    )
 
 
 @pytest.mark.asyncio
@@ -105,7 +119,9 @@ async def test_workspace_root_from_runtime_context() -> None:
         (),
         {"context": {"workspace_root": "/tmp/ws"}},
     )()
-    request = ModelRequest(model=AsyncMock(), messages=[HumanMessage(content="hi")], runtime=runtime)
+    request = ModelRequest(
+        model=AsyncMock(), messages=[HumanMessage(content="hi")], runtime=runtime
+    )
     handler = AsyncMock(return_value=ModelResponse(result=[]))
     await middleware.awrap_model_call(request, handler)
     assert get_todos.await_args.args[0] == "/tmp/ws"

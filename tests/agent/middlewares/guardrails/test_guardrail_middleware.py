@@ -77,7 +77,9 @@ async def test_guardrail_allow_all(mock_request: ToolCallRequest) -> None:
 
 @pytest.mark.asyncio
 async def test_guardrail_deny(mock_request: ToolCallRequest) -> None:
-    middleware = GuardrailMiddleware(providers=[MockAllowProvider(), MockDenyProvider()])
+    middleware = GuardrailMiddleware(
+        providers=[MockAllowProvider(), MockDenyProvider()]
+    )
     result = await middleware.awrap_tool_call(mock_request, mock_handler)
 
     assert isinstance(result, ToolMessage)
@@ -91,7 +93,9 @@ async def test_guardrail_deny(mock_request: ToolCallRequest) -> None:
 async def test_guardrail_fail_closed_on_exception(
     mock_request: ToolCallRequest,
 ) -> None:
-    middleware = GuardrailMiddleware(providers=[MockExceptionProvider()], fail_closed=True)
+    middleware = GuardrailMiddleware(
+        providers=[MockExceptionProvider()], fail_closed=True
+    )
     result = await middleware.awrap_tool_call(mock_request, mock_handler)
 
     assert isinstance(result, ToolMessage)
@@ -101,7 +105,9 @@ async def test_guardrail_fail_closed_on_exception(
 
 @pytest.mark.asyncio
 async def test_guardrail_fail_open_on_exception(mock_request: ToolCallRequest) -> None:
-    middleware = GuardrailMiddleware(providers=[MockExceptionProvider()], fail_closed=False)
+    middleware = GuardrailMiddleware(
+        providers=[MockExceptionProvider()], fail_closed=False
+    )
     result = await middleware.awrap_tool_call(mock_request, mock_handler)
 
     assert isinstance(result, ToolMessage)
@@ -135,15 +141,21 @@ def test_guardrail_sync_wrap_tool_call_deny(mock_request: ToolCallRequest) -> No
 
 def test_guardrail_sync_fail_closed_on_exception(mock_request: ToolCallRequest) -> None:
     """Sync path provider exception with fail_closed=True blocks."""
-    middleware = GuardrailMiddleware(providers=[MockExceptionProvider()], fail_closed=True)
-    result = middleware.wrap_tool_call(mock_request, lambda req: ToolMessage(content="x", tool_call_id="c"))
+    middleware = GuardrailMiddleware(
+        providers=[MockExceptionProvider()], fail_closed=True
+    )
+    result = middleware.wrap_tool_call(
+        mock_request, lambda req: ToolMessage(content="x", tool_call_id="c")
+    )
     assert isinstance(result, ToolMessage)
     assert "fail-closed" in result.content
 
 
 def test_guardrail_sync_fail_open_on_exception(mock_request: ToolCallRequest) -> None:
     """Sync path provider exception with fail_closed=False proceeds to handler."""
-    middleware = GuardrailMiddleware(providers=[MockExceptionProvider()], fail_closed=False)
+    middleware = GuardrailMiddleware(
+        providers=[MockExceptionProvider()], fail_closed=False
+    )
 
     def sync_handler(req: ToolCallRequest) -> ToolMessage:
         return ToolMessage(content="SyncOK", tool_call_id=req.tool_call["id"])
@@ -155,7 +167,9 @@ def test_guardrail_sync_fail_open_on_exception(mock_request: ToolCallRequest) ->
 def test_guardrail_sync_empty_providers(mock_request: ToolCallRequest) -> None:
     """Sync path with no providers passes through."""
     middleware = GuardrailMiddleware(providers=[])
-    result = middleware.wrap_tool_call(mock_request, lambda req: ToolMessage(content="ok", tool_call_id="c"))
+    result = middleware.wrap_tool_call(
+        mock_request, lambda req: ToolMessage(content="ok", tool_call_id="c")
+    )
     assert result.content == "ok"
 
 
@@ -175,7 +189,9 @@ def test_guardrail_build_request_non_dict_args(mock_request: ToolCallRequest) ->
 def test_guardrail_build_denied_message_defaults() -> None:
     """Missing id/name in tool_call produce safe defaults in denied message."""
     middleware = GuardrailMiddleware(providers=[MockDenyProvider()])
-    request = ToolCallRequest(tool=MagicMock(), state={}, runtime=MagicMock(), tool_call={})
+    request = ToolCallRequest(
+        tool=MagicMock(), state={}, runtime=MagicMock(), tool_call={}
+    )
     msg = middleware._build_denied_message(
         request,
         GuardrailDecision(allow=False),

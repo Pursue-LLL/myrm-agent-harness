@@ -15,7 +15,7 @@ from myrm_agent_harness.agent.streaming.stream_executor import (
     StreamContext,
     StreamExecutor,
 )
-from myrm_agent_harness.agent.streaming.stream_recovery import _extract_retry_after_ms
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery import _extract_retry_after_ms
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.types import AgentRunStatistics
 
@@ -92,7 +92,7 @@ async def test_overflow_not_overflow_error(ctx):
     exc = RuntimeError("not overflow")
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.is_context_overflow",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
         return_value=False,
     ):
         result = await executor._handle_overflow(exc, 0)
@@ -107,7 +107,7 @@ async def test_overflow_retries_exhausted(ctx):
     exc = RuntimeError("context length exceeded")
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.is_context_overflow",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
         return_value=True,
     ):
         result = await executor._handle_overflow(exc, 2)
@@ -124,11 +124,11 @@ async def test_overflow_stage1_compact(ctx):
 
     with (
         patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery.is_context_overflow",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
             return_value=True,
         ),
         patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery._emergency_compact",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
             new_callable=AsyncMock,
             return_value=500,
         ) as compact_mock,
@@ -151,16 +151,16 @@ async def test_overflow_stage1_fallthrough_to_truncate(ctx):
 
     with (
         patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery.is_context_overflow",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
             return_value=True,
         ),
         patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery._emergency_compact",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
             new_callable=AsyncMock,
             return_value=0,
         ),
         patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery._truncate_oldest_rounds",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._truncate_oldest_rounds",
             return_value=200,
         ) as truncate_mock,
     ):
@@ -182,7 +182,7 @@ async def test_overflow_resume_mode_rejected(ctx):
     exc = RuntimeError("context length exceeded")
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.is_context_overflow",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
         return_value=True,
     ):
         result = await executor._handle_overflow(exc, 0)
@@ -202,7 +202,7 @@ async def test_failover_no_fallback(ctx):
     from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.RATE_LIMIT,
     ):
         result = await executor._handle_failover(exc)
@@ -218,7 +218,7 @@ async def test_failover_unconfigured_emits_status(ctx):
     from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.MODEL_NOT_FOUND,
     ):
         result = await executor._handle_failover(RuntimeError("no tool use"))
@@ -232,7 +232,7 @@ async def test_failover_unconfigured_emits_status(ctx):
     assert "restart" not in unconfigured[0]
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.MODEL_NOT_FOUND,
     ):
         result2 = await executor._handle_failover(RuntimeError("no tool use again"))
@@ -254,7 +254,7 @@ async def test_safety_fallback_unconfigured_emits_status(ctx):
     from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.SAFETY_BLOCK,
     ):
         result = await executor._handle_failover(RuntimeError("content blocked"))
@@ -284,7 +284,7 @@ async def test_failover_success(ctx):
     from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.TIMEOUT,
     ):
         result = await executor._handle_failover(exc)
@@ -320,7 +320,7 @@ async def test_failover_auth_with_fallback(ctx):
     mock_emitter = AsyncMock()
     with (
         patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
             return_value=ErrorKind.AUTH,
         ),
         patch(
@@ -357,7 +357,7 @@ async def test_failover_already_used(ctx):
     from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.TIMEOUT,
     ):
         result = await executor._handle_failover(RuntimeError("error"))
@@ -383,7 +383,7 @@ async def test_safety_fallback(ctx):
     from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.SAFETY_BLOCK,
     ):
         result = await executor._handle_failover(RuntimeError("content blocked"))
@@ -635,7 +635,7 @@ async def test_rate_limit_never_failovers(ctx):
     from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.RATE_LIMIT,
     ):
         result = await executor._handle_failover(RuntimeError("429"))
@@ -661,7 +661,7 @@ async def test_overloaded_defers_below_threshold(ctx):
     from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.OVERLOADED,
     ):
         for i in range(2):
@@ -690,7 +690,7 @@ async def test_overloaded_failovers_at_threshold(ctx):
     from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.OVERLOADED,
     ):
         for _ in range(2):
@@ -720,7 +720,7 @@ async def test_consecutive_overloaded_resets_on_success(ctx):
     from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.OVERLOADED,
     ):
         await executor._handle_failover(RuntimeError("529"))
@@ -731,7 +731,7 @@ async def test_consecutive_overloaded_resets_on_success(ctx):
     executor._consecutive_overloaded = 0
 
     with patch(
-        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
         return_value=ErrorKind.OVERLOADED,
     ):
         result = await executor._handle_failover(RuntimeError("529"))
@@ -783,7 +783,7 @@ class TestOverflowE2EClassifier:
         exc = self._make_litellm_400(error_msg)
 
         with patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery._emergency_compact",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
             new_callable=AsyncMock,
             return_value=500,
         ) as compact_mock:
@@ -815,7 +815,7 @@ class TestOverflowE2EClassifier:
         exc = self._make_litellm_400("Prompt exceeds max length")
 
         with patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery._truncate_oldest_rounds",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._truncate_oldest_rounds",
             return_value=300,
         ) as truncate_mock:
             result = await executor._handle_overflow(exc, 1)
@@ -849,7 +849,7 @@ class TestOverflowE2EClassifier:
         exc = self._make_litellm_400(error_msg)
 
         with patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery._emergency_compact",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
             new_callable=AsyncMock,
             return_value=200,
         ):
@@ -864,7 +864,7 @@ class TestOverflowE2EClassifier:
         exc.status_code = 413
 
         with patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery._emergency_compact",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
             new_callable=AsyncMock,
             return_value=100,
         ):
@@ -879,12 +879,12 @@ class TestOverflowE2EClassifier:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery._emergency_compact",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery._emergency_compact",
                 new_callable=AsyncMock,
                 return_value=0,
             ),
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery._truncate_oldest_rounds",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery._truncate_oldest_rounds",
                 return_value=400,
             ) as truncate_mock,
         ):

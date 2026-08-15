@@ -165,7 +165,7 @@ async def test_notification_logging(executor: StreamExecutor, mock_context: Magi
     notification_text = "A" * 200  # Long notification
     mock_context.drain_subagent_notifications.return_value = notification_text
 
-    with patch("myrm_agent_harness.agent.streaming.stream_recovery_continuation.logger") as mock_logger:
+    with patch("myrm_agent_harness.agent.streaming.recovery.stream_recovery_continuation.logger") as mock_logger:
         await executor._handle_subagent_notifications([])
 
         mock_logger.info.assert_called_once()

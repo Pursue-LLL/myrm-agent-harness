@@ -16,7 +16,7 @@ from myrm_agent_harness.agent.streaming.stream_executor import (
     StreamContext,
     StreamExecutor,
 )
-from myrm_agent_harness.agent.streaming.stream_recovery_oneshot import (
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot import (
     _shrink_oversized_images,
 )
 from myrm_agent_harness.agent.types import AgentRunStatistics
@@ -426,7 +426,7 @@ class TestHandleLongContextTier:
         executor = _make_executor(ctx)
 
         with patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery_oneshot._emergency_compact",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot._emergency_compact",
             new_callable=AsyncMock,
             return_value=5000,
         ):
@@ -444,12 +444,12 @@ class TestHandleLongContextTier:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery_oneshot._emergency_compact",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot._emergency_compact",
                 new_callable=AsyncMock,
                 return_value=0,
             ),
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery_oneshot._truncate_oldest_rounds",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot._truncate_oldest_rounds",
                 return_value=3000,
             ),
         ):
@@ -466,7 +466,7 @@ class TestHandleLongContextTier:
         executor = _make_executor(ctx)
 
         with patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery_oneshot._emergency_compact",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot._emergency_compact",
             new_callable=AsyncMock,
             return_value=2000,
         ):
@@ -666,7 +666,7 @@ class TestShrinkOversizedImagesRealPillow:
 
     def test_parse_max_dimension_from_error(self) -> None:
         """Verify max_dimension parsing from error messages."""
-        from myrm_agent_harness.agent.streaming.stream_recovery_oneshot import (
+        from myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot import (
             _parse_image_max_dimension,
         )
 
@@ -699,7 +699,7 @@ class TestHandleMediaRejected:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery_oneshot.classify_failover_reason",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot.classify_failover_reason",
                 return_value=FailoverReason.MEDIA_REJECTED,
             ),
             patch(
@@ -748,7 +748,7 @@ class TestHandleMediaRejected:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery_oneshot.classify_failover_reason",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot.classify_failover_reason",
                 return_value=FailoverReason.MEDIA_REJECTED,
             ),
             patch(

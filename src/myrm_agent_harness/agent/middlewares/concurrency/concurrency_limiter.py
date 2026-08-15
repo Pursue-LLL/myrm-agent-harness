@@ -65,7 +65,8 @@ def create_concurrency_limiter():
 
     @wrap_tool_call  # type: ignore[arg-type]
     async def concurrency_limiter_middleware(
-        request: ToolCallRequest, handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command]]
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command]],
     ) -> ToolMessage | Command:
         """Limit concurrent execution for subagent spawn operations."""
         raw_args = request.tool_call.get("args")

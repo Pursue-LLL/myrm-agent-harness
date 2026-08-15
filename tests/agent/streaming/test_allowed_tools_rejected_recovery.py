@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from myrm_agent_harness.agent.streaming.stream_recovery_oneshot import (
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot import (
     OneshotRecoveryMixin,
 )
 from myrm_agent_harness.toolkits.llms.allowed_tools_capability import (

@@ -30,7 +30,9 @@ from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_help
 
 
 def _make_request(*, tools: list[object] | None = None) -> ModelRequest:
-    return ModelRequest(messages=[HumanMessage(content="hi")], model=object(), tools=tools)
+    return ModelRequest(
+        messages=[HumanMessage(content="hi")], model=object(), tools=tools
+    )
 
 
 class _ArgsSchema(BaseModel):
@@ -46,7 +48,10 @@ class _ToolWithSchema:
 class _ToolWithCallSchema:
     name = "tool_b"
     description = "tool b description"
-    tool_call_schema: ClassVar[dict[str, object]] = {"name": "tool_b", "parameters": {"type": "object"}}
+    tool_call_schema: ClassVar[dict[str, object]] = {
+        "name": "tool_b",
+        "parameters": {"type": "object"},
+    }
 
 
 class _ToolFallback:
@@ -58,7 +63,12 @@ class _ToolFallback:
 class TestExtractCompressionIntent:
     def test_with_intent_dict(self) -> None:
         result = extract_compression_intent(
-            {"compression_intent": {"focus_files": ["a.py"], "user_goal_hint": "refactor"}}
+            {
+                "compression_intent": {
+                    "focus_files": ["a.py"],
+                    "user_goal_hint": "refactor",
+                }
+            }
         )
         assert result is not None
         assert result["focus_files"] == ["a.py"]
@@ -91,7 +101,9 @@ class TestResolveCacheUsageFeedback:
     def test_falls_back_to_collector(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_helpers as helpers
 
-        fallback = CacheUsageFeedback(calls=5, input_tokens=100, cached_tokens=50, cache_hit_rate=0.5)
+        fallback = CacheUsageFeedback(
+            calls=5, input_tokens=100, cached_tokens=50, cache_hit_rate=0.5
+        )
         monkeypatch.setattr(helpers, "get_cache_usage_feedback", lambda: fallback)
         assert resolve_cache_usage_feedback({}) is fallback
 
@@ -115,7 +127,10 @@ class TestResolveContextBudgetMetadata:
 
     def test_with_tracker_last_call(self, monkeypatch: pytest.MonkeyPatch) -> None:
 
-        from myrm_agent_harness.utils.token_economics.tracker import TokenTracker, TokenUsage
+        from myrm_agent_harness.utils.token_economics.tracker import (
+            TokenTracker,
+            TokenUsage,
+        )
 
         tracker = TokenTracker()
         tracker.usage.last_call = TokenUsage(prompt_tokens=42000, completion_tokens=0)
@@ -150,7 +165,9 @@ class TestExtractToolNamesAndSchemas:
         assert extract_tool_names_and_schemas(_make_request(tools=[])) is None
 
     def test_dict_tool(self) -> None:
-        request = _make_request(tools=[{"name": "dict_tool", "description": "d", "args": {}}])
+        request = _make_request(
+            tools=[{"name": "dict_tool", "description": "d", "args": {}}]
+        )
         result = extract_tool_names_and_schemas(request)
         assert result is not None
         assert result[0][0] == "dict_tool"
@@ -197,7 +214,9 @@ class TestEstimateRequestContextTokens:
             lambda: None,
         )
         request = _make_request(tools=[_ToolWithSchema()])
-        estimate = estimate_request_context_tokens([HumanMessage(content="hi")], request)
+        estimate = estimate_request_context_tokens(
+            [HumanMessage(content="hi")], request
+        )
         assert estimate > 0
 
 

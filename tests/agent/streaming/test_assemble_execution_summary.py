@@ -58,7 +58,7 @@ def _make_record(
 
 def _get_mixin():
     """Create a minimal StreamContinuationRecoveryMixin instance."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_continuation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_continuation import (
         StreamContinuationRecoveryMixin,
     )
 

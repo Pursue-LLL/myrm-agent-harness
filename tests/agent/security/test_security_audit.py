@@ -33,7 +33,9 @@ class TestRecordAndGet:
 
     def test_record_tainted(self):
         reset_audit_log()
-        record_decision("bash_code_execute_tool", "TAINT_ESCALATE", "session tainted", tainted=True)
+        record_decision(
+            "bash_code_execute_tool", "TAINT_ESCALATE", "session tainted", tainted=True
+        )
         entries = get_audit_entries()
         assert entries[0].tainted is True
 
@@ -66,7 +68,13 @@ class TestSecurityDecisionDataclass:
             d.tool_name = "x"  # type: ignore[misc]
 
     def test_to_dict(self):
-        d = SecurityDecision(tool_name="bash", decision="DENY", reason="blocked", tainted=True, timestamp=1000.1234)
+        d = SecurityDecision(
+            tool_name="bash",
+            decision="DENY",
+            reason="blocked",
+            tainted=True,
+            timestamp=1000.1234,
+        )
         result = d.to_dict()
         assert result["tool"] == "bash"
         assert result["decision"] == "DENY"
@@ -95,7 +103,9 @@ class TestToolCallId:
         assert result["tool_call_id"] == "call-9"
 
     def test_to_dict_omits_empty_tool_call_id(self):
-        d = SecurityDecision(tool_name="bash", decision="ALLOW", reason="ok", timestamp=1000.0)
+        d = SecurityDecision(
+            tool_name="bash", decision="ALLOW", reason="ok", timestamp=1000.0
+        )
         result = d.to_dict()
         assert "tool_call_id" not in result
 
@@ -117,7 +127,9 @@ class TestContextVarIsolation:
             record_decision("tool_b", "CRON_DENY", "from task B")
             results["b"] = get_audit_entries()
 
-        await asyncio.gather(asyncio.create_task(task_a()), asyncio.create_task(task_b()))
+        await asyncio.gather(
+            asyncio.create_task(task_a()), asyncio.create_task(task_b())
+        )
 
         assert len(results["a"]) == 2
         assert results["a"][0].tool_name == "tool_a"

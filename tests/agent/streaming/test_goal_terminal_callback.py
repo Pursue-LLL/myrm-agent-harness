@@ -70,7 +70,7 @@ class TestGoalTerminalCallbackTrigger:
 
         ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)
 
-        from myrm_agent_harness.agent.streaming.stream_recovery import (
+        from myrm_agent_harness.agent.streaming.recovery.stream_recovery import (
             StreamRecoveryMixin,
         )
 
@@ -122,7 +122,7 @@ class TestGoalTerminalCallbackTrigger:
 
         ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)
 
-        from myrm_agent_harness.agent.streaming.stream_recovery import (
+        from myrm_agent_harness.agent.streaming.recovery.stream_recovery import (
             StreamRecoveryMixin,
         )
 
@@ -177,7 +177,7 @@ class TestGoalTerminalCallbackTrigger:
 
         ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)
 
-        from myrm_agent_harness.agent.streaming.stream_recovery import (
+        from myrm_agent_harness.agent.streaming.recovery.stream_recovery import (
             StreamRecoveryMixin,
         )
 
@@ -217,7 +217,7 @@ class TestGoalTerminalCallbackTrigger:
 
         ctx = _make_ctx(on_goal_terminal=None, goal_provider=goal_provider)
 
-        from myrm_agent_harness.agent.streaming.stream_recovery import (
+        from myrm_agent_harness.agent.streaming.recovery.stream_recovery import (
             StreamRecoveryMixin,
         )
 
@@ -258,7 +258,7 @@ class TestGoalTerminalCallbackTrigger:
         ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)
         ctx.cancel_token = cancel_token
 
-        from myrm_agent_harness.agent.streaming.stream_recovery import (
+        from myrm_agent_harness.agent.streaming.recovery.stream_recovery import (
             StreamRecoveryMixin,
         )
 
@@ -299,7 +299,7 @@ class TestGoalTerminalCallbackTrigger:
 
         ctx = _make_ctx(on_goal_terminal=callback, goal_provider=goal_provider)
 
-        from myrm_agent_harness.agent.streaming.stream_recovery import (
+        from myrm_agent_harness.agent.streaming.recovery.stream_recovery import (
             StreamRecoveryMixin,
         )
 

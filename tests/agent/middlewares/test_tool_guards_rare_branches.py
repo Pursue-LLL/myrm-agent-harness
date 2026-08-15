@@ -24,7 +24,9 @@ from myrm_agent_harness.agent.security.guards.context_budget import BudgetAction
 from myrm_agent_harness.agent.security.guards.estop import EStopLevel, EStopState
 from myrm_agent_harness.agent.security.guards.frequency_guard import FrequencyAction
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction
-from myrm_agent_harness.agent.security.guards.tool_turn_budget_guard import TurnBudgetAction
+from myrm_agent_harness.agent.security.guards.tool_turn_budget_guard import (
+    TurnBudgetAction,
+)
 
 
 def _request(args: dict[str, object] | None = None) -> MagicMock:
@@ -116,7 +118,12 @@ def _base_pre_patches():
 class TestPreCallRareBranches:
     @pytest.mark.asyncio
     async def test_estop_kill_all_prefixes_emergency(self) -> None:
-        estop = EStopState(level=EStopLevel.KILL_ALL, reason="user requested", activated_at=0.0, activated_by="user")
+        estop = EStopState(
+            level=EStopLevel.KILL_ALL,
+            reason="user requested",
+            activated_at=0.0,
+            activated_by="user",
+        )
         with (
             patch(
                 "myrm_agent_harness.agent.hooks.executor.fire_hook",
@@ -131,7 +138,9 @@ class TestPreCallRareBranches:
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.record_decision",
             ),
         ):
-            result = await run_pre_call_guards(_request(), "bash_code_execute_tool", "c1", {})
+            result = await run_pre_call_guards(
+                _request(), "bash_code_execute_tool", "c1", {}
+            )
         assert isinstance(result, ToolMessage)
         assert result.content.startswith("EMERGENCY:")
 
@@ -273,7 +282,9 @@ class TestPreCallRareBranches:
         assert "Too many calls" in result.content
 
     @pytest.mark.asyncio
-    async def test_loop_guard_feed_output_tokens_when_tracker_has_last_call(self) -> None:
+    async def test_loop_guard_feed_output_tokens_when_tracker_has_last_call(
+        self,
+    ) -> None:
         tracker = MagicMock()
         tracker.usage.last_call.completion_tokens = 42
         tracker.call_count = 7
@@ -381,7 +392,9 @@ class TestPreCallRareBranches:
                 {},
                 get_loop_guard_fn=lambda: _loop_guard(verdict),
             )
-        mock_emit.assert_called_once_with("sandbox_boundary", "bash_code_execute_tool", "Escaped sandbox", "error")
+        mock_emit.assert_called_once_with(
+            "sandbox_boundary", "bash_code_execute_tool", "Escaped sandbox", "error"
+        )
         assert isinstance(result, ToolMessage)
 
     @pytest.mark.asyncio
@@ -450,7 +463,9 @@ class TestPreCallRareBranches:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_tool_turn_budget_guard",
                 return_value=MagicMock(
-                    check=MagicMock(return_value=MagicMock(action=TurnBudgetAction.ALLOW)),
+                    check=MagicMock(
+                        return_value=MagicMock(action=TurnBudgetAction.ALLOW)
+                    ),
                     record=MagicMock(),
                 ),
             ),
@@ -511,7 +526,9 @@ class TestPreCallRareBranches:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_tool_turn_budget_guard",
                 return_value=MagicMock(
-                    check=MagicMock(return_value=MagicMock(action=TurnBudgetAction.ALLOW)),
+                    check=MagicMock(
+                        return_value=MagicMock(action=TurnBudgetAction.ALLOW)
+                    ),
                     record=MagicMock(),
                 ),
             ),
@@ -574,7 +591,9 @@ class TestPreCallRareBranches:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_tool_turn_budget_guard",
                 return_value=MagicMock(
-                    check=MagicMock(return_value=MagicMock(action=TurnBudgetAction.ALLOW)),
+                    check=MagicMock(
+                        return_value=MagicMock(action=TurnBudgetAction.ALLOW)
+                    ),
                     record=MagicMock(),
                 ),
             ),
@@ -637,7 +656,9 @@ class TestPreCallRareBranches:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_tool_turn_budget_guard",
                 return_value=MagicMock(
-                    check=MagicMock(return_value=MagicMock(action=TurnBudgetAction.ALLOW)),
+                    check=MagicMock(
+                        return_value=MagicMock(action=TurnBudgetAction.ALLOW)
+                    ),
                     record=MagicMock(),
                 ),
             ),
@@ -685,7 +706,9 @@ class TestPostCallRareBranches:
         return (
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard",
-                return_value=MagicMock(check_and_truncate=MagicMock(return_value=budget_verdict)),
+                return_value=MagicMock(
+                    check_and_truncate=MagicMock(return_value=budget_verdict)
+                ),
             ),
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.record_decision",
@@ -752,13 +775,14 @@ class TestPostCallRareBranches:
         loop_guard = MagicMock()
         loop_guard.record_result.return_value = post_verdict
         freq_guard = MagicMock()
-        with (
-            self._enter_patches(
-                patch(
-                    "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
-                    return_value=(ToolMessage(content="(no output)", name="t", tool_call_id="c"), "(no output)"),
+        with self._enter_patches(
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
+                return_value=(
+                    ToolMessage(content="(no output)", name="t", tool_call_id="c"),
+                    "(no output)",
                 ),
-            )
+            ),
         ):
             msg = ToolMessage(content="", name="t", tool_call_id="c")
             result = await run_post_call_guards(
@@ -781,17 +805,18 @@ class TestPostCallRareBranches:
         loop_guard = MagicMock()
         loop_guard.record_result.return_value = post_verdict
         freq_guard = MagicMock()
-        with (
-            self._enter_patches(
-                patch(
-                    "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
-                    return_value=(ToolMessage(content="output", name="t", tool_call_id="c"), "output"),
+        with self._enter_patches(
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
+                return_value=(
+                    ToolMessage(content="output", name="t", tool_call_id="c"),
+                    "output",
                 ),
-                patch(
-                    "myrm_agent_harness.agent.workspace_rules.tracker.check_and_append_rules",
-                    return_value="\nRule: do not delete",
-                ),
-            )
+            ),
+            patch(
+                "myrm_agent_harness.agent.workspace_rules.tracker.check_and_append_rules",
+                return_value="\nRule: do not delete",
+            ),
         ):
             msg = ToolMessage(content="output", name="t", tool_call_id="c")
             result = await run_post_call_guards(
@@ -817,17 +842,18 @@ class TestPostCallRareBranches:
         loop_guard.record_result.return_value = post_verdict
         freq_guard = MagicMock()
         mock_emit = AsyncMock()
-        with (
-            self._enter_patches(
-                patch(
-                    "myrm_agent_harness.agent.middlewares.tooling._tool_guards._emit_loop_guard_event",
-                    mock_emit,
+        with self._enter_patches(
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards._emit_loop_guard_event",
+                mock_emit,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
+                return_value=(
+                    ToolMessage(content="o", name="t", tool_call_id="c"),
+                    "o",
                 ),
-                patch(
-                    "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
-                    return_value=(ToolMessage(content="o", name="t", tool_call_id="c"), "o"),
-                ),
-            )
+            ),
         ):
             msg = ToolMessage(content="o", name="t", tool_call_id="c")
             await run_post_call_guards(
@@ -862,7 +888,10 @@ class TestPostCallRareBranches:
         with self._enter_patches(
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
-                return_value=(ToolMessage(content="o", name="t", tool_call_id="c"), "o"),
+                return_value=(
+                    ToolMessage(content="o", name="t", tool_call_id="c"),
+                    "o",
+                ),
             ),
         ):
             msg = ToolMessage(content="o", name="t", tool_call_id="c")
@@ -878,6 +907,7 @@ class TestPostCallRareBranches:
                 steering_token=None,
             )
         assert "Frequency warning" in result.content
+
     @pytest.mark.asyncio
     async def test_steering_token_pending_activates(self) -> None:
         steering = MagicMock()
@@ -890,7 +920,10 @@ class TestPostCallRareBranches:
         with self._enter_patches(
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
-                return_value=(ToolMessage(content="o", name="t", tool_call_id="c"), "o"),
+                return_value=(
+                    ToolMessage(content="o", name="t", tool_call_id="c"),
+                    "o",
+                ),
             ),
         ):
             msg = ToolMessage(content="o", name="t", tool_call_id="c")
@@ -917,14 +950,21 @@ class TestPostCallRareBranches:
         with self._enter_patches(
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
-                return_value=(ToolMessage(content="o", name="bash_code_execute_tool", tool_call_id="c"), "o"),
+                return_value=(
+                    ToolMessage(
+                        content="o", name="bash_code_execute_tool", tool_call_id="c"
+                    ),
+                    "o",
+                ),
             ),
             patch(
                 "myrm_agent_harness.agent.middlewares.completion.completion_guard_checklist.classify_verification",
                 return_value="echo",
             ),
         ):
-            msg = ToolMessage(content="o", name="bash_code_execute_tool", tool_call_id="c")
+            msg = ToolMessage(
+                content="o", name="bash_code_execute_tool", tool_call_id="c"
+            )
             await run_post_call_guards(
                 msg,
                 "bash_code_execute_tool",
@@ -937,3 +977,120 @@ class TestPostCallRareBranches:
                 steering_token=None,
             )
         loop_guard.tag_last_verification.assert_called_once_with("echo")
+
+    @pytest.mark.asyncio
+    async def test_post_hook_blocked_replaces_result_and_emits_failure_event(self) -> None:
+        """POST_TOOL_USE hook rejection replaces the result and emits a failure event."""
+        post_verdict = MagicMock()
+        post_verdict.action = LoopAction.ALLOW
+        loop_guard = MagicMock()
+        loop_guard.record_result.return_value = post_verdict
+        freq_guard = MagicMock()
+        mock_emit = AsyncMock()
+
+        hook_result = MagicMock()
+        hook_result.blocked = True
+        hook_result.all_succeeded = False
+        hook_result.reason = "Policy violation detected"
+        hook_result.tool_call_id = "c1"
+        hook_result.results = ()
+
+        with self._enter_patches(
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
+                return_value=(
+                    ToolMessage(content="o", name="t", tool_call_id="c"),
+                    "o",
+                ),
+            ),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                new_callable=AsyncMock,
+                return_value=hook_result,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.emit_hook_failure_event",
+                mock_emit,
+            ),
+        ):
+            msg = ToolMessage(content="o", name="t", tool_call_id="c")
+            result = await run_post_call_guards(
+                msg,
+                "t",
+                "c",
+                {},
+                loop_guard=loop_guard,
+                loop_verdict=_allow_verdict(),
+                freq_guard=freq_guard,
+                freq_verdict=_freq_allow(),
+                steering_token=None,
+            )
+        assert isinstance(result, ToolMessage)
+        assert result.status == "error"
+        mock_emit.assert_awaited_once()
+        emitted = mock_emit.await_args.args
+        assert emitted[0] == "t"
+        assert emitted[1] is hook_result
+
+    @pytest.mark.asyncio
+    async def test_post_hook_blocked_records_metrics_counter(self) -> None:
+        """POST_TOOL_USE hook rejection increments agent_hook_failures_total."""
+        from prometheus_client import REGISTRY
+
+        from myrm_agent_harness.observability.metrics.registry import metrics_registry
+
+        pytest.importorskip("prometheus_client")
+        assert metrics_registry.enabled
+
+        labels = {
+            "agent_id": "base_agent",
+            "tool_name": "t",
+            "hook_event": "post_tool_use",
+        }
+        before = REGISTRY.get_sample_value("agent_hook_failures_total", labels) or 0.0
+
+        post_verdict = MagicMock()
+        post_verdict.action = LoopAction.ALLOW
+        loop_guard = MagicMock()
+        loop_guard.record_result.return_value = post_verdict
+        freq_guard = MagicMock()
+
+        hook_result = MagicMock()
+        hook_result.blocked = True
+        hook_result.all_succeeded = False
+        hook_result.reason = "Policy violation detected"
+        hook_result.tool_call_id = "c1"
+        hook_result.results = ()
+
+        with self._enter_patches(
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
+                return_value=(
+                    ToolMessage(content="o", name="t", tool_call_id="c"),
+                    "o",
+                ),
+            ),
+            patch(
+                "myrm_agent_harness.agent.hooks.executor.fire_hook",
+                new_callable=AsyncMock,
+                return_value=hook_result,
+            ),
+            patch(
+                "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+                return_value=None,
+            ),
+        ):
+            msg = ToolMessage(content="o", name="t", tool_call_id="c")
+            await run_post_call_guards(
+                msg,
+                "t",
+                "c",
+                {},
+                loop_guard=loop_guard,
+                loop_verdict=_allow_verdict(),
+                freq_guard=freq_guard,
+                freq_verdict=_freq_allow(),
+                steering_token=None,
+            )
+        after = REGISTRY.get_sample_value("agent_hook_failures_total", labels) or 0.0
+        assert after == before + 1.0

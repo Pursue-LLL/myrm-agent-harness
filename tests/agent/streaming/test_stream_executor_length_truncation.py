@@ -504,7 +504,7 @@ async def test_diagnostic_failure_still_emits_event(mock_context):
 
 def test_contextvar_get_set_reset():
     """get/set/reset ephemeral_max_output_tokens ContextVar round-trip."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
         reset_ephemeral_max_output_tokens,
         set_ephemeral_max_output_tokens,
@@ -521,7 +521,7 @@ def test_contextvar_get_set_reset():
 
 def test_contextvar_set_caps_at_max():
     """set_ephemeral_max_output_tokens caps at _MAX_EPHEMERAL_OUTPUT_TOKENS (32768)."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         _MAX_EPHEMERAL_OUTPUT_TOKENS,
         get_ephemeral_max_output_tokens,
         reset_ephemeral_max_output_tokens,
@@ -639,7 +639,7 @@ async def test_tool_call_retry_skipped_in_command_mode(mock_context):
 @pytest.mark.asyncio
 async def test_boost_output_tokens_progressive_scaling(mock_context):
     """_boost_output_tokens applies progressive scaling: 2x, 3x, 4x."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
         reset_ephemeral_max_output_tokens,
     )
@@ -672,7 +672,7 @@ async def test_boost_output_tokens_progressive_scaling(mock_context):
 @pytest.mark.asyncio
 async def test_boost_no_op_when_llm_is_none(mock_context):
     """_boost_output_tokens is a no-op when llm is None."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
     )
 
@@ -686,7 +686,7 @@ async def test_boost_no_op_when_llm_is_none(mock_context):
 @pytest.mark.asyncio
 async def test_boost_no_op_when_max_tokens_invalid(mock_context):
     """_boost_output_tokens is a no-op when max_tokens is 0 or negative."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
     )
 
@@ -736,7 +736,7 @@ async def test_no_content_no_reasoning_no_tool_calls(mock_context):
 
 def test_has_non_reasoning_content_list_with_strings():
     """_has_non_reasoning_content returns True for list content with non-empty strings."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         StreamTruncationRecoveryMixin,
     )
 
@@ -750,7 +750,7 @@ def test_has_non_reasoning_content_list_with_strings():
 
 def test_has_non_reasoning_content_list_with_non_thinking_dict():
     """_has_non_reasoning_content returns True for non-thinking dict blocks."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         StreamTruncationRecoveryMixin,
     )
 
@@ -853,7 +853,7 @@ async def test_tool_call_retry_drops_truncated_ai_message(mock_context):
 @pytest.mark.asyncio
 async def test_ephemeral_contextvar_reset_after_execute():
     """ContextVar is always reset in StreamExecutor.execute's finally block."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
         set_ephemeral_max_output_tokens,
     )
@@ -891,7 +891,7 @@ async def test_ephemeral_contextvar_reset_after_execute():
 
 def test_boost_caps_at_65536():
     """_boost_output_tokens never exceeds MAX_EPHEMERAL_OUTPUT_TOKENS (65536)."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
         reset_ephemeral_max_output_tokens,
     )
@@ -930,7 +930,7 @@ def test_boost_caps_at_65536():
 @pytest.mark.asyncio
 async def test_boost_uses_model_kwargs_max_tokens(mock_context):
     """When llm.max_tokens is None but model_kwargs has max_tokens, boost works."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
         reset_ephemeral_max_output_tokens,
     )
@@ -949,7 +949,7 @@ async def test_boost_uses_model_kwargs_max_tokens(mock_context):
 @pytest.mark.asyncio
 async def test_boost_prefers_direct_max_tokens_over_model_kwargs(mock_context):
     """llm.max_tokens takes precedence over model_kwargs.max_tokens."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
         reset_ephemeral_max_output_tokens,
     )
@@ -968,7 +968,7 @@ async def test_boost_prefers_direct_max_tokens_over_model_kwargs(mock_context):
 @pytest.mark.asyncio
 async def test_boost_no_op_when_model_kwargs_max_tokens_invalid(mock_context):
     """model_kwargs.max_tokens <= 0 is ignored, boost is no-op."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
         reset_ephemeral_max_output_tokens,
     )
@@ -987,7 +987,7 @@ async def test_boost_no_op_when_model_kwargs_max_tokens_invalid(mock_context):
 @pytest.mark.asyncio
 async def test_boost_no_op_when_model_kwargs_empty(mock_context):
     """Empty model_kwargs means no fallback, boost is no-op."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
         get_ephemeral_max_output_tokens,
         reset_ephemeral_max_output_tokens,
     )

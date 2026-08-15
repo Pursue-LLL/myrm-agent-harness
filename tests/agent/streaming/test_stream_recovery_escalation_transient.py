@@ -21,7 +21,7 @@ from myrm_agent_harness.agent.streaming.stream_executor import (
     StreamContext,
     StreamExecutor,
 )
-from myrm_agent_harness.agent.streaming.stream_recovery import (
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery import (
     _extract_retry_after_ms,
     _is_escalation_marker_message,
 )
@@ -136,11 +136,11 @@ async def test_overflow_stage2_truncation(ctx):
 
     with (
         patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery.is_context_overflow",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
             return_value=True,
         ),
         patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery._truncate_oldest_rounds",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery._truncate_oldest_rounds",
             return_value=300,
         ) as truncate_mock,
     ):
@@ -305,7 +305,7 @@ class TestHandleTransientRetry:
         from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
         with patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
             return_value=ErrorKind.AUTH,
         ):
             result = await executor._handle_transient_retry(RuntimeError("auth"), 0)
@@ -320,11 +320,11 @@ class TestHandleTransientRetry:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
                 return_value=ErrorKind.RATE_LIMIT,
             ),
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery.asyncio.sleep",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):
@@ -343,7 +343,7 @@ class TestHandleTransientRetry:
         from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 
         with patch(
-            "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
             return_value=ErrorKind.RATE_LIMIT,
         ):
             result = await executor._handle_transient_retry(RuntimeError("rate limited"), 15)
@@ -362,11 +362,11 @@ class TestHandleTransientRetry:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
                 return_value=ErrorKind.TIMEOUT,
             ),
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery.asyncio.sleep",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):
@@ -382,11 +382,11 @@ class TestHandleTransientRetry:
 
         with (
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
                 return_value=ErrorKind.OVERLOADED,
             ),
             patch(
-                "myrm_agent_harness.agent.streaming.stream_recovery.asyncio.sleep",
+                "myrm_agent_harness.agent.streaming.recovery.stream_recovery.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):

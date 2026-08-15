@@ -53,7 +53,9 @@ class MetricsRegistry:
         self.enabled = PROMETHEUS_AVAILABLE
 
         if not self.enabled:
-            logger.debug("prometheus_client not installed. Metrics collection disabled.")
+            logger.debug(
+                "prometheus_client not installed. Metrics collection disabled."
+            )
             return
 
         from prometheus_client import REGISTRY
@@ -104,27 +106,41 @@ class MetricsRegistry:
             registry=self.registry,
         )
 
-    def record_execution(self, agent_id: str, duration_s: float, status: str = "success") -> None:
+    def record_execution(
+        self, agent_id: str, duration_s: float, status: str = "success"
+    ) -> None:
         """Record agent execution duration."""
         if self.enabled:
-            self.agent_execution_duration_seconds.labels(agent_id=agent_id, status=status).observe(duration_s)
+            self.agent_execution_duration_seconds.labels(
+                agent_id=agent_id, status=status
+            ).observe(duration_s)
 
-    def record_tool_call(self, agent_id: str, tool_name: str, status: str = "success") -> None:
+    def record_tool_call(
+        self, agent_id: str, tool_name: str, status: str = "success"
+    ) -> None:
         """Record a tool call."""
         if self.enabled:
-            self.agent_tool_calls_total.labels(agent_id=agent_id, tool_name=tool_name, status=status).inc()
+            self.agent_tool_calls_total.labels(
+                agent_id=agent_id, tool_name=tool_name, status=status
+            ).inc()
 
-    def record_tokens(self, agent_id: str, model: str, prompt_tokens: int, completion_tokens: int) -> None:
+    def record_tokens(
+        self, agent_id: str, model: str, prompt_tokens: int, completion_tokens: int
+    ) -> None:
         """Record token consumption."""
         if self.enabled:
             if prompt_tokens > 0:
-                self.agent_tokens_total.labels(agent_id=agent_id, model=model, token_type="prompt").inc(prompt_tokens)
+                self.agent_tokens_total.labels(
+                    agent_id=agent_id, model=model, token_type="prompt"
+                ).inc(prompt_tokens)
             if completion_tokens > 0:
-                self.agent_tokens_total.labels(agent_id=agent_id, model=model, token_type="completion").inc(
-                    completion_tokens
-                )
+                self.agent_tokens_total.labels(
+                    agent_id=agent_id, model=model, token_type="completion"
+                ).inc(completion_tokens)
 
-    def record_tool_arg_recovery(self, agent_id: str, tool_name: str, strategy: str, safe: bool) -> None:
+    def record_tool_arg_recovery(
+        self, agent_id: str, tool_name: str, strategy: str, safe: bool
+    ) -> None:
         """Record a tool argument recovery attempt."""
         if self.enabled:
             self.agent_tool_arg_recovery_total.labels(
@@ -134,7 +150,9 @@ class MetricsRegistry:
                 safe=str(safe).lower(),
             ).inc()
 
-    def record_hook_failure(self, agent_id: str, tool_name: str, hook_event: str) -> None:
+    def record_hook_failure(
+        self, agent_id: str, tool_name: str, hook_event: str
+    ) -> None:
         """Record a post-tool hook failure."""
         if self.enabled:
             self.agent_hook_failures_total.labels(
@@ -143,7 +161,9 @@ class MetricsRegistry:
                 hook_event=hook_event,
             ).inc()
 
-    def record_approval_denied(self, agent_id: str, tool_name: str, reason: str) -> None:
+    def record_approval_denied(
+        self, agent_id: str, tool_name: str, reason: str
+    ) -> None:
         """Record an auto-denied approval request."""
         if self.enabled:
             self.agent_approval_denied_total.labels(

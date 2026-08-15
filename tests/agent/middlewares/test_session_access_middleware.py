@@ -27,7 +27,10 @@ def _make_config() -> object:
 class TestBeforeModel:
     def test_no_config_returns_none(self) -> None:
         mw = SessionAccessMiddleware()
-        with patch("myrm_agent_harness.agent.middlewares.session_access_middleware.get_security_config", return_value=None):
+        with patch(
+            "myrm_agent_harness.agent.middlewares.session_access_middleware.get_security_config",
+            return_value=None,
+        ):
             assert mw.before_model({"messages": []}, None) is None
 
     def test_empty_block_returns_none(self) -> None:
@@ -107,7 +110,9 @@ class TestBeforeModel:
                 return_value="- /ws [read-write]",
             ),
         ):
-            result = mw.before_model({"messages": [HumanMessage(content="hi"), existing]}, None)
+            result = mw.before_model(
+                {"messages": [HumanMessage(content="hi"), existing]}, None
+            )
             assert result is None
 
     def test_after_model_returns_none(self) -> None:
