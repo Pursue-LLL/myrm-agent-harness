@@ -30,13 +30,17 @@ def _make_mock_llm() -> AsyncMock:
     ``llm.astream(...)`` (without awaiting it) and ``llm.with_structured_output``
     synchronously, so un-configured mocks leak "never awaited" RuntimeWarnings.
     Making both explicitly synchronous keeps the parser/ainvoke fallback paths
-    exercised without unawaited coroutines.
+    exercised without unawaited coroutines. ``model_name``/``model`` are also
+    pinned to empty strings so ``get_model_context_limit`` takes its early
+    ``None`` return instead of forwarding the AsyncMock into litellm.
     """
     llm = AsyncMock()
     llm.astream = MagicMock(side_effect=NotImplementedError("no stream — fallback to ainvoke"))
     llm.with_structured_output = MagicMock(
         side_effect=NotImplementedError("no structured output — fallback to parser")
     )
+    llm.model_name = ""
+    llm.model = ""
     return llm
 
 
