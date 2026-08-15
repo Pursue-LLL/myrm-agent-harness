@@ -37,7 +37,6 @@ def _make_checkpoint(
         session_id=session_id,
         timestamp=time.time(),
         messages=[{"role": "user", "content": "hello"}],
-        tool_outputs=[],
         variables={},
         progress=progress,
         last_tool="web_search",

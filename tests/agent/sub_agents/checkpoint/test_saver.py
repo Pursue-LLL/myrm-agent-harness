@@ -25,7 +25,6 @@ def _make_checkpoint(
         session_id=session_id,
         timestamp=time.time(),
         messages=messages or [{"role": "user", "content": "hello"}],
-        tool_outputs=[{"tool": "search", "result": "ok"}],
         variables={"key": "value"},
         progress=progress,
         last_tool=last_tool,
@@ -58,7 +57,6 @@ class TestSubagentCheckpoint:
     def test_default_values(self) -> None:
         cp = SubagentCheckpoint(task_id="t", agent_type="a", session_id="s", timestamp=0.0)
         assert cp.messages == []
-        assert cp.tool_outputs == []
         assert cp.variables == {}
         assert cp.progress == 0.0
         assert cp.last_tool is None

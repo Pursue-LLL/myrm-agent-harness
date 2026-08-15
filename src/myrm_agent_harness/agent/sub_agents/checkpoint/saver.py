@@ -83,9 +83,6 @@ class SubagentCheckpoint:
     messages: list[dict[str, object]] = field(default_factory=list)
     """LangChain messages (serialized)"""
 
-    tool_outputs: list[dict[str, object]] = field(default_factory=list)
-    """Tool execution history (for recovery)"""
-
     variables: dict[str, object] = field(default_factory=dict)
     """Agent runtime variables"""
 
