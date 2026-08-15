@@ -834,6 +834,8 @@ tools = create_memory_tools(manager=manager)
 | **Stable** | Profile、Self-Instructions、Behavioral Rules、Corrections | `SystemMessage`，包裹 `<user_memory_context>` | ✅ 与同用户前缀稳定对齐 |
 | **Learned（advisory）** | Learned Preferences / Learned Rules | `HumanMessage`，注入 `[Created: YYYY-MM-DD]` 绝对时间戳，并经 `wrap_untrusted(...)` 包裹（`<<<UNTRUSTED_DATA id="…">>>`），与 SECURITY_BOUNDARY 规则对齐 | ⚠️ 随机边界 id 前缀每请求变化；带静态绝对时间戳，保留 Prompt Caching |
 
+**统一 guidance tail**：无论注入的是 stable 还是 learned 上下文，`<user_memory_context>`/`<<<UNTRUSTED_DATA>>>` 末尾均携带同一份 `_memory_guidance_tail()`——包含 **Citation Requirements**（要求模型在引用记忆/规则时输出 `<cite:MEMORY_ID>` 标签，供业务层提取展示）与 **Memory Search** 指引（何时用 `memory_search_tool` 及 corpus 语义）。保证冷启动、stable-only、learned 三条路径的引用行为一致。
+
 **一次性注入**：若消息前部已包含 `<user_memory_context` **或** `<<<UNTRUSTED_DATA`，则跳过，避免/learned-only 路径被重复写入。
 
 前缀顺序（与其它中间件 stacking 对齐后）通常为：
