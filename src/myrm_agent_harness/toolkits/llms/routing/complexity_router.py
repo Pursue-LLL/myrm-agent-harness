@@ -24,6 +24,7 @@ select the appropriate model tier based on query complexity and session context.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -601,6 +602,7 @@ def _apply_momentum(
 
 _JUDGE_CACHE_MAX = 256
 _JUDGE_CACHE_TTL_S = 300.0
+_JUDGE_TIMEOUT_S = 5.0
 _judge_cache: dict[str, tuple[str, float]] = {}
 
 _TIER_PARSE_RE = re.compile(r'"tier"\s*:\s*"(SIMPLE|STANDARD|REASONING)"', re.IGNORECASE)
@@ -647,11 +649,14 @@ async def _llm_judge_classify(
     from langchain_core.messages import HumanMessage, SystemMessage
 
     try:
-        response = await judge_llm.ainvoke(
-            [
-                SystemMessage(content=judge_system_prompt),
-                HumanMessage(content=text[:500]),
-            ]
+        response = await asyncio.wait_for(
+            judge_llm.ainvoke(
+                [
+                    SystemMessage(content=judge_system_prompt),
+                    HumanMessage(content=text[:500]),
+                ]
+            ),
+            timeout=_JUDGE_TIMEOUT_S,
         )
         content = extract_answer_text(response).strip()
 
@@ -802,6 +807,9 @@ async def route_task(
             final_tier = await _llm_judge_classify(text, judge_llm, judge_prompt)
             _cache_put(text_hash, final_tier)
             reason = "llm_judge"
+        final_tier, overridden = _apply_momentum(final_tier, text, recent_tiers)
+        if overridden:
+            reason = "momentum_override"
     else:
         final_tier = RoutingTier.STANDARD
         reason = "default_standard"

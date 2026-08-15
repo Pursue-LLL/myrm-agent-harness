@@ -14,6 +14,7 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -466,7 +467,57 @@ class TestRouteTask:
             reasoning_model_cfg=REASON_CFG,
             judge_llm=judge_llm,
         )
-        assert isinstance(result, RoutingResult)
+        assert judge_llm.ainvoke.call_count == 1
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "llm_judge"
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_applies_momentum(self) -> None:
+        """A short ambiguous follow-up judged SIMPLE must be lifted by session
+        momentum during a multi-turn complex task (mirrors the rule path)."""
+        mock_response = MagicMock()
+        mock_response.content = '{"tier":"SIMPLE"}'
+        judge_llm = AsyncMock()
+        judge_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await route_task(
+            "tell me about interesting things in the world of technology",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        assert judge_llm.ainvoke.call_count == 1
+        assert result.tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
+        assert result.reason == "momentum_override"
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_timeout_falls_back_to_standard(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A hung judge call must not block routing: wait_for timeout degrades to
+        STANDARD instead of stalling the request."""
+        from myrm_agent_harness.toolkits.llms.routing import complexity_router
+
+        monkeypatch.setattr(complexity_router, "_JUDGE_TIMEOUT_S", 0.01)
+        judge_llm = AsyncMock()
+
+        async def _slow(*_args: object, **_kwargs: object) -> MagicMock:
+            await asyncio.sleep(0.5)
+            return MagicMock(content='{"tier":"REASONING"}')
+
+        judge_llm.ainvoke = _slow
+
+        result = await route_task(
+            "tell me about interesting things in the world of technology",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+        )
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "llm_judge"
 
     @pytest.mark.asyncio
     async def test_momentum_override(self) -> None:

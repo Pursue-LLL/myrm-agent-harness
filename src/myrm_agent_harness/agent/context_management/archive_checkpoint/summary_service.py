@@ -43,9 +43,18 @@ _TASKS: set[asyncio.Task[None]] = set()
 
 
 def reset_archive_summary_pending_state() -> None:
-    """Clear in-flight archive summary queue keys (test helper)."""
+    """Clear in-flight archive summary queue keys (test helper).
+
+    Also drops the cached semaphore and tracked tasks. ``asyncio.Semaphore``
+    is lazily bound to the running event loop, so tests that reuse the module
+    state across pytest-asyncio function-scoped loops must reset it — otherwise
+    background dispatch tasks raise "bound to a different event loop".
+    """
+    global _SEMAPHORE
     _PENDING_KEYS.clear()
     _PENDING_BY_CHAT.clear()
+    _SEMAPHORE = None
+    _TASKS.clear()
 
 
 class ArchiveSummaryService:
