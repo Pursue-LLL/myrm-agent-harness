@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 from .. import execution_paths
 from ..checkpoint_protocol import CheckpointerProtocol
 from ..execution_paths import CONTEXT_SUBDIRS
-from .session_activity import load_session_activity, load_session_activity_async
+from .session.session_activity import load_session_activity, load_session_activity_async
 
 _CLEANABLE_SUBDIRS = list(CONTEXT_SUBDIRS.values())
 

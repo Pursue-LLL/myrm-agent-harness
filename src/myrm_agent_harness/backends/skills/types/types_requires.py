@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from myrm_agent_harness.backends.skills.types_coercion import _coerce_str_list
+from .types_coercion import _coerce_str_list
 
 
 @dataclass

@@ -24,7 +24,7 @@ BaseAgent.run()
 │ (logger.py) │     │ FileEventLogBackend │
 └─────────────┘     └──────────────────┘
       │
-      ├─ trace_builder.py — llm_request + token_usage → LLMCallRecord；tool_start/tool_end 按 tool_call_id 配对，`tasks_steps` 流式步骤读侧兼容 → 指令血缘（配对/LLM/tasks_steps 逻辑拆分至 _pairing.py/_llm.py/_tasks_steps.py）
+      ├─ trace_builder.py — llm_request + token_usage → LLMCallRecord；tool_start/tool_end 按 tool_call_id 配对，`tasks_steps` 流式步骤读侧兼容 → 指令血缘（配对/LLM/tasks_steps 逻辑分别由 _pairing.py/_llm.py/_tasks_steps.py 承载，共享工具函数与 `_EVENT_META_KEYS` 元数据键集合在 _common.py）
       ├─ analytics.py / analytics_queries.py — 读侧聚合
       ├─ evidence_extractor.py — Trace 证据挖掘（idle → skill evolution）
       ├─ llm_observability.py — prompt preview 截断记录
@@ -40,7 +40,7 @@ BaseAgent.run()
 | `protocols.py` | `EventLogBackend` Protocol — 框架扩展点 |
 | `logger.py` | 集成 façade，注入 BaseAgent |
 | `types.py` / `trace_types.py` | 事件 DTO SSOT |
-| `trace_builder.py` | LLM 调用时间线重建 + tool_call_id 血缘配对（`_pairing.py`/`_llm.py`/`_tasks_steps.py` 拆分子模块） |
+| `trace_builder.py` | LLM 调用时间线重建 + tool_call_id 血缘配对（配对/LLM/tasks_steps 逻辑由 `_pairing.py`/`_llm.py`/`_tasks_steps.py` 承载，共享工具函数与 `_EVENT_META_KEYS` 元数据键集合在 `_common.py`） |
 | `backends/` | 内置存储实现（文件/内存） |
 | `dataset_export/` | 训练数据导出管道 |
 | `cli_summary.py` | CLI 摘要生成 |

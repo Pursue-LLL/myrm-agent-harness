@@ -39,6 +39,23 @@ async def test_create_collection_exists(store, mock_client):
 
 
 @pytest.mark.asyncio
+async def test_ensure_collection_creates_when_missing(store, mock_client):
+    mock_client.collection_exists.return_value = False
+    mock_client.create_collection.return_value = True
+
+    await store.ensure_collection("test_col", dimension=128, distance="cosine")
+    mock_client.create_collection.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_ensure_collection_skips_when_exists(store, mock_client):
+    mock_client.collection_exists.return_value = True
+
+    await store.ensure_collection("test_col", dimension=128)
+    mock_client.create_collection.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_delete_collection(store, mock_client):
     mock_client.collection_exists.return_value = True
     result = await store.delete_collection("test_col")

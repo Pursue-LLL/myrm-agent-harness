@@ -156,7 +156,7 @@ def build_step_data(tool_name: str, tool_args: dict[str, object]) -> StepBuildRe
             except Exception:
                 pass
 
-            from myrm_agent_harness.agent.meta_tools.file_ops.file_edit_normalizer import (
+            from myrm_agent_harness.agent.meta_tools.file_ops.core.file_edit_normalizer import (
                 merge_edits_for_diff,
                 normalize_edits_payload,
             )

@@ -5,7 +5,8 @@ Eight-layer defense integrated as a LangChain AgentMiddleware:
 awrap_model_call (wraps each LLM call, non-persistent request.override):
     0. Circuit Breaker Cognition — injects a transient HumanMessage via
        request.override when terminal errors are active (e.g. network_blocked,
-       sandbox_ro), so the LLM avoids planning doomed tool calls. Uses
+       sandbox_ro, config_or_auth:search, config_or_auth:browser), so the LLM
+       avoids planning doomed tool calls. Uses
        request.override so it never pollutes graph state or accumulates.
        Uses HumanMessage to preserve SystemMessage hash stability (prompt cache).
 
@@ -84,6 +85,16 @@ _CIRCUIT_BREAKER_HINTS: dict[str, str] = {
         "The filesystem is READ-ONLY in this environment. "
         "Do NOT call file_write/file_edit/mkdir or any write tools outside /workspace. "
         "All output MUST be written to /workspace."
+    ),
+    "config_or_auth:search": (
+        "Search tools are currently unavailable because the search service "
+        "configuration or credentials are invalid. Do NOT retry search tools. "
+        "Use browser tools or web_fetch tools to gather information instead."
+    ),
+    "config_or_auth:browser": (
+        "Browser tools are currently unavailable because the browser "
+        "environment cannot be launched. Do NOT retry browser tools. "
+        "Use search tools or web_fetch tools to gather information instead."
     ),
 }
 
@@ -164,7 +175,13 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         terminal_errors = get_terminal_errors().get_all()
         if terminal_errors:
             constraints: list[str] = []
+            # A global network block supersedes family-scoped config/auth
+            # guidance — injecting both would contradict each other
+            # ("don't call browser" + "use browser tools").
+            network_blocked = "network_blocked" in terminal_errors
             for err in sorted(terminal_errors):
+                if network_blocked and err.startswith("config_or_auth:"):
+                    continue
                 if err in _CIRCUIT_BREAKER_HINTS:
                     constraints.append(_CIRCUIT_BREAKER_HINTS[err])
                 else:

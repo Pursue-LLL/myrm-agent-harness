@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from myrm_agent_harness.runtime.context.session_activity import (
+from myrm_agent_harness.runtime.context.session.session_activity import (
     load_session_activity,
     load_session_activity_async,
 )

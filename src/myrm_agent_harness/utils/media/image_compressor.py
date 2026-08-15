@@ -10,6 +10,8 @@ Pure image compression utility. Supports jpg/jpeg/png formats.
 Uses Pillow for jpg/jpeg/webp, imagequant for PNG (with Pillow fallback).
 Also exposes ``compress_if_needed`` — responsive send-time compression with
 animated GIF/WebP protection and fail-safe fallback to the original bytes.
+``MAX_DECODE_PIXELS`` bounds Pillow's decode guard so decompression-bomb
+images fail fast instead of exhausting memory.
 """
 
 from __future__ import annotations
@@ -25,12 +27,24 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 # SSOT — send-time compression defaults shared by MediaResolver and upload flows.
-# Sized to land well under Anthropic's 5 MiB per-image ceiling after base64
-# expansion (4 MiB raw ≈ 5.3 MiB base64), while keeping 2048px fidelity for
-# vision analysis.
+# ``trigger_bytes`` is measured in base64 space to mirror provider per-image
+# ceilings (Claude API 10 MiB, Anthropic on Bedrock/Vertex & OpenAI 5 MiB,
+# Groq 4 MiB): raw bytes inflate ~4/3 when base64-embedded, so a raw-byte
+# comparison under a 4 MiB ceiling would let a 5.3 MiB base64 payload through.
+# Mirrors hermes-agent's base64-space embed cap (_EMBED_TARGET_BYTES = 4 MiB),
+# while keeping 2048px fidelity for vision analysis.
 SEND_COMPRESS_MAX_DIMENSION = 2048
 SEND_COMPRESS_QUALITY = 0.75
 SEND_COMPRESS_TRIGGER_BYTES = 4 * 1024 * 1024
+
+# Decode guard — bounds Pillow's built-in decompression-bomb protection.
+# ``Image.MAX_IMAGE_PIXELS`` is a process-wide setting: assigning ``None``
+# silently disables the guard for every Pillow decode in the process, so a
+# tiny file declaring a huge canvas would be decoded in full. Bounding it
+# keeps legitimate images decodable (Anthropic caps at 8000px per side
+# ≈ 64 MP) while bombs raise DecompressionBombError at ``Image.open`` before
+# any pixel allocation.
+MAX_DECODE_PIXELS = 80_000_000
 
 
 class ImageCompressor:
@@ -80,6 +94,11 @@ class ImageCompressor:
 
         if isinstance(input_path, bytes):
             input_path = io.BytesIO(input_path)
+
+        # Guard every entry point, independent of process-global state:
+        # the BytesIO/PNG path decodes via img.save() below before any
+        # sub-method assigns the cap, so set it up front.
+        Image.MAX_IMAGE_PIXELS = MAX_DECODE_PIXELS
 
         # Handle input
         if isinstance(input_path, (str, Path)):
@@ -161,6 +180,9 @@ class ImageCompressor:
         - Oversized images: compressed via :meth:`compress`. Falls back to the original bytes
           on any failure so send-time compression can never break a call.
 
+        ``trigger_bytes`` is measured in base64 space (the raw bytes are inflated
+        ~4/3 before comparison), mirroring provider per-image ceilings.
+
         Returns:
             Compressed or original bytes (never None).
         """
@@ -168,7 +190,7 @@ class ImageCompressor:
             return raw_bytes
 
         try:
-            Image.MAX_IMAGE_PIXELS = None
+            Image.MAX_IMAGE_PIXELS = MAX_DECODE_PIXELS
             with Image.open(io.BytesIO(raw_bytes)) as probe:
                 format_name = (probe.format or "").lower()
                 # Animated GIF/WebP: preserve animation — do not re-encode to a static frame.
@@ -183,10 +205,16 @@ class ImageCompressor:
             logger.warning("Image probe failed in compress_if_needed: %s", exc)
             return raw_bytes
 
+        # Compare in base64 space: provider per-image ceilings (Claude 10 MiB
+        # direct / 5 MiB Bedrock·Vertex·OpenAI / 4 MiB Groq) are base64 sizes,
+        # and raw bytes inflate ~4/3 on embedding. A raw-byte check would let
+        # a 4 MiB raw image (≈5.3 MiB base64) sail past a 5 MiB ceiling and
+        # burn a recovery round-trip.
+        b64_len = 4 * ((len(raw_bytes) + 2) // 3)
         if (
             width <= max_dimension
             and height <= max_dimension
-            and len(raw_bytes) <= trigger_bytes
+            and b64_len <= trigger_bytes
         ):
             return raw_bytes
 
@@ -235,7 +263,7 @@ class ImageCompressor:
         pillow_quality = max(1, min(100, pillow_quality))
 
         # Open image
-        Image.MAX_IMAGE_PIXELS = None
+        Image.MAX_IMAGE_PIXELS = MAX_DECODE_PIXELS
         img: Image.Image = Image.open(input_source)
 
         # Apply EXIF orientation
@@ -303,7 +331,7 @@ class ImageCompressor:
             import imagequant  # type: ignore[import-not-found]
             from PIL import ImageOps
 
-            Image.MAX_IMAGE_PIXELS = None
+            Image.MAX_IMAGE_PIXELS = MAX_DECODE_PIXELS
             img: Image.Image = Image.open(input_path)
             img = ImageOps.exif_transpose(img)
 
@@ -382,7 +410,7 @@ class ImageCompressor:
         """Compress PNG using Pillow."""
         from PIL import ImageOps
 
-        Image.MAX_IMAGE_PIXELS = None
+        Image.MAX_IMAGE_PIXELS = MAX_DECODE_PIXELS
         img: Image.Image = Image.open(input_path)
         img = ImageOps.exif_transpose(img)
 

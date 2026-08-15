@@ -12,9 +12,13 @@
 - utils.errors::ToolError (POS: Framework-level tool errors)
 - toolkits.browser.exceptions::BrowserError (POS: Browser tool exceptions)
 - toolkits.web_search.exceptions::WebSearchError (POS: Web search exceptions)
+- toolkits.web_search.exceptions::SearchAPIError, SearchConfigError (POS: Structured config/auth search errors for terminal classification)
 
 [OUTPUT]
 - NON_RETRYABLE_ERRORS: Tuple of exception types that should not be retried
+- TERMINAL_CONFIG_OR_AUTH: Terminal error category prefix for config/auth failures
+- _CONFIG_OR_AUTH_FAMILY_SEARCH / _CONFIG_OR_AUTH_FAMILY_BROWSER: Family-scoped terminal categories
+- classify_terminal_error(): Classify non-recoverable terminal errors (config/auth, family-scoped)
 - smart_truncate_output(): Keep first/last N lines, truncate middle
 - get_tool_timeout(): Zero-config timeout by tool name pattern
 - is_non_retryable(): Check if exception should not be retried
@@ -49,7 +53,11 @@ from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.agent.security.types import PIIAction, SensitivityLevel
 from myrm_agent_harness.core.security.guards.privacy_tracker import get_privacy_policy
 from myrm_agent_harness.toolkits.browser.exceptions import BrowserError
-from myrm_agent_harness.toolkits.web_search.exceptions import WebSearchError
+from myrm_agent_harness.toolkits.web_search.exceptions import (
+    SearchAPIError,
+    SearchConfigError,
+    WebSearchError,
+)
 from myrm_agent_harness.utils.errors import ToolError
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -124,6 +132,58 @@ def is_non_retryable(e: Exception, tool_name: str) -> bool:
             return True
 
     return tool_name == "bash_code_execute_tool"
+
+
+# ---------------------------------------------------------------------------
+# Non-recoverable (terminal) error classification
+# ---------------------------------------------------------------------------
+
+# Terminal error category registered into TerminalErrorRegistry so the
+# circuit breaker blocks subsequent calls of the same class within the turn.
+# Model can never fix these by retrying a different query / different args.
+#
+# config_or_auth is scoped per tool family so a broken search configuration
+# does not disable browser tools (independent infrastructure) and vice versa.
+TERMINAL_CONFIG_OR_AUTH = "config_or_auth"
+_CONFIG_OR_AUTH_FAMILY_SEARCH = f"{TERMINAL_CONFIG_OR_AUTH}:search"
+_CONFIG_OR_AUTH_FAMILY_BROWSER = f"{TERMINAL_CONFIG_OR_AUTH}:browser"
+
+
+def classify_terminal_error(e: Exception) -> str | None:
+    """Classify an exception as a non-recoverable terminal error.
+
+    Returns the terminal error category (e.g. ``"config_or_auth:search"``)
+    when the error is a configuration / authentication failure that no
+    amount of parameter variation can fix, otherwise ``None``.
+
+    These errors are structurally distinct from retryable failures:
+    - ``SearchConfigError`` — missing/invalid provider configuration (no API key).
+    - ``SearchAPIError`` with HTTP 401/403 — provider rejects credentials.
+    - ``BrowserLaunchError`` — browser environment is broken and cannot be
+      fixed by retrying.
+
+    The returned category is scoped to the tool family (``:search`` /
+    ``:browser``) so the circuit breaker only blocks tools of the same
+    family, never unrelated network tooling.
+    """
+    if isinstance(e, SearchConfigError):
+        return _CONFIG_OR_AUTH_FAMILY_SEARCH
+
+    if isinstance(e, SearchAPIError):
+        ctx = getattr(e, "context", None)
+        status_code = getattr(ctx, "status_code", None)
+        if isinstance(status_code, int) and status_code in (401, 403):
+            return _CONFIG_OR_AUTH_FAMILY_SEARCH
+
+    if isinstance(e, BrowserError):
+        from myrm_agent_harness.toolkits.browser.exceptions import (
+            BrowserLaunchError,
+        )
+
+        if isinstance(e, BrowserLaunchError):
+            return _CONFIG_OR_AUTH_FAMILY_BROWSER
+
+    return None
 
 
 def make_error_msg(

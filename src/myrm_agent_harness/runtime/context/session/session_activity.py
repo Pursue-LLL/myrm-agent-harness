@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from ..checkpoint_protocol import CheckpointerProtocol
+from ...checkpoint_protocol import CheckpointerProtocol
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](../MIDDLEWARE_SYSTEM.md)
 | `tool_history_hygiene.py` | Core | Sanitize pipeline: within-AIMessage re-id → ToolMessage dedup (keep-last) → cross-turn re-id; exports `sanitize_tool_history()` for grace-call / oneshot retry. Runs before dangling repair. | ✅ |
 | `dangling_tool_call_middleware.py` | Core | Repair malformed tool histories for strict providers: sanitize malformed calls, patch dangling tool_calls, drop orphan ToolMessages; exports `repair_dangling_tool_calls()` for direct LLM invocations (grace-call path). | ✅ |
 | `_tool_guards.py` | Internal | Pre-call and post-call guard orchestration (e-stop, loop budget, circuit breaker, turn budget). | ✅ |
-| `_tool_helpers.py` | Internal | Stateless helpers for `tool_interceptor_middleware` (output normalization, trust attenuation). | ✅ |
+| `_tool_helpers.py` | Internal | Stateless helpers for `tool_interceptor_middleware` (output normalization, trust attenuation, retry classification, terminal error classification). | ✅ |
 | `_tool_execution_lifecycle.py` | Internal | Dynamic tool resolution, heartbeat emission during long-running tool execution, and execution lifecycle hooks. | ✅ |
 | `_runtime_tool_governance.py` | Internal | Per-turn intent-aware tool narrowing (UI + readonly gates) and `compute_turn_allowed_names()` merged allowlist (prefix-cache safe). | ✅ |
 | `_mutation_verifier.py` | Internal | Per-turn file mutation verifier → SSE on failure. | ✅ |

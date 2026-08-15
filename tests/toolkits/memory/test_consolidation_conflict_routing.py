@@ -28,6 +28,7 @@ from myrm_agent_harness.toolkits.memory.strategies.consolidation import (
 )
 from myrm_agent_harness.toolkits.memory.types import (
     ConflictResolution,
+    EpisodicMemory,
     MemoryType,
     PendingRecord,
     SemanticMemory,
@@ -123,6 +124,7 @@ class TestConflictContext:
             accuracy_score=0.7,
             importance=0.8,
             merge_suggestion="Python and Rust both have merits",
+            memory_type=MemoryType.SEMANTIC,
         )
         assert ctx.old_memory_id == "old-1"
         assert ctx.old_content == "Python is best"
@@ -130,6 +132,7 @@ class TestConflictContext:
         assert ctx.accuracy_score == 0.7
         assert ctx.importance == 0.8
         assert ctx.merge_suggestion == "Python and Rust both have merits"
+        assert ctx.memory_type == MemoryType.SEMANTIC
 
     def test_frozen(self) -> None:
         ctx = ConflictContext(
@@ -139,6 +142,7 @@ class TestConflictContext:
             accuracy_score=0.5,
             importance=0.5,
             merge_suggestion="c",
+            memory_type=MemoryType.EPISODIC,
         )
         with pytest.raises(AttributeError):
             ctx.old_memory_id = "changed"  # type: ignore[misc]
@@ -151,6 +155,7 @@ class TestConflictContext:
             "accuracy_score",
             "importance",
             "merge_suggestion",
+            "memory_type",
         }
         actual_fields = {f.name for f in dc_fields(ConflictContext)}
         assert actual_fields == expected_fields
@@ -220,6 +225,19 @@ class TestConflictRoutingDecision:
         callback.assert_called_once()
         assert stats.routed_to_user == 1
         assert stats.corrected == 0
+
+    @pytest.mark.asyncio
+    async def test_routing_preserves_memory_type(self) -> None:
+        """ConflictContext.memory_type reflects the conflicting memory's real type (not hardcoded)."""
+        callback = AsyncMock(return_value=ConflictResolution.PENDING)
+        manager = _make_manager_mock()
+        manager.get_memory = AsyncMock(return_value=EpisodicMemory(content="old event"))
+        ops = [CorrectOp(memory_id="mem-1", corrected_content="new", importance=0.8, accuracy_score=0.6)]
+        stats = await _execute_operations(ops, manager, on_conflict=callback)
+        callback.assert_called_once()
+        ctx = callback.call_args[0][0]
+        assert ctx.memory_type == MemoryType.EPISODIC
+        assert stats.routed_to_user == 1
 
 
 class TestConflictResolutionBranches:

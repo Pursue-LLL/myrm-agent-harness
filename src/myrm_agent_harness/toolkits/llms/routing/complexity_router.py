@@ -360,8 +360,16 @@ def _score_contextual_signals(
     return scores
 
 
+_MEDIA_TYPES: frozenset[str] = frozenset({"image_url", "image", "video_url"})
+
+
 def _normalize_query(query: str | list[dict[str, object]]) -> tuple[str, bool]:
-    """Extract text from query and detect if it contains images."""
+    """Extract text from query and detect multimodal media (image/video).
+
+    Video requires vision capability (frame analysis), so it shares the same
+    hard floor as images — a video query must never route to the light SIMPLE
+    tier, which is not vision-guaranteed.
+    """
     if isinstance(query, str):
         return query, False
 
@@ -371,7 +379,7 @@ def _normalize_query(query: str | list[dict[str, object]]) -> tuple[str, bool]:
         if isinstance(item, dict):
             if item.get("type") == "text":
                 text_parts.append(str(item.get("text", "")))
-            elif item.get("type") in ("image_url", "image"):
+            elif item.get("type") in _MEDIA_TYPES:
                 has_image = True
     return " ".join(text_parts), has_image
 
@@ -536,6 +544,7 @@ def _apply_momentum(
     tier: RoutingTier,
     text: str,
     recent_tiers: list[RoutingTier] | None,
+    has_image: bool = False,
 ) -> tuple[RoutingTier, bool]:
     """Apply session momentum using weighted average (MR-17).
 
@@ -547,6 +556,11 @@ def _apply_momentum(
 
     Also supports downgrading: if recent tiers are all SIMPLE but current
     tier is STANDARD/REASONING, apply negative momentum to prevent over-routing.
+
+    Image queries carry a vision hard floor: the SIMPLE tier selects the light
+    model, which is not guaranteed vision-capable (see ``image_input`` +6.0 in
+    unified scoring). Momentum must never downgrade them below STANDARD — a
+    text-only conversation history cannot justify stripping the user's image.
 
     Returns (adjusted_tier, was_overridden).
     """
@@ -589,6 +603,14 @@ def _apply_momentum(
         adjusted = RoutingTier.SIMPLE
 
     if adjusted != tier:
+        if has_image and adjusted == RoutingTier.SIMPLE:
+            # Vision floor: SIMPLE selects the light (non-vision-guaranteed)
+            # model, so an image query keeps its rule verdict (STANDARD+).
+            logger.debug(
+                "Momentum downgrade to SIMPLE skipped: image query requires a vision-capable tier"
+            )
+            return tier, False
+
         logger.info(
             "Momentum override: %s → %s (weight=%.2f, history_avg=%.2f, effective=%.2f)",
             tier,
@@ -824,15 +846,15 @@ async def route_task(
             if deduped is not None:
                 # 命中纯判定缓存：仍需走 momentum（与 judge 缓存对称），
                 # 缓存只存无上下文的档位，会话上下文在此每轮重算。
-                final_tier, overridden = _apply_momentum(deduped, text, recent_tiers)
+                final_tier, overridden = _apply_momentum(deduped, text, recent_tiers, has_image)
                 reason = "momentum_override" if overridden else "content_dedup"
             else:
                 _dedup_store(text, has_image, rule_result)
-                final_tier, overridden = _apply_momentum(rule_result, text, recent_tiers)
+                final_tier, overridden = _apply_momentum(rule_result, text, recent_tiers, has_image)
                 reason = "momentum_override" if overridden else "rule_based"
         else:
             # min_tier 场景：跳过 dedup 读写，避免把升级上下文写入缓存
-            final_tier, overridden = _apply_momentum(rule_result, text, recent_tiers)
+            final_tier, overridden = _apply_momentum(rule_result, text, recent_tiers, has_image)
             reason = "momentum_override" if overridden else "rule_based"
     elif judge_llm is not None:
         text_hash = _hash_text(text)
@@ -851,7 +873,7 @@ async def route_task(
                 _cache_put(text_hash, judged_tier)
                 final_tier = judged_tier
                 reason = "llm_judge"
-        final_tier, overridden = _apply_momentum(final_tier, text, recent_tiers)
+        final_tier, overridden = _apply_momentum(final_tier, text, recent_tiers, has_image)
         if overridden:
             reason = "momentum_override"
     else:

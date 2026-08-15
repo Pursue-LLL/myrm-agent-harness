@@ -30,7 +30,7 @@ from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executo
 from myrm_agent_harness.utils.errors import ToolError
 
 from .core import FileOperationService, OperationContext, OperationType, StrReplaceEdit
-from .file_edit_normalizer import normalize_edits_payload
+from .core.file_edit_normalizer import normalize_edits_payload
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool

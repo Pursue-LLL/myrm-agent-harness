@@ -21,7 +21,7 @@
 [POS]
 File read tool factory and orchestration. Supports full workspace reads or Fast-track
 evicted_uploaded scope (UECD spill + chat uploads only). Heavy read logic lives in
-file_read_handlers.py.
+core/file_read_handlers.py.
 """
 
 from __future__ import annotations
@@ -56,12 +56,12 @@ from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
 from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
 from myrm_agent_harness.utils.errors import ToolError
 
-from .file_read_handlers import (
+from .core.file_read_handlers import (
     append_media_text_parts,
     build_multimodal_result,
     process_text_paths,
 )
-from .mcp_read_next_step_hint import append_mcp_docs_next_step_hint
+from .core.mcp_read_next_step_hint import append_mcp_docs_next_step_hint
 from .utils.document_reader import is_document_path
 from .utils.image_reader import is_image_path
 from .utils.pdf_reader import is_pdf_path

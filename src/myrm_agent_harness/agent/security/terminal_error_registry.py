@@ -1,8 +1,10 @@
 """Turn-scoped terminal error storage with persistence.
 
-Maintains a set of terminal error categories (e.g., 'network_blocked') that
-should block subsequent tool calls in the same turn. Persists to a hidden
-JSON file in the workspace root to survive server restarts.
+Maintains a set of terminal error categories (e.g., 'network_blocked',
+'config_or_auth:search', 'config_or_auth:browser', 'sandbox_ro') that should
+block subsequent tool calls in the same turn. Family-scoped categories
+('config_or_auth:<family>') only block tools of the matching family. Persists
+to a hidden JSON file in the workspace root to survive server restarts.
 
 [INPUT]
 - (none)

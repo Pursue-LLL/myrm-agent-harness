@@ -19,12 +19,10 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | offload.py | Core | Context offload: persist full tool outputs and conversation snapshots through framework-neutral scope IDs, with lifecycle access tracking and cleanup entrypoint re-exports. | ✅ |
 | restore_map_contract.py | Core | Shared restore-map schema v2 contract reader/writer for archive writers and restore guidance, including path normalization and line-range validation. | ✅ |
 | restore_map_structures.py | Core | Restore-map structural indexing and UI-safe restore metadata construction: content indexes, source-tagged recommended ranges, range-source hints, and bounded content feature summaries. | ✅ |
-| session_activity.py | Core | Session activity loading for context lifecycle management. | ✅ |
+| session/（子包） | Core | Session 级上下文生命周期子域：活跃会话加载（session-aware 清理）、volume-backed 置顶文件注册表（跨压缩保留）、LangGraph checkpoint/message SSOT（rewind/truncate/edit-resend）。3 个 `session_*` 模块聚合于此，`session/__init__.py` 为聚合门面统一 re-export | ✅ |
 | tracker_manager.py | Core | Generic singleton manager for tracker instances. | ✅ |
 | transparent_reader.py | Core | Transparent decompression for context files. | ✅ |
-| session_context_pins.py | Core | Volume-backed pinned file registry for cross-compaction retention (`pinned_context_files.json` per session). | ✅ |
 | context_branches.py | Core | Volume-backed snapshot branch manifest (`branches.json`); list/append/get by branch_id for GUI bookmark fork. | ✅ |
-| session_continuity.py | Core | LangGraph checkpoint/message SSOT for rewind/truncate/edit-resend (`sync_checkpoint_messages`, `ContinuitySyncError`). | ✅ |
 
 ## Key Dependencies
 

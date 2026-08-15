@@ -649,6 +649,39 @@ class TestShrinkOversizedImagesRealPillow:
         count = _shrink_oversized_images(messages, max_dimension=8000)
         assert count >= 0  # may be 0 if unshrinkable (padded bytes)
 
+    def test_raw_under_threshold_but_base64_over_gets_shrunk(self) -> None:
+        """Raw bytes under 4 MiB but base64 form over it must still shrink.
+
+        Provider per-image ceilings are base64 sizes; a raw-byte check would
+        miss a 3.5 MiB raw image whose base64 form (4.67 MiB) exceeds a
+        4 MiB base64 threshold, leaving the provider to reject it again.
+        """
+        import io
+
+        from PIL import Image
+
+        img = Image.new("RGB", (4000, 3000), color=(50, 100, 200))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=100)
+        base_raw = buf.getvalue()
+        target = int(3.5 * 1024 * 1024)
+        raw = base_raw + b"\xff" * (target - len(base_raw))
+        b64 = base64.b64encode(raw).decode("ascii")
+        assert len(raw) < 4 * 1024 * 1024
+        assert len(b64) > 4 * 1024 * 1024
+
+        url = f"data:image/jpeg;base64,{b64}"
+        messages = [
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": url}},
+                ]
+            ),
+        ]
+        count = _shrink_oversized_images(messages, max_dimension=8000)
+        assert count == 1
+        assert messages[0].content[0]["image_url"]["url"] != url
+
     def test_classifier_matches_dimension_error(self) -> None:
         """Verify classifier correctly identifies dimension-related errors."""
         from myrm_agent_harness.toolkits.llms.errors.classifier import (

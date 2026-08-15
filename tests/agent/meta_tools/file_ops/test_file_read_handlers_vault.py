@@ -9,7 +9,7 @@ import pytest
 from langchain_core.runnables import RunnableConfig
 
 from myrm_agent_harness.agent.artifacts.vault import ArtifactVault
-from myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers import (
+from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers import (
     append_media_text_parts,
     build_multimodal_result,
     process_text_paths,
@@ -170,7 +170,7 @@ async def test_process_text_paths_via_service(tmp_path: Path) -> None:
     mock_executor.workspace_path = str(tmp_path)
 
     with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers._read_via_service",
+        "myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers._read_via_service",
         new_callable=AsyncMock,
         return_value="=== hello.txt ===\nhello\n",
     ) as mock_read:

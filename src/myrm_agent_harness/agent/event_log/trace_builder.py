@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._common import _str_or_none
+from ._common import _EVENT_META_KEYS, _str_or_none
 from ._llm import _handle_llm_request, _handle_token_usage, _PendingLLMRequest
 from ._pairing import (
     _find_tool_record,
@@ -224,7 +224,7 @@ def _process_event(
                         sequence=event.sequence,
                         tool_name=tool_name,
                         start_time=event.timestamp,
-                        input_data={k: v for k, v in data.items() if not k.startswith("_") and k != "tool_name"},
+                        input_data={k: v for k, v in data.items() if k not in _EVENT_META_KEYS},
                         tool_call_id=tool_call_id,
                         message_id=_str_or_none(data.get("message_id")),
                     )

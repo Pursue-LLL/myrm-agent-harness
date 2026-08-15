@@ -16,6 +16,7 @@ text-only consumers (@-mentions, wiki imports, web downloads) read them too.
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.file_parsers.base import FileParser
+
 from .pdf_content_extractor import (
     PDFExtractConfig,
     extract_pdf_content,

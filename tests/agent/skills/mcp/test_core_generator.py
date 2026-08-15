@@ -23,7 +23,7 @@ from myrm_agent_harness.agent.skills.mcp.core_generator import (
     mcp_skill_generator,
 )
 from myrm_agent_harness.backends.skills.types import SkillMetadata
-from myrm_agent_harness.backends.skills.types_requires import MCPSkillData
+from myrm_agent_harness.backends.skills.types.types_requires import MCPSkillData
 
 
 def _skill_meta(

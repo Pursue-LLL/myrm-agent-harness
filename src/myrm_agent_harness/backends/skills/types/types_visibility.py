@@ -12,7 +12,7 @@ Deterministic skill visibility given available tools and tool groups; no side ef
 
 from __future__ import annotations
 
-from myrm_agent_harness.backends.skills.types_metadata import SkillMetadata
+from .types_metadata import SkillMetadata
 
 
 def skill_visible_for_tools(

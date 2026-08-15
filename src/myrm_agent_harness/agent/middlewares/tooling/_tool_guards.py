@@ -398,9 +398,37 @@ def _check_circuit_breaker(tool_name: str, tool_call_id: str) -> ToolMessage | N
         blocker = "network_blocked"
     elif "sandbox_ro" in terminal_errors and is_write_tool:
         blocker = "sandbox_ro"
+    elif config_auth_families := {
+        category.split(":", 1)[1]
+        for category in terminal_errors
+        if category.startswith("config_or_auth:")
+    }:
+        # Family-scoped: a broken search configuration must not disable
+        # browser tools (independent infrastructure) and vice versa.
+        tool_family = "search" if "search" in t_lower else ("browser" if "browser" in t_lower else None)
+        if tool_family in config_auth_families:
+            blocker = f"config_or_auth:{tool_family}"
 
     if blocker:
-        hint = f"Circuit breaker active for {blocker}. Previous failures indicate this resource is unavailable."
+        if blocker.startswith("config_or_auth:"):
+            family = blocker.split(":", 1)[1]
+            detail = (
+                "The related service is unavailable because its configuration "
+                "or credentials are invalid. This cannot be fixed by retrying."
+            )
+            if family == "search":
+                detail = (
+                    "Search is unavailable because the search service configuration "
+                    "or credentials are invalid. Use browser or web_fetch tools instead."
+                )
+            elif family == "browser":
+                detail = (
+                    "Browser tools are unavailable because the browser environment "
+                    "failed to launch. Use search or web_fetch tools instead."
+                )
+            hint = f"Circuit breaker active for {family} tools. {detail}"
+        else:
+            hint = f"Circuit breaker active for {blocker}. Previous failures indicate this resource is unavailable."
         logger.warning("Circuit breaker: blocked %s due to terminal %s", tool_name, blocker)
         return make_error_msg(
             tool_name,

@@ -1,9 +1,10 @@
 """MCP stdio runtime parameter resolution — env/cwd extraction + placeholder expansion.
 
-Agent Plugins 1.0.0 (§9.2) lets bundled stdio MCP servers reference
+Agent Plugins 1.0.0 (§9) lets bundled stdio MCP servers reference
 ``${PLUGIN_ROOT}`` / ``${PLUGIN_DATA}`` in ``args`` / ``env`` / ``cwd``. The
 launching client is responsible for a single, non-recursive textual expansion
-using the plugin's persisted root directories.
+using the plugin's persisted root directories, and for providing the two
+reserved environment variables to every plugin subprocess (§9.1).
 
 This module owns that expansion for the MCP runtime:
 - ``expand_placeholders`` — one-pass, non-recursive expansion of the two
@@ -11,13 +12,17 @@ This module owns that expansion for the MCP runtime:
   (unknown variables must never be dropped or substituted).
 - ``resolve_stdio_launch`` — resolves the full (command, args, env, cwd) launch
   tuple for a stdio server, reading ``env``/``cwd``/plugin roots from
-  ``extra_params`` and expanding placeholders everywhere they are legal.
-- ``resolve_stdio_params`` — compatibility helper returning only (env, cwd).
+  ``extra_params``, expanding placeholders everywhere they are legal, and
+  injecting ``PLUGIN_ROOT`` / ``PLUGIN_DATA`` into the subprocess environment
+  when the corresponding plugin root is configured (§9.1).
 
 Security model: only ``PLUGIN_ROOT`` / ``PLUGIN_DATA`` are expanded, expansion
 is a single textual pass (no recursion, no re-expansion of substituted values),
 and the substituted roots are taken from the trusted configuration, never from
-the plugin-controlled value itself.
+the plugin-controlled value itself. The reserved environment variables are
+client-injected exactly as the spec requires; the Agent Plugins parser already
+rejects server ``env`` declarations that name them (§7.2.2), so injection never
+overrides a plugin-declared entry.
 
 [INPUT]
 - ``config_scan._extract_env_map`` convention: ``extra_params["env"]`` is a
@@ -27,7 +32,6 @@ the plugin-controlled value itself.
 [OUTPUT]
 - ``expand_placeholders``: one-pass placeholder expansion for a single value.
 - ``resolve_stdio_launch``: (command, args, env, cwd) launch tuple for stdio.
-- ``resolve_stdio_params``: (env, cwd) launch tuple (compat helper).
 
 [POS]
 Framework-level MCP runtime parameter resolution. Plain functions, no agent or
@@ -77,8 +81,8 @@ def _root_dirs(extra_params: dict[str, object] | None) -> tuple[str | None, str 
     plugin_root = extra_params.get(_PLUGIN_ROOT_KEY)
     data_root = extra_params.get(_DATA_ROOT_KEY)
     return (
-        str(plugin_root) if isinstance(plugin_root, str) else None,
-        str(data_root) if isinstance(data_root, str) else None,
+        str(plugin_root) if isinstance(plugin_root, str) and plugin_root else None,
+        str(data_root) if isinstance(data_root, str) and data_root else None,
     )
 
 
@@ -92,6 +96,10 @@ def resolve_stdio_launch(
     - ``env`` / ``cwd`` are read from ``extra_params`` (the only place they
       live) and have placeholders expanded.
     - ``args`` (from the config top level) get placeholders expanded too.
+    - When the plugin root is configured, ``PLUGIN_ROOT`` and ``PLUGIN_DATA``
+      are injected into the subprocess environment so bundled server scripts
+      can locate their package and persistent data directory (§9.1). Each
+      variable is injected independently for whichever root is configured.
     - ``cwd`` of ``./`` is the plugin-root-relative form and resolves to
       ``plugin_root`` when configured; a stdio ``command`` starting with
       ``./`` (a plugin-relative executable) implies the same cwd when the
@@ -117,6 +125,17 @@ def resolve_stdio_launch(
             if expanded:
                 env = expanded
 
+    if plugin_root is not None or data_root is not None:
+        # Client-provided reserved variables (§9.1): the parser already rejects
+        # plugin env declarations naming these keys, so this cannot clobber a
+        # legitimate plugin entry.
+        if env is None:
+            env = {}
+        if plugin_root is not None:
+            env["PLUGIN_ROOT"] = plugin_root
+        if data_root is not None:
+            env["PLUGIN_DATA"] = data_root
+
     cwd: str | None = None
     if extra_params:
         raw_cwd = extra_params.get("cwd")
@@ -138,16 +157,3 @@ def resolve_stdio_launch(
         else None
     )
     return command or "", expanded_args or [], env, cwd
-
-
-def resolve_stdio_params(
-    extra_params: dict[str, object] | None,
-) -> tuple[dict[str, str] | None, str | None]:
-    """Resolve the launch-time (env, cwd) pair for a stdio MCP server.
-
-    Kept as a narrow helper for call sites that only need env/cwd.
-    """
-    if not extra_params:
-        return None, None
-    _, _, env, cwd = resolve_stdio_launch(None, None, extra_params)
-    return env, cwd

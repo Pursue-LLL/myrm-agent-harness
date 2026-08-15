@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillTrust
-from myrm_agent_harness.backends.skills.types_requires import MCPSkillData
+from myrm_agent_harness.backends.skills.types.types_requires import MCPSkillData
 
 
 class MockSkillBackend:

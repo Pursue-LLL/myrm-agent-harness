@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from myrm_agent_harness.backends.skills.types_metadata import SkillMetadata
+from .types_metadata import SkillMetadata
 
 
 @dataclass

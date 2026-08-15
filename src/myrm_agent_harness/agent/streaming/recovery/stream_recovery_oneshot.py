@@ -34,6 +34,7 @@ from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.toolkits.llms.errors.classifier import classify_failover_reason
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.media.image_compressor import SEND_COMPRESS_TRIGGER_BYTES
 
 if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
@@ -48,7 +49,6 @@ _TOOL_CHOICE_REJECTED_RE = re.compile(
     re.IGNORECASE,
 )
 
-_IMAGE_SHRINK_THRESHOLD = 4 * 1024 * 1024  # 4 MB — safe margin under Anthropic 5 MB
 _THINKING_BLOCK_TYPES = frozenset(("thinking", "redacted_thinking"))
 
 
@@ -464,10 +464,11 @@ def _shrink_oversized_images(
 ) -> int:
     """Walk messages and shrink base64 images exceeding byte/dimension limits.
 
-    Checks **both** byte size (against ``_IMAGE_SHRINK_THRESHOLD``) and pixel
-    dimensions (against ``max_dimension``).  Uses a ``triggered_by`` mechanism
-    to validate the correct constraint after resize — a pixel-correct downscale
-    is accepted even if its bytes grew (PNG re-encode can increase bytes).
+    Checks **both** byte size (against ``SEND_COMPRESS_TRIGGER_BYTES``, base64
+    space) and pixel dimensions (against ``max_dimension``).  Uses a
+    ``triggered_by`` mechanism to validate the correct constraint after resize —
+    a pixel-correct downscale is accepted even if its bytes grew (PNG
+    re-encode can increase bytes).
 
     Returns the number of images actually replaced.  Returns 0 if any image
     was oversized but could not be shrunk (unshrinkable), because retrying
@@ -500,8 +501,13 @@ def _shrink_oversized_images(
             if not isinstance(url, str) or not is_base64_data_url(url):
                 continue
 
+            b64_data = url.split(";base64,", 1)[1]
+            # Base64-space byte check: provider per-image ceilings are base64
+            # sizes, so a raw-byte comparison (estimate_base64_byte_size)
+            # would miss 3-4 MiB raw images whose base64 form (4-5.3 MiB)
+            # still exceeds a 5 MiB ceiling.
+            over_bytes = len(b64_data) > SEND_COMPRESS_TRIGGER_BYTES
             original_size = estimate_base64_byte_size(url)
-            over_bytes = original_size > _IMAGE_SHRINK_THRESHOLD
 
             dims = _decode_image_dimensions(url)
             over_pixels = dims is not None and max(dims) > max_dimension
@@ -512,7 +518,7 @@ def _shrink_oversized_images(
             triggered_by = "bytes" if over_bytes else "dimension"
 
             try:
-                header, b64_data = url.split(";base64,", 1)
+                header = url.split(";base64,", 1)[0]
                 raw_bytes = base64.b64decode(b64_data)
                 compressed = compressor.compress(
                     io.BytesIO(raw_bytes),

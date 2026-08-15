@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from myrm_agent_harness.agent.event_log._common import _int_or_zero
 from myrm_agent_harness.agent.event_log.trace_builder import build_trace, query_traces
 from myrm_agent_harness.agent.event_log.trace_types import (
     ExecutionTrace,
@@ -301,6 +302,50 @@ class TestEdgeCases:
         trace = await build_trace(backend, "sess-1")
 
         assert len(trace.tool_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_tool_start_strips_event_metadata_from_input_data(self) -> None:
+        """Bookkeeping keys on a tool_start payload must not leak into input_data.
+
+        The streaming broadcaster (``ToolCallEventData.to_dict``) attaches
+        status/start_time/session_id/message_id/tool_call_id/version/fault_side
+        next to the real ``args``; only tool input may surface as input_data.
+        """
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tool_start",
+                tool_name="bash",
+                status="started",
+                start_time=1755000000.123,
+                duration_ms=120,
+                args={"command": "echo hi"},
+                session_id="sess-abc",
+                message_id="msg-9",
+                tool_call_id="call-7ab3",
+                version=2,
+                fault_side="harness_tool",
+            ),
+            _event(
+                3,
+                "tool_end",
+                tool_name="bash",
+                tool_call_id="call-7ab3",
+                duration_ms=120,
+                result="hi",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.input_data == {"args": {"command": "echo hi"}}
+        assert tc.tool_call_id == "call-7ab3"
+        assert tc.message_id == "msg-9"
+        assert tc.success is True
 
     @pytest.mark.asyncio
     async def test_missing_event_data_fields(self) -> None:
@@ -877,6 +922,32 @@ class TestTasksStepsProgress:
         assert d["tool_calls"][0]["message_id"] == "msg-1"
 
     @pytest.mark.asyncio
+    async def test_completed_status_is_success(self) -> None:
+        """A terminal-but-successful status (completed) must not mark the tool failed."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-88",
+                tool_name="bash_code_execute_tool",
+                status="completed",
+                data=[{"text": "run: pwd"}],
+                messageId="msg-1",
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.success is True
+        # Display rows / status must not leak into input_data.
+        assert tc.input_data == {}
+
+    @pytest.mark.asyncio
     async def test_error_step_closes_running_record_by_context(self) -> None:
         """An error step (no tool_call_id) must close the matching running record."""
         events = [
@@ -911,6 +982,65 @@ class TestTasksStepsProgress:
         assert tc.error == "exit code 1"
         assert tc.end_time is not None
         assert tc.fault_side == "harness_tool"
+
+    @pytest.mark.asyncio
+    async def test_completed_step_closes_existing_record(self) -> None:
+        """A terminal-but-successful step must close the matching open record."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-10",
+                tool_name="bash_code_execute_tool",
+                messageId="msg-4",
+            ),
+            _event(
+                3,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool",
+                tool_call_id="call-10",
+                tool_name="bash_code_execute_tool",
+                status="completed",
+                messageId="msg-4",
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.success is True
+        assert tc.end_time is not None
+
+    @pytest.mark.asyncio
+    async def test_error_step_without_existing_record_appends_failure(self) -> None:
+        """An error step with no matching record must still surface a failure record."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "tasks_steps",
+                step_key="bash_code_execute_tool_tool_error",
+                tool_name="bash_code_execute_tool",
+                status="error",
+                error="exit code 1",
+                messageId="msg-5",
+                fault_side="harness_tool",
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        tc = trace.tool_calls[0]
+        assert tc.success is False
+        assert tc.error == "exit code 1"
+        assert tc.fault_side == "harness_tool"
+        assert tc.end_time is not None
 
     @pytest.mark.asyncio
     async def test_tasks_step_start_then_tool_end_no_duplicate(self) -> None:
@@ -1239,3 +1369,14 @@ class TestFirstIrrecoverable:
 
         d = trace.to_dict()
         assert d["first_irrecoverable_index"] is None
+
+
+class TestCommonHelpers:
+    """Shared coercion helpers used across trace aggregation paths."""
+
+    def test_int_or_zero_handles_all_scalar_inputs(self) -> None:
+        assert _int_or_zero(True) == 0  # bools are not counts
+        assert _int_or_zero(42) == 42
+        assert _int_or_zero(3.7) == 3  # floats truncate
+        assert _int_or_zero(None) == 0
+        assert _int_or_zero("12") == 0  # non-numeric falls back to zero

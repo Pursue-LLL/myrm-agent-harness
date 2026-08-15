@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import ConsolidationConfig
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-    from myrm_agent_harness.toolkits.memory.types import AnyMemory, ConflictResolution
+    from myrm_agent_harness.toolkits.memory.types import AnyMemory, ConflictResolution, MemoryType
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ class ConflictContext:
     accuracy_score: float
     importance: float
     merge_suggestion: str
+    memory_type: MemoryType
 
 
 ConflictCallback = Callable[[ConflictContext], Awaitable["ConflictResolution"]]
@@ -222,7 +223,7 @@ async def _execute_operations(
     on_conflict: ConflictCallback | None = None,
     config: ConsolidationConfig | None = None,
 ) -> ConsolidationStats:
-    from myrm_agent_harness.toolkits.memory.types import ConflictResolution, SemanticMemory
+    from myrm_agent_harness.toolkits.memory.types import ConflictResolution, MemoryType, SemanticMemory
 
     stats = ConsolidationStats(total_processed=len(ops))
     resolve = (lambda sid: id_map.get(sid, sid)) if id_map else (lambda sid: sid)
@@ -271,6 +272,7 @@ async def _execute_operations(
                         accuracy_score=op.accuracy_score,
                         importance=op.importance,
                         merge_suggestion=op.corrected_content,
+                        memory_type=getattr(existing, "memory_type", MemoryType.SEMANTIC),
                     )
                     resolution = await on_conflict(ctx)
                     if resolution == ConflictResolution.PENDING:
@@ -442,7 +444,7 @@ async def run_consolidation(
     stats.duration_ms = elapsed_ms
     stats.input_count = input_count
     stats.enriched_count = enriched_count
-    stats.insights = parsed.insights
+    stats.insights = tuple(parsed.insights)
 
     await _record_consolidation_event(manager, stats)
     if parsed.insights:
@@ -562,7 +564,7 @@ _MIN_INSIGHT_LENGTH = 10
 _INSIGHT_IMPORTANCE_THRESHOLD = 0.6
 
 
-async def _persist_insights(manager: MemoryManager, insights: tuple[str, ...]) -> None:
+async def _persist_insights(manager: MemoryManager, insights: list[str]) -> None:
     """Persist quality insights as SemanticMemory with implicit preference type.
 
     This activates insights that would otherwise be discarded — they flow

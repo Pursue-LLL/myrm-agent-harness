@@ -93,6 +93,15 @@ class TestNormalizeQuery:
         assert text == "just text"
         assert has_image is False
 
+    def test_multimodal_with_video(self) -> None:
+        query = [
+            {"type": "text", "text": "analyze this clip"},
+            {"type": "video_url", "video_url": {"url": "https://example.com/clip.mp4"}},
+        ]
+        text, has_image = _normalize_query(query)
+        assert "analyze this clip" in text
+        assert has_image is True
+
 
 class TestWordCount:
     def test_english_words(self) -> None:
@@ -329,6 +338,34 @@ class TestMomentum:
         tier, overridden = _apply_momentum(RoutingTier.STANDARD, "test", [])
         assert tier == RoutingTier.STANDARD
         assert overridden is False
+
+    def test_image_query_not_downgraded_to_simple(self) -> None:
+        """Image queries must never be dragged to the light SIMPLE tier by a
+        text-only conversation history (vision floor, MR-17)."""
+        recent = [RoutingTier.SIMPLE] * 5
+        tier, overridden = _apply_momentum(
+            RoutingTier.STANDARD, "这是什么", recent, has_image=True
+        )
+        assert tier == RoutingTier.STANDARD
+        assert overridden is False
+
+    def test_image_query_can_upgrade(self) -> None:
+        """Image queries keep momentum upgrades: a reasoning-heavy history may
+        still pull the tier up (REASONING is vision-contract, unlike SIMPLE)."""
+        recent = [RoutingTier.REASONING] * 5
+        tier, overridden = _apply_momentum(
+            RoutingTier.STANDARD, "ok", recent, has_image=True
+        )
+        assert tier == RoutingTier.REASONING
+        assert overridden is True
+
+    def test_text_query_still_downgrades(self) -> None:
+        """Regression guard: text-only queries keep the legacy downgrade
+        behavior (momentum must still prevent over-routing)."""
+        recent = [RoutingTier.SIMPLE] * 5
+        tier, overridden = _apply_momentum(RoutingTier.STANDARD, "ok", recent)
+        assert tier == RoutingTier.SIMPLE
+        assert overridden is True
 
 
 # ─── PenaltyTracker ──────────────────────────────────────────────────
@@ -690,6 +727,21 @@ class TestRouteTask:
         assert result.reason != "content_dedup"
 
     @pytest.mark.asyncio
+    async def test_dedup_video_scoped_in_route(self) -> None:
+        """Video queries share the image vision floor: a text-only verdict must
+        not satisfy a video query of the same text (video analysis requires a
+        vision-capable tier)."""
+        text = "analyze this clip"
+        await route_task(text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        multimodal = [
+            {"type": "text", "text": text},
+            {"type": "video_url", "video_url": {"url": "https://example.com/clip.mp4"}},
+        ]
+        result = await route_task(multimodal, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason != "content_dedup"
+
+    @pytest.mark.asyncio
     async def test_judge_verdict_not_in_dedup_cache(self) -> None:
         """Judge verdicts live only in the TTL-bounded judge cache — never the
         unbounded dedup cache: a stale judge tier must not become readable by the
@@ -784,6 +836,31 @@ class TestRouteTask:
 
 
 # ─── RoutingResult dataclass ─────────────────────────────────────────
+
+
+    @pytest.mark.asyncio
+    async def test_image_only_query_defaults_standard(self) -> None:
+        """Image-only multimodal query (no text) still routes STANDARD (empty_query floor)."""
+        query = [
+            {"type": "image_url", "url": "https://example.com/img.png"},
+            {"type": "image_url", "url": "https://example.com/img2.png"},
+        ]
+        result = await route_task(query, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "empty_query"
+        assert result.model_cfg.model == "gpt-4o"
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_no_judge_defaults_standard(self) -> None:
+        """Ambiguous rule verdict without judge LLM safely defaults to STANDARD."""
+        result = await route_task(
+            "the quick brown fox jumps over the lazy dog near the river bank",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            judge_llm=None,
+        )
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "default_standard"
 
 
 class TestRoutingResult:

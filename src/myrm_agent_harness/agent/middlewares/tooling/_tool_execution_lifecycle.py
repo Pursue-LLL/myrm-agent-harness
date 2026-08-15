@@ -6,14 +6,14 @@ executions, and structured error / cancellation handling.
 [INPUT]
 - langgraph.prebuilt.tool_node::ToolCallRequest
 - agent.errors.tool_error_category::ToolErrorCategory (POS: Canonical tool error categories for structured error classification.)
-- agent.middlewares._session_context (POS: active tool registry)
-- agent.middlewares.tooling._tool_helpers (POS: error formatting)
+- agent.middlewares._session_context (POS: active tool registry + terminal error registry)
+- agent.middlewares.tooling._tool_helpers (POS: error formatting + terminal error classification)
 
 [OUTPUT]
 - resolve_dynamic_tool: Resolve ToolNode misses via the active agent ToolRegistry
 - emit_tool_heartbeat: Periodic heartbeat for long-running tools
 - handle_cancellation: Structured cancellation handling
-- handle_execution_error: Structured error handling with ToolStuckException support
+- handle_execution_error: Structured error handling with ToolStuckException support + terminal error registration
 
 [POS]
 Tool execution lifecycle management — invocation dispatch, result capture,
@@ -253,6 +253,22 @@ async def handle_execution_error(
         if isinstance(diagnostic_info, dict):
             raw_category = diagnostic_info.get("error_category")
             error_category = raw_category if isinstance(raw_category, str) and raw_category else None
+
+    from myrm_agent_harness.agent.middlewares._session_context import get_terminal_errors
+    from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
+        classify_terminal_error,
+    )
+
+    terminal_category = classify_terminal_error(e)
+    if terminal_category is not None:
+        get_terminal_errors().add(terminal_category)
+        logger.warning(
+            "Registered terminal error '%s' after [%s] %s — subsequent %s-class calls are circuit-broken this turn",
+            terminal_category,
+            tool_name,
+            error_type,
+            terminal_category,
+        )
 
     from myrm_agent_harness.agent.hooks.executor import fire_hook
     from myrm_agent_harness.agent.hooks.types import HookEvent

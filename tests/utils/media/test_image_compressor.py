@@ -1,9 +1,12 @@
 import io
+import struct
+import zlib
 
 import pytest
 from PIL import Image
 
 from myrm_agent_harness.utils.media.image_compressor import (
+    MAX_DECODE_PIXELS,
     SEND_COMPRESS_MAX_DIMENSION,
     ImageCompressor,
 )
@@ -131,6 +134,23 @@ def _make_webp_bytes(width: int = 64, height: int = 64, frames: int = 2) -> byte
     return buf.getvalue()
 
 
+def _make_bomb_png(width: int = 30000, height: int = 30000) -> bytes:
+    """Build a decompression-bomb PNG: ~70 bytes that declare a 900 MP canvas.
+
+    Rewrites the IHDR dimensions of a real 1x1 PNG. With ``MAX_DECODE_PIXELS``
+    restored as Pillow's decode guard, ``Image.open`` raises
+    ``DecompressionBombError`` before any pixel allocation.
+    """
+    buf = io.BytesIO()
+    Image.new("RGB", (1, 1), color=(255, 0, 0)).save(buf, "PNG")
+    png = bytearray(buf.getvalue())
+    assert png[12:16] == b"IHDR"
+    png[16:20] = struct.pack(">I", width)
+    png[20:24] = struct.pack(">I", height)
+    png[29:33] = struct.pack(">I", zlib.crc32(bytes(png[12:29])) & 0xFFFFFFFF)
+    return bytes(png)
+
+
 class TestCompressIfNeeded:
     """Unit tests for responsive send-time compression."""
 
@@ -193,3 +213,61 @@ class TestCompressIfNeeded:
         result = compressor.compress_if_needed(raw, output_format="webp")
         img = Image.open(io.BytesIO(result))
         assert img.format == "WEBP"
+
+    def test_bomb_image_returns_original(self, compressor):
+        """A decompression-bomb PNG must fail safe, not exhaust memory.
+
+        ``Image.MAX_IMAGE_PIXELS`` is bounded by ``MAX_DECODE_PIXELS``, so
+        ``Image.open`` raises ``DecompressionBombError`` before allocating
+        pixels and the existing fallback returns the original bytes.
+        """
+        raw = _make_bomb_png()
+        assert len(raw) < 256
+        result = compressor.compress_if_needed(raw)
+        assert result is raw
+
+    def test_legit_large_image_under_guard_compresses(self, compressor):
+        """A large but legitimate image stays within the decode guard."""
+        raw = _make_jpeg_bytes(6000, 4000)
+        assert MAX_DECODE_PIXELS > 6000 * 4000  # well inside the decode ceiling
+        result = compressor.compress_if_needed(raw)
+        assert result is not raw
+        img = Image.open(io.BytesIO(result))
+        assert max(img.size) <= SEND_COMPRESS_MAX_DIMENSION
+
+    def test_compress_direct_rejects_bomb(self, compressor):
+        """``compress`` surfaces DecompressionBombError for callers to catch."""
+        raw = _make_bomb_png()
+        with pytest.raises(Image.DecompressionBombError):
+            compressor.compress(io.BytesIO(raw))
+
+    def test_compress_entry_guards_itself(self, compressor, monkeypatch):
+        """compress() with BytesIO input sets the decode cap itself, so it is
+        safe even when the process-global Pillow cap was never assigned."""
+        raw = _make_bomb_png()
+        monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 89_478_485)  # Pillow default
+        with pytest.raises(Image.DecompressionBombError):
+            compressor.compress(io.BytesIO(raw))
+
+    def test_byte_trigger_compared_in_base64_space(self, compressor):
+        """Byte overflow is judged in base64 space: raw < trigger but the
+        base64 form exceeds it, so the image is compressed. A raw-byte-only
+        reading would pass this image through untouched."""
+        raw = _make_jpeg_bytes(800, 600)
+        b64_len = 4 * ((len(raw) + 2) // 3)
+        assert len(raw) < b64_len
+        result = compressor.compress_if_needed(
+            raw, trigger_bytes=b64_len - 1, max_dimension=4096
+        )
+        assert result is not raw
+        assert len(result) < len(raw)
+
+    def test_base64_under_trigger_passes_through(self, compressor):
+        """An image whose base64 size fits the trigger passes through even when
+        its raw bytes are close to the same ceiling."""
+        raw = _make_jpeg_bytes(800, 600)
+        b64_len = 4 * ((len(raw) + 2) // 3)
+        result = compressor.compress_if_needed(
+            raw, trigger_bytes=b64_len, max_dimension=4096
+        )
+        assert result is raw

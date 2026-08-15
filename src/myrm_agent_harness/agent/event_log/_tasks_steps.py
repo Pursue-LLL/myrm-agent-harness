@@ -11,27 +11,11 @@ Internal read-side helper of trace_builder.  Not part of the public API.
 
 from __future__ import annotations
 
-from ._common import _str_or_none
+from ._common import _EVENT_META_KEYS, _str_or_none
 from ._pairing import _find_open_record_by_context, _find_tool_record, _replace_tool_record
 from .trace_types import ExecutionTrace, ToolCallRecord
 from .types import StructuredEvent
 
-# Keys on a tasks_steps payload that carry step/bookkeeping metadata rather than
-# tool input — stripped before storing input_data.
-_TASK_STEP_META_KEYS: frozenset[str] = frozenset(
-    {
-        "_agent_id",
-        "count",
-        "data",  # display rows (text), not tool input
-        "messageId",
-        "message_id",
-        "reason",
-        "status",
-        "step_key",
-        "tool_call_id",
-        "tool_name",
-    }
-)
 # A tasks_steps step may carry a terminal status; any other status (including an
 # absent one) is treated as "still running" and recorded with no end time.
 _TERMINAL_TOOL_STATUSES: frozenset[str] = frozenset(
@@ -77,7 +61,7 @@ def _process_tasks_step(event: StructuredEvent, trace: ExecutionTrace) -> None:
             _replace_tool_record(trace, existing, end_time=event.timestamp)
         return
 
-    input_data = {k: v for k, v in data.items() if k not in _TASK_STEP_META_KEYS}
+    input_data = {k: v for k, v in data.items() if k not in _EVENT_META_KEYS}
 
     if is_failure:
         trace.tool_calls.append(
@@ -101,7 +85,7 @@ def _process_tasks_step(event: StructuredEvent, trace: ExecutionTrace) -> None:
             sequence=event.sequence,
             tool_name=tool_name,
             start_time=event.timestamp,
-            success=not is_terminal,  # running steps are presumed success until closed
+            success=not is_failure,  # running/succeeded steps are successes until closed
             tool_call_id=tool_call_id,
             message_id=message_id,
             input_data=input_data,

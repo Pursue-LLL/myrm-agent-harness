@@ -10,6 +10,7 @@ from myrm_agent_harness.agent.event_log.llm_observability import (
     build_prompt_preview,
     record_llm_request,
 )
+from myrm_agent_harness.agent.middlewares import _session_context
 
 
 class TestBuildPromptPreview:
@@ -41,20 +42,14 @@ class TestBuildPromptPreview:
 class TestRecordLlmRequest:
     @pytest.mark.asyncio
     async def test_no_event_logger_returns_early(self) -> None:
-        with patch(
-            "myrm_agent_harness.agent.middlewares._session_context.get_event_logger",
-            return_value=None,
-        ):
+        with patch.object(_session_context, "get_event_logger", return_value=None):
             await record_llm_request("gpt-4o", [{"role": "user", "content": "hi"}])
 
     @pytest.mark.asyncio
     async def test_logs_llm_request_event(self) -> None:
         mock_logger = AsyncMock()
         messages = [{"role": "user", "content": "hello"}]
-        with patch(
-            "myrm_agent_harness.agent.middlewares._session_context.get_event_logger",
-            return_value=mock_logger,
-        ):
+        with patch.object(_session_context, "get_event_logger", return_value=mock_logger):
             await record_llm_request("gpt-4o", messages)
 
         mock_logger.log.assert_awaited_once()

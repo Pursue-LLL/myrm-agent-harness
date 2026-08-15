@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.runnables import RunnableConfig
 
-from myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers import (
+from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers import (
     build_multimodal_result as _build_multimodal_result,
 )
 

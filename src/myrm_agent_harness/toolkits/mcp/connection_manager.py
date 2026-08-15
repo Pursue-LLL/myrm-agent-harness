@@ -20,6 +20,7 @@ Performance model (the real win):
 [INPUT]
 - client::MCPClientManager, MCPServerConfigProtocol (POS: MCP client management layer)
 - session_actor::MCPSessionActor (POS: MCP persistent-session layer)
+- placeholders::resolve_stdio_launch (POS: MCP stdio env/cwd/placeholder resolution)
 
 [OUTPUT]
 - MCPConnection: warm per-config connection (a set of per-server session actors), refresh_server_auth() for hot-updating auth headers

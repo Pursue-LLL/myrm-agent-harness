@@ -17,7 +17,7 @@ import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from myrm_agent_harness.backends.skills.types_enums import SkillLifecycleStatus
+from .types_enums import SkillLifecycleStatus
 
 _MAX_HISTORY_ENTRIES = 200
 

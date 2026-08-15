@@ -21,7 +21,7 @@ from myrm_agent_harness.agent.skill_agent.context import (
 from myrm_agent_harness.backends.skills.permission_validator import (
     map_permission_to_skill_permission,
 )
-from myrm_agent_harness.backends.skills.types_metadata import SkillMetadata
+from myrm_agent_harness.backends.skills.types.types_metadata import SkillMetadata
 
 
 @pytest.fixture(autouse=True)

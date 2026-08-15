@@ -6,7 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
-from myrm_agent_harness.runtime.context.session_continuity import (
+from myrm_agent_harness.runtime.context.session.session_continuity import (
     ContinuitySyncError,
     resolve_thread_ids,
     sync_checkpoint_messages,

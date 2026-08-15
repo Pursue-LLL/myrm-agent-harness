@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-import myrm_agent_harness.runtime.context.session_context_pins as pins_module
-from myrm_agent_harness.runtime.context.session_context_pins import (
+import myrm_agent_harness.runtime.context.session.session_context_pins as pins_module
+from myrm_agent_harness.runtime.context.session.session_context_pins import (
     add_pinned_file,
     read_pinned_files,
     remove_pinned_file,

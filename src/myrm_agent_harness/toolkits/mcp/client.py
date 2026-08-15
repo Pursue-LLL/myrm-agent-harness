@@ -9,6 +9,7 @@ building:
 
 [INPUT]
 - mcp (POS: MCP SDK 2.x — Client, StdioServerParameters)
+- placeholders::resolve_stdio_launch (POS: MCP stdio env/cwd/placeholder resolution)
 
 [OUTPUT]
 - MCPClientManager: MCP client config conversion and target building

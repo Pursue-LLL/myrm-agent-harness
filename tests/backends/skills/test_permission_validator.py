@@ -16,7 +16,7 @@ from myrm_agent_harness.backends.skills.permission_validator import (
     set_permission_usage_callback,
     validate_skill_permissions,
 )
-from myrm_agent_harness.backends.skills.types_enums import SkillPermission
+from myrm_agent_harness.backends.skills.types.types_enums import SkillPermission
 
 
 def test_standard_permission_types_resolve_to_enum() -> None:

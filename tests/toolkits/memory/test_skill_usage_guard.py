@@ -9,7 +9,7 @@ from myrm_agent_harness.agent.skill_agent.context import (
     reset_loaded_skills,
     set_loaded_skills,
 )
-from myrm_agent_harness.backends.skills.types_metadata import SkillMetadata
+from myrm_agent_harness.backends.skills.types.types_metadata import SkillMetadata
 from myrm_agent_harness.toolkits.memory.agent_surface.skill_usage_guard import (
     build_skill_usage_guide,
     detect_against_loaded,

@@ -11,11 +11,7 @@ File operations tool module (Claude Code compatible).
 | constants.py | Core | Constants. | ✅ |
 | executor_storage_adapter.py | Core | CodeExecutor to StorageProvider adapter. | ✅ |
 | file_edit_tool.py | Core | Batch atomic file edit via edits[]; LLM payload normalizer; fuzzy fallback | ✅ |
-| file_edit_normalizer.py | Util | LLM input normalizer for file_edit_tool legacy flat fields | ✅ |
-| mcp_read_next_step_hint.py | Util | One-shot MCP workflow reminder appended after batch-read of function docs | ✅ |
 | file_read_tool.py | Core | File read tool factory: local/MCP/File ID/**vault://** paths, batch reads, line ranges, multimodal | ✅ |
-| file_read_handlers.py | Internal | Multimodal/text/vault execution handlers for file_read_tool | ✅ |
-| file_read_truncation.py | Internal | Output truncation helpers for file_read_tool | ✅ |
 | file_write_tool.py | Core | File write tool (Claude Code compatible). Creates new files; rejects empty/whitespace-only content; auto File ID resolution (@file_001) | ✅ |
 | revert_service.py | Core | File revert service — undo AI file changes; surfaces revertible/skip_reason; skips non-revertible snapshots and non-UTF-8 files on revert. | ✅ |
 | validators/ | Submodule | Pre/post write validators including vault markdown FM guard and Office text-write warnings. | ✅ |

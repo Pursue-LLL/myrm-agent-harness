@@ -290,6 +290,51 @@ class TestCircuitBreakerCognition:
         assert "READ-ONLY" in injected.content
 
     @pytest.mark.asyncio
+    async def test_config_auth_search_injects_guidance_to_use_browser(self) -> None:
+        from unittest.mock import AsyncMock
+
+        from langchain.agents.middleware import ModelRequest
+
+        get_terminal_errors().add("config_or_auth:search")
+        handler = AsyncMock()
+        handler.return_value = AsyncMock()
+        request = ModelRequest(
+            model=AsyncMock(),
+            messages=[HumanMessage(content="Search the web")],
+        )
+        await self.mw.awrap_model_call(request, handler)
+        called_request = handler.call_args[0][0]
+        msgs = called_request.messages
+        injected = msgs[-1]
+        assert isinstance(injected, HumanMessage)
+        assert "search tools" in injected.content.lower()
+        assert "browser tools" in injected.content.lower()
+        # Internal category tag must not leak to the LLM.
+        assert "config_or_auth" not in injected.content
+
+    @pytest.mark.asyncio
+    async def test_config_auth_browser_injects_guidance_to_use_search(self) -> None:
+        from unittest.mock import AsyncMock
+
+        from langchain.agents.middleware import ModelRequest
+
+        get_terminal_errors().add("config_or_auth:browser")
+        handler = AsyncMock()
+        handler.return_value = AsyncMock()
+        request = ModelRequest(
+            model=AsyncMock(),
+            messages=[HumanMessage(content="Browse a page")],
+        )
+        await self.mw.awrap_model_call(request, handler)
+        called_request = handler.call_args[0][0]
+        msgs = called_request.messages
+        injected = msgs[-1]
+        assert isinstance(injected, HumanMessage)
+        assert "browser tools" in injected.content.lower()
+        assert "search tools" in injected.content.lower()
+        assert "config_or_auth" not in injected.content
+
+    @pytest.mark.asyncio
     async def test_multiple_errors_injects_combined_message(self) -> None:
         from unittest.mock import AsyncMock
 
@@ -310,6 +355,50 @@ class TestCircuitBreakerCognition:
         assert isinstance(injected, HumanMessage)
         assert "Network access is BLOCKED" in injected.content
         assert "READ-ONLY" in injected.content
+
+    @pytest.mark.asyncio
+    async def test_network_blocked_supersedes_config_auth_hint(self) -> None:
+        """Global network block must not be paired with contradictory family guidance."""
+        from unittest.mock import AsyncMock
+
+        from langchain.agents.middleware import ModelRequest
+
+        registry = get_terminal_errors()
+        registry.add("network_blocked")
+        registry.add("config_or_auth:search")
+        handler = AsyncMock()
+        handler.return_value = AsyncMock()
+        request = ModelRequest(
+            model=AsyncMock(),
+            messages=[HumanMessage(content="Do something")],
+        )
+        await self.mw.awrap_model_call(request, handler)
+        called_request = handler.call_args[0][0]
+        injected = called_request.messages[-1]
+        assert isinstance(injected, HumanMessage)
+        assert "Network access is BLOCKED" in injected.content
+        assert "Use browser tools" not in injected.content
+        assert "config_or_auth" not in injected.content
+
+    @pytest.mark.asyncio
+    async def test_config_auth_hint_kept_when_network_allowed(self) -> None:
+        """Without a global network block, family guidance is still injected."""
+        from unittest.mock import AsyncMock
+
+        from langchain.agents.middleware import ModelRequest
+
+        get_terminal_errors().add("config_or_auth:search")
+        handler = AsyncMock()
+        handler.return_value = AsyncMock()
+        request = ModelRequest(
+            model=AsyncMock(),
+            messages=[HumanMessage(content="Search the web")],
+        )
+        await self.mw.awrap_model_call(request, handler)
+        called_request = handler.call_args[0][0]
+        injected = called_request.messages[-1]
+        assert isinstance(injected, HumanMessage)
+        assert "Use browser tools" in injected.content
 
     @pytest.mark.asyncio
     async def test_unknown_error_generates_fallback_hint(self) -> None:

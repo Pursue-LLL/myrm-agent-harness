@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.meta_tools.file_ops.mcp_read_next_step_hint import (
+from myrm_agent_harness.agent.meta_tools.file_ops.core.mcp_read_next_step_hint import (
     append_mcp_docs_next_step_hint,
     is_mcp_function_doc_batch,
 )

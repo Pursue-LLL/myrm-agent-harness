@@ -9,7 +9,7 @@ SOP/docs path via ``file_read_tool`` or direct skill execution via bash PTC.
 
 [INPUT]
 - agent.skill_agent.context::get_loaded_skills (POS: loaded skill runtime state)
-- backends.skills.types_metadata::SkillMetadata (POS: skill runtime metadata)
+- backends.skills.types.types_metadata::SkillMetadata (POS: skill runtime metadata)
 
 [OUTPUT]
 - SkillUsageHit: dataclass identifying a matched skill-usage query
@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.backends.skills.types_metadata import SkillMetadata
+    from myrm_agent_harness.backends.skills.types.types_metadata import SkillMetadata
 
 # ---------------------------------------------------------------------------
 # Usage-intent markers (co-occurring with a loaded-skill core term).
@@ -119,7 +119,7 @@ def extract_skill_core_terms(skill_name: str) -> tuple[str, ...]:
 
 def detect_against_loaded(
     query: str,
-    loaded_skills: list["SkillMetadata"] | tuple["SkillMetadata", ...],
+    loaded_skills: list[SkillMetadata] | tuple[SkillMetadata, ...],
 ) -> SkillUsageHit | None:
     """Pure detection: query targets skill usage for any loaded skill.
 

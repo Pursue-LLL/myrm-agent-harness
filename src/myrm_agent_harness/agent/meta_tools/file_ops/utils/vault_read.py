@@ -3,7 +3,7 @@
 [INPUT]
 - agent.artifacts.vault::ArtifactVault, VAULT_PREFIX (POS: Shared Artifact Vault, vault:// pointer protocol)
 - ..core.operation_context::ViewRange (POS: View line range for partial reads)
-- ..file_read_truncation::truncate_file_output (POS: Truncation utilities shared by file_read handlers)
+- ..core.file_read_truncation::truncate_file_output (POS: Truncation utilities shared by file_read handlers)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes)
 - toolkits.code_execution.utils.workspace_path::WorkspacePathResolver (POS: workspace root resolution)
 
@@ -27,7 +27,7 @@ from langchain_core.runnables import RunnableConfig
 
 from myrm_agent_harness.agent.artifacts.vault import VAULT_PREFIX, ArtifactVault
 
-from ..file_read_truncation import truncate_file_output
+from ..core.file_read_truncation import truncate_file_output
 from .file_utils import parse_path_with_range
 
 if TYPE_CHECKING:

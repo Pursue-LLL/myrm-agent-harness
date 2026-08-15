@@ -140,6 +140,18 @@ class QdrantVectorStore(VectorStore):
         logger.debug(f"Created collection: {name} (dim={dim}, distance={distance})")
         return True
 
+    async def ensure_collection(
+        self,
+        name: str,
+        dimension: int,
+        *,
+        distance: str = "cosine",
+    ) -> None:
+        """Idempotently create the collection when missing (VectorStoreProtocol contract)."""
+        if await self.collection_exists(name):
+            return
+        await self.create_collection(name, dimension=dimension, distance=distance)
+
     async def delete_collection(self, name: str) -> bool:
         if not await self.collection_exists(name):
             return False

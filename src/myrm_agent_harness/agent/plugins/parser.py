@@ -15,7 +15,9 @@ Orchestrates secure extraction and discovery with per-component failure isolatio
 
 [OUTPUT]
 -- AgentPluginParser.parse_zip: bytes → PluginParseResult with per-component
-   failure isolation; never persists.
+   failure isolation; never persists. ``PluginParseResult.files`` retains the
+   non-skill file tree (plugin.json / mcp.json / bundled stdio scripts) so the
+   business layer can persist bundled MCP servers on import.
 
 [POS]
 Framework-level, client-agnostic Agent Plugins 1.0.0 package parser (parse-only,

@@ -6,7 +6,7 @@
 设计原则：
 - 支持 vision 的模型：返回 [文本描述, 图片内容块]（provider-agnostic）
 - 不支持 vision 的模型：返回纯文本描述（文件名、大小、格式）
-- <= 5MB：原始 base64 直传（零损失，所有 provider 安全）
+- <= 5MB：原始 base64 直传（零损失；Claude 直连 10MiB 上限安全，5MiB 类 provider 由发送时压缩或失败兜底处理）
 - 5-20MB：Reactive Compress — 压缩到 max_dimension=4096 后传给模型
 - > 20MB：降级为纯文本描述
 
@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING
 from langchain_core.messages.content import ContentBlock, create_image_block, create_text_block
 
 from myrm_agent_harness.utils.image_utils import MAX_IMAGE_PAYLOAD_BYTES, MAX_IMAGE_READ_BYTES
-from myrm_agent_harness.utils.media.image_compressor import image_compressor
+from myrm_agent_harness.utils.media.image_compressor import MAX_DECODE_PIXELS, image_compressor
 from myrm_agent_harness.utils.mime_types import IMAGE_EXTENSIONS
 from myrm_agent_harness.utils.mime_types import IMAGE_MIME_TYPES as MIME_TYPES
 
@@ -119,7 +119,7 @@ def _needs_compression(raw_bytes: bytes) -> bool:
     try:
         from PIL import Image
 
-        Image.MAX_IMAGE_PIXELS = None  # Prevent DecompressionBombError for large resolutions
+        Image.MAX_IMAGE_PIXELS = MAX_DECODE_PIXELS  # Bounded decode guard against image bombs
         with Image.open(io.BytesIO(raw_bytes)) as img:
             w, h = img.size
             return w > _REACTIVE_MAX_DIMENSION or h > _REACTIVE_MAX_DIMENSION
