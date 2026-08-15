@@ -6,7 +6,6 @@ Pure formatting helpers for MemoryContextMiddleware prompt injection.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 
 from langchain.agents.middleware import ModelRequest
@@ -17,8 +16,6 @@ from myrm_agent_harness.agent.security.guards.prompt_budget import (
     CHARS_PER_TOKEN,
     BudgetedSection,
 )
-
-logger = logging.getLogger(__name__)
 
 MEMORY_CONTEXT_MARKER = "<user_memory_context"
 MEMORY_UNTRUSTED_OPEN_MARKER = "<<<UNTRUSTED_DATA"

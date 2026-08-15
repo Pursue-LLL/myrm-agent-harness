@@ -625,7 +625,8 @@ def _make_request(
     else:
         req.runtime = None
 
-    req.override = MagicMock(side_effect=lambda **kwargs: MagicMock(**kwargs))
+    # Real ModelRequest.override uses dataclasses.replace, which preserves tools.
+    req.override = MagicMock(side_effect=lambda **kwargs: MagicMock(tools=tools, **kwargs))
     return req
 
 
