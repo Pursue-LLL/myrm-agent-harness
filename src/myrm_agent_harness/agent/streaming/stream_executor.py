@@ -44,10 +44,10 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import classify_error
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .reasoning_scrubber import ReasoningScrubber
+from .recovery.stream_recovery import StreamRecoveryMixin, _extract_retry_after_ms
 from .source_tracker import SourceTracker
 from .stream_compactor import StreamCompactor
 from .stream_dispatcher import StreamDispatcherMixin
-from .recovery.stream_recovery import StreamRecoveryMixin, _extract_retry_after_ms
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -273,7 +273,10 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                             self._redirect_partial_preserved = partial_preserved
                             break
 
-                        await self._dispatch_chunk(chunk, ctx, collected_messages)
+                        # astream with a list of stream modes yields (mode, data)
+                        # tuples per LangGraph docs; cast narrows the overly-wide
+                        # dict[str, Any] | Any signature down to the runtime shape.
+                        await self._dispatch_chunk(cast("tuple[str, object]", chunk), ctx, collected_messages)
 
                 except Exception as astream_exc:
                     iteration_limit_hit = await self._handle_iteration_limit(astream_exc, collected_messages)
@@ -510,6 +513,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
 
             locale = ctx.merged_context.get("locale", "en") if ctx.merged_context else "en"
             cooldown_remaining_ms = error_event.get("cooldown_remaining_ms")
+            cooldown_remaining_ms = cooldown_remaining_ms if isinstance(cooldown_remaining_ms, int) else None
 
             diagnostic = LLMErrorDiagnostic.diagnose(
                 exc, context, locale=locale, cooldown_remaining_ms=cooldown_remaining_ms
@@ -553,6 +557,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
             except Exception as log_err:
                 logger.error("Failed to persist fatal error event: %s", log_err)
 
+        diagnostic_payload = error_event.get("diagnostic_result")
         raise MyrmLLMError(
             error_code=failover_reason,
             default_msg=error_msg,
@@ -562,5 +567,5 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 else None
             ),
             original_exc=exc,
-            diagnostic_result=error_event.get("diagnostic_result"),
+            diagnostic_result=diagnostic_payload if isinstance(diagnostic_payload, dict) else None,
         ) from exc

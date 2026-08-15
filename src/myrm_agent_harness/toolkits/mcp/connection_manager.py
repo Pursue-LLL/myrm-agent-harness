@@ -392,13 +392,25 @@ class MCPConnectionManager:
 
         async def _spawn(cfg: MCPServerConfigProtocol) -> tuple[str, MCPSessionActor]:
             await MCPClientManager._inject_auth_headers_into_config(cfg)
+            # stdio env/cwd live in extra_params (the only place the business
+            # layer persists them); resolve + expand placeholders here so every
+            # transport build (runtime + enumeration) sees the same values.
+            from .placeholders import resolve_stdio_launch
+
+            extra_params = getattr(cfg, "extra_params", None)
+            command, args, stdio_env, stdio_cwd = resolve_stdio_launch(
+                cfg.command,
+                cfg.args,
+                extra_params if isinstance(extra_params, dict) else None,
+            )
             conn_dict: dict[str, object] = {
                 "transport": cfg.type,
                 "url": cfg.url,
                 "headers": MCPClientManager.get_headers(cfg),
-                "command": cfg.command,
-                "args": cfg.args,
-                "env": getattr(cfg, "env", None),
+                "command": command,
+                "args": args,
+                "env": stdio_env,
+                "cwd": stdio_cwd,
             }
             actor = MCPSessionActor(
                 cfg.name,

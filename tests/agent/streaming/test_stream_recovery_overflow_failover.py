@@ -11,11 +11,11 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery import _extract_retry_after_ms
 from myrm_agent_harness.agent.streaming.stream_executor import (
     StreamContext,
     StreamExecutor,
 )
-from myrm_agent_harness.agent.streaming.recovery.stream_recovery import _extract_retry_after_ms
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.types import AgentRunStatistics
 

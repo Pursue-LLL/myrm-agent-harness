@@ -101,6 +101,13 @@ class PluginParseResult:
     that parsed successfully. ``diagnostics`` captures skipped/invalid
     components so the GUI can surface a component-level report instead of
     failing the whole import.
+
+    ``files`` retains every non-skill file of the security-filtered archive
+    (``plugin.json`` / ``mcp.json`` / bundled stdio scripts referenced by
+    ``./`` commands or ``${PLUGIN_ROOT}`` placeholders). The business layer
+    persists these to the plugin root directory on import so bundled MCP
+    servers can actually launch; skill-directory files are already carried on
+    each ``PluginSkill.files`` and are not duplicated here.
     """
 
     meta: AgentPluginManifestMeta | None = None
@@ -108,6 +115,7 @@ class PluginParseResult:
     servers: list[PluginMcpServer] = field(default_factory=list)
     diagnostics: list[PluginDiagnostic] = field(default_factory=list)
     schemas: list[str] = field(default_factory=list)  # recognized $schema URIs
+    files: dict[str, bytes] = field(default_factory=dict)  # non-skill bundled files
 
     def add_diagnostic(
         self,

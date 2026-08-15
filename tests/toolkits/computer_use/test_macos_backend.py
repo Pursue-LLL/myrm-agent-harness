@@ -1,10 +1,6 @@
-import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-# Mock pyautogui before importing MacOSBackend
-sys.modules["pyautogui"] = MagicMock()
 
 from myrm_agent_harness.toolkits.computer_use.backends.macos import (
     MacOSBackend,
@@ -12,6 +8,7 @@ from myrm_agent_harness.toolkits.computer_use.backends.macos import (
     _has_blocking_dialog,
     _is_browser_active,
 )
+from myrm_agent_harness.toolkits.computer_use.backends.macos_input import _Point, _Size
 
 
 @pytest.fixture
@@ -89,7 +86,7 @@ async def test_wait(backend):
 
 def test_screen_info(backend):
     with (
-        patch("pyautogui.size", return_value=MagicMock(width=1920, height=1080)),
+        patch("myrm_agent_harness.toolkits.computer_use.backends.macos.macos_input.size", return_value=_Size(1920, 1080)),
         patch("myrm_agent_harness.toolkits.computer_use.backends.macos._detect_dpi_scale_quartz", return_value=2.0),
     ):
         info = backend.screen_info()
@@ -100,7 +97,7 @@ def test_screen_info(backend):
 
 def test_screen_context(backend):
     with (
-        patch("pyautogui.position", return_value=MagicMock(x=10, y=20)),
+        patch("myrm_agent_harness.toolkits.computer_use.backends.macos.macos_input.position", return_value=_Point(10, 20)),
         patch("myrm_agent_harness.toolkits.computer_use.backends.macos._get_active_window_title", return_value="Title"),
     ):
         ctx = backend.screen_context()

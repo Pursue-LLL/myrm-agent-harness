@@ -1,7 +1,10 @@
-"""macOS backend — screencapture + pyautogui.
+"""macOS backend — screencapture + Quartz CGEvent 原生输入.
 
 Uses native `screencapture` for screenshots (zero-dependency, handles Retina)
-and `pyautogui` for keyboard/mouse input.
+and Quartz CGEvent (via pyobjc) for keyboard/mouse input. Replaces pyautogui,
+whose top-level import pulls in mouseinfo → rubicon-objc, which fails on
+arm64 (Apple Silicon) due to a missing `objc_msgSendSuper_stret` symbol
+(upstream rubicon-objc bug, unfixed in 0.5.6).
 
 [INPUT]
 - types::ScreenInfo, ScreenContext, ActionResult, WindowTextResult (POS: shared type definitions)
@@ -21,6 +24,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from myrm_agent_harness.toolkits.computer_use.backends import macos_input
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ModifierKey,
@@ -32,7 +36,7 @@ from myrm_agent_harness.toolkits.computer_use.types import (
 
 logger = logging.getLogger(__name__)
 
-_MODIFIER_TO_PYAUTOGUI: dict[ModifierKey, str] = {
+_MODIFIER_TO_QUARTZ_KEY: dict[ModifierKey, str] = {
     "ctrl": "ctrl",
     "shift": "shift",
     "alt": "option",
@@ -41,7 +45,7 @@ _MODIFIER_TO_PYAUTOGUI: dict[ModifierKey, str] = {
 
 
 class MacOSBackend:
-    """macOS screen I/O via screencapture + pyautogui."""
+    """macOS screen I/O via screencapture + Quartz CGEvent."""
 
     def __init__(self) -> None:
         self._screen_info: ScreenInfo | None = None
@@ -74,36 +78,26 @@ class MacOSBackend:
         clicks: int = 1,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
-        import pyautogui
-
-        pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
+        modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
         try:
-            for key in pyautogui_keys:
-                await asyncio.to_thread(pyautogui.keyDown, key)
-            await asyncio.to_thread(
-                pyautogui.click,
-                x=x,
-                y=y,
-                button=button,
-                clicks=clicks,
-            )
+            for key in modifier_keys:
+                await asyncio.to_thread(macos_input.key_down, key)
+            await asyncio.to_thread(macos_input.click, x=x, y=y, button=button, clicks=clicks)
             return ActionResult(success=True)
         except Exception as e:
             return ActionResult(success=False, error=str(e))
         finally:
-            for key in reversed(pyautogui_keys):
-                await asyncio.to_thread(pyautogui.keyUp, key)
+            for key in reversed(modifier_keys):
+                await asyncio.to_thread(macos_input.key_up, key)
 
     async def type_text(self, text: str, delay_ms: int = 12, chunk_size: int = 50) -> ActionResult:
-        """Type text — ASCII via pyautogui.write(), non-ASCII via clipboard paste."""
+        """Type text — ASCII via Quartz unicode input, non-ASCII via clipboard paste."""
         try:
             if text.isascii():
-                import pyautogui
-
                 interval = delay_ms / 1000.0
                 for i in range(0, len(text), chunk_size):
                     chunk = text[i : i + chunk_size]
-                    await asyncio.to_thread(pyautogui.write, chunk, interval=interval)
+                    await asyncio.to_thread(macos_input.write, chunk, interval=interval)
             else:
                 await self._paste_text(text)
             return ActionResult(success=True)
@@ -127,11 +121,9 @@ class MacOSBackend:
 
         try:
             if secret_text.isascii():
-                import pyautogui
-
                 interval = 12 / 1000.0
-                # pyautogui.write calls OS APIs directly, no subprocess arguments exposed
-                await asyncio.to_thread(pyautogui.write, secret_text, interval=interval)
+                # Quartz unicode input — direct OS event injection, no subprocess exposure
+                await asyncio.to_thread(macos_input.write, secret_text, interval=interval)
             else:
                 await self._paste_text(secret_text)
             return ActionResult(success=True)
@@ -140,35 +132,29 @@ class MacOSBackend:
 
     async def _paste_text(self, text: str) -> None:
         """Type non-ASCII text via clipboard paste (Cmd+V), preserving original clipboard."""
-        import pyautogui
-
         saved = await asyncio.to_thread(_get_clipboard)
 
         await asyncio.to_thread(_set_clipboard, text)
-        await asyncio.to_thread(pyautogui.hotkey, "command", "v")
+        await asyncio.to_thread(macos_input.hotkey, "command", "v")
         await asyncio.sleep(0.1)
 
         if saved is not None:
             await asyncio.to_thread(_set_clipboard, saved)
 
     async def key(self, keys: str) -> ActionResult:
-        import pyautogui
-
         try:
             parts = [k.strip() for k in keys.split("+")]
             if len(parts) > 1:
-                await asyncio.to_thread(pyautogui.hotkey, *parts)
+                await asyncio.to_thread(macos_input.hotkey, *parts)
             else:
-                await asyncio.to_thread(pyautogui.press, parts[0])
+                await asyncio.to_thread(macos_input.press, parts[0])
             return ActionResult(success=True)
         except Exception as e:
             return ActionResult(success=False, error=str(e))
 
     async def mouse_move(self, x: int, y: int) -> ActionResult:
-        import pyautogui
-
         try:
-            await asyncio.to_thread(pyautogui.moveTo, x, y)
+            await asyncio.to_thread(macos_input.move_to, x, y)
             return ActionResult(success=True)
         except Exception as e:
             return ActionResult(success=False, error=str(e))
@@ -181,26 +167,24 @@ class MacOSBackend:
         amount: int = 3,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
-        import pyautogui
-
-        pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
+        modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
         try:
-            await asyncio.to_thread(pyautogui.moveTo, x, y)
-            for key in pyautogui_keys:
-                await asyncio.to_thread(pyautogui.keyDown, key)
+            await asyncio.to_thread(macos_input.move_to, x, y)
+            for key in modifier_keys:
+                await asyncio.to_thread(macos_input.key_down, key)
 
             scroll_amount = amount if direction in ("up", "left") else -amount
             if direction in ("up", "down"):
-                await asyncio.to_thread(pyautogui.scroll, scroll_amount)
+                await asyncio.to_thread(macos_input.scroll, scroll_amount)
             else:
-                await asyncio.to_thread(pyautogui.hscroll, scroll_amount)
+                await asyncio.to_thread(macos_input.hscroll, scroll_amount)
 
             return ActionResult(success=True)
         except Exception as e:
             return ActionResult(success=False, error=str(e))
         finally:
-            for key in reversed(pyautogui_keys):
-                await asyncio.to_thread(pyautogui.keyUp, key)
+            for key in reversed(modifier_keys):
+                await asyncio.to_thread(macos_input.key_up, key)
 
     async def drag(
         self,
@@ -210,16 +194,14 @@ class MacOSBackend:
         end_y: int,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
-        import pyautogui
-
-        pyautogui_keys = [_MODIFIER_TO_PYAUTOGUI[m] for m in modifiers] if modifiers else []
+        modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
         try:
-            for key in pyautogui_keys:
-                await asyncio.to_thread(pyautogui.keyDown, key)
+            for key in modifier_keys:
+                await asyncio.to_thread(macos_input.key_down, key)
 
-            await asyncio.to_thread(pyautogui.moveTo, start_x, start_y)
+            await asyncio.to_thread(macos_input.move_to, start_x, start_y)
             await asyncio.to_thread(
-                pyautogui.drag,
+                macos_input.drag,
                 end_x - start_x,
                 end_y - start_y,
                 duration=0.5,
@@ -229,8 +211,8 @@ class MacOSBackend:
         except Exception as e:
             return ActionResult(success=False, error=str(e))
         finally:
-            for key in reversed(pyautogui_keys):
-                await asyncio.to_thread(pyautogui.keyUp, key)
+            for key in reversed(modifier_keys):
+                await asyncio.to_thread(macos_input.key_up, key)
 
     async def wait(self, seconds: float) -> ActionResult:
         await asyncio.sleep(seconds)
@@ -240,9 +222,7 @@ class MacOSBackend:
         if self._screen_info is not None:
             return self._screen_info
 
-        import pyautogui
-
-        size = pyautogui.size()
+        size = macos_input.size()
         dpi_scale = _detect_dpi_scale_quartz(size.width)
         self._screen_info = ScreenInfo(
             width=size.width,
@@ -252,9 +232,7 @@ class MacOSBackend:
         return self._screen_info
 
     def screen_context(self) -> ScreenContext:
-        import pyautogui
-
-        pos = pyautogui.position()
+        pos = macos_input.position()
         return ScreenContext(
             active_window=_get_active_window_title(),
             mouse_x=pos.x,

@@ -18,14 +18,14 @@ pytest.importorskip("prometheus_client")
 from langchain_core.messages import AIMessage, ToolCall
 from prometheus_client import REGISTRY, generate_latest
 
-from myrm_agent_harness.agent.middlewares.approval.middleware import (
-    ToolApprovalMiddleware,
-)
 from myrm_agent_harness.agent.middlewares.approval import (
     reset_denial_counter,
     set_approval_session,
     set_security_config,
     set_workspace_root,
+)
+from myrm_agent_harness.agent.middlewares.approval.middleware import (
+    ToolApprovalMiddleware,
 )
 from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     emit_hook_failure_event,

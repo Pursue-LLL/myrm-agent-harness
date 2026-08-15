@@ -46,7 +46,10 @@ def _img_base64(text: str = "look") -> HumanMessage:
     return HumanMessage(
         content=[
             {"type": "text", "text": text},
-            {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBOR", "detail": "auto"}},
+            {
+                "type": "image_url",
+                "image_url": {"url": "data:image/png;base64,iVBOR", "detail": "auto"},
+            },
         ]
     )
 
@@ -137,8 +140,17 @@ class TestMediaResolverProcessor:
             msg = HumanMessage(
                 content=[
                     {"type": "text", "text": "compare"},
-                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,existing", "detail": "auto"}},
-                    {"type": "image_url", "image_url": {"url": f"file://{path}", "detail": "auto"}},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "data:image/png;base64,existing",
+                            "detail": "auto",
+                        },
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"file://{path}", "detail": "auto"},
+                    },
                 ]
             )
             ctx = _make_context([msg])
@@ -271,7 +283,14 @@ class TestSendTimeCompression:
             Image.new("RGB", (64, 64), color=(0, 255, 0)),
         ]
         buf = io.BytesIO()
-        images[0].save(buf, format="GIF", save_all=True, append_images=images[1:], duration=100, loop=0)
+        images[0].save(
+            buf,
+            format="GIF",
+            save_all=True,
+            append_images=images[1:],
+            duration=100,
+            loop=0,
+        )
         gif_bytes = buf.getvalue()
         reader = AsyncMock(return_value=gif_bytes)
 
@@ -285,7 +304,9 @@ class TestSendTimeCompression:
 
 
 def test_internal_api_origin_uses_port_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    from myrm_agent_harness.agent.context_management.pipeline.processors import media_resolver
+    from myrm_agent_harness.agent.context_management.pipeline.processors import (
+        media_resolver,
+    )
 
     monkeypatch.setenv("PORT", "9099")
     assert media_resolver._internal_api_origin() == "http://127.0.0.1:9099"

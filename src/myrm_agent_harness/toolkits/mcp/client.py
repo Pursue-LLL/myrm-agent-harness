@@ -99,9 +99,19 @@ class MCPClientManager:
         if server_type == "stdio":
             from mcp import StdioServerParameters
 
+            from .placeholders import resolve_stdio_launch
+
+            extra_params = getattr(server_config, "extra_params", None)
+            command, args, stdio_env, stdio_cwd = resolve_stdio_launch(
+                server_config.command,
+                server_config.args,
+                extra_params if isinstance(extra_params, dict) else None,
+            )
             return StdioServerParameters(
-                command=str(server_config.command or ""),
-                args=[str(a) for a in (server_config.args or [])],
+                command=command,
+                args=args,
+                env=stdio_env,
+                cwd=stdio_cwd,
             )
 
         raise ValueError(f"Unsupported transport type: {server_type}")

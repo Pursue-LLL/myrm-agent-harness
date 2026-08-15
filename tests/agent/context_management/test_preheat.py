@@ -38,6 +38,7 @@ def _mock_create_task(fake_task: MagicMock | None = None) -> MagicMock:
     unawaited-coroutine RuntimeWarning at GC; closing it inside the side effect
     keeps tests clean.
     """
+
     def _create_task(coro: object, **kwargs: object) -> MagicMock:
         if asyncio.iscoroutine(coro):
             coro.close()
@@ -97,7 +98,9 @@ class TestPreheatPrefixCache:
         llm.ainvoke.return_value = MagicMock()
         messages = [MagicMock(), MagicMock()]
 
-        result = await preheat_prefix_cache(llm, messages, "anthropic/claude-3-5-sonnet")
+        result = await preheat_prefix_cache(
+            llm, messages, "anthropic/claude-3-5-sonnet"
+        )
         assert result is True
         llm.ainvoke.assert_awaited_once_with(messages, max_tokens=0)
 
@@ -115,7 +118,10 @@ class TestPreheatPrefixCache:
     async def test_fallback_on_bad_request_error(self) -> None:
         """BadRequestError (HTTP 400) from max_tokens=0 should also trigger fallback."""
         llm = AsyncMock()
-        llm.ainvoke.side_effect = [RuntimeError("BadRequest: max_tokens too small"), MagicMock()]
+        llm.ainvoke.side_effect = [
+            RuntimeError("BadRequest: max_tokens too small"),
+            MagicMock(),
+        ]
         messages = [MagicMock()]
 
         result = await preheat_prefix_cache(llm, messages, "anthropic/claude-3")
@@ -161,14 +167,22 @@ class TestScheduleInitPreheat:
         llm = MagicMock()
         schedule_init_preheat(llm, "A long system prompt " * 200, "gpt-4o")
 
-    @patch("myrm_agent_harness.utils.token_estimation.estimate_content_tokens", return_value=500)
+    @patch(
+        "myrm_agent_harness.utils.token_estimation.estimate_content_tokens",
+        return_value=500,
+    )
     def test_skip_when_tokens_below_minimum(self, mock_est: MagicMock) -> None:
         llm = MagicMock()
         schedule_init_preheat(llm, "Short prompt", "anthropic/claude-3")
 
-    @patch("myrm_agent_harness.utils.token_estimation.estimate_content_tokens", return_value=_MIN_PREHEAT_TOKENS + 100)
+    @patch(
+        "myrm_agent_harness.utils.token_estimation.estimate_content_tokens",
+        return_value=_MIN_PREHEAT_TOKENS + 100,
+    )
     @patch("asyncio.get_running_loop")
-    def test_schedules_task_when_eligible(self, mock_loop: MagicMock, mock_est: MagicMock) -> None:
+    def test_schedules_task_when_eligible(
+        self, mock_loop: MagicMock, mock_est: MagicMock
+    ) -> None:
         mock_loop.return_value.create_task = _mock_create_task()
         llm = MagicMock()
 
@@ -176,7 +190,10 @@ class TestScheduleInitPreheat:
 
         mock_loop.return_value.create_task.assert_called_once()
 
-    @patch("myrm_agent_harness.utils.token_estimation.estimate_content_tokens", return_value=_MIN_PREHEAT_TOKENS + 100)
+    @patch(
+        "myrm_agent_harness.utils.token_estimation.estimate_content_tokens",
+        return_value=_MIN_PREHEAT_TOKENS + 100,
+    )
     def test_no_running_loop_does_not_raise(self, mock_est: MagicMock) -> None:
         llm = MagicMock()
         schedule_init_preheat(llm, "A " * 2000, "anthropic/claude-3")

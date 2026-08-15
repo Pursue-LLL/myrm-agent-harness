@@ -9,7 +9,7 @@
 Pure image compression utility. Supports jpg/jpeg/png formats.
 Uses Pillow for jpg/jpeg/webp, imagequant for PNG (with Pillow fallback).
 Also exposes ``compress_if_needed`` — responsive send-time compression with
-animated-GIF protection and fail-safe fallback to the original bytes.
+animated GIF/WebP protection and fail-safe fallback to the original bytes.
 """
 
 from __future__ import annotations
@@ -71,7 +71,11 @@ class ImageCompressor:
         if quality < 0 or quality > 1:
             raise ValueError("quality must be between 0 and 1")
 
-        if output_format is not None and output_format.lower() not in {"jpeg", "png", "webp"}:
+        if output_format is not None and output_format.lower() not in {
+            "jpeg",
+            "png",
+            "webp",
+        }:
             raise ValueError(f"Unsupported output_format: {output_format}")
 
         if isinstance(input_path, bytes):
@@ -90,9 +94,18 @@ class ImageCompressor:
 
             # Select compression method based on format
             if suffix == ".png" and output_format is None:
-                return self._compress_png(input_path, output_path, quality, max_dimension)
+                return self._compress_png(
+                    input_path, output_path, quality, max_dimension
+                )
             else:
-                return self._compress_with_pillow(input_path, output_path, quality, suffix, max_dimension, output_format)
+                return self._compress_with_pillow(
+                    input_path,
+                    output_path,
+                    quality,
+                    suffix,
+                    max_dimension,
+                    output_format,
+                )
         else:
             # File object, need to read to determine format
             img = Image.open(input_path)
@@ -101,19 +114,34 @@ class ImageCompressor:
             format_name = img.format.lower()
 
             if format_name == "png" and output_format is None:
-                # PNG requires temporary file
+                # PNG requires temporary file; always clean it up, even on failure.
                 import tempfile
 
-                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-                    img.save(tmp.name, "PNG")
-                    result = self._compress_png(tmp.name, output_path, quality, max_dimension)
-                Path(tmp.name).unlink()
-                return result
+                tmp_path: Path | None = None
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".png", delete=False
+                    ) as tmp:
+                        tmp_path = Path(tmp.name)
+                        img.save(tmp.name, "PNG")
+                        return self._compress_png(
+                            tmp.name, output_path, quality, max_dimension
+                        )
+                finally:
+                    if tmp_path is not None:
+                        tmp_path.unlink(missing_ok=True)
             else:
                 # Reset file pointer
                 if hasattr(input_path, "seek"):
                     input_path.seek(0)
-                return self._compress_with_pillow(input_path, output_path, quality, f".{format_name}", max_dimension, output_format)
+                return self._compress_with_pillow(
+                    input_path,
+                    output_path,
+                    quality,
+                    f".{format_name}",
+                    max_dimension,
+                    output_format,
+                )
 
     def compress_if_needed(
         self,
@@ -127,7 +155,7 @@ class ImageCompressor:
         """Responsive send-time compression: compress only when the image actually exceeds limits.
 
         Behavior:
-        - Animated GIFs (n_frames > 1): returned unchanged to preserve animation.
+        - Animated GIFs/WebP (n_frames > 1): returned unchanged to preserve animation.
         - Images at or under both ``max_dimension`` and ``trigger_bytes``: returned unchanged
           (zero-cost fast path — upload/URL images already compressed upstream).
         - Oversized images: compressed via :meth:`compress`. Falls back to the original bytes
@@ -143,10 +171,10 @@ class ImageCompressor:
             Image.MAX_IMAGE_PIXELS = None
             with Image.open(io.BytesIO(raw_bytes)) as probe:
                 format_name = (probe.format or "").lower()
-                # Animated GIF: preserve animation — do not re-encode to a static frame.
-                if format_name == "gif":
+                # Animated GIF/WebP: preserve animation — do not re-encode to a static frame.
+                if format_name in ("gif", "webp"):
                     try:
-                        if probe.n_frames > 1:
+                        if getattr(probe, "n_frames", 1) > 1:
                             return raw_bytes
                     except (AttributeError, OSError):
                         pass
@@ -155,7 +183,11 @@ class ImageCompressor:
             logger.warning("Image probe failed in compress_if_needed: %s", exc)
             return raw_bytes
 
-        if width <= max_dimension and height <= max_dimension and len(raw_bytes) <= trigger_bytes:
+        if (
+            width <= max_dimension
+            and height <= max_dimension
+            and len(raw_bytes) <= trigger_bytes
+        ):
             return raw_bytes
 
         try:
@@ -174,7 +206,9 @@ class ImageCompressor:
             return raw_bytes
         return compressed
 
-    def _resize_if_needed(self, img: Image.Image, max_dimension: int | None) -> Image.Image:
+    def _resize_if_needed(
+        self, img: Image.Image, max_dimension: int | None
+    ) -> Image.Image:
         """Resize image if it exceeds max_dimension."""
         if not max_dimension:
             return img
@@ -202,7 +236,7 @@ class ImageCompressor:
 
         # Open image
         Image.MAX_IMAGE_PIXELS = None
-        img = Image.open(input_source)
+        img: Image.Image = Image.open(input_source)
 
         # Apply EXIF orientation
         from PIL import ImageOps
@@ -214,7 +248,9 @@ class ImageCompressor:
 
         # Convert to RGB if needed for JPEG
         if format_suffix in [".jpg", ".jpeg"] or output_format == "jpeg":
-            if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+            if img.mode in ("RGBA", "LA") or (
+                img.mode == "P" and "transparency" in img.info
+            ):
                 img = img.convert("RGBA")
                 background = Image.new("RGB", img.size, (255, 255, 255))
                 background.paste(img, mask=img.split()[3])
@@ -227,7 +263,9 @@ class ImageCompressor:
 
         # Compress and save
         if output_path:
-            img.save(output_path, format=save_format, quality=pillow_quality, optimize=True)
+            img.save(
+                output_path, format=save_format, quality=pillow_quality, optimize=True
+            )
             return None
         else:
             buffer = io.BytesIO()
@@ -242,12 +280,16 @@ class ImageCompressor:
         max_dimension: int | None,
     ) -> bytes | None:
         """Compress PNG using imagequant or Pillow fallback."""
-        result = self._compress_png_with_imagequant(input_path, output_path, quality, max_dimension)
+        result = self._compress_png_with_imagequant(
+            input_path, output_path, quality, max_dimension
+        )
         if result is not False:  # Success or returned bytes
             return result  # type: ignore
 
         # Pillow fallback
-        return self._compress_png_with_pillow(input_path, output_path, quality, max_dimension)
+        return self._compress_png_with_pillow(
+            input_path, output_path, quality, max_dimension
+        )
 
     def _compress_png_with_imagequant(
         self,
@@ -258,11 +300,11 @@ class ImageCompressor:
     ) -> bytes | None | bool:
         """Compress PNG using imagequant."""
         try:
-            import imagequant
+            import imagequant  # type: ignore[import-not-found]
             from PIL import ImageOps
 
             Image.MAX_IMAGE_PIXELS = None
-            img = Image.open(input_path)
+            img: Image.Image = Image.open(input_path)
             img = ImageOps.exif_transpose(img)
 
             # Resize if needed
@@ -293,7 +335,9 @@ class ImageCompressor:
             # Quantize image using imagequant
             quantized_img = imagequant.quantize_pil_image(
                 img,
-                dithering_level=(0.0 if quality < 0.3 else (0.5 if quality < 0.7 else 1.0)),
+                dithering_level=(
+                    0.0 if quality < 0.3 else (0.5 if quality < 0.7 else 1.0)
+                ),
                 max_colors=max_colors,
                 min_quality=min_quality,
                 max_quality=max_quality,
@@ -304,13 +348,17 @@ class ImageCompressor:
 
             # Compress to memory first to check size
             buffer = io.BytesIO()
-            quantized_img.save(buffer, "PNG", optimize=True, compress_level=compress_level)
+            quantized_img.save(
+                buffer, "PNG", optimize=True, compress_level=compress_level
+            )
             compressed_data = buffer.getvalue()
 
             # Check compressed size
             if isinstance(input_path, (str, Path)):
                 original_size = Path(input_path).stat().st_size
-                if len(compressed_data) >= original_size * 0.9:  # No significant reduction
+                if (
+                    len(compressed_data) >= original_size * 0.9
+                ):  # No significant reduction
                     return False  # Use fallback
 
             if output_path:
@@ -335,7 +383,7 @@ class ImageCompressor:
         from PIL import ImageOps
 
         Image.MAX_IMAGE_PIXELS = None
-        img = Image.open(input_path)
+        img: Image.Image = Image.open(input_path)
         img = ImageOps.exif_transpose(img)
 
         # Resize if needed

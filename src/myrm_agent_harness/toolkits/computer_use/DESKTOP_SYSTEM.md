@@ -39,7 +39,7 @@
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
 │              ComputerBackend (macOS / Windows / Linux)        │
-│  Screenshot + coordinate I/O via pyautogui / xdotool        │
+│  Screenshot + coordinate I/O via Quartz CGEvent / pyautogui / xdotool │
 └─────────────────────────────────────────────────────────────┘
 ```
 

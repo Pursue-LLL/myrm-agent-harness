@@ -12,12 +12,12 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
 
+from myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot import (
+    _shrink_oversized_images,
+)
 from myrm_agent_harness.agent.streaming.stream_executor import (
     StreamContext,
     StreamExecutor,
-)
-from myrm_agent_harness.agent.streaming.recovery.stream_recovery_oneshot import (
-    _shrink_oversized_images,
 )
 from myrm_agent_harness.agent.types import AgentRunStatistics
 

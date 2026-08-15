@@ -9,7 +9,8 @@ Send-time responsive compression: every resolved image passes through
 ``image_compressor.compress_if_needed`` so oversized images (Tauri local
 paths, third-party HTTP URLs) are downsampled to 2048px before hitting
 provider per-image byte/dimension limits. Small images and animated GIFs
-pass through untouched (zero-cost fast path).
+pass through untouched (zero-cost fast path). Compression runs via
+``asyncio.to_thread`` so CPU-bound downsampling never blocks the event loop.
 
 Positioned AFTER MediaFilterProcessor in the pipeline:
 - MediaFilter strips historical media → fewer URLs to resolve
@@ -77,15 +78,17 @@ async def resolve_image_reference_to_data_url(
 ) -> str | None:
     """Resolve HTTP, file, or /api/media image references to a base64 data URL."""
     if url.startswith("file://"):
-        return _resolve_local_file(url[7:])
+        return await asyncio.to_thread(_resolve_local_file, url[7:])
 
     if url.startswith(("http://", "https://")):
         return await _resolve_http(url)
 
     if url.startswith("/api/"):
-        return await _resolve_api_file_path(url, file_content_reader=file_content_reader)
+        return await _resolve_api_file_path(
+            url, file_content_reader=file_content_reader
+        )
 
-    return _resolve_local_file(url)
+    return await asyncio.to_thread(_resolve_local_file, url)
 
 
 async def _resolve_api_file_path(
@@ -103,7 +106,8 @@ async def _resolve_api_file_path(
         try:
             data = await file_content_reader(file_id)
             if data:
-                return _bytes_to_data_url(_compress_for_send(data), file_id)
+                compressed = await asyncio.to_thread(_compress_for_send, data)
+                return _bytes_to_data_url(compressed, file_id)
         except Exception as exc:
             logger.debug(
                 "[MediaResolver] File reader failed for %s, falling back to HTTP: %s",
@@ -164,9 +168,15 @@ class MediaResolverProcessor(BaseProcessor):
         )
 
         resolved_count = 0
-        for (msg_idx, item_idx, original_url), result in zip(resolve_tasks, results, strict=True):
+        for (msg_idx, item_idx, original_url), result in zip(
+            resolve_tasks, results, strict=True
+        ):
             if isinstance(result, Exception):
-                logger.warning("[MediaResolver] Failed to resolve %s: %s", original_url[:80], result)
+                logger.warning(
+                    "[MediaResolver] Failed to resolve %s: %s",
+                    original_url[:80],
+                    result,
+                )
                 continue
             if result is None:
                 continue
@@ -187,7 +197,9 @@ class MediaResolverProcessor(BaseProcessor):
 
         return context
 
-    async def _resolve_with_semaphore(self, sem: asyncio.Semaphore, url: str) -> str | None:
+    async def _resolve_with_semaphore(
+        self, sem: asyncio.Semaphore, url: str
+    ) -> str | None:
         async with sem:
             return await self._resolve_url(url)
 
@@ -207,12 +219,16 @@ def _resolve_local_file(path_str: str) -> str | None:
             return None
         size = p.stat().st_size
         if size > MAX_IMAGE_READ_BYTES:
-            logger.warning("[MediaResolver] Local file too large (%d bytes): %s", size, path_str)
+            logger.warning(
+                "[MediaResolver] Local file too large (%d bytes): %s", size, path_str
+            )
             return None
         data = p.read_bytes()
         return _bytes_to_data_url(_compress_for_send(data), path_str)
     except Exception as exc:
-        logger.warning("[MediaResolver] Local file read failed for %s: %s", path_str, exc)
+        logger.warning(
+            "[MediaResolver] Local file read failed for %s: %s", path_str, exc
+        )
         return None
 
 
@@ -242,7 +258,8 @@ async def _resolve_http(url: str) -> str | None:
         if not mime or not mime.startswith("image/"):
             mime = _detect_mime(data)
 
-        b64 = base64.b64encode(_compress_for_send(data)).decode("ascii")
+        compressed = await asyncio.to_thread(_compress_for_send, data)
+        b64 = base64.b64encode(compressed).decode("ascii")
         return f"data:{mime};base64,{b64}"
     except Exception as exc:
         logger.warning("[MediaResolver] HTTP fetch failed for %s: %s", url[:80], exc)

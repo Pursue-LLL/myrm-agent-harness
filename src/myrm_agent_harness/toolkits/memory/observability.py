@@ -43,6 +43,7 @@ class MemoryOperationKind(StrEnum):
     CITE = "cite"
     FORGET = "forget"
     CORRECT = "correct"
+    CONFLICT = "conflict"
     MAINTENANCE = "maintenance"
     IMPORT_MEMORY = "import_memory"
     EXPORT_MEMORY = "export_memory"

@@ -1,7 +1,8 @@
 """BBox fallback click when AX invoke fails.
 
 This is the coordinate-based fallback path — it WILL steal foreground focus
-(pyautogui/xdotool moves the real cursor). The foreground permission gate
+(the native input layer moves the real cursor: macOS Quartz CGEvent,
+Windows pyautogui, Linux xdotool). The foreground permission gate
 must be checked before entering this function.
 """
 

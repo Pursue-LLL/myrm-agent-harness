@@ -93,6 +93,15 @@ class AgentPluginParser:
         result.meta = meta
         result.schemas.append("https://agent-plugins.org/schemas/1.0.0/plugin.schema.json")
 
+        # Retain every non-skill file (plugin.json / mcp.json / bundled stdio
+        # scripts) so the business layer can persist them to the plugin root
+        # directory on import. Skill files live on PluginSkill.files instead.
+        result.files = {
+            path: content
+            for path, content in all_files.items()
+            if not path.startswith("skills/")
+        }
+
         # Skills discovery (§6.1, §7.1): non-recursive, SKILL.md gate.
         self._discover_skills(all_files, result)
 

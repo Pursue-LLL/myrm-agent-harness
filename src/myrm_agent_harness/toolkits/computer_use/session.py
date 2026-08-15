@@ -457,7 +457,7 @@ def _try_wrap_with_cua_driver(native_backend: ComputerBackend) -> ComputerBacken
         if is_cua_driver_available():
             logger.info("cua-driver detected — enabling background input mode")
             return CuaDriverBackend(fallback=native_backend)
-        logger.debug("cua-driver not found — using native input (pyautogui)")
+        logger.debug("cua-driver not found — using native input backend")
     except ImportError:
         logger.debug("mcp SDK not installed — cua-driver backend unavailable")
     return native_backend

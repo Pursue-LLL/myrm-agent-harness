@@ -5,7 +5,6 @@ from PIL import Image
 
 from myrm_agent_harness.utils.media.image_compressor import (
     SEND_COMPRESS_MAX_DIMENSION,
-    SEND_COMPRESS_TRIGGER_BYTES,
     ImageCompressor,
 )
 
@@ -83,11 +82,52 @@ def test_compress_without_max_dimension(compressor):
     assert result_img.size == (3000, 3000)
 
 
+def test_png_tempfile_cleaned_on_compress_failure(compressor, monkeypatch, tmp_path):
+    """PNG compression must not leak its temporary file when the pipeline raises."""
+    import tempfile
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(
+        compressor,
+        "_compress_png",
+        lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    png = create_test_image(64, 64, "PNG").getvalue()
+
+    with pytest.raises(RuntimeError):
+        compressor.compress(io.BytesIO(png))
+
+    assert list(tmp_path.iterdir()) == []
+
+
 def _make_gif_bytes(width: int = 64, height: int = 64, frames: int = 2) -> bytes:
     """Generate an (animated when frames > 1) GIF byte string."""
-    images = [Image.new("RGB", (width, height), color=(i * 60, 100, 200)) for i in range(frames)]
+    images = [
+        Image.new("RGB", (width, height), color=(i * 60, 100, 200))
+        for i in range(frames)
+    ]
     buf = io.BytesIO()
-    images[0].save(buf, format="GIF", save_all=True, append_images=images[1:], duration=100, loop=0)
+    images[0].save(
+        buf, format="GIF", save_all=True, append_images=images[1:], duration=100, loop=0
+    )
+    return buf.getvalue()
+
+
+def _make_webp_bytes(width: int = 64, height: int = 64, frames: int = 2) -> bytes:
+    """Generate an (animated when frames > 1) WebP byte string."""
+    images = [
+        Image.new("RGB", (width, height), color=(i * 60, 100, 200))
+        for i in range(frames)
+    ]
+    buf = io.BytesIO()
+    images[0].save(
+        buf,
+        format="WEBP",
+        save_all=True,
+        append_images=images[1:],
+        duration=100,
+        loop=0,
+    )
     return buf.getvalue()
 
 
@@ -111,12 +151,19 @@ class TestCompressIfNeeded:
         # Byte-overflow path: a lowered trigger threshold makes this JPEG exceed
         # it while its dimensions stay within max_dimension.
         raw = _make_jpeg_bytes(1024, 1024)
-        result = compressor.compress_if_needed(raw, trigger_bytes=512, max_dimension=4096)
+        result = compressor.compress_if_needed(
+            raw, trigger_bytes=512, max_dimension=4096
+        )
         assert result is not raw
         assert len(result) < len(raw)
 
     def test_animated_gif_preserved(self, compressor):
         raw = _make_gif_bytes(frames=3)
+        result = compressor.compress_if_needed(raw)
+        assert result is raw
+
+    def test_animated_webp_preserved(self, compressor):
+        raw = _make_webp_bytes(frames=3)
         result = compressor.compress_if_needed(raw)
         assert result is raw
 

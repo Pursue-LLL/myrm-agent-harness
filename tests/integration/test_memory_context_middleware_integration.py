@@ -14,6 +14,7 @@ and rule injection through the real relational store.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -193,7 +194,7 @@ async def test_hybrid_real_assembly_injects_working_state(
     memory_search_tool: object,
 ) -> None:
     """Real working_state profile keys flow into the Active Working Context section."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from myrm_agent_harness.toolkits.memory._internal.storage_context import (
         WORKING_STATE_PROFILE_KEY,
@@ -210,7 +211,7 @@ async def test_hybrid_real_assembly_injects_working_state(
     )
     await store.set_profile(
         WORKING_STATE_UPDATED_AT_KEY,
-        datetime.now(timezone.utc).isoformat(),
+        datetime.now(UTC).isoformat(),
         scope=manager._scope,
     )
 

@@ -262,7 +262,7 @@ class CuaDriverBackend:
                 raise RuntimeError(out.get("data", "cua-driver click failed"))
             return ActionResult(success=True)
         except Exception as exc:
-            logger.warning("cua-driver click failed, falling back to pyautogui: %s", exc)
+            logger.warning("cua-driver click failed, falling back to native backend: %s", exc)
             return await self._fallback.click(x, y, button, clicks, modifiers=modifiers)
 
     async def type_text(self, text: str, delay_ms: int = 12, chunk_size: int = 50) -> ActionResult:

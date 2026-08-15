@@ -707,18 +707,37 @@ _dedup_cache: dict[str, RoutingTier] = {}
 _DEDUP_CACHE_MAX = 128
 
 
-def _dedup_check(text: str) -> RoutingTier | None:
-    """Check if this exact text was recently routed. Returns cached tier or None."""
-    text_hash = _hash_text(text)
-    return _dedup_cache.get(text_hash)
+def _dedup_key(text: str, has_image: bool) -> str:
+    """Build a content-dedup cache key scoped by image presence.
+
+    Image input forces STANDARD (``image_input`` +6.0 in unified scoring), so
+    a verdict cached from a text-only query must never satisfy an image query —
+    image tasks need vision-capable models.
+    """
+    return f"{has_image}\x00{text}"
 
 
-def _dedup_store(text: str, tier: RoutingTier) -> None:
-    """Store routing result for content dedup."""
+def _dedup_check(text: str, has_image: bool) -> RoutingTier | None:
+    """Check if this exact text (with image flag) was recently routed.
+
+    Returns cached tier or None.
+    """
+    return _dedup_cache.get(_hash_text(_dedup_key(text, has_image)))
+
+
+def _dedup_store(text: str, has_image: bool, tier: RoutingTier) -> None:
+    """Store a context-free routing verdict for content dedup.
+
+    Only pure rule-phase verdicts (`rule_result`) may be stored — never
+    momentum- or min_tier-adjusted results, which are session-local. LLM-judge
+    verdicts are managed exclusively by the TTL-bounded `_judge_cache`: the
+    judge branch never reads this cache, so duplicating judge verdicts here
+    would only create an unbounded stale copy for the rule branch to mis-read.
+    """
     if len(_dedup_cache) >= _DEDUP_CACHE_MAX:
         oldest_key = next(iter(_dedup_cache))
         _dedup_cache.pop(oldest_key, None)
-    _dedup_cache[_hash_text(text)] = tier
+    _dedup_cache[_hash_text(_dedup_key(text, has_image))] = tier
 
 
 async def route_task(
@@ -791,24 +810,30 @@ async def route_task(
             reason="empty_query",
         )
 
-    degraded = False
     rule_result = _rule_based_classify(
-        text, has_image, std_kw, reason_kw, simple_ind, penalty_tracker
+        text,
+        has_image,
+        std_kw,
+        reason_kw,
+        simple_ind,
+        penalty_tracker=penalty_tracker,
     )
     if rule_result is not None:
         if not min_tier:
-            deduped = _dedup_check(text)
+            deduped = _dedup_check(text, has_image)
             if deduped is not None:
-                cfg, fallback = _select_model_for_tier(deduped, *select_args)
-                return RoutingResult(
-                    tier=deduped,
-                    model_cfg=cfg,
-                    fallback_model_cfg=fallback,
-                    reason="content_dedup",
-                )
-
-        final_tier, overridden = _apply_momentum(rule_result, text, recent_tiers)
-        reason = "momentum_override" if overridden else "rule_based"
+                # 命中纯判定缓存：仍需走 momentum（与 judge 缓存对称），
+                # 缓存只存无上下文的档位，会话上下文在此每轮重算。
+                final_tier, overridden = _apply_momentum(deduped, text, recent_tiers)
+                reason = "momentum_override" if overridden else "content_dedup"
+            else:
+                _dedup_store(text, has_image, rule_result)
+                final_tier, overridden = _apply_momentum(rule_result, text, recent_tiers)
+                reason = "momentum_override" if overridden else "rule_based"
+        else:
+            # min_tier 场景：跳过 dedup 读写，避免把升级上下文写入缓存
+            final_tier, overridden = _apply_momentum(rule_result, text, recent_tiers)
+            reason = "momentum_override" if overridden else "rule_based"
     elif judge_llm is not None:
         text_hash = _hash_text(text)
         cached_tier = _cache_get(text_hash)
@@ -822,7 +847,6 @@ async def route_task(
                 # ——缓存只应保存真实判定，瞬时故障不得钉死默认档位达 cache TTL。
                 final_tier = RoutingTier.STANDARD
                 reason = "llm_judge_unavailable"
-                degraded = True
             else:
                 _cache_put(text_hash, judged_tier)
                 final_tier = judged_tier
@@ -845,8 +869,6 @@ async def route_task(
         cfg.model,
         reason,
     )
-    if not degraded:
-        _dedup_store(text, final_tier)
     return RoutingResult(tier=final_tier, model_cfg=cfg, fallback_model_cfg=fallback, reason=reason)
 
 

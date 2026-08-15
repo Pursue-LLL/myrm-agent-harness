@@ -9,7 +9,8 @@ Platform-specific implementations of the ComputerBackend protocol. Provides macO
 |------|------|-------------|-------|
 | __init__.py | Package | Computer use backends — re-exports ComputerBackend protocol. | — |
 | protocols.py | Core | ComputerBackend protocol — abstract interface for platform backends. | ✅ |
-| macos.py | Core | macOS backend — screencapture + pyautogui + NSScreen DPI + AX text. | ✅ |
+| macos.py | Core | macOS backend — screencapture + Quartz CGEvent + NSScreen DPI + AX text. | ✅ |
+| macos_input.py | Core | macOS input primitives — Quartz CGEvent keyboard/mouse (replaces pyautogui). | ✅ |
 | windows.py | Core | Windows backend — mss + pyautogui + ctypes/user32 + uiautomation. | ✅ |
 | linux.py | Core | Linux backend — scrot/gnome-screenshot + xdotool + DISPLAY auto-detection. | ✅ |
 | cua_driver.py | Enhancement | Background-input backend via cua-driver MCP. Wraps a native backend. | ✅ |
@@ -19,7 +20,7 @@ Platform-specific implementations of the ComputerBackend protocol. Provides macO
 ```
 All platforms (macOS / Windows / Linux):
   cua-driver installed? ─── YES ──→ CuaDriverBackend(fallback=NativeBackend)
-                        └── NO  ──→ NativeBackend (pyautogui / xdotool)
+                        └── NO  ──→ NativeBackend (macOS: Quartz CGEvent / Windows: pyautogui / Linux: xdotool)
 ```
 
 ## cua-driver Integration
@@ -33,7 +34,8 @@ If cua-driver fails for any individual action, it transparently falls back to th
 ## Key Dependencies
 
 - `mss` (Windows screenshot capture)
-- `pyautogui` (macOS/Windows input simulation — native fallback)
+- `pyobjc-framework-Quartz` (macOS input simulation — native CGEvent, avoids rubicon-objc arm64 bug)
+- `pyautogui` (Windows input simulation — native fallback)
 - `uiautomation` (Windows accessibility text extraction, optional)
 - `xdotool` (Linux input simulation)
 - `cua-driver` (macOS/Windows/Linux background input, optional, MIT license)

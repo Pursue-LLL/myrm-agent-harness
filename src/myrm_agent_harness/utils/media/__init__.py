@@ -16,9 +16,9 @@ from .image_compressor import (
 )
 
 __all__ = [
-    "ImageCompressor",
-    "image_compressor",
     "SEND_COMPRESS_MAX_DIMENSION",
     "SEND_COMPRESS_QUALITY",
     "SEND_COMPRESS_TRIGGER_BYTES",
+    "ImageCompressor",
+    "image_compressor",
 ]

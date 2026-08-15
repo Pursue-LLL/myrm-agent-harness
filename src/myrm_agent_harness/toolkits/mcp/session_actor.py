@@ -432,12 +432,14 @@ class MCPSessionActor:
         raw_args = conn.get("args")
         args_list = raw_args if isinstance(raw_args, list) else []
         env = conn.get("env")
+        cwd = conn.get("cwd")
 
         return stdio_client(
             StdioServerParameters(
                 command=str(raw_command),
                 args=[str(a) for a in args_list],
                 env=cast(dict[str, str] | None, env) if isinstance(env, dict) else None,
+                cwd=str(cwd) if cwd else None,
             )
         )
 

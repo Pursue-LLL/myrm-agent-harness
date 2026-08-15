@@ -58,7 +58,7 @@ def _make_interactive_control(
 
 def _make_auto(**kwargs) -> MagicMock:
     auto = MagicMock()
-    auto.GetForegroundControl.return_value = kwargs.get("foreground", None)
+    auto.GetForegroundControl.return_value = kwargs.get("foreground")
     root = kwargs.get("root")
     auto.GetRootControl.return_value = root
     auto.GetProcessNameByPid.return_value = kwargs.get("process_name", "")
@@ -173,15 +173,13 @@ class TestLocateWindowErrors:
 
 class TestCaptureSnapshotErrors:
     def test_uiautomation_missing(self) -> None:
-        with _module_without_uiautomation() as module:
-            with pytest.raises(AXTreeEmptyError):
-                module.capture_ax_snapshot("foreground")
+        with _module_without_uiautomation() as module, pytest.raises(AXTreeEmptyError):
+            module.capture_ax_snapshot("foreground")
 
     def test_no_foreground_window(self) -> None:
         auto = _make_auto(foreground=None)
-        with _module_with_auto(auto) as module:
-            with pytest.raises(AXTreeEmptyError, match="no foreground"):
-                module.capture_ax_snapshot("foreground")
+        with _module_with_auto(auto) as module, pytest.raises(AXTreeEmptyError, match="no foreground"):
+            module.capture_ax_snapshot("foreground")
 
     def test_no_interactive_refs(self) -> None:
         non_interactive = MagicMock()
@@ -191,9 +189,8 @@ class TestCaptureSnapshotErrors:
         foreground.Name = "Main Window"
         foreground.GetChildren.return_value = [non_interactive]
         auto = _make_auto(foreground=foreground)
-        with _module_with_auto(auto) as module:
-            with pytest.raises(AXTreeEmptyError, match="Main Window"):
-                module.capture_ax_snapshot("foreground")
+        with _module_with_auto(auto) as module, pytest.raises(AXTreeEmptyError, match="Main Window"):
+            module.capture_ax_snapshot("foreground")
 
 
 class TestInvokeElementErrors:

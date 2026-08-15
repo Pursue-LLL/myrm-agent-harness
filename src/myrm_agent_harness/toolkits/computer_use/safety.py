@@ -249,7 +249,8 @@ def is_foreground_required(action: str) -> bool:
 
     AX invoke operations (handled at the perception layer) are inherently
     background-safe. Coordinate-based actions (click, type, key, scroll, drag,
-    mouse_move) require foreground access via pyautogui/xdotool.
+    mouse_move) require foreground access via the native input layer
+    (macOS Quartz CGEvent, Windows pyautogui, Linux xdotool).
 
     Returns True if the action needs foreground permission.
     """

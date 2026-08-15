@@ -44,6 +44,7 @@ from .oauth import (
     build_authorization_url,
     generate_pkce_pair,
 )
+from .placeholders import expand_placeholders, resolve_stdio_launch
 from .result_processing import OversizedResultHandler
 from .schema import get_schema_coercion_stats, reset_schema_coercion_stats
 from .security import (
@@ -73,9 +74,11 @@ __all__ = [
     "SafeStructuredTool",
     "URLValidationError",
     "build_authorization_url",
+    "expand_placeholders",
     "generate_pkce_pair",
     "get_mcp_connection",
     "get_mcp_connection_manager",
     "get_schema_coercion_stats",
     "reset_schema_coercion_stats",
+    "resolve_stdio_launch",
 ]

@@ -31,43 +31,27 @@ class TestModifierKeyType:
         assert get_origin(ModifierKey) is Literal
 
 
-def _mock_pyautogui() -> MagicMock:
-    """Create a fully mocked pyautogui with named functions for test introspection."""
+def _mock_macos_input() -> MagicMock:
+    """Create a fully mocked macos_input with named functions for test introspection."""
     m = MagicMock()
     m.size.return_value = MagicMock(width=1920, height=1080)
     m.position.return_value = MagicMock(x=0, y=0)
-    for name in ("keyDown", "keyUp", "click", "scroll", "hscroll", "moveTo", "drag", "write", "press", "hotkey"):
+    for name in ("key_down", "key_up", "click", "scroll", "hscroll", "move_to", "drag", "write", "press", "hotkey"):
         fn = MagicMock()
         fn.__name__ = name
         setattr(m, name, fn)
     return m
 
 
-_MACOS_MOCK_MODULES = {
-    "AppKit": MagicMock(),
-    "rubicon": MagicMock(),
-    "rubicon.objc": MagicMock(),
-    "rubicon.objc.api": MagicMock(),
-    "rubicon.objc.runtime": MagicMock(),
-    "rubicon.objc.collections": MagicMock(),
-    "rubicon.objc.types": MagicMock(),
-    "Quartz": MagicMock(),
-    "Quartz.CoreGraphics": MagicMock(),
-    "mouseinfo": MagicMock(),
-}
-
-
 @pytest.fixture
 def _mock_macos_env():
-    """Fixture to mock all macOS-specific modules for the entire test lifetime."""
-    mock_pyautogui = _mock_pyautogui()
-    modules = {**_MACOS_MOCK_MODULES, "pyautogui": mock_pyautogui}
-    with patch.dict("sys.modules", modules):
-        import importlib
+    """Fixture that swaps MacOSBackend's input module for a fully mocked macos_input."""
+    import importlib
 
-        import myrm_agent_harness.toolkits.computer_use.backends.macos as macos_mod
+    import myrm_agent_harness.toolkits.computer_use.backends.macos as macos_mod
 
-        importlib.reload(macos_mod)
+    importlib.reload(macos_mod)
+    with patch.object(macos_mod, "macos_input", _mock_macos_input()):
         yield macos_mod
 
 
@@ -93,7 +77,7 @@ class TestMacOSBackendModifiers:
 
         assert result.success is True
         names = [c[0] for c in call_log]
-        assert names == ["keyDown", "keyDown", "click", "keyUp", "keyUp"]
+        assert names == ["key_down", "key_down", "click", "key_up", "key_up"]
         assert call_log[0][1] == ("ctrl",)
         assert call_log[1][1] == ("shift",)
         assert call_log[3][1] == ("shift",)
@@ -113,8 +97,8 @@ class TestMacOSBackendModifiers:
 
         assert result.success is True
         names = [c[0] for c in call_log]
-        assert "keyDown" not in names
-        assert "keyUp" not in names
+        assert "key_down" not in names
+        assert "key_up" not in names
 
     @pytest.mark.asyncio
     async def test_click_exception_releases_modifiers(self, backend) -> None:
@@ -134,8 +118,8 @@ class TestMacOSBackendModifiers:
         assert result.success is False
         assert "simulated failure" in (result.error or "")
         names = [c[0] for c in call_log]
-        assert "keyDown" in names
-        assert "keyUp" in names
+        assert "key_down" in names
+        assert "key_up" in names
 
     @pytest.mark.asyncio
     async def test_scroll_with_modifiers(self, backend) -> None:
@@ -151,9 +135,9 @@ class TestMacOSBackendModifiers:
 
         assert result.success is True
         names = [c[0] for c in call_log]
-        assert names.count("keyDown") == 1
-        assert names.count("keyUp") == 1
-        assert call_log[names.index("keyDown")][1] == ("ctrl",)
+        assert names.count("key_down") == 1
+        assert names.count("key_up") == 1
+        assert call_log[names.index("key_down")][1] == ("ctrl",)
 
     @pytest.mark.asyncio
     async def test_drag_with_modifiers(self, backend) -> None:
@@ -169,10 +153,10 @@ class TestMacOSBackendModifiers:
 
         assert result.success is True
         names = [c[0] for c in call_log]
-        assert names.count("keyDown") == 1
-        assert names.count("keyUp") == 1
-        assert call_log[names.index("keyDown")][1] == ("option",)
-        assert call_log[names.index("keyUp")][1] == ("option",)
+        assert names.count("key_down") == 1
+        assert names.count("key_up") == 1
+        assert call_log[names.index("key_down")][1] == ("option",)
+        assert call_log[names.index("key_up")][1] == ("option",)
 
     @pytest.mark.asyncio
     async def test_meta_maps_to_command(self, backend) -> None:
@@ -187,7 +171,7 @@ class TestMacOSBackendModifiers:
             await backend.click(100, 200, modifiers=["meta"])
 
         names = [c[0] for c in call_log]
-        keydown_idx = names.index("keyDown")
+        keydown_idx = names.index("key_down")
         assert call_log[keydown_idx][1] == ("command",)
 
 
@@ -517,8 +501,8 @@ class TestEdgeCases:
 
         assert result.success is False
         names = [c[0] for c in call_log]
-        assert "keyDown" in names
-        assert "keyUp" in names
+        assert "key_down" in names
+        assert "key_up" in names
 
     @pytest.mark.asyncio
     async def test_macos_drag_exception_releases_modifiers(self, macos_backend) -> None:
@@ -528,7 +512,7 @@ class TestEdgeCases:
         async def mock_to_thread(fn, *args, **kwargs):
             name = getattr(fn, "__name__", str(fn))
             call_log.append((name, args))
-            if name == "moveTo":
+            if name == "move_to":
                 raise RuntimeError("drag failed")
             return None
 
@@ -537,8 +521,8 @@ class TestEdgeCases:
 
         assert result.success is False
         names = [c[0] for c in call_log]
-        assert "keyDown" in names
-        assert "keyUp" in names
+        assert "key_down" in names
+        assert "key_up" in names
 
     @pytest.mark.asyncio
     async def test_macos_empty_list_modifiers_no_keydown(self, macos_backend) -> None:
@@ -555,5 +539,5 @@ class TestEdgeCases:
 
         assert result.success is True
         names = [c[0] for c in call_log]
-        assert "keyDown" not in names
-        assert "keyUp" not in names
+        assert "key_down" not in names
+        assert "key_up" not in names

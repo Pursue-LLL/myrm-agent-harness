@@ -381,15 +381,22 @@ class TestPenaltyTracker:
 
 class TestContentDedup:
     def test_dedup_miss(self) -> None:
-        assert _dedup_check("unique query") is None
+        assert _dedup_check("unique query", False) is None
 
     def test_dedup_hit(self) -> None:
-        _dedup_store("cached query", RoutingTier.STANDARD)
-        assert _dedup_check("cached query") == RoutingTier.STANDARD
+        _dedup_store("cached query", False, RoutingTier.STANDARD)
+        assert _dedup_check("cached query", False) == RoutingTier.STANDARD
 
     def test_dedup_different_text(self) -> None:
-        _dedup_store("query A", RoutingTier.SIMPLE)
-        assert _dedup_check("query B") is None
+        _dedup_store("query A", False, RoutingTier.SIMPLE)
+        assert _dedup_check("query B", False) is None
+
+    def test_dedup_image_flag_scoped(self) -> None:
+        """Image presence is part of the cache key — a text-only verdict must
+        never satisfy an image query (image tasks need vision-capable models)."""
+        _dedup_store("describe this", False, RoutingTier.SIMPLE)
+        assert _dedup_check("describe this", True) is None
+        assert _dedup_check("describe this", False) == RoutingTier.SIMPLE
 
 
 # ─── route_task integration ──────────────────────────────────────────
@@ -497,7 +504,7 @@ class TestRouteTask:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A hung judge call must not block routing: wait_for timeout degrades to
-        STANDARD instead of stalling the request."""
+        STANDARD with a distinct reason instead of stalling the request."""
         from myrm_agent_harness.toolkits.llms.routing import complexity_router
 
         monkeypatch.setattr(complexity_router, "_JUDGE_TIMEOUT_S", 0.01)
@@ -517,7 +524,88 @@ class TestRouteTask:
             judge_llm=judge_llm,
         )
         assert result.tier == RoutingTier.STANDARD
-        assert result.reason == "llm_judge"
+        assert result.reason == "llm_judge_unavailable"
+        # 降级不是判定，不得写入任何缓存：恢复后的 judge 必须能重新判定。
+        assert _judge_cache == {}
+        assert _dedup_cache == {}
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_unparseable_not_cached(self) -> None:
+        """Unparseable judge output degrades to STANDARD and must not pollute
+        the judge cache (a transient model blip must not pin the tier)."""
+        mock_response = MagicMock()
+        mock_response.content = "I'm not sure what tier this should be"
+        judge_llm = AsyncMock()
+        judge_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await route_task(
+            "tell me about interesting things in the world of technology",
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+        )
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason == "llm_judge_unavailable"
+        assert _judge_cache == {}
+        assert _dedup_cache == {}
+
+    @pytest.mark.asyncio
+    async def test_llm_judge_cached_with_momentum(self) -> None:
+        """A cached judge verdict is still subject to session momentum: cache
+        stores the raw classification; momentum re-applies per-turn so a short
+        follow-up cannot downgrade an ongoing complex task."""
+        mock_response = MagicMock()
+        mock_response.content = '{"tier":"SIMPLE"}'
+        judge_llm = AsyncMock()
+        judge_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        text = "tell me about interesting things in the world of technology"
+        first = await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+        )
+        assert first.reason == "llm_judge"
+        assert judge_llm.ainvoke.call_count == 1
+
+        second = await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        # 缓存命中：不发起第二次 judge 调用；momentum 仍生效。
+        assert judge_llm.ainvoke.call_count == 1
+        assert second.reason == "momentum_override"
+        assert second.tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
+
+    @pytest.mark.asyncio
+    async def test_custom_penalty_tracker_is_forwarded(self) -> None:
+        """route_task must forward a caller-provided penalty_tracker to the rule
+        phase (previously a dead parameter that silently used the global)."""
+        from unittest.mock import patch
+
+        from myrm_agent_harness.toolkits.llms.routing import complexity_router
+
+        custom = PenaltyTracker()
+        with patch.object(
+            complexity_router,
+            "_rule_based_classify",
+            wraps=complexity_router._rule_based_classify,
+        ) as mock_rbc:
+            await route_task(
+                "hello",
+                STD_CFG,
+                light_model_cfg=LIGHT_CFG,
+                penalty_tracker=custom,
+            )
+        mock_rbc.assert_called_once()
+        assert mock_rbc.call_args.kwargs.get("penalty_tracker") is custom
 
     @pytest.mark.asyncio
     async def test_momentum_override(self) -> None:
@@ -536,6 +624,95 @@ class TestRouteTask:
         result2 = await route_task("debug this error", STD_CFG, light_model_cfg=LIGHT_CFG)
         assert result2.reason == "content_dedup"
         assert result2.tier == result1.tier
+
+    @pytest.mark.asyncio
+    async def test_dedup_hit_still_applies_momentum(self) -> None:
+        """A dedup hit returns the pure cached tier but must still apply session
+        momentum — the cache never carries context across sessions."""
+        text = "ok"
+        # 会话 A：无历史，rule 判 SIMPLE 入缓存
+        first = await route_task(text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert first.tier == RoutingTier.SIMPLE
+        # 会话 B：同一文本命中缓存，但当前会话是 REASONING 复杂任务
+        second = await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        assert second.tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
+        assert second.reason == "momentum_override"
+
+    @pytest.mark.asyncio
+    async def test_dedup_cache_stores_pure_verdict_not_momentum(self) -> None:
+        """The dedup cache must store the pure rule verdict, not the
+        momentum-elevated tier — otherwise a later context-free request leaks
+        the previous session's momentum."""
+        text = "ok"
+        await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        # 新会话无历史：命中缓存应为纯 rule 档位 SIMPLE，而非 REASONING
+        result = await route_task(text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.SIMPLE
+        assert result.reason == "content_dedup"
+
+    @pytest.mark.asyncio
+    async def test_min_tier_not_cached(self) -> None:
+        """min_tier escalation is session-local and must not be written to the
+        dedup cache — a later plain request must not inherit the escalation."""
+        text = "hello"
+        await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            min_tier=RoutingTier.REASONING,
+        )
+        result = await route_task(text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.SIMPLE
+        assert result.reason != "content_dedup"
+
+    @pytest.mark.asyncio
+    async def test_dedup_image_scoped_in_route(self) -> None:
+        """A text-only verdict cached under one text must not be returned for an
+        image query of the same text (image tasks require STANDARD tier)."""
+        text = "describe this"
+        await route_task(text, STD_CFG, light_model_cfg=LIGHT_CFG)
+        multimodal = [{"type": "text", "text": text}, {"type": "image_url", "url": "https://example.com/img.png"}]
+        result = await route_task(multimodal, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert result.tier == RoutingTier.STANDARD
+        assert result.reason != "content_dedup"
+
+    @pytest.mark.asyncio
+    async def test_judge_verdict_not_in_dedup_cache(self) -> None:
+        """Judge verdicts live only in the TTL-bounded judge cache — never the
+        unbounded dedup cache: a stale judge tier must not become readable by the
+        rule branch, whose verdicts follow deterministic rule scoring only."""
+        mock_response = MagicMock()
+        mock_response.content = '{"tier":"SIMPLE"}'
+        judge_llm = AsyncMock()
+        judge_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        text = "tell me about interesting things in the world of technology"
+        elevated = await route_task(
+            text,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            reasoning_model_cfg=REASON_CFG,
+            judge_llm=judge_llm,
+            recent_tiers=[RoutingTier.REASONING] * 5,
+        )
+        assert elevated.tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
+        assert elevated.reason == "momentum_override"
+        # judge 纯判定 SIMPLE 只进 judge 缓存（纯值）；dedup 保持纯净（仅 rule 判定）。
+        assert _judge_cache != {}
+        assert _dedup_check(text, False) is None
 
     @pytest.mark.asyncio
     async def test_traceback_routes_to_standard(self) -> None:

@@ -45,6 +45,8 @@ SKILL_USAGE_TEMPLATE = """
 
 Above are only summaries without parameter details. **Get docs first, then call.**
 
+**All usage information is contained in this SOP and the function docs below. Proceed directly once docs are read — no additional lookups needed.**
+
 ### Step 1: Read function docs via file_read_tool
 
 **First:** enumerate every MCP function needed to finish the user's request. **Then** batch-read **all** their docs in one `file_read_tool` call. Do NOT use bash/cat. Do NOT start bash until every needed doc is read.
