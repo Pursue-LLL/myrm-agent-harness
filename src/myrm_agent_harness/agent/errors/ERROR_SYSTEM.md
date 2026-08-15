@@ -114,7 +114,7 @@ content = f"{tool_name} execution failed: {e}"   # fallback
 BrowserError
 ├── BrowserPoolError（BrowserLaunchError, BrowserShutdownError, BrowserPoolExhaustedError）
 ├── BrowserSessionError（BrowserNavigationError, BrowserTimeoutError, BrowserNetworkError, BrowserClosedError）
-├── BrowserToolError（ToolExecutionError, ToolConfigurationError, RefNotFoundError）
+├── BrowserToolError（ClickTargetUnreachableError, RefNotFoundError）
 └── AriaError（AriaAcquisitionError, AriaParseError, AriaCrossOriginError）
 ```
 

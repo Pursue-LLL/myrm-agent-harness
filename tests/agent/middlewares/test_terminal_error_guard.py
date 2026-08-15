@@ -67,11 +67,15 @@ class TestClassifyTerminalError:
         err = BrowserLaunchError("Failed to launch browser: executable not found")
         assert classify_terminal_error(err) == CONFIG_OR_AUTH_BROWSER
 
-    def test_browser_tool_config_error_not_classified(self) -> None:
-        """ToolConfigurationError has no raise site in the codebase; treat as non-terminal."""
-        from myrm_agent_harness.toolkits.browser.exceptions import ToolConfigurationError
+    def test_browser_click_target_error_not_classified(self) -> None:
+        """Interaction-level failures are page problems, not Myrm config."""
+        from myrm_agent_harness.toolkits.browser.exceptions import (
+            ClickTargetUnreachableError,
+        )
 
-        err = ToolConfigurationError("Invalid browser tool configuration")
+        err = ClickTargetUnreachableError(
+            "Click target cannot be brought into the viewport"
+        )
         assert classify_terminal_error(err) is None
 
     def test_browser_navigation_error_not_classified(self) -> None:

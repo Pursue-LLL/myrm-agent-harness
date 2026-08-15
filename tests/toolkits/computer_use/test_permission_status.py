@@ -2,7 +2,7 @@
 
 Covers:
 - PermissionStatus frozen dataclass: defaults, all_granted property, deeplinks
-- _check_accessibility: osascript success/failure/permission-denied scenarios
+- _check_accessibility: AXIsProcessTrusted trusted/untrusted/library-failure scenarios
 - _check_screen_recording: CGPreflightScreenCaptureAccess via ctypes mocking
 - _check_macos_permissions: integration of both checks into PermissionStatus
 - MacOSBackend.check_permissions: async wrapper delegates to blocking impl
@@ -64,39 +64,48 @@ class TestPermissionStatus:
 
 
 class TestCheckAccessibility:
-    """_check_accessibility via osascript subprocess mocking."""
+    """_check_accessibility via ctypes AXIsProcessTrusted mocking."""
 
-    def test_granted_when_osascript_succeeds(self) -> None:
+    def test_granted_when_process_trusted(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
 
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        with patch("subprocess.run", return_value=mock_result) as mock_run:
+        mock_ax = MagicMock()
+        mock_ax.AXIsProcessTrusted.return_value = True
+        mock_ax.AXIsProcessTrusted.restype = None
+
+        with (
+            patch("ctypes.util.find_library", return_value="/System/Library/ApplicationServices"),
+            patch("ctypes.cdll.LoadLibrary", return_value=mock_ax),
+        ):
             assert _check_accessibility() is True
-            mock_run.assert_called_once()
-            args = mock_run.call_args[0][0]
-            assert args[0] == "osascript"
+            mock_ax.AXIsProcessTrusted.assert_called_once_with()
 
-    def test_denied_when_osascript_fails(self) -> None:
+    def test_denied_when_process_not_trusted(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
 
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        with patch("subprocess.run", return_value=mock_result):
+        mock_ax = MagicMock()
+        mock_ax.AXIsProcessTrusted.return_value = False
+        mock_ax.AXIsProcessTrusted.restype = None
+
+        with (
+            patch("ctypes.util.find_library", return_value="/System/Library/ApplicationServices"),
+            patch("ctypes.cdll.LoadLibrary", return_value=mock_ax),
+        ):
             assert _check_accessibility() is False
 
-    def test_denied_on_exception(self) -> None:
+    def test_denied_when_library_not_found(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
 
-        with patch("subprocess.run", side_effect=OSError("osascript not found")):
+        with patch("ctypes.util.find_library", return_value=None):
             assert _check_accessibility() is False
 
-    def test_denied_on_timeout(self) -> None:
-        import subprocess
-
+    def test_denied_on_load_failure(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
 
-        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("osascript", 3)):
+        with (
+            patch("ctypes.util.find_library", return_value="/System/Library/ApplicationServices"),
+            patch("ctypes.cdll.LoadLibrary", side_effect=OSError("load failed")),
+        ):
             assert _check_accessibility() is False
 
 

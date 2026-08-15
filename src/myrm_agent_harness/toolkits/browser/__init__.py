@@ -65,8 +65,6 @@ from .exceptions import (
     BrowserTimeoutError,
     BrowserToolError,
     RefNotFoundError,
-    ToolConfigurationError,
-    ToolExecutionError,
 )
 from .pool import EmulationConfig
 from .retry_policy import (
@@ -171,8 +169,6 @@ __all__ = [
     "SessionVaultBackend",
     "SessionVaultError",
     "StorageVaultBackend",
-    "ToolConfigurationError",
-    "ToolExecutionError",
     "VaultMetrics",
     "cleanup_orphan_processes",
     "create_browser_context_updater",

@@ -498,20 +498,24 @@ _MACOS_DEEPLINKS: dict[str, str] = {
 
 
 def _check_accessibility() -> bool:
-    """Check if Accessibility (AX) permission is granted via AppleScript."""
+    """Check if this process is trusted for Accessibility (AX) access.
+
+    Uses AXIsProcessTrusted(), which is authoritative for the current process.
+    An AppleScript frontmost-name query is NOT a valid probe: it succeeds even
+    without AX permission, so it produced false positives (permission reported
+    as granted while AX tree captures still fail).
+    """
+    import ctypes
+    import ctypes.util
+
+    ax_path = ctypes.util.find_library("ApplicationServices")
+    if not ax_path:
+        return False
     try:
-        result = subprocess.run(
-            [
-                "osascript",
-                "-e",
-                'tell application "System Events" to get name of first application process whose frontmost is true',
-            ],
-            capture_output=True,
-            text=True,
-            timeout=3,
-        )
-        return result.returncode == 0
-    except Exception:
+        ax = ctypes.cdll.LoadLibrary(ax_path)
+        ax.AXIsProcessTrusted.restype = ctypes.c_bool
+        return bool(ax.AXIsProcessTrusted())
+    except (OSError, AttributeError):
         return False
 
 

@@ -821,8 +821,8 @@ BrowserError (root)
 │   ├── BrowserNetworkError
 │   └── BrowserClosedError
 └── BrowserToolError
-    ├── ToolExecutionError
-    └── ToolConfigurationError
+    ├── ClickTargetUnreachableError
+    └── RefNotFoundError
 ```
 
 ### 重试策略

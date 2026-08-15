@@ -15,8 +15,6 @@ Architecture:
     │   ├── BrowserNetworkError
     │   └── BrowserClosedError
     ├──     BrowserToolError
-    │   ├── ToolExecutionError
-    │   ├── ToolConfigurationError
     │   ├── ClickTargetUnreachableError
     │   └── RefNotFoundError
     └── AriaError
@@ -411,24 +409,9 @@ class BrowserClosedError(BrowserSessionError):
 class BrowserToolError(BrowserError):
     """Errors related to browser tool execution.
 
-    Raised when browser tools (navigation, screenshot, etc.) fail to
-    execute, either due to configuration issues or execution failures.
-    """
-
-
-class ToolExecutionError(BrowserToolError):
-    """Tool execution failed.
-
-    Raised when a browser tool encounters an error during execution,
-    such as element not found, invalid selector, or script errors.
-    """
-
-
-class ToolConfigurationError(BrowserToolError):
-    """Tool configuration is invalid.
-
-    Raised when tool parameters are invalid or missing required fields,
-    preventing tool execution from starting.
+    Raised when browser tools (navigation, interaction, etc.) fail to
+    execute their low-level operations (e.g. unreachable click target,
+    stale element reference).
     """
 
 

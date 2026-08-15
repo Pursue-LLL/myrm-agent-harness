@@ -162,8 +162,17 @@ tell application "System Events"
     set outputLines to {{}}
     set end of outputLines to appName & "|||META|||" & winTitle & "|||" & bundleId & "|||" & appPid
 
+    set uiElements to {{}}
     try
         set uiElements to entire contents of window 1 of targetApp
+    on error errMsg
+        if errMsg contains "assistive access" or errMsg contains "辅助访问" then
+            set end of outputLines to "AX_PERMISSION_ERROR|||" & errMsg
+            set AppleScript's text item delimiters to linefeed
+            return outputLines as string
+        end if
+    end try
+    try
         set maxElements to count of uiElements
         if maxElements > {_MAX_ELEMENTS} then set maxElements to {_MAX_ELEMENTS}
         repeat with i from 1 to maxElements
@@ -273,6 +282,13 @@ def _parse_ax_output(
     lines = [line for line in result.stdout.splitlines() if line.strip()]
     if not lines:
         raise AXTreeEmptyError("no AX output")
+
+    # The AppleScript snapshot script surfaces an AX permission denial as a
+    # dedicated marker line (the `entire contents` call is guarded by try/on
+    # error inside osascript, so it would otherwise be misreported as an empty
+    # tree instead of a missing permission).
+    if lines[0].startswith("AX_PERMISSION_ERROR|||"):
+        raise AXPermissionRequiredError("macOS")
 
     meta_line = lines[0].split("|||")
     # Format: appName|||META|||winTitle|||bundleId|||appPid
