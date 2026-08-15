@@ -21,6 +21,7 @@ from myrm_agent_harness.agent.middlewares.memory_context.memory_context_format i
     _escape_xml_item,
     _format_memory_context,
     _has_memory_context,
+    _memory_search_tool_bound,
     _partition_budget_sections,
 )
 from myrm_agent_harness.agent.middlewares.memory_context.memory_context_middleware import (
@@ -188,6 +189,24 @@ def test_format_memory_context_budget_truncates_lower_priority_sections():
     assert must_have in (stable + (untrusted or ""))
 
 
+def test_format_truncation_notice_omits_tool_guidance_when_not_bound():
+    """CONTEXT mode truncation notice must not reference the unbound memory_search_tool."""
+    wall = "w" * 1200
+    ctx = {"global_profile": {f"k{i}": wall for i in range(60)}}
+    learned = {
+        "learned_rules": [],
+        "learned_preferences": [{"content": "q" + "z" * 8000}],
+    }
+    stable, untrusted = _format_memory_context(
+        ctx,
+        learned,
+        memory_search_enabled=False,
+    )
+    combined = (stable or "") + (untrusted or "")
+    assert "... (Some lower-priority memory items were truncated" in combined
+    assert "memory_search_tool" not in combined
+
+
 def test_format_learned_escapes_xml_in_items_for_envelope():
     learned = {
         "learned_rules": [],
@@ -249,6 +268,18 @@ def test_format_memory_search_includes_sessions_corpus_when_enabled():
     assert untrusted is not None
     assert "memory_search_tool" in untrusted
     assert "corpus=sessions" in untrusted
+
+
+def test_memory_search_tool_bound_accepts_objects_and_dicts():
+    """Tool binding detection tolerates BaseTool-like objects, dicts, and name-less entries."""
+    obj_bound = SimpleNamespace(name="memory_search_tool")
+    dict_bound = {"name": "memory_search_tool"}
+    others = [SimpleNamespace(name="other_tool"), {"type": "func", "name": "b"}, "bare-string"]
+    assert _memory_search_tool_bound(MagicMock(tools=[obj_bound])) is True
+    assert _memory_search_tool_bound(MagicMock(tools=[dict_bound])) is True
+    assert _memory_search_tool_bound(MagicMock(tools=others)) is False
+    assert _memory_search_tool_bound(MagicMock(tools=[])) is False
+    assert _memory_search_tool_bound(MagicMock(tools=None)) is False
 
 
 def test_format_profile():
@@ -717,6 +748,66 @@ class TestInjectMemoryContext:
         assert get_memory_runtime_injection() == {
             "state": "not_applied",
             "reason": "recall_mode_tools",
+        }
+
+    @pytest.mark.asyncio
+    async def test_context_mode_no_guidance_injection(self, _inject_fn):
+        """CONTEXT mode (memory_search_tool not bound) injects context but never tool guidance."""
+        handler = AsyncMock()
+        req = _make_request(tools=[])  # CONTEXT: no memory_search_tool bound
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.CONTEXT
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "Test"}})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        call_kwargs = req.override.call_args[1]
+        injected_messages = call_kwargs["messages"]
+
+        stable_msgs = [
+            m for m in injected_messages if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
+        ]
+        assert len(stable_msgs) == 1
+        assert "memory_search_tool" not in str(stable_msgs[0].content)
+        assert "## Memory Search" not in str(stable_msgs[0].content)
+        assert "Citation Requirements" not in str(stable_msgs[0].content)
+
+    @pytest.mark.asyncio
+    async def test_context_mode_cold_start_no_injection(self, _inject_fn):
+        """CONTEXT cold-start skips injection entirely — no learning guidance for unbound tools."""
+        handler = AsyncMock()
+        req = _make_request(tools=[])
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.CONTEXT
+        mock_manager.get_context = AsyncMock(return_value={})
+        mock_manager.get_learned_context = AsyncMock(return_value={"learned_rules": [], "learned_preferences": []})
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "empty_context",
         }
 
     @pytest.mark.asyncio

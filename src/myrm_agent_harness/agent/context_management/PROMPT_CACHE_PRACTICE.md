@@ -257,7 +257,7 @@ def _find_system_insert_idx(messages):
 
 **冷/暖启动自适应**：新用户仅注入 `_COLD_START_CONTEXT`（Stable SystemMessage）；老用户 Stable + Learned Human（若有）。
 
-**RecallMode 控制**：`TOOLS` 模式跳过注入；`CONTEXT` / `HYBRID` 正常注入。
+**RecallMode 控制**：`TOOLS` 模式跳过注入；`CONTEXT` 模式注入 context 但**不携带** Citation/Memory Search guidance（`memory_search_tool` 未绑定），cold-start 时整体跳过注入；`HYBRID` 模式注入 context 并携带完整 guidance tail。
 
 前缀示意：
 

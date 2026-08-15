@@ -108,7 +108,9 @@ def _partition_budget_sections(
 def _memory_search_tool_bound(request: ModelRequest) -> bool:
     tools = getattr(request, "tools", None) or []
     for tool in tools:
-        name = tool.name if hasattr(tool, "name") else tool.get("name")
+        name = getattr(tool, "name", None)
+        if name is None and isinstance(tool, dict):
+            name = tool.get("name")
         if name == "memory_search_tool":
             return True
     return False
@@ -285,12 +287,17 @@ def _format_memory_context(
     if is_cold:
         if not memory_search_enabled:
             return None, None
-        return _build_cold_start_context(memory_search_enabled=True), None
+        return _COLD_START_CONTEXT, None
 
-    truncation_message = (
-        "\n... (Some lower-priority memory items were truncated to preserve prompt stability. "
-        "Use memory_search_tool to search for more.)"
-    )
+    if memory_search_enabled:
+        truncation_message = (
+            "\n... (Some lower-priority memory items were truncated to preserve prompt stability. "
+            "Use memory_search_tool to search for more.)"
+        )
+    else:
+        truncation_message = (
+            "\n... (Some lower-priority memory items were truncated to preserve prompt stability.)"
+        )
     escaped_untrusted = [
         BudgetedSection(sec.title, [_escape_xml_item(i) for i in sec.items], priority=sec.priority)
         for sec in untrusted_sections
