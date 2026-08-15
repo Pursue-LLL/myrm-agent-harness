@@ -23,6 +23,23 @@ from myrm_agent_harness.agent.context_management.strategies.summary.summarizer i
 )
 
 
+def _make_mock_llm() -> AsyncMock:
+    """Create an AsyncMock chat model with explicitly synchronous probe methods.
+
+    ``AsyncMock`` methods implicitly return coroutines. The summarizer probes
+    ``llm.astream(...)`` (without awaiting it) and ``llm.with_structured_output``
+    synchronously, so un-configured mocks leak "never awaited" RuntimeWarnings.
+    Making both explicitly synchronous keeps the parser/ainvoke fallback paths
+    exercised without unawaited coroutines.
+    """
+    llm = AsyncMock()
+    llm.astream = MagicMock(side_effect=NotImplementedError("no stream — fallback to ainvoke"))
+    llm.with_structured_output = MagicMock(
+        side_effect=NotImplementedError("no structured output — fallback to parser")
+    )
+    return llm
+
+
 def _synthetic_prefix_cache_metrics(
     previous_invocation: list[BaseMessage],
     next_invocation: list[BaseMessage],
@@ -160,7 +177,7 @@ class TestGenerateStructuredSummaryFull:
     @pytest.mark.asyncio
     async def test_full_summary_first_attempt_pass(self) -> None:
         """First-time summary: audit passes on first attempt."""
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         summary_obj = StructuredSummary(
             user_goal="完成认证模块",
             completed_actions=["实现了JWT"],
@@ -192,7 +209,7 @@ class TestGenerateStructuredSummaryFull:
     @pytest.mark.asyncio
     async def test_full_summary_with_focus_topic(self) -> None:
         """Verify focus_topic is appended to the prompt."""
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         summary_obj = StructuredSummary(user_goal="重构模块", last_action="测试")
         summary_json = summary_obj.to_json()
         mock_structured = AsyncMock()
@@ -214,7 +231,7 @@ class TestGenerateStructuredSummaryFull:
     @pytest.mark.asyncio
     async def test_full_summary_uses_best_after_retries(self) -> None:
         """After audit retries, uses the best summary available."""
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         # All attempts return short summaries that may fail density audit.
         # The test verifies the retry + best-selection logic runs without error.
         summary_v1_obj = StructuredSummary(user_goal="实现认证", completed_actions=["JWT"], last_action="测试")
@@ -255,7 +272,7 @@ class TestGenerateStructuredSummaryIncremental:
         )
         merged_json = merged_obj.to_json()
 
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_structured = AsyncMock()
         mock_structured.ainvoke.return_value = merged_obj
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
@@ -277,7 +294,7 @@ class TestGenerateStructuredSummaryIncremental:
         """Incremental mode with no new messages keeps existing summary."""
         existing = StructuredSummary(user_goal="完成项目", last_action="步骤1")
 
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
 
         summary_msg = SystemMessage(content=f"[历史摘要]\n<!-- SUMMARY_JSON\n{existing.to_json()}\n-->")
         messages: list[BaseMessage] = [summary_msg]
@@ -293,7 +310,7 @@ class TestGenerateStructuredSummaryIncremental:
         merged_obj = StructuredSummary(user_goal="目标", last_action="y")
         merged_json = merged_obj.to_json()
 
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_structured = AsyncMock()
         mock_structured.ainvoke.return_value = merged_obj
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
@@ -376,7 +393,7 @@ class TestGenerateStructuredSummaryEdgeCases:
         )
         merged_json = merged_summary.to_json()
 
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_structured = AsyncMock()
         mock_structured.ainvoke.return_value = merged_summary
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
@@ -447,9 +464,8 @@ class TestInvokeSummaryWithParser:
         mock_parser.get_format_instructions.return_value = "format instructions"
         mock_parser.invoke.return_value = fallback
 
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_llm.ainvoke.return_value = MagicMock(content="parsed content")
-        mock_llm.astream = MagicMock(side_effect=NotImplementedError("no stream — fallback to ainvoke"))
 
         result = await _invoke_summary(mock_llm, None, mock_parser, "prompt", "/dump")
         assert result.user_goal == "test goal"
@@ -486,9 +502,8 @@ class TestInvokeSummaryWithParser:
         }
         mock_structured = AsyncMock()
         mock_structured.ainvoke.return_value = raw_dict
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
-        mock_llm.astream = MagicMock(side_effect=NotImplementedError("no stream — fallback to ainvoke"))
 
         result = await _invoke_summary(mock_llm, mock_structured, None, "prompt", "/dump")
 
@@ -566,7 +581,7 @@ class TestSummarizeWithAuditExceptionHandling:
 
     @pytest.mark.asyncio
     async def test_invoke_failure_raises_after_all_retries(self) -> None:
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_structured = AsyncMock()
         mock_structured.ainvoke.side_effect = RuntimeError("LLM down")
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
@@ -589,7 +604,7 @@ class TestSummarizeWithAuditExceptionHandling:
     async def test_invoke_failure_recovers_with_best(self) -> None:
         """First attempt succeeds (provides best), second attempt fails, third attempt also fails."""
         summary_obj = StructuredSummary(user_goal="goal", completed_actions=["a"], last_action="done")
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_structured = AsyncMock()
         call_count = 0
 
@@ -622,7 +637,7 @@ class TestSummarizeIncrementalExceptionHandling:
     @pytest.mark.asyncio
     async def test_incremental_invoke_failure_raises(self) -> None:
         existing = StructuredSummary(user_goal="goal", last_action="step1")
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_structured = AsyncMock()
         mock_structured.ainvoke.side_effect = RuntimeError("LLM down")
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
@@ -817,7 +832,7 @@ class TestRedactSummaryIntegrationInInvokeSummary:
             completed_actions=["Used the key"],
             last_action="done",
         )
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_structured = AsyncMock()
         mock_structured.ainvoke.return_value = summary_with_key
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
@@ -846,7 +861,7 @@ class TestRedactSummaryIntegrationInIncremental:
             completed_actions=["step1", "step2"],
             last_action="step2",
         )
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_structured = AsyncMock()
         mock_structured.ainvoke.return_value = merged_obj
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
@@ -985,7 +1000,7 @@ class TestGuardAuxContextIntegration:
     async def test_full_summary_uses_guarded_messages(self) -> None:
         """Full summary path passes guarded messages to _invoke_summary."""
         summary_obj = StructuredSummary(user_goal="test", completed_actions=["a"], last_action="done")
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_structured = AsyncMock()
         mock_structured.ainvoke.return_value = summary_obj
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
@@ -1011,7 +1026,7 @@ class TestGuardAuxContextIntegration:
     async def test_full_summary_no_trim_for_large_model(self) -> None:
         """No trimming when aux model has large context."""
         summary_obj = StructuredSummary(user_goal="test", completed_actions=["a"], last_action="done")
-        mock_llm = AsyncMock()
+        mock_llm = _make_mock_llm()
         mock_structured = AsyncMock()
         mock_structured.ainvoke.return_value = summary_obj
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
