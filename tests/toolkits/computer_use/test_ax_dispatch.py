@@ -155,7 +155,7 @@ def test_desktop_snapshot_tool_schema_exposes_target_scope_and_app_name() -> Non
     tools = create_desktop_tools(session)
     snapshot_tool = next(t for t in tools if t.name == "desktop_snapshot_tool")
 
-    schema = snapshot_tool.get_input_schema()
+    schema = snapshot_tool.args_schema.model_json_schema()
     props = schema["properties"]
     assert "scope" in props
     assert "app_name" in props
