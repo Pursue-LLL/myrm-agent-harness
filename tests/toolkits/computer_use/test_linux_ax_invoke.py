@@ -642,9 +642,7 @@ class TestCaptureXdotoolFallback:
     def test_xdotool_empty_title_raises(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.perception import linux_ax
 
-        proc = subprocess.CompletedProcess(
-            args=[], returncode=1, stdout="", stderr=""
-        )
+        proc = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="")
         with (
             patch.object(linux_ax, "_try_pyatspi_snapshot", return_value=None),
             patch("shutil.which", return_value="/usr/bin/xdotool"),
@@ -707,9 +705,7 @@ class TestInvokeRemainingEdges:
         button2 = self._make_interactive_button("New")
         app2.getChildAtIndex.side_effect = lambda i: button2 if i == 0 else None
 
-        mock_desktop.getChildAtIndex.side_effect = lambda i: (
-            [app1, app2][i]
-        )
+        mock_desktop.getChildAtIndex.side_effect = lambda i: ([app1, app2][i])
         mock_pyatspi.Registry.getDesktop.return_value = mock_desktop
 
         with patch.dict("sys.modules", {"pyatspi": mock_pyatspi}):

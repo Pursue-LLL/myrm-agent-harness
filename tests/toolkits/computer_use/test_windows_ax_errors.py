@@ -178,7 +178,10 @@ class TestCaptureSnapshotErrors:
 
     def test_no_foreground_window(self) -> None:
         auto = _make_auto(foreground=None)
-        with _module_with_auto(auto) as module, pytest.raises(AXTreeEmptyError, match="no foreground"):
+        with (
+            _module_with_auto(auto) as module,
+            pytest.raises(AXTreeEmptyError, match="no foreground"),
+        ):
             module.capture_ax_snapshot("foreground")
 
     def test_no_interactive_refs(self) -> None:
@@ -189,7 +192,10 @@ class TestCaptureSnapshotErrors:
         foreground.Name = "Main Window"
         foreground.GetChildren.return_value = [non_interactive]
         auto = _make_auto(foreground=foreground)
-        with _module_with_auto(auto) as module, pytest.raises(AXTreeEmptyError, match="Main Window"):
+        with (
+            _module_with_auto(auto) as module,
+            pytest.raises(AXTreeEmptyError, match="Main Window"),
+        ):
             module.capture_ax_snapshot("foreground")
 
 

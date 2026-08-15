@@ -11,10 +11,10 @@ from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer im
     SnapshotStore,
 )
 from myrm_agent_harness.agent.meta_tools.file_ops.revert_service import RevertService
-from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
+from myrm_agent_harness.agent.workspace_coordination.merge.batch_merge import (
     merge_batch_workspace_sync_backs,
 )
-from myrm_agent_harness.agent.workspace_coordination.merge_snapshots import (
+from myrm_agent_harness.agent.workspace_coordination.merge.merge_snapshots import (
     MergeSnapshotContext,
     apply_isolated_sync_back_with_snapshots,
     build_merge_snapshot_context,

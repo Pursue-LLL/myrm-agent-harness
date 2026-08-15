@@ -409,7 +409,7 @@ async def run_agent_loop(
         from myrm_agent_harness.agent.middlewares.tooling._mutation_verifier import (
             reset_mutation_state,
         )
-        from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+        from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
             reset_workspace_merge_warning,
         )
 

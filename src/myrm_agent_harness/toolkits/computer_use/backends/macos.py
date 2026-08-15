@@ -78,11 +78,15 @@ class MacOSBackend:
         clicks: int = 1,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
-        modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
+        modifier_keys = (
+            [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
+        )
         try:
             for key in modifier_keys:
                 await asyncio.to_thread(macos_input.key_down, key)
-            await asyncio.to_thread(macos_input.click, x=x, y=y, button=button, clicks=clicks)
+            await asyncio.to_thread(
+                macos_input.click, x=x, y=y, button=button, clicks=clicks
+            )
             return ActionResult(success=True)
         except Exception as e:
             return ActionResult(success=False, error=str(e))
@@ -90,7 +94,9 @@ class MacOSBackend:
             for key in reversed(modifier_keys):
                 await asyncio.to_thread(macos_input.key_up, key)
 
-    async def type_text(self, text: str, delay_ms: int = 12, chunk_size: int = 50) -> ActionResult:
+    async def type_text(
+        self, text: str, delay_ms: int = 12, chunk_size: int = 50
+    ) -> ActionResult:
         """Type text — ASCII via Quartz unicode input, non-ASCII via clipboard paste."""
         try:
             if text.isascii():
@@ -106,7 +112,9 @@ class MacOSBackend:
 
     async def type_credential(self, label: str) -> ActionResult:
         """Type a credential (password or TOTP) securely from the CredentialVault."""
-        from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
+        from myrm_agent_harness.core.security.credential_vault import (
+            get_global_credential_vault,
+        )
 
         vault = get_global_credential_vault()
 
@@ -117,13 +125,18 @@ class MacOSBackend:
             else:
                 secret_text = vault.get_password(label)
         except Exception:
-            return ActionResult(success=False, error=f"Failed to retrieve credential for label '{label}'")
+            return ActionResult(
+                success=False,
+                error=f"Failed to retrieve credential for label '{label}'",
+            )
 
         try:
             if secret_text.isascii():
                 interval = 12 / 1000.0
                 # Quartz unicode input — direct OS event injection, no subprocess exposure
-                await asyncio.to_thread(macos_input.write, secret_text, interval=interval)
+                await asyncio.to_thread(
+                    macos_input.write, secret_text, interval=interval
+                )
             else:
                 await self._paste_text(secret_text)
             return ActionResult(success=True)
@@ -167,7 +180,9 @@ class MacOSBackend:
         amount: int = 3,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
-        modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
+        modifier_keys = (
+            [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
+        )
         try:
             await asyncio.to_thread(macos_input.move_to, x, y)
             for key in modifier_keys:
@@ -194,7 +209,9 @@ class MacOSBackend:
         end_y: int,
         modifiers: list[ModifierKey] | None = None,
     ) -> ActionResult:
-        modifier_keys = [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
+        modifier_keys = (
+            [_MODIFIER_TO_QUARTZ_KEY[m] for m in modifiers] if modifiers else []
+        )
         try:
             for key in modifier_keys:
                 await asyncio.to_thread(macos_input.key_down, key)
@@ -243,7 +260,9 @@ class MacOSBackend:
         """Extract text from frontmost window via Accessibility API (AppleScript)."""
         return await asyncio.to_thread(_extract_window_text)
 
-    async def has_blocking_dialog(self, target_app_names: list[str] | None = None) -> bool:
+    async def has_blocking_dialog(
+        self, target_app_names: list[str] | None = None
+    ) -> bool:
         """Check if there is an OS-level dialog window blocking the target application."""
         return await asyncio.to_thread(_has_blocking_dialog, target_app_names)
 

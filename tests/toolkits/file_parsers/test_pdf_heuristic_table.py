@@ -1,6 +1,6 @@
 """Unit tests for PDF heuristic table extractor."""
 
-from myrm_agent_harness.toolkits.file_parsers.pdf_heuristic_table import (
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_heuristic_table import (
     _needs_space,
     extract_heuristic_tables_from_words,
 )

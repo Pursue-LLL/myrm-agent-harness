@@ -54,4 +54,6 @@ async def try_bbox_click(
         clicks = 2 if normalized in {"dblclick", "double_click"} else 1
         return await backend.click(x, y, clicks=clicks, modifiers=modifiers)
 
-    return ActionResult(success=False, error=f"BBox fallback unsupported for action: {action}")
+    return ActionResult(
+        success=False, error=f"BBox fallback unsupported for action: {action}"
+    )

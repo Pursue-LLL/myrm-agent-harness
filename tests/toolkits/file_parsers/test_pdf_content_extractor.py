@@ -13,7 +13,7 @@ from unittest.mock import patch
 import pytest
 from PIL import Image, ImageDraw
 
-from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
     PDFExtractConfig,
     PDFExtractResult,
     PDFImageContent,
@@ -224,7 +224,7 @@ class TestExtractPdfContent:
             ]
 
             with patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._extract_embedded_images_sync",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._extract_embedded_images_sync",
                 return_value=mock_images,
             ):
                 config = PDFExtractConfig(extract_embedded_images=True)
@@ -245,7 +245,7 @@ class TestExtractPdfContent:
         pdf_path = _make_text_pdf()
         try:
             with patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._extract_embedded_images_sync",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._extract_embedded_images_sync",
                 return_value=[],
             ):
                 config = PDFExtractConfig(extract_embedded_images=True)
@@ -268,7 +268,7 @@ class TestBranchCoverage:
     def test_max_pages_truncation(self):
         """When page_count > max_pages, text should be trimmed at the marker."""
         from myrm_agent_harness.toolkits.file_parsers.base import PDFParseResult
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _extract_text_sync,
         )
 
@@ -279,7 +279,7 @@ class TestBranchCoverage:
             metadata={"page_count": 3},
         )
 
-        with patch("myrm_agent_harness.toolkits.file_parsers.pdf.PDFPlumberParser") as mock_parser:
+        with patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf.PDFPlumberParser") as mock_parser:
             mock_parser.return_value.parse_sync.return_value = fake_result
             text, page_count, parsed_pages, tables = _extract_text_sync("/fake.pdf", max_pages=2)
 
@@ -293,7 +293,7 @@ class TestBranchCoverage:
     def test_max_pages_truncation_filters_tables(self):
         """Tables beyond max_pages should be filtered out when truncation occurs."""
         from myrm_agent_harness.toolkits.file_parsers.base import PDFParseResult, PDFTable
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _extract_text_sync,
         )
 
@@ -309,7 +309,7 @@ class TestBranchCoverage:
             metadata={"page_count": 3},
         )
 
-        with patch("myrm_agent_harness.toolkits.file_parsers.pdf.PDFPlumberParser") as mock_parser:
+        with patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf.PDFPlumberParser") as mock_parser:
             mock_parser.return_value.parse_sync.return_value = fake_result
             _text, page_count, parsed_pages, tables = _extract_text_sync("/fake.pdf", max_pages=2)
 
@@ -321,7 +321,7 @@ class TestBranchCoverage:
     def test_no_truncation_returns_all(self):
         """When page_count <= max_pages, parsed_pages equals page_count and all tables returned."""
         from myrm_agent_harness.toolkits.file_parsers.base import PDFParseResult, PDFTable
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _extract_text_sync,
         )
 
@@ -336,7 +336,7 @@ class TestBranchCoverage:
             metadata={"page_count": 2},
         )
 
-        with patch("myrm_agent_harness.toolkits.file_parsers.pdf.PDFPlumberParser") as mock_parser:
+        with patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf.PDFPlumberParser") as mock_parser:
             mock_parser.return_value.parse_sync.return_value = fake_result
             _text, page_count, parsed_pages, tables = _extract_text_sync("/fake.pdf", max_pages=500)
 
@@ -346,7 +346,7 @@ class TestBranchCoverage:
 
     def test_embedded_images_pdfplumber_import_error(self):
         """When pdfplumber is unavailable, embedded extraction returns empty list."""
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _extract_embedded_images_sync,
         )
 
@@ -360,7 +360,7 @@ class TestBranchCoverage:
         pdf_path = _make_text_pdf(text_content="x")
         try:
             with patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._render_pages_sync",
                 side_effect=ImportError("pypdfium2 not available"),
             ):
                 config = PDFExtractConfig(min_text_chars=200)
@@ -373,7 +373,7 @@ class TestBranchCoverage:
 
     def test_render_pages_pypdfium2_import_error(self):
         """_render_pages_sync should raise ImportError when pypdfium2 missing."""
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _render_pages_sync,
         )
 
@@ -384,7 +384,7 @@ class TestBranchCoverage:
         """Pages exceeding max_pixels are rendered at a down-scaled factor."""
         from unittest.mock import MagicMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _render_pages_sync,
         )
 
@@ -412,7 +412,7 @@ class TestBranchCoverage:
         """A page that fails to render is skipped without aborting the batch."""
         from unittest.mock import MagicMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _render_pages_sync,
         )
 
@@ -439,7 +439,7 @@ class TestBranchCoverage:
 
     def test_embedded_images_outer_exception_handling(self):
         """When pdfplumber.open() raises, embedded extraction returns empty list."""
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _extract_embedded_images_sync,
         )
 
@@ -451,7 +451,7 @@ class TestBranchCoverage:
         """Core loop: valid bbox with >40px dimensions produces a PDFImageContent."""
         from unittest.mock import MagicMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _extract_embedded_images_sync,
         )
 
@@ -484,7 +484,7 @@ class TestBranchCoverage:
         """Bboxes where x1<=x0 or bottom<=top are skipped."""
         from unittest.mock import MagicMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _extract_embedded_images_sync,
         )
 
@@ -509,7 +509,7 @@ class TestBranchCoverage:
         """Bboxes smaller than 40px in either dimension are pre-filtered."""
         from unittest.mock import MagicMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _extract_embedded_images_sync,
         )
 
@@ -534,7 +534,7 @@ class TestBranchCoverage:
         """When crop() raises, that single image is skipped without crashing."""
         from unittest.mock import MagicMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _extract_embedded_images_sync,
         )
 
@@ -557,7 +557,7 @@ class TestBranchCoverage:
         """Only first max_pages pages are processed."""
         from unittest.mock import MagicMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _extract_embedded_images_sync,
         )
 
@@ -604,11 +604,11 @@ class TestPdfOcrFallback:
         try:
             with (
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._ocr_rendered_pages_async",
                     new_callable=AsyncMock,
                 ) as mock_ocr,
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._render_pages_sync",
                     return_value=[PDFImageContent(data="aGVsbG8=")],
                 ),
             ):
@@ -632,11 +632,11 @@ class TestPdfOcrFallback:
         try:
             with (
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._ocr_rendered_pages_async",
                     new_callable=AsyncMock,
                 ) as mock_ocr,
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._render_pages_sync",
                     return_value=[PDFImageContent(data="aGVsbG8=")],
                 ),
             ):
@@ -657,11 +657,11 @@ class TestPdfOcrFallback:
         try:
             with (
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._ocr_rendered_pages_async",
                     new_callable=AsyncMock,
                 ) as mock_ocr,
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._render_pages_sync",
                     return_value=[PDFImageContent(data="aGVsbG8=")],
                 ),
             ):
@@ -679,7 +679,7 @@ class TestPdfOcrFallback:
         """_ocr_rendered_pages_async joins pages with [Page N] markers."""
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _ocr_rendered_pages_async,
         )
 
@@ -703,7 +703,7 @@ class TestPdfOcrFallback:
         """A failing page is skipped without aborting the remaining pages."""
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _ocr_rendered_pages_async,
         )
 
@@ -726,7 +726,7 @@ class TestPdfOcrFallback:
         """Only the first ocr_pages pages are OCR'd."""
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _ocr_rendered_pages_async,
         )
 
@@ -752,7 +752,7 @@ class TestPdfOcrFallback:
         """Blank OCR output produces no [Page N] marker for that page."""
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _ocr_rendered_pages_async,
         )
 
@@ -771,7 +771,7 @@ class TestPdfOcrFallback:
         """PaddleOCR missing aborts the batch early instead of retrying each page."""
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _ocr_rendered_pages_async,
         )
 
@@ -794,7 +794,7 @@ class TestPdfOcrFallback:
         """ocr_lang is forwarded to the OCRParser constructor."""
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             _ocr_rendered_pages_async,
         )
 
@@ -816,11 +816,11 @@ class TestPdfOcrFallback:
         try:
             with (
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._ocr_rendered_pages_async",
                     new_callable=AsyncMock,
                 ) as mock_ocr,
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._render_pages_sync",
                     return_value=[PDFImageContent(data="aGVsbG8=")],
                 ) as mock_render,
             ):
@@ -842,11 +842,11 @@ class TestPdfOcrFallback:
         try:
             with (
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._ocr_rendered_pages_async",
                     new_callable=AsyncMock,
                 ) as mock_ocr,
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._render_pages_sync",
                     return_value=[PDFImageContent(data="aGVsbG8=")],
                 ) as mock_render,
             ):
@@ -868,11 +868,11 @@ class TestPdfOcrFallback:
         try:
             with (
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._ocr_rendered_pages_async",
                     new_callable=AsyncMock,
                 ) as mock_ocr,
                 patch(
-                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._render_pages_sync",
                     return_value=[PDFImageContent(data="aGVsbG8=")],
                 ),
             ):

@@ -17,8 +17,8 @@ Provides parsers for various file formats:
 - excel::ExcelParser (POS: Excel file parser)
 - pptx::PptxParser (POS: PowerPoint document parser)
 - pdf::PDFPlumberParser (POS: PDF parser using pdfplumber)
-- pdf_content_extractor::PDFExtractConfig, PDFExtractResult, PDFImageContent, extract_pdf_content (POS: PDF content extraction)
-- pdf_smart::SmartPDFParser (POS: PDF parser adapter over the smart extraction orchestrator. Returns plain text with tables rendered inline; scanned PDFs (sparse text layer) are OCR'd so text-only consumers (@-mentions, wiki imports, web downloads) read them too)
+- pdf.pdf_content_extractor::PDFExtractConfig, PDFExtractResult, PDFImageContent, extract_pdf_content (POS: PDF content extraction)
+- pdf.pdf_smart::SmartPDFParser (POS: PDF parser adapter over the smart extraction orchestrator. Returns plain text with tables rendered inline; scanned PDFs (sparse text layer) are OCR'd so text-only consumers (@-mentions, wiki imports, web downloads) read them too)
 - text::TextParser (POS: plain text and Markdown parser)
 - ipynb::IpynbParser (POS: Jupyter Notebook parser)
 - legacy::LegacyFormatParser (POS: OLE2 legacy format parser with soffice conversion)
@@ -63,13 +63,13 @@ from myrm_agent_harness.toolkits.file_parsers.excel import ExcelParser
 from myrm_agent_harness.toolkits.file_parsers.ipynb import IpynbParser
 from myrm_agent_harness.toolkits.file_parsers.ocr import OCRLine, OCRParser, OCRResult
 from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
-from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
     PDFExtractConfig,
     PDFExtractResult,
     PDFImageContent,
     extract_pdf_content,
 )
-from myrm_agent_harness.toolkits.file_parsers.pdf_smart import SmartPDFParser
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_smart import SmartPDFParser
 from myrm_agent_harness.toolkits.file_parsers.pptx import PptxParser
 from myrm_agent_harness.toolkits.file_parsers.rtf_parser import RtfParser
 from myrm_agent_harness.toolkits.file_parsers.text import TextParser

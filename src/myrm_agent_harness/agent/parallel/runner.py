@@ -45,10 +45,10 @@ async def _merge_race_winner_workspace(
     winner_result: dict[str, object],
     parent_agent: BaseAgent,
 ) -> dict[str, object]:
-    from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.batch_merge import (
         merge_batch_workspace_sync_backs,
     )
-    from myrm_agent_harness.agent.workspace_coordination.merge_snapshots import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.merge_snapshots import (
         build_merge_snapshot_context,
     )
 
@@ -240,10 +240,10 @@ async def run_parallel_task_requests(
         "budget_admission": (budget_admission.to_dict() if budget_admission else None),
     }
     if parallel_write_batch and wait and not race and not skip_merge:
-        from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
+        from myrm_agent_harness.agent.workspace_coordination.merge.batch_merge import (
             merge_batch_workspace_sync_backs,
         )
-        from myrm_agent_harness.agent.workspace_coordination.merge_snapshots import (
+        from myrm_agent_harness.agent.workspace_coordination.merge.merge_snapshots import (
             build_merge_snapshot_context,
         )
 

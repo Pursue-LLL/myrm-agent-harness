@@ -20,11 +20,7 @@ auto-conversion).
 | gfm_normalize.py | Core | Normalize parser output into consistent GitHub Flavored Markdown | ✅ |
 | image_filter.py | Core | Smart image ablation filter. Intercepts UI noise, decorative lines, tiny logos, | ✅ |
 | ocr.py | Core | OCR parser for images using PaddleOCR (2.x/3.x engine compatible, PaddleX unified API in 3.x). Supports CJK languages natively. | ✅ |
-| pdf.py | Core | PDF parser based on pdfplumber. Implements text layout preservation, Markdown table | ✅ |
-| pdf_heading.py | Core | Font-based heading detection for PDFs without bookmarks. Uses statistical font size analysis. | ✅ |
-| pdf_content_extractor.py | Core | Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page render) strategy; scanned PDFs (sparse text) get best-effort OCR fallback via `ocr.py` (PaddleOCR, optional `[pdf-ocr]`, language configurable via `ocr_lang`). Renders only the OCR window on scans so render/OCR ranges stay consistent and memory bounded. | ✅ |
-| pdf_smart.py | Core | `SmartPDFParser` — PDF parser adapter over `extract_pdf_content` for text-only consumers. Returns text with tables inline, OCR fallback for scanned PDFs. Registered as the default `get_parser(".pdf")`. | ✅ |
-| pdf_heuristic_table.py | Core | Heuristic table extractor for borderless forms: spatial clustering, dynamic line-height gap merging, CJK-aware same-row and cross-row cell concatenation. | ✅ |
+| pdf/（子包） | Core | PDF 解析子域：pdfplumber 文本/表格解析、智能提取编排（Text/Hybrid/Image + OCR 兜底）、SmartPDFParser 适配器、字体级标题检测、无边框表格启发式提取。5 个 `pdf*` 模块聚合于此，`pdf/__init__.py` 为聚合门面统一 re-export | ✅ |
 | pptx.py | Core | PowerPoint document parser. Supports markdown (slide text, tables, speaker notes) and structure mode (JSON metadata with shape IDs, types, positions, layouts for incremental edits). | ✅ |
 | rtf_parser.py | Core | RTF parser with font/color group handling and Markdown output | ✅ |
 | text.py | Core | Text file parser | ✅ |
@@ -32,7 +28,7 @@ auto-conversion).
 
 ## Dependencies
 
-- **Core**: `pdfplumber`（含 pypdfium2 传递依赖；`pdf.py`, `pdf_content_extractor.py`, `file_read_tool`）
+- **Core**: `pdfplumber`（含 pypdfium2 传递依赖；`pdf/pdf.py`, `pdf/pdf_content_extractor.py`, `file_read_tool`）
 - **Optional `[file-parsers]`**: `python-docx`, `openpyxl`, `python-pptx`
-- **Optional `[pdf-ocr]`**: `paddleocr` + `paddlepaddle`（`ocr.py` 扫描 PDF OCR 兜底，经 `pdf_smart.py`/`extract_pdf_content` 接入；缺失时自动降级，返回文本层/页面图）
+- **Optional `[pdf-ocr]`**: `paddleocr` + `paddlepaddle`（`ocr.py` 扫描 PDF OCR 兜底，经 `pdf/pdf_smart.py`/`extract_pdf_content` 接入；缺失时自动降级，返回文本层/页面图）
 - **Stdlib**: `json`（`ipynb.py`，无额外依赖）

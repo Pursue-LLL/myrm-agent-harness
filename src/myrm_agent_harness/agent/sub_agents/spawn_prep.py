@@ -3,7 +3,7 @@
 [INPUT]
 - sub_agents.types::SubagentConfig, ControlScope, MemoryIsolationPolicy, WorkspacePolicy
 - workspace_coordination.policy::apply_parallel_write_isolation
-- workspace_coordination.merge_metadata::strip_merge_transient_inner_keys (POS: merge metadata key SSOT)
+- workspace_coordination.merge.merge_metadata::strip_merge_transient_inner_keys (POS: merge metadata key SSOT)
 
 [OUTPUT]
 - prepare_subagent_config: readonly + LEAF + memory tool blocks
@@ -30,7 +30,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubagentConfig,
     WorkspacePolicy,
 )
-from myrm_agent_harness.agent.workspace_coordination.merge_metadata import (
+from myrm_agent_harness.agent.workspace_coordination.merge.merge_metadata import (
     strip_merge_transient_inner_keys,
 )
 from myrm_agent_harness.agent.workspace_coordination.policy import (

@@ -140,9 +140,11 @@ class _McpSession:
     @staticmethod
     def _is_transport_error(exc: Exception) -> bool:
         name = type(exc).__name__
-        return name in {"ClosedResourceError", "BrokenResourceError", "EndOfStream"} or isinstance(
-            exc, (BrokenPipeError, EOFError)
-        )
+        return name in {
+            "ClosedResourceError",
+            "BrokenResourceError",
+            "EndOfStream",
+        } or isinstance(exc, (BrokenPipeError, EOFError))
 
 
 def _extract_result(mcp_result: Any) -> dict[str, Any]:
@@ -151,7 +153,9 @@ def _extract_result(mcp_result: Any) -> dict[str, Any]:
     Reads both snake_case (MCP SDK 2.x native field names) and camelCase
     aliases so results deserialized by any SDK version are handled.
     """
-    is_error = bool(getattr(mcp_result, "is_error", None) or getattr(mcp_result, "isError", False))
+    is_error = bool(
+        getattr(mcp_result, "is_error", None) or getattr(mcp_result, "isError", False)
+    )
     structured = getattr(mcp_result, "structured_content", None)
     if structured is None:
         structured = getattr(mcp_result, "structuredContent", None)
@@ -166,7 +170,12 @@ def _extract_result(mcp_result: Any) -> dict[str, Any]:
             if b64:
                 images.append(b64)
     data: Any = "\n".join(text_chunks) if text_chunks else None
-    return {"data": data, "images": images, "structuredContent": structured, "isError": is_error}
+    return {
+        "data": data,
+        "images": images,
+        "structuredContent": structured,
+        "isError": is_error,
+    }
 
 
 class CuaDriverBackend:
@@ -201,11 +210,19 @@ class CuaDriverBackend:
         else:
             raw_text = out["data"] if isinstance(out["data"], str) else ""
             windows = [
-                {"app_name": m.group(1), "pid": int(m.group(2)), "window_id": int(m.group(3))}
+                {
+                    "app_name": m.group(1),
+                    "pid": int(m.group(2)),
+                    "window_id": int(m.group(3)),
+                }
                 for m in _WINDOW_LINE_RE.finditer(raw_text)
             ]
 
-        on_screen = [w for w in windows if w.get("is_on_screen", True) and not w.get("off_screen", False)]
+        on_screen = [
+            w
+            for w in windows
+            if w.get("is_on_screen", True) and not w.get("off_screen", False)
+        ]
         target = on_screen[0] if on_screen else (windows[0] if windows else None)
         if not target:
             raise RuntimeError("cua-driver: no on-screen window found")
@@ -226,7 +243,9 @@ class CuaDriverBackend:
     async def window_text(self) -> WindowTextResult:
         return await self._fallback.window_text()
 
-    async def has_blocking_dialog(self, target_app_names: list[str] | None = None) -> bool:
+    async def has_blocking_dialog(
+        self, target_app_names: list[str] | None = None
+    ) -> bool:
         return await self._fallback.has_blocking_dialog(target_app_names)
 
     async def is_browser_active(self) -> bool:
@@ -252,7 +271,11 @@ class CuaDriverBackend:
             await self._ensure_session()
             pid = await self._resolve_target()
 
-            tool = "right_click" if button == "right" else ("double_click" if clicks >= 2 else "click")
+            tool = (
+                "right_click"
+                if button == "right"
+                else ("double_click" if clicks >= 2 else "click")
+            )
             args: dict[str, Any] = {"pid": pid, "x": x, "y": y}
             if modifiers:
                 args["modifier"] = [_MODIFIER_TO_CUA[m] for m in modifiers]
@@ -262,10 +285,14 @@ class CuaDriverBackend:
                 raise RuntimeError(out.get("data", "cua-driver click failed"))
             return ActionResult(success=True)
         except Exception as exc:
-            logger.warning("cua-driver click failed, falling back to native backend: %s", exc)
+            logger.warning(
+                "cua-driver click failed, falling back to native backend: %s", exc
+            )
             return await self._fallback.click(x, y, button, clicks, modifiers=modifiers)
 
-    async def type_text(self, text: str, delay_ms: int = 12, chunk_size: int = 50) -> ActionResult:
+    async def type_text(
+        self, text: str, delay_ms: int = 12, chunk_size: int = 50
+    ) -> ActionResult:
         try:
             await self._ensure_session()
             pid = await self._resolve_target()
@@ -279,19 +306,27 @@ class CuaDriverBackend:
 
     async def type_credential(self, label: str) -> ActionResult:
         """Credential typing: retrieve from vault, then type via cua-driver."""
-        from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
+        from myrm_agent_harness.core.security.credential_vault import (
+            get_global_credential_vault,
+        )
 
         vault = get_global_credential_vault()
         is_totp = label.endswith("-totp")
         try:
-            secret_text = vault.get_totp_token(label) if is_totp else vault.get_password(label)
+            secret_text = (
+                vault.get_totp_token(label) if is_totp else vault.get_password(label)
+            )
         except Exception:
-            return ActionResult(success=False, error=f"Failed to retrieve credential '{label}'")
+            return ActionResult(
+                success=False, error=f"Failed to retrieve credential '{label}'"
+            )
 
         try:
             await self._ensure_session()
             pid = await self._resolve_target()
-            out = await self._mcp.call_tool("type_text", {"pid": pid, "text": secret_text})
+            out = await self._mcp.call_tool(
+                "type_text", {"pid": pid, "text": secret_text}
+            )
             if out["isError"]:
                 raise RuntimeError(out.get("data", "cua-driver type_credential failed"))
             return ActionResult(success=True)
@@ -305,8 +340,22 @@ class CuaDriverBackend:
             pid = await self._resolve_target()
 
             parts = [k.strip().lower() for k in re.split(r"[+\-]", keys) if k.strip()]
-            modifier_names = {"cmd", "command", "shift", "option", "alt", "ctrl", "control", "fn"}
-            key_aliases = {"command": "cmd", "alt": "option", "control": "ctrl", "meta": "cmd"}
+            modifier_names = {
+                "cmd",
+                "command",
+                "shift",
+                "option",
+                "alt",
+                "ctrl",
+                "control",
+                "fn",
+            }
+            key_aliases = {
+                "command": "cmd",
+                "alt": "option",
+                "control": "ctrl",
+                "meta": "cmd",
+            }
 
             mods: list[str] = []
             key_name: str | None = None
@@ -318,9 +367,13 @@ class CuaDriverBackend:
                     key_name = part
 
             if key_name and mods:
-                out = await self._mcp.call_tool("hotkey", {"pid": pid, "keys": [*mods, key_name]})
+                out = await self._mcp.call_tool(
+                    "hotkey", {"pid": pid, "keys": [*mods, key_name]}
+                )
             elif key_name:
-                out = await self._mcp.call_tool("press_key", {"pid": pid, "key": key_name})
+                out = await self._mcp.call_tool(
+                    "press_key", {"pid": pid, "key": key_name}
+                )
             else:
                 raise ValueError(f"Could not parse key from '{keys}'")
 
@@ -367,7 +420,9 @@ class CuaDriverBackend:
             return ActionResult(success=True)
         except Exception as exc:
             logger.warning("cua-driver scroll failed, falling back: %s", exc)
-            return await self._fallback.scroll(x, y, direction, amount, modifiers=modifiers)
+            return await self._fallback.scroll(
+                x, y, direction, amount, modifiers=modifiers
+            )
 
     async def drag(
         self,
@@ -393,7 +448,9 @@ class CuaDriverBackend:
             return ActionResult(success=True)
         except Exception as exc:
             logger.warning("cua-driver drag failed, falling back: %s", exc)
-            return await self._fallback.drag(start_x, start_y, end_x, end_y, modifiers=modifiers)
+            return await self._fallback.drag(
+                start_x, start_y, end_x, end_y, modifiers=modifiers
+            )
 
     async def close(self) -> None:
         """Shut down the cua-driver MCP session."""

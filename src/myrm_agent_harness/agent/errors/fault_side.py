@@ -125,6 +125,7 @@ _HARNESS_TOOL_CATEGORIES: frozenset[str] = frozenset(
         "signal_terminated",
         "nonzero_exit",
         "context_validation",
+        "skill_usage_guard",
     }
 )
 

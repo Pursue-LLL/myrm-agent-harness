@@ -74,7 +74,7 @@ def _extract_text_sync(
 
     Returns: (text, page_count, parsed_pages, tables)
     """
-    from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
+    from .pdf import PDFPlumberParser
 
     parser = PDFPlumberParser(extract_tables=True, parallel=True, table_format=table_format)
     result = parser.parse_sync(file_path)

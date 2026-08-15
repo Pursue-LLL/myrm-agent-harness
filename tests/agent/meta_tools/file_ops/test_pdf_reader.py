@@ -344,7 +344,7 @@ class TestReadPdfAsContentBlocks:
             patch("os.unlink"),
             patch.dict(
                 "sys.modules",
-                {"myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor": None},
+                {"myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor": None},
             ),
         ):
             result = await read_pdf_as_content_blocks("/tmp/test.pdf", executor, False)
@@ -362,7 +362,7 @@ class TestReadPdfAsContentBlocks:
             ),
             patch("os.unlink"),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.extract_pdf_content",
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("extract fail"),
             ),
@@ -383,12 +383,12 @@ class TestReadPdfAsContentBlocks:
             ),
             patch("os.unlink"),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.extract_pdf_content",
                 new_callable=AsyncMock,
                 return_value=empty_result,
             ),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.PDFExtractConfig",
                 FakeConfig,
             ),
         ):
@@ -409,12 +409,12 @@ class TestReadPdfAsContentBlocks:
             ),
             patch("os.unlink"),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.extract_pdf_content",
                 new_callable=AsyncMock,
                 return_value=small_result,
             ),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.PDFExtractConfig",
                 FakeConfig,
             ),
         ):
@@ -438,12 +438,12 @@ class TestReadPdfAsContentBlocks:
             ),
             patch("os.unlink"),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.extract_pdf_content",
                 new_callable=AsyncMock,
                 return_value=large_result,
             ),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.PDFExtractConfig",
                 FakeConfig,
             ),
         ):
@@ -466,12 +466,12 @@ class TestReadPdfAsContentBlocks:
             ),
             patch("os.unlink"),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.extract_pdf_content",
                 new_callable=AsyncMock,
                 return_value=large_result,
             ),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.PDFExtractConfig",
                 FakeConfig,
             ),
         ):
@@ -492,12 +492,12 @@ class TestReadPdfAsContentBlocks:
             ),
             patch("os.unlink"),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.extract_pdf_content",
                 new_callable=AsyncMock,
                 return_value=big_result,
             ),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.PDFExtractConfig",
                 FakeConfig,
             ),
         ):
@@ -518,12 +518,12 @@ class TestReadPdfAsContentBlocks:
             ),
             patch("os.unlink"),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.extract_pdf_content",
                 new_callable=AsyncMock,
                 return_value=vision_result,
             ),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.PDFExtractConfig",
                 FakeConfig,
             ),
         ):
@@ -544,12 +544,12 @@ class TestReadPdfAsContentBlocks:
             ),
             patch("os.unlink"),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.extract_pdf_content",
                 new_callable=AsyncMock,
                 return_value=text_result,
             ),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.PDFExtractConfig",
                 FakeConfig,
             ),
         ):
@@ -571,12 +571,12 @@ class TestReadPdfAsContentBlocks:
             ),
             patch("os.unlink"),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.extract_pdf_content",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.extract_pdf_content",
                 new_callable=AsyncMock,
                 return_value=img_only,
             ),
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor.PDFExtractConfig",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.PDFExtractConfig",
                 FakeConfig,
             ),
         ):

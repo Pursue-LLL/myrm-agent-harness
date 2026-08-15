@@ -13,7 +13,7 @@ from myrm_agent_harness.agent.sub_agents.spawn_prep import (
     spawn_result_for_store_after_merge,
 )
 from myrm_agent_harness.agent.sub_agents.workspace_isolation import isolated_workspace
-from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
+from myrm_agent_harness.agent.workspace_coordination.merge.batch_merge import (
     merge_batch_workspace_sync_backs,
 )
 
@@ -66,7 +66,7 @@ async def test_missing_child_workspace_fails_loud() -> None:
     assert summary["workspace_merge_merged_count"] == 0
     assert summary["workspace_merge_errors"]
 
-    from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
         has_workspace_merge_warning,
         reset_workspace_merge_warning,
     )

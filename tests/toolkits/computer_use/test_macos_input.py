@@ -97,11 +97,15 @@ class TestKeyboardPrimitives:
     @patch("time.sleep")
     def test_key_down_posts_keycode(self, _mock_sleep, _patch_quartz) -> None:
         macos_input.key_down("a")
-        _patch_quartz.CGEventCreateKeyboardEvent.assert_called_once_with(None, 0x00, True)
+        _patch_quartz.CGEventCreateKeyboardEvent.assert_called_once_with(
+            None, 0x00, True
+        )
         _patch_quartz.CGEventPost.assert_called_once()
 
     @patch("time.sleep")
-    def test_key_down_shift_character_adds_shift(self, _mock_sleep, _patch_quartz) -> None:
+    def test_key_down_shift_character_adds_shift(
+        self, _mock_sleep, _patch_quartz
+    ) -> None:
         macos_input.key_down("A")
         calls = _patch_quartz.CGEventCreateKeyboardEvent.call_args_list
         assert calls[0].args[1] == macos_input._KEYCODES["shift"]
@@ -112,9 +116,14 @@ class TestKeyboardPrimitives:
     @patch("time.sleep")
     def test_key_up_posts_release(self, _mock_sleep, _patch_quartz) -> None:
         macos_input.key_up("b")
-        _patch_quartz.CGEventCreateKeyboardEvent.assert_called_once_with(None, 0x0B, False)
+        _patch_quartz.CGEventCreateKeyboardEvent.assert_called_once_with(
+            None, 0x0B, False
+        )
+
     @patch("time.sleep")
-    def test_key_up_shift_character_releases_shift(self, _mock_sleep, _patch_quartz) -> None:
+    def test_key_up_shift_character_releases_shift(
+        self, _mock_sleep, _patch_quartz
+    ) -> None:
         macos_input.key_up("!")
         calls = _patch_quartz.CGEventCreateKeyboardEvent.call_args_list
         assert calls[0].args[1] == macos_input._KEYCODES["1"]
@@ -191,7 +200,10 @@ class TestMousePrimitives:
     def test_move_to_posts_mouse_moved(self, _mock_sleep, _patch_quartz) -> None:
         macos_input.move_to(30, 40)
         _patch_quartz.CGEventCreateMouseEvent.assert_called_once_with(
-            None, _patch_quartz.kCGEventMouseMoved, (30, 40), _patch_quartz.kCGMouseButtonLeft
+            None,
+            _patch_quartz.kCGEventMouseMoved,
+            (30, 40),
+            _patch_quartz.kCGMouseButtonLeft,
         )
 
     @patch("time.sleep")
@@ -208,7 +220,10 @@ class TestMousePrimitives:
         macos_input.scroll(25)
         # 25 → two 10-chunks + one 5-remainder = 3 events
         assert _patch_quartz.CGEventCreateScrollWheelEvent.call_count == 3
-        verticals = [c.args[3] for c in _patch_quartz.CGEventCreateScrollWheelEvent.call_args_list]
+        verticals = [
+            c.args[3]
+            for c in _patch_quartz.CGEventCreateScrollWheelEvent.call_args_list
+        ]
         assert verticals == [10, 10, 5]
 
     @patch("time.sleep")
@@ -220,8 +235,13 @@ class TestMousePrimitives:
         assert args.args[4] == 4  # horizontal value
 
     @patch("time.sleep")
-    @patch("myrm_agent_harness.toolkits.computer_use.backends.macos_input.position", return_value=_Point(10, 20))
-    def test_drag_from_current_position(self, _mock_position, _mock_sleep, _patch_quartz) -> None:
+    @patch(
+        "myrm_agent_harness.toolkits.computer_use.backends.macos_input.position",
+        return_value=_Point(10, 20),
+    )
+    def test_drag_from_current_position(
+        self, _mock_position, _mock_sleep, _patch_quartz
+    ) -> None:
         macos_input.drag(100, 200)
         events = _patch_quartz.CGEventCreateMouseEvent.call_args_list
         assert events[0].args[1] == _patch_quartz.kCGEventLeftMouseDown
@@ -232,8 +252,13 @@ class TestMousePrimitives:
         assert len(events) == 1 + 5 + 1
 
     @patch("time.sleep")
-    @patch("myrm_agent_harness.toolkits.computer_use.backends.macos_input.position", return_value=_Point(10, 20))
-    def test_drag_zero_duration_single_step(self, _mock_position, _mock_sleep, _patch_quartz) -> None:
+    @patch(
+        "myrm_agent_harness.toolkits.computer_use.backends.macos_input.position",
+        return_value=_Point(10, 20),
+    )
+    def test_drag_zero_duration_single_step(
+        self, _mock_position, _mock_sleep, _patch_quartz
+    ) -> None:
         macos_input.drag(10, 10, duration=0.0)
         events = _patch_quartz.CGEventCreateMouseEvent.call_args_list
         # down + 1 step + up

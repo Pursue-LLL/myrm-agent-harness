@@ -7,7 +7,7 @@ post-processing event emission.
 [INPUT]
 - agent.streaming.types::ContextBudgetSnapshot (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
 - agent.types::AgentRunStatistics, (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
-- workspace_coordination.merge_warning::has_workspace_merge_warning (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
+- workspace_coordination.merge.merge_warning::has_workspace_merge_warning (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 - toolkits.code_execution.workspace.storage_root_bind (POS: ContextVar binding for aggregate workspace filesystem roots during a single agent Task.)
 - utils.runtime.steering::SteeringToken (POS: Steering  Agent  Agent)
@@ -47,7 +47,7 @@ from myrm_agent_harness.agent.types import (
     WorkspaceBinding,
     map_to_completion_status,
 )
-from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
     has_workspace_merge_warning,
 )
 from myrm_agent_harness.toolkits.code_execution import create_workspace_service
@@ -626,7 +626,7 @@ async def post_run_events(
             "messageId": message_id,
         }
 
-    from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
         format_workspace_merge_failures,
     )
 

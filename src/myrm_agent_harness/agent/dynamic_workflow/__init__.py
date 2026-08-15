@@ -439,7 +439,7 @@ async def run_dynamic_workflow_stream(
         diff_snapshots,
         take_workspace_snapshot,
     )
-    from myrm_agent_harness.agent.workspace_coordination.merge_snapshots import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.merge_snapshots import (
         build_merge_snapshot_context,
     )
     from myrm_agent_harness.toolkits.code_execution.executors.models import (
@@ -509,7 +509,7 @@ async def run_dynamic_workflow_stream(
             from myrm_agent_harness.agent.sub_agents.spawn_prep import (
                 spawn_result_for_store_after_merge,
             )
-            from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
+            from myrm_agent_harness.agent.workspace_coordination.merge.batch_merge import (
                 merge_batch_workspace_sync_backs,
             )
 

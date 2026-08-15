@@ -77,7 +77,7 @@ async def test_delegate_task_batch_tournament(mock_estimate_cost, mock_run_tourn
 
 
 @pytest.mark.asyncio
-@patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+@patch("myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs")
 async def test_run_tournament_bracket(mock_merge):
     from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import _run_tournament_bracket
 
@@ -98,7 +98,7 @@ async def test_run_tournament_bracket(mock_merge):
 
 
 @pytest.mark.asyncio
-@patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+@patch("myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs")
 async def test_run_tournament_bracket_judge_picks_b(mock_merge):
     """Judge returning 'B' must select the second candidate, not default to the first."""
     from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import _run_tournament_bracket
@@ -120,7 +120,7 @@ async def test_run_tournament_bracket_judge_picks_b(mock_merge):
 
 
 @pytest.mark.asyncio
-@patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+@patch("myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs")
 async def test_run_tournament_bracket_reasoning_model_content_empty(mock_merge):
     """A reasoning model (content empty, answer in reasoning_content) must still pick the winner."""
     from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import _run_tournament_bracket

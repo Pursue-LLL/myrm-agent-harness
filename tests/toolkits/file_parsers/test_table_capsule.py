@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
-from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
     PDFExtractConfig,
     extract_pdf_content,
 )
@@ -58,7 +58,7 @@ def test_table_placeholder_format():
 async def test_extract_pdf_content_with_tables():
     """Integration test for Table Capsules in extract_pdf_content."""
     with (
-        patch("myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._extract_text_sync") as mock_text,
+        patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._extract_text_sync") as mock_text,
         patch("pathlib.Path.exists", return_value=True),
     ):
         from myrm_agent_harness.toolkits.file_parsers.base import PDFTable
@@ -69,10 +69,10 @@ async def test_extract_pdf_content_with_tables():
         # Mock other phases
         with (
             patch(
-                "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._extract_embedded_images_sync",
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._extract_embedded_images_sync",
                 return_value=[],
             ),
-            patch("myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync", return_value=[]),
+            patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor._render_pages_sync", return_value=[]),
         ):
             config = PDFExtractConfig(table_format="placeholder")
             result = await extract_pdf_content("fake.pdf", config)

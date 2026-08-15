@@ -2563,7 +2563,7 @@ class TestEstimateBatchCostBudgetTokensPath:
 
 class TestTournamentBracketEdgeCases:
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch("myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs")
     async def test_no_successful_candidates(self, mock_merge):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _run_tournament_bracket,
@@ -2582,7 +2582,7 @@ class TestTournamentBracketEdgeCases:
         mock_merge.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch("myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs")
     async def test_single_successful_candidate_wins(self, mock_merge):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _run_tournament_bracket,
@@ -2603,7 +2603,7 @@ class TestTournamentBracketEdgeCases:
         parent.llm.ainvoke.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch("myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs")
     async def test_judge_picks_candidate_b(self, mock_merge):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _run_tournament_bracket,
@@ -2626,7 +2626,7 @@ class TestTournamentBracketEdgeCases:
         assert result["result"]["result"] == "Output B"
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch("myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs")
     async def test_judge_error_falls_back_to_candidate_a(self, mock_merge):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _run_tournament_bracket,
@@ -2647,7 +2647,7 @@ class TestTournamentBracketEdgeCases:
         assert result["result"]["result"] == "Output A"
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch("myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs")
     async def test_no_llm_on_parent_falls_back_to_first(self, mock_merge):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _run_tournament_bracket,
@@ -2667,7 +2667,7 @@ class TestTournamentBracketEdgeCases:
         assert result["result"]["result"] == "Output A"
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch("myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs")
     async def test_three_candidates_bracket(self, mock_merge):
         """Odd number of candidates: one gets a bye to next round."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (

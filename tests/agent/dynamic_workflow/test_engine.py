@@ -867,7 +867,7 @@ async def test_post_exec_merge_called_when_guard_has_isolated_results(tmp_path, 
         }
 
     monkeypatch.setattr(
-        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs",
+        "myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs",
         fake_merge,
     )
 
@@ -945,7 +945,7 @@ async def test_post_exec_merge_runs_when_ptc_raises(tmp_path, monkeypatch, mock_
         }
 
     monkeypatch.setattr(
-        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs",
+        "myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs",
         fake_merge,
     )
 
@@ -1009,7 +1009,7 @@ async def test_merge_failure_surfaces_warn_status(tmp_path, monkeypatch, mock_pa
         }
 
     monkeypatch.setattr(
-        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs",
+        "myrm_agent_harness.agent.workspace_coordination.merge.batch_merge.merge_batch_workspace_sync_backs",
         fake_merge,
     )
 

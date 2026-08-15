@@ -154,7 +154,7 @@ class TestBuildClientTarget:
         cfg = FakeMCPServerConfig(
             type="stdio",
             url=None,
-            command="${PLUGIN_ROOT}/bin/pdf",
+            command="./bin/pdf",
             args=["--data", "${PLUGIN_DATA}/cache", "--keep", "${OTHER_VAR}"],
             extra_params={
                 "plugin_root": "/data/plugins/demo-plugin",
@@ -164,7 +164,8 @@ class TestBuildClientTarget:
         )
         target = MCPClientManager.build_client_target(cfg)
         assert isinstance(target, StdioServerParameters)
-        assert target.command == "/data/plugins/demo-plugin/bin/pdf"
+        # Command is a plugin-relative path, never placeholder-expanded (§7.2.1).
+        assert target.command == "./bin/pdf"
         assert target.args == [
             "--data",
             "/data/plugins/demo-plugin_data/cache",

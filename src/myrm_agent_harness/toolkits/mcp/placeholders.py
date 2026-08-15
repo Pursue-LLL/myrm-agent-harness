@@ -112,7 +112,7 @@ def resolve_stdio_launch(
                     str(val), plugin_root=plugin_root, data_root=data_root
                 )
                 for key, val in raw_env.items()
-                if val is not None
+                if val is not None and val != ""
             }
             if expanded:
                 env = expanded

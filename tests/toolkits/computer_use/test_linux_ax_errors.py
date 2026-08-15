@@ -173,7 +173,9 @@ class TestCaptureXdotoolFallback:
                 raise ImportError("No module named 'pyatspi'")
             return original_import(name, *args, **kwargs)
 
-        self._import_patch = patch.object(_builtins, "__import__", side_effect=mock_import)
+        self._import_patch = patch.object(
+            _builtins, "__import__", side_effect=mock_import
+        )
         self._import_patch.start()
 
     def _reload_no_pyatspi(self):

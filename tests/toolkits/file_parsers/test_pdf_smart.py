@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.file_parsers import SmartPDFParser, get_parser
-from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
     PDFExtractConfig,
     PDFExtractResult,
 )
@@ -72,7 +72,7 @@ class TestSmartPDFParser:
             strategy="text",
         )
         with patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_smart.extract_pdf_content",
+            "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_smart.extract_pdf_content",
             new_callable=AsyncMock,
             return_value=result,
         ) as mock_extract:
@@ -91,7 +91,7 @@ class TestSmartPDFParser:
             strategy="image",
         )
         with patch(
-            "myrm_agent_harness.toolkits.file_parsers.pdf_smart.extract_pdf_content",
+            "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_smart.extract_pdf_content",
             new_callable=AsyncMock,
             return_value=result,
         ):

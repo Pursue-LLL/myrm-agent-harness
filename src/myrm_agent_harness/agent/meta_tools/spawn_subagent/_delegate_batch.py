@@ -368,10 +368,10 @@ async def _run_tournament_bracket(
             winner = current_round[0]
 
     # Merge the winner's workspace if it has one
-    from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.batch_merge import (
         merge_batch_workspace_sync_backs,
     )
-    from myrm_agent_harness.agent.workspace_coordination.merge_snapshots import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.merge_snapshots import (
         build_merge_snapshot_context,
     )
 

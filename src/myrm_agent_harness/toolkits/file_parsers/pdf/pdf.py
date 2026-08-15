@@ -133,7 +133,7 @@ class PDFPlumberParser(FileParser):
                 )
 
             if not bookmarks_by_page and self._heading_detection in ("font", "auto"):
-                from myrm_agent_harness.toolkits.file_parsers.pdf_heading import detect_headings_by_font
+                from .pdf_heading import detect_headings_by_font
 
                 font_headings = detect_headings_by_font(pdf)
                 for bm in font_headings:
@@ -316,7 +316,7 @@ class PDFPlumberParser(FileParser):
                         remaining_words.append(w)
 
                 if remaining_words:
-                    from myrm_agent_harness.toolkits.file_parsers.pdf_heuristic_table import (
+                    from .pdf_heuristic_table import (
                         extract_heuristic_tables_from_words,
                     )
 

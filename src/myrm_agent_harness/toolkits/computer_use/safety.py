@@ -167,9 +167,7 @@ def is_self_app(
                 "Use chat approval buttons directly instead of desktop automation."
             )
         if "todesktop" in lower_id and "cursor" in app_name.lower():
-            return (
-                "Blocked: Agent cannot control the Cursor host application. Complete approvals in the chat UI instead."
-            )
+            return "Blocked: Agent cannot control the Cursor host application. Complete approvals in the chat UI instead."
 
     lower_name = app_name.lower()
     for keyword in _SELF_APP_NAME_KEYWORDS:
@@ -229,7 +227,9 @@ def is_sensitive_app(
     return None
 
 
-def normalize_modifiers(modifiers: list[ModifierKey] | None) -> list[ModifierKey] | None:
+def normalize_modifiers(
+    modifiers: list[ModifierKey] | None,
+) -> list[ModifierKey] | None:
     if not modifiers:
         return None
     return list(modifiers)

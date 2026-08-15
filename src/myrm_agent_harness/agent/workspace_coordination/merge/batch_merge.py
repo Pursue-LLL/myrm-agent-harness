@@ -1,9 +1,9 @@
 """Serial merge of deferred ISOLATED_COPY workspaces after parallel batch delegation.
 
 [INPUT]
-- workspace_coordination.merge_metadata::strip_merge_transient_inner_keys (POS: merge metadata key SSOT)
-- workspace_coordination.merge_snapshots::MergeSnapshotContext, record_isolated_merge_snapshots (POS: Revert snapshot registration)
-- workspace_coordination.merge_warning::record_workspace_merge_failure (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
+- workspace_coordination.merge.merge_metadata::strip_merge_transient_inner_keys (POS: merge metadata key SSOT)
+- workspace_coordination.merge.merge_snapshots::MergeSnapshotContext, record_isolated_merge_snapshots (POS: Revert snapshot registration)
+- workspace_coordination.merge.merge_warning::record_workspace_merge_failure (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
 - sub_agents.workspace_isolation::_merge_tree_additive (POS: Additive workspace merge)
 
 [OUTPUT]
@@ -23,15 +23,15 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import cast
 
-from myrm_agent_harness.agent.workspace_coordination.merge_metadata import (
+from .merge_metadata import (
     strip_merge_transient_inner_keys,
 )
-from myrm_agent_harness.agent.workspace_coordination.merge_snapshots import (
+from .merge_snapshots import (
     MergeSnapshotContext,
     record_isolated_merge_snapshots,
     schedule_merge_snapshot_persist,
 )
-from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+from .merge_warning import (
     record_workspace_merge_failure,
 )
 

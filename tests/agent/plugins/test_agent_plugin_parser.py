@@ -629,7 +629,7 @@ class TestParseResultFiles:
     def test_files_empty_without_extra_entries(self) -> None:
         zip_bytes = build_plugin_zip({"plugin.json": default_plugin_json()})
         result = AgentPluginParser().parse_zip(zip_bytes)
-        assert result.files == {"plugin.json"}
+        assert set(result.files) == {"plugin.json"}
 
     def test_files_empty_on_fatal_manifest_failure(self) -> None:
         zip_bytes = build_plugin_zip({"plugin.json": "not json"})

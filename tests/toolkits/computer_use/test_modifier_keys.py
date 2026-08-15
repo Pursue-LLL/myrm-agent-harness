@@ -36,7 +36,18 @@ def _mock_macos_input() -> MagicMock:
     m = MagicMock()
     m.size.return_value = MagicMock(width=1920, height=1080)
     m.position.return_value = MagicMock(x=0, y=0)
-    for name in ("key_down", "key_up", "click", "scroll", "hscroll", "move_to", "drag", "write", "press", "hotkey"):
+    for name in (
+        "key_down",
+        "key_up",
+        "click",
+        "scroll",
+        "hscroll",
+        "move_to",
+        "drag",
+        "write",
+        "press",
+        "hotkey",
+    ):
         fn = MagicMock()
         fn.__name__ = name
         setattr(m, name, fn)
@@ -201,13 +212,27 @@ class TestLinuxBackendModifiers:
         assert any("keyup shift" in c for c in commands)
         assert any("keyup ctrl" in c for c in commands)
 
-        keydown_ctrl_idx = next(i for i, c in enumerate(commands) if "keydown ctrl" in c)
-        keydown_shift_idx = next(i for i, c in enumerate(commands) if "keydown shift" in c)
-        click_idx = next(i for i, c in enumerate(commands) if "click" in c and "keydown" not in c and "keyup" not in c)
+        keydown_ctrl_idx = next(
+            i for i, c in enumerate(commands) if "keydown ctrl" in c
+        )
+        keydown_shift_idx = next(
+            i for i, c in enumerate(commands) if "keydown shift" in c
+        )
+        click_idx = next(
+            i
+            for i, c in enumerate(commands)
+            if "click" in c and "keydown" not in c and "keyup" not in c
+        )
         keyup_shift_idx = next(i for i, c in enumerate(commands) if "keyup shift" in c)
         keyup_ctrl_idx = next(i for i, c in enumerate(commands) if "keyup ctrl" in c)
 
-        assert keydown_ctrl_idx < keydown_shift_idx < click_idx < keyup_shift_idx < keyup_ctrl_idx
+        assert (
+            keydown_ctrl_idx
+            < keydown_shift_idx
+            < click_idx
+            < keyup_shift_idx
+            < keyup_ctrl_idx
+        )
 
     @pytest.mark.asyncio
     async def test_click_without_modifiers_no_keydown(self, backend) -> None:
@@ -293,10 +318,17 @@ class TestSessionModifierPassthrough:
     @pytest.fixture
     def mock_backend(self):
         backend = AsyncMock()
-        from myrm_agent_harness.toolkits.computer_use.types import ScreenContext, ScreenInfo
+        from myrm_agent_harness.toolkits.computer_use.types import (
+            ScreenContext,
+            ScreenInfo,
+        )
 
-        backend.screen_info.return_value = ScreenInfo(width=1920, height=1080, dpi_scale=1.0)
-        backend.screen_context.return_value = ScreenContext(active_window="test", mouse_x=0, mouse_y=0)
+        backend.screen_info.return_value = ScreenInfo(
+            width=1920, height=1080, dpi_scale=1.0
+        )
+        backend.screen_context.return_value = ScreenContext(
+            active_window="test", mouse_x=0, mouse_y=0
+        )
         backend.click.return_value = ActionResult(success=True)
         backend.scroll.return_value = ActionResult(success=True)
         backend.drag.return_value = ActionResult(success=True)
@@ -304,7 +336,9 @@ class TestSessionModifierPassthrough:
 
     @pytest.fixture
     def session(self, mock_backend):
-        from myrm_agent_harness.toolkits.computer_use.coordinate_scaler import CoordinateScaler
+        from myrm_agent_harness.toolkits.computer_use.coordinate_scaler import (
+            CoordinateScaler,
+        )
         from myrm_agent_harness.toolkits.computer_use.session import ComputerSession
         from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig
 
@@ -320,8 +354,12 @@ class TestSessionModifierPassthrough:
 
     @pytest.mark.asyncio
     async def test_click_at_passes_modifiers(self, session, mock_backend) -> None:
-        with patch.object(session, "take_screenshot", new_callable=AsyncMock) as mock_ss:
-            mock_ss.return_value = ActionResult(success=True, screenshot_base64="abc", screenshot_size=(1920, 1080))
+        with patch.object(
+            session, "take_screenshot", new_callable=AsyncMock
+        ) as mock_ss:
+            mock_ss.return_value = ActionResult(
+                success=True, screenshot_base64="abc", screenshot_size=(1920, 1080)
+            )
             await session.click_at(100, 200, modifiers=["ctrl"])
 
         mock_backend.click.assert_called_once()
@@ -330,8 +368,12 @@ class TestSessionModifierPassthrough:
 
     @pytest.mark.asyncio
     async def test_scroll_at_passes_modifiers(self, session, mock_backend) -> None:
-        with patch.object(session, "take_screenshot", new_callable=AsyncMock) as mock_ss:
-            mock_ss.return_value = ActionResult(success=True, screenshot_base64="abc", screenshot_size=(1920, 1080))
+        with patch.object(
+            session, "take_screenshot", new_callable=AsyncMock
+        ) as mock_ss:
+            mock_ss.return_value = ActionResult(
+                success=True, screenshot_base64="abc", screenshot_size=(1920, 1080)
+            )
             await session.scroll_at(100, 200, "down", 3, modifiers=["shift"])
 
         mock_backend.scroll.assert_called_once()
@@ -340,8 +382,12 @@ class TestSessionModifierPassthrough:
 
     @pytest.mark.asyncio
     async def test_drag_passes_modifiers(self, session, mock_backend) -> None:
-        with patch.object(session, "take_screenshot", new_callable=AsyncMock) as mock_ss:
-            mock_ss.return_value = ActionResult(success=True, screenshot_base64="abc", screenshot_size=(1920, 1080))
+        with patch.object(
+            session, "take_screenshot", new_callable=AsyncMock
+        ) as mock_ss:
+            mock_ss.return_value = ActionResult(
+                success=True, screenshot_base64="abc", screenshot_size=(1920, 1080)
+            )
             await session.drag(10, 20, 100, 200, modifiers=["alt"])
 
         mock_backend.drag.assert_called_once()
@@ -353,8 +399,12 @@ class TestActionInputSchema:
     """ActionInput Pydantic schema includes modifiers field."""
 
     def test_modifiers_field_exists(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import create_desktop_tools
-        from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
+        from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import (
+            create_desktop_tools,
+        )
+        from myrm_agent_harness.toolkits.computer_use.desktop_session import (
+            DesktopSession,
+        )
 
         mock_session = MagicMock(spec=DesktopSession)
         tools = create_desktop_tools(mock_session)
@@ -365,8 +415,12 @@ class TestActionInputSchema:
         assert modifiers_schema.get("default") is None
 
     def test_modifiers_field_accepts_valid_values(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import create_desktop_tools
-        from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
+        from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import (
+            create_desktop_tools,
+        )
+        from myrm_agent_harness.toolkits.computer_use.desktop_session import (
+            DesktopSession,
+        )
 
         mock_session = MagicMock(spec=DesktopSession)
         tools = create_desktop_tools(mock_session)
@@ -380,8 +434,12 @@ class TestActionInputSchema:
         assert instance.modifiers == ["ctrl", "shift"]
 
     def test_modifiers_field_optional(self) -> None:
-        from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import create_desktop_tools
-        from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
+        from myrm_agent_harness.toolkits.computer_use.desktop_agent_tools import (
+            create_desktop_tools,
+        )
+        from myrm_agent_harness.toolkits.computer_use.desktop_session import (
+            DesktopSession,
+        )
 
         mock_session = MagicMock(spec=DesktopSession)
         tools = create_desktop_tools(mock_session)
@@ -422,7 +480,9 @@ class TestEdgeCases:
         assert not any("keyup" in c for c in commands)
 
     @pytest.mark.asyncio
-    async def test_three_modifiers_all_pressed_and_released(self, linux_backend) -> None:
+    async def test_three_modifiers_all_pressed_and_released(
+        self, linux_backend
+    ) -> None:
         """Triple modifier combo: all pressed in order, released in reverse."""
         commands: list[str] = []
 
@@ -431,7 +491,9 @@ class TestEdgeCases:
             return ("", "", 0)
 
         with patch.object(linux_backend, "_run_cmd", side_effect=mock_run_cmd):
-            result = await linux_backend.click(100, 200, modifiers=["ctrl", "alt", "shift"])
+            result = await linux_backend.click(
+                100, 200, modifiers=["ctrl", "alt", "shift"]
+            )
 
         assert result.success is True
         keydowns = [c for c in commands if "keydown" in c]
@@ -485,7 +547,9 @@ class TestEdgeCases:
         assert any("keyup shift" in c for c in commands)
 
     @pytest.mark.asyncio
-    async def test_macos_scroll_exception_releases_modifiers(self, macos_backend) -> None:
+    async def test_macos_scroll_exception_releases_modifiers(
+        self, macos_backend
+    ) -> None:
         """macOS scroll action failure still releases modifier keys."""
         call_log: list[tuple[str, tuple]] = []
 

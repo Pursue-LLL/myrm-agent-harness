@@ -141,10 +141,7 @@ class TestComputeRefDiff:
     def test_high_change_ratio_after_match(self) -> None:
         """Enough matched refs to pass identity confidence, but change ratio > 0.6."""
         meta = _make_meta()
-        stable = [
-            _make_ref(f"d{i}", "AXButton", f"Btn{i}", x=i * 10)
-            for i in range(5)
-        ]
+        stable = [_make_ref(f"d{i}", "AXButton", f"Btn{i}", x=i * 10) for i in range(5)]
         prev = {r.ref_id: r for r in stable}
         prev["d10"] = _make_ref("d10", "AXButton", "Cancel", x=200, y=60)
         prev["d11"] = _make_ref("d11", "AXButton", "Retry", x=200, y=90)

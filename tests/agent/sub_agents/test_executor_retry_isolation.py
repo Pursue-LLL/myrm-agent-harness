@@ -101,7 +101,7 @@ async def test_isolated_copy_runs_sync_back_on_success(tmp_path: Path, isolated_
 async def test_isolated_copy_sync_back_failure_records_merge_warning(
     tmp_path: Path, isolated_config: SubagentConfig
 ) -> None:
-    from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
         format_workspace_merge_failures,
         has_workspace_merge_warning,
         reset_workspace_merge_warning,
@@ -132,7 +132,7 @@ async def test_isolated_copy_sync_back_failure_records_merge_warning(
             new_callable=AsyncMock,
         ),
         patch(
-            "myrm_agent_harness.agent.workspace_coordination.merge_snapshots.apply_isolated_sync_back_with_snapshots",
+            "myrm_agent_harness.agent.workspace_coordination.merge.merge_snapshots.apply_isolated_sync_back_with_snapshots",
             new_callable=AsyncMock,
             side_effect=OSError("disk full"),
         ),

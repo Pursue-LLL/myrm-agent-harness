@@ -8,7 +8,7 @@ Uses pdf_content_extractor for unified smart extraction:
   knowledge base for RAG retrieval instead of being silently truncated
 
 [INPUT]
-- toolkits.file_parsers.pdf_content_extractor::PDFExtractConfig (POS: Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page render fallback) strategy; scanned PDFs (sparse text) get best-effort OCR fallback via PaddleOCR so text-only consumers still get readable text. Supports Table Encapsulation to prevent RAG chunking from splitting tables, using L0 summaries to ensure retrieval accuracy.)
+- toolkits.file_parsers.pdf.pdf_content_extractor::PDFExtractConfig (POS: Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page render fallback) strategy; scanned PDFs (sparse text) get best-effort OCR fallback via PaddleOCR so text-only consumers still get readable text. Supports Table Encapsulation to prevent RAG chunking from splitting tables, using L0 summaries to ensure retrieval accuracy.)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 
 [OUTPUT]
@@ -167,7 +167,7 @@ async def read_pdf_as_content_blocks(
         return f"[PDF file: {path}] (Failed to read)"
 
     try:
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+        from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (
             PDFExtractConfig,
             extract_pdf_content,
         )

@@ -446,7 +446,7 @@ async def run_alternatives(
         success_count,
     )
 
-    from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.batch_merge import (
         discard_deferred_isolated_workspaces,
     )
 

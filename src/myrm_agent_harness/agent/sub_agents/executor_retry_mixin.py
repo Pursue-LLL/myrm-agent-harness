@@ -5,8 +5,8 @@
 - .types::SubagentBudgetExceededError, SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy (POS: Subagent subsystem core type definitions.)
 - toolkits.llms.errors.exceptions::MyrmLLMError (POS: Standardized LLM Error thrown by the Harness framework.)
 - agent.hooks.executor::fire_hook (POS: Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation.)
-- workspace_coordination.merge_snapshots::apply_isolated_sync_back_with_snapshots (POS: Revert snapshot registration + immediate ISOLATED_COPY sync_back)
-- workspace_coordination.merge_warning::record_workspace_merge_failure (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
+- workspace_coordination.merge.merge_snapshots::apply_isolated_sync_back_with_snapshots (POS: Revert snapshot registration + immediate ISOLATED_COPY sync_back)
+- workspace_coordination.merge.merge_warning::record_workspace_merge_failure (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
 
 [OUTPUT]
 - SubagentExecutorRetryMixin.run_with_retry: immediate ISOLATED_COPY sync_back before return; merge failure records `{task_id}: {error}` turn warning + workspace_merge_status on result
@@ -59,10 +59,10 @@ async def _apply_immediate_isolated_sync_back(
     """Run immediate ISOLATED_COPY sync_back; surface merge failure on result + turn warning."""
     from dataclasses import replace as dc_replace
 
-    from myrm_agent_harness.agent.workspace_coordination.merge_snapshots import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.merge_snapshots import (
         apply_isolated_sync_back_with_snapshots,
     )
-    from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+    from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
         record_workspace_merge_failure,
     )
 

@@ -86,8 +86,14 @@ async def test_wait(backend):
 
 def test_screen_info(backend):
     with (
-        patch("myrm_agent_harness.toolkits.computer_use.backends.macos.macos_input.size", return_value=_Size(1920, 1080)),
-        patch("myrm_agent_harness.toolkits.computer_use.backends.macos._detect_dpi_scale_quartz", return_value=2.0),
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.backends.macos.macos_input.size",
+            return_value=_Size(1920, 1080),
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.backends.macos._detect_dpi_scale_quartz",
+            return_value=2.0,
+        ),
     ):
         info = backend.screen_info()
         assert info.width == 1920
@@ -97,8 +103,14 @@ def test_screen_info(backend):
 
 def test_screen_context(backend):
     with (
-        patch("myrm_agent_harness.toolkits.computer_use.backends.macos.macos_input.position", return_value=_Point(10, 20)),
-        patch("myrm_agent_harness.toolkits.computer_use.backends.macos._get_active_window_title", return_value="Title"),
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.backends.macos.macos_input.position",
+            return_value=_Point(10, 20),
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.backends.macos._get_active_window_title",
+            return_value="Title",
+        ),
     ):
         ctx = backend.screen_context()
         assert ctx.active_window == "Title"
@@ -108,7 +120,9 @@ def test_screen_context(backend):
 
 @pytest.mark.asyncio
 async def test_window_text(backend):
-    with patch("asyncio.to_thread", return_value=MagicMock(success=True, window_title="Title")):
+    with patch(
+        "asyncio.to_thread", return_value=MagicMock(success=True, window_title="Title")
+    ):
         res = await backend.window_text()
         assert res.success is True
         assert res.window_title == "Title"

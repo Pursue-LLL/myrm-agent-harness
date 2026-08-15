@@ -469,8 +469,9 @@ class TestCaptureEdges:
     def test_foreground_none_raises(self) -> None:
         auto = _make_auto({}, [])
         auto.GetForegroundControl.return_value = None
-        with _module_with_auto(auto) as module, pytest.raises(
-            AXTreeEmptyError, match="no foreground window"
+        with (
+            _module_with_auto(auto) as module,
+            pytest.raises(AXTreeEmptyError, match="no foreground window"),
         ):
             module.capture_ax_snapshot("foreground")
 
@@ -478,8 +479,9 @@ class TestCaptureEdges:
         window = _make_window("Mail - Inbox", 100)
         window.GetChildren.return_value = []
         auto = _make_auto({100: "Mail"}, [window])
-        with _module_with_auto(auto) as module, pytest.raises(
-            AXTreeEmptyError, match="Mail - Inbox"
+        with (
+            _module_with_auto(auto) as module,
+            pytest.raises(AXTreeEmptyError, match="Mail - Inbox"),
         ):
             module.capture_ax_snapshot("foreground")
 

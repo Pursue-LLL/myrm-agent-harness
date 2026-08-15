@@ -52,6 +52,9 @@ class ToolErrorCategory(StrEnum):
     PII_GUARD = "pii_guard"
     CIRCUIT_BREAKER = "circuit_breaker"
 
+    # --- Skill-usage memory guard (memory_search_tool misuse correction) ---
+    SKILL_USAGE_GUARD = "skill_usage_guard"
+
     # --- Middleware / lifecycle ---
     CONTEXT_VALIDATION = "context_validation"
     POST_HOOK_BLOCKED = "post_hook_blocked"

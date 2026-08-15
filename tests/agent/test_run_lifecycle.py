@@ -346,7 +346,7 @@ class TestPostRunEvents:
 
     @pytest.mark.asyncio
     async def test_workspace_merge_warning_sets_completion_status(self) -> None:
-        from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+        from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
             record_workspace_merge_failure,
             reset_workspace_merge_warning,
         )
@@ -372,7 +372,7 @@ class TestPostRunEvents:
 
     @pytest.mark.asyncio
     async def test_workspace_merge_failed_sse_emitted(self) -> None:
-        from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+        from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
             record_workspace_merge_failure,
             reset_workspace_merge_warning,
         )
@@ -402,7 +402,7 @@ class TestPostRunEvents:
     @pytest.mark.asyncio
     async def test_workspace_merge_warning_does_not_override_truncated(self) -> None:
         from myrm_agent_harness.agent.types import CompletionStatus
-        from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+        from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
             record_workspace_merge_failure,
             reset_workspace_merge_warning,
         )

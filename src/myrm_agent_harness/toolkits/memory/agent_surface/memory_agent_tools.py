@@ -26,6 +26,7 @@ from typing import Literal
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.toolkits.memory.agent_surface._memory_agent_tool_descriptions import (
     build_memory_save_tool_description,
     build_memory_search_tool_description,
@@ -54,6 +55,10 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy impor
     MemorySearchPolicy,
     resolve_search_corpora,
 )
+from myrm_agent_harness.toolkits.memory.agent_surface.skill_usage_guard import (
+    build_skill_usage_guide,
+    detect_skill_usage_lookup,
+)
 from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     looks_like_wiki_document,
     record_wiki_memory_save_rejection,
@@ -62,6 +67,7 @@ from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary impor
 from myrm_agent_harness.toolkits.memory.config import RecallMode
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import MemoryType, RuleSource
+from myrm_agent_harness.utils.errors import ToolError
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +223,28 @@ def create_memory_tools(
             if value is None:
                 return f"No profile attribute '{profile_key}' found."
             return format_profile_recall_output(profile_key, value)
+
+        # Runtime skill-usage guard: memory_search_tool only recalls stored
+        # memories; it must never be used to look up skill usage instructions
+        # (those live in the loaded skill SOP and /mcp/*.md function docs).
+        # Deterministic intercept — the agent is redirected to the SOP/docs path
+        # instead of wasting a search that can never answer a usage question.
+        skill_hit = detect_skill_usage_lookup(query)
+        if skill_hit is not None:
+            raise ToolError(
+                build_skill_usage_guide(skill_hit),
+                user_hint=(
+                    "Skill usage instructions live in the loaded skill SOP and "
+                    "its /mcp/*.md function docs. Read them with file_read_tool, "
+                    "then call the skill's tools directly via bash PTC."
+                ),
+                error_code="SKILL_USAGE_LOOKUP_BLOCKED",
+                diagnostic_info={
+                    "error_category": ToolErrorCategory.SKILL_USAGE_GUARD.value,
+                    "skill_name": skill_hit.skill_name,
+                    "matched_term": skill_hit.matched_term,
+                },
+            )
 
         corpora, reject_reason = resolve_search_corpora(corpus, policy)
         if reject_reason:

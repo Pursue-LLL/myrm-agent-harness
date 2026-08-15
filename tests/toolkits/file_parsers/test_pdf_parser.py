@@ -4,7 +4,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser, PDFTable
+from myrm_agent_harness.toolkits.file_parsers.base import PDFTable
+from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
 
 
 def _make_mock_page(

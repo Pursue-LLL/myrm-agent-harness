@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import contextvars
 
-from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+from myrm_agent_harness.agent.workspace_coordination.merge.merge_warning import (
     format_workspace_merge_failures,
     has_workspace_merge_warning,
     record_workspace_merge_failure,
