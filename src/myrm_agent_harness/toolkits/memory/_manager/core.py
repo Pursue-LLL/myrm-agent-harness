@@ -330,3 +330,8 @@ class MemoryManagerCore:
     @property
     def approval_required(self) -> bool:
         return self._approval_required
+
+    @property
+    def consolidation_llm(self) -> BaseChatModel | None:
+        """Consolidation LLM used for deduplication and consolidation passes."""
+        return self._consolidation_llm

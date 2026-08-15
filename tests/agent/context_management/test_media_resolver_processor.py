@@ -31,6 +31,14 @@ def _make_large_jpeg_bytes(width: int = 6000, height: int = 4000) -> bytes:
     return buf.getvalue()
 
 
+def _make_bmp_bytes(width: int, height: int) -> bytes:
+    """Generate a deterministic uncompressed BMP (raw size = w*h*3 + header)."""
+    img = Image.new("RGB", (width, height), color=(100, 150, 200))
+    buf = io.BytesIO()
+    img.save(buf, format="BMP")
+    return buf.getvalue()
+
+
 def _img_url(url: str, text: str = "look") -> HumanMessage:
     """Create a HumanMessage with an image_url pointing to a non-base64 URL."""
     return HumanMessage(
@@ -257,6 +265,32 @@ class TestSendTimeCompression:
             url = result.messages[0].content[1]["image_url"]["url"]
             b64_part = url.split(";base64,")[1]
             assert base64.b64decode(b64_part) == raw
+        finally:
+            Path(path).unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_base64_oversized_local_file_compressed(self) -> None:
+        """Raw bytes under the 4 MiB trigger but base64 over it must still
+        compress — real MediaResolver path exercises the base64-space check."""
+        # 1100x1100 RGB BMP is deterministic: ~3.63 MiB raw (< 4 MiB) while
+        # its base64 form is ~4.84 MiB (> 4 MiB); dimensions fit the 2048 cap.
+        raw = _make_bmp_bytes(1100, 1100)
+        assert len(raw) < 4 * 1024 * 1024
+        assert 4 * ((len(raw) + 2) // 3) > 4 * 1024 * 1024
+
+        with tempfile.NamedTemporaryFile(suffix=".bmp", delete=False) as f:
+            f.write(raw)
+            f.flush()
+            path = f.name
+
+        try:
+            proc = MediaResolverProcessor()
+            ctx = _make_context([_img_url(f"file://{path}")])
+            result = await proc.process(ctx)
+
+            url = result.messages[0].content[1]["image_url"]["url"]
+            decoded = base64.b64decode(url.split(";base64,")[1])
+            assert len(decoded) < len(raw)
         finally:
             Path(path).unlink(missing_ok=True)
 
