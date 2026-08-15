@@ -491,6 +491,7 @@ def _rule_based_classify(
     standard_keywords: frozenset[str],
     reasoning_keywords: frozenset[str],
     simple_indicators: frozenset[str],
+    penalty_tracker: PenaltyTracker | None = None,
 ) -> RoutingTier | None:
     """Phase 1: unified scoring classification. Returns None if ambiguous.
 
@@ -499,8 +500,9 @@ def _rule_based_classify(
     """
     scores = _compute_unified_score(text, has_image, standard_keywords, reasoning_keywords, simple_indicators)
 
-    # Apply penalties (MR-14)
-    scores = _penalty_tracker.apply_penalties(scores)
+    # Apply penalties (MR-14) — custom tracker when provided, else the global one
+    effective_tracker = penalty_tracker or _penalty_tracker
+    scores = effective_tracker.apply_penalties(scores)
 
     # Find the best tier above its threshold
     best_tier: RoutingTier | None = None
@@ -644,8 +646,13 @@ async def _llm_judge_classify(
     text: str,
     judge_llm: BaseChatModel,
     judge_system_prompt: str,
-) -> RoutingTier:
-    """Phase 2: LLM-based classification for ambiguous cases."""
+) -> RoutingTier | None:
+    """Phase 2: LLM-based classification for ambiguous cases.
+
+    Returns ``None`` on timeout/exception/unparseable output — a degradation,
+    not a verdict. Callers must NOT cache ``None`` results (a transient judge
+    failure must not pin the default tier for the cache TTL).
+    """
     from langchain_core.messages import HumanMessage, SystemMessage
 
     try:
@@ -667,7 +674,7 @@ async def _llm_judge_classify(
     except Exception as e:
         logger.warning("LLM judge classification failed: %s", e)
 
-    return RoutingTier.STANDARD
+    return None
 
 
 def _select_model_for_tier(
@@ -752,7 +759,9 @@ async def route_task(
         reasoning_keywords: Custom reasoning-tier keywords (defaults provided)
         simple_indicators: Custom simple greeting indicators (defaults provided)
         judge_system_prompt: Custom LLM judge system prompt (default provided)
-        penalty_tracker: Optional custom penalty tracker (uses global default)
+        penalty_tracker: Custom penalty tracker for rule-phase scoring; when
+            omitted the global default tracker is used (shared with
+            ``record_misroute``).
 
     Returns:
         RoutingResult with selected tier, model config, fallback, and reason
@@ -782,7 +791,10 @@ async def route_task(
             reason="empty_query",
         )
 
-    rule_result = _rule_based_classify(text, has_image, std_kw, reason_kw, simple_ind)
+    degraded = False
+    rule_result = _rule_based_classify(
+        text, has_image, std_kw, reason_kw, simple_ind, penalty_tracker
+    )
     if rule_result is not None:
         if not min_tier:
             deduped = _dedup_check(text)
@@ -804,9 +816,17 @@ async def route_task(
             final_tier = cached_tier
             reason = "llm_judge_cached"
         else:
-            final_tier = await _llm_judge_classify(text, judge_llm, judge_prompt)
-            _cache_put(text_hash, final_tier)
-            reason = "llm_judge"
+            judged_tier = await _llm_judge_classify(text, judge_llm, judge_prompt)
+            if judged_tier is None:
+                # 降级（超时/异常/解析失败）：安全默认 STANDARD，且不写入任何缓存
+                # ——缓存只应保存真实判定，瞬时故障不得钉死默认档位达 cache TTL。
+                final_tier = RoutingTier.STANDARD
+                reason = "llm_judge_unavailable"
+                degraded = True
+            else:
+                _cache_put(text_hash, judged_tier)
+                final_tier = judged_tier
+                reason = "llm_judge"
         final_tier, overridden = _apply_momentum(final_tier, text, recent_tiers)
         if overridden:
             reason = "momentum_override"
@@ -825,7 +845,8 @@ async def route_task(
         cfg.model,
         reason,
     )
-    _dedup_store(text, final_tier)
+    if not degraded:
+        _dedup_store(text, final_tier)
     return RoutingResult(tier=final_tier, model_cfg=cfg, fallback_model_cfg=fallback, reason=reason)
 
 

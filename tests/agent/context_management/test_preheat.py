@@ -30,6 +30,22 @@ from myrm_agent_harness.agent.context_management.preheat import (
 )
 
 
+def _mock_create_task(fake_task: MagicMock | None = None) -> MagicMock:
+    """``loop.create_task`` mock that closes the passed coroutine.
+
+    ``mgr.start()`` calls ``loop.create_task(mgr._loop(), name=...)``, producing
+    a real coroutine. A bare MagicMock never awaits it, leaking an
+    unawaited-coroutine RuntimeWarning at GC; closing it inside the side effect
+    keeps tests clean.
+    """
+    def _create_task(coro: object, **kwargs: object) -> MagicMock:
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        return fake_task or MagicMock()
+
+    return MagicMock(side_effect=_create_task)
+
+
 class TestNeedsExplicitPreheat:
     """Tests for provider detection logic."""
 
@@ -153,7 +169,7 @@ class TestScheduleInitPreheat:
     @patch("myrm_agent_harness.utils.token_estimation.estimate_content_tokens", return_value=_MIN_PREHEAT_TOKENS + 100)
     @patch("asyncio.get_running_loop")
     def test_schedules_task_when_eligible(self, mock_loop: MagicMock, mock_est: MagicMock) -> None:
-        mock_loop.return_value.create_task = MagicMock()
+        mock_loop.return_value.create_task = _mock_create_task()
         llm = MagicMock()
 
         schedule_init_preheat(llm, "A " * 2000, "anthropic/claude-3-5-sonnet")
@@ -188,7 +204,7 @@ class TestCacheKeepAliveManager:
         llm = MagicMock()
         mgr = CacheKeepAliveManager(llm, "system prompt", "anthropic/claude-3")
         loop = MagicMock()
-        loop.create_task = MagicMock(return_value=MagicMock())
+        loop.create_task = _mock_create_task()
         with patch("asyncio.get_running_loop", return_value=loop):
             mgr.start()
         loop.create_task.assert_called_once()
@@ -199,7 +215,7 @@ class TestCacheKeepAliveManager:
         mgr = CacheKeepAliveManager(llm, "system prompt", "anthropic/claude-3")
         loop = MagicMock()
         fake_task = MagicMock()
-        loop.create_task = MagicMock(return_value=fake_task)
+        loop.create_task = _mock_create_task(fake_task)
         with patch("asyncio.get_running_loop", return_value=loop):
             mgr.start()
             mgr.start()
