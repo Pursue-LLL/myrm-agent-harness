@@ -255,7 +255,7 @@ def test_format_memory_search_disabled_when_tool_not_bound():
     assert "## Memory Search" not in untrusted
 
 
-def test_format_memory_search_includes_sessions_corpus_when_enabled():
+def test_format_memory_search_guidance_when_enabled():
     learned = {
         "learned_preferences": [{"content": "Prefers dark mode", "id": "p1"}],
         "learned_rules": [],
