@@ -20,6 +20,7 @@ from myrm_agent_harness.toolkits.retriever.sufficiency import (
 )
 from myrm_agent_harness.toolkits.retriever.sufficiency.evaluator import (
     _FALLBACK_SUFFICIENT,
+    _build_eval_model,
     _parse_verdict,
     _truncate_snippets,
 )
@@ -224,6 +225,43 @@ class TestParseVerdict:
         )
         v = _parse_verdict(raw, self.config)
         assert v is _FALLBACK_SUFFICIENT
+
+
+class TestBuildEvalModel:
+    """Test _build_eval_model temperature assembly semantics."""
+
+    def _mock_config(self, model_kwargs=None, temperature=None):
+        config = MagicMock()
+        config.model = "gpt-4o-mini"
+        config.api_key = "sk-test"
+        config.base_url = None
+        config.model_kwargs = model_kwargs
+        config.temperature = temperature
+        return config
+
+    def _capture_kwargs(self, config):
+        with patch(
+            "myrm_agent_harness.toolkits.llms.core.llm.create_litellm_model",
+        ) as mock_create:
+            _build_eval_model(config)
+        return mock_create.call_args.kwargs
+
+    def test_model_kwargs_temperature_without_type_error(self):
+        """model_kwargs 含 temperature 时不再触发重复关键字 TypeError，且默认优先于 0.0。"""
+        kwargs = self._capture_kwargs(self._mock_config(model_kwargs={"temperature": 0.3}))
+        assert kwargs["temperature"] == 0.3
+
+    def test_top_level_temperature_wins_over_model_kwargs(self):
+        """顶层显式 temperature 优先于 model_kwargs 中的同名键。"""
+        kwargs = self._capture_kwargs(
+            self._mock_config(model_kwargs={"temperature": 0.3}, temperature=0.7)
+        )
+        assert kwargs["temperature"] == 0.7
+
+    def test_defaults_temperature_when_unset(self):
+        """未配置时兜底为 0.0，保证评估判定确定性。"""
+        kwargs = self._capture_kwargs(self._mock_config())
+        assert kwargs["temperature"] == 0.0
 
 
 class TestEvaluateSufficiency:

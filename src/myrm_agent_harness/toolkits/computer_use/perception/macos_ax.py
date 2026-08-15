@@ -483,6 +483,12 @@ _SCRIPTABLE_APPS: frozenset[str] = frozenset(
 )
 
 
+_SNAPSHOT_RECOMMENDATION_BASE = (
+    "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool. "
+    "To act on a background app, use desktop_snapshot_tool(scope='target', app_name='<app name>')."
+)
+
+
 def _native_api_hint(app_name: str) -> str:
     """Return a routing hint if the app supports AppleScript automation."""
     if app_name in _SCRIPTABLE_APPS:
@@ -509,7 +515,7 @@ def inspect_foreground() -> dict[str, str | int | bool]:
         app_name, window_title, app_id = _read_foreground_meta()
         if not app_name and "(" in str(exc) and str(exc).endswith(")"):
             app_name = str(exc).rsplit("(", 1)[-1].rstrip(")").strip()
-        base_rec = "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool."
+        base_rec = _SNAPSHOT_RECOMMENDATION_BASE
         if app_name:
             native_hint = _native_api_hint(app_name)
             return {
@@ -529,7 +535,7 @@ def inspect_foreground() -> dict[str, str | int | bool]:
             "recommendation": f"AX tree unavailable ({exc}). Use desktop_vision_tool fallback.",
         }
 
-    base_rec = "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool."
+    base_rec = _SNAPSHOT_RECOMMENDATION_BASE
     native_hint = _native_api_hint(snapshot.meta.app_name)
     return {
         "app_name": snapshot.meta.app_name,

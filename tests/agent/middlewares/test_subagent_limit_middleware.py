@@ -4,10 +4,15 @@ Validates that the middleware correctly truncates excessive delegate_task
 tool calls from LLM responses while preserving non-delegate calls.
 """
 
-from langchain_core.messages import AIMessage
+from unittest.mock import AsyncMock
+
+import pytest
+from langchain.agents.middleware import ModelRequest, ModelResponse
+from langchain_core.messages import AIMessage, HumanMessage
 
 from myrm_agent_harness.agent.middlewares.subagent_limit_middleware import (
     MAX_CONCURRENT_SUBAGENTS,
+    SubagentLimitMiddleware,
     _truncate_delegate_calls,
 )
 
@@ -121,3 +126,42 @@ class TestTruncateDelegateCalls:
         assert result is not None
         delegate_calls = [tc for tc in result.tool_calls if tc["name"] == "delegate_task_tool"]
         assert len(delegate_calls) == 2
+
+
+class TestAwrapModelCall:
+    """Tests for the middleware awrap_model_call orchestration."""
+
+    def _request(self) -> ModelRequest:
+        return ModelRequest(messages=[HumanMessage(content="hello")], model=AsyncMock())
+
+    @pytest.mark.asyncio
+    async def test_empty_result_passthrough(self) -> None:
+        middleware = SubagentLimitMiddleware()
+        handler = AsyncMock(return_value=ModelResponse(result=[]))
+        response = await middleware.awrap_model_call(self._request(), handler)
+        assert response.result == []
+
+    @pytest.mark.asyncio
+    async def test_non_ai_last_message_passthrough(self) -> None:
+        middleware = SubagentLimitMiddleware()
+        handler = AsyncMock(return_value=ModelResponse(result=[HumanMessage(content="hi")]))
+        response = await middleware.awrap_model_call(self._request(), handler)
+        assert response.result[0].content == "hi"
+
+    @pytest.mark.asyncio
+    async def test_ai_message_without_excess_passthrough(self) -> None:
+        middleware = SubagentLimitMiddleware()
+        response_msg = AIMessage(content="ok", tool_calls=[_make_tool_call("file_read_tool", "f1")])
+        handler = AsyncMock(return_value=ModelResponse(result=[response_msg]))
+        response = await middleware.awrap_model_call(self._request(), handler)
+        assert response.result == [response_msg]
+
+    @pytest.mark.asyncio
+    async def test_ai_message_with_excess_truncates(self) -> None:
+        middleware = SubagentLimitMiddleware()
+        tool_calls = [_make_tool_call("delegate_task_tool", f"d{i}", {"task": f"t{i}"}) for i in range(5)]
+        response_msg = AIMessage(content="spawning", tool_calls=tool_calls)
+        handler = AsyncMock(return_value=ModelResponse(result=[response_msg]))
+        response = await middleware.awrap_model_call(self._request(), handler)
+        delegate_calls = [tc for tc in response.result[-1].tool_calls if tc["name"] == "delegate_task_tool"]
+        assert len(delegate_calls) == MAX_CONCURRENT_SUBAGENTS

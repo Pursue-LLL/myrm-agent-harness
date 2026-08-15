@@ -59,7 +59,8 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from contextlib import AbstractAsyncContextManager
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.tools import BaseTool
 
@@ -68,6 +69,7 @@ if TYPE_CHECKING:
 
 from .client import MCPClientManager, MCPServerConfigProtocol
 from .result_processing import OversizedResultHandler
+from .structured_tool import SafeStructuredTool
 from .tool_processing import (
     apply_tool_filter,
     enforce_description_limits,
@@ -110,7 +112,7 @@ class MCPAgent:
 
     @staticmethod
     def process_session_tools(
-        tools: list[BaseTool],
+        tools: Sequence[BaseTool],
         server_name: str,
         tool_include: list[str] | None,
         tool_exclude: list[str] | None,
@@ -154,7 +156,7 @@ class MCPAgent:
     def _build_enumeration_target(
         server_config: MCPServerConfigProtocol,
         http_clients: list[httpx2.AsyncClient] | None = None,
-    ) -> object:
+    ) -> AbstractAsyncContextManager[tuple[Any, Any]]:
         """Build the transport target for one-shot tool enumeration.
 
         - SSE: ``sse_client(url, headers=...)`` — SSE transport accepts ``headers``
@@ -197,7 +199,7 @@ class MCPAgent:
     async def _enumerate_server_tools(
         self,
         server_config: MCPServerConfigProtocol,
-    ) -> tuple[str, list[BaseTool], str | None]:
+    ) -> tuple[str, list[SafeStructuredTool], str | None]:
         """Fetch tools from a single MCP server with connection timeout and bounded retry.
 
         Uses ``mcp.ClientSession`` over the transport built by
@@ -303,7 +305,7 @@ class MCPAgent:
                 raise RuntimeError(f"Failed to get tools from {server_name}: {error}")
             include = getattr(cfg, "tool_include", None)
             exclude = getattr(cfg, "tool_exclude", None)
-            tools = self.process_session_tools(
+            processed: list[BaseTool] = self.process_session_tools(
                 tools,
                 server_name,
                 include,
@@ -312,8 +314,8 @@ class MCPAgent:
                 getattr(cfg, "max_output_chars", 100_000),
                 host_serial=bool(getattr(cfg, "host_serial", False)),
             )
-            self._store_tool_server_mapping(tools, server_name)
-            return tools
+            self._store_tool_server_mapping(processed, server_name)
+            return processed
 
         server_list = list(configs.values())
         if len(server_list) == 1:
@@ -324,7 +326,7 @@ class MCPAgent:
                 return_exceptions=True,
             )
             for result in results:
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     logger.error("MCP server fetch failed: %s", result)
                     raise result
                 all_tools.extend(result)

@@ -1,6 +1,8 @@
 import asyncio
 
 import pytest
+from langchain_core.messages import ToolMessage
+from unittest.mock import AsyncMock
 
 from myrm_agent_harness.agent.middlewares.concurrency.concurrency_limiter import (
     create_concurrency_limiter,
@@ -144,6 +146,63 @@ class TestConcurrencyLimiterNoneArgs:
         }
         tool_args: dict[str, object] = tool_call.get("args") or {}
         assert tool_args == {"agent_type": "search"}
+
+
+class TestMiddlewareExecution:
+    """Test the actual middleware execution paths (no agent_type, unknown, known)."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_semaphores(self):
+        from myrm_agent_harness.agent.middlewares.concurrency import concurrency_limiter as mod
+
+        original = dict(mod._semaphores)
+        mod._semaphores.clear()
+        yield
+        mod._semaphores.clear()
+        mod._semaphores.update(original)
+
+    @staticmethod
+    def _request(tool_call: dict[str, object]):
+        from unittest.mock import MagicMock
+
+        from langgraph.prebuilt.tool_node import ToolCallRequest
+
+        return ToolCallRequest(tool=MagicMock(), state={}, runtime=MagicMock(), tool_call=tool_call)
+
+    @pytest.mark.asyncio
+    async def test_no_agent_type_passthrough(self):
+        """Missing/invalid agent_type should skip semaphore and call handler."""
+        middleware = create_concurrency_limiter()
+        request = self._request({"name": "spawn", "args": {}, "id": "c1"})
+        handler = AsyncMock(return_value=ToolMessage(content="done", tool_call_id="c1"))
+        result = await middleware.awrap_tool_call(request, handler)
+        assert result.content == "done"
+        handler.assert_awaited_once_with(request)
+
+    @pytest.mark.asyncio
+    async def test_unknown_agent_type_passthrough(self):
+        middleware = create_concurrency_limiter()
+        request = self._request({"name": "spawn", "args": {"agent_type": "ghost"}, "id": "c2"})
+        handler = AsyncMock(return_value=ToolMessage(content="done", tool_call_id="c2"))
+        result = await middleware.awrap_tool_call(request, handler)
+        assert result.content == "done"
+
+    @pytest.mark.asyncio
+    async def test_known_agent_type_acquires_semaphore(self):
+        middleware = create_concurrency_limiter()
+        request = self._request({"name": "spawn", "args": {"agent_type": "search"}, "id": "c3"})
+        handler = AsyncMock(return_value=ToolMessage(content="done", tool_call_id="c3"))
+        result = await middleware.awrap_tool_call(request, handler)
+        assert result.content == "done"
+        handler.assert_awaited_once_with(request)
+
+    @pytest.mark.asyncio
+    async def test_args_not_dict_falls_back(self):
+        middleware = create_concurrency_limiter()
+        request = self._request({"name": "spawn", "args": "not-a-dict", "id": "c4"})
+        handler = AsyncMock(return_value=ToolMessage(content="done", tool_call_id="c4"))
+        result = await middleware.awrap_tool_call(request, handler)
+        assert result.content == "done"
 
 
 if __name__ == "__main__":

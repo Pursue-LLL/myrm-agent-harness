@@ -169,6 +169,18 @@ class TestPostToolUseFailure:
         assert event_data.to_dict()["fault_side"] == "harness_tool"
 
     @pytest.mark.asyncio
+    async def test_owner_category_attributes_owner(self, broadcaster, mock_event_bus, _patch_event_bus):
+        """Guard/guardrail categories in the failure payload attribute to OWNER."""
+        broadcaster._pending_calls["tc_owner"] = time.time()
+        await broadcaster.on_post_tool_use_failure(
+            "post_tool_use_failure",
+            _make_payload(tool_call_id="tc_owner", error="PII blocked", error_category="pii_guard"),
+        )
+        event_data: ToolCallEventData = mock_event_bus.publish.call_args[0][0]
+        assert event_data.fault_side == "owner"
+        assert event_data.to_dict()["fault_side"] == "owner"
+
+    @pytest.mark.asyncio
     async def test_logs_tool_failure(self, broadcaster, mock_event_bus, mock_event_logger, _patch_event_bus):
         broadcaster._pending_calls["tc_fl"] = time.time()
         await broadcaster.on_post_tool_use_failure(

@@ -1,7 +1,7 @@
 """Tests for windows_ax target-window capture and invoke.
 
 Covers:
-- _locate_window: process-name exact match, window-title substring fallback, not-found
+- _locate_window: exact title → exact process name → title substring priority, not-found
 - capture_ax_snapshot: target path, missing app_name, target not found, foreground path
 - invoke_ax_element: target path reuses _locate_window, not-found error
 - index consistency between capture (_collect_controls) and invoke (_flatten)
@@ -88,6 +88,20 @@ class TestLocateWindow:
         with _module_with_auto(auto) as module:
             assert module._locate_window("Mail") is exact
 
+    def test_exact_title_match_preferred_over_process(self) -> None:
+        exact = _make_window("Mail - Inbox", 100)
+        other = _make_window("Mail - Inbox", 200)
+        auto = _make_auto({100: "MAIL", 200: "MAIL"}, [exact, other])
+        with _module_with_auto(auto) as module:
+            assert module._locate_window("Mail - Inbox") is exact
+
+    def test_exact_title_avoids_similar_substring_window(self) -> None:
+        foreground = _make_window("Q3 Report - Word", 100)
+        similar = _make_window("2023 Q3 Report - Word", 200)
+        auto = _make_auto({100: "WINWORD", 200: "WINWORD"}, [similar, foreground])
+        with _module_with_auto(auto) as module:
+            assert module._locate_window("Q3 Report - Word") is foreground
+
     def test_not_found_returns_none(self) -> None:
         win = _make_window("Notes", 300)
         auto = _make_auto({300: "Notes"}, [win])
@@ -160,6 +174,16 @@ class TestInvokeTarget:
         assert result.success is False
         assert "target window not found" in (result.error or "")
 
+    def test_target_invoke_with_exact_title(self) -> None:
+        button = _make_button()
+        window = _make_window("Mail - Inbox", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "Mail"}, [window])
+        with _module_with_auto(auto) as module:
+            result = module.invoke_ax_element("0", "click", app_name="Mail - Inbox")
+        assert result.success is True
+        button.Click.assert_called_once()
+
     def test_invoke_without_app_name_uses_foreground(self) -> None:
         button = _make_button()
         window = _make_window("Mail - Inbox", 100)
@@ -200,12 +224,60 @@ class TestIndexConsistency:
                 return
 
         _flatten(root)
-        interactive = [
-            node
-            for node in flat
-            if getattr(node, "ControlTypeName", "") in windows_ax._INTERACTIVE_TYPES
-            and getattr(node, "BoundingRectangle", None) is not None
-        ]
+        interactive: list[object] = []
+        for node in flat:
+            if getattr(node, "ControlTypeName", "") not in windows_ax._INTERACTIVE_TYPES:
+                continue
+            try:
+                rect = getattr(node, "BoundingRectangle", None)
+            except Exception:
+                continue
+            if rect is None or rect.width() <= 0 or rect.height() <= 0:
+                continue
+            interactive.append(node)
         invoke_order = [getattr(node, "Name", "") for node in interactive]
 
         assert capture_order == invoke_order == ["A", "B", "C"]
+
+    def test_zero_sized_control_skipped_by_both_sides(self) -> None:
+        button_a = _make_button("A")
+        zero_rect = MagicMock()
+        zero_rect.left = 0
+        zero_rect.top = 0
+        zero_rect.width.return_value = 0
+        zero_rect.height.return_value = 30
+        zero = _make_button("Zero")
+        zero.BoundingRectangle = zero_rect
+        root = _make_window("Root", 1)
+        root.GetChildren.return_value = [button_a, zero]
+
+        refs: dict[str, object] = {}
+        _collect_controls(root, refs, [0])  # type: ignore[arg-type]
+        capture_order = [refs[f"d{i}"].name for i in range(len(refs))]  # type: ignore[attr-defined]
+
+        flat: list[object] = []
+
+        def _flatten(node: object) -> None:
+            flat.append(node)
+            try:
+                for child in node.GetChildren():  # type: ignore[attr-defined]
+                    _flatten(child)
+            except Exception:
+                return
+
+        _flatten(root)
+        interactive: list[object] = []
+        for node in flat:
+            if getattr(node, "ControlTypeName", "") not in windows_ax._INTERACTIVE_TYPES:
+                continue
+            try:
+                rect = getattr(node, "BoundingRectangle", None)
+            except Exception:
+                continue
+            if rect is None or rect.width() <= 0 or rect.height() <= 0:
+                continue
+            interactive.append(node)
+
+        assert capture_order == ["A"]
+        assert len(interactive) == 1
+        assert getattr(interactive[0], "Name", "") == "A"

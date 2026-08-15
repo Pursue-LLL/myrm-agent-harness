@@ -28,13 +28,9 @@ import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from myrm_agent_harness.infra.atomic_write import atomic_write
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_agent_logger(__name__)
 

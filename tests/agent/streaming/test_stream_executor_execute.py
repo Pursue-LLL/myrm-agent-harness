@@ -312,6 +312,41 @@ async def test_emit_fatal_error_no_event_logger_ok(fire_hook_mock, base_ctx):
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
 @patch("myrm_agent_harness.agent.errors.diagnostics.LLMErrorDiagnostic")
+async def test_emit_fatal_error_falls_back_to_diagnostic_type(diag_mock, fire_hook_mock, base_ctx):
+    """When error_kind is UNKNOWN, the diagnostic error_type refines attribution."""
+    from myrm_agent_harness.agent.errors.diagnostics.types import DiagnosticResult
+    from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
+
+    diag_mock.diagnose.return_value = DiagnosticResult(
+        error_type="api_key",
+        user_message="The API key is invalid",
+        resolution_steps=["Update your API key"],
+        is_retryable=False,
+        locale="en",
+    )
+    diag_mock.get_recovery_actions.return_value = []
+    executor = _make_executor(base_ctx)
+
+    async def _astream_fatal(*args, **kwargs):
+        raise RuntimeError("no pattern match for error_kind")
+        yield
+
+    base_ctx.agent.astream = _astream_fatal
+
+    with pytest.raises(MyrmLLMError):
+        await executor.execute()
+
+    error_events = [
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+    ]
+    assert len(error_events) == 1
+    # error_kind is UNKNOWN; diagnostic error_type="api_key" refines → ENV.
+    assert error_events[0].get("fault_side") == "env"
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+@patch("myrm_agent_harness.agent.errors.diagnostics.LLMErrorDiagnostic")
 async def test_emit_fatal_error_diagnostic_failure(diag_mock, fire_hook_mock, base_ctx):
     """Diagnostic generation failure still emits error event (without diagnostic_result)."""
     from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError

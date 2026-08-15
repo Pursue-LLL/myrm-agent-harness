@@ -522,6 +522,15 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 "locale": diagnostic.locale,
             }
 
+            # Refine attribution with the diagnostic error_type as a fallback:
+            # error_kind may be UNKNOWN while the diagnostic pinpoints the cause
+            # (e.g. api_key/connection). The unified classifier prefers
+            # error_kind and falls back to error_type.
+            error_event["fault_side"] = classify_fault_side(
+                error_kind=error_kind.value,
+                error_type=diagnostic.error_type,
+            ).value
+
             recovery_actions = LLMErrorDiagnostic.get_recovery_actions(diagnostic.error_type, locale=diagnostic.locale)
             if recovery_actions:
                 error_event["recovery_actions"] = recovery_actions

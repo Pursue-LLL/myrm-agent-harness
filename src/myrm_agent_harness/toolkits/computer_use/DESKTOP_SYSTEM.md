@@ -123,6 +123,7 @@ Injected via `DESKTOP_CONTROL_RULES` in `shared_rules.py` when `enable_computer_
 
 - Workflow order: snapshot → interact
 - Prefer @dref; use `set_value` for atomic field replacement; use vision only when AX is empty or interact failed
+- Targeted scope: to act on a specific app without changing the foreground, snapshot with `scope="target"` + `app_name`, then interact via its `@dref` refs
 - macOS permission: ask user to grant Accessibility before retry
 - Per-app first approval via Web UI (`DesktopControlApprovalBanner`)
 - Native API routing: snapshot recommendation may suggest `bash_code_execute_tool` for scriptable apps

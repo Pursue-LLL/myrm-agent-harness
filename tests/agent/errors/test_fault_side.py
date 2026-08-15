@@ -105,7 +105,6 @@ class TestClassifyDiagnosticFaultSide:
             "model",
             "custom_model_not_found",
             "timeout",
-            "overloaded",
             "custom_endpoint_unreachable",
         ],
     )
@@ -114,12 +113,19 @@ class TestClassifyDiagnosticFaultSide:
 
     @pytest.mark.parametrize(
         "error_type",
-        ["response_format", "format", "thinking_budget_exhausted", "tool_call_truncated"],
+        [
+            "response_format_error",
+            "thinking_budget_exhausted",
+            "tool_call_truncated",
+            "tool_call_retry",
+            "text_continuation",
+            "text_continuation_exhausted",
+        ],
     )
     def test_model_types(self, error_type: str) -> None:
         assert classify_diagnostic_fault_side(error_type) is FaultSide.MODEL
 
-    @pytest.mark.parametrize("error_type", ["context_overflow", "safety_block", "guardrail"])
+    @pytest.mark.parametrize("error_type", ["context_overflow"])
     def test_owner_types(self, error_type: str) -> None:
         assert classify_diagnostic_fault_side(error_type) is FaultSide.OWNER
 

@@ -42,7 +42,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
     class SnapshotInput(BaseModel):
         scope: SnapshotScope = Field(
             default="foreground",
-            description="Snapshot scope: 'foreground' (default, active app window), 'target' (a specific app by name), or 'full_screen'.",
+            description="Snapshot scope: 'foreground' (default, active app window) or 'target' (a specific app by name).",
         )
         app_name: str = Field(
             default="",

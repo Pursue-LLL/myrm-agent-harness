@@ -88,11 +88,12 @@ def _resolve_windows_app_id(control: object) -> str:
 
 
 def _locate_window(app_name: str) -> object | None:
-    """Locate the top-level window of a target app by process name.
+    """Locate the top-level window of a target app.
 
-    Matches by exact process name first, then falls back to a window-title
-    substring match. Shared by capture and invoke so backend_key indices stay
-    consistent between the snapshot and the action.
+    Match priority: exact window title → exact process name → title substring.
+    Exact title first keeps follow-up invokes (which pass the captured window
+    title) on the same window even when a similar title exists in another app.
+    Shared by capture and invoke so backend_key indices stay consistent.
     """
     try:
         import uiautomation as auto
@@ -107,26 +108,44 @@ def _locate_window(app_name: str) -> object | None:
     if root is None:
         return None
 
-    best_title_match: object | None = None
     try:
         windows = root.GetChildren()
     except Exception:
         return None
 
-    for window in windows:
+    def _title(window: object) -> str:
+        return (getattr(window, "Name", "") or "").strip()
+
+    def _process_name(window: object) -> str:
         try:
             pid = int(getattr(window, "ProcessId", 0) or 0)
             if pid <= 0:
-                continue
-            process_name = auto.GetProcessNameByPid(pid)
-            if process_name and process_name.strip().lower().removesuffix(".exe") == target_lower:
+                return ""
+            name = auto.GetProcessNameByPid(pid)
+            return (name or "").strip().lower().removesuffix(".exe")
+        except Exception:
+            return ""
+
+    for window in windows:
+        try:
+            if _title(window).lower() == target_lower:
                 return cast(object, window)
-            title = (getattr(window, "Name", "") or "").strip()
-            if title and target_lower in title.lower() and best_title_match is None:
-                best_title_match = window
         except Exception:
             continue
-    return best_title_match
+    for window in windows:
+        try:
+            if _process_name(window) == target_lower:
+                return cast(object, window)
+        except Exception:
+            continue
+    for window in windows:
+        try:
+            title = _title(window)
+            if title and target_lower in title.lower():
+                return cast(object, window)
+        except Exception:
+            continue
+    return None
 
 
 def capture_ax_snapshot(scope: SnapshotScope, app_name: str | None = None) -> WindowsAxSnapshot:
@@ -196,12 +215,17 @@ def invoke_ax_element(
             return
 
     _flatten(control)
-    interactive = [
-        node
-        for node in flat
-        if getattr(node, "ControlTypeName", "") in _INTERACTIVE_TYPES
-        and getattr(node, "BoundingRectangle", None) is not None
-    ]
+    interactive: list[object] = []
+    for node in flat:
+        if getattr(node, "ControlTypeName", "") not in _INTERACTIVE_TYPES:
+            continue
+        try:
+            rect = node.BoundingRectangle  # type: ignore[attr-defined]
+        except Exception:
+            continue
+        if rect is None or rect.width() <= 0 or rect.height() <= 0:
+            continue
+        interactive.append(node)
     if index >= len(interactive):
         return ActionResult(success=False, error=f"Stale element index {index}")
 
@@ -251,6 +275,11 @@ _COM_AUTOMATABLE_APPS: frozenset[str] = frozenset(
     }
 )
 
+_SNAPSHOT_RECOMMENDATION_BASE = (
+    "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool. "
+    "To act on a background app, use desktop_snapshot_tool(scope='target', app_name='<app name>')."
+)
+
 
 def _native_api_hint(app_name: str) -> str:
     """Return a routing hint if the app supports COM/PowerShell automation."""
@@ -283,7 +312,7 @@ def inspect_foreground() -> dict[str, str | int | bool]:
             "recommendation": "Grant accessibility permissions, then call desktop_snapshot_tool.",
         }
 
-    base_rec = "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool."
+    base_rec = _SNAPSHOT_RECOMMENDATION_BASE
     native_hint = _native_api_hint(snapshot.meta.app_name)
     return {
         "app_name": snapshot.meta.app_name,

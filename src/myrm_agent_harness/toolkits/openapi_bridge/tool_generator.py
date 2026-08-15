@@ -132,7 +132,7 @@ def _create_tool_for_endpoint(
         # Separate path params from body/query params
         p_params: dict[str, str] = {}
         q_params: dict[str, str] = {}
-        body: dict[str, Any] | None = None
+        body: dict[str, Any] | list[Any] | str | None = None
 
         for key, value in coerced_kwargs.items():
             if key in path_keys:
@@ -161,6 +161,8 @@ def _create_tool_for_endpoint(
                 else:
                     if body is None:
                         body = {}
+                    if not isinstance(body, dict):
+                        raise TypeError(f"Cannot merge field '{key}' into a non-object request body")
                     body[key] = value
             else:
                 # For GET/DELETE: query params; for POST/PUT/PATCH: body fields
@@ -170,6 +172,8 @@ def _create_tool_for_endpoint(
                 else:
                     if body is None:
                         body = {}
+                    if not isinstance(body, dict):
+                        raise TypeError(f"Cannot merge field '{key}' into a non-object request body")
                     body[key] = value
 
         return await executor.execute(
@@ -193,7 +197,7 @@ def _create_tool_for_endpoint(
         )
         # Manually set args_schema as dict for tools with dynamic params
         if param_schema:
-            tool.args_schema = param_schema  # type: ignore[assignment]
+            tool.args_schema = param_schema
         return tool
     except Exception as e:
         logger.warning("Failed to create tool for %s: %s", tool_name, e)

@@ -47,9 +47,6 @@ class TestResolveTargetApp:
     def test_target_scope_empty_string(self) -> None:
         assert _resolve_target_app("target", "") is None
 
-    def test_full_screen_scope_returns_none(self) -> None:
-        assert _resolve_target_app("full_screen", None) is None
-
 
 class TestBuildAxSnapshotScript:
     def test_default_uses_frontmost(self) -> None:

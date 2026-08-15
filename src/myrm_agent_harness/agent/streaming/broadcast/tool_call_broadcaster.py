@@ -19,7 +19,10 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.errors.fault_side import FaultSide
+from myrm_agent_harness.agent.errors.fault_side import (
+    FaultSide,
+    classify_tool_fault_side,
+)
 from myrm_agent_harness.agent.hooks.types import HookResult
 from myrm_agent_harness.agent.streaming.broadcast.event_bus import ToolBroadcastBus
 from myrm_agent_harness.agent.streaming.broadcast.types import ToolCallEventData, _truncate_for_event
@@ -161,6 +164,17 @@ class ToolCallBroadcaster:
         start_time = self._pending_calls.pop(tool_call_id, end_time)
         duration_ms = int((end_time - start_time) * 1000)
 
+        # Deterministic fault-side attribution: the failure payload carries an
+        # error_category (ToolErrorCategory) — guard/guardrail categories are
+        # OWNER, execution categories are HARNESS_TOOL. Default to HARNESS_TOOL
+        # when the hook payload has no category.
+        raw_category = payload.get("error_category")
+        fault_side = (
+            classify_tool_fault_side(str(raw_category)).value
+            if isinstance(raw_category, str) and raw_category
+            else FaultSide.HARNESS_TOOL.value
+        )
+
         event_data = ToolCallEventData(
             tool_name=tool_name,
             status="failed",
@@ -172,7 +186,7 @@ class ToolCallBroadcaster:
             message_id=str(payload.get("message_id")) if payload.get("message_id") else None,
             tool_call_id=tool_call_id if tool_call_id else None,
             version=(resolved_skill_versions_var.get() or {}).get(tool_name),
-            fault_side=FaultSide.HARNESS_TOOL.value,
+            fault_side=fault_side,
         )
 
         bus = await self._ensure_event_bus()

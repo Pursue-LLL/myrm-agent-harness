@@ -26,7 +26,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .types import (
     ActivityPatterns,
@@ -285,18 +285,29 @@ class EventLogger:
 
     @staticmethod
     def _sanitize(data: dict[str, object]) -> dict[str, object]:
-        """Remove secrets and PII from event data before persistence."""
+        """Remove secrets and PII from event data before persistence.
+
+        Recurses into nested dict/list values so credentials embedded in
+        structured payloads (tool args/results, error diagnostics) are
+        redacted exactly like top-level string fields.
+        """
         try:
             from myrm_agent_harness.agent.security.detection.leak_detector import (
                 redact_leaks,
             )
 
-            text_fields = {k: v for k, v in data.items() if isinstance(v, str)}
-            if text_fields:
-                sanitized = dict(data)
-                for key, val in text_fields.items():
-                    sanitized[key] = redact_leaks(val)
-                return sanitized
+            def _redact(value: object) -> object:
+                if isinstance(value, str):
+                    return redact_leaks(value)
+                if isinstance(value, dict):
+                    return {key: _redact(item) for key, item in value.items()}
+                if isinstance(value, list):
+                    return [_redact(item) for item in value]
+                if isinstance(value, tuple):
+                    return tuple(_redact(item) for item in value)
+                return value
+
+            return cast("dict[str, object]", _redact(data))
         except (ImportError, TypeError):
             pass
         except Exception:

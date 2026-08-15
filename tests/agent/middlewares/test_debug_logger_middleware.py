@@ -60,3 +60,54 @@ async def test_empty_list_content(middleware: DebugLoggerMiddleware) -> None:
     handler = AsyncMock()
     await middleware.awrap_model_call(_build_request([]), handler)
     handler.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_system_message_branch(middleware: DebugLoggerMiddleware) -> None:
+    """system_message attribute takes precedence over system_prompt."""
+    request = ModelRequest(
+        model=AsyncMock(),
+        messages=[HumanMessage(content="hi")],
+        system_message=SystemMessage(content="sys-msg-text"),
+    )
+    handler = AsyncMock()
+    await middleware.awrap_model_call(request, handler)
+    handler.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_only_branch(middleware: DebugLoggerMiddleware) -> None:
+    """Without system_message, system_prompt is logged."""
+    request = ModelRequest(
+        model=AsyncMock(),
+        messages=[HumanMessage(content="hi")],
+        system_prompt="prompt-only",
+    )
+    handler = AsyncMock()
+    await middleware.awrap_model_call(request, handler)
+    handler.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_no_system_source_branch(middleware: DebugLoggerMiddleware) -> None:
+    """Neither system_message nor system_prompt -> (none) logged."""
+    request = ModelRequest(model=AsyncMock(), messages=[HumanMessage(content="hi")])
+    handler = AsyncMock()
+    await middleware.awrap_model_call(request, handler)
+    handler.assert_awaited_once()
+
+
+def test_format_content_ellipsis() -> None:
+    """Long content is truncated with an omitted-chars summary."""
+    from myrm_agent_harness.agent.middlewares.debug_logger_middleware import _format_content
+
+    long = "x" * 500
+    result = _format_content(long)
+    assert "(omitted" in result
+    assert "chars" in result
+
+
+def test_format_content_empty() -> None:
+    from myrm_agent_harness.agent.middlewares.debug_logger_middleware import _format_content
+
+    assert _format_content("") == "(empty)"

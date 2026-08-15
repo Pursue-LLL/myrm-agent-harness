@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Sequence
+from typing import Any, cast
 
 from langchain_core.tools import BaseTool
 
@@ -72,7 +74,7 @@ _MAX_MCP_TOOL_DESCRIPTION_LEN = 2048
 
 
 def apply_tool_filter(
-    tools: list[BaseTool],
+    tools: Sequence[BaseTool],
     server_name: str,
     tool_include: list[str] | None,
     tool_exclude: list[str] | None,
@@ -84,7 +86,7 @@ def apply_tool_filter(
     the permission engine, or PTC skill generation (config-time least privilege).
     """
     if not tool_include and not tool_exclude:
-        return tools
+        return list(tools)
     filtered = [t for t in tools if should_register_mcp_tool(t.name, tool_include, tool_exclude)]
     removed = len(tools) - len(filtered)
     if removed:
@@ -144,7 +146,7 @@ def sanitize_tools(tools: list[BaseTool]) -> None:
             # Step 3: Rename non-conforming property keys (runs before
             # flattening so the rename never interacts with the dot-path
             # separator used by ``nest_flat_arguments``).
-            sanitized, new_renames = sanitize_property_keys(tool.args_schema)
+            sanitized, new_renames = sanitize_property_keys(cast(dict[str, Any], tool.args_schema))
             if new_renames:
                 restore_map = {**restore_map, **new_renames}
                 meta = getattr(tool, "metadata", {}) or {}
@@ -198,15 +200,14 @@ def register_tool_annotations(tools: list[BaseTool], server_name: str, host_seri
     for tool in tools:
         meta = getattr(tool, "metadata", {}) or {}
 
-        annotations: MCPAnnotations = {}
-        for key in [
-            "readOnlyHint",
-            "idempotentHint",
-            "destructiveHint",
-            "openWorldHint",
-        ]:
-            if key in meta:
-                annotations[key] = bool(meta[key])  # type: ignore[misc]
+        annotations: MCPAnnotations = cast(
+            MCPAnnotations,
+            {
+                key: bool(meta[key])
+                for key in ("readOnlyHint", "idempotentHint", "destructiveHint", "openWorldHint")
+                if key in meta
+            },
+        )
 
         is_read_only = annotations.get("readOnlyHint", False)
         safety_meta = SafetyMetadata(
@@ -260,7 +261,10 @@ def _is_mcp_auth_error(exc: Exception) -> bool:
         pass
     if not status_error_types:
         return False
-    return isinstance(exc, tuple(status_error_types)) and exc.response.status_code == 401
+    if not isinstance(exc, tuple(status_error_types)):
+        return False
+    response = getattr(exc, "response", None)
+    return getattr(response, "status_code", None) == 401
 
 
 def _emit_auth_expired_for_tool(server_name: str, error_detail: str) -> None:
@@ -290,7 +294,7 @@ def wrap_tools_with_timeout(
     from myrm_agent_harness.core.security.redact import redact_sensitive_text
 
     for tool in tools:
-        original_coroutine = tool.coroutine
+        original_coroutine = getattr(tool, "coroutine", None)
         if original_coroutine is None:
             continue
 
@@ -298,7 +302,7 @@ def wrap_tools_with_timeout(
 
         async def _timeout_wrapper(
             *args: object,
-            _orig: object = original_coroutine,
+            _orig: Any = original_coroutine,
             _name: str = tool_name,
             _timeout: float = timeout,
             _max_chars: int = max_output_chars,
@@ -307,7 +311,7 @@ def wrap_tools_with_timeout(
         ) -> str | list[dict[str, object]]:
             try:
                 async with asyncio.timeout(_timeout):
-                    raw = await _orig(*args, **kwargs)  # type: ignore[misc]
+                    raw = await _orig(*args, **kwargs)
                     normalized = normalize_mcp_result(raw)
                     if isinstance(normalized, str):
                         if len(normalized) > _max_chars:

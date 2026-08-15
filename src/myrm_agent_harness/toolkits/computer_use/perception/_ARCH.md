@@ -33,7 +33,7 @@ context. Four fallback conditions automatically revert to full-tree rendering.
 
 ## Key Design: Native API Routing Hints
 
-Each platform's `inspect_foreground()` identifies whether the frontmost app supports native automation (AppleScript/COM/D-Bus) and appends a routing hint to the `recommendation` field. This guides the Agent to prefer `bash_code_execute_tool` with native scripts for data retrieval or bulk actions — faster and more reliable than GUI interaction — without adding new tools or breaking prompt cache.
+Each platform's `inspect_foreground()` builds the `recommendation` field from `_SNAPSHOT_RECOMMENDATION_BASE` (snapshot-first workflow plus `scope='target'` guidance for acting on a background app) and appends a routing hint when the frontmost app supports native automation (AppleScript/COM/D-Bus). The routing hint guides the Agent to prefer `bash_code_execute_tool` with native scripts for data retrieval or bulk actions — faster and more reliable than GUI interaction — without adding new tools or breaking prompt cache.
 
 ## Architecture Overview
 

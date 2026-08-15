@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
-SnapshotScope = Literal["foreground", "target", "full_screen"]
+SnapshotScope = Literal["foreground", "target"]
 
 INTERACTIVE_AX_ROLES: frozenset[str] = frozenset(
     {

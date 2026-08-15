@@ -290,3 +290,53 @@ class TestVideoAnalysisEngineAdditionalPaths:
 
         assert mock_path.await_args is not None
         assert str(mock_path.await_args.args[0]).endswith(".mov")
+
+
+def test_get_model_uses_model_kwargs_temperature_without_type_error():
+    """model_kwargs 含 temperature 时不得触发具名参数冲突 TypeError。"""
+    cfg = LLMConfig(
+        model="gpt-4o-mini",
+        api_key="test-key",
+        model_kwargs={"temperature": 0.9, "max_tokens": 2048},
+    )
+
+    with patch("myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.create_litellm_model") as mock_create:
+        mock_create.return_value = MagicMock()
+        engine = VideoAnalysisEngine(cfg)
+        engine._get_model(0)
+
+    assert mock_create.call_count == 1
+    _, kwargs = mock_create.call_args
+    assert kwargs["temperature"] == 0.9
+    assert kwargs["max_tokens"] == 2048
+
+
+def test_get_model_top_level_temperature_wins_over_model_kwargs():
+    """顶层 temperature 优先于 model_kwargs 中的同名项。"""
+    cfg = LLMConfig(
+        model="gpt-4o-mini",
+        api_key="test-key",
+        temperature=0.3,
+        model_kwargs={"temperature": 0.9},
+    )
+
+    with patch("myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.create_litellm_model") as mock_create:
+        mock_create.return_value = MagicMock()
+        engine = VideoAnalysisEngine(cfg)
+        engine._get_model(0)
+
+    _, kwargs = mock_create.call_args
+    assert kwargs["temperature"] == 0.3
+
+
+def test_get_model_defaults_temperature_when_unset():
+    """未配置 temperature 时回退默认 0.1。"""
+    cfg = LLMConfig(model="gpt-4o-mini", api_key="test-key")
+
+    with patch("myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.create_litellm_model") as mock_create:
+        mock_create.return_value = MagicMock()
+        engine = VideoAnalysisEngine(cfg)
+        engine._get_model(0)
+
+    _, kwargs = mock_create.call_args
+    assert kwargs["temperature"] == 0.1

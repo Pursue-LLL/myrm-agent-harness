@@ -47,13 +47,20 @@ def _build_eval_model(llm_config: LLMConfig) -> BaseChatModel:
     """Create a lightweight LLM instance for sufficiency evaluation."""
     from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
 
+    merged_kwargs = dict(llm_config.model_kwargs or {})
+    # 与 fallback/video engine 一致的 temperature 装配语义：顶层显式配置优先，
+    # 其次 model_kwargs，默认 0.0 保证评估判定确定性；同时避免与
+    # model_kwargs 中的同名键冲突导致 TypeError。
+    merged_kwargs.setdefault("temperature", 0.0)
+    if llm_config.temperature is not None:
+        merged_kwargs["temperature"] = llm_config.temperature
+
     return create_litellm_model(
         model=llm_config.model,
         api_key=llm_config.api_key,
         base_url=llm_config.base_url,
-        temperature=0.0,
         streaming=False,
-        **(llm_config.model_kwargs or {}),
+        **merged_kwargs,
     )
 
 

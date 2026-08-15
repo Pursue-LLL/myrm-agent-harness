@@ -68,7 +68,8 @@ def create_concurrency_limiter():
         request: ToolCallRequest, handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command]]
     ) -> ToolMessage | Command:
         """Limit concurrent execution for subagent spawn operations."""
-        tool_args: dict[str, object] = request.tool_call.get("args") or {}  # type: ignore[assignment]
+        raw_args = request.tool_call.get("args")
+        tool_args: dict[str, object] = raw_args if isinstance(raw_args, dict) else {}
         agent_type_arg = tool_args.get("agent_type")
 
         if not isinstance(agent_type_arg, str) or not agent_type_arg:

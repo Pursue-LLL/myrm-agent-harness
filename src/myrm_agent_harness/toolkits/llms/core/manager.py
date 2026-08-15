@@ -220,7 +220,12 @@ class LLMManager:
         Returns:
             BaseChatModel: LLM instance (ChatLiteLLM or KeyPoolLLM)
         """
-        model_kwargs = getattr(config, "model_kwargs", None) or {}
+        model_kwargs = dict(getattr(config, "model_kwargs", None) or {})
+        top_level_temperature = getattr(config, "temperature", None)
+        if top_level_temperature is not None:
+            # 顶层 temperature 是 LLMConfig 的权威字段，覆盖 model_kwargs 中的同名项，
+            # 与 agent builder 装配路径保持一致的「顶层优先」语义。
+            model_kwargs["temperature"] = top_level_temperature
         effective_api_keys = api_keys if api_keys is not None else getattr(config, "api_keys", None)
         effective_strategy = (
             credential_pool_strategy

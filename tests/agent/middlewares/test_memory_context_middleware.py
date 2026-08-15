@@ -1452,6 +1452,174 @@ class TestMemoryLoadTimeout:
             "reason": "load_timeout",
         }
 
+    @pytest.mark.asyncio
+    async def test_static_context_error_fails_open(self, _inject_fn):
+        """manager.get_context returning a BaseException must fail open, not crash."""
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(
+            return_value=RuntimeError("static retrieval exploded")
+        )
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "static_error",
+        }
+
+    @pytest.mark.asyncio
+    async def test_static_context_unexpected_type_fails_open(self, _inject_fn):
+        """manager.get_context returning a non-dict non-exception payload fails open."""
+        handler = AsyncMock()
+        req = _make_request()
+
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value=["not", "a", "dict"])
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "invalid_static_payload",
+        }
+
+    @pytest.mark.asyncio
+    async def test_learned_exception_still_injects_static(self, _inject_fn):
+        """Learned extraction failure must not block static context injection (non-fatal)."""
+        handler = AsyncMock()
+        req = _make_request(messages=[SystemMessage(content="sys"), HumanMessage(content="hello")])
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "S"}})
+        mock_manager.get_learned_context = AsyncMock(side_effect=RuntimeError("learned exploded"))
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        req.override.assert_called_once()
+        injected = req.override.call_args[1]["messages"]
+        stable_msgs = [
+            m
+            for m in injected
+            if isinstance(m, SystemMessage) and MEMORY_CONTEXT_MARKER in str(m.content)
+        ]
+        assert len(stable_msgs) == 1
+        assert "User Profile" in str(stable_msgs[0].content)
+
+    @pytest.mark.asyncio
+    async def test_non_text_first_block_skips_prefixing(self, _inject_fn):
+        """AIMessage list content whose first block is not a text block is left untouched."""
+        handler = AsyncMock()
+        from langchain_core.messages import AIMessage
+
+        req = _make_request(
+            messages=[
+                SystemMessage(content="sys"),
+                AIMessage(
+                    content=[{"type": "tool_result", "content": "nope"}, {"type": "text", "text": "body"}],
+                    name="test_agent",
+                ),
+                HumanMessage(content="hello"),
+            ],
+        )
+
+        mock_manager = MagicMock()
+        mock_manager._config = MagicMock()
+        mock_manager._config.max_learned_context_chars = 50000
+        mock_manager._config.model_context_tokens = 8000
+        mock_manager.user_id = "u123"
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = AsyncMock(return_value={"global_profile": {"name": "X"}})
+        mock_manager.get_learned_context = AsyncMock(
+            return_value={"learned_rules": [], "learned_preferences": []}
+        )
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        # The tool_result-led AIMessage is not prefixed; injection still proceeds.
+        req.override.assert_called_once()
+        injected = req.override.call_args[1]["messages"]
+        aimsgs = [m for m in injected if isinstance(m, AIMessage)]
+        assert len(aimsgs) == 1
+        assert "[Agent: test_agent]" not in str(aimsgs[0].content)
+
+
+# ---------------------------------------------------------------------------
+# _format_memory_context — additional coverage branches
+# ---------------------------------------------------------------------------
+
+
+class TestFormatCoverageBranches:
+    def test_memory_search_guidance_disabled_returns_empty(self):
+        from myrm_agent_harness.agent.middlewares.memory_context.memory_context_format import (
+            _memory_search_guidance,
+        )
+
+        assert _memory_search_guidance(memory_search_enabled=False) == ""
+
+    def test_working_state_branch(self):
+        ctx = {"working_state": "mid-task: drafting the migration plan"}
+        stable, _untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "Active Working Context" in stable
+        assert "mid-task: drafting the migration plan" in stable
+
+    def test_peer_profile_branch(self):
+        ctx = {"peer_profile": {"tone": "friendly mentor", "name": "Alice"}}
+        stable, _untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+        assert stable is not None
+        assert "Our Relationship & Your Persona" in stable
+        assert "tone: friendly mentor" in stable
+        assert "name: Alice" in stable
+
+    def test_learned_rule_reasoning_and_application_fields(self):
+        learned = {
+            "learned_rules": [
+                {
+                    "trigger": "deploy to prod",
+                    "action": "notify the owner",
+                    "content": "...",
+                    "reasoning": "owner approves rollouts",
+                    "application": "before any push",
+                },
+            ],
+            "learned_preferences": [],
+        }
+        stable, untrusted = _format_memory_context({}, learned)
+        assert stable is None
+        assert untrusted is not None
+        assert "When: deploy to prod" in untrusted
+        assert "Do: notify the owner" in untrusted
+        assert "Why: owner approves rollouts" in untrusted
+        assert "How: before any push" in untrusted
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

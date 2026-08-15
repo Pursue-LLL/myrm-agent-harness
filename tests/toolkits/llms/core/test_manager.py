@@ -96,3 +96,68 @@ async def test_get_llm_from_config_uses_config_pool_strategy(monkeypatch: pytest
     llm = await LLMManager.get_llm_from_config(config, streaming=False)
 
     assert llm.credential_pool.strategy == CredentialPoolStrategy.FILL_FIRST
+
+
+@pytest.mark.asyncio
+async def test_get_llm_from_config_top_level_temperature_overrides_model_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _capturing_model(*, api_key: str, **kwargs: object) -> MagicMock:
+        captured.update(kwargs)
+        model = MagicMock()
+        model.model = f"model-{api_key}"
+        return model
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.llms.core.manager.create_litellm_model",
+        _capturing_model,
+    )
+
+    config = SimpleNamespace(
+        model="test-model",
+        api_key="key-a",
+        base_url="https://example.invalid",
+        temperature=0.5,
+        model_kwargs={"temperature": 0.9, "max_tokens": 1024},
+        api_keys=None,
+        credential_pool_strategy=None,
+    )
+
+    await LLMManager.get_llm_from_config(config, streaming=False)
+
+    assert captured["temperature"] == 0.5
+    assert captured["max_tokens"] == 1024
+
+
+@pytest.mark.asyncio
+async def test_get_llm_from_config_keeps_model_kwargs_temperature_when_top_level_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _capturing_model(*, api_key: str, **kwargs: object) -> MagicMock:
+        captured.update(kwargs)
+        model = MagicMock()
+        model.model = f"model-{api_key}"
+        return model
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.llms.core.manager.create_litellm_model",
+        _capturing_model,
+    )
+
+    config = SimpleNamespace(
+        model="test-model",
+        api_key="key-a",
+        base_url="https://example.invalid",
+        temperature=None,
+        model_kwargs={"temperature": 0.7},
+        api_keys=None,
+        credential_pool_strategy=None,
+    )
+
+    await LLMManager.get_llm_from_config(config, streaming=False)
+
+    assert captured["temperature"] == 0.7

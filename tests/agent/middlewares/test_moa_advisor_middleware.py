@@ -264,3 +264,125 @@ async def test_middleware_emits_overlay_skipped_on_insufficient_refs() -> None:
     passed_request = handler.await_args.args[0]
     last_msg = passed_request.messages[-1]
     assert last_msg.content == "hello"
+
+
+@pytest.mark.asyncio
+async def test_emit_ref_done_no_sink_is_noop() -> None:
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _emit_ref_done
+
+    with patch(
+        "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+        return_value=None,
+    ):
+        await _emit_ref_done("ref-a", success=True, elapsed=0.1, content="x")
+
+
+@pytest.mark.asyncio
+async def test_emit_overlay_active_no_sink_is_noop() -> None:
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _emit_overlay_active
+
+    with patch(
+        "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+        return_value=None,
+    ):
+        await _emit_overlay_active(["ref-a"])
+
+
+@pytest.mark.asyncio
+async def test_emit_overlay_skipped_no_sink_is_noop() -> None:
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _emit_overlay_skipped
+
+    with patch(
+        "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+        return_value=None,
+    ):
+        await _emit_overlay_skipped("budget_pressure")
+
+
+def test_budget_pressure_active_tracker_none() -> None:
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _budget_pressure_active
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=None,
+    ):
+        assert _budget_pressure_active() is False
+
+
+def test_budget_pressure_active_status_ok() -> None:
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _budget_pressure_active
+
+    tracker = MagicMock()
+    tracker.last_budget_status = "ok"
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker,
+    ):
+        assert _budget_pressure_active() is False
+
+
+def test_budget_pressure_active_status_pressure() -> None:
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _budget_pressure_active
+
+    tracker = MagicMock()
+    tracker.last_budget_status = "high"
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        return_value=tracker,
+    ):
+        assert _budget_pressure_active() is True
+
+
+def test_budget_pressure_active_exception_safe() -> None:
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import _budget_pressure_active
+
+    def _raise():
+        raise RuntimeError("tracker down")
+
+    with patch(
+        "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+        side_effect=_raise,
+    ):
+        assert _budget_pressure_active() is False
+
+
+@pytest.mark.asyncio
+async def test_injection_empty_skips_override() -> None:
+    """When injection block is empty, the original request must be used."""
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+        create_moa_advisor_middleware as _create,
+    )
+
+    mock_llm = MagicMock()
+    middleware = _create(
+        [mock_llm],
+        config=MoAOverlayConfig(min_successful=1),
+        unattended=False,
+    )
+    request = ModelRequest(messages=[HumanMessage(content="hello")], model=mock_llm)
+    handler = AsyncMock(return_value=ModelResponse(result=MagicMock()))
+    refs = [
+        ReferenceResponse(
+            model="ref-a",
+            content="Advice",
+            elapsed_seconds=0.5,
+            success=True,
+        )
+    ]
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+            new_callable=AsyncMock,
+            return_value=refs,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.build_advisor_injection_block",
+            return_value="",
+        ),
+    ):
+        await middleware.awrap_model_call(request, handler)
+
+    handler.assert_awaited_once()
+    passed_request = handler.await_args.args[0]
+    assert passed_request is request

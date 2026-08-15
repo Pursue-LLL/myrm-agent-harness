@@ -795,6 +795,9 @@ class TestRunAgentLoopOuterErrorFaultSide:
         ).read_text(encoding="utf-8")
         # fault_side must be computed via the pure-rules classifier, not guessed.
         assert 'classify_fault_side(error_kind=error_kind.value)' in source
+        # When error_kind is UNKNOWN, the diagnostic error_type refines the
+        # attribution (unified classifier falls back error_kind → error_type).
+        assert "error_type=diagnostic_type" in source
         # recovery_actions must be generated when a diagnostic payload exists.
         assert "LLMErrorDiagnostic.get_recovery_actions" in source
         # The outer-loop error_event must be persisted to the event journal

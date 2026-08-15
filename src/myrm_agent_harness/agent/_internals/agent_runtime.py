@@ -835,6 +835,14 @@ async def run_agent_loop(
                         )
                         if recovery_actions:
                             error_event["recovery_actions"] = recovery_actions
+                        # Refine attribution: error_kind may be UNKNOWN while the
+                        # diagnostic pinpoints the cause (e.g. api_key/connection).
+                        # The unified classifier prefers error_kind and falls back
+                        # to error_type.
+                        error_event["fault_side"] = classify_fault_side(
+                            error_kind=error_kind.value,
+                            error_type=diagnostic_type,
+                        ).value
                 # Persist the error to the event journal so trace reconstruction
                 # sees fatal errors raised outside the executor (e.g. during task
                 # teardown). Mirrors the executor's persistence path. Best-effort:

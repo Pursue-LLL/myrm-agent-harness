@@ -21,8 +21,8 @@
 | `__init__.py` | Package | Vision toolkit package exports | — |
 | `types.py` | 核心 | `VisionResult` / `VisionBackendKind` / `PerceptionMode` / `GeometryMode` 等 SSOT 类型 | ✅ |
 | `cache.py` | 核心 | prompt-aware vision cache key + in-memory store | ✅ |
-| `fallback_engine.py` | 核心 | `VisionFallbackEngine` / `VisionDescriptionError` / fail-closed VLM 链 | ✅ |
-| `video_analysis_engine.py` | 核心 | `VideoAnalysisEngine`：原生视频直传 + ffmpeg 帧提取降级 | ✅ |
+| `fallback_engine.py` | 核心 | `VisionFallbackEngine` / `VisionDescriptionError` / fail-closed VLM 链。模型装配 temperature 语义：顶层 `cfg.temperature` 优先 → `model_kwargs.temperature` 其次 → 默认 0.1 兜底，避免具名参数冲突 | ✅ |
+| `video_analysis_engine.py` | 核心 | `VideoAnalysisEngine`：原生视频直传 + ffmpeg 帧提取降级。temperature 装配语义与 `fallback_engine` 一致（顶层优先 → model_kwargs 其次 → 默认 0.1） | ✅ |
 | `transcode.py` | 辅助 | H.264 pre-upload transcode + temp path cleanup | ✅ |
 | `ocr_tier.py` | 辅助 | 末级 PaddleOCR（经 sandbox `executor.read_file_bytes`） | ✅ |
 | `perception_engine.py` | 核心 | together / ground / region / ocr 语义感知 | ✅ |

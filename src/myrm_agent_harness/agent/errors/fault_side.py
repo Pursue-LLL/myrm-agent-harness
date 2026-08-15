@@ -184,27 +184,27 @@ _ENV_DIAGNOSTIC_TYPES: frozenset[str] = frozenset(
         "model",
         "custom_model_not_found",
         "timeout",
-        "overloaded",
         "custom_endpoint_unreachable",
     }
 )
 
 _MODEL_DIAGNOSTIC_TYPES: frozenset[str] = frozenset(
     {
-        "response_format",
-        "format",
-        # Model output truncation (thinking budget / tool-call truncation) is a
-        # model-behavior artifact; the harness retries by extending the window.
+        "response_format_error",
+        # Model output truncation (thinking budget / tool-call truncation /
+        # continuation) is a model-behavior artifact; the harness retries by
+        # extending the window or continuing the text.
         "thinking_budget_exhausted",
         "tool_call_truncated",
+        "tool_call_retry",
+        "text_continuation",
+        "text_continuation_exhausted",
     }
 )
 
 _OWNER_DIAGNOSTIC_TYPES: frozenset[str] = frozenset(
     {
         "context_overflow",
-        "safety_block",
-        "guardrail",
     }
 )
 

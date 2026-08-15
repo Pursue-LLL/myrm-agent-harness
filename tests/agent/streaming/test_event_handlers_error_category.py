@@ -75,6 +75,8 @@ async def test_no_category_omits_field() -> None:
 
     assert "error_category" not in events[0]
     assert "error_hint" not in events[0]
+    # Without a category, tool errors default to HARNESS_TOOL.
+    assert events[0]["fault_side"] == "harness_tool"
 
 
 @pytest.mark.asyncio
@@ -93,6 +95,8 @@ async def test_guards_category_propagates() -> None:
 
     assert events[0]["error_category"] == "estop"
     assert "error_hint" not in events[0]
+    # User-triggered guard categories (estop) attribute to OWNER, not the tool.
+    assert events[0]["fault_side"] == "owner"
 
 
 @pytest.mark.asyncio
@@ -112,3 +116,5 @@ async def test_myrm_tools_guardrail_blocked_propagates() -> None:
 
     assert events[0]["error_category"] == "guardrail_blocked"
     assert "myrm_tools" in events[0]["error_hint"]
+    # Content/guardrail blocks are user-input triggers → OWNER.
+    assert events[0]["fault_side"] == "owner"

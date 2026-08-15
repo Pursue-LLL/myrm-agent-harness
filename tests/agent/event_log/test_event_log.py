@@ -134,6 +134,40 @@ class TestCapDataSize:
 
 
 # ============================================================================
+# _sanitize (recursive secret/PII redaction)
+# ============================================================================
+
+
+class TestSanitize:
+    def test_top_level_string_redacted(self) -> None:
+        data = {"api_key": "sk-test-abcdefghijklmnopqrstuvwxyz1234567890abcdef"}
+        sanitized = EventLogger._sanitize(data)
+        assert "sk-test-abcdefghijklmnopqrstuvwxyz" not in str(sanitized)
+
+    def test_nested_dict_string_redacted(self) -> None:
+        data = {
+            "tool_start": {
+                "args": {"secret": "sk-test-abcdefghijklmnopqrstuvwxyz1234567890abcdef"}
+            }
+        }
+        sanitized = EventLogger._sanitize(data)
+        assert "sk-test-abcdefghijklmnopqrstuvwxyz" not in str(sanitized)
+
+    def test_nested_list_string_redacted(self) -> None:
+        data = {"items": ["plain", "sk-test-abcdefghijklmnopqrstuvwxyz1234567890abcdef"]}
+        sanitized = EventLogger._sanitize(data)
+        assert "sk-test-abcdefghijklmnopqrstuvwxyz" not in str(sanitized)
+
+    def test_plain_text_unchanged(self) -> None:
+        data = {"message": "Tool executed successfully", "nested": {"phase": "cleanup"}}
+        assert EventLogger._sanitize(data) == data
+
+    def test_non_string_values_untouched(self) -> None:
+        data = {"count": 42, "ratio": 0.5, "ok": True, "none": None}
+        assert EventLogger._sanitize(data) == data
+
+
+# ============================================================================
 # EventLogger
 # ============================================================================
 

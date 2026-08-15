@@ -40,6 +40,10 @@ tool_interceptor_middleware  ← 统一 catch 点（含超时和重试保护）
 event_handlers._handle_tool_result()  ← 事件转换层
     │ 检测 status=="error"
     │ 发送 TASKS_STEPS 事件（step_key="{tool_name}_tool_error", status="error"）
+    │ fault_side 归因：ToolMessage.error_category（ToolErrorCategory）→ classify_tool_fault_side()
+    │   - guard/guardrail 类（pii_guard/estop/loop_guard/guardrail_blocked 等）→ owner（用户内容/配置触发）
+    │   - 执行类（timeout/oom/syntax/not_found 等）→ harness_tool（内置工具自身失败）
+    │   - 无 error_category 时默认 harness_tool
     ↓
 SSE 推送到前端
     ↓
@@ -360,6 +364,7 @@ agent/_internals/agent_runtime.py run_agent_loop 外层 except（executor 外层
     │   - error_type: str
     │   - failover_reason: str
     │   - fault_side: str（确定性责任方归因：model | harness_tool | harness_pipeline | env | grader | owner | unknown，由 errors/fault_side.py 纯规则分类，无 LLM 调用）
+    │     error_kind 优先；error_kind 为 UNKNOWN 时以 diagnostic.error_type 兜底（如 api_key → env）
     │   - diagnostic_result: { error_type, user_message, resolution_steps, locale }（本地化诊断结果）
     │   - recovery_actions: list[str]（本地化恢复动作，可选）
     │   - cooldown_remaining_ms: int（瞬态错误的重试倒计时，可选）

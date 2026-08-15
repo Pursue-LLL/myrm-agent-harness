@@ -49,15 +49,27 @@ import contextlib
 import logging
 import re
 import time
+from collections.abc import Awaitable, Callable, Sequence
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING, Any, cast
 
 from langchain_core.tools import BaseTool
 
 from .config import sanitize_mcp_name_component
 from .structured_tool import SafeStructuredTool
 
+if TYPE_CHECKING:
+    import httpx2
+
+    from .config import MCPAuthProvider
+    from .result_processing import OversizedResultHandler
+
 logger = logging.getLogger(__name__)
+
+# Business-layer elicitation callback: async (server_name, message, schema) -> decision.
+MCPElicitationHandler = Callable[[str, str, dict[str, object]], Awaitable[str]]
 
 # Establishing a session (spawn + initialize + list) occasionally drops on the
 # first try (empty listing, SSE handshake hiccup); a bounded retry makes startup
@@ -157,9 +169,9 @@ class MCPSessionActor:
         tool_exclude: list[str] | None = None,
         host_serial: bool = False,
         keepalive_interval: float | None = None,
-        auth_provider: object | None = None,
-        oversized_result_handler: object | None = None,
-        elicitation_handler: object | None = None,
+        auth_provider: MCPAuthProvider | None = None,
+        oversized_result_handler: OversizedResultHandler | None = None,
+        elicitation_handler: MCPElicitationHandler | None = None,
     ) -> None:
         self.server_name = server_name
         self._connection = connection
@@ -183,7 +195,7 @@ class MCPSessionActor:
         self._ready = asyncio.Event()
         self._start_error: Exception | None = None
         self._closed = False
-        self._http_client: object | None = None
+        self._http_client: httpx2.AsyncClient | None = None
         # Wall-clock of the last call; lets the pool's TTL see activity from
         # *both* PTC (via connection.call) and direct-mode tools (which invoke
         # the proxy → actor directly, bypassing the connection's metrics).
@@ -223,9 +235,10 @@ class MCPSessionActor:
         OAuth flow. The next reconnect (or a forced reconnect) will pick up the
         fresh token instead of replaying stale credentials.
         """
-        existing: dict[str, str] = dict(self._connection.get("headers") or {})  # type: ignore[arg-type]
+        raw_headers = self._connection.get("headers")
+        existing: dict[str, str] = dict(raw_headers) if isinstance(raw_headers, dict) else {}
         existing.update(new_headers)
-        self._connection["headers"] = existing  # type: ignore[assignment]
+        self._connection["headers"] = cast(dict[str, object], existing)
 
     def is_healthy(self) -> bool:
         """True when the owner task is alive and the session started cleanly.
@@ -357,8 +370,12 @@ class MCPSessionActor:
                 )
                 return ElicitResult(action="decline")
 
-            if decision in ("accept", "decline", "cancel"):
-                return ElicitResult(action=decision)
+            if decision == "accept":
+                return ElicitResult(action="accept")
+            if decision == "decline":
+                return ElicitResult(action="decline")
+            if decision == "cancel":
+                return ElicitResult(action="cancel")
             logger.warning(
                 "MCP server '%s' elicitation handler returned unexpected value: %r; declining",
                 server_name,
@@ -368,7 +385,9 @@ class MCPSessionActor:
 
         return _elicitation_callback
 
-    def _build_client_target(self, conn: dict[str, object]) -> object:
+    def _build_client_target(
+        self, conn: dict[str, object]
+    ) -> AbstractAsyncContextManager[tuple[Any, Any]]:
         """Build the transport target for ``mcp.ClientSession`` from the connection config dict.
 
         Returns a proper SDK v2 target:
@@ -388,7 +407,8 @@ class MCPSessionActor:
             if not url:
                 raise ValueError(f"MCP server '{self.server_name}': HTTP transport requires 'url'")
             url_str = str(url)
-            headers: dict[str, str] = dict(conn.get("headers") or {})  # type: ignore[arg-type]
+            raw_headers = conn.get("headers")
+            headers: dict[str, str] = dict(raw_headers) if isinstance(raw_headers, dict) else {}
             if transport == "sse":
                 from mcp.client.sse import sse_client
 
@@ -408,11 +428,16 @@ class MCPSessionActor:
         from mcp import StdioServerParameters
         from mcp.client.stdio import stdio_client
 
+        raw_command = conn.get("command")
+        raw_args = conn.get("args")
+        args_list = raw_args if isinstance(raw_args, list) else []
+        env = conn.get("env")
+
         return stdio_client(
             StdioServerParameters(
-                command=str(conn.get("command", "")),
-                args=[str(a) for a in (conn.get("args") or [])],  # type: ignore[union-attr]
-                env=conn.get("env"),  # type: ignore[arg-type]
+                command=str(raw_command),
+                args=[str(a) for a in args_list],
+                env=cast(dict[str, str] | None, env) if isinstance(env, dict) else None,
             )
         )
 
@@ -707,7 +732,7 @@ class MCPSessionActor:
     def _apply_tools(
         self,
         client: object,
-        raw_tools: list[BaseTool],
+        raw_tools: Sequence[BaseTool],
         init_result: object | None = None,
     ) -> None:
         """Bind freshly enumerated tools to the live session.
@@ -895,10 +920,11 @@ class MCPSessionActor:
             url = str(conn.get("url", ""))
             headers = await self._auth_provider.get_auth_headers(self.server_name, url)
             if headers:
-                existing: dict[str, str] = dict(conn.get("headers") or {})  # type: ignore[arg-type]
+                raw_headers = conn.get("headers")
+                existing: dict[str, str] = dict(raw_headers) if isinstance(raw_headers, dict) else {}
                 existing.update(headers)
-                conn["headers"] = existing  # type: ignore[assignment]
-                self._connection["headers"] = existing  # type: ignore[assignment]
+                conn["headers"] = cast(dict[str, object], existing)
+                self._connection["headers"] = cast(dict[str, object], existing)
                 logger.info(
                     "MCP session '%s' auth headers refreshed for reconnect",
                     self.server_name,

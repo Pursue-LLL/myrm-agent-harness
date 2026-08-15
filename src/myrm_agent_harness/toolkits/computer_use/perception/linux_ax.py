@@ -270,6 +270,11 @@ _DBUS_AUTOMATABLE_APPS: frozenset[str] = frozenset(
     }
 )
 
+_SNAPSHOT_RECOMMENDATION_BASE = (
+    "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool. "
+    "To act on a background app, use desktop_snapshot_tool(scope='target', app_name='<app name>')."
+)
+
 
 def _native_api_hint(app_name: str) -> str:
     """Return a routing hint if the app supports D-Bus/CLI automation."""
@@ -294,7 +299,7 @@ def inspect_foreground() -> dict[str, str | int | bool]:
             "recommendation": str(exc),
         }
 
-    base_rec = "Call desktop_snapshot_tool(scope='foreground') before desktop_interact_tool."
+    base_rec = _SNAPSHOT_RECOMMENDATION_BASE
     native_hint = _native_api_hint(snapshot.meta.app_name)
     return {
         "app_name": snapshot.meta.app_name,

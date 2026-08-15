@@ -26,7 +26,10 @@ from typing import cast
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
-from myrm_agent_harness.agent.errors.fault_side import FaultSide
+from myrm_agent_harness.agent.errors.fault_side import (
+    FaultSide,
+    classify_tool_fault_side,
+)
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.toolkits.code_execution.executors.models import (
     scrub_sensitive_info,
@@ -182,14 +185,16 @@ async def _handle_tool_result(
             "messageId": message_id,
         }
 
-        # Deterministic fault-side attribution: a ToolMessage with status=error
-        # means the built-in tool itself failed — attribute to HARNESS_TOOL so
-        # the GUI shows who owns the failure.
-        event["fault_side"] = FaultSide.HARNESS_TOOL.value
-
-        # Propagate diagnostic metadata for business layer (server) to consume
+        # Deterministic fault-side attribution: tool errors carry an
+        # error_category (ToolErrorCategory). Guard/guardrail categories (PII,
+        # estop, budget guards) are triggered by user content or config →
+        # OWNER; execution categories are the built-in tool itself →
+        # HARNESS_TOOL. Fall back to HARNESS_TOOL when no category is attached.
         if error_category := msg.additional_kwargs.get("error_category"):
             event["error_category"] = str(error_category)
+            event["fault_side"] = classify_tool_fault_side(str(error_category)).value
+        else:
+            event["fault_side"] = FaultSide.HARNESS_TOOL.value
 
         if error_hint := msg.additional_kwargs.get("error_hint"):
             event["error_hint"] = str(error_hint)

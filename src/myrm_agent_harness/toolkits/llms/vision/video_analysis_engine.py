@@ -192,14 +192,19 @@ class VideoAnalysisEngine:
         while len(self._models) <= index:
             idx = len(self._models)
             cfg = self.fallback_configs[idx]
+            merged_kwargs = dict(cfg.model_kwargs or {})
+            # 用户显式配置的 temperature 优先，默认 0.1 兜底；避免与
+            # model_kwargs 中的同名键冲突导致 TypeError。
+            merged_kwargs.setdefault("temperature", 0.1)
+            if cfg.temperature is not None:
+                merged_kwargs["temperature"] = cfg.temperature
             self._models.append(
                 create_litellm_model(
                     model=cfg.model,
                     api_key=cfg.api_key,
                     base_url=cfg.base_url,
-                    temperature=0.1,
                     streaming=False,
-                    **(cfg.model_kwargs or {}),
+                    **merged_kwargs,
                 )
             )
         return self._models[index]
