@@ -742,6 +742,28 @@ class TestRouteTask:
         assert result.reason != "content_dedup"
 
     @pytest.mark.asyncio
+    async def test_dedup_image_hit_momentum_not_downgrade(self) -> None:
+        """Image query dedup-hit + SIMPLE history: momentum must not drop below
+        STANDARD (vision floor applies on the dedup path too)."""
+        query = [
+            {"type": "text", "text": "hello"},
+            {"type": "image_url", "url": "https://example.com/img.png"},
+        ]
+        first = await route_task(query, STD_CFG, light_model_cfg=LIGHT_CFG)
+        assert first.tier == RoutingTier.STANDARD
+        second = await route_task(
+            query,
+            STD_CFG,
+            light_model_cfg=LIGHT_CFG,
+            recent_tiers=[
+                RoutingTier.SIMPLE,
+                RoutingTier.SIMPLE,
+                RoutingTier.SIMPLE,
+            ],
+        )
+        assert second.tier == RoutingTier.STANDARD
+
+    @pytest.mark.asyncio
     async def test_judge_verdict_not_in_dedup_cache(self) -> None:
         """Judge verdicts live only in the TTL-bounded judge cache — never the
         unbounded dedup cache: a stale judge tier must not become readable by the

@@ -31,7 +31,11 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import ConsolidationConfig
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-    from myrm_agent_harness.toolkits.memory.types import AnyMemory, ConflictResolution, MemoryType
+    from myrm_agent_harness.toolkits.memory.types import (
+        AnyMemory,
+        ConflictResolution,
+        MemoryType,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +161,10 @@ Output a structured JSON object containing `operations` and `insights`.
 
 
 def _build_user_prompt(
-    memories: Sequence[AnyMemory], today: str, id_map: dict[str, str], new_ids: frozenset[str] | None = None
+    memories: Sequence[AnyMemory],
+    today: str,
+    id_map: dict[str, str],
+    new_ids: frozenset[str] | None = None,
 ) -> str:
     """Build user prompt with short IDs to save tokens (~28 tokens per memory).
 
@@ -189,7 +196,9 @@ def _build_user_prompt(
         if source_error:
             lines.append(f"  source_error: {source_error}")
         lines.append("")
-    lines.append("Analyze these memories and output a JSON object with operations and insights.")
+    lines.append(
+        "Analyze these memories and output a JSON object with operations and insights."
+    )
     return "\n".join(lines)
 
 
@@ -223,7 +232,11 @@ async def _execute_operations(
     on_conflict: ConflictCallback | None = None,
     config: ConsolidationConfig | None = None,
 ) -> ConsolidationStats:
-    from myrm_agent_harness.toolkits.memory.types import ConflictResolution, MemoryType, SemanticMemory
+    from myrm_agent_harness.toolkits.memory.types import (
+        ConflictResolution,
+        MemoryType,
+        SemanticMemory,
+    )
 
     stats = ConsolidationStats(total_processed=len(ops))
     resolve = (lambda sid: id_map.get(sid, sid)) if id_map else (lambda sid: sid)
@@ -247,10 +260,14 @@ async def _execute_operations(
                 for short_id in op.source_ids:
                     full_id = resolve(short_id)
                     try:
-                        await manager.update_memory(full_id, importance=0.05, metadata={"consolidated": True})
+                        await manager.update_memory(
+                            full_id, importance=0.05, metadata={"consolidated": True}
+                        )
                         stats.affected_ids.append(full_id)
                     except Exception as e:
-                        logger.warning("Consolidation demote failed for %s: %s", full_id, e)
+                        logger.warning(
+                            "Consolidation demote failed for %s: %s", full_id, e
+                        )
                 stats.merged += 1
 
             elif isinstance(op, CorrectOp):
@@ -261,7 +278,9 @@ async def _execute_operations(
                     continue
 
                 should_route = (
-                    on_conflict is not None and op.importance >= importance_thr and op.accuracy_score < confidence_thr
+                    on_conflict is not None
+                    and op.importance >= importance_thr
+                    and op.accuracy_score < confidence_thr
                 )
 
                 if should_route:
@@ -272,7 +291,9 @@ async def _execute_operations(
                         accuracy_score=op.accuracy_score,
                         importance=op.importance,
                         merge_suggestion=op.corrected_content,
-                        memory_type=getattr(existing, "memory_type", MemoryType.SEMANTIC),
+                        memory_type=getattr(
+                            existing, "memory_type", MemoryType.SEMANTIC
+                        ),
                     )
                     resolution = await on_conflict(ctx)
                     if resolution == ConflictResolution.PENDING:
@@ -288,7 +309,9 @@ async def _execute_operations(
                     # KEEP_NEW or MERGE: proceed to execute the correction below
 
                 if isinstance(existing, SemanticMemory):
-                    correction = await manager.correct_memory(full_id, op.corrected_content)
+                    correction = await manager.correct_memory(
+                        full_id, op.corrected_content
+                    )
                     stats.corrected += 1
                     stats.affected_ids.append(full_id)
                     stats.affected_ids.append(correction.id)
@@ -303,7 +326,9 @@ async def _execute_operations(
                 if getattr(existing, "is_user_locked", False):
                     logger.info("Consolidation: skipped locked rule %s", full_id)
                     continue
-                await manager.update_memory(full_id, content=op.new_content, importance=op.importance)
+                await manager.update_memory(
+                    full_id, content=op.new_content, importance=op.importance
+                )
                 stats.affected_ids.append(full_id)
                 stats.updated += 1
 
@@ -327,7 +352,9 @@ async def get_last_consolidated_at(manager: MemoryManager) -> datetime | None:
         return None
 
 
-async def should_consolidate(manager: MemoryManager, config: ConsolidationConfig) -> bool:
+async def should_consolidate(
+    manager: MemoryManager, config: ConsolidationConfig
+) -> bool:
     """Check whether consolidation should run based on time gates."""
     if not config.enabled:
         return False
@@ -338,7 +365,9 @@ async def should_consolidate(manager: MemoryManager, config: ConsolidationConfig
     return elapsed_hours >= config.interval_hours
 
 
-async def _enrich_with_similar(memory: AnyMemory, manager: MemoryManager, max_similar: int = 3) -> list[AnyMemory]:
+async def _enrich_with_similar(
+    memory: AnyMemory, manager: MemoryManager, max_similar: int = 3
+) -> list[AnyMemory]:
     """Find similar existing memories so a single new memory can be consolidated.
 
     Searches the memory store for candidates semantically related to *memory*,
@@ -346,7 +375,9 @@ async def _enrich_with_similar(memory: AnyMemory, manager: MemoryManager, max_si
     When no candidates are found the original memory is returned alone.
     """
     try:
-        results = await manager.search(memory.content, limit=max_similar + 1, track_access=False)
+        results = await manager.search(
+            memory.content, limit=max_similar + 1, track_access=False
+        )
         similar = [r.memory for r in results if r.memory.id != memory.id][:max_similar]
         if not similar:
             return [memory]
@@ -379,7 +410,11 @@ async def run_consolidation(
     if last is not None:
         elapsed_hours = (datetime.now(UTC) - last).total_seconds() / 3600
         if elapsed_hours < config.soft_lock_hours:
-            logger.info("Consolidation skipped: soft lock (%.1fh < %.1fh)", elapsed_hours, config.soft_lock_hours)
+            logger.info(
+                "Consolidation skipped: soft lock (%.1fh < %.1fh)",
+                elapsed_hours,
+                config.soft_lock_hours,
+            )
             return ConsolidationStats()
 
     incremental = await _fetch_incremental_memories(manager, last, config.max_memories)
@@ -388,7 +423,9 @@ async def run_consolidation(
     enriched_count = 0
     if len(incremental) == 1:
         new_ids = frozenset(m.id for m in incremental)
-        memories = await _enrich_with_similar(incremental[0], manager, max_similar=config.enrich_max_similar)
+        memories = await _enrich_with_similar(
+            incremental[0], manager, max_similar=config.enrich_max_similar
+        )
         enriched_count = len(memories) - 1
     else:
         memories = incremental
@@ -414,7 +451,11 @@ async def run_consolidation(
         # Filter operations by Rubric score
         valid_ops = []
         for op in response.operations:
-            total_score = (op.accuracy_score * 0.4) + (op.anti_fragmentation_score * 0.3) + (op.redundancy_score * 0.3)
+            total_score = (
+                (op.accuracy_score * 0.4)
+                + (op.anti_fragmentation_score * 0.3)
+                + (op.redundancy_score * 0.3)
+            )
             if total_score >= 0.7:
                 valid_ops.append(op)
             else:
@@ -428,15 +469,25 @@ async def run_consolidation(
         parsed = ConsolidationResponse(operations=valid_ops, insights=response.insights)
     except Exception as e:
         logger.warning("Consolidation LLM call failed: %s", e)
-        return ConsolidationStats(errors=1, input_count=input_count, enriched_count=enriched_count)
+        return ConsolidationStats(
+            errors=1, input_count=input_count, enriched_count=enriched_count
+        )
 
     if not parsed.operations and not parsed.insights:
-        logger.info("Consolidation: no operations needed (input=%d, enriched=%d)", input_count, enriched_count)
+        logger.info(
+            "Consolidation: no operations needed (input=%d, enriched=%d)",
+            input_count,
+            enriched_count,
+        )
         await _update_timestamp(manager, start)
-        return ConsolidationStats(input_count=input_count, enriched_count=enriched_count)
+        return ConsolidationStats(
+            input_count=input_count, enriched_count=enriched_count
+        )
 
     stats = (
-        await _execute_operations(parsed.operations, manager, id_map, on_conflict=on_conflict, config=config)
+        await _execute_operations(
+            parsed.operations, manager, id_map, on_conflict=on_conflict, config=config
+        )
         if parsed.operations
         else ConsolidationStats()
     )
@@ -482,7 +533,10 @@ async def _fetch_incremental_memories(
     non-chronological scroll ordering in vector stores, then filters
     in-memory by created_at.
     """
-    from myrm_agent_harness.toolkits.memory._internal.storage import doc_to_episodic, doc_to_semantic
+    from myrm_agent_harness.toolkits.memory._internal.storage import (
+        doc_to_episodic,
+        doc_to_semantic,
+    )
 
     all_memories: list[AnyMemory] = []
     scroll_limit = max_count * _SCROLL_MULTIPLIER
@@ -538,7 +592,9 @@ async def _update_timestamp(manager: MemoryManager, ts: datetime) -> None:
         logger.warning("Failed to update consolidation timestamp: %s", e)
 
 
-async def _record_consolidation_event(manager: MemoryManager, stats: ConsolidationStats) -> None:
+async def _record_consolidation_event(
+    manager: MemoryManager, stats: ConsolidationStats
+) -> None:
     """Store a consolidation summary as an EpisodicMemory for auditability.
 
     Embeds affected_ids into the event content so rollback can discover which
@@ -555,7 +611,11 @@ async def _record_consolidation_event(manager: MemoryManager, stats: Consolidati
     if ids_csv:
         summary += f"\n[affected_ids:{ids_csv}]"
     try:
-        await manager.add_event(content=summary, event_type="consolidation", related_entities=["memory_system"])
+        await manager.add_event(
+            content=summary,
+            event_type="consolidation",
+            related_entities=["memory_system"],
+        )
     except Exception as e:
         logger.warning("Failed to record consolidation event: %s", e)
 
@@ -599,4 +659,6 @@ async def _persist_insights(manager: MemoryManager, insights: list[str]) -> None
             logger.warning("Failed to persist consolidation insight: %s", e)
 
     if stored:
-        logger.info("Persisted %d consolidation insights as implicit preferences", stored)
+        logger.info(
+            "Persisted %d consolidation insights as implicit preferences", stored
+        )
