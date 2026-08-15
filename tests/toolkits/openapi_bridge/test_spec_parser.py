@@ -7,7 +7,7 @@ operation ID resolution, and error handling.
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -667,12 +667,14 @@ class TestFetchErrorBranches:
         async def _boom(*args, **kwargs):
             raise ContentTooLargeError("too big")
 
-        with patch(
-            "myrm_agent_harness.toolkits.openapi_bridge.spec_parser.secure_get",
-            side_effect=_boom,
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.openapi_bridge.spec_parser.secure_get",
+                side_effect=_boom,
+            ),
+            pytest.raises(ValueError, match="Spec too large"),
         ):
-            with pytest.raises(ValueError, match="Spec too large"):
-                await parse_spec_from_url("https://example.com/spec.json")
+            await parse_spec_from_url("https://example.com/spec.json")
 
     @pytest.mark.asyncio
     async def test_http_status_error_mapped(self):
@@ -682,24 +684,28 @@ class TestFetchErrorBranches:
             response.raise_for_status()
             return response
 
-        with patch(
-            "myrm_agent_harness.toolkits.openapi_bridge.spec_parser.secure_get",
-            side_effect=_boom,
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.openapi_bridge.spec_parser.secure_get",
+                side_effect=_boom,
+            ),
+            pytest.raises(ValueError, match="HTTP 404"),
         ):
-            with pytest.raises(ValueError, match="HTTP 404"):
-                await parse_spec_from_url("https://example.com/spec.json")
+            await parse_spec_from_url("https://example.com/spec.json")
 
     @pytest.mark.asyncio
     async def test_request_error_mapped(self):
         async def _boom(*args, **kwargs):
             raise httpx.ConnectError("connection refused", request=httpx.Request("GET", "https://example.com/spec.json"))
 
-        with patch(
-            "myrm_agent_harness.toolkits.openapi_bridge.spec_parser.secure_get",
-            side_effect=_boom,
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.openapi_bridge.spec_parser.secure_get",
+                side_effect=_boom,
+            ),
+            pytest.raises(ValueError, match="Failed to fetch spec"),
         ):
-            with pytest.raises(ValueError, match="Failed to fetch spec"):
-                await parse_spec_from_url("https://example.com/spec.json")
+            await parse_spec_from_url("https://example.com/spec.json")
 
     @pytest.mark.asyncio
     async def test_success_fetches_and_parses(self):

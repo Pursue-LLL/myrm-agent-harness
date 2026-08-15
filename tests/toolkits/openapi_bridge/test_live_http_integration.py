@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import urlparse
 
 import pytest
@@ -69,8 +69,8 @@ _SPEC = {
 class _EchoHandler(BaseHTTPRequestHandler):
     """Records what the server actually receives so tests can assert types."""
 
-    received_path_params: list[str] = []
-    received_bodies: list[dict[str, Any]] = []
+    received_path_params: ClassVar[list[str]] = []
+    received_bodies: ClassVar[list[dict[str, Any]]] = []
 
     def log_message(self, format: str, *args: object) -> None:
         return
