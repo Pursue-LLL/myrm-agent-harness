@@ -2,7 +2,7 @@
 
 Scans for interrupted checkpoint files on startup and publishes lifecycle
 events so the business layer can notify the user via existing event bridges.
-The user can then choose to resume or discard interrupted tasks from the UI.
+The user can then re-initiate or discard interrupted tasks from the UI.
 
 [INPUT]
 - .saver::SubagentCheckpointStorage (POS: Checkpoint persistence)
@@ -17,7 +17,7 @@ The user can then choose to resume or discard interrupted tasks from the UI.
 Orphan subagent checkpoint scanner. Scans checkpoint directory on startup
 and publishes lifecycle events so the UI can display interrupted tasks.
 Does NOT attempt to resume or delete checkpoints — that is the business
-layer's responsibility via the resume API.
+layer's responsibility via the checkpoint API.
 """
 
 from __future__ import annotations
@@ -41,10 +41,10 @@ class OrphanRecoveryManager:
 
     Lifecycle:
         1. Service startup calls ``get_instance().schedule_scan()``
-        2. After initial delay, scans ``{MYRM_DATA_DIR}/checkpoints/`` (or ``.myrm/checkpoints/``) for resumable files
+        2. After initial delay, scans ``{MYRM_DATA_DIR}/checkpoints/`` (or ``.myrm/checkpoints/``) for interrupted checkpoints
         3. For each interrupted checkpoint: publish ``SubagentLifecycleEvent``
         4. ``harness_bridge`` receives event and rebuilds subagent tree
-        5. Frontend displays interrupted tasks with resume button
+        5. Frontend displays interrupted tasks with a re-initiate button
     """
 
     __slots__ = ("_recovery_task", "_running", "_storage")
@@ -110,9 +110,6 @@ class OrphanRecoveryManager:
 
         notified = 0
         for checkpoint in checkpoints:
-            if not checkpoint.resumable:
-                continue
-
             self._publish_event(
                 checkpoint.task_id,
                 checkpoint.agent_type,

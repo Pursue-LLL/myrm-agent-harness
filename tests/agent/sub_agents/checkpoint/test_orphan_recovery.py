@@ -133,7 +133,7 @@ class TestScanAndNotify:
         storage.list_checkpoints.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_scan_skips_non_resumable(self) -> None:
+    async def test_scan_publishes_event_for_non_resumable(self) -> None:
         cp = _make_checkpoint(resumable=False)
         storage = MagicMock(spec=SubagentCheckpointStorage)
         storage.list_checkpoints = AsyncMock(return_value=[cp])
@@ -141,7 +141,7 @@ class TestScanAndNotify:
 
         with patch(_PUBLISH_EVENT_PATH) as mock_pub:
             await mgr._scan_and_notify()
-            mock_pub.assert_not_called()
+            mock_pub.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_scan_publishes_event_for_resumable(self) -> None:
@@ -161,7 +161,7 @@ class TestScanAndNotify:
             )
 
     @pytest.mark.asyncio
-    async def test_scan_multiple_checkpoints_filters_non_resumable(self) -> None:
+    async def test_scan_multiple_checkpoints_publishes_all(self) -> None:
         cp1 = _make_checkpoint(task_id="t1", resumable=True)
         cp2 = _make_checkpoint(task_id="t2", resumable=False)
         cp3 = _make_checkpoint(task_id="t3", resumable=True)
@@ -171,7 +171,9 @@ class TestScanAndNotify:
 
         with patch(_PUBLISH_EVENT_PATH) as mock_pub:
             await mgr._scan_and_notify()
-            assert mock_pub.call_count == 2
+            assert mock_pub.call_count == 3
+            published_ids = [call.args[0] for call in mock_pub.call_args_list]
+            assert published_ids == ["t1", "t2", "t3"]
 
     @pytest.mark.asyncio
     async def test_scan_handles_list_exception(self) -> None:
@@ -405,16 +407,18 @@ class TestEndToEndScanFlow:
         ):
             await mgr._scan_and_notify()
 
-        mock_bus.publish.assert_called_once()
-        event = mock_bus.publish.call_args[0][0]
-        assert event.task_id == "interrupted-1"
-        assert event.data.agent_type == "coder"
-        assert event.data.status == "interrupted"
+        assert mock_bus.publish.call_count == 2
+        first_event = mock_bus.publish.call_args_list[0][0][0]
+        assert first_event.task_id == "interrupted-1"
+        assert first_event.data.agent_type == "coder"
+        assert first_event.data.status == "interrupted"
+        second_event = mock_bus.publish.call_args_list[1][0][0]
+        assert second_event.task_id == "completed-1"
 
         storage.delete.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_scan_with_only_non_resumable_produces_no_events(self) -> None:
+    async def test_scan_with_only_non_resumable_publishes_all(self) -> None:
         cps = [_make_checkpoint(task_id=f"done-{i}", resumable=False) for i in range(3)]
         storage = MagicMock(spec=SubagentCheckpointStorage)
         storage.list_checkpoints = AsyncMock(return_value=cps)
@@ -428,7 +432,7 @@ class TestEndToEndScanFlow:
         ):
             await mgr._scan_and_notify()
 
-        mock_bus.publish.assert_not_called()
+        assert mock_bus.publish.call_count == 3
 
     @pytest.mark.asyncio
     async def test_scan_passes_correct_session_id(self) -> None:
