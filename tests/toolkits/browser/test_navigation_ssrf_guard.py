@@ -84,3 +84,71 @@ async def test_goto_with_ssrf_guard_installs_route_handler() -> None:
 
     page.route.assert_awaited_once()
     page.unroute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_navigation_failure_wraps_browser_navigation_error() -> None:
+    """Non-timeout navigation failures should raise BrowserNavigationError."""
+    from myrm_agent_harness.toolkits.browser.exceptions import BrowserNavigationError
+    from myrm_agent_harness.toolkits.browser.navigation import Navigator
+
+    page = AsyncMock()
+    navigator = Navigator(page=page)
+
+    raw_err = ConnectionError("net::ERR_NAME_NOT_RESOLVED")
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard",
+            side_effect=raw_err,
+        ),
+        pytest.raises(BrowserNavigationError) as exc_info,
+    ):
+        await navigator.goto("https://invalid-domain-xyz.com")
+
+    wrapped = exc_info.value
+    assert wrapped.diagnostic_info["url"] == "https://invalid-domain-xyz.com"
+    assert "net::ERR_NAME_NOT_RESOLVED" in wrapped.diagnostic_info["error_text"]
+    assert wrapped.__cause__ is raw_err
+
+
+@pytest.mark.asyncio
+async def test_navigation_timeout_uses_rescue_not_wrap() -> None:
+    """Timeouts should be rescued (window.stop) instead of raising BrowserNavigationError."""
+    from myrm_agent_harness.toolkits.browser.navigation import Navigator
+
+    page = AsyncMock()
+    page.evaluate.return_value = None
+    page.title.return_value = "page title"
+    page.url = "https://example.com/"
+    navigator = Navigator(page=page)
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard",
+        side_effect=TimeoutError("Navigation timeout"),
+    ):
+        title, final_url, status_code = await navigator.goto("https://example.com/")
+
+    assert title == "page title"
+    assert status_code == 200
+    page.evaluate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_ssrf_block_propagates_unwrapped() -> None:
+    """SSRF security blocks must propagate as-is, never wrapped as navigation failures."""
+    from myrm_agent_harness.toolkits.browser.navigation import Navigator
+    from myrm_agent_harness.toolkits.browser.navigation.ssrf_guard import (
+        BrowserNavigationBlockedError,
+    )
+
+    navigator = Navigator(page=AsyncMock())
+
+    block = BrowserNavigationBlockedError("SSRF blocked: internal network")
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard",
+            side_effect=block,
+        ),
+        pytest.raises(BrowserNavigationBlockedError),
+    ):
+        await navigator.goto("http://192.168.1.1/api")

@@ -10,10 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.exceptions import (
-    BrowserNavigationError,
-    BrowserTimeoutError,
-)
+from myrm_agent_harness.toolkits.browser.exceptions import BrowserNavigationError
 from myrm_agent_harness.utils.errors import ToolError
 
 
@@ -78,71 +75,6 @@ class TestToolErrorEnhancement:
         assert "Recovery Suggestions:" in formatted
         assert "1. Check file permissions" in formatted
         assert "2. Try writing to a different directory" in formatted
-
-
-class TestBrowserTimeoutErrorEnhancement:
-    """Test BrowserTimeoutError diagnostic features."""
-
-    def test_navigate_timeout_suggestions(self):
-        """Navigate timeout should provide relevant suggestions."""
-        error = BrowserTimeoutError(
-            "Navigation timeout",
-            timeout_seconds=30.0,
-            operation="navigate",
-            url="https://slow-site.com",
-        )
-
-        assert error.error_code == "BROWSER_TIMEOUT_NAVIGATE"
-        assert error.diagnostic_info["timeout_seconds"] == 30.0
-        assert error.diagnostic_info["operation"] == "navigate"
-        assert len(error.recovery_suggestions) > 0
-        assert any("timeout" in s.lower() for s in error.recovery_suggestions)
-        assert any("accessible" in s.lower() for s in error.recovery_suggestions)
-
-    def test_wait_timeout_suggestions(self):
-        """Wait timeout should suggest snapshot refresh."""
-        error = BrowserTimeoutError(
-            "Wait timeout",
-            timeout_seconds=5.0,
-            operation="wait",
-            url="https://example.com",
-        )
-
-        assert error.error_code == "BROWSER_TIMEOUT_WAIT"
-        suggestions_text = " ".join(error.recovery_suggestions).lower()
-        assert "snapshot" in suggestions_text
-        assert "element" in suggestions_text
-
-    def test_short_timeout_warning(self):
-        """Short timeout should trigger specific suggestion."""
-        error = BrowserTimeoutError(
-            "Timeout",
-            timeout_seconds=3.0,
-            operation="load",
-        )
-
-        suggestions_text = " ".join(error.recovery_suggestions)
-        assert "3" in suggestions_text or "short" in suggestions_text.lower()
-
-    def test_format_for_llm_includes_all_context(self):
-        """format_for_llm should include all diagnostic context."""
-        error = BrowserTimeoutError(
-            "Page load timeout",
-            timeout_seconds=30.0,
-            operation="navigate",
-            url="https://heavy-site.com",
-            context={"attempt": 2},
-        )
-
-        formatted = error.format_for_llm()
-
-        assert "Error: Page load timeout" in formatted
-        assert "Error Code: BROWSER_TIMEOUT_NAVIGATE" in formatted
-        assert "timeout_seconds: 30.0" in formatted
-        assert "operation: navigate" in formatted
-        assert "url: https://heavy-site.com" in formatted
-        assert "Recovery Suggestions:" in formatted
-        assert "attempt: 2" in formatted
 
 
 class TestBrowserNavigationErrorEnhancement:
@@ -237,37 +169,37 @@ class TestErrorContextIntegration:
         """Error chaining should preserve diagnostic context."""
         root_cause = ValueError("Invalid input")
 
-        error = BrowserTimeoutError(
-            "Operation timeout",
-            timeout_seconds=10.0,
-            operation="navigate",
+        error = BrowserNavigationError(
+            "Navigation failed",
+            url="https://example.com/page",
+            status_code=500,
             cause=root_cause,
         )
 
         assert error.__cause__ is root_cause
-        assert error.diagnostic_info["timeout_seconds"] == 10.0
+        assert error.diagnostic_info["url"] == "https://example.com/page"
 
     def test_multiple_errors_maintain_separate_context(self):
         """Multiple errors should maintain independent context."""
-        error1 = BrowserTimeoutError(
-            "Timeout 1",
-            timeout_seconds=5.0,
-            operation="wait",
+        error1 = BrowserNavigationError(
+            "Nav denied",
+            url="https://example.com/private",
+            status_code=403,
         )
         error2 = BrowserNavigationError(
             "Nav error",
             status_code=404,
         )
 
-        assert error1.error_code == "BROWSER_TIMEOUT_WAIT"
+        assert error1.error_code == "BROWSER_NAV_403"
         assert error2.error_code == "BROWSER_NAV_404"
         assert error1.diagnostic_info != error2.diagnostic_info
 
     def test_error_without_optional_fields(self):
         """Errors should work without optional diagnostic fields."""
-        error = BrowserTimeoutError("Generic timeout")
+        error = BrowserNavigationError("Generic navigation failure")
 
-        assert error.error_code == "BROWSER_TIMEOUT"
+        assert error.error_code == "BROWSER_NAV_FAILED"
         assert error.diagnostic_info == {}
         assert len(error.recovery_suggestions) > 0  # Should have generic suggestions
 
@@ -287,16 +219,6 @@ class TestErrorContextIntegration:
 class TestErrorCodeClassification:
     """Test error code generation for metrics and alerting."""
 
-    def test_timeout_error_codes(self):
-        """Timeout errors should have operation-specific codes."""
-        nav_error = BrowserTimeoutError("Timeout", operation="navigate")
-        wait_error = BrowserTimeoutError("Timeout", operation="wait")
-        load_error = BrowserTimeoutError("Timeout", operation="load")
-
-        assert nav_error.error_code == "BROWSER_TIMEOUT_NAVIGATE"
-        assert wait_error.error_code == "BROWSER_TIMEOUT_WAIT"
-        assert load_error.error_code == "BROWSER_TIMEOUT_LOAD"
-
     def test_navigation_error_codes(self):
         """Navigation errors should have status-specific codes."""
         error_404 = BrowserNavigationError("Not found", status_code=404)
@@ -309,10 +231,8 @@ class TestErrorCodeClassification:
 
     def test_generic_error_code_fallback(self):
         """Errors without specific info should have generic codes."""
-        timeout_generic = BrowserTimeoutError("Timeout")
         nav_generic = BrowserNavigationError("Failed")
 
-        assert timeout_generic.error_code == "BROWSER_TIMEOUT"
         assert nav_generic.error_code == "BROWSER_NAV_FAILED"
 
 

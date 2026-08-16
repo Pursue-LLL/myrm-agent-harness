@@ -72,7 +72,9 @@ async def execute_with_retry(
     if tool_execution_total is not None:
         tool_execution_total.labels(tool_name=tool_name).inc()
 
-    timeout = get_tool_timeout(tool_name)
+    tool_call = getattr(request, "tool_call", None)
+    tool_args = tool_call.get("args") if isinstance(tool_call, dict) else None
+    timeout = get_tool_timeout(tool_name, tool_args)
     error_history: list[dict[str, Any]] = []
     start_time = time.time()
 

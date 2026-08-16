@@ -14,7 +14,6 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | exceptions.py | Core | Exception hierarchy definition. RefNotFoundError provides structured diagnostic info, including URL change suggestions; message + format_for_llm output are redacted at construction to keep query-string credentials out of LLM tool errors. | ✅ |
 | observability.py | Core | Observability module for the browser toolkit. Provides video recording, progress notifications, and checkpoint monitoring | ✅ |
 | recording_manager.py | Core | Unified browser recording manager. Provides lifecycle management and file management | ✅ |
-| retry_policy.py | Core | Retry policy framework. Zero external dependencies. Async-first design. | ✅ |
 | url_routing.py | Core | URL routing for hybrid private/public network navigation. Detects private URLs for Extension Bridge fallback in sandbox mode. | ✅ |
 
 | Submodule | Description |
@@ -27,7 +26,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | domain_filter/ | Deep domain filtering, resource blocking, and ad/tracker domain blocking. Four-layer defense: CSP + route interception + JS hardening + CDP audit. `__init__.py` exposes DomainAllowlist/install_domain_filter; `ad_domains.py` lazily loads the bundled `assets/ad_domains.txt` (~3500 domains). |
 | domain_skills/ | Domain executable skills — manifest-based Python tool registry for repeated-domain acceleration. Complements SiteExperienceStore (prompt-layer) with an executable layer. Includes builtin skill packs (e.g. x-com). |
 | enhancers/ | DOM enhancers. Provides progressive enhancement (React/Vue/CDP) and SPA stabilization scripts. |
-| navigation/ | Page navigation utility (Navigator) + Playwright document SSRF guard. `ssrf_guard.py` registers document-level route interception during goto with redirect-chain validation, aligned with OpenClaw policy. |
+| navigation/ | Page navigation utility (Navigator) + Playwright document SSRF guard. `ssrf_guard.py` registers document-level route interception during goto with redirect-chain validation, aligned with OpenClaw policy. Non-timeout navigation failures are wrapped into BrowserNavigationError (intelligent diagnostics); SSRF blocks propagate unchanged. |
 | pool/ | Global browser resource pool. Manages Browser/Context/Page three-layer resources, implementing zero- |
 | session/ | Browser session components. |
 | session_vault/ | AES-256-GCM encrypted session storage. `__init__.py` exposes SessionVault + entry/summary/metrics types + exception hierarchy; `backends/` holds pluggable storage backends (file/cloud protocol). |

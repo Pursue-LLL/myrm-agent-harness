@@ -26,7 +26,7 @@ Global browser resource pool. Manages Browser/Context/Page three-layer resources
 smart load scheduling, type-based isolation (CRAWL/AGENT/STEALTH), proxy rotation and sticky sessions.
 """
 
-from ..exceptions import BrowserNetworkError, BrowserPoolError, BrowserTimeoutError
+from ..exceptions import BrowserPoolError
 from .browser_launcher import BrowserInstance, BrowserLauncher, BrowserLaunchError
 from .browser_pool import (
     ContextType,
@@ -66,10 +66,8 @@ __all__ = [
     "BrowserLaunchError",
     "BrowserLauncher",
     "BrowserMode",
-    "BrowserNetworkError",
     "BrowserPoolConfig",
     "BrowserPoolError",
-    "BrowserTimeoutError",
     "CircuitBreaker",
     "CircuitBreakerCallback",
     "CircuitBreakerConfig",

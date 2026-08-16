@@ -58,6 +58,9 @@ or any task where "the best" is subjective.
 
 ## Result retrieval
 Async results (wait=false) are NOT auto-injected. Use subagent_control_tool action=list.
+Never call action=wait — subagent_control_tool supports ONLY list/cancel/steer; there is no
+blocking wait. Poll with action=list until the child's status flips from running to completed
+(a completed entry includes its result summary).
 Results cached 60s to avoid redundant runs."""
 
 # ---------------------------------------------------------------------------

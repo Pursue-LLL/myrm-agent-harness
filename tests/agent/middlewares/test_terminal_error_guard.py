@@ -90,12 +90,6 @@ class TestClassifyTerminalError:
         )
         assert classify_terminal_error(err) is None
 
-    def test_browser_timeout_error_not_classified(self) -> None:
-        from myrm_agent_harness.toolkits.browser.exceptions import BrowserTimeoutError
-
-        err = BrowserTimeoutError("Timeout waiting for page load", operation="navigate")
-        assert classify_terminal_error(err) is None
-
     def test_generic_exception_not_classified(self) -> None:
         assert classify_terminal_error(ValueError("boom")) is None
 

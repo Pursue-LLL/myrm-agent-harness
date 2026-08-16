@@ -94,9 +94,11 @@ class BashInput(BaseModel):
     timeout: int | None = Field(
         default=None,
         description=(
-            "Optional timeout in seconds for foreground execution. Increase "
-            "for long-running tasks like 'npm install' or 'docker build' "
-            "(max 600). Ignored when run_in_background=True — background "
+            "Timeout in seconds for foreground execution, up to 600. "
+            "IMPORTANT: the default is 120s. Long-running commands (e.g. "
+            "'npm install', 'docker build', 'sleep 300') will be interrupted "
+            "if you omit this — always pass an explicit value larger than your "
+            "expected runtime. Ignored when run_in_background=True — background "
             "jobs run until they exit on their own or bash_process_tool(action='kill') "
             "is invoked."
         ),

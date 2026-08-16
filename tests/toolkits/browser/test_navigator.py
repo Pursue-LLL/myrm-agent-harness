@@ -422,7 +422,9 @@ class TestNavigatorTimeoutRescue:
 
     @pytest.mark.asyncio
     async def test_non_timeout_error_still_raises(self, monkeypatch):
-        """Non-timeout errors are not swallowed by the rescue path."""
+        """Non-timeout errors propagate (wrapped with original cause, not swallowed)."""
+        from myrm_agent_harness.toolkits.browser.exceptions import BrowserNavigationError
+
         mock_page = create_mock_page("https://example.com", 200, "Test Page")
         navigator = Navigator(mock_page)
 
@@ -434,5 +436,48 @@ class TestNavigatorTimeoutRescue:
             raise_runtime,
         )
 
-        with pytest.raises(RuntimeError, match="unexpected failure"):
+        with pytest.raises(BrowserNavigationError) as exc_info:
             await navigator.goto("https://example.com")
+
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
+        assert "unexpected failure" in str(exc_info.value)
+
+
+class TestNavigatorPostNavigationSoftFailures:
+    """Wait-timeout soft rescue and consent-dismiss degradation."""
+
+    @pytest.mark.asyncio
+    async def test_wait_timeout_soft_rescue(self, monkeypatch):
+        """A page that navigated but never becomes ready still returns content (no raise)."""
+        mock_page = create_mock_page("https://example.com", 200, "Partial Page")
+        navigator = Navigator(mock_page)
+
+        async def wait_timeout(*args, **kwargs):
+            raise TimeoutError("wait timed out")
+
+        monkeypatch.setattr(
+            "myrm_agent_harness.toolkits.browser.navigation.wait_for_page_ready",
+            wait_timeout,
+        )
+
+        title, final_url, status = await navigator.goto("https://example.com")
+
+        assert title == "Partial Page"
+        assert status == 200
+
+    @pytest.mark.asyncio
+    async def test_consent_dismiss_failure_is_non_fatal(self):
+        """Consent-dismiss failure must not fail an already-successful navigation."""
+        mock_page = create_mock_page("https://example.com", 200, "Test Page")
+        navigator = Navigator(mock_page)
+
+        class FailingDismisser:
+            async def dismiss(self, page) -> None:  # noqa: ANN001
+                raise RuntimeError("dismiss failed")
+
+        navigator._consent_dismisser = FailingDismisser()
+
+        title, final_url, status = await navigator.goto("https://example.com")
+
+        assert title == "Test Page"
+        assert status == 200

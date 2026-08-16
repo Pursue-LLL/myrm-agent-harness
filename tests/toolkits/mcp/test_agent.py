@@ -12,6 +12,7 @@ from mcp.types import (
 )
 
 from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
+from myrm_agent_harness.toolkits.mcp.client import MCPClientManager
 from myrm_agent_harness.toolkits.mcp.result_processing import (
     coerce_content_block,
     emit_mcp_app_event,
@@ -62,7 +63,8 @@ def _make_tool(
     tool = StructuredTool(
         name=name,
         description=description,
-        args_schema=schema or {"type": "object", "properties": {"a": {"type": "string"}}},
+        args_schema=schema
+        or {"type": "object", "properties": {"a": {"type": "string"}}},
         coroutine=coroutine or AsyncMock(return_value="ok"),
     )
     if metadata:
@@ -70,7 +72,9 @@ def _make_tool(
     return tool
 
 
-def _patch_enumerate(agent: MCPAgent, tools_by_server: dict[str, list[StructuredTool] | Exception]):
+def _patch_enumerate(
+    agent: MCPAgent, tools_by_server: dict[str, list[StructuredTool] | Exception]
+):
     """Patch _enumerate_server_tools to return pre-built tools by server name."""
 
     async def _fake_enumerate(server_config):
@@ -121,6 +125,134 @@ async def test_get_tools_empty_config():
 
 
 # ---------------------------------------------------------------------------
+# get_tools() when prepare_server_configs drops every server
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_get_tools_all_configs_prepared_away():
+    agent = MCPAgent()
+    with (
+        patch.object(
+            MCPClientManager,
+            "prepare_server_configs",
+            new=AsyncMock(return_value={}),
+        ),
+    ):
+        tools = await agent.get_tools([DummyConfig()])
+    assert tools == []
+
+
+# ---------------------------------------------------------------------------
+# _build_enumeration_target: transport branch selection
+# ---------------------------------------------------------------------------
+class TestBuildEnumerationTarget:
+    def test_stdio_returns_stdio_client(self) -> None:
+        config = DummyConfig()
+        config.type = "stdio"
+        with (
+            patch.object(
+                MCPClientManager,
+                "build_client_target",
+                return_value=object(),  # non-str → stdio parameters
+            ),
+            patch(
+                "mcp.client.stdio.stdio_client", return_value="stdio-cm"
+            ) as mock_stdio,
+        ):
+            result = MCPAgent._build_enumeration_target(config)
+
+        assert result == "stdio-cm"
+        mock_stdio.assert_called_once()
+
+    def test_sse_uses_sse_client_with_headers(self) -> None:
+        config = DummyConfig()
+        config.type = "sse"
+        headers = {"Authorization": "Bearer x"}
+        config.headers = headers
+        with (
+            patch.object(
+                MCPClientManager,
+                "build_client_target",
+                return_value="http://mcp.example",
+            ),
+            patch.object(MCPClientManager, "get_headers", return_value=headers),
+            patch("mcp.client.sse.sse_client", return_value="sse-cm") as mock_sse,
+        ):
+            result = MCPAgent._build_enumeration_target(config)
+
+        assert result == "sse-cm"
+        mock_sse.assert_called_once_with("http://mcp.example", headers=headers)
+
+    def test_streamable_http_with_headers_uses_injected_client(self) -> None:
+        config = DummyConfig()
+        config.type = "streamable_http"
+        headers = {"Authorization": "Bearer x"}
+        config.headers = headers
+        pending: list[object] = []
+        with (
+            patch.object(
+                MCPClientManager,
+                "build_client_target",
+                return_value="http://mcp.example",
+            ),
+            patch.object(MCPClientManager, "get_headers", return_value=headers),
+            patch.object(
+                MCPClientManager,
+                "build_streamable_http_client",
+                return_value="http-client",
+            ),
+            patch(
+                "mcp.client.streamable_http.streamable_http_client",
+                return_value="sh-cm",
+            ) as mock_sh,
+        ):
+            result = MCPAgent._build_enumeration_target(config, http_clients=pending)
+
+        assert result == "sh-cm"
+        assert pending == ["http-client"]
+        mock_sh.assert_called_once_with("http://mcp.example", http_client="http-client")
+
+    def test_streamable_http_without_headers_uses_plain_client(self) -> None:
+        config = DummyConfig()
+        config.type = "streamable_http"
+        config.headers = None
+        with (
+            patch.object(
+                MCPClientManager,
+                "build_client_target",
+                return_value="http://mcp.example",
+            ),
+            patch.object(MCPClientManager, "get_headers", return_value=None),
+            patch(
+                "mcp.client.streamable_http.streamable_http_client",
+                return_value="sh-cm",
+            ) as mock_sh,
+        ):
+            result = MCPAgent._build_enumeration_target(config)
+
+        assert result == "sh-cm"
+        mock_sh.assert_called_once_with("http://mcp.example")
+
+
+# ---------------------------------------------------------------------------
+# _close_http_clients swallows close errors
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_close_http_clients_swallows_errors():
+    agent = MCPAgent()
+
+    ok_client = MagicMock()
+    ok_client.aclose = AsyncMock()
+
+    bad_client = MagicMock()
+    bad_client.aclose = AsyncMock(side_effect=RuntimeError("close failed"))
+
+    await agent._close_http_clients([ok_client, bad_client])
+
+    ok_client.aclose.assert_awaited_once()
+    bad_client.aclose.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
 # Connection timeout handling via _enumerate_server_tools
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
@@ -156,6 +288,61 @@ async def test_enumerate_server_tools_connection_timeout():
 
     assert err is not None
     assert "connection timed out" in err
+    assert tools == []
+
+
+# ---------------------------------------------------------------------------
+# SDK cancelled-error branch in _enumerate_server_tools
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_enumerate_server_tools_sdk_cancelled():
+    agent = MCPAgent()
+    config = DummyConfig()
+
+    async def _explode(*_a, **_k):
+        raise asyncio.CancelledError()
+
+    mock_session = MagicMock()
+    mock_session.initialize = AsyncMock()
+    mock_session.list_tools = _explode
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    fake_target = MagicMock()
+    fake_target.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
+    fake_target.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch.object(MCPAgent, "_build_enumeration_target", return_value=fake_target),
+        patch("myrm_agent_harness.toolkits.mcp.agent._TOOL_FETCH_RETRY_BACKOFF", 0),
+        patch("mcp.ClientSession", MagicMock(return_value=mock_session)),
+    ):
+        server_name, tools, err = await agent._enumerate_server_tools(config)
+
+    assert err == "cancelled by SDK"
+    assert tools == []
+    assert server_name == "test_server"
+
+
+# ---------------------------------------------------------------------------
+# Generic transport exception branch in _enumerate_server_tools (retry exhaust)
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_enumerate_server_tools_transport_exception_exhausts_retries():
+    agent = MCPAgent()
+    config = DummyConfig()
+
+    fake_target = MagicMock()
+    fake_target.__aenter__ = AsyncMock(side_effect=ConnectionError("pipe closed"))
+    fake_target.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch.object(MCPAgent, "_build_enumeration_target", return_value=fake_target),
+        patch("myrm_agent_harness.toolkits.mcp.agent._TOOL_FETCH_RETRY_BACKOFF", 0),
+    ):
+        _server_name, tools, err = await agent._enumerate_server_tools(config)
+
+    assert "pipe closed" in err
     assert tools == []
 
 
@@ -292,7 +479,9 @@ async def test_get_tools_parallel_multi_server():
     cfg2 = DummyConfig()
     cfg2.name = "server2"
 
-    big_tool = _make_tool(name="tool_multi", description="A" * 3000, schema={"type": "object"})
+    big_tool = _make_tool(
+        name="tool_multi", description="A" * 3000, schema={"type": "object"}
+    )
     with _patch_enumerate(
         agent,
         {
@@ -307,10 +496,11 @@ async def test_get_tools_parallel_multi_server():
 
 
 # ---------------------------------------------------------------------------
-# Multi-server: task exception propagation
+# Multi-server: per-server fault isolation
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_get_tools_parallel_task_exception():
+async def test_get_tools_parallel_all_servers_explode():
+    """All servers failing must still raise so the caller sees total failure."""
     agent = MCPAgent()
     cfg1 = DummyConfig()
     cfg1.name = "s1"
@@ -322,27 +512,33 @@ async def test_get_tools_parallel_task_exception():
 
     with (
         patch.object(agent, "_enumerate_server_tools", side_effect=_explode),
-        pytest.raises(RuntimeError, match="boom"),
+        pytest.raises(RuntimeError, match="Failed to get tools"),
     ):
         await agent.get_tools([cfg1, cfg2])
 
 
 # ---------------------------------------------------------------------------
-# Multi-server: error in one server propagates
+# Multi-server: error in one server does not block healthy ones
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_get_tools_parallel_server_error():
+async def test_get_tools_parallel_server_error_isolated():
     agent = MCPAgent()
     cfg_ok = DummyConfig()
     cfg_ok.name = "ok_server"
     cfg_err = DummyConfig()
     cfg_err.name = "err_server"
 
-    with (
-        _patch_enumerate(agent, {"ok_server": [_make_tool()], "err_server": []}),
-        pytest.raises(RuntimeError, match="Failed to get tools"),
+    with _patch_enumerate(
+        agent,
+        {
+            "ok_server": [_make_tool(name="ok_tool")],
+            "err_server": RuntimeError("Failed to get tools from err_server"),
+        },
     ):
-        await agent.get_tools([cfg_ok, cfg_err])
+        tools = await agent.get_tools([cfg_ok, cfg_err])
+
+    assert len(tools) == 1
+    assert tools[0].name == "mcp__ok_server__ok_tool"
 
 
 # ---------------------------------------------------------------------------
@@ -357,7 +553,10 @@ async def test_tool_server_mapping():
         tools = await agent.get_tools([config])
 
     assert agent.get_tool_server_name(tools[0]) == "test_server"
-    assert agent.get_server_name_by_tool_name("mcp__test_server__test_tool") == "test_server"
+    assert (
+        agent.get_server_name_by_tool_name("mcp__test_server__test_tool")
+        == "test_server"
+    )
     assert agent.get_server_name_by_tool_name("nonexistent") == "unknown_server"
 
 
@@ -739,7 +938,9 @@ def test_register_tool_annotations():
         }
     )
 
-    with patch("myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata") as mock_reg:
+    with patch(
+        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
+    ) as mock_reg:
         register_tool_annotations([tool], "my-server")
 
     mock_reg.assert_called_once()
@@ -763,7 +964,9 @@ def test_register_tool_annotations_host_serial_forces_non_concurrent():
         }
     )
 
-    with patch("myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata") as mock_reg:
+    with patch(
+        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
+    ) as mock_reg:
         register_tool_annotations([tool], "my-server", host_serial=True)
 
     safety = mock_reg.call_args[0][2]
@@ -777,7 +980,9 @@ def test_register_tool_annotations_host_serial_forces_non_concurrent():
 def test_register_tool_annotations_name_normalization():
     tool = _make_tool(metadata={})
 
-    with patch("myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata") as mock_reg:
+    with patch(
+        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
+    ) as mock_reg:
         register_tool_annotations([tool], "mcp_already_skill")
 
     assert mock_reg.call_args[0][0] == "mcp_already_skill"
@@ -786,7 +991,9 @@ def test_register_tool_annotations_name_normalization():
 def test_register_tool_annotations_plain_name():
     tool = _make_tool(metadata={})
 
-    with patch("myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata") as mock_reg:
+    with patch(
+        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
+    ) as mock_reg:
         register_tool_annotations([tool], "github")
 
     assert mock_reg.call_args[0][0] == "mcp_github_skill"
@@ -853,8 +1060,8 @@ async def test_sanitize_tools_flattened_dot_keys():
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_get_tools_parallel_gather_exception_object():
-    """When asyncio.gather(return_exceptions=True) returns an Exception
-    object (not a tuple), it must be raised."""
+    """A failing server yields an Exception object from gather; successful
+    servers still contribute their tools (per-server fault isolation)."""
     agent = MCPAgent()
     cfg1 = DummyConfig()
     cfg1.name = "s1"
@@ -867,14 +1074,14 @@ async def test_get_tools_parallel_gather_exception_object():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            return ("s1", [_make_tool()], None)
+            return ("s1", [_make_tool(name="ok_tool")], None)
         raise RuntimeError("gather_boom")
 
-    with (
-        patch.object(agent, "_enumerate_server_tools", side_effect=_explode_on_second),
-        pytest.raises(RuntimeError, match="gather_boom"),
-    ):
-        await agent.get_tools([cfg1, cfg2])
+    with patch.object(agent, "_enumerate_server_tools", side_effect=_explode_on_second):
+        tools = await agent.get_tools([cfg1, cfg2])
+
+    assert len(tools) == 1
+    assert tools[0].name == "mcp__s1__ok_tool"
 
 
 # ---------------------------------------------------------------------------
@@ -1573,13 +1780,17 @@ class TestWrapToolsAuthError:
         request = MagicMock()
         response = MagicMock()
         response.status_code = 401
-        err = httpx2.HTTPStatusError("401 Unauthorized", request=request, response=response)
+        err = httpx2.HTTPStatusError(
+            "401 Unauthorized", request=request, response=response
+        )
 
         tool = _make_tool(
             name="mcp__auth_server__read",
             coroutine=AsyncMock(side_effect=err),
         )
-        with patch("myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool") as mock_emit:
+        with patch(
+            "myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool"
+        ) as mock_emit:
             wrap_tools_with_timeout([tool], timeout=5.0)
             result = await tool.ainvoke({"a": "1"})
 
@@ -1594,7 +1805,9 @@ class TestWrapToolsAuthError:
         request = MagicMock()
         response = MagicMock()
         response.status_code = 500
-        err = httpx2.HTTPStatusError("500 Internal Server Error", request=request, response=response)
+        err = httpx2.HTTPStatusError(
+            "500 Internal Server Error", request=request, response=response
+        )
 
         tool = _make_tool(name="mcp__srv__boom", coroutine=AsyncMock(side_effect=err))
         wrap_tools_with_timeout([tool], timeout=5.0)
@@ -1608,10 +1821,14 @@ class TestWrapToolsAuthError:
         request = MagicMock()
         response = MagicMock()
         response.status_code = 401
-        err = httpx2.HTTPStatusError("401 Unauthorized", request=request, response=response)
+        err = httpx2.HTTPStatusError(
+            "401 Unauthorized", request=request, response=response
+        )
 
         tool = _make_tool(name="plain_tool", coroutine=AsyncMock(side_effect=err))
-        with patch("myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool"):
+        with patch(
+            "myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool"
+        ):
             wrap_tools_with_timeout([tool], timeout=5.0)
             result = await tool.ainvoke({"a": "1"})
 

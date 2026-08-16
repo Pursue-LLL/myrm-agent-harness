@@ -122,29 +122,28 @@ def _build_ax_snapshot_script(*, target_app: str | None = None) -> str:
     always_emit_roles = _applescript_string_list(_SNAPSHOT_ALWAYS_EMIT_ROLES)
     app_selector = _build_app_selector(target_app)
     return f"""
-on serializeElement(idx, elemRole, elemName, elemValue, posX, posY, sizeW, sizeH)
-    set safeName to my escapeText(elemName)
-    set safeValue to my escapeText(elemValue)
-    return idx & "|||" & elemRole & "|||" & safeName & "|||" & safeValue & "|||" & posX & "|||" & posY & "|||" & sizeW & "|||" & sizeH
-end serializeElement
-
 on escapeText(t)
     if t is missing value then return ""
     set s to t as string
-    set bs to ASCII character 92
-    set s to my replaceText(s, bs, bs & bs)
-    set s to my replaceText(s, "|||", "/")
-    return s
+    set soh to ASCII character 1
+    set out to ""
+    set n to count of s
+    repeat with i from 1 to n
+        set c to character i of s
+        if c is ASCII character 10 then
+            set c to soh
+        else if c is ASCII character 13 then
+            set c to soh
+        else if c is ASCII character 92 then
+            set out to out & c & c
+        else if c is "|" then
+            set out to out & "/"
+        else
+            set out to out & c
+        end if
+    end repeat
+    return out
 end escapeText
-
-on replaceText(sourceText, oldText, newText)
-    set AppleScript's text item delimiters to oldText
-    set parts to text items of sourceText
-    set AppleScript's text item delimiters to newText
-    set resultText to parts as string
-    set AppleScript's text item delimiters to ""
-    return resultText
-end replaceText
 
 tell application "System Events"
     {app_selector}
@@ -191,9 +190,11 @@ tell application "System Events"
                     if elemName is missing value then set elemName to ""
                     if elemValue is missing value then set elemValue to ""
                     if elemName is not "" or elemValue is not "" or elemRole is in {{{always_emit_roles}}} then
+                        set safeName to my escapeText(elemName)
+                        set safeValue to my escapeText(elemValue)
                         set elemPos to position of elem
                         set elemSize to size of elem
-                        set end of outputLines to my serializeElement(i, elemRole, elemName, elemValue, item 1 of elemPos, item 2 of elemPos, item 1 of elemSize, item 2 of elemSize)
+                        set end of outputLines to ((i as text) & "|||" & elemRole & "|||" & safeName & "|||" & safeValue & "|||" & (item 1 of elemPos as text) & "|||" & (item 2 of elemPos as text) & "|||" & (item 1 of elemSize as text) & "|||" & (item 2 of elemSize as text))
                     end if
                 end if
             end try
@@ -287,9 +288,7 @@ def _parse_ax_output(
     # dedicated marker line (the `entire contents` call is guarded by try/on
     # error inside osascript, so it would otherwise be misreported as an empty
     # tree instead of a missing permission).
-    if any(
-        line.startswith("AX_PERMISSION_ERROR|||") for line in lines
-    ):
+    if any(line.startswith("AX_PERMISSION_ERROR|||") for line in lines):
         raise AXPermissionRequiredError("macOS")
 
     meta_line = lines[0].split("|||")
@@ -303,6 +302,10 @@ def _parse_ax_output(
     refs: dict[str, ElementRef] = {}
     ref_index = 0
     truncated = len(lines) - 1 >= _MAX_ELEMENTS
+
+    def _restore_text(raw: str) -> str:
+        return raw.replace("\x01", "\n")
+
     for line in lines[1:]:
         parts = line.split("|||")
         if len(parts) < 8:
@@ -325,11 +328,11 @@ def _parse_ax_output(
         refs[ref_id] = ElementRef(
             ref_id=ref_id,
             role=role,
-            name=name or value,
+            name=_restore_text(name) or _restore_text(value),
             bbox=bbox,
             backend_key=backend_index,
             actions=actions,
-            value=value,
+            value=_restore_text(value),
         )
         ref_index += 1
 

@@ -15,7 +15,6 @@ Reuses the existing ``ManagedBrowser`` (Patchright) infrastructure.
 - session_vault::SessionEntry (POS: immutable session record)
 - session_vault::SessionSummary (POS: lightweight session metadata without sensitive data)
 - exceptions::BrowserError (POS: browser toolkit root exception)
-- retry_policy::RetryPolicy (POS: retry policy framework)
 - observability::BrowserObservability (POS: browser observability manager)
 - observability::RecordingConfig (POS: recording configuration)
 
@@ -28,8 +27,7 @@ Reuses the existing ``ManagedBrowser`` (Patchright) infrastructure.
 - SessionEntry: immutable session record (re-export)
 - SessionSummary: lightweight session metadata without sensitive data (re-export)
 - EmulationConfig: type-safe browser environment emulation config (re-export)
-- BrowserError + 13-subclass exception hierarchy (root + 8 subclasses re-exported; ClickTargetUnreachableError + AriaError family stay internal)
-- RetryPolicy + 3 subclasses: retry policy classes (re-export)
+- BrowserError + 11-subclass exception hierarchy (root + 6 subclasses re-exported; ClickTargetUnreachableError + AriaError family stay internal)
 - BrowserObservability: browser observability manager (re-export)
 - RecordingConfig: recording configuration (re-export)
 - ActionCaptureEngine: browser action capture engine (re-export)
@@ -56,20 +54,12 @@ from .exceptions import (
     BrowserError,
     BrowserLaunchError,
     BrowserNavigationError,
-    BrowserNetworkError,
     BrowserPoolError,
     BrowserSessionError,
-    BrowserTimeoutError,
     BrowserToolError,
     RefNotFoundError,
 )
 from .pool import EmulationConfig
-from .retry_policy import (
-    LaunchRetryPolicy,
-    NavigationRetryPolicy,
-    NetworkRetryPolicy,
-    RetryPolicy,
-)
 from .session import BrowserSession
 
 if TYPE_CHECKING:
@@ -127,12 +117,10 @@ __all__ = [
     "BrowserError",
     "BrowserLaunchError",
     "BrowserNavigationError",
-    "BrowserNetworkError",
     "BrowserObservability",
     "BrowserPoolError",
     "BrowserSession",
     "BrowserSessionError",
-    "BrowserTimeoutError",
     "BrowserToolError",
     "CaptureCallback",
     "CaptureSession",
@@ -149,14 +137,10 @@ __all__ = [
     "FileVaultBackend",
     "IncrementalSessionCheckpointer",
     "InvalidDomainError",
-    "LaunchRetryPolicy",
-    "NavigationRetryPolicy",
-    "NetworkRetryPolicy",
     "ParallelRecoveryOrchestrator",
     "RecordingConfig",
     "RecoveryContext",
     "RefNotFoundError",
-    "RetryPolicy",
     "SessionEntry",
     "SessionSummary",
     "SessionVault",

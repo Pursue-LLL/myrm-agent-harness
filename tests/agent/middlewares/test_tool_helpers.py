@@ -74,6 +74,28 @@ class TestGetToolTimeout:
     def test_default_tool(self) -> None:
         assert get_tool_timeout("custom_tool") == 60.0
 
+    def test_bash_explicit_timeout_overrides(self) -> None:
+        assert get_tool_timeout("bash_code_execute_tool", {"timeout": 300}) == 300.0
+
+    def test_bash_none_args_keeps_default(self) -> None:
+        assert get_tool_timeout("bash_execute", {"reason": "run"}) == 120.0
+        assert get_tool_timeout("bash_code_execute_tool", None) == 120.0
+
+    def test_bash_explicit_below_default_still_honored(self) -> None:
+        assert get_tool_timeout("bash_execute", {"timeout": 30}) == 30.0
+
+    def test_bash_explicit_clamped_to_600(self) -> None:
+        assert get_tool_timeout("bash_execute", {"timeout": 900}) == 600.0
+
+    def test_browser_explicit_timeout(self) -> None:
+        assert get_tool_timeout("browser_navigate_tool", {"timeout": 200}) == 200.0
+
+    def test_non_bash_explicit_ignored(self) -> None:
+        assert get_tool_timeout("file_read_tool", {"timeout": 500}) == 30.0
+
+    def test_bool_timeout_rejected(self) -> None:
+        assert get_tool_timeout("bash_execute", {"timeout": True}) == 120.0
+
 
 class TestIsNonRetryable:
     def test_tool_error(self) -> None:

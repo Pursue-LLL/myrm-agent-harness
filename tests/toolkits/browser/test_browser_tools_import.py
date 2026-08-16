@@ -25,10 +25,8 @@ def test_browser_direct_imports() -> None:
         BrowserSession,
         DomainAllowlist,
         EmulationConfig,
-        RetryPolicy,
     )
 
     assert BrowserSession is not None
     assert DomainAllowlist is not None
     assert EmulationConfig is not None
-    assert RetryPolicy is not None

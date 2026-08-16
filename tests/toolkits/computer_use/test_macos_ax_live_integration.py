@@ -67,7 +67,7 @@ def test_live_inspect_foreground_reports_app() -> None:
         pytest.skip("macOS Accessibility permission not granted")
     assert result["app_name"], "frontmost app_name must be non-empty"
     assert result["interactive_estimate"] >= 0
-    assert "desktop_vision_tool" in result["recommendation"]
+    assert "desktop_snapshot_tool" in result["recommendation"]
 
 
 def test_live_target_scope_matches_current_app() -> None:

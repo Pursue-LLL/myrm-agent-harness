@@ -83,8 +83,8 @@ Extension Bridge 与 SessionVault 覆盖竞品（orca/holaboss）cookie 导入�
 |------|------|
 | SOLID 原则 | ✅ 100% 遵循 |
 | 最大文件行数 | 716 行（GlobalBrowserPool） |
-| 精细化错误处理 | ✅ 13 种异常类型 |
-| 智能重试 | ✅ 3 种重试策略 |
+| 精细化错误处理 | ✅ 11 种异常类型 |
+| 智能重试 | ✅ 会话内置导航/代理/CAPTCHA 重试 |
 | 生产就绪 | ✅ |
 
 ---
@@ -814,9 +814,7 @@ BrowserError (root)
 ├── BrowserPoolError
 │   └── BrowserLaunchError
 ├── BrowserSessionError
-│   ├── BrowserNavigationError
-│   ├── BrowserTimeoutError
-│   └── BrowserNetworkError
+│   └── BrowserNavigationError
 ├── BrowserToolError
 │   ├── ClickTargetUnreachableError
 │   └── RefNotFoundError
@@ -828,9 +826,9 @@ BrowserError (root)
 
 ### 重试策略
 
-- `NavigationRetryPolicy`：3次，指数退避 1s/2s/4s
-- `LaunchRetryPolicy`：2次，固定 2s
-- `NetworkRetryPolicy`：5次，指数退避 1s/2s/4s/8s/16s
+浏览器导航重试由 `BrowserSession.navigate()` 内置完成：代理隔离重试、CAPTCHA 检测与引擎升级、blocked response 退避重试（见本节「CAPTCHA 检测与协调」及 navigation/ 章节）。middleware 层另有 `execute_with_retry` + circuit breaker 兜底整体环境故障。
+
+`Navigator._do_navigate` 内部错误分类：超时（builtin/patchright）走 `window.stop()` rescue 返回现有内容；非超时导航失败包装为 `BrowserNavigationError`（携带 url/error_text，智能诊断 + `format_for_llm`）；SSRF 安全拦截（`BrowserNavigationBlockedError`）原样透传不包装。页面就绪等待超时 soft-rescue（继续使用当前内容），consent 自动消除失败仅告警不阻断已成功的导航。
 
 ---
 
@@ -1174,7 +1172,6 @@ browser/
 ├── domain_filter/ — 四层域名过滤（CSP + HTTP + 主线程硬化 + CDP）；支持 allowlist + 用户 blocklist
 ├── session_vault/ — 加密 Session 存储（O(1) LRU + 内存限制 + 并发锁 + Metrics + 批量 API）
 ├── exceptions.py (约 150 行) — 异常类型
-└── retry_policy.py (约 200 行) — 重试策略
 ```
 
 **总计**：约 4,100 行核心代码，SOLID 原则，单一职责，高度模块化。

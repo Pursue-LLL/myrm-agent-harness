@@ -166,7 +166,28 @@ Focus on:
 - Do NOT invent patterns not supported by the evidence.
 
 ## Output
-A structured JSON with `patterns` (list of DiscoveredPattern) and `meta_observation` (one-sentence overall trajectory).
+Return a JSON object only (no markdown fences) with these exact fields:
+
+```json
+{
+  "patterns": [
+    {
+      "title": "short pattern name under 60 characters",
+      "description": "what this pattern means for the user",
+      "evidence_summary": "key memories or events supporting this pattern",
+      "durability": "emerging | established | declining",
+      "confidence": 0.7,
+      "actionable_suggestion": "optional proactive suggestion (empty string if none)"
+    }
+  ],
+  "meta_observation": "one-sentence overall trajectory"
+}
+```
+
+Important:
+- Use the field names above exactly — `title` (not category), `evidence_summary` (not evidence), `actionable_suggestion` (not suggestion).
+- Maximum 5 patterns per analysis.
+- Do NOT invent patterns not supported by the evidence.
 """
 
 

@@ -11,6 +11,7 @@
 - .wait::wait_for_page_ready, WaitStrategy, WaitMetrics (POS: smart wait strategies)
 - .ssrf_guard::goto_with_ssrf_guard (POS: Playwright document navigation SSRF guard)
 - .session.consent_dismisser::ConsentDismisser (POS: cookie consent auto-dismiss)
+- ..exceptions::BrowserNavigationError (POS: intelligent navigation failure diagnostics)
 
 [OUTPUT]
 - Navigator: page navigation manager (with throttling, smart wait, and consent dismissal)
@@ -38,6 +39,7 @@ from urllib.parse import urlparse
 
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
 
+from ..exceptions import BrowserNavigationError
 from ..wait import WaitMetrics, WaitStrategy, wait_for_page_ready
 
 if TYPE_CHECKING:
@@ -182,6 +184,11 @@ class Navigator:
             )
             return title, final_url, 200
 
+        # Recognize timeouts from both builtins and patchright; string matching is
+        # fragile because timeout text differs across pages and library versions.
+        from ..utils import is_timeout_error
+
+        navigated = False
         try:
             from .ssrf_guard import goto_with_ssrf_guard
 
@@ -191,17 +198,8 @@ class Navigator:
                 timeout_ms=_NAVIGATION_TIMEOUT_MS,
                 allow_private_networks=self._allow_private_networks,
             )
-
-            metrics = await self._wait_for_page_ready()
-            self._log_wait_metrics(metrics)
-
-            if self._consent_dismisser:
-                await self._consent_dismisser.dismiss(self._page)
+            navigated = True
         except Exception as e:
-            # Recognize timeouts from both builtins and patchright; string matching is
-            # fragile because timeout text differs across pages and library versions.
-            from ..utils import is_timeout_error
-
             if is_timeout_error(e):
                 logger.warning(
                     "Navigator: timeout during navigation to %s, attempting rescue via window.stop()",
@@ -228,7 +226,58 @@ class Navigator:
                 # We don't have a response object, but we can still get title and url
                 response = None
             else:
-                raise
+                # SSRF security blocks and navigation scheme rejections carry their own
+                # semantic (ValueError family) and must propagate unchanged — wrapping
+                # them would turn a security interception into a "navigation failure".
+                from .ssrf_guard import BrowserNavigationBlockedError
+
+                if isinstance(e, BrowserNavigationBlockedError):
+                    raise
+
+                # Wrap non-timeout navigation failures into BrowserNavigationError so the
+                # exception hierarchy (intelligent diagnostics + format_for_llm + circuit
+                # breaker classification) can consume them. Original message preserved so
+                # downstream proxy/blocked-response string matching still works.
+                error_text = str(e)
+                logger.warning(
+                    "Navigator: navigation to %s failed: %s",
+                    redact_sensitive_text(url)[:80],
+                    error_text[:200],
+                )
+                raise BrowserNavigationError(
+                    message=f"Navigation failed for {url}: {error_text[:300]}",
+                    url=url,
+                    error_text=error_text[:300],
+                    cause=e,
+                ) from e
+
+        # Post-navigation steps run only after a real page load — timeout-rescue pages
+        # are mid-load and skipping the wait preserves the original rescue semantics.
+        if navigated:
+            try:
+                metrics = await self._wait_for_page_ready()
+            except Exception as wait_e:
+                # A page that navigated but never became "ready" is still usable —
+                # treat wait timeouts as soft failures (rescue) but propagate other
+                # wait errors, which are not navigation failures to wrap.
+                if is_timeout_error(wait_e):
+                    logger.warning(
+                        "Navigator: page ready wait timed out on %s, using current content",
+                        redact_sensitive_text(url)[:80],
+                    )
+                else:
+                    raise
+            else:
+                self._log_wait_metrics(metrics)
+
+            if self._consent_dismisser:
+                try:
+                    await self._consent_dismisser.dismiss(self._page)
+                except Exception:
+                    logger.warning(
+                        "Navigator: consent dismiss failed on %s, continuing",
+                        redact_sensitive_text(url)[:80],
+                    )
 
         title = await self._page.title()
         final_url = self._page.url

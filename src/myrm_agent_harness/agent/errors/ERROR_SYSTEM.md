@@ -113,12 +113,12 @@ content = f"{tool_name} execution failed: {e}"   # fallback
 ```
 BrowserError
 ├── BrowserPoolError（BrowserLaunchError）
-├── BrowserSessionError（BrowserNavigationError, BrowserTimeoutError, BrowserNetworkError）
+├── BrowserSessionError（BrowserNavigationError）
 ├── BrowserToolError（ClickTargetUnreachableError, RefNotFoundError）
 └── AriaError（AriaAcquisitionError, AriaParseError, AriaCrossOriginError）
 ```
 
-- **特点**：`BrowserNavigationError`、`BrowserTimeoutError`、`RefNotFoundError` 拥有智能诊断建议生成（根据 URL 变化类型、错误原因等动态生成）
+- **特点**：`BrowserNavigationError`、`RefNotFoundError` 拥有智能诊断建议生成（根据 URL 变化类型、错误原因等动态生成）
 
 ### 3. WebSearchError（搜索异常树）
 

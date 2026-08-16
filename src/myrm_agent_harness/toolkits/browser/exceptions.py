@@ -8,9 +8,7 @@ Architecture:
     ├── BrowserPoolError
     │   └── BrowserLaunchError
     ├── BrowserSessionError
-    │   ├── BrowserNavigationError
-    │   ├── BrowserTimeoutError
-    │   └── BrowserNetworkError
+    │   └── BrowserNavigationError
     ├── BrowserToolError
     │   ├── ClickTargetUnreachableError
     │   └── RefNotFoundError
@@ -273,108 +271,6 @@ class BrowserNavigationError(BrowserSessionError):
             )
 
         return suggestions
-
-
-class BrowserTimeoutError(BrowserSessionError):
-    """Browser operation timed out (with intelligent diagnostics).
-
-    Raised when operations exceed configured timeout limits, such as
-    page load timeouts, element wait timeouts, or network timeouts.
-
-    Auto-generates recovery suggestions based on timeout type and context.
-    """
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        timeout_seconds: float | None = None,
-        operation: str | None = None,
-        url: str | None = None,
-        context: dict[str, Any] | None = None,
-        cause: Exception | None = None,
-    ) -> None:
-        """Initialize timeout error with intelligent diagnostics.
-
-        Args:
-            message: Error description
-            timeout_seconds: Timeout limit that was exceeded
-            operation: Operation that timed out (navigate, wait, etc.)
-            url: URL being accessed when timeout occurred
-            context: Additional context
-            cause: Underlying exception
-        """
-        diagnostic_info: dict[str, object] = {}
-        if timeout_seconds:
-            diagnostic_info["timeout_seconds"] = timeout_seconds
-        if operation:
-            diagnostic_info["operation"] = operation
-        if url:
-            diagnostic_info["url"] = url
-
-        recovery_suggestions = self._generate_suggestions(operation, timeout_seconds)
-        error_code = f"BROWSER_TIMEOUT_{operation.upper()}" if operation else "BROWSER_TIMEOUT"
-
-        super().__init__(
-            message,
-            context=context,
-            cause=cause,
-            diagnostic_info=diagnostic_info,
-            recovery_suggestions=recovery_suggestions,
-            error_code=error_code,
-        )
-
-    @staticmethod
-    def _generate_suggestions(operation: str | None, timeout_seconds: float | None) -> list[str]:
-        """Generate recovery suggestions based on operation type."""
-        suggestions = []
-
-        if operation == "navigate":
-            suggestions.extend(
-                [
-                    "Increase navigation timeout if the page is known to load slowly",
-                    "Check if the URL is accessible (try browser_navigate with a simpler page first)",
-                    "Verify network connectivity and DNS resolution",
-                    "Check if the page requires authentication or has geo-restrictions",
-                ]
-            )
-        elif operation == "wait":
-            suggestions.extend(
-                [
-                    "The element may not exist on the page - call browser_snapshot to verify",
-                    "The element may be dynamically loaded - try waiting longer or use a different selector",
-                    "Check if the page structure has changed since last snapshot",
-                ]
-            )
-        elif operation == "load":
-            suggestions.extend(
-                [
-                    "Page has heavy resources or slow backend - increase timeout",
-                    "Try navigating to a lighter page first to verify browser connectivity",
-                    "Check browser console for JavaScript errors that may block page load",
-                ]
-            )
-        else:
-            suggestions.extend(
-                [
-                    "Increase timeout if the operation is expected to take longer",
-                    "Verify the page is in a stable state before retrying",
-                    "Check if the operation is blocked by page JavaScript or security policies",
-                ]
-            )
-
-        if timeout_seconds and timeout_seconds < 10:
-            suggestions.append(f"Current timeout ({timeout_seconds}s) is very short - consider increasing to 30s+")
-
-        return suggestions
-
-
-class BrowserNetworkError(BrowserSessionError):
-    """Network-related errors during browser operations.
-
-    Raised when network requests fail due to connection issues,
-    DNS resolution failures, or proxy errors.
-    """
 
 
 class BrowserToolError(BrowserError):

@@ -30,7 +30,14 @@ def create_subagent_control_tool(parent_agent: BaseAgent) -> BaseTool:
 
     class SubagentControlInput(BaseModel):
         action: Literal["list", "cancel", "steer"] = Field(
-            description="Control action: list all subagents, cancel a running subagent, or steer with a corrective message.",
+            description=(
+                "Control action to perform on subagents. "
+                "IMPORTANT: 'wait' is NOT a supported action — there is no blocking wait "
+                "operation. For wait=false background subagents, poll action=list to observe "
+                "their status: completed children appear with their result summary, running "
+                "children appear with status=running. Keep doing other work (or a short list) "
+                "until the entry flips to completed."
+            ),
         )
         task_id: str | None = Field(
             default=None,
@@ -46,9 +53,12 @@ def create_subagent_control_tool(parent_agent: BaseAgent) -> BaseTool:
         "subagent_control_tool",
         description=(
             "Manage subagents at runtime. "
-            "action=list returns all subagents with status and results; "
+            "action=list returns all subagents with status and results (use this to check on "
+            "wait=false background subagents — completed ones include their result summary); "
             "action=cancel stops a running subagent; "
-            "action=steer injects a corrective message into a running subagent."
+            "action=steer injects a corrective message into a running subagent. "
+            "There is NO 'wait' action: subagents never block here; poll with action=list "
+            "instead. Never invent actions outside list/cancel/steer."
         ),
         args_schema=SubagentControlInput,
     )
@@ -94,6 +104,12 @@ def create_subagent_control_tool(parent_agent: BaseAgent) -> BaseTool:
                 "message": f"Could not steer {task_id} (not found or already done)",
             }
 
-        return {"success": False, "error": f"Unknown action: {action}"}
+        return {
+            "success": False,
+            "error": (
+                f"Unknown action: {action!r}. Supported actions are exactly: list, cancel, "
+                "steer. There is NO 'wait' action — poll status via action=list instead."
+            ),
+        }
 
     return subagent_control_func

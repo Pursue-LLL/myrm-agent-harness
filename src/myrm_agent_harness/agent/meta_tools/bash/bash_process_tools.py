@@ -87,7 +87,11 @@ class _BashProcessInput(BaseModel):
     )
     pid: int | None = Field(
         default=None,
-        description="Required for output, wait, kill, and stdin actions.",
+        description=(
+            "Required for output, wait, kill, and stdin actions. "
+            "MUST be the integer pid returned by list/output as the 'pid' field — "
+            "do not pass a string like '97e6d410' (that is a job id, not a pid)."
+        ),
         ge=1,
     )
     max_lines: int = Field(

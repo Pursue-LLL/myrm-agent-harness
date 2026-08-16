@@ -215,6 +215,19 @@ def test_bash_process_tool_description_documents_waiting_for_input() -> None:
     assert "blind-poll" in desc
 
 
+def test_bash_process_pid_field_guides_integer_type() -> None:
+    """pid must be an integer — a string job id triggers schema ValidationError."""
+    from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
+        _BashProcessInput,
+    )
+
+    pid_desc = _BashProcessInput.model_fields["pid"].description or ""
+    assert "do not pass a string" in pid_desc
+    json_schema = _BashProcessInput.model_json_schema()
+    types = {t.get("type") for t in json_schema["properties"]["pid"].get("anyOf", [])}
+    assert "integer" in types
+
+
 def test_bash_process_and_execute_prompts_share_stdin_contract() -> None:
     process_desc = create_bash_process_tool().description or ""
     for keyword in ("waiting_for_input", "input_wait_hint", "submit_stdin"):
