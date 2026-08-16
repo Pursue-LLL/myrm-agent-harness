@@ -660,7 +660,7 @@ class AllowlistEntry:
   - `browser_navigate_tool`: `["url"]` — 仅 URL 影响哈希
 - `compute_canonical_args_hash(tool_name, tool_args)` 根据映射表提取核心参数后计算 SHA256[:16] 哈希
 - **解决问题**：LLM 每次生成的 `reason` 用词可能不同（"列出文件" vs "展示目录内容"），但功能相同（同一 `command`）。标准化哈希确保同一功能操作产生相同哈希，精确匹配真正可用
-- **性能优化**（实测数据）：哈希在 `aafter_model` 批量入口点统一计算一次，通过 `args_hashes: dict[int, str | None]` 传递给所有下游函数（`_evaluate_tool_batch`、`_apply_approval_decisions`、`allowlist.check`），避免重复计算。基准测试（30工具/批×1000迭代，5次运行取平均，`tests/unit/test_canonical_hash_performance.py`）：统一计算0.073s vs 重复计算0.211s，**2.90倍加速**（接近理论最大值3.0倍）。单次哈希平均耗时2.43µs，证明优化效果显著
+- **性能优化**（实测数据）：哈希在 `aafter_model` 批量入口点统一计算一次，通过 `args_hashes: dict[int, str | None]` 传递给所有下游函数（`_evaluate_tool_batch`、`_apply_approval_decisions`、`allowlist.check`），避免重复计算。基准测试（30工具/批×1000迭代，5次运行取平均，`tests/agent/security/test_canonical_hash_performance.py`）：统一计算0.073s vs 重复计算0.211s，**2.90倍加速**（接近理论最大值3.0倍）。单次哈希平均耗时2.43µs，证明优化效果显著
 
 **持久化机制**：
 - `AllowlistStore` Protocol 定义持久化接口（`load` / `save` / `remove`），生产环境使用 `DBAllowlistStore`（数据库后端，`app.database.allowlist_store`）
@@ -672,7 +672,7 @@ class AllowlistEntry:
 - 当用户在审批对话框中勾选"始终允许"并选择匹配范围时，对应的条目被写入数据库并加载到内存
 - 后续符合条件的工具调用将跳过审批直接执行
 - 写入策略：直接 `session.add()` + 异常捕获，利用数据库 UNIQUE 约束保证幂等性
-  - **性能优化**（实测数据，`tests/unit/test_allowlist_save_performance.py`，1000次/批×5轮平均）：
+  - **性能优化**（实测数据，1000次/批×5轮平均）：
     - 首次插入：消除SELECT查询，从404.67ms降至204.00ms，**1.98倍加速**
     - 重复插入：消除SELECT查询，从375.77ms降至145.60ms，**2.58倍加速**
     - 核心改进：从"SELECT查重 + 条件INSERT"变为"直接INSERT + UNIQUE约束捕获"，减少DB往返
@@ -683,7 +683,7 @@ class AllowlistEntry:
 - `ttl_seconds <= 0`：关闭基于时间的过期与基于 TTL 的 opportunistic 清理；已加载用户仅在进程内保持缓存直至进程结束或显式变更
 - 自动清理：仅在 `ttl_seconds > 0` 时，对缓存时间戳早于 `ttl_seconds * ALLOWLIST_STALE_CACHE_FACTOR`（模块常量，默认 `2.0`）的用户做 opportunistic 回收，降低长期内存占用
 - 完整并发保护：`add`/`remove`/`clear_user`/`load_user` 全部使用 per-user lock，确保写操作安全
-- 性能特性：热路径 `check` 为 O(n) 线性扫描（n为用户allowlist条目数，实测：1条0.0002ms，50条0.0012ms，开销可忽略）；`load_user` 缓存命中平均耗时在 `tests/unit/test_allowlist_ttl_only.py::test_allowlist_no_performance_overhead` 中以 10k 次 `perf_counter` 循环断言低于 0.002ms/次（阈值用于 CI 与本地回归，单次测量仍随机器与系统负载波动）
+- 性能特性：热路径 `check` 为 O(n) 线性扫描（n为用户allowlist条目数，实测：1条0.0002ms，50条0.0012ms，开销可忽略）；`load_user` 缓存命中平均耗时经 10k 次 `perf_counter` 循环断言低于 0.002ms/次（阈值用于 CI 与本地回归，单次测量仍随机器与系统负载波动）
 
 **API 接口封装**：
 - `check(user_id, permission, tool_name, args_hash)` - 检查是否在白名单

@@ -194,7 +194,7 @@ WebSearchError
 
 ## 超时和重试机制
 
-**文件**：`agent/middlewares/tool_interceptor_middleware.py`
+**文件**：`agent/middlewares/tooling/tool_interceptor_middleware.py`
 
 ### 超时保护（Timeout Protection）
 

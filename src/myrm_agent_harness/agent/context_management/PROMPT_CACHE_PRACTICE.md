@@ -15,7 +15,7 @@
 > | §4.4 可逆压缩 | `strategies/compactor/compactor.py` |
 > | §4.5 摘要与缓存生命周期 | `strategies/summary/summarizer.py` |
 > | §5.1 Cache-TTL 归档与恢复 | `pipeline/processors/cache_ttl_prune_processor.py`, `infra/archive_reference.py`, `tracking/task_metrics.py`, `meta_tools/file_ops/core/file_operation_service.py` |
-> | §5 Pipeline | `pipeline/engine.py`, `middlewares/context_pipeline_middleware.py` |
+> | §5 Pipeline | `pipeline/engine.py`, `middlewares/context_pipeline/context_pipeline_middleware.py` |
 > | §6.1-6.2 LLM 层 | `toolkits/llms/core/llm.py` |
 > | §6.3 缓存可观测性 | `utils/token_economics/tracker.py`, `toolkits/llms/utils/logger.py` |
 > | §6.3 层次5 缓存断裂诊断 | `infra/cache_break_detector.py`, `infra/cache_metrics_collector.py` |
@@ -1282,7 +1282,7 @@ MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 p
 | `pipeline/processors/filter_processor.py` | 大型工具结果过滤（工具保护机制） |
 | `pipeline/processors/summarize_processor.py` | 结构化摘要（最后手段） |
 | `pipeline/processors/thinking_cleaner.py` | Thinking Block 清理（减少无效 token） |
-| `middlewares/context_pipeline_middleware.py` | 中间件集成入口 |
+| `middlewares/context_pipeline/context_pipeline_middleware.py` | 中间件集成入口 |
 | `toolkits/llms/core/llm.py` | LLM 层 cache_control 传递说明 |
 | `utils/token_economics/cache_economics.py` | ``coerce_usage_non_negative_int``（严格类型检查）、``compute_prompt_cache_stats``（自动异常日志，``cache_read_ratio`` 参数化） — 日志、NDJSON、``get_cache_effectiveness`` 使用统一计数与定价逻辑 |
 | `utils/token_economics/tracker.py` | ``TokenUsage.get_cache_effectiveness()`` — 调用 ``compute_prompt_cache_stats`` |
