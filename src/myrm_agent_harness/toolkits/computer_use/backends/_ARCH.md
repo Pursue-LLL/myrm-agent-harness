@@ -48,7 +48,7 @@ permissions required for desktop automation:
 
 | Platform | Accessibility Check | Screen Recording Check |
 |----------|-------------------|----------------------|
-| **macOS** | AppleScript → `System Events` (detects TCC Accessibility denial) | `CGPreflightScreenCaptureAccess` via ctypes (detects TCC Screen Recording denial) |
+| **macOS** | `AXIsProcessTrusted()` via ctypes (authoritative for current process; AppleScript frontmost query falsely succeeds without permission) | `CGPreflightScreenCaptureAccess` via ctypes (detects TCC Screen Recording denial) |
 | **Windows** | Always granted (no TCC) | Always granted (no TCC) |
 | **Linux** | Always granted (X11/Wayland has no per-app permission gate) | Always granted |
 

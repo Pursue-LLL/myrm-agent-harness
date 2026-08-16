@@ -287,7 +287,9 @@ def _parse_ax_output(
     # dedicated marker line (the `entire contents` call is guarded by try/on
     # error inside osascript, so it would otherwise be misreported as an empty
     # tree instead of a missing permission).
-    if lines[0].startswith("AX_PERMISSION_ERROR|||"):
+    if any(
+        line.startswith("AX_PERMISSION_ERROR|||") for line in lines
+    ):
         raise AXPermissionRequiredError("macOS")
 
     meta_line = lines[0].split("|||")

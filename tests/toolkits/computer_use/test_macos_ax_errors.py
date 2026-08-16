@@ -83,6 +83,27 @@ class TestParseAxOutputFiltering:
                 _completed(stdout), effective_scope="foreground"
             )
 
+    def test_permission_error_marker_raises_permission_required(self) -> None:
+        stdout = (
+            f"{_META_LINE}\n"
+            'AX_PERMISSION_ERROR|||"osascript"不允许辅助访问。\n'
+        )
+        with pytest.raises(AXPermissionRequiredError):
+            _parse_ax_output(
+                _completed(stdout), effective_scope="foreground"
+            )
+
+    def test_permission_error_marker_after_elements_still_detected(self) -> None:
+        stdout = (
+            f"{_META_LINE}\n"
+            "1|||AXButton|||OK||||||10|||20|||80|||30\n"
+            "AX_PERMISSION_ERROR|||not allowed assistive access\n"
+        )
+        with pytest.raises(AXPermissionRequiredError):
+            _parse_ax_output(
+                _completed(stdout), effective_scope="foreground"
+            )
+
 
 class TestInvokeAxElementPlainError:
     def test_nonzero_returncode_returns_stderr(self) -> None:
