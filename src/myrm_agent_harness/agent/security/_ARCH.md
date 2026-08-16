@@ -31,7 +31,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 | rate_limiter.py | Core | Agent security rate limiter. Prevents brute-force attacks (e.g., WebUI login) with configurable rate | ✅ |
 | redact.py | Core | Agent output redaction layer. Complements sanitize_env (source-level dangerous env var removal) with | ✅ |
 | safe_exec.py | Core | Layer 2 enhancement. Called from: | ✅ |
-| terminal_error_registry.py | Core | Turn-scoped terminal error storage with persistence. | ✅ |
+| terminal_error_registry.py | Core | Turn-scoped terminal error state + durable God-Mode file injection channel (survives reset; runtime add() is memory-only). | ✅ |
 | tool_registry.py | Core | Tool metadata registry: permission mapping, canonical params, safety metadata (6-dim), MCP annotation ingestion. resolve_safety_metadata uses 3-level fallback: built-in → MCP dynamic → fail-closed. | ✅ |
 | types.py | Core | Foundation layer of the security type hierarchy. All other security modules import from here. Includes SecurityConfig factory methods (readonly/workspace/full_access/remote_exposed) and PathPolicy with workspace_label. | ✅ |
 | managed_approval_policy.py | Core | Org floor MAP model + env/process loader (empty = local noop). | ✅ |

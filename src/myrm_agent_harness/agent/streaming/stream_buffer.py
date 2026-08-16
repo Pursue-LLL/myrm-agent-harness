@@ -116,23 +116,35 @@ class ResilientStreamBuffer:
             next_index = start_index
 
         while True:
+            # Take the payload under the lock, then yield OUTSIDE it: a slow
+            # consumer suspended at the yield point must not hold the Condition
+            # lock and stall append()/other subscribers (hermes "slow tab pins
+            # thread" Defect A equivalent for asyncio shared-condition fans).
+            payload: str | None = None
+            is_heartbeat = False
             async with self._condition:
                 if next_index < len(self._buffer):
                     item = self._buffer[next_index]
                     next_index += 1
-                    yield item.payload
-                    continue
-
-                if self._is_ended:
+                    payload = item.payload
+                elif self._is_ended:
                     break
+                else:
+                    try:
+                        await asyncio.wait_for(
+                            self._condition.wait(), timeout=heartbeat_interval
+                        )
+                    except TimeoutError:
+                        is_heartbeat = True
+                    else:
+                        # Woken by a notify (new append or end) — re-check the
+                        # buffer before yielding anything.
+                        continue
 
-                try:
-                    await asyncio.wait_for(
-                        self._condition.wait(), timeout=heartbeat_interval
-                    )
-                except TimeoutError:
-                    yield "event: heartbeat\ndata: null\n\n"
-                    continue
+            if is_heartbeat:
+                yield "event: heartbeat\ndata: null\n\n"
+            elif payload is not None:
+                yield payload
 
 
 class GlobalStreamRegistry:

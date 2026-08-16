@@ -134,18 +134,18 @@ sorted_entries = sorted(
 
 ```xml
 <datetime_rules>
-Messages may contain timestamp tags: `[Sent at: YYYY-MM-DD HH:MM Weekday (UTC±X)]` for historical messages (immutable, preserves Prompt Cache), or `<current_datetime>YYYY-MM-DD HH:MM:SS Weekday (UTC±X)</current_datetime>` for the current message. Always use the latest `<current_datetime>` as your only "now" reference for all time-related reasoning.
+Messages may contain timestamp tags: `[Sent at: YYYY-MM-DD HH:MM:SS (UTC±X)]` for historical messages (immutable, preserves Prompt Cache), or `<current_datetime>YYYY-MM-DD HH:MM Weekday (UTC±X)</current_datetime>` for the current message. Always use the latest `<current_datetime>` as your only "now" reference for all time-related reasoning.
 </datetime_rules>
 ```
 
 2. **HumanMessage（`streaming/message_builder.py`）**：语义分离标签
 
 ```python
-# 历史消息：[Sent at: 2026-04-13 17:13:38 Monday (UTC+8)]
-# 输出示例：[Sent at: 2026-03-09 10:30 Sunday (UTC+8)]
+# 历史消息：[Sent at: 2026-04-13 17:13:38 (UTC+8)]
+# 输出示例：[Sent at: 2026-03-09 10:30:22 (UTC+8)]
 prompt = f"[Sent at: {format_time_with_timezone(dt, sent_timezone)}]"
 
-# 当前消息：<current_datetime>2026-03-09 10:30:22 Sunday (UTC+8)</current_datetime>
+# 当前消息：<current_datetime>2026-03-09 10:30 Monday (UTC+8)</current_datetime>
 prompt = get_datetime_prompt(current_timezone)
 ```
 

@@ -7,6 +7,8 @@ that affects competitors using diff-based streaming.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from myrm_agent_harness.agent.streaming.stream_buffer import (
@@ -138,6 +140,22 @@ class TestResilientStreamBuffer:
             events.append(event)
 
         assert len(events) == 2
+
+    @pytest.mark.asyncio
+    async def test_slow_consumer_does_not_block_append(self, buffer: ResilientStreamBuffer) -> None:
+        """A subscriber suspended at the yield point must not hold the Condition
+        lock and stall concurrent appends (hermes 'slow tab pins thread' defect)."""
+        await buffer.append('data: {"data":"tok1"}\n\n')
+
+        gen = buffer.subscribe()
+        await gen.__anext__()  # suspend the generator exactly at the yield point
+
+        # A concurrent append must acquire the lock without waiting on the
+        # suspended consumer. 500ms is far above any legit lock turnover.
+        await asyncio.wait_for(
+            buffer.append('data: {"data":"tok2"}\n\n'), timeout=0.5
+        )
+        await gen.aclose()
 
 
 class TestGlobalStreamRegistry:

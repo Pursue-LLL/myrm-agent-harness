@@ -5,7 +5,7 @@ user ID, EventLogger) that multiple middlewares consume. Centralizes these
 ContextVars so they are not owned by any single middleware.
 
 [INPUT]
-- agent.security.terminal_error_registry::TerminalErrorRegistry (POS: Turn-scoped terminal error storage with persistence.)
+- agent.security.terminal_error_registry::TerminalErrorRegistry (POS: Turn-scoped terminal error state + durable God-Mode file injection channel.)
 - agent.security.types::PrivacyPolicy, SecurityConfig (POS: Foundation layer of the security type hierarchy.)
 - agent.event_log.logger::EventLogger (POS: Integration façade. Async-buffered writes ensure zero impact on the event production hot path.)
 - core.security.guards.privacy_tracker::set_privacy_policy (POS: Per-turn privacy state tracker. ContextVar-based privacy policy access.)

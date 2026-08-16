@@ -1035,11 +1035,10 @@ class TestPostCallRareBranches:
     @pytest.mark.asyncio
     async def test_post_hook_blocked_records_metrics_counter(self) -> None:
         """POST_TOOL_USE hook rejection increments agent_hook_failures_total."""
-        from prometheus_client import REGISTRY
+        prometheus_client = pytest.importorskip("prometheus_client")
+        REGISTRY = prometheus_client.REGISTRY
 
         from myrm_agent_harness.observability.metrics.registry import metrics_registry
-
-        pytest.importorskip("prometheus_client")
         assert metrics_registry.enabled
 
         labels = {

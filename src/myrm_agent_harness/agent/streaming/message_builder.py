@@ -147,7 +147,7 @@ def _format_time_with_timezone(dt: _dt, timezone: str | None) -> str:
         timezone: IANA timezone string (e.g., "Asia/Shanghai"), None for UTC
 
     Returns:
-        Formatted time string like "2026-04-13 17:13:38 Monday (UTC+8)"
+        Formatted time string like "2026-04-13 17:13:38 (UTC+8)"
     """
     if timezone:
         try:

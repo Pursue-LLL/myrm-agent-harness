@@ -64,6 +64,18 @@ class TestAgentBehaviorRules:
         assert "<datetime_rules>" in DATETIME_SYSTEM_RULES
         assert "</datetime_rules>" in DATETIME_SYSTEM_RULES
 
+    def test_datetime_rules_format_matches_code_output(self) -> None:
+        """锁定 DATETIME_SYSTEM_RULES 的格式描述与代码实际输出一致。
+
+        历史消息（_format_time_with_timezone）：YYYY-MM-DD HH:MM:SS (UTC±X)，无 Weekday。
+        当前消息（get_datetime_prompt）：YYYY-MM-DD HH:MM Weekday (UTC±X)，无秒。
+        防止两处描述反挂或漂移。
+        """
+        assert "HH:MM:SS" in DATETIME_SYSTEM_RULES, "历史消息格式描述必须含秒"
+        assert "HH:MM Weekday" in DATETIME_SYSTEM_RULES, "当前消息格式描述必须含 Weekday 且不含秒"
+        assert "[Sent at: YYYY-MM-DD HH:MM:SS" in DATETIME_SYSTEM_RULES
+        assert "<current_datetime>YYYY-MM-DD HH:MM Weekday" in DATETIME_SYSTEM_RULES
+
 
 class TestContextVarSetters:
     """set_user_timezone / set_datetime_injection_enabled"""

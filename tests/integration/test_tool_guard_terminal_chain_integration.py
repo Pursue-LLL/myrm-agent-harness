@@ -4,16 +4,18 @@ Verifies the full real path (no mocks on the guard chain itself):
 
 1. A real ``SearchConfigError`` is classified into a family-scoped terminal
    category by ``classify_terminal_error`` (pure).
-2. ``handle_execution_error`` registers the category in the real persistent
-   ``TerminalErrorRegistry`` (filesystem-backed via ``MYRM_TERMINAL_ERRORS_PATH``).
-3. ``_check_circuit_breaker`` reads the same storage and blocks same-family
-   tools with a ``SYSTEM_ENFORCED`` message while leaving independent-family
-   tools untouched (search vs browser vs web_fetch isolation).
+2. ``handle_execution_error`` registers the category in the real turn-scoped
+   ``TerminalErrorRegistry`` (in-memory only — runtime state never touches the
+   durable God-Mode file).
+3. ``_check_circuit_breaker`` blocks same-family tools with a ``SYSTEM_ENFORCED``
+   message while leaving independent-family tools untouched (search vs browser
+   vs web_fetch isolation).
 4. Legacy global categories (``any`` / ``network_blocked`` / ``sandbox_ro``)
    block tools with the expected scope (all / network-only / write-only).
 5. The turn-scoped release: ``reset_terminal_errors`` clears the ContextVar
-   state and unlinks the persisted file so a new turn never inherits a
-   previous turn's circuit breaker.
+   runtime state so a new turn never inherits a previous turn's failure, while
+   the durable God-Mode injection file survives and still blocks (the exact
+   scenario the server e2e ``test_circuit_breaker_integration`` relies on).
 6. Full real middleware assembly proves the same-family block in both the
    search and browser families after a real failure.
 7. Regression on the browser wiring: a page-level ``BrowserNavigationError``
@@ -29,7 +31,8 @@ Verifies the full real path (no mocks on the guard chain itself):
 
 [OUTPUT]
 - Integration tests proving the end-to-end guard chain with real I/O,
-  including family isolation, legacy global categories, and per-turn release.
+  including family isolation, legacy global categories, per-turn release,
+  and the durable God-Mode injection channel.
 """
 
 from __future__ import annotations
@@ -122,8 +125,13 @@ def test_classify_real_search_api_403() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_execution_error_persists_real_registry(terminal_errors_path: Path) -> None:
-    """handle_execution_error registers the category in real filesystem-backed registry."""
+async def test_handle_execution_error_registers_turn_scoped_state(
+    terminal_errors_path: Path,
+) -> None:
+    """handle_execution_error registers the category in the real turn-scoped registry."""
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
     from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
         handle_execution_error,
     )
@@ -140,15 +148,17 @@ async def test_handle_execution_error_persists_real_registry(terminal_errors_pat
     assert isinstance(result, ToolMessage)
     assert result.status == "error"
 
-    # The registry file exists and contains the family category.
-    assert terminal_errors_path.exists()
-    fresh = TerminalErrorRegistry(workspace_path=terminal_errors_path.parent)
-    assert CONFIG_OR_AUTH_SEARCH in fresh.get_all()
+    # Runtime registration is turn-scoped (in-memory): the God-Mode file is not written.
+    assert CONFIG_OR_AUTH_SEARCH in get_terminal_errors().get_all()
+    assert not terminal_errors_path.exists()
 
 
 @pytest.mark.asyncio
-async def test_retryable_error_does_not_persist(terminal_errors_path: Path) -> None:
-    """A transient error must not poison the persistent terminal registry."""
+async def test_retryable_error_does_not_register(terminal_errors_path: Path) -> None:
+    """A transient error must not poison the turn-scoped terminal registry."""
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
     from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
         handle_execution_error,
     )
@@ -162,15 +172,16 @@ async def test_retryable_error_does_not_persist(terminal_errors_path: Path) -> N
     ):
         await handle_execution_error(err, "web_search_tool", "call_2", {"q": "x"})
 
-    if terminal_errors_path.exists():
-        fresh = TerminalErrorRegistry(workspace_path=terminal_errors_path.parent)
-        assert CONFIG_OR_AUTH_SEARCH not in fresh.get_all()
+    assert get_terminal_errors().get_all() == set()
 
 
-def test_circuit_breaker_blocks_same_family_real_storage(terminal_errors_path: Path) -> None:
-    """With a persisted search terminal tag, a search tool is blocked SYSTEM_ENFORCED."""
-    registry = TerminalErrorRegistry(workspace_path=terminal_errors_path.parent)
-    registry.add(CONFIG_OR_AUTH_SEARCH)
+def test_circuit_breaker_blocks_same_family(terminal_errors_path: Path) -> None:
+    """A turn-scoped search terminal tag blocks a search tool with SYSTEM_ENFORCED."""
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
+
+    get_terminal_errors().add(CONFIG_OR_AUTH_SEARCH)
 
     result = _check_circuit_breaker("web_search_tool", "call_3")
     assert result is not None
@@ -179,17 +190,21 @@ def test_circuit_breaker_blocks_same_family_real_storage(terminal_errors_path: P
     assert result.additional_kwargs.get("error_category") == "circuit_breaker"
 
 
-def test_circuit_breaker_allows_independent_family_real_storage(terminal_errors_path: Path) -> None:
+def test_circuit_breaker_allows_independent_family(terminal_errors_path: Path) -> None:
     """A broken search config must not disable browser tools (independent infra)."""
-    registry = TerminalErrorRegistry(workspace_path=terminal_errors_path.parent)
-    registry.add(CONFIG_OR_AUTH_SEARCH)
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+        reset_terminal_errors,
+    )
+
+    get_terminal_errors().add(CONFIG_OR_AUTH_SEARCH)
 
     result = _check_circuit_breaker("browser_navigate", "call_4")
     assert result is None
 
     # Sanity: the reverse direction (browser broken) does not block search tools.
-    registry.clear()
-    registry.add(CONFIG_OR_AUTH_BROWSER)
+    reset_terminal_errors()
+    get_terminal_errors().add(CONFIG_OR_AUTH_BROWSER)
     search_result = _check_circuit_breaker("web_search_tool", "call_5")
     assert search_result is None
 
@@ -201,8 +216,11 @@ def test_circuit_breaker_allows_independent_family_real_storage(terminal_errors_
 
 def test_circuit_breaker_any_blocks_every_tool(terminal_errors_path: Path) -> None:
     """'any' is a global kill switch: even a non-network tool is blocked."""
-    registry = TerminalErrorRegistry(workspace_path=terminal_errors_path.parent)
-    registry.add("any")
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
+
+    get_terminal_errors().add("any")
 
     for tool in ("web_search_tool", "browser_navigate_tool", "file_write"):
         result = _check_circuit_breaker(tool, "call_any")
@@ -214,8 +232,11 @@ def test_circuit_breaker_network_blocked_blocks_network_allows_file(
     terminal_errors_path: Path,
 ) -> None:
     """network_blocked disables network tooling but leaves file I/O usable."""
-    registry = TerminalErrorRegistry(workspace_path=terminal_errors_path.parent)
-    registry.add("network_blocked")
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
+
+    get_terminal_errors().add("network_blocked")
 
     for tool in ("web_search_tool", "browser_navigate_tool", "web_fetch_tool"):
         assert _check_circuit_breaker(tool, "call_net") is not None
@@ -227,8 +248,11 @@ def test_circuit_breaker_sandbox_ro_blocks_write_allows_network(
     terminal_errors_path: Path,
 ) -> None:
     """sandbox_ro disables write tools but leaves read/network tools usable."""
-    registry = TerminalErrorRegistry(workspace_path=terminal_errors_path.parent)
-    registry.add("sandbox_ro")
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
+
+    get_terminal_errors().add("sandbox_ro")
 
     for tool in ("file_write", "file_edit"):
         assert _check_circuit_breaker(tool, "call_write") is not None
@@ -239,32 +263,57 @@ def test_circuit_breaker_sandbox_ro_blocks_write_allows_network(
 
 def test_config_or_auth_search_does_not_block_web_fetch(terminal_errors_path: Path) -> None:
     """web_fetch is independent infrastructure: a broken search config must not disable it."""
-    registry = TerminalErrorRegistry(workspace_path=terminal_errors_path.parent)
-    registry.add(CONFIG_OR_AUTH_SEARCH)
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
+
+    get_terminal_errors().add(CONFIG_OR_AUTH_SEARCH)
 
     assert _check_circuit_breaker("web_fetch_tool", "call_fetch") is None
 
 
 # ---------------------------------------------------------------------------
-# Turn-scoped release (the runtime guard must self-heal per turn)
+# Turn-scoped release + durable God-Mode injection
 # ---------------------------------------------------------------------------
 
 
 def test_reset_terminal_errors_releases_circuit_breaker(terminal_errors_path: Path) -> None:
-    """The guard is turn-scoped: reset clears ContextVar state and unlinks the file,
-    so a new turn is never blocked by a previous turn's terminal failure."""
+    """Runtime state is turn-scoped: reset clears the in-memory set so a new turn
+    is never blocked by a previous turn's runtime failure."""
     from myrm_agent_harness.agent.middlewares._session_context import (
         get_terminal_errors,
         reset_terminal_errors,
     )
 
     get_terminal_errors().add(CONFIG_OR_AUTH_SEARCH)
-    assert terminal_errors_path.exists()
+    assert CONFIG_OR_AUTH_SEARCH in get_terminal_errors().get_all()
 
     reset_terminal_errors()
 
-    assert not terminal_errors_path.exists(), "turn reset must remove the persisted state file"
     assert _check_circuit_breaker("web_search_tool", "call_after_reset") is None
+
+
+def test_god_mode_file_injection_survives_reset_and_blocks(
+    terminal_errors_path: Path,
+) -> None:
+    """The God-Mode injection channel is durable: an operator-written file must
+    take effect even after reset_terminal_errors clears the turn-scoped memory.
+    This is the exact scenario the server e2e (test_circuit_breaker_integration)
+    relies on."""
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+        reset_terminal_errors,
+    )
+
+    terminal_errors_path.write_text('["network_blocked"]', encoding="utf-8")
+
+    reset_terminal_errors()
+
+    # The injected category survives the reset via the durable file channel.
+    assert "network_blocked" in get_terminal_errors().get_all()
+    result = _check_circuit_breaker("web_search_tool", "call_god_mode")
+    assert result is not None
+    assert "SYSTEM_ENFORCED" in result.content
 
 
 # ---------------------------------------------------------------------------
@@ -305,10 +354,13 @@ async def test_full_middleware_chain_blocks_same_family_after_real_failure(
     )
     assert first.status == "error"
 
-    # The real registry persisted the family tag.
-    assert terminal_errors_path.exists()
-    fresh = TerminalErrorRegistry(workspace_path=terminal_errors_path.parent)
-    assert CONFIG_OR_AUTH_SEARCH in fresh.get_all()
+    # The turn-scoped registry holds the family tag (in-memory, no file write).
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
+
+    assert CONFIG_OR_AUTH_SEARCH in get_terminal_errors().get_all()
+    assert not terminal_errors_path.exists()
 
     # Second same-family call in the same turn: circuit breaker blocks it.
     ok = False
@@ -352,9 +404,11 @@ async def test_full_middleware_chain_retryable_error_is_not_blocked(
         transient_handler,
     )
     assert first.status == "error"
-    assert not terminal_errors_path.exists() or not TerminalErrorRegistry(
-        workspace_path=terminal_errors_path.parent
-    ).get_all()
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
+
+    assert get_terminal_errors().get_all() == set()
 
     ok = False
 
@@ -392,8 +446,11 @@ async def test_full_middleware_chain_browser_family_blocked_after_launch_failure
     )
     assert first.status == "error"
 
-    fresh = TerminalErrorRegistry(workspace_path=terminal_errors_path.parent)
-    assert CONFIG_OR_AUTH_BROWSER in fresh.get_all()
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_terminal_errors,
+    )
+
+    assert CONFIG_OR_AUTH_BROWSER in get_terminal_errors().get_all()
 
     ok = False
 

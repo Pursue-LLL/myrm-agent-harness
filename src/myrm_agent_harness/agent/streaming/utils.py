@@ -61,8 +61,8 @@ DATETIME_FORMAT = "%Y-%m-%d %H:%M %A"
 DATETIME_SYSTEM_RULES = (
     "\n<datetime_rules>"
     "Messages may contain timestamp tags: "
-    "`[Sent at: YYYY-MM-DD HH:MM Weekday (UTC±X)]` for historical messages (immutable, preserves Prompt Cache), "
-    "or `<current_datetime>YYYY-MM-DD HH:MM:SS Weekday (UTC±X)</current_datetime>` for the current message. "
+    "`[Sent at: YYYY-MM-DD HH:MM:SS (UTC±X)]` for historical messages (immutable, preserves Prompt Cache), "
+    "or `<current_datetime>YYYY-MM-DD HH:MM Weekday (UTC±X)</current_datetime>` for the current message. "
     'Always use the latest `<current_datetime>` as your only "now" reference for all time-related reasoning.'
     "</datetime_rules>"
 )
@@ -88,7 +88,7 @@ def get_datetime_prompt(timezone: str | None = None, dt: datetime | None = None)
 
     Example output::
 
-        <current_datetime>2026-03-06 22:30 (UTC+8)</current_datetime>
+        <current_datetime>2026-03-06 22:30 Saturday (UTC+8)</current_datetime>
     """
     now: datetime
     tz_label = ""
