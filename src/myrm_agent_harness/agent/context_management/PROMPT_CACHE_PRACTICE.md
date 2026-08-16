@@ -143,7 +143,7 @@ Messages may contain timestamp tags: `[Sent at: YYYY-MM-DD HH:MM:SS (UTC±X)]` f
 ```python
 # 历史消息：[Sent at: 2026-04-13 17:13:38 (UTC+8)]
 # 输出示例：[Sent at: 2026-03-09 10:30:22 (UTC+8)]
-prompt = f"[Sent at: {format_time_with_timezone(dt, sent_timezone)}]"
+prompt = f"[Sent at: {_format_time_with_timezone(dt, sent_timezone)}]"
 
 # 当前消息：<current_datetime>2026-03-09 10:30 Monday (UTC+8)</current_datetime>
 prompt = get_datetime_prompt(current_timezone)
@@ -157,7 +157,7 @@ messages[-1] = HumanMessage(content=f"{query}\n\n{datetime_prompt}")
 
 # 历史消息：使用 [Sent at: ...] 标签，确保缓存稳定
 dt = datetime.fromtimestamp(sent_at, tz=UTC)
-time_str = format_time_with_timezone(dt, sent_timezone)
+time_str = _format_time_with_timezone(dt, sent_timezone)
 prompt = f"[Sent at: {time_str}]"
 messages[idx] = HumanMessage(content=f"{msg.content}\n\n{prompt}")
 ```
