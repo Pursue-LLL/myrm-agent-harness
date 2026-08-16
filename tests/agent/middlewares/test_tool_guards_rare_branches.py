@@ -138,9 +138,7 @@ class TestPreCallRareBranches:
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.record_decision",
             ),
         ):
-            result = await run_pre_call_guards(
-                _request(), "bash_code_execute_tool", "c1", {}
-            )
+            result = await run_pre_call_guards(_request(), "bash_code_execute_tool", "c1", {})
         assert isinstance(result, ToolMessage)
         assert result.content.startswith("EMERGENCY:")
 
@@ -392,9 +390,7 @@ class TestPreCallRareBranches:
                 {},
                 get_loop_guard_fn=lambda: _loop_guard(verdict),
             )
-        mock_emit.assert_called_once_with(
-            "sandbox_boundary", "bash_code_execute_tool", "Escaped sandbox", "error"
-        )
+        mock_emit.assert_called_once_with("sandbox_boundary", "bash_code_execute_tool", "Escaped sandbox", "error")
         assert isinstance(result, ToolMessage)
 
     @pytest.mark.asyncio
@@ -463,9 +459,7 @@ class TestPreCallRareBranches:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_tool_turn_budget_guard",
                 return_value=MagicMock(
-                    check=MagicMock(
-                        return_value=MagicMock(action=TurnBudgetAction.ALLOW)
-                    ),
+                    check=MagicMock(return_value=MagicMock(action=TurnBudgetAction.ALLOW)),
                     record=MagicMock(),
                 ),
             ),
@@ -526,9 +520,7 @@ class TestPreCallRareBranches:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_tool_turn_budget_guard",
                 return_value=MagicMock(
-                    check=MagicMock(
-                        return_value=MagicMock(action=TurnBudgetAction.ALLOW)
-                    ),
+                    check=MagicMock(return_value=MagicMock(action=TurnBudgetAction.ALLOW)),
                     record=MagicMock(),
                 ),
             ),
@@ -591,9 +583,7 @@ class TestPreCallRareBranches:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_tool_turn_budget_guard",
                 return_value=MagicMock(
-                    check=MagicMock(
-                        return_value=MagicMock(action=TurnBudgetAction.ALLOW)
-                    ),
+                    check=MagicMock(return_value=MagicMock(action=TurnBudgetAction.ALLOW)),
                     record=MagicMock(),
                 ),
             ),
@@ -656,9 +646,7 @@ class TestPreCallRareBranches:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_tool_turn_budget_guard",
                 return_value=MagicMock(
-                    check=MagicMock(
-                        return_value=MagicMock(action=TurnBudgetAction.ALLOW)
-                    ),
+                    check=MagicMock(return_value=MagicMock(action=TurnBudgetAction.ALLOW)),
                     record=MagicMock(),
                 ),
             ),
@@ -706,9 +694,7 @@ class TestPostCallRareBranches:
         return (
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard",
-                return_value=MagicMock(
-                    check_and_truncate=MagicMock(return_value=budget_verdict)
-                ),
+                return_value=MagicMock(check_and_truncate=MagicMock(return_value=budget_verdict)),
             ),
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.record_decision",
@@ -951,9 +937,7 @@ class TestPostCallRareBranches:
             patch(
                 "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
                 return_value=(
-                    ToolMessage(
-                        content="o", name="bash_code_execute_tool", tool_call_id="c"
-                    ),
+                    ToolMessage(content="o", name="bash_code_execute_tool", tool_call_id="c"),
                     "o",
                 ),
             ),
@@ -962,9 +946,7 @@ class TestPostCallRareBranches:
                 return_value="echo",
             ),
         ):
-            msg = ToolMessage(
-                content="o", name="bash_code_execute_tool", tool_call_id="c"
-            )
+            msg = ToolMessage(content="o", name="bash_code_execute_tool", tool_call_id="c")
             await run_post_call_guards(
                 msg,
                 "bash_code_execute_tool",
@@ -979,7 +961,9 @@ class TestPostCallRareBranches:
         loop_guard.tag_last_verification.assert_called_once_with("echo")
 
     @pytest.mark.asyncio
-    async def test_post_hook_blocked_replaces_result_and_emits_failure_event(self) -> None:
+    async def test_post_hook_blocked_replaces_result_and_emits_failure_event(
+        self,
+    ) -> None:
         """POST_TOOL_USE hook rejection replaces the result and emits a failure event."""
         post_verdict = MagicMock()
         post_verdict.action = LoopAction.ALLOW
@@ -1036,9 +1020,10 @@ class TestPostCallRareBranches:
     async def test_post_hook_blocked_records_metrics_counter(self) -> None:
         """POST_TOOL_USE hook rejection increments agent_hook_failures_total."""
         prometheus_client = pytest.importorskip("prometheus_client")
-        REGISTRY = prometheus_client.REGISTRY
+        registry = prometheus_client.REGISTRY
 
         from myrm_agent_harness.observability.metrics.registry import metrics_registry
+
         assert metrics_registry.enabled
 
         labels = {
@@ -1046,7 +1031,7 @@ class TestPostCallRareBranches:
             "tool_name": "t",
             "hook_event": "post_tool_use",
         }
-        before = REGISTRY.get_sample_value("agent_hook_failures_total", labels) or 0.0
+        before = registry.get_sample_value("agent_hook_failures_total", labels) or 0.0
 
         post_verdict = MagicMock()
         post_verdict.action = LoopAction.ALLOW
@@ -1091,5 +1076,5 @@ class TestPostCallRareBranches:
                 freq_verdict=_freq_allow(),
                 steering_token=None,
             )
-        after = REGISTRY.get_sample_value("agent_hook_failures_total", labels) or 0.0
+        after = registry.get_sample_value("agent_hook_failures_total", labels) or 0.0
         assert after == before + 1.0

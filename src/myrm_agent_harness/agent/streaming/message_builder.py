@@ -29,7 +29,12 @@ from myrm_agent_harness.agent.types import QuoteAttachment
 from myrm_agent_harness.utils.chat_utils import convert_chat_history_simple
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
-from .utils import DATETIME_TAG, datetime_injection_enabled_var, get_datetime_prompt, user_timezone_var
+from .utils import (
+    DATETIME_TAG,
+    datetime_injection_enabled_var,
+    get_datetime_prompt,
+    user_timezone_var,
+)
 
 if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
@@ -40,7 +45,8 @@ logger = get_agent_logger(__name__)
 
 
 def build_messages(
-    query: str | list[dict[str, object]], chat_history: ChatHistoryReq | list[BaseMessage] | None
+    query: str | list[dict[str, object]],
+    chat_history: ChatHistoryReq | list[BaseMessage] | None,
 ) -> list[BaseMessage]:
     """将 query + chat_history 转换为 LangChain 消息列表。
 
