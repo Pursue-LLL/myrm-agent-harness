@@ -32,8 +32,12 @@ def test_api_package_exports_match_all() -> None:
             "SkillAgent",
             "SkillBackend",
             "create_skill_agent",
+            "delete_subagent_checkpoint",
             "get_distribution_mode",
+            "get_subagent_checkpointer",
+            "get_workspace_root",
             "is_compiled_distribution",
+            "set_workspace_root",
             "track_background_task",
         ]
     )

@@ -34,7 +34,9 @@ __all__ = [
     "SkillBackend",
     "build_parent_delegatable_toolkit",
     "create_skill_agent",
+    "delete_subagent_checkpoint",
     "get_distribution_mode",
+    "get_subagent_checkpointer",
     "get_workspace_root",
     "is_compiled_distribution",
     "set_workspace_root",
@@ -50,6 +52,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "build_parent_delegatable_toolkit": (
         "myrm_agent_harness.api.subagents",
         "build_parent_delegatable_toolkit",
+    ),
+    "delete_subagent_checkpoint": (
+        "myrm_agent_harness.api.subagents",
+        "delete_subagent_checkpoint",
+    ),
+    "get_subagent_checkpointer": (
+        "myrm_agent_harness.api.subagents",
+        "get_subagent_checkpointer",
     ),
     "CompletionStatus": ("myrm_agent_harness.api.types", "CompletionStatus"),
     "ConfigIncompleteError": ("myrm_agent_harness.api.config", "ConfigIncompleteError"),
