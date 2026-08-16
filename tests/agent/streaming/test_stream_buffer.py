@@ -24,7 +24,9 @@ def buffer() -> ResilientStreamBuffer:
 
 class TestResilientStreamBuffer:
     @pytest.mark.asyncio
-    async def test_append_and_subscribe_basic(self, buffer: ResilientStreamBuffer) -> None:
+    async def test_append_and_subscribe_basic(
+        self, buffer: ResilientStreamBuffer
+    ) -> None:
         """Events appended before subscribe are all yielded."""
         await buffer.append('data: {"type":"message","data":"Hello"}\n\n')
         await buffer.append('data: {"type":"message","data":" World"}\n\n')
@@ -38,7 +40,9 @@ class TestResilientStreamBuffer:
         assert "World" in events[1]
 
     @pytest.mark.asyncio
-    async def test_subscribe_after_last_event_id(self, buffer: ResilientStreamBuffer) -> None:
+    async def test_subscribe_after_last_event_id(
+        self, buffer: ResilientStreamBuffer
+    ) -> None:
         """Reconnecting with Last-Event-ID only yields events AFTER that ID."""
         payloads = []
         for i in range(5):
@@ -61,7 +65,9 @@ class TestResilientStreamBuffer:
         assert "chunk4" in events[1]
 
     @pytest.mark.asyncio
-    async def test_no_duplicate_on_reconnect(self, buffer: ResilientStreamBuffer) -> None:
+    async def test_no_duplicate_on_reconnect(
+        self, buffer: ResilientStreamBuffer
+    ) -> None:
         """Simulates disconnect/reconnect — no event is duplicated."""
         for i in range(10):
             await buffer.append(f'data: {{"data":"token{i}"}}\n\n')
@@ -90,7 +96,9 @@ class TestResilientStreamBuffer:
             assert f"token{i + 5}" in ev
 
     @pytest.mark.asyncio
-    async def test_repeated_content_preserved(self, buffer: ResilientStreamBuffer) -> None:
+    async def test_repeated_content_preserved(
+        self, buffer: ResilientStreamBuffer
+    ) -> None:
         """Repeated identical payloads are NOT deduplicated."""
         for _ in range(3):
             await buffer.append('data: {"data":"the "}\n\n')
@@ -129,7 +137,9 @@ class TestResilientStreamBuffer:
         assert result == ""
 
     @pytest.mark.asyncio
-    async def test_subscribe_unknown_last_event_id_replays_all(self, buffer: ResilientStreamBuffer) -> None:
+    async def test_subscribe_unknown_last_event_id_replays_all(
+        self, buffer: ResilientStreamBuffer
+    ) -> None:
         """Unknown Last-Event-ID replays from the oldest available."""
         await buffer.append('data: {"data":"first"}\n\n')
         await buffer.append('data: {"data":"second"}\n\n')
@@ -142,7 +152,9 @@ class TestResilientStreamBuffer:
         assert len(events) == 2
 
     @pytest.mark.asyncio
-    async def test_slow_consumer_does_not_block_append(self, buffer: ResilientStreamBuffer) -> None:
+    async def test_slow_consumer_does_not_block_append(
+        self, buffer: ResilientStreamBuffer
+    ) -> None:
         """A subscriber suspended at the yield point must not hold the Condition
         lock and stall concurrent appends (hermes 'slow tab pins thread' defect)."""
         await buffer.append('data: {"data":"tok1"}\n\n')
@@ -152,13 +164,13 @@ class TestResilientStreamBuffer:
 
         # A concurrent append must acquire the lock without waiting on the
         # suspended consumer. 500ms is far above any legit lock turnover.
-        await asyncio.wait_for(
-            buffer.append('data: {"data":"tok2"}\n\n'), timeout=0.5
-        )
+        await asyncio.wait_for(buffer.append('data: {"data":"tok2"}\n\n'), timeout=0.5)
         await gen.aclose()
 
     @pytest.mark.asyncio
-    async def test_subscribe_emits_heartbeat_when_idle(self, buffer: ResilientStreamBuffer) -> None:
+    async def test_subscribe_emits_heartbeat_when_idle(
+        self, buffer: ResilientStreamBuffer
+    ) -> None:
         """When no event arrives within heartbeat_interval, a heartbeat frame is
         yielded so intermediaries keep the SSE connection alive, and the stream
         continues with real payloads after a later append."""

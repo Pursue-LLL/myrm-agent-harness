@@ -120,7 +120,7 @@ async def test_run_single_attempt_pending_approval_interrupt(
     interrupt = MagicMock(value={"action_type": "approval"})
     task = MagicMock(interrupts=[interrupt])
     state = MagicMock(next=True, tasks=[task])
-    child_agent.checkpointer = MagicMock(aget=AsyncMock(return_value=state))
+    child_agent._agent = MagicMock(aget_state=AsyncMock(return_value=state))
 
     with (
         patch(
@@ -174,7 +174,7 @@ async def test_run_single_attempt_swarm_fission_yield(executor: SubagentExecutor
     interrupt = MagicMock(value={"action_type": "swarm_fission"})
     task = MagicMock(interrupts=[interrupt])
     state = MagicMock(next=True, tasks=[task])
-    child_agent.checkpointer = MagicMock(aget=AsyncMock(return_value=state))
+    child_agent._agent = MagicMock(aget_state=AsyncMock(return_value=state))
 
     with (
         patch(

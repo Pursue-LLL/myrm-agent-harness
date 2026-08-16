@@ -1,10 +1,10 @@
-"""Subagent control meta-tool: list, cancel, and steer running subagents.
+"""Subagent control meta-tool: list, cancel, steer, and wait running subagents.
 
 [INPUT]
-- agent.base_agent::BaseAgent (POS: Agent base class with list/cancel/steer child APIs)
+- agent.base_agent::BaseAgent (POS: Agent base class with list/cancel/steer/wait child APIs)
 
 [OUTPUT]
-- create_subagent_control_tool: Unified LLM tool (action=list|cancel|steer)
+- create_subagent_control_tool: Unified LLM tool (action=list|cancel|steer|wait)
 
 [POS]
 Subagent runtime observability and control exposed as a single LLM tool surface.
@@ -132,12 +132,20 @@ def create_subagent_control_tool(parent_agent: BaseAgent) -> BaseTool:
                     "task_id": task_id,
                     "error": entry.get("error", "Wait failed"),
                 }
-            return {"success": False, "task_id": task_id, "error": f"Subagent {task_id} not found"}
+            return {
+                "success": False,
+                "task_id": task_id,
+                "error": f"Subagent {task_id} not found",
+            }
 
         if action == "cancel":
             cancelled = parent_agent.cancel_child(task_id)
             if cancelled:
-                return {"success": True, "task_id": task_id, "message": f"Subagent {task_id} cancelled"}
+                return {
+                    "success": True,
+                    "task_id": task_id,
+                    "message": f"Subagent {task_id} cancelled",
+                }
             return {
                 "success": False,
                 "task_id": task_id,
@@ -146,10 +154,17 @@ def create_subagent_control_tool(parent_agent: BaseAgent) -> BaseTool:
 
         if action == "steer":
             if not message or not message.strip():
-                return {"success": False, "error": "message is required for steer action."}
+                return {
+                    "success": False,
+                    "error": "message is required for steer action.",
+                }
             steered = parent_agent.steer_child(task_id, message)
             if steered:
-                return {"success": True, "task_id": task_id, "message": f"Steering message queued for {task_id}"}
+                return {
+                    "success": True,
+                    "task_id": task_id,
+                    "message": f"Steering message queued for {task_id}",
+                }
             return {
                 "success": False,
                 "task_id": task_id,
@@ -158,7 +173,9 @@ def create_subagent_control_tool(parent_agent: BaseAgent) -> BaseTool:
 
         return {
             "success": False,
-            "error": (f"Unknown action: {action!r}. Supported actions are exactly: list, cancel, steer, wait."),
+            "error": (
+                f"Unknown action: {action!r}. Supported actions are exactly: list, cancel, steer, wait."
+            ),
         }
 
     return subagent_control_func

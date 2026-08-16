@@ -470,22 +470,24 @@ class TestCacheHitPivot:
         parent_agent.config.system_prompt = "parent system"
         parent_agent.session_id = "test-session"
 
-        parent_state = MagicMock()
-        parent_state.values = {
-            "messages": [
-                SystemMessage(content="parent system"),
-                HumanMessage(content="user query"),
-                AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}]),
-                ToolMessage(content="file1.py\nfile2.py", tool_call_id="tc1"),
-                AIMessage(content="I found the files. Let me analyze them."),
-                AIMessage(content="", tool_calls=[{"name": "read_file", "args": {"path": "file1.py"}, "id": "tc2"}]),
-                ToolMessage(content="def main():\n    pass", tool_call_id="tc2"),
-                AIMessage(content="Here is my analysis of the code."),
-            ]
+        parent_state = {
+            "channel_values": {
+                "messages": [
+                    SystemMessage(content="parent system"),
+                    HumanMessage(content="user query"),
+                    AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}]),
+                    ToolMessage(content="file1.py\nfile2.py", tool_call_id="tc1"),
+                    AIMessage(content="I found the files. Let me analyze them."),
+                    AIMessage(content="", tool_calls=[{"name": "read_file", "args": {"path": "file1.py"}, "id": "tc2"}]),
+                    ToolMessage(content="def main():\n    pass", tool_call_id="tc2"),
+                    AIMessage(content="Here is my analysis of the code."),
+                ]
+            }
         }
         parent_agent.checkpointer.aget = AsyncMock(return_value=parent_state)
 
         child_agent = MagicMock()
+        child_agent._agent = None
 
         async def mock_run(*args, **kwargs):
             child_agent.run_kwargs = kwargs
@@ -541,11 +543,11 @@ class TestCacheHitPivot:
         parent_agent.config.system_prompt = "parent system"
         parent_agent.session_id = "test-session"
 
-        parent_state = MagicMock()
-        parent_state.values = {"messages": [SystemMessage(content="parent system"), HumanMessage(content="user query")]}
+        parent_state = {"channel_values": {"messages": [SystemMessage(content="parent system"), HumanMessage(content="user query")]}}
         parent_agent.checkpointer.aget = AsyncMock(return_value=parent_state)
 
         child_agent = MagicMock()
+        child_agent._agent = None
 
         async def mock_run(*args, **kwargs):
             child_agent.run_kwargs = kwargs

@@ -173,9 +173,18 @@ class SubagentExecutorAttemptMixin:
                     parent_state = await parent_agent.checkpointer.aget(
                         {"configurable": {"thread_id": parent_session_id}}
                     )
-                    if parent_state and hasattr(parent_state, "values"):
-                        raw_msgs = parent_state.values.get("messages", [])
-                        if raw_msgs:
+                    # checkpointer.aget() returns a raw checkpoint dict in
+                    # langgraph 1.2.x — messages live under channel_values.
+                    if isinstance(parent_state, dict):
+                        channel_values = parent_state.get("channel_values")
+                        raw_msgs = (
+                            channel_values.get("messages", [])
+                            if isinstance(channel_values, dict)
+                            else []
+                        )
+                    else:
+                        raw_msgs = []
+                    if raw_msgs:
                             raw_count = len(raw_msgs)
                             chat_history = _filter_fork_messages(raw_msgs, config.max_fork_tokens)
                             logger.info(
@@ -253,15 +262,20 @@ class SubagentExecutorAttemptMixin:
         # Check if child was interrupted (e.g. for approval)
         is_interrupted = False
         payload = None
-        if getattr(child_agent, "checkpointer", None):
+        # NOTE: checkpointer.aget() returns a raw checkpoint dict (not a
+        # StateSnapshot) in langgraph 1.2.x — it never exposes `next`/`tasks`.
+        # Interrupt detection must go through the compiled graph's aget_state()
+        # which merges pending writes (interrupt payloads) into tasks.
+        graph = getattr(child_agent, "_agent", None)
+        if graph is not None and getattr(graph, "aget_state", None):
             try:
-                state = await child_agent.checkpointer.aget({"configurable": {"thread_id": task_id}})
-                if state and getattr(state, "next", None):
-                    is_interrupted = True
-                    for task in getattr(state, "tasks", []):
+                snapshot = await graph.aget_state({"configurable": {"thread_id": task_id}})
+                if snapshot is not None and getattr(snapshot, "tasks", None):
+                    for task in snapshot.tasks:
                         for intr in getattr(task, "interrupts", []):
                             val = getattr(intr, "value", None)
                             if val:
+                                is_interrupted = True
                                 payload = val
                                 break
                         if payload:

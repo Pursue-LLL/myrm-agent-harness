@@ -49,6 +49,7 @@
 | 文件 | 职责 |
 |:--|:--|
 | `agent/sub_agents/types.py` | SubagentConfig（含 agent_factory/role/budget）, AgentFactory Protocol, SubAgentStatus, SubAgentResult, SubagentCatalog Protocol, DelegationCapabilityManifest 能力清单 |
+| `agent/sub_agents/checkpointer.py` | 子 agent 共享内存 checkpointer（`get_subagent_checkpointer` 单例 + `delete_subagent_checkpoint` 终态线程清理），HITL 审批中断恢复的关键 |
 | `agent/sub_agents/hitl_tool_policy.py` | HITL 工具策略 SSOT（`HitlToolPolicy`, `HITL_TOOL_POLICY`），供 subagent 能力清单读取，避免 `meta_tools` 包级循环导入 |
 | `agent/sub_agents/budget.py` | 委派运行树预算计数（max_descendants_per_run），防止递归/批量委派暴走 |
 | `agent/sub_agents/builder.py` | 子 agent 构建（async build_child_agent 支持 AgentFactory 委托、工具过滤、模型解析、结果截断、Token 合并） |
@@ -59,7 +60,7 @@
 | `agent/hooks/graceful_shutdown.py` | 优雅关机管理器（GracefulShutdownManager，SIGTERM/SIGINT信号处理，单例模式） |
 | `agent/base_agent.py` | 委托入口 + `_last_context` 保存 + 父取消传播 |
 | `agent/meta_tools/spawn_subagent/delegate_task_tool.py` | LLM `delegate_task_tool`（mode=single|batch|parallel；动态 roster + session 缓存 + 预算并发） |
-| `agent/meta_tools/spawn_subagent/agent_manage_tool.py` | LLM `subagent_control_tool`（list/cancel/steer） |
+| `agent/meta_tools/spawn_subagent/agent_manage_tool.py` | LLM `subagent_control_tool`（list/cancel/steer/wait） |
 | `agent/meta_tools/spawn_subagent/delegation_pause_gate.py` | Session 级委派暂停门闩（REST + tool 入口） |
 | `agent/dynamic_workflow/tools.py` | PTC `spawn_subagent` / `notify`（`use_workflow=True`；不进 `_TOOL_LAYERS`；下游同 `_spawn_child()`） |
 | `sub_agents/dag_plan.py` | Orchestrator DAG 内部 Plan/PlanStep 类型（非用户面工具） |
@@ -242,10 +243,16 @@ result = SubAgentResult(checkpoint_data={...})
 
 ### 7. Checkpointer 隔离
 
-子 agent 不继承父 agent 的 checkpointer（设为 None）。原因：
-- 子 agent 是短命的，不需要持久化状态
-- 共享 checkpointer 会导致子 agent 的消息历史写入父 agent 的 checkpoint thread，造成状态污染
-- 子 agent 不支持也不需要 HITL interrupt
+子 agent 不继承父 agent 的 checkpointer（避免消息历史写入父线程造成状态污染），
+但为支持 HITL 审批，所有子 agent 共享一个**进程级独立**的 `InMemorySaver`：
+
+- `agent/sub_agents/checkpointer.py` 提供 `get_subagent_checkpointer()`（懒加载单例）
+  与 `delete_subagent_checkpoint(task_id)`（终态线程内存卫生）。
+- 每个子 agent 的 `thread_id == task_id`（context 中 `approval_session_key`），
+  线程彼此隔离；审批中的子 agent 通过 `Command(resume=...)` 从同一线程恢复。
+- `delete_subagent_checkpoint` 仅在子 agent 到达**终态（非 PENDING_APPROVAL）**时
+  删除线程；PENDING_APPROVAL 线程保留供 resume 通过。
+- 共享 saver 与父 agent 的 checkpointer 相互独立，父线程不被子线程污染。
 
 ### 8. 状态追踪与自动清理
 

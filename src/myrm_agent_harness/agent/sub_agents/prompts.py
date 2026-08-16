@@ -58,9 +58,9 @@ or any task where "the best" is subjective.
 
 ## Result retrieval
 Async results (wait=false) are NOT auto-injected. Use subagent_control_tool action=list.
-Never call action=wait — subagent_control_tool supports ONLY list/cancel/steer; there is no
-blocking wait. Poll with action=list until the child's status flips from running to completed
-(a completed entry includes its result summary).
+To block until an async child finishes, use subagent_control_tool action=wait task_id=...
+Wait returns the child's result and is the preferred way to synchronously collect async workers;
+poll with action=list only when you cannot wait (e.g. you must do other work first).
 Results cached 60s to avoid redundant runs."""
 
 # ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ for the user, do not acknowledge or thank them.
 ## 2. Tools
 
 - **delegate_task_tool** — Spawn workers (mode=single|batch|parallel; wait=false for async)
-- **subagent_control_tool** — action=list|cancel|steer for runtime control
+- **subagent_control_tool** — action=list|cancel|steer|wait for runtime control
 
 ### When to Delegate vs Act Directly
 
