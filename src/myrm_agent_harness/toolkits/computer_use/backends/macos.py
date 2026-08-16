@@ -497,13 +497,46 @@ _MACOS_DEEPLINKS: dict[str, str] = {
 }
 
 
-def _check_accessibility() -> bool:
-    """Check if this process is trusted for Accessibility (AX) access.
+def _osascript_ax_capable() -> bool:
+    """Probe whether /usr/bin/osascript can actually read the AX tree.
 
-    Uses AXIsProcessTrusted(), which is authoritative for the current process.
-    An AppleScript frontmost-name query is NOT a valid probe: it succeeds even
-    without AX permission, so it produced false positives (permission reported
-    as granted while AX tree captures still fail).
+    AX snapshots are executed by the ``osascript`` subprocess, whose macOS TCC
+    Accessibility grant is a separate per-binary entry from this Python
+    process. AXIsProcessTrusted() only reflects the current (Python) process,
+    so an additional probe is required to catch the partial-grant case
+    (Python trusted but osascript denied), which would otherwise report
+    ``accessibility=True`` while every snapshot still fails.
+
+    The probe must be an AX-sensitive query: ``count of application processes``
+    succeeds without authorization, but ``count of windows of the frontmost
+    process`` fails with -25211 ("assistive access") when the grant is missing.
+    """
+    script = (
+        'tell application "System Events" to count of windows of '
+        'first application process whose frontmost is true'
+    )
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if result.returncode != 0:
+        return False
+    return result.stdout.strip().isdigit()
+
+
+def _check_accessibility() -> bool:
+    """Check if the desktop automation stack is trusted for Accessibility (AX) access.
+
+    Guards on AXIsProcessTrusted() for the current process (authoritative;
+    an AppleScript frontmost-name query succeeds even without AX permission,
+    producing false positives) AND an osascript capability probe, because AX
+    tree captures run in the osascript subprocess with its own TCC entry.
     """
     import ctypes
     import ctypes.util
@@ -514,9 +547,11 @@ def _check_accessibility() -> bool:
     try:
         ax = ctypes.cdll.LoadLibrary(ax_path)
         ax.AXIsProcessTrusted.restype = ctypes.c_bool
-        return bool(ax.AXIsProcessTrusted())
+        if not bool(ax.AXIsProcessTrusted()):
+            return False
     except (OSError, AttributeError):
         return False
+    return _osascript_ax_capable()
 
 
 def _check_screen_recording() -> bool:

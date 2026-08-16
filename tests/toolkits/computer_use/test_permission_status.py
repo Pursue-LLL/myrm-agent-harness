@@ -2,7 +2,8 @@
 
 Covers:
 - PermissionStatus frozen dataclass: defaults, all_granted property, deeplinks
-- _check_accessibility: AXIsProcessTrusted trusted/untrusted/library-failure scenarios
+- _check_accessibility: AXIsProcessTrusted + osascript capability probe
+- _osascript_ax_capable: osascript subprocess probe scenarios
 - _check_screen_recording: CGPreflightScreenCaptureAccess via ctypes mocking
 - _check_macos_permissions: integration of both checks into PermissionStatus
 - MacOSBackend.check_permissions: async wrapper delegates to blocking impl
@@ -10,6 +11,7 @@ Covers:
 
 from __future__ import annotations
 
+import subprocess
 from dataclasses import FrozenInstanceError
 from unittest.mock import MagicMock, patch
 
@@ -64,9 +66,9 @@ class TestPermissionStatus:
 
 
 class TestCheckAccessibility:
-    """_check_accessibility via ctypes AXIsProcessTrusted mocking."""
+    """_check_accessibility via ctypes AXIsProcessTrusted + osascript probe mocking."""
 
-    def test_granted_when_process_trusted(self) -> None:
+    def test_granted_when_process_and_osascript_trusted(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
 
         mock_ax = MagicMock()
@@ -76,6 +78,10 @@ class TestCheckAccessibility:
         with (
             patch("ctypes.util.find_library", return_value="/System/Library/ApplicationServices"),
             patch("ctypes.cdll.LoadLibrary", return_value=mock_ax),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos._osascript_ax_capable",
+                return_value=True,
+            ),
         ):
             assert _check_accessibility() is True
             mock_ax.AXIsProcessTrusted.assert_called_once_with()
@@ -90,6 +96,24 @@ class TestCheckAccessibility:
         with (
             patch("ctypes.util.find_library", return_value="/System/Library/ApplicationServices"),
             patch("ctypes.cdll.LoadLibrary", return_value=mock_ax),
+        ):
+            assert _check_accessibility() is False
+
+    def test_denied_when_osascript_not_trusted(self) -> None:
+        """Partial grant (Python trusted, osascript denied) must report false."""
+        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_accessibility
+
+        mock_ax = MagicMock()
+        mock_ax.AXIsProcessTrusted.return_value = True
+        mock_ax.AXIsProcessTrusted.restype = None
+
+        with (
+            patch("ctypes.util.find_library", return_value="/System/Library/ApplicationServices"),
+            patch("ctypes.cdll.LoadLibrary", return_value=mock_ax),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos._osascript_ax_capable",
+                return_value=False,
+            ),
         ):
             assert _check_accessibility() is False
 
@@ -152,6 +176,57 @@ class TestCheckScreenRecording:
             patch("ctypes.cdll.LoadLibrary", side_effect=OSError("load failed")),
         ):
             assert _check_screen_recording() is False
+
+
+class TestOsascriptAxCapable:
+    """_osascript_ax_capable probe behavior."""
+
+    def test_capable_when_count_returns_digit(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends.macos import _osascript_ax_capable
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout.strip.return_value = "5"
+        with patch(
+            "myrm_agent_harness.toolkits.computer_use.backends.macos.subprocess.run",
+            return_value=mock_result,
+        ) as mock_run:
+            assert _osascript_ax_capable() is True
+            argv = mock_run.call_args.args[0]
+            assert argv[0] == "osascript"
+            script = argv[2]
+            assert "count of windows" in script
+            assert "frontmost" in script
+
+    def test_denied_when_nonzero_returncode(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends.macos import _osascript_ax_capable
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout.strip.return_value = ""
+        with patch(
+            "myrm_agent_harness.toolkits.computer_use.backends.macos.subprocess.run",
+            return_value=mock_result,
+        ):
+            assert _osascript_ax_capable() is False
+
+    def test_denied_on_oserror(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends.macos import _osascript_ax_capable
+
+        with patch(
+            "myrm_agent_harness.toolkits.computer_use.backends.macos.subprocess.run",
+            side_effect=OSError("osascript not found"),
+        ):
+            assert _osascript_ax_capable() is False
+
+    def test_denied_on_timeout(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends.macos import _osascript_ax_capable
+
+        with patch(
+            "myrm_agent_harness.toolkits.computer_use.backends.macos.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd=["osascript"], timeout=5),
+        ):
+            assert _osascript_ax_capable() is False
 
 
 class TestCheckMacosPermissions:
