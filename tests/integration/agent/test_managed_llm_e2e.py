@@ -20,9 +20,9 @@ def _make_result(content: str = "response") -> ChatResult:
 def _make_llm(*, succeed: bool = True, content: str = "response") -> MagicMock:
     llm = MagicMock()
     if succeed:
-        llm.agenerate = AsyncMock(return_value=_make_result(content))
+        llm._agenerate = AsyncMock(return_value=_make_result(content))
     else:
-        llm.agenerate = AsyncMock(side_effect=Exception("Rate limit exceeded"))
+        llm._agenerate = AsyncMock(side_effect=Exception("Rate limit exceeded"))
     return llm
 
 
@@ -42,8 +42,8 @@ async def test_main_llm_used_when_healthy():
     result = await managed._agenerate([HumanMessage(content="hello")])
 
     assert result is not None
-    main.agenerate.assert_called()
-    fallback.agenerate.assert_not_called()
+    main._agenerate.assert_called()
+    fallback._agenerate.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -62,8 +62,8 @@ async def test_automatic_failover_to_fallback():
     result = await managed._agenerate([HumanMessage(content="hello")])
 
     assert result is not None
-    main.agenerate.assert_called()
-    fallback.agenerate.assert_called()
+    main._agenerate.assert_called()
+    fallback._agenerate.assert_called()
 
 
 @pytest.mark.asyncio
@@ -80,11 +80,11 @@ async def test_cooldown_after_main_failure():
     )
 
     await managed._agenerate([HumanMessage(content="first call")])
-    initial_fallback_calls = fallback.agenerate.call_count
+    initial_fallback_calls = fallback._agenerate.call_count
 
     await managed._agenerate([HumanMessage(content="second call")])
 
-    assert fallback.agenerate.call_count > initial_fallback_calls
+    assert fallback._agenerate.call_count > initial_fallback_calls
 
 
 @pytest.mark.asyncio
@@ -101,7 +101,7 @@ async def test_no_fallback_single_model():
     result = await managed._agenerate([HumanMessage(content="hello")])
 
     assert result is not None
-    main.agenerate.assert_called()
+    main._agenerate.assert_called()
 
 
 @pytest.mark.asyncio
@@ -141,7 +141,7 @@ async def test_multiple_consecutive_failures():
         result = await managed._agenerate([HumanMessage(content=f"call {i}")])
         assert result is not None
 
-    assert fallback.agenerate.call_count >= 3
+    assert fallback._agenerate.call_count >= 3
 
 
 @pytest.mark.asyncio
