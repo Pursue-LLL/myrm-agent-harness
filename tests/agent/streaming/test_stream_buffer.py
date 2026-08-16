@@ -157,6 +157,94 @@ class TestResilientStreamBuffer:
         )
         await gen.aclose()
 
+    @pytest.mark.asyncio
+    async def test_subscribe_emits_heartbeat_when_idle(self, buffer: ResilientStreamBuffer) -> None:
+        """When no event arrives within heartbeat_interval, a heartbeat frame is
+        yielded so intermediaries keep the SSE connection alive, and the stream
+        continues with real payloads after a later append."""
+        await buffer.append('data: {"data":"first"}\n\n')
+
+        gen = buffer.subscribe(heartbeat_interval=0.05)
+        saw_heartbeat = False
+        received: list[str] = []
+
+        # Read the buffered event plus at least one heartbeat (each wait polls
+        # for 50ms of idle before emitting). 6 reads cover the initial event,
+        # an idle heartbeat, and the post-append payload below.
+        for _ in range(6):
+            try:
+                item = await asyncio.wait_for(gen.__anext__(), timeout=2.0)
+            except StopAsyncIteration:
+                break
+            received.append(item)
+            if item == "event: heartbeat\ndata: null\n\n":
+                saw_heartbeat = True
+                break
+
+        assert saw_heartbeat, "expected a heartbeat frame after idle wait"
+
+        # The stream stays live after the heartbeat: a new append is delivered.
+        await buffer.append('data: {"data":"after-heartbeat"}\n\n')
+        item = await asyncio.wait_for(gen.__anext__(), timeout=2.0)
+        received.append(item)
+        assert "after-heartbeat" in item
+
+        await buffer.end_stream()
+        await gen.aclose()
+
+
+class TestMultiSubscriber:
+    """Concurrent consumers: an in-flight SSE connection and a refresh/re-attach
+    subscriber consume the same buffer independently (frontend attachToChat
+    reconnect keeps the old listener alive while the new one catches up)."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_subscribers_each_receive_full_stream(
+        self, buffer: ResilientStreamBuffer
+    ) -> None:
+        await buffer.append('data: {"data":"tok1"}\n\n')
+        await buffer.append('data: {"data":"tok2"}\n\n')
+
+        first = buffer.subscribe()
+        second = buffer.subscribe()
+
+        # Both subscribers see the two buffered events from their own cursor.
+        assert "tok1" in await asyncio.wait_for(first.__anext__(), timeout=2.0)
+        assert "tok2" in await asyncio.wait_for(first.__anext__(), timeout=2.0)
+        assert "tok1" in await asyncio.wait_for(second.__anext__(), timeout=2.0)
+        assert "tok2" in await asyncio.wait_for(second.__anext__(), timeout=2.0)
+
+        # A live event is delivered to both pending readers (no fan-out loss).
+        await buffer.append('data: {"data":"tok3"}\n\n')
+        assert "tok3" in await asyncio.wait_for(first.__anext__(), timeout=2.0)
+        assert "tok3" in await asyncio.wait_for(second.__anext__(), timeout=2.0)
+
+        await buffer.end_stream()
+        await first.aclose()
+        await second.aclose()
+
+    @pytest.mark.asyncio
+    async def test_end_stream_broadcasts_to_all_subscribers(
+        self, buffer: ResilientStreamBuffer
+    ) -> None:
+        await buffer.append('data: {"data":"only"}\n\n')
+        first = buffer.subscribe()
+        second = buffer.subscribe()
+
+        assert "only" in await asyncio.wait_for(first.__anext__(), timeout=2.0)
+        assert "only" in await asyncio.wait_for(second.__anext__(), timeout=2.0)
+
+        await buffer.end_stream()
+
+        # Both consumers observe the terminal sentinel instead of hanging.
+        with pytest.raises(StopAsyncIteration):
+            await asyncio.wait_for(first.__anext__(), timeout=2.0)
+        with pytest.raises(StopAsyncIteration):
+            await asyncio.wait_for(second.__anext__(), timeout=2.0)
+
+        await first.aclose()
+        await second.aclose()
+
 
 class TestGlobalStreamRegistry:
     @pytest.mark.asyncio
@@ -173,6 +261,17 @@ class TestGlobalStreamRegistry:
         assert not await registry.has_buffer("run-2")
         await registry.get_or_create("run-2")
         assert await registry.has_buffer("run-2")
+
+    @pytest.mark.asyncio
+    async def test_get_lazy_singleton_init(self) -> None:
+        """GlobalStreamRegistry.get() lazily creates the process-wide singleton
+        on first call and returns the same instance afterwards."""
+        assert GlobalStreamRegistry._instance is None
+        first = GlobalStreamRegistry.get()
+        assert isinstance(first, GlobalStreamRegistry)
+        second = GlobalStreamRegistry.get()
+        assert first is second
+        GlobalStreamRegistry._instance = None
 
     @pytest.mark.asyncio
     async def test_remove(self) -> None:
