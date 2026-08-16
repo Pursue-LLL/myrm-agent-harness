@@ -507,13 +507,16 @@ def _osascript_ax_capable() -> bool:
     (Python trusted but osascript denied), which would otherwise report
     ``accessibility=True`` while every snapshot still fails.
 
-    The probe must be an AX-sensitive query: ``count of application processes``
-    succeeds without authorization, but ``count of windows of the frontmost
-    process`` fails with -25211 ("assistive access") when the grant is missing.
+    The probe must be AX-sensitive AND not depend on the frontmost app having
+    a window: ``count of windows of first application process whose frontmost
+    is true`` fails with -1728 when the frontmost process has no window,
+    which would misreport an already-granted environment as denied.
+    ``name of every process whose frontmost is true`` returns the frontmost
+    process name with AX access and errors (-25211/-1719) without it.
     """
     script = (
-        'tell application "System Events" to count of windows of '
-        'first application process whose frontmost is true'
+        'tell application "System Events" '
+        'to get name of every process whose frontmost is true'
     )
     try:
         result = subprocess.run(
@@ -527,7 +530,7 @@ def _osascript_ax_capable() -> bool:
         return False
     if result.returncode != 0:
         return False
-    return result.stdout.strip().isdigit()
+    return bool(result.stdout.strip())
 
 
 def _check_accessibility() -> bool:

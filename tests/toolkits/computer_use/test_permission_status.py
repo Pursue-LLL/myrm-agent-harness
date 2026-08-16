@@ -181,12 +181,12 @@ class TestCheckScreenRecording:
 class TestOsascriptAxCapable:
     """_osascript_ax_capable probe behavior."""
 
-    def test_capable_when_count_returns_digit(self) -> None:
+    def test_capable_when_process_name_returned(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.backends.macos import _osascript_ax_capable
 
         mock_result = MagicMock()
         mock_result.returncode = 0
-        mock_result.stdout.strip.return_value = "5"
+        mock_result.stdout = "Cursor.real\n"
         with patch(
             "myrm_agent_harness.toolkits.computer_use.backends.macos.subprocess.run",
             return_value=mock_result,
@@ -195,7 +195,7 @@ class TestOsascriptAxCapable:
             argv = mock_run.call_args.args[0]
             assert argv[0] == "osascript"
             script = argv[2]
-            assert "count of windows" in script
+            assert "get name of every process" in script
             assert "frontmost" in script
 
     def test_denied_when_nonzero_returncode(self) -> None:
@@ -203,7 +203,7 @@ class TestOsascriptAxCapable:
 
         mock_result = MagicMock()
         mock_result.returncode = 1
-        mock_result.stdout.strip.return_value = ""
+        mock_result.stdout = ""
         with patch(
             "myrm_agent_harness.toolkits.computer_use.backends.macos.subprocess.run",
             return_value=mock_result,
