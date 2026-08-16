@@ -13,7 +13,6 @@ from myrm_agent_harness.toolkits.llms.fallback import ManagedLLM, ScenarioType
 def mock_main_llm():
     """Create mock main LLM."""
     llm = MagicMock()
-    llm.agenerate = AsyncMock()
     llm._agenerate = AsyncMock()
     return llm
 
@@ -22,7 +21,6 @@ def mock_main_llm():
 def mock_fallback_llm():
     """Create mock fallback LLM."""
     llm = MagicMock()
-    llm.agenerate = AsyncMock()
     llm._agenerate = AsyncMock()
     return llm
 
@@ -34,7 +32,7 @@ async def test_managed_llm_basic_success(mock_main_llm, mock_fallback_llm):
     expected_result = ChatResult(
         generations=[ChatGeneration(message=HumanMessage(content="Success"))]
     )
-    mock_main_llm.agenerate.return_value = expected_result
+    mock_main_llm._agenerate.return_value = expected_result
 
     managed_llm = ManagedLLM(
         main_llm=mock_main_llm,
@@ -49,19 +47,19 @@ async def test_managed_llm_basic_success(mock_main_llm, mock_fallback_llm):
 
     # Assert
     assert result is not None
-    mock_main_llm.agenerate.assert_called_once()
-    mock_fallback_llm.agenerate.assert_not_called()
+    mock_main_llm._agenerate.assert_called_once()
+    mock_fallback_llm._agenerate.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_managed_llm_failover_to_fallback(mock_main_llm, mock_fallback_llm):
     """Test ManagedLLM failover when main LLM fails."""
     # Arrange
-    mock_main_llm.agenerate.side_effect = Exception("Rate limit")
+    mock_main_llm._agenerate.side_effect = Exception("Rate limit")
     expected_result = ChatResult(
         generations=[ChatGeneration(message=HumanMessage(content="Fallback success"))]
     )
-    mock_fallback_llm.agenerate.return_value = expected_result
+    mock_fallback_llm._agenerate.return_value = expected_result
 
     managed_llm = ManagedLLM(
         main_llm=mock_main_llm,
@@ -76,8 +74,8 @@ async def test_managed_llm_failover_to_fallback(mock_main_llm, mock_fallback_llm
 
     # Assert
     assert result is not None
-    mock_main_llm.agenerate.assert_called_once()
-    mock_fallback_llm.agenerate.assert_called_once()
+    mock_main_llm._agenerate.assert_called_once()
+    mock_fallback_llm._agenerate.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -87,7 +85,7 @@ async def test_managed_llm_without_fallback(mock_main_llm):
     expected_result = ChatResult(
         generations=[ChatGeneration(message=HumanMessage(content="Success"))]
     )
-    mock_main_llm.agenerate.return_value = expected_result
+    mock_main_llm._agenerate.return_value = expected_result
 
     managed_llm = ManagedLLM(
         main_llm=mock_main_llm,
@@ -101,18 +99,18 @@ async def test_managed_llm_without_fallback(mock_main_llm):
 
     # Assert
     assert result is not None
-    mock_main_llm.agenerate.assert_called_once()
+    mock_main_llm._agenerate.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_managed_llm_cooldown_behavior(mock_main_llm, mock_fallback_llm):
     """Test ManagedLLM cooldown behavior after main LLM failure."""
     # Arrange
-    mock_main_llm.agenerate.side_effect = Exception("Rate limit")
+    mock_main_llm._agenerate.side_effect = Exception("Rate limit")
     fallback_result = ChatResult(
         generations=[ChatGeneration(message=HumanMessage(content="Fallback"))]
     )
-    mock_fallback_llm.agenerate.return_value = fallback_result
+    mock_fallback_llm._agenerate.return_value = fallback_result
 
     managed_llm = ManagedLLM(
         main_llm=mock_main_llm,
@@ -132,9 +130,9 @@ async def test_managed_llm_cooldown_behavior(mock_main_llm, mock_fallback_llm):
     assert result1 is not None
     assert result2 is not None
     # Main should be called at least once (first attempt)
-    assert mock_main_llm.agenerate.call_count >= 1
+    assert mock_main_llm._agenerate.call_count >= 1
     # Fallback should be called twice (both calls)
-    assert mock_fallback_llm.agenerate.call_count == 2
+    assert mock_fallback_llm._agenerate.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -144,7 +142,7 @@ async def test_managed_llm_scenario_types(mock_main_llm, mock_fallback_llm):
     expected_result = ChatResult(
         generations=[ChatGeneration(message=HumanMessage(content="Success"))]
     )
-    mock_main_llm.agenerate.return_value = expected_result
+    mock_main_llm._agenerate.return_value = expected_result
 
     for scenario in [ScenarioType.REALTIME, ScenarioType.BATCH, ScenarioType.BALANCED]:
         managed_llm = ManagedLLM(
@@ -167,8 +165,8 @@ async def test_managed_llm_scenario_types(mock_main_llm, mock_fallback_llm):
 async def test_managed_llm_both_models_fail(mock_main_llm, mock_fallback_llm):
     """Test ManagedLLM when both main and fallback fail."""
     # Arrange
-    mock_main_llm.agenerate.side_effect = ValueError("Main error")
-    mock_fallback_llm.agenerate.side_effect = ValueError("Fallback error")
+    mock_main_llm._agenerate.side_effect = ValueError("Main error")
+    mock_fallback_llm._agenerate.side_effect = ValueError("Fallback error")
 
     managed_llm = ManagedLLM(
         main_llm=mock_main_llm,
@@ -182,8 +180,8 @@ async def test_managed_llm_both_models_fail(mock_main_llm, mock_fallback_llm):
     with pytest.raises(ValueError):
         await managed_llm.ainvoke(messages)
 
-    mock_main_llm.agenerate.assert_called_once()
-    mock_fallback_llm.agenerate.assert_called_once()
+    mock_main_llm._agenerate.assert_called_once()
+    mock_fallback_llm._agenerate.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -264,7 +262,7 @@ async def test_managed_llm_does_not_replay_run_manager(mock_main_llm):
             generations=[ChatGeneration(message=HumanMessage(content="ok"))]
         )
 
-    mock_main_llm.agenerate = AsyncMock(side_effect=collecting_agenerate)
+    mock_main_llm._agenerate = AsyncMock(side_effect=collecting_agenerate)
 
     managed_llm = ManagedLLM(main_llm=mock_main_llm, main_model_name="gpt-4")
     result = await managed_llm.ainvoke([HumanMessage(content="Test")])

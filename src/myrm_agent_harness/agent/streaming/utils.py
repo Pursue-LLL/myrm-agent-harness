@@ -88,7 +88,7 @@ def get_datetime_prompt(timezone: str | None = None, dt: datetime | None = None)
 
     Example output::
 
-        <current_datetime>2026-03-06 22:30 Saturday (UTC+8)</current_datetime>
+        <current_datetime>2026-03-06 22:30 Friday (UTC+8)</current_datetime>
     """
     now: datetime
     tz_label = ""

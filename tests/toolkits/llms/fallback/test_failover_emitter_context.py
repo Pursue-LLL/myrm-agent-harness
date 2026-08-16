@@ -139,8 +139,8 @@ async def test_emitter_receives_failover_during_managed_llm_failover():
     async def _ok(*args, **kwargs):
         return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="ok"))])
 
-    mock_main.agenerate = AsyncMock(side_effect=_fail)
-    mock_fallback.agenerate = AsyncMock(side_effect=_ok)
+    mock_main._agenerate = AsyncMock(side_effect=_fail)
+    mock_fallback._agenerate = AsyncMock(side_effect=_ok)
 
     managed_llm = ManagedLLM(
         main_llm=mock_main,
@@ -173,8 +173,8 @@ async def test_emitter_and_callback_both_fire():
     async def _ok(*args, **kwargs):
         return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="ok"))])
 
-    mock_main.agenerate = AsyncMock(side_effect=_fail)
-    mock_fallback.agenerate = AsyncMock(side_effect=_ok)
+    mock_main._agenerate = AsyncMock(side_effect=_fail)
+    mock_fallback._agenerate = AsyncMock(side_effect=_ok)
 
     callback_events: list[FailoverEvent] = []
 
@@ -210,8 +210,8 @@ async def test_emitter_exception_does_not_break_request():
     async def _ok(*args, **kwargs):
         return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="ok"))])
 
-    mock_main.agenerate = AsyncMock(side_effect=_fail)
-    mock_fallback.agenerate = AsyncMock(side_effect=_ok)
+    mock_main._agenerate = AsyncMock(side_effect=_fail)
+    mock_fallback._agenerate = AsyncMock(side_effect=_ok)
 
     managed_llm = ManagedLLM(
         main_llm=mock_main,
@@ -258,8 +258,8 @@ async def test_no_emitter_means_silent_path():
     async def _ok(*args, **kwargs):
         return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="ok"))])
 
-    mock_main.agenerate = AsyncMock(side_effect=_fail)
-    mock_fallback.agenerate = AsyncMock(side_effect=_ok)
+    mock_main._agenerate = AsyncMock(side_effect=_fail)
+    mock_fallback._agenerate = AsyncMock(side_effect=_ok)
 
     managed_llm = ManagedLLM(
         main_llm=mock_main,

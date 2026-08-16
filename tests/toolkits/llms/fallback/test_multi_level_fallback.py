@@ -18,13 +18,13 @@ async def test_multi_level_fallback_3_models():
     fallback2_llm = MagicMock()
 
     # Main LLM fails
-    main_llm.agenerate = AsyncMock(side_effect=Exception("Main failed"))
+    main_llm._agenerate = AsyncMock(side_effect=Exception("Main failed"))
 
     # Fallback1 LLM fails
-    fallback1_llm.agenerate = AsyncMock(side_effect=Exception("Fallback1 failed"))
+    fallback1_llm._agenerate = AsyncMock(side_effect=Exception("Fallback1 failed"))
 
     # Fallback2 LLM succeeds
-    fallback2_llm.agenerate = AsyncMock(
+    fallback2_llm._agenerate = AsyncMock(
         return_value=ChatResult(generations=[ChatGeneration(message=AIMessage(content="fallback2 response"))])
     )
 
@@ -46,9 +46,9 @@ async def test_multi_level_fallback_3_models():
     assert result.content == "fallback2 response"
 
     # Verify all LLMs were tried
-    assert main_llm.agenerate.call_count == 1
-    assert fallback1_llm.agenerate.call_count == 1
-    assert fallback2_llm.agenerate.call_count == 1
+    assert main_llm._agenerate.call_count == 1
+    assert fallback1_llm._agenerate.call_count == 1
+    assert fallback2_llm._agenerate.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -59,8 +59,8 @@ async def test_multi_level_fallback_4_models():
 
     # First 3 fail, last succeeds
     for i in range(3):
-        llms[i].agenerate = AsyncMock(side_effect=Exception(f"Model {i} failed"))
-    llms[3].agenerate = AsyncMock(
+        llms[i]._agenerate = AsyncMock(side_effect=Exception(f"Model {i} failed"))
+    llms[3]._agenerate = AsyncMock(
         return_value=ChatResult(generations=[ChatGeneration(message=AIMessage(content="final fallback"))])
     )
 
@@ -82,7 +82,7 @@ async def test_multi_level_fallback_4_models():
 
     # Verify all LLMs were tried
     for llm in llms:
-        assert llm.agenerate.call_count == 1
+        assert llm._agenerate.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -92,7 +92,7 @@ async def test_multi_level_fallback_first_succeeds():
 
     # All models configured to succeed
     for i, llm in enumerate(llms):
-        llm.agenerate = AsyncMock(
+        llm._agenerate = AsyncMock(
             return_value=ChatResult(generations=[ChatGeneration(message=AIMessage(content=f"response_{i}"))])
         )
 
@@ -109,11 +109,11 @@ async def test_multi_level_fallback_first_succeeds():
 
     # Should use main model only
     assert result.content == "response_0"
-    assert llms[0].agenerate.call_count == 1
+    assert llms[0]._agenerate.call_count == 1
 
     # Other models should not be called
     for llm in llms[1:]:
-        assert llm.agenerate.call_count == 0
+        assert llm._agenerate.call_count == 0
 
 
 @pytest.mark.asyncio
@@ -122,8 +122,8 @@ async def test_backward_compatible_2_level():
     main_llm = MagicMock()
     fallback_llm = MagicMock()
 
-    main_llm.agenerate = AsyncMock(side_effect=Exception("Main failed"))
-    fallback_llm.agenerate = AsyncMock(
+    main_llm._agenerate = AsyncMock(side_effect=Exception("Main failed"))
+    fallback_llm._agenerate = AsyncMock(
         return_value=ChatResult(generations=[ChatGeneration(message=AIMessage(content="fallback"))])
     )
 

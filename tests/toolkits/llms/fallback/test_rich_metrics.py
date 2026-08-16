@@ -16,8 +16,8 @@ async def test_failover_metrics_recorded():
     fallback_llm = MagicMock()
 
     # Main fails, fallback succeeds
-    main_llm.agenerate = AsyncMock(side_effect=Exception("Rate limit"))
-    fallback_llm.agenerate = AsyncMock(
+    main_llm._agenerate = AsyncMock(side_effect=Exception("Rate limit"))
+    fallback_llm._agenerate = AsyncMock(
         return_value=ChatResult(generations=[ChatGeneration(message=AIMessage(content="fallback"))])
     )
 
@@ -63,8 +63,8 @@ async def test_recovery_metrics_recorded():
     async def fallback_agenerate(*args, **kwargs):
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content="fallback"))])
 
-    main_llm.agenerate = main_agenerate
-    fallback_llm.agenerate = fallback_agenerate
+    main_llm._agenerate = main_agenerate
+    fallback_llm._agenerate = fallback_agenerate
 
     # Track recovery events
     recovery_events = []
@@ -105,9 +105,9 @@ async def test_metrics_with_multi_level_fallback():
     llms = [MagicMock() for _ in range(3)]
 
     # First two fail, third succeeds
-    llms[0].agenerate = AsyncMock(side_effect=Exception("Model 0 failed"))
-    llms[1].agenerate = AsyncMock(side_effect=Exception("Model 1 failed"))
-    llms[2].agenerate = AsyncMock(
+    llms[0]._agenerate = AsyncMock(side_effect=Exception("Model 0 failed"))
+    llms[1]._agenerate = AsyncMock(side_effect=Exception("Model 1 failed"))
+    llms[2]._agenerate = AsyncMock(
         return_value=ChatResult(generations=[ChatGeneration(message=AIMessage(content="success"))])
     )
 

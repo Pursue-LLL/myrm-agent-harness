@@ -23,8 +23,8 @@ async def test_managed_llm_callback_triggered_on_failover():
     async def fallback_agenerate(*args, **kwargs):
         return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="fallback response"))])
 
-    mock_main.agenerate = AsyncMock(side_effect=main_agenerate)
-    mock_fallback.agenerate = AsyncMock(side_effect=fallback_agenerate)
+    mock_main._agenerate = AsyncMock(side_effect=main_agenerate)
+    mock_fallback._agenerate = AsyncMock(side_effect=fallback_agenerate)
 
     # Create callback to track events
     callback_events = []
@@ -64,8 +64,8 @@ async def test_managed_llm_no_callback_when_main_succeeds():
     async def main_agenerate(*args, **kwargs):
         return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="main response"))])
 
-    mock_main.agenerate = AsyncMock(side_effect=main_agenerate)
-    mock_fallback.agenerate = AsyncMock()
+    mock_main._agenerate = AsyncMock(side_effect=main_agenerate)
+    mock_fallback._agenerate = AsyncMock()
 
     # Create callback to track events
     callback_events = []
@@ -89,7 +89,7 @@ async def test_managed_llm_no_callback_when_main_succeeds():
     # Verify callback was NOT called
     assert len(callback_events) == 0
     # Verify fallback was not called
-    mock_fallback.agenerate.assert_not_called()
+    mock_fallback._agenerate.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -106,8 +106,8 @@ async def test_managed_llm_without_callback():
     async def fallback_agenerate(*args, **kwargs):
         return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="fallback response"))])
 
-    mock_main.agenerate = AsyncMock(side_effect=main_agenerate)
-    mock_fallback.agenerate = AsyncMock(side_effect=fallback_agenerate)
+    mock_main._agenerate = AsyncMock(side_effect=main_agenerate)
+    mock_fallback._agenerate = AsyncMock(side_effect=fallback_agenerate)
 
     # Create ManagedLLM without callback
     managed_llm = ManagedLLM(
@@ -139,8 +139,8 @@ async def test_managed_llm_callback_exception_does_not_fail_request():
     async def fallback_agenerate(*args, **kwargs):
         return ChatResult(generations=[ChatGeneration(message=HumanMessage(content="fallback response"))])
 
-    mock_main.agenerate = AsyncMock(side_effect=main_agenerate)
-    mock_fallback.agenerate = AsyncMock(side_effect=fallback_agenerate)
+    mock_main._agenerate = AsyncMock(side_effect=main_agenerate)
+    mock_fallback._agenerate = AsyncMock(side_effect=fallback_agenerate)
 
     # Create callback that raises
     async def on_failover(event: FailoverEvent) -> None:

@@ -105,7 +105,7 @@ async def test_create_managed_llm_from_preset():
     }
 
     # Configure mocks
-    llm_factory["gpt-4"].agenerate = AsyncMock(
+    llm_factory["gpt-4"]._agenerate = AsyncMock(
         return_value=ChatResult(generations=[ChatGeneration(message=AIMessage(content="gpt-4 response"))])
     )
 
@@ -120,7 +120,7 @@ async def test_create_managed_llm_from_preset():
     result = await managed_llm.ainvoke(messages)
 
     assert result.content == "gpt-4 response"
-    assert llm_factory["gpt-4"].agenerate.call_count == 1
+    assert llm_factory["gpt-4"]._agenerate.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -156,7 +156,7 @@ async def test_preset_strategy_probe_config():
 
     # Configure all to succeed
     for llm in llm_factory.values():
-        llm.agenerate = AsyncMock(
+        llm._agenerate = AsyncMock(
             return_value=ChatResult(generations=[ChatGeneration(message=AIMessage(content="ok"))])
         )
 
