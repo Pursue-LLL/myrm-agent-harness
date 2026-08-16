@@ -29,6 +29,7 @@ from langchain_core.tools import BaseTool
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .budget import DelegationBudgetState
+from .checkpointer import get_subagent_checkpointer
 from .delegation_policy import get_effective_leaf_blocked_tools
 from .types import DELEGATION_CAPABILITY_MANIFEST, SubagentConfig
 
@@ -232,9 +233,12 @@ async def build_child_agent(
     business-layer factory (e.g., creating a SkillAgent with memory, skills,
     MCP). Otherwise, creates a bare BaseAgent.
 
-    checkpointer is intentionally omitted for bare BaseAgent: child agents are
-    ephemeral and sharing the parent's checkpoint thread would pollute its
-    message history. AgentFactory implementations may provide their own.
+    checkpointer: bare BaseAgent children get the process-wide shared subagent
+    checkpointer (thread_id == task_id), so HITL approval (GraphInterrupt) works
+    and resume passes can restore the interrupted thread. The shared saver is a
+    distinct instance from the parent's checkpointer, so child message history
+    never pollutes the parent thread. AgentFactory implementations may provide
+    their own.
     """
     if config.agent_factory is not None:
         logger.info("[subagent] Using AgentFactory for child agent construction")
@@ -291,7 +295,7 @@ async def build_child_agent(
         system_prompt=system_prompt,
         tools=tools,
         middlewares=middlewares,
-        checkpointer=None,
+        checkpointer=get_subagent_checkpointer(),
         config=AgentRuntimeConfig(
             # Recursion budget is owned by the subagent's max_turns — independent of the
             # parent's recursion_limit (aligned with build_standalone_agent), so a configured

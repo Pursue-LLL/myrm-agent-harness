@@ -206,8 +206,8 @@ Token 明细（历史 tiktoken 计量保留）：
 
 | 组件 | Token (估算) | 来源 | 说明 |
 |------|------------:|------|------|
-| user_instructions | ~200 | `server/agent_middlewares/user_instructions_middleware.py` | 用户自定义指令（SystemMessage，注入在 system prompt 之后） |
-| Memory context | ~500 | `harness/agent/middlewares/memory_context_middleware.py` | Stable：`<user_memory_context>` **SystemMessage**；Turn1 learned 为空（检索走 `memory_search_tool`）；Learned 历史形态经 `wrap_untrusted` → HumanMessage |
+| user_instructions | ~200 | `server/app/ai_agents/agent_middlewares/user_instructions_middleware.py` | 用户自定义指令（SystemMessage，注入在 system prompt 之后） |
+| Memory context | ~500 | `harness/agent/middlewares/memory_context/memory_context_middleware.py` | Stable：`<user_memory_context>` **SystemMessage**；Turn1 learned 为空（检索走 `memory_search_tool`）；Learned 历史形态经 `wrap_untrusted` → HumanMessage |
 | Inline skills 列表 | ~500 | 技能系统 | `<skills>` 块内联展示可用技能名+描述（取决于已安装技能数量） |
 
 **缓存特性**：

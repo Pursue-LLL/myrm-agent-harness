@@ -59,22 +59,22 @@ Path: `/mcp/{skill_name}/<function_name>.md`
 
 After Step 1 batch-reads **all** docs needed this turn:
 - **ONE** bash only — serial/parallel `await` all MCP calls → end with **one** `[RESULT]`
-- **FORBIDDEN**: `[OBSERVATION]` for successful intermediate MCP returns — keep them in variables inside the same script
-- **FORBIDDEN**: OBSERVATION-only bash after docs are read; splitting into "probe then fetch" without error
+- **FORBIDDEN**: `[OBSERVATION]` for successful, known-value intermediate MCP returns — keep them in variables inside the same script
+- **FORBIDDEN**: guessing an undocumented return structure to force everything into one `[RESULT]` — if any needed function's return shape is not in the docs, end with `[OBSERVATION]` to observe it, then continue in the next bash
 - **FORBIDDEN**: calling `file_write_tool(...)` inside bash Python — use native tool separately
 
 Import: `from skills.{skill_name} import <func_name>` (`skills.*` = MCP; `tools.*` = built-in; NOT interchangeable)
 
 ### Performance Rules (CRITICAL)
 
-1. **ONE bash = ONE complete task** — after docs read, default to serial/parallel in one bash → `[RESULT]`
+1. **ONE bash = ONE complete task when all return structures are known** — default to serial/parallel in one bash → `[RESULT]`
 2. Independent → `asyncio.gather()` in one bash; Dependent + doc fields known → serial in one bash → `[RESULT]`
 3. **Scenario A** (no deps): one bash + `gather` → `[RESULT]`
 4. **Scenario B** (deps + doc fields known): one bash serial `await` → `[RESULT]` — default after docs read
-5. **Scenario C** (doc missing fields / call failed): `[OBSERVATION]` only, next bash continues
+5. **Scenario C** (doc missing a needed return field / call failed): `[OBSERVATION]` to observe the real shape, next bash continues — do NOT guess
 6. **NEVER re-select this skill** — once loaded, stays for entire conversation
 7. **No duplicate calls** — reuse results; do NOT re-query to double-check
-8. **stdout is your answer** — `[RESULT]` for final data; do NOT `[OBSERVATION]` successful intermediate MCP returns
+8. **stdout is your answer** — `[RESULT]` for final data; `[OBSERVATION]` only to inspect an undocumented return structure, never for a known-value intermediate
 
 Returns are **parsed Python objects** — do NOT `json.loads()`; only access fields explicitly documented.
 If a tool doc declares a `timeout` parameter, set `timeout=120`; Python: `None`/`True`/`False` (not null/true/false).

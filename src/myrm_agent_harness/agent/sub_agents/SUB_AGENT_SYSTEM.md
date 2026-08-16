@@ -31,7 +31,7 @@
 │                                                               │
 │  LLM 工具集:                                                  │
 │  ├── delegate_task_tool (mode=single|batch|parallel)          │
-│  ├── subagent_control_tool (action=list|cancel|steer)       │
+│  ├── subagent_control_tool (action=list|cancel|steer|wait)    │
 │  └── send_teammate_message_tool (orchestrator P2P)            │
 └──────────────────────────────────────────────────────────────┘
          │ spawn_child()          │ cancel_all()

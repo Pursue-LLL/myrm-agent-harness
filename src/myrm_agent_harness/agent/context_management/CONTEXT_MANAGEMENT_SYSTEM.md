@@ -61,7 +61,7 @@
 
 - **入口**：`middlewares/context_pipeline_middleware.py` 在 Agent 图构建时注入
 - **辅助**：`context_pipeline_helpers.py` 解析压缩意图、tool schema fingerprint
-- **记忆注入**：`memory_context_middleware.py` 注入 `<user_memory_context>`（与 pipeline 互补，非重复）
+- **记忆注入**：`middlewares/memory_context/memory_context_middleware.py` 注入 `<user_memory_context>`（与 pipeline 互补，非重复）
 
 ---
 

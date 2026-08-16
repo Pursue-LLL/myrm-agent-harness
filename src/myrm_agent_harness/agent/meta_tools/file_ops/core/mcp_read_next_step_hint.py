@@ -23,8 +23,9 @@ _MCP_NEXT_STEP_HINT = """
 ---
 [MCP NEXT STEP] Function docs loaded. Your **next** tool call MUST be **one** `bash_code_execute_tool`:
 1. `await` every MCP function still needed — in the **same** Python script (serial or `asyncio.gather`)
-2. End stdout with **exactly one** `[RESULT]` — do **not** `[OBSERVATION]` successful intermediate MCP returns
-3. Parameter names/types **only** from the docs above; if you need another function, `file_read_tool` its doc first (do not guess)
+2. If every return structure is documented: end stdout with **exactly one** `[RESULT]` — do **not** `[OBSERVATION]` a known-value intermediate return
+3. If any return structure is NOT documented: FIRST print it as `[OBSERVATION]` to confirm its real shape, then end stdout. Do **not** guess the structure. The next bash composes the final call from the observed shape.
+4. Parameter names/types **only** from the docs above; if you need another function, `file_read_tool` its doc first (do not guess)
 ---
 """.strip()
 

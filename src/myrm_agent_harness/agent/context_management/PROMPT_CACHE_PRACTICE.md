@@ -7,13 +7,13 @@
 > | §2.2 时间戳注入 & Agent 行为规则 | `streaming/utils.py`, `base_agent.py` |
 > | §2.3 Cron 场景 | `app/core/cron/adapters/agent_runner.py` |
 > | §2.4 安全边界与用户指令注入 | `app/ai_agents/agent_middlewares/user_instructions_middleware.py` |
-> | §2.5–2.6 记忆 / 入账 Human 前缀 | `agent/middlewares/memory_context_middleware.py`；`delivery_provenance.py`、`channels/agent_executor/helpers.py`、`general_agent/stream_pipeline.py`、`myrm-agent-server/app/api/agents/general_agent/streaming.py`、`services/agent/wakeup_handler.py`、`fast_search_agent/agent.py` |
+> | §2.5–2.6 记忆 / 入账 Human 前缀 | `agent/middlewares/memory_context/memory_context_middleware.py`；`app/core/utils/delivery_provenance.py`、`app/core/channel_bridge/agent_executor/helpers.py`、`app/ai_agents/general_agent/stream_pipeline.py`、`myrm-agent-server/app/api/agents/general_agent/streaming.py`、`app/services/agent/wakeup_handler.py` |
 > | §3 显式缓存优化器 | `pipeline/processors/cache_optimizer.py` |
 > | §4.1 批量清理 | `pipeline/processors/compress_processor.py` |
-> | §4.2 compress_min_save | `schemas.py` |
+> | §4.2 compress_min_save | `infra/schemas.py` |
 > | §4.3 动态阈值 | `infra/context_budget.py` |
 > | §4.4 可逆压缩 | `strategies/compactor/compactor.py` |
-> | §4.5 摘要与缓存生命周期 | `strategies/summarizer.py` |
+> | §4.5 摘要与缓存生命周期 | `strategies/summary/summarizer.py` |
 > | §5.1 Cache-TTL 归档与恢复 | `pipeline/processors/cache_ttl_prune_processor.py`, `infra/archive_reference.py`, `tracking/task_metrics.py`, `meta_tools/file_ops/core/file_operation_service.py` |
 > | §5 Pipeline | `pipeline/engine.py`, `middlewares/context_pipeline_middleware.py` |
 > | §6.1-6.2 LLM 层 | `toolkits/llms/core/llm.py` |
@@ -120,7 +120,7 @@ sorted_entries = sorted(
 | 组件 | 路径 | 作用 |
 |------|------|------|
 | MCP 路由 | `agent/_factory/mcp_routing.py` | direct FC vs MCP PTC；aggregate 上限 1200 tok |
-| Skill attenuation | `middlewares/_skill_tool_choice.py` + `skill_attenuation_middleware.py` | 技能加载后 `tool_choice.allowed_tools` 收窄；执行层 `check_trust_attenuation` |
+| Skill attenuation | `middlewares/tooling/_skill_tool_choice.py` + `middlewares/tooling/skill_attenuation_middleware.py` | 技能加载后 `tool_choice.allowed_tools` 收窄；执行层 `check_trust_attenuation` |
 
 **缓存效果**：Tools 前缀在长对话中保持稳定；discover 网关 description 无动态工具名嵌入；skill 加载后仍保持 Tools+System 前缀命中（`tool_choice` 变化仅影响 Messages 段，见 CONTEXT_ENGINEERING §6.2）。
 
@@ -250,7 +250,7 @@ def _find_system_insert_idx(messages):
 
 ### 2.5 记忆上下文注入的缓存感知设计
 
-`memory_context_middleware.py`（`asyncio.gather` 静态 + learned）拆分注入：**Stable** vs **learned advisory**。
+`middlewares/memory_context/memory_context_middleware.py`（`asyncio.gather` 静态 + learned）拆分注入：**Stable** vs **learned advisory**。
 
 1. **Stable** (`# User Context (stable)`)：`SystemMessage`，包裹 `<user_memory_context>`。含 Profile/Rules/Self-Instructions/Corrections；插入在连续 leading **SystemMessage** 链末端（与同用户前缀稳定对齐）。
 2. **Learned advisory**：偏好与 learned rules：`HumanMessage`，在**第一条真人用户 Human** 之前插入。原始 Markdown 先做 `sanitize` + `_escape_xml_item`，再 **`wrap_untrusted(..., source="memory_context")`** → ``<<<UNTRUSTED_DATA id="random">>>`` ，与同进程 **`SECURITY_BOUNDARY_SYSTEM_RULES`** 中约定的边界语义一致。**随机边界 id**会降低「整块 HumanMessage 前缀」在厂商缓存中的可预见性——这是与安全边界预测的显式权衡；跨用户仍可共享第一条 core System Prompt 快照。
@@ -277,7 +277,7 @@ Human: 用户第一句 …                             ← varies
 - **一次性注入**：同时检测 `<user_memory_context` **与** `<<<UNTRUSTED_DATA`（cover learned-only）。
 - **`MemoryConfig.max_learned_context_chars`**：依旧在 learned 数据源侧裁剪；中间件再做 token/char envelope 兜底。
 
-**业务侧入账 Human 前缀（IM + pipeline）**：`myrm-agent-server/app/core/utils/delivery_provenance.py` 提供统一横幅与 `resolve_general_agent_pipeline_labels`。IM 仍由 `app/core/channel_bridge/agent_executor/helpers.py::build_channel_inbound_query` 调用 `prepend_plain_banner`（支持多模态图片+文本）。HTTP/SSE `/agent-stream` LangGraph 主路径在 `general_agent/stream_pipeline.py::execute_stream_pipeline` **进入 `SkillAgent.run` 之前**：先 **INFO `general_agent_delivery_labels`**（`channel_label`/`ingress_label`），再 **`apply_delivery_banner`**；其中 `GeneralAgent.channel_name=="web_chat"` 仍等价 `http_gui`/`browser_sse`，`cron`/`eval`/`headless_wakeup` 等由其映射。**Headless wakeup** 在 `app/services/agent/wakeup_handler.py` 显式改写 `channel_name=headless_wakeup` 并在 `memory_channel_id` 缺省时 **写回 `web_chat`**，以免记忆分区随投递前缀漂移。FastLane/DeepResearch 在 `myrm-agent-server/app/api/agents/general_agent/streaming.py` 使用 `apply_general_agent_pipeline_banner` + `GeneralAgentParams.channel_name`；`FastSearchAgent` 默认等价 `web_chat` 并把 `workspaces_storage_root` 写入 `context`。群组上下文块仍仅在 IM executor 拼接。
+**业务侧入账 Human 前缀（IM + pipeline）**：`myrm-agent-server/app/core/utils/delivery_provenance.py` 提供统一横幅与 `resolve_general_agent_pipeline_labels`。IM 仍由 `app/core/channel_bridge/agent_executor/helpers.py::build_channel_inbound_query` 调用 `prepend_plain_banner`（支持多模态图片+文本）。HTTP/SSE `/agent-stream` LangGraph 主路径在 `general_agent/stream_pipeline.py::execute_stream_pipeline` **进入 `SkillAgent.run` 之前**：先 **INFO `general_agent_delivery_labels`**（`channel_label`/`ingress_label`），再 **`apply_delivery_banner`**；其中 `GeneralAgent.channel_name=="web_chat"` 仍等价 `http_gui`/`browser_sse`，`cron`/`eval`/`headless_wakeup` 等由其映射。**Headless wakeup** 在 `app/services/agent/wakeup_handler.py` 显式改写 `channel_name=headless_wakeup` 并在 `memory_channel_id` 缺省时 **写回 `web_chat`**，以免记忆分区随投递前缀漂移。FastLane/DeepResearch 在 `myrm-agent-server/app/api/agents/general_agent/streaming.py` 使用 `apply_general_agent_pipeline_banner` + `GeneralAgentParams.channel_name`；FastSearch（`action_mode=="fast"`）走同一 GeneralAgent 管线，`workspaces_storage_root` 由 `app/ai_agents/general_agent/agent.py` 在构建 runtime context 时统一写入。群组上下文块仍仅在 IM executor 拼接。
 
 ### 2.6 只增不改的消息历史
 
@@ -471,7 +471,7 @@ class BatchCompactState:
 
 **公式**（简化）：执行压缩当且仅当 `T_cleared > T_prefix × (1 - P)`
 
-**实现**：`schemas.py` 中定义默认值：
+**实现**：`infra/schemas.py` 中定义默认值：
 
 ```python
 COMPRESS_MIN_SAVE_DEFAULT: int = 3000
@@ -564,7 +564,7 @@ META: tokens_saved=5000 time=2024-12-20T15:30:00
 
 ### 4.6 工具保护机制
 
-`ToolProtectionConfig`（`schemas.py`）定义哪些工具的输出不可被**过滤**：
+`ToolProtectionConfig`（`infra/schemas.py`）定义哪些工具的输出不可被**过滤**：
 
 ```python
 BUILTIN_PROTECTED_TOOLS = frozenset({"skill_select_tool", "todo_write", "file_read_tool"})
@@ -754,7 +754,7 @@ if is_resume and total_tokens > max_context_tokens:
 **5. HITL Session管理（业务层）**
 
 ```python
-# myrm-agent-server/app/api/agents/general_agent.py
+# myrm-agent-server/app/services/agent/stream_session/orchestrator_turn_body.py
 if request.resume_value is not None:
     params.context["hitl_session_active"] = True  # 标记HITL会话活跃
 ```
@@ -1063,7 +1063,7 @@ MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 p
 | 20线程高竞争 | >500写入/秒 | 100%（threading.Lock 原子追加） |
 | ContextVar 线程隔离 | N/A | 100%（无跨线程泄漏） |
 
-证据来源：``tests/unit/test_cache_processor_performance_benchmark.py``（5个基准测试）、``tests/unit/test_cache_metrics_concurrent.py``（5个并发测试）
+证据来源：``tests/agent/context_management/test_cache_processor_performance_benchmark.py``（5个基准测试）、``tests/agent/context_management/test_cache_metrics_concurrent.py``（5个并发测试）
 
 ### 6.4 前缀缓存预热与空闲保活
 
@@ -1240,7 +1240,7 @@ MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 p
 | `base_agent.py` | `_ensure_initialized()` 中追加 DATETIME_SYSTEM_RULES + resolve_execution_discipline(llm) + environment_prompt_line + canary 到 system_prompt |
 | `app/ai_agents/agent_middlewares/user_instructions_middleware.py` | 用户指令注入到 System Prompt 之后（跨用户缓存感知） |
 | `workspace_rules/middleware.py` | Workspace 规则注入（user_instructions 之后、memory_context 之前） |
-| `middlewares/memory_context_middleware.py` | 记忆上下文注入位置的缓存感知设计 |
+| `middlewares/memory_context/memory_context_middleware.py` | 记忆上下文注入位置的缓存感知设计 |
 | `app/core/cron/adapters/agent_runner.py` | `_SILENT_SUFFIX` 条件性内容注入（确定性常量，缓存安全） |
 
 ### 显式缓存
@@ -1268,9 +1268,9 @@ MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 p
 | `tracking/task_metrics.py` | `TaskMetrics` — 记录真实剪枝延期、归档预算延期、归档写入/复用、归档恢复读取成本、净节省和执行层恢复读取预算 |
 | `pipeline/processors/compress_processor.py` | `CompressProcessor` + `BatchCompactState` — 批量清理策略 |
 | `strategies/compactor/compactor.py` | 可逆压缩实现（紧凑格式 + 外部化到文件，减 tokens 不减 blocks） |
-| `strategies/summarizer.py` | 结构化摘要（缓存重置事件，减 tokens 且减 blocks） |
+| `strategies/summary/summarizer.py` | 结构化摘要（缓存重置事件，减 tokens 且减 blocks） |
 | `infra/context_budget.py` | `ContextBudget` — 动态阈值计算 |
-| `schemas.py` | `ContextConfig` — 阈值定义、`COMPRESS_MIN_SAVE_DEFAULT`、`COMPACT_RULES` |
+| `infra/schemas.py` | `ContextConfig` — 阈值定义、`COMPRESS_MIN_SAVE_DEFAULT`、`COMPACT_RULES` |
 
 ### Pipeline 与集成
 
@@ -1329,12 +1329,12 @@ messages.append(HumanMessage(content=dynamic_notification))
 
 本框架已在以下位置修复了此问题：
 
-1. **`base_agent.py:462`** — 子 Agent 通知注入
-2. **`stream_executor.py:522`** — 子 Agent 完成通知注入
-3. **`deep_research/orchestrator.py:774`** — Deep Research 结果注入
+1. **`_internals/agent_runtime.py::drain_notifications`** — 子 Agent 通知注入（HumanMessage via `stale_notifications`）
+2. **`stream_executor.py::_handle_subagent_notifications`** — 子 Agent 完成通知注入
+3. **`deep_research/_orchestrator_phases.py::_phase_report`** — Deep Research 结果注入（HumanMessage `# Research Findings`）
 4. **`progress_middleware.py`** — Active todo focus 注入（HumanMessage via request.override）
-5. **`security_guardrail_middleware.py`** — Circuit Breaker 环境约束注入（HumanMessage via awrap_model_call + request.override，瞬态不持久化）
-6. **`budget_boundary_middleware.py`** — 预算警告/终止提示注入（HumanMessage with `[SYSTEM INSTRUCTION]` prefix）
+5. **`middlewares/security/security_guardrail_middleware.py`** — Circuit Breaker 环境约束注入（HumanMessage via awrap_model_call + request.override，瞬态不持久化）
+6. **`utils/token_economics/budget_boundary_middleware.py`** — 预算警告/终止提示注入（HumanMessage with `[SYSTEM INSTRUCTION]` prefix）
 7. **`citation_rules_middleware.py`**（server 层）— 引用规则注入（HumanMessage via request.override）
 
 这些位置已添加代码注释，明确说明使用 `HumanMessage` 的原因。

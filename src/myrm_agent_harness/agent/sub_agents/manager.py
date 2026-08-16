@@ -51,6 +51,7 @@ from myrm_agent_harness.utils.runtime.steering import SteeringToken
 from .budget import DelegationBudgetExceededError, DelegationBudgetState
 from .checkpoint.checkpoint_manager import SubagentCheckpointManager
 from .checkpoint.saver import SubagentCheckpointStorage
+from .checkpointer import delete_subagent_checkpoint
 from .executor import SubagentExecutor
 from .notifications import NotificationManager
 
@@ -328,7 +329,10 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
     # =========================================================================
 
     def _task_id_exists(self, task_id: str) -> bool:
-        return task_id in self._children or task_id in self._children_results
+        if task_id in self._children:
+            return True
+        existing = self._children_results.get(task_id)
+        return existing is not None and existing.status != SubAgentStatus.PENDING_APPROVAL
 
     def _validate_depth(self, task_id: str, config: SubagentConfig) -> SubAgentResult | None:
         if self._current_depth >= _MAX_GLOBAL_SPAWN_DEPTH:
@@ -466,6 +470,8 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
                 )
         result.internal = result.internal or internal
 
+        is_pending_approval = result.status == SubAgentStatus.PENDING_APPROVAL
+
         if not internal:
             self._children_results[task_id] = result
         # spawn 时已把 session_id 写入 ACTIVE_SUBAGENT_SESSIONS（_manager_spawn），
@@ -483,13 +489,26 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         # 只能依赖全局注册表。ACTIVE_SUBAGENTS 是弱引用且已 pop，若 manager 被
         # GC，已完成结果将彻底丢失。这里用强引用注册表保留终态结果，供
         # session_tree / server list_subagents 在父流结束后仍可查询到。
-        if not internal and session_id:
+        # PENDING_APPROVAL 是中间态（resume 会重新 spawn 同一 task_id），不登记。
+        if not internal and session_id and not is_pending_approval:
             COMPLETED_SUBAGENT_RESULTS[task_id] = (
                 session_id,
                 result.completed_at or now,
                 {**result.to_dict(), **self._child_observability_metadata(task_id)},
             )
             _prune_completed_results(now)
+
+        # Terminal (non-approval) statuses free the shared subagent checkpoint
+        # thread. PENDING_APPROVAL keeps it so the resume pass can restore.
+        if not is_pending_approval:
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                logger.debug("[subagent:%s] No event loop for checkpoint cleanup", task_id)
+            else:
+                cleanup_task = asyncio.create_task(delete_subagent_checkpoint(task_id))
+                self._background_tasks.add(cleanup_task)
+                cleanup_task.add_done_callback(self._background_tasks.discard)
 
         # Cleanup file conflict tracking data for completed subagent
         try:

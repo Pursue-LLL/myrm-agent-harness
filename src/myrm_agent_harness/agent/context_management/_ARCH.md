@@ -10,6 +10,7 @@ Detailed design: [CONTEXT_MANAGEMENT_SYSTEM.md](CONTEXT_MANAGEMENT_SYSTEM.md)
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | CONTEXT_ENGINEERING.md | L2 | Industry context-engineering theory (Manus, Anthropic, Factory Research) | — |
+| CONTEXT_MANAGEMENT_SYSTEM.md | L2 | Detailed context-management system design (processor chain, compression pipeline, retention) | — |
 | PROMPT_CACHE_PRACTICE.md | L2 | Framework prompt-cache implementation practices | — |
 | __init__.py | Package | Context management module. | — |
 | context.py | Core | Agent runtime context definition. Provides a type-safe context container for passing user, session,  | ✅ |

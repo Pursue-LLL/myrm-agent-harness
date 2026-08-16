@@ -266,9 +266,7 @@ class SubagentCheckpointStorage:
                 self.metrics.resume_count += 1
                 self.metrics.resume_failure_count += 1
             logger.error("Checkpoint corrupted %s: %s", task_id, e)
-            raise CheckpointCorruptedError(
-                f"checkpoint {task_id} is corrupted and cannot be resumed"
-            ) from e
+            raise CheckpointCorruptedError(f"checkpoint {task_id} is corrupted and cannot be resumed") from e
         except Exception as e:
             # Track failure
             if self.metrics:
