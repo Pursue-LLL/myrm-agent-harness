@@ -44,8 +44,8 @@ dispatcher  handlers      events         recovery*
 | `recovery/stream_recovery_truncation.py` | max-token 续写、truncated tool-call 重试 |
 | `recovery/stream_recovery_oneshot.py` | THINKING_SIGNATURE / DUPLICATE_TOOL_USE_ID / IMAGE_TOO_LARGE / MEDIA_REJECTED / ALLOWED_TOOLS_TOOL_CHOICE_REJECTED / LONG_CONTEXT_TIER 等一次性恢复（WebUI progress step: `thinking_signature_recovery`, `tool_history_recovery`, `image_shrink_recovery`, `long_context_tier_recovery`, `vision_fallback_recovery`, `media_rejected_recovery`, `allowed_tools_rejected_recovery`） |
 | `recovery/stream_recovery_continuation.py` | steering、subagent 完成、goal continuation |
-| `stream_compactor.py` | 流状态持久化/compaction |
-| `stream_buffer.py` | 引擎层流状态持久化 |
+| `stream_compactor.py` | 高频流式文本片段合并缓冲（容量/时间/事件类型变更/显式 flush，后台看门狗防幽灵延迟） |
+| `stream_buffer.py` | SSE 断线重连回复缓冲：内存滑动窗口 + GlobalStreamRegistry（Last-Event-ID 短断连复连，无磁盘持久化） |
 
 ---
 

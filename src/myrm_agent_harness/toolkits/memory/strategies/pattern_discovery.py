@@ -34,7 +34,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from langchain_core.language_models import BaseChatModel
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
@@ -64,13 +64,20 @@ class PatternDurability(StrEnum):
 class DiscoveredPattern(BaseModel):
     """A single behavioral or knowledge pattern found across memory cycles."""
 
-    title: str = Field(description="Short pattern name (< 60 chars)")
+    title: str = Field(
+        validation_alias=AliasChoices("title", "category"),
+        description="Short pattern name (< 60 chars)",
+    )
     description: str = Field(description="What this pattern means for the user")
-    evidence_summary: str = Field(description="Key memories or events supporting this pattern")
+    evidence_summary: str = Field(
+        validation_alias=AliasChoices("evidence_summary", "evidence"),
+        description="Key memories or events supporting this pattern",
+    )
     durability: PatternDurability = Field(default=PatternDurability.EMERGING)
     confidence: float = Field(default=0.7, ge=0.0, le=1.0)
     actionable_suggestion: str = Field(
         default="",
+        validation_alias=AliasChoices("actionable_suggestion", "suggestion"),
         description="Optional proactive suggestion the agent can surface to the user",
     )
 
@@ -186,8 +193,6 @@ Return a JSON object only (no markdown fences) with these exact fields:
 
 Important:
 - Use the field names above exactly — `title` (not category), `evidence_summary` (not evidence), `actionable_suggestion` (not suggestion).
-- Maximum 5 patterns per analysis.
-- Do NOT invent patterns not supported by the evidence.
 """
 
 

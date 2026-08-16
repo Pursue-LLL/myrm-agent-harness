@@ -382,7 +382,6 @@ async def run_pre_call_guards(
 def _check_circuit_breaker(tool_name: str, tool_call_id: str) -> ToolMessage | None:
     """Check Myrm-Guard hard circuit breaker. Returns error message if blocked."""
     registry = get_terminal_errors()
-    registry._load()
     terminal_errors = registry.get_all()
     if not terminal_errors:
         return None

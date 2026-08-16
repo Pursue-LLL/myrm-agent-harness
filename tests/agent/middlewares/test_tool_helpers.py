@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from langchain_core.messages import ToolMessage
 
@@ -117,6 +118,21 @@ class TestIsNonRetryable:
     def test_retryable_error(self) -> None:
         assert is_non_retryable(RuntimeError("network issue"), "search_tool") is False
 
+    def test_http_401_classified_non_retryable(self) -> None:
+        e = RuntimeError("unauthorized")
+        e.response = MagicMock(status_code=401)  # type: ignore[attr-defined]
+        assert is_non_retryable(e, "search_tool") is True
+
+    def test_http_404_classified_non_retryable(self) -> None:
+        e = RuntimeError("missing")
+        e.response = MagicMock(status_code=404)  # type: ignore[attr-defined]
+        assert is_non_retryable(e, "search_tool") is True
+
+    def test_http_503_kept_retryable(self) -> None:
+        e = RuntimeError("unavailable")
+        e.response = MagicMock(status_code=503)  # type: ignore[attr-defined]
+        assert is_non_retryable(e, "search_tool") is False
+
 
 class TestMakeErrorMsg:
     def test_basic(self) -> None:
@@ -137,6 +153,10 @@ class TestMakeErrorMsg:
         )
         assert msg.additional_kwargs["error_category"] == "network_blocked"
         assert msg.additional_kwargs["error_hint"] == "check network"
+
+    def test_with_loop_kind(self) -> None:
+        msg = make_error_msg("t", "id", "err", loop_kind="bash_loop")
+        assert msg.additional_kwargs["loop_kind"] == "bash_loop"
 
 
 class TestFormatToolError:
@@ -464,3 +484,115 @@ class TestRunContentValidation:
         invalid = MagicMock(is_valid=False)
         mock_validate.return_value = invalid
         assert run_content_validation("suspicious", "tool") is invalid
+
+
+def _make_hook_result(*, blocked: bool = True, success: bool = False, output: str = "", reason: str = "") -> MagicMock:
+    hr = MagicMock()
+    hr.blocked = blocked
+    hr.success = success
+    hr.output = output
+    hr.reason = reason
+    return hr
+
+
+class TestBuildHookFailureResult:
+    def test_builds_error_message_with_reasons(self) -> None:
+        from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
+            build_hook_failure_result,
+        )
+
+        msg = ToolMessage(content="ok output", name="bash", tool_call_id="tc_1")
+        post_hook_result = MagicMock(
+            results=[
+                _make_hook_result(reason="forbidden command"),
+                _make_hook_result(output="policy breach"),
+            ],
+            reason="hooks blocked",
+        )
+        result = build_hook_failure_result(msg, post_hook_result, "bash", "tc_1", "ok output")
+        assert "[HOOK_VALIDATION_FAILED]" in result.content
+        assert "forbidden command" in result.content
+        assert "policy breach" in result.content
+        assert result.status == "error"
+        assert result.tool_call_id == "tc_1"
+        assert result.additional_kwargs["error_category"] == "post_hook_blocked"
+
+    def test_fallback_content_when_no_details(self) -> None:
+        from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
+            build_hook_failure_result,
+        )
+
+        msg = ToolMessage(content="ok", name="t", tool_call_id="id")
+        post_hook_result = MagicMock(results=[], reason="blocked")
+        result = build_hook_failure_result(msg, post_hook_result, "t", "id", "ok")
+        assert "Hook validation failed" in result.content
+
+    def test_truncates_long_output(self) -> None:
+        from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
+            build_hook_failure_result,
+        )
+
+        msg = ToolMessage(content="x", name="t", tool_call_id="id")
+        long_output = "\n".join(f"line{i}" for i in range(50))
+        post_hook_result = MagicMock(
+            results=[_make_hook_result(blocked=True, output=long_output)],
+            reason="blocked",
+        )
+        result = build_hook_failure_result(msg, post_hook_result, "t", "id", long_output)
+        assert "truncated" in result.content
+
+
+class TestEmitHookFailureEvent:
+    @patch("myrm_agent_harness.observability.metrics.registry.metrics_registry")
+    def test_records_metrics_when_enabled(self, mock_registry: MagicMock) -> None:
+        from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
+            emit_hook_failure_event,
+        )
+
+        mock_registry.enabled = True
+        post_hook_result = MagicMock(reason="blocked", blocked=True)
+        event_type = MagicMock(TOOL_FAILURE="TOOL_FAILURE")
+        with patch(
+            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+            return_value=None,
+        ):
+            result = asyncio.run(emit_hook_failure_event("bash", post_hook_result, event_type))
+        assert result is None
+        mock_registry.record_hook_failure.assert_called_once()
+
+    @patch("myrm_agent_harness.observability.metrics.registry.metrics_registry")
+    def test_skips_metrics_when_disabled(self, mock_registry: MagicMock) -> None:
+        from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
+            emit_hook_failure_event,
+        )
+
+        mock_registry.enabled = False
+        post_hook_result = MagicMock(reason="blocked", blocked=True)
+        event_type = MagicMock(TOOL_FAILURE="TOOL_FAILURE")
+        with patch(
+            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+            return_value=None,
+        ):
+            result = asyncio.run(emit_hook_failure_event("bash", post_hook_result, event_type))
+        assert result is None
+        mock_registry.record_hook_failure.assert_not_called()
+
+    def test_import_error_swallowed(self) -> None:
+        from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
+            emit_hook_failure_event,
+        )
+
+        post_hook_result = MagicMock(reason="blocked", blocked=True)
+        event_type = MagicMock(TOOL_FAILURE="TOOL_FAILURE")
+        with (
+            patch(
+                "myrm_agent_harness.observability.metrics.registry",
+                side_effect=ImportError("no metrics"),
+            ),
+            patch(
+                "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
+                return_value=None,
+            ),
+        ):
+            result = asyncio.run(emit_hook_failure_event("bash", post_hook_result, event_type))
+        assert result is None

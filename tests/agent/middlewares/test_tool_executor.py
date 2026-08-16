@@ -189,6 +189,78 @@ class TestExecuteWithRetryTimeout:
 
 
 @pytest.mark.usefixtures("_no_event_logger")
+class TestExecuteWithRetryMetrics:
+    @pytest.mark.asyncio
+    async def test_timeout_records_failure_metric(self) -> None:
+        """Timeout final failure increments the failed counter with error_type=timeout."""
+        failed = MagicMock()
+
+        async def slow_handler(req: MagicMock) -> ToolMessage:
+            await asyncio.sleep(999)
+            return ToolMessage(content="never", name="t", tool_call_id="id")
+
+        with (
+            patch(
+                "myrm_agent_harness.observability.metrics.agent_metrics.tool_execution_failed_total",
+                failed,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_tool_timeout",
+                return_value=0.01,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_timeout_event",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_retry_event",
+                new_callable=AsyncMock,
+            ),
+        ):
+            with pytest.raises(ToolError) as exc_info:
+                await execute_with_retry(
+                    _make_request(),
+                    slow_handler,
+                    "slow_tool",
+                    "tc_1",
+                    allowed_domains=None,
+                )
+            assert exc_info.value.error_code == "TIMEOUT_MAX_RETRIES"
+            failed.labels.assert_called_once_with(tool_name="slow_tool", error_type="timeout")
+
+    @pytest.mark.asyncio
+    async def test_tool_error_metric_and_terminal_register(self) -> None:
+        """A network_blocked ToolError increments the counter and registers the terminal category."""
+        failed = MagicMock()
+        terminal_errors: set[str] = set()
+
+        def handler(req: MagicMock) -> ToolMessage:
+            raise ToolError(
+                message="blocked",
+                diagnostic_info={"error_category": "network_blocked"},
+                user_hint="network blocked for security",
+            )
+
+        with patch(
+            "myrm_agent_harness.observability.metrics.agent_metrics.tool_execution_failed_total",
+            failed,
+        ), patch(
+            "myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_terminal_errors",
+            return_value=terminal_errors,
+        ):
+            result = await execute_with_retry(
+                _make_request(),
+                handler,
+                "my_tool",
+                "tc_1",
+                allowed_domains=None,
+            )
+        assert "blocked" in result.content
+        assert "network_blocked" in terminal_errors
+        failed.labels.assert_called_once_with(tool_name="my_tool", error_type="network_blocked")
+
+
+@pytest.mark.usefixtures("_no_event_logger")
 class TestExecuteWithRetryErrors:
     @pytest.mark.asyncio
     async def test_non_retryable_tool_error_returns_error_msg(self) -> None:
@@ -268,6 +340,38 @@ class TestExecuteWithRetryErrors:
             )
             assert result.content == "ok"
             assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_retryable_error_honors_retry_after_header(self) -> None:
+        """A response Retry-After header is parsed and used as backoff."""
+        call_count = 0
+
+        async def rate_limited(req: MagicMock) -> ToolMessage:
+            nonlocal call_count
+            call_count += 1
+            e = RuntimeError("rate limited")
+            resp = MagicMock()
+            resp.headers = {"Retry-After": "1.5"}
+            e.response = resp  # type: ignore[attr-defined]
+            raise e
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling.tool_executor.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+        ):
+            with pytest.raises(ToolError) as exc_info:
+                await execute_with_retry(
+                    _make_request(tool_name="search_tool"),
+                    rate_limited,
+                    "search_tool",
+                    "tc_1",
+                    allowed_domains=None,
+                )
+            assert exc_info.value.error_code == "MAX_RETRIES_EXCEEDED"
+            assert call_count == 2
+            assert mock_sleep.await_count >= 1
 
     @pytest.mark.asyncio
     async def test_graph_interrupt_propagates(self) -> None:

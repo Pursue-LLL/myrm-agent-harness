@@ -209,25 +209,27 @@ class ManagedLLM(BaseChatModel):
             llm = self._llms[model_key]
             assert self._current_messages is not None
             assert self._current_kwargs is not None
-            return await llm.agenerate([self._current_messages], **self._current_kwargs)
+            # Use the single-message internal API: LangChain's public
+            # ``agenerate`` is batch-oriented and returns an ``LLMResult``
+            # whose ``generations`` is a nested list. Returning that unwrapped
+            # breaks the outer ``_agenerate_with_cache`` loop, which expects
+            # each element of ``result.generations`` to be a ``ChatGeneration``
+            # (AttributeError: 'list' object has no attribute 'message').
+            # ``run_manager`` is deliberately not forwarded — LangChain injects
+            # it on the outer call and replaying it would raise a duplicate
+            # keyword argument error.
+            stop = self._current_kwargs.pop("stop", None)
+            return await llm._agenerate(
+                self._current_messages,
+                stop=stop,
+                **self._current_kwargs,
+            )
 
         return call_fn
 
-    async def _call_main(self) -> ChatResult:
-        """Call main LLM with current context."""
-        assert self._current_messages is not None
-        assert self._current_kwargs is not None
-        return await self._main_llm.agenerate([self._current_messages], **self._current_kwargs)
-
-    async def _call_fallback(self) -> ChatResult:
-        """Call fallback LLM with current context."""
-        llm = self._llms.get("fallback") or self._llms.get(list(self._llms.keys())[1])
-        assert llm is not None
-        assert self._current_messages is not None
-        assert self._current_kwargs is not None
-        return await llm.agenerate([self._current_messages], **self._current_kwargs)
-
-    async def _run_preflight_guard(self, messages: list[BaseMessage], **kwargs: Any) -> None:
+    async def _run_preflight_guard(
+        self, messages: list[BaseMessage], **kwargs: Any
+    ) -> None:
         """Zero-cost preflight check to prevent 400 Context Exceeded errors.
 
         Estimates the total token count of the messages locally. If it exceeds
@@ -239,10 +241,16 @@ class ManagedLLM(BaseChatModel):
             import json
 
             from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
-            from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
-            from myrm_agent_harness.toolkits.llms.utils.model_utils import get_model_context_limit
+            from myrm_agent_harness.toolkits.llms.errors.error_types import (
+                FailoverReason,
+            )
+            from myrm_agent_harness.toolkits.llms.utils.model_utils import (
+                get_model_context_limit,
+            )
             from myrm_agent_harness.utils.text_utils import get_token_count
-            from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
+            from myrm_agent_harness.utils.token_estimation import (
+                estimate_messages_tokens,
+            )
 
             limit = get_model_context_limit(self._main_llm) or 128000
 
@@ -293,9 +301,13 @@ class ManagedLLM(BaseChatModel):
         """Internal generation method called by LangChain."""
         await self._run_preflight_guard(messages, **kwargs)
 
-        # Set current context for call_fn closures
+        # Set current context for call_fn closures. ``run_manager`` is injected
+        # by LangChain on every public `agenerate()` call, so it must NOT be
+        # stored here — forwarding it back into ``llm.agenerate()`` inside
+        # call_fn would make `_agenerate_with_cache` receive the same keyword
+        # twice (`got multiple values for keyword argument 'run_manager'`).
         self._current_messages = messages
-        self._current_kwargs = {"stop": stop, "run_manager": run_manager, **kwargs}
+        self._current_kwargs = {"stop": stop, **kwargs}
 
         try:
             # Use manager to execute with automatic failover
@@ -320,7 +332,9 @@ class ManagedLLM(BaseChatModel):
         so here we simply stream from the current main LLM.
         """
         await self._run_preflight_guard(messages, **kwargs)
-        async for chunk in self._main_llm._astream(messages, stop=stop, run_manager=run_manager, **kwargs):
+        async for chunk in self._main_llm._astream(
+            messages, stop=stop, run_manager=run_manager, **kwargs
+        ):
             yield chunk
 
     def _generate(
@@ -331,7 +345,9 @@ class ManagedLLM(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Synchronous generation (not supported, use async)."""
-        raise NotImplementedError("ManagedLLM only supports async operation. Use ainvoke() instead.")
+        raise NotImplementedError(
+            "ManagedLLM only supports async operation. Use ainvoke() instead."
+        )
 
     def bind_tools(
         self,

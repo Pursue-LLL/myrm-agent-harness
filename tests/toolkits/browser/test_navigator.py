@@ -481,3 +481,90 @@ class TestNavigatorPostNavigationSoftFailures:
 
         assert title == "Test Page"
         assert status == 200
+
+
+class TestNavigatorProtection:
+    """Throttle and circuit breaker integration in goto."""
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_open_blocks_goto(self):
+        """An OPEN domain circuit breaker raises CircuitBreakerOpenError before navigation."""
+        from myrm_agent_harness.toolkits.browser.pool.circuit_breaker import (
+            CircuitBreakerOpenError,
+        )
+
+        mock_page = create_mock_page("https://example.com", 200, "Test Page")
+        breaker = MagicMock()
+        breaker.get_state.return_value = "OPEN"
+        navigator = Navigator(mock_page, circuit_breaker=breaker)
+
+        with pytest.raises(CircuitBreakerOpenError, match="Circuit breaker is OPEN"):
+            await navigator.goto("https://example.com")
+
+        breaker.get_state.assert_called_once()
+        mock_page.goto.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_throttle_called_around_navigation(self):
+        """Throttle before_navigate/record_response wrap the navigation."""
+        mock_page = create_mock_page("https://example.com", 200, "Test Page")
+        throttle = MagicMock()
+        throttle.before_navigate = AsyncMock()
+        throttle.record_response = MagicMock()
+        navigator = Navigator(mock_page, throttle=throttle)
+
+        title, _final_url, status = await navigator.goto("https://example.com")
+
+        assert title == "Test Page"
+        assert status == 200
+        throttle.before_navigate.assert_awaited_once_with("https://example.com")
+        throttle.record_response.assert_called_once()
+        args = throttle.record_response.call_args[0]
+        assert args[0] == "https://example.com"
+        assert args[1] is True
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_closed_invokes_navigation(self):
+        """A CLOSED domain circuit breaker delegates to the navigation path."""
+        mock_page = create_mock_page("https://example.com", 200, "Test Page")
+        breaker = MagicMock()
+        breaker.get_state.return_value = "CLOSED"
+        breaker.call = AsyncMock(return_value=("Test Page", "https://example.com", 200))
+        navigator = Navigator(mock_page, circuit_breaker=breaker)
+
+        title, final_url, status = await navigator.goto("https://example.com")
+
+        assert title == "Test Page"
+        assert final_url == "https://example.com"
+        assert status == 200
+        breaker.get_state.assert_called_once()
+        breaker.call.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_wait_non_timeout_error_propagates(self, monkeypatch):
+        """A non-timeout page-ready failure is re-raised, not rescued."""
+        mock_page = create_mock_page("https://example.com", 200, "Test Page")
+        navigator = Navigator(mock_page)
+
+        async def wait_error(*args, **kwargs):
+            raise RuntimeError("page ready failed")
+
+        monkeypatch.setattr(
+            "myrm_agent_harness.toolkits.browser.navigation.wait_for_page_ready",
+            wait_error,
+        )
+
+        with pytest.raises(RuntimeError, match="page ready failed"):
+            await navigator.goto("https://example.com")
+
+    @pytest.mark.asyncio
+    async def test_auto_dismiss_popups_false_leaves_consent_disabled(self):
+        """With auto_dismiss_popups=False no consent dismisser is installed."""
+        mock_page = create_mock_page("https://example.com", 200, "Test Page")
+        navigator = Navigator(mock_page, auto_dismiss_popups=False)
+
+        assert navigator._consent_dismisser is None
+
+        title, _final_url, status = await navigator.goto("https://example.com")
+        assert title == "Test Page"
+        assert status == 200

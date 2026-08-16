@@ -1,14 +1,18 @@
 """Resilient stream buffer for SSE reconnection.
 
 [INPUT]
+- SSE chunks produced by the agent stream executor
 
 [OUTPUT]
-- ResilientStreamBuffer: dynamic sliding window buffer
-- GlobalStreamRegistry: manages active stream buffers
+- ResilientStreamBuffer: in-memory sliding window replay buffer
+- GlobalStreamRegistry: manages active stream buffers for Last-Event-ID reconnects
 
 [POS]
-Harness engine-layer stream state persistence component.
-
+Harness engine-layer SSE reconnect replay buffer. In-memory only: process
+restart drops live-stream buffers, which is intentional layering —
+short-lived network dropouts recover via Last-Event-ID replay from the sliding
+window, while crash/restart durability belongs to durable message persistence
+and agent checkpoint resume owned by the caller layer.
 """
 
 from __future__ import annotations
@@ -123,7 +127,9 @@ class ResilientStreamBuffer:
                     break
 
                 try:
-                    await asyncio.wait_for(self._condition.wait(), timeout=heartbeat_interval)
+                    await asyncio.wait_for(
+                        self._condition.wait(), timeout=heartbeat_interval
+                    )
                 except TimeoutError:
                     yield "event: heartbeat\ndata: null\n\n"
                     continue

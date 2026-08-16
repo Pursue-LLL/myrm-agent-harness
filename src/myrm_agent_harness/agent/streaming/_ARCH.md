@@ -20,7 +20,7 @@ Detailed design: [STREAMING_SYSTEM.md](STREAMING_SYSTEM.md)
 | source_tracker.py | Core | Source reference forwarding; dedup by `source_key` / url / content hash; global citation index. | ✅ |
 | run_digest.py | Core | RunDigest DTO + `build_run_digest` pure reducer from progress-step dicts (Co-Pilot Run Observer). | ✅ |
 | step_builder.py | Core | Agent step data builder. Constructs frontend display data from tool names and arguments with per-too | ✅ |
-| stream_buffer.py | Core | Harness engine-layer stream state persistence component. | ✅ |
+| stream_buffer.py | Core | SSE reconnect replay buffer: in-memory sliding window + GlobalStreamRegistry for Last-Event-ID resume (no disk persistence). | ✅ |
 | stream_compactor.py | Core | Provides StreamCompactor. | ✅ |
 | stream_dispatcher.py | Core | StreamDispatcherMixin dispatches astream chunks to the output_queue; maintains `_partial_text_buffer` for redirect-in-place partial text preservation; routes `swarm_fission` GraphInterrupt to dedicated SSE event (not approval). | ✅ |
 | stream_executor.py | Core | Stream execution engine. Encapsulates the complete lifecycle of Agent.astream(). | ✅ |

@@ -14,6 +14,7 @@ def mock_main_llm():
     """Create mock main LLM."""
     llm = MagicMock()
     llm.agenerate = AsyncMock()
+    llm._agenerate = AsyncMock()
     return llm
 
 
@@ -22,6 +23,7 @@ def mock_fallback_llm():
     """Create mock fallback LLM."""
     llm = MagicMock()
     llm.agenerate = AsyncMock()
+    llm._agenerate = AsyncMock()
     return llm
 
 
@@ -29,7 +31,9 @@ def mock_fallback_llm():
 async def test_managed_llm_basic_success(mock_main_llm, mock_fallback_llm):
     """Test ManagedLLM with successful main LLM call."""
     # Arrange
-    expected_result = ChatResult(generations=[ChatGeneration(message=HumanMessage(content="Success"))])
+    expected_result = ChatResult(
+        generations=[ChatGeneration(message=HumanMessage(content="Success"))]
+    )
     mock_main_llm.agenerate.return_value = expected_result
 
     managed_llm = ManagedLLM(
@@ -54,7 +58,9 @@ async def test_managed_llm_failover_to_fallback(mock_main_llm, mock_fallback_llm
     """Test ManagedLLM failover when main LLM fails."""
     # Arrange
     mock_main_llm.agenerate.side_effect = Exception("Rate limit")
-    expected_result = ChatResult(generations=[ChatGeneration(message=HumanMessage(content="Fallback success"))])
+    expected_result = ChatResult(
+        generations=[ChatGeneration(message=HumanMessage(content="Fallback success"))]
+    )
     mock_fallback_llm.agenerate.return_value = expected_result
 
     managed_llm = ManagedLLM(
@@ -78,7 +84,9 @@ async def test_managed_llm_failover_to_fallback(mock_main_llm, mock_fallback_llm
 async def test_managed_llm_without_fallback(mock_main_llm):
     """Test ManagedLLM without fallback LLM."""
     # Arrange
-    expected_result = ChatResult(generations=[ChatGeneration(message=HumanMessage(content="Success"))])
+    expected_result = ChatResult(
+        generations=[ChatGeneration(message=HumanMessage(content="Success"))]
+    )
     mock_main_llm.agenerate.return_value = expected_result
 
     managed_llm = ManagedLLM(
@@ -101,7 +109,9 @@ async def test_managed_llm_cooldown_behavior(mock_main_llm, mock_fallback_llm):
     """Test ManagedLLM cooldown behavior after main LLM failure."""
     # Arrange
     mock_main_llm.agenerate.side_effect = Exception("Rate limit")
-    fallback_result = ChatResult(generations=[ChatGeneration(message=HumanMessage(content="Fallback"))])
+    fallback_result = ChatResult(
+        generations=[ChatGeneration(message=HumanMessage(content="Fallback"))]
+    )
     mock_fallback_llm.agenerate.return_value = fallback_result
 
     managed_llm = ManagedLLM(
@@ -131,7 +141,9 @@ async def test_managed_llm_cooldown_behavior(mock_main_llm, mock_fallback_llm):
 async def test_managed_llm_scenario_types(mock_main_llm, mock_fallback_llm):
     """Test ManagedLLM with different scenario types."""
     # Arrange
-    expected_result = ChatResult(generations=[ChatGeneration(message=HumanMessage(content="Success"))])
+    expected_result = ChatResult(
+        generations=[ChatGeneration(message=HumanMessage(content="Success"))]
+    )
     mock_main_llm.agenerate.return_value = expected_result
 
     for scenario in [ScenarioType.REALTIME, ScenarioType.BATCH, ScenarioType.BALANCED]:
@@ -212,13 +224,17 @@ async def test_managed_llm_preflight_guard(mock_main_llm):
         # Test 3: test with tools. estimate 900 + tools(50) = 950.
         # limit 1000, max_tokens 10. threshold = 970.
         # 950 < 970. Should pass.
-        await managed_llm._run_preflight_guard(messages, max_tokens=10, tools=[{"type": "function"}])
+        await managed_llm._run_preflight_guard(
+            messages, max_tokens=10, tools=[{"type": "function"}]
+        )
 
         # Test 4: test with tools. estimate 900 + tools(50) = 950.
         # limit 1000, max_tokens 50. threshold = (1000-50)*0.98 = 931.
         # 950 > 931. Should raise CONTEXT_OVERFLOW
         with pytest.raises(MyrmLLMError) as exc_info2:
-            await managed_llm._run_preflight_guard(messages, max_tokens=50, tools=[{"type": "function"}])
+            await managed_llm._run_preflight_guard(
+                messages, max_tokens=50, tools=[{"type": "function"}]
+            )
 
         assert exc_info2.value.error_code == FailoverReason.CONTEXT_OVERFLOW
 
@@ -226,3 +242,32 @@ async def test_managed_llm_preflight_guard(mock_main_llm):
         model_utils_mock.get_model_context_limit = original_get_limit
         token_mock.estimate_messages_tokens = original_estimate
         text_utils_mock.get_token_count = original_count
+
+
+@pytest.mark.asyncio
+async def test_managed_llm_does_not_replay_run_manager(mock_main_llm):
+    """Regression: `run_manager` must NOT be forwarded to `llm.agenerate()`.
+
+    LangChain injects ``run_manager`` into ``_agenerate_with_cache`` internally.
+    Replaying it from stored kwargs caused:
+    ``TypeError: _agenerate_with_cache() got multiple values for keyword
+    argument 'run_manager'``, silently aborting every wrapped LLM call.
+    """
+    captured_kwargs: dict | None = None
+
+    async def collecting_agenerate(messages, **kwargs):
+        nonlocal captured_kwargs
+        captured_kwargs = kwargs
+        if kwargs.get("run_manager") is not None:
+            raise TypeError("got multiple values for keyword argument 'run_manager'")
+        return ChatResult(
+            generations=[ChatGeneration(message=HumanMessage(content="ok"))]
+        )
+
+    mock_main_llm.agenerate = AsyncMock(side_effect=collecting_agenerate)
+
+    managed_llm = ManagedLLM(main_llm=mock_main_llm, main_model_name="gpt-4")
+    result = await managed_llm.ainvoke([HumanMessage(content="Test")])
+
+    assert result is not None
+    assert "run_manager" not in (captured_kwargs or {})

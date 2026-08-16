@@ -42,3 +42,37 @@ def test_registry_multiple_errors(temp_workspace):
     # Reload
     reg2 = TerminalErrorRegistry(workspace_path=temp_workspace)
     assert reg2.get_all() == {"network_blocked", "sandbox_ro"}
+
+
+def test_registry_add_is_idempotent(temp_workspace):
+    import json
+
+    reg = TerminalErrorRegistry(workspace_path=temp_workspace)
+    reg.add("network_blocked")
+    reg.add("network_blocked")
+    assert reg.get_all() == {"network_blocked"}
+
+    storage_file = temp_workspace / ".myrm_terminal_errors.json"
+    assert json.loads(storage_file.read_text(encoding="utf-8")) == ["network_blocked"]
+
+
+def test_registry_corrupt_json_load_is_graceful(temp_workspace):
+    storage_file = temp_workspace / ".myrm_terminal_errors.json"
+    storage_file.write_text("{not valid json", encoding="utf-8")
+
+    reg = TerminalErrorRegistry(workspace_path=temp_workspace)
+    assert reg.get_all() == set()
+
+
+def test_registry_non_list_json_load_is_ignored(temp_workspace):
+    storage_file = temp_workspace / ".myrm_terminal_errors.json"
+    storage_file.write_text('{"unexpected": true}', encoding="utf-8")
+
+    reg = TerminalErrorRegistry(workspace_path=temp_workspace)
+    assert reg.get_all() == set()
+
+
+def test_registry_clear_empty_is_noop(temp_workspace):
+    reg = TerminalErrorRegistry(workspace_path=temp_workspace)
+    reg.clear()
+    assert reg.get_all() == set()
