@@ -6,15 +6,12 @@ semantic meaning and exception chaining support.
 Architecture:
     BrowserError (root)
     ├── BrowserPoolError
-    │   ├── BrowserLaunchError
-    │   ├── BrowserShutdownError
-    │   └── BrowserPoolExhaustedError
+    │   └── BrowserLaunchError
     ├── BrowserSessionError
     │   ├── BrowserNavigationError
     │   ├── BrowserTimeoutError
-    │   ├── BrowserNetworkError
-    │   └── BrowserClosedError
-    ├──     BrowserToolError
+    │   └── BrowserNetworkError
+    ├── BrowserToolError
     │   ├── ClickTargetUnreachableError
     │   └── RefNotFoundError
     └── AriaError
@@ -27,8 +24,6 @@ Usage:
         await pool.acquire_page()
     except BrowserLaunchError as e:
         logger.error(f"Failed to launch browser: {e}")
-    except BrowserPoolExhaustedError:
-        logger.warning("Browser pool exhausted, waiting...")
 
 
 [INPUT]
@@ -135,7 +130,7 @@ class BrowserPoolError(BrowserError):
     """Errors related to browser pool management.
 
     Raised when browser instance lifecycle operations fail, including
-    browser launch, shutdown, and pool resource exhaustion.
+    browser launch.
     """
 
 
@@ -148,27 +143,11 @@ class BrowserLaunchError(BrowserPoolError):
     """
 
 
-class BrowserShutdownError(BrowserPoolError):
-    """Failed to gracefully shutdown browser instance.
-
-    Raised when browser cleanup operations fail, such as closing contexts
-    or terminating browser processes.
-    """
-
-
-class BrowserPoolExhaustedError(BrowserPoolError):
-    """Browser pool has no available instances.
-
-    Raised when all browser instances in the pool are currently in use
-    and no new instances can be created (pool limit reached).
-    """
-
-
 class BrowserSessionError(BrowserError):
     """Errors related to browser session operations.
 
     Raised when page-level operations fail, including navigation,
-    network errors, timeouts, and closed page issues.
+    network errors, and timeouts.
     """
 
 
@@ -395,14 +374,6 @@ class BrowserNetworkError(BrowserSessionError):
 
     Raised when network requests fail due to connection issues,
     DNS resolution failures, or proxy errors.
-    """
-
-
-class BrowserClosedError(BrowserSessionError):
-    """Browser page or context has been closed.
-
-    Raised when attempting operations on a closed page or context,
-    typically after explicit close() calls or browser crashes.
     """
 
 

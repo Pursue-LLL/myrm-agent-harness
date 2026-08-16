@@ -812,17 +812,18 @@ Source: browser
 ```
 BrowserError (root)
 ├── BrowserPoolError
-│   ├── BrowserLaunchError
-│   ├── BrowserShutdownError
-│   └── BrowserPoolExhaustedError
+│   └── BrowserLaunchError
 ├── BrowserSessionError
 │   ├── BrowserNavigationError
 │   ├── BrowserTimeoutError
-│   ├── BrowserNetworkError
-│   └── BrowserClosedError
-└── BrowserToolError
-    ├── ClickTargetUnreachableError
-    └── RefNotFoundError
+│   └── BrowserNetworkError
+├── BrowserToolError
+│   ├── ClickTargetUnreachableError
+│   └── RefNotFoundError
+└── AriaError
+    ├── AriaAcquisitionError
+    ├── AriaParseError
+    └── AriaCrossOriginError
 ```
 
 ### 重试策略

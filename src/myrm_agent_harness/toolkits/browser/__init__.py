@@ -28,7 +28,7 @@ Reuses the existing ``ManagedBrowser`` (Patchright) infrastructure.
 - SessionEntry: immutable session record (re-export)
 - SessionSummary: lightweight session metadata without sensitive data (re-export)
 - EmulationConfig: type-safe browser environment emulation config (re-export)
-- BrowserError + 12 subclasses: exception type hierarchy (re-export)
+- BrowserError + 13-subclass exception hierarchy (root + 8 subclasses re-exported; ClickTargetUnreachableError + AriaError family stay internal)
 - RetryPolicy + 3 subclasses: retry policy classes (re-export)
 - BrowserObservability: browser observability manager (re-export)
 - RecordingConfig: recording configuration (re-export)
@@ -53,15 +53,12 @@ from typing import TYPE_CHECKING
 
 from .domain_filter import DomainAllowlist
 from .exceptions import (
-    BrowserClosedError,
     BrowserError,
     BrowserLaunchError,
     BrowserNavigationError,
     BrowserNetworkError,
     BrowserPoolError,
-    BrowserPoolExhaustedError,
     BrowserSessionError,
-    BrowserShutdownError,
     BrowserTimeoutError,
     BrowserToolError,
     RefNotFoundError,
@@ -127,17 +124,14 @@ __all__ = [
     "ActionType",
     "AutoRecoveryOrchestrator",
     "BrowserCheckpointHelper",
-    "BrowserClosedError",
     "BrowserError",
     "BrowserLaunchError",
     "BrowserNavigationError",
     "BrowserNetworkError",
     "BrowserObservability",
     "BrowserPoolError",
-    "BrowserPoolExhaustedError",
     "BrowserSession",
     "BrowserSessionError",
-    "BrowserShutdownError",
     "BrowserTimeoutError",
     "BrowserToolError",
     "CaptureCallback",

@@ -287,7 +287,7 @@ def _build_memory_search_en(policy: MemorySearchPolicy) -> str:
         "- Filter categories for memory corpus: knowledge, claim, event, preference, rule",
         "- Use profile_key for instant attribute lookup (memory corpus only)",
         "- Use since/until for time-scoped queries (7d, 2w, 1m, 24h, 1y, or ISO 8601)",
-        "- For memory retrieval only. Do NOT use this tool to look up tool or skill usage instructions.",
+        "- For memory retrieval only.",
     ]
     if policy.allow_sessions:
         tip_lines.append('- For recent chats without a query, use corpus=sessions with query="*"')
@@ -338,7 +338,7 @@ def _build_memory_search_zh(policy: MemorySearchPolicy) -> str:
         "- memory corpus 过滤类别：knowledge、claim、event、preference、rule",
         "- profile_key 可即时查属性（仅 memory corpus）",
         "- since/until 时间范围：7d、2w、1m、24h、1y 或 ISO 8601",
-        "- 仅用于记忆检索。不要用它查询工具或技能的使用方法。",
+        "- 仅用于记忆检索。",
     ]
     if policy.allow_sessions:
         tip_lines.append('- 查最近聊天无 query：corpus=sessions，query="*"')
