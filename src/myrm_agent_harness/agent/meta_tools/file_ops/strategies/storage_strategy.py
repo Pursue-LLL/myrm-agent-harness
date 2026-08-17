@@ -130,8 +130,10 @@ class StorageBackendStrategy(FileSystemStrategy):
 
             result: list[tuple[str, bool, int]] = []
             for file_path in files:
-                # 移除前缀，只保留文件名
-                name = file_path[len(prefix) :].split("/")[0]
+                # 取 basename。backend 可能返回绝对路径（本地 executor）或
+                # 相对前缀路径（云存储），统一取路径最后一段最稳妥。
+                name = file_path[len(prefix) :] if file_path.startswith(prefix) else file_path
+                name = name.split("/")[-1]
                 is_dir = file_path.endswith("/")
 
                 # 获取文件大小

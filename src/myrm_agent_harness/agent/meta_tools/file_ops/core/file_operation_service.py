@@ -226,8 +226,9 @@ class FileOperationService:
                 estimated_tokens=estimated_content_tokens,
             )
 
-        # 读取文件
-        lines = await strategy.read_file(resolved_path, view_range)
+        # 读取文件（返回完整行；行号范围切片统一由 ResultFormatter 处理，
+        # 以正确报告总行数与续读 offset——strategy 层不二次切片）
+        lines = await strategy.read_file(resolved_path)
         content_text = "\n".join(lines)
         estimated_content_tokens = estimate_content_tokens(content_text)
         archive_refetch_decision = evaluate_archive_refetch_for_path(
@@ -260,7 +261,10 @@ class FileOperationService:
             lines=lines,
             view_range=view_range,
         )
-        return ResultFormatter.format_file_content(content)
+        return ResultFormatter.format_file_content(
+            content,
+            max_line_length=self.io_config.max_read_line_length,
+        )
 
     async def _execute_create(self) -> str:
         """执行 CREATE 操作"""

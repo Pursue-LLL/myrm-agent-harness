@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 from langchain_core.runnables import RunnableConfig
 
 from myrm_agent_harness.agent.artifacts.vault import VAULT_PREFIX, ArtifactVault
+from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG
 
 from ..core.file_read_truncation import truncate_file_output
 from .file_utils import parse_path_with_range
@@ -123,7 +124,12 @@ async def read_vault_paths_to_parts(
         vault_uri, view_range = parse_path_with_range(path_str)
         try:
             content = read_vault_text_content(vault_uri, workspace, view_range=view_range, mode=mode)
-            truncated, was_truncated, meta = truncate_file_output(content, path_str=path_str)
+            truncated, was_truncated, meta = truncate_file_output(
+                content,
+                max_chars=DEFAULT_FILE_IO_CONFIG.max_read_chars,
+                path_str=path_str,
+                max_lines=DEFAULT_FILE_IO_CONFIG.max_read_lines,
+            )
             parts.append(f"=== {path_str} ===\n{truncated}")
             if was_truncated:
                 await dispatch_custom_event(

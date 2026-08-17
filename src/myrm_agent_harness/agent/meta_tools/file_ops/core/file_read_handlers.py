@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 from langchain_core.messages.content import ContentBlock, create_text_block
 from langchain_core.runnables import RunnableConfig
 
+from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG
 from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 
 from ..streaming import read_file_chunked, read_file_preview
@@ -37,6 +38,7 @@ from ..utils.vault_read import path_base, read_vault_paths_to_parts
 from ..utils.video_reader import read_video_as_content_blocks
 from .file_operation_service import FileOperationService, OperationContext, OperationType
 from .file_read_truncation import truncate_file_output
+from .result_formatter import clamp_line
 
 if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.types import SkillMetadata
@@ -243,6 +245,19 @@ async def _dispatch_truncation_event(
     )
 
 
+def _clamp_multiline(text: str, max_line_length: int | None) -> str:
+    """Apply per-line clamp to raw (non-gutter) text on display only.
+
+    Preview/stream branches bypass ``ResultFormatter``, so clamp each line here
+    to keep a minified/wide line from blowing the context budget in any read
+    mode. Never touches the file on disk, so read/version hashes stay intact.
+    """
+    if max_line_length is None or not text:
+        return text
+    lines = text.split("\n")
+    return "\n".join(clamp_line(line, max_line_length) for line in lines)
+
+
 async def _read_via_service(
     path_str: str,
     executor: CodeExecutor | None,
@@ -251,6 +266,7 @@ async def _read_via_service(
     *,
     is_dir: bool = False,
     config: RunnableConfig,
+    max_lines: int | None = None,
 ) -> str:
     op_context = OperationContext(
         operation=OperationType.VIEW,
@@ -261,7 +277,15 @@ async def _read_via_service(
     )
     service = FileOperationService(op_context)
     raw_out = await service.execute()
-    truncated_text, was_truncated, meta = truncate_file_output(raw_out, is_dir=is_dir, path_str=path_str)
+    if max_lines is None:
+        max_lines = DEFAULT_FILE_IO_CONFIG.max_read_lines
+    truncated_text, was_truncated, meta = truncate_file_output(
+        raw_out,
+        max_chars=DEFAULT_FILE_IO_CONFIG.max_read_chars,
+        is_dir=is_dir,
+        path_str=path_str,
+        max_lines=max_lines,
+    )
     if was_truncated:
         await _dispatch_truncation_event(meta, tool="file_read" if not is_dir else "list_dir", config=config)
     return truncated_text
@@ -278,18 +302,23 @@ async def process_text_paths(
     config: RunnableConfig,
 ) -> list[str]:
     """Read plain text paths with preview/stream/all modes and truncation."""
+    max_lines = DEFAULT_FILE_IO_CONFIG.max_read_lines
     text_content_parts: list[str] = []
 
     for path_str in text_paths:
         base_path_str = path_base(path_str)
 
         if ":" in path_str or not executor:
-            text_content_parts.append(await _read_via_service(path_str, executor, skills, reason, config=config))
+            text_content_parts.append(
+                await _read_via_service(path_str, executor, skills, reason, config=config, max_lines=max_lines)
+            )
             continue
 
         try:
             if base_path_str.startswith("/mcp/"):
-                text_content_parts.append(await _read_via_service(path_str, executor, skills, reason, config=config))
+                text_content_parts.append(
+                    await _read_via_service(path_str, executor, skills, reason, config=config, max_lines=max_lines)
+                )
                 continue
 
             workspace_path = Path(base_path_str)
@@ -306,6 +335,7 @@ async def process_text_paths(
                         reason,
                         is_dir=workspace_path.is_dir(),
                         config=config,
+                        max_lines=max_lines,
                     )
                 )
                 continue
@@ -322,15 +352,21 @@ async def process_text_paths(
 
             if effective_mode == "preview":
                 content = await read_file_preview(workspace_path)
+                content = _clamp_multiline(content, DEFAULT_FILE_IO_CONFIG.max_read_line_length)
                 text_content_parts.append(f"=== {base_path_str} (preview mode) ===\n{content}")
             elif effective_mode == "stream":
                 content = await read_file_chunked(workspace_path, chunk_size_mb=chunk_size_mb)
+                content = _clamp_multiline(content, DEFAULT_FILE_IO_CONFIG.max_read_line_length)
                 text_content_parts.append(f"=== {base_path_str} ===\n{content}")
             else:
-                text_content_parts.append(await _read_via_service(path_str, executor, skills, reason, config=config))
+                text_content_parts.append(
+                    await _read_via_service(path_str, executor, skills, reason, config=config, max_lines=max_lines)
+                )
 
         except Exception as e:
             logger.exception("Error processing %s with mode=%s: %s", path_str, mode, e)
-            text_content_parts.append(await _read_via_service(path_str, executor, skills, reason, config=config))
+            text_content_parts.append(
+                await _read_via_service(path_str, executor, skills, reason, config=config, max_lines=max_lines)
+            )
 
     return text_content_parts

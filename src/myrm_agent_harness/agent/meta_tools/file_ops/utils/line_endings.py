@@ -14,6 +14,21 @@ from __future__ import annotations
 
 _SAMPLE_SIZE = 4096
 
+_UTF8_BOM = "\ufeff"
+
+
+def strip_utf8_bom(text: str) -> str:
+    """Strip a leading UTF-8 BOM (``\\ufeff``) from *text* if present.
+
+    A UTF-8 BOM appears as ``\\ufeff`` at the start of text decoded from a file
+    written by Windows editors. It is invisible but pollutes the first line's
+    content and can break exact-match tools (e.g. str_replace SEARCH). Stripping
+    it on read is a display-layer concern; the file on disk is untouched.
+    """
+    if text.startswith(_UTF8_BOM):
+        return text[1:]
+    return text
+
 
 def detect_line_ending(content: str) -> str | None:
     """Return the dominant line ending in *content*, or ``None`` if undetermined.

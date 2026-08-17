@@ -38,6 +38,23 @@ class FileIOConfig:
     max_concurrent_reads: int = 10
     """Maximum number of concurrent file read operations."""
 
+    # Compiler-grade read output caps (SSOT for file_read_tool truncation).
+    # Aligned with openclaw (128 KB) / hermes-agent (100 K chars, 2000 lines,
+    # 2000 ch/line). All three are injectable so server/plane can tune them.
+    max_read_chars: int = 10000
+    """Maximum characters admitted into context for a single file read output.
+    When exceeded, the output is head-truncated on a complete-line boundary and
+    a precomputed ``next_offset`` is returned so the model can continue."""
+
+    max_read_lines: int | None = None
+    """Maximum lines for a single file read output. ``None`` disables the
+    line-count cap (the char budget is the primary guard)."""
+
+    max_read_line_length: int = 2000
+    """Per-line length cap. Lines longer than this are clamped with a
+    ``... [truncated]`` marker so a minified/wide line never blows the budget
+    on its own or emits a half-line syntax fragment."""
+
     max_search_results: int = 100
     """Maximum number of search results to return."""
 

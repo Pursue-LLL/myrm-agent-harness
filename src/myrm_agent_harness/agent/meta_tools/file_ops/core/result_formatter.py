@@ -19,10 +19,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..constants import LINE_NUMBER_WIDTH, SEPARATOR_WIDTH
+from ..utils.line_endings import strip_utf8_bom
 from .operation_context import ViewRange
 
 # 类型别名
 type DirectoryEntry = tuple[str, bool, int]  # (name, is_dir, size)
+
+# 截断标记，用于标记被 clamp 的超长行（对齐 hermes-agent）
+_TRUNCATED_MARKER = "... [truncated]"
+
+
+def clamp_line(line: str, max_length: int | None) -> str:
+    """Clamp a single line to ``max_length`` characters on a code-point boundary.
+
+    Returns the line unchanged when ``max_length`` is ``None`` or the line fits.
+    A clamped line gets a ``... [truncated]`` marker so the model knows the line
+    was cut and never mistakes it for the full content (minified/wide lines).
+    """
+    if max_length is None or len(line) <= max_length:
+        return line
+    return f"{line[:max_length]}{_TRUNCATED_MARKER}"
+
 
 
 @dataclass
@@ -70,7 +87,7 @@ class ResultFormatter:
         return bool("SKILL.md" in path and ("/.claude/skills/" in path or "/skills/" in path))
 
     @staticmethod
-    def format_file_content(content: FileContent) -> str:
+    def format_file_content(content: FileContent, max_line_length: int | None = None) -> str:
         """格式化文件内容
 
         技能指令文档（SOP）：不加标签，让模型遵循
@@ -78,26 +95,34 @@ class ResultFormatter:
 
         Args:
             content: 文件内容数据
+            max_line_length: 每行长度上限，超长行 clamp + 截断标记。None 不限制。
 
         Returns:
             格式化后的字符串
         """
         total_lines = len(content.lines)
+        lines = list(content.lines)
+        if lines:
+            lines[0] = strip_utf8_bom(lines[0])
 
         if content.view_range:
             start_idx, end_idx = content.view_range.to_slice(total_lines)
-            selected_lines = content.lines[start_idx:end_idx]
+            selected_lines = lines[start_idx:end_idx]
 
-            # 添加行号
+            # 添加行号（超长行按 max_line_length clamp）
             numbered_lines = [
-                f"{i + start_idx + 1:{LINE_NUMBER_WIDTH}}|{line}" for i, line in enumerate(selected_lines)
+                f"{i + start_idx + 1:{LINE_NUMBER_WIDTH}}|{clamp_line(line, max_line_length)}"
+                for i, line in enumerate(selected_lines)
             ]
             result_content = "\n".join(numbered_lines)
 
             formatted = f" {content.display_path} (lines {start_idx + 1}-{end_idx} of {total_lines}):\n{result_content}"
         else:
-            # 添加行号
-            numbered_lines = [f"{i + 1:{LINE_NUMBER_WIDTH}}|{line}" for i, line in enumerate(content.lines)]
+            # 添加行号（超长行按 max_line_length clamp）
+            numbered_lines = [
+                f"{i + 1:{LINE_NUMBER_WIDTH}}|{clamp_line(line, max_line_length)}"
+                for i, line in enumerate(lines)
+            ]
             result_content = "\n".join(numbered_lines)
 
             formatted = f" {content.display_path} ({total_lines} lines):\n{result_content}"

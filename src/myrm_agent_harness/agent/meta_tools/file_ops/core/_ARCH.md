@@ -20,7 +20,7 @@ Text Editor core business logic module.
 | file_activity_tracker.py | Core | File activity tracker. Line-level conflict detection for concurrent subagent file operations. | ✅ |
 | file_edit_normalizer.py | Util | LLM input normalizer for file_edit_tool legacy flat fields（`normalize_edits_payload`、`merge_edits_for_diff`） | ✅ |
 | file_read_handlers.py | Internal | Multimodal/text/vault execution handlers for file_read_tool | ✅ |
-| file_read_truncation.py | Internal | Output truncation helpers for file_read_tool | ✅ |
+| file_read_truncation.py | Internal | Output truncation helpers for file_read_tool. Complete-line-boundary head truncation with precomputed next_offset and line-count cap. | ✅ |
 | mcp_read_next_step_hint.py | Util | One-shot MCP workflow reminder appended after batch-read of function docs | ✅ |
 
 ## Key Dependencies
