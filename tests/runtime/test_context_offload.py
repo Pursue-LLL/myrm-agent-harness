@@ -58,6 +58,7 @@ class MockExecutor:
 
     def __init__(self) -> None:
         self.written_files: dict[str, str | bytes] = {}
+        self.atomic_bytes_writes: list[str] = []
 
     async def file_exists(self, path: str) -> bool:
         return path in self.written_files
@@ -84,6 +85,7 @@ class MockExecutor:
         await self.write_file(path, content)
 
     async def write_file_bytes_atomic(self, path: str, content: bytes) -> None:
+        self.atomic_bytes_writes.append(path)
         await self.write_file_bytes(path, content)
 
 
@@ -519,3 +521,204 @@ async def test_cleanup_session_context_files_skips_empty_chat_id(
     await cleanup_session_context_files("", cast(CodeExecutor, executor))
 
     assert len(executor.executed_contexts) == 0
+
+
+@pytest.mark.asyncio
+async def test_context_snapshot_uses_atomic_write() -> None:
+    """Conversation snapshot must persist atomically so a crash never truncates it."""
+    atomic_calls: list[str] = []
+
+    class TrackingExecutor(MockExecutor):
+        async def write_file_bytes_atomic(self, path: str, content: bytes) -> None:
+            atomic_calls.append(path)
+            await self.write_file_bytes(path, content)
+
+    from myrm_agent_harness.runtime.context.offload import create_context_snapshot_callback
+
+    callback = create_context_snapshot_callback(cast(CodeExecutor, TrackingExecutor()))
+    from langchain_core.messages import HumanMessage
+
+    rel_path = await callback(
+        messages=[HumanMessage(content="hello")],
+        chat_id="chat_snap_atomic",
+        user_id="user",
+    )
+    assert rel_path.endswith(".jsonl.gz")
+    # The snapshot write must go through the atomic path, not the raw byte write.
+    assert len(atomic_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_context_snapshot_quota_exceeded_raises() -> None:
+    """Snapshot write must propagate QuotaExceededError when quota is exhausted."""
+    executor = MockExecutor()
+    quota_checker = MockQuotaChecker(allow_write=False, remaining_quota=10)
+
+    from myrm_agent_harness.runtime.context.offload import create_context_snapshot_callback
+
+    callback = create_context_snapshot_callback(
+        cast(CodeExecutor, executor),
+        quota_checker=quota_checker,
+    )
+    from langchain_core.messages import HumanMessage
+
+    with pytest.raises(QuotaExceededError):
+        await callback(
+            messages=[HumanMessage(content="hello")],
+            chat_id="chat_snap_quota",
+            user_id="user",
+        )
+    assert len(executor.written_files) == 0
+
+
+@pytest.mark.asyncio
+async def test_context_snapshot_write_failure_returns_empty() -> None:
+    """A non-quota write failure must return an empty path and not raise."""
+    class FailingExecutor(MockExecutor):
+        async def write_file_bytes_atomic(self, path: str, content: bytes) -> None:
+            raise OSError("disk full")
+
+    from myrm_agent_harness.runtime.context.offload import create_context_snapshot_callback
+
+    callback = create_context_snapshot_callback(cast(CodeExecutor, FailingExecutor()))
+    from langchain_core.messages import HumanMessage
+
+    rel_path = await callback(
+        messages=[HumanMessage(content="hello")],
+        chat_id="chat_snap_fail",
+        user_id="user",
+    )
+    assert rel_path == ""
+
+
+@pytest.mark.asyncio
+async def test_offload_oserror_returns_temporary_failure() -> None:
+    """An OSError during archive write must map to a temporary_failure result."""
+    class FailingExecutor(MockExecutor):
+        async def write_file_atomic(self, path: str, content: str) -> None:
+            raise OSError("disk full")
+
+    callback = create_compress_offload_callback(
+        cast(CodeExecutor, FailingExecutor()),
+        enable_compression=False,
+        quota_checker=None,
+    )
+
+    result = await callback(content="content", tool_name="test_tool", scope_id="chat_oserr")
+
+    assert not result.succeeded
+    assert result.failure_kind == "temporary_failure"
+
+
+@pytest.mark.asyncio
+async def test_offload_generic_exception_returns_temporary_failure() -> None:
+    """A generic exception during archive write must map to a temporary_failure result."""
+    class FailingExecutor(MockExecutor):
+        async def write_file_atomic(self, path: str, content: str) -> None:
+            raise RuntimeError("boom")
+
+    callback = create_compress_offload_callback(
+        cast(CodeExecutor, FailingExecutor()),
+        enable_compression=False,
+        quota_checker=None,
+    )
+
+    result = await callback(content="content", tool_name="test_tool", scope_id="chat_exc")
+
+    assert not result.succeeded
+    assert result.failure_kind == "temporary_failure"
+
+
+@pytest.mark.asyncio
+async def test_offload_access_tracker_failure_is_swallowed() -> None:
+    """A failing access tracker must not break the offload write itself."""
+    executor = MockExecutor()
+
+    with patch(
+        "myrm_agent_harness.runtime.context.file_access_tracker.get_file_access_tracker",
+        new=AsyncMock(side_effect=RuntimeError("tracker down")),
+    ):
+        callback = create_compress_offload_callback(
+            cast(CodeExecutor, executor),
+            enable_compression=False,
+            quota_checker=None,
+        )
+        result = await callback(content="content", tool_name="test_tool", scope_id="chat_tracker")
+
+    assert result.succeeded
+    assert len(executor.written_files) == 3
+
+
+@pytest.mark.asyncio
+async def test_offload_store_reuse_after_write() -> None:
+    """When the archive store reports reuse after the write, the result must be reused."""
+    from myrm_agent_harness.runtime.context.archive_store import ContentAddressedArchiveWrite
+
+    executor = MockExecutor()
+
+    async def fake_store(**kwargs: object) -> ContentAddressedArchiveWrite:
+        return ContentAddressedArchiveWrite(
+            abs_path="/abs/path.txt",
+            rel_path=".context/chat_reuse/compacted/sha256/ab/test_tool_abc_7.txt",
+            metadata_abs_path="/abs/meta.json",
+            metadata_rel_path=".context/chat_reuse/compacted/sha256/ab/test_tool_abc_7.txt.meta.json",
+            restore_map_abs_path="/abs/restore.json",
+            restore_map_rel_path=".context/chat_reuse/compacted/sha256/ab/test_tool_abc_7.txt.restore.json",
+            reused=True,
+            original_bytes=7,
+            stored_bytes=7,
+        )
+
+    with patch(
+        "myrm_agent_harness.runtime.context.offload.store_content_addressed_archive",
+        new=fake_store,
+    ):
+        callback = create_compress_offload_callback(
+            cast(CodeExecutor, executor),
+            enable_compression=False,
+            quota_checker=None,
+        )
+        result = await callback(content="content", tool_name="test_tool", scope_id="chat_reuse")
+
+    assert result.succeeded
+    assert result.reused
+    assert result.original_bytes == 7
+    assert result.stored_bytes == 7
+
+
+def test_serialize_message_includes_optional_fields() -> None:
+    """Message serialization must include tool_calls, tool_call_id, name, and kwargs."""
+    from langchain_core.messages import AIMessage
+
+    from myrm_agent_harness.runtime.context.offload import _serialize_message
+
+    msg = AIMessage(
+        content="thinking",
+        tool_calls=[{"name": "search", "args": {"q": "x"}, "id": "call_1"}],
+        tool_call_id="call_1",
+        name="assistant",
+        additional_kwargs={"foo": "bar"},
+    )
+    line = _serialize_message(msg)
+    record = json.loads(line)
+    assert record["type"] == "ai"
+    assert record["tool_calls"][0]["name"] == "search"
+    assert record["tool_calls"][0]["id"] == "call_1"
+    assert record["tool_call_id"] == "call_1"
+    assert record["name"] == "assistant"
+    assert record["additional_kwargs"] == {"foo": "bar"}
+
+
+def test_serialize_message_falls_back_on_error() -> None:
+    """A serialization failure must fall back to an error record, not raise."""
+    from langchain_core.messages import HumanMessage
+
+    from myrm_agent_harness.runtime.context.offload import _serialize_message
+
+    with patch(
+        "myrm_agent_harness.agent.security.detection.leak_detector.redact_leaks",
+        side_effect=RuntimeError("redact failed"),
+    ):
+        line = _serialize_message(HumanMessage(content="x"))
+    record = json.loads(line)
+    assert record["error"] == "serialization_failed"

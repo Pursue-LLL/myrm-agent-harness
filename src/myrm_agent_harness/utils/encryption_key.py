@@ -21,8 +21,9 @@ import hashlib
 import logging
 import os
 import secrets
-import stat
 from pathlib import Path
+
+from myrm_agent_harness.infra.atomic_write import atomic_write
 
 logger = logging.getLogger(__name__)
 
@@ -50,15 +51,24 @@ def resolve_local_encryption_key(state_dir: str) -> bytes:
         return _derive_key(env_key)
 
     key_file = Path(state_dir).expanduser().resolve() / _KEY_FILENAME
-    if key_file.exists():
+    if key_file.is_file():
         raw = key_file.read_text(encoding="utf-8").strip()
         if raw:
             return _derive_key(raw)
+        # An existing-but-empty key file signals a mid-write crash: a prior key was
+        # likely lost, so re-deriving a fresh key would silently orphan data that was
+        # encrypted with the old key. Warn loudly instead of silently re-keying.
+        logger.warning(
+            "Encryption key file %s exists but is empty; any data encrypted with the "
+            "previous key can no longer be decrypted. A new key will be generated.",
+            key_file,
+        )
 
     generated = secrets.token_urlsafe(32)
     key_file.parent.mkdir(parents=True, exist_ok=True)
-    key_file.write_text(generated, encoding="utf-8")
-    key_file.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 0600
+    # Atomic write (tempfile + fsync + rename, mode=0o600) guarantees the key file is
+    # never left truncated, which would otherwise trigger the empty-file path above.
+    atomic_write(key_file, generated)
     logger.info("Generated new encryption key → %s", key_file)
     return _derive_key(generated)
 

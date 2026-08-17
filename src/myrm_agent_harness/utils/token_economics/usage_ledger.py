@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -69,6 +70,7 @@ class UsageLedger:
 
     session_dir: Path
     _file_path: Path = field(init=False, repr=False)
+    _lock: threading.Lock = field(init=False, repr=False, default_factory=threading.Lock)
 
     def __post_init__(self) -> None:
         self._file_path = self.session_dir / _LEDGER_FILENAME
@@ -79,7 +81,10 @@ class UsageLedger:
             record.ts = datetime.now(UTC).isoformat()
         try:
             self._file_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._file_path.open("a", encoding="utf-8") as f:
+            # Serialize concurrent appends so lines never interleave mid-write,
+            # which would otherwise corrupt the JSONL (a partial line is skipped
+            # on load, silently losing that audit record).
+            with self._lock, self._file_path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(asdict(record), ensure_ascii=False))
                 f.write("\n")
         except OSError:

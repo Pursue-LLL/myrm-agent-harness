@@ -205,6 +205,35 @@ def test_jsonl_trim_keeps_tail(tmp_path: Path) -> None:
     assert len(lines) <= _MAX_JSONL_LINES
 
 
+def test_jsonl_trim_rewrites_atomically(tmp_path: Path) -> None:
+    """Trim must go through atomic_write so a crash mid-rewrite never corrupts JSONL."""
+    from myrm_agent_harness.agent.coordination.mailbox import _MAX_JSONL_LINES
+
+    workspace = str(tmp_path)
+    mailbox = TeammateMailbox("sess-trim-atomic", workspace_path=workspace)
+    msg = TeammateMessage(
+        message_id="m-trim-atomic",
+        session_id="sess-trim-atomic",
+        from_task_id="a",
+        to_task_id="b",
+        from_agent_type="coder",
+        body="line",
+        created_at=1.0,
+    )
+    path = tmp_path / "teammate_mailbox_sess-trim-atomic.jsonl"
+    path.write_text("\n".join('{"message_id":"x"}' for _ in range(_MAX_JSONL_LINES + 50)) + "\n")
+
+    with patch("myrm_agent_harness.infra.atomic_write.atomic_write") as mock_atomic:
+        mailbox._persist(msg)
+    mock_atomic.assert_called_once()
+    # The rewritten content must be a fully parseable JSONL (no partial line).
+    rewritten = mock_atomic.call_args.args[1]
+    import json as _json
+
+    for line in rewritten.splitlines():
+        _json.loads(line)
+
+
 # ── Roster injection tests ──────────────────────────────────────────────
 
 

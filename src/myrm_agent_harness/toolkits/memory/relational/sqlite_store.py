@@ -592,28 +592,6 @@ class SQLiteRelationalStore(RelationalStore):
         except Exception as e:
             raise RelationalQueryError(f"count_rules failed: {e}") from e
 
-    async def list_rules_by_tool(
-        self,
-        tool_name: str,
-        *,
-        active_only: bool = True,
-        limit: int = 30,
-        namespaces: list[str] | None = None,
-    ) -> list[ProceduralMemory]:
-        conn = await self._get_connection()
-        scope_sql, scope_params = self._scope_filter_sql(namespaces)
-        try:
-            base = f"SELECT {PROCEDURAL_COLUMNS} FROM procedural_rules WHERE tool_name = ?"
-            if active_only:
-                base += " AND is_active = 1"
-            sql = base + scope_sql + " ORDER BY priority DESC LIMIT ?"
-            params: tuple[str | int, ...] = (tool_name, *scope_params, limit)
-            async with conn.execute(sql, params) as cursor:
-                rows = await cursor.fetchall()
-            return [row_to_procedural(r) for r in rows]
-        except Exception as e:
-            raise RelationalQueryError(f"list_rules_by_tool failed: {e}") from e
-
     async def update_rule(self, rule_id: str, rule: ProceduralMemory) -> ProceduralMemory:
         conn = await self._get_connection()
         now = now_iso()

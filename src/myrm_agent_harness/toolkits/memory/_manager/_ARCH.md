@@ -11,7 +11,7 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 | `shared.py` | Barrel | Shared imports, errors, background-task logger | — |
 | `core.py` | Mixin | Initialization, properties, backend flags, `vector_is_persistent` (exposes underlying vector store persistence — `True` when no vector store or persistent/remote backend, `False` only when embedded degraded to ephemeral `:memory:`), `on_conflict` callback slot | ✅ |
 | `governance_session.py` | Mixin | Approval workflow and session lifecycle | ✅ |
-| `retrieval_write.py` | Mixin | Store, search (with access tracking), context, tool rules | ✅ |
+| `retrieval_write.py` | Mixin | Store, search (with access tracking), context | ✅ |
 | `convenience.py` | Mixin | Profile and typed add helpers | ✅ |
 | `deletion.py` | Mixin | Ownership-gated delete by id/metadata/type (vector docs + procedural rules); ownership keys on `primary_namespace` (exact) with a namespaces-intersection fallback for legacy docs; cascade-cleans derived Claim Graph nodes | ✅ |
 | `listing_maintenance.py` | Mixin | List/count/delete-by-type (EPISODIC bulk clear cascade-cleans Claim Graph nodes), health, archive, backup, maintenance | ✅ |

@@ -125,10 +125,11 @@ class TeammateMailbox:
             if len(lines) <= _MAX_JSONL_LINES:
                 return
             tail = lines[-_MAX_JSONL_LINES:]
-            self._persist_path.write_text(
-                "\n".join(tail) + ("\n" if tail else ""),
-                encoding="utf-8",
-            )
+            # Rewrite atomically so a crash mid-trim never corrupts the JSONL
+            # (a truncated line would otherwise break list_teammate_history).
+            from myrm_agent_harness.infra.atomic_write import atomic_write
+
+            atomic_write(self._persist_path, "\n".join(tail) + ("\n" if tail else ""))
         except OSError as exc:
             logger.warning("Failed to trim teammate mailbox JSONL: %s", exc)
 

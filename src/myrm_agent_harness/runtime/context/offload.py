@@ -220,7 +220,9 @@ def create_context_snapshot_callback(
                     available_bytes=remaining,
                 )
 
-            await executor.write_file_bytes(rel_path, compressed_bytes)
+            # Atomically persist so a crash mid-write never leaves a truncated
+            # snapshot that would break continuity restore after restart.
+            await executor.write_file_bytes_atomic(rel_path, compressed_bytes)
             await _record_context_archive_access(abs_path, session_id)
             duration_ms = (time.perf_counter() - start) * 1000
             ratio = original_size / compressed_size if compressed_size > 0 else 1.0

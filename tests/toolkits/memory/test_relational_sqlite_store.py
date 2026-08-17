@@ -289,50 +289,6 @@ async def test_create_rule_persists_expected_valid_days(
 
 
 @pytest.mark.asyncio
-async def test_list_rules_by_tool_basic(store: SQLiteRelationalStore) -> None:
-    """list_rules_by_tool returns only rules for the specified tool."""
-    await store.create_rule(_make_tool_rule("web_fetch_tool", trigger="fetch timeout", action="retry"))
-    await store.create_rule(_make_tool_rule("bash_code_execute_tool", trigger="sudo", action="deny"))
-    await store.create_rule(_make_rule("global trigger", "global action"))
-
-    results = await store.list_rules_by_tool("web_fetch_tool")
-    assert len(results) == 1
-    assert results[0].tool_name == "web_fetch_tool"
-
-
-@pytest.mark.asyncio
-async def test_list_rules_by_tool_active_only(store: SQLiteRelationalStore) -> None:
-    """Inactive rules are excluded when active_only=True."""
-    rule = _make_tool_rule("bash_code_execute_tool", trigger="sudo", action="deny")
-    rule.is_active = False
-    rule.status = MemoryStatus.DISABLED
-    await store.create_rule(rule)
-
-    active = await store.list_rules_by_tool("bash_code_execute_tool", active_only=True)
-    assert len(active) == 0
-
-    all_rules = await store.list_rules_by_tool("bash_code_execute_tool", active_only=False)
-    assert len(all_rules) == 1
-
-
-@pytest.mark.asyncio
-async def test_list_rules_by_tool_respects_limit(store: SQLiteRelationalStore) -> None:
-    """Limit parameter is honored."""
-    for i in range(5):
-        await store.create_rule(_make_tool_rule("web_search_tool", trigger=f"q{i}", action=f"a{i}"))
-
-    results = await store.list_rules_by_tool("web_search_tool", limit=3)
-    assert len(results) == 3
-
-
-@pytest.mark.asyncio
-async def test_list_rules_by_tool_empty(store: SQLiteRelationalStore) -> None:
-    """Returns empty list when no matching tool rules exist."""
-    results = await store.list_rules_by_tool("nonexistent_tool")
-    assert results == []
-
-
-@pytest.mark.asyncio
 async def test_update_rule_preserves_tool_fields(store: SQLiteRelationalStore) -> None:
     """update_rule correctly persists tool_name and tool_rule_priority."""
     from myrm_agent_harness.toolkits.memory.types import ToolRulePriority

@@ -25,6 +25,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.infra.atomic_write import atomic_write
+
 from .types import SkillInstance, SkillInstanceConfig, SkillMetadata
 
 if TYPE_CHECKING:
@@ -135,9 +137,9 @@ class SkillStateManager:
             state_file=f".myrm/skills/states/{skill_name}/{instance_name}.json",
         )
 
-        # Save to file
+        # Save to file (atomic so a crash never leaves a truncated instance JSON)
         instance_dir.mkdir(parents=True, exist_ok=True)
-        instance_file.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
+        atomic_write(instance_file, json.dumps(config.to_dict(), indent=2))
 
         logger.info(f"Created skill instance: {skill_name}.{instance_name}")
         return config
@@ -243,9 +245,9 @@ class SkillStateManager:
                 _validate_config_overrides(config_overrides, config_schema, skill_name, instance_name)
             config.config_overrides = config_overrides
 
-        # Save updated config
+        # Save updated config (atomic: avoid truncated JSON on crash)
         instance_file = self.instances_dir / skill_name / f"{instance_name}.json"
-        instance_file.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
+        atomic_write(instance_file, json.dumps(config.to_dict(), indent=2))
 
         logger.info(f"Updated skill instance: {skill_name}.{instance_name}")
         return config
@@ -272,7 +274,8 @@ class SkillStateManager:
         state_dir.mkdir(parents=True, exist_ok=True)
 
         state_file = state_dir / f"{instance_name}.json"
-        state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        # Atomic: a crash mid-write must never leave truncated runtime state.
+        atomic_write(state_file, json.dumps(state, indent=2))
 
         logger.debug(f"Saved state for {skill.name}.{instance_name}")
 
@@ -280,7 +283,7 @@ class SkillStateManager:
         self,
         skill: SkillMetadata,
         instance_name: str,
-    ) -> dict[str, JsonValue] | None:
+    ) -> dict[str, object] | None:
         """Load skill runtime state from file.
 
         For skills implementing SkillStateProtocol. Framework automatically
@@ -299,7 +302,11 @@ class SkillStateManager:
             return None
 
         try:
-            return json.loads(state_file.read_text(encoding="utf-8"))
+            loaded = json.loads(state_file.read_text(encoding="utf-8"))
+            if not isinstance(loaded, dict):
+                logger.warning("Skill state for %s.%s is not a JSON object; ignoring", skill.name, instance_name)
+                return None
+            return {key: value for key, value in loaded.items() if isinstance(key, str)}
         except Exception as e:
             logger.error(f"Failed to load state for {skill.name}.{instance_name}: {e}")
             return None

@@ -232,20 +232,3 @@ class MemoryManagerRetrievalWriteMixin:
             used += len(pref.content)
 
         return {"learned_rules": learned_rules, "learned_preferences": learned_prefs}
-
-    async def get_tool_rules(
-        self,
-        tool_name: str,
-        *,
-        limit: int = 30,
-    ) -> list[ProceduralMemory]:
-        """Retrieve active procedural rules scoped to a specific tool."""
-        if not self._relational:
-            return []
-        try:
-            return await self._relational.list_rules_by_tool(
-                tool_name, active_only=True, limit=limit, namespaces=self._namespaces
-            )
-        except Exception as e:
-            logger.warning("get_tool_rules failed for %s: %s", tool_name, e)
-            return []

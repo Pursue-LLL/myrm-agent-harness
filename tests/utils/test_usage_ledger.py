@@ -95,6 +95,28 @@ class TestUsageLedger:
         records = ledger.load()
         assert len(records) == 2
 
+    def test_concurrent_appends_never_interleave(self, ledger_dir: Path) -> None:
+        """Concurrent appends must stay line-atomic (lock serializes writes)."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        ledger = UsageLedger(session_dir=ledger_dir)
+        n_threads = 8
+        n_per_thread = 50
+        import threading
+
+        barrier = threading.Barrier(n_threads)
+
+        def worker(_: int) -> None:
+            barrier.wait()
+            for i in range(n_per_thread):
+                ledger.append(UsageRecord(model="m", total_tokens=i, cost_usd=0.001))
+
+        with ThreadPoolExecutor(max_workers=n_threads) as pool:
+            list(pool.map(worker, range(n_threads)))
+
+        records = ledger.load()
+        assert len(records) == n_threads * n_per_thread
+
     def test_load_ignores_extra_fields(self, ledger: UsageLedger, ledger_dir: Path) -> None:
         ledger_dir.mkdir(parents=True, exist_ok=True)
         fp = ledger_dir / "usage_ledger.jsonl"

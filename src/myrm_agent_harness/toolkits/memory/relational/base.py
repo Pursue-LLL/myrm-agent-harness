@@ -92,16 +92,6 @@ class RelationalStore(ABC):
     async def count_rules(self, *, active_only: bool = True, namespaces: list[str] | None = None) -> int: ...
 
     @abstractmethod
-    async def list_rules_by_tool(
-        self,
-        tool_name: str,
-        *,
-        active_only: bool = True,
-        limit: int = 30,
-        namespaces: list[str] | None = None,
-    ) -> list[ProceduralMemory]: ...
-
-    @abstractmethod
     async def update_rule(self, rule_id: str, rule: ProceduralMemory) -> ProceduralMemory: ...
 
     @abstractmethod

@@ -1,5 +1,6 @@
 """Tests for encryption key resolution logic."""
 
+import logging
 import os
 import stat
 from pathlib import Path
@@ -67,6 +68,18 @@ class TestResolveFromFile:
         assert len(key) == 32
         assert key_file.read_text().strip() != ""
 
+    def test_empty_file_emits_crash_warning(self, tmp_state_dir: Path, caplog):
+        """An existing-but-empty key file (crash residue) must be loudly surfaced
+        rather than silently re-keyed, which would orphan previously encrypted data."""
+        tmp_state_dir.mkdir(parents=True)
+        key_file = tmp_state_dir / ".encryption_key"
+        key_file.write_text("")
+
+        with caplog.at_level(logging.WARNING):
+            resolve_local_encryption_key(str(tmp_state_dir))
+
+        assert any("no longer be decrypted" in r.message for r in caplog.records)
+
 
 class TestAutoGenerate:
     def test_generates_key_when_nothing_exists(self, tmp_state_dir: Path):
@@ -94,6 +107,12 @@ class TestAutoGenerate:
         key = resolve_local_encryption_key(str(nested))
         assert len(key) == 32
         assert (nested / ".encryption_key").exists()
+
+    def test_no_atomic_tmp_residue_after_write(self, tmp_state_dir: Path):
+        """Atomic write (tempfile+rename) must not leave `.atomic_*` residue."""
+        resolve_local_encryption_key(str(tmp_state_dir))
+        residue = [p for p in tmp_state_dir.iterdir() if p.name.startswith(".atomic_")]
+        assert residue == []
 
 
 class TestPriorityOrder:
