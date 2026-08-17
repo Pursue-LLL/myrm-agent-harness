@@ -246,32 +246,50 @@ class TestDiagnoseLlmError:
             assert diagnostic is None
 
     def test_diagnose_prefers_api_base_over_base_url(self):
+        from types import SimpleNamespace
+
         from myrm_agent_harness.agent._internals.agent_recovery import diagnose_llm_error
-        from myrm_agent_harness.agent.errors.diagnostics import ErrorContext
+        from myrm_agent_harness.agent.errors.diagnostics import (
+            DiagnosticResult,
+            ErrorContext,
+        )
 
-        llm = MagicMock()
-        llm.model_name = "test-model"
-        llm.api_base = "https://custom.example.com/v1"
-        llm.base_url = "https://legacy.example.com/v1"
+        llm = SimpleNamespace(
+            model_name="test-model",
+            model="test-model",
+            api_base="https://custom.example.com/v1",
+            base_url="https://legacy.example.com/v1",
+        )
 
-        captured: dict[str, object] = {}
+        captured: dict[str, ErrorContext] = {}
 
-        def _capture_diagnose(_msg: str, ctx: ErrorContext) -> dict[str, object]:
+        def _capture_diagnose(
+            _exc: Exception,
+            ctx: ErrorContext,
+            locale: str | None = None,
+            cooldown_remaining_ms: int | None = None,
+        ) -> DiagnosticResult:
             captured["ctx"] = ctx
-            return {"hint": "ok"}
+            return DiagnosticResult(
+                error_type="test",
+                user_message="user msg",
+                resolution_steps=["step1"],
+                is_retryable=False,
+                locale=locale or "en",
+            )
 
         with patch(
             "myrm_agent_harness.agent.errors.diagnostics.LLMErrorDiagnostic.diagnose",
             side_effect=_capture_diagnose,
         ):
-            msg, diagnostic = diagnose_llm_error(RuntimeError("boom"), llm, None)
+            msg, diagnostic = diagnose_llm_error(RuntimeError("boom"), llm, None)  # type: ignore[arg-type]
 
         ctx = captured["ctx"]
-        assert isinstance(ctx, ErrorContext)
         assert ctx.base_url == "https://custom.example.com/v1"
         assert ctx.is_custom_endpoint is True
         assert isinstance(msg, str)
-        assert diagnostic == {"hint": "ok"}
+        assert diagnostic is not None
+        assert diagnostic["user_message"] == "user msg"
 
 
 # ============================================================================

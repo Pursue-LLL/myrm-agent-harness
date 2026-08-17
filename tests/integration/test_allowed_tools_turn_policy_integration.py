@@ -142,7 +142,12 @@ async def test_agnes_real_llm_invoke_without_allowed_tools_succeeds() -> None:
     assert model_supports_allowed_tools_tool_choice(model, api_base=base_url) is False
 
     llm = create_litellm_model(model, base_url=base_url, api_key=api_key, streaming=False)
-    result = await llm.ainvoke([HumanMessage(content="Reply with exactly: OK")])
+    try:
+        result = await llm.ainvoke([HumanMessage(content="Reply with exactly: OK")])
+    except Exception as exc:
+        if "AuthenticationError" in type(exc).__name__ or "无效的令牌" in str(exc):
+            pytest.skip(f"agnes credentials expired or invalid: {exc}")
+        raise
     content = result.content
     assert isinstance(content, str)
     assert content.strip()
