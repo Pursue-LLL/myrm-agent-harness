@@ -463,7 +463,9 @@ async def test_batch_mark_pending_empty_list(store: SQLiteRelationalStore) -> No
 @pytest.mark.asyncio
 async def test_operations_after_close_raise(store: SQLiteRelationalStore) -> None:
     """Any operation after close() must raise RelationalConnectionError."""
-    from myrm_agent_harness.toolkits.memory.relational.exceptions import RelationalConnectionError
+    from myrm_agent_harness.toolkits.memory.relational.exceptions import (
+        RelationalConnectionError,
+    )
 
     await store.close()
     with pytest.raises(RelationalConnectionError):
@@ -483,9 +485,13 @@ async def test_close_is_idempotent(store: SQLiteRelationalStore) -> None:
 
 
 @pytest.mark.asyncio
-async def test_query_error_branches_raise(store: SQLiteRelationalStore, monkeypatch) -> None:
+async def test_query_error_branches_raise(
+    store: SQLiteRelationalStore, monkeypatch
+) -> None:
     """DB failures surface as RelationalQueryError across CRUD methods."""
-    from myrm_agent_harness.toolkits.memory.relational.exceptions import RelationalQueryError
+    from myrm_agent_harness.toolkits.memory.relational.exceptions import (
+        RelationalQueryError,
+    )
 
     class _ExplodingCursor:
         async def __aenter__(self):
@@ -545,5 +551,3 @@ async def test_query_error_branches_raise(store: SQLiteRelationalStore, monkeypa
     ):
         with pytest.raises(RelationalQueryError):
             await call()
-
-
