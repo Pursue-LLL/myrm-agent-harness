@@ -536,6 +536,11 @@ def create_delegate_task_tool(
                 "task_id": task_id,
             }
         except Exception as e:
+            from langgraph.errors import GraphInterrupt
+
+            if isinstance(e, GraphInterrupt):
+                raise
+
             from myrm_agent_harness.toolkits.llms.errors.classifier import (
                 ErrorKind,
                 classify_error,

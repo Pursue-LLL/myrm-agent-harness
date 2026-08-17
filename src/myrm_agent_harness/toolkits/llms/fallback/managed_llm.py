@@ -357,6 +357,33 @@ class ManagedLLM(BaseChatModel):
         """Delegate tool binding to the main LLM."""
         return self._main_llm.bind_tools(tools, **kwargs)
 
+    # ------------------------------------------------------------------
+    # Identity passthrough (model / api_base / base_url)
+    # ------------------------------------------------------------------
+    # Downstream consumers (capability learning, error diagnostics, LLM
+    # metadata in StreamContext) read these attributes via getattr()/property
+    # lookup. Delegate to the underlying main LLM so wrappers stay transparent.
+
+    @property
+    def model(self) -> str:
+        """Primary model name of the underlying main LLM."""
+        return getattr(self._main_llm, "model", "")
+
+    @property
+    def model_name(self) -> str | None:
+        """Model name alias of the underlying main LLM."""
+        return getattr(self._main_llm, "model_name", None)
+
+    @property
+    def api_base(self) -> str | None:
+        """API base URL of the underlying main LLM."""
+        return getattr(self._main_llm, "api_base", None)
+
+    @property
+    def base_url(self) -> str | None:
+        """API base URL alias of the underlying main LLM."""
+        return getattr(self._main_llm, "base_url", None) or self.api_base
+
     @property
     def _llm_type(self) -> str:
         """Return LLM type identifier."""

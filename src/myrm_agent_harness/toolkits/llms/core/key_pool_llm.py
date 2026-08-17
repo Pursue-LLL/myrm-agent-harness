@@ -31,7 +31,11 @@ from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 
 from myrm_agent_harness.toolkits.llms.core.credential_pool import CredentialPool
-from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind, classify_error, extract_retry_after
+from myrm_agent_harness.toolkits.llms.errors.classifier import (
+    ErrorKind,
+    classify_error,
+    extract_retry_after,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +106,9 @@ class KeyPoolLLM(BaseChatModel):
             if llm is None:
                 continue
             try:
-                result = await llm._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
+                result = await llm._agenerate(
+                    messages, stop=stop, run_manager=run_manager, **kwargs
+                )
                 self._pool.report_success(key)
                 return result
             except Exception as exc:
@@ -129,7 +135,9 @@ class KeyPoolLLM(BaseChatModel):
             if llm is None:
                 continue
             try:
-                async for chunk in llm._astream(messages, stop=stop, run_manager=run_manager, **kwargs):
+                async for chunk in llm._astream(
+                    messages, stop=stop, run_manager=run_manager, **kwargs
+                ):
                     yield chunk
                 self._pool.report_success(key)
                 return
@@ -158,7 +166,9 @@ class KeyPoolLLM(BaseChatModel):
             if llm is None:
                 continue
             try:
-                result = llm._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
+                result = llm._generate(
+                    messages, stop=stop, run_manager=run_manager, **kwargs
+                )
                 self._pool.report_success(key)
                 return result
             except Exception as exc:
@@ -182,6 +192,36 @@ class KeyPoolLLM(BaseChatModel):
         for instance in self._instances.values():
             instance.bind_tools(tools, **kwargs)
         return self
+
+    # ------------------------------------------------------------------
+    # Identity passthrough (model / api_base / base_url)
+    # ------------------------------------------------------------------
+    # All pooled instances share the same model + endpoint, so delegate to
+    # the stable primary instance. Downstream consumers (capability learning,
+    # error diagnostics) read these via getattr()/property lookup.
+
+    @property
+    def model(self) -> str:
+        """Model name of the pooled LLM instances."""
+        return getattr(self._instances[self._primary_key], "model", "")
+
+    @property
+    def model_name(self) -> str | None:
+        """Model name alias of the pooled LLM instances."""
+        return getattr(self._instances[self._primary_key], "model_name", None)
+
+    @property
+    def api_base(self) -> str | None:
+        """API base URL of the pooled LLM instances."""
+        return getattr(self._instances[self._primary_key], "api_base", None)
+
+    @property
+    def base_url(self) -> str | None:
+        """API base URL alias of the pooled LLM instances."""
+        return (
+            getattr(self._instances[self._primary_key], "base_url", None)
+            or self.api_base
+        )
 
     @property
     def _llm_type(self) -> str:

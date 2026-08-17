@@ -25,6 +25,7 @@ _MINIMAX_PREFIX = "minimax/"
 _MINIMAX_API_BASE_MARKERS = ("minimaxi.com", "minimax.io")
 _AGNES_API_BASE_MARKERS = ("agnes-ai.com", "apihub.agnes")
 _OPENCODE_API_BASE_MARKERS = ("opencode.ai",)
+_LOCAL_API_BASE_MARKERS = ("localhost", "127.0.0.1", "0.0.0.0", "::1")
 
 
 def normalize_model_capability_key(
@@ -48,15 +49,27 @@ def model_supports_allowed_tools_tool_choice(
     api_base: str | None = None,
 ) -> bool:
     """Return True when the provider likely accepts ``tool_choice.type=allowed_tools``."""
+    # Fail-closed by default: ``allowed_tools`` is a non-standard OpenAI extension
+    # that only native OpenAI endpoints accept. Unknown/local/self-hosted proxies
+    # reject it (LiteLLM → APIConnectionError "Invalid tool choice"), so we opt-in
+    # for api.openai.com and let the learner cache mark any gateway that rejects it
+    # (one retry) for the rest of the process. Execution-layer
+    # check_trust_attenuation remains authoritative when the hint is skipped.
     if not model_name:
-        return True
+        return False
 
     normalized = normalize_model_capability_key(model_name, api_base=api_base)
     if not normalized:
-        return True
+        return False
 
     learner = get_capability_learner()
     if learner.get(normalized, CAPABILITY_REJECTS_ALLOWED_TOOLS, False) is True:
+        return False
+
+    api = (api_base or "").lower()
+
+    # Local dev proxies never support the extension.
+    if any(marker in api for marker in _LOCAL_API_BASE_MARKERS):
         return False
 
     if normalized.startswith(_OPENAI_LIKE_PREFIX):
@@ -65,17 +78,18 @@ def model_supports_allowed_tools_tool_choice(
     if normalized.startswith(_MINIMAX_PREFIX):
         return False
 
-    api = (api_base or "").lower()
     if any(marker in api for marker in _MINIMAX_API_BASE_MARKERS):
         return False
 
     if any(marker in api for marker in _AGNES_API_BASE_MARKERS):
         return False
 
+    # opencode.go / OpenCode gateway does NOT understand allowed_tools.
     if any(marker in api for marker in _OPENCODE_API_BASE_MARKERS):
         return False
 
+    # Native OpenAI (api.openai.com) supports allowed_tools.
     if "api.openai.com" in api:
         return True
 
-    return True
+    return False

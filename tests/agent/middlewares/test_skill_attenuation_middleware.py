@@ -176,6 +176,55 @@ async def test_skips_allowed_tools_for_openai_like_models(
     assert captured["request"].tool_choice is None
 
 
+@pytest.mark.asyncio
+async def test_skips_allowed_tools_for_local_proxy_via_managed_llm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ManagedLLM over a local proxy must not send allowed_tools.
+
+    The middleware reads the model's ``api_base`` to detect local/self-hosted
+    proxies. ``ManagedLLM`` only exposes that value after the identity
+    passthrough properties exist; a None ``api_base`` would miss the local
+    marker and keep attaching ``allowed_tools`` to a proxy that rejects it.
+    With passthrough, the local marker check fires and the hint is skipped on
+    the first turn.
+    """
+    from myrm_agent_harness.toolkits.llms.adapters.chat_model.model import ChatLiteLLM
+    from myrm_agent_harness.toolkits.llms.fallback import ManagedLLM
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.tooling.skill_attenuation_middleware.compute_turn_allowed_names",
+        lambda *_args, **_kwargs: frozenset({"web_search_tool"}),
+    )
+
+    inner = ChatLiteLLM(
+        model="openai-like/OpenCode Go Pool",
+        api_base="http://localhost:20128/v1",
+    )
+    request = _FakeRequest(
+        tools=[
+            SimpleNamespace(name="render_ui_tool"),
+            SimpleNamespace(name="web_search_tool"),
+        ],
+        messages=[HumanMessage(content="查一下明天北京到上海的高铁")],
+        model=ManagedLLM(main_llm=inner),
+    )
+    middleware = SkillAttenuationMiddleware(ToolRegistry())
+
+    captured: dict[str, _FakeRequest] = {}
+
+    async def _handler(req: _FakeRequest) -> _FakeResponse:
+        captured["request"] = req
+        return _FakeResponse()
+
+    await middleware.awrap_model_call(request, _handler)
+    assert captured["request"].tool_choice is None
+
+
 def test_wrap_tool_call_delegates_when_tool_prebound() -> None:
     from langchain.agents.middleware.types import ToolCallRequest
     from langchain_core.messages import ToolMessage
@@ -188,7 +237,9 @@ def test_wrap_tool_call_delegates_when_tool_prebound() -> None:
         state={},
         runtime=MagicMock(),
     )
-    expected = ToolMessage(content="ok", name="ask_question_tool", tool_call_id="call_1")
+    expected = ToolMessage(
+        content="ok", name="ask_question_tool", tool_call_id="call_1"
+    )
 
     def handler(req: ToolCallRequest) -> ToolMessage:
         assert req.tool is bound_tool

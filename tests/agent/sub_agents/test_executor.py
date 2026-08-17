@@ -8,7 +8,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
-from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, SubAgentResult, SubAgentStatus
+from myrm_agent_harness.agent.sub_agents.types import (
+    SubagentConfig,
+    SubAgentResult,
+    SubAgentStatus,
+)
 
 
 @pytest.fixture
@@ -49,7 +53,9 @@ class TestRetryLogic:
         children_steering = {}
 
         # Mock _run_single_attempt to return success
-        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock_attempt:
+        with patch.object(
+            executor, "_run_single_attempt", new_callable=AsyncMock
+        ) as mock_attempt:
             mock_result = SubAgentResult(
                 success=True,
                 task_id="test-task",
@@ -86,7 +92,9 @@ class TestRetryLogic:
         children_steering = {}
 
         # Mock _run_single_attempt to fail once then succeed
-        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock_attempt:
+        with patch.object(
+            executor, "_run_single_attempt", new_callable=AsyncMock
+        ) as mock_attempt:
             mock_attempt.side_effect = [
                 Exception("First attempt failed"),
                 SubAgentResult(
@@ -125,7 +133,9 @@ class TestRetryLogic:
         children_steering = {}
 
         # Mock _run_single_attempt to always fail
-        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock_attempt:
+        with patch.object(
+            executor, "_run_single_attempt", new_callable=AsyncMock
+        ) as mock_attempt:
             mock_attempt.side_effect = Exception("Always fails")
 
             result = await executor.run_with_retry(
@@ -184,7 +194,9 @@ class TestTimeoutHandling:
         )
         parent_agent = MagicMock()
 
-        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock:
+        with patch.object(
+            executor, "_run_single_attempt", new_callable=AsyncMock
+        ) as mock:
             mock.side_effect = TimeoutError("timed out")
 
             result = await executor.run_with_retry(
@@ -224,7 +236,9 @@ class TestTimeoutHandling:
             status=SubAgentStatus.COMPLETED,
         )
 
-        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock:
+        with patch.object(
+            executor, "_run_single_attempt", new_callable=AsyncMock
+        ) as mock:
             mock.side_effect = [TimeoutError("t"), ok]
 
             result = await executor.run_with_retry(
@@ -251,12 +265,18 @@ class TestBudgetExceeded:
     @pytest.mark.asyncio
     async def test_budget_exceeded_returns_cancelled_by_budget(self, executor):
         """SubagentBudgetExceededError should return CANCELLED_BY_BUDGET."""
-        from myrm_agent_harness.agent.sub_agents.types import SubagentBudgetExceededError
+        from myrm_agent_harness.agent.sub_agents.types import (
+            SubagentBudgetExceededError,
+        )
 
-        config = SubagentConfig(system_prompt="s", max_retries=2, retry_backoff_seconds=0)
+        config = SubagentConfig(
+            system_prompt="s", max_retries=2, retry_backoff_seconds=0
+        )
         parent_agent = MagicMock()
 
-        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock:
+        with patch.object(
+            executor, "_run_single_attempt", new_callable=AsyncMock
+        ) as mock:
             mock.side_effect = SubagentBudgetExceededError("over budget")
 
             result = await executor.run_with_retry(
@@ -286,10 +306,14 @@ class TestCancellation:
         """asyncio.CancelledError should return CANCELLED status."""
         import asyncio
 
-        config = SubagentConfig(system_prompt="s", max_retries=2, retry_backoff_seconds=0)
+        config = SubagentConfig(
+            system_prompt="s", max_retries=2, retry_backoff_seconds=0
+        )
         parent_agent = MagicMock()
 
-        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock:
+        with patch.object(
+            executor, "_run_single_attempt", new_callable=AsyncMock
+        ) as mock:
             mock.side_effect = asyncio.CancelledError()
 
             result = await executor.run_with_retry(
@@ -315,14 +339,18 @@ class TestCancellation:
         """Cancelling a child should cascade-cancel its descendants."""
         import asyncio
 
-        config = SubagentConfig(system_prompt="s", max_retries=2, retry_backoff_seconds=0)
+        config = SubagentConfig(
+            system_prompt="s", max_retries=2, retry_backoff_seconds=0
+        )
         parent_agent = MagicMock()
         child_agent = MagicMock()
         child_agent.cancel_all_children = MagicMock(return_value=2)
 
         children_agents: dict[str, object] = {"t1": child_agent}
 
-        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock:
+        with patch.object(
+            executor, "_run_single_attempt", new_callable=AsyncMock
+        ) as mock:
             mock.side_effect = asyncio.CancelledError()
 
             result = await executor.run_with_retry(
@@ -347,10 +375,14 @@ class TestCancellation:
         """Cascade cancel should handle missing child agent gracefully."""
         import asyncio
 
-        config = SubagentConfig(system_prompt="s", max_retries=2, retry_backoff_seconds=0)
+        config = SubagentConfig(
+            system_prompt="s", max_retries=2, retry_backoff_seconds=0
+        )
         parent_agent = MagicMock()
 
-        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock:
+        with patch.object(
+            executor, "_run_single_attempt", new_callable=AsyncMock
+        ) as mock:
             mock.side_effect = asyncio.CancelledError()
 
             result = await executor.run_with_retry(
@@ -374,14 +406,20 @@ class TestCancellation:
         """Cascade cancel should handle exception from cancel_all_children gracefully."""
         import asyncio
 
-        config = SubagentConfig(system_prompt="s", max_retries=2, retry_backoff_seconds=0)
+        config = SubagentConfig(
+            system_prompt="s", max_retries=2, retry_backoff_seconds=0
+        )
         parent_agent = MagicMock()
         child_agent = MagicMock()
-        child_agent.cancel_all_children = MagicMock(side_effect=RuntimeError("cancel failed"))
+        child_agent.cancel_all_children = MagicMock(
+            side_effect=RuntimeError("cancel failed")
+        )
 
         children_agents: dict[str, object] = {"t1": child_agent}
 
-        with patch.object(executor, "_run_single_attempt", new_callable=AsyncMock) as mock:
+        with patch.object(
+            executor, "_run_single_attempt", new_callable=AsyncMock
+        ) as mock:
             mock.side_effect = asyncio.CancelledError()
 
             result = await executor.run_with_retry(
@@ -418,7 +456,9 @@ class TestContextInheritance:
 
         context = {"custom_field": "custom-value"}
 
-        merged = await executor._inherit_parent_context(context=context, task_id="test-task", parent_agent=parent_agent)
+        merged = await executor._inherit_parent_context(
+            context=context, task_id="test-task", parent_agent=parent_agent
+        )
 
         # Verify inherited fields
         assert merged["session_id"] == "parent-session"
@@ -444,7 +484,9 @@ class TestContextInheritance:
             "user_id": "child-user",  # Should not be overridden
         }
 
-        merged = await executor._inherit_parent_context(context=context, task_id="test-task", parent_agent=parent_agent)
+        merged = await executor._inherit_parent_context(
+            context=context, task_id="test-task", parent_agent=parent_agent
+        )
 
         # Verify child values are preserved
         assert merged["session_id"] == "child-session"
@@ -461,11 +503,18 @@ class TestCacheHitPivot:
         - Drops ToolMessage entirely
         - Drops AIMessage with only tool_calls and no content
         """
-        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+        from langchain_core.messages import (
+            AIMessage,
+            HumanMessage,
+            SystemMessage,
+            ToolMessage,
+        )
 
         from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 
-        config = SubagentConfig(system_prompt="sys", context_mode="fork", max_fork_tokens=50000)
+        config = SubagentConfig(
+            system_prompt="sys", context_mode="fork", max_fork_tokens=50000
+        )
         parent_agent = MagicMock()
         parent_agent.config.system_prompt = "parent system"
         parent_agent.session_id = "test-session"
@@ -475,10 +524,24 @@ class TestCacheHitPivot:
                 "messages": [
                     SystemMessage(content="parent system"),
                     HumanMessage(content="user query"),
-                    AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}]),
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            {"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}
+                        ],
+                    ),
                     ToolMessage(content="file1.py\nfile2.py", tool_call_id="tc1"),
                     AIMessage(content="I found the files. Let me analyze them."),
-                    AIMessage(content="", tool_calls=[{"name": "read_file", "args": {"path": "file1.py"}, "id": "tc2"}]),
+                    AIMessage(
+                        content="",
+                        tool_calls=[
+                            {
+                                "name": "read_file",
+                                "args": {"path": "file1.py"},
+                                "id": "tc2",
+                            }
+                        ],
+                    ),
                     ToolMessage(content="def main():\n    pass", tool_call_id="tc2"),
                     AIMessage(content="Here is my analysis of the code."),
                 ]
@@ -496,7 +559,8 @@ class TestCacheHitPivot:
         child_agent.run = mock_run
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=child_agent,
         ):
             await executor._run_single_attempt(
                 task_id="t",
@@ -543,7 +607,14 @@ class TestCacheHitPivot:
         parent_agent.config.system_prompt = "parent system"
         parent_agent.session_id = "test-session"
 
-        parent_state = {"channel_values": {"messages": [SystemMessage(content="parent system"), HumanMessage(content="user query")]}}
+        parent_state = {
+            "channel_values": {
+                "messages": [
+                    SystemMessage(content="parent system"),
+                    HumanMessage(content="user query"),
+                ]
+            }
+        }
         parent_agent.checkpointer.aget = AsyncMock(return_value=parent_state)
 
         child_agent = MagicMock()
@@ -556,7 +627,8 @@ class TestCacheHitPivot:
         child_agent.run = mock_run
 
         with patch(
-            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent
+            "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+            return_value=child_agent,
         ):
             await executor._run_single_attempt(
                 task_id="t",
@@ -606,7 +678,10 @@ class TestFilterForkMessages:
 
         from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
 
-        ai = AIMessage(content="analysis result", tool_calls=[{"name": "bash", "args": {}, "id": "tc1"}])
+        ai = AIMessage(
+            content="analysis result",
+            tool_calls=[{"name": "bash", "args": {}, "id": "tc1"}],
+        )
         result = _filter_fork_messages([SystemMessage(content="sys"), ai])
         assert len(result) == 2
         assert result[1].content == "analysis result"
@@ -621,7 +696,9 @@ class TestFilterForkMessages:
         msgs = [
             SystemMessage(content="sys"),
             HumanMessage(content="hi"),
-            AIMessage(content="", tool_calls=[{"name": "bash", "args": {}, "id": "tc1"}]),
+            AIMessage(
+                content="", tool_calls=[{"name": "bash", "args": {}, "id": "tc1"}]
+            ),
         ]
         result = _filter_fork_messages(msgs)
         assert len(result) == 2
@@ -674,22 +751,41 @@ class TestFilterForkMessages:
 
     def test_realistic_coding_session(self):
         """Simulate a realistic coding session with many tool calls."""
-        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+        from langchain_core.messages import (
+            AIMessage,
+            HumanMessage,
+            SystemMessage,
+            ToolMessage,
+        )
 
         from myrm_agent_harness.agent.sub_agents.executor import _filter_fork_messages
 
         msgs = [
             SystemMessage(content="You are a coding assistant."),
             HumanMessage(content="Build a login page"),
-            AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}]),
-            ToolMessage(content="src/\npackage.json", tool_call_id="tc1"),
-            AIMessage(content="I see the project structure. Let me create the login component."),
             AIMessage(
                 content="",
-                tool_calls=[{"name": "write_file", "args": {"path": "login.tsx", "content": "..."}, "id": "tc2"}],
+                tool_calls=[{"name": "bash", "args": {"cmd": "ls"}, "id": "tc1"}],
+            ),
+            ToolMessage(content="src/\npackage.json", tool_call_id="tc1"),
+            AIMessage(
+                content="I see the project structure. Let me create the login component."
+            ),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "write_file",
+                        "args": {"path": "login.tsx", "content": "..."},
+                        "id": "tc2",
+                    }
+                ],
             ),
             ToolMessage(content="File written successfully", tool_call_id="tc2"),
-            AIMessage(content="", tool_calls=[{"name": "bash", "args": {"cmd": "npm test"}, "id": "tc3"}]),
+            AIMessage(
+                content="",
+                tool_calls=[{"name": "bash", "args": {"cmd": "npm test"}, "id": "tc3"}],
+            ),
             ToolMessage(content="PASS all tests", tool_call_id="tc3"),
             AIMessage(content="Login page is complete. All tests pass."),
         ]
@@ -698,7 +794,10 @@ class TestFilterForkMessages:
         assert len(result) == 4
         assert isinstance(result[0], SystemMessage)
         assert isinstance(result[1], HumanMessage)
-        assert result[2].content == "I see the project structure. Let me create the login component."
+        assert (
+            result[2].content
+            == "I see the project structure. Let me create the login component."
+        )
         assert result[3].content == "Login page is complete. All tests pass."
         assert not any(isinstance(m, ToolMessage) for m in result)
 
@@ -761,7 +860,9 @@ class TestFilterForkMessages:
         from myrm_agent_harness.agent.sub_agents.executor import _estimate_msg_tokens
 
         class FakeMsg:
-            content: ClassVar[list[dict[str, str]]] = [{"type": "text", "text": "hello world"}]
+            content: ClassVar[list[dict[str, str]]] = [
+                {"type": "text", "text": "hello world"}
+            ]
 
         tokens = _estimate_msg_tokens(FakeMsg())
         assert tokens >= 1
@@ -808,16 +909,20 @@ class TestTaintInboundWarning:
 
         with (
             patch(
-                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+                return_value=child_agent,
             ),
             patch(
                 "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate",
                 return_value="some result",
             ),
             patch(
-                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state", return_value=None
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state",
+                return_value=None,
             ),
-            patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats"),
+            patch(
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats"
+            ),
         ):
             result = await executor._run_single_attempt(
                 task_id="t1",
@@ -866,16 +971,20 @@ class TestTaintInboundWarning:
 
         with (
             patch(
-                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent", return_value=child_agent
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
+                return_value=child_agent,
             ),
             patch(
                 "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._auto_vault_or_truncate",
                 return_value="clean result",
             ),
             patch(
-                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state", return_value=None
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin._parse_handover_state",
+                return_value=None,
             ),
-            patch("myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats"),
+            patch(
+                "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.merge_child_stats"
+            ),
         ):
             result = await executor._run_single_attempt(
                 task_id="t2",
@@ -938,8 +1047,13 @@ class TestAutoVaultOrTruncate:
         config.auto_vault_threshold = 10
         config.max_result_tokens = 20
 
-        with patch("myrm_agent_harness.agent.artifacts.vault.ArtifactVault", side_effect=Exception("vault error")):
-            result = _auto_vault_or_truncate("x" * 100, config, {"workspace_path": "/tmp/ws"}, "t1", "research")
+        with patch(
+            "myrm_agent_harness.agent.artifacts.vault.ArtifactVault",
+            side_effect=Exception("vault error"),
+        ):
+            result = _auto_vault_or_truncate(
+                "x" * 100, config, {"workspace_path": "/tmp/ws"}, "t1", "research"
+            )
         assert "Truncated" in result or len(result) <= 200
 
     def test_above_threshold_vault_success(self):
@@ -952,8 +1066,13 @@ class TestAutoVaultOrTruncate:
         mock_vault = MagicMock()
         mock_vault.put.return_value = "vault://abc123"
 
-        with patch("myrm_agent_harness.agent.artifacts.vault.ArtifactVault", return_value=mock_vault):
-            result = _auto_vault_or_truncate("x" * 100, config, {"workspace_path": "/tmp/ws"}, "t1", "research")
+        with patch(
+            "myrm_agent_harness.agent.artifacts.vault.ArtifactVault",
+            return_value=mock_vault,
+        ):
+            result = _auto_vault_or_truncate(
+                "x" * 100, config, {"workspace_path": "/tmp/ws"}, "t1", "research"
+            )
         assert "vault://abc123" in result
 
 
@@ -1028,7 +1147,9 @@ class TestExecuteWithRetry:
         async def mock_single_attempt(*args, **kwargs):
             raise TimeoutError("timed out")
 
-        with patch.object(executor, "_run_single_attempt", side_effect=mock_single_attempt):
+        with patch.object(
+            executor, "_run_single_attempt", side_effect=mock_single_attempt
+        ):
             result = await executor.run_with_retry(
                 task_id="t1",
                 agent_type="research",
@@ -1053,7 +1174,9 @@ class TestExecuteWithRetry:
         async def mock_single_attempt(*args, **kwargs):
             raise RuntimeError("unexpected error")
 
-        with patch.object(executor, "_run_single_attempt", side_effect=mock_single_attempt):
+        with patch.object(
+            executor, "_run_single_attempt", side_effect=mock_single_attempt
+        ):
             result = await executor.run_with_retry(
                 task_id="t1",
                 agent_type="research",
@@ -1102,7 +1225,9 @@ class TestEmptyToolAllowlist:
     """Subagent must fail fast when allowlist yields zero tools."""
 
     @pytest.mark.asyncio
-    async def test_run_single_attempt_fails_when_allowlist_matches_nothing(self, executor) -> None:
+    async def test_run_single_attempt_fails_when_allowlist_matches_nothing(
+        self, executor
+    ) -> None:
         from langchain_core.tools import StructuredTool
 
         parent_agent = MagicMock()
@@ -1145,7 +1270,9 @@ class TestEmptyToolAllowlist:
         assert "browser_click" in result.error
 
     @pytest.mark.asyncio
-    async def test_run_single_attempt_fails_when_policy_blocks_all_tools(self, executor) -> None:
+    async def test_run_single_attempt_fails_when_policy_blocks_all_tools(
+        self, executor
+    ) -> None:
         from langchain_core.tools import StructuredTool
 
         parent_agent = MagicMock()

@@ -50,7 +50,9 @@ async def emergency_compact(messages: list[BaseMessage]) -> int:
     heuristics.  Returns the number of tokens saved.
     """
     from myrm_agent_harness.agent.context_management.infra.schemas import ContextConfig
-    from myrm_agent_harness.agent.context_management.strategies.compactor.compactor import compress_messages_async
+    from myrm_agent_harness.agent.context_management.strategies.compactor.compactor import (
+        compress_messages_async,
+    )
 
     emergency_cfg = ContextConfig(
         max_context_tokens=1,
@@ -62,7 +64,9 @@ async def emergency_compact(messages: list[BaseMessage]) -> int:
         dynamic_min_save=0,
         config=emergency_cfg,
     )
-    logger.warning(f" Emergency compaction: saved {saved} tokens from {len(messages)} messages")
+    logger.warning(
+        f" Emergency compaction: saved {saved} tokens from {len(messages)} messages"
+    )
     return saved
 
 
@@ -138,7 +142,9 @@ def truncate_oldest_rounds(messages: list[BaseMessage]) -> int:
 # ============================================================================
 
 
-def rebuild_agent_with_llm(agent: BaseAgent, new_llm: BaseChatModel) -> CompiledStateGraph[Any, Any, Any, Any]:
+def rebuild_agent_with_llm(
+    agent: BaseAgent, new_llm: BaseChatModel
+) -> CompiledStateGraph[Any, Any, Any, Any]:
     """Rebuild agent graph with a different LLM for failover.
 
     Reuses the cached tools / middlewares / system prompt so the only
@@ -168,9 +174,13 @@ def rebuild_agent_with_llm(agent: BaseAgent, new_llm: BaseChatModel) -> Compiled
         agent._cache_keepalive.stop()
         agent._cache_keepalive = None
 
-    new_model_name = getattr(new_llm, "model_name", "") or getattr(new_llm, "model", "") or ""
+    new_model_name = (
+        getattr(new_llm, "model_name", "") or getattr(new_llm, "model", "") or ""
+    )
     if agent._cached_system_prompt and needs_explicit_preheat(new_model_name):
-        agent._cache_keepalive = CacheKeepAliveManager(new_llm, agent._cached_system_prompt, new_model_name)
+        agent._cache_keepalive = CacheKeepAliveManager(
+            new_llm, agent._cached_system_prompt, new_model_name
+        )
         agent._cache_keepalive.start()
 
     return agent._agent
@@ -296,13 +306,17 @@ def diagnose_llm_error(
 
     Returns the original error string and ``None`` if diagnostics fail.
     """
-    from myrm_agent_harness.agent.errors.diagnostics import ErrorContext, LLMErrorDiagnostic
+    from myrm_agent_harness.agent.errors.diagnostics import (
+        ErrorContext,
+        LLMErrorDiagnostic,
+    )
 
     error_msg = str(exc)
     diagnostic_dict: dict[str, object] | None = None
     try:
         model_name = getattr(llm, "model_name", getattr(llm, "model", "unknown"))
-        base_url = getattr(llm, "base_url", None)
+        # `base_url` is a compatibility alias; the canonical field is `api_base`.
+        base_url = getattr(llm, "api_base", None) or getattr(llm, "base_url", None)
         ctx = ErrorContext(
             model_name=str(model_name),
             is_custom_endpoint=base_url is not None,
@@ -315,11 +329,20 @@ def diagnose_llm_error(
             "resolution_steps": diagnostic.resolution_steps,
             "locale": diagnostic.locale,
         }
-        resolution_steps = "\n".join(f" - {step}" for step in diagnostic.resolution_steps)
-        error_msg = f"{diagnostic.user_message}\n\nResolution steps:\n{resolution_steps}"
+        resolution_steps = "\n".join(
+            f" - {step}" for step in diagnostic.resolution_steps
+        )
+        error_msg = (
+            f"{diagnostic.user_message}\n\nResolution steps:\n{resolution_steps}"
+        )
         logger.error(f" {diagnostic.user_message}")
         logger.error(f"Resolution steps:\n{resolution_steps}")
     except Exception:
-        logger.error("Diagnostic failed for %s: %s", type(exc).__name__, str(exc)[:300], exc_info=True)
+        logger.error(
+            "Diagnostic failed for %s: %s",
+            type(exc).__name__,
+            str(exc)[:300],
+            exc_info=True,
+        )
 
     return error_msg, diagnostic_dict

@@ -245,6 +245,34 @@ class TestDiagnoseLlmError:
             assert isinstance(msg, str)
             assert diagnostic is None
 
+    def test_diagnose_prefers_api_base_over_base_url(self):
+        from myrm_agent_harness.agent._internals.agent_recovery import diagnose_llm_error
+        from myrm_agent_harness.agent.errors.diagnostics import ErrorContext
+
+        llm = MagicMock()
+        llm.model_name = "test-model"
+        llm.api_base = "https://custom.example.com/v1"
+        llm.base_url = "https://legacy.example.com/v1"
+
+        captured: dict[str, object] = {}
+
+        def _capture_diagnose(_msg: str, ctx: ErrorContext) -> dict[str, object]:
+            captured["ctx"] = ctx
+            return {"hint": "ok"}
+
+        with patch(
+            "myrm_agent_harness.agent.errors.diagnostics.LLMErrorDiagnostic.diagnose",
+            side_effect=_capture_diagnose,
+        ):
+            msg, diagnostic = diagnose_llm_error(RuntimeError("boom"), llm, None)
+
+        ctx = captured["ctx"]
+        assert isinstance(ctx, ErrorContext)
+        assert ctx.base_url == "https://custom.example.com/v1"
+        assert ctx.is_custom_endpoint is True
+        assert isinstance(msg, str)
+        assert diagnostic == {"hint": "ok"}
+
 
 # ============================================================================
 # rebuild_agent_with_llm

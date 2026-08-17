@@ -163,12 +163,18 @@ class SubagentExecutorAttemptMixin:
 
         set_is_subagent(True)
         set_subagent_task_id(task_id)
-        logger.debug("[subagent:%s] Context marked as subagent for approval safety", task_id)
+        logger.debug(
+            "[subagent:%s] Context marked as subagent for approval safety", task_id
+        )
 
         chat_history = []
-        if config.context_mode == "fork" and getattr(parent_agent, "checkpointer", None):
+        if config.context_mode == "fork" and getattr(
+            parent_agent, "checkpointer", None
+        ):
             try:
-                parent_session_id = context.get("session_id") or getattr(parent_agent, "session_id", None)
+                parent_session_id = context.get("session_id") or getattr(
+                    parent_agent, "session_id", None
+                )
                 if parent_session_id:
                     parent_state = await parent_agent.checkpointer.aget(
                         {"configurable": {"thread_id": parent_session_id}}
@@ -185,16 +191,20 @@ class SubagentExecutorAttemptMixin:
                     else:
                         raw_msgs = []
                     if raw_msgs:
-                            raw_count = len(raw_msgs)
-                            chat_history = _filter_fork_messages(raw_msgs, config.max_fork_tokens)
-                            logger.info(
-                                "[subagent:%s] Fork context filtered: %d → %d messages",
-                                task_id,
-                                raw_count,
-                                len(chat_history),
-                            )
+                        raw_count = len(raw_msgs)
+                        chat_history = _filter_fork_messages(
+                            raw_msgs, config.max_fork_tokens
+                        )
+                        logger.info(
+                            "[subagent:%s] Fork context filtered: %d → %d messages",
+                            task_id,
+                            raw_count,
+                            len(chat_history),
+                        )
             except Exception as e:
-                logger.warning("[subagent:%s] Failed to fork parent context: %s", task_id, e)
+                logger.warning(
+                    "[subagent:%s] Failed to fork parent context: %s", task_id, e
+                )
 
         try:
             query = resume_command if resume_command is not None else task_description
@@ -205,7 +215,8 @@ class SubagentExecutorAttemptMixin:
                 system_override = (
                     f"\n\n[System Override] Ignore previous global role settings in the history. "
                     f"Your new designated role for this task is: {persona_desc}. "
-                    f"Your specific task is: {task_description}\n\n" + _HANDOVER_PROTOCOL_PROMPT
+                    f"Your specific task is: {task_description}\n\n"
+                    + _HANDOVER_PROTOCOL_PROMPT
                 )
                 query = system_override
 
@@ -236,7 +247,9 @@ class SubagentExecutorAttemptMixin:
 
                 if event_type == AgentEventType.MESSAGE.value:
                     content = event.get("data", "")
-                    messages.append(content if isinstance(content, str) else str(content))
+                    messages.append(
+                        content if isinstance(content, str) else str(content)
+                    )
                 elif event_type == AgentEventType.ERROR.value:
                     exc = MyrmLLMError(
                         error_code=FailoverReason.UNKNOWN,
@@ -269,7 +282,9 @@ class SubagentExecutorAttemptMixin:
         graph = getattr(child_agent, "_agent", None)
         if graph is not None and getattr(graph, "aget_state", None):
             try:
-                snapshot = await graph.aget_state({"configurable": {"thread_id": task_id}})
+                snapshot = await graph.aget_state(
+                    {"configurable": {"thread_id": task_id}}
+                )
                 if snapshot is not None and getattr(snapshot, "tasks", None):
                     for task in snapshot.tasks:
                         for intr in getattr(task, "interrupts", []):
@@ -281,13 +296,21 @@ class SubagentExecutorAttemptMixin:
                         if payload:
                             break
             except Exception as e:
-                logger.warning("[subagent:%s] Failed to check interrupt state: %s", task_id, e)
+                logger.warning(
+                    "[subagent:%s] Failed to check interrupt state: %s", task_id, e
+                )
 
         duration = time.time() - start_time
-        child_usage = child_agent.last_run_stats.token_usage if child_agent.last_run_stats else None
+        child_usage = (
+            child_agent.last_run_stats.token_usage
+            if child_agent.last_run_stats
+            else None
+        )
 
         if is_interrupted:
-            action_type = payload.get("action_type") if isinstance(payload, dict) else None
+            action_type = (
+                payload.get("action_type") if isinstance(payload, dict) else None
+            )
 
             if action_type == "swarm_fission":
                 logger.info(

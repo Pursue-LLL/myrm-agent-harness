@@ -162,7 +162,12 @@ class TestReasoningTimeoutRealAPI:
         )
         assert llm.request_timeout == 300.0
 
-        result = llm.invoke("Say 'hi'")
+        try:
+            result = llm.invoke("Say 'hi'")
+        except Exception as exc:
+            if "BadGatewayError" in type(exc).__name__ or "502" in str(exc):
+                pytest.skip(f"upstream gateway unavailable: {exc}")
+            raise
         assert result.content
 
     def test_real_call_timeout_propagates_to_litellm(self, env_config: dict[str, str]) -> None:
@@ -187,8 +192,13 @@ class TestReasoningTimeoutRealAPI:
             max_tokens=5,
         )
 
-        with patch.object(litellm, "completion", side_effect=spy_completion):
-            llm.invoke("Say 'ok'")
+        try:
+            with patch.object(litellm, "completion", side_effect=spy_completion):
+                llm.invoke("Say 'ok'")
+        except Exception as exc:
+            if "BadGatewayError" in type(exc).__name__ or "502" in str(exc):
+                pytest.skip(f"upstream gateway unavailable: {exc}")
+            raise
 
         assert "force_timeout" in captured_kwargs or "timeout" in captured_kwargs
         timeout_val = captured_kwargs.get("force_timeout") or captured_kwargs.get("timeout")

@@ -274,7 +274,11 @@ def _sync_skill_search_index_after_catalog_change(
     )
 
     agent_state._cached_tools = _weave_dynamic_schemas(registry.resolve())
-    agent_state._cached_tools.sort(key=lambda tool: get_tool_registry_sort_key(tool.name, get_tool_layer(tool.name)))
+    agent_state._cached_tools.sort(
+        key=lambda tool: get_tool_registry_sort_key(
+            tool.name, get_tool_layer(tool.name)
+        )
+    )
 
     from myrm_agent_harness.agent.middlewares._session_context import (
         set_active_resolved_tools,
@@ -332,7 +336,9 @@ async def run_agent_loop(
     set_current_message_id(message_id)
 
     if agent_state.config.collect_artifacts:
-        artifact_ctx_manager: ArtifactContextManager | nullcontext[None] = ArtifactContextManager(message_id=message_id)
+        artifact_ctx_manager: ArtifactContextManager | nullcontext[None] = (
+            ArtifactContextManager(message_id=message_id)
+        )
     else:
         artifact_ctx_manager = nullcontext()
 
@@ -361,7 +367,9 @@ async def run_agent_loop(
                 "security_config missing on agent.config — applying fail-closed defaults (channel=%s)",
                 channel,
             )
-            runtime_security = build_channel_security_config(channel, None, local_mode=True)
+            runtime_security = build_channel_security_config(
+                channel, None, local_mode=True
+            )
         set_security_config(runtime_security)
         from myrm_agent_harness.agent.config.parsers import parse_litellm_model
         from myrm_agent_harness.agent.middlewares._session_context import (
@@ -373,12 +381,18 @@ async def run_agent_loop(
             get_process_managed_approval_policy,
         )
 
-        llm_model = getattr(agent_state.llm, "model_name", None) or getattr(agent_state.llm, "model", None)
+        llm_model = getattr(agent_state.llm, "model_name", None) or getattr(
+            agent_state.llm, "model", None
+        )
         _, primary_model_slug = parse_litellm_model(llm_model or "")
         set_agent_primary_model_slug(primary_model_slug)
         set_managed_approval_policy(get_process_managed_approval_policy())
         set_active_message_id(message_id)
-        session_key = str(context.get("approval_session_key") or context.get("session_id") or "") if context else ""
+        session_key = (
+            str(context.get("approval_session_key") or context.get("session_id") or "")
+            if context
+            else ""
+        )
         from myrm_agent_harness.agent.artifacts.ui_registry import bind_run_message_id
 
         if session_key:
@@ -434,7 +448,9 @@ async def run_agent_loop(
                 )
                 agent_state._tools_initialized = True
             except Exception:
-                logger.exception(" [Lifecycle] Tool initialization failed, agent startup aborted")
+                logger.exception(
+                    " [Lifecycle] Tool initialization failed, agent startup aborted"
+                )
                 raise
 
         event_logger: EventLogger | None = None
@@ -522,7 +538,9 @@ async def run_agent_loop(
 
         logger.step("Agent started")
         query_preview = str(query_text)[:100]
-        logger.info("Query: %s%s", query_preview, "..." if len(str(query_text)) > 100 else "")
+        logger.info(
+            "Query: %s%s", query_preview, "..." if len(str(query_text)) > 100 else ""
+        )
 
         tools_snapshot = agent_state._emit_tools_snapshot()
         if tools_snapshot is not None:
@@ -588,10 +606,14 @@ async def run_agent_loop(
                 thread_id,
             )
             agent_input = cast("Command[Any] | AgentState[Any]", resume_command)
-            logger.info(f" Resume: {resume_command.resume if hasattr(resume_command, 'resume') else resume_command}")
+            logger.info(
+                f" Resume: {resume_command.resume if hasattr(resume_command, 'resume') else resume_command}"
+            )
             # Prompt Cache preservation: Mark as Resume
             merged_context["is_resume"] = True
-            merged_context = validate_context(merged_context, agent_state.context_schema)
+            merged_context = validate_context(
+                merged_context, agent_state.context_schema
+            )
             merged_context = await agent_state._prepare_context(merged_context)
         else:
             messages = build_messages(query, chat_history)
@@ -608,11 +630,15 @@ async def run_agent_loop(
                     if isinstance(quote_raw, QuoteAttachment):
                         messages[-1].additional_kwargs["quote_attachment"] = quote_raw
                     elif (
-                        isinstance(quote_raw, dict) and "source_message_id" in quote_raw and "quoted_text" in quote_raw
+                        isinstance(quote_raw, dict)
+                        and "source_message_id" in quote_raw
+                        and "quoted_text" in quote_raw
                     ):
-                        messages[-1].additional_kwargs["quote_attachment"] = QuoteAttachment(
-                            source_message_id=str(quote_raw["source_message_id"]),
-                            quoted_text=str(quote_raw["quoted_text"]),
+                        messages[-1].additional_kwargs["quote_attachment"] = (
+                            QuoteAttachment(
+                                source_message_id=str(quote_raw["source_message_id"]),
+                                quoted_text=str(quote_raw["quoted_text"]),
+                            )
                         )
 
             inject_ephemeral_quote(messages)
@@ -642,7 +668,9 @@ async def run_agent_loop(
                     len(stale_notifications),
                 )
 
-            active_ctx = format_active_subagent_context(agent_state._subagent_manager.list_children())
+            active_ctx = format_active_subagent_context(
+                agent_state._subagent_manager.list_children()
+            )
             if active_ctx:
                 messages.append(HumanMessage(content=active_ctx))
                 logger.info(
@@ -650,7 +678,9 @@ async def run_agent_loop(
                     len(active_ctx),
                 )
 
-            merged_context = validate_context(merged_context, agent_state.context_schema)
+            merged_context = validate_context(
+                merged_context, agent_state.context_schema
+            )
             merged_context = await agent_state._prepare_context(merged_context)
 
             agent_input = cast("AgentState[Any]", {"messages": messages})
@@ -721,12 +751,18 @@ async def run_agent_loop(
         llm_info: dict[str, str | None] | None = None
         if agent_state.llm:
             # `model_name` on LangChain/LiteLLM may exist but be None; still prefer `model` when so.
-            model_name = getattr(agent_state.llm, "model_name", None) or getattr(agent_state.llm, "model", None)
-            base_url = getattr(agent_state.llm, "base_url", None)
+            model_name = getattr(agent_state.llm, "model_name", None) or getattr(
+                agent_state.llm, "model", None
+            )
+            # `base_url` is a compatibility alias; the canonical field is `api_base`.
+            api_base = getattr(agent_state.llm, "api_base", None) or getattr(
+                agent_state.llm, "base_url", None
+            )
             if model_name:
                 llm_info = {
                     "model_name": str(model_name),
-                    "base_url": str(base_url) if base_url else None,
+                    "api_base": str(api_base) if api_base else None,
+                    "base_url": str(api_base) if api_base else None,
                 }
 
         _roster_injected = False
@@ -802,7 +838,9 @@ async def run_agent_loop(
         except Exception as e:
             from .agent_recovery import diagnose_llm_error
 
-            error_msg, diagnostic_dict = diagnose_llm_error(e, agent_state.llm, agent_state.config.locale)
+            error_msg, diagnostic_dict = diagnose_llm_error(
+                e, agent_state.llm, agent_state.config.locale
+            )
             error_type = type(e).__name__
 
             if not stats.error_message:
@@ -822,13 +860,17 @@ async def run_agent_loop(
                     "messageId": message_id,
                 }
                 # Deterministic fault-side attribution (pure rules, no LLM).
-                error_event["fault_side"] = classify_fault_side(error_kind=error_kind.value).value
+                error_event["fault_side"] = classify_fault_side(
+                    error_kind=error_kind.value
+                ).value
                 # Add diagnostic_result if available
                 if diagnostic_dict:
                     error_event["diagnostic_result"] = diagnostic_dict
                     diagnostic_type = diagnostic_dict.get("error_type")
                     if isinstance(diagnostic_type, str):
-                        from myrm_agent_harness.agent.errors.diagnostics import LLMErrorDiagnostic
+                        from myrm_agent_harness.agent.errors.diagnostics import (
+                            LLMErrorDiagnostic,
+                        )
 
                         recovery_actions = LLMErrorDiagnostic.get_recovery_actions(
                             diagnostic_type, locale=agent_state.config.locale
@@ -854,7 +896,9 @@ async def run_agent_loop(
                         persisted.pop("messageId", None)
                         await event_logger.log(AgentEventType.ERROR.value, persisted)
                     except Exception as log_err:
-                        logger.error("Failed to persist outer-loop error event: %s", log_err)
+                        logger.error(
+                            "Failed to persist outer-loop error event: %s", log_err
+                        )
                 yield error_event
 
         finally:
@@ -868,13 +912,21 @@ async def run_agent_loop(
         collect_tracker_stats(stats, tracker=_run_tracker)
 
         goal_dict = merged_context.get("goal")
-        if isinstance(goal_dict, dict) and "max_tokens" in goal_dict and goal_dict["max_tokens"]:
+        if (
+            isinstance(goal_dict, dict)
+            and "max_tokens" in goal_dict
+            and goal_dict["max_tokens"]
+        ):
             max_ctx = goal_dict["max_tokens"]
         else:
-            max_ctx = merged_context.get("max_context_tokens") if merged_context else None
+            max_ctx = (
+                merged_context.get("max_context_tokens") if merged_context else None
+            )
 
         provider_prompt_tokens = (
-            stats.token_usage.last_call.prompt_tokens if stats.token_usage and stats.token_usage.last_call else 0
+            stats.token_usage.last_call.prompt_tokens
+            if stats.token_usage and stats.token_usage.last_call
+            else 0
         )
         stats.context_budget = compute_context_budget_snapshot(
             stats,
@@ -916,7 +968,9 @@ async def run_agent_loop(
                 "Agent execution completed; final answer streaming %s",
                 "completed" if executor.streaming_final_answer else "not detected",
             )
-        usage_info = f", tokens: {stats.token_usage.total_tokens}" if stats.token_usage else ""
+        usage_info = (
+            f", tokens: {stats.token_usage.total_tokens}" if stats.token_usage else ""
+        )
         cost_info = f", cost: ${stats.cost_usd:.6f}" if stats.cost_usd > 0 else ""
         logger.info(
             "Execution stats [duration: %.2fs, nodes: %d, tool_calls: %d, msg_chunks: %d%s%s]",

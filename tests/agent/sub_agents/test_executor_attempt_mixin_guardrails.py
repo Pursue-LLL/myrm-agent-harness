@@ -24,7 +24,9 @@ def basic_config() -> SubagentConfig:
 
 
 @pytest.mark.asyncio
-async def test_run_single_attempt_cancel_flag_exits(executor: SubagentExecutor, basic_config: SubagentConfig) -> None:
+async def test_run_single_attempt_cancel_flag_exits(
+    executor: SubagentExecutor, basic_config: SubagentConfig
+) -> None:
     parent_agent = MagicMock()
     parent_agent._subagent_manager = None
     parent_agent._last_context = {}
@@ -158,7 +160,9 @@ async def test_run_single_attempt_pending_approval_interrupt(
 
 
 @pytest.mark.asyncio
-async def test_run_single_attempt_swarm_fission_yield(executor: SubagentExecutor, basic_config: SubagentConfig) -> None:
+async def test_run_single_attempt_swarm_fission_yield(
+    executor: SubagentExecutor, basic_config: SubagentConfig
+) -> None:
     parent_agent = MagicMock()
     parent_agent._subagent_manager = None
     parent_agent._last_context = {}
@@ -232,7 +236,9 @@ async def test_run_single_attempt_strips_handover_block(
 
     child_agent.run = mock_run
 
-    handover = AgentHandoverState(task_completed=["x"], pending_todos=[], risks_or_notes=[], relevant_files=[])
+    handover = AgentHandoverState(
+        task_completed=["x"], pending_todos=[], risks_or_notes=[], relevant_files=[]
+    )
 
     with (
         patch(

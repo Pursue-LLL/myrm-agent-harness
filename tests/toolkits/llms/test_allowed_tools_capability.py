@@ -28,10 +28,12 @@ def test_minimax_models_default_to_unsupported() -> None:
     )
 
 
-def test_native_openai_model_supported_by_default() -> None:
+def test_bare_model_name_defaults_to_unsupported() -> None:
     learner = get_capability_learner()
     learner.clear()
-    assert model_supports_allowed_tools_tool_choice("gpt-4o") is True
+    # Without an api_base hint, a bare model name is indistinguishable from a
+    # self-hosted / gateway reroute — fail closed.
+    assert model_supports_allowed_tools_tool_choice("gpt-4o") is False
 
 
 def test_learned_rejection_blocks_supported_models() -> None:
@@ -90,16 +92,16 @@ def test_learned_rejection_scoped_to_api_base() -> None:
                 "gpt-4o",
                 api_base="https://api-b.example.com/v1",
             )
-            is True
+            is False
         )
     finally:
         learner.clear()
 
 
-def test_none_model_name_defaults_to_supported() -> None:
+def test_none_model_name_defaults_to_unsupported() -> None:
     learner = get_capability_learner()
     learner.clear()
-    assert model_supports_allowed_tools_tool_choice(None) is True
+    assert model_supports_allowed_tools_tool_choice(None) is False
 
 
 def test_blank_model_name_defaults_to_supported() -> None:
@@ -108,7 +110,7 @@ def test_blank_model_name_defaults_to_supported() -> None:
     )
 
     assert normalize_model_capability_key("   ") == ""
-    assert model_supports_allowed_tools_tool_choice("   ") is True
+    assert model_supports_allowed_tools_tool_choice("   ") is False
 
 
 def test_openai_api_base_remains_supported() -> None:
