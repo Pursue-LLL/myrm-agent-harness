@@ -294,7 +294,9 @@ async def test_update_rule_preserves_tool_fields(store: SQLiteRelationalStore) -
     from myrm_agent_harness.toolkits.memory.types import ToolRulePriority
 
     created = await store.create_rule(_make_tool_rule("web_fetch_tool", "normal"))
-    updated_rule = _make_tool_rule("web_fetch_tool", "critical", "timeout retry", "use exponential backoff")
+    updated_rule = _make_tool_rule(
+        "web_fetch_tool", "critical", "timeout retry", "use exponential backoff"
+    )
     updated = await store.update_rule(created.id, updated_rule)
     assert updated.tool_rule_priority == ToolRulePriority.CRITICAL
 
@@ -418,3 +420,130 @@ async def test_list_rules_active_only_false(store: SQLiteRelationalStore) -> Non
 
     active_rules = await store.list_rules(active_only=True)
     assert len(active_rules) == 1
+
+
+# ── Pending by source chat ──────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_delete_pending_by_source_chat_id(store: SQLiteRelationalStore) -> None:
+    """delete_pending_by_source_chat_id removes only matching records."""
+    record = _make_pending("chat-scoped")
+    record.source_chat_id = "chat-1"
+    await store.submit_pending(record)
+    await store.submit_pending(_make_pending("other"))
+
+    deleted = await store.delete_pending_by_source_chat_id("chat-1")
+    assert deleted == 1
+    assert await store.count_pending() == 1
+
+
+@pytest.mark.asyncio
+async def test_count_pending_by_source_chat_id(store: SQLiteRelationalStore) -> None:
+    """count_pending_by_source_chat_id counts only matching records."""
+    for i in range(3):
+        record = _make_pending(f"chat-{i}")
+        record.source_chat_id = "chat-1"
+        await store.submit_pending(record)
+    await store.submit_pending(_make_pending("other"))
+
+    assert await store.count_pending_by_source_chat_id("chat-1") == 3
+    assert await store.count_pending_by_source_chat_id("missing") == 0
+
+
+@pytest.mark.asyncio
+async def test_batch_mark_pending_empty_list(store: SQLiteRelationalStore) -> None:
+    """batch_mark_pending with empty list returns 0 without touching DB."""
+    assert await store.batch_mark_pending([], "rejected") == 0
+
+
+# ── Lifecycle edge cases ─────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_operations_after_close_raise(store: SQLiteRelationalStore) -> None:
+    """Any operation after close() must raise RelationalConnectionError."""
+    from myrm_agent_harness.toolkits.memory.relational.exceptions import RelationalConnectionError
+
+    await store.close()
+    with pytest.raises(RelationalConnectionError):
+        await store.get_profile("language")
+
+
+@pytest.mark.asyncio
+async def test_close_is_idempotent(store: SQLiteRelationalStore) -> None:
+    """close() can be called multiple times safely."""
+    await store.set_profile("k", "v")
+    await store.close()
+    await store.close()
+    assert store._closed is True
+
+
+# ── Error branches ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_query_error_branches_raise(store: SQLiteRelationalStore, monkeypatch) -> None:
+    """DB failures surface as RelationalQueryError across CRUD methods."""
+    from myrm_agent_harness.toolkits.memory.relational.exceptions import RelationalQueryError
+
+    class _ExplodingCursor:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return False
+
+        async def execute(self, *_args, **_kwargs):
+            raise RuntimeError("db exploded")
+
+        async def commit(self):
+            raise RuntimeError("db exploded")
+
+        async def fetchone(self):
+            raise RuntimeError("db exploded")
+
+        async def fetchall(self):
+            raise RuntimeError("db exploded")
+
+    class _ExplodingConnection:
+        def execute(self, *_args, **_kwargs):
+            return _ExplodingCursor()
+
+        async def commit(self):
+            raise RuntimeError("db exploded")
+
+    async def _fake_connection():
+        return _ExplodingConnection()
+
+    monkeypatch.setattr(store, "_get_connection", _fake_connection)
+
+    for call in (
+        lambda: store.get_profile("k"),
+        lambda: store.get_profile_snapshot("k"),
+        lambda: store.set_profile("k", "v"),
+        lambda: store.delete_profile("k"),
+        lambda: store.list_profiles(),
+        lambda: store.count_profiles(),
+        lambda: store.create_rule(_make_rule()),
+        lambda: store.get_rule("r"),
+        lambda: store.search_rules("q"),
+        lambda: store.list_rules(),
+        lambda: store.count_rules(),
+        lambda: store.update_rule("r", _make_rule()),
+        lambda: store.delete_rule("r"),
+        lambda: store.delete_all(),
+        lambda: store.submit_pending(_make_pending()),
+        lambda: store.get_pending("p"),
+        lambda: store.pending_exists("semantic", "c"),
+        lambda: store.mark_pending("p", "approved"),
+        lambda: store.list_pending(),
+        lambda: store.count_pending(),
+        lambda: store.batch_mark_pending(["p"], "approved"),
+        lambda: store.delete_pending_by_source_chat_id("chat"),
+        lambda: store.count_pending_by_source_chat_id("chat"),
+    ):
+        with pytest.raises(RelationalQueryError):
+            await call()
+
+

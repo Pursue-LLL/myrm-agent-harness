@@ -23,7 +23,9 @@ _pending_tasks: set[asyncio.Task[object]] = set()
 
 
 class MemoryManagerRetrievalWriteMixin:
-    async def store(self, memory: AnyMemory, *, _bypass_approval: bool = False) -> AnyMemory:
+    async def store(
+        self, memory: AnyMemory, *, _bypass_approval: bool = False
+    ) -> AnyMemory:
         result = await self._writer.store(memory, bypass_approval=_bypass_approval)
         self._stores_since_consolidation += 1
         trigger = self._config.consolidation.message_count_trigger
@@ -33,8 +35,12 @@ class MemoryManagerRetrievalWriteMixin:
         await self._submit_preference_candidate(result)
         return result
 
-    async def store_batch(self, memories: Sequence[AnyMemory], *, _bypass_approval: bool = False) -> list[AnyMemory]:
-        result = await self._writer.store_batch(memories, bypass_approval=_bypass_approval)
+    async def store_batch(
+        self, memories: Sequence[AnyMemory], *, _bypass_approval: bool = False
+    ) -> list[AnyMemory]:
+        result = await self._writer.store_batch(
+            memories, bypass_approval=_bypass_approval
+        )
         self._stores_since_consolidation += len(memories)
         trigger = self._config.consolidation.message_count_trigger
         if trigger > 0 and self._stores_since_consolidation >= trigger:
@@ -69,10 +75,14 @@ class MemoryManagerRetrievalWriteMixin:
             current_chat_id=session_chat_id,
         )
         if track_access and results and self._vector:
-            from myrm_agent_harness.toolkits.memory._internal.maintenance import bump_access_counts
+            from myrm_agent_harness.toolkits.memory._internal.maintenance import (
+                bump_access_counts,
+            )
 
             task = asyncio.create_task(
-                bump_access_counts(results, self._vector, self._config, self._relational),
+                bump_access_counts(
+                    results, self._vector, self._config, self._relational
+                ),
                 name="bump_access_counts",
             )
             _pending_tasks.add(task)
@@ -87,7 +97,12 @@ class MemoryManagerRetrievalWriteMixin:
         include_agent_instructions: bool = True,
     ) -> dict[str, object]:
         if not self.has_relational:
-            return {"global_profile": {}, "peer_profile": {}, "rules": [], "agent_instructions": []}
+            return {
+                "global_profile": {},
+                "peer_profile": {},
+                "rules": [],
+                "agent_instructions": [],
+            }
         assert self._relational is not None
         ctx = await load_context(
             self._relational,
@@ -109,7 +124,11 @@ class MemoryManagerRetrievalWriteMixin:
         preferences instead of raw vector scroll for higher precision.
         """
         rules_task = (
-            asyncio.create_task(self._relational.list_rules(active_only=True, limit=50, namespaces=self._namespaces))
+            asyncio.create_task(
+                self._relational.list_rules(
+                    active_only=True, limit=50, namespaces=self._namespaces
+                )
+            )
             if self._relational
             else None
         )
@@ -167,7 +186,9 @@ class MemoryManagerRetrievalWriteMixin:
                 logger.warning("Learned context preferences query error: %s", e)
 
         rules.sort(key=lambda r: r.priority, reverse=True)
-        preferences.sort(key=lambda m: m.importance * m.preference_strength, reverse=True)
+        preferences.sort(
+            key=lambda m: m.importance * m.preference_strength, reverse=True
+        )
 
         base_budget = self._config.max_learned_context_chars
         if self._config.model_context_tokens:

@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -113,6 +114,165 @@ class TestContextLoading:
         assert mock_relational_store.list_rules.await_args.kwargs["namespaces"] == ["global"]
         assert mock_vector_store.scroll.await_args.kwargs["filters"]["primary_namespace"] == ["global"]
 
+    @pytest.mark.asyncio
+    async def test_get_learned_context_with_preference_strategy(
+        self, mock_relational_store, mock_vector_store, memory_config
+    ):
+        """get_learned_context uses PreferenceStabilityStrategy when provided."""
+        from myrm_agent_harness.toolkits.memory.strategies.preference_stability import (
+            CueFamily,
+            PreferenceFacet,
+            PreferenceLifecycle,
+        )
+
+        mock_relational_store.list_rules.return_value = []
+        facet = PreferenceFacet(
+            id="facet-1",
+            key="reply_style",
+            value="concise",
+            cue=CueFamily.EXPLICIT,
+            lifecycle=PreferenceLifecycle.ACTIVE,
+            stability=1.0,
+        )
+        strategy = AsyncMock()
+        strategy.get_active_preferences.return_value = [facet]
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            relational=mock_relational_store,
+            vector=mock_vector_store,
+            preference_facet_store=AsyncMock(),
+        )
+        manager._preference_strategy = strategy
+
+        context = await manager.get_learned_context()
+
+        assert len(context["learned_preferences"]) == 1
+        pref = context["learned_preferences"][0]
+        assert pref["content"] == "concise"
+        assert pref["type"] == "explicit"
+        strategy.get_active_preferences.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_get_learned_context_handles_rules_query_error(
+        self, mock_relational_store, mock_vector_store, memory_config
+    ):
+        """get_learned_context tolerates relational query failures."""
+        mock_relational_store.list_rules.side_effect = Exception("db down")
+        mock_vector_store.scroll.return_value = ([], None)
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            relational=mock_relational_store,
+            vector=mock_vector_store,
+        )
+
+        context = await manager.get_learned_context()
+        assert context["learned_rules"] == []
+        assert context["learned_preferences"] == []
+
+    @pytest.mark.asyncio
+    async def test_get_learned_context_respects_budget(
+        self, mock_relational_store, mock_vector_store, memory_config
+    ):
+        """get_learned_context truncates rules to the configured budget."""
+        from myrm_agent_harness.toolkits.memory.types import RuleSource
+
+        mock_relational_store.list_rules.return_value = [
+            ProceduralMemory(
+                id=f"rule-{i}",
+                content=f"When: trigger {i} -> Do: action {i}",
+                trigger=f"trigger {i}",
+                action=f"action {i}",
+                priority=10 - i,
+                source=RuleSource.AGENT_SELF,
+            )
+            for i in range(10)
+        ]
+        mock_vector_store.scroll.return_value = ([], None)
+        config = replace(memory_config, max_learned_context_chars=60)
+
+        manager = MemoryManager(
+            config,
+            user_id="test_user",
+            relational=mock_relational_store,
+            vector=mock_vector_store,
+        )
+
+        context = await manager.get_learned_context()
+        # Budget 60 chars truncates the rule list.
+        assert 0 < len(context["learned_rules"]) < 10
+
+    @pytest.mark.asyncio
+    async def test_get_learned_context_normal_prefs_and_corrections(
+        self, mock_relational_store, mock_vector_store, memory_config
+    ):
+        """get_learned_context separates corrections from normal preferences."""
+        mock_relational_store.list_rules.return_value = []
+        mock_vector_store.scroll.return_value = (
+            [
+                VectorDocument(
+                    id="corr-1",
+                    content="User prefers X not Y",
+                    vector=[0.1] * 8,
+                    metadata={
+                        "memory_type": "semantic",
+                        "importance": 1.0,
+                        "confidence": 1.0,
+                        "access_count": 0,
+                        "preference_type": "explicit",
+                        "preference_strength": 1.0,
+                        "correction_of": "old-mem",
+                        "source_error": "was wrong",
+                        "namespaces": ["global"],
+                        "primary_namespace": "global",
+                        "source_chat_id": "",
+                    },
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
+                ),
+                VectorDocument(
+                    id="norm-1",
+                    content="User prefers concise",
+                    vector=[0.1] * 8,
+                    metadata={
+                        "memory_type": "semantic",
+                        "importance": 0.8,
+                        "confidence": 1.0,
+                        "access_count": 0,
+                        "preference_type": "implicit",
+                        "preference_strength": 0.6,
+                        "correction_of": "",
+                        "source_error": "",
+                        "namespaces": ["global"],
+                        "primary_namespace": "global",
+                        "source_chat_id": "",
+                    },
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
+                ),
+            ],
+            None,
+        )
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            relational=mock_relational_store,
+            vector=mock_vector_store,
+        )
+
+        context = await manager.get_learned_context()
+
+        prefs = context["learned_preferences"]
+        assert len(prefs) == 2
+        corr = next(p for p in prefs if p["id"] == "corr-1")
+        assert corr["source_error"] == "was wrong"
+        norm = next(p for p in prefs if p["id"] == "norm-1")
+        assert "source_error" not in norm
+
 
 class TestConvenienceMethods:
     """Test convenience methods like add_knowledge, add_event, add_rule."""
@@ -217,3 +377,135 @@ class TestCorrectMemory:
 
         with pytest.raises(MemoryError, match="Correction only supports SemanticMemory"):
             await manager.correct_memory("rule-1", "Corrected")
+
+
+class TestLearnedContextExtraBranches:
+    """Cover the remaining get_learned_context branches in retrieval_write.py."""
+
+    @pytest.mark.asyncio
+    async def test_rule_tool_metadata_included(
+        self, mock_relational_store, mock_vector_store, memory_config
+    ):
+        """Rules with tool_name / tool_rule_priority / reasoning / application surface in context."""
+        from myrm_agent_harness.toolkits.memory.types import ToolRulePriority
+
+        mock_relational_store.list_rules.return_value = [
+            ProceduralMemory(
+                id="tool-rule",
+                content="When: use browser -> Do: prefer chromium",
+                trigger="use browser",
+                action="prefer chromium",
+                priority=8,
+                source=RuleSource.AGENT_SELF,
+                reasoning="browser is more stable",
+                application="only for web tasks",
+                tool_name="browser",
+                tool_rule_priority=ToolRulePriority.HIGH,
+            )
+        ]
+        mock_vector_store.scroll.return_value = ([], None)
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            relational=mock_relational_store,
+            vector=mock_vector_store,
+        )
+
+        context = await manager.get_learned_context()
+        rule = context["learned_rules"][0]
+        assert rule["reasoning"] == "browser is more stable"
+        assert rule["application"] == "only for web tasks"
+        assert rule["tool_name"] == "browser"
+        assert rule["tool_rule_priority"] == "high"
+
+    @pytest.mark.asyncio
+    async def test_model_context_tokens_scales_budget(
+        self, mock_relational_store, mock_vector_store, memory_config
+    ):
+        """model_context_tokens lifts the budget above base chars."""
+        mock_relational_store.list_rules.return_value = [
+            ProceduralMemory(
+                id=f"r{i}",
+                content=f"When: trigger {i} -> Do: action {i}",
+                trigger=f"trigger {i}",
+                action=f"action {i}",
+                priority=10 - i,
+                source=RuleSource.AGENT_SELF,
+            )
+            for i in range(15)
+        ]
+        mock_vector_store.scroll.return_value = ([], None)
+        config = replace(
+            memory_config, model_context_tokens=6000, max_learned_context_chars=50
+        )
+
+        manager = MemoryManager(
+            config,
+            user_id="test_user",
+            relational=mock_relational_store,
+            vector=mock_vector_store,
+        )
+
+        context = await manager.get_learned_context()
+        # budget = max(50, 6000//30=200) = 200, well above the base 50 that
+        # would fit only ~1 rule, so several rules are included.
+        assert len(context["learned_rules"]) > 1
+
+    @pytest.mark.asyncio
+    async def test_non_preference_docs_skipped(
+        self, mock_relational_store, mock_vector_store, memory_config
+    ):
+        """Docs without a valid preference_type / strength are ignored."""
+        mock_relational_store.list_rules.return_value = []
+        mock_vector_store.scroll.return_value = (
+            [
+                VectorDocument(
+                    id="plain-1",
+                    content="Just a fact",
+                    vector=[0.1] * 8,
+                    metadata={
+                        "memory_type": "semantic",
+                        "importance": 0.5,
+                        "confidence": 1.0,
+                        "access_count": 0,
+                        "preference_type": "",
+                        "preference_strength": 0.0,
+                        "namespaces": ["global"],
+                        "primary_namespace": "global",
+                        "source_chat_id": "",
+                    },
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
+                ),
+                VectorDocument(
+                    id="bad-strength",
+                    content="Bad strength",
+                    vector=[0.1] * 8,
+                    metadata={
+                        "memory_type": "semantic",
+                        "importance": 0.5,
+                        "confidence": 1.0,
+                        "access_count": 0,
+                        "preference_type": "implicit",
+                        "preference_strength": "not-a-number",
+                        "namespaces": ["global"],
+                        "primary_namespace": "global",
+                        "source_chat_id": "",
+                    },
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
+                ),
+            ],
+            None,
+        )
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            relational=mock_relational_store,
+            vector=mock_vector_store,
+        )
+
+        context = await manager.get_learned_context()
+        assert context["learned_preferences"] == []

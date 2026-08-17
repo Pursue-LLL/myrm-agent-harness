@@ -1,11 +1,12 @@
 """Tests for MemoryManager session management and store operations."""
 
+from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError
-from myrm_agent_harness.toolkits.memory.config import MemoryConfig, RecurrenceConfig
+from myrm_agent_harness.toolkits.memory.config import ConsolidationConfig, MemoryConfig, RecurrenceConfig
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, ProceduralMemory, SemanticMemory
 
@@ -425,3 +426,86 @@ class TestCloseSessionDrain:
         await manager.close()
 
         mock_vector_store.close.assert_called_once()
+
+
+class TestConsolidationTrigger:
+    """Cover the message-count consolidation trigger in retrieval_write.py."""
+
+    @pytest.mark.asyncio
+    async def test_store_triggers_consolidation_at_threshold(
+        self, mock_relational_store, mock_vector_store, memory_config
+    ):
+        """store() fires _maybe_consolidate once the trigger threshold is reached."""
+        mock_relational_store.create_rule.return_value = ProceduralMemory(
+            id="r", content="c", trigger="t", action="a"
+        )
+        config = replace(
+            memory_config, consolidation=ConsolidationConfig(message_count_trigger=2)
+        )
+        manager = MemoryManager(
+            config,
+            user_id="u1",
+            relational=mock_relational_store,
+            vector=mock_vector_store,
+        )
+        manager._maybe_consolidate = MagicMock()
+
+        await manager.store(ProceduralMemory(content="c", trigger="t", action="a"))
+        assert manager._stores_since_consolidation == 1
+        manager._maybe_consolidate.assert_not_called()
+
+        await manager.store(ProceduralMemory(content="c2", trigger="t2", action="a2"))
+        assert manager._stores_since_consolidation == 0
+        manager._maybe_consolidate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_store_batch_triggers_consolidation_at_threshold(
+        self, mock_relational_store, mock_vector_store, memory_config
+    ):
+        """store_batch() resets the counter and triggers consolidation at threshold."""
+        mock_relational_store.create_rule.return_value = ProceduralMemory(
+            id="r", content="c", trigger="t", action="a"
+        )
+        config = replace(
+            memory_config, consolidation=ConsolidationConfig(message_count_trigger=3)
+        )
+        manager = MemoryManager(
+            config,
+            user_id="u1",
+            relational=mock_relational_store,
+            vector=mock_vector_store,
+        )
+        manager._maybe_consolidate = MagicMock()
+
+        await manager.store_batch(
+            [ProceduralMemory(content="c", trigger="t", action="a")] * 2
+        )
+        assert manager._stores_since_consolidation == 2
+        manager._maybe_consolidate.assert_not_called()
+
+        await manager.store_batch([ProceduralMemory(content="c", trigger="t", action="a")])
+        assert manager._stores_since_consolidation == 0
+        manager._maybe_consolidate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_consolidation_trigger_noop_when_trigger_disabled(
+        self, mock_relational_store, mock_vector_store, memory_config
+    ):
+        """_maybe_consolidate is never invoked when message_count_trigger <= 0."""
+        mock_relational_store.create_rule.return_value = ProceduralMemory(
+            id="r", content="c", trigger="t", action="a"
+        )
+        config = replace(
+            memory_config, consolidation=ConsolidationConfig(message_count_trigger=0)
+        )
+        manager = MemoryManager(
+            config,
+            user_id="u1",
+            relational=mock_relational_store,
+            vector=mock_vector_store,
+        )
+        manager._maybe_consolidate = MagicMock()
+
+        await manager.store(ProceduralMemory(content="c", trigger="t", action="a"))
+        assert manager._stores_since_consolidation == 1
+        manager._maybe_consolidate.assert_not_called()

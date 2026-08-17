@@ -31,9 +31,14 @@ from myrm_agent_harness.agent.coordination.types import TeammateMessage
 from myrm_agent_harness.backends.skills.state_manager import SkillStateManager
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
-from myrm_agent_harness.toolkits.code_execution.executors.local.executor import LocalExecutor
+from myrm_agent_harness.toolkits.code_execution.executors.local.executor import (
+    LocalExecutor,
+)
 from myrm_agent_harness.utils.encryption_key import resolve_local_encryption_key
-from myrm_agent_harness.utils.token_economics.usage_ledger import UsageLedger, UsageRecord
+from myrm_agent_harness.utils.token_economics.usage_ledger import (
+    UsageLedger,
+    UsageRecord,
+)
 
 
 @pytest.fixture
@@ -62,9 +67,13 @@ async def test_context_snapshot_roundtrip_via_real_executor(
 
     from langchain_core.messages import HumanMessage
 
-    from myrm_agent_harness.runtime.context.offload import create_context_snapshot_callback
+    from myrm_agent_harness.runtime.context.offload import (
+        create_context_snapshot_callback,
+    )
 
-    snapshot_abs = str(workspace / ".context" / "chat_integ" / "snapshots" / "snap.jsonl.gz")
+    snapshot_abs = str(
+        workspace / ".context" / "chat_integ" / "snapshots" / "snap.jsonl.gz"
+    )
     snapshot_rel = ".context/chat_integ/snapshots/snap.jsonl.gz"
 
     with (
@@ -123,7 +132,9 @@ def test_mailbox_trim_keeps_parseable_jsonl(tmp_path: Path) -> None:
         created_at=1.0,
     )
     path = workspace / "teammate_mailbox_sess-trim-integ.jsonl"
-    path.write_text("\n".join('{"message_id":"x"}' for _ in range(_MAX_JSONL_LINES + 50)) + "\n")
+    path.write_text(
+        "\n".join('{"message_id":"x"}' for _ in range(_MAX_JSONL_LINES + 50)) + "\n"
+    )
 
     mailbox._persist(msg)
 

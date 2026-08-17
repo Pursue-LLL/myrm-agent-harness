@@ -103,7 +103,9 @@ class MockCleanupExecutor:
 class MockQuotaChecker:
     """Mock quota checker for testing."""
 
-    def __init__(self, allow_write: bool = True, remaining_quota: int = 1024000) -> None:
+    def __init__(
+        self, allow_write: bool = True, remaining_quota: int = 1024000
+    ) -> None:
         self.allow_write = allow_write
         self.remaining_quota = remaining_quota
         self.check_calls: list[tuple[str, int]] = []
@@ -350,9 +352,13 @@ async def test_content_addressed_offload_rewrites_corrupted_archive() -> None:
         quota_checker=None,
     )
 
-    first = await callback(content="stable content", tool_name="test_tool", scope_id="chat_a")
+    first = await callback(
+        content="stable content", tool_name="test_tool", scope_id="chat_a"
+    )
     executor.written_files[first.path] = "corrupted data"
-    second = await callback(content="stable content", tool_name="test_tool", scope_id="chat_a")
+    second = await callback(
+        content="stable content", tool_name="test_tool", scope_id="chat_a"
+    )
 
     assert first.path == second.path
     assert not second.reused
@@ -360,7 +366,9 @@ async def test_content_addressed_offload_rewrites_corrupted_archive() -> None:
 
 
 @pytest.mark.asyncio
-async def test_content_addressed_offload_rebuilds_invalid_restore_map_on_reuse() -> None:
+async def test_content_addressed_offload_rebuilds_invalid_restore_map_on_reuse() -> (
+    None
+):
     """Retry reuse must self-heal a corrupted restore-map sidecar."""
     executor = MockExecutor()
     callback = create_compress_offload_callback(
@@ -369,7 +377,9 @@ async def test_content_addressed_offload_rebuilds_invalid_restore_map_on_reuse()
         quota_checker=None,
     )
 
-    first = await callback(content="stable content", tool_name="test_tool", scope_id="chat_a")
+    first = await callback(
+        content="stable content", tool_name="test_tool", scope_id="chat_a"
+    )
     restore_map_path = f"{first.path}.restore.json"
     executor.written_files[restore_map_path] = json.dumps(
         {
@@ -380,7 +390,9 @@ async def test_content_addressed_offload_rebuilds_invalid_restore_map_on_reuse()
         }
     )
 
-    second = await callback(content="stable content", tool_name="test_tool", scope_id="chat_a")
+    second = await callback(
+        content="stable content", tool_name="test_tool", scope_id="chat_a"
+    )
 
     assert second.reused
     restored_map = json.loads(str(executor.written_files[restore_map_path]))
@@ -390,7 +402,9 @@ async def test_content_addressed_offload_rebuilds_invalid_restore_map_on_reuse()
 
 
 @pytest.mark.asyncio
-async def test_content_addressed_offload_rebuilds_schema_v1_restore_map_on_reuse() -> None:
+async def test_content_addressed_offload_rebuilds_schema_v1_restore_map_on_reuse() -> (
+    None
+):
     """Retry reuse must keep the restore-map sidecar on the current schema."""
     executor = MockExecutor()
     callback = create_compress_offload_callback(
@@ -399,7 +413,9 @@ async def test_content_addressed_offload_rebuilds_schema_v1_restore_map_on_reuse
         quota_checker=None,
     )
 
-    first = await callback(content="stable content", tool_name="test_tool", scope_id="chat_a")
+    first = await callback(
+        content="stable content", tool_name="test_tool", scope_id="chat_a"
+    )
     restore_map_path = f"{first.path}.restore.json"
     executor.written_files[restore_map_path] = json.dumps(
         {
@@ -410,7 +426,9 @@ async def test_content_addressed_offload_rebuilds_schema_v1_restore_map_on_reuse
         }
     )
 
-    second = await callback(content="stable content", tool_name="test_tool", scope_id="chat_a")
+    second = await callback(
+        content="stable content", tool_name="test_tool", scope_id="chat_a"
+    )
 
     assert second.reused
     restored_map = json.loads(str(executor.written_files[restore_map_path]))
@@ -420,7 +438,9 @@ async def test_content_addressed_offload_rebuilds_schema_v1_restore_map_on_reuse
 
 
 @pytest.mark.asyncio
-async def test_compressed_archive_restore_map_ranges_reference_uncompressed_lines() -> None:
+async def test_compressed_archive_restore_map_ranges_reference_uncompressed_lines() -> (
+    None
+):
     """Gzip archives must still provide ranges that recover the original source lines."""
     executor = MockExecutor()
     callback = create_compress_offload_callback(
@@ -433,7 +453,9 @@ async def test_compressed_archive_restore_map_ranges_reference_uncompressed_line
     lines[219] = "ERROR: target failure line"
     content = "\n".join(lines)
 
-    result = await callback(content=content, tool_name="test_tool", scope_id="chat_gzip")
+    result = await callback(
+        content=content, tool_name="test_tool", scope_id="chat_gzip"
+    )
 
     assert result.path.endswith(".txt.gz")
     stored = executor.written_files[result.path]
@@ -486,8 +508,13 @@ async def test_cleanup_session_context_files_uses_bound_workspace_contract(
 ) -> None:
     executor = MockCleanupExecutor()
 
-    with patch("myrm_agent_harness.runtime.context.cleanup_ops.os.path.isdir", return_value=True):
-        await cleanup_session_context_files("session_cleanup", cast(CodeExecutor, executor))
+    with patch(
+        "myrm_agent_harness.runtime.context.cleanup_ops.os.path.isdir",
+        return_value=True,
+    ):
+        await cleanup_session_context_files(
+            "session_cleanup", cast(CodeExecutor, executor)
+        )
 
     assert len(executor.executed_contexts) == 1
     context = executor.executed_contexts[0]
@@ -533,7 +560,9 @@ async def test_context_snapshot_uses_atomic_write() -> None:
             atomic_calls.append(path)
             await self.write_file_bytes(path, content)
 
-    from myrm_agent_harness.runtime.context.offload import create_context_snapshot_callback
+    from myrm_agent_harness.runtime.context.offload import (
+        create_context_snapshot_callback,
+    )
 
     callback = create_context_snapshot_callback(cast(CodeExecutor, TrackingExecutor()))
     from langchain_core.messages import HumanMessage
@@ -554,7 +583,9 @@ async def test_context_snapshot_quota_exceeded_raises() -> None:
     executor = MockExecutor()
     quota_checker = MockQuotaChecker(allow_write=False, remaining_quota=10)
 
-    from myrm_agent_harness.runtime.context.offload import create_context_snapshot_callback
+    from myrm_agent_harness.runtime.context.offload import (
+        create_context_snapshot_callback,
+    )
 
     callback = create_context_snapshot_callback(
         cast(CodeExecutor, executor),
@@ -574,11 +605,14 @@ async def test_context_snapshot_quota_exceeded_raises() -> None:
 @pytest.mark.asyncio
 async def test_context_snapshot_write_failure_returns_empty() -> None:
     """A non-quota write failure must return an empty path and not raise."""
+
     class FailingExecutor(MockExecutor):
         async def write_file_bytes_atomic(self, path: str, content: bytes) -> None:
             raise OSError("disk full")
 
-    from myrm_agent_harness.runtime.context.offload import create_context_snapshot_callback
+    from myrm_agent_harness.runtime.context.offload import (
+        create_context_snapshot_callback,
+    )
 
     callback = create_context_snapshot_callback(cast(CodeExecutor, FailingExecutor()))
     from langchain_core.messages import HumanMessage
@@ -594,6 +628,7 @@ async def test_context_snapshot_write_failure_returns_empty() -> None:
 @pytest.mark.asyncio
 async def test_offload_oserror_returns_temporary_failure() -> None:
     """An OSError during archive write must map to a temporary_failure result."""
+
     class FailingExecutor(MockExecutor):
         async def write_file_atomic(self, path: str, content: str) -> None:
             raise OSError("disk full")
@@ -604,7 +639,9 @@ async def test_offload_oserror_returns_temporary_failure() -> None:
         quota_checker=None,
     )
 
-    result = await callback(content="content", tool_name="test_tool", scope_id="chat_oserr")
+    result = await callback(
+        content="content", tool_name="test_tool", scope_id="chat_oserr"
+    )
 
     assert not result.succeeded
     assert result.failure_kind == "temporary_failure"
@@ -613,6 +650,7 @@ async def test_offload_oserror_returns_temporary_failure() -> None:
 @pytest.mark.asyncio
 async def test_offload_generic_exception_returns_temporary_failure() -> None:
     """A generic exception during archive write must map to a temporary_failure result."""
+
     class FailingExecutor(MockExecutor):
         async def write_file_atomic(self, path: str, content: str) -> None:
             raise RuntimeError("boom")
@@ -623,7 +661,9 @@ async def test_offload_generic_exception_returns_temporary_failure() -> None:
         quota_checker=None,
     )
 
-    result = await callback(content="content", tool_name="test_tool", scope_id="chat_exc")
+    result = await callback(
+        content="content", tool_name="test_tool", scope_id="chat_exc"
+    )
 
     assert not result.succeeded
     assert result.failure_kind == "temporary_failure"
@@ -643,7 +683,9 @@ async def test_offload_access_tracker_failure_is_swallowed() -> None:
             enable_compression=False,
             quota_checker=None,
         )
-        result = await callback(content="content", tool_name="test_tool", scope_id="chat_tracker")
+        result = await callback(
+            content="content", tool_name="test_tool", scope_id="chat_tracker"
+        )
 
     assert result.succeeded
     assert len(executor.written_files) == 3
@@ -652,7 +694,9 @@ async def test_offload_access_tracker_failure_is_swallowed() -> None:
 @pytest.mark.asyncio
 async def test_offload_store_reuse_after_write() -> None:
     """When the archive store reports reuse after the write, the result must be reused."""
-    from myrm_agent_harness.runtime.context.archive_store import ContentAddressedArchiveWrite
+    from myrm_agent_harness.runtime.context.archive_store import (
+        ContentAddressedArchiveWrite,
+    )
 
     executor = MockExecutor()
 
@@ -678,7 +722,9 @@ async def test_offload_store_reuse_after_write() -> None:
             enable_compression=False,
             quota_checker=None,
         )
-        result = await callback(content="content", tool_name="test_tool", scope_id="chat_reuse")
+        result = await callback(
+            content="content", tool_name="test_tool", scope_id="chat_reuse"
+        )
 
     assert result.succeeded
     assert result.reused
