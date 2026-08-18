@@ -144,12 +144,14 @@ async def safe_exec(
             if not argv:
                 return ExecResult(stdout="", stderr="empty command", returncode=1, mode="direct")
 
+    from myrm_agent_harness.core.security.types import user_credentials_ctx
+    from myrm_agent_harness.toolkits.code_execution.security.validator import (
+        sanitize_env,
+    )
     from myrm_agent_harness.utils.os_compat import get_process_group_kwargs
 
     session_kwargs = get_process_group_kwargs()
-
-    active_env = dict(env) if env is not None else dict(os.environ)
-    from myrm_agent_harness.core.security.types import user_credentials_ctx
+    active_env = sanitize_env(dict(env) if env is not None else dict(os.environ))
 
     try:
         credentials = user_credentials_ctx.get()

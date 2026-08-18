@@ -9,6 +9,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.security.safe_exec import ExecResult, _kill_process_tree, needs_shell, safe_exec
+from myrm_agent_harness.core.security.types import (
+    EphemeralUserCredential,
+    with_user_credentials,
+)
 
 
 class TestNeedsShell:
@@ -83,6 +87,58 @@ class TestSafeExec:
     async def test_timeout(self) -> None:
         with pytest.raises((asyncio.TimeoutError, TimeoutError)):
             await safe_exec("sleep 60", timeout=1)
+
+
+@pytest.mark.asyncio
+class TestSafeExecEnvSanitization:
+    """Env sanitization must prevent injection/escape through safe_exec."""
+
+    async def test_explicit_env_strips_dangerous_vars(self) -> None:
+        """Dangerous vars passed explicitly must be removed before launch."""
+        result = await safe_exec(
+            "env",
+            timeout=10,
+            env={
+                "LD_PRELOAD": "/tmp/evil.so",
+                "PYTHONPATH": "/tmp/evil",
+                "MY_APP_TOKEN": "sekrit",
+                "SAFE_FLAG": "keep-me",
+            },
+        )
+        assert result.returncode == 0
+        assert "LD_PRELOAD" not in result.stdout
+        assert "PYTHONPATH" not in result.stdout
+        assert "MY_APP_TOKEN" not in result.stdout
+        assert "SAFE_FLAG=keep-me" in result.stdout
+
+    async def test_inherited_parent_env_is_sanitized(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Host pollution must not leak into subprocess environment."""
+        monkeypatch.setenv("LD_PRELOAD", "/tmp/evil.so")
+        monkeypatch.setenv("PYTHONHOME", "/tmp/evil")
+        monkeypatch.setenv("MY_SERVICE_API_KEY", "sekrit")
+        monkeypatch.setenv("TEST_SAFE_VAR", "visible")
+        result = await safe_exec("env", timeout=10)
+        assert result.returncode == 0
+        assert "LD_PRELOAD" not in result.stdout
+        assert "PYTHONHOME" not in result.stdout
+        assert "MY_SERVICE_API_KEY" not in result.stdout
+        assert "TEST_SAFE_VAR=visible" in result.stdout
+
+    async def test_credential_injection_overrides_sanitized_env(self) -> None:
+        """Authentic credentials are injected after sanitization and must reach child."""
+        credential = EphemeralUserCredential(issuer="github", token="real-user-token")
+        async with with_user_credentials((credential,)):
+            result = await safe_exec(
+                "env",
+                timeout=10,
+                env={"GITHUB_TOKEN": "evil-parent-token"},
+                allowed_issuers=["github"],
+            )
+        assert result.returncode == 0
+        assert "real-user-token" in result.stdout
+        assert "evil-parent-token" not in result.stdout
 
 
 class TestKillProcessTreeSafety:

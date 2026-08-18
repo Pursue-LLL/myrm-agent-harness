@@ -257,6 +257,7 @@ BLOCK → DENY（硬拒绝），ESCALATE → ASK（提升审批）。保留 `|`,
 - `start_new_session=True` 创建新进程组，确保超时时可杀死整个进程树
 - 超时时通过跨平台原语杀死整个进程组（包括所有子进程），不留孤儿进程
 - `ExecResult.mode` 记录实际执行模式，支持审计
+- **env 消毒**：子进程环境（显式 `env` 或继承的 `os.environ`）统一先经 `sanitize_env()` 过滤（动态链接器注入、运行时劫持、代理/TLS 绕过、*TOKEN*/*KEY*/*SECRET* 通配符等危险变量），再由 `credential_env_overrides()` 在消毒后注入合法凭证，防止无人值守路径（cron）发生环境变量逃逸
 
 **消费方**：`cron/runners.py` ShellJobRunner — 无人值守场景的最高风险执行路径。
 
