@@ -59,7 +59,9 @@ def _dedup_enabled() -> bool:
 
 def _current_agent_id() -> str:
     try:
-        from myrm_agent_harness.agent.middlewares._session_context import get_subagent_task_id
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_subagent_task_id,
+        )
 
         return get_subagent_task_id() or _DEFAULT_AGENT_ID
     except Exception:

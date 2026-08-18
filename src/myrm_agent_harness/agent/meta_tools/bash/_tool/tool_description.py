@@ -79,7 +79,7 @@ asyncio.run(main())
 
 ### 优化策略
 
-- 多次操作合并进一次 Python 源码,用 while/if/try 控制流完成循环/条件/异常,避免多次往返调用。
+- 依赖关系和返回值结构清晰明确时，将多次操作合并进一次 Python 源码,用 while/if/try 控制流完成循环/条件/异常,避免多次往返调用。
 - 只输出所需数据:大数据(CSV/JSON/日志)用 Python 分析,只给摘要。
 - 超大输出 eviction 截断时,按返回路径用 ``file_read_tool`` 读 ``.context/.../evicted/``。
 - 命令失败时,先读 stdout/stderr/错误提示定位根因再修复,勿盲目重试同一命令。

@@ -92,8 +92,14 @@ def test_clear_agent():
     guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="a")
     guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="b")
     guard.clear_agent("a")
-    assert guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="a").kind == DedupResult.MISS
-    assert guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="b").kind == DedupResult.STUB
+    assert (
+        guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="a").kind
+        == DedupResult.MISS
+    )
+    assert (
+        guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="b").kind
+        == DedupResult.STUB
+    )
 
 
 def test_clear_all():
@@ -101,7 +107,10 @@ def test_clear_all():
     guard = ReadDedupGuard()
     guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="a")
     guard.clear()
-    assert guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="a").kind == DedupResult.MISS
+    assert (
+        guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="a").kind
+        == DedupResult.MISS
+    )
 
 
 def test_get_guard_none_for_no_executor():
@@ -133,7 +142,10 @@ def test_reset_all_read_dedup_clears_registry():
     assert guard is not None
     guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="a")
     reset_all_read_dedup()
-    assert guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="a").kind == DedupResult.MISS
+    assert (
+        guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="a").kind
+        == DedupResult.MISS
+    )
 
 
 def test_kill_switch_returns_miss(monkeypatch):
@@ -157,7 +169,9 @@ def test_current_agent_id_fallback_on_import_error(monkeypatch):
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", _broken_import)
-    from myrm_agent_harness.agent.meta_tools.file_ops.core.read_dedup import _current_agent_id
+    from myrm_agent_harness.agent.meta_tools.file_ops.core.read_dedup import (
+        _current_agent_id,
+    )
 
     assert _current_agent_id() == "__main__"
 
@@ -167,7 +181,10 @@ def test_invalidate_no_bucket_is_noop():
     guard = ReadDedupGuard()
     guard.invalidate("/tmp/a.txt", agent_id="ghost")
     # No exception raised; state remains empty.
-    assert guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="ghost").kind == DedupResult.MISS
+    assert (
+        guard.check("/tmp/a.txt", None, mtime=100.0, agent_id="ghost").kind
+        == DedupResult.MISS
+    )
 
 
 def test_current_agent_id_default_when_subagent_none(monkeypatch):
@@ -175,6 +192,8 @@ def test_current_agent_id_default_when_subagent_none(monkeypatch):
     import myrm_agent_harness.agent.middlewares._session_context as sc
 
     monkeypatch.setattr(sc, "get_subagent_task_id", lambda: None)
-    from myrm_agent_harness.agent.meta_tools.file_ops.core.read_dedup import _current_agent_id
+    from myrm_agent_harness.agent.meta_tools.file_ops.core.read_dedup import (
+        _current_agent_id,
+    )
 
     assert _current_agent_id() == "__main__"

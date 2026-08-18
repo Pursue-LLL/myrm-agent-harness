@@ -21,14 +21,27 @@ from pathlib import Path
 import pytest
 from langchain_core.runnables import RunnableConfig
 
-from myrm_agent_harness.agent.meta_tools.file_ops.core.read_dedup import reset_all_read_dedup
-from myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool import create_file_edit_tool
-from myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool import create_file_read_tool
-from myrm_agent_harness.agent.meta_tools.file_ops.file_write_tool import create_file_write_tool
+from myrm_agent_harness.agent.meta_tools.file_ops.core.read_dedup import (
+    reset_all_read_dedup,
+)
+from myrm_agent_harness.agent.meta_tools.file_ops.file_edit_tool import (
+    create_file_edit_tool,
+)
+from myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool import (
+    create_file_read_tool,
+)
+from myrm_agent_harness.agent.meta_tools.file_ops.file_write_tool import (
+    create_file_write_tool,
+)
 from myrm_agent_harness.toolkits.code_execution import ExecutionConfig
-from myrm_agent_harness.toolkits.code_execution.executors.base import reset_executor, set_executor
+from myrm_agent_harness.toolkits.code_execution.executors.base import (
+    reset_executor,
+    set_executor,
+)
 from myrm_agent_harness.toolkits.code_execution.executors.local import LocalExecutor
-from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
+from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
+    WorkspacePathResolver,
+)
 
 _CONFIG = RunnableConfig()
 
@@ -181,7 +194,9 @@ async def test_dedup_state_isolated_per_executor(workspace: str) -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_real_write_tool_creates_then_edit_invalidates_dedup(workspace: str) -> None:
+async def test_real_write_tool_creates_then_edit_invalidates_dedup(
+    workspace: str,
+) -> None:
     """A real file_write_tool creates a file; a later edit invalidates dedup."""
     token, _executor = _bind_executor(workspace)
     try:
@@ -198,7 +213,10 @@ async def test_real_write_tool_creates_then_edit_invalidates_dedup(workspace: st
         assert "File unchanged" in second
         # Real edit through the tool invalidates dedup.
         edit_result = await edit_tool.ainvoke(
-            {"path": "dedup.txt", "edits": [{"old_str": "alpha", "new_str": "alpha\nbeta"}]},
+            {
+                "path": "dedup.txt",
+                "edits": [{"old_str": "alpha", "new_str": "alpha\nbeta"}],
+            },
             config=_CONFIG,
         )
         assert isinstance(edit_result, str)
