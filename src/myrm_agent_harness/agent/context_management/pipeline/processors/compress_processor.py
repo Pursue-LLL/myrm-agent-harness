@@ -19,6 +19,7 @@ IMPORTANT: Self-update reminder: once this file is updated, also update:
 - infra.retention_helpers::extract_failed_tool_call_ids, extract_focus_files, extract_focus_modules, extract_user_goal_hint, effective_keep_recent_calls (POS: cross-processor retention contract)
 - strategies.compactor.compactor::compress_messages_async (POS: priority-aware message compactor)
 - strategies.compactor.smart_fallback::apply_smart_fallback (POS: extreme overflow fallback)
+- meta_tools.file_ops.core.read_dedup::reset_all_read_dedup (POS: 读取时 dedup 守卫,压缩后重置)
 
 [OUTPUT]
 - CompressProcessor: priority-aware compression with keep_recent ToolCallGroup protection and compression_intent consumption
@@ -319,6 +320,14 @@ class CompressProcessor(BaseProcessor):
         detector = get_cache_break_detector()
         if detector is not None:
             detector.notify_compaction()
+
+        # 压缩后重置读取 dedup：被摘要/截断的内容已不在上下文中，
+        # 模型需要重新读取才能引用，避免 dedup 误判为「未变」而返回 stub。
+        from myrm_agent_harness.agent.meta_tools.file_ops.core.read_dedup import (
+            reset_all_read_dedup,
+        )
+
+        reset_all_read_dedup()
 
         from ...strategies.compactor.pre_compact_context import (
             apply_pre_compact_after_protected_head,

@@ -518,9 +518,14 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
             from myrm_agent_harness.agent.meta_tools.file_ops.core.file_integrity_guard import (
                 _integrity_guards,
             )
+            from myrm_agent_harness.agent.meta_tools.file_ops.core.read_dedup import (
+                _dedup_guards,
+            )
 
             get_file_activity_tracker().clear_agent(task_id)
             for guard in _integrity_guards.values():
+                guard.clear_agent(task_id)
+            for guard in _dedup_guards.values():
                 guard.clear_agent(task_id)
         except Exception:
             pass
