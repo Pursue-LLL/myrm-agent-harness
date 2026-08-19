@@ -27,6 +27,8 @@ from myrm_agent_harness.agent._internals.memory_extraction import (
 from myrm_agent_harness.agent.context_management.infra.evicted import (
     EVICTED_BASENAME_PATTERN,
     build_evicted_basename,
+    normalize_delivery_chat_id,
+    read_evicted_line_range,
 )
 from myrm_agent_harness.agent.meta_tools.bash._background.job_store import (
     configure_background_job_store,
@@ -163,9 +165,11 @@ __all__ = [
     "install_memory_pseudonymizer",
     "invalidate_permissions",
     "map_store_status_to_shell_task_status",
+    "normalize_delivery_chat_id",
     "persist_extracted_memories",
     "persist_terminal_state",
     "persist_vault_log_ref",
+    "read_evicted_line_range",
     "restore_memory_pseudonymizer",
     "set_approval_user_id",
     "set_global_background_job_finish_handler",

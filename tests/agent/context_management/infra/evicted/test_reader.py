@@ -77,6 +77,19 @@ def test_probe_storage_cap_from_tail_detects_marker() -> None:
     assert original == MAX_STORED_CHARS + 10
 
 
+def test_probe_storage_cap_from_tail_returns_none_on_unparseable_original() -> None:
+    from unittest.mock import patch
+
+    tail = "[... stored copy truncated at 2,000,000 chars of 123;"
+    with patch(
+        "myrm_agent_harness.agent.context_management.infra.evicted.markers.int",
+        side_effect=ValueError("forced"),
+    ):
+        truncated, original = probe_storage_cap_from_tail(tail)
+    assert truncated is True
+    assert original is None
+
+
 def test_read_evicted_file_meta_detects_storage_cap(tmp_path: Path) -> None:
     path = tmp_path / "capped.txt"
     capped, _ = cap_content_for_storage("y" * (MAX_STORED_CHARS + 5))
