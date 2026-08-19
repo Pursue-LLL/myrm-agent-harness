@@ -19,26 +19,26 @@ classifiers = [
 
 dependencies = [
   # --- LangChain 生态 (Agent 框架基础) ---
-  "langchain>=1.3.14",                  # Agent 编排核心
-  "langchain-core>=1.5.3",              # LangChain 基础抽象
-  "langgraph>=1.2.10",                  # 图状态机 Agent 运行时
+  "langchain>=1.3.15",                  # Agent 编排核心
+  "langchain-core>=1.5.6",              # LangChain 基础抽象
+  "langgraph>=1.2.11",                  # 图状态机 Agent 运行时
   "langgraph-checkpoint-sqlite>=3.1.1", # SQLite 状态持久化 (checkpoint factory)
   "aiosqlite>=0.22.1",                  # async SQLite (memory stores + checkpointer)
   "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
   # --- LLM 多供应商适配 ---
-  "litellm>=1.95.0", # 统一 LLM API 代理 (100+ 供应商)
+  "litellm>=1.97.0", # 统一 LLM API 代理 (100+ 供应商)
   # --- 数据验证与序列化 ---
   "pydantic>=2.13.4", # 数据模型验证
   "PyYAML>=6.0.3",    # YAML 配置解析
-  "json_repair>=0.63.0", # LLM 脏 JSON 修复兜底 (chat_utils 解析链末层)
+  "json_repair>=0.63.2", # LLM 脏 JSON 修复兜底 (chat_utils 解析链末层)
   # --- HTTP 与异步 I/O ---
   "httpx>=0.28.1",        # 异步 HTTP 客户端（统一网络栈；SOCKS 由 server/渠道层按需安装）
-  "httpx2>=2.9.1",        # MCP SDK v2 传输层 HTTP 客户端（TLS/mTLS、auth headers）
+  "httpx2>=2.12.0",        # MCP SDK v2 传输层 HTTP 客户端（TLS/mTLS、auth headers）
   "aiofiles>=25.1.0",     # 异步文件 I/O
   # --- 图片处理 (7 模块跨 4 层使用) ---
   "Pillow>=12.3.0",       # 图片读写/resize/压缩 (image_reader + image_compressor + browser/diff + file_parsers + computer_use)
   # --- Token 计数 ---
-  "tiktoken>=0.13.0", # OpenAI tokenizer (上下文窗口管理)
+  "tiktoken>=0.14.0", # OpenAI tokenizer (上下文窗口管理)
   # --- 系统监控 (健康诊断核心依赖) ---
   "psutil>=7.2.2", # 进程与系统监控 (CPU/Memory health probes)
   # --- 监控与可观测性 (仅保留轻量级 API，SDK 移至 optional) ---
@@ -47,9 +47,9 @@ dependencies = [
   "croniter>=6.2.4", # Cron 表达式解析与计算
   # --- 网页爬取与内容提取（基础） ---
   "beautifulsoup4>=4.15.0", # HTML DOM 解析与清洗（ContentPruningFilter）
-  "lxml>=6.1.1",            # bs4 lxml parser (content_pruning + tree_truncator)
+  "lxml>=6.1.2",            # bs4 lxml parser (content_pruning + tree_truncator)
   # --- Agent 协议与基础设施 ---
-  "filelock>=3.32.2",  # 跨进程文件锁 (Skill 并发控制)
+  "filelock>=3.32.3",  # 跨进程文件锁 (Skill 并发控制)
   "mcp>=2.0.0",        # MCP 协议 SDK 2.x (2026-07-28 spec: stateless HTTP, Client API)
   "watchdog>=6.0.0",   # 文件系统变更监控 (backends/skills/watcher.py)
   "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_read_tool CORE; pypdfium2 由 pdfplumber 传递依赖)
@@ -64,25 +64,25 @@ verify-harness-distribution = "myrm_agent_harness.distribution.verify:main"
 [project.optional-dependencies]
 # toolkits/browser/ - 浏览器自动化（需要 Patchright）
 browser = [
-  "patchright>=1.61.2",   # CDP 泄露修补浏览器引擎
-  "camoufox>=0.5.4", # Firefox stealth fallback (auto-upgrade ladder)
-  "orjson>=3.11.9",       # session vault / persistence JSON (browser toolkit only)
+  "patchright>=1.62.1",   # CDP 泄露修补浏览器引擎
+  "camoufox>=0.5.5", # Firefox stealth fallback (auto-upgrade ladder)
+  "orjson>=3.12.0",       # session vault / persistence JSON (browser toolkit only)
 ]
 # toolkits/vector/ - 向量存储（Qdrant 嵌入式/远程）
 qdrant = [
-  "qdrant-client>=1.18.0", # Qdrant SDK (embedded + remote)
+  "qdrant-client>=1.19.0", # Qdrant SDK (embedded + remote)
 ]
 # toolkits/retriever/ - 高级检索功能（中文分词、向量检索、稀疏检索）
 retrieval = [
   "langchain-text-splitters>=1.1.2", # 代码感知文本分块 (retriever/splitter/code_utils.py)
-  "numpy>=2.5.1",     # embedding 序列化 + BM25 数值计算
+  "numpy>=2.5.2",     # embedding 序列化 + BM25 数值计算
   "tenacity>=9.1.4",  # cloud embedding retries
   "jieba>=0.42.1",    # 中文分词 (BM25 tokenizer)
   "rank-bm25>=0.2.2", # BM25 稀疏检索算法
 ]
 # toolkits/acp/ - ACP 协议（外部 Agent 委托 + ACP Server）
 acp = [
-  "agent-client-protocol>=0.12.0",
+  "agent-client-protocol>=0.12.1",
 ]
 # utils/media/image_compressor - PNG 量化压缩（延迟导入，失败回退 Pillow）
 image-processing = [
@@ -91,11 +91,11 @@ image-processing = [
 # toolkits/computer_use/ - 系统桌面控制（截图 + 键鼠模拟）
 computer-use = [
   "pyautogui>=0.9.54; sys_platform == 'win32'",  # Windows 键鼠输入模拟 (ctypes, 无 rubicon-objc)
-  "pyobjc-framework-Quartz>=10.3.2; sys_platform == 'darwin'",  # macOS 原生 CGEvent（绕开 rubicon-objc arm64 缺陷）
+  "pyobjc-framework-Quartz>=12.2.2; sys_platform == 'darwin'",  # macOS 原生 CGEvent（绕开 rubicon-objc arm64 缺陷）
 ]
 # toolkits/web_fetch/ - L1 HTTP / L3 stealth 爬取 + YouTube 字幕快路径
 web = [
-  "scrapling[fetchers]>=0.4.12",      # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
+  "scrapling[fetchers]>=0.4.14",      # L1: curl_cffi TLS 指纹 HTTP / L3: Patchright+BrowserForge 反检测
   "youtube-transcript-api>=1.2.4",   # YouTube 字幕提取 (youtube_extractor; HTML fallback when missing)
 ]
 
@@ -107,8 +107,8 @@ file-parsers = [
 ]
 # toolkits/file_parsers/ocr.py - 扫描 PDF / 图片 OCR 兜底（PaddleOCR，CJK 原生支持）
 pdf-ocr = [
-  "paddleocr>=3.2.0",   # PaddleOCR 引擎（含检测+识别模型）
-  "paddlepaddle>=3.2.0", # PaddlePaddle 深度学习框架
+  "paddleocr>=3.7.0",   # PaddleOCR 引擎（含检测+识别模型）
+  "paddlepaddle>=3.3.1", # PaddlePaddle 深度学习框架
 ]
 # infra/security/signature.py - FastAPI webhook signature verification
 fastapi = [
@@ -120,7 +120,7 @@ observability = [
   "prometheus-client>=0.26.0",
   "opentelemetry-sdk>=1.44.0",
   "opentelemetry-exporter-otlp-proto-grpc>=1.44.0",
-  "openinference-instrumentation-langchain>=0.1.68",
+  "openinference-instrumentation-langchain>=0.1.70",
 ]
 compiled-core = [
 # BEGIN compiled-core (generated — do not edit)
@@ -148,7 +148,7 @@ environments = ["python_full_version >= '3.13' and python_full_version < '3.14'"
 override-dependencies = [
   "click>=8.4.2",
   "patchright>=1.59.1",
-  "openai>=2.53.0",
+  "openai>=3.3.0",
   "opentelemetry-semantic-conventions>=0.61b0",
   "mcp>=2.0.0",                   # MCP SDK 2.x
 ]
