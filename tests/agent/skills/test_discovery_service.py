@@ -313,6 +313,26 @@ class TestAtomicReplace:
         assert (dst / "new.txt").read_text() == "new"
         assert not (dst / "old.txt").exists()
 
+    def test_atomic_replace_cleans_stale_backup(self, tmp_path) -> None:
+        src = tmp_path / "src_dir"
+        src.mkdir()
+        (src / "new.txt").write_text("new")
+
+        dst = tmp_path / "dst_dir"
+        dst.mkdir()
+        (dst / "old.txt").write_text("old")
+
+        # A stale .bak from a previous interrupted replace must be cleaned up.
+        stale_bak = tmp_path / "dst_dir.bak"
+        stale_bak.mkdir()
+        (stale_bak / "stale.txt").write_text("stale")
+
+        _atomic_replace(src, dst)
+
+        assert dst.exists()
+        assert (dst / "new.txt").read_text() == "new"
+        assert not stale_bak.exists()
+
 
 class TestUninstall:
     @pytest.mark.asyncio
@@ -402,6 +422,24 @@ class TestQuarantineInstall:
         assert "quarantine" in progress_log
         assert "scanning" in progress_log
         assert "completed" in progress_log
+
+    @pytest.mark.asyncio
+    async def test_quarantine_blocks_path_escape(self, tmp_path) -> None:
+        svc = BaseSkillMarketService()
+        files = {
+            "SKILL.md": b"# escape",
+            "../escape.py": b"import os",
+        }
+        with patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path):
+            result = await svc._quarantine_install(
+                "escape-id",
+                "escape-skill",
+                files,
+                source="test",
+            )
+        assert result.success is True
+        # The escaped file must not be written into the install dir.
+        assert not (tmp_path / "escape-skill" / ".." / "escape.py").exists()
 
     @pytest.mark.asyncio
     async def test_quarantine_install_replaces_existing(self, tmp_path) -> None:
@@ -780,6 +818,18 @@ class TestEnrichEdgeCases:
         assert enriched[0].installed_version == "1.0.0"
         assert enriched[0].upgrade_available is False
 
+    @pytest.mark.asyncio
+    async def test_enrich_no_installed_version(self) -> None:
+        svc = BaseSkillMarketService()
+        result = _make_search_result("fresh", name="Fresh Skill")
+        svc._search_cache["q"] = (time.time(), [result])
+
+        # Non-empty map but the skill name is absent -> falls to the else branch.
+        enriched = await svc.search("q", installed_versions_map={"other": "1.0.0"})
+        assert len(enriched) == 1
+        assert enriched[0].installed_version == ""
+        assert enriched[0].upgrade_available is False
+
 
 class TestQuarantineReject:
     @pytest.mark.asyncio
@@ -883,6 +933,31 @@ class TestSearchTimeout:
         ids = {r.result.id for r in results}
         assert "fast" in ids
 
+    @pytest.mark.asyncio
+    async def test_search_source_exception_graceful(self) -> None:
+        svc = BaseSkillMarketService()
+
+        async def ok_search(query: str, limit: int) -> list[SkillSearchResult]:
+            return [_make_search_result("ok", name="OK")]
+
+        svc._sources = [
+            MagicMock(source_name="failing", search=ok_search),
+            MagicMock(source_name="ok", search=ok_search),
+        ]
+
+        # _search_source swallows Exception internally; force the outer
+        # defensive branch by making it raise for the failing source only.
+        async def failing_search_source(source, query, limit):
+            if source.source_name == "failing":
+                raise RuntimeError("boom")
+            return [_make_search_result("ok", name="OK")]
+
+        with patch.object(svc, "_search_source", side_effect=failing_search_source):
+            results = await svc.search("test")
+
+        ids = {r.result.id for r in results}
+        assert "ok" in ids
+
 
 class TestSearchBrowseMode:
     @pytest.mark.asyncio
@@ -928,3 +1003,27 @@ class TestUninstallSuccess:
         svc = BaseSkillMarketService()
         result = await svc.uninstall("local::")
         assert result.success is False
+
+    @pytest.mark.asyncio
+    async def test_uninstall_rmtree_failure_returns_error(self, tmp_path) -> None:
+        from myrm_agent_harness.backends.skills.local_skill_id import (
+            local_skill_id_from_path,
+        )
+
+        svc = BaseSkillMarketService()
+        skill_dir = tmp_path / "my-skill"
+        skill_dir.mkdir()
+        (skill_dir / "main.py").write_text("code")
+        canonical_id = local_skill_id_from_path(skill_dir)
+
+        with (
+            patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path),
+            patch(
+                "myrm_agent_harness.agent.skills.market.service.shutil.rmtree",
+                side_effect=OSError("permission denied"),
+            ),
+        ):
+            result = await svc.uninstall(canonical_id)
+
+        assert result.success is False
+        assert "Failed to remove skill directory" in (result.error or "")
