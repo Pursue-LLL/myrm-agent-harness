@@ -67,6 +67,27 @@ class TestBaseSkillMarketServiceInit:
         assert "prebuilt" in source_names
         assert source_names[0] == "prebuilt"
 
+    def test_register_source_appends_and_is_idempotent(self) -> None:
+        svc = BaseSkillMarketService()
+        custom = MagicMock()
+        custom.source_name = "custom-source"
+        svc.register_source(custom)
+        assert any(s.source_name == "custom-source" for s in svc._sources)
+        # Registering the same source_name again is a no-op.
+        svc.register_source(custom)
+        count = sum(1 for s in svc._sources if s.source_name == "custom-source")
+        assert count == 1
+
+    def test_unregister_source_removes_and_reports(self) -> None:
+        svc = BaseSkillMarketService()
+        custom = MagicMock()
+        custom.source_name = "custom-source"
+        svc.register_source(custom)
+        assert svc.unregister_source("custom-source") is True
+        assert not any(s.source_name == "custom-source" for s in svc._sources)
+        # Unregistering a missing source returns False.
+        assert svc.unregister_source("does-not-exist") is False
+
 
 class TestSearch:
     @pytest.mark.asyncio
