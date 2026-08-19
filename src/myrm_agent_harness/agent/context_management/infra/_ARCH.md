@@ -20,9 +20,7 @@ Context management infrastructure: shared types, budget management, session lock
 | session_lock.py | Core | Session-level lock manager. Provides reentrant per-session async locks for serialized context mutations while preserving cross-session parallelism. | ✅ |
 | retention_helpers.py | Core | Shared retention helpers: compression_intent extraction (failed/focus/goal), group-aware focus matching via tool_call_id index, keep_recent prune cutoff, deterministic retain trim formatting | ✅ |
 | tool_result_trimming.py | Core | Deterministic trimming for oversized tool outputs. Uses structure-aware JSON compaction under the fast-guard threshold and bounded head/tail text trim above it. | ✅ |
-| tool_output_persister.py | Core | UECD delegate — persists FilterProcessor overflows to `.context/.../evicted/` | ✅ |
-| evicted_content.py | Core | UECD SSOT: 2MB cap, `{source}_{hex8}.{ext}` naming, persist/footer; `EvictedRefPayload` + `emit_evicted_ref` SSE contract (`tool_call_id`, stats fields); `normalize_delivery_chat_id`; server `evicted.py` imports `EVICTED_BASENAME_PATTERN` | ✅ |
-| evicted_reader.py | Core | Streaming line-range + meta readers for `.context/.../evicted/` files (GUI/API pagination SSOT) | ✅ |
+| evicted/ | Submodule | UECD subpackage — see [evicted/_ARCH.md](evicted/_ARCH.md) (`content` · `reader` · `persister` · `markers`) | ✅ |
 
 ## Key Dependencies
 

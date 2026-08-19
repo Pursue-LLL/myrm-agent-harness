@@ -42,7 +42,7 @@ def mock_executor():
 @pytest.mark.usefixtures("_mock_should_filter", "_mock_detect_non_structural")
 async def test_eviction_hint_references_file_read_tool(mock_executor):
     """Main branch: hint must reference file_read_tool, not cat."""
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         EvictedPersistResult,
     )
 
@@ -69,7 +69,7 @@ async def test_eviction_hint_references_file_read_tool(mock_executor):
 @pytest.mark.usefixtures("_mock_should_filter")
 async def test_eviction_fallback_hint_references_file_read_tool(mock_executor):
     """Fallback branch (structural filter fails): hint must reference file_read_tool."""
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         EvictedPersistResult,
     )
 
@@ -127,7 +127,7 @@ async def test_eviction_file_save_failure_still_has_preview(mock_executor):
 @pytest.mark.usefixtures("_mock_should_filter")
 async def test_eviction_hint_includes_actual_file_path(mock_executor):
     """Hint must include the actual file path in the line range example."""
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         EvictedPersistResult,
     )
 
@@ -171,7 +171,7 @@ async def test_eviction_triggers_on_char_threshold_when_token_below(mock_executo
     section unreachable. Char-level gate aligns eviction with the truncation
     threshold so every hard-truncated output is first saved to disk.
     """
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         EvictedPersistResult,
     )
 
@@ -230,7 +230,7 @@ async def test_eviction_no_session_skips_file_persist(mock_executor):
 @pytest.mark.usefixtures("_mock_should_filter")
 async def test_eviction_structural_content_preview(mock_executor):
     """Structural JSON content uses structural filter summary path."""
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         EvictedPersistResult,
     )
 
@@ -287,7 +287,7 @@ def test_get_session_id_prefers_chat_id_var():
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("_mock_should_filter", "_mock_detect_non_structural")
 async def test_save_to_file_persists_with_session(mock_executor):
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         EvictedPersistResult,
     )
     from myrm_agent_harness.agent.meta_tools.bash._compression import (
@@ -297,7 +297,7 @@ async def test_save_to_file_persists_with_session(mock_executor):
     with (
         patch.object(mod, "_get_session_id", return_value="session_save"),
         patch(
-            "myrm_agent_harness.agent.context_management.infra.evicted_content.persist_evicted_content",
+            "myrm_agent_harness.agent.context_management.infra.evicted.persist_evicted_content",
             return_value=EvictedPersistResult(
                 evicted_ref="output_abcd1234.txt",
                 rel_path=".context/session_save/evicted/output_abcd1234.txt",

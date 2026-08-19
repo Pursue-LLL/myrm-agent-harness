@@ -722,7 +722,7 @@ async def test_run_post_call_guards_budget_persisted():
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref",
+            "myrm_agent_harness.agent.context_management.infra.evicted.emit_evicted_ref",
             new_callable=AsyncMock,
         ),
     ):

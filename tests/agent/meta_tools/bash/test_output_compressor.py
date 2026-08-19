@@ -103,7 +103,7 @@ class TestCompressOutput:
         rewritten into a dedup summary by LogCompressor, dropping the
         file_read_tool read-back footer and stranding the model.
         """
-        from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        from myrm_agent_harness.agent.context_management.infra.evicted import (
             build_delivery_footer,
         )
         from myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction import (

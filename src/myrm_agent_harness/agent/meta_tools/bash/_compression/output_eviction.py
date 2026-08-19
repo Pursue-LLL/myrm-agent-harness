@@ -11,7 +11,7 @@
 - 两者独立，不冲突（eviction 后内容很小，FilterProcessor 自动跳过）
 
 [INPUT]
-- agent.context_management.infra.evicted_content::build_delivery_footer (POS: evicted 文件 footer 读取指令)
+- agent.context_management.infra.evicted::build_delivery_footer (POS: evicted 文件 footer 读取指令)
 - agent.context_management.strategies.filter::should_filter (POS: token 阈值判定)
 - agent.context_management.strategies.filters.base::STRUCTURAL_CONTENT_TYPES, FilterContext, detect_content_type (POS: 内容类型检测)
 - agent.context_management.strategies.filters.structural_filter::StructuralFilter (POS: JSON XML CSV)
@@ -36,7 +36,7 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+from myrm_agent_harness.agent.context_management.infra.evicted import (
     build_delivery_footer,
 )
 from myrm_agent_harness.agent.context_management.strategies.filter import should_filter
@@ -54,7 +54,7 @@ from myrm_agent_harness.agent.meta_tools.bash._compression.constants import (
 from myrm_agent_harness.utils.text_utils import get_token_count, smart_truncate
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         EvictedPersistResult,
     )
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
@@ -137,6 +137,9 @@ async def maybe_evict_large_output(content: str, executor: CodeExecutor | None =
                 evicted_basename=os.path.basename(file_path),
                 head_text=footer_head,
                 rel_path=file_path,
+                storage_truncated=(persist_stats.storage_truncated if persist_stats else False),
+                original_chars=(persist_stats.original_chars if persist_stats else None),
+                stored_chars=(persist_stats.stored_chars if persist_stats else None),
             )
 
         evicted_ref = os.path.basename(file_path) if file_path else None
@@ -161,6 +164,9 @@ async def maybe_evict_large_output(content: str, executor: CodeExecutor | None =
                 evicted_basename=os.path.basename(file_path),
                 head_text=_footer_head_part(fallback),
                 rel_path=file_path,
+                storage_truncated=(persist_stats.storage_truncated if persist_stats else False),
+                original_chars=(persist_stats.original_chars if persist_stats else None),
+                stored_chars=(persist_stats.stored_chars if persist_stats else None),
             )
         evicted_ref = os.path.basename(file_path) if file_path else None
         return EvictionResult(
@@ -186,7 +192,7 @@ async def _save_to_file(executor: CodeExecutor, content: str) -> tuple[str | Non
         logger.warning("[Eviction] No session_id; skip file persist (preview only)")
         return None
 
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         persist_evicted_content,
     )
 

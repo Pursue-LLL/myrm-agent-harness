@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from myrm_agent_harness.agent.context_management.infra.evicted_reader import (
+from myrm_agent_harness.agent.context_management.infra.evicted import (
+    MAX_STORED_CHARS,
+    cap_content_for_storage,
+)
+from myrm_agent_harness.agent.context_management.infra.evicted import (
     count_lines_in_text,
+    probe_storage_cap_from_tail,
     read_evicted_file_meta,
     read_evicted_line_range,
 )
@@ -63,3 +68,28 @@ def test_read_evicted_line_range_rejects_invalid_limit(tmp_path: Path) -> None:
         assert "limit" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_probe_storage_cap_from_tail_detects_marker() -> None:
+    capped, _ = cap_content_for_storage("x" * (MAX_STORED_CHARS + 10))
+    truncated, original = probe_storage_cap_from_tail(capped[-512:])
+    assert truncated is True
+    assert original == MAX_STORED_CHARS + 10
+
+
+def test_read_evicted_file_meta_detects_storage_cap(tmp_path: Path) -> None:
+    path = tmp_path / "capped.txt"
+    capped, _ = cap_content_for_storage("y" * (MAX_STORED_CHARS + 5))
+    path.write_text(capped, encoding="utf-8")
+    meta = read_evicted_file_meta(path)
+    assert meta.storage_truncated is True
+    assert meta.original_chars == MAX_STORED_CHARS + 5
+
+
+def test_read_evicted_line_range_includes_storage_cap_fields(tmp_path: Path) -> None:
+    path = tmp_path / "capped.txt"
+    capped, _ = cap_content_for_storage("z\n" * (MAX_STORED_CHARS // 2 + 100))
+    path.write_text(capped, encoding="utf-8")
+    page = read_evicted_line_range(path, offset=0, limit=10)
+    assert page.storage_truncated is True
+    assert page.original_chars is not None

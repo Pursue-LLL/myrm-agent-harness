@@ -130,14 +130,14 @@ class TestPersistToDisk:
         g = ContextBudgetGuard(max_result_chars=100)
 
         def _fail_write(*_args: object, **_kwargs: object) -> object:
-            from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+            from myrm_agent_harness.agent.context_management.infra.evicted import (
                 EvictedPersistResult,
             )
 
             return EvictedPersistResult(evicted_ref=None, rel_path=None, stored_chars=0)
 
         monkeypatch.setattr(
-            "myrm_agent_harness.agent.context_management.infra.evicted_content.write_evicted_content_sync",
+            "myrm_agent_harness.agent.context_management.infra.evicted.write_evicted_content_sync",
             _fail_write,
         )
         v = g.check_and_truncate("x" * 500, "tool")

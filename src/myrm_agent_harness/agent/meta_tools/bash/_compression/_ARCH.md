@@ -18,4 +18,4 @@ bash 输出压缩域：命令感知语义压缩（双引擎）、大输出即时
 
 - `.constants`（`BASH_OUTPUT_MAX_CHARS` 字符截断阈值单一事实源）
 - `agent.context_management.strategies.filter`（token 阈值）
-- `agent.context_management.infra.evicted_content`（落盘 + footer）
+- `agent.context_management.infra.evicted`（落盘 + footer）

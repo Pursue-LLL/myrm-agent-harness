@@ -1,17 +1,17 @@
-"""Unit tests for tool_output_persister."""
+"""Unit tests for evicted persister (FilterProcessor delegate)."""
 
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+from myrm_agent_harness.agent.context_management.infra.evicted import (
     sanitize_evicted_source,
 )
-from myrm_agent_harness.agent.context_management.infra.tool_output_persister import (
+from myrm_agent_harness.agent.context_management.infra.evicted import (
     persist_large_tool_output,
 )
 
-_MOCK_PERSIST = "myrm_agent_harness.agent.context_management.infra.tool_output_persister.persist_evicted_content"
+_MOCK_PERSIST = "myrm_agent_harness.agent.context_management.infra.evicted.persister.persist_evicted_content"
 
 
 class TestSanitizeEvictedSource:

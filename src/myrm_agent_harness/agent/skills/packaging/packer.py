@@ -17,13 +17,17 @@
 Provides PackageResult, SkillPacker.
 """
 
+from __future__ import annotations
+
 import io
 import logging
 import zipfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
+from myrm_agent_harness.agent.plugins.exporter import AgentPluginPacker, PluginPackageResult, canonical_plugin_name
 from myrm_agent_harness.agent.skills.market.sanitizer import SKILL_MD_FILE
 from myrm_agent_harness.backends.skills.protocols import SkillBackend
 
@@ -45,8 +49,11 @@ class PackageResult:
 class SkillPacker:
     """技能打包器"""
 
+    def __init__(self) -> None:
+        self._plugin_packer = AgentPluginPacker()
+
     def package_files(self, skill_name: str, version: str, file_contents: Mapping[str, bytes | str]) -> PackageResult:
-        """从文件字典打包为 ZIP"""
+        """从文件字典打包为 ZIP（基础格式）"""
         try:
             if SKILL_MD_FILE not in file_contents:
                 return PackageResult(
@@ -89,6 +96,36 @@ class SkillPacker:
                 filename=None,
                 error=str(e),
             )
+
+    def package_as_agent_plugin(
+        self,
+        skill_name: str,
+        version: str,
+        file_contents: Mapping[str, bytes | str],
+        *,
+        description: str | None = None,
+        author_name: str = "Myrm User",
+        keywords: list[str] | None = None,
+        mcp_servers: dict[str, Any] | None = None,
+        extra_extensions: dict[str, Any] | None = None,
+    ) -> PackageResult:
+        """从文件字典打包为标准 Agent Plugins 1.0.0 ZIP 包"""
+        res = self._plugin_packer.package_skill_as_plugin(
+            skill_name=skill_name,
+            file_contents=file_contents,
+            version=version,
+            description=description,
+            author_name=author_name,
+            keywords=keywords,
+            mcp_servers=mcp_servers,
+            extra_extensions=extra_extensions,
+        )
+        return PackageResult(
+            success=res.success,
+            zip_content=res.zip_content,
+            filename=res.filename,
+            error=res.error,
+        )
 
     async def package_from_backend(self, backend: SkillBackend, skill_name: str) -> PackageResult:
         """将已注册的技能（通过 SkillBackend 读取）打包为 ZIP"""

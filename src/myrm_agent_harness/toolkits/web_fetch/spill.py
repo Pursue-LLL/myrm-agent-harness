@@ -88,7 +88,14 @@ async def maybe_spill_web_fetch_content(
     preview = smart_truncate(content, preview_chars)
     if evicted_ref and persist_result.rel_path:
         head_part = preview.split("\n\n[Truncated:")[0] if "[Truncated:" in preview else preview
-        preview = f"{preview}{cbs.build_footer(evicted_basename=evicted_ref, head_text=head_part, rel_path=persist_result.rel_path)}"
+        preview = f"{preview}{cbs.build_footer(
+            evicted_basename=evicted_ref,
+            head_text=head_part,
+            rel_path=persist_result.rel_path,
+            storage_truncated=persist_result.storage_truncated,
+            original_chars=persist_result.original_chars,
+            stored_chars=persist_result.stored_chars,
+        )}"
     elif evicted_ref:
         preview = (
             f"{preview}\n\nFull page saved to sandbox storage. "

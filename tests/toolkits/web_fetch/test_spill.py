@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+from myrm_agent_harness.agent.context_management.infra.evicted import (
     build_delivery_footer,
     emit_evicted_ref,
     persist_evicted_content,
@@ -68,7 +68,7 @@ async def test_spill_persist_failure_still_returns_preview(tmp_path, monkeypatch
         raise OSError("disk full")
 
     monkeypatch.setattr(
-        "myrm_agent_harness.agent.context_management.infra.evicted_content.async_atomic_write",
+        "myrm_agent_harness.agent.context_management.infra.evicted.content.async_atomic_write",
         _raise_write,
     )
     try:

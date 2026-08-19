@@ -180,7 +180,7 @@ async def test_bash_tool_failure_emits_stderr_evicted_ref():
         tool = create_bash_code_execute_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref",
+                "myrm_agent_harness.agent.context_management.infra.evicted.emit_evicted_ref",
                 new=AsyncMock(),
             ) as mock_emit,
             pytest.raises(ToolError) as exc_info,
@@ -217,7 +217,7 @@ async def test_bash_tool_failure_emits_both_streams_evicted_refs():
         tool = create_bash_code_execute_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref",
+                "myrm_agent_harness.agent.context_management.infra.evicted.emit_evicted_ref",
                 new=AsyncMock(),
             ) as mock_emit,
             pytest.raises(ToolError),
@@ -269,7 +269,7 @@ async def test_bash_tool_emit_failure_does_not_mask_original_error() -> None:
         tool = create_bash_code_execute_tool()
         with (
             patch(
-                "myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref",
+                "myrm_agent_harness.agent.context_management.infra.evicted.emit_evicted_ref",
                 new=AsyncMock(side_effect=RuntimeError("emit down")),
             ),
             pytest.raises(ToolError) as exc_info,
@@ -297,7 +297,7 @@ async def test_bash_tool_success_emits_stderr_evicted_ref() -> None:
     with p_ctx, p_get, p_be, p_scope:
         tool = create_bash_code_execute_tool()
         with patch(
-            "myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref",
+            "myrm_agent_harness.agent.context_management.infra.evicted.emit_evicted_ref",
             new=AsyncMock(),
         ) as mock_emit:
             await tool.ainvoke({"command": "ls -la", "reason": "verify success-path stderr emit"})

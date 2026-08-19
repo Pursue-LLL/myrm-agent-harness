@@ -201,7 +201,7 @@ def get_evicted_output_path(session_id: str, *, source: str = "output", ext: str
         '/persistent/.context/chat_abc123/evicted/output_a3f5c8d1.txt'
 
     """
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         build_evicted_basename,
     )
 

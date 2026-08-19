@@ -1,4 +1,4 @@
-"""Tests for unified evicted content delivery (UECD)."""
+"""Tests for unified evicted content delivery (UECD content module)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+from myrm_agent_harness.agent.context_management.infra.evicted import (
     EVICTED_BASENAME_PATTERN,
     MAX_STORED_CHARS,
     build_delivery_footer,
@@ -82,6 +82,35 @@ def test_build_delivery_footer_head_ending_with_newline_offsets_by_one() -> None
     assert 'paths=[".context/chat1/evicted/output_abcd1234.txt:3-"]' in footer
 
 
+def test_build_delivery_footer_storage_truncated_includes_cap_notice() -> None:
+    footer = build_delivery_footer(
+        evicted_basename="output_abcd1234.txt",
+        rel_path=".context/chat1/evicted/output_abcd1234.txt",
+        storage_truncated=True,
+        original_chars=5_000_000,
+        stored_chars=2_000_000,
+    )
+    assert "Stored copy capped at 2,000,000 chars of 5,000,000 original chars" in footer
+    assert "not on disk" in footer
+
+
+def test_write_evicted_content_sync_records_original_chars_when_capped(tmp_path) -> None:
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
+        write_evicted_content_sync,
+    )
+
+    w_tok = workspace_root_var.set(str(tmp_path))
+    c_tok = chat_id_var.set("chat_cap_sync")
+    try:
+        body = "x" * (MAX_STORED_CHARS + 50)
+        result = write_evicted_content_sync(body, "output", ext="txt")
+        assert result.storage_truncated is True
+        assert result.original_chars == len(body)
+    finally:
+        workspace_root_var.reset(w_tok)
+        chat_id_var.reset(c_tok)
+
+
 @pytest.mark.asyncio
 async def test_persist_evicted_content_writes_file(tmp_path) -> None:
     workspace = tmp_path
@@ -148,7 +177,7 @@ def test_build_evicted_basename_truncates_long_source() -> None:
 
 @pytest.mark.asyncio
 async def test_emit_evicted_ref_dispatches_event() -> None:
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         emit_evicted_ref,
     )
 
@@ -166,7 +195,7 @@ async def test_emit_evicted_ref_dispatches_event() -> None:
 @pytest.mark.asyncio
 async def test_emit_evicted_ref_stderr_stream_marker() -> None:
     """stderr eviction must carry a stream marker so the GUI stores it separately."""
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         emit_evicted_ref,
     )
 
@@ -198,7 +227,7 @@ async def test_emit_evicted_ref_stderr_stream_marker() -> None:
 @pytest.mark.asyncio
 async def test_emit_evicted_ref_default_stream_omitted() -> None:
     """Default stdout stream must not pollute the payload (backwards compatible)."""
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         emit_evicted_ref,
     )
 
@@ -218,7 +247,7 @@ def test_build_evicted_basename_normalizes_invalid_extension() -> None:
 
 
 def test_write_evicted_content_sync_without_session_context() -> None:
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         write_evicted_content_sync,
     )
 
@@ -228,7 +257,7 @@ def test_write_evicted_content_sync_without_session_context() -> None:
 
 
 def test_write_evicted_content_sync_success(tmp_path) -> None:
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         write_evicted_content_sync,
     )
 
@@ -244,7 +273,7 @@ def test_write_evicted_content_sync_success(tmp_path) -> None:
 
 
 def test_write_evicted_content_sync_oserror(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    from myrm_agent_harness.agent.context_management.infra.evicted import (
         write_evicted_content_sync,
     )
 
@@ -252,7 +281,7 @@ def test_write_evicted_content_sync_oserror(tmp_path, monkeypatch: pytest.Monkey
     c_tok = chat_id_var.set("chat_oserror")
     try:
         monkeypatch.setattr(
-            "myrm_agent_harness.agent.context_management.infra.evicted_content.Path.write_text",
+            "myrm_agent_harness.agent.context_management.infra.evicted.content.Path.write_text",
             lambda *_a, **_k: (_ for _ in ()).throw(OSError("disk full")),
         )
         result = write_evicted_content_sync("payload", "output")
@@ -274,7 +303,7 @@ async def test_persist_evicted_content_oserror(tmp_path, monkeypatch: pytest.Mon
     c_tok = chat_id_var.set("chat_async_oserror")
     try:
         monkeypatch.setattr(
-            "myrm_agent_harness.agent.context_management.infra.evicted_content.async_atomic_write",
+            "myrm_agent_harness.agent.context_management.infra.evicted.content.async_atomic_write",
             AsyncMock(side_effect=OSError("disk full")),
         )
         result = await persist_evicted_content("payload", "web_fetch")

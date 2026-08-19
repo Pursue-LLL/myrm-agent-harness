@@ -8,7 +8,7 @@
 - file_read_handlers::build_multimodal_result, append_media_text_parts, process_text_paths (POS: file_read 执行处理器)
 - file_search.path_hint::suggest_similar_paths, format_path_not_found_hint (POS: 路径不存在时的相似路径提示)
 - file_search.skill_path_filter::get_disabled_skill_roots, is_under_disabled_skill_root (POS: disabled skill 路径拦截)
-- context_management.infra.evicted_content::normalize_delivery_chat_id (POS: UECD 会话 id 归一化，读写侧对称)
+- context_management.infra.evicted::normalize_delivery_chat_id (POS: UECD 会话 id 归一化，读写侧对称)
 - utils.vault_read::is_vault_uri, path_base, read_vault_paths_to_parts (POS: vault:// URI 读取)
 |- mcp_read_next_step_hint::append_mcp_docs_next_step_hint (POS: MCP 函数文档批量读取后的下一步操作提示)
 - utils.*_reader (POS: 多模态与文档读取)
@@ -40,7 +40,7 @@ from pydantic import BaseModel, Field, field_validator
 from myrm_agent_harness.agent.context_management.context import (
     extract_context_from_runnable_config,
 )
-from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+from myrm_agent_harness.agent.context_management.infra.evicted import (
     normalize_delivery_chat_id,
 )
 from myrm_agent_harness.agent.meta_tools.file_search.path_hint import (
@@ -105,7 +105,7 @@ async def _assert_evicted_uploaded_read_scope(
     executor: object | None,
 ) -> None:
     """Restrict reads to UECD spill files and chat uploads (Fast / search track)."""
-    # Persist side normalizes chat_<id> session keys to <id> (evicted_content.py);
+    # Persist side normalizes chat_<id> session keys to <id> (infra/evicted/content.py);
     # mirror it here so saved paths match the read scope check.
     session_chat_id = normalize_delivery_chat_id(chat_id.strip() or chat_id_var.get().strip())
     if not session_chat_id:

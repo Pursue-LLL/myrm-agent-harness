@@ -8,7 +8,7 @@ Four layers of protection:
 
 [INPUT]
 - text_utils::smart_truncate (POS: Head+Tail truncation with intelligent tail detection)
-- infra.evicted_content::write_evicted_content_sync (UECD persist)
+- infra.evicted::write_evicted_content_sync (UECD persist)
 
 [OUTPUT]
 - BudgetVerdict: persisted / truncated / warning / ok (with details)
@@ -120,7 +120,7 @@ class ContextBudgetGuard:
 
         Returns (summary, rel_path, evicted_basename, stored_chars, total_lines, storage_truncated) or None.
         """
-        from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        from myrm_agent_harness.agent.context_management.infra.evicted import (
             build_delivery_footer,
             sanitize_evicted_source,
             write_evicted_content_sync,
@@ -139,6 +139,9 @@ class ContextBudgetGuard:
             evicted_basename=result.evicted_ref,
             head_text=head,
             rel_path=result.rel_path,
+            storage_truncated=result.storage_truncated,
+            original_chars=result.original_chars,
+            stored_chars=result.stored_chars,
         )
         tail = content[-_PREVIEW_CHARS:] if len(content) > _PREVIEW_CHARS * 2 else ""
         if tail:

@@ -87,7 +87,11 @@ def _apply_tool_surface_names(
     result = description
     for agent_name, mcp_name in _AGENT_TO_MCP_TOOL_REPLACEMENTS:
         result = result.replace(agent_name, mcp_name)
-    extras = _MCP_SURFACE_EXTRA_REPLACEMENTS_ZH if is_chinese(locale) else _MCP_SURFACE_EXTRA_REPLACEMENTS_EN
+    extras = (
+        _MCP_SURFACE_EXTRA_REPLACEMENTS_ZH
+        if is_chinese(locale)
+        else _MCP_SURFACE_EXTRA_REPLACEMENTS_EN
+    )
     for old, new in extras:
         result = result.replace(old, new)
     return result
@@ -126,10 +130,10 @@ MEMORY_SAVE_CORE_EN = """Store a new memory for the user. Memory persists across
 
 **CATEGORY GUIDE** (pick one):
 - knowledge: stable facts about user's world (project tech stack, environment details) — tags and importance apply here
-- event: significant past occurrences worth recalling (e.g., user started new project) — importance and tags are not stored for events
+- event: significant past occurrences worth recalling (e.g., user started new project) — do not specify importance or tags for events
 - preference: user likes/dislikes (requires preference_key)
-- rule: conditional behavioral rules (requires rule_trigger; optional rule_priority, rule_keywords)
-- instruction: global instructions that always apply (highest priority) — do not set rule_trigger
+- rule: conditional behavioral rules with a specific condition (requires rule_trigger, e.g., "when writing code"; optional rule_priority, rule_keywords)
+- instruction: unconditional global rules that always apply (e.g., "always reply in Chinese") — do not set rule_trigger
 
 **IMPORTANCE SCORING** (0–1, primarily for knowledge):
 - 0.8–1.0: User explicitly asked to remember / correction of your behavior
@@ -183,7 +187,7 @@ MEMORY_SAVE_CORE_ZH = """为用户存储新记忆。记忆跨会话持久化并�
 - 你发现用户环境/项目中短期内不会变的事实
 - 用户设定规则：「总是 X」「绝不 Y」
 
-**不要改用本工具的情况**：
+**何时禁止使用本工具（转用其他工具/机制）**：
 - 已召回的记忆事实有误 → 使用 memory_manage_tool，action=correct（不要重复 save）
 - 任务进度、会话结果、已完成工作日志 → 使用 memory_search_tool，corpus=sessions
 - 临时状态：PR 号、commit SHA、当前文件路径、进行中的事项
@@ -203,10 +207,10 @@ MEMORY_SAVE_CORE_ZH = """为用户存储新记忆。记忆跨会话持久化并�
 
 **类别指南**（择一）：
 - knowledge：用户世界的稳定事实（项目技术栈、环境细节）— 标签与重要性适用于此类
-- event：值得回忆的重要过往事件（如用户开始新项目）— event 不存储重要性与标签
+- event：值得回忆的重要过往事件（如用户开始新项目）— event 无需指定 importance 与 tags
 - preference：用户喜好/厌恶（需 preference_key）
-- rule：条件性行为规则（需 rule_trigger；可选 rule_priority、rule_keywords）
-- instruction：始终适用的全局指令（最高优先级）— 不要设置 rule_trigger
+- rule：包含具体触发条件的条件性行为规则（需 rule_trigger，如「写代码时」；可选 rule_priority、rule_keywords）
+- instruction：始终适用的无条件全局指令（如「始终用中文回复」）— 不要设置 rule_trigger
 
 **重要性评分**（0–1，主要用于 knowledge）：
 - 0.8–1.0：用户明确要求记住 / 纠正你的行为
@@ -290,13 +294,17 @@ def _build_memory_search_en(policy: MemorySearchPolicy) -> str:
         "- For memory retrieval only.",
     ]
     if policy.allow_sessions:
-        tip_lines.append('- For recent chats without a query, use corpus=sessions with query="*"')
+        tip_lines.append(
+            '- For recent chats without a query, use corpus=sessions with query="*"'
+        )
         tip_lines.append(
             "- When a sessions hit includes message_id and the user needs verbatim detail, "
             "call again with corpus=sessions, expand_conversation_id, and expand_message_id"
         )
     if policy.allow_web:
-        tip_lines.append("- Use corpus=web to re-query pages you've already searched or fetched")
+        tip_lines.append(
+            "- Use corpus=web to re-query pages you've already searched or fetched"
+        )
 
     context_parts = ["personal context", "preferences"]
     if policy.allow_wiki:
@@ -309,7 +317,10 @@ def _build_memory_search_en(policy: MemorySearchPolicy) -> str:
     return (
         f"Unified search across {_join_scope_fragments(scope_fragments)}.\n\n"
         f"Use when the user's question relates to {_join_scope_fragments(context_parts)}.\n\n"
-        "**Corpus guide**:\n" + "\n".join(corpus_lines) + "\n\n**Search tips**:\n" + "\n".join(tip_lines)
+        "**Corpus guide**:\n"
+        + "\n".join(corpus_lines)
+        + "\n\n**Search tips**:\n"
+        + "\n".join(tip_lines)
     )
 
 
@@ -364,7 +375,10 @@ def _build_memory_search_zh(policy: MemorySearchPolicy) -> str:
     return (
         f"跨{zh_join}的统一检索。\n\n"
         f"当用户问题涉及{context_join}时使用。\n\n"
-        "**Corpus 指南**：\n" + "\n".join(corpus_lines) + "\n\n**搜索技巧**：\n" + "\n".join(tip_lines)
+        "**Corpus 指南**：\n"
+        + "\n".join(corpus_lines)
+        + "\n\n**搜索技巧**：\n"
+        + "\n".join(tip_lines)
     )
 
 
@@ -417,11 +431,19 @@ def build_memory_save_tool_description(
     surface: MemoryToolDescriptionSurface = "agent",
 ) -> str:
     """Build memory_save_tool description (wiki boundary + approval vary by runtime)."""
-    parts: list[str] = [MEMORY_SAVE_CORE_ZH if is_chinese(locale) else MEMORY_SAVE_CORE_EN]
+    parts: list[str] = [
+        MEMORY_SAVE_CORE_ZH if is_chinese(locale) else MEMORY_SAVE_CORE_EN
+    ]
     if policy.allow_wiki:
-        parts.append(_wiki_boundary_fragment_zh() if is_chinese(locale) else _wiki_boundary_fragment_en())
+        parts.append(
+            _wiki_boundary_fragment_zh()
+            if is_chinese(locale)
+            else _wiki_boundary_fragment_en()
+        )
     if approval_required:
-        parts.append(_approval_fragment_zh() if is_chinese(locale) else _approval_fragment_en())
+        parts.append(
+            _approval_fragment_zh() if is_chinese(locale) else _approval_fragment_en()
+        )
     return _apply_tool_surface_names("\n\n".join(parts), surface=surface, locale=locale)
 
 
@@ -465,7 +487,11 @@ def resolve_memory_manage_tool_description(
     *,
     surface: MemoryToolDescriptionSurface = "agent",
 ) -> str:
-    base = MEMORY_MANAGE_TOOL_DESCRIPTION_ZH if is_chinese(locale) else MEMORY_MANAGE_TOOL_DESCRIPTION_EN
+    base = (
+        MEMORY_MANAGE_TOOL_DESCRIPTION_ZH
+        if is_chinese(locale)
+        else MEMORY_MANAGE_TOOL_DESCRIPTION_EN
+    )
     return _apply_tool_surface_names(base, surface=surface, locale=locale)
 
 

@@ -24,7 +24,7 @@ from myrm_agent_harness.agent._internals.memory_extraction import (
     create_extraction_llm_func,
     persist_extracted_memories,
 )
-from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+from myrm_agent_harness.agent.context_management.infra.evicted import (
     EVICTED_BASENAME_PATTERN,
     build_evicted_basename,
 )

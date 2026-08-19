@@ -21,7 +21,7 @@ _EXECUTORS = "myrm_agent_harness.toolkits.code_execution.executors.base"
 _STORAGE = "myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind"
 _CORE = "myrm_agent_harness.core.context_vars"
 _APPROVAL = "myrm_agent_harness.agent.middlewares.approval"
-_EVICTED = "myrm_agent_harness.agent.context_management.infra.evicted_content"
+_EVICTED = "myrm_agent_harness.agent.context_management.infra.evicted"
 _CTX_MGMT = "myrm_agent_harness.agent.context_management.context"
 
 

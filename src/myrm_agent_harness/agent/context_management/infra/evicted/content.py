@@ -7,6 +7,7 @@ work consistently across bash, web_fetch, MCP, and FilterProcessor backup paths.
 [INPUT]
 - core.context_vars::workspace_root_var, chat_id_var
 - infra.atomic_write::async_atomic_write
+- evicted.markers::format_storage_cap_marker
 
 [OUTPUT]
 - cap_content_for_storage, build_evicted_basename, build_delivery_footer
@@ -15,7 +16,7 @@ work consistently across bash, web_fetch, MCP, and FilterProcessor backup paths.
 - normalize_delivery_chat_id
 
 [POS]
-SSOT for sandbox evicted content delivery (agent context_management infra).
+SSOT for sandbox evicted content delivery (agent context_management infra/evicted).
 """
 
 from __future__ import annotations
@@ -27,6 +28,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.context_management.infra.evicted.markers import (
+    format_storage_cap_marker,
+)
 from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
 from myrm_agent_harness.infra.atomic_write import async_atomic_write
 
@@ -37,10 +41,6 @@ logger = logging.getLogger(__name__)
 
 MAX_STORED_CHARS = 2_000_000
 MAX_PREVIEW_STDOUT_CHARS = 8_000
-_TRUNCATION_MARKER_TEMPLATE = (
-    "\n\n[... stored copy truncated at {cap:,} chars of {original:,}; "
-    "re-fetch or read a narrower URL for the remainder ...]"
-)
 
 _SOURCE_SANITIZE_RE = re.compile(r"[^a-zA-Z0-9_-]")
 _MAX_SOURCE_LEN = 32
@@ -92,16 +92,14 @@ class EvictedPersistResult:
     stored_chars: int
     total_lines: int = 0
     storage_truncated: bool = False
+    original_chars: int = 0
 
 
 def cap_content_for_storage(content: str, *, max_chars: int = MAX_STORED_CHARS) -> tuple[str, bool]:
     """Cap content before writing to Volume; returns (text, was_truncated)."""
     if len(content) <= max_chars:
         return content, False
-    capped = content[:max_chars] + _TRUNCATION_MARKER_TEMPLATE.format(
-        cap=max_chars,
-        original=len(content),
-    )
+    capped = content[:max_chars] + format_storage_cap_marker(cap=max_chars, original=len(content))
     return capped, True
 
 
@@ -130,6 +128,9 @@ def build_delivery_footer(
     evicted_basename: str,
     head_text: str | None = None,
     rel_path: str | None = None,
+    storage_truncated: bool = False,
+    original_chars: int | None = None,
+    stored_chars: int | None = None,
 ) -> str:
     """Actionable footer telling the model how to read omitted content.
 
@@ -137,6 +138,10 @@ def build_delivery_footer(
     ``start_line`` is unknown (e.g. structural summaries with no line mapping),
     the footer falls back to a plain full-file read so the model is never
     pointed at a misleading offset.
+
+    When ``storage_truncated`` is true, warns the model that the on-disk copy
+    is capped (``MAX_STORED_CHARS``) so it does not assume the file holds the
+    full original output.
     """
     start_line = _footer_start_line(head_text)
     path_hint = rel_path if rel_path else f".context/.../evicted/{evicted_basename}"
@@ -144,10 +149,18 @@ def build_delivery_footer(
         read_cmd = f'file_read_tool(paths=["{path_hint}:{start_line}-"])'
     else:
         read_cmd = f'file_read_tool(paths=["{path_hint}"])'
-    return (
+    footer = (
         f"\n\nFull content saved to sandbox storage: {path_hint}\n"
         f"Use {read_cmd} to read omitted sections. GUI users can open View full output."
     )
+    if storage_truncated:
+        stored = stored_chars if stored_chars is not None else MAX_STORED_CHARS
+        original = original_chars if original_chars is not None else stored
+        footer += (
+            f"\nNOTE: Stored copy capped at {stored:,} chars of {original:,} original chars; "
+            "content beyond this limit is not on disk — re-run with a narrower scope or grep."
+        )
+    return footer
 
 
 def _footer_start_line(head_text: str | None) -> int | None:
@@ -201,8 +214,9 @@ def write_evicted_content_sync(
         return EvictedPersistResult(evicted_ref=None, rel_path=None, stored_chars=0)
 
     basename, rel_path, abs_path = target
+    original_chars = len(content)
     capped, storage_truncated = cap_content_for_storage(content)
-    from myrm_agent_harness.agent.context_management.infra.evicted_reader import (
+    from myrm_agent_harness.agent.context_management.infra.evicted.reader import (
         count_lines_in_text,
     )
 
@@ -218,6 +232,7 @@ def write_evicted_content_sync(
             stored_chars=len(capped),
             total_lines=total_lines,
             storage_truncated=storage_truncated,
+            original_chars=original_chars,
         )
     except OSError as exc:
         logger.warning("[EvictedContent] Failed to persist: %s", exc)
@@ -236,8 +251,9 @@ async def persist_evicted_content(
         return EvictedPersistResult(evicted_ref=None, rel_path=None, stored_chars=0)
 
     basename, rel_path, abs_path = target
+    original_chars = len(content)
     capped, storage_truncated = cap_content_for_storage(content)
-    from myrm_agent_harness.agent.context_management.infra.evicted_reader import (
+    from myrm_agent_harness.agent.context_management.infra.evicted.reader import (
         count_lines_in_text,
     )
 
@@ -253,6 +269,7 @@ async def persist_evicted_content(
             stored_chars=len(capped),
             total_lines=total_lines,
             storage_truncated=storage_truncated,
+            original_chars=original_chars,
         )
     except OSError as exc:
         logger.warning("[EvictedContent] Failed to persist: %s", exc)

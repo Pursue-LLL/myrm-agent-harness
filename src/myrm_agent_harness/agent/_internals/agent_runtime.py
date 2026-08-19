@@ -521,7 +521,7 @@ async def run_agent_loop(
                 )
             )
 
-        from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        from myrm_agent_harness.agent.context_management.infra.evicted import (
             build_delivery_footer,
             emit_evicted_ref,
             persist_evicted_content,

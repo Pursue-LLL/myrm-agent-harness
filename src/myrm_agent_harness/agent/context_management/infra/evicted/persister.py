@@ -1,14 +1,10 @@
 """Large tool output persister — delegates to UECD evicted directory.
 
-Saves oversized tool results to `.context/{chat_id}/evicted/` before FilterProcessor
-truncates them, so the agent can read full content via file_read_tool and GUI users
-can open the evicted drawer.
-
 [INPUT]
-- agent.context_management.infra.evicted_content::persist_evicted_content
+- evicted.content::persist_evicted_content, sanitize_evicted_source
 
 [OUTPUT]
-- persist_large_tool_output: Persist large tool output; returns workspace-relative path.
+- persist_large_tool_output
 
 [POS]
 FilterProcessor backup persist layer (replaces legacy .myrm/artifacts path).
@@ -18,7 +14,7 @@ from __future__ import annotations
 
 import logging
 
-from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+from myrm_agent_harness.agent.context_management.infra.evicted.content import (
     persist_evicted_content,
     sanitize_evicted_source,
 )

@@ -303,7 +303,7 @@ def create_bash_code_execute_tool(
 
             evicted_ref = result.get("evicted_ref")
             if evicted_ref and isinstance(evicted_ref, str):
-                from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+                from myrm_agent_harness.agent.context_management.infra.evicted import (
                     emit_evicted_ref,
                 )
 
@@ -321,7 +321,7 @@ def create_bash_code_execute_tool(
 
             stderr_evicted_ref = result.get("stderr_evicted_ref")
             if stderr_evicted_ref and isinstance(stderr_evicted_ref, str):
-                from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+                from myrm_agent_harness.agent.context_management.infra.evicted import (
                     emit_evicted_ref,
                 )
 
@@ -371,7 +371,7 @@ def create_bash_code_execute_tool(
                     diagnostic = {"error_category": e.error_category}
 
                 if e.stdout_evicted_ref or e.stderr_evicted_ref:
-                    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+                    from myrm_agent_harness.agent.context_management.infra.evicted import (
                         emit_evicted_ref,
                     )
 

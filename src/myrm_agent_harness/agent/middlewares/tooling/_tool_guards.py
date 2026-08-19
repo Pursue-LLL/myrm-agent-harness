@@ -500,7 +500,7 @@ async def run_post_call_guards(
             budget_verdict.persisted_path,
         )
         if budget_verdict.evicted_ref:
-            from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+            from myrm_agent_harness.agent.context_management.infra.evicted import (
                 emit_evicted_ref,
             )
 

@@ -97,18 +97,45 @@ class MockSkillBackend(SkillBackend):
 
 
 @pytest.mark.asyncio
-async def test_package_from_backend():
-    backend = MockSkillBackend()
+async def test_package_as_agent_plugin_roundtrip():
+    from myrm_agent_harness.agent.plugins.parser import AgentPluginParser
+
     packer = SkillPacker()
+    files = {
+        "SKILL.md": b"---\nname: my_test_skill\nversion: 1.2.0\ndescription: Test skill description\n---\n# My Test Skill Content",
+        "scripts/helper.py": "def add(a, b): return a + b",
+    }
 
-    result = await packer.package_from_backend(backend, "backend_skill")
+    result = packer.package_as_agent_plugin(
+        skill_name="my_test_skill",
+        version="1.2.0",
+        file_contents=files,
+        description="A great test skill",
+        keywords=["test", "demo"],
+    )
+
     assert result.success
-    assert result.filename == "backend_skill_v2.1.0.zip"
+    assert result.filename == "my-test-skill_v1.2.0.zip"
+    assert result.zip_content is not None
 
-    with zipfile.ZipFile(io.BytesIO(result.zip_content), "r") as zf:
-        assert "backend_skill/SKILL.md" in zf.namelist()
-        assert "backend_skill/res.txt" in zf.namelist()
-        assert zf.read("backend_skill/res.txt") == b"resource data"
+    # 反向自解测试：使用 AgentPluginParser 解析导出的 zip
+    parser = AgentPluginParser()
+    parse_result = parser.parse_zip(result.zip_content)
+
+    assert parse_result.meta is not None
+    assert parse_result.meta.name == "my-test-skill"
+    assert parse_result.meta.version == "1.2.0"
+    assert parse_result.meta.description == "A great test skill"
+    assert parse_result.meta.keywords == ("test", "demo")
+
+    # 验证技能解析结果
+    assert len(parse_result.skills) == 1
+    skill = parse_result.skills[0]
+    assert skill.name == "my-test-skill"
+    assert "scripts/helper.py" in skill.files
+    assert skill.files["scripts/helper.py"].decode("utf-8") == "def add(a, b): return a + b"
+    assert len(parse_result.diagnostics) == 0
+
 
 
 @pytest.mark.asyncio

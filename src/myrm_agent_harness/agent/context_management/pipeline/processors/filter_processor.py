@@ -9,11 +9,11 @@
 - _output_eviction 是第一道防线（即时，仅 bash 工具）
 - FilterProcessor 是第二道防线（延迟，所有 ToolMessage）
 - bash 输出经过 eviction 后已很小，不会触发 FilterProcessor
-- all tools → FilterProcessor → tool_output_persister → UECD `.context/.../evicted/`
+- all tools → FilterProcessor → infra.evicted.persister → UECD `.context/.../evicted/`
 
 [INPUT]
 - infra.retention_helpers::build_tool_call_group_by_id, should_retain_tool_message, extract_* (POS: cross-processor retention contract)
-- infra.tool_output_persister::persist_large_tool_output (POS: UECD evicted overflow persistence)
+- infra.evicted::persist_large_tool_output (POS: UECD evicted overflow persistence)
 - strategies.filter::create_filtered_result, should_filter (POS: tool result filter)
 
 [OUTPUT]
@@ -45,7 +45,7 @@ from ...infra.schemas import (
     ContextConfig,
     ToolProtectionConfig,
 )
-from ...infra.tool_output_persister import persist_large_tool_output
+from ...infra.evicted import persist_large_tool_output
 from ...infra.tool_result_trimming import trim_tool_result_content
 from ...strategies.filter import (
     create_filtered_result,
