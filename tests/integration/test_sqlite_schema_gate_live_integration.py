@@ -33,7 +33,6 @@ from myrm_agent_harness.utils.db.sqlite import (
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
-@pytest.mark.integration
 def test_sqlite_schema_gate_sync_live_lifecycle(tmp_path: Path) -> None:
     """Synchronous real SQLite connection lifecycle validation against SchemaGate."""
     db_file = tmp_path / "live_sync_gate.db"
@@ -107,7 +106,6 @@ def test_sqlite_schema_gate_sync_live_lifecycle(tmp_path: Path) -> None:
         assert "missing required tables [sessions]" in str(exc_info.value)
 
 
-@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_sqlite_schema_gate_async_live_lifecycle(tmp_path: Path) -> None:
     """Asynchronous real aiosqlite connection lifecycle validation against SchemaGate."""
@@ -147,7 +145,6 @@ async def test_sqlite_schema_gate_async_live_lifecycle(tmp_path: Path) -> None:
         assert exc_info.value.expected_version == 8
 
 
-@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_migration_engine_live_full_stack_integration(tmp_path: Path) -> None:
     """Full-stack migration engine run atomically synchronizes user_version."""

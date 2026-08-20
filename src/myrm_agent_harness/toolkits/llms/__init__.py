@@ -32,7 +32,7 @@ _LAZY_IMPORTS = {
     "llm_manager": ("myrm_agent_harness.toolkits.llms.core.manager", "llm_manager"),
     "FallbackModel": ("myrm_agent_harness.toolkits.llms.fallback.managed_llm", "FallbackModel"),
     "ManagedLLM": ("myrm_agent_harness.toolkits.llms.fallback.managed_llm", "ManagedLLM"),
-    "ScenarioType": ("myrm_agent_harness.toolkits.llms.fallback.recommendations", "ScenarioType"),
+    "ScenarioType": ("myrm_agent_harness.toolkits.llms.fallback.scenario", "ScenarioType"),
     "ErrorKind": ("myrm_agent_harness.toolkits.llms.errors.classifier", "ErrorKind"),
     "classify_error": ("myrm_agent_harness.toolkits.llms.errors.classifier", "classify_error"),
     "extract_retry_after": ("myrm_agent_harness.toolkits.llms.errors.classifier", "extract_retry_after"),

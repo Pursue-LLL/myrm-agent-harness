@@ -93,3 +93,49 @@ def test_evaluate_retrieval_assertions_missing_tail_span() -> None:
     passed, details = evaluate_retrieval_assertions([assertion], hits)
     assert passed is False
     assert "span recall" in (details or "").lower()
+
+
+def test_evaluate_retrieval_assertions_empty_hits() -> None:
+    assertion = RetrievalAssertion(expected_spans=("some text",))
+    passed, details = evaluate_retrieval_assertions([assertion], [])
+    assert passed is False
+    assert "No hits retrieved" in (details or "")
+
+
+def test_evaluate_retrieval_assertions_empty_assertions() -> None:
+    passed, details = evaluate_retrieval_assertions([], [{"content": "hit"}])
+    assert passed is None
+    assert details is None
+
+
+def test_evaluate_retrieval_assertions_doc_id_mismatch() -> None:
+    hits = [{"doc_id": "doc_A", "content": "Sample content", "source_path": "a.md"}]
+    assertion = RetrievalAssertion(expected_doc_ids=("doc_B",))
+    passed, details = evaluate_retrieval_assertions([assertion], hits)
+    assert passed is False
+    assert "missing expected doc_ids" in (details or "")
+
+
+def test_evaluate_retrieval_assertions_duplicate_rate_exceeded() -> None:
+    hits = [
+        {"doc_id": "doc_A", "content": "Chunk 1", "source_path": "a.md"},
+        {"doc_id": "doc_A", "content": "Chunk 2", "source_path": "a.md"},
+        {"doc_id": "doc_A", "content": "Chunk 3", "source_path": "a.md"},
+    ]
+    # 3 hits, 1 unique source -> dup rate = 2/3 = 0.67 > 0.5
+    assertion = RetrievalAssertion(max_duplicate_rate=0.5)
+    passed, details = evaluate_retrieval_assertions([assertion], hits)
+    assert passed is False
+    assert "duplicate rate" in (details or "")
+
+
+def test_evaluate_retrieval_assertions_distinct_sources_insufficient() -> None:
+    hits = [
+        {"doc_id": "doc_A", "content": "Chunk 1", "source_path": "a.md"},
+        {"doc_id": "doc_A", "content": "Chunk 2", "source_path": "a.md"},
+    ]
+    assertion = RetrievalAssertion(min_distinct_sources=2)
+    passed, details = evaluate_retrieval_assertions([assertion], hits)
+    assert passed is False
+    assert "distinct sources" in (details or "")
+

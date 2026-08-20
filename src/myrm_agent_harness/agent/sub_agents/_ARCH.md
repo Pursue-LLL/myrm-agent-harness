@@ -12,6 +12,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | __init__.py | Package | Sub-agent subsystem — lifecycle management and configuration loading. | — |
 | budget.py | Core | Delegation budget guard. Tracks descendant spawn count for one root run. | ✅ |
 | builder.py | Core | Subagent construction helpers — tool filtering via DelegationCapabilityManifest + delegation_policy, model resolution, token merge. | ✅ |
+| checkpointer.py | Core | Shared in-memory checkpointer singleton (`get_subagent_checkpointer`, `delete_subagent_checkpoint`) for subagent HITL approval thread isolation. | ✅ |
 | delegation_policy.py | Core | Server-extensible L1 leaf blocklist (`register_leaf_blocked_tools`). | ✅ |
 | hitl_tool_policy.py | Core | Import-safe HITL tool policy SSOT (`HitlToolPolicy`, `HITL_TOOL_POLICY`) used by `types.py` for leaf blocking. | ✅ |
 | config_loader.py | Config | External config loader. YAML validation (Pydantic + Action Tool SSOT + regex tool names). | ✅ |

@@ -105,11 +105,13 @@ class StatefulMigrationEngine:
         table_name: str = "_schema_migrations",
         baseline_check_sql: str | None = None,
         slow_threshold_ms: float = 100.0,
+        sync_user_version: bool = True,
     ):
         self.engine = engine
         self.table_name = table_name
         self.baseline_check_sql = baseline_check_sql
         self.slow_threshold_ms = slow_threshold_ms
+        self.sync_user_version = sync_user_version
 
     def _compute_checksum(self, sql: str) -> str:
         """Compute SHA-256 checksum of the SQL statement."""
@@ -169,7 +171,7 @@ class StatefulMigrationEngine:
                         _sql_text(insert_sql),
                         {"version": m.version, "checksum": "baselined:" + checksum},
                     )
-                if migrations:
+                if self.sync_user_version and migrations:
                     max_v = max(m.version for m in migrations)
                     await conn.execute(_sql_text(f"PRAGMA user_version = {max_v}"))
             report.skipped_count = len(migrations)
@@ -253,7 +255,7 @@ class StatefulMigrationEngine:
                 break
 
         # Sync PRAGMA user_version to latest applied migration version
-        if migrations and report.failed_count == 0:
+        if self.sync_user_version and migrations and report.failed_count == 0:
             max_v = max(m.version for m in migrations)
             try:
                 async with self.engine.begin() as conn:
