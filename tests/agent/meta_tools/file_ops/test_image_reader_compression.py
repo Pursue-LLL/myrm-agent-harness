@@ -120,10 +120,10 @@ class TestReadImageThresholdStrategy:
         medium_bytes = b"\x00" * (6 * 1024 * 1024)
 
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.image_reader._reactive_compress"
+            "myrm_agent_harness.agent.meta_tools.file_ops.utils.image_reader._ladder_compress"
         ) as mock_compress:
             fake_jpeg = _make_jpeg_bytes(4096, 3000)
-            mock_compress.return_value = fake_jpeg
+            mock_compress.return_value = (fake_jpeg, (4096, 3000))
 
             executor = AsyncMock()
             executor.read_file_bytes.return_value = medium_bytes

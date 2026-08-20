@@ -68,3 +68,27 @@ class TestStreamRepetitionScrubber:
             assert res is not None
 
         assert not scrubber.detected
+
+    def test_split_backtick_across_chunks(self) -> None:
+        """Backticks split across chunk boundaries (e.g. `` + `) are accurately detected."""
+        scrubber = StreamRepetitionScrubber()
+
+        # Split ``` across chunks
+        chunks = [
+            "Here is the code:\n``",  # Chunk 1 ends with 2 backticks
+            "`python\n",               # Chunk 2 starts with 1 backtick
+            "print('Hello world 01')\n",
+            "print('Hello world 02')\n",
+            "print('Hello world 03')\n",
+            "print('Hello world 04')\n",
+            "print('Hello world 05')\n",
+            "``",                      # Chunk 8 ends with 2 backticks
+            "`\nDone!",                # Chunk 9 completes closing fence
+        ]
+
+        for chunk in chunks:
+            res = scrubber.process(chunk)
+            assert res is not None
+
+        assert scrubber._in_code_block is False
+        assert scrubber.detected is False
