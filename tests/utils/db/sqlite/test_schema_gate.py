@@ -139,3 +139,69 @@ async def test_schema_gate_async_flow(tmp_path: Path) -> None:
         cursor = await conn.execute("PRAGMA user_version")
         row = await cursor.fetchone()
         assert row[0] == 2
+
+
+def test_schema_gate_sync_auto_initialize_disabled(tmp_path: Path) -> None:
+    """When auto_initialize_version is False on empty DB, version remains 0."""
+    db_file = tmp_path / "no_auto_init.db"
+    conn = sqlite3.connect(str(db_file))
+    caps = StorageCapabilities(schema_version=4, min_compatible_version=1)
+
+    version = validate_schema_gate_sync(
+        conn, caps, db_path=db_file, auto_initialize_version=False
+    )
+    assert version == 0
+
+    row = conn.execute("PRAGMA user_version").fetchone()
+    assert row[0] == 0
+    conn.close()
+
+
+def test_schema_gate_sync_existing_tables_with_zero_version_passes_if_not_strictly_out_of_bounds(
+    tmp_path: Path,
+) -> None:
+    """Legacy DB with tables but user_version=0 allows migration pass without crashing."""
+    db_file = tmp_path / "legacy_zero_version.db"
+    conn = sqlite3.connect(str(db_file))
+    conn.execute("CREATE TABLE legacy_items (id TEXT PRIMARY KEY)")
+    conn.commit()
+
+    caps = StorageCapabilities(schema_version=3, min_compatible_version=1)
+    # version=0 with existing tables should return 0 so migration engine can take over
+    version = validate_schema_gate_sync(
+        conn, caps, db_path=db_file, auto_initialize_version=True
+    )
+    assert version == 0
+    conn.close()
+
+
+@pytest.mark.asyncio
+async def test_schema_gate_async_shape_mismatch_and_zero_version(
+    tmp_path: Path,
+) -> None:
+    """Async shape mismatch and auto_init=False on empty database."""
+    db_file = tmp_path / "async_shape.db"
+    caps = StorageCapabilities(
+        schema_version=3,
+        min_compatible_version=1,
+        required_tables=("required_a", "required_b"),
+    )
+
+    async with aiosqlite.connect(str(db_file)) as conn:
+        # 1. auto_init=False returns 0 on empty DB
+        ver = await validate_schema_gate_async(
+            conn, caps, db_path=db_file, auto_initialize_version=False
+        )
+        assert ver == 0
+
+        # 2. Seed partial tables and set user_version=2
+        await conn.execute("CREATE TABLE required_a (id TEXT)")
+        await conn.execute("PRAGMA user_version = 2")
+        await conn.commit()
+
+        # 3. Shape mismatch triggers SchemaShapeMismatchError
+        with pytest.raises(SchemaShapeMismatchError) as exc_info:
+            await validate_schema_gate_async(conn, caps, db_path=db_file)
+        assert "required_b" in str(exc_info.value)
+        assert exc_info.value.detected_version == 2
+
