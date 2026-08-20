@@ -6,12 +6,13 @@ if TYPE_CHECKING:
     from .core.manager import LLMManager, llm_manager
     from .errors.classifier import ErrorKind, classify_error, extract_retry_after, is_context_overflow
     from .errors.resilient import resilient_llm_call
-    from .fallback import ManagedLLM, ScenarioType
+    from .fallback import FallbackModel, ManagedLLM, ScenarioType
 
 __all__ = [
     "ChatLiteLLM",
     "CredentialPoolStrategy",
     "ErrorKind",
+    "FallbackModel",
     "LLMManager",
     "ManagedLLM",
     "ScenarioType",
@@ -29,6 +30,7 @@ _LAZY_IMPORTS = {
     "create_litellm_model": ("myrm_agent_harness.toolkits.llms.core.llm", "create_litellm_model"),
     "LLMManager": ("myrm_agent_harness.toolkits.llms.core.manager", "LLMManager"),
     "llm_manager": ("myrm_agent_harness.toolkits.llms.core.manager", "llm_manager"),
+    "FallbackModel": ("myrm_agent_harness.toolkits.llms.fallback.managed_llm", "FallbackModel"),
     "ManagedLLM": ("myrm_agent_harness.toolkits.llms.fallback.managed_llm", "ManagedLLM"),
     "ScenarioType": ("myrm_agent_harness.toolkits.llms.fallback.recommendations", "ScenarioType"),
     "ErrorKind": ("myrm_agent_harness.toolkits.llms.errors.classifier", "ErrorKind"),
