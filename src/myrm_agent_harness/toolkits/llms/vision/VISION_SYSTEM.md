@@ -11,7 +11,7 @@
 3. **实时状态通知**：通过 SSE 事件（`analyzing_image/video` + `analyzing_image/video_clear`）向前端通知处理状态
 4. **优雅降级**：失败时返回友好的错误信息，不影响整体请求流程
 5. 视频双策略：支持原生视频的模型（如 Gemini）直传，不支持的通过 ffmpeg 帧提取 + 视觉模型分析
-6. **Agent 视觉工具链**：`vision_semantic_tool`（together/ground/region/ocr）+ `vision_geometry_tool`（pixel_diff/crop），EXTENDED 层，仅 `vision-toolkit` skill 绑定时挂载
+6. **Agent 统一多模态读取**：收敛至 `file_read_tool`，支持原生 ImageBlock 直传与自适应降级，像素几何运算由沙箱代码执行接管
 7. **视频降级槽**：Settings `videoFallbackModel` 独立于 `visionFallbackModel`；Server `media_router` + chat/agent runtime context 注入 `video_fallback_model_cfgs`
 
 ## 系统架构
@@ -128,17 +128,16 @@ if not supports_vision and vision_fallback_model_cfg:
 - 设置/清除 message 的 `mediaAnalysisStatus` 字段
 - 读取 `vision_backend` 徽章（`vlm` / `frame` / `native_video`）并在 `MessageBox` 展示
 
-### 6. Agent Vision Toolkit (Harness EXTENDED)
+### 6. Agent File Vision Read & Dynamic Fallback
 
-**位置**: `myrm_agent_harness/toolkits/llms/vision/vision_agent_tools.py`
+**统一入口**: `file_read_tool` 多模态能力（`myrm_agent_harness/agent/meta_tools/file_ops/`）
 
-**工具**:
-- `vision_semantic_tool` — together / ground / region / ocr（VLM 链 + 末级 OCR tier）
-- `vision_geometry_tool` — pixel_diff / crop
+**处理机制**:
+- 视觉支持模型：返回原生 `ImageBlock`，模型直接通过 Cross-Attention 观察原图细节；
+- 纯文本模型：由 `build_multimodal_result` 自动调用 `VisionFallbackEngine` 转换为结构化文本描述；
+- 几何与图像处理：由智能体在沙箱环境中通过 `bash_code_execute_tool` 运行 Python (PIL/OpenCV) 脚本完成。
 
-**挂载**: `ToolLayer.EXTENDED` · prebuilt skill `vision-toolkit` · 每 turn 语义工具默认最多 3 次调用
-
-**Server 注入**: `GeneralAgentParams.video_fallback_model_cfgs` + `vision_fallback_model_cfgs` → agent runtime context → `file_read_tool` / chat 预处理；`create_vision_agent_tools` 仅消费 vision 槽（图像语义工具）
+**Server 注入**: `GeneralAgentParams.video_fallback_model_cfgs` + `vision_fallback_model_cfgs` → agent runtime context → `file_read_tool` / chat 预处理。
 
 ## 配置示例
 

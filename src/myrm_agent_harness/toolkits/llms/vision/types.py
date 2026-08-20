@@ -4,10 +4,10 @@
 None (foundational types module)
 
 [OUTPUT]
-VisionBackendKind, PerceptionMode, GeometryMode, VisionResult, BBox, VisionCacheKey
+VisionBackendKind, VisionResult, VisionCacheKey
 
 [POS]
-Vision toolkit SSOT types. Shared enums and result carriers for perception and geometry engines.
+Vision toolkit SSOT types. Shared enums and result carriers for fallback and video analysis engines.
 """
 
 from __future__ import annotations
@@ -21,46 +21,6 @@ class VisionBackendKind(StrEnum):
     OCR = "ocr"
     FRAME = "frame"
     NATIVE_VIDEO = "native_video"
-    GEOMETRY = "geometry"
-
-
-class PerceptionMode(StrEnum):
-    TOGETHER = "together"
-    GROUND = "ground"
-    REGION = "region"
-    OCR = "ocr"
-
-
-class GeometryMode(StrEnum):
-    PIXEL_DIFF = "pixel_diff"
-    CROP = "crop"
-
-
-class GroundScope(StrEnum):
-    ONE = "one"
-    ALL = "all"
-
-
-@dataclass(frozen=True)
-class BBox:
-    x1: int
-    y1: int
-    x2: int
-    y2: int
-
-    def clamp(self, width: int, height: int) -> BBox:
-        return BBox(
-            x1=max(0, min(self.x1, width)),
-            y1=max(0, min(self.y1, height)),
-            x2=max(0, min(self.x2, width)),
-            y2=max(0, min(self.y2, height)),
-        )
-
-    def is_valid(self) -> bool:
-        return self.x2 > self.x1 and self.y2 > self.y1
-
-    def as_csv(self) -> str:
-        return f"{self.x1},{self.y1},{self.x2},{self.y2}"
 
 
 @dataclass(frozen=True)

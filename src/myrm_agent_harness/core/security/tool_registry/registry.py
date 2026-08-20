@@ -101,8 +101,6 @@ TOOL_PERMISSION_MAP: dict[str, str] = {
     "desktop_snapshot_tool": "desktop_capture",
     "desktop_interact_tool": "desktop_control",
     "desktop_vision_tool": "desktop_control",
-    "vision_semantic_tool": "file_read",
-    "vision_geometry_tool": "file_read",
 }
 
 BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
@@ -124,8 +122,6 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "desktop_snapshot_tool",
         "desktop_interact_tool",
         "desktop_vision_tool",
-        "vision_semantic_tool",
-        "vision_geometry_tool",
         "complete_goal_tool",
         "ask_question_tool",
         "bash_process_tool",
@@ -338,7 +334,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     "video_generation": frozenset({"video_tool"}),
     "tts": frozenset({"tts_generate"}),
     "external_cli": frozenset({"delegate_to_agent_tool"}),
-    "vision_toolkit": frozenset({"vision_semantic_tool", "vision_geometry_tool"}),
 }
 
 TOOL_TO_GROUP: dict[str, str] = {
@@ -394,8 +389,6 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
         "scroll_direction",
         "start_coordinate",
     ],
-    "vision_semantic_tool": ["mode", "paths", "task", "region", "ground_scope"],
-    "vision_geometry_tool": ["mode", "paths", "region", "threshold"],
     "ask_question_tool": [],
     "complete_goal_tool": [],
     "cron_manage_tool": ["action", "job_id", "name_filter"],
@@ -667,8 +660,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     ),
     "desktop_interact_tool": SafetyMetadata(is_destructive=True),
     "desktop_vision_tool": SafetyMetadata(is_destructive=True),
-    "vision_semantic_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True),
-    "vision_geometry_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True),
     "ask_question_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=False, is_idempotent=True
     ),

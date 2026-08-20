@@ -9,12 +9,13 @@
 - EvalManifest: frozen environment snapshot for evaluation reproducibility
 - EvalTurnResult: single-turn result
 - EvalResult: aggregate result with reporting
-- AgentResponse: response from agent execution (with token_usage/cost tracking)
+-     AgentResponse: response from agent execution (with token_usage/cost tracking)
 - AgentExecutor: protocol for business-layer implementation
 - EvalTimings: performance timing data
 - StateAssertion: output text assertion (supports contains/not_contains/regex/json_valid/json_schema/custom_python)
 - SandboxAssertion: sandbox state assertion (file/cmd/json/test_suite with result_file + timeout + readonly_paths)
 - SemanticAssertion: LLM-as-a-Judge assertion (supports custom judge_prompt/judge_model/threshold soft-scoring)
+- RetrievalAssertion: RAG & Memory retrieval quality assertion (Head/Tail spans, collapse hits, duplicate rate)
 
 [POS]
 Defines the eval framework's type system and the AgentExecutor protocol.
@@ -83,6 +84,30 @@ class SemanticAssertion:
 
 
 @dataclass(frozen=True, slots=True)
+class RetrievalAssertion:
+    """RAG & Memory retrieval quality assertion.
+
+    Supports:
+    - min_recall: Minimum required recall rate (0.0~1.0)
+    - expected_spans: Verbatim body text quotes that must appear in body hits (after header stripping)
+    - expected_doc_ids: Required document / memory IDs in top-k
+    - max_duplicate_rate: Maximum allowed duplicate chunk rate from the same document (0.0~1.0)
+    - min_distinct_sources: Minimum distinct documents / files in top-k
+    - top_k: Top-K evaluation window (default 5)
+    - strip_headers: Whether to strip markdown/yaml headers before matching spans
+    """
+
+    type: str = "retrieval_quality"
+    expected_spans: tuple[str, ...] = ()
+    expected_doc_ids: tuple[str, ...] = ()
+    min_recall: float = 1.0
+    max_duplicate_rate: float | None = None
+    min_distinct_sources: int | None = None
+    top_k: int = 5
+    strip_headers: bool = True
+
+
+@dataclass(frozen=True, slots=True)
 class EvalCase:
     """Single eval test case."""
 
@@ -92,6 +117,7 @@ class EvalCase:
     sandbox_assertions: list[SandboxAssertion] = field(default_factory=list)
     state_assertions: list[StateAssertion] = field(default_factory=list)
     semantic_assertions: list[SemanticAssertion] = field(default_factory=list)
+    retrieval_assertions: list[RetrievalAssertion] = field(default_factory=list)
     metadata: dict[str, str] = field(default_factory=dict)
 
 
@@ -122,6 +148,7 @@ class AgentResponse:
     answer: str
     tools_called: list[str | dict[str, Any]] = field(default_factory=list)
     tool_call_details: list[dict[str, object]] = field(default_factory=list)
+    retrieved_hits: list[dict[str, object]] = field(default_factory=list)
     extra_timings: dict[str, float] = field(default_factory=dict)
     token_usage: dict[str, int] = field(default_factory=dict)
     cost: float = 0.0
@@ -306,8 +333,22 @@ class EvalResult:
                     }
                     for a in r.case.semantic_assertions
                 ],
+                "retrieval_assertions": [
+                    {
+                        "type": a.type,
+                        "expected_spans": list(a.expected_spans),
+                        "expected_doc_ids": list(a.expected_doc_ids),
+                        "min_recall": a.min_recall,
+                        "max_duplicate_rate": a.max_duplicate_rate,
+                        "min_distinct_sources": a.min_distinct_sources,
+                        "top_k": a.top_k,
+                        "strip_headers": a.strip_headers,
+                    }
+                    for a in r.case.retrieval_assertions
+                ],
                 "tools_called": r.response.tools_called,
                 "tool_call_details": r.response.tool_call_details,
+                "retrieved_hits": r.response.retrieved_hits,
                 "limit_reached": r.response.limit_reached,
                 "blocked_count": r.response.blocked_count,
                 "assertion_passed": r.assertion_passed,

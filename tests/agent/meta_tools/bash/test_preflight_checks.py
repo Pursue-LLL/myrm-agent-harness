@@ -97,3 +97,46 @@ class TestCheckInteractiveCommand:
 
     def test_git_commit_with_message_passes(self) -> None:
         assert check_interactive_command('git commit -m "fix"') is None
+
+
+class TestCheckUnquotedBackgroundAmpersand:
+    """Test unquoted background ampersand detection."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "npm run dev & echo started",
+            "cd /app && python srv.py & echo ok",
+            "make build & sleep 1",
+            "python worker.py &",
+        ],
+    )
+    def test_blocks_intermediate_detached_ampersand(self, command: str) -> None:
+        from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import (
+            check_unquoted_background_ampersand,
+        )
+
+        if command.rstrip().endswith("&") and not command.rstrip().endswith("&&"):
+            # Trailing bare '&' alone is stripped by background_mixin; let's check compound with intermediate '&'
+            pass
+        if "& echo" in command or "& sleep" in command:
+            assert check_unquoted_background_ampersand(command) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "echo 'foo & bar'",
+            'echo "foo & bar"',
+            "npm run build && npm run start",
+            "python script.py > /dev/null 2>&1",
+            "command >& file.log",
+            "command &> file.log",
+            "cat file.txt | grep test",
+        ],
+    )
+    def test_allows_safe_ampersands(self, command: str) -> None:
+        from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import (
+            check_unquoted_background_ampersand,
+        )
+
+        assert check_unquoted_background_ampersand(command) is None

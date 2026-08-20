@@ -311,8 +311,11 @@ class MemoryRecallBenchmarkResult(BaseModel):
     category: str = ""
     expected_found: bool
     best_rank: int | None = None
+    effective_rank: int | None = None
     top_k: int = Field(default=5, ge=1)
     hit_count: int = Field(default=0, ge=0)
+    distinct_source_count: int = Field(default=0, ge=0)
+    duplicate_chunk_count: int = Field(default=0, ge=0)
     score: float = Field(default=0.0, ge=0.0, le=1.0)
     latency_ms: float = Field(default=0.0, ge=0.0)
     evidence: str = ""
@@ -328,6 +331,8 @@ class MemoryRecallBenchmarkSummary(BaseModel):
     ndcg_at_k: float = Field(default=0.0, ge=0.0, le=1.0)
     mrr_score: float = Field(default=0.0, ge=0.0, le=1.0)
     precision_at_k: float = Field(default=0.0, ge=0.0, le=1.0)
+    duplicate_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    distinct_source_ratio: float = Field(default=1.0, ge=0.0, le=1.0)
     latency_p50_ms: float = Field(default=0.0, ge=0.0)
     latency_p95_ms: float = Field(default=0.0, ge=0.0)
     status: MemoryReliabilityStatus = "missing"
@@ -347,23 +352,30 @@ def summarize_recall_benchmark(results: list[MemoryRecallBenchmarkResult]) -> Me
     precision_sum = 0.0
     ndcg_sum = 0.0
     mrr_sum = 0.0
+    total_hits = sum(r.hit_count for r in results)
+    total_distinct = sum(r.distinct_source_count for r in results if r.distinct_source_count > 0)
+    total_duplicates = sum(r.duplicate_chunk_count for r in results)
+
     for r in results:
-        if r.best_rank is not None and r.best_rank <= r.top_k:
+        rank_to_use = r.effective_rank if r.effective_rank is not None else r.best_rank
+        if rank_to_use is not None and rank_to_use <= r.top_k:
             precision_sum += 1.0 / r.top_k
-            relevance = 1.0 / _log2(r.best_rank + 1)
+            relevance = 1.0 / _log2(rank_to_use + 1)
             ideal_dcg = 1.0 / _log2(2)
             ndcg_sum += relevance / ideal_dcg if ideal_dcg > 0 else 0.0
-            mrr_sum += 1.0 / r.best_rank
+            mrr_sum += 1.0 / rank_to_use
 
     precision_at_k = precision_sum / case_count
     ndcg_at_k = ndcg_sum / case_count
     mrr_score = mrr_sum / case_count
+    duplicate_rate = total_duplicates / total_hits if total_hits > 0 else 0.0
+    distinct_source_ratio = total_distinct / total_hits if total_hits > 0 and total_distinct > 0 else 1.0
 
     latencies = [r.latency_ms for r in results if r.latency_ms > 0]
     latency_p50 = _percentile(latencies, 50.0) if latencies else 0.0
     latency_p95 = _percentile(latencies, 95.0) if latencies else 0.0
 
-    if recall_at_k >= 1.0:
+    if recall_at_k >= 1.0 and duplicate_rate <= 0.4:
         status: MemoryReliabilityStatus = "ready"
     elif recall_at_k >= 0.8:
         status = "warning"
@@ -378,6 +390,8 @@ def summarize_recall_benchmark(results: list[MemoryRecallBenchmarkResult]) -> Me
         ndcg_at_k=round(ndcg_at_k, 4),
         mrr_score=round(mrr_score, 4),
         precision_at_k=round(precision_at_k, 4),
+        duplicate_rate=round(duplicate_rate, 4),
+        distinct_source_ratio=round(distinct_source_ratio, 4),
         latency_p50_ms=round(latency_p50, 2),
         latency_p95_ms=round(latency_p95, 2),
         status=status,

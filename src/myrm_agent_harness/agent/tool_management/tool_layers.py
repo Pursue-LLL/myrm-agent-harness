@@ -99,9 +99,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "desktop_snapshot_tool": ToolLayer.EXTENDED,
     "desktop_interact_tool": ToolLayer.EXTENDED,
     "desktop_vision_tool": ToolLayer.EXTENDED,
-    # --- Vision toolkit (skill-bound) ---
-    "vision_semantic_tool": ToolLayer.EXTENDED,
-    "vision_geometry_tool": ToolLayer.EXTENDED,
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
     # --- Goal / planning 工具 ---
@@ -174,7 +171,9 @@ def tool_layer_snapshot_label(layer: ToolLayer) -> str:
     return _LAYER_SNAPSHOT_LABELS[layer]
 
 
-def get_tool_registry_sort_key(tool_name: str, layer: ToolLayer) -> tuple[int, int, str]:
+def get_tool_registry_sort_key(
+    tool_name: str, layer: ToolLayer
+) -> tuple[int, int, str]:
     """Cache-friendly registry sort key: layer → group rank → name."""
     if layer == ToolLayer.COMMON:
         group_rank = _COMMON_LAYER_SORT_RANK.get(tool_name, 50)

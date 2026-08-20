@@ -10,6 +10,8 @@
 - evaluate_state_assertions(): state/output evaluator
 - evaluate_sandbox_assertions(): sandbox evaluator (file/cmd/json + test_suite Rule judge)
 - evaluate_semantic_assertions(): LLM-as-a-judge semantic evaluator
+- evaluate_retrieval_assertions(): RAG/Memory retrieval quality and source diversity evaluator
+- collapse_retrieval_hits(): rank collapsing helper for distinct document identities
 - suite_judge: task-native suite scoring helpers (TestSuiteResult/parse_junit_result/parse_reward_result)
 
 [POS]
@@ -528,3 +530,26 @@ async def evaluate_semantic_assertions(
             )
 
     return True, "All semantic assertions passed."
+
+
+# Re-export retrieval assertion helpers from retrieval_assertions module
+from .retrieval_assertions import (  # noqa: E402
+    CollapsedHit,
+    collapse_retrieval_hits,
+    evaluate_retrieval_assertions,
+    normalize_retrieval_text,
+    split_header_and_body,
+)
+
+__all__ = [
+    "CollapsedHit",
+    "ToolAssertion",
+    "collapse_retrieval_hits",
+    "evaluate_retrieval_assertions",
+    "evaluate_sandbox_assertions",
+    "evaluate_semantic_assertions",
+    "evaluate_state_assertions",
+    "evaluate_tool_assertions",
+    "normalize_retrieval_text",
+    "split_header_and_body",
+]

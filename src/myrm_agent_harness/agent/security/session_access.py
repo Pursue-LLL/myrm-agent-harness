@@ -33,7 +33,9 @@ logger = logging.getLogger(__name__)
 
 _MAX_GRANTS_PER_SESSION = 5
 
-_session_access_roots_var: ContextVar[tuple[AccessRoot, ...]] = ContextVar("session_access_roots", default=())
+_session_access_roots_var: ContextVar[tuple[AccessRoot, ...]] = ContextVar(
+    "session_access_roots", default=()
+)
 
 
 def get_session_access_roots() -> tuple[AccessRoot, ...]:
@@ -130,7 +132,11 @@ def revoke_session_access_root(
 
     target = os.path.realpath(normalized)
     current = get_session_access_roots()
-    updated = tuple(root for root in current if os.path.realpath(os.path.expanduser(root.path)) != target)
+    updated = tuple(
+        root
+        for root in current
+        if os.path.realpath(os.path.expanduser(root.path)) != target
+    )
     if len(updated) == len(current):
         return current
     set_session_access_roots(updated)
@@ -142,7 +148,9 @@ def merge_path_policy_with_session_access(policy: PathPolicy) -> PathPolicy:
     session_roots = get_session_access_roots()
     if not session_roots:
         return policy
-    by_path: dict[str, AccessRoot] = {os.path.realpath(os.path.expanduser(r.path)): r for r in policy.access_roots}
+    by_path: dict[str, AccessRoot] = {
+        os.path.realpath(os.path.expanduser(r.path)): r for r in policy.access_roots
+    }
     for root in session_roots:
         key = os.path.realpath(os.path.expanduser(root.path))
         by_path[key] = root
@@ -161,15 +169,16 @@ def render_session_access_context(
     if workspace_root:
         lines.append(f"- {workspace_root} [read-write] — primary workspace")
     for root in effective.access_roots:
-        ws_norm = os.path.realpath(os.path.expanduser(workspace_root)) if workspace_root else ""
+        ws_norm = (
+            os.path.realpath(os.path.expanduser(workspace_root))
+            if workspace_root
+            else ""
+        )
         root_norm = os.path.realpath(os.path.expanduser(root.path))
         if ws_norm and root_norm == ws_norm:
             continue
         access = "read-write" if root.writable else "read-only"
         label = f" ({root.label})" if root.label else ""
         lines.append(f"- {root.path} [{access}]{label}")
-    lines.append(
-        "Use request_directory_tool when you need access outside these roots. "
-        "Relative paths resolve against the primary workspace."
-    )
+    lines.append("Relative paths resolve against the primary workspace.")
     return "\n".join(lines)

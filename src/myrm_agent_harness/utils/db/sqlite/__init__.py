@@ -37,6 +37,15 @@ from .integrity import (
     validate_sqlite_header,
 )
 from .profile import CACHE, DEFAULT, DURABLE, READONLY, SENSITIVE, SQLiteProfile
+from .schema_gate import (
+    SchemaGateError,
+    SchemaShapeMismatchError,
+    SchemaVersionTooNewError,
+    SchemaVersionTooOldError,
+    StorageCapabilities,
+    validate_schema_gate_async,
+    validate_schema_gate_sync,
+)
 
 __all__ = [
     "CACHE",
@@ -44,8 +53,13 @@ __all__ = [
     "DURABLE",
     "READONLY",
     "SENSITIVE",
+    "SchemaGateError",
+    "SchemaShapeMismatchError",
+    "SchemaVersionTooNewError",
+    "SchemaVersionTooOldError",
     "SQLiteIntegrityError",
     "SQLiteProfile",
+    "StorageCapabilities",
     "check_page_count_invariant",
     "checkpoint_truncate_async",
     "checkpoint_truncate_sync",
@@ -57,5 +71,7 @@ __all__ = [
     "prepare_database_file",
     "quick_check_sync",
     "should_fallback_to_delete",
+    "validate_schema_gate_async",
+    "validate_schema_gate_sync",
     "validate_sqlite_header",
 ]

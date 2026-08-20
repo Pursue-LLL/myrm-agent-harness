@@ -366,6 +366,48 @@ async def test_failover_already_used(ctx):
 
 
 @pytest.mark.asyncio
+async def test_multi_tier_failover_cascade(ctx):
+    """Multi-tier fallback candidates cascade in order across consecutive failures."""
+    fb1 = MagicMock()
+    fb1.model_name = "gpt-4o"
+    fb2 = MagicMock()
+    fb2.model_name = "deepseek-v3"
+    rebuild_fn = MagicMock()
+
+    executor = StreamExecutor(
+        ctx=ctx,
+        fallback_llms=[fb1, fb2],
+        safety_fallback_llm=None,
+        rebuild_agent_fn=rebuild_fn,
+    )
+    executor._compactor = FakeCompactor()
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.recovery.stream_recovery.classify_error",
+        return_value=ErrorKind.TIMEOUT,
+    ):
+        # 1st failover -> switches to fb1
+        res1 = await executor._handle_failover(RuntimeError("error 1"))
+        assert res1 is True
+        assert executor.failover_used is False
+        assert executor._fallback_index == 1
+        rebuild_fn.assert_called_with(fb1)
+
+        # 2nd failover -> switches to fb2
+        res2 = await executor._handle_failover(RuntimeError("error 2"))
+        assert res2 is True
+        assert executor.failover_used is True
+        assert executor._fallback_index == 2
+        rebuild_fn.assert_called_with(fb2)
+
+        # 3rd failover -> exhausted -> returns False
+        res3 = await executor._handle_failover(RuntimeError("error 3"))
+        assert res3 is False
+
+
+@pytest.mark.asyncio
 async def test_safety_fallback(ctx):
     """Safety block error triggers safety_fallback_llm."""
     safety_llm = MagicMock()

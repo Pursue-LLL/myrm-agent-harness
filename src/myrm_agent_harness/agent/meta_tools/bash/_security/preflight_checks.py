@@ -8,6 +8,7 @@ utils.errors::ToolError (POS: Agent tool error with format_for_llm protocol)
 check_command_url_exfiltration: Block commands with URL data exfiltration.
 check_sensitive_paths: Block commands accessing sensitive directories.
 check_myrm_tools_import: Block myrm_tools in bash via AST, shell `-c`, `-m`, pipe stdin, cat|pipe `.py`, and referenced `.py` files.
+check_unquoted_background_ampersand: Detect unquoted background ampersand operators that would detach orphan processes.
 check_interactive_command: Detect commands requiring interactive stdin.
 check_install_packages: Verify install package names exist on public registries.
 
@@ -162,7 +163,9 @@ def _scan_python_file_path(script_path: Path, command: str) -> None:
     try:
         source = script_path.read_text(encoding="utf-8")
     except OSError as exc:
-        logger.warning("Unable to read referenced python script %s: %s", script_path, exc)
+        logger.warning(
+            "Unable to read referenced python script %s: %s", script_path, exc
+        )
         return
     if _python_ast_references_myrm_tools(source):
         _raise_myrm_tools_blocked(command)
@@ -176,7 +179,9 @@ def _extract_referenced_python_scripts(command: str) -> list[str]:
     return list(dict.fromkeys(_PYTHON_SCRIPT_INVOCATION_RE.findall(command)))
 
 
-def _resolve_referenced_python_path(script_ref: str, workspace_root: str | None) -> Path | None:
+def _resolve_referenced_python_path(
+    script_ref: str, workspace_root: str | None
+) -> Path | None:
     from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
         WorkspacePathResolver,
     )
@@ -217,7 +222,9 @@ def _scan_referenced_python_files(command: str, workspace_root: str | None) -> N
         _scan_python_file_path(script_path, command)
 
 
-def _scan_cat_pipe_feeder_python_files(command: str, workspace_root: str | None) -> None:
+def _scan_cat_pipe_feeder_python_files(
+    command: str, workspace_root: str | None
+) -> None:
     from myrm_agent_harness.toolkits.code_execution.python_extractor import (
         extract_cat_py_paths_from_pipe_feeders,
     )
@@ -242,10 +249,15 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
     Raises:
         ToolError: If command references ``myrm_tools`` in an executable Python path.
     """
-    from myrm_agent_harness.toolkits.code_execution.code_detector import CodeType, code_detector
+    from myrm_agent_harness.toolkits.code_execution.code_detector import (
+        CodeType,
+        code_detector,
+    )
 
     detection = code_detector.detect(command)
-    code = detection.extracted_code if detection.code_type == CodeType.PYTHON else command
+    code = (
+        detection.extracted_code if detection.code_type == CodeType.PYTHON else command
+    )
 
     if _python_ast_references_myrm_tools(code):
         _raise_myrm_tools_blocked(command)
@@ -255,7 +267,9 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
         _raise_myrm_tools_blocked(command)
         return
 
-    if detection.code_type == CodeType.BASH and _shell_command_references_myrm_tools(command):
+    if detection.code_type == CodeType.BASH and _shell_command_references_myrm_tools(
+        command
+    ):
         _raise_myrm_tools_blocked(command)
         return
 
@@ -264,7 +278,9 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
     )
 
     pipe_stdin_code = extract_python_from_pipe_stdin(command)
-    if pipe_stdin_code is not None and _python_ast_references_myrm_tools(pipe_stdin_code):
+    if pipe_stdin_code is not None and _python_ast_references_myrm_tools(
+        pipe_stdin_code
+    ):
         _raise_myrm_tools_blocked(command)
         return
 
@@ -308,7 +324,9 @@ def check_command_url_exfiltration(command: str) -> None:
         warnings = check_url_exfiltration(url, allow_private_networks=True)
         if warnings:
             safe_url = sanitize_url_for_error(url)
-            logger.warning(f" Data exfiltration detected in bash command: {command[:100]}")
+            logger.warning(
+                f" Data exfiltration detected in bash command: {command[:100]}"
+            )
             for warning in warnings:
                 logger.warning(f" - {warning} in URL: {safe_url}")
             raise ToolError(
@@ -367,8 +385,12 @@ _SCAFFOLD_NON_INTERACTIVE_RE = re.compile(
 )
 
 _GIT_COMMIT_RE = re.compile(r"\bgit\s+commit\b")
-_GIT_COMMIT_MSG_RE = re.compile(r"(?:\s-[a-zA-Z]*m[\s\"']|\s--message[\s=]|\s-F\s|\s--file[\s=])")
-_GIT_INTERACTIVE_RE = re.compile(r"\bgit\s+(?:rebase\s+(?:-i|--interactive)|add\s+(?:-i|-p|--interactive|--patch))\b")
+_GIT_COMMIT_MSG_RE = re.compile(
+    r"(?:\s-[a-zA-Z]*m[\s\"']|\s--message[\s=]|\s-F\s|\s--file[\s=])"
+)
+_GIT_INTERACTIVE_RE = re.compile(
+    r"\bgit\s+(?:rebase\s+(?:-i|--interactive)|add\s+(?:-i|-p|--interactive|--patch))\b"
+)
 _POETRY_INIT_RE = re.compile(r"\bpoetry\s+init\b")
 
 
@@ -379,7 +401,9 @@ def check_interactive_command(command: str) -> str | None:
     """
     lowered = command.lower()
 
-    if any(marker in lowered for marker in _SCAFFOLD_MARKERS) and not _SCAFFOLD_NON_INTERACTIVE_RE.search(lowered):
+    if any(
+        marker in lowered for marker in _SCAFFOLD_MARKERS
+    ) and not _SCAFFOLD_NON_INTERACTIVE_RE.search(lowered):
         return (
             "This command requires interactive input (template/option selection). "
             "The bash tool cannot answer prompts. "
@@ -387,17 +411,15 @@ def check_interactive_command(command: str) -> str | None:
         )
 
     if _GIT_COMMIT_RE.search(lowered) and not _GIT_COMMIT_MSG_RE.search(command):
-        return (
-            'git commit without -m/--message opens an editor for interactive input. Use: git commit -m "your message"'
-        )
+        return 'git commit without -m/--message opens an editor for interactive input. Use: git commit -m "your message"'
 
     if _GIT_INTERACTIVE_RE.search(lowered):
-        return (
-            "This git command opens an interactive editor/UI. The bash tool cannot handle interactive git operations."
-        )
+        return "This git command opens an interactive editor/UI. The bash tool cannot handle interactive git operations."
 
     if _POETRY_INIT_RE.search(lowered) and "--no-interaction" not in lowered:
-        return "poetry init requires interactive input. Use: poetry init --no-interaction"
+        return (
+            "poetry init requires interactive input. Use: poetry init --no-interaction"
+        )
 
     return None
 
@@ -535,10 +557,14 @@ async def _probe_registry(package: str, url: str, cache_key: str) -> tuple[str, 
 
     try:
         loop = asyncio.get_running_loop()
-        request = urllib.request.Request(url, headers={"User-Agent": "myrm-slopcheck"}, method="HEAD")  # noqa: S310
+        request = urllib.request.Request(
+            url, headers={"User-Agent": "myrm-slopcheck"}, method="HEAD"
+        )  # noqa: S310
         response = await loop.run_in_executor(
             None,
-            lambda: urllib.request.urlopen(request, timeout=_PROBE_TIMEOUT_S),  # noqa: S310
+            lambda: urllib.request.urlopen(
+                request, timeout=_PROBE_TIMEOUT_S
+            ),  # noqa: S310
         )
         exists = response.status == 200
     except urllib.error.HTTPError as exc:
@@ -554,12 +580,18 @@ async def _probe_registry(package: str, url: str, cache_key: str) -> tuple[str, 
 def _probe_pypi(package: str) -> asyncio.Task[tuple[str, bool]]:
     normalized = _normalize_pypi_name(package)
     return asyncio.create_task(
-        _probe_registry(package, f"https://pypi.org/pypi/{normalized}/json", f"pypi:{normalized}")
+        _probe_registry(
+            package, f"https://pypi.org/pypi/{normalized}/json", f"pypi:{normalized}"
+        )
     )
 
 
 def _probe_npm(package: str) -> asyncio.Task[tuple[str, bool]]:
-    return asyncio.create_task(_probe_registry(package, f"https://registry.npmjs.org/{package}", f"npm:{package}"))
+    return asyncio.create_task(
+        _probe_registry(
+            package, f"https://registry.npmjs.org/{package}", f"npm:{package}"
+        )
+    )
 
 
 async def check_install_packages(command: str) -> None:
@@ -616,10 +648,90 @@ async def check_install_packages(command: str) -> None:
         from myrm_agent_harness.utils.errors import ToolError
 
         details = "; ".join(f"'{name}' not found on {reg}" for name, reg in missing)
-        logger.warning("Slopcheck blocked install: %s (command: %s)", details, command[:120])
+        logger.warning(
+            "Slopcheck blocked install: %s (command: %s)", details, command[:120]
+        )
         raise ToolError(
             f"Package verification failed: {details}. "
             "Please verify the package name(s) — AI models sometimes hallucinate non-existent packages.",
             user_hint=f"The following packages do not exist: {details}. "
             "Double-check the package name or search the registry for the correct one.",
         )
+
+
+def check_unquoted_background_ampersand(command: str) -> str | None:
+    """Detect unquoted background ampersand operators that would detach orphan processes.
+
+    Skips:
+    - Double ampersands: ``&&`` (logical AND)
+    - Redirection targets/syntax: ``2>&1``, ``>&``, ``&>``
+    - Quoted ampersands: ``"..."``, ``'...'``
+    - Trailing background ampersand (which is safely handled by ``strip_trailing_background_ampersand``)
+
+    Returns:
+        An error message if a detached/intermediate background ampersand is detected, else None.
+    """
+    cleaned = command.rstrip()
+    if cleaned.endswith("&") and not cleaned.endswith("&&"):
+        cleaned = cleaned[:-1].rstrip()
+
+    in_single_quote = False
+    in_double_quote = False
+    escaped = False
+    length = len(cleaned)
+    i = 0
+
+    while i < length:
+        char = cleaned[i]
+
+        if escaped:
+            escaped = False
+            i += 1
+            continue
+
+        if char == "\\":
+            escaped = True
+            i += 1
+            continue
+
+        if char == "'" and not in_double_quote:
+            in_single_quote = not in_single_quote
+            i += 1
+            continue
+
+        if char == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+            i += 1
+            continue
+
+        if not in_single_quote and not in_double_quote:
+            if char == "&":
+                # Check if this is '&&'
+                if i + 1 < length and cleaned[i + 1] == "&":
+                    i += 2
+                    continue
+
+                # Check if this is part of redirection: '>&', '2>&1', '&>', '&>>'
+                # Preceding '>'
+                if i > 0 and cleaned[i - 1] == ">":
+                    i += 1
+                    continue
+                # Following '>'
+                if i + 1 < length and cleaned[i + 1] == ">":
+                    i += 1
+                    continue
+
+                # Preceding digit before '>' (e.g. 2>&1) - covered by cleaned[i-1] == '>' above
+
+                # Found an unquoted intermediate background operator '&'
+                return (
+                    "Detached background operator '&' detected inside compound command. "
+                    "In foreground execution, intermediate '&' creates orphaned background processes "
+                    "that escape process group tracking. "
+                    "For long-running background services, use bash_code_execute_tool with run_in_background=True. "
+                    "For sequential commands, use '&&' or separate tool invocations."
+                )
+
+        i += 1
+
+    return None

@@ -48,7 +48,6 @@ def test_is_mutating_tool_interaction_ui_carriers_not_effectful() -> None:
     effectful, otherwise every UI-rendering cron run triggers an unnecessary
     adversarial-reviewer pass."""
     assert is_mutating_tool("ask_question_tool") is False
-    assert is_mutating_tool("request_directory_tool") is False
     assert is_mutating_tool("render_ui_tool") is False
     assert is_mutating_tool("update_ui_data_tool") is False
     assert is_mutating_tool("browser_ask_human_tool") is False

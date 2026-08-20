@@ -125,7 +125,9 @@ def create_memory_tools(
     backends = search_backends or MemorySearchBackends()
     tools: list[object] = []
 
-    _search_description = build_memory_search_tool_description(policy, locale=description_locale)
+    _search_description = build_memory_search_tool_description(
+        policy, locale=description_locale
+    )
     _save_description = build_memory_save_tool_description(
         policy,
         approval_required=manager.approval_required,
@@ -134,12 +136,16 @@ def create_memory_tools(
     _manage_description = resolve_memory_manage_tool_description(description_locale)
 
     class MemorySaveInput(BaseModel):
-        content: str = Field(description="Declarative fact text; concise and standalone.")
-        category: Literal["knowledge", "event", "preference", "rule", "instruction"] = Field(
-            default="knowledge",
-            description=(
-                "knowledge | event | preference | rule | instruction — see tool description for category guide"
-            ),
+        content: str = Field(
+            description="Declarative fact text; concise and standalone."
+        )
+        category: Literal["knowledge", "event", "preference", "rule", "instruction"] = (
+            Field(
+                default="knowledge",
+                description=(
+                    "knowledge | event | preference | rule | instruction — see tool description for category guide"
+                ),
+            )
         )
         importance: float = Field(
             default=0.5,
@@ -184,7 +190,9 @@ def create_memory_tools(
         )
         new_content: str | None = Field(
             default=None,
-            description=("Required for update (wording/importance) and correct (wrong fact, knowledge only)."),
+            description=(
+                "Required for update (wording/importance) and correct (wrong fact, knowledge only)."
+            ),
         )
         new_importance: float | None = Field(
             default=None,
@@ -231,6 +239,11 @@ def create_memory_tools(
         recall_limit = normalize_recall_limit(limit)
         sections: list[str] = []
 
+        retrieval_timeout = getattr(
+            getattr(manager, "_config", None), "retrieval", None
+        )
+        timeout_seconds = getattr(retrieval_timeout, "timeout_seconds", 5.0)
+
         for target in corpora:
             if target == "memory":
                 memory_text = await search_memory_corpus(
@@ -247,7 +260,7 @@ def create_memory_tools(
                 wiki_text = await search_wiki_corpus(
                     backends,
                     query,
-                    timeout_seconds=manager._config.retrieval.timeout_seconds,
+                    timeout_seconds=timeout_seconds,
                 )
                 sections.append(f"## Wiki\n{wiki_text}")
             elif target == "sessions":
@@ -261,7 +274,7 @@ def create_memory_tools(
                     until=parsed_until,
                     expand_conversation_id=expand_conversation_id,
                     expand_message_id=expand_message_id,
-                    timeout_seconds=manager._config.retrieval.timeout_seconds,
+                    timeout_seconds=timeout_seconds,
                 )
                 sections.append(f"## Sessions\n{session_text}")
             elif target == "web":
@@ -269,7 +282,7 @@ def create_memory_tools(
                     backends,
                     query,
                     recall_limit,
-                    timeout_seconds=manager._config.retrieval.timeout_seconds,
+                    timeout_seconds=timeout_seconds,
                 )
                 sections.append(f"## Web\n{web_text}")
 
@@ -288,10 +301,14 @@ def create_memory_tools(
 
     tools.append(memory_search)
 
-    @tool("memory_save_tool", description=_save_description, args_schema=MemorySaveInput)
+    @tool(
+        "memory_save_tool", description=_save_description, args_schema=MemorySaveInput
+    )
     async def memory_save(
         content: str,
-        category: Literal["knowledge", "event", "preference", "rule", "instruction"] = "knowledge",
+        category: Literal[
+            "knowledge", "event", "preference", "rule", "instruction"
+        ] = "knowledge",
         importance: float = 0.5,
         tags: list[str] | str | None = None,
         write_target: Literal["bound", "shared"] = "bound",
@@ -306,7 +323,11 @@ def create_memory_tools(
         session = manager.active_session
         pending = manager.approval_required
 
-        if policy.allow_wiki and category in ("knowledge", "event") and looks_like_wiki_document(content):
+        if (
+            policy.allow_wiki
+            and category in ("knowledge", "event")
+            and looks_like_wiki_document(content)
+        ):
             record_wiki_memory_save_rejection()
             return wiki_memory_save_rejection_message()
 
@@ -315,9 +336,13 @@ def create_memory_tools(
                 if not manager.has_vector:
                     return "Knowledge memory is not enabled."
                 if session and not pending and write_target == "bound":
-                    mem = session.add_knowledge(content, importance=importance, tags=parsed_tags)
+                    mem = session.add_knowledge(
+                        content, importance=importance, tags=parsed_tags
+                    )
                     if mem is None:
-                        return "Knowledge already exists in session (duplicate detected)"
+                        return (
+                            "Knowledge already exists in session (duplicate detected)"
+                        )
                     return f"Knowledge buffered (ID: {mem.id})"
                 mem = await manager.add_knowledge(
                     content,
@@ -335,7 +360,9 @@ def create_memory_tools(
                     if mem is None:
                         return "Event already exists in session (duplicate detected)"
                     return f"Event buffered (ID: {mem.id})"
-                mem = await manager.add_event(content, event_type="agent_observation", write_target=write_target)
+                mem = await manager.add_event(
+                    content, event_type="agent_observation", write_target=write_target
+                )
                 return f"Event {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 
             if category == "preference":
@@ -346,7 +373,9 @@ def create_memory_tools(
                 if session and not pending:
                     await session.set_profile(preference_key, content)
                 else:
-                    result = await manager.set_profile_attribute(preference_key, content)
+                    result = await manager.set_profile_attribute(
+                        preference_key, content
+                    )
                     if result is not None:
                         return f"Preference '{preference_key}' submitted for approval"
                 return format_preference_save_ack(preference_key, content)
@@ -385,7 +414,9 @@ def create_memory_tools(
                         source=RuleSource.AGENT_SELF,
                     )
                     if mem is None:
-                        return "Instruction already exists in session (duplicate detected)"
+                        return (
+                            "Instruction already exists in session (duplicate detected)"
+                        )
                     return f"Instruction buffered (ID: {mem.id})"
                 mem = await manager.add_rule(
                     "always",
@@ -442,7 +473,9 @@ def create_memory_tools(
                         if mem_type == MemoryType.SEMANTIC
                         else manager.config.episodic_collection
                     )
-                    n = await manager.delete_memory(coll, [memory_id], allow_pinned=False)
+                    n = await manager.delete_memory(
+                        coll, [memory_id], allow_pinned=False
+                    )
                     if n > 0:
                         return f"Memory deleted (ID: {memory_id})"
                     return (
@@ -467,7 +500,9 @@ def create_memory_tools(
             elif action == "update":
                 if not new_content:
                     return "Update requires 'new_content'."
-                updated = await manager.update_memory(memory_id, content=new_content, importance=new_importance)
+                updated = await manager.update_memory(
+                    memory_id, content=new_content, importance=new_importance
+                )
                 return f"Memory updated (ID: {updated.id})"
 
             elif action == "correct":

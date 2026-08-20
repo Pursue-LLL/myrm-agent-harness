@@ -384,26 +384,24 @@ check_path_policy(raw_path, policy, workspace_root, require_write)
   │
   ├─ Layer 2: access_roots（writable）→ ALLOW
   │
-  ├─ Layer 2b: access_roots（read-only）→ ALLOW read / DENY write
+  ├─ Layer 2b: access_roots（read-only）→ ALLOW read / ASK write (动态提权)
   │
   ├─ Layer 3: workspace_root → ALLOW（读写）
   │
-  └─ 其他路径 → ASK（Permission Engine 触发 HITL；用户可通过 path-ASK「Grant directory」或 `request_directory_tool` 授予）
+  └─ 其他路径 → ASK（Permission Engine 触发 HITL 审批与目录级批量提权）
 ```
 
 ### 关键设计决策
 
-1. **Layer 3 外路径返回 ASK，不是 DENY** — 由 Permission Engine 弹出审批；用户可勾选「Grant directory」或 Agent 调用 `request_directory_tool`
+1. **Layer 3 外路径返回 ASK，不是 DENY** — 由 Permission Engine 弹出审批，支持单文件/父目录批量授权与读写动态提权
 2. **forbidden_paths 不可被 access_roots 覆盖** — 即使授予 `~`，`~/.ssh` 仍然被拒绝
 3. **路径归一化** — 所有路径经过 `expanduser` + `expandvars` + `realpath` 处理，防止符号链接逃逸
 4. **只对 file_read/file_write 等 file ops 生效** — shell_exec 的路径检查由 Sandbox Validator 层负责
-5. **子 Agent 禁止 `request_directory_tool`** — `HitlToolPolicy` L1 block；沙箱 worktree 模式不挂载该工具
-6. **Web Chat only mount** — 产品层 `_should_mount_request_directory_tool` 仅在 `ChannelType.WEB_CHAT` 挂载；IM/Cron 不暴露 session directory grant（单次 tool approval 仍可用）
-7. **Grant 前 forbidden 校验** — `grant_session_access_root(..., policy=...)` 对 DENY 路径拒绝授予；path-ASK 勾选默认 **false**
-8. **Revoke 对称** — `revoke_session_access_root` + server `revoke_chat_session_access_root` 持久化到 `session_access_roots`
-9. **云卷部署边界** — `/persistent` 真实挂载时，grant 仅限卷内或 chat workspace；本地桌面允许主机路径（仍受 forbidden/dangerous 约束）
-10. **Directory HITL 900s 超时** — 与 clarify 对称，`{granted:false}` auto-resume，避免挂死
-11. **FE SSOT 刷新** — grant/revoke 后 `refreshSessionAccessRoots` 同步 `SessionAccessRootsBar`；path-ASK 带 optimistic fallback
+5. **Grant 前 forbidden 校验** — `grant_session_access_root(..., policy=...)` 对 DENY 路径拒绝授予；path-ASK 勾选默认 **false**
+6. **Revoke 对称** — `revoke_session_access_root` + server `revoke_chat_session_access_root` 持久化到 `session_access_roots`
+7. **云卷部署边界** — `/persistent` 真实挂载时，grant 仅限卷内或 chat workspace；本地桌面允许主机路径（仍受 forbidden/dangerous 约束）
+8. **Directory HITL 900s 超时** — 与 clarify 对称，`{granted:false}` auto-resume，避免挂死
+9. **FE SSOT 刷新** — grant/revoke 后 `refreshSessionAccessRoots` 同步 `SessionAccessRootsBar`；path-ASK 带 optimistic fallback
 
 ### 渠道行为
 
@@ -1282,7 +1280,6 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | `update_ui_data_tool` | display |
 | `todo_write` | display |
 | `browser_ask_human_tool` | user_visible |
-| `request_directory_tool` | user_visible |
 | `kanban_show` | read_only |
 | `kanban_list_tasks` | read_only |
 | `kanban_add_task` | user_visible |

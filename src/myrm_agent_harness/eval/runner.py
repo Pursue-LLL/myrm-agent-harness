@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 from .assertions import (
     ToolAssertion,
+    evaluate_retrieval_assertions,
     evaluate_sandbox_assertions,
     evaluate_semantic_assertions,
     evaluate_state_assertions,
@@ -204,6 +205,15 @@ class EvalRunner:
                 passed = sem_passed if passed is None else (passed and sem_passed)
                 if sem_details:
                     details = f"{details} | {sem_details}" if details else sem_details
+
+        if passed is not False and getattr(case, "retrieval_assertions", None):
+            ret_passed, ret_details = evaluate_retrieval_assertions(
+                case.retrieval_assertions, response.retrieved_hits, scores_out=sb_scores
+            )
+            if ret_passed is not None:
+                passed = ret_passed if passed is None else (passed and ret_passed)
+                if ret_details:
+                    details = f"{details} | {ret_details}" if details else ret_details
 
         timings = EvalTimings(
             total_ms=(time.perf_counter() - turn_start) * 1000,

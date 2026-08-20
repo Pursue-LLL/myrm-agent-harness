@@ -8,7 +8,7 @@ bash 执行前安全预检域。
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `__init__.py` | Package | 域包入口。 | — |
-| `preflight_checks.py` | Internal | 安全预检：URL 外泄、敏感路径、myrm_tools 守卫（AST/bash -c/-m/pipe stdin/引用 .py 扫描，raise ``ToolError`` + ``guardrail_blocked``）、交互命令检测、安装包注册表校验。 | ✅ |
+| `preflight_checks.py` | Internal | 安全预检：URL 外泄、敏感路径、myrm_tools 守卫（AST/bash -c/-m/pipe stdin/引用 .py 扫描，raise ``ToolError`` + ``guardrail_blocked``）、脱壳后台 '&' 运算符拦截、交互命令检测、安装包注册表校验。 | ✅ |
 
 ## Key Dependencies
 

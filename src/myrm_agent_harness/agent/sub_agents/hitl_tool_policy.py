@@ -26,7 +26,7 @@ class HitlToolPolicy:
 
     @classmethod
     def default(cls) -> HitlToolPolicy:
-        registered = frozenset({"ask_question_tool", "request_directory_tool"})
+        registered = frozenset({"ask_question_tool"})
         return cls(registered_tools=registered, subagent_blocked=registered)
 
 

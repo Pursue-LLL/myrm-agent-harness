@@ -318,6 +318,73 @@ class TestParseSecurityConfigAutoMode:
         assert config is not None
         assert config.auto_mode_enabled is True
 
+
+class TestMergeUserAndAgentPrivilegeCeiling:
+    """Tests for _merge_user_and_agent anti-privilege-escalation guarantees."""
+
+    def test_agent_cannot_escalate_deny_to_allow(self) -> None:
+        from myrm_agent_harness.agent.security.channel_presets import _merge_user_and_agent
+        from myrm_agent_harness.agent.security.engine import evaluate
+        from myrm_agent_harness.agent.security.types import PermissionRule
+
+        user = SecurityConfig.readonly()
+        agent = SecurityConfig(
+            ruleset=(PermissionRule("file_write", "*", PermissionAction.ALLOW),)
+        )
+        effective = _merge_user_and_agent(user, agent)
+        assert effective is not None
+        rule = evaluate("file_write", "/any/path.txt", effective.ruleset)
+        assert rule.action == PermissionAction.DENY
+
+    def test_agent_cannot_escalate_ask_to_allow(self) -> None:
+        from myrm_agent_harness.agent.security.channel_presets import _merge_user_and_agent
+        from myrm_agent_harness.agent.security.engine import evaluate
+        from myrm_agent_harness.agent.security.types import PermissionRule
+
+        user = SecurityConfig.workspace(allowed_roots=("/tmp",))
+        agent = SecurityConfig(
+            ruleset=(
+                PermissionRule("mcp_invoke", "*", PermissionAction.ALLOW),
+                PermissionRule("shell_exec", "*", PermissionAction.ALLOW),
+            )
+        )
+        effective = _merge_user_and_agent(user, agent)
+        assert effective is not None
+        mcp_rule = evaluate("mcp_invoke", "server_tool", effective.ruleset)
+        assert mcp_rule.action == PermissionAction.ASK
+        shell_rule = evaluate("shell_exec", "rm -rf /", effective.ruleset)
+        assert shell_rule.action == PermissionAction.ASK
+
+    def test_agent_can_tighten_allow_to_deny_or_ask(self) -> None:
+        from myrm_agent_harness.agent.security.channel_presets import _merge_user_and_agent
+        from myrm_agent_harness.agent.security.engine import evaluate
+        from myrm_agent_harness.agent.security.types import PermissionRule
+
+        user = SecurityConfig.full_access()
+        agent = SecurityConfig(
+            ruleset=(
+                PermissionRule("shell_exec", "*", PermissionAction.ASK),
+                PermissionRule("file_write", "*.secret", PermissionAction.DENY),
+            )
+        )
+        effective = _merge_user_and_agent(user, agent)
+        assert effective is not None
+        shell_rule = evaluate("shell_exec", "ls", effective.ruleset)
+        assert shell_rule.action == PermissionAction.ASK
+        file_rule = evaluate("file_write", "test.secret", effective.ruleset)
+        assert file_rule.action == PermissionAction.DENY
+
+    def test_agent_cannot_enable_yolo_without_user_global_yolo(self) -> None:
+        from myrm_agent_harness.agent.security.channel_presets import _merge_user_and_agent
+
+        user = SecurityConfig.workspace(allowed_roots=("/tmp",))
+        assert user.yolo_mode_enabled is False
+        agent = SecurityConfig(yolo_mode_enabled=True)
+        effective = _merge_user_and_agent(user, agent)
+        assert effective is not None
+        assert effective.yolo_mode_enabled is False
+
+
     def test_auto_review_enabled_fallback_false(self) -> None:
         from myrm_agent_harness.agent.security.config import parse_security_config
 

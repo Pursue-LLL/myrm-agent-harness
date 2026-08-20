@@ -118,13 +118,20 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
     def __init__(
         self,
         ctx: StreamContext,
-        fallback_llm: BaseChatModel | None,
-        safety_fallback_llm: BaseChatModel | None,
-        rebuild_agent_fn: object,
+        fallback_llm: BaseChatModel | None = None,
+        safety_fallback_llm: BaseChatModel | None = None,
+        rebuild_agent_fn: object = None,
         failover_used: bool = False,
+        fallback_llms: list[BaseChatModel] | None = None,
     ) -> None:
         self._ctx = ctx
-        self._fallback_llm = fallback_llm
+        self._fallback_llms: list[BaseChatModel] = (
+            list(fallback_llms)
+            if fallback_llms is not None
+            else ([fallback_llm] if fallback_llm is not None else [])
+        )
+        self._fallback_llm = self._fallback_llms[0] if self._fallback_llms else None
+        self._fallback_index = 0
         self._safety_fallback_llm = safety_fallback_llm
         self._rebuild_agent_fn = rebuild_agent_fn
         self.failover_used = failover_used

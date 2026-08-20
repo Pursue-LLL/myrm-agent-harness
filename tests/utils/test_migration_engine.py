@@ -69,6 +69,10 @@ async def test_migration_engine_baseline(engine):
         assert rows[1][0] == 1
         assert rows[1][1].startswith("baselined:")
 
+        # Assert PRAGMA user_version synchronized to max version
+        uv_res = await conn.execute(text("PRAGMA user_version"))
+        assert uv_res.scalar() == 1
+
 
 @pytest.mark.asyncio
 async def test_migration_engine_failure(engine):

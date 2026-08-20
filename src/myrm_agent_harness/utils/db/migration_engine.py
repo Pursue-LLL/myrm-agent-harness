@@ -169,6 +169,9 @@ class StatefulMigrationEngine:
                         _sql_text(insert_sql),
                         {"version": m.version, "checksum": "baselined:" + checksum},
                     )
+                if migrations:
+                    max_v = max(m.version for m in migrations)
+                    await conn.execute(_sql_text(f"PRAGMA user_version = {max_v}"))
             report.skipped_count = len(migrations)
             report.baselined = True
             report.total_duration_ms = (time.time() - total_start) * 1000
@@ -248,6 +251,15 @@ class StatefulMigrationEngine:
                 report.failed_sql = m.sql
                 report.failed_version = m.version
                 break
+
+        # Sync PRAGMA user_version to latest applied migration version
+        if migrations and report.failed_count == 0:
+            max_v = max(m.version for m in migrations)
+            try:
+                async with self.engine.begin() as conn:
+                    await conn.execute(_sql_text(f"PRAGMA user_version = {max_v}"))
+            except Exception as exc:
+                logger.warning("Failed to update PRAGMA user_version to %d: %s", max_v, exc)
 
         report.total_duration_ms = (time.time() - total_start) * 1000
         report.slowest_migrations.sort(key=lambda x: x[2], reverse=True)

@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 
 from .integrity import on_disk_journal_mode_is_wal
 from .profile import DEFAULT, SQLiteProfile
+from .schema_gate import StorageCapabilities, validate_schema_gate_async, validate_schema_gate_sync
 
 if TYPE_CHECKING:
     import aiosqlite
@@ -102,8 +103,12 @@ def harden_connection_sync(
     profile: SQLiteProfile = DEFAULT,
     *,
     db_path: Path | None = None,
+    capabilities: StorageCapabilities | None = None,
 ) -> str:
     """Apply ``profile`` to a synchronous connection; return the journal mode."""
+    if capabilities is not None:
+        validate_schema_gate_sync(conn, capabilities, db_path=db_path)
+
     if profile.read_only:
         for statement in _read_only_statements(profile):
             conn.execute(statement)
@@ -139,8 +144,12 @@ async def harden_connection_async(
     profile: SQLiteProfile = DEFAULT,
     *,
     db_path: Path | None = None,
+    capabilities: StorageCapabilities | None = None,
 ) -> str:
     """Apply ``profile`` to an aiosqlite connection; return the journal mode."""
+    if capabilities is not None:
+        await validate_schema_gate_async(conn, capabilities, db_path=db_path)
+
     if profile.read_only:
         for statement in _read_only_statements(profile):
             await conn.execute(statement)
@@ -173,10 +182,16 @@ async def _apply_journal_mode_async(conn: aiosqlite.Connection, profile: SQLiteP
 
 
 @asynccontextmanager
-async def connect_async(db_path: str | Path, profile: SQLiteProfile = DEFAULT) -> AsyncIterator[aiosqlite.Connection]:
+async def connect_async(
+    db_path: str | Path,
+    profile: SQLiteProfile = DEFAULT,
+    capabilities: StorageCapabilities | None = None,
+) -> AsyncIterator[aiosqlite.Connection]:
     """Open + harden a short-lived aiosqlite connection, closing it on exit."""
     import aiosqlite
 
     async with aiosqlite.connect(str(db_path)) as conn:
-        await harden_connection_async(conn, profile, db_path=Path(db_path))
+        await harden_connection_async(
+            conn, profile, db_path=Path(db_path), capabilities=capabilities
+        )
         yield conn

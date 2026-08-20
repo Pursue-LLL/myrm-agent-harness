@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from enum import StrEnum, unique
 
 from myrm_agent_harness.agent.security.config import parse_security_config
-from myrm_agent_harness.agent.security.engine import merge
+from myrm_agent_harness.agent.security.engine import evaluate, merge
 from myrm_agent_harness.agent.security.types import (
     DEFAULT_CAPABILITIES,
     DEFAULT_RULESET,
@@ -281,14 +281,49 @@ def build_channel_security_config(
     return result
 
 
+def _action_severity(action: PermissionAction) -> int:
+    """Numerical severity for permission actions (higher = more restrictive)."""
+    match action:
+        case PermissionAction.DENY:
+            return 3
+        case PermissionAction.ASK:
+            return 2
+        case PermissionAction.ALLOW:
+            return 1
+        case _:
+            return 2
+
+
+def _merge_ruleset_with_ceiling(
+    base_ruleset: PermissionRuleset,
+    agent_ruleset: PermissionRuleset,
+) -> PermissionRuleset:
+    """Merge agent rules onto a base ruleset under the Least Privilege Ceiling.
+
+    Anti-privilege-escalation guarantee:
+    An agent rule is accepted if and only if its action is AT LEAST as restrictive
+    as the base ruleset evaluation for that (permission, pattern). If an agent rule
+    attempts to relax permissions (e.g. ALLOW when base is ASK/DENY, or ASK when
+    base is DENY), it is rejected/suppressed so that agent overrides can only
+    tighten security, never expand it.
+    """
+    valid_agent_rules: list[PermissionRule] = []
+    for rule in agent_ruleset:
+        base_effective = evaluate(rule.permission, rule.pattern, base_ruleset)
+        if _action_severity(rule.action) >= _action_severity(base_effective.action):
+            valid_agent_rules.append(rule)
+    return merge(base_ruleset, tuple(valid_agent_rules))
+
+
 def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | None) -> SecurityConfig | None:
     """Merge user-level config with per-agent overrides.
 
     - capabilities: intersection (Agent restricts, never expands)
     - allowed_roots: union (Agent can grant additional paths)
     - forbidden_paths: always DEFAULT (cannot be overridden)
-    - ruleset: Agent rules merged on top (higher priority via last-match-wins)
+    - ruleset: Agent rules merged under Least Privilege Ceiling (can tighten, never escalate)
     - timeout: Agent overrides user if explicitly configured (non-default)
+    - yolo_mode: Agent can only be in YOLO mode if user globally enabled YOLO
     """
     if agent is None:
         return user
@@ -305,7 +340,7 @@ def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | N
     else:
         caps = user.capabilities
 
-    ruleset = merge(user.ruleset, agent.ruleset)
+    ruleset = _merge_ruleset_with_ceiling(user.ruleset, agent.ruleset)
 
     from myrm_agent_harness.core.security.types import AccessRoot
 
@@ -331,20 +366,17 @@ def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | N
     auto_mode_enabled = user.auto_mode_enabled or agent.auto_mode_enabled
     auto_review_model = agent.auto_review_model or user.auto_review_model
     auto_review_timeout = min(user.auto_review_timeout_seconds, agent.auto_review_timeout_seconds)
-    yolo_enabled = user.yolo_mode_enabled or agent.yolo_mode_enabled
-    # Per-agent YOLO is an explicit override: do not let stale user timestamps/timeouts
-    # expire agent YOLO (hitl-probe checks the flag only; batch_processor enforces timeout).
-    if agent.yolo_mode_enabled:
-        yolo_at = agent.yolo_mode_enabled_at
-        if yolo_at is None and user.yolo_mode_enabled:
-            yolo_at = user.yolo_mode_enabled_at
-        yolo_timeout = agent.yolo_mode_timeout
-        if yolo_timeout is None and user.yolo_mode_enabled:
-            yolo_timeout = user.yolo_mode_timeout
+    # Anti-privilege-escalation for YOLO: Agent can only activate YOLO if user globally enabled YOLO
+    yolo_enabled = user.yolo_mode_enabled and agent.yolo_mode_enabled
+    if yolo_enabled:
+        yolo_at = agent.yolo_mode_enabled_at or user.yolo_mode_enabled_at
+        yolo_timeout = agent.yolo_mode_timeout or user.yolo_mode_timeout
     elif user.yolo_mode_enabled:
+        yolo_enabled = True
         yolo_at = user.yolo_mode_enabled_at
         yolo_timeout = user.yolo_mode_timeout
     else:
+        yolo_enabled = False
         yolo_at = None
         yolo_timeout = None
 

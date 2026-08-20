@@ -30,6 +30,9 @@ _FRAMEWORK_REQUIRED_OPENAI_PARAMS: frozenset[str] = frozenset(
         "response_format",
         "stream",
         "stream_options",
+        "context_management",
+        "store",
+        "previous_response_id",
     }
 )
 

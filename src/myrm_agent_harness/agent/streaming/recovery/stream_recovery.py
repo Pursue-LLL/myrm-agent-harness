@@ -185,8 +185,20 @@ class StreamRecoveryMixin(
         """Handle LLM failover: switch to backup model + retry. Returns True if should continue."""
         error_kind = classify_error(exc)
 
-        target_fallback_llm = self._safety_fallback_llm if error_kind == ErrorKind.SAFETY_BLOCK else self._fallback_llm
-        fallback_type = "safety_fallback" if error_kind == ErrorKind.SAFETY_BLOCK else "fallback"
+        # Determine target fallback candidate
+        if error_kind == ErrorKind.SAFETY_BLOCK:
+            target_fallback_llm = self._safety_fallback_llm
+            fallback_type = "safety_fallback"
+        else:
+            fallback_type = "fallback"
+            fallback_candidates = getattr(self, "_fallback_llms", None) or (
+                [self._fallback_llm] if self._fallback_llm else []
+            )
+            curr_idx = getattr(self, "_fallback_index", 0)
+            if curr_idx < len(fallback_candidates):
+                target_fallback_llm = fallback_candidates[curr_idx]
+            else:
+                target_fallback_llm = None
 
         logger.warning(
             " LLM error: %s (failoverable=%s, %s=%s)",
@@ -219,13 +231,20 @@ class StreamRecoveryMixin(
                 )
                 return False
 
-        self.failover_used = True
+        if error_kind == ErrorKind.SAFETY_BLOCK:
+            self.failover_used = True
+        else:
+            self._fallback_index = getattr(self, "_fallback_index", 0) + 1
+            fallback_candidates = getattr(self, "_fallback_llms", [])
+            if self._fallback_index >= len(fallback_candidates):
+                self.failover_used = True
+
         self._rebind_agent_after_rebuild(target_fallback_llm)
         fallback_model = getattr(target_fallback_llm, "model_name", None) or getattr(
             target_fallback_llm, "model", "backup"
         )
 
-        logger.warning(" Failover: %s → switching to %s", error_kind.value, fallback_model)
+        logger.warning(" Failover: %s → switching to %s (step %s)", error_kind.value, fallback_model, getattr(self, "_fallback_index", 1))
 
         step_key = "safety_fallback_active" if error_kind == ErrorKind.SAFETY_BLOCK else "model_failover"
 

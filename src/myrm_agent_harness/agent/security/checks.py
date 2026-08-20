@@ -44,9 +44,8 @@ def check_path_policy(
     Returns (DENY, reason) if blocked by forbidden paths.
     Returns (ALLOW, "") if in a writable access root or workspace (when writing).
     Returns (ALLOW, "") for read-only roots when require_write is False.
-    Returns (DENY, reason) for write attempts on read-only roots.
-    Returns (ASK, reason) if outside allowed zones, requiring user approval or
-    request_directory_tool.
+    Returns (ASK, reason) for write attempts on read-only roots (triggers write escalation).
+    Returns (ASK, reason) if outside allowed zones, requiring user approval.
     Relative paths are resolved against workspace_root when available.
     """
     if workspace_root and not os.path.isabs(os.path.expanduser(raw_path)):
@@ -80,8 +79,8 @@ def check_path_policy(
     if matched_readonly:
         if require_write:
             return (
-                PermissionAction.DENY,
-                f"Path is read-only: {raw_path} (use request_directory_tool for write access)",
+                PermissionAction.ASK,
+                f"Path is read-only, write permission required: {raw_path}",
             )
         if is_sensitive_file(raw_path):
             return PermissionAction.ASK, f"Sensitive file: {os.path.basename(raw_path)}"
@@ -115,7 +114,9 @@ def _has_explicit_scheme(url: str) -> bool:
     return not after_colon.isdigit()
 
 
-def check_navigate_scheme(permission: str, tool_input: dict[str, object]) -> tuple[PermissionAction | None, str]:
+def check_navigate_scheme(
+    permission: str, tool_input: dict[str, object]
+) -> tuple[PermissionAction | None, str]:
     """Validate URL scheme for browser_navigate (Layer 2 Built-in Blacklist).
 
     Only ``http://`` and ``https://`` are allowed. All other schemes
@@ -149,7 +150,9 @@ def check_navigate_scheme(permission: str, tool_input: dict[str, object]) -> tup
 _SHELL_EXEC_PERMISSION = "shell_exec"
 
 
-def check_shell_threats(permission: str, tool_input: dict[str, object]) -> tuple[PermissionAction | None, str]:
+def check_shell_threats(
+    permission: str, tool_input: dict[str, object]
+) -> tuple[PermissionAction | None, str]:
     """Analyze shell commands via shell_command_analyzer (Layer 2).
 
     Returns (action, reason) if a threat is detected, or (None, "") if clean.
@@ -163,7 +166,11 @@ def check_shell_threats(permission: str, tool_input: dict[str, object]) -> tuple
         analyze_command,
     )
 
-    command = str(tool_input.get("command", "") or tool_input.get("code", "") or tool_input.get("data", "")).strip()
+    command = str(
+        tool_input.get("command", "")
+        or tool_input.get("code", "")
+        or tool_input.get("data", "")
+    ).strip()
     if not command:
         return None, ""
 

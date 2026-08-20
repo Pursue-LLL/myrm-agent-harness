@@ -70,7 +70,6 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
         "create_goal_tools",
         "create_memory_tools",
         "create_submit_verdict_tool",
-        "create_vision_agent_tools",
     }
 )
 
