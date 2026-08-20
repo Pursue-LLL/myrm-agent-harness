@@ -24,7 +24,7 @@ auto-conversion).
 | pptx.py | Core | PowerPoint document parser. Supports markdown (slide text, tables, speaker notes) and structure mode (JSON metadata with shape IDs, types, positions, layouts for incremental edits). | ✅ |
 | rtf_parser.py | Core | RTF parser with font/color group handling and Markdown output | ✅ |
 | text.py | Core | Text file parser | ✅ |
-| ipynb.py | Core | Jupyter Notebook parser. Extracts Markdown/code/raw cells, strips metadata/outputs. | ✅ |
+| ipynb.py | Core | Jupyter Notebook parser. Extracts Markdown/code/raw cells, outputs plots (multimodal blocks), preserves cell tags, and applies 10K/100-line safe truncation. | ✅ |
 
 ## Dependencies
 

@@ -388,7 +388,7 @@ class TestIpynbParserOutputsAndMultimodal:
             parser = IpynbParser()
             res = await parser.parse_with_images(path)
             assert "`[Tags: parameters, chart]`" in res.text
-            assert "Plot Output 1 (image/png)" in res.text
+            assert "**Plot Output 1** (image/png)" in res.text
             assert len(res.images) == 1
             assert res.images[0].mime_type == "image/png"
             assert res.images[0].base64_data == fake_b64

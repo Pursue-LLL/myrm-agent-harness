@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -123,11 +124,11 @@ class TestFileReadPreIODevicesAndUnicode:
                 result = await tool.ainvoke({"paths": ["“data_schema.json”"]}, config=config)
                 assert '{"status": "ok"}' in str(result)
                 # Verify healed path was passed to process_text_paths
-                    mock_process.assert_called_once()
-                    call_paths = mock_process.call_args[0][0]
-                    assert call_paths == ["data_schema.json"]
-            finally:
-                workspace_root_var.reset(token)
+                mock_process.assert_called_once()
+                call_paths = mock_process.call_args[0][0]
+                assert call_paths == ["data_schema.json"]
+        finally:
+            workspace_root_var.reset(token)
 
 
 class TestDocumentReaderMultimodalAndMagicBytes:
@@ -168,7 +169,7 @@ class TestDocumentReaderMultimodalAndMagicBytes:
             supports_vision=True,
         )
         assert len(blocks) == 3
-        assert "Plot Output 1 (image/png)" in blocks[0]["text"]
+        assert "**Plot Output 1** (image/png)" in blocks[0]["text"]
         assert "Notebook Plot: cell 1, output 1" in blocks[1]["text"]
         assert blocks[2]["type"] in ("image", "image_url")
         b64 = blocks[2].get("base64") or blocks[2].get("data")

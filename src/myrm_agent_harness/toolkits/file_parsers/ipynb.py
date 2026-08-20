@@ -238,6 +238,13 @@ class IpynbParser(FileParser):
                 continue
 
             source = _source_text(cell.get("source")).rstrip("\n")
+            outputs = cell.get("outputs") if cell_type == "code" else None
+            has_outputs = bool(isinstance(outputs, list) and outputs)
+
+            # Skip cell if both source and outputs are empty
+            if not source and not has_outputs:
+                continue
+
             cell_meta = cell.get("metadata")
             tags_badge = _format_cell_tags(cell_meta if isinstance(cell_meta, dict) else {})
 
@@ -251,8 +258,7 @@ class IpynbParser(FileParser):
                     cell_parts.extend([f"```{kernel_lang}", source, "```"])
 
                 # Parse cell outputs (plots, tables, streams, errors)
-                outputs = cell.get("outputs")
-                if isinstance(outputs, list) and outputs:
+                if has_outputs and isinstance(outputs, list):
                     out_text_blocks = _extract_cell_outputs(outputs, cell_idx, images)
                     if out_text_blocks:
                         cell_parts.extend(out_text_blocks)

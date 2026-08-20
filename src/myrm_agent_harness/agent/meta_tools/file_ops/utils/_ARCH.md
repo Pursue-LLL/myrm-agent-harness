@@ -8,9 +8,9 @@ Utility functions module.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Utility functions module. | — |
-| document_reader.py | Core | Document file reader for file_read_tool. Converts .docx/.doc/.xlsx/.xls/.pptx/.ppt/.ipynb to Markdown via file_parsers (legacy OLE2 via LegacyFormatParser). | ✅ |
+| document_reader.py | Core | Document file reader for file_read_tool. Converts .docx/.doc/.xlsx/.xls/.pptx/.ppt/.ipynb to Markdown via file_parsers with multimodal plot blocks and magic bytes sniffing. | ✅ |
 | file_utils.py | Core | Provides parse_path_with_range with positive line numbers and ordered range validation. | ✅ |
-| image_reader.py | Core | Provides is_image_path, read_image_as_content_blocks. Reactive compression delegated to `ImageCompressor` (forced JPEG output, 4096px, q0.8). | ✅ |
+| image_reader.py | Core | Provides is_image_path, read_image_as_content_blocks. Quality Ladder compression (95->20) + (original/attached/scale) coordinate scale factor disclosure. | ✅ |
 | line_endings.py | Core | Line ending detection and normalization (CRLF/LF preserved across edits) plus UTF-8 BOM stripping on display. | ✅ |
 | vault_scope.py | Core | Obsidian vault root detection via `.obsidian/` marker | ✅ |
 | office_scope.py | Core | Office `.docx`/`.xlsx` extension scope for write guards | ✅ |
