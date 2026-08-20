@@ -152,10 +152,10 @@ class TestReadImageThresholdStrategy:
         medium_bytes = b"\x00" * (6 * 1024 * 1024)
 
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.image_reader._reactive_compress"
+            "myrm_agent_harness.agent.meta_tools.file_ops.utils.image_reader._ladder_compress"
         ) as mock_compress:
             fake_huge_jpeg = b"\x00" * (21 * 1024 * 1024)
-            mock_compress.return_value = fake_huge_jpeg
+            mock_compress.return_value = (fake_huge_jpeg, (4096, 4096))
 
             executor = AsyncMock()
             executor.read_file_bytes.return_value = medium_bytes
@@ -172,7 +172,7 @@ class TestReadImageThresholdStrategy:
         bad_bytes = b"\x89PNG" + b"\x00" * (6 * 1024 * 1024)
 
         with patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.utils.image_reader._reactive_compress",
+            "myrm_agent_harness.agent.meta_tools.file_ops.utils.image_reader._ladder_compress",
             return_value=None,
         ):
             executor = AsyncMock()
@@ -230,3 +230,21 @@ class TestImageReaderEdgeBranches:
     def test_needs_compression_small_passthrough(self) -> None:
         raw = _make_jpeg_bytes(800, 600)
         assert _needs_compression(raw) is False
+
+
+class TestLadderAndCoordinateDisclosure:
+    """Verify Quality Ladder progressive compression and coordinate scale factor reporting."""
+
+    @pytest.mark.asyncio
+    async def test_coordinate_scale_factor_in_header(self) -> None:
+        raw_large = _make_jpeg_bytes(6000, 4000)
+        executor = AsyncMock()
+        executor.read_file_bytes.return_value = raw_large
+
+        result = await read_image_as_content_blocks("ultra.jpg", executor, True)
+        assert isinstance(result, list)
+        desc = result[0]["text"]
+        assert "original: 6000x4000" in desc
+        assert "attached: 4096x2730" in desc
+        assert "scale: 0.6827" in desc
+        assert "image/jpeg" in desc

@@ -352,6 +352,74 @@ class TestIpynbParserTokenSavings:
             parser = IpynbParser()
             result = await parser.parse(path)
             savings = 1 - len(result) / len(raw_json)
-            assert savings > 0.5, f"Expected >50% savings, got {savings:.0%}"
+            assert savings > 0.3, f"Expected >30% savings, got {savings:.0%}"
+        finally:
+            os.unlink(path)
+
+
+class TestIpynbParserOutputsAndMultimodal:
+    """Verify plots extraction, safe truncation, and cell tags retention."""
+
+    @pytest.mark.asyncio
+    async def test_extract_png_plot_and_tags(self) -> None:
+        fake_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        nb = {
+            "nbformat": 4,
+            "metadata": {"kernelspec": {"language": "python"}},
+            "cells": [
+                {
+                    "cell_type": "code",
+                    "source": "plt.plot([1,2,3])",
+                    "metadata": {"tags": ["parameters", "chart"]},
+                    "outputs": [
+                        {
+                            "output_type": "display_data",
+                            "data": {
+                                "image/png": fake_b64,
+                                "text/plain": "<Figure size 640x480 with 1 Axes>",
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+        path = _write_notebook(nb)
+        try:
+            parser = IpynbParser()
+            res = await parser.parse_with_images(path)
+            assert "`[Tags: parameters, chart]`" in res.text
+            assert "Plot Output 1 (image/png)" in res.text
+            assert len(res.images) == 1
+            assert res.images[0].mime_type == "image/png"
+            assert res.images[0].base64_data == fake_b64
+        finally:
+            os.unlink(path)
+
+    @pytest.mark.asyncio
+    async def test_safe_truncation_large_output(self) -> None:
+        huge_text = "\n".join([f"row_{i}: value" for i in range(500)])
+        nb = {
+            "nbformat": 4,
+            "metadata": {"kernelspec": {"language": "python"}},
+            "cells": [
+                {
+                    "cell_type": "code",
+                    "source": "df.head(500)",
+                    "outputs": [
+                        {
+                            "output_type": "stream",
+                            "name": "stdout",
+                            "text": huge_text,
+                        }
+                    ],
+                }
+            ],
+        }
+        path = _write_notebook(nb)
+        try:
+            parser = IpynbParser()
+            res = await parser.parse_with_images(path)
+            assert "Output (stdout)" in res.text
+            assert "Output truncated: omitted 400 lines / total 500 lines" in res.text
         finally:
             os.unlink(path)

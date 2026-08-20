@@ -123,8 +123,53 @@ class TestFileReadPreIODevicesAndUnicode:
                 result = await tool.ainvoke({"paths": ["“data_schema.json”"]}, config=config)
                 assert '{"status": "ok"}' in str(result)
                 # Verify healed path was passed to process_text_paths
-                mock_process.assert_called_once()
-                call_paths = mock_process.call_args[0][0]
-                assert call_paths == ["data_schema.json"]
-        finally:
-            workspace_root_var.reset(token)
+                    mock_process.assert_called_once()
+                    call_paths = mock_process.call_args[0][0]
+                    assert call_paths == ["data_schema.json"]
+            finally:
+                workspace_root_var.reset(token)
+
+
+class TestDocumentReaderMultimodalAndMagicBytes:
+    """Verify document_reader returns multimodal image blocks for .ipynb and sniffs magic bytes."""
+
+    @pytest.mark.asyncio
+    async def test_ipynb_multimodal_blocks_emitted(self, tmp_path: Path) -> None:
+        fake_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        nb = {
+            "nbformat": 4,
+            "metadata": {"kernelspec": {"language": "python"}},
+            "cells": [
+                {
+                    "cell_type": "code",
+                    "source": "import matplotlib.pyplot as plt\nplt.plot([1, 2])",
+                    "outputs": [
+                        {
+                            "output_type": "display_data",
+                            "data": {"image/png": fake_b64},
+                        }
+                    ],
+                }
+            ],
+        }
+        nb_file = tmp_path / "plot_test.ipynb"
+        nb_file.write_text(json.dumps(nb), encoding="utf-8")
+
+        executor = AsyncMock()
+        executor.read_file_bytes.return_value = nb_file.read_bytes()
+
+        from myrm_agent_harness.agent.meta_tools.file_ops.utils.document_reader import (
+            read_document_multimodal,
+        )
+
+        blocks = await read_document_multimodal(
+            str(nb_file),
+            executor,
+            supports_vision=True,
+        )
+        assert len(blocks) == 3
+        assert "Plot Output 1 (image/png)" in blocks[0]["text"]
+        assert "Notebook Plot: cell 1, output 1" in blocks[1]["text"]
+        assert blocks[2]["type"] in ("image", "image_url")
+        b64 = blocks[2].get("base64") or blocks[2].get("data")
+        assert b64 == fake_b64
