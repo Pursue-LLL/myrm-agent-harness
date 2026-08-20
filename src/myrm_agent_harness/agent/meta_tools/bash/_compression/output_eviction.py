@@ -87,7 +87,9 @@ class EvictionResult:
     storage_truncated: bool = False
 
 
-async def maybe_evict_large_output(content: str, executor: CodeExecutor | None = None) -> EvictionResult:
+async def maybe_evict_large_output(
+    content: str, executor: CodeExecutor | None = None
+) -> EvictionResult:
     """大输出截断为智能预览，可选持久化到沙箱文件
 
     触发条件（任一满足）：token 数超过 FILTER_TOKEN_THRESHOLD，或字符数超过
@@ -137,8 +139,12 @@ async def maybe_evict_large_output(content: str, executor: CodeExecutor | None =
                 evicted_basename=os.path.basename(file_path),
                 head_text=footer_head,
                 rel_path=file_path,
-                storage_truncated=(persist_stats.storage_truncated if persist_stats else False),
-                original_chars=(persist_stats.original_chars if persist_stats else None),
+                storage_truncated=(
+                    persist_stats.storage_truncated if persist_stats else False
+                ),
+                original_chars=(
+                    persist_stats.original_chars if persist_stats else None
+                ),
                 stored_chars=(persist_stats.stored_chars if persist_stats else None),
             )
 
@@ -153,7 +159,9 @@ async def maybe_evict_large_output(content: str, executor: CodeExecutor | None =
             evicted_ref=evicted_ref,
             stored_chars=persist_stats.stored_chars if persist_stats else None,
             total_lines=persist_stats.total_lines if persist_stats else None,
-            storage_truncated=(persist_stats.storage_truncated if persist_stats else False),
+            storage_truncated=(
+                persist_stats.storage_truncated if persist_stats else False
+            ),
         )
 
     except Exception as e:
@@ -164,8 +172,12 @@ async def maybe_evict_large_output(content: str, executor: CodeExecutor | None =
                 evicted_basename=os.path.basename(file_path),
                 head_text=_footer_head_part(fallback),
                 rel_path=file_path,
-                storage_truncated=(persist_stats.storage_truncated if persist_stats else False),
-                original_chars=(persist_stats.original_chars if persist_stats else None),
+                storage_truncated=(
+                    persist_stats.storage_truncated if persist_stats else False
+                ),
+                original_chars=(
+                    persist_stats.original_chars if persist_stats else None
+                ),
                 stored_chars=(persist_stats.stored_chars if persist_stats else None),
             )
         evicted_ref = os.path.basename(file_path) if file_path else None
@@ -174,11 +186,15 @@ async def maybe_evict_large_output(content: str, executor: CodeExecutor | None =
             evicted_ref=evicted_ref,
             stored_chars=persist_stats.stored_chars if persist_stats else None,
             total_lines=persist_stats.total_lines if persist_stats else None,
-            storage_truncated=(persist_stats.storage_truncated if persist_stats else False),
+            storage_truncated=(
+                persist_stats.storage_truncated if persist_stats else False
+            ),
         )
 
 
-async def _save_to_file(executor: CodeExecutor, content: str) -> tuple[str | None, EvictedPersistResult | None]:
+async def _save_to_file(
+    executor: CodeExecutor, content: str
+) -> tuple[str | None, EvictedPersistResult | None]:
     """Persist large bash output under `.context/{chat_id}/evicted/`.
 
     Uses the same workspace_root_var + chat_id_var path as web_fetch UECD spill

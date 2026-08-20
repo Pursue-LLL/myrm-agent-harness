@@ -24,13 +24,17 @@ _DUMMY_CONFIG = RunnableConfig()
 def test_normalize_path_hint_strips_leading_dot_slash() -> None:
     chat_id = "chat-norm"
     raw = f"./.context/{chat_id}/evicted/web_fetch_ab12cd34.md"
-    assert _normalize_path_hint(raw) == f".context/{chat_id}/evicted/web_fetch_ab12cd34.md"
+    assert (
+        _normalize_path_hint(raw) == f".context/{chat_id}/evicted/web_fetch_ab12cd34.md"
+    )
     assert _path_hint_allowed_for_evicted_uploaded(raw, chat_id)
 
 
 def test_path_hint_allows_evicted_and_uploaded() -> None:
     chat_id = "chat-1"
-    assert _path_hint_allowed_for_evicted_uploaded(f".context/{chat_id}/evicted/web_fetch_ab12cd34.md", chat_id)
+    assert _path_hint_allowed_for_evicted_uploaded(
+        f".context/{chat_id}/evicted/web_fetch_ab12cd34.md", chat_id
+    )
     assert _path_hint_allowed_for_evicted_uploaded("_uploaded/report.pdf", chat_id)
     assert _path_hint_allowed_for_evicted_uploaded("_uploaded", chat_id)
 
@@ -58,7 +62,9 @@ async def test_scope_blocks_workspace_file(tmp_path) -> None:
                 return str(workspace / path)
 
         with pytest.raises(ToolError, match="blocked"):
-            await _assert_evicted_uploaded_read_scope(["secret.txt"], chat_id=chat_id, executor=_Executor())
+            await _assert_evicted_uploaded_read_scope(
+                ["secret.txt"], chat_id=chat_id, executor=_Executor()
+            )
     finally:
         workspace_root_var.reset(token_ws)
         chat_id_var.reset(token_chat)
@@ -82,7 +88,9 @@ async def test_scope_allows_evicted_file(tmp_path) -> None:
             async def resolve_path(self, path: str) -> str:
                 return str(workspace / path)
 
-        await _assert_evicted_uploaded_read_scope([rel], chat_id=chat_id, executor=_Executor())
+        await _assert_evicted_uploaded_read_scope(
+            [rel], chat_id=chat_id, executor=_Executor()
+        )
     finally:
         workspace_root_var.reset(token_ws)
         chat_id_var.reset(token_chat)
@@ -245,7 +253,9 @@ async def test_scope_allows_evicted_file_with_chat_prefix_chat_id(tmp_path) -> N
             async def resolve_path(self, path: str) -> str:
                 return str(workspace / path)
 
-        await _assert_evicted_uploaded_read_scope([rel], chat_id=chat_id, executor=_Executor())
+        await _assert_evicted_uploaded_read_scope(
+            [rel], chat_id=chat_id, executor=_Executor()
+        )
     finally:
         workspace_root_var.reset(token_ws)
         chat_id_var.reset(token_chat)

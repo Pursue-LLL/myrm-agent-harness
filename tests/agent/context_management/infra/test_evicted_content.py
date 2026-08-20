@@ -1,4 +1,4 @@
-"""Tests for unified evicted content delivery (UECD content module)."""
+"""Tests for unified evicted content delivery (UECD)."""
 
 from __future__ import annotations
 

@@ -94,7 +94,9 @@ def read_evicted_line_range(
 
     resolved = Path(path)
     stored_chars = int(resolved.stat().st_size)
-    storage_truncated, original_chars = probe_storage_cap_from_tail(_read_file_tail_text(resolved))
+    storage_truncated, original_chars = probe_storage_cap_from_tail(
+        _read_file_tail_text(resolved)
+    )
     collected: list[str] = []
     total_lines = 0
     with resolved.open(encoding="utf-8", errors="replace") as handle:

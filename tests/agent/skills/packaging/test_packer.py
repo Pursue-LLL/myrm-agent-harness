@@ -12,7 +12,10 @@ from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillTrust
 @pytest.mark.asyncio
 async def test_package_files_success():
     packer = SkillPacker()
-    files = {"SKILL.md": b"---\nname: my_skill\nversion: 1.5.0\n---\n# My Skill", "script.py": "print('hello')"}
+    files = {
+        "SKILL.md": b"---\nname: my_skill\nversion: 1.5.0\n---\n# My Skill",
+        "script.py": "print('hello')",
+    }
 
     result = packer.package_files("my_skill", "1.0.0", files)
 
@@ -41,7 +44,9 @@ async def test_package_files_missing_skill_md():
 async def test_package_directory(tmp_path: Path):
     skill_dir = tmp_path / "test_dir_skill"
     skill_dir.mkdir()
-    (skill_dir / "SKILL.md").write_text("---\nname: test_dir_skill\n---", encoding="utf-8")
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: test_dir_skill\n---", encoding="utf-8"
+    )
     (skill_dir / "test.py").write_text("pass", encoding="utf-8")
 
     packer = SkillPacker()
@@ -133,9 +138,11 @@ async def test_package_as_agent_plugin_roundtrip():
     skill = parse_result.skills[0]
     assert skill.name == "my-test-skill"
     assert "scripts/helper.py" in skill.files
-    assert skill.files["scripts/helper.py"].decode("utf-8") == "def add(a, b): return a + b"
+    assert (
+        skill.files["scripts/helper.py"].decode("utf-8")
+        == "def add(a, b): return a + b"
+    )
     assert len(parse_result.diagnostics) == 0
-
 
 
 @pytest.mark.asyncio

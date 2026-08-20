@@ -28,7 +28,6 @@ from typing import Any
 
 from myrm_agent_harness.agent.plugins.manifest import PLUGIN_SCHEMA
 from myrm_agent_harness.agent.skills.market.sanitizer import SKILL_MD_FILE
-from myrm_agent_harness.agent.skills.packaging.validator import is_forbidden_file, parse_skill_md
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +115,11 @@ class AgentPluginPacker:
         - mcp.json (可选顶层 MCP 配置)
         - skills/<canonical_name>/SKILL.md 及附属文件
         """
+        from myrm_agent_harness.agent.skills.packaging.validator import (
+            is_forbidden_file,
+            parse_skill_md,
+        )
+
         try:
             if SKILL_MD_FILE not in file_contents:
                 return PluginPackageResult(
@@ -133,7 +137,9 @@ class AgentPluginPacker:
 
             actual_name = skill_info.name or skill_name
             actual_version = skill_info.version or version
-            actual_desc = description or skill_info.description or f"Skill plugin {actual_name}"
+            actual_desc = (
+                description or skill_info.description or f"Skill plugin {actual_name}"
+            )
 
             plugin_name = canonical_plugin_name(actual_name)
 
@@ -168,7 +174,9 @@ class AgentPluginPacker:
                     }
                     zf.writestr(
                         f"{plugin_name}/mcp.json",
-                        json.dumps(mcp_config, indent=2, ensure_ascii=False).encode("utf-8"),
+                        json.dumps(mcp_config, indent=2, ensure_ascii=False).encode(
+                            "utf-8"
+                        ),
                     )
 
                 # 3. 写入 skills/<plugin_name>/ 下的文件
@@ -182,11 +190,20 @@ class AgentPluginPacker:
             zip_content = zip_buffer.getvalue()
             filename = f"{plugin_name}_v{actual_version}.zip"
 
-            logger.info("Agent Plugin 打包完成: %s -> %s (%d bytes)", plugin_name, filename, len(zip_content))
-            return PluginPackageResult(success=True, zip_content=zip_content, filename=filename)
+            logger.info(
+                "Agent Plugin 打包完成: %s -> %s (%d bytes)",
+                plugin_name,
+                filename,
+                len(zip_content),
+            )
+            return PluginPackageResult(
+                success=True, zip_content=zip_content, filename=filename
+            )
 
         except Exception as e:
-            logger.error("Agent Plugin 打包失败: %s, 错误: %s", skill_name, e, exc_info=True)
+            logger.error(
+                "Agent Plugin 打包失败: %s, 错误: %s", skill_name, e, exc_info=True
+            )
             return PluginPackageResult(
                 success=False,
                 zip_content=None,

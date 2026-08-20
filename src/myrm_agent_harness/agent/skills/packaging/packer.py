@@ -27,7 +27,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from myrm_agent_harness.agent.plugins.exporter import AgentPluginPacker, PluginPackageResult, canonical_plugin_name
+from myrm_agent_harness.agent.plugins.exporter import (
+    AgentPluginPacker,
+    PluginPackageResult,
+    canonical_plugin_name,
+)
 from myrm_agent_harness.agent.skills.market.sanitizer import SKILL_MD_FILE
 from myrm_agent_harness.backends.skills.protocols import SkillBackend
 
@@ -52,7 +56,9 @@ class SkillPacker:
     def __init__(self) -> None:
         self._plugin_packer = AgentPluginPacker()
 
-    def package_files(self, skill_name: str, version: str, file_contents: Mapping[str, bytes | str]) -> PackageResult:
+    def package_files(
+        self, skill_name: str, version: str, file_contents: Mapping[str, bytes | str]
+    ) -> PackageResult:
         """从文件字典打包为 ZIP（基础格式）"""
         try:
             if SKILL_MD_FILE not in file_contents:
@@ -85,8 +91,12 @@ class SkillPacker:
             zip_content = zip_buffer.getvalue()
             filename = f"{actual_name}_v{actual_version}.zip"
 
-            logger.warning(f" 技能打包完成: {actual_name} -> {filename} ({len(zip_content)} bytes)")
-            return PackageResult(success=True, zip_content=zip_content, filename=filename)
+            logger.warning(
+                f" 技能打包完成: {actual_name} -> {filename} ({len(zip_content)} bytes)"
+            )
+            return PackageResult(
+                success=True, zip_content=zip_content, filename=filename
+            )
 
         except Exception as e:
             logger.error(f"技能文件打包失败: {skill_name}, 错误: {e}")
@@ -127,7 +137,9 @@ class SkillPacker:
             error=res.error,
         )
 
-    async def package_from_backend(self, backend: SkillBackend, skill_name: str) -> PackageResult:
+    async def package_from_backend(
+        self, backend: SkillBackend, skill_name: str
+    ) -> PackageResult:
         """将已注册的技能（通过 SkillBackend 读取）打包为 ZIP"""
         try:
             skills = await backend.load_skills([skill_name])
@@ -159,7 +171,9 @@ class SkillPacker:
                 if res_content is not None:
                     file_contents[res_path] = res_content
 
-            return self.package_files(skill.name, skill.version or "1.0.0", file_contents)
+            return self.package_files(
+                skill.name, skill.version or "1.0.0", file_contents
+            )
 
         except Exception as e:
             logger.error(f"从 Backend 打包失败: {skill_name}, 错误: {e}")
