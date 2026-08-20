@@ -130,7 +130,6 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "ask_question_tool",
         "bash_process_tool",
         "browser_ask_human_tool",
-        "request_directory_tool",
         "kanban_show",
         "kanban_complete",
         "kanban_block",
@@ -195,7 +194,6 @@ AUTO_APPROVED_BUILTIN_TOOLS: dict[str, str] = {
     "memory_search_tool": "read_only",
     "render_ui_tool": "display",
     "request_answer_user_tool": "internal",  # answer-phase gating signal
-    "request_directory_tool": "user_visible",  # user-driven directory access grant
     "skill_market_tool": "user_visible",  # skill install from market, trust-scanned + user-visible
     "skill_search_tool": "read_only",
     "skill_select_tool": "read_only",
@@ -672,9 +670,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "vision_semantic_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True),
     "vision_geometry_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True),
     "ask_question_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=False, is_idempotent=True
-    ),
-    "request_directory_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=False, is_idempotent=True
     ),
     # kanban worker/orchestrator tools — stateful board mutations, serialized by store lock
