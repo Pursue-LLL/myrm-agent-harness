@@ -1125,3 +1125,71 @@ class TestAgentPluginMarketDiscoveryAndInstall:
             assert (tmp_path / "tester" / "SKILL.md").exists()
             assert (tmp_path / "dev-bundle" / "plugin.json").exists()
 
+            # Now test cascade uninstall: uninstalling dev-bundle should clean dev-bundle, reviewer, and tester
+            from myrm_agent_harness.backends.skills.local_skill_id import local_skill_id_from_path
+            dev_bundle_id = local_skill_id_from_path(tmp_path / "dev-bundle")
+            un_res = await svc.uninstall(dev_bundle_id)
+            assert un_res.success is True
+            assert "dev-bundle" in un_res.installed_skills
+            assert "reviewer" in un_res.installed_skills
+            assert "tester" in un_res.installed_skills
+            assert not (tmp_path / "dev-bundle").exists()
+            assert not (tmp_path / "reviewer").exists()
+            assert not (tmp_path / "tester").exists()
+
+    @pytest.mark.asyncio
+    async def test_agent_plugin_preview_and_install_declared_mcp_servers(self, tmp_path) -> None:
+        import json
+        from myrm_agent_harness.agent.plugins.exporter import AgentPluginPacker
+
+        packer = AgentPluginPacker()
+        res = packer.package_multi_skills_as_plugin(
+            name="db-tools",
+            version="1.0.0",
+            description="Database tools plugin",
+            skills=[
+                ("db-query", {"SKILL.md": b"---\nname: db-query\ndescription: DB Query\n---\nRun SQL."}),
+            ],
+            mcp_servers={"sqlite-srv": {"type": "stdio", "command": "uvx", "args": ["mcp-server-sqlite"]}},
+        )
+        assert res.success is True
+        zip_bytes = res.zip_content
+        assert zip_bytes is not None
+
+        svc = BaseSkillMarketService()
+        detail = SkillSearchResult(
+            id="plugin::db-tools",
+            name="db-tools",
+            description="Database tools plugin",
+            source="github",
+            author="myrm",
+            install_url="https://example.com/db-tools.zip",
+            install_method="zip",
+            package_type="agent_plugin",
+        )
+
+        with (
+            patch.object(svc, "get_detail", return_value=detail),
+            patch.object(svc._zip_installer, "download") as mock_dl,
+            patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path),
+        ):
+            from myrm_agent_harness.agent.skills.market.installers.base import InstalledSkillFiles
+            from myrm_agent_harness.backends.skills.scanning import safe_extract_zip
+
+            all_files = safe_extract_zip(zip_bytes, strip_top_dir=True)
+            mock_dl.return_value = InstalledSkillFiles(name="db-tools", description="DB Tools", files=all_files)
+
+            # Test Preview
+            preview = await svc.preview("plugin::db-tools", "github")
+            assert preview.package_type == "agent_plugin"
+            assert preview.installed_skills == ["db-query"]
+            assert preview.declared_mcp_servers == ["sqlite-srv"]
+
+            # Test Install
+            install_res = await svc.install("plugin::db-tools", "github")
+            assert install_res.success is True
+            assert install_res.declared_mcp_servers == ["sqlite-srv"]
+            assert (tmp_path / "db-tools" / "plugin.json").exists()
+            assert (tmp_path / "db-query" / "SKILL.md").exists()
+
+

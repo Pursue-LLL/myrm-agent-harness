@@ -244,7 +244,7 @@ class BaseSkillMarketService:
                 parser = AgentPluginParser()
                 parsed = parser.parse_files(skill_files.files)
                 installed_skills = [s.name for s in parsed.skills]
-                declared_mcp_servers = [s.name for s in parsed.mcp_servers]
+                declared_mcp_servers = [s.name for s in parsed.servers]
             except Exception as exc:
                 logger.warning("Failed to parse plugin.json during preview: %s", exc)
 
@@ -524,7 +524,7 @@ class BaseSkillMarketService:
 
                     parser = AgentPluginParser()
                     parsed = parser.parse_files(files)
-                    declared_mcp_servers = [s.name for s in parsed.mcp_servers]
+                    declared_mcp_servers = [s.name for s in parsed.servers]
                     for p_skill in parsed.skills:
                         s_target_dir = LOCAL_INSTALL_DIR / p_skill.name
                         s_target_dir.parent.mkdir(parents=True, exist_ok=True)
