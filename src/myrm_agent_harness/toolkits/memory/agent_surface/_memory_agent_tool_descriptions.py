@@ -331,7 +331,7 @@ def _build_memory_search_zh(policy: MemorySearchPolicy) -> str:
     if policy.allow_sessions:
         scope_fragments.append("历史会话")
     if policy.allow_web:
-        scope_fragments.append("web corpus")
+        scope_fragments.append("已抓取网页")
 
     corpus_lines = [
         "- memory（默认）：持久事实、偏好、profile、已学规则",

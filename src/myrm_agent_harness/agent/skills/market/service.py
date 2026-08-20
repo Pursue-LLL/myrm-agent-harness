@@ -40,6 +40,10 @@ from myrm_agent_harness.backends.skills.scanning.archive_security import (
 if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.market_protocols import InstalledSkillStore
 from myrm_agent_harness.agent.skills.market.sanitizer import sanitize_skill_files
+from myrm_agent_harness.backends.skills.local_skill_id import (
+    local_skill_id_from_path,
+    resolve_local_install_dir,
+)
 from myrm_agent_harness.backends.skills.scanning import (
     ScanFinding,
     SkillTrustRecommendation,
@@ -571,10 +575,6 @@ class BaseSkillMarketService:
                 logger.info("Installed skill: %s -> %s", name, target_dir)
 
             _emit("completed", f"Installed to {target_dir}")
-            from myrm_agent_harness.backends.skills.local_skill_id import (
-                local_skill_id_from_path,
-            )
-
             canonical_id = local_skill_id_from_path(target_dir)
             return SkillInstallResult(
                 success=True,
@@ -591,6 +591,13 @@ class BaseSkillMarketService:
 
 
 def _atomic_replace(src: Path, dst: Path) -> None:
+    if dst.exists() and dst.is_dir():
+        for p in dst.glob("**/*"):
+            if p.is_file() and p.suffix == ".bak":
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
     backup = dst.parent / (dst.name + ".bak")
     had_backup = False
 

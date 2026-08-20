@@ -139,9 +139,14 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
         self._pseudonym_restorer = None
 
         from .escalation_scrubber import EscalationScrubber
+        from .repetition_scrubber import StreamRepetitionScrubber
 
         self._escalation_scrubber = EscalationScrubber(
             enabled=ctx.escalation_target_llm is not None,
+        )
+        self._repetition_scrubber = StreamRepetitionScrubber(
+            enabled=True,
+            cancel_token=ctx.cancel_token,
         )
         self._slice_tool_call_ids: list[str] = []
 

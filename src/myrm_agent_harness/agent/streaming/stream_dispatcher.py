@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
     from myrm_agent_harness.agent.streaming.escalation_scrubber import EscalationScrubber
     from myrm_agent_harness.agent.streaming.reasoning_scrubber import ReasoningScrubber
+    from myrm_agent_harness.agent.streaming.repetition_scrubber import StreamRepetitionScrubber
     from myrm_agent_harness.agent.streaming.stream_compactor import StreamCompactor
     from myrm_agent_harness.agent.streaming.stream_executor import StreamContext
 
@@ -55,6 +56,7 @@ class StreamDispatcherMixin:
     _compactor: StreamCompactor
     _reasoning_scrubber: ReasoningScrubber
     _escalation_scrubber: EscalationScrubber
+    _repetition_scrubber: StreamRepetitionScrubber
     streaming_final_answer: bool
     _pseudonym_restorer: _PseudonymRestorer | None
     _slice_tool_call_ids: list[str]
@@ -185,6 +187,20 @@ class StreamDispatcherMixin:
                     forwarded = self._escalation_scrubber.process(content)
                     if forwarded is None:
                         continue
+                    if hasattr(self, "_repetition_scrubber"):
+                        rep_checked = self._repetition_scrubber.process(forwarded)
+                        if rep_checked is None:
+                            logger.warning(" %s", self._repetition_scrubber.aborted_reason)
+                            await self._emit_event(
+                                {
+                                    "type": AgentEventType.STREAM_ERROR.value,
+                                    "data": self._repetition_scrubber.aborted_reason,
+                                    "messageId": ctx.message_id,
+                                },
+                                ctx,
+                            )
+                            continue
+                        forwarded = rep_checked
                     for scrubbed_type, scrubbed_text in self._reasoning_scrubber.process(forwarded):
                         if scrubbed_text:
                             restored_text = self._restore_pseudonyms(scrubbed_text)

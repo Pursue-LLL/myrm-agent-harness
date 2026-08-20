@@ -31,7 +31,7 @@ from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG
 from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 
 from ..streaming import read_file_chunked, read_file_preview
-from ..utils.document_reader import read_document_as_text
+from ..utils.document_reader import read_document_as_text, read_document_multimodal
 from ..utils.image_reader import read_image_as_content_blocks
 from ..utils.pdf_reader import read_pdf_as_content_blocks
 from ..utils.vault_read import path_base, read_vault_paths_to_parts
@@ -113,8 +113,13 @@ async def build_multimodal_result(
             blocks.append(create_text_block(result))
 
     for doc_path in document_paths:
-        result = await read_document_as_text(doc_path, executor, parse_mode=parse_mode)
-        blocks.append(create_text_block(result))
+        doc_blocks = await read_document_multimodal(
+            doc_path,
+            executor,
+            supports_vision=supports_vision,
+            parse_mode=parse_mode,
+        )
+        blocks.extend(doc_blocks)
 
     for vid_path in video_paths or []:
         result = await read_video_as_content_blocks(

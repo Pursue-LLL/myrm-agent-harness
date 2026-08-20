@@ -170,6 +170,10 @@ async def _handle_install(backend: SkillMarketBackend, skill_id: str, source: st
             f" Path: {result.installed_path}\n"
             f" ID: {result.skill_id}\n"
         )
+        if result.installed_skills and len(result.installed_skills) > 1:
+            msg += f" Included Sub-Skills: {', '.join(result.installed_skills)}\n"
+        if result.declared_mcp_servers:
+            msg += f" Declared MCP Servers: {', '.join(result.declared_mcp_servers)}\n"
         if result.scan_summary:
             msg += f"\n    Security scan: {result.scan_summary}\n"
         msg += "\nThe skill is now available and will be used automatically when relevant."
@@ -209,5 +213,11 @@ async def _handle_uninstall(uninstall_fn: UninstallFn | None, skill_id: str, use
     result = await uninstall_fn(skill_id, user_id)
 
     if result.success:
+        cleaned_list = getattr(result, "installed_skills", [])
+        if cleaned_list and len(cleaned_list) > 1:
+            return (
+                f"Successfully uninstalled plugin '{result.skill_name}' and cascade-cleaned "
+                f"{len(cleaned_list)} sub-skills: {', '.join(cleaned_list)}."
+            )
         return f"Successfully uninstalled skill '{result.skill_name}'."
     return f"Uninstall failed: {result.error}"

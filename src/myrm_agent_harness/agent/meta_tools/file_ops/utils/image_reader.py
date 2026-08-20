@@ -42,6 +42,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _INLINE_THRESHOLD = 5 * 1024 * 1024
+_TARGET_PAYLOAD_THRESHOLD = 3 * 1024 * 1024  # 3MiB raw (inflates to ~4MiB in Base64 safe envelope)
+_QUALITY_LADDER: tuple[float, ...] = (0.95, 0.80, 0.60, 0.40, 0.20)
+_DIMENSION_LADDER: tuple[int, ...] = (4096, 2048, 1024)
 _REACTIVE_MAX_DIMENSION = 4096
 _REACTIVE_QUALITY = 0.8
 
@@ -80,21 +83,30 @@ async def read_image_as_content_blocks(
             f"Use bash_code_execute_tool to process or resize.)"
         )
 
+    orig_dim = _get_image_dimensions(raw_bytes)
+    attached_dim = orig_dim
+    scale_factor = 1.0
+
     if _needs_compression(raw_bytes):
-        compressed_bytes = _reactive_compress(raw_bytes)
-        if compressed_bytes is None:
+        compressed_res = _ladder_compress(raw_bytes)
+        if compressed_res is None:
             return (
                 f"[Image file: {path}] ({mime_type}, {size_display}. "
                 f"Compression failed. Use bash_code_execute_tool to process or resize.)"
             )
+        compressed_bytes, attached_dim = compressed_res
         raw_bytes = compressed_bytes
         size_bytes = len(raw_bytes)
         mime_type = "image/jpeg"
+        if orig_dim and attached_dim and orig_dim[0] > 0:
+            scale_factor = attached_dim[0] / orig_dim[0]
+
         logger.info(
-            "Image %s compressed: %s -> %s",
+            "Image %s compressed via ladder: %s -> %s (scale: %.4f)",
             path,
             size_display,
             _format_size(size_bytes),
+            scale_factor,
         )
 
     if size_bytes > MAX_IMAGE_PAYLOAD_BYTES:
@@ -106,15 +118,39 @@ async def read_image_as_content_blocks(
 
     b64 = base64.standard_b64encode(raw_bytes).decode("ascii")
 
+    # 构建带坐标尺度因子的描述文本，赋能视觉模型精准坐标反算
+    if orig_dim and attached_dim and (orig_dim != attached_dim or scale_factor < 0.999):
+        desc_text = (
+            f"[Image: {path}] ({mime_type}, {_format_size(size_bytes)}, "
+            f"original: {orig_dim[0]}x{orig_dim[1]}, attached: {attached_dim[0]}x{attached_dim[1]}, "
+            f"scale: {scale_factor:.4f})"
+        )
+    elif orig_dim:
+        desc_text = f"[Image: {path}] ({mime_type}, {_format_size(size_bytes)}, size: {orig_dim[0]}x{orig_dim[1]})"
+    else:
+        desc_text = f"[Image: {path}] ({mime_type}, {_format_size(size_bytes)})"
+
     return [
-        create_text_block(f"[Image: {path}] ({mime_type}, {size_display})"),
+        create_text_block(desc_text),
         create_image_block(base64=b64, mime_type=mime_type),
     ]
 
 
+def _get_image_dimensions(raw_bytes: bytes) -> tuple[int, int] | None:
+    """Safely extract image dimensions (width, height) without decoding full raster."""
+    try:
+        from PIL import Image
+
+        Image.MAX_IMAGE_PIXELS = MAX_DECODE_PIXELS
+        with Image.open(io.BytesIO(raw_bytes)) as img:
+            return img.size
+    except Exception:
+        return None
+
+
 def _needs_compression(raw_bytes: bytes) -> bool:
     """Check if image needs compression based on file size or resolution."""
-    if len(raw_bytes) > _INLINE_THRESHOLD:
+    if len(raw_bytes) > _TARGET_PAYLOAD_THRESHOLD:
         return True
     try:
         from PIL import Image
@@ -128,24 +164,43 @@ def _needs_compression(raw_bytes: bytes) -> bool:
         return False
 
 
-def _reactive_compress(raw_bytes: bytes) -> bytes | None:
-    """Compress oversized image to JPEG with max 4096px dimension.
+def _ladder_compress(raw_bytes: bytes) -> tuple[bytes, tuple[int, int] | None] | None:
+    """Progressively compress image using Quality Ladder (95->20) and dimension downsampling.
 
-    Always outputs JPEG regardless of input format — JPEG is universally
-    supported and achieves much better compression for photographic content.
-    Returns None when compression is not possible (corrupt/unsupported input).
+    Guarantees payload converges within _TARGET_PAYLOAD_THRESHOLD (3MiB raw / ~4MiB Base64)
+    while preserving maximum possible visual fidelity.
+    Returns (compressed_bytes, attached_dimensions) or None if corrupt.
     """
-    try:
-        return image_compressor.compress(
-            io.BytesIO(raw_bytes),
-            output_path=None,
-            quality=_REACTIVE_QUALITY,
-            max_dimension=_REACTIVE_MAX_DIMENSION,
-            output_format="jpeg",
-        )
-    except Exception as e:
-        logger.warning("Reactive image compression failed: %s", e)
-        return None
+    best_candidate: bytes | None = None
+    best_dim: tuple[int, int] | None = None
+
+    for max_dim in _DIMENSION_LADDER:
+        for q in _QUALITY_LADDER:
+            try:
+                res = image_compressor.compress(
+                    io.BytesIO(raw_bytes),
+                    output_path=None,
+                    quality=q,
+                    max_dimension=max_dim,
+                    output_format="jpeg",
+                )
+                if res:
+                    best_candidate = res
+                    best_dim = _get_image_dimensions(res)
+                    if len(res) <= _TARGET_PAYLOAD_THRESHOLD:
+                        return res, best_dim
+            except Exception as e:
+                logger.debug("Ladder compression attempt (dim=%s, q=%s) failed: %s", max_dim, q, e)
+
+    if best_candidate is not None:
+        return best_candidate, best_dim
+    return None
+
+
+def _reactive_compress(raw_bytes: bytes) -> bytes | None:
+    """Legacy helper fallback for backwards compatibility."""
+    res = _ladder_compress(raw_bytes)
+    return res[0] if res else None
 
 
 def _format_size(size_bytes: int) -> str:

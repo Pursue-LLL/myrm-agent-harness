@@ -247,7 +247,7 @@ def test_memory_search_description_includes_enabled_corpora() -> None:
 def test_memory_search_description_zh_includes_all_enabled_corpora() -> None:
     policy = MemorySearchPolicy(allow_wiki=True, allow_sessions=True, allow_web=True)
     desc = build_memory_search_tool_description(policy, locale="zh-CN")
-    assert "web corpus" in desc
+    assert "已抓取网页" in desc
     assert "- web：" in desc
     assert "corpus=web" in desc
     assert "Wiki 文档" in desc
