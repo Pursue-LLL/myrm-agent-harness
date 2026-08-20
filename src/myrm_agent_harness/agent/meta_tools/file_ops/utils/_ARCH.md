@@ -9,7 +9,7 @@ Utility functions module.
 |------|------|-------------|-------|
 | __init__.py | Package | Utility functions module. | — |
 | document_reader.py | Core | Document file reader for file_read_tool. Converts .docx/.doc/.xlsx/.xls/.pptx/.ppt/.ipynb to Markdown via file_parsers (legacy OLE2 via LegacyFormatParser). | ✅ |
-| file_utils.py | Core | Provides parse_path_with_range. | ✅ |
+| file_utils.py | Core | Provides parse_path_with_range with positive line numbers and ordered range validation. | ✅ |
 | image_reader.py | Core | Provides is_image_path, read_image_as_content_blocks. Reactive compression delegated to `ImageCompressor` (forced JPEG output, 4096px, q0.8). | ✅ |
 | line_endings.py | Core | Line ending detection and normalization (CRLF/LF preserved across edits) plus UTF-8 BOM stripping on display. | ✅ |
 | vault_scope.py | Core | Obsidian vault root detection via `.obsidian/` marker | ✅ |

@@ -6,8 +6,10 @@ import os
 from unittest.mock import patch
 
 from myrm_agent_harness.agent.security.path_security import (
+    BLOCKED_DEVICE_NAMES,
     DANGEROUS_PATHS,
     SENSITIVE_FILE_PATTERNS,
+    is_blocked_device_path,
     is_dangerous_path,
     is_sensitive_file,
 )
@@ -201,3 +203,42 @@ class TestSafeJoinPathAndBoundary:
 
         with pytest.raises(ValueError, match="Path traversal detected"):
             safe_join_path(base_dir, "link")
+
+
+class TestBlockedDevicePath:
+    """Test is_blocked_device_path() and BLOCKED_DEVICE_NAMES."""
+
+    def test_blocked_device_names_set(self) -> None:
+        assert "CON" in BLOCKED_DEVICE_NAMES
+        assert "NUL" in BLOCKED_DEVICE_NAMES
+        assert "PRN" in BLOCKED_DEVICE_NAMES
+        assert "AUX" in BLOCKED_DEVICE_NAMES
+        assert "COM1" in BLOCKED_DEVICE_NAMES
+        assert "LPT1" in BLOCKED_DEVICE_NAMES
+
+    def test_posix_device_paths(self) -> None:
+        assert is_blocked_device_path("/dev/zero") is True
+        assert is_blocked_device_path("/dev/null") is True
+        assert is_blocked_device_path("/dev/urandom") is True
+        assert is_blocked_device_path("dev/random") is True
+        assert is_blocked_device_path("/proc/kcore") is True
+        assert is_blocked_device_path("/sys/kernel") is True
+
+    def test_windows_device_names(self) -> None:
+        assert is_blocked_device_path("CON") is True
+        assert is_blocked_device_path("con.txt") is True
+        assert is_blocked_device_path("NUL") is True
+        assert is_blocked_device_path("nul.json") is True
+        assert is_blocked_device_path("aux.py") is True
+        assert is_blocked_device_path("COM1") is True
+        assert is_blocked_device_path(r"\\.\COM1") is True
+        assert is_blocked_device_path(r"//./NUL") is True
+        assert is_blocked_device_path("src/utils/con.txt") is True
+
+    def test_safe_regular_paths_not_blocked(self) -> None:
+        assert is_blocked_device_path("src/index.ts") is False
+        assert is_blocked_device_path("config.json") is False
+        assert is_blocked_device_path("controller.py") is False
+        assert is_blocked_device_path("connect.go") is False
+        assert is_blocked_device_path("") is False
+        assert is_blocked_device_path("   ") is False

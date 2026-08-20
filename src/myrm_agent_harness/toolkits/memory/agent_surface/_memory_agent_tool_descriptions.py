@@ -153,7 +153,7 @@ MEMORY_MANAGE_TOOL_DESCRIPTION_EN = """Update, delete, correct, or rate an exist
 **WHEN TO USE** (not memory_save_tool):
 - User says "forget that", "that's wrong", or "remove that memory"
 - A recalled memory is outdated or inaccurate → correct
-- A memory needs minor wording fix → update
+- A memory needs minor wording fix or weight change → update
 - User confirms a memory was helpful → rate (reinforces retrieval ranking)
 
 **WHEN NOT TO USE**:
@@ -162,15 +162,15 @@ MEMORY_MANAGE_TOOL_DESCRIPTION_EN = """Update, delete, correct, or rate an exist
 
 **ACTION GUIDE**:
 - delete: remove a memory (pinned memories cannot be deleted by the agent)
-- update: fix wording or importance only — not for wrong facts; requires new_content
-- correct: fix a wrong recalled fact — knowledge category only; requires new_content; preserves history; use instead of memory_save_tool when correcting existing memories
+- update: tweak wording or importance only — fact remains true (e.g., fix typo "Pyhton" -> "Python"); requires new_content
+- correct: replace an outdated or wrong fact with the new truth (e.g., "User lives in Beijing" -> "User moved to Shanghai") — knowledge category only; requires new_content; preserves history; use instead of memory_save_tool when correcting existing memories
 - rate: record user feedback — knowledge or event only; requires rating_score 1-5 (1=poor, 5=excellent)
 
 **CATEGORY LIMITS**:
 - correct → knowledge only
 - rate → knowledge or event only
 - preference profile attributes cannot be deleted via this tool
-- instruction saves (via memory_save_tool) are stored as rules with trigger "always"; manage them with category=rule
+- instruction saves (via memory_save_tool) are stored as rules; manage them with category=rule
 
 Parameter semantics are in the tool schema."""
 
@@ -230,24 +230,24 @@ MEMORY_MANAGE_TOOL_DESCRIPTION_ZH = """更新、删除、纠正或评分已有�
 **何时使用**（不要用 memory_save_tool）：
 - 用户说「忘了那个」「不对」「删掉那条记忆」
 - 召回的记忆过时或不准确 → correct
-- 记忆需要小幅措辞修正 → update
+- 记忆需要小幅措辞修正或调整权重 → update
 - 用户确认某条记忆有帮助 → rate（强化检索排序）
 
-**不要改用本工具的情况**：
+**何时禁止使用本工具（转用其他工具/机制）**：
 - 存储新事实、偏好或规则 → memory_save_tool
 - 任务进度或聊天历史 → memory_search_tool，corpus=sessions
 
 **操作指南**：
 - delete：删除记忆（已钉选的记忆 Agent 不能删）
-- update：仅改措辞或重要性 — 不用于事实错误；需要 new_content
-- correct：纠正错误的已召回事实 — 仅 knowledge 类别；需要 new_content；保留历史记录；纠正已有记忆时优先于 memory_save_tool
+- update：仅微调措辞或重要性 — 事实本身仍有效（如修正错别字「Pyhton」→「Python」）；需要 new_content
+- correct：用最新正确事实替换过时或错误事实（如「用户在旧金山」→「用户搬到了西雅图」）— 仅 knowledge 类别；需要 new_content；保留历史记录；纠正已有记忆时优先于 memory_save_tool
 - rate：记录用户反馈 — 仅 knowledge 或 event；需要 rating_score 1-5（1=差，5=优）
 
 **类别限制**：
 - correct → 仅 knowledge
 - rate → 仅 knowledge 或 event
 - preference 类 profile 属性不能通过本工具删除
-- instruction 保存（memory_save_tool）后存为 trigger=always 的 rule；管理时用 category=rule
+- instruction 保存（memory_save_tool）后存为 rule；管理时用 category=rule
 
 参数说明见工具参数定义。"""
 

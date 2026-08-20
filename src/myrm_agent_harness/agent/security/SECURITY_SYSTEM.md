@@ -816,7 +816,7 @@ Layer 5 包含三个并列的防滥用机制：
 
 - `pre_check(tool_name, args)` — 在工具执行前检测，返回 `LoopVerdict`（ALLOW/WARN/BREAK）
 - `record_result(tool_name, args, result_text)` — 在工具执行后记录结果并评估成功等级
-- 参数和结果均通过 `SHA256(canonical JSON)[:16]` 哈希化，避免存储大量数据
+- 参数和结果均通过 `SHA256(canonical JSON)[:16]` 哈希化（大参数 >1KB 采用两段式摘要），避免存储大量数据并压制高频序列化 CPU 耗时
 - BREAK 阻止工具执行（防止资源浪费），WARN 附加建议到 ToolMessage 帮助 LLM 自我纠正
 
 检测到循环时，中间件将警告追加到 `ToolMessage` 内容中，LLM 可据此自我纠正：

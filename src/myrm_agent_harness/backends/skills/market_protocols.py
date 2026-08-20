@@ -36,6 +36,10 @@ class SkillSearchResult:
     tags: list[str] = field(default_factory=list)
     readme_url: str | None = None
     subdirectory: str | None = None
+    package_type: Literal["skill", "agent_plugin"] = "skill"
+    keywords: list[str] = field(default_factory=list)
+    declared_mcp_servers: list[str] = field(default_factory=list)
+    extra_manifest: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +55,10 @@ class SkillInstallResult:
     """Machine-readable error code for UI/API branching (empty when not applicable)."""
     scan_summary: str = ""
     """Security scan summary (populated when scanner detects findings during install)"""
+    installed_skills: list[str] = field(default_factory=list)
+    """List of installed skill IDs when installing multi-skill bundles/plugins"""
+    declared_mcp_servers: list[str] = field(default_factory=list)
+    """List of MCP server names declared by the installed skill/plugin"""
 
 
 @dataclass(frozen=True, slots=True)

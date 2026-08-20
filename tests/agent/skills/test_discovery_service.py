@@ -1027,3 +1027,101 @@ class TestUninstallSuccess:
 
         assert result.success is False
         assert "Failed to remove skill directory" in (result.error or "")
+
+
+class TestAgentPluginMarketDiscoveryAndInstall:
+    """Tests for Agent Plugins 1.0.0 package discovery and installation."""
+
+    @pytest.mark.asyncio
+    async def test_agent_plugin_search_and_ranking(self) -> None:
+        svc = BaseSkillMarketService()
+        plugin_result = SkillSearchResult(
+            id="github.com/myrm/git-workflow-plugin",
+            name="git-workflow-plugin",
+            description="Complete git workflow plugin containing commit and review skills",
+            source="github",
+            author="myrm",
+            install_url="https://github.com/myrm/git-workflow-plugin.git",
+            install_method="git",
+            version="1.0.0",
+            package_type="agent_plugin",
+            keywords=["git", "code-review", "commit"],
+            tags=["plugin", "workflow"],
+        )
+        skill_result = SkillSearchResult(
+            id="github.com/myrm/single-git-skill",
+            name="single-git-skill",
+            description="Single git skill",
+            source="github",
+            author="myrm",
+            install_url="https://github.com/myrm/single-git-skill.git",
+            install_method="git",
+            version="1.0.0",
+            package_type="skill",
+        )
+
+        mock_src = AsyncMock()
+        mock_src.source_name = "github"
+        mock_src.search = AsyncMock(return_value=[skill_result, plugin_result])
+        svc._sources = [mock_src]
+
+        results = await svc.search("code-review")
+        assert len(results) == 2
+        # plugin_result should be ranked first because of keyword 'code-review' match
+        assert results[0].result.package_type == "agent_plugin"
+        assert results[0].result.name == "git-workflow-plugin"
+
+    @pytest.mark.asyncio
+    async def test_agent_plugin_install_unpacks_multiple_skills(self, tmp_path) -> None:
+        import io
+        import zipfile
+        from myrm_agent_harness.agent.plugins.exporter import AgentPluginPacker
+
+        # Build an Agent Plugin with 2 skills
+        packer = AgentPluginPacker()
+        res = packer.package_multi_skills_as_plugin(
+            name="dev-bundle",
+            version="1.0.0",
+            description="Dev bundle plugin",
+            skills=[
+                ("reviewer", {"SKILL.md": b"---\nname: reviewer\ndescription: Reviewer skill\n---\nReview code."}),
+                ("tester", {"SKILL.md": b"---\nname: tester\ndescription: Tester skill\n---\nRun tests."}),
+            ],
+        )
+        assert res.success is True
+        zip_bytes = res.zip_content
+        assert zip_bytes is not None
+
+        svc = BaseSkillMarketService()
+        detail = SkillSearchResult(
+            id="plugin::dev-bundle",
+            name="dev-bundle",
+            description="Dev bundle plugin",
+            source="github",
+            author="myrm",
+            install_url="https://example.com/dev-bundle.zip",
+            install_method="zip",
+            package_type="agent_plugin",
+        )
+
+        with (
+            patch.object(svc, "get_detail", return_value=detail),
+            patch.object(svc._zip_installer, "download") as mock_dl,
+            patch("myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path),
+        ):
+            from myrm_agent_harness.agent.skills.market.installers.base import InstalledSkillFiles
+            from myrm_agent_harness.backends.skills.scanning import safe_extract_zip
+
+            all_files = safe_extract_zip(zip_bytes, strip_top_dir=True)
+            mock_dl.return_value = InstalledSkillFiles(name="dev-bundle", description="Dev bundle", files=all_files)
+
+            result = await svc.install("plugin::dev-bundle", "github")
+
+            assert result.success is True
+            assert result.skill_name == "dev-bundle"
+            assert "reviewer" in result.installed_skills
+            assert "tester" in result.installed_skills
+            assert (tmp_path / "reviewer" / "SKILL.md").exists()
+            assert (tmp_path / "tester" / "SKILL.md").exists()
+            assert (tmp_path / "dev-bundle" / "plugin.json").exists()
+

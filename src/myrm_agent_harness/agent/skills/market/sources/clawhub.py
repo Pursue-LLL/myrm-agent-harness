@@ -153,6 +153,9 @@ class ClawHubSource:
         version = str(item.get("version", ""))
 
         download_url = f"{self._base_url}/api/v1/download?slug={_url_encode_slug(slug)}"
+        raw_pkg_type = str(item.get("packageType", item.get("package_type", "")))
+        package_type = "agent_plugin" if raw_pkg_type == "agent_plugin" else "skill"
+        keywords = [str(k) for k in item.get("keywords", []) if isinstance(k, str)]
 
         return SkillSearchResult(
             id=slug,
@@ -164,6 +167,8 @@ class ClawHubSource:
             install_method="zip",
             version=version,
             stars=_safe_int(item.get("score", 0)),
+            package_type=package_type,
+            keywords=keywords,
         )
 
     def _parse_detail_response(self, slug: str, data: dict[str, object]) -> SkillSearchResult | None:
@@ -201,6 +206,9 @@ class ClawHubSource:
             tags = [str(v) for v in tags_raw.values()]
 
         download_url = f"{self._base_url}/api/v1/download?slug={_url_encode_slug(slug)}"
+        raw_pkg_type = str(skill.get("packageType", skill.get("package_type", "")))
+        package_type = "agent_plugin" if raw_pkg_type == "agent_plugin" else "skill"
+        keywords = [str(k) for k in skill.get("keywords", []) if isinstance(k, str)]
 
         return SkillSearchResult(
             id=slug,
@@ -214,6 +222,8 @@ class ClawHubSource:
             stars=stars,
             downloads=downloads,
             tags=tags,
+            package_type=package_type,
+            keywords=keywords,
         )
 
     async def _enrich_results(self, client: httpx.AsyncClient, results: list[SkillSearchResult]) -> None:

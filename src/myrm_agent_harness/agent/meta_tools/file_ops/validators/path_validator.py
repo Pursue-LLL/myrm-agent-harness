@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import unquote
 
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
-from myrm_agent_harness.agent.security.path_security import is_dangerous_path
+from myrm_agent_harness.agent.security.path_security import is_blocked_device_path, is_dangerous_path
 
 from .base import Validator
 
@@ -202,15 +202,17 @@ class PathValidator(Validator):
             )
 
     def _check_dangerous_paths(self, abs_path: str, decoded_path: str) -> None:
-        """检查危险路径
+        """检查危险路径与设备路径
 
         Args:
             abs_path: 绝对路径
             decoded_path: 解码后的原始路径
 
         Raises:
-            PermissionError: 路径匹配危险路径模式
+            PermissionError: 路径匹配危险路径或设备路径模式
         """
+        if is_blocked_device_path(decoded_path) or is_blocked_device_path(abs_path):
+            raise PermissionError(f"Access to device path is blocked: {decoded_path}")
         if is_dangerous_path(abs_path):
             raise PermissionError(f"Access to dangerous path is forbidden: {decoded_path}")
 

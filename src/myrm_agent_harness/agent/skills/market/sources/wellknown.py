@@ -123,6 +123,10 @@ class WellKnownSkillSource:
         if not install_url:
             install_url = f"{self._base_url}/.well-known/skills/{name}/SKILL.md"
 
+        raw_pkg = str(entry.get("package_type", entry.get("packageType", "")))
+        pkg_type = "agent_plugin" if raw_pkg == "agent_plugin" else "skill"
+        keywords = [str(k) for k in entry.get("keywords", []) if isinstance(k, str)]
+
         return SkillSearchResult(
             id=f"well-known:{self._base_url}/{name}",
             name=name,
@@ -136,6 +140,8 @@ class WellKnownSkillSource:
             downloads=int(entry.get("downloads", 0) or 0),
             tags=list(entry.get("tags", []) or []),
             readme_url=str(entry.get("readme_url", "")) or None,
+            package_type=pkg_type,
+            keywords=keywords,
         )
 
     @staticmethod

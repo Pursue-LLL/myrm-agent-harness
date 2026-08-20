@@ -210,3 +210,72 @@ class AgentPluginPacker:
                 filename=None,
                 error=str(e),
             )
+
+    def package_multi_skills_as_plugin(
+        self,
+        name: str,
+        skills: list[tuple[str, Mapping[str, bytes | str]]],
+        *,
+        version: str = "1.0.0",
+        description: str | None = None,
+        author_name: str = "Myrm User",
+        keywords: list[str] | None = None,
+        mcp_servers: dict[str, Any] | None = None,
+        extra_extensions: dict[str, Any] | None = None,
+    ) -> PluginPackageResult:
+        """Package multiple skills into a single composite Agent Plugins 1.0.0 package."""
+        from myrm_agent_harness.agent.skills.packaging.validator import is_forbidden_file
+
+        try:
+            plugin_name = canonical_plugin_name(name)
+            manifest_json = self.build_plugin_manifest(
+                name=plugin_name,
+                version=version,
+                description=description or f"Composite Agent plugin {name}",
+                author_name=author_name,
+                keywords=keywords,
+                extensions=extra_extensions,
+            )
+
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr(f"{plugin_name}/plugin.json", manifest_json.encode("utf-8"))
+
+                if mcp_servers:
+                    mcp_config = {
+                        "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+                        "mcpServers": mcp_servers,
+                    }
+                    zf.writestr(
+                        f"{plugin_name}/mcp.json",
+                        json.dumps(mcp_config, indent=2, ensure_ascii=False).encode(
+                            "utf-8"
+                        ),
+                    )
+
+                for s_name, file_contents in skills:
+                    canonical_s_name = canonical_plugin_name(s_name)
+                    for fp, content in file_contents.items():
+                        if is_forbidden_file(fp):
+                            continue
+                        if isinstance(content, str):
+                            content = content.encode("utf-8")
+                        zf.writestr(
+                            f"{plugin_name}/skills/{canonical_s_name}/{fp}", content
+                        )
+
+            zip_content = zip_buffer.getvalue()
+            filename = f"{plugin_name}_v{version}.zip"
+            return PluginPackageResult(
+                success=True, zip_content=zip_content, filename=filename
+            )
+        except Exception as e:
+            logger.error(
+                "Agent Plugin 多技能打包失败: %s, 错误: %s", name, e, exc_info=True
+            )
+            return PluginPackageResult(
+                success=False,
+                zip_content=None,
+                filename=None,
+                error=str(e),
+            )

@@ -9,8 +9,10 @@ module, ensuring a single set of definitions and consistent checks.
 
 [OUTPUT]
 - DANGEROUS_PATHS: frozenset[str] — normalised dangerous root paths
+- BLOCKED_DEVICE_NAMES: frozenset[str] — Windows reserved device names
 - SENSITIVE_FILE_PATTERNS: tuple[str, ...] — glob patterns for sensitive files
 - is_dangerous_path(path) -> bool — unified check function
+- is_blocked_device_path(path) -> bool — pre-IO device path blocklist check
 - is_sensitive_file(path) -> bool — sensitive file check function
 - is_within_boundary(target, boundary) -> bool — boundary check immune to symlink escape
 - safe_join_path(base_dir, user_input) -> Path — secure path resolution against traversal
@@ -20,6 +22,7 @@ module, ensuring a single set of definitions and consistent checks.
 
 [OUTPUT]
 - is_dangerous_path: Check if *path* falls under any dangerous root.
+- is_blocked_device_path: Check if *path* refers to a blocked character/block/Windows device.
 - is_sensitive_file: Check if *path* matches any sensitive file pattern.
 
 [POS]
@@ -30,6 +33,7 @@ from __future__ import annotations
 
 import os
 import platform
+import stat
 from fnmatch import fnmatch
 from pathlib import Path
 
@@ -81,6 +85,45 @@ DANGEROUS_PATHS: frozenset[str] = _build_dangerous_paths()
 Used by both ``types.PathPolicy`` (Layer 2.5) and
 ``path_validator.PathValidator`` (file-operation layer).
 """
+
+BLOCKED_DEVICE_NAMES: frozenset[str] = frozenset({
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",
+    "COM5",
+    "COM6",
+    "COM7",
+    "COM8",
+    "COM9",
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",
+    "LPT5",
+    "LPT6",
+    "LPT7",
+    "LPT8",
+    "LPT9",
+})
+"""Windows reserved device names (matched case-insensitively with or without extensions)."""
+
+_DEVICE_PREFIXES: tuple[str, ...] = (
+    "\\\\.\\",
+    "//./",
+    "\\\\?\\",
+    "//?/",
+    "/dev/",
+    "dev/",
+    "/proc/",
+    "proc/",
+    "/sys/",
+    "sys/",
+)
 
 # ---------------------------------------------------------------------------
 # Sensitive file patterns
@@ -201,6 +244,59 @@ def is_dangerous_path(path: str) -> bool:
     """
     normalised = os.path.realpath(os.path.expanduser(path))
     return any(normalised == dp or normalised.startswith(dp + os.sep) for dp in DANGEROUS_PATHS)
+
+
+def is_blocked_device_path(path: str) -> bool:
+    """Check if *path* refers to a blocked character/block/special or Windows device.
+
+    Performs pre-IO static inspection of path patterns (Windows device names,
+    POSIX special filesystems) as well as filesystem stat mode checks when the
+    path exists. Immune to trailing spaces, slashes, or alternate casings.
+    """
+    if not path or not path.strip():
+        return False
+
+    cleaned = path.strip()
+    norm_slash = cleaned.replace("\\", "/")
+
+    # 1. Device namespace prefixes (\\.\, //./, \\?\, //?/)
+    for prefix in ("\\\\.\\", "//./", "\\\\?\\", "//?/"):
+        if cleaned.startswith(prefix):
+            return True
+
+    # 2. POSIX special system device prefixes (/dev/, /proc/, /sys/, dev/, proc/, sys/)
+    for dev_prefix in ("/dev/", "dev/", "/proc/", "proc/", "/sys/", "sys/"):
+        if norm_slash.startswith(dev_prefix):
+            return True
+    if norm_slash in ("/dev", "dev", "/proc", "proc", "/sys", "sys"):
+        return True
+
+    # 3. Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) with or without extensions
+    segments = [seg for seg in norm_slash.split("/") if seg]
+    for seg in segments:
+        base_name = seg.split(".")[0].upper()
+        if base_name in BLOCKED_DEVICE_NAMES:
+            return True
+
+    # 4. OS filesystem stat mode verification (if path exists on disk, check non-regular special file types)
+    try:
+        st = os.lstat(os.path.expanduser(cleaned))
+        mode = st.st_mode
+        if stat.S_ISCHR(mode) or stat.S_ISBLK(mode) or stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode):
+            return True
+    except (OSError, ValueError):
+        pass
+
+    # 5. Check normalised realpath against dangerous roots if Unix device root is present
+    try:
+        real_p = os.path.realpath(os.path.expanduser(cleaned))
+        for root in ("/dev", "/proc", "/sys"):
+            if real_p == root or real_p.startswith(root + os.sep):
+                return True
+    except Exception:
+        pass
+
+    return False
 
 
 def is_sensitive_file(path: str) -> bool:

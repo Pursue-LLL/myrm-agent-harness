@@ -74,7 +74,7 @@ def deduplicate(results: list[SkillSearchResult]) -> list[SkillSearchResult]:
 
 
 def rank_results(results: list[SkillSearchResult], query: str) -> list[SkillSearchResult]:
-    """Rank by source priority + stars + keyword match."""
+    """Rank by source priority + stars + keyword/tag match."""
     keywords = query.lower().split()
 
     def score(r: SkillSearchResult) -> float:
@@ -87,6 +87,12 @@ def rank_results(results: list[SkillSearchResult], query: str) -> list[SkillSear
                 s += 20
             if kw in desc_lower:
                 s += 5
+            for item_kw in r.keywords:
+                if kw in item_kw.lower():
+                    s += 15
+            for tag in r.tags:
+                if kw in tag.lower():
+                    s += 10
         return s
 
     return sorted(results, key=score, reverse=True)
@@ -145,20 +151,31 @@ async def fetch_lobehub_as_skill(detail: SkillSearchResult) -> dict[str, bytes]:
 ORIGIN_FILENAME = "origin.json"
 
 
-def write_origin(skill_dir: Path, *, source: str, skill_id: str) -> None:
-    """Write origin.json to skill directory for update tracking."""
-    origin = {
+def write_origin(
+    skill_dir: Path,
+    *,
+    source: str,
+    skill_id: str,
+    parent_plugin: str | None = None,
+    declared_mcp_servers: list[str] | None = None,
+) -> None:
+    """Write origin.json to skill directory for update tracking and provenance."""
+    origin: dict[str, object] = {
         "source": source,
         "skill_id": skill_id,
         "installed_at": datetime.now(UTC).isoformat(),
     }
+    if parent_plugin:
+        origin["parent_plugin"] = parent_plugin
+    if declared_mcp_servers:
+        origin["declared_mcp_servers"] = declared_mcp_servers
     try:
         (skill_dir / ORIGIN_FILENAME).write_text(json.dumps(origin), encoding="utf-8")
     except Exception as e:
         logger.warning("Failed to write origin.json: %s", e)
 
 
-def read_origin(skill_dir: Path) -> dict[str, str]:
+def read_origin(skill_dir: Path) -> dict[str, object]:
     """Read origin.json from a skill directory. Returns empty dict if missing."""
     origin_file = skill_dir / ORIGIN_FILENAME
     if not origin_file.exists():

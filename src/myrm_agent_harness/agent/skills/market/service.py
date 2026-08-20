@@ -51,6 +51,7 @@ from .helpers import (
     deduplicate,
     fetch_lobehub_as_skill,
     rank_results,
+    read_origin,
     scan_all_text_files,
     write_origin,
 )
@@ -100,6 +101,9 @@ class SkillPreviewResult:
     files: list[str]
     scan_findings: list[ScanFinding] = field(default_factory=list)
     is_clean: bool = True
+    package_type: str = "skill"
+    installed_skills: list[str] = field(default_factory=list)
+    declared_mcp_servers: list[str] = field(default_factory=list)
 
 
 class BaseSkillMarketService:
@@ -229,6 +233,21 @@ class BaseSkillMarketService:
 
         scan_result = scan_all_text_files(detail.name, skill_files.files)
 
+        package_type = "skill"
+        installed_skills: list[str] = []
+        declared_mcp_servers: list[str] = []
+        if "plugin.json" in skill_files.files:
+            package_type = "agent_plugin"
+            try:
+                from myrm_agent_harness.agent.plugins.parser import AgentPluginParser
+
+                parser = AgentPluginParser()
+                parsed = parser.parse_files(skill_files.files)
+                installed_skills = [s.name for s in parsed.skills]
+                declared_mcp_servers = [s.name for s in parsed.mcp_servers]
+            except Exception as exc:
+                logger.warning("Failed to parse plugin.json during preview: %s", exc)
+
         return SkillPreviewResult(
             skill_id=detail.id,
             name=skill_files.name,
@@ -237,6 +256,9 @@ class BaseSkillMarketService:
             files=sorted(skill_files.files.keys()),
             scan_findings=list(scan_result.findings),
             is_clean=scan_result.is_clean,
+            package_type=package_type,
+            installed_skills=installed_skills or [skill_files.name],
+            declared_mcp_servers=declared_mcp_servers,
         )
 
     async def install(
@@ -343,7 +365,7 @@ class BaseSkillMarketService:
         )
 
     async def uninstall(self, skill_id: str) -> SkillInstallResult:
-        """Uninstall a locally installed skill."""
+        """Uninstall a locally installed skill and cascade-remove any child skills."""
         if not skill_id.startswith("local::"):
             return SkillInstallResult(
                 success=False,
@@ -359,18 +381,45 @@ class BaseSkillMarketService:
             return SkillInstallResult(success=False, error=f"Skill directory not found for id: {skill_id}")
 
         skill_name = target_dir.name
+        uninstalled_skills = [skill_name]
 
+        # 1. Cascade uninstall child skills registered to this parent plugin
+        if LOCAL_INSTALL_DIR.exists():
+            for child_dir in list(LOCAL_INSTALL_DIR.iterdir()):
+                if child_dir.is_dir() and child_dir != target_dir:
+                    child_origin = read_origin(child_dir)
+                    if (
+                        child_origin.get("parent_plugin") == skill_name
+                        or child_origin.get("skill_id") == skill_id
+                    ):
+                        try:
+                            shutil.rmtree(child_dir)
+                            uninstalled_skills.append(child_dir.name)
+                            logger.info(
+                                "Cascade uninstalled child skill %s of parent %s",
+                                child_dir.name,
+                                skill_name,
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "Failed to cascade remove child skill %s: %s",
+                                child_dir.name,
+                                exc,
+                            )
+
+        # 2. Remove main target directory
         try:
             shutil.rmtree(target_dir)
         except Exception as e:
             return SkillInstallResult(success=False, error=f"Failed to remove skill directory: {e}")
 
-        logger.info("Uninstalled skill: %s", skill_name)
+        logger.info("Uninstalled skill: %s (total cleaned: %s)", skill_name, uninstalled_skills)
         return SkillInstallResult(
             success=True,
             skill_name=skill_name,
             skill_id=skill_id,
             installed_path=str(target_dir),
+            installed_skills=uninstalled_skills,
         )
 
     async def get_detail(self, skill_id: str, source: str) -> SkillSearchResult | None:
@@ -467,11 +516,48 @@ class BaseSkillMarketService:
                 )
 
             _emit("installing", "Promoting to install directory...")
+            installed_skills: list[str] = []
+            declared_mcp_servers: list[str] = []
+            if "plugin.json" in files:
+                try:
+                    from myrm_agent_harness.agent.plugins.parser import AgentPluginParser
+
+                    parser = AgentPluginParser()
+                    parsed = parser.parse_files(files)
+                    declared_mcp_servers = [s.name for s in parsed.mcp_servers]
+                    for p_skill in parsed.skills:
+                        s_target_dir = LOCAL_INSTALL_DIR / p_skill.name
+                        s_target_dir.parent.mkdir(parents=True, exist_ok=True)
+                        s_quarantine = Path(tempfile.mkdtemp(prefix=f"skill-q-{p_skill.name}-"))
+                        try:
+                            for rel_p, data in p_skill.files.items():
+                                f_path = s_quarantine / rel_p
+                                f_path.parent.mkdir(parents=True, exist_ok=True)
+                                f_path.write_bytes(data)
+                            _atomic_replace(s_quarantine, s_target_dir)
+                            write_origin(
+                                s_target_dir,
+                                source=source,
+                                skill_id=skill_id,
+                                parent_plugin=name,
+                            )
+                            installed_skills.append(p_skill.name)
+                        finally:
+                            if s_quarantine.exists():
+                                shutil.rmtree(s_quarantine, ignore_errors=True)
+                except Exception as exc:
+                    logger.warning("Failed to unpack Agent Plugin sub-skills for %s: %s", name, exc)
+
             target_dir = LOCAL_INSTALL_DIR / name
             target_dir.parent.mkdir(parents=True, exist_ok=True)
             _atomic_replace(quarantine_dir, target_dir)
 
-            write_origin(target_dir, source=source, skill_id=skill_id)
+            write_origin(
+                target_dir,
+                source=source,
+                skill_id=skill_id,
+                declared_mcp_servers=declared_mcp_servers or None,
+            )
 
             scan_summary = scan_result.summary if not scan_result.is_clean else ""
             if scan_summary:
@@ -496,6 +582,8 @@ class BaseSkillMarketService:
                 skill_id=canonical_id,
                 installed_path=str(target_dir),
                 scan_summary=scan_summary,
+                installed_skills=installed_skills or [name],
+                declared_mcp_servers=declared_mcp_servers,
             )
         finally:
             if quarantine_dir.exists():

@@ -67,6 +67,10 @@ class AgentPluginParser:
         )
         return self._parse_files(all_files)
 
+    def parse_files(self, all_files: dict[str, bytes]) -> PluginParseResult:
+        """Parse uncompressed file mapping of an Agent Plugins package."""
+        return self._parse_files(all_files)
+
     def _parse_files(self, all_files: dict[str, bytes]) -> PluginParseResult:
         result = PluginParseResult()
 

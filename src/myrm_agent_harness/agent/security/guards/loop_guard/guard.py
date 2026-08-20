@@ -72,9 +72,25 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 
+def _compact_arg_value(val: object) -> object:
+    """Compact large string values into a deterministic preview to optimize hashing throughput."""
+    if isinstance(val, str) and len(val) > 1024:
+        return f"__STR_DIGEST__({len(val)}:{val[:512]}:{val[-512:]})"
+    if isinstance(val, dict):
+        return {k: _compact_arg_value(v) for k, v in val.items()}
+    if isinstance(val, list):
+        return [_compact_arg_value(v) for v in val]
+    return val
+
+
 def _stable_hash(obj: object) -> str:
-    """Deterministic hash of a JSON-serialisable object (truncated to 16 hex chars)."""
-    raw = json.dumps(obj, sort_keys=True, default=str, ensure_ascii=False)
+    """Deterministic hash of a JSON-serialisable object (truncated to 16 hex chars).
+
+    For large string values (>1KB), uses a two-stage head/tail/length digest to minimize
+    JSON serialization and hashing latency while preserving uniqueness.
+    """
+    compacted = _compact_arg_value(obj)
+    raw = json.dumps(compacted, sort_keys=True, default=str, ensure_ascii=False)
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 

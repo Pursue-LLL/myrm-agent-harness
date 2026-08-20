@@ -64,11 +64,22 @@ class ZipInstaller:
         return response.content
 
     def _extract_skill(self, zip_bytes: bytes, subdirectory: str | None) -> InstalledSkillFiles:
+        import json
+
         all_files = safe_extract_zip(zip_bytes, strip_top_dir=True, forbidden_check=_is_excluded_file)
 
         if subdirectory:
             prefix = subdirectory.rstrip("/") + "/"
             files = {k[len(prefix) :]: v for k, v in all_files.items() if k.startswith(prefix)}
+        elif "plugin.json" in all_files:
+            try:
+                manifest_data = json.loads(all_files["plugin.json"].decode("utf-8", errors="replace"))
+                name = str(manifest_data.get("name", "agent-plugin"))
+                description = str(manifest_data.get("description", ""))
+                return InstalledSkillFiles(name=name, description=description, files=all_files)
+            except Exception:
+                pass
+            files = all_files
         else:
             if "SKILL.md" in all_files:
                 files = all_files
@@ -83,8 +94,11 @@ class ZipInstaller:
                 prefix = f"{root}/"
                 files = {k[len(prefix) :]: v for k, v in all_files.items() if k.startswith(prefix)}
 
-        if "SKILL.md" not in files:
-            raise ValueError("SKILL.md not found in ZIP")
+        if "SKILL.md" not in files and "plugin.json" not in files:
+            raise ValueError("SKILL.md or plugin.json not found in ZIP")
 
-        name, description = _parse_skill_md_metadata(files["SKILL.md"])
+        if "SKILL.md" in files:
+            name, description = _parse_skill_md_metadata(files["SKILL.md"])
+        else:
+            name, description = "agent-plugin", ""
         return InstalledSkillFiles(name=name, description=description, files=files)

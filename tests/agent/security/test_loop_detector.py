@@ -29,6 +29,15 @@ class TestStableHash:
     def test_length(self) -> None:
         assert len(_stable_hash("test")) == 16
 
+    def test_large_string_compacted_hash(self) -> None:
+        """Large string (>1KB) produces a deterministic 16-char hash without full serialization."""
+        large_a = "A" * 50_000
+        large_b = "A" * 50_000
+        large_c = "A" * 50_001
+        assert _stable_hash({"content": large_a}) == _stable_hash({"content": large_b})
+        assert _stable_hash({"content": large_a}) != _stable_hash({"content": large_c})
+        assert len(_stable_hash({"content": large_a})) == 16
+
 
 class TestLoopGuardRepetition:
     def test_no_loop_below_threshold(self) -> None:

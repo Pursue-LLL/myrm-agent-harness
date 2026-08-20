@@ -149,6 +149,7 @@ class GitHubSkillSource:
 
             owner, repo = full_name.split("/", 1) if "/" in full_name else (full_name, "")
             skill_id = f"{full_name}/{subdirectory}" if subdirectory else full_name
+            is_plugin = path == "plugin.json" or path.startswith("skills/") or ".cursor-plugins" in path
 
             results.append(
                 SkillSearchResult(
@@ -159,9 +160,10 @@ class GitHubSkillSource:
                     author=owner,
                     install_url=f"https://github.com/{full_name}.git",
                     install_method="git",
-                    tags=[],
+                    tags=["plugin"] if is_plugin else [],
                     readme_url=f"https://github.com/{full_name}",
                     subdirectory=subdirectory,
+                    package_type="agent_plugin" if is_plugin else "skill",
                 )
             )
 

@@ -6,10 +6,10 @@
 - (none)
 
 [OUTPUT]
-- parse_path_with_range: Args:
+- parse_path_with_range: 解析路径字符串，提取文件路径与合法正整数行号范围
 
 [POS]
-Provides parse_path_with_range.
+Provides parse_path_with_range with positive line numbers and ordered range validation.
 """
 
 from __future__ import annotations
@@ -30,6 +30,9 @@ def parse_path_with_range(path_str: str) -> tuple[str, ViewRange | None]:
 
     Returns:
         (文件路径, 行号范围) 元组
+
+    Raises:
+        ValueError: 当行号为非正整数（< 1）或结束行号小于起始行号时抛出明确异常。
     """
     match = PATH_RANGE_PATTERN.match(path_str)
     if match:
@@ -37,6 +40,20 @@ def parse_path_with_range(path_str: str) -> tuple[str, ViewRange | None]:
         start = int(match.group(2))
         end_str = match.group(3)
         end = int(end_str) if end_str else -1  # 空字符串表示到文件末尾
+
+        if start < 1:
+            raise ValueError(
+                f"Invalid line range start in '{path_str}': start line must be a positive integer (>= 1), got {start}"
+            )
+        if end != -1:
+            if end < 1:
+                raise ValueError(
+                    f"Invalid line range end in '{path_str}': end line must be a positive integer (>= 1), got {end}"
+                )
+            if end < start:
+                raise ValueError(
+                    f"Invalid line range in '{path_str}': end line ({end}) cannot be less than start line ({start})"
+                )
 
         # 解析文件 ID
         file_path = resolve_file_id_path(file_path)

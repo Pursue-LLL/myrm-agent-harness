@@ -36,18 +36,18 @@ if TYPE_CHECKING:
 
     from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult, SkillMarketBackend
 
-TOOL_DESCRIPTION = """Install NEW skills from external markets (GitHub, skills.sh, etc.).
+TOOL_DESCRIPTION = """Install NEW skills and Agent Plugins from external markets (GitHub, skills.sh, ClawHub, etc.).
 
 Use this tool when:
-- User asks "find me a skill for X" or "is there a skill that can..."
-- User wants to extend agent capabilities with new skills
-- User provides a GitHub URL to install a skill from
+- User asks "find me a skill for X" or "is there a plugin that can..."
+- User wants to extend agent capabilities with new skills or multi-skill agent plugins
+- User provides a GitHub URL to install a skill/plugin from
 - User wants to uninstall a previously installed skill
 
 Four actions:
-1. action="search": Search for skills by keyword
-2. action="install": Install a skill by ID and source (from search results)
-3. action="install_from_url": Install a skill directly from a GitHub URL
+1. action="search": Search for skills or plugins by keyword
+2. action="install": Install a skill/plugin by ID and source (from search results)
+3. action="install_from_url": Install directly from a GitHub URL
 4. action="uninstall": Uninstall a locally installed skill by ID
 
 Important workflow:
@@ -137,6 +137,7 @@ async def _handle_search(backend: SkillMarketBackend, query: str) -> str:
     for i, r in enumerate(results, 1):
         sr = r.result if hasattr(r, "result") else r
         stars_str = f" ({sr.stars} stars)" if getattr(sr, "stars", 0) > 0 else ""
+        pkg_badge = " [Agent Plugin]" if getattr(sr, "package_type", "skill") == "agent_plugin" else ""
         source_label = {
             "prebuilt": "Official",
             "github": "GitHub",
@@ -145,7 +146,7 @@ async def _handle_search(backend: SkillMarketBackend, query: str) -> str:
             "lobehub": "LobeHub",
         }.get(sr.source, sr.source)
         lines.append(
-            f"{i}. **{sr.name}** [{source_label}]{stars_str}\n"
+            f"{i}. **{sr.name}** [{source_label}]{pkg_badge}{stars_str}\n"
             f" {sr.description}\n"
             f' -> To install: skill_id="{sr.id}", source="{sr.source}"'
         )
