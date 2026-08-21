@@ -52,22 +52,102 @@ def _build_builtin_manifests() -> list[PdfTemplateManifest]:
             ),
             tags=["finance", "invoice", "billing", "tax"],
             variables=[
-                PdfTemplateVariableSchema(name="invoice_no", type="string", description="发票/账单编号", example="INV-20260820-001"),
-                PdfTemplateVariableSchema(name="invoice_date", type="string", description="开票日期 (YYYY-MM-DD)", example="2026-08-20"),
-                PdfTemplateVariableSchema(name="seller_name", type="string", description="销售方公司名称", example="MYRM AGENT LABS"),
-                PdfTemplateVariableSchema(name="seller_tax_id", type="string", description="销售方税号/统一社会信用代码", example="91310000XXXXXXXXXX"),
-                PdfTemplateVariableSchema(name="seller_address", type="string", description="销售方地址/电话", example="上海市徐汇区漕河泾科创中心 88 号"),
-                PdfTemplateVariableSchema(name="seller_bank_name", type="string", description="销售方开户银行", example="招商银行股份有限公司上海分行"),
-                PdfTemplateVariableSchema(name="seller_bank_account", type="string", description="销售方银行账号", example="6225 8888 9999 0001"),
-                PdfTemplateVariableSchema(name="buyer_name", type="string", description="购买方公司/个人名称", example="上海智能科技有限公司"),
-                PdfTemplateVariableSchema(name="buyer_tax_id", type="string", description="购买方税号/统一社会信用代码", example="91110000XXXXXXXXXX"),
-                PdfTemplateVariableSchema(name="buyer_contact", type="string", description="购买方联系方式/地址", example="北京市海淀区中关村南大街 1 号"),
-                PdfTemplateVariableSchema(name="items", type="array", description="开票项目明细列表 (含 name, description, unit_price, quantity, amount)"),
-                PdfTemplateVariableSchema(name="subtotal", type="string", description="金额小计", example="¥12,800.00"),
-                PdfTemplateVariableSchema(name="tax_rate", type="string", description="税率 (如 6%, 13%)", example="6%"),
-                PdfTemplateVariableSchema(name="tax_amount", type="string", description="税额合计", example="¥768.00"),
-                PdfTemplateVariableSchema(name="total_amount", type="string", description="价税合计总金额", example="¥13,568.00"),
-                PdfTemplateVariableSchema(name="remarks", type="string", description="备注说明", required=False, example="本账单已结清"),
+                PdfTemplateVariableSchema(
+                    name="invoice_no",
+                    type="string",
+                    description="发票/账单编号",
+                    example="INV-20260820-001",
+                ),
+                PdfTemplateVariableSchema(
+                    name="invoice_date",
+                    type="string",
+                    description="开票日期 (YYYY-MM-DD)",
+                    example="2026-08-20",
+                ),
+                PdfTemplateVariableSchema(
+                    name="seller_name",
+                    type="string",
+                    description="销售方公司名称",
+                    example="MYRM AGENT LABS",
+                ),
+                PdfTemplateVariableSchema(
+                    name="seller_tax_id",
+                    type="string",
+                    description="销售方税号/统一社会信用代码",
+                    example="91310000XXXXXXXXXX",
+                ),
+                PdfTemplateVariableSchema(
+                    name="seller_address",
+                    type="string",
+                    description="销售方地址/电话",
+                    example="上海市徐汇区漕河泾科创中心 88 号",
+                ),
+                PdfTemplateVariableSchema(
+                    name="seller_bank_name",
+                    type="string",
+                    description="销售方开户银行",
+                    example="招商银行股份有限公司上海分行",
+                ),
+                PdfTemplateVariableSchema(
+                    name="seller_bank_account",
+                    type="string",
+                    description="销售方银行账号",
+                    example="6225 8888 9999 0001",
+                ),
+                PdfTemplateVariableSchema(
+                    name="buyer_name",
+                    type="string",
+                    description="购买方公司/个人名称",
+                    example="上海智能科技有限公司",
+                ),
+                PdfTemplateVariableSchema(
+                    name="buyer_tax_id",
+                    type="string",
+                    description="购买方税号/统一社会信用代码",
+                    example="91110000XXXXXXXXXX",
+                ),
+                PdfTemplateVariableSchema(
+                    name="buyer_contact",
+                    type="string",
+                    description="购买方联系方式/地址",
+                    example="北京市海淀区中关村南大街 1 号",
+                ),
+                PdfTemplateVariableSchema(
+                    name="items",
+                    type="array",
+                    description="开票项目明细列表 (含 name, description, unit_price, quantity, amount)",
+                ),
+                PdfTemplateVariableSchema(
+                    name="subtotal",
+                    type="string",
+                    description="金额小计",
+                    example="¥12,800.00",
+                ),
+                PdfTemplateVariableSchema(
+                    name="tax_rate",
+                    type="string",
+                    description="税率 (如 6%, 13%)",
+                    example="6%",
+                ),
+                PdfTemplateVariableSchema(
+                    name="tax_amount",
+                    type="string",
+                    description="税额合计",
+                    example="¥768.00",
+                ),
+                PdfTemplateVariableSchema(
+                    name="total_amount",
+                    type="string",
+                    description="价税合计总金额",
+                    example="¥13,568.00",
+                ),
+                PdfTemplateVariableSchema(
+                    name="remarks",
+                    type="string",
+                    description="备注说明",
+                    required=False,
+                    example="本账单已结清",
+                ),
             ],
         ),
         PdfTemplateManifest(
@@ -87,15 +167,61 @@ def _build_builtin_manifests() -> list[PdfTemplateManifest]:
             ),
             tags=["report", "business", "analysis", "weekly", "research"],
             variables=[
-                PdfTemplateVariableSchema(name="report_title", type="string", description="报告标题", example="2026 年度企业数字化与 Agent 落地成效报告"),
-                PdfTemplateVariableSchema(name="category_badge", type="string", description="报告类别徽标", required=False, example="RESEARCH & ANALYTICS"),
-                PdfTemplateVariableSchema(name="author", type="string", description="作者/部门", example="Myrm AI 战略研究部"),
-                PdfTemplateVariableSchema(name="report_period", type="string", description="报告周期/时间段", example="2026 Q3"),
-                PdfTemplateVariableSchema(name="report_date", type="string", description="报告生成日期 (YYYY-MM-DD)", example="2026-08-20"),
-                PdfTemplateVariableSchema(name="executive_summary", type="string", description="执行摘要正文", example="本季度团队任务周转效率提升 320%..."),
-                PdfTemplateVariableSchema(name="kpis", type="array", description="KPI 指标卡片列表 (含 label, value, change, is_positive)", required=False),
-                PdfTemplateVariableSchema(name="sections", type="array", description="报告主体章节列表 (含 title, content, table)", required=False),
-                PdfTemplateVariableSchema(name="conclusion", type="string", description="结论与后续行动建议", required=False),
+                PdfTemplateVariableSchema(
+                    name="report_title",
+                    type="string",
+                    description="报告标题",
+                    example="2026 年度企业数字化与 Agent 落地成效报告",
+                ),
+                PdfTemplateVariableSchema(
+                    name="category_badge",
+                    type="string",
+                    description="报告类别徽标",
+                    required=False,
+                    example="RESEARCH & ANALYTICS",
+                ),
+                PdfTemplateVariableSchema(
+                    name="author",
+                    type="string",
+                    description="作者/部门",
+                    example="Myrm AI 战略研究部",
+                ),
+                PdfTemplateVariableSchema(
+                    name="report_period",
+                    type="string",
+                    description="报告周期/时间段",
+                    example="2026 Q3",
+                ),
+                PdfTemplateVariableSchema(
+                    name="report_date",
+                    type="string",
+                    description="报告生成日期 (YYYY-MM-DD)",
+                    example="2026-08-20",
+                ),
+                PdfTemplateVariableSchema(
+                    name="executive_summary",
+                    type="string",
+                    description="执行摘要正文",
+                    example="本季度团队任务周转效率提升 320%...",
+                ),
+                PdfTemplateVariableSchema(
+                    name="kpis",
+                    type="array",
+                    description="KPI 指标卡片列表 (含 label, value, change, is_positive)",
+                    required=False,
+                ),
+                PdfTemplateVariableSchema(
+                    name="sections",
+                    type="array",
+                    description="报告主体章节列表 (含 title, content, table)",
+                    required=False,
+                ),
+                PdfTemplateVariableSchema(
+                    name="conclusion",
+                    type="string",
+                    description="结论与后续行动建议",
+                    required=False,
+                ),
             ],
         ),
         PdfTemplateManifest(
@@ -115,16 +241,68 @@ def _build_builtin_manifests() -> list[PdfTemplateManifest]:
             ),
             tags=["receipt", "payment", "voucher"],
             variables=[
-                PdfTemplateVariableSchema(name="receipt_no", type="string", description="收据单据编号", example="REC-2026-0881"),
-                PdfTemplateVariableSchema(name="receipt_date", type="string", description="收款日期", example="2026-08-20"),
-                PdfTemplateVariableSchema(name="company_name", type="string", description="收款单位名称", example="MYRM AGENT LABS"),
-                PdfTemplateVariableSchema(name="payer_name", type="string", description="交款单位/个人名称", example="上海智能科技有限公司"),
-                PdfTemplateVariableSchema(name="payment_reason", type="string", description="收款事由/项目", example="定制智能体技术支持与云沙箱服务费"),
-                PdfTemplateVariableSchema(name="payment_method", type="string", description="结算方式", example="企业网银转账"),
-                PdfTemplateVariableSchema(name="amount", type="string", description="实收金额 (数字)", example="¥12,800.00"),
-                PdfTemplateVariableSchema(name="amount_in_words", type="string", description="实收金额 (中文大写)", example="壹万贰仟捌佰元整"),
-                PdfTemplateVariableSchema(name="cashier", type="string", description="收款出纳人", required=False, example="财务部系统出纳"),
-                PdfTemplateVariableSchema(name="handler", type="string", description="经办人", required=False, example="项目管理组"),
+                PdfTemplateVariableSchema(
+                    name="receipt_no",
+                    type="string",
+                    description="收据单据编号",
+                    example="REC-2026-0881",
+                ),
+                PdfTemplateVariableSchema(
+                    name="receipt_date",
+                    type="string",
+                    description="收款日期",
+                    example="2026-08-20",
+                ),
+                PdfTemplateVariableSchema(
+                    name="company_name",
+                    type="string",
+                    description="收款单位名称",
+                    example="MYRM AGENT LABS",
+                ),
+                PdfTemplateVariableSchema(
+                    name="payer_name",
+                    type="string",
+                    description="交款单位/个人名称",
+                    example="上海智能科技有限公司",
+                ),
+                PdfTemplateVariableSchema(
+                    name="payment_reason",
+                    type="string",
+                    description="收款事由/项目",
+                    example="定制智能体技术支持与云沙箱服务费",
+                ),
+                PdfTemplateVariableSchema(
+                    name="payment_method",
+                    type="string",
+                    description="结算方式",
+                    example="企业网银转账",
+                ),
+                PdfTemplateVariableSchema(
+                    name="amount",
+                    type="string",
+                    description="实收金额 (数字)",
+                    example="¥12,800.00",
+                ),
+                PdfTemplateVariableSchema(
+                    name="amount_in_words",
+                    type="string",
+                    description="实收金额 (中文大写)",
+                    example="壹万贰仟捌佰元整",
+                ),
+                PdfTemplateVariableSchema(
+                    name="cashier",
+                    type="string",
+                    description="收款出纳人",
+                    required=False,
+                    example="财务部系统出纳",
+                ),
+                PdfTemplateVariableSchema(
+                    name="handler",
+                    type="string",
+                    description="经办人",
+                    required=False,
+                    example="项目管理组",
+                ),
             ],
         ),
     ]
@@ -139,12 +317,18 @@ class PdfTemplateRegistry:
             for manifest in _build_builtin_manifests():
                 self.register(manifest)
 
-    def register(self, manifest: PdfTemplateManifest, *, overwrite: bool = True) -> None:
+    def register(
+        self, manifest: PdfTemplateManifest, *, overwrite: bool = True
+    ) -> None:
         """Register a new PDF template manifest."""
         if not overwrite and manifest.id in self._templates:
             raise ValueError(f"Template with id '{manifest.id}' is already registered.")
         self._templates[manifest.id] = manifest
-        logger.debug("PdfTemplateRegistry: registered template '%s' (%s)", manifest.id, manifest.name)
+        logger.debug(
+            "PdfTemplateRegistry: registered template '%s' (%s)",
+            manifest.id,
+            manifest.name,
+        )
 
     def unregister(self, template_id: str) -> bool:
         """Unregister a template by id."""
@@ -161,7 +345,9 @@ class PdfTemplateRegistry:
     ) -> list[PdfTemplateManifest]:
         """List registered templates with optional category/tag filtering."""
         results: list[PdfTemplateManifest] = []
-        target_cat = category.value if isinstance(category, PdfTemplateCategory) else category
+        target_cat = (
+            category.value if isinstance(category, PdfTemplateCategory) else category
+        )
 
         for tmpl in self._templates.values():
             if target_cat and tmpl.category.value != target_cat:

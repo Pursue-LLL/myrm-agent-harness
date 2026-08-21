@@ -31,10 +31,30 @@ from myrm_agent_harness.backends.skills.scanning import ScanResult, scan_skill_c
 logger = logging.getLogger(__name__)
 
 _SCANNABLE_EXTENSIONS = frozenset(
-    {".md", ".py", ".sh", ".js", ".ts", ".yaml", ".yml", ".json", ".txt", ".toml", ".cfg", ".ini", ".html"}
+    {
+        ".md",
+        ".py",
+        ".sh",
+        ".js",
+        ".ts",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".txt",
+        ".toml",
+        ".cfg",
+        ".ini",
+        ".html",
+    }
 )
 
-SOURCE_PRIORITY = {"prebuilt": 100, "clawhub": 60, "skills_sh": 50, "github": 30, "lobehub": 20}
+SOURCE_PRIORITY = {
+    "prebuilt": 100,
+    "clawhub": 60,
+    "skills_sh": 50,
+    "github": 30,
+    "lobehub": 20,
+}
 
 
 def scan_all_text_files(skill_name: str, files: dict[str, bytes]) -> ScanResult:
@@ -73,7 +93,9 @@ def deduplicate(results: list[SkillSearchResult]) -> list[SkillSearchResult]:
     return deduped
 
 
-def rank_results(results: list[SkillSearchResult], query: str) -> list[SkillSearchResult]:
+def rank_results(
+    results: list[SkillSearchResult], query: str
+) -> list[SkillSearchResult]:
     """Rank by source priority + stars + keyword/tag match."""
     keywords = query.lower().split()
 

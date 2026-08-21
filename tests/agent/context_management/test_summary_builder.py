@@ -407,6 +407,50 @@ class TestExtractProtectedHead:
             SystemMessage(content="sys1"),
             create_summary_message(StructuredSummary(user_goal="stale")),
         ]
+
+
+class TestSplitTurnExtraction:
+    def test_detects_split_turn_when_human_message_is_before_cutoff(self) -> None:
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            TailExtractionResult,
+            extract_recent_messages_with_split_context,
+        )
+
+        # Construct a turn: HumanMessage -> AIMessage (tool 1) -> ToolMessage 1 -> AIMessage (tool 2) -> ToolMessage 2
+        human_msg = HumanMessage(content="Please perform a complex multi-step refactor across 5 files.")
+        ai1 = AIMessage(content="Step 1", tool_calls=[{"name": "read_file", "args": {"p": "1"}, "id": "call1"}])
+        tool1 = ToolMessage(content="file 1 content " * 50, name="read_file", tool_call_id="call1")
+        ai2 = AIMessage(content="Step 2", tool_calls=[{"name": "read_file", "args": {"p": "2"}, "id": "call2"}])
+        tool2 = ToolMessage(content="file 2 content " * 50, name="read_file", tool_call_id="call2")
+
+        messages = [human_msg, ai1, tool1, ai2, tool2]
+
+        # Low budget that only fits (ai2, tool2)
+        res: TailExtractionResult = extract_recent_messages_with_split_context(messages, tail_budget_tokens=50)
+
+        assert res.is_split_turn is True
+        assert res.split_human_message == human_msg
+        assert len(res.turn_prefix_messages) == 3  # [human_msg, ai1, tool1]
+        assert len(res.messages) == 2  # [ai2, tool2]
+        assert res.messages[0] == ai2
+        assert res.messages[1] == tool2
+
+    def test_no_split_turn_when_entire_turn_fits_in_tail(self) -> None:
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            TailExtractionResult,
+            extract_recent_messages_with_split_context,
+        )
+
+        human_msg = HumanMessage(content="Short query")
+        ai_msg = AIMessage(content="Short reply")
+        messages = [human_msg, ai_msg]
+
+        res: TailExtractionResult = extract_recent_messages_with_split_context(messages, tail_budget_tokens=1000)
+
+        assert res.is_split_turn is False
+        assert res.split_human_message is None
+        assert res.turn_prefix_messages == []
+        assert len(res.messages) == 2
         head = extract_protected_head(messages)
         assert len(head) == 1
         assert isinstance(head[0], SystemMessage)

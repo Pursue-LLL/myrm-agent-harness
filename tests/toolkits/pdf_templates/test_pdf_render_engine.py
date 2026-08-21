@@ -27,7 +27,13 @@ def test_html_interpolation_and_sanitization() -> None:
         "seller_name": "Test Seller Co.",
         "buyer_name": "Test Buyer Co.",
         "items": [
-            {"name": "Consulting", "description": "AI Audit", "unit_price": "¥5,000", "quantity": "1", "amount": "¥5,000"}
+            {
+                "name": "Consulting",
+                "description": "AI Audit",
+                "unit_price": "¥5,000",
+                "quantity": "1",
+                "amount": "¥5,000",
+            }
         ],
         "total_amount": "¥5,300.00",
     }
@@ -75,7 +81,9 @@ async def test_render_to_pdf_mock_browser(tmp_path: Path) -> None:
 
     # Test error during render_to_pdf
     mock_page_failing = MagicMock()
-    mock_page_failing.set_content = AsyncMock(side_effect=RuntimeError("Browser crashed"))
+    mock_page_failing.set_content = AsyncMock(
+        side_effect=RuntimeError("Browser crashed")
+    )
     fail_res = await engine.render_to_pdf(
         template_id="invoice_standard",
         data=data,
@@ -97,39 +105,51 @@ async def test_langchain_pdf_tools(tmp_path: Path) -> None:
     assert "render_pdf_template" in tools_map
 
     # 1. list_pdf_templates
-    list_res = tools_map["list_pdf_templates"].invoke({"query": "发票", "category": "invoice"})
+    list_res = tools_map["list_pdf_templates"].invoke(
+        {"query": "发票", "category": "invoice"}
+    )
     list_data = json.loads(list_res)
     assert list_data["total"] >= 1
     assert list_data["templates"][0]["template_id"] == "invoice_standard"
 
     # Empty filter match
-    empty_res = tools_map["list_pdf_templates"].invoke({"query": "nonexistent_keyword_xyz"})
+    empty_res = tools_map["list_pdf_templates"].invoke(
+        {"query": "nonexistent_keyword_xyz"}
+    )
     assert "No PDF templates found" in empty_res
 
     # 2. get_pdf_template_schema
-    schema_res = tools_map["get_pdf_template_schema"].invoke({"template_id": "invoice_standard"})
+    schema_res = tools_map["get_pdf_template_schema"].invoke(
+        {"template_id": "invoice_standard"}
+    )
     schema_data = json.loads(schema_res)
     assert schema_data["template_id"] == "invoice_standard"
     assert "json_schema" in schema_data
     assert "invoice_no" in schema_data["json_schema"]["properties"]
 
     # Not found template schema
-    not_found_schema = json.loads(tools_map["get_pdf_template_schema"].invoke({"template_id": "not_existing_id"}))
+    not_found_schema = json.loads(
+        tools_map["get_pdf_template_schema"].invoke({"template_id": "not_existing_id"})
+    )
     assert "error" in not_found_schema
 
     # 3. render_pdf_template (with fallback execution & invalid json handling)
-    invalid_json_res = await tools_map["render_pdf_template"].ainvoke({
-        "template_id": "receipt_minimal",
-        "data_json": "invalid-json-string{",
-        "output_path": str(tmp_path / "dummy.pdf"),
-    })
+    invalid_json_res = await tools_map["render_pdf_template"].ainvoke(
+        {
+            "template_id": "receipt_minimal",
+            "data_json": "invalid-json-string{",
+            "output_path": str(tmp_path / "dummy.pdf"),
+        }
+    )
     assert "Invalid JSON" in invalid_json_res
 
-    not_dict_json_res = await tools_map["render_pdf_template"].ainvoke({
-        "template_id": "receipt_minimal",
-        "data_json": "[1, 2, 3]",
-        "output_path": str(tmp_path / "dummy.pdf"),
-    })
+    not_dict_json_res = await tools_map["render_pdf_template"].ainvoke(
+        {
+            "template_id": "receipt_minimal",
+            "data_json": "[1, 2, 3]",
+            "output_path": str(tmp_path / "dummy.pdf"),
+        }
+    )
     assert "must be a valid JSON object" in not_dict_json_res
 
     out_file = tmp_path / "output_receipt.pdf"
@@ -138,11 +158,13 @@ async def test_langchain_pdf_tools(tmp_path: Path) -> None:
         "amount": "¥8,888.00",
         "payer_name": "Test Client",
     }
-    render_res = await tools_map["render_pdf_template"].ainvoke({
-        "template_id": "receipt_minimal",
-        "data_json": json.dumps(payload),
-        "output_path": str(out_file),
-    })
+    render_res = await tools_map["render_pdf_template"].ainvoke(
+        {
+            "template_id": "receipt_minimal",
+            "data_json": json.dumps(payload),
+            "output_path": str(out_file),
+        }
+    )
     render_data = json.loads(render_res)
     assert render_data["success"] is True
     assert render_data["template_id"] == "receipt_minimal"

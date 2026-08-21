@@ -45,7 +45,7 @@ def test_template_filtering_and_search() -> None:
     assert len(search_hits) >= 1
     assert search_hits[0].id == "invoice_standard"
 
-    tag_search = registry.search_templates("financial")
+    tag_search = registry.search_templates("finance")
     assert len(tag_search) >= 1
 
     desc_search = registry.search_templates("标准增值税")
@@ -82,8 +82,19 @@ def test_custom_template_registration() -> None:
         description="用于颁发用户认证证书",
         template_html="<h1>{{ title }}</h1><p>{{ recipient }}</p>",
         variables=[
-            PdfTemplateVariableSchema(name="title", type="string", description="证书标题", example="优秀开发者", default="证书"),
-            PdfTemplateVariableSchema(name="recipient", type="string", description="获得者姓名", example="张三"),
+            PdfTemplateVariableSchema(
+                name="title",
+                type="string",
+                description="证书标题",
+                example="优秀开发者",
+                default="证书",
+            ),
+            PdfTemplateVariableSchema(
+                name="recipient",
+                type="string",
+                description="获得者姓名",
+                example="张三",
+            ),
         ],
         tags=["certificate", "award"],
     )

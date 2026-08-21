@@ -37,10 +37,18 @@ from .registry import PdfTemplateRegistry, get_pdf_template_registry
 
 logger = logging.getLogger(__name__)
 
-# Security: patterns that attempt local filesystem read or illegal protocol access
+# Security: patterns that attempt local filesystem read, illegal protocols, or script injections
 _DANGEROUS_PROTOCOLS_PATTERN = re.compile(
-    r'(src|href)\s*=\s*["\']\s*(file|gopher|netdoc|php|javascript):',
+    r'(?:src|href)\s*=\s*(?:["\']|&#34;|&#39;)?\s*(file|gopher|netdoc|php|javascript|data):',
     re.IGNORECASE,
+)
+_DANGEROUS_RAW_PROTOCOLS = re.compile(
+    r"\b(file|gopher|netdoc|php|javascript)://",
+    re.IGNORECASE,
+)
+_DANGEROUS_SCRIPT_TAGS = re.compile(
+    r"<\s*script[^>]*>.*?<\s*/\s*script\s*>",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
@@ -48,11 +56,19 @@ class PdfRenderResult(BaseModel):
     """Result returned by PdfRenderEngine upon compilation."""
 
     success: bool = Field(..., description="Whether the PDF was compiled successfully")
-    output_path: str = Field(default="", description="Destination path of the generated PDF file")
+    output_path: str = Field(
+        default="", description="Destination path of the generated PDF file"
+    )
     template_id: str = Field(default="", description="Template ID used for rendering")
-    rendered_html: str = Field(default="", description="The rendered HTML string before PDF compilation")
-    page_count: int | None = Field(default=None, description="Total page count of the generated PDF")
-    error_message: str | None = Field(default=None, description="Error message if rendering failed")
+    rendered_html: str = Field(
+        default="", description="The rendered HTML string before PDF compilation"
+    )
+    page_count: int | None = Field(
+        default=None, description="Total page count of the generated PDF"
+    )
+    error_message: str | None = Field(
+        default=None, description="Error message if rendering failed"
+    )
 
 
 class PdfRenderEngine:
@@ -68,10 +84,26 @@ class PdfRenderEngine:
         )
 
     def sanitize_html(self, html_content: str) -> str:
-        """Sanitize HTML to block SSRF and local file protocol access."""
+        """Sanitize HTML to block SSRF, local file protocol access, and script tags."""
+        if _DANGEROUS_SCRIPT_TAGS.search(html_content):
+            logger.warning(
+                "PdfRenderEngine: Sanitizer stripped script tag in template HTML."
+            )
+            html_content = _DANGEROUS_SCRIPT_TAGS.sub("", html_content)
         if _DANGEROUS_PROTOCOLS_PATTERN.search(html_content):
-            logger.warning("PdfRenderEngine: Sanitizer blocked illegal protocol in template HTML.")
-            html_content = _DANGEROUS_PROTOCOLS_PATTERN.sub(r'\1="about:blank#blocked"', html_content)
+            logger.warning(
+                "PdfRenderEngine: Sanitizer blocked illegal protocol in template HTML."
+            )
+            html_content = _DANGEROUS_PROTOCOLS_PATTERN.sub(
+                r'src="about:blank#blocked"', html_content
+            )
+        if _DANGEROUS_RAW_PROTOCOLS.search(html_content):
+            logger.warning(
+                "PdfRenderEngine: Sanitizer blocked raw illegal protocol URL."
+            )
+            html_content = _DANGEROUS_RAW_PROTOCOLS.sub(
+                r"blocked-protocol://", html_content
+            )
         return html_content
 
     def render_html_string(
@@ -82,18 +114,24 @@ class PdfRenderEngine:
         """Interpolate variables into template and return the raw sanitized HTML."""
         manifest = self._registry.get_template(template_id)
         if manifest is None:
-            raise ValueError(f"Template '{template_id}' is not registered in PdfTemplateRegistry.")
+            raise ValueError(
+                f"Template '{template_id}' is not registered in PdfTemplateRegistry."
+            )
 
         raw_template_html: str
         if manifest.template_path:
             tmpl_path = Path(manifest.template_path)
             if not tmpl_path.exists():
-                raise FileNotFoundError(f"Template file not found at path: {manifest.template_path}")
+                raise FileNotFoundError(
+                    f"Template file not found at path: {manifest.template_path}"
+                )
             raw_template_html = tmpl_path.read_text(encoding="utf-8")
         elif manifest.template_html:
             raw_template_html = manifest.template_html
         else:
-            raise ValueError(f"Template '{template_id}' has neither template_path nor template_html defined.")
+            raise ValueError(
+                f"Template '{template_id}' has neither template_path nor template_html defined."
+            )
 
         template = self._jinja_env.from_string(raw_template_html)
         rendered_html = template.render(**data)
@@ -124,7 +162,7 @@ class PdfRenderEngine:
             if browser_page is not None:
                 # Direct Chromium print pipeline
                 await browser_page.set_content(rendered_html, wait_until="networkidle")
-                
+
                 # Format options
                 pdf_kwargs: dict[str, Any] = {
                     "path": str(out_path),
@@ -148,10 +186,11 @@ class PdfRenderEngine:
                 # Standalone fallback: Write intermediate HTML file beside output PDF
                 html_path = out_path.with_suffix(".html")
                 html_path.write_text(rendered_html, encoding="utf-8")
-                
+
                 # Attempt to render via system patchright / headless if importable
                 try:
                     from patchright.async_api import async_playwright
+
                     async with async_playwright() as p:
                         browser = await p.chromium.launch(headless=True)
                         page = await browser.new_page()
@@ -170,13 +209,19 @@ class PdfRenderEngine:
                         )
                         await browser.close()
                 except Exception as ex:
-                    logger.warning("PdfRenderEngine: Fallback headless browser invocation: %s", ex)
+                    logger.warning(
+                        "PdfRenderEngine: Fallback headless browser invocation: %s", ex
+                    )
                     # If headless browser unavailable, write html and mark success
                     if not out_path.exists():
                         # Create empty placeholder or copy html as confirmation
                         out_path.write_bytes(rendered_html.encode("utf-8"))
 
-            logger.info("PdfRenderEngine: Compiled PDF for template '%s' -> %s", template_id, out_path)
+            logger.info(
+                "PdfRenderEngine: Compiled PDF for template '%s' -> %s",
+                template_id,
+                out_path,
+            )
             return PdfRenderResult(
                 success=True,
                 output_path=str(out_path),
@@ -185,7 +230,11 @@ class PdfRenderEngine:
             )
 
         except Exception as exc:
-            logger.error("PdfRenderEngine: Failed to render PDF for template '%s': %s", template_id, exc)
+            logger.error(
+                "PdfRenderEngine: Failed to render PDF for template '%s': %s",
+                template_id,
+                exc,
+            )
             return PdfRenderResult(
                 success=False,
                 output_path="",

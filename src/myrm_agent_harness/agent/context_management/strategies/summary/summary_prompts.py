@@ -6,6 +6,7 @@
 - SUMMARY_PROMPT_TEMPLATE: Initial summary generation template (Handoff role + Scaled Budget)
 - SUMMARY_MERGE_PROMPT_TEMPLATE: Incremental merge summary template (Handoff role + Scaled Budget)
 - FOCUS_TOPIC_SUFFIX: Focus Topic suffix template (guides summary to focus on key topics)
+- SPLIT_TURN_PROMPT_SUFFIX: Guidance for extracting active turn prefix progress when a single turn exceeds budget
 
 [POS]
 Summarization prompt templates. Defines structured JSON output format (with Handoff fields) and merge rules for summarizer.py.
@@ -93,3 +94,15 @@ FOCUS_TOPIC_SUFFIX = """
 
 FOCUS TOPIC: "{focus_topic}"
 The topic above is the user's focus. For content related to "{focus_topic}", preserve full detail (exact values, file paths, command outputs, error messages, decisions). For unrelated content, compress more aggressively (one-liner summary or omit). The focus topic should occupy roughly 60-70% of the summary."""
+
+SPLIT_TURN_PROMPT_SUFFIX = """
+
+## ACTIVE TURN PREFIX CONTEXT (SPLIT TURN)
+The current active user turn is ongoing but exceeded the recent message window.
+The user's original request and earlier progress in this active turn are provided below:
+{turn_prefix_text}
+
+CRITICAL INSTRUCTIONS FOR SPLIT TURN:
+1. `active_task`: Must capture the user's active unfulfilled request from this turn verbatim.
+2. `completed_actions`: Record actions and findings already completed in this active turn's prefix so the next steps do not duplicate earlier work.
+3. `active_state`: Describe the current mid-execution progress state before the kept recent tail."""

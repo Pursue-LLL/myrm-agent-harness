@@ -8,6 +8,8 @@
 [OUTPUT]
 - extract_protected_head: keep system messages + first genuine user turn (skipping stale summary blocks)
 - extract_recent_messages: keep last N tool-call pairs from message history (excluding summary blocks)
+- extract_recent_messages_with_split_context: extract tail messages with Split Turn awareness and prefix extraction
+- TailExtractionResult: dataclass for tail extraction result with split turn metadata
 - create_summary_message: build HumanMessage with Lost-in-Middle awareness
 
 [POS]
@@ -18,7 +20,15 @@ message (U-curve attention: ~80% recall at edges vs ~50% in the middle).
 
 from __future__ import annotations
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from dataclasses import dataclass, field
+
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -27,6 +37,18 @@ from ...tracking.artifact_tracker import get_artifact_tracker
 from .summary_parser import is_summary_message
 
 logger = get_agent_logger(__name__)
+
+
+@dataclass(frozen=True)
+class TailExtractionResult:
+    """Result of extracting recent tail messages, including split-turn metadata."""
+
+    messages: list[BaseMessage]
+    is_split_turn: bool = False
+    turn_prefix_messages: list[BaseMessage] = field(default_factory=list)
+    split_human_message: HumanMessage | None = None
+    kept_tokens: int = 0
+
 
 UNVERIFIED_CONTEXT_MARKER = (
     "<!-- [REFERENCE ONLY] Compacted from prior conversation. "
@@ -71,7 +93,9 @@ def extract_protected_head(messages: list[BaseMessage]) -> list[BaseMessage]:
     return head
 
 
-from myrm_agent_harness.utils.token_estimation import estimate_message_tokens  # noqa: E402
+from myrm_agent_harness.utils.token_estimation import (
+    estimate_message_tokens,
+)  # noqa: E402
 
 
 def _align_boundary_backward(messages: list[BaseMessage], idx: int) -> int:
@@ -91,16 +115,35 @@ def _align_boundary_backward(messages: list[BaseMessage], idx: int) -> int:
     return idx
 
 
-def extract_recent_messages(messages: list[BaseMessage], tail_budget_tokens: int) -> list[BaseMessage]:
+def extract_recent_messages(
+    messages: list[BaseMessage], tail_budget_tokens: int
+) -> list[BaseMessage]:
     """Extract recent messages by token budget, ensuring intact tool-call pairs.
+
+    Backward compatibility wrapper around extract_recent_messages_with_split_context.
+    """
+    return extract_recent_messages_with_split_context(
+        messages, tail_budget_tokens
+    ).messages
+
+
+def extract_recent_messages_with_split_context(
+    messages: list[BaseMessage],
+    tail_budget_tokens: int,
+) -> TailExtractionResult:
+    """Extract recent messages by token budget with Split Turn awareness.
 
     Walks backward from the end of the conversation history, accumulating tokens
     until the tail_budget_tokens is exhausted. Falls back to a minimum of 2
     messages if the budget is too small.
+
+    If the cut point lands mid-turn (after the latest HumanMessage but before the end),
+    identifies this as a Split Turn and extracts the turn prefix messages so the
+    summarizer can preserve the active user intent and early progress.
     """
     n = len(messages)
     if n == 0:
-        return []
+        return TailExtractionResult(messages=[])
 
     accumulated = 0
     cut_idx = n
@@ -123,18 +166,52 @@ def extract_recent_messages(messages: list[BaseMessage], tail_budget_tokens: int
 
     cut_idx = _align_boundary_backward(messages, cut_idx)
 
+    # Find the most recent genuine HumanMessage before or at cut_idx
+    last_human_idx = -1
+    for i in range(n - 1, -1, -1):
+        if isinstance(messages[i], HumanMessage) and not is_summary_message(
+            messages[i]
+        ):
+            last_human_idx = i
+            break
+
+    is_split_turn = False
+    turn_prefix_messages: list[BaseMessage] = []
+    split_human_msg: HumanMessage | None = None
+
+    if last_human_idx != -1 and cut_idx > last_human_idx:
+        is_split_turn = True
+        split_human_msg = (
+            messages[last_human_idx]
+            if isinstance(messages[last_human_idx], HumanMessage)
+            else None
+        )
+        # Prefix encompasses from the HumanMessage up to (exclusive) cut_idx
+        turn_prefix_messages = [
+            m for m in messages[last_human_idx:cut_idx] if not is_summary_message(m)
+        ]
+
     result = [m for m in messages[cut_idx:] if not is_summary_message(m)]
     kept_tokens = sum(estimate_message_tokens(m) for m in result)
     logger.debug(
-        "Tail protection: extracted %d messages (~%d tokens) from total %d messages",
+        "Tail protection: extracted %d messages (~%d tokens) from total %d messages (split_turn=%s)",
         len(result),
         kept_tokens,
         n,
+        is_split_turn,
     )
-    return result
+    return TailExtractionResult(
+        messages=result,
+        is_split_turn=is_split_turn,
+        turn_prefix_messages=turn_prefix_messages,
+        split_human_message=split_human_msg,
+        kept_tokens=kept_tokens,
+    )
 
 
-def create_summary_message(summary: StructuredSummary, chat_id: str | None = None) -> HumanMessage:
+def create_summary_message(
+    summary: StructuredSummary, chat_id: str | None = None
+) -> HumanMessage:
     """Create a summary HumanMessage with Lost-in-Middle aware placement.
 
     Uses HumanMessage (not SystemMessage) to preserve the system prompt prefix
@@ -222,7 +299,9 @@ def create_summary_message(summary: StructuredSummary, chat_id: str | None = Non
             parts.append(f" - {item}")
 
     if summary.blocked_items:
-        blocked = [b for b in summary.blocked_items if b.strip() and b.strip() != "None"]
+        blocked = [
+            b for b in summary.blocked_items if b.strip() and b.strip() != "None"
+        ]
         if blocked:
             parts.append("")
             parts.append("Blocked:")
@@ -230,7 +309,9 @@ def create_summary_message(summary: StructuredSummary, chat_id: str | None = Non
                 parts.append(f" - {item}")
 
     if summary.pending_user_asks:
-        pending = [a for a in summary.pending_user_asks if a.strip() and a.strip() != "None"]
+        pending = [
+            a for a in summary.pending_user_asks if a.strip() and a.strip() != "None"
+        ]
         if pending:
             parts.append("")
             parts.append("Pending User Asks:")

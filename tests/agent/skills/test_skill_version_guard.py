@@ -25,7 +25,9 @@ async def test_quarantine_install_first_time(isolated_skills_dir: Path) -> None:
     files = {
         "SKILL.md": b"---\nname: demo-skill\nversion: 1.0.0\n---\n# Demo\n",
     }
-    res = await svc._quarantine_install("local::demo-skill", "demo-skill", files, source="test")
+    res = await svc._quarantine_install(
+        "local::demo-skill", "demo-skill", files, source="test"
+    )
     assert res.success is True
     target = isolated_skills_dir / "demo-skill"
     assert target.is_dir()
@@ -39,12 +41,16 @@ async def test_quarantine_install_upgrade(isolated_skills_dir: Path) -> None:
     target = isolated_skills_dir / "demo-skill"
     target.mkdir(parents=True, exist_ok=True)
     write_origin(target, source="test", skill_id="local::demo-skill", version="1.0.0")
-    (target / "SKILL.md").write_text("---\nname: demo-skill\nversion: 1.0.0\n---\n", encoding="utf-8")
+    (target / "SKILL.md").write_text(
+        "---\nname: demo-skill\nversion: 1.0.0\n---\n", encoding="utf-8"
+    )
 
     files = {
         "SKILL.md": b"---\nname: demo-skill\nversion: 1.1.0\n---\n# Demo v1.1\n",
     }
-    res = await svc._quarantine_install("local::demo-skill", "demo-skill", files, source="test")
+    res = await svc._quarantine_install(
+        "local::demo-skill", "demo-skill", files, source="test"
+    )
     assert res.success is True
     origin = read_origin(target)
     assert origin.get("version") == "1.1.0"
@@ -56,12 +62,16 @@ async def test_quarantine_install_downgrade_blocked(isolated_skills_dir: Path) -
     target = isolated_skills_dir / "demo-skill"
     target.mkdir(parents=True, exist_ok=True)
     write_origin(target, source="test", skill_id="local::demo-skill", version="2.0.0")
-    (target / "SKILL.md").write_text("---\nname: demo-skill\nversion: 2.0.0\n---\n", encoding="utf-8")
+    (target / "SKILL.md").write_text(
+        "---\nname: demo-skill\nversion: 2.0.0\n---\n", encoding="utf-8"
+    )
 
     files = {
         "SKILL.md": b"---\nname: demo-skill\nversion: 1.0.0\n---\n# Demo v1.0\n",
     }
-    res = await svc._quarantine_install("local::demo-skill", "demo-skill", files, source="test", allow_downgrade=False)
+    res = await svc._quarantine_install(
+        "local::demo-skill", "demo-skill", files, source="test", allow_downgrade=False
+    )
     assert res.success is False
     assert res.error_code == "DOWNGRADE_BLOCKED"
     assert "downgrade blocked" in res.error
@@ -77,12 +87,16 @@ async def test_quarantine_install_downgrade_forced(isolated_skills_dir: Path) ->
     target = isolated_skills_dir / "demo-skill"
     target.mkdir(parents=True, exist_ok=True)
     write_origin(target, source="test", skill_id="local::demo-skill", version="2.0.0")
-    (target / "SKILL.md").write_text("---\nname: demo-skill\nversion: 2.0.0\n---\n", encoding="utf-8")
+    (target / "SKILL.md").write_text(
+        "---\nname: demo-skill\nversion: 2.0.0\n---\n", encoding="utf-8"
+    )
 
     files = {
         "SKILL.md": b"---\nname: demo-skill\nversion: 1.0.0\n---\n# Demo v1.0\n",
     }
-    res = await svc._quarantine_install("local::demo-skill", "demo-skill", files, source="test", allow_downgrade=True)
+    res = await svc._quarantine_install(
+        "local::demo-skill", "demo-skill", files, source="test", allow_downgrade=True
+    )
     assert res.success is True
     origin = read_origin(target)
     assert origin.get("version") == "1.0.0"

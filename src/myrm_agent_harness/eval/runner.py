@@ -103,7 +103,9 @@ class EvalRunner:
         turn_results = [r for r in raw_results if r is not None]
 
         total_ms = (time.perf_counter() - start) * 1000
-        return EvalResult(turn_results=list(turn_results), total_ms=total_ms, manifest=manifest)
+        return EvalResult(
+            turn_results=list(turn_results), total_ms=total_ms, manifest=manifest
+        )
 
     async def run_multi_turn(
         self,
@@ -137,7 +139,9 @@ class EvalRunner:
             all_results.extend(session_results)
 
         total_ms = (time.perf_counter() - start) * 1000
-        return EvalResult(turn_results=all_results, total_ms=total_ms, manifest=manifest)
+        return EvalResult(
+            turn_results=all_results, total_ms=total_ms, manifest=manifest
+        )
 
     async def _execute_single(
         self,
@@ -179,7 +183,9 @@ class EvalRunner:
 
         if passed is not False and case.sandbox_assertions:
             # Pass sid to get the sandbox executor for this specific session
-            sandbox_executor = getattr(self._executor, "get_sandbox_executor", lambda session_id: None)(session_id=sid)
+            sandbox_executor = getattr(
+                self._executor, "get_sandbox_executor", lambda session_id: None
+            )(session_id=sid)
             sb_passed, sb_details = await evaluate_sandbox_assertions(
                 case.sandbox_assertions,
                 sandbox_executor,
@@ -191,15 +197,21 @@ class EvalRunner:
                     details = f"{details} | {sb_details}" if details else sb_details
 
         if passed is not False and getattr(case, "state_assertions", None):
-            state_passed, state_details = evaluate_state_assertions(case.state_assertions, response.answer)
+            state_passed, state_details = evaluate_state_assertions(
+                case.state_assertions, response.answer
+            )
             if state_passed is not None:
                 passed = state_passed if passed is None else (passed and state_passed)
                 if state_details:
-                    details = f"{details} | {state_details}" if details else state_details
+                    details = (
+                        f"{details} | {state_details}" if details else state_details
+                    )
 
         if passed is not False and getattr(case, "semantic_assertions", None):
             sem_passed, sem_details = await evaluate_semantic_assertions(
-                case.semantic_assertions, response.answer, judge_override=self._judge_config
+                case.semantic_assertions,
+                response.answer,
+                judge_override=self._judge_config,
             )
             if sem_passed is not None:
                 passed = sem_passed if passed is None else (passed and sem_passed)

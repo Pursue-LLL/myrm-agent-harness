@@ -37,7 +37,9 @@ from myrm_agent_harness.backends.skills.scanning.archive_security import (
     classify_archive_security_issue,
     format_archive_security_user_message,
 )
-from myrm_agent_harness.backends.skills.scanning.package_audit import check_lifecycle_scripts
+from myrm_agent_harness.backends.skills.scanning.package_audit import (
+    check_lifecycle_scripts,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.market_protocols import InstalledSkillStore
@@ -194,11 +196,16 @@ class BaseSkillMarketService:
                     results = await self._search_source(source, query, limit)
                     return source_index, source.source_name, results
 
-                tasks = [_search_with_meta(source_index, source) for source_index, source in enumerate(sources)]
+                tasks = [
+                    _search_with_meta(source_index, source)
+                    for source_index, source in enumerate(sources)
+                ]
                 source_batches: list[tuple[int, str, list[SkillSearchResult]]] = []
                 for coro in asyncio.as_completed(tasks):
                     try:
-                        source_batches.append(await asyncio.wait_for(coro, timeout=SEARCH_TIMEOUT))
+                        source_batches.append(
+                            await asyncio.wait_for(coro, timeout=SEARCH_TIMEOUT)
+                        )
                     except TimeoutError:
                         logger.warning("A skill source timed out during search")
                     except Exception as e:
@@ -220,7 +227,9 @@ class BaseSkillMarketService:
                 raw_results = ranked[:limit]
 
             if len(self._search_cache) >= CACHE_MAX_ENTRIES:
-                oldest_key = min(self._search_cache, key=lambda k: self._search_cache[k][0])
+                oldest_key = min(
+                    self._search_cache, key=lambda k: self._search_cache[k][0]
+                )
                 del self._search_cache[oldest_key]
             self._search_cache[cache_key] = (now, raw_results)
 
@@ -242,9 +251,13 @@ class BaseSkillMarketService:
             )
 
         if detail.install_method == "git":
-            skill_files = await self._git_installer.download(detail.install_url, detail.subdirectory)
+            skill_files = await self._git_installer.download(
+                detail.install_url, detail.subdirectory
+            )
         elif detail.install_method == "zip":
-            skill_files = await self._zip_installer.download(detail.install_url, detail.subdirectory)
+            skill_files = await self._zip_installer.download(
+                detail.install_url, detail.subdirectory
+            )
         else:
             raise ValueError(f"Unsupported install method: {detail.install_method}")
 
@@ -294,7 +307,9 @@ class BaseSkillMarketService:
         detail = await self.get_detail(skill_id, source)
         if not detail:
             _emit("failed", "Skill not found")
-            return SkillInstallResult(success=False, error=f"Skill not found: {skill_id} from {source}")
+            return SkillInstallResult(
+                success=False, error=f"Skill not found: {skill_id} from {source}"
+            )
 
         if detail.install_method == "direct" and detail.source == "prebuilt":
             _emit("completed", "Prebuilt skill ready")
@@ -312,7 +327,9 @@ class BaseSkillMarketService:
             except ValueError as e:
                 resolved_error, error_code = _resolve_install_error(e)
                 _emit("failed", resolved_error)
-                return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
+                return SkillInstallResult(
+                    success=False, error=resolved_error, error_code=error_code
+                )
             return await self._quarantine_install(
                 skill_id,
                 detail.name,
@@ -325,9 +342,13 @@ class BaseSkillMarketService:
         _emit("downloading", f"Downloading from {source}...")
         try:
             if detail.install_method == "git":
-                skill_files = await self._git_installer.download(detail.install_url, detail.subdirectory)
+                skill_files = await self._git_installer.download(
+                    detail.install_url, detail.subdirectory
+                )
             elif detail.install_method == "zip":
-                skill_files = await self._zip_installer.download(detail.install_url, detail.subdirectory)
+                skill_files = await self._zip_installer.download(
+                    detail.install_url, detail.subdirectory
+                )
             else:
                 _emit("failed", "Unsupported install method")
                 return SkillInstallResult(
@@ -337,7 +358,9 @@ class BaseSkillMarketService:
         except ValueError as e:
             resolved_error, error_code = _resolve_install_error(e)
             _emit("failed", resolved_error)
-            return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
+            return SkillInstallResult(
+                success=False, error=resolved_error, error_code=error_code
+            )
 
         sanitized = sanitize_skill_files(skill_files.files)
         return await self._quarantine_install(
@@ -374,11 +397,15 @@ class BaseSkillMarketService:
 
         _emit("downloading", "Cloning repository...")
         try:
-            skill_files = await self._git_installer.download(ref.clone_url, subdirectory=ref.subdirectory, ref=ref.ref)
+            skill_files = await self._git_installer.download(
+                ref.clone_url, subdirectory=ref.subdirectory, ref=ref.ref
+            )
         except ValueError as e:
             resolved_error, error_code = _resolve_install_error(e)
             _emit("failed", resolved_error)
-            return SkillInstallResult(success=False, error=resolved_error, error_code=error_code)
+            return SkillInstallResult(
+                success=False, error=resolved_error, error_code=error_code
+            )
 
         sanitized = sanitize_skill_files(skill_files.files)
         return await self._quarantine_install(
@@ -404,7 +431,9 @@ class BaseSkillMarketService:
 
         target_dir = resolve_local_install_dir(skill_id, LOCAL_INSTALL_DIR)
         if target_dir is None:
-            return SkillInstallResult(success=False, error=f"Skill directory not found for id: {skill_id}")
+            return SkillInstallResult(
+                success=False, error=f"Skill directory not found for id: {skill_id}"
+            )
 
         skill_name = target_dir.name
         uninstalled_skills = [skill_name]
@@ -443,9 +472,13 @@ class BaseSkillMarketService:
         try:
             shutil.rmtree(target_dir)
         except Exception as e:
-            return SkillInstallResult(success=False, error=f"Failed to remove skill directory: {e}")
+            return SkillInstallResult(
+                success=False, error=f"Failed to remove skill directory: {e}"
+            )
 
-        logger.info("Uninstalled skill: %s (total cleaned: %s)", skill_name, uninstalled_skills)
+        logger.info(
+            "Uninstalled skill: %s (total cleaned: %s)", skill_name, uninstalled_skills
+        )
         return SkillInstallResult(
             success=True,
             skill_name=skill_name,
@@ -493,12 +526,16 @@ class BaseSkillMarketService:
                     )
                 )
             elif local_ver:
-                enriched.append(EnrichedSearchResult(result=r, installed_version=local_ver))
+                enriched.append(
+                    EnrichedSearchResult(result=r, installed_version=local_ver)
+                )
             else:
                 enriched.append(EnrichedSearchResult(result=r))
         return enriched
 
-    async def _search_source(self, source: SkillSource, query: str, limit: int) -> list[SkillSearchResult]:
+    async def _search_source(
+        self, source: SkillSource, query: str, limit: int
+    ) -> list[SkillSearchResult]:
         try:
             return await source.search(query, limit)
         except Exception as e:
@@ -522,9 +559,15 @@ class BaseSkillMarketService:
         # 1. 前置生命周期脚本防御门禁 (Lifecycle Script Guard)
         lifecycle_findings = check_lifecycle_scripts(files)
         if any(f.severity in ("critical", "high") for f in lifecycle_findings):
-            blocked_reasons = [f.description for f in lifecycle_findings if f.severity in ("critical", "high")]
+            blocked_reasons = [
+                f.description
+                for f in lifecycle_findings
+                if f.severity in ("critical", "high")
+            ]
             reason_str = "; ".join(blocked_reasons)
-            logger.warning("Skill '%s' blocked by lifecycle script guard: %s", name, reason_str)
+            logger.warning(
+                "Skill '%s' blocked by lifecycle script guard: %s", name, reason_str
+            )
             _emit("rejected", f"Blocked by lifecycle script guard: {reason_str}")
             return SkillInstallResult(
                 success=False,
@@ -541,7 +584,9 @@ class BaseSkillMarketService:
             for rel_path, content in files.items():
                 file_path = (quarantine_dir / rel_path).resolve()
                 if not str(file_path).startswith(str(quarantine_resolved)):
-                    logger.warning("Blocked path escape in skill '%s': %s", name, rel_path)
+                    logger.warning(
+                        "Blocked path escape in skill '%s': %s", name, rel_path
+                    )
                     continue
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 file_path.write_bytes(content)
@@ -573,26 +618,41 @@ class BaseSkillMarketService:
             current_version = ""
             if "SKILL.md" in files:
                 try:
-                    from myrm_agent_harness.backends.skills._utils import parse_skill_frontmatter
+                    from myrm_agent_harness.backends.skills._utils import (
+                        parse_skill_frontmatter,
+                    )
 
-                    fm = parse_skill_frontmatter(files["SKILL.md"].decode("utf-8", errors="replace"), name)
+                    fm = parse_skill_frontmatter(
+                        files["SKILL.md"].decode("utf-8", errors="replace"), name
+                    )
                     incoming_version = fm.version or ""
                 except Exception as exc:
-                    logger.debug("Could not parse incoming version from SKILL.md: %s", exc)
+                    logger.debug(
+                        "Could not parse incoming version from SKILL.md: %s", exc
+                    )
 
             if target_dir.exists():
                 origin_meta = read_origin(target_dir)
-                current_version = str(origin_meta.get("version", "")) if origin_meta else ""
+                current_version = (
+                    str(origin_meta.get("version", "")) if origin_meta else ""
+                )
                 if not current_version:
                     cur_skill_md = target_dir / "SKILL.md"
                     if cur_skill_md.exists():
                         try:
-                            from myrm_agent_harness.backends.skills._utils import parse_skill_frontmatter
+                            from myrm_agent_harness.backends.skills._utils import (
+                                parse_skill_frontmatter,
+                            )
 
-                            cur_fm = parse_skill_frontmatter(cur_skill_md.read_text(encoding="utf-8"), name)
+                            cur_fm = parse_skill_frontmatter(
+                                cur_skill_md.read_text(encoding="utf-8"), name
+                            )
                             current_version = cur_fm.version or ""
                         except Exception as exc:
-                            logger.debug("Could not parse current version from local SKILL.md: %s", exc)
+                            logger.debug(
+                                "Could not parse current version from local SKILL.md: %s",
+                                exc,
+                            )
 
             try:
                 guard_res = validate_version_guard(
@@ -601,9 +661,13 @@ class BaseSkillMarketService:
                     allow_downgrade=allow_downgrade,
                 )
                 if guard_res.reason:
-                    logger.info("Skill '%s' version guard notice: %s", name, guard_res.reason)
+                    logger.info(
+                        "Skill '%s' version guard notice: %s", name, guard_res.reason
+                    )
             except SkillDowngradeBlockedError as exc:
-                logger.warning("Skill '%s' installation blocked by version guard: %s", name, exc)
+                logger.warning(
+                    "Skill '%s' installation blocked by version guard: %s", name, exc
+                )
                 _emit("rejected", str(exc))
                 return SkillInstallResult(
                     success=False,
@@ -615,14 +679,18 @@ class BaseSkillMarketService:
             with SkillInstallTransaction() as tx:
                 if "plugin.json" in files:
                     try:
-                        from myrm_agent_harness.agent.plugins.parser import AgentPluginParser
+                        from myrm_agent_harness.agent.plugins.parser import (
+                            AgentPluginParser,
+                        )
 
                         parser = AgentPluginParser()
                         parsed = parser.parse_files(files)
                         declared_mcp_servers = [s.name for s in parsed.servers]
                         for p_skill in parsed.skills:
                             s_target_dir = LOCAL_INSTALL_DIR / p_skill.name
-                            s_quarantine = Path(tempfile.mkdtemp(prefix=f"skill-q-{p_skill.name}-"))
+                            s_quarantine = Path(
+                                tempfile.mkdtemp(prefix=f"skill-q-{p_skill.name}-")
+                            )
                             try:
                                 for rel_p, data in p_skill.files.items():
                                     f_path = s_quarantine / rel_p
@@ -651,7 +719,11 @@ class BaseSkillMarketService:
                                 if s_quarantine.exists():
                                     shutil.rmtree(s_quarantine, ignore_errors=True)
                     except Exception as exc:
-                        logger.warning("Failed to unpack Agent Plugin sub-skills for %s: %s", name, exc)
+                        logger.warning(
+                            "Failed to unpack Agent Plugin sub-skills for %s: %s",
+                            name,
+                            exc,
+                        )
                         raise
 
                 tx.stage_replace(quarantine_dir, target_dir)

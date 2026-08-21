@@ -35,7 +35,9 @@ logger = logging.getLogger(__name__)
 RECEIPT_FILENAME = "receipt.json"
 
 
-def compute_files_digest(files: dict[str, bytes]) -> tuple[tuple[SkillFileDigest, ...], str]:
+def compute_files_digest(
+    files: dict[str, bytes],
+) -> tuple[tuple[SkillFileDigest, ...], str]:
     """Compute individual file SHA256 digests and an overall package manifest hash."""
     digests: list[SkillFileDigest] = []
     hasher = hashlib.sha256()
@@ -115,7 +117,9 @@ def write_receipt_file(skill_dir: Path, receipt: SkillInstallReceipt) -> None:
         "manifest_hash": receipt.manifest_hash,
     }
     try:
-        (skill_dir / RECEIPT_FILENAME).write_text(json.dumps(receipt_dict, indent=2), encoding="utf-8")
+        (skill_dir / RECEIPT_FILENAME).write_text(
+            json.dumps(receipt_dict, indent=2), encoding="utf-8"
+        )
     except Exception as exc:
         logger.warning("Failed to write receipt.json in %s: %s", skill_dir, exc)
 
@@ -159,7 +163,9 @@ class SkillInstallTransaction:
     """Atomic multi-target installation transaction manager with automatic snapshot rollback."""
 
     def __init__(self) -> None:
-        self._staged_targets: list[tuple[Path, Path | None]] = []  # (target_dir, backup_temp_dir)
+        self._staged_targets: list[tuple[Path, Path | None]] = (
+            []
+        )  # (target_dir, backup_temp_dir)
         self._created_dirs: list[Path] = []
         self._is_committed = False
 
@@ -170,7 +176,9 @@ class SkillInstallTransaction:
 
         backup_temp: Path | None = None
         if target_dir.exists():
-            backup_temp = Path(tempfile.mkdtemp(prefix=f"skill-snap-backup-{target_dir.name}-"))
+            backup_temp = Path(
+                tempfile.mkdtemp(prefix=f"skill-snap-backup-{target_dir.name}-")
+            )
             # Copy current contents to snapshot backup temp
             shutil.copytree(target_dir, backup_temp / "snapshot", dirs_exist_ok=True)
             shutil.rmtree(target_dir)
@@ -203,7 +211,9 @@ class SkillInstallTransaction:
                     target_dir.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copytree(backup_temp / "snapshot", target_dir)
             except Exception as exc:
-                logger.error("Error during transaction rollback on %s: %s", target_dir, exc)
+                logger.error(
+                    "Error during transaction rollback on %s: %s", target_dir, exc
+                )
             finally:
                 if backup_temp and backup_temp.exists():
                     shutil.rmtree(backup_temp, ignore_errors=True)
@@ -220,7 +230,10 @@ class SkillInstallTransaction:
 
     def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         if exc_type is not None:
-            logger.warning("Exception detected in SkillInstallTransaction (%s), rolling back...", exc_val)
+            logger.warning(
+                "Exception detected in SkillInstallTransaction (%s), rolling back...",
+                exc_val,
+            )
             self.rollback()
         elif not self._is_committed:
             self.commit()

@@ -185,4 +185,3 @@ def validate_version_guard(
         incoming_version=inc_str,
         reason=reason,
     )
-

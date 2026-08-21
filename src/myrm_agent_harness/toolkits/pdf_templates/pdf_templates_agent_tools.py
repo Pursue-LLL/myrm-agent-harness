@@ -66,15 +66,19 @@ def create_pdf_template_tools(
 
         items: list[dict[str, Any]] = []
         for t in templates:
-            items.append({
-                "template_id": t.id,
-                "name": t.name,
-                "category": t.category.value,
-                "description": t.description,
-                "tags": t.tags,
-                "variables_count": len(t.variables),
-            })
-        return json.dumps({"templates": items, "total": len(items)}, ensure_ascii=False, indent=2)
+            items.append(
+                {
+                    "template_id": t.id,
+                    "name": t.name,
+                    "category": t.category.value,
+                    "description": t.description,
+                    "tags": t.tags,
+                    "variables_count": len(t.variables),
+                }
+            )
+        return json.dumps(
+            {"templates": items, "total": len(items)}, ensure_ascii=False, indent=2
+        )
 
     @tool
     def get_pdf_template_schema(
@@ -90,20 +94,27 @@ def create_pdf_template_tools(
         """
         tmpl = reg.get_template(template_id)
         if tmpl is None:
-            return json.dumps({
-                "error": f"Template '{template_id}' not found.",
-                "available_templates": [t.id for t in reg.list_templates()],
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "error": f"Template '{template_id}' not found.",
+                    "available_templates": [t.id for t in reg.list_templates()],
+                },
+                ensure_ascii=False,
+            )
 
         schema = tmpl.get_json_schema()
-        return json.dumps({
-            "template_id": tmpl.id,
-            "name": tmpl.name,
-            "category": tmpl.category.value,
-            "description": tmpl.description,
-            "json_schema": schema,
-            "options": tmpl.default_options.model_dump(),
-        }, ensure_ascii=False, indent=2)
+        return json.dumps(
+            {
+                "template_id": tmpl.id,
+                "name": tmpl.name,
+                "category": tmpl.category.value,
+                "description": tmpl.description,
+                "json_schema": schema,
+                "options": tmpl.default_options.model_dump(),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
     @tool
     async def render_pdf_template(
@@ -128,23 +139,37 @@ def create_pdf_template_tools(
         try:
             payload = json.loads(data_json) if isinstance(data_json, str) else data_json
             if not isinstance(payload, dict):
-                return json.dumps({"error": "data_json must be a valid JSON object dictionary"}, ensure_ascii=False)
+                return json.dumps(
+                    {"error": "data_json must be a valid JSON object dictionary"},
+                    ensure_ascii=False,
+                )
         except Exception as e:
-            return json.dumps({"error": f"Invalid JSON format in data_json: {e}"}, ensure_ascii=False)
+            return json.dumps(
+                {"error": f"Invalid JSON format in data_json: {e}"}, ensure_ascii=False
+            )
 
-        res = await eng.render_to_pdf(template_id=template_id, data=payload, output_path=output_path)
+        res = await eng.render_to_pdf(
+            template_id=template_id, data=payload, output_path=output_path
+        )
         if not res.success:
-            return json.dumps({
-                "success": False,
-                "error": res.error_message,
-                "template_id": template_id,
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": res.error_message,
+                    "template_id": template_id,
+                },
+                ensure_ascii=False,
+            )
 
-        return json.dumps({
-            "success": True,
-            "output_path": res.output_path,
-            "template_id": template_id,
-            "message": f"Successfully compiled PDF document using template '{template_id}' to {res.output_path}",
-        }, ensure_ascii=False, indent=2)
+        return json.dumps(
+            {
+                "success": True,
+                "output_path": res.output_path,
+                "template_id": template_id,
+                "message": f"Successfully compiled PDF document using template '{template_id}' to {res.output_path}",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
 
     return [list_pdf_templates, get_pdf_template_schema, render_pdf_template]
