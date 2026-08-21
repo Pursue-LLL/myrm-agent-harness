@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ doc_title | default("COMMERCIAL INVOICE") }}</title>
+    <style>
+        @page { size: A4 portrait; margin: 15mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #64748b; } }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "Helvetica Neue", Arial, "PingFang SC", sans-serif; color: #0f172a; background: #fff; line-height: 1.5; font-size: 9pt; }
+        .header-block { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e40af; padding-bottom: 12px; margin-bottom: 16px; }
+        .header-title { font-size: 22pt; font-weight: 900; color: #1e40af; text-transform: uppercase; letter-spacing: 1px; }
+        .header-subtitle { font-size: 8.5pt; color: #64748b; text-transform: uppercase; margin-top: 2px; }
+        .header-meta { text-align: right; font-size: 8.5pt; }
+        .meta-row { margin-bottom: 3px; }
+        .meta-val.highlight { font-weight: 700; color: #1e40af; font-family: monospace; font-size: 11pt; }
+        .meta-badge { display: inline-block; background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 7.5pt; text-transform: uppercase; }
+        .parties-container { display: flex; gap: 16px; margin-bottom: 16px; }
+        .party-card { flex: 1; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px 12px; background: #f8fafc; }
+        .party-role { font-size: 7.5pt; font-weight: 800; color: #475569; text-transform: uppercase; }
+        .party-name { font-size: 11pt; font-weight: 700; color: #0f172a; margin: 4px 0 6px 0; }
+        .party-field { font-size: 8pt; color: #334155; margin-bottom: 2px; }
+        .field-label { color: #64748b; font-weight: 500; }
+        .data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; page-break-inside: auto; }
+        .data-table th { background: #1e40af; color: #ffffff; font-weight: 700; font-size: 8pt; padding: 8px 10px; border: 1px solid #1e40af; text-transform: uppercase; }
+        .data-table td { padding: 8px 10px; border: 1px solid #e2e8f0; font-size: 8.5pt; }
+        .data-table tr { page-break-inside: avoid; }
+        .data-table tr:nth-child(even) { background: #f8fafc; }
+        .col-index { width: 30px; text-align: center; }
+        .col-qty, .col-unit-price, .col-amount { text-align: right; }
+        .font-mono { font-family: monospace; }
+        .summary-section { display: flex; justify-content: space-between; margin-bottom: 20px; page-break-inside: avoid; }
+        .summary-notes { flex: 1; padding-right: 24px; font-size: 8pt; color: #475569; }
+        .notes-box, .terms-box { margin-bottom: 8px; }
+        .notes-label, .terms-label { font-weight: 700; color: #0f172a; display: block; margin-bottom: 2px; }
+        .summary-totals { width: 280px; }
+        .total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 8.5pt; }
+        .grand-total { border-top: 2px solid #1e40af; margin-top: 6px; padding-top: 6px; font-size: 11pt; font-weight: 900; color: #1e40af; }
+        .signature-section { display: flex; justify-content: space-between; margin-top: 24px; padding-top: 12px; border-top: 1px solid #e2e8f0; page-break-inside: avoid; }
+        .sig-column { flex: 1; font-size: 8pt; }
+        .sig-title { color: #64748b; font-weight: 700; text-transform: uppercase; }
+        .sig-name { font-weight: 700; margin-top: 6px; display: inline-block; }
+    </style>
+</head>
+<body>
+    {% from "blocks/svg_charts.html" import render_watermark %}
+    {{ render_watermark(watermark_text) }}
+
+    {% include "blocks/header_block.html" %}
+    {% include "blocks/party_info_block.html" %}
+    {% include "blocks/items_table_block.html" %}
+    {% include "blocks/tax_summary_block.html" %}
+    {% include "blocks/signature_seal_block.html" %}
+</body>
+</html>

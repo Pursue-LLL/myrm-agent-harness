@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title | default("企业数字化转型与经营分析报告") }}</title>
+    <style>
+        @page { size: A4 portrait; margin: 18mm 15mm; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "PingFang SC", "Hiragino Sans GB", sans-serif; color: #1e293b; background: #fff; line-height: 1.6; font-size: 9.5pt; }
+        .report-header { border-bottom: 2.5px solid #2563eb; padding-bottom: 14px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .report-title { font-size: 20pt; font-weight: 800; color: #1e3a8a; letter-spacing: -0.5px; }
+        .report-meta { font-size: 8.5pt; color: #64748b; text-align: right; }
+        .kpi-grid { display: flex; gap: 12px; margin-bottom: 20px; }
+        .kpi-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+        .kpi-label { font-size: 8pt; color: #64748b; text-transform: uppercase; font-weight: 600; }
+        .kpi-val { font-size: 16pt; font-weight: 800; color: #0f172a; margin: 4px 0; }
+        .section-title { font-size: 13pt; font-weight: 700; color: #1e293b; margin: 18px 0 10px 0; border-left: 4px solid #2563eb; padding-left: 8px; }
+        .chart-box { background: #fafafa; border: 1px solid #f1f5f9; border-radius: 8px; padding: 14px; margin-bottom: 16px; text-align: center; }
+        .data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 8.5pt; }
+        .data-table th { background: #f1f5f9; color: #334155; font-weight: 700; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; }
+        .data-table td { padding: 6px 8px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+    {% from "blocks/svg_charts.html" import render_sparkline, render_bar_chart, render_watermark %}
+    {{ render_watermark(watermark_text | default(watermark | default(""))) }}
+
+    <div class="report-header">
+        <div>
+            <h1 class="report-title">{{ report_title | default(title | default("企业数字化转型与经营分析报告")) }}</h1>
+            <div style="font-size: 10pt; color: #475569; margin-top: 4px;">{{ subtitle | default("Q3 阶段业务指标、技术重构与战略推演") }}</div>
+            {% if category_badge %}
+            <div style="display: inline-block; background: #dbeafe; color: #1e40af; font-size: 8pt; font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-top: 4px;">{{ category_badge }}</div>
+            {% endif %}
+        </div>
+        <div class="report-meta">
+            <div>报告编号: {{ report_id | default(report_period | default("REP-2026-Q3")) }}</div>
+            <div>生成日期: {{ report_date | default(date | default("2026-08-20")) }}</div>
+            <div>主编/分析师: {{ author | default("Myrm AI 智能分析架构师") }}</div>
+        </div>
+    </div>
+
+    {% if kpis %}
+    <div class="kpi-grid">
+        {% for kpi in kpis %}
+        <div class="kpi-card">
+            <div class="kpi-label">{{ kpi.label }}</div>
+            <div class="kpi-val">{{ kpi.value }}</div>
+            {% if kpi.trend_data %}
+            <div>{{ render_sparkline(kpi.trend_data, 100, 24) }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if executive_summary or summary %}
+    <div class="section-title">执行摘要 (Executive Summary)</div>
+    <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 12px; margin-bottom: 16px; font-size: 9pt; color: #1e40af;">
+        {{ executive_summary | default(summary) }}
+    </div>
+    {% endif %}
+
+    {% if bar_chart_items or bar_chart_data %}
+    <div class="section-title">核心业务趋势对比</div>
+    <div class="chart-box">
+        {{ render_bar_chart(bar_chart_items | default(bar_chart_data), 450, 100) }}
+    </div>
+    {% endif %}
+
+    {% if sections %}
+        {% for sec in sections %}
+        <div class="section-title">{{ sec.title }}</div>
+        <div style="margin-bottom: 12px;">{{ sec.content }}</div>
+        {% if sec.table and sec.table.headers %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    {% for h in sec.table.headers %}
+                    <th>{{ h }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in sec.table.rows %}
+                <tr>
+                    {% for cell in row %}
+                    <td>{{ cell }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        {% endfor %}
+    {% endif %}
+
+    {% if table_data and table_data.headers %}
+    <div class="section-title">详细指标分析表</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                {% for h in table_data.headers %}
+                <th>{{ h }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in table_data.rows %}
+            <tr>
+                {% for cell in row %}
+                <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if conclusion %}
+    <div class="section-title">结论与后续建议</div>
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; margin-bottom: 16px; font-size: 8.5pt; color: #334155;">
+        {{ conclusion }}
+    </div>
+    {% endif %}
+</body>
+</html>

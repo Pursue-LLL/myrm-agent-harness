@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ project_name | default('项目阶段交付评估报告') }}</title>
+  <style>
+    @page { size: A4 portrait; margin: 15mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif; color: #1e293b; line-height: 1.5; font-size: 9pt; background: #fff; }
+    .wrap { width: 100%; max-width: 800px; margin: 0 auto; }
+    .header { border-bottom: 2px solid #0284c7; padding-bottom: 10px; margin-bottom: 15px; }
+    .title { font-size: 18pt; font-weight: 800; color: #0369a1; }
+    .meta { display: flex; gap: 20px; font-size: 8.5pt; color: #64748b; margin-top: 4px; }
+
+    .progress-bar-wrap { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 12px; margin-bottom: 20px; page-break-inside: avoid; }
+    .progress-title { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; font-size: 9.5pt; }
+    .bar-bg { height: 10px; background: #e0f2fe; border-radius: 5px; overflow: hidden; }
+    .bar-fill { height: 100%; background: #0284c7; border-radius: 5px; }
+
+    .milestone-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; page-break-inside: avoid; }
+    .milestone-table th { background: #0284c7; color: #fff; text-align: left; padding: 6px 8px; font-size: 8.5pt; }
+    .milestone-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 8.5pt; }
+    .status-done { color: #16a34a; font-weight: 700; }
+    .status-progress { color: #0284c7; font-weight: 700; }
+    .status-delay { color: #dc2626; font-weight: 700; }
+  </style>
+</head>
+<body>
+  {% from "blocks/svg_charts.html" import render_watermark %}
+  {% if watermark %}{{ render_watermark(watermark) }}{% endif %}
+
+  <div class="wrap">
+    <div class="header">
+      <h1 class="title">{{ project_name }} - {{ milestone_phase | default('阶段交付与验收报告') }}</h1>
+      <div class="meta">
+        <div><strong>项目经理:</strong> {{ pm | default('架构与交付委员会') }}</div>
+        <div><strong>客户方:</strong> {{ client_name | default('合作企业') }}</div>
+        <div><strong>报告日期:</strong> {{ report_date | default('2026-08-20') }}</div>
+      </div>
+    </div>
+
+    <div class="progress-bar-wrap">
+      <div class="progress-title">
+        <span>项目总体进度概况</span>
+        <span style="color: #0284c7;">{{ progress_percent | default(85) }}%</span>
+      </div>
+      <div class="bar-bg">
+        <div class="bar-fill" style="width: {{ progress_percent | default(85) }}%;"></div>
+      </div>
+      <p style="margin-top: 8px; font-size: 8.5pt; color: #475569;">{{ progress_summary }}</p>
+    </div>
+
+    <h2 style="font-size: 11pt; font-weight: 700; margin-bottom: 8px;">里程碑节点完成状态</h2>
+    <table class="milestone-table">
+      <thead>
+        <tr>
+          <th style="width: 25%;">里程碑目标</th>
+          <th style="width: 15%;">计划完成</th>
+          <th style="width: 15%;">实际交付</th>
+          <th style="width: 15%;">状态</th>
+          <th style="width: 30%;">成果说明 / 交付物</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in milestones | default([]) %}
+        <tr>
+          <td style="font-weight: 700;">{{ m.name }}</td>
+          <td>{{ m.planned_date }}</td>
+          <td>{{ m.actual_date }}</td>
+          <td><span class="status-{{ m.status_type | default('done') }}">{{ m.status }}</span></td>
+          <td>{{ m.deliverables }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if risks %}
+    <h2 style="font-size: 11pt; font-weight: 700; margin-bottom: 8px;">风险应对与后续冲刺计划</h2>
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 20px;">
+      {% for r in risks %}
+      <div style="margin-bottom: 8px;">
+        <strong>⚠️ {{ r.risk }}</strong>: <span style="color: #475569;">{{ r.mitigation }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% include "blocks/signature_seal_block.html" %}
+  </div>
+</body>
+</html>

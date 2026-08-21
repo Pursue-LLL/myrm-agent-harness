@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ doc_title | default("收款收据 (Payment Receipt)") }}</title>
+    <style>
+        @page { size: A5 landscape; margin: 10mm; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; color: #1e293b; background: #fff; line-height: 1.4; font-size: 9pt; }
+        .receipt-card { border: 2px solid #047857; border-radius: 6px; padding: 12px; }
+        .header-block { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #047857; padding-bottom: 8px; margin-bottom: 12px; }
+        .header-title { font-size: 16pt; font-weight: 800; color: #047857; letter-spacing: 2px; }
+        .header-meta { text-align: right; font-size: 8pt; }
+        .meta-val.highlight { font-weight: 700; color: #047857; font-family: monospace; }
+        .receipt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+        .grid-cell { border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 8px; background: #f8fafc; font-size: 8.5pt; }
+        .cell-label { color: #64748b; font-size: 7.5pt; display: block; }
+        .cell-value { font-weight: 700; color: #0f172a; margin-top: 2px; }
+        .amount-row { display: flex; gap: 8px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 8px; margin-bottom: 10px; align-items: center; }
+        .amount-digits { font-size: 13pt; font-weight: 900; color: #047857; font-family: monospace; }
+        .amount-words { font-size: 9pt; font-weight: 700; color: #065f46; flex: 1; text-align: right; }
+        .signature-section { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-size: 8pt; }
+    </style>
+</head>
+<body>
+    {% from "blocks/svg_charts.html" import render_watermark %}
+    {{ render_watermark(watermark_text) }}
+
+    <div class="receipt-card">
+        <div class="header-block">
+            <h1 class="header-title">{{ doc_title | default("收款收据") }}</h1>
+            <div class="header-meta">
+                <div>No. <span class="meta-val highlight">{{ receipt_no | default(doc_number | default("REC-2026-001")) }}</span></div>
+                <div>日期: {{ receipt_date | default(doc_date | default("2026-08-20")) }}</div>
+            </div>
+        </div>
+
+        <div class="receipt-grid">
+            <div class="grid-cell"><span class="cell-label">收款单位:</span><div class="cell-value">{{ company_name | default(seller_name | default("—")) }}</div></div>
+            <div class="grid-cell"><span class="cell-label">交款人 / 单位:</span><div class="cell-value">{{ payer_name | default(buyer_name | default("—")) }}</div></div>
+            <div class="grid-cell"><span class="cell-label">收款事由 / 项目:</span><div class="cell-value">{{ payment_reason | default("技术服务与算力费用") }}</div></div>
+            <div class="grid-cell"><span class="cell-label">结算方式:</span><div class="cell-value">{{ payment_method | default("银行转账") }}</div></div>
+        </div>
+
+        <div class="amount-row">
+            <span class="amount-digits">{{ amount | default(total_amount | default("¥0.00")) }}</span>
+            <span class="amount-words">大写: {{ amount_in_words | default("—") }}</span>
+        </div>
+
+        {% include "blocks/signature_seal_block.html" %}
+    </div>
+</body>
+</html>

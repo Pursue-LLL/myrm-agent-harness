@@ -48,7 +48,7 @@
 | `context.py` | Agent 运行时 ContextVar 容器（user/session/workspace） |
 | `pipeline/engine.py` | 处理器链引擎 + session lock |
 | `pipeline/processors/` | 过滤、cache-TTL 裁剪、pre-compaction recall、摘要、规范化、cache-control 标记 |
-| `strategies/` | Filter / Compress / Summarize 三档策略；Summarize 用 structured output 防 JSON 脆弱性 |
+| `strategies/` | Filter / Compress / Summarize 三档策略；Summarize 支持 Split Turn 活跃轮次前缀提炼，使用 structured output 防 JSON 脆弱性 |
 | infra/ | Token 估算、预算管理、schemas、cache policy、retention_helpers（compression_intent 提取与 retain 判定） |
 | `archive_checkpoint/` | Lite-LLM archive summary 检查点 Protocol + 持久化 |
 | `tracking/` | Artifact 追踪、task metrics、archive 读预算 |

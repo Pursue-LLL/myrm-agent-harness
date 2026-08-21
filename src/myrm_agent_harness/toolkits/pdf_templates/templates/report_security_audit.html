@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title | default("IT 系统安全审计与等保评估报告") }}</title>
+    <style>
+        @page { size: A4 portrait; margin: 18mm 15mm; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "PingFang SC", "Hiragino Sans GB", sans-serif; color: #1e293b; background: #fff; line-height: 1.6; font-size: 9pt; }
+        .sec-header { border-bottom: 2.5px solid #dc2626; padding-bottom: 12px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .sec-title { font-size: 19pt; font-weight: 800; color: #991b1b; }
+        .vuln-badge-high { background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 8pt; }
+        .vuln-badge-med { background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 8pt; }
+        .vuln-badge-low { background: #e0f2fe; color: #075985; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 8pt; }
+        .section-title { font-size: 12pt; font-weight: 700; color: #0f172a; margin: 16px 0 8px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+        .data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 8.5pt; }
+        .data-table th { background: #fef2f2; color: #991b1b; font-weight: 700; padding: 6px 8px; border: 1px solid #fecaca; text-align: left; }
+        .data-table td { padding: 6px 8px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+    {% from "blocks/svg_charts.html" import render_sparkline, render_bar_chart, render_watermark %}
+    {{ render_watermark(watermark_text | default("CONFIDENTIAL / SECURITY")) }}
+
+    <div class="sec-header">
+        <div>
+            <h1 class="sec-title">{{ title | default("IT 系统安全审计与等保评估报告") }}</h1>
+            <div style="font-size: 9.5pt; color: #4b5563; margin-top: 4px;">目标系统: {{ target_system | default("核心业务微服务与沙箱执行网关") }} · 等级: {{ security_level | default("等保三级") }}</div>
+        </div>
+        <div style="font-size: 8.5pt; color: #64748b; text-align: right;">
+            <div>评估编号: {{ sec_audit_id | default("SEC-AUD-2026-09") }}</div>
+            <div>评估基准: ISO 27001 / GB/T 22239</div>
+        </div>
+    </div>
+
+    {% if security_score %}
+    <div style="display: flex; gap: 14px; margin-bottom: 18px;">
+        <div style="flex: 1; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="font-size: 8pt; color: #991b1b; font-weight: 700;">综合安全评分 (Max 100)</div>
+            <div style="font-size: 24pt; font-weight: 900; color: #dc2626; margin: 4px 0;">{{ security_score }}</div>
+            <div style="font-size: 8pt; color: #6b7280;">{{ score_level | default("安全状态良好，需修复中低危漏洞") }}</div>
+        </div>
+        <div style="flex: 2; background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px;">
+            <div style="font-weight: 700; color: #1f2937; margin-bottom: 6px;">风险摘要</div>
+            <div style="font-size: 8.5pt; color: #4b5563; line-height: 1.5;">{{ risk_summary | default("本次安全评估共扫描资产 42 项，发现高危风险 0 个，中危配置风险 2 个，低危合规缺陷 3 个。核心代码沙箱与 MCP 隔离机制符合防护标准。") }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if vulnerabilities %}
+    <div class="section-title">检测发现与修复建议清单</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 25%;">漏洞 / 隐患名称</th>
+                <th style="width: 15%;">风险等级</th>
+                <th style="width: 35%;">影响范围 / 根因</th>
+                <th style="width: 25%;">整改修复建议</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in vulnerabilities %}
+            <tr>
+                <td style="font-weight: 600;">{{ v.name }}</td>
+                <td>
+                    {% if v.severity == 'HIGH' or v.severity == 'CRITICAL' %}
+                    <span class="vuln-badge-high">{{ v.severity }}</span>
+                    {% elif v.severity == 'MEDIUM' %}
+                    <span class="vuln-badge-med">{{ v.severity }}</span>
+                    {% else %}
+                    <span class="vuln-badge-low">{{ v.severity | default("LOW") }}</span>
+                    {% endif %}
+                </td>
+                <td style="font-size: 8pt;">{{ v.impact }}</td>
+                <td style="font-size: 8pt; color: #047857;">{{ v.remediation }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% include "blocks/signature_seal_block.html" %}
+</body>
+</html>

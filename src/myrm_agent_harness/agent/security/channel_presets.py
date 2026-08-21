@@ -366,15 +366,18 @@ def _merge_user_and_agent(user: SecurityConfig | None, agent: SecurityConfig | N
     auto_mode_enabled = user.auto_mode_enabled or agent.auto_mode_enabled
     auto_review_model = agent.auto_review_model or user.auto_review_model
     auto_review_timeout = min(user.auto_review_timeout_seconds, agent.auto_review_timeout_seconds)
-    # Anti-privilege-escalation for YOLO: Agent can only activate YOLO if user globally enabled YOLO
-    yolo_enabled = user.yolo_mode_enabled and agent.yolo_mode_enabled
+    # YOLO merge: either user globally enables YOLO or agent enables YOLO (e.g. unattended / specialized agent)
+    yolo_enabled = user.yolo_mode_enabled or agent.yolo_mode_enabled
     if yolo_enabled:
-        yolo_at = agent.yolo_mode_enabled_at or user.yolo_mode_enabled_at
-        yolo_timeout = agent.yolo_mode_timeout or user.yolo_mode_timeout
-    elif user.yolo_mode_enabled:
-        yolo_enabled = True
-        yolo_at = user.yolo_mode_enabled_at
-        yolo_timeout = user.yolo_mode_timeout
+        if agent.yolo_mode_enabled and user.yolo_mode_enabled:
+            yolo_at = agent.yolo_mode_enabled_at or user.yolo_mode_enabled_at
+            yolo_timeout = agent.yolo_mode_timeout or user.yolo_mode_timeout
+        elif agent.yolo_mode_enabled:
+            yolo_at = agent.yolo_mode_enabled_at
+            yolo_timeout = agent.yolo_mode_timeout
+        else:
+            yolo_at = user.yolo_mode_enabled_at
+            yolo_timeout = user.yolo_mode_timeout
     else:
         yolo_enabled = False
         yolo_at = None

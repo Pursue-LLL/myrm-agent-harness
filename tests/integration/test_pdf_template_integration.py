@@ -1,7 +1,7 @@
 """Integration test for PdfTemplateRegistry and PdfRenderEngine toolchain.
 
 Verifies end-to-end template listing, schema extraction, and PDF/HTML generation
-across standard corporate templates (Invoice, Business Report, Receipt) without mocking
+across 10 standard corporate templates (6 Finance + 4 Reports) without mocking
 the underlying Jinja2 compilation and security sanitization pipelines.
 """
 
@@ -32,32 +32,40 @@ async def test_end_to_end_invoice_generation_flow(tmp_path: Path) -> None:
     discover_data = json.loads(discover_raw)
     assert discover_data["total"] >= 1
     tmpl_meta = next(
-        t for t in discover_data["templates"] if t["template_id"] == "invoice_standard"
+        t
+        for t in discover_data["templates"]
+        if t["template_id"] == "invoice_vat_standard"
     )
     assert tmpl_meta["category"] == "invoice"
 
     # 2. Inspect schema
     schema_raw = tools_map["get_pdf_template_schema"].invoke(
-        {"template_id": "invoice_standard"}
+        {"template_id": "invoice_vat_standard"}
     )
     schema_data = json.loads(schema_raw)
     assert "properties" in schema_data["json_schema"]
-    assert "invoice_no" in schema_data["json_schema"]["properties"]
-    assert "seller_name" in schema_data["json_schema"]["properties"]
+    assert "doc_no" in schema_data["json_schema"]["properties"]
+    assert "seller" in schema_data["json_schema"]["properties"]
 
     # 3. Render real document
     out_pdf = tmp_path / "artifacts" / "invoice_2026.pdf"
     invoice_payload = {
-        "invoice_no": "INV-2026-AUG-8899",
-        "invoice_date": "2026-08-20",
-        "seller_name": "Myrm Technology Co., Ltd.",
-        "seller_tax_id": "91310000MA1FL88888",
-        "seller_address": "Shanghai Pudong Tech Park Bldg 3",
-        "seller_bank_name": "China Merchants Bank",
-        "seller_bank_account": "6225 8888 1234 5678",
-        "buyer_name": "Global Enterprise Client",
-        "buyer_tax_id": "91110000MA1FL99999",
-        "buyer_contact": "contact@client.example.com",
+        "title": "增值税专用发票 (TAX INVOICE)",
+        "doc_no": "INV-2026-AUG-8899",
+        "doc_date": "2026-08-20",
+        "seller": {
+            "name": "Myrm Technology Co., Ltd.",
+            "tax_id": "91310000MA1FL88888",
+            "address": "Shanghai Pudong Tech Park Bldg 3",
+            "bank_name": "China Merchants Bank",
+            "bank_account": "6225 8888 1234 5678",
+        },
+        "buyer": {
+            "name": "Global Enterprise Client",
+            "tax_id": "91110000MA1FL99999",
+            "contact": "contact@client.example.com",
+            "address": "Beijing Chaoyang District Center",
+        },
         "items": [
             {
                 "name": "Myrm Agent SaaS Subscription",
@@ -78,12 +86,13 @@ async def test_end_to_end_invoice_generation_flow(tmp_path: Path) -> None:
         "tax_rate": "6%",
         "tax_amount": "¥9,000.00",
         "total_amount": "¥159,000.00",
-        "notes": "Thank you for partnering with Myrm Agent Labs.",
+        "total_words": "人民币 壹拾伍万玖仟元整",
+        "watermark": "ORIGINAL COPY",
     }
 
     render_raw = await tools_map["render_pdf_template"].ainvoke(
         {
-            "template_id": "invoice_standard",
+            "template_id": "invoice_vat_standard",
             "data_json": json.dumps(invoice_payload),
             "output_path": str(out_pdf),
         }
@@ -100,11 +109,12 @@ async def test_end_to_end_invoice_generation_flow(tmp_path: Path) -> None:
     assert "Myrm Technology Co., Ltd." in html_content
     assert "Annual enterprise tier license" in html_content
     assert "¥159,000.00" in html_content
+    assert "ORIGINAL COPY" in html_content
 
 
 @pytest.mark.asyncio
 async def test_end_to_end_business_report_generation_flow(tmp_path: Path) -> None:
-    """Verify complete business report rendering with KPI cards and sections."""
+    """Verify complete business report rendering with SVG charts, KPI cards and sections."""
     tools = create_pdf_template_tools()
     tools_map = {t.name: t for t in tools}
 
@@ -122,19 +132,28 @@ async def test_end_to_end_business_report_generation_flow(tmp_path: Path) -> Non
                 "value": "98.4%",
                 "change": "+12.3%",
                 "is_positive": True,
+                "trend_data": [85, 88, 92, 95, 98.4],
             },
             {
                 "label": "PDF 渲染周转耗时",
                 "value": "320ms",
                 "change": "-65.0%",
                 "is_positive": True,
+                "trend_data": [900, 750, 520, 380, 320],
             },
             {
                 "label": "架构越界依赖数",
                 "value": "0",
                 "change": "0",
                 "is_positive": True,
+                "trend_data": [4, 2, 1, 0, 0],
             },
+        ],
+        "bar_chart_items": [
+            {"label": "Q1", "value": 45},
+            {"label": "Q2", "value": 68},
+            {"label": "Q3", "value": 92},
+            {"label": "Q4(E)", "value": 115},
         ],
         "sections": [
             {
@@ -166,11 +185,12 @@ async def test_end_to_end_business_report_generation_flow(tmp_path: Path) -> Non
             }
         ],
         "conclusion": "架构整体稳健，具备极高的扩展性与生产级可维护性。",
+        "watermark": "CONFIDENTIAL",
     }
 
     render_raw = await tools_map["render_pdf_template"].ainvoke(
         {
-            "template_id": "business_report",
+            "template_id": "report_executive_summary",
             "data_json": json.dumps(report_payload),
             "output_path": str(out_pdf),
         }
@@ -185,7 +205,9 @@ async def test_end_to_end_business_report_generation_flow(tmp_path: Path) -> Non
     assert "ARCHITECTURAL REPORT" in html_content
     assert "Prompt Cache 命中率" in html_content
     assert "98.4%" in html_content
-    assert "Production Ready" in html_content
+    assert "svg-sparkline" in html_content
+    assert ("svg-bar-chart" in html_content or "svg-barchart" in html_content)
+    assert "CONFIDENTIAL" in html_content
 
 
 @pytest.mark.asyncio
@@ -282,7 +304,7 @@ async def test_concurrent_pdf_rendering_stress(tmp_path: Path) -> None:
         out_pdf = tmp_path / f"receipt_concurrent_{index}.pdf"
         res = await tools_map["render_pdf_template"].ainvoke(
             {
-                "template_id": "receipt_minimal",
+                "template_id": "receipt_payment_minimal",
                 "data_json": json.dumps(payload),
                 "output_path": str(out_pdf),
             }
@@ -310,9 +332,15 @@ async def test_adversarial_security_injection_handling(tmp_path: Path) -> None:
     tools_map = {t.name: t for t in tools}
 
     malicious_payload = {
-        "invoice_no": 'INV-SEC-001"><script>alert("hacked")</script>',
-        "seller_name": '<a href="javascript:document.cookie">Evil Seller</a>',
-        "buyer_name": '<img src="file:///etc/passwd" onerror="alert(1)">',
+        "title": '增值税专用发票"><script>alert("hacked")</script>',
+        "doc_no": 'INV-SEC-001" onmouseover="alert(1)',
+        "seller": {
+            "name": '<a href="javascript:document.cookie">Evil Seller</a>',
+            "tax_id": "91310000MA1FL88888",
+        },
+        "buyer": {
+            "name": '<img src="file:///etc/passwd" onerror="alert(1)">',
+        },
         "items": [
             {
                 "name": '<iframe src="gopher://127.0.0.1:6379">Dangerous Item</iframe>',
@@ -328,7 +356,7 @@ async def test_adversarial_security_injection_handling(tmp_path: Path) -> None:
     out_pdf = tmp_path / "sec_test.pdf"
     render_raw = await tools_map["render_pdf_template"].ainvoke(
         {
-            "template_id": "invoice_standard",
+            "template_id": "invoice_vat_standard",
             "data_json": json.dumps(malicious_payload),
             "output_path": str(out_pdf),
         }
@@ -345,3 +373,5 @@ async def test_adversarial_security_injection_handling(tmp_path: Path) -> None:
     assert "file:///etc/passwd" not in sanitized_html
     assert "javascript:" not in sanitized_html
     assert "gopher://" not in sanitized_html
+    assert "onmouseover" not in sanitized_html
+    assert "onerror" not in sanitized_html

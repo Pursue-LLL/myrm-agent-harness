@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ doc_title | default("SaaS 订阅与算力用量对账单") }}</title>
+    <style>
+        @page { size: A4 portrait; margin: 15mm; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "PingFang SC", "Hiragino Sans GB", sans-serif; color: #1e293b; background: #fff; line-height: 1.5; font-size: 9pt; }
+        .header-block { display: flex; justify-content: space-between; border-bottom: 2px solid #6366f1; padding-bottom: 12px; margin-bottom: 14px; }
+        .header-title { font-size: 18pt; font-weight: 800; color: #4338ca; }
+        .subscription-badge { background: #e0e7ff; color: #4338ca; padding: 3px 8px; border-radius: 12px; font-weight: 700; font-size: 8pt; display: inline-block; margin-top: 4px; }
+        .plan-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .plan-name { font-size: 12pt; font-weight: 800; color: #1e1b4b; }
+        .plan-cycle { font-size: 8.5pt; color: #64748b; }
+        .data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+        .data-table th { background: #eef2ff; color: #3730a3; font-weight: 700; padding: 8px 10px; border: 1px solid #c7d2fe; text-align: left; }
+        .data-table td { padding: 8px 10px; border: 1px solid #e2e8f0; }
+        .col-qty, .col-unit-price, .col-amount { text-align: right; }
+        .grand-total { font-size: 12pt; font-weight: 900; color: #4338ca; }
+    </style>
+</head>
+<body>
+    {% from "blocks/svg_charts.html" import render_watermark, render_sparkline %}
+    {{ render_watermark(watermark_text) }}
+
+    {% include "blocks/header_block.html" %}
+    
+    <div class="plan-card">
+        <div>
+            <div class="plan-name">{{ plan_name | default("Enterprise Tier (企业年付方案)") }}</div>
+            <div class="plan-cycle">计费周期: {{ billing_cycle | default("2026-08-01 至 2026-08-31") }} · 订阅状态: 正常履约中</div>
+        </div>
+        <div style="text-align: right;">
+            <span class="subscription-badge">RECURRING SAAS</span>
+        </div>
+    </div>
+
+    {% include "blocks/party_info_block.html" %}
+    {% include "blocks/items_table_block.html" %}
+    {% include "blocks/tax_summary_block.html" %}
+    {% include "blocks/signature_seal_block.html" %}
+</body>
+</html>

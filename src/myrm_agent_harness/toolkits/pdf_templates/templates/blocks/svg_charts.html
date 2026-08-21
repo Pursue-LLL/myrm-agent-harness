@@ -1,0 +1,66 @@
+<!-- Reusable pure Python/Jinja2 SVG Vector Chart Macros (Zero JavaScript, Instant Zero-Lag PDF Print) -->
+
+{% macro render_sparkline(data_points, width=120, height=36, stroke_color="#2563eb", fill_color="rgba(37, 99, 235, 0.08)") %}
+    {% if data_points and data_points|length > 1 %}
+        {% set min_val = data_points|min %}
+        {% set max_val = data_points|max %}
+        {% set val_range = (max_val - min_val) if (max_val - min_val) > 0 else 1 %}
+        {% set point_count = data_points|length %}
+        {% set step_x = width / (point_count - 1) %}
+        
+        {% set ns = namespace(path_d="", fill_d="") %}
+        {% for val in data_points %}
+            {% set x = loop.index0 * step_x %}
+            {% set y = height - ((val - min_val) / val_range * (height - 8) + 4) %}
+            {% if loop.first %}
+                {% set ns.path_d = "M " ~ x|round(1) ~ " " ~ y|round(1) %}
+                {% set ns.fill_d = "M " ~ x|round(1) ~ " " ~ height ~ " L " ~ x|round(1) ~ " " ~ y|round(1) %}
+            {% else %}
+                {% set ns.path_d = ns.path_d ~ " L " ~ x|round(1) ~ " " ~ y|round(1) %}
+                {% set ns.fill_d = ns.fill_d ~ " L " ~ x|round(1) ~ " " ~ y|round(1) %}
+            {% endif %}
+            {% if loop.last %}
+                {% set ns.fill_d = ns.fill_d ~ " L " ~ x|round(1) ~ " " ~ height ~ " Z" %}
+            {% endif %}
+        {% endfor %}
+        
+        <svg viewBox="0 0 {{ width }} {{ height }}" width="{{ width }}" height="{{ height }}" class="svg-sparkline">
+            <path d="{{ ns.fill_d }}" fill="{{ fill_color }}" />
+            <path d="{{ ns.path_d }}" fill="none" stroke="{{ stroke_color }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+    {% endif %}
+{% endmacro %}
+
+{% macro render_bar_chart(bars, width=280, height=80, bar_color="#3b82f6") %}
+    {% if bars and bars|length > 0 %}
+        {% set max_val = 1 %}
+        {% for b in bars %}
+            {% if b.value and b.value > max_val %}
+                {% set max_val = b.value %}
+            {% endif %}
+        {% endfor %}
+        {% set bar_count = bars|length %}
+        {% set slot_w = width / bar_count %}
+        {% set bar_w = slot_w * 0.6 %}
+        
+        <svg viewBox="0 0 {{ width }} {{ height + 20 }}" width="{{ width }}" height="{{ height + 20 }}" class="svg-bar-chart">
+            {% for b in bars %}
+                {% set x = loop.index0 * slot_w + (slot_w - bar_w) / 2 %}
+                {% set bar_h = (b.value / max_val * (height - 10))|round(1) %}
+                {% set y = height - bar_h %}
+                <rect x="{{ x|round(1) }}" y="{{ y|round(1) }}" width="{{ bar_w|round(1) }}" height="{{ bar_h }}" fill="{{ b.color | default(bar_color) }}" rx="2"/>
+                <text x="{{ (x + bar_w / 2)|round(1) }}" y="{{ height + 14 }}" font-size="8" text-anchor="middle" fill="#64748b" font-family="sans-serif">{{ b.label }}</text>
+            {% endfor %}
+        </svg>
+    {% endif %}
+{% endmacro %}
+
+{% macro render_watermark(watermark_text="CONFIDENTIAL") %}
+    {% if watermark_text %}
+    <div class="watermark-overlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: -1; pointer-events: none; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <span style="font-size: 72pt; font-weight: 900; color: rgba(100, 116, 139, 0.06); transform: rotate(-35deg); letter-spacing: 12px; text-transform: uppercase; user-select: none; font-family: sans-serif;">
+            {{ watermark_text }}
+        </span>
+    </div>
+    {% endif %}
+{% endmacro %}

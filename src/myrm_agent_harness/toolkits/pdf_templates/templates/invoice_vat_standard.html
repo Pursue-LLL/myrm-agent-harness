@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ doc_title | default("增值税标准发票") }}</title>
+    <style>
+        @page { size: A4 portrait; margin: 15mm; @bottom-right { content: "第 " counter(page) " 页 / 共 " counter(pages) " 页"; font-size: 8pt; color: #94a3b8; } }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; color: #1e293b; background: #fff; line-height: 1.5; font-size: 9.5pt; }
+        .header-block { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #d93025; padding-bottom: 12px; margin-bottom: 16px; }
+        .header-title { font-size: 20pt; font-weight: 800; color: #d93025; letter-spacing: 2px; }
+        .header-subtitle { font-size: 8.5pt; color: #64748b; margin-top: 2px; }
+        .header-meta { text-align: right; font-size: 8.5pt; }
+        .meta-row { margin-bottom: 3px; }
+        .meta-val.highlight { font-weight: 700; color: #d93025; font-family: monospace; font-size: 10.5pt; }
+        .parties-container { display: flex; gap: 16px; margin-bottom: 16px; }
+        .party-card { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; background: #fafafa; }
+        .party-role { font-size: 8pt; font-weight: 700; color: #64748b; text-transform: uppercase; }
+        .party-name { font-size: 11pt; font-weight: 700; color: #0f172a; margin: 4px 0 6px 0; }
+        .party-field { font-size: 8.5pt; color: #475569; margin-bottom: 2px; }
+        .field-label { color: #64748b; }
+        .data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; page-break-inside: auto; }
+        .data-table th { background: #f1f5f9; color: #334155; font-weight: 600; font-size: 8.5pt; padding: 8px 10px; border: 1px solid #cbd5e1; text-align: left; }
+        .data-table td { padding: 8px 10px; border: 1px solid #e2e8f0; font-size: 9pt; vertical-align: middle; }
+        .data-table tr { page-break-inside: avoid; page-break-after: auto; }
+        .data-table tr:nth-child(even) { background: #f8fafc; }
+        .col-index { width: 30px; text-align: center; }
+        .col-qty, .col-unit-price, .col-amount { text-align: right; }
+        .font-mono { font-family: monospace; }
+        .summary-section { display: flex; justify-content: space-between; margin-bottom: 20px; page-break-inside: avoid; }
+        .summary-notes { flex: 1; padding-right: 20px; font-size: 8.5pt; }
+        .words-amount-box { background: #fef2f2; border-left: 3px solid #d93025; padding: 6px 10px; margin-bottom: 8px; font-weight: 600; color: #991b1b; }
+        .summary-totals { width: 280px; }
+        .total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 9pt; }
+        .grand-total { border-top: 2px solid #0f172a; margin-top: 6px; padding-top: 6px; font-size: 11pt; font-weight: 800; color: #d93025; }
+        .signature-section { display: flex; justify-content: space-between; margin-top: 24px; padding-top: 12px; border-top: 1px dashed #cbd5e1; page-break-inside: avoid; }
+        .sig-column { flex: 1; font-size: 8.5pt; }
+        .sig-title { color: #64748b; font-weight: 600; }
+        .sig-name { font-weight: 700; margin-top: 6px; display: inline-block; }
+        .seal-column { text-align: right; }
+    </style>
+</head>
+<body>
+    {% from "blocks/svg_charts.html" import render_watermark %}
+    {{ render_watermark(watermark_text | default(watermark | default(""))) }}
+
+    {% include "blocks/header_block.html" %}
+    {% include "blocks/party_info_block.html" %}
+    {% set show_tax_rate = True %}
+    {% include "blocks/items_table_block.html" %}
+    {% include "blocks/tax_summary_block.html" %}
+    {% include "blocks/signature_seal_block.html" %}
+</body>
+</html>

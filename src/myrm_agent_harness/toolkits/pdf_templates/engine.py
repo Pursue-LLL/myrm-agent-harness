@@ -30,7 +30,13 @@ from pathlib import Path
 from typing import Any
 from pydantic import BaseModel, Field
 
-from jinja2 import BaseLoader, ChoiceLoader, Environment, FileSystemLoader, select_autoescape
+from jinja2 import (
+    BaseLoader,
+    ChoiceLoader,
+    Environment,
+    FileSystemLoader,
+    select_autoescape,
+)
 
 from .manifest import PdfTemplateManifest, PdfTemplateRenderOptions
 from .registry import PdfTemplateRegistry, get_pdf_template_registry
@@ -53,7 +59,11 @@ _DANGEROUS_SCRIPT_TAGS = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _DANGEROUS_ON_EVENTS = re.compile(
-    r'\s+on[a-zA-Z]+\s*=\s*["\'][^"\']*["\']',
+    r'\s+on[a-zA-Z]+\s*=\s*(?:["\']|&#34;|&#39;).*?(?:["\']|&#34;|&#39;)',
+    re.IGNORECASE,
+)
+_DANGEROUS_INLINE_HANDLERS = re.compile(
+    r"\bon[a-zA-Z]+\s*=",
     re.IGNORECASE,
 )
 
@@ -82,11 +92,11 @@ class PdfRenderEngine:
 
     def __init__(self, registry: PdfTemplateRegistry | None = None) -> None:
         self._registry = registry or get_pdf_template_registry()
-        
+
         loaders = [BaseLoader()]
         if _TEMPLATES_DIR.exists():
             loaders.insert(0, FileSystemLoader(str(_TEMPLATES_DIR)))
-            
+
         self._jinja_env = Environment(
             loader=ChoiceLoader(loaders),
             autoescape=select_autoescape(["html", "xml"]),
@@ -106,6 +116,11 @@ class PdfRenderEngine:
                 "PdfRenderEngine: Sanitizer stripped inline event handler in template HTML."
             )
             html_content = _DANGEROUS_ON_EVENTS.sub("", html_content)
+        if _DANGEROUS_INLINE_HANDLERS.search(html_content):
+            logger.warning(
+                "PdfRenderEngine: Sanitizer stripped raw inline handler in template HTML."
+            )
+            html_content = _DANGEROUS_INLINE_HANDLERS.sub("blocked-event=", html_content)
         if _DANGEROUS_PROTOCOLS_PATTERN.search(html_content):
             logger.warning(
                 "PdfRenderEngine: Sanitizer blocked illegal protocol in template HTML."

@@ -177,9 +177,11 @@ def parse_codex_item_event(data: dict[str, object], session_id: str) -> RuntimeE
     if item_type == "error":
         msg = item.get("message", "Unknown item error")
         return create_event(
-            RuntimeEventType.ERROR,
+            RuntimeEventType.STATUS_UPDATE,
             session_id,
-            error=AcpError(code=AcpErrorCode.UNKNOWN, message=str(msg)),
+            status="warning",
+            message=str(msg),
+            is_error=False,
         )
 
     return None

@@ -23,13 +23,14 @@ def test_html_interpolation_and_sanitization() -> None:
     engine = get_pdf_render_engine()
 
     data = {
-        "invoice_no": "INV-TEST-999",
-        "seller_name": "Test Seller Co.",
-        "buyer_name": "Test Buyer Co.",
+        "title": "测试发票",
+        "doc_no": "INV-TEST-999",
+        "seller": {"name": "Test Seller Co."},
+        "buyer": {"name": "Test Buyer Co."},
         "items": [
             {
                 "name": "Consulting",
-                "description": "AI Audit",
+                "spec": "AI Audit",
                 "unit_price": "¥5,000",
                 "quantity": "1",
                 "amount": "¥5,000",
@@ -38,7 +39,7 @@ def test_html_interpolation_and_sanitization() -> None:
         "total_amount": "¥5,300.00",
     }
 
-    html, manifest = engine.render_html_string("invoice_standard", data)
+    html, manifest = engine.render_html_string("invoice_vat_standard", data)
     assert "INV-TEST-999" in html
     assert "Test Seller Co." in html
     assert "Test Buyer Co." in html
@@ -62,12 +63,12 @@ async def test_render_to_pdf_mock_browser(tmp_path: Path) -> None:
 
     out_file = tmp_path / "test_invoice.pdf"
     data = {
-        "invoice_no": "INV-2026-001",
+        "doc_no": "INV-2026-001",
         "total_amount": "¥100.00",
     }
 
     res = await engine.render_to_pdf(
-        template_id="invoice_standard",
+        template_id="invoice_vat_standard",
         data=data,
         output_path=str(out_file),
         browser_page=mock_page,
@@ -85,7 +86,7 @@ async def test_render_to_pdf_mock_browser(tmp_path: Path) -> None:
         side_effect=RuntimeError("Browser crashed")
     )
     fail_res = await engine.render_to_pdf(
-        template_id="invoice_standard",
+        template_id="invoice_vat_standard",
         data=data,
         output_path=str(out_file),
         browser_page=mock_page_failing,
@@ -106,11 +107,11 @@ async def test_langchain_pdf_tools(tmp_path: Path) -> None:
 
     # 1. list_pdf_templates
     list_res = tools_map["list_pdf_templates"].invoke(
-        {"query": "发票", "category": "invoice"}
+        {"query": "增值税", "category": "invoice"}
     )
     list_data = json.loads(list_res)
     assert list_data["total"] >= 1
-    assert list_data["templates"][0]["template_id"] == "invoice_standard"
+    assert list_data["templates"][0]["template_id"] == "invoice_vat_standard"
 
     # Empty filter match
     empty_res = tools_map["list_pdf_templates"].invoke(
@@ -120,12 +121,12 @@ async def test_langchain_pdf_tools(tmp_path: Path) -> None:
 
     # 2. get_pdf_template_schema
     schema_res = tools_map["get_pdf_template_schema"].invoke(
-        {"template_id": "invoice_standard"}
+        {"template_id": "invoice_vat_standard"}
     )
     schema_data = json.loads(schema_res)
-    assert schema_data["template_id"] == "invoice_standard"
+    assert schema_data["template_id"] == "invoice_vat_standard"
     assert "json_schema" in schema_data
-    assert "invoice_no" in schema_data["json_schema"]["properties"]
+    assert "doc_no" in schema_data["json_schema"]["properties"]
 
     # Not found template schema
     not_found_schema = json.loads(
@@ -136,7 +137,7 @@ async def test_langchain_pdf_tools(tmp_path: Path) -> None:
     # 3. render_pdf_template (with fallback execution & invalid json handling)
     invalid_json_res = await tools_map["render_pdf_template"].ainvoke(
         {
-            "template_id": "receipt_minimal",
+            "template_id": "receipt_payment_minimal",
             "data_json": "invalid-json-string{",
             "output_path": str(tmp_path / "dummy.pdf"),
         }
@@ -145,7 +146,7 @@ async def test_langchain_pdf_tools(tmp_path: Path) -> None:
 
     not_dict_json_res = await tools_map["render_pdf_template"].ainvoke(
         {
-            "template_id": "receipt_minimal",
+            "template_id": "receipt_payment_minimal",
             "data_json": "[1, 2, 3]",
             "output_path": str(tmp_path / "dummy.pdf"),
         }
@@ -160,14 +161,14 @@ async def test_langchain_pdf_tools(tmp_path: Path) -> None:
     }
     render_res = await tools_map["render_pdf_template"].ainvoke(
         {
-            "template_id": "receipt_minimal",
+            "template_id": "receipt_payment_minimal",
             "data_json": json.dumps(payload),
             "output_path": str(out_file),
         }
     )
     render_data = json.loads(render_res)
     assert render_data["success"] is True
-    assert render_data["template_id"] == "receipt_minimal"
+    assert render_data["template_id"] == "receipt_payment_minimal"
 
 
 def test_render_engine_error_and_edge_cases(tmp_path: Path) -> None:

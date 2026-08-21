@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title | default("企业数字化运营周报 / 月报") }}</title>
+    <style>
+        @page { size: A4 portrait; margin: 18mm 15mm; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "PingFang SC", "Hiragino Sans GB", sans-serif; color: #1e293b; background: #fff; line-height: 1.6; font-size: 9pt; }
+        .ops-header { border-bottom: 2.5px solid #7c3aed; padding-bottom: 12px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .ops-title { font-size: 19pt; font-weight: 800; color: #6d28d9; }
+        .section-title { font-size: 12pt; font-weight: 700; color: #0f172a; margin: 16px 0 8px 0; border-left: 3px solid #7c3aed; padding-left: 8px; }
+        .kpi-grid { display: flex; gap: 10px; margin-bottom: 16px; }
+        .kpi-card { flex: 1; background: #fdf4ff; border: 1px solid #f0abfc; border-radius: 6px; padding: 10px; }
+        .kpi-title { font-size: 7.5pt; color: #86198f; font-weight: 700; text-transform: uppercase; }
+        .kpi-num { font-size: 15pt; font-weight: 800; color: #701a75; margin: 2px 0; }
+        .chart-container { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 6px; padding: 12px; margin-bottom: 16px; text-align: center; }
+        .task-list { list-style: none; padding: 0; margin-bottom: 16px; }
+        .task-item { padding: 8px 10px; border-bottom: 1px solid #f3e8ff; display: flex; justify-content: space-between; }
+        .task-status-done { color: #16a34a; font-weight: 700; font-size: 8pt; }
+        .task-status-wip { color: #d97706; font-weight: 700; font-size: 8pt; }
+    </style>
+</head>
+<body>
+    {% from "blocks/svg_charts.html" import render_sparkline, render_bar_chart, render_watermark %}
+    {{ render_watermark(watermark_text) }}
+
+    <div class="ops-header">
+        <div>
+            <h1 class="ops-title">{{ title | default("企业数字化运营周报 / 月报") }}</h1>
+            <div style="font-size: 9.5pt; color: #4b5563; margin-top: 4px;">业务团队: {{ team_name | default("AI 核心工程与数据运营团队") }} · 周期: {{ cycle | default("2026年第34周") }}</div>
+        </div>
+        <div style="font-size: 8.5pt; color: #64748b; text-align: right;">
+            <div>生成时间: {{ date | default("2026-08-20") }}</div>
+            <div>负责人: {{ owner | default("项目总监") }}</div>
+        </div>
+    </div>
+
+    {% if metrics %}
+    <div class="kpi-grid">
+        {% for m in metrics %}
+        <div class="kpi-card">
+            <div class="kpi-title">{{ m.name }}</div>
+            <div class="kpi-num">{{ m.value }}</div>
+            {% if m.sparkline %}
+            <div>{{ render_sparkline(m.sparkline, 80, 20, stroke_color="#7c3aed", fill_color="rgba(124, 58, 237, 0.1)") }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if weekly_chart_data %}
+    <div class="section-title">核心业务量日趋势图</div>
+    <div class="chart-container">
+        {{ render_bar_chart(weekly_chart_data, 460, 80, bar_color="#8b5cf6") }}
+    </div>
+    {% endif %}
+
+    {% if completed_tasks %}
+    <div class="section-title">本周期重点任务交付成果</div>
+    <div class="task-list">
+        {% for t in completed_tasks %}
+        <div class="task-item">
+            <div><strong>{{ t.name }}</strong> <span style="color: #64748b; font-size: 8pt;">- {{ t.detail }}</span></div>
+            <div class="task-status-done">已交付 100%</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if next_plan %}
+    <div class="section-title">下周期重点规划与攻坚方向</div>
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; font-size: 8.5pt; color: #334155;">
+        {{ next_plan }}
+    </div>
+    {% endif %}
+</body>
+</html>

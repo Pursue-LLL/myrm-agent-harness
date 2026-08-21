@@ -21,7 +21,7 @@ from myrm_agent_harness.agent.security.types import (
 )
 
 
-def test_readonly_root_allows_read_denies_write(tmp_path) -> None:
+def test_readonly_root_allows_read_prompts_write_elevation(tmp_path) -> None:
     ref = tmp_path / "ref"
     ref.mkdir()
     policy = PathPolicy(access_roots=access_roots_from_paths((str(ref),), writable=False))
@@ -38,7 +38,7 @@ def test_readonly_root_allows_read_denies_write(tmp_path) -> None:
         require_write=True,
     )
     assert read_action == PermissionAction.ALLOW
-    assert write_action == PermissionAction.DENY
+    assert write_action == PermissionAction.ASK
     assert "read-only" in reason
 
 

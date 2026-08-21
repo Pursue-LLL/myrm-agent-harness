@@ -71,7 +71,10 @@ def is_eligible_native_compaction_route(
     if not model or not _GPT56_FAMILY_PATTERN.search(model):
         return False
 
-    if custom_llm_provider and custom_llm_provider.lower() not in ("openai", "custom_openai"):
+    if custom_llm_provider and custom_llm_provider.lower() not in (
+        "openai",
+        "custom_openai",
+    ):
         return False
 
     if not api_base:
@@ -102,7 +105,9 @@ def build_responses_compaction_params(
     }
 
 
-def parse_compaction_from_response(response_dict: dict[str, Any]) -> NativeCompactionItem | None:
+def parse_compaction_from_response(
+    response_dict: dict[str, Any],
+) -> NativeCompactionItem | None:
     """Extract native compaction item from a completed response or chunk dict."""
     if not response_dict:
         return None
@@ -114,7 +119,11 @@ def parse_compaction_from_response(response_dict: dict[str, Any]) -> NativeCompa
         if isinstance(compaction, dict) and compaction.get("id"):
             return NativeCompactionItem(
                 item_id=str(compaction["id"]),
-                encrypted_payload=str(compaction.get("encrypted_payload") or compaction.get("payload") or ""),
+                encrypted_payload=str(
+                    compaction.get("encrypted_payload")
+                    or compaction.get("payload")
+                    or ""
+                ),
                 created_at=int(compaction.get("created_at") or 0),
                 model=str(response_dict.get("model") or ""),
             )
@@ -125,7 +134,9 @@ def parse_compaction_from_response(response_dict: dict[str, Any]) -> NativeCompa
         if isinstance(item, dict) and item.get("type") == "compaction":
             return NativeCompactionItem(
                 item_id=str(item.get("id") or item.get("item_id") or ""),
-                encrypted_payload=str(item.get("encrypted_payload") or item.get("payload") or ""),
+                encrypted_payload=str(
+                    item.get("encrypted_payload") or item.get("payload") or ""
+                ),
                 created_at=int(item.get("created_at") or 0),
                 model=str(response_dict.get("model") or ""),
             )

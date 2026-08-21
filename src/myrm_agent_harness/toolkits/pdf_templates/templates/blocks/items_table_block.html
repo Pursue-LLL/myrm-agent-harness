@@ -1,0 +1,46 @@
+<!-- Table partial for billing and invoice items with Paged Media page-break protection -->
+<div class="items-table-wrapper">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th class="col-index">#</th>
+                <th class="col-name">{{ col_name_label | default("商品 / 服务名称 (Description)") }}</th>
+                {% if show_specification %}
+                <th class="col-spec">规格型号</th>
+                {% endif %}
+                <th class="col-unit-price">{{ col_price_label | default("单价 (Unit Price)") }}</th>
+                <th class="col-qty">{{ col_qty_label | default("数量 (Qty)") }}</th>
+                {% if show_tax_rate %}
+                <th class="col-tax-rate">税率 (Tax)</th>
+                {% endif %}
+                <th class="col-amount">{{ col_amount_label | default("金额 (Amount)") }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr class="item-row">
+                <td class="col-index">{{ loop.index }}</td>
+                <td class="col-name">
+                    <div class="item-title">{{ item.name }}</div>
+                    {% if item.description %}
+                    <div class="item-desc">{{ item.description }}</div>
+                    {% endif %}
+                </td>
+                {% if show_specification %}
+                <td class="col-spec">{{ item.spec | default(item.specification | default("—")) }}</td>
+                {% endif %}
+                <td class="col-unit-price">{{ item.unit_price }}</td>
+                <td class="col-qty">{{ item.quantity }}</td>
+                {% if show_tax_rate %}
+                <td class="col-tax-rate">{{ item.tax_rate | default(tax_rate | default("—")) }}</td>
+                {% endif %}
+                <td class="col-amount font-mono">{{ item.amount }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="6" class="empty-items-cell">暂无明细条目 (No items listed)</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

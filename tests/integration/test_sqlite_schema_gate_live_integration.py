@@ -198,14 +198,20 @@ async def test_migration_engine_live_full_stack_integration(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
-async def test_migration_engine_failure_retains_prior_user_version(tmp_path: Path) -> None:
+async def test_migration_engine_failure_retains_prior_user_version(
+    tmp_path: Path,
+) -> None:
     """When a migration in the chain fails, user_version is NOT updated to corrupted state."""
     db_file = tmp_path / "failed_migration.db"
     async_engine = create_async_engine(f"sqlite+aiosqlite:///{db_file}")
 
     try:
         # Step 1: Successful initial migration v0
-        m1 = [MigrationStatement(version=0, sql="CREATE TABLE valid_tbl (id INTEGER PRIMARY KEY)")]
+        m1 = [
+            MigrationStatement(
+                version=0, sql="CREATE TABLE valid_tbl (id INTEGER PRIMARY KEY)"
+            )
+        ]
         engine1 = StatefulMigrationEngine(engine=async_engine)
         rep1 = await engine1.run_migrations(m1)
         assert rep1.applied_count == 1
@@ -220,7 +226,9 @@ async def test_migration_engine_failure_retains_prior_user_version(tmp_path: Pat
 
         # Step 2: Second migration contains syntax error at v1
         m2 = [
-            MigrationStatement(version=0, sql="CREATE TABLE valid_tbl (id INTEGER PRIMARY KEY)"),
+            MigrationStatement(
+                version=0, sql="CREATE TABLE valid_tbl (id INTEGER PRIMARY KEY)"
+            ),
             MigrationStatement(version=1, sql="INVALID SYNTAX SQL STATEMENT ERROR"),
         ]
         engine2 = StatefulMigrationEngine(engine=async_engine)
@@ -236,4 +244,3 @@ async def test_migration_engine_failure_retains_prior_user_version(tmp_path: Pat
             assert row is not None and row[0] == 0
     finally:
         await async_engine.dispose()
-

@@ -386,7 +386,9 @@ class TestCodexNewFormatParsing:
             "s1",
         )
         assert event is not None
-        assert event.type == RuntimeEventType.ERROR
+        assert event.type == RuntimeEventType.STATUS_UPDATE
+        assert event.data["status"] == "warning"
+        assert event.data["message"] == "command output truncated"
 
     def test_turn_completed_with_usage(self) -> None:
         event = CliRuntime._parse_ndjson_line(

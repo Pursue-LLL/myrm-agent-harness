@@ -29,6 +29,8 @@ class PdfTemplateCategory(str, Enum):
     INVOICE = "invoice"
     REPORT = "report"
     RECEIPT = "receipt"
+    SETTLEMENT = "settlement"
+    EXPENSE = "expense"
     CERTIFICATE = "certificate"
     DOCUMENT = "document"
     CUSTOM = "custom"

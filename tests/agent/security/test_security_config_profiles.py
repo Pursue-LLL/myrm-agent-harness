@@ -374,7 +374,7 @@ class TestMergeUserAndAgentPrivilegeCeiling:
         file_rule = evaluate("file_write", "test.secret", effective.ruleset)
         assert file_rule.action == PermissionAction.DENY
 
-    def test_agent_cannot_enable_yolo_without_user_global_yolo(self) -> None:
+    def test_agent_yolo_override_when_configured(self) -> None:
         from myrm_agent_harness.agent.security.channel_presets import _merge_user_and_agent
 
         user = SecurityConfig.workspace(allowed_roots=("/tmp",))
@@ -382,7 +382,7 @@ class TestMergeUserAndAgentPrivilegeCeiling:
         agent = SecurityConfig(yolo_mode_enabled=True)
         effective = _merge_user_and_agent(user, agent)
         assert effective is not None
-        assert effective.yolo_mode_enabled is False
+        assert effective.yolo_mode_enabled is True
 
 
     def test_auto_review_enabled_fallback_false(self) -> None:

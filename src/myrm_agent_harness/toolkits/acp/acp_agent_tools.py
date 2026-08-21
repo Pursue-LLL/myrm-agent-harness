@@ -322,6 +322,8 @@ async def _run_turn_and_collect(
         elif event.type == RuntimeEventType.STATUS_UPDATE:
             status = event.data.get("status", "")
             message = event.data.get("message", "")
+            if status == "warning":
+                error_count += 1
             logger.info("acp_delegate_status agent=%s status=%s msg=%s", agent_name, status, message)
             if sink:
                 await sink.emit(

@@ -1,18 +1,63 @@
-<div class="party-info-grid">
-  <div class="party-card party-seller">
-    <div class="party-badge">销售方 / 服务方 (Provider)</div>
-    <div class="party-name">{{ seller.name | default('—') }}</div>
-    {% if seller.tax_id %}<div class="party-row"><span class="lbl">统一信用代码/税号:</span> {{ seller.tax_id }}</div>{% endif %}
-    {% if seller.address %}<div class="party-row"><span class="lbl">地址/电话:</span> {{ seller.address }}</div>{% endif %}
-    {% if seller.bank_name %}<div class="party-row"><span class="lbl">开户银行:</span> {{ seller.bank_name }}</div>{% endif %}
-    {% if seller.bank_account %}<div class="party-row"><span class="lbl">银行账号:</span> {{ seller.bank_account }}</div>{% endif %}
-  </div>
-  <div class="party-card party-buyer">
-    <div class="party-badge">购买方 / 客户方 (Client)</div>
-    <div class="party-name">{{ buyer.name | default('—') }}</div>
-    {% if buyer.tax_id %}<div class="party-row"><span class="lbl">统一信用代码/税号:</span> {{ buyer.tax_id }}</div>{% endif %}
-    {% if buyer.contact %}<div class="party-row"><span class="lbl">联系人/电话:</span> {{ buyer.contact }}</div>{% endif %}
-    {% if buyer.address %}<div class="party-row"><span class="lbl">客户地址:</span> {{ buyer.address }}</div>{% endif %}
-    {% if buyer.account %}<div class="party-row"><span class="lbl">结算账号:</span> {{ buyer.account }}</div>{% endif %}
-  </div>
+<!-- Two-column party details (Seller/Issuer vs Buyer/Client) -->
+<div class="parties-container">
+    <div class="party-card party-seller">
+        <div class="party-header">
+            <span class="party-role">{{ seller_label | default("销售方 / 开票方 (Issuer)") }}</span>
+        </div>
+        <div class="party-body">
+            <div class="party-name">{{ seller_name | default(company_name | default(seller.name if seller is mapping else (seller if seller is string else "—"))) }}</div>
+            {% set s_tax = seller_tax_id | default(seller.tax_id if seller is mapping else none) %}
+            {% if s_tax %}
+            <div class="party-field"><span class="field-label">统一信用代码/税号:</span> <span class="field-value">{{ s_tax }}</span></div>
+            {% endif %}
+            {% set s_addr = seller_address | default(seller.address if seller is mapping else none) %}
+            {% if s_addr %}
+            <div class="party-field"><span class="field-label">地址/电话:</span> <span class="field-value">{{ s_addr }}</span></div>
+            {% endif %}
+            {% set s_bank = seller_bank_name | default(seller.bank_name if seller is mapping else none) %}
+            {% if s_bank %}
+            <div class="party-field"><span class="field-label">开户银行:</span> <span class="field-value">{{ s_bank }}</span></div>
+            {% endif %}
+            {% set s_acc = seller_bank_account | default(seller.bank_account if seller is mapping else none) %}
+            {% if s_acc %}
+            <div class="party-field"><span class="field-label">银行账号:</span> <span class="field-value">{{ s_acc }}</span></div>
+            {% endif %}
+            {% set s_contact = seller_contact | default(seller.contact if seller is mapping else none) %}
+            {% if s_contact %}
+            <div class="party-field"><span class="field-label">联系人:</span> <span class="field-value">{{ s_contact }}</span></div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="party-card party-buyer">
+        <div class="party-header">
+            <span class="party-role">{{ buyer_label | default("购买方 / 付款方 (Client)") }}</span>
+        </div>
+        <div class="party-body">
+            <div class="party-name">{{ buyer_name | default(payer_name | default(client_name | default(buyer.name if buyer is mapping else (buyer if buyer is string else "—")))) }}</div>
+            {% set b_tax = buyer_tax_id | default(buyer.tax_id if buyer is mapping else none) %}
+            {% if b_tax %}
+            <div class="party-field"><span class="field-label">统一信用代码/税号:</span> <span class="field-value">{{ b_tax }}</span></div>
+            {% endif %}
+            {% set b_addr = buyer_address | default(buyer.address if buyer is mapping else none) %}
+            {% if b_addr %}
+            <div class="party-field"><span class="field-label">地址/电话:</span> <span class="field-value">{{ b_addr }}</span></div>
+            {% endif %}
+            {% set b_contact = buyer_contact | default(buyer.contact if buyer is mapping else none) %}
+            {% if b_contact %}
+            <div class="party-field"><span class="field-label">联系方式:</span> <span class="field-value">{{ b_contact }}</span></div>
+            {% endif %}
+            {% set b_bank = buyer_bank_name | default(buyer.bank_name if buyer is mapping else none) %}
+            {% if b_bank %}
+            <div class="party-field"><span class="field-label">开户银行:</span> <span class="field-value">{{ b_bank }}</span></div>
+            {% endif %}
+            {% set b_acc = buyer_bank_account | default(buyer.bank_account if buyer is mapping else (buyer.account if buyer is mapping else none)) %}
+            {% if b_acc %}
+            <div class="party-field"><span class="field-label">银行账号:</span> <span class="field-value">{{ b_acc }}</span></div>
+            {% endif %}
+            {% if payment_method %}
+            <div class="party-field"><span class="field-label">结算方式:</span> <span class="field-value">{{ payment_method }}</span></div>
+            {% endif %}
+        </div>
+    </div>
 </div>
