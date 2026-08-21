@@ -1420,3 +1420,24 @@ class TestCliRuntimeMcpIgnored:
         full_text = "".join(text_deltas).strip()
         assert "PONG" in full_text.upper()
         assert any(e.type == RuntimeEventType.DONE for e in events)
+
+    def test_parse_ndjson_line_ansi_strip(self) -> None:
+        """Raw non-JSON lines with ANSI escape codes must be stripped."""
+        raw_ansi_line = "\x1b[31;1mError:\x1b[0m Connection failed\r\n"
+        event = CliRuntime._parse_ndjson_line(raw_ansi_line, "s1")
+        assert event is not None
+        assert event.type == RuntimeEventType.TEXT_DELTA
+        assert event.data["content"] == "Error: Connection failed\n"
+
+    def test_capture_cli_session_id_bounded(self) -> None:
+        """_cli_session_ids must evict oldest items once 512 capacity is reached."""
+        rt = CliRuntime("test", _make_config())
+        for i in range(515):
+            line = json.dumps({"type": "result", "session_id": f"cli-id-{i}"})
+            rt._capture_cli_session_id(line, f"sess-{i}")
+
+        assert len(rt._cli_session_ids) == 512
+        assert "sess-0" not in rt._cli_session_ids
+        assert "sess-1" not in rt._cli_session_ids
+        assert "sess-2" not in rt._cli_session_ids
+        assert rt._cli_session_ids["sess-514"] == "cli-id-514"
