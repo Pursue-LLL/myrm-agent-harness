@@ -111,7 +111,12 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
         msg = f"'expected_tools' must be a list, got {type(expected_tools).__name__}"
         raise TypeError(msg)
 
-    from .protocols import SandboxAssertion, SemanticAssertion, StateAssertion
+    from .protocols import (
+        CompactionAssertion,
+        SandboxAssertion,
+        SemanticAssertion,
+        StateAssertion,
+    )
 
     sandbox_assertions = []
     for a in item.get("sandbox_assertions", []):
@@ -145,6 +150,19 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
             )
         )
 
+    compaction_assertions = []
+    for a in item.get("compaction_assertions", []):
+        compaction_assertions.append(
+            CompactionAssertion(
+                type=a.get("type", "compaction_fidelity"),
+                expected_constraints=tuple(str(x) for x in a.get("expected_constraints", ())),
+                forbidden_claims=tuple(str(x) for x in a.get("forbidden_claims", ())),
+                required_artifacts=tuple(str(x) for x in a.get("required_artifacts", ())),
+                expected_tools=tuple(str(x) for x in a.get("expected_tools", ())),
+                min_fidelity_score=float(a.get("min_fidelity_score", 0.8)),
+            )
+        )
+
     return EvalCase(
         message=message,
         expected_tools=[str(t) for t in expected_tools],
@@ -152,5 +170,6 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
         sandbox_assertions=sandbox_assertions,
         state_assertions=state_assertions,
         semantic_assertions=semantic_assertions,
+        compaction_assertions=compaction_assertions,
         metadata={str(k): str(v) for k, v in (item.get("metadata") or {}).items()},
     )

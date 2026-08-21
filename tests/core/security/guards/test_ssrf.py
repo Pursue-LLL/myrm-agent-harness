@@ -12,7 +12,10 @@ from myrm_agent_harness.core.security.guards.ssrf import (
     SSRFSecurityError,
     async_pin_url,
     async_validate_url_for_ssrf,
+    clear_dynamic_blocked_hostnames,
     is_internal_ip,
+    register_blocked_hostnames,
+    unregister_blocked_hostnames,
     validate_url_for_ssrf,
 )
 from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGuard
@@ -373,3 +376,24 @@ class TestValidateUrlForSSRF:
             pytest.raises(SSRFSecurityError, match="DNS resolution failed"),
         ):
             await async_pin_url("http://nohost.example/x")
+
+    def test_dynamic_blocked_hostnames_registration(self) -> None:
+        clear_dynamic_blocked_hostnames()
+        try:
+            url = "http://cp.internal.enterprise.org/api/dispatch"
+            with mock_getaddrinfo("8.8.8.8"):
+                res = validate_url_for_ssrf(url)
+                assert res.safe is True
+
+            register_blocked_hostnames("cp.internal.enterprise.org")
+            res_blocked = validate_url_for_ssrf(url)
+            assert res_blocked.safe is False
+            assert "Blocked hostname: cp.internal.enterprise.org" in res_blocked.error
+
+            unregister_blocked_hostnames("cp.internal.enterprise.org")
+            with mock_getaddrinfo("8.8.8.8"):
+                res_restored = validate_url_for_ssrf(url)
+                assert res_restored.safe is True
+        finally:
+            clear_dynamic_blocked_hostnames()
+

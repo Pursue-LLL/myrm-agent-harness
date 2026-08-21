@@ -71,6 +71,17 @@ class JsonlReporter:
                             }
                             for a in getattr(turn.case, "sandbox_assertions", [])
                         ],
+                        "compaction_assertions": [
+                            {
+                                "type": a.type,
+                                "expected_constraints": list(a.expected_constraints),
+                                "forbidden_claims": list(a.forbidden_claims),
+                                "required_artifacts": list(a.required_artifacts),
+                                "expected_tools": list(a.expected_tools),
+                                "min_fidelity_score": a.min_fidelity_score,
+                            }
+                            for a in getattr(turn.case, "compaction_assertions", [])
+                        ],
                     },
                     "actual_tools": turn.response.tools_called,
                     "tool_call_details": turn.response.tool_call_details,

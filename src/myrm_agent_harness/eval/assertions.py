@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 from myrm_agent_harness.utils.chat_utils import extract_litellm_answer_text
 
+from .compaction_assertions import canonicalize_tool_name, evaluate_compaction_assertions
 from .decontam import normalize_answer
 from .suite_judge import evaluate_test_suite_assertion
 

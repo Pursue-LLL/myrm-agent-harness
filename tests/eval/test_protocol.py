@@ -229,3 +229,15 @@ class TestEvalManifest:
         )
         d = r.to_dict()
         assert "manifest" not in d
+
+    def test_benchmark_spec_compaction_ab_support(self) -> None:
+        from myrm_agent_harness.eval.benchmarks import BenchmarkSpec
+
+        spec = BenchmarkSpec(
+            id="test_bench",
+            display_name="Test Benchmark",
+            description="Testing compaction AB support",
+        )
+        assert spec.supports_compaction_ab is True
+        d = spec.to_dict()
+        assert d["supports_compaction_ab"] is True

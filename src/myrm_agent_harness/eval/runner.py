@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 from .assertions import (
     ToolAssertion,
+    evaluate_compaction_assertions,
     evaluate_retrieval_assertions,
     evaluate_sandbox_assertions,
     evaluate_semantic_assertions,
@@ -226,6 +227,18 @@ class EvalRunner:
                 passed = ret_passed if passed is None else (passed and ret_passed)
                 if ret_details:
                     details = f"{details} | {ret_details}" if details else ret_details
+
+        if passed is not False and getattr(case, "compaction_assertions", None):
+            comp_passed, comp_details = await evaluate_compaction_assertions(
+                case.compaction_assertions,
+                response,
+                scores_out=sb_scores,
+                judge_override=self._judge_config,
+            )
+            if comp_passed is not None:
+                passed = comp_passed if passed is None else (passed and comp_passed)
+                if comp_details:
+                    details = f"{details} | {comp_details}" if details else comp_details
 
         timings = EvalTimings(
             total_ms=(time.perf_counter() - turn_start) * 1000,

@@ -58,6 +58,14 @@ class ExecutionConsistencyResult:
     issues: list[str] = field(default_factory=list)
 
 
+_FILE_PATH_EXTRACT_RE = re.compile(
+    r"(?:file_path|path|target|file|filename)[\"']?\s*[:=]\s*[`\"']?([^`\"'\s,]+)[`\"']?|"
+    r"(?:written to|created|modified|saved|wrote)\s*:?\s*[`\"']?([^\s`\"',]+\.[a-zA-Z0-9_-]+)[`\"']?|"
+    r"(?:file created|file modified|file saved)\s*:?\s*[`\"']?([^\s`\"',]+\.[a-zA-Z0-9_-]+)[`\"']?",
+    re.IGNORECASE,
+)
+
+
 def extract_physical_modified_files(
     chat_id: str | None,
     messages: list[BaseMessage] | None = None,
@@ -83,8 +91,24 @@ def extract_physical_modified_files(
                     # Check if error or success
                     content = msg.content if isinstance(msg.content, str) else str(msg.content)
                     if "error" not in content.lower() and "failed" not in content.lower():
-                        # If ArtifactTracker missed it, path might be extracted if available
-                        pass
+                        # Extract path from artifact, additional_kwargs, or content
+                        extracted_paths: list[str] = []
+                        if getattr(msg, "artifact", None) and isinstance(msg.artifact, dict):
+                            p = msg.artifact.get("path") or msg.artifact.get("file_path")
+                            if isinstance(p, str):
+                                extracted_paths.append(p)
+                        if msg.additional_kwargs:
+                            p = msg.additional_kwargs.get("path") or msg.additional_kwargs.get("file_path")
+                            if isinstance(p, str):
+                                extracted_paths.append(p)
+                        for match in _FILE_PATH_EXTRACT_RE.findall(content):
+                            for group in match:
+                                if group:
+                                    extracted_paths.append(group)
+                        for raw_p in extracted_paths:
+                            norm_p = normalize_file_path(raw_p)
+                            if norm_p and "." in os.path.basename(norm_p):
+                                physical_files.add(norm_p)
 
     return physical_files
 

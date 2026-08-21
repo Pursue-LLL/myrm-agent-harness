@@ -20,6 +20,8 @@ import sys
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.utils.shell_quote import windows_cmd_quote
+
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.code_execution.platform import PlatformInfo
 
@@ -97,10 +99,12 @@ class BashFlavor(ShellFlavor):
 
 class WindowsFlavor(ShellFlavor):
     def build_init_commands(self, work_dir: str, timeout: int, max_memory_mb: int) -> list[str]:
-        return ["@echo off", "prompt $G", f'cd /d "{work_dir}"']
+        return ["@echo off", "prompt $G", f'cd /d {windows_cmd_quote(work_dir)}']
 
     def format_env_set(self, key: str, value: str) -> str:
-        return f"set {key}={value.replace('%', '%%')}"
+        # CMD environment variable setting with % escape and proper wrapping
+        escaped_val = value.replace("%", "%%")
+        return f"set {key}={escaped_val}"
 
     def build_wrapped_command(self, command: str, exit_marker: str, end_marker: str, exit_code_var: str) -> str:
         return f"{command}\r\necho {exit_marker}{exit_code_var}\r\necho {end_marker}\r\n"

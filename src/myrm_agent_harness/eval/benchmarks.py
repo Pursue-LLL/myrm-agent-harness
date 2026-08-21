@@ -74,6 +74,7 @@ class BenchmarkSpec:
     scoring: str = "llm_judge"
     required_tools: tuple[str, ...] = ()
     supports_memory_ab: bool = True
+    supports_compaction_ab: bool = True
     max_tool_calls: int = 0
     max_iterations: int = 0
     harness: str = "myrm"
@@ -89,6 +90,7 @@ class BenchmarkSpec:
             "scoring": self.scoring,
             "required_tools": list(self.required_tools),
             "supports_memory_ab": self.supports_memory_ab,
+            "supports_compaction_ab": self.supports_compaction_ab,
             "max_tool_calls": self.max_tool_calls,
             "max_iterations": self.max_iterations,
             "harness": self.harness,

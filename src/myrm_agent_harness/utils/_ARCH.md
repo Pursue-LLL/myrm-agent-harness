@@ -7,6 +7,7 @@ Utility library exports. Public interface for the utils module providing commonl
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
+| `shell_quote.py` | Core | Universal cross-platform shell argument quoting (POSIX, Windows cmd.exe CommandLineToArgvW, PowerShell). | ✅ |
 | __init__.py | Package | Utility library exports. Public interface for the utils module providing commonly used helper functi | ✅ |
 | chat_utils.py | Core | Chat utility functions. Provides business-config-independent chat history conversion and content text extraction: `extract_text_content` (str / block-list / JSON), `extract_answer_text` (LLM 响应答案提取，先剥离内联 think 标签块，再兼容 reasoning 模型 content 空时回退 `reasoning_content`) and `extract_litellm_answer_text` (litellm 原生 `acompletion` 响应文本提取，兼容 `choices[0].message.content` / Anthropic 块列表 / `reasoning_content` 回退). | ✅ |
 | json_parsing.py | Core | Robust LLM reply JSON extraction. `parse_llm_json_object` / `parse_llm_json_list` 容错提取 JSON 对象/数组：兼容 markdown fence、prose 包裹、字符串内裸控制字符、尾逗号、多候选时取最后可解析容器；结构解析失败时用 `json_repair` 兜底容错单引号字符串、无引号 key 与内联注释——兜底仅作用于结构有界候选并带嵌套深度预算，深度超限/`RecursionError` 输入优雅降级为 `None` 而非崩溃，且以 `skip_json_loads=True` 跳过必然失败的内置预验证（结构层已先行验证过）；平衡扫描器单引号感知：容器内单引号字符串中的 `}`/`]` 不会截断候选块、结构外撇号视为 prose 不吞对象，保证单引号 JSON 不静默丢数据；`parse_llm_json_object` 支持 `require_key` 过滤——仅取含指定键的对象，供 verifier/语义判定等"必须含某字段"契约复用. | ✅ |

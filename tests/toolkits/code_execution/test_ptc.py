@@ -194,6 +194,18 @@ class TestHelpers:
     def test_helpers_source_is_valid_python(self):
         compile(HELPERS_SOURCE, "<helpers>", "exec")
 
+    def test_helpers_shell_quote_runtime_execution(self):
+        namespace: dict = {}
+        exec(
+            "import json, os, time, sys, shlex, re\n" + HELPERS_SOURCE,
+            namespace,
+        )
+        fn_shell_quote = namespace["shell_quote"]
+        assert fn_shell_quote("") in ("''", '""')
+        assert fn_shell_quote("normal_arg") in ("normal_arg", "'normal_arg'")
+        assert "hello" in fn_shell_quote("hello world")
+
+
 
 # ---------------------------------------------------------------------------
 # stub_generator.py tests

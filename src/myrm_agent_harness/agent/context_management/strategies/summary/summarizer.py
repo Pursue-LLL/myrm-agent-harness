@@ -527,17 +527,15 @@ async def generate_structured_summary(
                     f"<preserve_context>\n{clean_match}\n</preserve_context>"
                 )
 
+    combined_preserved = None
     if rescued_context_blocks:
         combined_preserved = "\n\n".join(rescued_context_blocks.values())
-        # Inject directly into protected_head (Prefix) to maximize cache hits
-        protected_head.append(
-            SystemMessage(
-                content=f"[SYSTEM: PRESERVED CONTEXT]\nThe following critical context was preserved from history:\n{combined_preserved}"
-            )
-        )
-    # --------------------------
 
-    summary_message = create_summary_message(summary, chat_id)
+    # Preserved context is embedded in summary HumanMessage (not SystemMessage)
+    # to protect the system prompt prefix cache from invalidation.
+    summary_message = create_summary_message(
+        summary, chat_id, preserved_context=combined_preserved
+    )
     middle_messages = [summary_message]
     if pre_compact_message is not None:
         middle_messages = [pre_compact_message, summary_message]

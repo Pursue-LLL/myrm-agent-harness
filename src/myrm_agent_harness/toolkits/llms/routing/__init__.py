@@ -14,22 +14,39 @@ if TYPE_CHECKING:
         route_task,
     )
     from .privacy_routing import PrivacyRoutingModel
+    from .specialty_router import (
+        DEFAULT_CODE_KEYWORDS,
+        DEFAULT_LONG_DOC_KEYWORDS,
+        LONG_DOC_CHAR_THRESHOLD,
+        SpecialtyRoutingResult,
+        TaskSpecialty,
+        classify_task_specialty,
+        route_task_specialty,
+    )
 
 __all__ = [
+    "DEFAULT_CODE_KEYWORDS",
     "DEFAULT_JUDGE_SYSTEM_PROMPT",
+    "DEFAULT_LONG_DOC_KEYWORDS",
     "DEFAULT_REASONING_KEYWORDS",
     "DEFAULT_SIMPLE_INDICATORS",
     "DEFAULT_STANDARD_KEYWORDS",
+    "LONG_DOC_CHAR_THRESHOLD",
     "PenaltyTracker",
     "PrivacyRoutingModel",
     "RoutingResult",
     "RoutingTier",
+    "SpecialtyRoutingResult",
+    "TaskSpecialty",
+    "classify_task_specialty",
     "get_penalty_tracker",
     "record_misroute",
     "route_task",
+    "route_task_specialty",
 ]
 
 _CR = "myrm_agent_harness.toolkits.llms.routing.complexity_router"
+_SR = "myrm_agent_harness.toolkits.llms.routing.specialty_router"
 
 _LAZY_IMPORTS = {
     "PrivacyRoutingModel": ("myrm_agent_harness.toolkits.llms.routing.privacy_routing", "PrivacyRoutingModel"),
@@ -43,6 +60,13 @@ _LAZY_IMPORTS = {
     "PenaltyTracker": (_CR, "PenaltyTracker"),
     "record_misroute": (_CR, "record_misroute"),
     "get_penalty_tracker": (_CR, "get_penalty_tracker"),
+    "TaskSpecialty": (_SR, "TaskSpecialty"),
+    "SpecialtyRoutingResult": (_SR, "SpecialtyRoutingResult"),
+    "classify_task_specialty": (_SR, "classify_task_specialty"),
+    "route_task_specialty": (_SR, "route_task_specialty"),
+    "DEFAULT_CODE_KEYWORDS": (_SR, "DEFAULT_CODE_KEYWORDS"),
+    "DEFAULT_LONG_DOC_KEYWORDS": (_SR, "DEFAULT_LONG_DOC_KEYWORDS"),
+    "LONG_DOC_CHAR_THRESHOLD": (_SR, "LONG_DOC_CHAR_THRESHOLD"),
 }
 
 

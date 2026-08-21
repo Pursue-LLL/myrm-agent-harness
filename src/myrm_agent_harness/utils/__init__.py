@@ -89,6 +89,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.utils.encryption_key",
         "resolve_local_encryption_key",
     ),
+    # Shell argument escaping
+    "posix_shell_quote": ("myrm_agent_harness.utils.shell_quote", "posix_shell_quote"),
+    "windows_cmd_quote": ("myrm_agent_harness.utils.shell_quote", "windows_cmd_quote"),
+    "windows_powershell_quote": (
+        "myrm_agent_harness.utils.shell_quote",
+        "windows_powershell_quote",
+    ),
+    "shell_quote": ("myrm_agent_harness.utils.shell_quote", "shell_quote"),
 }
 
 __all__ = [
@@ -113,8 +121,13 @@ __all__ = [
     "get_local_ip",
     # Document utilities
     "parse_front_matter",
+    # Shell argument escaping
+    "posix_shell_quote",
     # Encryption key resolution
     "resolve_local_encryption_key",
+    "shell_quote",
+    "windows_cmd_quote",
+    "windows_powershell_quote",
     "wrap_with_external_sources_tag",
     "wrap_with_tool_output_tag",
 ]

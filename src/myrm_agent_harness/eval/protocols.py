@@ -9,13 +9,15 @@
 - EvalManifest: frozen environment snapshot for evaluation reproducibility
 - EvalTurnResult: single-turn result
 - EvalResult: aggregate result with reporting
--     AgentResponse: response from agent execution (with token_usage/cost tracking)
+- AgentResponse: response from agent execution (with token_usage/cost tracking)
 - AgentExecutor: protocol for business-layer implementation
 - EvalTimings: performance timing data
 - StateAssertion: output text assertion (supports contains/not_contains/regex/json_valid/json_schema/custom_python)
 - SandboxAssertion: sandbox state assertion (file/cmd/json/test_suite with result_file + timeout + readonly_paths)
 - SemanticAssertion: LLM-as-a-Judge assertion (supports custom judge_prompt/judge_model/threshold soft-scoring)
 - RetrievalAssertion: RAG & Memory retrieval quality assertion (Head/Tail spans, collapse hits, duplicate rate)
+- CompactionAssertion: configuration for 5D context compaction quality and continuation assertions
+- CompactionFidelityScore: structured 5D fidelity score container (Constraint, Decision, State, Artifact, Continuation)
 
 [POS]
 Defines the eval framework's type system and the AgentExecutor protocol.
@@ -108,6 +110,58 @@ class RetrievalAssertion:
 
 
 @dataclass(frozen=True, slots=True)
+class CompactionFidelityScore:
+    """Five-dimensional compaction continuation acceptance metrics.
+
+    Dimensions:
+    - constraint_recall: Ratio of key user constraints preserved and obeyed in continuation (0.0~1.0)
+    - decision_fidelity: Similarity of tool selection & parameters vs uncompacted baseline (0.0~1.0)
+    - state_accuracy: Accuracy of completed vs pending vs blocked task perception (0.0~1.0)
+    - artifact_coverage: Accuracy of created/modified file references and version tracking (0.0~1.0)
+    - continuation_success: Overall success of the next-step task execution (0.0~1.0)
+    - overall_fidelity: Weighted average fidelity score across dimensions (0.0~1.0)
+    - token_savings_pct: Context token savings percentage achieved by compaction (0.0~100.0)
+    """
+
+    constraint_recall: float = 1.0
+    decision_fidelity: float = 1.0
+    state_accuracy: float = 1.0
+    artifact_coverage: float = 1.0
+    continuation_success: float = 1.0
+    overall_fidelity: float = 1.0
+    token_savings_pct: float = 0.0
+
+    def to_dict(self) -> dict[str, float]:
+        return {
+            "constraint_recall": round(self.constraint_recall, 4),
+            "decision_fidelity": round(self.decision_fidelity, 4),
+            "state_accuracy": round(self.state_accuracy, 4),
+            "artifact_coverage": round(self.artifact_coverage, 4),
+            "continuation_success": round(self.continuation_success, 4),
+            "overall_fidelity": round(self.overall_fidelity, 4),
+            "token_savings_pct": round(self.token_savings_pct, 2),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CompactionAssertion:
+    """Compaction Continuation Quality Assertion Definition.
+
+    Validates that compressing context does not cause amnesia, decision drift,
+    or execution state corruption when executing the next turn.
+    """
+
+    type: str = "compaction_fidelity"
+    expected_constraints: tuple[str, ...] = ()
+    forbidden_claims: tuple[str, ...] = ()
+    required_artifacts: tuple[str, ...] = ()
+    expected_tools: tuple[str, ...] = ()
+    min_fidelity_score: float = 0.80
+    judge_prompt: str | None = None
+    judge_model: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class EvalCase:
     """Single eval test case."""
 
@@ -118,6 +172,7 @@ class EvalCase:
     state_assertions: list[StateAssertion] = field(default_factory=list)
     semantic_assertions: list[SemanticAssertion] = field(default_factory=list)
     retrieval_assertions: list[RetrievalAssertion] = field(default_factory=list)
+    compaction_assertions: list[CompactionAssertion] = field(default_factory=list)
     metadata: dict[str, str] = field(default_factory=dict)
 
 
@@ -345,6 +400,17 @@ class EvalResult:
                         "strip_headers": a.strip_headers,
                     }
                     for a in r.case.retrieval_assertions
+                ],
+                "compaction_assertions": [
+                    {
+                        "type": a.type,
+                        "expected_constraints": list(a.expected_constraints),
+                        "forbidden_claims": list(a.forbidden_claims),
+                        "required_artifacts": list(a.required_artifacts),
+                        "expected_tools": list(a.expected_tools),
+                        "min_fidelity_score": a.min_fidelity_score,
+                    }
+                    for a in r.case.compaction_assertions
                 ],
                 "tools_called": r.response.tools_called,
                 "tool_call_details": r.response.tool_call_details,

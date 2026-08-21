@@ -210,7 +210,9 @@ def extract_recent_messages_with_split_context(
 
 
 def create_summary_message(
-    summary: StructuredSummary, chat_id: str | None = None
+    summary: StructuredSummary,
+    chat_id: str | None = None,
+    preserved_context: str | None = None,
 ) -> HumanMessage:
     """Create a summary HumanMessage with Lost-in-Middle aware placement.
 
@@ -219,7 +221,7 @@ def create_summary_message(
     the KV cache prefix built from the frozen system prompt.
 
     Layout follows U-curve attention (start/end ~80% recall, middle ~50%):
-    - Head (high attention): Handoff preamble + user goal + previous task + constraints
+    - Head (high attention): Handoff preamble + user goal + previous task + constraints + preserved context
     - Middle (low attention): completed actions + file index + resolved questions
     - Tail (high attention): key findings + errors & fixes + pending asks + state
     """
@@ -243,6 +245,11 @@ def create_summary_message(
 
     if summary.active_task and summary.active_task != "None":
         parts.append(f"Previous Task: {summary.active_task}")
+
+    if preserved_context:
+        parts.append("")
+        parts.append("[Preserved Critical Context]")
+        parts.append(preserved_context)
 
     if summary.last_action:
         parts.append(f"Last Action: {summary.last_action}")

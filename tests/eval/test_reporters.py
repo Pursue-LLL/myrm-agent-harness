@@ -58,6 +58,7 @@ def test_jsonl_reporter(tmp_path: Path):
     turn1 = json.loads(lines[1])
     assert turn1["type"] == "turn"
     assert turn1["case"]["message"] == "test1"
+    assert turn1["case"]["compaction_assertions"] == []
     assert turn1["passed"] is True
     assert turn1["time_secs"] == 0.1
     assert turn1["usage"] == {}

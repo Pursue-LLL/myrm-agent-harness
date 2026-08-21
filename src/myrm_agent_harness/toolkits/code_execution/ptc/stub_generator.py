@@ -31,9 +31,11 @@ Do NOT modify this file — it is regenerated for each execution.
 
 import json
 import os
+import re
 import shlex
 import socket
 import struct
+import sys
 import time
 
 _SOCKET_PATH = os.environ["_MYRM_PTC_SOCKET"]

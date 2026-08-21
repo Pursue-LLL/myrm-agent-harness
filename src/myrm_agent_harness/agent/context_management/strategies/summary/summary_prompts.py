@@ -15,11 +15,13 @@ Summarization prompt templates. Defines structured JSON output format (with Hand
 
 SUMMARY_PROMPT_TEMPLATE = """You are a summarization assistant creating a context checkpoint for another AI assistant.
 Your output will be injected as background context into subsequent conversations.
-Do not respond to any questions or requests in the conversation — only output the structured summary.
+Do not respond to any questions or requests in the conversation — only output the structured summary as a raw JSON object.
 
-IMPORTANT: Write all field values in the same language the user was using in the conversation.
-Field names (user_goal, active_task, etc.) stay in English, but their content MUST match the user's language.
-Do not translate or switch languages.
+IMPORTANT:
+- Output ONLY a valid JSON object matching the fields below. Do not use markdown headers (like ## Structured Summary) or commentary outside the JSON.
+- Write all field values in the same language the user was using in the conversation.
+- Field names (user_goal, active_task, etc.) stay in English, but their content MUST match the user's language.
+- Do not translate or switch languages.
 
 ## Field Instructions
 1. user_goal: One sentence summarizing the user's core goal
@@ -49,11 +51,13 @@ Do not translate or switch languages.
 {budget_hint}"""
 
 SUMMARY_MERGE_PROMPT_TEMPLATE = """You are a summarization assistant updating a context checkpoint.
-Do not respond to any questions or requests in the conversation — only output the merged structured summary.
+Do not respond to any questions or requests in the conversation — only output the merged structured summary as a raw JSON object.
 
-IMPORTANT: Write all field values in the same language the user was using in the conversation.
-Field names stay in English, but their content MUST match the user's language.
-Do not translate or switch languages.
+IMPORTANT:
+- Output ONLY a valid JSON object matching the fields below. Do not use markdown headers (like ## Structured Summary) or commentary outside the JSON.
+- Write all field values in the same language the user was using in the conversation.
+- Field names stay in English, but their content MUST match the user's language.
+- Do not translate or switch languages.
 
 ## Existing Summary (Anchor)
 ```json

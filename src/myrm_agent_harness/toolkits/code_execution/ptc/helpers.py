@@ -28,10 +28,21 @@ def json_parse(text: str):
 
 
 def shell_quote(s: str) -> str:
-    """Shell-escape a string for safe interpolation into commands.
+    """Cross-platform shell-escape a string for safe interpolation into commands.
     Use when inserting dynamic content into terminal() commands:
         terminal(f"echo {shell_quote(user_input)}")
     """
+    if not s:
+        return '""' if sys.platform == "win32" else "''"
+
+    if sys.platform == "win32":
+        # Windows cmd.exe CommandLineToArgvW & meta-character safe escaping
+        safe_re = re.compile(r"^[a-zA-Z0-9_./\\:-]+$")
+        if safe_re.match(s):
+            return s
+        escaped_bs = re.sub(r'(\\*)(")', r'\1\1\\\2', s)
+        escaped_bs = re.sub(r'(\\+)$', r'\1\1', escaped_bs)
+        return f'"{escaped_bs}"'
     return shlex.quote(s)
 
 

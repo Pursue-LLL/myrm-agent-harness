@@ -12,7 +12,9 @@ Public API:
 from .assertions import (
     CollapsedHit,
     ToolAssertion,
+    canonicalize_tool_name,
     collapse_retrieval_hits,
+    evaluate_compaction_assertions,
     evaluate_retrieval_assertions,
     evaluate_sandbox_assertions,
     evaluate_semantic_assertions,
@@ -21,6 +23,8 @@ from .assertions import (
 )
 from .benchmarks import BenchmarkSpec, get_benchmark, list_benchmarks, register_benchmark
 from .builder import build_skill_eval_cases, extract_case_from_trajectory
+from .compaction_ab import CompactionABEvaluator, CompactionABResult
+from .compaction_assertions import evaluate_compaction_assertions
 from .decontam import (
     HUGGINGFACE_DOMAINS,
     HUGGINGFACE_QUERY_MARKERS,
@@ -31,6 +35,8 @@ from .matrix import MatrixCellResult, MatrixResult, MatrixRunner
 from .protocols import (
     AgentExecutor,
     AgentResponse,
+    CompactionAssertion,
+    CompactionFidelityScore,
     EvalCase,
     EvalManifest,
     EvalResult,
@@ -54,6 +60,10 @@ __all__ = [
     "AgentResponse",
     "BenchmarkSpec",
     "CollapsedHit",
+    "CompactionABEvaluator",
+    "CompactionABResult",
+    "CompactionAssertion",
+    "CompactionFidelityScore",
     "EvalCase",
     "EvalManifest",
     "EvalResult",

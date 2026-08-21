@@ -53,6 +53,7 @@ MemoryImportSource = Literal[
     "trae",
     "mem0",
     "chatgpt",
+    "plur",
     "unknown",
 ]
 MemoryImportMappingStatus = Literal["mapped", "partially_mapped", "unsupported", "dropped"]

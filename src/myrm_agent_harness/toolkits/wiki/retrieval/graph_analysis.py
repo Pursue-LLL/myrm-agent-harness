@@ -1,7 +1,7 @@
 """Wiki graph analysis - Community detection and knowledge insights.
 
 [INPUT]
-random (POS: standard library random)
+math (POS: standard library math)
 sqlite3::Connection (POS: standard library database)
 
 [OUTPUT]
@@ -16,25 +16,33 @@ community detection, knowledge gap identification, and unexpected connection dis
 
 from __future__ import annotations
 
-import random as _rnd
+import math
 import sqlite3
 
 
 def label_propagation(nodes: list[dict], edges: list[dict], iterations: int = 10) -> dict[str, int]:
-    """Label Propagation Algorithm for community detection (pure Python, no deps)."""
-    labels: dict[str, int] = {node["id"]: i for i, node in enumerate(nodes)}
-    neighbors: dict[str, list[str]] = {node["id"]: [] for node in nodes}
+    """Deterministic Label Propagation Algorithm for community detection (pure Python, no deps)."""
+    if not nodes:
+        return {}
+
+    # Sort nodes for deterministic initial ordering
+    sorted_nodes = sorted(nodes, key=lambda x: str(x.get("id", "")))
+    labels: dict[str, int] = {node["id"]: i for i, node in enumerate(sorted_nodes)}
+    neighbors: dict[str, list[str]] = {node["id"]: [] for node in sorted_nodes}
 
     for edge in edges:
-        src, tgt = edge["source"], edge["target"]
+        src, tgt = str(edge["source"]), str(edge["target"])
         if src in neighbors:
             neighbors[src].append(tgt)
         if tgt in neighbors:
             neighbors[tgt].append(src)
 
-    node_ids = [n["id"] for n in nodes]
+    # Sort neighbors deterministically
+    for n_id in neighbors:
+        neighbors[n_id].sort()
+
+    node_ids = [n["id"] for n in sorted_nodes]
     for _ in range(iterations):
-        _rnd.shuffle(node_ids)
         changed = False
         for node_id in node_ids:
             nbrs = neighbors.get(node_id, [])
@@ -45,8 +53,9 @@ def label_propagation(nodes: list[dict], edges: list[dict], iterations: int = 10
                 lbl = labels.get(nbr, 0)
                 label_counts[lbl] = label_counts.get(lbl, 0) + 1
             max_count = max(label_counts.values())
-            best_labels = [lbl for lbl, cnt in label_counts.items() if cnt == max_count]
-            new_label = _rnd.choice(best_labels)
+            # Deterministic tie-breaking: pick the smallest label ID in tie
+            best_labels = sorted([lbl for lbl, cnt in label_counts.items() if cnt == max_count])
+            new_label = best_labels[0]
             if labels[node_id] != new_label:
                 labels[node_id] = new_label
                 changed = True
@@ -59,17 +68,22 @@ def label_propagation(nodes: list[dict], edges: list[dict], iterations: int = 10
 
 
 def enrich_graph_with_communities(nodes: list[dict], edges: list[dict]) -> None:
-    """Assign LPA community group IDs and degree-based sizes to nodes (in-place)."""
+    """Assign LPA community group IDs and logarithmic-scaled degree sizes to nodes (in-place)."""
     if not nodes:
         return
     communities = label_propagation(nodes, edges)
     degree_count: dict[str, int] = {}
     for e in edges:
-        degree_count[e["source"]] = degree_count.get(e["source"], 0) + 1
-        degree_count[e["target"]] = degree_count.get(e["target"], 0) + 1
+        src = str(e["source"])
+        tgt = str(e["target"])
+        degree_count[src] = degree_count.get(src, 0) + 1
+        degree_count[tgt] = degree_count.get(tgt, 0) + 1
     for node in nodes:
-        node["group"] = communities.get(node["id"], 0)
-        node["val"] = max(1, degree_count.get(node["id"], 0))
+        node_id = str(node["id"])
+        node["group"] = communities.get(node_id, 0)
+        deg = degree_count.get(node_id, 0)
+        # Logarithmic dampening scale for visual balance: max(1, min(10, 1 + round(math.log2(deg + 1))))
+        node["val"] = max(1, min(10, 1 + round(math.log2(deg + 1))))
 
 
 def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[dict]]:
@@ -91,7 +105,7 @@ def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[dict]]:
         if tgt in neighbors:
             neighbors[tgt].add(src)
 
-    # Detect communities via LPA
+    # Detect communities via deterministic LPA
     nodes_data = [{"id": n} for n in all_nodes]
     edges_data = [{"source": s, "target": t, "weight": w} for s, t, w in all_edges]
     communities = label_propagation(nodes_data, edges_data)
@@ -101,21 +115,27 @@ def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[dict]]:
     for node_id, comm_id in communities.items():
         community_groups.setdefault(comm_id, []).append(node_id)
 
-    # 1. Unexpected connections: edges crossing communities
+    # 1. Unexpected connections: edges crossing communities (with undirected deduplication)
     unexpected: list[dict] = []
+    seen_undirected_pairs: set[tuple[str, str]] = set()
     for src, tgt, weight in all_edges:
+        pair_key = (min(src, tgt), max(src, tgt))
+        if pair_key in seen_undirected_pairs:
+            continue
+        seen_undirected_pairs.add(pair_key)
+
         if communities.get(src, -1) != communities.get(tgt, -1):
             unexpected.append({"source": src, "target": tgt, "weight": weight})
-    unexpected.sort(key=lambda x: x["weight"], reverse=True)
+    unexpected.sort(key=lambda x: (x["weight"], x["source"], x["target"]), reverse=True)
 
     # 2. Knowledge gaps: isolated nodes (0-1 connections) and bridge nodes
     gaps: list[dict] = []
-    for node_id in all_nodes:
+    for node_id in sorted(all_nodes):
         degree = len(neighbors.get(node_id, set()))
         if degree <= 1:
             gaps.append({"node": node_id, "type": "isolated", "degree": degree})
 
-    for node_id in all_nodes:
+    for node_id in sorted(all_nodes):
         nbr_communities = {communities.get(n, -1) for n in neighbors.get(node_id, set())}
         if len(nbr_communities) >= 3:
             gaps.append({"node": node_id, "type": "bridge", "communities_connected": len(nbr_communities)})
@@ -123,6 +143,7 @@ def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[dict]]:
     # 3. Community summaries
     community_info: list[dict] = []
     for comm_id, members in sorted(community_groups.items()):
+        sorted_members = sorted(members)
         internal_edges = sum(
             1 for s, t, _ in all_edges if communities.get(s) == comm_id and communities.get(t) == comm_id
         )
@@ -132,7 +153,7 @@ def compute_graph_insights(conn: sqlite3.Connection) -> dict[str, list[dict]]:
             {
                 "id": comm_id,
                 "size": len(members),
-                "members": members[:10],
+                "members": sorted_members[:10],
                 "cohesion": round(cohesion, 3),
             }
         )

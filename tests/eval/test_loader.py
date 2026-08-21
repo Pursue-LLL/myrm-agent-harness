@@ -95,6 +95,35 @@ class TestLoadCases:
         cases = load_cases(str(path))
         assert len(cases) == 1
 
+    def test_load_cases_with_compaction_assertions(self, tmp_path: Path) -> None:
+        data = [
+            {
+                "message": "Continue processing financial report",
+                "expected_tools": ["read_file"],
+                "compaction_assertions": [
+                    {
+                        "expected_constraints": ["USD currency", "no estimation"],
+                        "forbidden_claims": ["task finished"],
+                        "required_artifacts": ["reports/fin.csv"],
+                        "expected_tools": ["read_file"],
+                        "min_fidelity_score": 0.85,
+                    }
+                ],
+            }
+        ]
+        path = tmp_path / "compaction_cases.json"
+        path.write_text(json.dumps(data))
+
+        cases = load_cases(path)
+        assert len(cases) == 1
+        assert len(cases[0].compaction_assertions) == 1
+        comp = cases[0].compaction_assertions[0]
+        assert comp.expected_constraints == ("USD currency", "no estimation")
+        assert comp.forbidden_claims == ("task finished",)
+        assert comp.required_artifacts == ("reports/fin.csv",)
+        assert comp.expected_tools == ("read_file",)
+        assert comp.min_fidelity_score == 0.85
+
 
 class TestLoadMultiTurnCases:
     """Tests for multi-turn case loading."""

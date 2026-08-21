@@ -115,6 +115,37 @@ def test_summary_auditor_gate_with_execution_state_and_retry_guidance() -> None:
         clear_artifact_tracker(chat_id)
 
 
+def test_execution_consistency_extracts_from_tool_messages_without_tracker() -> None:
+    """Verify that when ArtifactTracker is absent, ToolMessage fallback extracts modified files."""
+    messages = [
+        HumanMessage(content="Create new service and tests"),
+        AIMessage(content="Creating files"),
+        ToolMessage(
+            content='Successfully wrote to `src/services/billing.py`',
+            name="write_file",
+            tool_call_id="call_write_1",
+            artifact={"file_path": "src/services/billing.py"},
+        ),
+        ToolMessage(
+            content='file created: tests/test_billing.py',
+            name="edit_file",
+            tool_call_id="call_edit_2",
+        ),
+    ]
+
+    summary = StructuredSummary(
+        user_goal="Create new service and tests",
+        completed_actions=["Created billing service"],
+        last_action="Done",
+        files_modified=["src/services/billing.py", "tests/test_billing.py"],
+    )
+
+    res = audit_execution_consistency(summary, chat_id=None, original_messages=messages)
+    assert res.passed is True
+    assert len(res.hallucinated_files) == 0
+    assert len(res.missing_files) == 0
+
+
 def test_execution_consistency_graceful_fallback_without_tracker() -> None:
     """Verify that when no tracker exists (e.g. pure in-memory test), consistency check gracefully passes."""
     summary = StructuredSummary(

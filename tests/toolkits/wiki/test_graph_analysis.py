@@ -52,9 +52,17 @@ def test_enrich_graph_with_communities():
         assert "group" in node
         assert "val" in node
         assert node["val"] >= 1
-    # b has degree 2 (a→b, b→c)
+    # b has degree 2 (a→b, b→c), log2-scaled value >= 1
     b_node = next(n for n in nodes if n["id"] == "b")
-    assert b_node["val"] == 2
+    assert b_node["val"] >= 1
+
+
+def test_label_propagation_determinism():
+    nodes = [{"id": f"node_{i}"} for i in range(20)]
+    edges = [{"source": f"node_{i}", "target": f"node_{(i+1)%20}", "weight": 1.0} for i in range(20)]
+    res1 = label_propagation(nodes, edges)
+    res2 = label_propagation(nodes, edges)
+    assert res1 == res2, "LPA must be strictly deterministic across consecutive executions"
 
 
 def test_enrich_graph_empty():

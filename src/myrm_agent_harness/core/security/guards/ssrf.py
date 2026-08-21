@@ -33,7 +33,10 @@ from myrm_agent_harness.core.security.guards.url_allowlist import (
     URLAllowlistGuard,
 )
 from myrm_agent_harness.utils.url_utils import (
+    clear_dynamic_blocked_hostnames,
     is_blocked_ip,
+    register_blocked_hostnames,
+    unregister_blocked_hostnames,
     validate_scheme_and_hostname,
 )
 
@@ -47,8 +50,11 @@ __all__ = [
     "async_pin_url",
     "async_validate_url_for_ssrf",
     "check_url",
+    "clear_dynamic_blocked_hostnames",
     "is_internal_ip",
+    "register_blocked_hostnames",
     "resolve_and_check",
+    "unregister_blocked_hostnames",
     "validate_url_for_ssrf",
 ]
 

@@ -12,6 +12,9 @@ from myrm_agent_harness.agent.context_management.infra.schemas import (
     ContextConfig,
     StructuredSummary,
 )
+from myrm_agent_harness.agent.context_management.strategies.summary.summary_parser import (
+    is_summary_message,
+)
 from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
     _build_budget_hint,
     _build_summary_invocation_messages,
@@ -1239,3 +1242,39 @@ class TestSequentialCompactionInvariant:
         assert [m.content for m in new_msgs] == ["真正的新消息"]
         assert final.user_goal == "合并目标"
         assert sum(1 for m in rebuilt if is_summary_message(m)) == 1
+
+
+@pytest.mark.asyncio
+async def test_generate_structured_summary_preserves_prompt_cache_prefix() -> None:
+    """Verify that rescued <preserve_context> is embedded in HumanMessage summary and does NOT inject SystemMessage."""
+    system_msg = SystemMessage(content="You are a helpful assistant with frozen system prompt.")
+    messages: list[BaseMessage] = [
+        system_msg,
+        HumanMessage(content="Initial task <preserve_context>Keep this critical rule intact</preserve_context>"),
+        AIMessage(content="Working on it"),
+        HumanMessage(content="Second turn message"),
+    ]
+
+    summary = StructuredSummary(
+        user_goal="Initial task",
+        completed_actions=["Action 1"],
+        last_action="Done",
+    )
+    llm = AsyncMock()
+
+    with patch(
+        "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._summarize_full_with_audit",
+        new=AsyncMock(return_value=summary),
+    ):
+        rebuilt, final_summary = await generate_structured_summary(messages=messages, llm=llm)
+
+    # 1. SystemMessage count must remain exactly 1 (the original frozen system prompt)
+    system_messages = [m for m in rebuilt if isinstance(m, SystemMessage)]
+    assert len(system_messages) == 1
+    assert system_messages[0].content == "You are a helpful assistant with frozen system prompt."
+
+    # 2. The summary HumanMessage must contain the preserved context block
+    summary_messages = [m for m in rebuilt if isinstance(m, HumanMessage) and is_summary_message(m)]
+    assert len(summary_messages) == 1
+    assert "[Preserved Critical Context]" in summary_messages[0].content
+    assert "Keep this critical rule intact" in summary_messages[0].content

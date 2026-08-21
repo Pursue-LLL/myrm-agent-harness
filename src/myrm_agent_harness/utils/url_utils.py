@@ -232,6 +232,32 @@ _BLOCKED_HOSTNAME_SUFFIXES = (
     ".cluster.local",
 )
 
+_DYNAMIC_BLOCKED_HOSTNAMES: set[str] = set()
+
+
+def register_blocked_hostnames(*hosts: str) -> None:
+    """Dynamically register additional sensitive hostnames/origins to block in SSRF checks."""
+    for host in hosts:
+        if not host:
+            continue
+        cleaned = host.strip().lower().rstrip(".")
+        if cleaned:
+            _DYNAMIC_BLOCKED_HOSTNAMES.add(cleaned)
+
+
+def unregister_blocked_hostnames(*hosts: str) -> None:
+    """Unregister previously dynamically registered sensitive hostnames."""
+    for host in hosts:
+        if not host:
+            continue
+        cleaned = host.strip().lower().rstrip(".")
+        _DYNAMIC_BLOCKED_HOSTNAMES.discard(cleaned)
+
+
+def clear_dynamic_blocked_hostnames() -> None:
+    """Clear all dynamically registered blocked hostnames (useful for tests)."""
+    _DYNAMIC_BLOCKED_HOSTNAMES.clear()
+
 _FAKE_IP_NETWORK = ipaddress.ip_network("198.18.0.0/15")
 _CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
 
@@ -301,7 +327,7 @@ def validate_scheme_and_hostname(url: str) -> tuple[str | None, str]:
     # Normalize trailing dot (FQDN: "localhost." -> "localhost") to match blocklist.
     hostname = hostname.rstrip(".")
 
-    if hostname.lower() in SSRF_BLOCKED_HOSTNAMES:
+    if hostname.lower() in SSRF_BLOCKED_HOSTNAMES or hostname.lower() in _DYNAMIC_BLOCKED_HOSTNAMES:
         return None, f"Blocked hostname: {hostname}"
 
     # Block internal/container hostname suffixes (.local, .svc, .cluster.local, etc.)
