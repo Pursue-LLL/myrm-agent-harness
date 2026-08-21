@@ -228,6 +228,26 @@ class TestRunTurnAndCollect:
         assert meta["usage"]["total_tokens"] == 450
 
     @pytest.mark.asyncio
+    async def test_status_update_warning_increments_errors_without_abort(self) -> None:
+        """Non-fatal item warning must increment errors in meta and allow text to complete."""
+        pool = _make_pool({"codex": _cfg()})
+
+        async def fake_run_turn(name, task, session_id, mode="persistent"):
+            yield create_event(
+                RuntimeEventType.STATUS_UPDATE,
+                session_id,
+                status="warning",
+                message="Model metadata fallback warning",
+            )
+            yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="analysis completed")
+            yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
+
+        pool.run_turn = fake_run_turn
+        result, meta = await _run_turn_and_collect(pool, "codex", "task", mode="persistent")
+        assert result == "analysis completed"
+        assert meta["errors"] == 1
+
+    @pytest.mark.asyncio
     async def test_error_event_raises(self) -> None:
         pool = _make_pool({"claude": _cfg()})
 

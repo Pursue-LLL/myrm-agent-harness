@@ -8,10 +8,11 @@ provides retry guidance when the summary falls short.
 - schemas::StructuredSummary, (POS: Planner Schema Definitions)
 - langchain_core.messages::BaseMessage (POS: Core message type definitions. All cross-channel communication data structures are defined here; zero I/O, pure data.)
 - utils.text_utils::get_token_count (POS: Universal text utilities. Provides code-block-aware text processing for all channel implementations (mention extraction, link parsing, etc.).)
+- .execution_state_validator::audit_execution_consistency, reconcile_summary_execution_state (POS: Physical execution truth validator)
 
 [OUTPUT]
-- AuditResult: dataclass with pass/fail, issues, and entity stats
-- audit_summary: run all three quality gates
+- AuditResult: dataclass with pass/fail, issues, entity stats, and consistency stats
+- audit_summary: run all four quality gates (structure, entities, density, physical execution state)
 - extract_key_entities: pull file paths, code identifiers, UUIDs, hashes, and API endpoints from messages
 
 [POS]
@@ -31,6 +32,7 @@ from myrm_agent_harness.utils.text_utils import get_token_count
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
 from ...infra.schemas import StructuredSummary
+from .execution_state_validator import audit_execution_consistency
 
 logger = get_agent_logger(__name__)
 
@@ -92,6 +94,8 @@ class AuditResult:
     entity_total: int = 0
     entity_retained: int = 0
     missing_entities: list[str] = field(default_factory=list)
+    hallucinated_files: list[str] = field(default_factory=list)
+    missing_physical_files: list[str] = field(default_factory=list)
 
     @property
     def retention_rate(self) -> float:
@@ -122,6 +126,7 @@ def audit_summary(
     original_messages: list[BaseMessage],
     *,
     entities: set[str] | None = None,
+    chat_id: str | None = None,
 ) -> AuditResult:
     """Run all quality gates on a structured summary.
 
@@ -129,6 +134,7 @@ def audit_summary(
     1. Structure completeness — required fields non-empty
     2. Key-entity retention — file paths, code identifiers, UUIDs, hashes, API endpoints preserved
     3. Information density — summary token ratio within bounds
+    4. Execution state physical consistency — files_modified matches ArtifactTracker reality
 
     Returns:
         AuditResult with ``passed=True`` if all gates pass.
@@ -151,6 +157,11 @@ def audit_summary(
 
     issues.extend(_check_density(summary, estimate_messages_tokens(original_messages)))
 
+    # Gate 4: Physical execution consistency check
+    consistency = audit_execution_consistency(summary, chat_id, original_messages)
+    if not consistency.passed:
+        issues.extend(consistency.issues)
+
     passed = len(issues) == 0
 
     result = AuditResult(
@@ -159,6 +170,8 @@ def audit_summary(
         entity_total=len(entities),
         entity_retained=retained,
         missing_entities=missing[:10],
+        hallucinated_files=consistency.hallucinated_files[:10],
+        missing_physical_files=consistency.missing_files[:10],
     )
 
     if passed:
@@ -181,6 +194,18 @@ def build_retry_guidance(result: AuditResult) -> str:
     if result.missing_entities:
         sample = result.missing_entities[:8]
         parts.append(f"The previous summary missed these key entities — please include them: {', '.join(sample)}")
+
+    if result.hallucinated_files:
+        sample = result.hallucinated_files[:5]
+        parts.append(
+            f"Do NOT claim these files were modified (no write operations occurred): {', '.join(sample)}"
+        )
+
+    if result.missing_physical_files:
+        sample = result.missing_physical_files[:5]
+        parts.append(
+            f"Please include these physically modified files in files_modified: {', '.join(sample)}"
+        )
 
     for issue in result.issues:
         if "too sparse" in issue.lower():

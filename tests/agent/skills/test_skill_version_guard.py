@@ -23,7 +23,7 @@ def isolated_skills_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path
 async def test_quarantine_install_first_time(isolated_skills_dir: Path) -> None:
     svc = BaseSkillMarketService()
     files = {
-        "SKILL.md": b"---\nname: demo-skill\nversion: 1.0.0\n---\n# Demo\n",
+        "SKILL.md": b"---\nname: demo-skill\ndescription: Demo skill description\nversion: 1.0.0\n---\n# Demo\n",
     }
     res = await svc._quarantine_install(
         "local::demo-skill", "demo-skill", files, source="test"
@@ -42,11 +42,11 @@ async def test_quarantine_install_upgrade(isolated_skills_dir: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
     write_origin(target, source="test", skill_id="local::demo-skill", version="1.0.0")
     (target / "SKILL.md").write_text(
-        "---\nname: demo-skill\nversion: 1.0.0\n---\n", encoding="utf-8"
+        "---\nname: demo-skill\ndescription: Demo skill description\nversion: 1.0.0\n---\n", encoding="utf-8"
     )
 
     files = {
-        "SKILL.md": b"---\nname: demo-skill\nversion: 1.1.0\n---\n# Demo v1.1\n",
+        "SKILL.md": b"---\nname: demo-skill\ndescription: Demo skill description\nversion: 1.1.0\n---\n# Demo v1.1\n",
     }
     res = await svc._quarantine_install(
         "local::demo-skill", "demo-skill", files, source="test"
@@ -63,11 +63,11 @@ async def test_quarantine_install_downgrade_blocked(isolated_skills_dir: Path) -
     target.mkdir(parents=True, exist_ok=True)
     write_origin(target, source="test", skill_id="local::demo-skill", version="2.0.0")
     (target / "SKILL.md").write_text(
-        "---\nname: demo-skill\nversion: 2.0.0\n---\n", encoding="utf-8"
+        "---\nname: demo-skill\ndescription: Demo skill description\nversion: 2.0.0\n---\n", encoding="utf-8"
     )
 
     files = {
-        "SKILL.md": b"---\nname: demo-skill\nversion: 1.0.0\n---\n# Demo v1.0\n",
+        "SKILL.md": b"---\nname: demo-skill\ndescription: Demo skill description\nversion: 1.0.0\n---\n# Demo v1.0\n",
     }
     res = await svc._quarantine_install(
         "local::demo-skill", "demo-skill", files, source="test", allow_downgrade=False
@@ -88,11 +88,11 @@ async def test_quarantine_install_downgrade_forced(isolated_skills_dir: Path) ->
     target.mkdir(parents=True, exist_ok=True)
     write_origin(target, source="test", skill_id="local::demo-skill", version="2.0.0")
     (target / "SKILL.md").write_text(
-        "---\nname: demo-skill\nversion: 2.0.0\n---\n", encoding="utf-8"
+        "---\nname: demo-skill\ndescription: Demo skill description\nversion: 2.0.0\n---\n", encoding="utf-8"
     )
 
     files = {
-        "SKILL.md": b"---\nname: demo-skill\nversion: 1.0.0\n---\n# Demo v1.0\n",
+        "SKILL.md": b"---\nname: demo-skill\ndescription: Demo skill description\nversion: 1.0.0\n---\n# Demo v1.0\n",
     }
     res = await svc._quarantine_install(
         "local::demo-skill", "demo-skill", files, source="test", allow_downgrade=True

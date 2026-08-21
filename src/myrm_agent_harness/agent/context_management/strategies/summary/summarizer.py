@@ -435,6 +435,7 @@ async def generate_structured_summary(
                 focus_topic=focus_topic,
                 turn_prefix_messages=turn_prefix_messages,
                 progress_tracker=progress_tracker,
+                chat_id=chat_id,
             )
         else:
             summary = existing_summary
@@ -449,7 +450,13 @@ async def generate_structured_summary(
             focus_topic=focus_topic,
             turn_prefix_messages=turn_prefix_messages,
             progress_tracker=progress_tracker,
+            chat_id=chat_id,
         )
+
+    # Physical execution state reconciliation (Auto-Reconcile with ArtifactTracker)
+    from .execution_state_validator import reconcile_summary_execution_state
+
+    summary = reconcile_summary_execution_state(summary, chat_id, messages)
 
     summary = _cap_summary_if_needed(summary, original_tokens, recent_messages, chat_id)
 
@@ -655,6 +662,7 @@ async def _summarize_full_with_audit(
     focus_topic: str = "",
     turn_prefix_messages: list[BaseMessage] | None = None,
     progress_tracker: SummaryProgressTracker | None = None,
+    chat_id: str | None = None,
 ) -> StructuredSummary:
     """Generate a full summary with quality audit and retry."""
     from .summary_auditor import audit_summary, build_retry_guidance
@@ -709,7 +717,7 @@ async def _summarize_full_with_audit(
                 raise ValueError(f"Failed to generate structured summary: {e}") from e
             continue
 
-        result = audit_summary(summary, messages, entities=entities)
+        result = audit_summary(summary, messages, entities=entities, chat_id=chat_id)
         if result.entity_retained > best_retained:
             best = summary
             best_retained = result.entity_retained
@@ -747,6 +755,7 @@ async def _summarize_incremental_with_audit(
     focus_topic: str = "",
     turn_prefix_messages: list[BaseMessage] | None = None,
     progress_tracker: SummaryProgressTracker | None = None,
+    chat_id: str | None = None,
 ) -> StructuredSummary:
     """Generate an incremental summary with quality audit and retry."""
     from .summary_auditor import audit_summary, build_retry_guidance
@@ -784,7 +793,7 @@ async def _summarize_incremental_with_audit(
         prompt = cache_safe_base_prompt
         if attempt > 0 and best is not None:
             guidance = build_retry_guidance(
-                audit_summary(best, all_messages, entities=entities)
+                audit_summary(best, all_messages, entities=entities, chat_id=chat_id)
             )
             prompt = f"{cache_safe_base_prompt}\n\n Quality feedback:\n{guidance}"
 
@@ -804,7 +813,7 @@ async def _summarize_incremental_with_audit(
                 raise ValueError(f"Failed to generate structured summary: {e}") from e
             continue
 
-        result = audit_summary(summary, all_messages, entities=entities)
+        result = audit_summary(summary, all_messages, entities=entities, chat_id=chat_id)
         if result.entity_retained > best_retained:
             best = summary
             best_retained = result.entity_retained
