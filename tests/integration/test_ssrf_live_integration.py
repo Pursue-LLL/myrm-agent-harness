@@ -19,7 +19,10 @@ from myrm_agent_harness.core.security.guards.ssrf import (
     async_pin_url,
     async_validate_url_for_ssrf,
     check_url,
+    clear_dynamic_blocked_hostnames,
+    register_blocked_hostnames,
     resolve_and_check,
+    unregister_blocked_hostnames,
     validate_url_for_ssrf,
 )
 from myrm_agent_harness.toolkits.browser.domain_filter import DomainAllowlist
@@ -109,3 +112,17 @@ class TestFetchEngineCrawlRealGuards:
                 assert doc is None
             finally:
                 await engine.shutdown()
+
+    def test_dynamic_hostnames_live_dns_block(self) -> None:
+        clear_dynamic_blocked_hostnames()
+        try:
+            # example.com is a public valid URL
+            assert validate_url_for_ssrf("https://example.com/api").safe is True
+
+            register_blocked_hostnames("example.com")
+            blocked = validate_url_for_ssrf("https://example.com/api")
+            assert blocked.safe is False
+            assert "Blocked hostname: example.com" in blocked.error
+        finally:
+            clear_dynamic_blocked_hostnames()
+

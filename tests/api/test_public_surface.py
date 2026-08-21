@@ -36,11 +36,15 @@ def test_api_package_exports_match_all() -> None:
             "get_distribution_mode",
             "get_subagent_checkpointer",
             "get_workspace_root",
-            "is_compiled_distribution",
-            "set_workspace_root",
-            "track_background_task",
-        ]
-    )
+                "is_compiled_distribution",
+                "is_registered_action_tool",
+                "route_task",
+                "route_task_specialty",
+                "set_workspace_root",
+                "TaskSpecialty",
+                "track_background_task",
+            ]
+        )
 
 
 @pytest.mark.api
