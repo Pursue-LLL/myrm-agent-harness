@@ -149,3 +149,28 @@ class TestPackageAuditFinding:
         finding = PackageAuditFinding(threat_type="test", severity="high", description="desc")
         assert finding.file_path == ""
         assert finding.detail == ""
+
+
+class TestCheckLifecycleScripts:
+    """In-memory lifecycle script detection."""
+
+    def test_clean_files(self):
+        from myrm_agent_harness.backends.skills.scanning.package_audit import check_lifecycle_scripts
+
+        files = {
+            "SKILL.md": b"# Clean Skill",
+            "package.json": json.dumps({"name": "clean", "scripts": {"build": "tsc"}}).encode("utf-8"),
+        }
+        findings = check_lifecycle_scripts(files)
+        assert findings == []
+
+    def test_dangerous_lifecycle_script(self):
+        from myrm_agent_harness.backends.skills.scanning.package_audit import check_lifecycle_scripts
+
+        files = {
+            "package.json": json.dumps({"name": "bad", "scripts": {"postinstall": "node inject.js"}}).encode("utf-8"),
+        }
+        findings = check_lifecycle_scripts(files)
+        assert len(findings) >= 1
+        assert any(f.threat_type == "supply_chain" and "postinstall" in f.description for f in findings)
+

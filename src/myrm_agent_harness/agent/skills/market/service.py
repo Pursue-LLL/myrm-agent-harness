@@ -573,10 +573,10 @@ class BaseSkillMarketService:
             current_version = ""
             if "SKILL.md" in files:
                 try:
-                    from myrm_agent_harness.backends.skills._utils import parse_skill_metadata
+                    from myrm_agent_harness.backends.skills._utils import parse_skill_frontmatter
 
-                    meta = parse_skill_metadata(files["SKILL.md"].decode("utf-8", errors="replace"), name)
-                    incoming_version = meta.version or ""
+                    fm = parse_skill_frontmatter(files["SKILL.md"].decode("utf-8", errors="replace"), name)
+                    incoming_version = fm.version or ""
                 except Exception as exc:
                     logger.debug("Could not parse incoming version from SKILL.md: %s", exc)
 
@@ -587,10 +587,10 @@ class BaseSkillMarketService:
                     cur_skill_md = target_dir / "SKILL.md"
                     if cur_skill_md.exists():
                         try:
-                            from myrm_agent_harness.backends.skills._utils import parse_skill_metadata
+                            from myrm_agent_harness.backends.skills._utils import parse_skill_frontmatter
 
-                            cur_meta = parse_skill_metadata(cur_skill_md.read_text(encoding="utf-8"), name)
-                            current_version = cur_meta.version or ""
+                            cur_fm = parse_skill_frontmatter(cur_skill_md.read_text(encoding="utf-8"), name)
+                            current_version = cur_fm.version or ""
                         except Exception as exc:
                             logger.debug("Could not parse current version from local SKILL.md: %s", exc)
 
