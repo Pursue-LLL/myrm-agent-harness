@@ -30,12 +30,14 @@ from pathlib import Path
 from typing import Any
 from pydantic import BaseModel, Field
 
-from jinja2 import BaseLoader, Environment, select_autoescape
+from jinja2 import BaseLoader, ChoiceLoader, Environment, FileSystemLoader, select_autoescape
 
 from .manifest import PdfTemplateManifest, PdfTemplateRenderOptions
 from .registry import PdfTemplateRegistry, get_pdf_template_registry
 
 logger = logging.getLogger(__name__)
+
+_TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 # Security: patterns that attempt local filesystem read, illegal protocols, or script injections
 _DANGEROUS_PROTOCOLS_PATTERN = re.compile(
@@ -49,6 +51,10 @@ _DANGEROUS_RAW_PROTOCOLS = re.compile(
 _DANGEROUS_SCRIPT_TAGS = re.compile(
     r"<\s*script[^>]*>.*?<\s*/\s*script\s*>",
     re.IGNORECASE | re.DOTALL,
+)
+_DANGEROUS_ON_EVENTS = re.compile(
+    r'\s+on[a-zA-Z]+\s*=\s*["\'][^"\']*["\']',
+    re.IGNORECASE,
 )
 
 
@@ -76,20 +82,30 @@ class PdfRenderEngine:
 
     def __init__(self, registry: PdfTemplateRegistry | None = None) -> None:
         self._registry = registry or get_pdf_template_registry()
+        
+        loaders = [BaseLoader()]
+        if _TEMPLATES_DIR.exists():
+            loaders.insert(0, FileSystemLoader(str(_TEMPLATES_DIR)))
+            
         self._jinja_env = Environment(
-            loader=BaseLoader(),
+            loader=ChoiceLoader(loaders),
             autoescape=select_autoescape(["html", "xml"]),
             trim_blocks=True,
             lstrip_blocks=True,
         )
 
     def sanitize_html(self, html_content: str) -> str:
-        """Sanitize HTML to block SSRF, local file protocol access, and script tags."""
+        """Sanitize HTML to block SSRF, local file protocol access, inline script tags, and event handlers."""
         if _DANGEROUS_SCRIPT_TAGS.search(html_content):
             logger.warning(
                 "PdfRenderEngine: Sanitizer stripped script tag in template HTML."
             )
             html_content = _DANGEROUS_SCRIPT_TAGS.sub("", html_content)
+        if _DANGEROUS_ON_EVENTS.search(html_content):
+            logger.warning(
+                "PdfRenderEngine: Sanitizer stripped inline event handler in template HTML."
+            )
+            html_content = _DANGEROUS_ON_EVENTS.sub("", html_content)
         if _DANGEROUS_PROTOCOLS_PATTERN.search(html_content):
             logger.warning(
                 "PdfRenderEngine: Sanitizer blocked illegal protocol in template HTML."

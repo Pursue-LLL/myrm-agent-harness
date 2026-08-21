@@ -1,0 +1,33 @@
+<!-- Header block partial for invoices and receipts -->
+<div class="header-block">
+    <div class="header-main">
+        {% if logo_url %}
+        <img src="{{ logo_url }}" class="header-logo" alt="Logo" />
+        {% endif %}
+        <div class="header-titles">
+            <h1 class="header-title">{{ doc_title | default(title | default("DOCUMENT")) }}</h1>
+            {% if doc_subtitle %}
+            <p class="header-subtitle">{{ doc_subtitle }}</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="header-meta">
+        {% if doc_number %}
+        <div class="meta-row"><span class="meta-label">单据编号 (No.):</span> <span class="meta-val highlight">{{ doc_number }}</span></div>
+        {% elif invoice_no %}
+        <div class="meta-row"><span class="meta-label">发票编号 (No.):</span> <span class="meta-val highlight">{{ invoice_no }}</span></div>
+        {% elif receipt_no %}
+        <div class="meta-row"><span class="meta-label">收据编号 (No.):</span> <span class="meta-val highlight">{{ receipt_no }}</span></div>
+        {% endif %}
+        {% if doc_date %}
+        <div class="meta-row"><span class="meta-label">日期 (Date):</span> <span class="meta-val">{{ doc_date }}</span></div>
+        {% elif invoice_date %}
+        <div class="meta-row"><span class="meta-label">开票日期 (Date):</span> <span class="meta-val">{{ invoice_date }}</span></div>
+        {% elif receipt_date %}
+        <div class="meta-row"><span class="meta-label">收款日期 (Date):</span> <span class="meta-val">{{ receipt_date }}</span></div>
+        {% endif %}
+        {% if category_badge %}
+        <div class="meta-row"><span class="meta-badge">{{ category_badge }}</span></div>
+        {% endif %}
+    </div>
+</div>

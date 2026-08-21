@@ -1,0 +1,18 @@
+<div class="party-info-grid">
+  <div class="party-card party-seller">
+    <div class="party-badge">销售方 / 服务方 (Provider)</div>
+    <div class="party-name">{{ seller.name | default('—') }}</div>
+    {% if seller.tax_id %}<div class="party-row"><span class="lbl">统一信用代码/税号:</span> {{ seller.tax_id }}</div>{% endif %}
+    {% if seller.address %}<div class="party-row"><span class="lbl">地址/电话:</span> {{ seller.address }}</div>{% endif %}
+    {% if seller.bank_name %}<div class="party-row"><span class="lbl">开户银行:</span> {{ seller.bank_name }}</div>{% endif %}
+    {% if seller.bank_account %}<div class="party-row"><span class="lbl">银行账号:</span> {{ seller.bank_account }}</div>{% endif %}
+  </div>
+  <div class="party-card party-buyer">
+    <div class="party-badge">购买方 / 客户方 (Client)</div>
+    <div class="party-name">{{ buyer.name | default('—') }}</div>
+    {% if buyer.tax_id %}<div class="party-row"><span class="lbl">统一信用代码/税号:</span> {{ buyer.tax_id }}</div>{% endif %}
+    {% if buyer.contact %}<div class="party-row"><span class="lbl">联系人/电话:</span> {{ buyer.contact }}</div>{% endif %}
+    {% if buyer.address %}<div class="party-row"><span class="lbl">客户地址:</span> {{ buyer.address }}</div>{% endif %}
+    {% if buyer.account %}<div class="party-row"><span class="lbl">结算账号:</span> {{ buyer.account }}</div>{% endif %}
+  </div>
+</div>
