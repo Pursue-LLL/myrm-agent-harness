@@ -45,9 +45,15 @@ class TestExtractRecentMessages:
 
     def test_keeps_multiple_pairs(self) -> None:
         msgs = [
-            AIMessage(content="some long text to increase tokens", tool_calls=[{"name": "t1", "args": {}, "id": "c1"}]),
+            AIMessage(
+                content="some long text to increase tokens",
+                tool_calls=[{"name": "t1", "args": {}, "id": "c1"}],
+            ),
             ToolMessage(content="r1", name="t1", tool_call_id="c1"),
-            AIMessage(content="some other long text", tool_calls=[{"name": "t2", "args": {}, "id": "c2"}]),
+            AIMessage(
+                content="some other long text",
+                tool_calls=[{"name": "t2", "args": {}, "id": "c2"}],
+            ),
             ToolMessage(content="r2", name="t2", tool_call_id="c2"),
         ]
         # High budget keeps everything
@@ -80,13 +86,17 @@ class TestExtractRecentMessages:
 
         msgs = [
             create_summary_message(StructuredSummary(user_goal="stale pipeline")),
-            AIMessage(content="[Previous conversation summary]\nUser Goal: stale legacy"),
+            AIMessage(
+                content="[Previous conversation summary]\nUser Goal: stale legacy"
+            ),
             HumanMessage(content="real question"),
             AIMessage(content="real answer"),
         ]
         result = extract_recent_messages(msgs, tail_budget_tokens=1000)
         assert all("stale" not in str(m.content) for m in result)
-        assert any(isinstance(m, HumanMessage) and m.content == "real question" for m in result)
+        assert any(
+            isinstance(m, HumanMessage) and m.content == "real question" for m in result
+        )
 
     def test_all_summary_tail_returns_empty(self) -> None:
         """When the whole retained tail is stale summary blocks, the result is empty (safe no-op)."""
@@ -96,7 +106,9 @@ class TestExtractRecentMessages:
 
         msgs = [
             create_summary_message(StructuredSummary(user_goal="stale")),
-            AIMessage(content="[Previous conversation summary]\nUser Goal: stale legacy"),
+            AIMessage(
+                content="[Previous conversation summary]\nUser Goal: stale legacy"
+            ),
         ]
         result = extract_recent_messages(msgs, tail_budget_tokens=1000)
         assert result == []
@@ -104,7 +116,9 @@ class TestExtractRecentMessages:
 
 class TestCreateSummaryMessage:
     def test_basic_structure(self) -> None:
-        summary = StructuredSummary(user_goal="Build a web app", last_action="Created index.html")
+        summary = StructuredSummary(
+            user_goal="Build a web app", last_action="Created index.html"
+        )
         msg = create_summary_message(summary)
         assert isinstance(msg, HumanMessage)
         content = msg.content
@@ -119,7 +133,10 @@ class TestCreateSummaryMessage:
 
     def test_lost_in_middle_ordering(self) -> None:
         summary = StructuredSummary(
-            user_goal="Goal", last_action="Last", completed_actions=["action1"], key_findings=["finding1"]
+            user_goal="Goal",
+            last_action="Last",
+            completed_actions=["action1"],
+            key_findings=["finding1"],
         )
         msg = create_summary_message(summary)
         content = msg.content
@@ -145,7 +162,9 @@ class TestCreateSummaryMessage:
         msg = create_summary_message(summary)
         assert "/tmp/ctx.log" in msg.content
 
-    @patch("myrm_agent_harness.agent.context_management.strategies.summary.summary_builder.get_artifact_tracker")
+    @patch(
+        "myrm_agent_harness.agent.context_management.strategies.summary.summary_builder.get_artifact_tracker"
+    )
     def test_artifact_tracker_integration(self, mock_tracker_fn: MagicMock) -> None:
         mock_tracker = MagicMock()
         mock_tracker.get_summary.return_value = "artifact index content"
@@ -156,7 +175,9 @@ class TestCreateSummaryMessage:
         assert "artifact index content" in msg.content
 
     def test_limits_completed_actions(self) -> None:
-        summary = StructuredSummary(user_goal="test", completed_actions=[f"action{i}" for i in range(20)])
+        summary = StructuredSummary(
+            user_goal="test", completed_actions=[f"action{i}" for i in range(20)]
+        )
         msg = create_summary_message(summary)
         content = msg.content
         json_start = content.index("<!-- SUMMARY_JSON")
@@ -165,7 +186,9 @@ class TestCreateSummaryMessage:
         assert "action10" not in text_part
 
     def test_limits_key_findings(self) -> None:
-        summary = StructuredSummary(user_goal="test", key_findings=[f"finding{i}" for i in range(10)])
+        summary = StructuredSummary(
+            user_goal="test", key_findings=[f"finding{i}" for i in range(10)]
+        )
         msg = create_summary_message(summary)
         content = msg.content
         json_start = content.index("<!-- SUMMARY_JSON")
@@ -176,7 +199,10 @@ class TestCreateSummaryMessage:
     def test_errors_and_fixes_section(self) -> None:
         summary = StructuredSummary(
             user_goal="fix bugs",
-            errors_and_fixes=["ImportError -> added missing import", "timeout -> increased deadline"],
+            errors_and_fixes=[
+                "ImportError -> added missing import",
+                "timeout -> increased deadline",
+            ],
         )
         msg = create_summary_message(summary)
         content = msg.content
@@ -199,7 +225,9 @@ class TestCreateSummaryMessage:
         assert action_pos < finding_pos < error_pos
 
     def test_errors_and_fixes_limited_to_8(self) -> None:
-        summary = StructuredSummary(user_goal="test", errors_and_fixes=[f"err{i} -> fix{i}" for i in range(15)])
+        summary = StructuredSummary(
+            user_goal="test", errors_and_fixes=[f"err{i} -> fix{i}" for i in range(15)]
+        )
         msg = create_summary_message(summary)
         content = msg.content
         json_start = content.index("<!-- SUMMARY_JSON")
@@ -213,7 +241,9 @@ class TestCreateSummaryMessage:
         assert "Errors & Fixes" not in msg.content
 
     def test_errors_and_fixes_in_json_block(self) -> None:
-        summary = StructuredSummary(user_goal="test", errors_and_fixes=["crash -> null check"])
+        summary = StructuredSummary(
+            user_goal="test", errors_and_fixes=["crash -> null check"]
+        )
         msg = create_summary_message(summary)
         assert '"errors_and_fixes"' in msg.content
         assert "crash -> null check" in msg.content
@@ -245,14 +275,19 @@ class TestCreateSummaryMessage:
         assert end_marker_pos > memory_context_end_pos
 
     def test_constraints_rendered(self) -> None:
-        summary = StructuredSummary(user_goal="test", constraints_and_preferences=["使用TypeScript", "不要创建新文件"])
+        summary = StructuredSummary(
+            user_goal="test",
+            constraints_and_preferences=["使用TypeScript", "不要创建新文件"],
+        )
         msg = create_summary_message(summary)
         assert "User Constraints & Preferences:" in msg.content
         assert "使用TypeScript" in msg.content
         assert "不要创建新文件" in msg.content
 
     def test_resolved_questions_rendered(self) -> None:
-        summary = StructuredSummary(user_goal="test", resolved_questions=["如何安装 -> pip install x"])
+        summary = StructuredSummary(
+            user_goal="test", resolved_questions=["如何安装 -> pip install x"]
+        )
         msg = create_summary_message(summary)
         assert "Resolved Questions:" in msg.content
         assert "如何安装 -> pip install x" in msg.content
@@ -269,7 +304,9 @@ class TestCreateSummaryMessage:
         assert "Pending User Asks" not in msg.content
 
     def test_active_state_rendered(self) -> None:
-        summary = StructuredSummary(user_goal="test", active_state="main分支, 50/52测试通过")
+        summary = StructuredSummary(
+            user_goal="test", active_state="main分支, 50/52测试通过"
+        )
         msg = create_summary_message(summary)
         assert "Working State: main分支, 50/52测试通过" in msg.content
 
@@ -371,7 +408,9 @@ class TestExtractProtectedHead:
         messages = [
             SystemMessage(content="sys1"),
             create_summary_message(StructuredSummary(user_goal="stale")),
-            AIMessage(content="[Previous conversation summary]\nUser Goal: stale legacy"),
+            AIMessage(
+                content="[Previous conversation summary]\nUser Goal: stale legacy"
+            ),
             HumanMessage(content="real first instruction"),
             AIMessage(content="real first reply"),
         ]
@@ -417,16 +456,30 @@ class TestSplitTurnExtraction:
         )
 
         # Construct a turn: HumanMessage -> AIMessage (tool 1) -> ToolMessage 1 -> AIMessage (tool 2) -> ToolMessage 2
-        human_msg = HumanMessage(content="Please perform a complex multi-step refactor across 5 files.")
-        ai1 = AIMessage(content="Step 1", tool_calls=[{"name": "read_file", "args": {"p": "1"}, "id": "call1"}])
-        tool1 = ToolMessage(content="file 1 content " * 50, name="read_file", tool_call_id="call1")
-        ai2 = AIMessage(content="Step 2", tool_calls=[{"name": "read_file", "args": {"p": "2"}, "id": "call2"}])
-        tool2 = ToolMessage(content="file 2 content " * 50, name="read_file", tool_call_id="call2")
+        human_msg = HumanMessage(
+            content="Please perform a complex multi-step refactor across 5 files."
+        )
+        ai1 = AIMessage(
+            content="Step 1",
+            tool_calls=[{"name": "read_file", "args": {"p": "1"}, "id": "call1"}],
+        )
+        tool1 = ToolMessage(
+            content="file 1 content " * 50, name="read_file", tool_call_id="call1"
+        )
+        ai2 = AIMessage(
+            content="Step 2",
+            tool_calls=[{"name": "read_file", "args": {"p": "2"}, "id": "call2"}],
+        )
+        tool2 = ToolMessage(
+            content="file 2 content " * 50, name="read_file", tool_call_id="call2"
+        )
 
         messages = [human_msg, ai1, tool1, ai2, tool2]
 
         # Low budget that only fits (ai2, tool2)
-        res: TailExtractionResult = extract_recent_messages_with_split_context(messages, tail_budget_tokens=50)
+        res: TailExtractionResult = extract_recent_messages_with_split_context(
+            messages, tail_budget_tokens=50
+        )
 
         assert res.is_split_turn is True
         assert res.split_human_message == human_msg
@@ -445,12 +498,11 @@ class TestSplitTurnExtraction:
         ai_msg = AIMessage(content="Short reply")
         messages = [human_msg, ai_msg]
 
-        res: TailExtractionResult = extract_recent_messages_with_split_context(messages, tail_budget_tokens=1000)
+        res: TailExtractionResult = extract_recent_messages_with_split_context(
+            messages, tail_budget_tokens=1000
+        )
 
         assert res.is_split_turn is False
         assert res.split_human_message is None
         assert res.turn_prefix_messages == []
         assert len(res.messages) == 2
-        head = extract_protected_head(messages)
-        assert len(head) == 1
-        assert isinstance(head[0], SystemMessage)

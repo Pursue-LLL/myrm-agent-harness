@@ -22,8 +22,9 @@ import subprocess
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
-from typing import Any, Protocol
+from typing import Protocol
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.core.config.llm import LLMConfig
@@ -186,9 +187,9 @@ class VideoAnalysisEngine:
             raise ValueError("VideoAnalysisEngine requires at least one LLMConfig")
         self.fallback_configs = configs
         self.fallback_config = configs[0]
-        self._models: list[Any] = []
+        self._models: list[BaseChatModel] = []
 
-    def _get_model(self, index: int) -> Any:
+    def _get_model(self, index: int) -> BaseChatModel:
         while len(self._models) <= index:
             idx = len(self._models)
             cfg = self.fallback_configs[idx]

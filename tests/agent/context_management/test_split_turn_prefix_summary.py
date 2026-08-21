@@ -7,7 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from myrm_agent_harness.agent.context_management.infra.schemas import ContextConfig, StructuredSummary
+from myrm_agent_harness.agent.context_management.infra.schemas import (
+    ContextConfig,
+    StructuredSummary,
+)
 from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
     _summarize_full_with_audit,
     _summarize_incremental_with_audit,
@@ -25,17 +28,32 @@ from myrm_agent_harness.agent.context_management.strategies.summary.summary_prom
 def test_split_turn_detection_and_extraction() -> None:
     """Verify that when a turn exceeds the recent tail budget, split context is cleanly extracted."""
     human_msg = HumanMessage(content="Refactor the entire auth subsystem")
-    ai1 = AIMessage(content="Checking files", tool_calls=[{"name": "list_dir", "args": {}, "id": "call_1"}])
-    tool1 = ToolMessage(content="auth.py, tokens.py, login.py", name="list_dir", tool_call_id="call_1")
-    ai2 = AIMessage(content="Reading auth.py", tool_calls=[{"name": "read_file", "args": {"p": "auth.py"}, "id": "call_2"}])
-    tool2 = ToolMessage(content="class AuthManager: pass", name="read_file", tool_call_id="call_2")
-    ai3 = AIMessage(content="Modifying auth.py", tool_calls=[{"name": "edit_file", "args": {"p": "auth.py"}, "id": "call_3"}])
+    ai1 = AIMessage(
+        content="Checking files",
+        tool_calls=[{"name": "list_dir", "args": {}, "id": "call_1"}],
+    )
+    tool1 = ToolMessage(
+        content="auth.py, tokens.py, login.py", name="list_dir", tool_call_id="call_1"
+    )
+    ai2 = AIMessage(
+        content="Reading auth.py",
+        tool_calls=[{"name": "read_file", "args": {"p": "auth.py"}, "id": "call_2"}],
+    )
+    tool2 = ToolMessage(
+        content="class AuthManager: pass", name="read_file", tool_call_id="call_2"
+    )
+    ai3 = AIMessage(
+        content="Modifying auth.py",
+        tool_calls=[{"name": "edit_file", "args": {"p": "auth.py"}, "id": "call_3"}],
+    )
     tool3 = ToolMessage(content="OK", name="edit_file", tool_call_id="call_3")
 
     messages = [human_msg, ai1, tool1, ai2, tool2, ai3, tool3]
 
-    # Set budget small enough that only (ai3, tool3) fits in recent tail
-    res: TailExtractionResult = extract_recent_messages_with_split_context(messages, tail_budget_tokens=30)
+    # Set budget small enough (10) that only the minimum tail (ai3, tool3) fits in recent tail
+    res: TailExtractionResult = extract_recent_messages_with_split_context(
+        messages, tail_budget_tokens=10
+    )
 
     assert res.is_split_turn is True
     assert res.split_human_message == human_msg
@@ -67,7 +85,9 @@ async def test_summarize_full_includes_split_turn_prefix_in_prompt() -> None:
     )
     mock_llm.with_structured_output.return_value = mock_structured_llm
 
-    with patch("myrm_agent_harness.agent.context_management.strategies.summary.summarizer._invoke_summary") as mock_invoke:
+    with patch(
+        "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._invoke_summary"
+    ) as mock_invoke:
         mock_invoke.return_value = StructuredSummary(
             user_goal="User active query",
             active_task="User active query",
@@ -103,7 +123,9 @@ async def test_summarize_incremental_includes_split_turn_prefix_in_prompt() -> N
     turn_prefix = [human_msg]
 
     mock_llm = MagicMock()
-    with patch("myrm_agent_harness.agent.context_management.strategies.summary.summarizer._invoke_summary") as mock_invoke:
+    with patch(
+        "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._invoke_summary"
+    ) as mock_invoke:
         mock_invoke.return_value = StructuredSummary(
             user_goal="Build features + Active instruction",
             active_task="Active ongoing instruction",
@@ -131,9 +153,13 @@ async def test_summarize_incremental_includes_split_turn_prefix_in_prompt() -> N
 async def test_generate_structured_summary_end_to_end_split_turn() -> None:
     """End-to-end integration test verifying generate_structured_summary with a split turn."""
     human_msg = HumanMessage(content="Run complex task step by step")
-    ai1 = AIMessage(content="Step 1", tool_calls=[{"name": "tool1", "args": {}, "id": "c1"}])
+    ai1 = AIMessage(
+        content="Step 1", tool_calls=[{"name": "tool1", "args": {}, "id": "c1"}]
+    )
     t1 = ToolMessage(content="Result 1 " * 100, name="tool1", tool_call_id="c1")
-    ai2 = AIMessage(content="Step 2", tool_calls=[{"name": "tool2", "args": {}, "id": "c2"}])
+    ai2 = AIMessage(
+        content="Step 2", tool_calls=[{"name": "tool2", "args": {}, "id": "c2"}]
+    )
     t2 = ToolMessage(content="Result 2 " * 100, name="tool2", tool_call_id="c2")
 
     messages = [
@@ -146,9 +172,12 @@ async def test_generate_structured_summary_end_to_end_split_turn() -> None:
     ]
 
     mock_llm = MagicMock()
-    with patch("myrm_agent_harness.agent.context_management.strategies.summary.summarizer._invoke_summary") as mock_invoke:
+    with patch(
+        "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._invoke_summary"
+    ) as mock_invoke:
         mock_invoke.return_value = StructuredSummary(
             user_goal="Run complex task step by step",
+            last_action="Step 1 finished",
             active_task="Run complex task step by step",
             completed_actions=["Step 1 finished"],
             active_state="Step 2 executing",
@@ -167,4 +196,4 @@ async def test_generate_structured_summary_end_to_end_split_turn() -> None:
         assert summary.active_task == "Run complex task step by step"
         # Verify message structure: [SystemMessage, HumanMessage, AIMessage, SummaryMessage, recent_messages...]
         assert any(isinstance(m, SystemMessage) for m in new_msgs)
-        assert any("[STRUCTURED SUMMARY]" in str(m.content) for m in new_msgs)
+        assert any("<memory-context>" in str(m.content) for m in new_msgs)
