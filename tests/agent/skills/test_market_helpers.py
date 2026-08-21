@@ -60,10 +60,11 @@ class TestScanAllTextFiles:
 
 class TestWriteReadOrigin:
     def test_write_and_read_roundtrip(self, tmp_path: Path) -> None:
-        write_origin(tmp_path, source="github", skill_id="local::abc")
+        write_origin(tmp_path, source="github", skill_id="local::abc", version="1.2.3")
         origin = read_origin(tmp_path)
         assert origin["source"] == "github"
         assert origin["skill_id"] == "local::abc"
+        assert origin["version"] == "1.2.3"
         assert "installed_at" in origin
 
     def test_write_origin_io_error_is_silently_ignored(self, tmp_path: Path) -> None:

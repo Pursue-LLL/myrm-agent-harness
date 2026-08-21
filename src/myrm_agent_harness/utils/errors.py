@@ -18,6 +18,7 @@ Framework-level error handling. Defines ToolError (implementing format_for_llm p
 
 from __future__ import annotations
 
+import enum
 import logging
 import traceback
 
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-class ToolErrorCategory(StrEnum):
+class ToolErrorCategory(str, enum.Enum):
     """Canonical error category for tool execution and guard errors."""
 
     # --- Code execution errors ---
@@ -60,6 +61,8 @@ class ToolErrorCategory(StrEnum):
     TRUST_ATTENUATION = "trust_attenuation"
     PII_GUARD = "pii_guard"
     CIRCUIT_BREAKER = "circuit_breaker"
+    ESTOP = "estop"
+    HOOK_BLOCKED = "hook_blocked"
 
     # --- Middleware / lifecycle ---
     CONTEXT_VALIDATION = "context_validation"

@@ -58,7 +58,7 @@ is an adapter, not the toolkit itself. Examples: `wiki/wiki_agent_tools.py`,
 **Rule of thumb:** engine + persistence + Protocol in `toolkits/` (exported from `__init__.py`);
 LangChain adapter is optional and secondary. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
 
-Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/` (`web_fetch_agent_tools.py`), `web_search/`, `wiki/`.
+Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `pdf_templates/`, `web_fetch/` (`web_fetch_agent_tools.py`), `web_search/`, `wiki/`.
 
 ### Naming disambiguation: `mcp/agent.py`
 
@@ -88,7 +88,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 | Category | Toolkits | Role |
 |----------|----------|------|
 | **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `vector/`, `retriever/`, `web_corpus/` | Runtime primitives: sandbox, LLM, persistence, MCP |
-| **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, @-mention path suggest |
+| **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `pdf_templates/`, `wiki/` | Files, browser, desktop, @-mention path suggest, structured PDF export |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
 | **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Job-like systems — see matrix below; `tasks/` = chat-bound async media queue ([TASK_QUEUE_SYSTEM.md](tasks/TASK_QUEUE_SYSTEM.md)) |
 
