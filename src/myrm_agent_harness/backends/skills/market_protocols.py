@@ -42,6 +42,34 @@ class SkillSearchResult:
     extra_manifest: dict[str, object] | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class SkillFileDigest:
+    """Individual file digest within an immutable installation receipt."""
+
+    relative_path: str
+    sha256: str
+    size_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
+class SkillInstallReceipt:
+    """Immutable installation receipt for managed skill installations."""
+
+    receipt_id: str
+    skill_id: str
+    skill_name: str
+    source: str
+    installed_at: str
+    version: str = ""
+    installed_path: str = ""
+    files: tuple[SkillFileDigest, ...] = field(default_factory=tuple)
+    installed_skills: tuple[str, ...] = field(default_factory=tuple)
+    declared_mcp_servers: tuple[str, ...] = field(default_factory=tuple)
+    scan_score: int = 100
+    security_verified: bool = True
+    manifest_hash: str = ""
+
+
 @dataclass(frozen=True)
 class SkillInstallResult:
     """技能安装结果（不可变）"""
@@ -59,6 +87,8 @@ class SkillInstallResult:
     """List of installed skill IDs when installing multi-skill bundles/plugins"""
     declared_mcp_servers: list[str] = field(default_factory=list)
     """List of MCP server names declared by the installed skill/plugin"""
+    receipt: SkillInstallReceipt | None = None
+    """Immutable installation receipt generated upon successful managed installation."""
 
 
 @dataclass(frozen=True, slots=True)

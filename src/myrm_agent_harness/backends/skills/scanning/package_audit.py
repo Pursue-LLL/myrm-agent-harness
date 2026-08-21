@@ -44,6 +44,51 @@ class PackageAuditFinding:
     detail: str = ""
 
 
+def audit_package_manifest_dict(pkg: dict[str, object], file_path: str = "") -> list[PackageAuditFinding]:
+    """Audit a parsed package.json dictionary for supply chain security issues."""
+    findings: list[PackageAuditFinding] = []
+    scripts = pkg.get("scripts")
+    if isinstance(scripts, dict):
+        for script_name in _DANGEROUS_SCRIPTS:
+            script_value = scripts.get(script_name)
+            if script_value and isinstance(script_value, str) and script_value.strip():
+                findings.append(
+                    PackageAuditFinding(
+                        threat_type="supply_chain",
+                        severity="high",
+                        description=f"Dangerous install script: {script_name}",
+                        file_path=file_path,
+                        detail=f"{script_name}: {script_value[:200]}",
+                    )
+                )
+
+        for key, value in scripts.items():
+            if isinstance(value, str) and _contains_suspicious_command(value):
+                findings.append(
+                    PackageAuditFinding(
+                        threat_type="supply_chain",
+                        severity="medium",
+                        description=f"Script contains suspicious command: {key}",
+                        file_path=file_path,
+                        detail=f"{key}: {value[:200]}",
+                    )
+                )
+    return findings
+
+
+def check_lifecycle_scripts(files: dict[str, bytes]) -> list[PackageAuditFinding]:
+    """Perform pre-extraction and in-memory lifecycle script gate check across files dictionary."""
+    findings: list[PackageAuditFinding] = []
+    for filename, content in files.items():
+        if Path(filename).name.lower() == "package.json":
+            try:
+                text = content.decode("utf-8", errors="replace")
+                findings.extend(audit_package_json(text, filename))
+            except Exception as exc:
+                logger.debug("Failed to inspect %s for lifecycle scripts: %s", filename, exc)
+    return findings
+
+
 def audit_package_json(content: str, file_path: str = "") -> list[PackageAuditFinding]:
     """Audit a package.json string for security issues.
 

@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.backends.skills.market_protocols import (
+    SkillInstallReceipt,
     SkillInstallResult,
     SkillSearchResult,
 )
@@ -36,6 +37,7 @@ from myrm_agent_harness.backends.skills.scanning.archive_security import (
     classify_archive_security_issue,
     format_archive_security_user_message,
 )
+from myrm_agent_harness.backends.skills.scanning.package_audit import check_lifecycle_scripts
 
 if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.market_protocols import InstalledSkillStore

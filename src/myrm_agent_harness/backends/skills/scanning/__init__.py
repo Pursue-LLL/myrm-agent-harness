@@ -16,7 +16,9 @@ from myrm_agent_harness.backends.skills.scanning.cache import (
 from myrm_agent_harness.backends.skills.scanning.package_audit import (
     PackageAuditFinding,
     audit_package_json,
+    audit_package_manifest_dict,
     audit_skill_directory,
+    check_lifecycle_scripts,
 )
 from myrm_agent_harness.backends.skills.scanning.scanner import (
     ScanFinding,
@@ -41,7 +43,9 @@ __all__ = [
     "SkillTrustRecommendation",
     "analyze_python_ast",
     "audit_package_json",
+    "audit_package_manifest_dict",
     "audit_skill_directory",
+    "check_lifecycle_scripts",
     "compute_scan_summary",
     "format_scan_report",
     "get_scan_cache",

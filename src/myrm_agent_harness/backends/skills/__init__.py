@@ -50,6 +50,8 @@ from myrm_agent_harness.backends.skills.local import (
     scan_workspace_skills,
 )
 from myrm_agent_harness.backends.skills.market_protocols import (
+    SkillFileDigest,
+    SkillInstallReceipt,
     SkillInstallResult,
     SkillMarketBackend,
     SkillSearchResult,
@@ -96,6 +98,8 @@ __all__ = [
     "SkillBackend",
     "SkillBackendProtocol",
     "SkillDeleteResult",
+    "SkillFileDigest",
+    "SkillInstallReceipt",
     "SkillInstallResult",
     "SkillMarketBackend",
     # Permission system
