@@ -156,6 +156,7 @@ def write_origin(
     *,
     source: str,
     skill_id: str,
+    version: str = "",
     parent_plugin: str | None = None,
     declared_mcp_servers: list[str] | None = None,
 ) -> None:
@@ -163,6 +164,7 @@ def write_origin(
     origin: dict[str, object] = {
         "source": source,
         "skill_id": skill_id,
+        "version": version,
         "installed_at": datetime.now(UTC).isoformat(),
     }
     if parent_plugin:

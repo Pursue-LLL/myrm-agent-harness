@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ report_title | default("业务研究与季度工作分析报告") }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 18mm 18mm 18mm 18mm;
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 10px;
+                color: #94a3b8;
+            }
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+            color: #1e293b;
+            background-color: #ffffff;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .report-header {
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+        .badge {
+            display: inline-block;
+            background: #e0e7ff;
+            color: #3730a3;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        h1.report-title {
+            font-size: 26px;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1.25;
+            margin-bottom: 8px;
+        }
+        .report-meta {
+            display: flex;
+            gap: 24px;
+            font-size: 12px;
+            color: #64748b;
+        }
+        .report-meta span strong {
+            color: #334155;
+        }
+        .executive-summary {
+            background: #f8fafc;
+            border-left: 4px solid #2563eb;
+            padding: 16px 20px;
+            border-radius: 0 6px 6px 0;
+            margin-bottom: 28px;
+            page-break-inside: avoid;
+        }
+        .executive-summary h2 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-bottom: 8px;
+        }
+        .executive-summary p {
+            color: #334155;
+            font-size: 13px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 24px;
+            page-break-inside: avoid;
+        }
+        .kpi-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 14px;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .kpi-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+        .kpi-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .kpi-change {
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+        .kpi-change.positive { color: #16a34a; }
+        .kpi-change.negative { color: #dc2626; }
+
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 24px;
+            page-break-inside: auto;
+        }
+        table.data-table tr {
+            page-break-inside: avoid;
+        }
+        table.data-table th {
+            background: #f1f5f9;
+            color: #1e293b;
+            font-weight: 600;
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 12px;
+            border-top: 1px solid #cbd5e1;
+            border-bottom: 1px solid #cbd5e1;
+        }
+        table.data-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #334155;
+            font-size: 12px;
+        }
+        .status-pill {
+            display: inline-block;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .status-completed { background: #dcfce7; color: #15803d; }
+        .status-in-progress { background: #e0f2fe; color: #0369a1; }
+        .status-pending { background: #fef3c7; color: #b45309; }
+
+        .report-conclusion {
+            background: #fafafa;
+            border: 1px solid #e5e5e5;
+            border-radius: 6px;
+            padding: 16px;
+            margin-top: 24px;
+            page-break-inside: avoid;
+        }
+        .report-conclusion h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #171717;
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="report-header">
+        <div class="badge">{{ category_badge | default("RESEARCH & ANALYTICS") }}</div>
+        <h1 class="report-title">{{ report_title | default("2026 年度企业数字化与 Agent 落地成效报告") }}</h1>
+        <div class="report-meta">
+            <span><strong>作者 / 部门:</strong> {{ author | default("Myrm AI 战略研究部") }}</span>
+            <span><strong>报告周期:</strong> {{ report_period | default("2026 Q3") }}</span>
+            <span><strong>生成日期:</strong> {{ report_date | default("2026-08-20") }}</span>
+        </div>
+    </div>
+
+    <div class="executive-summary">
+        <h2>执行摘要 / EXECUTIVE SUMMARY</h2>
+        <p>{{ executive_summary | default("本报告系统梳理了智能体沙箱架构、跨 Agent 技能共享池及端到端自动化工具链的上线成效。通过引入共享技能池与确定性 PDF 报表生成能力，团队任务周转效率提升了 320%，Prompt Token 消耗降低 85%。") }}</p>
+    </div>
+
+    {% if kpis %}
+    <div class="section-title">核心业务关键指标 (KPIs Overview)</div>
+    <div class="kpi-grid">
+        {% for kpi in kpis %}
+        <div class="kpi-card">
+            <div class="kpi-label">{{ kpi.label }}</div>
+            <div class="kpi-value">{{ kpi.value }}</div>
+            {% if kpi.change %}
+            <div class="kpi-change {% if kpi.is_positive %}positive{% else %}negative{% endif %}">
+                {{ kpi.change }}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if sections %}
+    {% for sec in sections %}
+    <div class="section-title">{{ sec.title }}</div>
+    {% if sec.content %}<p style="margin-bottom: 12px; color: #334155;">{{ sec.content }}</p>{% endif %}
+    {% if sec.table %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                {% for col in sec.table.headers %}
+                <th>{{ col }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in sec.table.rows %}
+            <tr>
+                {% for cell in row %}
+                <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+
+    {% if conclusion %}
+    <div class="report-conclusion">
+        <h3>后续行动与风险建议 / Action Plan & Recommendations</h3>
+        <p>{{ conclusion }}</p>
+    </div>
+    {% endif %}
+</body>
+</html>

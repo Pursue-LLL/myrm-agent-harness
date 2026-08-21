@@ -35,6 +35,49 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
+class ToolErrorCategory(StrEnum):
+    """Canonical error category for tool execution and guard errors."""
+
+    # --- Code execution errors ---
+    TIMEOUT = "timeout"
+    OOM = "oom"
+    NOT_FOUND = "not_found"
+    SANDBOX_RO = "sandbox_ro"
+    NETWORK_BLOCKED = "network_blocked"
+    PERMISSION_DENIED = "permission_denied"
+    SYNTAX = "syntax"
+    IMPORT = "import"
+    UNKNOWN = "unknown"
+
+    # --- Tool guard / policy errors ---
+    OUTPUT_LIMIT = "output_limit"
+    LOOP_GUARD = "loop_guard"
+    SANDBOX_BOUNDARY = "sandbox_boundary"
+    FREQUENCY_GUARD = "frequency_guard"
+    TURN_BUDGET_GUARD = "turn_budget_guard"
+    STEERING = "steering"
+    INVALID_TOOL = "invalid_tool"
+    TRUST_ATTENUATION = "trust_attenuation"
+    PII_GUARD = "pii_guard"
+    CIRCUIT_BREAKER = "circuit_breaker"
+
+    # --- Middleware / lifecycle ---
+    CONTEXT_VALIDATION = "context_validation"
+    POST_HOOK_BLOCKED = "post_hook_blocked"
+    TOOL_CANCELLED = "tool_cancelled"
+    GUARDRAIL_BLOCKED = "guardrail_blocked"
+
+    # --- ExecutionResult post-classification ---
+    OOM_KILLED = "oom_killed"
+    EXECUTION_FAILURE = "execution_failure"
+    SEGFAULT = "segfault"
+    SIGNAL_TERMINATED = "signal_terminated"
+    NONZERO_EXIT = "nonzero_exit"
+
+    # --- Benchmark decontamination (web tool content policy) ---
+    BENCHMARK_BLOCKED = "benchmark_blocked"
+
+
 class ToolError(Exception):
     """Agent 工具执行错误（诊断信息 + 修复建议 + format_for_llm 协议）。
 

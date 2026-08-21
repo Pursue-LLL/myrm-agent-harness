@@ -50,7 +50,12 @@ from myrm_agent_harness.backends.skills.scanning import (
     ScanFinding,
     SkillTrustRecommendation,
 )
-from myrm_agent_harness.backends.skills.versioning import compare_versions
+from myrm_agent_harness.backends.skills.versioning import (
+    SkillDowngradeBlockedError,
+    VersionBumpType,
+    compare_versions,
+    validate_version_guard,
+)
 
 from .helpers import (
     SOURCE_PRIORITY,
@@ -277,6 +282,8 @@ class BaseSkillMarketService:
         self,
         skill_id: str,
         source: str,
+        *,
+        allow_downgrade: bool = False,
         progress_callback: Callable[[str, str, str], None] | None = None,
     ) -> SkillInstallResult:
         def _emit(stage: str, msg: str):
@@ -311,6 +318,7 @@ class BaseSkillMarketService:
                 detail.name,
                 files,
                 source=source,
+                allow_downgrade=allow_downgrade,
                 progress_callback=progress_callback,
             )
 
@@ -337,11 +345,16 @@ class BaseSkillMarketService:
             skill_files.name,
             sanitized,
             source=source,
+            allow_downgrade=allow_downgrade,
             progress_callback=progress_callback,
         )
 
     async def install_from_url(
-        self, url: str, progress_callback: Callable[[str, str, str], None] | None = None
+        self,
+        url: str,
+        *,
+        allow_downgrade: bool = False,
+        progress_callback: Callable[[str, str, str], None] | None = None,
     ) -> SkillInstallResult:
         from .sources.github import parse_github_url
 
@@ -373,6 +386,7 @@ class BaseSkillMarketService:
             skill_files.name,
             sanitized,
             source="github",
+            allow_downgrade=allow_downgrade,
             progress_callback=progress_callback,
         )
 
@@ -498,6 +512,7 @@ class BaseSkillMarketService:
         files: dict[str, bytes],
         *,
         source: str = "",
+        allow_downgrade: bool = False,
         progress_callback: Callable[[str, str, str], None] | None = None,
     ) -> SkillInstallResult:
         def _emit(stage: str, msg: str):
@@ -552,6 +567,51 @@ class BaseSkillMarketService:
             installed_skills: list[str] = []
             declared_mcp_servers: list[str] = []
 
+            # 2. 版本防御门禁 (Skill Version Guardrail)
+            target_dir = LOCAL_INSTALL_DIR / name
+            incoming_version = ""
+            current_version = ""
+            if "SKILL.md" in files:
+                try:
+                    from myrm_agent_harness.backends.skills._utils import parse_skill_metadata
+
+                    meta = parse_skill_metadata(files["SKILL.md"].decode("utf-8", errors="replace"), name)
+                    incoming_version = meta.version or ""
+                except Exception as exc:
+                    logger.debug("Could not parse incoming version from SKILL.md: %s", exc)
+
+            if target_dir.exists():
+                origin_meta = read_origin(target_dir)
+                current_version = str(origin_meta.get("version", "")) if origin_meta else ""
+                if not current_version:
+                    cur_skill_md = target_dir / "SKILL.md"
+                    if cur_skill_md.exists():
+                        try:
+                            from myrm_agent_harness.backends.skills._utils import parse_skill_metadata
+
+                            cur_meta = parse_skill_metadata(cur_skill_md.read_text(encoding="utf-8"), name)
+                            current_version = cur_meta.version or ""
+                        except Exception as exc:
+                            logger.debug("Could not parse current version from local SKILL.md: %s", exc)
+
+            try:
+                guard_res = validate_version_guard(
+                    current_version,
+                    incoming_version,
+                    allow_downgrade=allow_downgrade,
+                )
+                if guard_res.reason:
+                    logger.info("Skill '%s' version guard notice: %s", name, guard_res.reason)
+            except SkillDowngradeBlockedError as exc:
+                logger.warning("Skill '%s' installation blocked by version guard: %s", name, exc)
+                _emit("rejected", str(exc))
+                return SkillInstallResult(
+                    success=False,
+                    skill_name=name,
+                    error=str(exc),
+                    error_code="DOWNGRADE_BLOCKED",
+                )
+
             with SkillInstallTransaction() as tx:
                 if "plugin.json" in files:
                     try:
@@ -573,6 +633,7 @@ class BaseSkillMarketService:
                                     s_target_dir,
                                     source=source,
                                     skill_id=skill_id,
+                                    version=incoming_version,
                                     parent_plugin=name,
                                 )
                                 p_receipt = build_skill_receipt(
@@ -593,13 +654,13 @@ class BaseSkillMarketService:
                         logger.warning("Failed to unpack Agent Plugin sub-skills for %s: %s", name, exc)
                         raise
 
-                target_dir = LOCAL_INSTALL_DIR / name
                 tx.stage_replace(quarantine_dir, target_dir)
 
                 write_origin(
                     target_dir,
                     source=source,
                     skill_id=skill_id,
+                    version=incoming_version,
                     declared_mcp_servers=declared_mcp_servers or None,
                 )
 

@@ -14,7 +14,7 @@ from .fault_side import (
     classify_llm_fault_side,
     classify_tool_fault_side,
 )
-from .tool_error_category import ToolErrorCategory
+from myrm_agent_harness.utils.errors import ToolErrorCategory
 from .tool_execution_error import ExecutionPhase, ToolExecutionError
 
 __all__ = [

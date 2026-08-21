@@ -36,11 +36,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.retriever.sufficiency import SufficiencyConfig
     from myrm_agent_harness.toolkits.web_search.engine import SearchServiceConfig
 
-from myrm_agent_harness.agent.errors import ToolErrorCategory
-from myrm_agent_harness.toolkits.web_search._web_search_tool_description import (
-    resolve_web_search_tool_description,
-)
-from myrm_agent_harness.utils.errors import ToolError
+from myrm_agent_harness.utils.errors import ToolError, ToolErrorCategory
 
 
 def create_web_search_tool(

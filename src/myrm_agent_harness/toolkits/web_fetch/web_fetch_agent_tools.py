@@ -33,11 +33,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.retriever.reranker.factory import RerankerConfig
     from myrm_agent_harness.toolkits.retriever.sufficiency import SufficiencyConfig
 
-from myrm_agent_harness.agent.errors import ToolErrorCategory
-from myrm_agent_harness.toolkits.web_fetch._web_fetch_tool_description import (
-    resolve_web_fetch_tool_description,
-)
-from myrm_agent_harness.utils.errors import ToolError
+from myrm_agent_harness.utils.errors import ToolError, ToolErrorCategory
 
 
 def create_web_fetch_tool(
