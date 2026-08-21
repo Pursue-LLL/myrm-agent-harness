@@ -458,8 +458,6 @@ async def generate_structured_summary(
 
     summary = reconcile_summary_execution_state(summary, chat_id, messages)
 
-    summary = _cap_summary_if_needed(summary, original_tokens, recent_messages, chat_id)
-
     import hashlib
     import re
 
@@ -501,8 +499,8 @@ async def generate_structured_summary(
 
     # --- Generic Context Preservation Logic ---
     # Extracts <preserve_context> tags from any message, deduplicates them,
-    # truncates them to prevent OOM, and injects them into the protected_head
-    # to maximize Prompt Cache hits.
+    # truncates them to prevent OOM, and embeds them inside the summary HumanMessage
+    # to protect the system prompt prefix cache from invalidation.
     rescued_context_blocks = {}
     preserve_tag_pattern = re.compile(
         r"<preserve_context>(.*?)</preserve_context>", re.DOTALL | re.IGNORECASE
@@ -530,6 +528,10 @@ async def generate_structured_summary(
     combined_preserved = None
     if rescued_context_blocks:
         combined_preserved = "\n\n".join(rescued_context_blocks.values())
+
+    summary = _cap_summary_if_needed(
+        summary, original_tokens, recent_messages, chat_id, preserved_context=combined_preserved
+    )
 
     # Preserved context is embedded in summary HumanMessage (not SystemMessage)
     # to protect the system prompt prefix cache from invalidation.
@@ -603,6 +605,7 @@ def _cap_summary_if_needed(
     original_tokens: int,
     recent_messages: list[BaseMessage],
     chat_id: str | None,
+    preserved_context: str | None = None,
 ) -> StructuredSummary:
     """Ensure summarised output is shorter than the original.
 
@@ -610,7 +613,9 @@ def _cap_summary_if_needed(
     truncate middle fields first (completed_actions), preserve start
     (user_goal) and end (errors_and_fixes).
     """
-    summary_message = create_summary_message(summary, chat_id)
+    summary_message = create_summary_message(
+        summary, chat_id, preserved_context=preserved_context
+    )
     new_tokens = estimate_messages_tokens([summary_message, *recent_messages])
 
     if new_tokens < original_tokens:
@@ -628,7 +633,9 @@ def _cap_summary_if_needed(
     summary.errors_and_fixes = summary.errors_and_fixes[:_CAP_MAX_ERRORS]
     summary.resolved_questions = summary.resolved_questions[:3]
 
-    summary_message = create_summary_message(summary, chat_id)
+    summary_message = create_summary_message(
+        summary, chat_id, preserved_context=preserved_context
+    )
     new_tokens = estimate_messages_tokens([summary_message, *recent_messages])
     if new_tokens < original_tokens:
         return summary

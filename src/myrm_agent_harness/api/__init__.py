@@ -39,13 +39,27 @@ __all__ = [
     "get_subagent_checkpointer",
     "get_workspace_root",
     "is_compiled_distribution",
-    "is_registered_action_tool",
     "set_workspace_root",
     "track_background_task",
     "is_registered_action_tool",
+    "route_task",
+    "route_task_specialty",
+    "TaskSpecialty",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "route_task": (
+        "myrm_agent_harness.toolkits.llms.routing.complexity_router",
+        "route_task",
+    ),
+    "route_task_specialty": (
+        "myrm_agent_harness.toolkits.llms.routing.specialty_router",
+        "route_task_specialty",
+    ),
+    "TaskSpecialty": (
+        "myrm_agent_harness.toolkits.llms.routing.specialty_router",
+        "TaskSpecialty",
+    ),
     "is_registered_action_tool": (
         "myrm_agent_harness.agent.tool_management.tool_layers",
         "is_registered_action_tool",
