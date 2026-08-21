@@ -25,8 +25,12 @@ def test_builtin_templates_loaded() -> None:
 
 
 def test_template_filtering_and_search() -> None:
-    """Verify category filtering and keyword search."""
+    """Verify category filtering, search keyword scoring, and empty query."""
     registry = PdfTemplateRegistry(load_builtins=True)
+
+    # Empty search query returns all
+    all_hits = registry.search_templates("")
+    assert len(all_hits) >= 3
 
     invoices = registry.list_templates(category=PdfTemplateCategory.INVOICE)
     assert len(invoices) >= 1
@@ -36,12 +40,35 @@ def test_template_filtering_and_search() -> None:
     assert len(reports) >= 1
     assert all(t.category == PdfTemplateCategory.REPORT for t in reports)
 
+    # Keyword search scoring across id, name, tags, description
     search_hits = registry.search_templates("发票")
     assert len(search_hits) >= 1
     assert search_hits[0].id == "invoice_standard"
 
+    tag_search = registry.search_templates("financial")
+    assert len(tag_search) >= 1
+
+    desc_search = registry.search_templates("标准增值税")
+    assert len(desc_search) >= 1
+
+    id_search = registry.search_templates("business_report")
+    assert len(id_search) >= 1
+
     tag_hits = registry.list_templates(tag="billing")
     assert len(tag_hits) >= 1
+
+    # Overwrite check
+    custom_m = PdfTemplateManifest(
+        id="overwrite_test",
+        name="Overwrite Test",
+        category=PdfTemplateCategory.CUSTOM,
+        description="Testing duplicate registration error",
+        template_html="<div>Test</div>",
+    )
+    registry.register(custom_m)
+    with pytest.raises(ValueError, match="already registered"):
+        registry.register(custom_m, overwrite=False)
+    registry.unregister("overwrite_test")
 
 
 def test_custom_template_registration() -> None:
