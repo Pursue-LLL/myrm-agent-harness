@@ -302,6 +302,9 @@ class CliRuntime(BaseRuntime):
         if data.get("type") == "result":
             cli_sid = data.get("session_id")
             if isinstance(cli_sid, str) and cli_sid:
+                if len(self._cli_session_ids) >= 512:
+                    oldest_key = next(iter(self._cli_session_ids))
+                    self._cli_session_ids.pop(oldest_key, None)
                 self._cli_session_ids[session_id] = cli_sid
                 logger.info(
                     "cli_session_captured name=%s session=%s cli_session=%s",
@@ -322,7 +325,10 @@ class CliRuntime(BaseRuntime):
         """
         data = parse_json_line(line)
         if data is None:
-            return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n")
+            from myrm_agent_harness.utils.text_utils import strip_ansi
+
+            cleaned = strip_ansi(line).rstrip("\r\n")
+            return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=cleaned + "\n") if cleaned else None
 
         data = unwrap_codex_envelope(data)
         event_type = data.get("type", "")

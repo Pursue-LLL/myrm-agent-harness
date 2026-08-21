@@ -39,11 +39,17 @@ __all__ = [
     "get_subagent_checkpointer",
     "get_workspace_root",
     "is_compiled_distribution",
+    "is_registered_action_tool",
     "set_workspace_root",
     "track_background_task",
+    "is_registered_action_tool",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "is_registered_action_tool": (
+        "myrm_agent_harness.agent.tool_management.tool_layers",
+        "is_registered_action_tool",
+    ),
     "AgentConfig": ("myrm_agent_harness.api.config", "AgentConfig"),
     "AgentEventType": ("myrm_agent_harness.api.types", "AgentEventType"),
     "AgentRuntimeConfig": ("myrm_agent_harness.api.types", "AgentRuntimeConfig"),
@@ -88,6 +94,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "track_background_task": (
         "myrm_agent_harness.agent.skill_agent.context",
         "track_background_task",
+    ),
+    "is_registered_action_tool": (
+        "myrm_agent_harness.agent.tool_management.tool_layers",
+        "is_registered_action_tool",
     ),
 }
 

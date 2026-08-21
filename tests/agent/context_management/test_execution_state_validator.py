@@ -18,8 +18,8 @@ from myrm_agent_harness.agent.context_management.strategies.summary.summary_audi
 from myrm_agent_harness.agent.context_management.tracking.artifact_tracker import (
     ArtifactAction,
     ArtifactTracker,
+    clear_artifact_tracker,
     create_artifact_tracker,
-    remove_artifact_tracker,
 )
 
 
@@ -56,7 +56,7 @@ def test_audit_execution_consistency_detects_hallucinations_and_missing() -> Non
         assert any("tests/test_auth.py" in f for f in res.missing_files)
         assert len(res.issues) == 2
     finally:
-        remove_artifact_tracker(chat_id)
+        clear_artifact_tracker(chat_id)
 
 
 def test_reconcile_summary_execution_state_auto_heals_files() -> None:
@@ -81,7 +81,7 @@ def test_reconcile_summary_execution_state_auto_heals_files() -> None:
         assert "src/utils.py" in healed.files_modified
         assert len(healed.files_modified) == 2
     finally:
-        remove_artifact_tracker(chat_id)
+        clear_artifact_tracker(chat_id)
 
 
 def test_summary_auditor_gate_with_execution_state_and_retry_guidance() -> None:
@@ -112,7 +112,7 @@ def test_summary_auditor_gate_with_execution_state_and_retry_guidance() -> None:
         assert "Do NOT claim these files were modified" in guidance
         assert "app/bogus_file.py" in guidance
     finally:
-        remove_artifact_tracker(chat_id)
+        clear_artifact_tracker(chat_id)
 
 
 def test_execution_consistency_graceful_fallback_without_tracker() -> None:

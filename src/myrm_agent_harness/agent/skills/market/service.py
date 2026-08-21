@@ -20,6 +20,7 @@ Skill market service.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import shutil
 import tempfile
@@ -28,10 +29,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.skills.market.sanitizer import sanitize_skill_files
+from myrm_agent_harness.backends.skills.local_skill_id import (
+    local_skill_id_from_path,
+    resolve_local_install_dir,
+)
 from myrm_agent_harness.backends.skills.market_protocols import (
-    SkillInstallReceipt,
     SkillInstallResult,
     SkillSearchResult,
+)
+from myrm_agent_harness.backends.skills.scanning import (
+    ScanFinding,
+    SkillTrustRecommendation,
 )
 from myrm_agent_harness.backends.skills.scanning.archive_security import (
     classify_archive_security_issue,
@@ -40,21 +49,8 @@ from myrm_agent_harness.backends.skills.scanning.archive_security import (
 from myrm_agent_harness.backends.skills.scanning.package_audit import (
     check_lifecycle_scripts,
 )
-
-if TYPE_CHECKING:
-    from myrm_agent_harness.backends.skills.market_protocols import InstalledSkillStore
-from myrm_agent_harness.agent.skills.market.sanitizer import sanitize_skill_files
-from myrm_agent_harness.backends.skills.local_skill_id import (
-    local_skill_id_from_path,
-    resolve_local_install_dir,
-)
-from myrm_agent_harness.backends.skills.scanning import (
-    ScanFinding,
-    SkillTrustRecommendation,
-)
 from myrm_agent_harness.backends.skills.versioning import (
     SkillDowngradeBlockedError,
-    VersionBumpType,
     compare_versions,
     validate_version_guard,
 )
@@ -70,12 +66,6 @@ from .helpers import (
 )
 from .installers.git_installer import GitInstaller
 from .installers.zip_installer import ZipInstaller
-from .transaction import (
-    SkillInstallTransaction,
-    build_skill_receipt,
-    read_receipt_file,
-    write_receipt_file,
-)
 from .sources.aliyun import AliyunSource
 from .sources.base import SkillSource
 from .sources.clawhub import ClawHubSource
@@ -84,6 +74,15 @@ from .sources.lobehub import LobeHubSource
 from .sources.modelscope import ModelScopeSource
 from .sources.prebuilt import PrebuiltSkillSource
 from .sources.skills_sh import SkillsShSource
+from .transaction import (
+    SkillInstallTransaction,
+    build_skill_receipt,
+    read_receipt_file,
+    write_receipt_file,
+)
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.backends.skills.market_protocols import InstalledSkillStore
 
 logger = logging.getLogger(__name__)
 
@@ -425,10 +424,6 @@ class BaseSkillMarketService:
                 error=f"Only local skills can be uninstalled via this method: {skill_id}",
             )
 
-        from myrm_agent_harness.backends.skills.local_skill_id import (
-            resolve_local_install_dir,
-        )
-
         target_dir = resolve_local_install_dir(skill_id, LOCAL_INSTALL_DIR)
         if target_dir is None:
             return SkillInstallResult(
@@ -446,7 +441,6 @@ class BaseSkillMarketService:
             for child_dir in list(LOCAL_INSTALL_DIR.iterdir()):
                 if child_dir.is_dir() and child_dir != target_dir:
                     child_origin = read_origin(child_dir)
-                    child_receipt = read_receipt_file(child_dir)
                     is_child = (
                         child_origin.get("parent_plugin") == skill_name
                         or child_origin.get("skill_id") == skill_id
@@ -782,10 +776,8 @@ def _atomic_replace(src: Path, dst: Path) -> None:
     if dst.exists() and dst.is_dir():
         for p in dst.glob("**/*"):
             if p.is_file() and p.suffix == ".bak":
-                try:
+                with contextlib.suppress(OSError):
                     p.unlink()
-                except OSError:
-                    pass
     backup = dst.parent / (dst.name + ".bak")
     had_backup = False
 
