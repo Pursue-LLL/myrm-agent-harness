@@ -377,7 +377,7 @@ class BaseSkillMarketService:
         )
 
     async def uninstall(self, skill_id: str) -> SkillInstallResult:
-        """Uninstall a locally installed skill and cascade-remove any child skills."""
+        """Uninstall a locally installed skill and cascade-remove any child skills using receipt."""
         if not skill_id.startswith("local::"):
             return SkillInstallResult(
                 success=False,
@@ -395,15 +395,21 @@ class BaseSkillMarketService:
         skill_name = target_dir.name
         uninstalled_skills = [skill_name]
 
-        # 1. Cascade uninstall child skills registered to this parent plugin
+        # 1. Inspect receipt if present for precise forensic accounting
+        receipt = read_receipt_file(target_dir)
+
+        # 2. Cascade uninstall child skills registered to this parent plugin
         if LOCAL_INSTALL_DIR.exists():
             for child_dir in list(LOCAL_INSTALL_DIR.iterdir()):
                 if child_dir.is_dir() and child_dir != target_dir:
                     child_origin = read_origin(child_dir)
-                    if (
+                    child_receipt = read_receipt_file(child_dir)
+                    is_child = (
                         child_origin.get("parent_plugin") == skill_name
                         or child_origin.get("skill_id") == skill_id
-                    ):
+                        or (receipt and child_dir.name in receipt.installed_skills)
+                    )
+                    if is_child:
                         try:
                             shutil.rmtree(child_dir)
                             uninstalled_skills.append(child_dir.name)
@@ -419,7 +425,7 @@ class BaseSkillMarketService:
                                 exc,
                             )
 
-        # 2. Remove main target directory
+        # 3. Remove main target directory
         try:
             shutil.rmtree(target_dir)
         except Exception as e:
@@ -432,6 +438,7 @@ class BaseSkillMarketService:
             skill_id=skill_id,
             installed_path=str(target_dir),
             installed_skills=uninstalled_skills,
+            receipt=receipt,
         )
 
     async def get_detail(self, skill_id: str, source: str) -> SkillSearchResult | None:
