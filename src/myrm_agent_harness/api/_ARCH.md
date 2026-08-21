@@ -24,6 +24,7 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 | skills.py | Core | Skill frontmatter parse and metadata builders | ✅ |
 | subagents.py | Core | `build_parent_delegatable_toolkit` — public subagent delegation helper for server wiring；`get_subagent_checkpointer` / `delete_subagent_checkpoint` — shared subagent checkpointer（HITL 审批存活与线程恢复、终态内存清理） | ✅ |
 | security.py | Core | `ManagedApprovalPolicy` / `get_process_managed_approval_policy` — process-wide MAP facade for server | ✅ |
+| routing.py | Core | `route_task`, `route_task_specialty`, `RoutingTier`, `TaskSpecialty` — public LLM routing facade | ✅ |
 
 ## SDK convenience (non-stable)
 
