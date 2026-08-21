@@ -63,6 +63,12 @@ from .helpers import (
 )
 from .installers.git_installer import GitInstaller
 from .installers.zip_installer import ZipInstaller
+from .transaction import (
+    SkillInstallTransaction,
+    build_skill_receipt,
+    read_receipt_file,
+    write_receipt_file,
+)
 from .sources.aliyun import AliyunSource
 from .sources.base import SkillSource
 from .sources.clawhub import ClawHubSource
@@ -491,6 +497,20 @@ class BaseSkillMarketService:
             if progress_callback:
                 progress_callback(skill_id, stage, msg)
 
+        # 1. 前置生命周期脚本防御门禁 (Lifecycle Script Guard)
+        lifecycle_findings = check_lifecycle_scripts(files)
+        if any(f.severity in ("critical", "high") for f in lifecycle_findings):
+            blocked_reasons = [f.description for f in lifecycle_findings if f.severity in ("critical", "high")]
+            reason_str = "; ".join(blocked_reasons)
+            logger.warning("Skill '%s' blocked by lifecycle script guard: %s", name, reason_str)
+            _emit("rejected", f"Blocked by lifecycle script guard: {reason_str}")
+            return SkillInstallResult(
+                success=False,
+                skill_name=name,
+                error=f"Security policy blocked installation: malicious lifecycle scripts detected ({reason_str})",
+                scan_summary=reason_str,
+            )
+
         quarantine_dir = Path(tempfile.mkdtemp(prefix=f"skill-quarantine-{name}-"))
 
         try:
@@ -524,46 +544,72 @@ class BaseSkillMarketService:
             _emit("installing", "Promoting to install directory...")
             installed_skills: list[str] = []
             declared_mcp_servers: list[str] = []
-            if "plugin.json" in files:
-                try:
-                    from myrm_agent_harness.agent.plugins.parser import AgentPluginParser
 
-                    parser = AgentPluginParser()
-                    parsed = parser.parse_files(files)
-                    declared_mcp_servers = [s.name for s in parsed.servers]
-                    for p_skill in parsed.skills:
-                        s_target_dir = LOCAL_INSTALL_DIR / p_skill.name
-                        s_target_dir.parent.mkdir(parents=True, exist_ok=True)
-                        s_quarantine = Path(tempfile.mkdtemp(prefix=f"skill-q-{p_skill.name}-"))
-                        try:
-                            for rel_p, data in p_skill.files.items():
-                                f_path = s_quarantine / rel_p
-                                f_path.parent.mkdir(parents=True, exist_ok=True)
-                                f_path.write_bytes(data)
-                            _atomic_replace(s_quarantine, s_target_dir)
-                            write_origin(
-                                s_target_dir,
-                                source=source,
-                                skill_id=skill_id,
-                                parent_plugin=name,
-                            )
-                            installed_skills.append(p_skill.name)
-                        finally:
-                            if s_quarantine.exists():
-                                shutil.rmtree(s_quarantine, ignore_errors=True)
-                except Exception as exc:
-                    logger.warning("Failed to unpack Agent Plugin sub-skills for %s: %s", name, exc)
+            with SkillInstallTransaction() as tx:
+                if "plugin.json" in files:
+                    try:
+                        from myrm_agent_harness.agent.plugins.parser import AgentPluginParser
 
-            target_dir = LOCAL_INSTALL_DIR / name
-            target_dir.parent.mkdir(parents=True, exist_ok=True)
-            _atomic_replace(quarantine_dir, target_dir)
+                        parser = AgentPluginParser()
+                        parsed = parser.parse_files(files)
+                        declared_mcp_servers = [s.name for s in parsed.servers]
+                        for p_skill in parsed.skills:
+                            s_target_dir = LOCAL_INSTALL_DIR / p_skill.name
+                            s_quarantine = Path(tempfile.mkdtemp(prefix=f"skill-q-{p_skill.name}-"))
+                            try:
+                                for rel_p, data in p_skill.files.items():
+                                    f_path = s_quarantine / rel_p
+                                    f_path.parent.mkdir(parents=True, exist_ok=True)
+                                    f_path.write_bytes(data)
+                                tx.stage_replace(s_quarantine, s_target_dir)
+                                write_origin(
+                                    s_target_dir,
+                                    source=source,
+                                    skill_id=skill_id,
+                                    parent_plugin=name,
+                                )
+                                p_receipt = build_skill_receipt(
+                                    skill_id=local_skill_id_from_path(s_target_dir),
+                                    skill_name=p_skill.name,
+                                    source=source,
+                                    installed_path=str(s_target_dir),
+                                    files=p_skill.files,
+                                    scan_score=100 if scan_result.is_clean else 80,
+                                    security_verified=scan_result.is_clean,
+                                )
+                                write_receipt_file(s_target_dir, p_receipt)
+                                installed_skills.append(p_skill.name)
+                            finally:
+                                if s_quarantine.exists():
+                                    shutil.rmtree(s_quarantine, ignore_errors=True)
+                    except Exception as exc:
+                        logger.warning("Failed to unpack Agent Plugin sub-skills for %s: %s", name, exc)
+                        raise
 
-            write_origin(
-                target_dir,
-                source=source,
-                skill_id=skill_id,
-                declared_mcp_servers=declared_mcp_servers or None,
-            )
+                target_dir = LOCAL_INSTALL_DIR / name
+                tx.stage_replace(quarantine_dir, target_dir)
+
+                write_origin(
+                    target_dir,
+                    source=source,
+                    skill_id=skill_id,
+                    declared_mcp_servers=declared_mcp_servers or None,
+                )
+
+                canonical_id = local_skill_id_from_path(target_dir)
+                receipt = build_skill_receipt(
+                    skill_id=canonical_id,
+                    skill_name=name,
+                    source=source,
+                    installed_path=str(target_dir),
+                    files=files,
+                    installed_skills=installed_skills or [name],
+                    declared_mcp_servers=declared_mcp_servers,
+                    scan_score=100 if scan_result.is_clean else 80,
+                    security_verified=scan_result.is_clean,
+                )
+                write_receipt_file(target_dir, receipt)
+                tx.commit()
 
             scan_summary = scan_result.summary if not scan_result.is_clean else ""
             if scan_summary:
@@ -577,7 +623,6 @@ class BaseSkillMarketService:
                 logger.info("Installed skill: %s -> %s", name, target_dir)
 
             _emit("completed", f"Installed to {target_dir}")
-            canonical_id = local_skill_id_from_path(target_dir)
             return SkillInstallResult(
                 success=True,
                 skill_name=name,
@@ -586,6 +631,7 @@ class BaseSkillMarketService:
                 scan_summary=scan_summary,
                 installed_skills=installed_skills or [name],
                 declared_mcp_servers=declared_mcp_servers,
+                receipt=receipt,
             )
         finally:
             if quarantine_dir.exists():
