@@ -1,8 +1,14 @@
 """Small helpers shared by trace aggregation modules.
 
-Kept in their own module so the aggregation modules (trace_builder and its
-``_pairing``/``_llm``/``_tasks_steps`` helpers) can share them without
-circular imports.
+[INPUT]
+- None (internal standalone constants and helpers)
+
+[OUTPUT]
+- _EVENT_META_KEYS: frozenset of metadata keys to strip
+- _strip_meta_keys: helper to sanitize payload dictionaries
+
+[POS]
+Low-level trace payload metadata stripping helpers shared across event log aggregators.
 """
 
 from __future__ import annotations

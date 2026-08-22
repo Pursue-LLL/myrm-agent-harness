@@ -6,6 +6,17 @@
 Provides a framework-agnostic, single-source-of-truth PDF template registry and declarative
 rendering engine for structured business document exports (invoices, business reports, receipts).
 
+## File Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Re-exports registry, engine, manifests, and tools | — |
+| `manifest.py` | Types | Template manifest, schema, options, and category descriptors | ✅ |
+| `registry.py` | Core | Singleton template registry with category filtering and schema generators | ✅ |
+| `engine.py` | Engine | Safe Jinja2 interpolation, sanitization, and PDF rendering engine | ✅ |
+| `pdf_templates_agent_tools.py` | Tools | LangChain tool bindings (`list_pdf_templates`, `render_pdf_template`, etc.) | ✅ |
+| `_ARCH.md` | Doc | Architectural reference and template inventory | — |
+
 ## Key Components
 1. `manifest.py`: `PdfTemplateManifest`, `PdfTemplateCategory`, `PdfTemplateRenderOptions`, `PdfTemplateVariableSchema`.
 2. `registry.py`: `PdfTemplateRegistry` (singleton SSOT with search, filter, JSON schema generation, built-in 10 enterprise templates).

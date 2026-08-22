@@ -1,7 +1,13 @@
 """Heuristic PDF Table Extractor
 
-Implements an advanced spatial coordinate clustering algorithm to extract
-borderless forms and hidden-grid tables from PDF pages.
+[INPUT]
+- typing / re / logging (standard library)
+
+[OUTPUT]
+- extract_heuristic_tables_from_pdf: spatial coordinate clustering table extraction
+
+[POS]
+Heuristic spatial parser for borderless and irregular grid tables in PDF documents.
 """
 
 from __future__ import annotations

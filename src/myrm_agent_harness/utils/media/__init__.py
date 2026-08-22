@@ -1,10 +1,13 @@
 """Media utilities for image/video compression.
 
-Provides compression tools for common media formats.
+[INPUT]
+- .image_compressor::ImageCompressor, image_compressor, SEND_COMPRESS_*
 
-Example:
-    >>> from myrm_agent_harness.utils.media import image_compressor
-    >>> compressed = image_compressor.compress("input.jpg", quality=0.8)
+[OUTPUT]
+- ImageCompressor, image_compressor, SEND_COMPRESS_*
+
+[POS]
+Media compression utilities package entry point.
 """
 
 from .image_compressor import (

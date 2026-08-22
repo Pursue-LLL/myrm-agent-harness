@@ -1,6 +1,15 @@
 """Skill market module.
 
-搜索外部技能源、安装技能到本地，支持受管安装快照事务与不可变 Receipt 收据。
+[INPUT]
+- .service::BaseSkillMarketService, EnrichedSearchResult, SkillPreviewResult
+- .transaction::SkillInstallTransaction, build_skill_receipt, read_receipt_file, write_receipt_file
+
+[OUTPUT]
+- BaseSkillMarketService, EnrichedSearchResult, SkillPreviewResult
+- SkillInstallTransaction, build_skill_receipt, read_receipt_file, write_receipt_file
+
+[POS]
+Package entry point for skill market capabilities and immutable receipt management.
 """
 
 from myrm_agent_harness.agent.skills.market.service import (

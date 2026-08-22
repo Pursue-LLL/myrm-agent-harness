@@ -182,7 +182,7 @@ WebSearchError
 
 ## 中间件拦截逻辑
 
-**文件**：`agent/middlewares/_tool_helpers.py`（`format_tool_error`，由 `tool_interceptor_middleware` 的 `execute_with_retry` 捕获异常后调用）
+**文件**：`agent/middlewares/tooling/_tool_helpers.py`（`format_tool_error`，由 `tool_interceptor_middleware` 的 `execute_with_retry` 捕获异常后调用）
 
 `format_tool_error()` 函数处理三种情况（按优先级），输出统一经 `redact_sensitive_text` + `sanitize` 脱敏：
 
@@ -493,7 +493,7 @@ get_locale_manager().register_translations(
 | `utils/errors.py` | ToolError 定义、format_error_message、ModelOutputValidator |
 | `toolkits/browser/exceptions.py` | BrowserError 异常树（含智能诊断） |
 | `toolkits/web_search/exceptions.py` | WebSearchError 异常树（含 retryable 信息） |
-| `agent/middlewares/_tool_helpers.py` | 工具异常格式化（`format_tool_error`：format_for_llm 协议 + 脱敏兜底） |
+| `agent/middlewares/tooling/_tool_helpers.py` | 工具异常格式化（`format_tool_error`：format_for_llm 协议 + 脱敏兜底） |
 | `agent/streaming/event_handlers.py` | 错误事件转换（ToolMessage → SSE 事件） |
 | `toolkits/code_execution/executors/common/error_handler.py` | Sandbox 错误处理装饰器 |
 

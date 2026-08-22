@@ -11,6 +11,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS, ToolLayer
+
+
+@dataclass(frozen=True)
+class ToolSurfaceEntry:
+    name: str
+    layer_name: str
+    layer_value: int
+
+
+@dataclass(frozen=True)
+class ComponentSnapshotBundle:
+    tool_surface: list[dict[str, Any]]
+    middleware_stack: list[dict[str, Any]]
+    context_strategies: list[dict[str, Any]]
+    system_defaults: dict[str, Any]
+
+
 def get_snapshots_dir() -> Path:
     """Return the path to the snapshots storage directory."""
     return Path(__file__).resolve().parent / "snapshots"
