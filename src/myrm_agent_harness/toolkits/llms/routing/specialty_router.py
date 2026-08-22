@@ -1,18 +1,21 @@
 """Task specialty router — cross-vendor task domain specialty classification and routing.
 
-Extracts task specialty features (CODE, LONG_DOC, REASONING, MULTIMODAL, GENERAL)
+Extracts task specialty features (CODE, LONG_DOC, REASONING, MULTIMODAL, CASUAL, GENERAL)
 based on multi-dimensional signal scoring (lexical keywords, syntax blocks,
-token/character length thresholds, math/LaTeX notation, and media payloads).
+token/character length thresholds, math/LaTeX notation, media payloads, and session momentum).
 
 [INPUT]
 - query: str | list[dict[str, object]] (User query text or multimodal structure)
 - specialty_model_slots: dict[TaskSpecialty, LLMConfig] (Optional mapping from specialty to model config)
+- specialty_fallback_slots: dict[TaskSpecialty, LLMConfig] (Optional mapping from specialty to fallback config)
 - default_model_cfg: LLMConfig (Base/Standard model configuration fallback)
+- default_fallback_cfg: LLMConfig | None (Base fallback model configuration)
+- recent_specialties: list[TaskSpecialty] | None (Session context for multi-turn momentum)
 
 [OUTPUT]
-- TaskSpecialty: Enum (CODE | LONG_DOC | REASONING | MULTIMODAL | GENERAL)
-- SpecialtyRoutingResult: Dataclass (specialty, model_cfg, fallback_model_cfg, confidence, reason)
-- route_task_specialty(): Async function to route task to specialty model
+- TaskSpecialty: Enum (CODE | LONG_DOC | REASONING | MULTIMODAL | CASUAL | GENERAL)
+- SpecialtyRoutingResult: Dataclass (specialty, model_cfg, fallback_model_cfg, fallback_chain, confidence, reason)
+- route_task_specialty(): Async function to route task to specialty model with multi-tier fallback chain
 
 [POS]
 Harness framework layer: toolkits/llms/routing/specialty_router.py.
@@ -51,8 +54,11 @@ _TRACEBACK_PATTERN_RE = re.compile(
 )
 
 # Long document threshold (characters ~ approximate tokens)
-# ~25,000 characters is approximately 6k~10k tokens, triggering long-context specialization
+# ~24,000 characters is approximately 6k~10k tokens, triggering long-context specialization
 LONG_DOC_CHAR_THRESHOLD = 24_000
+
+# Short follow-up momentum threshold
+_MOMENTUM_SHORT_THRESHOLD = 35
 
 
 class TaskSpecialty(StrEnum):
@@ -171,6 +177,28 @@ DEFAULT_REASONING_KEYWORDS: frozenset[str] = frozenset(
     }
 )
 
+DEFAULT_CASUAL_INDICATORS: frozenset[str] = frozenset(
+    {
+        "hello",
+        "hi",
+        "hey",
+        "thanks",
+        "thank you",
+        "你好",
+        "您好",
+        "在吗",
+        "早上好",
+        "晚上好",
+        "早安",
+        "晚安",
+        "再见",
+        "bye",
+        "goodbye",
+        "who are you",
+        "你是谁",
+    }
+)
+
 
 @dataclass(frozen=True)
 class SpecialtyRoutingResult:
@@ -179,6 +207,7 @@ class SpecialtyRoutingResult:
     specialty: TaskSpecialty
     model_cfg: LLMConfig
     fallback_model_cfg: LLMConfig | None = None
+    fallback_chain: tuple[LLMConfig, ...] = ()
     confidence: float = 1.0
     reason: str = "default"
 
@@ -193,7 +222,7 @@ def _normalize_specialty_query(query: str | list[dict[str, object]]) -> tuple[st
     for part in query:
         if not isinstance(part, dict):
             continue
-        ptype = part.get("type", "")
+        ptype = str(part.get("type", ""))
         if ptype == "text" and "text" in part:
             texts.append(str(part["text"]))
         elif ptype in ("image_url", "video_url", "image", "video", "audio", "file"):
@@ -202,12 +231,33 @@ def _normalize_specialty_query(query: str | list[dict[str, object]]) -> tuple[st
     return " ".join(texts), has_media
 
 
+def _apply_specialty_momentum(
+    raw_specialty: TaskSpecialty,
+    clean_text: str,
+    recent_specialties: list[TaskSpecialty] | None,
+) -> tuple[TaskSpecialty, str | None]:
+    """Apply session momentum to short follow-ups in continuous dialog."""
+    if not recent_specialties or len(clean_text) >= _MOMENTUM_SHORT_THRESHOLD:
+        return raw_specialty, None
+
+    # Only inherit if raw classification was ambiguous or casual/general
+    if raw_specialty in (TaskSpecialty.GENERAL, TaskSpecialty.CASUAL):
+        # Look back up to 3 turns for strong technical specialty
+        for prev in reversed(recent_specialties[-3:]):
+            if prev in (TaskSpecialty.CODE, TaskSpecialty.REASONING, TaskSpecialty.LONG_DOC):
+                return prev, f"momentum_inherited({prev.value})"
+
+    return raw_specialty, None
+
+
 def classify_task_specialty(
     query: str | list[dict[str, object]],
     *,
+    recent_specialties: list[TaskSpecialty] | None = None,
     code_keywords: frozenset[str] | None = None,
     long_doc_keywords: frozenset[str] | None = None,
     reasoning_keywords: frozenset[str] | None = None,
+    casual_indicators: frozenset[str] | None = None,
     long_doc_char_threshold: int = LONG_DOC_CHAR_THRESHOLD,
 ) -> tuple[TaskSpecialty, float, str]:
     """Classify the task into a primary domain specialty with confidence and reason.
@@ -217,7 +267,9 @@ def classify_task_specialty(
     2. Large character/token scale or explicit whole-doc keywords -> LONG_DOC
     3. Formal math notation / theorem proof keywords -> REASONING
     4. Code fences, traceback, programming keywords -> CODE
-    5. Fallback -> GENERAL
+    5. Casual greetings / light chat indicators -> CASUAL
+    6. Session Momentum -> Inherit previous technical specialty if short follow-up
+    7. Fallback -> GENERAL
 
     Returns:
         tuple[TaskSpecialty, confidence, reason]
@@ -270,11 +322,44 @@ def classify_task_specialty(
     if code_match_count >= 2:
         return TaskSpecialty.CODE, 0.85, f"multiple_code_keywords({code_match_count})"
     elif code_match_count == 1:
-        # Single code keyword with programming-oriented question verbs
+        # Single code keyword with programming-oriented action verbs
         if any(v in lower_text for v in ("write", "create", "build", "refactor", "fix", "编写", "修改", "生成", "写一个")):
             return TaskSpecialty.CODE, 0.80, "code_action_intent"
 
+    # Check for Casual Greetings / Light Chat
+    cs_kw = casual_indicators or DEFAULT_CASUAL_INDICATORS
+    if text_len < _MOMENTUM_SHORT_THRESHOLD and any(ind in lower_text for ind in cs_kw):
+        return TaskSpecialty.CASUAL, 0.90, "casual_indicator_match"
+
+    # Check Multi-turn Session Momentum
+    momentum_specialty, momentum_reason = _apply_specialty_momentum(
+        TaskSpecialty.GENERAL, clean_text, recent_specialties
+    )
+    if momentum_reason:
+        return momentum_specialty, 0.80, momentum_reason
+
     return TaskSpecialty.GENERAL, 0.70, "general_default"
+
+
+def _build_fallback_chain(
+    primary: LLMConfig,
+    specialty_fallback: LLMConfig | None,
+    default_primary: LLMConfig,
+    default_fallback: LLMConfig | None,
+) -> tuple[LLMConfig, ...]:
+    """Build a deduplicated four-tier fallback chain for robust recovery."""
+    candidates: list[LLMConfig] = []
+    seen: set[tuple[str, str | None]] = set()
+
+    for item in (primary, specialty_fallback, default_primary, default_fallback):
+        if item is None:
+            continue
+        key = (item.model, getattr(item, "api_base", None))
+        if key not in seen:
+            seen.add(key)
+            candidates.append(item)
+
+    return tuple(candidates)
 
 
 async def route_task_specialty(
@@ -283,12 +368,15 @@ async def route_task_specialty(
     specialty_model_slots: dict[TaskSpecialty, LLMConfig] | None = None,
     specialty_fallback_slots: dict[TaskSpecialty, LLMConfig] | None = None,
     default_fallback_cfg: LLMConfig | None = None,
+    recent_specialties: list[TaskSpecialty] | None = None,
     *,
     code_keywords: frozenset[str] | None = None,
     long_doc_keywords: frozenset[str] | None = None,
     reasoning_keywords: frozenset[str] | None = None,
+    casual_indicators: frozenset[str] | None = None,
+    long_doc_char_threshold: int = LONG_DOC_CHAR_THRESHOLD,
 ) -> SpecialtyRoutingResult:
-    """Route a task to the appropriate specialized model slot or default.
+    """Route a task to the appropriate specialized model slot or default with 4-tier fallback chain.
 
     Args:
         query: User input query
@@ -296,29 +384,35 @@ async def route_task_specialty(
         specialty_model_slots: Optional map of specialty slots configured by user
         specialty_fallback_slots: Optional map of fallback configs per specialty
         default_fallback_cfg: Fallback for default model
+        recent_specialties: Optional list of recent turn specialties for momentum
         code_keywords: Optional custom code keywords
         long_doc_keywords: Optional custom long doc keywords
         reasoning_keywords: Optional custom reasoning keywords
+        casual_indicators: Optional custom casual indicators
+        long_doc_char_threshold: Character threshold for long document specialty
 
     Returns:
-        SpecialtyRoutingResult containing the chosen specialty and resolved LLMConfigs
+        SpecialtyRoutingResult containing the chosen specialty, resolved LLMConfigs, and 4-tier fallback chain
     """
     specialty, confidence, reason = classify_task_specialty(
         query,
+        recent_specialties=recent_specialties,
         code_keywords=code_keywords,
         long_doc_keywords=long_doc_keywords,
         reasoning_keywords=reasoning_keywords,
+        casual_indicators=casual_indicators,
+        long_doc_char_threshold=long_doc_char_threshold,
     )
 
     slots = specialty_model_slots or {}
     fallback_slots = specialty_fallback_slots or {}
 
     selected_cfg = slots.get(specialty)
-    fallback_cfg = fallback_slots.get(specialty)
+    specialty_fallback_cfg = fallback_slots.get(specialty)
 
     if selected_cfg is not None:
         final_cfg = selected_cfg
-        final_fallback = fallback_cfg or default_fallback_cfg
+        final_fallback = specialty_fallback_cfg or default_fallback_cfg
         final_reason = f"specialty_slot_hit({specialty.value}:{reason})"
     else:
         # Smooth degradation: fall back to default model config
@@ -326,18 +420,27 @@ async def route_task_specialty(
         final_fallback = default_fallback_cfg
         final_reason = f"specialty_slot_unconfigured_fallback({specialty.value}:{reason})"
 
+    fallback_chain = _build_fallback_chain(
+        primary=final_cfg,
+        specialty_fallback=specialty_fallback_cfg,
+        default_primary=default_model_cfg,
+        default_fallback=default_fallback_cfg,
+    )
+
     logger.info(
-        "Specialty routing decision: specialty=%s model=%s reason=%s confidence=%.2f",
+        "Specialty routing decision: specialty=%s model=%s reason=%s confidence=%.2f chain_length=%d",
         specialty.value,
         final_cfg.model,
         final_reason,
         confidence,
+        len(fallback_chain),
     )
 
     return SpecialtyRoutingResult(
         specialty=specialty,
         model_cfg=final_cfg,
         fallback_model_cfg=final_fallback,
+        fallback_chain=fallback_chain,
         confidence=confidence,
         reason=final_reason,
     )
