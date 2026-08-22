@@ -171,6 +171,60 @@ async def test_query_osv_batch_network_failure_fallback() -> None:
         assert findings == []
 
 
+def test_is_version_affected_branches() -> None:
+    from myrm_agent_harness.backends.skills.scanning.security_advisories import _is_version_affected
+    assert _is_version_affected("1.0.0", []) is False
+    assert _is_version_affected("1.0.0", ("*",)) is True
+    assert _is_version_affected("", ("1.0.0",)) is True
+    assert _is_version_affected("1.0.0.1", ("1.0.0",)) is True
+
+
+def test_advisory_finding_fields() -> None:
+    f = AdvisoryFinding(
+        advisory_id="TEST-1",
+        package_name="test-pkg",
+        ecosystem="npm",
+        severity=ScanSeverity.CRITICAL,
+        title="Title",
+        description="Desc",
+        matched_version="1.0.0",
+    )
+    assert f.advisory_id == "TEST-1"
+    assert f.is_acked is False
+
+
+@pytest.mark.asyncio
+async def test_query_osv_batch_batching_and_ranges() -> None:
+    cache = VulnScanCache()
+    deps = [
+        DeclaredDependency(name="pkg-1", version_spec="^1.0.0", ecosystem="npm"),
+        DeclaredDependency(name="pkg-2", version_spec=">=2.0.0", ecosystem="PyPI"),
+    ]
+
+    mock_response = AsyncMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = MagicMock(
+        return_value={
+            "results": [
+                {"vulns": []},
+                {"vulns": [{"id": "GHSA-RANGE", "details": "Range vuln", "severity": [{"score": "7.5"}]}]},
+            ]
+        }
+    )
+
+    with patch("myrm_agent_harness.backends.skills.scanning.osv_scanner.create_httpx_client") as mock_client_cls:
+        client_instance = AsyncMock()
+        client_instance.__aenter__.return_value = client_instance
+        client_instance.__aexit__.return_value = None
+        client_instance.post = AsyncMock(return_value=mock_response)
+        mock_client_cls.return_value = client_instance
+
+        findings = await query_osv_batch(deps, cache=cache)
+        assert len(findings) == 1
+        assert findings[0].advisory_id == "GHSA-RANGE"
+        assert findings[0].severity == ScanSeverity.HIGH
+
+
 def test_vuln_cache_default_singleton() -> None:
     from myrm_agent_harness.backends.skills.scanning.vuln_cache import get_vuln_cache
     c = get_vuln_cache()
