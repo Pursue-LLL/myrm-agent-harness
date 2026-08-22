@@ -78,6 +78,25 @@ class TestValidateMcpApprovalIdentityScope:
             permission_type="shell_exec",
         ) is True
 
+        # Non-MCP tools with entry_agent_id set check strict match
+        assert validate_mcp_approval_identity_scope(
+            entry_agent_id="agent_x",
+            current_agent_id="agent_x",
+            permission_type="shell_exec",
+        ) is True
+        assert validate_mcp_approval_identity_scope(
+            entry_agent_id="agent_x",
+            current_agent_id="agent_y",
+            permission_type="shell_exec",
+        ) is False
+
+        # MCP tool with entry_agent_id=None allows global
+        assert validate_mcp_approval_identity_scope(
+            entry_agent_id=None,
+            current_agent_id="agent_any",
+            permission_type="mcp_invoke",
+        ) is True
+
 
 @pytest.mark.asyncio
 class TestConfusedDeputyAdversarialScenarios:

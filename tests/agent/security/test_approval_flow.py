@@ -131,3 +131,47 @@ class TestAllowlist:
             "mcp__weather__get_temp",
             agent_id="untrusted_browser_agent",
         ) is True
+
+    @pytest.mark.asyncio
+    async def test_exact_hash_match_and_clear_user(self, allowlist: Allowlist) -> None:
+        entry = AllowlistEntry(
+            permission="code_interpreter",
+            tool_name="bash_code_execute_tool",
+            tool_args_hash="hash_12345",
+        )
+        await allowlist.add("user1", entry)
+        assert allowlist.check("user1", "code_interpreter", "bash_code_execute_tool", "hash_12345") is True
+        assert allowlist.check("user1", "code_interpreter", "bash_code_execute_tool", "wrong_hash") is False
+
+        cleared_count = await allowlist.clear_user("user1")
+        assert cleared_count == 1
+        assert allowlist.check("user1", "code_interpreter", "bash_code_execute_tool", "hash_12345") is False
+
+    @pytest.mark.asyncio
+    async def test_store_persistence_and_ttl(self) -> None:
+        class InMemoryStore:
+            def __init__(self):
+                self.entries = {}
+
+            async def load(self, user_id: str):
+                return self.entries.get(user_id, [])
+
+            async def save(self, user_id: str, entry: AllowlistEntry):
+                self.entries.setdefault(user_id, []).append(entry)
+
+            async def remove(self, user_id: str, permission: str, tool_name=None, tool_args_hash=None, command_pattern=None, agent_id=None):
+                if user_id in self.entries:
+                    self.entries[user_id] = [
+                        e for e in self.entries[user_id]
+                        if not (e.permission == permission and (tool_name is None or e.tool_name == tool_name))
+                    ]
+
+        store = InMemoryStore()
+        al = Allowlist(store=store, ttl_seconds=1.0)
+        await al.add("user1", AllowlistEntry(permission="file_read"))
+        assert al.check("user1", "file_read") is True
+
+        # Test load_user
+        al2 = Allowlist(store=store, ttl_seconds=1.0)
+        await al2.load_user("user1")
+        assert al2.check("user1", "file_read") is True

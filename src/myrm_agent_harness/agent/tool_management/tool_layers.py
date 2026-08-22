@@ -132,12 +132,10 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "delegate_task_tool": ToolLayer.EXTENDED,
     "subagent_control_tool": ToolLayer.EXTENDED,
     "send_teammate_message_tool": ToolLayer.EXTENDED,
-    # --- Wiki 知识库 ---
+    # --- Wiki 知识库 (Agent 面向仅 ingest / query / apply) ---
     "wiki_ingest_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,
     "wiki_apply_tool": ToolLayer.EXTENDED,
-    "wiki_compile_tool": ToolLayer.EXTENDED,
-    "wiki_maintain_tool": ToolLayer.EXTENDED,
     # --- PDF 模板导出工具 ---
     "list_pdf_templates": ToolLayer.EXTENDED,
     "get_pdf_template_schema": ToolLayer.EXTENDED,

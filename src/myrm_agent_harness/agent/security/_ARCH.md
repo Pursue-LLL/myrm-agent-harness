@@ -17,6 +17,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 | __init__.py | Package | Agent security subsystem — 6-layer onion defense architecture. | — |
 | approval_flow.py | Core | Persistent allow-always allowlist (permission/tool/exact/pattern matching + DB TTL cache). | ✅ |
 | command_allowlist_pattern.py | Core | Shell command glob derivation, compound-operator guard, parity vectors (`DERIVE_PATTERN_PARITY_VECTORS`). | ✅ |
+| mcp_approval_identity.py | Core | Hosted MCP Approval Identity Scope and Scope Isolation. Prevents Confused Deputy attacks across subagents and sessions. | ✅ |
 | audit.py | Core | Cross-cutting concern. Called from tool_interceptor_middleware and all | ✅ |
 | channel_presets.py | Core | Decouples channel-specific security policy from the generic Permission Engine; merges user/agent flags. | ✅ |
 | checks.py | Core | Built-in security checks — Layer 2 & 2.5. Path policy, URL scheme validation, shell threat analysis. Pure functions returning (action, reason) tuples. | ✅ |

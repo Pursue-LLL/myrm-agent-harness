@@ -157,7 +157,7 @@ class WikiQueryConfig:
     min_query_quality_score: float = 0.7
     max_context_articles: int = 5
     max_full_articles: int = 3
-    max_context_chars: int = 12_000
+    max_context_chars: int = 4_800  # Token-safe hard cap (~1200 tokens across multilingual and code context)
     sidecar_retrieval_enabled: bool = True
     max_sidecar_directories: int = 3
     index_first_enabled: bool = True
