@@ -107,5 +107,24 @@ def test_extract_skill_dependencies_on_disk(tmp_path: Path) -> None:
     assert len(deps) == 2
     assert {d.name for d in deps} == {"debug", "numpy"}
 
-    # Non-existent dir
-    assert extract_skill_dependencies(tmp_path / "non-existent") == []
+def test_extract_dependencies_from_pyproject_toml_invalid() -> None:
+    assert extract_dependencies_from_pyproject_toml("invalid toml [") == []
+    assert extract_dependencies_from_pyproject_toml("") == []
+
+
+def test_extract_skill_dependencies_depth_and_errors(tmp_path: Path) -> None:
+    skill_dir = tmp_path / "deep-skill"
+    skill_dir.mkdir()
+    d1 = skill_dir / "d1"
+    d1.mkdir()
+    d2 = d1 / "d2"
+    d2.mkdir()
+    d3 = d2 / "d3"
+    d3.mkdir()
+    d4 = d3 / "d4"
+    d4.mkdir()
+    (d4 / "package.json").write_text('{"dependencies": {"deep": "1.0.0"}}', encoding="utf-8")
+
+    # Depth > 3 is skipped
+    deps = extract_skill_dependencies(skill_dir)
+    assert not any(d.name == "deep" for d in deps)

@@ -18,11 +18,19 @@ from myrm_agent_harness.agent.security.managed_approval_policy import (
     get_process_managed_approval_revision,
     load_managed_approval_policy_from_env,
 )
+from myrm_agent_harness.utils.url_utils import (
+    clear_dynamic_blocked_hostnames,
+    register_blocked_hostnames,
+    unregister_blocked_hostnames,
+)
 
 __all__ = [
     "ManagedApprovalPolicy",
+    "clear_dynamic_blocked_hostnames",
     "configure_process_managed_approval_policy",
     "get_process_managed_approval_policy",
     "get_process_managed_approval_revision",
     "load_managed_approval_policy_from_env",
+    "register_blocked_hostnames",
+    "unregister_blocked_hostnames",
 ]

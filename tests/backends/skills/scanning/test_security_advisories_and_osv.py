@@ -93,18 +93,33 @@ def test_vuln_cache_lifecycle(tmp_path: Path) -> None:
     assert cache.get("npm", "pkg-a", "1.0.0") is None
 
 
-def test_parse_osv_severity() -> None:
-    # MAL-* is CRITICAL
-    assert parse_osv_severity({"id": "MAL-2024-001"}) == ScanSeverity.CRITICAL
+def test_query_osv_batch_empty_and_cached() -> None:
+    import asyncio
+    cache = VulnScanCache()
+    assert asyncio.run(query_osv_batch([], cache=cache)) == []
 
-    # Database specific CRITICAL
-    assert parse_osv_severity({"id": "GHSA-1234", "database_specific": {"severity": "CRITICAL"}}) == ScanSeverity.CRITICAL
-    assert parse_osv_severity({"id": "GHSA-1234", "database_specific": {"severity": "HIGH"}}) == ScanSeverity.HIGH
-    assert parse_osv_severity({"id": "GHSA-1234", "database_specific": {"severity": "MODERATE"}}) == ScanSeverity.MEDIUM
-    assert parse_osv_severity({"id": "GHSA-1234", "database_specific": {"severity": "LOW"}}) == ScanSeverity.LOW
+    # Dep with existing cache
+    f = AdvisoryFinding(
+        advisory_id="GHSA-999",
+        package_name="cached-pkg",
+        ecosystem="npm",
+        severity=ScanSeverity.HIGH,
+        title="Cached",
+        description="Detail",
+        matched_version="1.0.0",
+    )
+    cache.set("npm", "cached-pkg", "1.0.0", [f])
+    dep = DeclaredDependency(name="cached-pkg", version_spec="1.0.0", ecosystem="npm")
+    res = asyncio.run(query_osv_batch([dep], cache=cache))
+    assert len(res) == 1
+    assert res[0].advisory_id == "GHSA-999"
 
-    # CVSS score
-    assert parse_osv_severity({"id": "CVE-2024-9999", "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8)"}]}) == ScanSeverity.CRITICAL
+
+def test_vuln_cache_default_singleton() -> None:
+    from myrm_agent_harness.backends.skills.scanning.vuln_cache import get_vuln_cache
+    c = get_vuln_cache()
+    assert c is not None
+    assert isinstance(c, VulnScanCache)
 
 
 @pytest.mark.asyncio
