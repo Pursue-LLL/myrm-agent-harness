@@ -98,7 +98,7 @@ def _load_header_baseline(path: Path) -> frozenset[str]:
 
 
 def _rel_package_path(package_root: Path, py_file: Path) -> str:
-    return str(py_file.relative_to(package_root.parent)).replace("\\", "/")
+    return str(py_file.resolve().relative_to(package_root.resolve().parent)).replace("\\", "/")
 
 
 def _arch_has_stub(content: str) -> bool:

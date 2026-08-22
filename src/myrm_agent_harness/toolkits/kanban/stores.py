@@ -20,7 +20,11 @@ import copy
 import uuid
 from datetime import UTC, datetime
 
-from myrm_agent_harness.toolkits.kanban.protocols import KanbanStore
+from myrm_agent_harness.toolkits.kanban.protocols import (
+    KanbanStore,
+    PlanRevisionOutcome,
+    PlanRevisionSpec,
+)
 from myrm_agent_harness.toolkits.kanban.types import (
     _PRIORITY_ORDER,
     _TERMINAL_STATUSES,
@@ -31,6 +35,7 @@ from myrm_agent_harness.toolkits.kanban.types import (
     TaskEdge,
     TaskEvent,
     TaskEventKind,
+    TaskPriority,
     TaskRun,
     TaskRunOutcome,
     TaskStatus,
@@ -208,6 +213,156 @@ class InMemoryKanbanStore(KanbanStore):
             if parent is None or parent.status not in _TERMINAL_STATUSES:
                 return False
         return True
+
+    async def revise_plan(self, spec: PlanRevisionSpec) -> PlanRevisionOutcome:
+        """Atomically apply plan revision in-memory with cycle & completed-task protection."""
+        # 1. Validate completed task immutability
+        for item in spec.task_changes:
+            if item.action in ("remove", "update") and item.task_id:
+                existing = self._tasks.get(item.task_id)
+                if existing and existing.status in (TaskStatus.COMPLETED, TaskStatus.IN_REVIEW):
+                    return PlanRevisionOutcome(
+                        ok=False,
+                        board_id=spec.board_id,
+                        reason=f"Cannot modify task {item.task_id} in {existing.status.value} status",
+                    )
+
+        # 2. Build shadow edges and test for cycles
+        shadow_edges = list(self._edges)
+        for p_id, c_id in spec.remove_edges:
+            shadow_edges = [e for e in shadow_edges if not (e.parent_task_id == p_id and e.child_task_id == c_id)]
+
+        # If a task is removed, remove all incident edges
+        removed_task_ids_set = {
+            item.task_id for item in spec.task_changes if item.action == "remove" and item.task_id
+        }
+        if removed_task_ids_set:
+            shadow_edges = [
+                e
+                for e in shadow_edges
+                if e.parent_task_id not in removed_task_ids_set and e.child_task_id not in removed_task_ids_set
+            ]
+
+        # Add proposed edges
+        for p_id, c_id in spec.add_edges:
+            if (p_id, c_id) not in [(e.parent_task_id, e.child_task_id) for e in shadow_edges]:
+                shadow_edges.append(TaskEdge(parent_task_id=p_id, child_task_id=c_id))
+
+        # Check cycle on shadow edges
+        adj: dict[str, list[str]] = {}
+        for e in shadow_edges:
+            adj.setdefault(e.child_task_id, []).append(e.parent_task_id)
+
+        def _has_cycle() -> bool:
+            visited: dict[str, int] = {}  # 0=unvisited, 1=visiting, 2=visited
+            all_nodes = set(adj.keys())
+            for parents in adj.values():
+                all_nodes.update(parents)
+
+            def dfs(node: str) -> bool:
+                visited[node] = 1
+                for neighbor in adj.get(node, []):
+                    if visited.get(neighbor, 0) == 1:
+                        return True
+                    if visited.get(neighbor, 0) == 0 and dfs(neighbor):
+                        return True
+                visited[node] = 2
+                return False
+
+            for n in all_nodes:
+                if visited.get(n, 0) == 0:
+                    if dfs(n):
+                        return True
+            return False
+
+        if _has_cycle():
+            return PlanRevisionOutcome(
+                ok=False,
+                board_id=spec.board_id,
+                reason="Plan revision would create a dependency cycle",
+            )
+
+        # 3. Apply changes atomically
+        added_tids: list[str] = []
+        updated_tids: list[str] = []
+        removed_tids: list[str] = []
+
+        for item in spec.task_changes:
+            if item.action == "add":
+                tid = item.task_id or uuid.uuid4().hex[:12]
+                try:
+                    prio = TaskPriority(item.priority)
+                except ValueError:
+                    prio = TaskPriority.NORMAL
+                deps = list(item.depends_on)
+                initial_status = TaskStatus.BACKLOG if deps else TaskStatus.READY
+                new_task = KanbanTask(
+                    task_id=tid,
+                    board_id=spec.board_id,
+                    title=item.title or "Untitled Task",
+                    description=item.description or "",
+                    status=initial_status,
+                    priority=prio,
+                    agent_id=item.agent_id,
+                    model_override=item.model_override,
+                    extra_skill_ids=list(item.extra_skill_ids),
+                )
+                self._tasks[tid] = new_task
+                added_tids.append(tid)
+                for pid in deps:
+                    shadow_edges.append(TaskEdge(parent_task_id=pid, child_task_id=tid))
+            elif item.action == "update" and item.task_id:
+                t = self._tasks.get(item.task_id)
+                if t:
+                    if item.title is not None:
+                        t.title = item.title
+                    if item.description is not None:
+                        t.description = item.description
+                    if item.agent_id is not None:
+                        t.agent_id = item.agent_id
+                    if item.model_override is not None:
+                        t.model_override = item.model_override
+                    if item.extra_skill_ids:
+                        t.extra_skill_ids = list(item.extra_skill_ids)
+                    t.updated_at = datetime.now(UTC)
+                    updated_tids.append(t.task_id)
+            elif item.action == "remove" and item.task_id:
+                t = self._tasks.get(item.task_id)
+                if t:
+                    t.status = TaskStatus.ARCHIVED
+                    t.completed_at = datetime.now(UTC)
+                    t.updated_at = datetime.now(UTC)
+                    removed_tids.append(t.task_id)
+
+        # Update edges
+        self._edges = shadow_edges
+
+        # Append audit event
+        for tid in added_tids + updated_tids + removed_tids:
+            await self.append_event(
+                tid,
+                TaskEventKind.PLAN_REVISED,
+                payload={
+                    "board_id": spec.board_id,
+                    "rationale": spec.rationale,
+                    "author": spec.author,
+                    "added_count": len(added_tids),
+                    "updated_count": len(updated_tids),
+                    "removed_count": len(removed_tids),
+                },
+            )
+
+        return PlanRevisionOutcome(
+            ok=True,
+            board_id=spec.board_id,
+            reason="applied",
+            added_task_ids=tuple(added_tids),
+            updated_task_ids=tuple(updated_tids),
+            removed_task_ids=tuple(removed_tids),
+            added_edges=tuple(spec.add_edges),
+            removed_edges=tuple(spec.remove_edges),
+            persisted=True,
+        )
 
     # -- Dispatch operations --
 

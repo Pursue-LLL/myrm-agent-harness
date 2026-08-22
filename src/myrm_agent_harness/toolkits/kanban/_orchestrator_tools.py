@@ -1,6 +1,6 @@
 """Orchestrator-scoped kanban tools — task lifecycle management.
 
-5 tools: add_task, list_tasks, unblock, cancel_task, retry_task.
+6 tools: add_task, list_tasks, unblock, cancel_task, retry_task, revise_plan.
 Board/task field edits and delete use server REST/GUI only — not LLM tools.
 
 [INPUT]
@@ -481,4 +481,109 @@ def build_orchestrator_tools(
         kanban_unblock,
         kanban_cancel_task,
         kanban_retry_task,
+        kanban_revise_plan,
+    ]
+
+    @tool("kanban_revise_plan")
+    async def kanban_revise_plan(
+        rationale: str,
+        board_id: str = "",
+        changes_json: str = "[]",
+        add_edges_json: str = "[]",
+        remove_edges_json: str = "[]",
+    ) -> str:
+        """Atomically revise the board DAG plan by adding, updating, or archiving tasks and adjusting edges.
+
+        Args:
+            rationale: Explanation of why the plan is being revised.
+            board_id: Target board (uses default if empty).
+            changes_json: JSON array of task changes, e.g. [{"action": "add", "title": "New step", "depends_on": ["task-1"]}, {"action": "remove", "task_id": "task-2"}].
+            add_edges_json: JSON array of new edges as [["parent_id", "child_id"], ...].
+            remove_edges_json: JSON array of edges to remove as [["parent_id", "child_id"], ...].
+        """
+        resolved_board_id = board_id or default_board_id or ""
+        if not resolved_board_id:
+            return json.dumps({"error": "board_id is required"})
+        if not rationale:
+            return json.dumps({"error": "rationale is required"})
+
+        from myrm_agent_harness.toolkits.kanban.protocols import (
+            PlanRevisionSpec,
+            TaskRevisionItem,
+        )
+
+        try:
+            raw_changes = json.loads(changes_json) if isinstance(changes_json, str) else changes_json
+            raw_add_edges = json.loads(add_edges_json) if isinstance(add_edges_json, str) else add_edges_json
+            raw_remove_edges = json.loads(remove_edges_json) if isinstance(remove_edges_json, str) else remove_edges_json
+        except Exception as exc:
+            return json.dumps({"error": f"Invalid JSON payload: {exc}"})
+
+        parsed_items: list[TaskRevisionItem] = []
+        for c in raw_changes:
+            if not isinstance(c, dict):
+                continue
+            action = c.get("action", "add")
+            tid = c.get("task_id")
+            title = c.get("title")
+            desc = c.get("description", "")
+            agent = c.get("agent_id") or agent_id
+            prio = c.get("priority", "normal")
+            model = c.get("model", "")
+            skills = c.get("skills", [])
+            if isinstance(skills, str):
+                skills = [s.strip() for s in skills.split(",") if s.strip()]
+            deps = c.get("depends_on", [])
+            if isinstance(deps, str):
+                deps = [d.strip() for d in deps.split(",") if d.strip()]
+            parsed_items.append(
+                TaskRevisionItem(
+                    action=action,
+                    task_id=tid,
+                    title=title,
+                    description=desc,
+                    agent_id=agent,
+                    priority=prio,
+                    extra_skill_ids=tuple(skills),
+                    model_override=model or None,
+                    depends_on=tuple(deps),
+                )
+            )
+
+        add_edges_tuples = tuple((e[0], e[1]) for e in raw_add_edges if isinstance(e, (list, tuple)) and len(e) >= 2)
+        remove_edges_tuples = tuple((e[0], e[1]) for e in raw_remove_edges if isinstance(e, (list, tuple)) and len(e) >= 2)
+
+        spec = PlanRevisionSpec(
+            board_id=resolved_board_id,
+            rationale=rationale,
+            author="orchestrator",
+            task_changes=tuple(parsed_items),
+            add_edges=add_edges_tuples,
+            remove_edges=remove_edges_tuples,
+        )
+
+        outcome = await store.revise_plan(spec)
+        if not outcome.ok:
+            return json.dumps({"status": "failed", "reason": outcome.reason})
+
+        if dispatcher:
+            dispatcher.wake()
+
+        return json.dumps(
+            {
+                "status": "applied",
+                "added_task_ids": list(outcome.added_task_ids),
+                "updated_task_ids": list(outcome.updated_task_ids),
+                "removed_task_ids": list(outcome.removed_task_ids),
+                "persisted": outcome.persisted,
+            }
+        )
+
+    return [
+        kanban_add_task,
+        kanban_list_tasks,
+        kanban_unblock,
+        kanban_cancel_task,
+        kanban_retry_task,
+        kanban_revise_plan,
     ]

@@ -137,11 +137,13 @@ class StreamRecoveryMixin(
         self._ctx.agent = rebuild_fn(new_llm)
 
     async def _handle_overflow(self, exc: Exception, retries: int) -> bool:
-        """Progressive overflow recovery. Returns True to retry.
+        """Progressive overflow recovery using full structured compaction pipeline.
 
-        Stage 1 (retries==0): compress tool-call outputs via _emergency_compact.
-          Falls through to Stage 2 immediately if no tokens were freed.
-        Stage 2 (retries==1 or Stage 1 saved=0): drop oldest API-round groups
+        Tier 1 (retries==0): attempt full structured summary compaction with entity
+          audit and physical execution state reconciliation via generate_structured_summary.
+        Tier 2 (fallback if Tier 1 yields 0 savings or errors): emergency tool-output compaction
+          via _emergency_compact.
+        Tier 3 (retries==1 or Tier 2 saved==0): drop oldest API-round groups
           via _truncate_oldest_rounds.
         """
         if not is_context_overflow(exc):
@@ -160,13 +162,53 @@ class StreamRecoveryMixin(
         messages_dict = ctx.agent_input
         messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
 
+        saved = 0
+        step_key = "context_compaction"
+
         if retries == 0:
-            saved = await _emergency_compact(messages)
+            # Tier 1: Full structured summary compaction
+            llm = ctx.llm or getattr(self, "_fallback_llm", None)
+            if llm is not None:
+                try:
+                    from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
+                        generate_structured_summary,
+                    )
+                    from myrm_agent_harness.utils.token_estimation import (
+                        estimate_messages_tokens,
+                    )
+
+                    orig_tokens = estimate_messages_tokens(messages)
+                    chat_id = getattr(ctx, "message_id", None)
+                    new_messages, _ = await generate_structured_summary(
+                        messages=messages,
+                        llm=llm,
+                        chat_id=chat_id,
+                    )
+                    new_tokens = estimate_messages_tokens(new_messages)
+                    if orig_tokens - new_tokens > 0:
+                        saved = orig_tokens - new_tokens
+                        messages.clear()
+                        messages.extend(new_messages)
+                        logger.warning(
+                            " Context overflow Tier 1 structured summary succeeded: freed %d tokens",
+                            saved,
+                        )
+                except Exception as e:
+                    logger.warning(" Context overflow Tier 1 structured summary failed: %s", e)
+
+            # Tier 2: Tool emergency compaction fallback
+            if saved == 0:
+                saved = await _emergency_compact(messages)
+                if saved > 0:
+                    logger.warning(
+                        " Context overflow Tier 2 emergency tool compaction succeeded: freed %d tokens",
+                        saved,
+                    )
+
+            # Tier 3: Oldest rounds truncation
             if saved == 0:
                 saved = _truncate_oldest_rounds(messages)
                 step_key = "context_truncation"
-            else:
-                step_key = "context_compaction"
         else:
             saved = _truncate_oldest_rounds(messages)
             step_key = "context_truncation"

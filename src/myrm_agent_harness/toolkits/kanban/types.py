@@ -484,6 +484,7 @@ class TaskEventKind(StrEnum):
     REVIEW_REQUESTED = "review_requested"
     APPROVED = "approved"
     REJECTED = "rejected"
+    PLAN_REVISED = "plan_revised"
 
 
 @dataclass(frozen=True)

@@ -145,6 +145,14 @@ class KanbanStore(Protocol):
         """True when all parent tasks are in a terminal status (COMPLETED/FAILED/ARCHIVED)."""
         ...
 
+    async def revise_plan(self, spec: PlanRevisionSpec) -> PlanRevisionOutcome:
+        """Atomically revise the board plan (batch task mutations and edge re-wiring).
+
+        Enforces completed-task immutability, DAG cycle prevention, and records
+        a TaskEventKind.PLAN_REVISED audit event.
+        """
+        ...
+
     # -- Dispatch operations --
 
     async def claim_task(self, task_id: str, worker_id: str) -> bool:
@@ -458,3 +466,74 @@ class TaskDecomposer(Protocol):
             DecomposeOutcome — never raises for expected failure modes.
         """
         ...
+
+
+# ---------------------------------------------------------------------------
+# TaskReplanner — DAG Revision contract
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class TaskRevisionItem:
+    """One task mutation proposed in a plan revision pass."""
+
+    action: str  # "add" | "update" | "remove"
+    task_id: str | None = None
+    title: str | None = None
+    description: str | None = None
+    agent_id: str | None = None
+    priority: str = "normal"
+    extra_skill_ids: tuple[str, ...] = ()
+    model_override: str | None = None
+    depends_on: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class PlanRevisionSpec:
+    """Complete specification of a batch plan revision."""
+
+    board_id: str
+    rationale: str = ""
+    author: str = "replanner"
+    task_changes: tuple[TaskRevisionItem, ...] = ()
+    remove_edges: tuple[tuple[str, str], ...] = ()
+    add_edges: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class PlanRevisionOutcome:
+    """Result of a plan revision pass (dry-run preview or persisted)."""
+
+    ok: bool
+    board_id: str
+    reason: str = ""
+    added_task_ids: tuple[str, ...] = ()
+    updated_task_ids: tuple[str, ...] = ()
+    removed_task_ids: tuple[str, ...] = ()
+    added_edges: tuple[tuple[str, str], ...] = ()
+    removed_edges: tuple[tuple[str, str], ...] = ()
+    persisted: bool = False
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+
+
+@runtime_checkable
+class TaskReplanner(Protocol):
+    """Revises a board's active task DAG via LLM.
+
+    The replanner examines existing completed tasks and remaining active
+    tasks, producing an updated DAG while respecting completed work immutability.
+    """
+
+    async def replan(
+        self,
+        board: KanbanBoard,
+        tasks: list[KanbanTask],
+        edges: list[TaskEdge],
+        *,
+        goal_or_feedback: str = "",
+        roster: list[dict[str, str]] | None = None,
+    ) -> PlanRevisionOutcome:
+        """Produce a plan revision proposal for the given board state."""
+        ...
+

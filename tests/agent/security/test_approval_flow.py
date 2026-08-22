@@ -77,3 +77,57 @@ class TestAllowlist:
             "any_hash",
             command="curl -sS http://127.0.0.1:9/probe && rm -rf /",
         )
+
+    @pytest.mark.asyncio
+    async def test_agent_scope_isolation_prevents_cross_agent_escalation(self, allowlist: Allowlist) -> None:
+        # Agent A receives allowlist permission for hosted MCP tool
+        entry_a = AllowlistEntry(
+            permission="mcp_invoke",
+            tool_name="mcp__github__create_issue",
+            agent_id="developer_subagent",
+        )
+        await allowlist.add("user1", entry_a)
+
+        # Developer subagent can execute
+        assert allowlist.check(
+            "user1",
+            "mcp_invoke",
+            "mcp__github__create_issue",
+            agent_id="developer_subagent",
+        ) is True
+
+        # Malicious/untrusted agent B cannot hijack permission (Confused Deputy defense)
+        assert allowlist.check(
+            "user1",
+            "mcp_invoke",
+            "mcp__github__create_issue",
+            agent_id="untrusted_browser_agent",
+        ) is False
+
+        # Global check without agent_id fails against scoped entry
+        assert allowlist.check(
+            "user1",
+            "mcp_invoke",
+            "mcp__github__create_issue",
+            agent_id=None,
+        ) is False
+
+        # Global legacy entry (agent_id=None) matches any agent
+        entry_global = AllowlistEntry(
+            permission="mcp_invoke",
+            tool_name="mcp__weather__get_temp",
+            agent_id=None,
+        )
+        await allowlist.add("user1", entry_global)
+        assert allowlist.check(
+            "user1",
+            "mcp_invoke",
+            "mcp__weather__get_temp",
+            agent_id="developer_subagent",
+        ) is True
+        assert allowlist.check(
+            "user1",
+            "mcp_invoke",
+            "mcp__weather__get_temp",
+            agent_id="untrusted_browser_agent",
+        ) is True

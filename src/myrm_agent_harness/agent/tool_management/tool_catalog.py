@@ -2,12 +2,15 @@
 
 [INPUT]
 - .tool_layers::ToolLayer (POS: CORE/COMMON/EXTENDED/EXTERNAL priority)
+- .env_dependency::get_tool_env_dependencies, probe_tool_env_health (POS: Tool runtime environment requirements)
 - core.security.tool_registry::TOOL_TO_GROUP (POS: harness tool group SSOT)
 - meta_tools.discover_capability.capability_gap::BUILTIN_TOOL_ID_TO_GROUP (POS: GUI togglable product ID → group)
 
 [OUTPUT]
 - get_tool_load_condition(): human-readable load gate
 - get_tool_product_id(): enabled_builtin_tools ID when applicable
+- get_tool_env_profile(): get declared environment dependencies
+- probe_tool_runtime_health(): probe whether tool dependencies are satisfied
 - validate_tool_catalog(): consistency checks for Action Tool names in _TOOL_LAYERS
 - validate_layer_product_consistency(): COMMON/CORE layer vs product default-on SSOT
 - build_tool_catalog_rows(): sorted rows for doc generation
@@ -24,6 +27,12 @@ from enum import StrEnum
 
 from myrm_agent_harness.agent.meta_tools.discover_capability.capability_gap import (
     BUILTIN_TOOL_ID_TO_GROUP,
+)
+from myrm_agent_harness.agent.tool_management.env_dependency import (
+    ToolEnvDependencyProfile,
+    ToolEnvHealthReport,
+    get_tool_env_dependencies,
+    probe_tool_env_health,
 )
 from myrm_agent_harness.agent.tool_management.tool_layers import (
     ToolLayer,
@@ -137,6 +146,16 @@ class ToolCatalogRow:
 def get_tool_catalog_role(tool_name: str) -> ToolCatalogRole:
     """Return catalog role; Action Tools are always user_capability."""
     return ToolCatalogRole.USER_CAPABILITY
+
+
+def get_tool_env_profile(tool_name: str) -> ToolEnvDependencyProfile:
+    """Return declared environmental dependencies for an Action Tool."""
+    return get_tool_env_dependencies(tool_name)
+
+
+def probe_tool_runtime_health(tool_name: str) -> ToolEnvHealthReport:
+    """Probe live environment satisfaction for an Action Tool."""
+    return probe_tool_env_health(tool_name)
 
 
 def get_tool_product_id(tool_name: str) -> str | None:

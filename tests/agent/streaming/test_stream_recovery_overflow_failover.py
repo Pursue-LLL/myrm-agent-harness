@@ -117,8 +117,44 @@ async def test_overflow_retries_exhausted(ctx):
 
 
 @pytest.mark.asyncio
+async def test_overflow_stage1_structured_summary_success(ctx):
+    """Tier 1 (retries=0): calls generate_structured_summary when llm is present."""
+    from langchain_core.messages import AIMessage, HumanMessage
+    from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
+
+    ctx.llm = MagicMock()
+    ctx.agent_input = {"messages": [HumanMessage(content="A" * 1000)]}
+    executor = _make_executor(ctx)
+    exc = RuntimeError("context length exceeded")
+
+    mock_summary = StructuredSummary(user_goal="Test Goal")
+    compacted_msgs = [HumanMessage(content="Compacted short")]
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.streaming.recovery.stream_recovery.is_context_overflow",
+            return_value=True,
+        ),
+        patch(
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.generate_structured_summary",
+            new_callable=AsyncMock,
+            return_value=(compacted_msgs, mock_summary),
+        ) as summary_mock,
+    ):
+        result = await executor._handle_overflow(exc, 0)
+
+    assert result is True
+    summary_mock.assert_called_once()
+    assert ctx.agent_input["messages"] == compacted_msgs
+    events = executor._compactor.events
+    status_events = [e for e in events if isinstance(e, dict) and e.get("step_key") == "context_compaction"]
+    assert len(status_events) == 1
+    assert status_events[0]["restart"] is True
+
+
+@pytest.mark.asyncio
 async def test_overflow_stage1_compact(ctx):
-    """Stage 1 (retries=0): calls _emergency_compact."""
+    """Tier 2 fallback: calls _emergency_compact when Tier 1 is skipped/yields 0."""
     executor = _make_executor(ctx)
     exc = RuntimeError("context length exceeded")
 

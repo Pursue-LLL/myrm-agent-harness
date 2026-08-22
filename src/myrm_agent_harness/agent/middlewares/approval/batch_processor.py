@@ -252,11 +252,13 @@ async def evaluate_tool_batch(
         # Allowlist check: if still ASK, check if the tool is in user's allowlist
         if action == PermissionAction.ASK:
             from myrm_agent_harness.agent.middlewares._session_context import (
+                get_agent_id,
                 get_approval_user_id,
             )
 
             allowlist = get_allowlist()
             user_id = get_approval_user_id() or DEFAULT_USER_ID
+            current_agent_id = get_agent_id() or None
             await allowlist.load_user(user_id)
             effective_tool_name = extra_ctx.get("ptc_tool_name_full", tool_name) if extra_ctx else tool_name
             args_hash = args_hashes.get(idx)
@@ -271,6 +273,7 @@ async def evaluate_tool_batch(
                 effective_tool_name,
                 args_hash,
                 command=shell_command,
+                agent_id=current_agent_id,
             )
             if not map_honor_allowlist(map_policy, agent_primary_model):
                 if allowlist_would_match:

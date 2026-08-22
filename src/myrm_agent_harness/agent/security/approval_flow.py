@@ -51,12 +51,18 @@ class AllowlistEntry:
     2. Pattern match: matches tool + command glob (command_pattern set)
     3. Tool-level: matches specific tool (tool_name set, no hash/pattern)
     4. Permission-level: matches all tools of permission type (tool_name=None)
+
+    Identity Scope:
+    - agent_id: Optional agent identity scope. For hosted MCP tools (mcp_invoke / mcp__*),
+      binding agent_id guarantees that another agent cannot unintentionally inherit or hijack
+      this permission (Confused Deputy Protection).
     """
 
     permission: str
     tool_name: str | None = None
     tool_args_hash: str | None = None
     command_pattern: str | None = None
+    agent_id: str | None = None
     created_at: float = field(default_factory=time.time)
 
 
@@ -76,6 +82,7 @@ class AllowlistStore(Protocol):
         tool_name: str | None = None,
         tool_args_hash: str | None = None,
         command_pattern: str | None = None,
+        agent_id: str | None = None,
     ) -> None: ...
 
 
@@ -98,7 +105,7 @@ class Allowlist:
     """
 
     def __init__(self, store: AllowlistStore | None = None, ttl_seconds: float = 300.0) -> None:
-        self._entries: dict[str, dict[tuple[str, str | None, str | None, str | None], AllowlistEntry]] = {}
+        self._entries: dict[str, dict[tuple[str, str | None, str | None, str | None, str | None], AllowlistEntry]] = {}
         self._store = store
         self._cache_meta: dict[str, tuple[float | None, asyncio.Lock]] = {}
         self._meta_lock = asyncio.Lock()
@@ -174,7 +181,7 @@ class Allowlist:
 
             entries = await self._store.load(user_id)
             self._entries[user_id] = {
-                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern): e for e in entries
+                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern, e.agent_id): e for e in entries
             }
             self._cache_meta[user_id] = (time.time(), lock)
 
@@ -186,27 +193,37 @@ class Allowlist:
         tool_args_hash: str | None = None,
         *,
         command: str | None = None,
+        agent_id: str | None = None,
     ) -> bool:
-        """Check if the tool is in the user's allowlist.
+        """Check if the tool is in the user's allowlist with identity scope validation.
 
         Matching priority:
-        1. Exact match: (permission, tool_name, tool_args_hash) all match
-        2. Pattern match: (permission, tool_name, command_pattern) glob match
-        3. Tool-level: (permission, tool_name) match, no args_hash/pattern constraint
-        4. Permission-level: permission match, no tool constraints
+        1. Exact match: (permission, tool_name, tool_args_hash) all match + agent scope matches
+        2. Pattern match: (permission, tool_name, command_pattern) glob match + agent scope matches
+        3. Tool-level: (permission, tool_name) match, no args_hash/pattern constraint + agent scope matches
+        4. Permission-level: permission match, no tool constraints + agent scope matches
 
         Args:
             user_id: User identifier
-            permission_type: Permission type (e.g., 'code_interpreter', 'shell_exec')
+            permission_type: Permission type (e.g., 'code_interpreter', 'shell_exec', 'mcp_invoke')
             tool_name: Optional specific tool name for fine-grained matching
             tool_args_hash: Optional pre-computed hash for exact match (SHA256[:16])
             command: Optional shell command for pattern matching
+            agent_id: Optional current agent identity for hosted MCP scope isolation
         """
         user_entries = self._entries.get(user_id, {})
         if not user_entries:
             return False
 
         entries = list(user_entries.values())
+
+        # Helper to check if entry agent_id is compatible with current caller agent_id
+        def _scope_matches(entry: AllowlistEntry) -> bool:
+            if entry.agent_id:
+                return bool(agent_id and entry.agent_id.strip() == agent_id.strip())
+            # For hosted MCP tools, if entry was created with a specific agent, it won't be None.
+            # If entry has agent_id=None, it represents a global legacy entry.
+            return True
 
         for entry in entries:
             if (
@@ -215,6 +232,7 @@ class Allowlist:
                 and entry.tool_args_hash is not None
                 and entry.command_pattern is None
                 and entry.tool_args_hash == tool_args_hash
+                and _scope_matches(entry)
             ):
                 return True
 
@@ -225,6 +243,7 @@ class Allowlist:
                     and entry.tool_name == tool_name
                     and entry.command_pattern is not None
                     and matches_command_pattern(entry.command_pattern, command)
+                    and _scope_matches(entry)
                 ):
                     return True
 
@@ -234,10 +253,16 @@ class Allowlist:
                 and entry.tool_name == tool_name
                 and entry.tool_args_hash is None
                 and entry.command_pattern is None
+                and _scope_matches(entry)
             ):
                 return True
 
-        return any(entry.permission == permission_type and entry.tool_name is None for entry in entries)
+        return any(
+            entry.permission == permission_type
+            and entry.tool_name is None
+            and _scope_matches(entry)
+            for entry in entries
+        )
 
     async def add(self, user_id: str, entry: AllowlistEntry) -> None:
         """Add an allow-always entry for a user (concurrent-safe)."""
@@ -251,7 +276,7 @@ class Allowlist:
         async with lock:
             if user_id not in self._entries:
                 self._entries[user_id] = {}
-            key = (entry.permission, entry.tool_name, entry.tool_args_hash, entry.command_pattern)
+            key = (entry.permission, entry.tool_name, entry.tool_args_hash, entry.command_pattern, entry.agent_id)
 
             if key in self._entries[user_id]:
                 return
@@ -262,11 +287,12 @@ class Allowlist:
         if self._store:
             await self._store.save(user_id, entry)
         logger.info(
-            "[ALLOWLIST] Added (%s, tool=%s, args_hash=%s, pattern=%s) for user %s",
+            "[ALLOWLIST] Added (%s, tool=%s, args_hash=%s, pattern=%s, agent=%s) for user %s",
             entry.permission,
             entry.tool_name,
             entry.tool_args_hash,
             entry.command_pattern,
+            entry.agent_id,
             user_id,
         )
 
@@ -277,6 +303,7 @@ class Allowlist:
         tool_name: str | None = None,
         tool_args_hash: str | None = None,
         command_pattern: str | None = None,
+        agent_id: str | None = None,
     ) -> None:
         """Remove an allow-always entry (concurrent-safe)."""
         if user_id in self._cache_meta:
@@ -290,12 +317,13 @@ class Allowlist:
                     and (tool_name is None or entry.tool_name == tool_name)
                     and (tool_args_hash is None or entry.tool_args_hash == tool_args_hash)
                     and (command_pattern is None or entry.command_pattern == command_pattern)
+                    and (agent_id is None or entry.agent_id == agent_id)
                 ]
                 for key in keys_to_remove:
                     user_entries.pop(key, None)
 
         if self._store:
-            await self._store.remove(user_id, permission, tool_name, tool_args_hash, command_pattern)
+            await self._store.remove(user_id, permission, tool_name, tool_args_hash, command_pattern, agent_id)
 
     async def clear_user(self, user_id: str) -> int:
         """Clear all allowlist entries for a user (concurrent-safe).
@@ -317,6 +345,7 @@ class Allowlist:
                 entry.tool_name,
                 entry.tool_args_hash,
                 entry.command_pattern,
+                entry.agent_id,
             )
 
         return len(entries_to_clear)

@@ -239,7 +239,7 @@ class PersistentSession(ABC):
             return
 
         batch = "\n".join(init_commands) + "\n"
-        self.process.stdin.write(batch.encode())
+        self.process.stdin.write(batch.encode("utf-8", errors="surrogateescape"))
         await self.process.stdin.drain()
         await asyncio.sleep(0.15)
 
@@ -337,7 +337,7 @@ class PersistentSession(ABC):
         full_cmd = self._flavor.build_wrapped_command(command, exit_marker, end_marker, self._platform.exit_code_var)
 
         try:
-            self.process.stdin.write(full_cmd.encode())
+            self.process.stdin.write(full_cmd.encode("utf-8", errors="surrogateescape"))
             await self.process.stdin.drain()
         except Exception as e:
             logger.error("IPC write failure: %s", e)

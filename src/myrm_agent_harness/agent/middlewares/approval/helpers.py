@@ -148,6 +148,7 @@ async def add_to_allowlist_if_needed(
     tool_args_hash: str | None = None,
     *,
     tool_command: str | None = None,
+    agent_id: str | None = None,
 ) -> None:
     """Add permission to user's allowlist if requested.
 
@@ -156,13 +157,22 @@ async def add_to_allowlist_if_needed(
     2. Tool-level: allow_always={'tool': True} → matches this specific tool
     3. Exact match: allow_always={'tool': True, 'args': True} → matches tool + args (requires tool_args_hash)
     4. Pattern match: allow_always={'tool': True, 'pattern': True} → matches tool + command glob
+
+    Identity Scope:
+    - agent_id: Bound agent identifier. For hosted MCP tools (mcp_invoke / mcp__*),
+      persisting agent_id ensures allowlist entries are isolated to this specific subagent.
     """
     if not allow_always or not user_id:
         return
 
     if isinstance(allow_always, bool):
-        entry = AllowlistEntry(permission=permission_type, tool_name=None, tool_args_hash=None)
-        log_msg = f"permission-level: ({permission_type}, *)"
+        entry = AllowlistEntry(
+            permission=permission_type,
+            tool_name=None,
+            tool_args_hash=None,
+            agent_id=agent_id,
+        )
+        log_msg = f"permission-level: ({permission_type}, *, agent={agent_id})"
     elif isinstance(allow_always, dict):
         match_args = allow_always.get("args", False)
         match_pattern = allow_always.get("pattern", False)
@@ -179,15 +189,21 @@ async def add_to_allowlist_if_needed(
                 tool_name=tool_name,
                 tool_args_hash=None,
                 command_pattern=pattern,
+                agent_id=agent_id,
             )
-            log_msg = f"pattern-match: ({permission_type}, {tool_name}, pattern={pattern})"
+            log_msg = f"pattern-match: ({permission_type}, {tool_name}, pattern={pattern}, agent={agent_id})"
         else:
             args_hash = tool_args_hash if match_args else None
-            entry = AllowlistEntry(permission=permission_type, tool_name=tool_name, tool_args_hash=args_hash)
+            entry = AllowlistEntry(
+                permission=permission_type,
+                tool_name=tool_name,
+                tool_args_hash=args_hash,
+                agent_id=agent_id,
+            )
             if args_hash:
-                log_msg = f"exact-match: ({permission_type}, {tool_name}, args_hash={args_hash})"
+                log_msg = f"exact-match: ({permission_type}, {tool_name}, args_hash={args_hash}, agent={agent_id})"
             else:
-                log_msg = f"tool-level: ({permission_type}, {tool_name})"
+                log_msg = f"tool-level: ({permission_type}, {tool_name}, agent={agent_id})"
     else:
         return
 
