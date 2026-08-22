@@ -61,21 +61,34 @@ def parse_osv_severity(vuln_data: dict[str, object]) -> ScanSeverity:
         for item in severities:
             if isinstance(item, dict):
                 score_str = str(item.get("score", ""))
-                # Extract numerical CVSS score if available, e.g. "9.8" from "CVSS:3.1/... (9.8)" or just "9.8"
-                matches = re.findall(r"(?:^|[^\w.])(\d+(?:\.\d+)?)(?:[^\w.]|$)", score_str)
-                for m in matches:
-                    try:
-                        val = float(m)
-                        if 0.0 <= val <= 10.0:
-                            if val >= 9.0:
-                                return ScanSeverity.CRITICAL
-                            if val >= 7.0:
-                                return ScanSeverity.HIGH
-                            if val >= 4.0:
-                                return ScanSeverity.MEDIUM
-                            return ScanSeverity.LOW
-                    except ValueError:
-                        continue
+                # Extract numerical CVSS score if available
+                # Often in format "CVSS:3.1/AV:N/... (9.8)" or just "9.8" or "CVSS:3.1/..."
+                # Extract all floating point numbers or numbers inside parentheses
+                paren_match = re.search(r"\(\s*(\d+(?:\.\d+)?)\s*\)", score_str)
+                if paren_match:
+                    val = float(paren_match.group(1))
+                    if 0.0 <= val <= 10.0:
+                        if val >= 9.0:
+                            return ScanSeverity.CRITICAL
+                        if val >= 7.0:
+                            return ScanSeverity.HIGH
+                        if val >= 4.0:
+                            return ScanSeverity.MEDIUM
+                        return ScanSeverity.LOW
+
+                # If no parenthesis, check raw score number
+                try:
+                    val = float(score_str)
+                    if 0.0 <= val <= 10.0:
+                        if val >= 9.0:
+                            return ScanSeverity.CRITICAL
+                        if val >= 7.0:
+                            return ScanSeverity.HIGH
+                        if val >= 4.0:
+                            return ScanSeverity.MEDIUM
+                        return ScanSeverity.LOW
+                except ValueError:
+                    pass
 
     # Default fallback for unknown severity vulnerability
     return ScanSeverity.MEDIUM

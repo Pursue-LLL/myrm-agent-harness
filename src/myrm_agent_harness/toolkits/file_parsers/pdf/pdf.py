@@ -78,7 +78,7 @@ class PDFPlumberParser(FileParser):
 
         result = await asyncio.to_thread(self.parse_sync, file_path)
 
-        logger.warning(
+        logger.info(
             "PDF parsing completed: %s, length: %d chars, tables: %d, pages: %s",
             path.name,
             len(result.text),
@@ -95,7 +95,7 @@ class PDFPlumberParser(FileParser):
             raise FileNotFoundError(f"File not found: {file_path}")
 
         result = await asyncio.to_thread(self.parse_sync, file_path)
-        logger.warning("PDF parsing with tables completed: %s", path.name)
+        logger.info("PDF parsing with tables completed: %s", path.name)
         return result
 
     def parse_sync(self, file_path: str) -> PDFParseResult:
