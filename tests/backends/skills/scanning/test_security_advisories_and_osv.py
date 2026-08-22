@@ -154,6 +154,23 @@ def test_query_osv_batch_empty_and_cached() -> None:
     assert res[0].advisory_id == "GHSA-999"
 
 
+@pytest.mark.asyncio
+async def test_query_osv_batch_network_failure_fallback() -> None:
+    cache = VulnScanCache()
+    deps = [
+        DeclaredDependency(name="pkg-fail", version_spec="1.0.0", ecosystem="npm"),
+    ]
+
+    with patch("myrm_agent_harness.backends.skills.scanning.osv_scanner.create_httpx_client") as mock_client_cls:
+        client_instance = AsyncMock()
+        client_instance.__aenter__.side_effect = Exception("Network timeout")
+        mock_client_cls.return_value = client_instance
+
+        # Should fail gracefully and return empty findings without crashing
+        findings = await query_osv_batch(deps, cache=cache)
+        assert findings == []
+
+
 def test_vuln_cache_default_singleton() -> None:
     from myrm_agent_harness.backends.skills.scanning.vuln_cache import get_vuln_cache
     c = get_vuln_cache()

@@ -107,6 +107,18 @@ def test_extract_skill_dependencies_on_disk(tmp_path: Path) -> None:
     assert len(deps) == 2
     assert {d.name for d in deps} == {"debug", "numpy"}
 
+def test_extract_dependencies_from_pyproject_toml_poetry_dict() -> None:
+    toml_str = """
+    [tool.poetry.dependencies]
+    requests = { version = "^2.28.0", extras = ["socks"] }
+    black = { version = "23.1.0" }
+    """
+    deps = extract_dependencies_from_pyproject_toml(toml_str, "pyproject.toml")
+    assert len(deps) == 2
+    assert any(d.name == "requests" for d in deps)
+    assert any(d.name == "black" for d in deps)
+
+
 def test_extract_dependencies_from_pyproject_toml_invalid() -> None:
     assert extract_dependencies_from_pyproject_toml("invalid toml [") == []
     assert extract_dependencies_from_pyproject_toml("") == []

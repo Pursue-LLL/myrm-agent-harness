@@ -139,6 +139,41 @@ def test_advisory_ack_registry_invalid_json(tmp_path: Path) -> None:
     assert reg.load_from_disk(dict_file) is False
 
 
+@pytest.mark.asyncio
+async def test_rescan_engine_all_severities_and_branches(tmp_path: Path) -> None:
+    # 1. Code critical
+    res1 = SkillRescanResult(
+        skill_name="crit-code",
+        code_findings=[ScanFinding(threat_type="rce", severity=ScanSeverity.CRITICAL, description="RCE")],
+    )
+    engine = InstalledSkillRescanEngine()
+    rec1 = engine._compute_trust_recommendation(
+        code_findings=res1.code_findings,
+        lifecycle_findings=[],
+        ast_findings=[],
+        unacked_advisories=[],
+    )
+    assert rec1 == SkillTrustRecommendation.REJECT
+
+    # 2. Code high
+    rec2 = engine._compute_trust_recommendation(
+        code_findings=[ScanFinding(threat_type="leak", severity=ScanSeverity.HIGH, description="leak")],
+        lifecycle_findings=[],
+        ast_findings=[],
+        unacked_advisories=[],
+    )
+    assert rec2 == SkillTrustRecommendation.UNTRUSTED
+
+    # 3. Code low / medium
+    rec3 = engine._compute_trust_recommendation(
+        code_findings=[ScanFinding(threat_type="info", severity=ScanSeverity.LOW, description="info")],
+        lifecycle_findings=[],
+        ast_findings=[],
+        unacked_advisories=[],
+    )
+    assert rec3 == SkillTrustRecommendation.INSTALLED
+
+
 def test_advisory_ack_list_and_get() -> None:
     reg = AdvisoryAckRegistry()
     reg.ack_advisory("ADV-1", "pkg-1", "test reason", "admin")
@@ -147,3 +182,10 @@ def test_advisory_ack_list_and_get() -> None:
     assert ack.reason == "test reason"
     assert len(reg.list_acks()) == 1
     assert reg.get_ack("NON-EXISTENT", "pkg") is None
+
+
+def test_global_rescan_engine_singleton() -> None:
+    from myrm_agent_harness.backends.skills.scanning.rescan_engine import get_rescan_engine
+    eng = get_rescan_engine()
+    assert eng is not None
+    assert isinstance(eng, InstalledSkillRescanEngine)
