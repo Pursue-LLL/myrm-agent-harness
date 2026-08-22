@@ -62,6 +62,7 @@ class TaskSpecialty(StrEnum):
     LONG_DOC = "long_doc"
     REASONING = "reasoning"
     MULTIMODAL = "multimodal"
+    CASUAL = "casual"
     GENERAL = "general"
 
 

@@ -140,6 +140,11 @@ class KanbanDispatcherFailureMixin:
         task.error = error
         task.progress_note = None
 
+        usage = task.metadata.pop("last_token_usage", None) if isinstance(task.metadata, dict) else None
+        cost = task.metadata.pop("last_cost_usd", None) if isinstance(task.metadata, dict) else None
+        run_token_usage = usage if isinstance(usage, dict) else None
+        run_cost_usd = float(cost) if isinstance(cost, (int, float)) else None
+
         if task.consecutive_failures >= settings.auto_block_after_consecutive_failures:
             task.status = TaskStatus.BLOCKED
             task.block_kind = BlockKind.HUMAN
@@ -147,7 +152,13 @@ class KanbanDispatcherFailureMixin:
                 f"Auto-blocked after {task.consecutive_failures} consecutive failures (last: {reason})"
             )
             logger.warning("Task %s auto-blocked: %s", task_id[:8], task.blocked_reason)
-            await self._store.complete_run(run_id, outcome, error=error)
+            await self._store.complete_run(
+                run_id,
+                outcome,
+                error=error,
+                token_usage=run_token_usage,
+                cost_usd=run_cost_usd,
+            )
             await self._store.append_event(
                 task_id,
                 TaskEventKind.BLOCKED,
@@ -170,7 +181,13 @@ class KanbanDispatcherFailureMixin:
                     task.max_retries,
                     wake_at.isoformat(),
                 )
-                await self._store.complete_run(run_id, outcome, error=error)
+                await self._store.complete_run(
+                    run_id,
+                    outcome,
+                    error=error,
+                    token_usage=run_token_usage,
+                    cost_usd=run_cost_usd,
+                )
                 await self._store.append_event(
                     task_id,
                     TaskEventKind.BLOCKED,
@@ -192,7 +209,13 @@ class KanbanDispatcherFailureMixin:
                     task.retry_count,
                     task.max_retries,
                 )
-                await self._store.complete_run(run_id, outcome, error=error)
+                await self._store.complete_run(
+                    run_id,
+                    outcome,
+                    error=error,
+                    token_usage=run_token_usage,
+                    cost_usd=run_cost_usd,
+                )
                 await self._store.append_event(
                     task_id,
                     TaskEventKind.RETRYING,
@@ -208,7 +231,13 @@ class KanbanDispatcherFailureMixin:
             task.status = TaskStatus.FAILED
             task.completed_at = datetime.now(UTC)
             logger.warning("Task %s exhausted retries (last: %s)", task_id[:8], reason)
-            await self._store.complete_run(run_id, outcome, error=error)
+            await self._store.complete_run(
+                run_id,
+                outcome,
+                error=error,
+                token_usage=run_token_usage,
+                cost_usd=run_cost_usd,
+            )
             await self._store.append_event(
                 task_id,
                 TaskEventKind.FAILED,
