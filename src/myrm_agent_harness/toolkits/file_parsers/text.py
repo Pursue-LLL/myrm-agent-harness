@@ -33,10 +33,14 @@ class TextParser(FileParser):
         if not path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        async with aiofiles.open(file_path, encoding="utf-8") as f:
-            content = await f.read()
+        try:
+            async with aiofiles.open(file_path, encoding="utf-8") as f:
+                content = await f.read()
+        except UnicodeDecodeError:
+            async with aiofiles.open(file_path, encoding="utf-8", errors="replace") as f:
+                content = await f.read()
 
-        logger.warning("Text file parsed: %s, length: %d chars", path.name, len(content))
+        logger.debug("Text file parsed: %s, length: %d chars", path.name, len(content))
         return content
 
     @property

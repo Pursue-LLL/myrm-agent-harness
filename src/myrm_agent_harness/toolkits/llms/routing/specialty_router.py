@@ -57,8 +57,8 @@ _TRACEBACK_PATTERN_RE = re.compile(
 # ~24,000 characters is approximately 6k~10k tokens, triggering long-context specialization
 LONG_DOC_CHAR_THRESHOLD = 24_000
 
-# Short follow-up momentum threshold
-_MOMENTUM_SHORT_THRESHOLD = 35
+# Short follow-up momentum threshold (characters)
+_MOMENTUM_SHORT_THRESHOLD = 25
 
 
 class TaskSpecialty(StrEnum):

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     )
     from .privacy_routing import PrivacyRoutingModel
     from .specialty_router import (
+        DEFAULT_CASUAL_INDICATORS,
         DEFAULT_CODE_KEYWORDS,
         DEFAULT_LONG_DOC_KEYWORDS,
         LONG_DOC_CHAR_THRESHOLD,
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "DEFAULT_CASUAL_INDICATORS",
     "DEFAULT_CODE_KEYWORDS",
     "DEFAULT_JUDGE_SYSTEM_PROMPT",
     "DEFAULT_LONG_DOC_KEYWORDS",
@@ -66,6 +68,7 @@ _LAZY_IMPORTS = {
     "route_task_specialty": (_SR, "route_task_specialty"),
     "DEFAULT_CODE_KEYWORDS": (_SR, "DEFAULT_CODE_KEYWORDS"),
     "DEFAULT_LONG_DOC_KEYWORDS": (_SR, "DEFAULT_LONG_DOC_KEYWORDS"),
+    "DEFAULT_CASUAL_INDICATORS": (_SR, "DEFAULT_CASUAL_INDICATORS"),
     "LONG_DOC_CHAR_THRESHOLD": (_SR, "LONG_DOC_CHAR_THRESHOLD"),
 }
 
