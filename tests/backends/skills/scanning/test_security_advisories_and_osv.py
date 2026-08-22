@@ -21,6 +21,20 @@ from myrm_agent_harness.backends.skills.scanning.vuln_cache import (
 )
 
 
+def test_match_known_advisories_fuzzy_and_wildcard() -> None:
+    # Wildcard advisory
+    deps = [
+        DeclaredDependency(name="flatmap-stream", version_spec="0.1.1", ecosystem="npm"),
+        DeclaredDependency(name="noblesse", version_spec="*", ecosystem="PyPI"),
+        DeclaredDependency(name="unknown-pkg", version_spec="1.0.0", ecosystem="npm"),
+    ]
+    findings = match_known_advisories(deps)
+    assert len(findings) == 2
+    ids = {f.advisory_id for f in findings}
+    assert "MAL-2018-002" in ids
+    assert "MAL-2024-001" in ids
+
+
 def test_known_advisories_catalog_and_match() -> None:
     catalog = get_known_advisories_catalog()
     assert len(catalog) >= 10
@@ -54,6 +68,17 @@ def test_known_advisories_catalog_and_match() -> None:
     pypi_findings = match_known_advisories(pypi_deps)
     assert len(pypi_findings) == 1
     assert pypi_findings[0].advisory_id == "MAL-2022-004"
+
+
+def test_vuln_cache_invalid_json(tmp_path: Path) -> None:
+    bad_file = tmp_path / "bad.json"
+    bad_file.write_text("not json", encoding="utf-8")
+    cache = VulnScanCache()
+    assert cache.load_from_disk(bad_file) is False
+
+    dict_file = tmp_path / "dict.json"
+    dict_file.write_text("{}", encoding="utf-8")
+    assert cache.load_from_disk(dict_file) is False
 
 
 def test_vuln_cache_lifecycle(tmp_path: Path) -> None:
@@ -91,6 +116,20 @@ def test_vuln_cache_lifecycle(tmp_path: Path) -> None:
     assert cache.prune_expired() == 0
     cache.clear()
     assert cache.get("npm", "pkg-a", "1.0.0") is None
+
+
+def test_parse_osv_severity() -> None:
+    # MAL-* is CRITICAL
+    assert parse_osv_severity({"id": "MAL-2024-001"}) == ScanSeverity.CRITICAL
+
+    # Database specific CRITICAL
+    assert parse_osv_severity({"id": "GHSA-1234", "database_specific": {"severity": "CRITICAL"}}) == ScanSeverity.CRITICAL
+    assert parse_osv_severity({"id": "GHSA-1234", "database_specific": {"severity": "HIGH"}}) == ScanSeverity.HIGH
+    assert parse_osv_severity({"id": "GHSA-1234", "database_specific": {"severity": "MODERATE"}}) == ScanSeverity.MEDIUM
+    assert parse_osv_severity({"id": "GHSA-1234", "database_specific": {"severity": "LOW"}}) == ScanSeverity.LOW
+
+    # CVSS score
+    assert parse_osv_severity({"id": "CVE-2024-9999", "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H (9.8)"}]}) == ScanSeverity.CRITICAL
 
 
 def test_query_osv_batch_empty_and_cached() -> None:

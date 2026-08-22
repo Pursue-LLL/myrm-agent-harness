@@ -277,7 +277,7 @@ async def extract_pdf_content(
             "drop_reasons": trace.drop_reasons,
         }
 
-        logger.warning(
+        logger.info(
             "PDF Extraction Trace: %s | Mode: %s | Kept %d/%d images (Dropped: %s)",
             path.name,
             strategy,
@@ -286,7 +286,7 @@ async def extract_pdf_content(
             trace.drop_reasons,
         )
     else:
-        logger.warning("No images extracted for PDF %s. Mode: %s", path.name, strategy)
+        logger.info("No images extracted for PDF %s. Mode: %s", path.name, strategy)
 
     # Calibrate strategy: "hybrid" only when images actually survived filtering.
     if strategy == "hybrid" and not filtered_images:

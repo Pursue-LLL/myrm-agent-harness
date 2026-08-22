@@ -128,6 +128,17 @@ async def test_rescan_engine_code_and_lifecycle_severities(tmp_path: Path) -> No
         assert "lifecycle script findings" in res.summary
 
 
+def test_advisory_ack_registry_invalid_json(tmp_path: Path) -> None:
+    bad_file = tmp_path / "bad.json"
+    bad_file.write_text("not json", encoding="utf-8")
+    reg = AdvisoryAckRegistry()
+    assert reg.load_from_disk(bad_file) is False
+
+    dict_file = tmp_path / "dict.json"
+    dict_file.write_text("{}", encoding="utf-8")
+    assert reg.load_from_disk(dict_file) is False
+
+
 def test_advisory_ack_list_and_get() -> None:
     reg = AdvisoryAckRegistry()
     reg.ack_advisory("ADV-1", "pkg-1", "test reason", "admin")
