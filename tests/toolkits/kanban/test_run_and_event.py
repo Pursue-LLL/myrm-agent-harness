@@ -503,3 +503,31 @@ def _make_task_event() -> TaskEvent:
         task_id="t1",
         kind=TaskEventKind.CREATED,
     )
+
+
+class TestTaskRunCostAndUsage:
+    @pytest.mark.asyncio
+    async def test_complete_run_stores_cost_and_usage(self) -> None:
+        store = InMemoryKanbanStore()
+        run = await store.create_run("t1", "w1")
+        usage = {"prompt_tokens": 120, "completion_tokens": 80, "total_tokens": 200}
+        cost = 0.0045
+
+        completed = await store.complete_run(
+            run.run_id,
+            TaskRunOutcome.COMPLETED,
+            summary="Success",
+            token_usage=usage,
+            cost_usd=cost,
+        )
+        assert completed.token_usage == usage
+        assert completed.cost_usd == cost
+
+        runs = await store.list_runs("t1")
+        assert len(runs) == 1
+        assert runs[0].token_usage == usage
+        assert runs[0].cost_usd == cost
+        d = runs[0].to_dict()
+        assert d["token_usage"] == usage
+        assert d["cost_usd"] == cost
+

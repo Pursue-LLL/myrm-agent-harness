@@ -1,0 +1,67 @@
+[
+  {
+    "present": true,
+    "symbol": "FilesystemFileSearchMiddleware",
+    "type": "class"
+  },
+  {
+    "present": true,
+    "symbol": "PlanConfirmMiddleware",
+    "type": "class"
+  },
+  {
+    "present": false,
+    "symbol": "clarification_guard_middleware",
+    "type": "function"
+  },
+  {
+    "present": true,
+    "symbol": "create_concurrency_limiter",
+    "type": "function"
+  },
+  {
+    "present": true,
+    "symbol": "create_context_pipeline_middleware",
+    "type": "function"
+  },
+  {
+    "present": true,
+    "symbol": "create_safety_dispatcher",
+    "type": "function"
+  },
+  {
+    "present": true,
+    "symbol": "debug_logger_middleware",
+    "type": "function"
+  },
+  {
+    "present": false,
+    "symbol": "goal_focus_middleware",
+    "type": "function"
+  },
+  {
+    "present": false,
+    "symbol": "moa_advisor_middleware",
+    "type": "function"
+  },
+  {
+    "present": true,
+    "symbol": "progress_middleware",
+    "type": "function"
+  },
+  {
+    "present": false,
+    "symbol": "replan_middleware",
+    "type": "function"
+  },
+  {
+    "present": true,
+    "symbol": "subagent_limit_middleware",
+    "type": "function"
+  },
+  {
+    "present": true,
+    "symbol": "tool_interceptor_middleware",
+    "type": "function"
+  }
+]

@@ -1,0 +1,42 @@
+[
+  {
+    "present": true,
+    "strategy": "summary",
+    "symbol": "FOCUS_TOPIC_SUFFIX"
+  },
+  {
+    "present": true,
+    "strategy": "summary",
+    "symbol": "SUMMARY_MERGE_PROMPT_TEMPLATE"
+  },
+  {
+    "present": true,
+    "strategy": "summary",
+    "symbol": "SUMMARY_PROMPT_TEMPLATE"
+  },
+  {
+    "present": true,
+    "strategy": "summary",
+    "symbol": "UNVERIFIED_CONTEXT_MARKER"
+  },
+  {
+    "present": true,
+    "strategy": "summary",
+    "symbol": "extract_protected_head"
+  },
+  {
+    "present": true,
+    "strategy": "summary",
+    "symbol": "generate_structured_summary"
+  },
+  {
+    "present": true,
+    "strategy": "summary",
+    "symbol": "is_summarize_circuit_open"
+  },
+  {
+    "present": true,
+    "strategy": "summary",
+    "symbol": "should_summarize"
+  }
+]

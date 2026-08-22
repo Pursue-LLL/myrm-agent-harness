@@ -297,6 +297,8 @@ class InMemoryKanbanStore(KanbanStore):
         *,
         summary: str = "",
         error: str = "",
+        token_usage: dict[str, int] | None = None,
+        cost_usd: float | None = None,
     ) -> TaskRun:
         run = self._runs.get(run_id)
         if run is None:
@@ -305,6 +307,10 @@ class InMemoryKanbanStore(KanbanStore):
         run.outcome = outcome
         run.summary = summary
         run.error = error
+        if token_usage is not None:
+            run.token_usage = token_usage
+        if cost_usd is not None:
+            run.cost_usd = cost_usd
         return copy.deepcopy(run)
 
     async def list_runs(self, task_id: str) -> list[TaskRun]:
