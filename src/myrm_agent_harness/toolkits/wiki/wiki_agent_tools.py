@@ -49,7 +49,6 @@ from .retrieval.source_citations import attach_wiki_scope_id, build_wiki_query_s
 
 logger = get_agent_logger(__name__)
 
-_BINARY_DOC_EXTENSIONS = frozenset({".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"})
 _LARGE_DOC_CHUNK_THRESHOLD = 80_000
 
 
@@ -162,8 +161,9 @@ def create_wiki_agent_tools(
                 return f"Successfully ingested document: {display_path}{suffix}. Compilation queued."
             elif len(source) < 260 and "\n" not in source and Path(source).exists():
                 src_path = Path(source)
-                ext = src_path.suffix.lower()
-                if ext in _BINARY_DOC_EXTENSIONS:
+                from myrm_agent_harness.toolkits.file_parsers import is_supported
+
+                if is_supported(str(src_path)):
                     content = await _parse_binary_document(str(src_path))
                 else:
                     content = src_path.read_text(encoding="utf-8")

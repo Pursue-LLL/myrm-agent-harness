@@ -822,6 +822,30 @@ async def test_wiki_ingest_binary_document(
 
 
 @pytest.mark.asyncio
+async def test_wiki_ingest_sniffed_binary_document(
+    wiki_tools: list,
+    wiki_structure: WikiStructure,
+    tmp_path: Path,
+) -> None:
+    """Files with non-standard extension but sniffed binary format route through _parse_binary_document."""
+    from unittest.mock import patch
+
+    ingest_tool = next(tool for tool in wiki_tools if tool.name == "wiki_ingest_tool")
+    epub_path = tmp_path / "book.epub"
+    epub_path.write_bytes(b"PK\x03\x04")
+
+    with patch(
+        "myrm_agent_harness.toolkits.wiki.wiki_agent_tools._parse_binary_document",
+        new_callable=AsyncMock,
+        return_value="# Parsed Book\n\nChapter 1",
+    ):
+        result = await ingest_tool.ainvoke({"source": str(epub_path)})
+
+    assert "Successfully ingested" in result
+    assert (wiki_structure.raw_dir / "book.md").exists()
+
+
+@pytest.mark.asyncio
 async def test_wiki_maintain_reports_knowledge_gaps(direct_mock_tools: tuple) -> None:
     """Maintain tool surfaces knowledge_gap issues when present."""
     from myrm_agent_harness.toolkits.wiki.core.types import LintIssue, LintResult
