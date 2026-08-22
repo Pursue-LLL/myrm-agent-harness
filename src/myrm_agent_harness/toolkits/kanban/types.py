@@ -427,6 +427,8 @@ class TaskRun:
     summary: str = ""
     error: str = ""
     metadata: dict[str, object] = field(default_factory=dict)
+    token_usage: dict[str, int] | None = None
+    cost_usd: float | None = None
 
     @property
     def is_finished(self) -> bool:
@@ -450,6 +452,8 @@ class TaskRun:
             "error": self.error,
             "duration_seconds": self.duration_seconds,
             "metadata": self.metadata,
+            "token_usage": self.token_usage,
+            "cost_usd": self.cost_usd,
         }
 
 

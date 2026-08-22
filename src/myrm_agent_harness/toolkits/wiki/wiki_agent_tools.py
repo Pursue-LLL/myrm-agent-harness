@@ -49,6 +49,7 @@ from .retrieval.source_citations import attach_wiki_scope_id, build_wiki_query_s
 
 logger = get_agent_logger(__name__)
 
+_BINARY_DOC_EXTENSIONS = frozenset({".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"})
 _LARGE_DOC_CHUNK_THRESHOLD = 80_000
 
 

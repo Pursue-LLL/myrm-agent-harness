@@ -508,6 +508,11 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
                 await self._handle_failure(task_id, reason, run_id)
                 return
 
+        usage = task.metadata.pop("last_token_usage", None) if isinstance(task.metadata, dict) else None
+        cost = task.metadata.pop("last_cost_usd", None) if isinstance(task.metadata, dict) else None
+        run_token_usage = usage if isinstance(usage, dict) else None
+        run_cost_usd = float(cost) if isinstance(cost, (int, float)) else None
+
         if task.require_approval:
             task.status = TaskStatus.IN_REVIEW
             task.result = result
@@ -521,6 +526,8 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
                 run_id,
                 TaskRunOutcome.COMPLETED,
                 summary=result,
+                token_usage=run_token_usage,
+                cost_usd=run_cost_usd,
             )
             await self._store.append_event(
                 task_id,
@@ -545,6 +552,8 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
             run_id,
             TaskRunOutcome.COMPLETED,
             summary=result,
+            token_usage=run_token_usage,
+            cost_usd=run_cost_usd,
         )
         await self._store.append_event(
             task_id,

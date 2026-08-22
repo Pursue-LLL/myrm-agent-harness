@@ -206,6 +206,8 @@ class KanbanStore(Protocol):
         *,
         summary: str = "",
         error: str = "",
+        token_usage: dict[str, int] | None = None,
+        cost_usd: float | None = None,
     ) -> TaskRun:
         """Mark a run as finished with the given outcome."""
         ...

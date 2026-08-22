@@ -530,7 +530,11 @@ async def generate_structured_summary(
         combined_preserved = "\n\n".join(rescued_context_blocks.values())
 
     summary = _cap_summary_if_needed(
-        summary, original_tokens, recent_messages, chat_id, preserved_context=combined_preserved
+        summary,
+        original_tokens,
+        recent_messages,
+        chat_id,
+        preserved_context=combined_preserved,
     )
 
     # Preserved context is embedded in summary HumanMessage (not SystemMessage)
@@ -818,7 +822,9 @@ async def _summarize_incremental_with_audit(
                 raise ValueError(f"Failed to generate structured summary: {e}") from e
             continue
 
-        result = audit_summary(summary, all_messages, entities=entities, chat_id=chat_id)
+        result = audit_summary(
+            summary, all_messages, entities=entities, chat_id=chat_id
+        )
         if result.entity_retained > best_retained:
             best = summary
             best_retained = result.entity_retained
