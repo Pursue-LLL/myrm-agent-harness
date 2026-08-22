@@ -1,7 +1,7 @@
 """Tests for security_advisories.py, vuln_cache.py, and osv_scanner.py."""
 
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from myrm_agent_harness.backends.skills.scanning.dependency_extractor import DeclaredDependency
@@ -115,8 +115,8 @@ async def test_query_osv_batch_success() -> None:
     ]
 
     mock_response = AsyncMock()
-    mock_response.raise_for_status = AsyncMock()
-    mock_response.json = AsyncMock(
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json = MagicMock(
         return_value={
             "results": [
                 {

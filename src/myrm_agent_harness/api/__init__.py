@@ -45,6 +45,10 @@ __all__ = [
     "route_task",
     "route_task_specialty",
     "TaskSpecialty",
+    "InstalledSkillRescanEngine",
+    "AdvisoryAck",
+    "AdvisoryAckRegistry",
+    "SkillRescanResult",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -63,6 +67,22 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "is_registered_action_tool": (
         "myrm_agent_harness.agent.tool_management.tool_layers",
         "is_registered_action_tool",
+    ),
+    "InstalledSkillRescanEngine": (
+        "myrm_agent_harness.backends.skills.scanning.rescan_engine",
+        "InstalledSkillRescanEngine",
+    ),
+    "AdvisoryAck": (
+        "myrm_agent_harness.backends.skills.scanning.rescan_engine",
+        "AdvisoryAck",
+    ),
+    "AdvisoryAckRegistry": (
+        "myrm_agent_harness.backends.skills.scanning.rescan_engine",
+        "AdvisoryAckRegistry",
+    ),
+    "SkillRescanResult": (
+        "myrm_agent_harness.backends.skills.scanning.rescan_engine",
+        "SkillRescanResult",
     ),
     "AgentConfig": ("myrm_agent_harness.api.config", "AgentConfig"),
     "AgentEventType": ("myrm_agent_harness.api.types", "AgentEventType"),

@@ -61,17 +61,21 @@ def parse_osv_severity(vuln_data: dict[str, object]) -> ScanSeverity:
         for item in severities:
             if isinstance(item, dict):
                 score_str = str(item.get("score", ""))
-                # Extract numerical CVSS score if available
-                match = re.search(r"(\d+\.\d+)", score_str)
-                if match:
-                    score = float(match.group(1))
-                    if score >= 9.0:
-                        return ScanSeverity.CRITICAL
-                    if score >= 7.0:
-                        return ScanSeverity.HIGH
-                    if score >= 4.0:
-                        return ScanSeverity.MEDIUM
-                    return ScanSeverity.LOW
+                # Extract numerical CVSS score if available, e.g. "9.8" from "CVSS:3.1/... (9.8)" or just "9.8"
+                matches = re.findall(r"(?:^|[^\w.])(\d+(?:\.\d+)?)(?:[^\w.]|$)", score_str)
+                for m in matches:
+                    try:
+                        val = float(m)
+                        if 0.0 <= val <= 10.0:
+                            if val >= 9.0:
+                                return ScanSeverity.CRITICAL
+                            if val >= 7.0:
+                                return ScanSeverity.HIGH
+                            if val >= 4.0:
+                                return ScanSeverity.MEDIUM
+                            return ScanSeverity.LOW
+                    except ValueError:
+                        continue
 
     # Default fallback for unknown severity vulnerability
     return ScanSeverity.MEDIUM
