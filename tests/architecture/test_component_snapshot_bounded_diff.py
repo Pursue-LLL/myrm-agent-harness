@@ -37,7 +37,9 @@ def test_component_snapshots_exist() -> None:
     ]
     for filename in expected_files:
         snapshot_file = snapshots_dir / filename
-        assert snapshot_file.is_file(), f"Missing component snapshot file: {snapshot_file}"
+        assert (
+            snapshot_file.is_file()
+        ), f"Missing component snapshot file: {snapshot_file}"
 
 
 @pytest.mark.architecture
@@ -46,7 +48,12 @@ def test_component_snapshots_bounded_diff_clean() -> None:
     snapshots_dir = get_snapshots_dir()
     baseline_data: dict[str, object] = {}
 
-    for key in ("tool_surface", "middleware_stack", "context_strategies", "system_defaults"):
+    for key in (
+        "tool_surface",
+        "middleware_stack",
+        "context_strategies",
+        "system_defaults",
+    ):
         file_path = snapshots_dir / f"{key}_snapshot.json"
         baseline_data[key] = json.loads(file_path.read_text(encoding="utf-8"))
 
@@ -67,8 +74,12 @@ def test_compute_bounded_diff_detects_layer_and_config_mismatch() -> None:
     """Assert compute_bounded_diff captures synthetic tool layer and system default diffs."""
     mock_base = {
         "tool_surface": [{"name": "mock_tool", "layer": "CORE", "layer_value": 10}],
-        "middleware_stack": [{"symbol": "mock_mw", "present": True, "type": "function"}],
-        "context_strategies": [{"strategy": "summary", "symbol": "mock_sym", "present": True}],
+        "middleware_stack": [
+            {"symbol": "mock_mw", "present": True, "type": "function"}
+        ],
+        "context_strategies": [
+            {"strategy": "summary", "symbol": "mock_sym", "present": True}
+        ],
         "system_defaults": {"k1": "v1"},
     }
     mock_curr = {
@@ -76,8 +87,12 @@ def test_compute_bounded_diff_detects_layer_and_config_mismatch() -> None:
             {"name": "mock_tool", "layer": "COMMON", "layer_value": 20},
             {"name": "new_tool", "layer": "CORE", "layer_value": 10},
         ],
-        "middleware_stack": [{"symbol": "mock_mw", "present": True, "type": "function"}],
-        "context_strategies": [{"strategy": "summary", "symbol": "mock_sym", "present": True}],
+        "middleware_stack": [
+            {"symbol": "mock_mw", "present": True, "type": "function"}
+        ],
+        "context_strategies": [
+            {"strategy": "summary", "symbol": "mock_sym", "present": True}
+        ],
         "system_defaults": {"k1": "v2"},
     }
     diffs = compute_bounded_diff(mock_curr, mock_base)

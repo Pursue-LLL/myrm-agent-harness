@@ -58,6 +58,10 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_tool_catalog_product_id.py` | Gate | `tool_catalog` product_id 须派生自已有 group SSOT | — |
 | `test_tool_layer_boundary.py` | Gate | harness 与 external tool 层 SSOT 边界 | — |
 | `test_tool_prompt_placement.py` | Gate | harness tool invoke 规则须留在 tool schema | — |
+| `test_component_snapshot_bounded_diff.py` | Gate | 4 大核心组件快照与有界差分门禁（Prompt Cache 前缀稳定性） | — |
+| `test_tool_env_dependency_correlation.py` | Gate | Tool 宿主环境依赖双向映射与探针健康门禁 | — |
+| `test_pytest_warning_gate.py` | Gate | Pytest 零告警容忍（Zero-Warning / filterwarnings = error）CI 门禁 | — |
+| `test_pr_hygiene.py` | Gate | PR & Issue 质量卫生门禁（Conventional Commits 标题 + PR Body 完备性 + Issue Form 校验） | — |
 | `test_toolkits_llms_media_layout.py` | Gate | LLM 媒体理解归属 `toolkits/llms/`，禁止顶层平铺 | — |
 
 ## 运行

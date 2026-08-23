@@ -276,7 +276,12 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-n0 --timeout=300 -m 'not integration and not e2e and not performance'"
 filterwarnings = [
-    "ignore:The default value of `allowed_objects` will change:langchain_core._api.deprecation.LangChainPendingDeprecationWarning"
+    "error",
+    "ignore:The default value of `allowed_objects` will change:langchain_core._api.deprecation.LangChainPendingDeprecationWarning",
+    "ignore::DeprecationWarning:litellm",
+    "ignore::DeprecationWarning:pydantic",
+    "ignore::DeprecationWarning:google",
+    "ignore::DeprecationWarning:pkg_resources",
 ]
 markers = [
   "api: Public API surface smoke tests (myrm_agent_harness.api)",

@@ -13,6 +13,9 @@ Extracts declared dependencies from skill directories and manifest files:
 - extract_dependencies_from_package_json: extract npm dependencies from package.json text
 - extract_dependencies_from_requirements_txt: extract PyPI dependencies from requirements.txt text
 - extract_dependencies_from_pyproject_toml: extract PyPI dependencies from pyproject.toml text
+- extract_dependencies_from_uv_lock: extract PyPI locked dependencies from uv.lock text
+- extract_dependencies_from_bun_lock: extract npm locked dependencies from bun.lock text
+- extract_dependencies_from_package_lock_json: extract npm locked dependencies from package-lock.json text
 - extract_dependencies_from_files: scan in-memory files dict for declared dependencies
 - extract_skill_dependencies: scan a skill directory on disk for declared dependencies
 
@@ -217,6 +220,159 @@ def extract_dependencies_from_pyproject_toml(
     return dependencies
 
 
+def extract_dependencies_from_uv_lock(
+    content: str,
+    file_path: str = "",
+) -> list[DeclaredDependency]:
+    """Extract PyPI locked dependencies with exact versions from uv.lock content."""
+    dependencies: list[DeclaredDependency] = []
+    try:
+        data = tomllib.loads(content)
+    except Exception as exc:
+        logger.debug("Failed to parse uv.lock for dependencies (%s): %s", file_path, exc)
+        return dependencies
+
+    if not isinstance(data, dict):
+        return dependencies
+
+    packages = data.get("package")
+    if isinstance(packages, list):
+        for pkg in packages:
+            if isinstance(pkg, dict):
+                pkg_name = pkg.get("name")
+                pkg_ver = pkg.get("version")
+                if isinstance(pkg_name, str) and pkg_name.strip():
+                    name_clean = pkg_name.strip().lower()
+                    ver_clean = str(pkg_ver).strip() if pkg_ver is not None else ""
+                    dependencies.append(
+                        DeclaredDependency(
+                            name=name_clean,
+                            version_spec=ver_clean,
+                            ecosystem="PyPI",
+                            file_path=file_path,
+                            is_dev=False,
+                        )
+                    )
+
+    return dependencies
+
+
+def extract_dependencies_from_bun_lock(
+    content: str,
+    file_path: str = "",
+) -> list[DeclaredDependency]:
+    """Extract npm dependencies from bun.lock (v1 JSON format) content."""
+    dependencies: list[DeclaredDependency] = []
+    try:
+        data = json.loads(content)
+    except Exception as exc:
+        logger.debug("Failed to parse bun.lock for dependencies (%s): %s", file_path, exc)
+        return dependencies
+
+    if not isinstance(data, dict):
+        return dependencies
+
+    workspaces = data.get("workspaces")
+    if isinstance(workspaces, dict):
+        for _ws_key, ws_val in workspaces.items():
+            if not isinstance(ws_val, dict):
+                continue
+            for section, is_dev in (("dependencies", False), ("devDependencies", True), ("optionalDependencies", False)):
+                deps_dict = ws_val.get(section)
+                if isinstance(deps_dict, dict):
+                    for pkg_name, ver_spec in deps_dict.items():
+                        if isinstance(pkg_name, str) and pkg_name.strip():
+                            # Remove npm spec prefixes like ^, ~, >=, etc. for lock entry base or keep raw spec
+                            normalized_spec = str(ver_spec).strip() if ver_spec is not None else ""
+                            dependencies.append(
+                                DeclaredDependency(
+                                    name=pkg_name.strip().lower(),
+                                    version_spec=normalized_spec,
+                                    ecosystem="npm",
+                                    file_path=file_path,
+                                    is_dev=is_dev,
+                                )
+                            )
+
+    # In addition, check flat packages if present in bun.lock
+    packages = data.get("packages")
+    if isinstance(packages, dict):
+        for pkg_key, pkg_info in packages.items():
+            if not isinstance(pkg_info, dict):
+                continue
+            name = pkg_info.get("name") or pkg_key.split("@")[0]
+            version = pkg_info.get("version") or ""
+            if isinstance(name, str) and name.strip():
+                dependencies.append(
+                    DeclaredDependency(
+                        name=name.strip().lower(),
+                        version_spec=str(version).strip(),
+                        ecosystem="npm",
+                        file_path=file_path,
+                        is_dev=False,
+                    )
+                )
+
+    return dependencies
+
+
+def extract_dependencies_from_package_lock_json(
+    content: str,
+    file_path: str = "",
+) -> list[DeclaredDependency]:
+    """Extract npm locked dependencies with exact versions from package-lock.json content."""
+    dependencies: list[DeclaredDependency] = []
+    try:
+        data = json.loads(content)
+    except Exception as exc:
+        logger.debug("Failed to parse package-lock.json for dependencies (%s): %s", file_path, exc)
+        return dependencies
+
+    if not isinstance(data, dict):
+        return dependencies
+
+    packages = data.get("packages")
+    if isinstance(packages, dict):
+        for pkg_key, pkg_info in packages.items():
+            if not pkg_key or not isinstance(pkg_info, dict):
+                # Skip root workspace entry ""
+                continue
+            # Extract package name from "node_modules/foo" or "node_modules/@scope/foo" or name field
+            raw_name = pkg_info.get("name")
+            if not raw_name and "node_modules/" in pkg_key:
+                raw_name = pkg_key.split("node_modules/")[-1]
+            version = str(pkg_info.get("version") or "").strip()
+            is_dev = bool(pkg_info.get("dev", False))
+
+            if isinstance(raw_name, str) and raw_name.strip():
+                dependencies.append(
+                    DeclaredDependency(
+                        name=raw_name.strip().lower(),
+                        version_spec=version,
+                        ecosystem="npm",
+                        file_path=file_path,
+                        is_dev=is_dev,
+                    )
+                )
+    elif "dependencies" in data and isinstance(data["dependencies"], dict):
+        # v1 fallback
+        for pkg_name, pkg_info in data["dependencies"].items():
+            if isinstance(pkg_info, dict):
+                version = str(pkg_info.get("version") or "").strip()
+                is_dev = bool(pkg_info.get("dev", False))
+                dependencies.append(
+                    DeclaredDependency(
+                        name=pkg_name.strip().lower(),
+                        version_spec=version,
+                        ecosystem="npm",
+                        file_path=file_path,
+                        is_dev=is_dev,
+                    )
+                )
+
+    return dependencies
+
+
 def extract_dependencies_from_files(
     files: dict[str, bytes],
 ) -> list[DeclaredDependency]:
@@ -227,6 +383,15 @@ def extract_dependencies_from_files(
         if name_lower == "package.json":
             text = content.decode("utf-8", errors="replace")
             dependencies.extend(extract_dependencies_from_package_json(text, filename))
+        elif name_lower == "uv.lock":
+            text = content.decode("utf-8", errors="replace")
+            dependencies.extend(extract_dependencies_from_uv_lock(text, filename))
+        elif name_lower == "bun.lock":
+            text = content.decode("utf-8", errors="replace")
+            dependencies.extend(extract_dependencies_from_bun_lock(text, filename))
+        elif name_lower == "package-lock.json":
+            text = content.decode("utf-8", errors="replace")
+            dependencies.extend(extract_dependencies_from_package_lock_json(text, filename))
         elif name_lower.endswith(".txt") and "requirement" in name_lower:
             text = content.decode("utf-8", errors="replace")
             dependencies.extend(extract_dependencies_from_requirements_txt(text, filename))
@@ -268,6 +433,15 @@ def extract_skill_dependencies(skill_dir: Path | str) -> list[DeclaredDependency
                     if name_lower == "package.json":
                         text = entry.read_text(encoding="utf-8", errors="replace")
                         dependencies.extend(extract_dependencies_from_package_json(text, rel_path))
+                    elif name_lower == "uv.lock":
+                        text = entry.read_text(encoding="utf-8", errors="replace")
+                        dependencies.extend(extract_dependencies_from_uv_lock(text, rel_path))
+                    elif name_lower == "bun.lock":
+                        text = entry.read_text(encoding="utf-8", errors="replace")
+                        dependencies.extend(extract_dependencies_from_bun_lock(text, rel_path))
+                    elif name_lower == "package-lock.json":
+                        text = entry.read_text(encoding="utf-8", errors="replace")
+                        dependencies.extend(extract_dependencies_from_package_lock_json(text, rel_path))
                     elif name_lower.endswith(".txt") and "requirement" in name_lower:
                         text = entry.read_text(encoding="utf-8", errors="replace")
                         dependencies.extend(extract_dependencies_from_requirements_txt(text, rel_path))

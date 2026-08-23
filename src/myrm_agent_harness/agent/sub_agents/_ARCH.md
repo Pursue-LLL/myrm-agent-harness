@@ -10,6 +10,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Sub-agent subsystem — lifecycle management and configuration loading. | — |
+| branch_scoped_compaction.py | Core | Branch-scoped subagent artifact and structured summary compaction merger. Collects child trackers, extracts modified files, and enriches parent summaries. | ✅ |
 | budget.py | Core | Delegation budget guard. Tracks descendant spawn count for one root run. | ✅ |
 | builder.py | Core | Subagent construction helpers — tool filtering via DelegationCapabilityManifest + delegation_policy, model resolution, token merge. | ✅ |
 | checkpointer.py | Core | Shared in-memory checkpointer singleton (`get_subagent_checkpointer`, `delete_subagent_checkpoint`) for subagent HITL approval thread isolation. | ✅ |

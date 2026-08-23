@@ -458,6 +458,17 @@ async def generate_structured_summary(
 
     summary = reconcile_summary_execution_state(summary, chat_id, messages)
 
+    # Branch-scoped subagent compaction merge (enrich summary with child outcomes)
+    if chat_id:
+        try:
+            from myrm_agent_harness.agent.sub_agents.branch_scoped_compaction import (
+                merge_subagent_handovers_into_summary,
+            )
+
+            summary = merge_subagent_handovers_into_summary(summary, chat_id)
+        except Exception as e:
+            logger.debug("[Summarize] Failed to merge subagent branch handovers: %s", e)
+
     import hashlib
     import re
 

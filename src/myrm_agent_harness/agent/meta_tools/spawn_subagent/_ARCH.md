@@ -2,7 +2,7 @@
 
 ## Overview
 
-LLM 子 Agent 委派元工具：`delegate_task_tool`（mode=single|batch|parallel|council|alternatives）+ `subagent_control_tool`（action=list|cancel|steer|wait）+ orchestrator 专用 `send_teammate_message_tool`。与 **DW PTC** `spawn_subagent`（`agent/dynamic_workflow/tools.py`）共用 `_spawn_child()` 下游与 **`agent/sub_agents/spawn_prep.py`** spawn 准备 SSOT，但 DW PTC 工具名不在 `_TOOL_LAYERS` 登记。
+LLM 子 Agent 委派元工具：`delegate_task_tool`（mode=single|batch|parallel|council|alternatives）+ `subagent_control_tool`（action=list|cancel|steer|wait，位于 `agent_manage_tool.py`）+ orchestrator 专用 `send_teammate_message_tool`。与 **DW PTC** `spawn_subagent`（`agent/dynamic_workflow/tools.py`）共用 `_spawn_child()` 下游与 **`agent/sub_agents/spawn_prep.py`** spawn 准备 SSOT，但 DW PTC 工具名不在 `_TOOL_LAYERS` 登记。
 
 Detailed design: [SUB_AGENT_SYSTEM.md](../../sub_agents/SUB_AGENT_SYSTEM.md) · [META_TOOLS_SYSTEM.md](../META_TOOLS_SYSTEM.md)
 

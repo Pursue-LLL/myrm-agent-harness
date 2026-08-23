@@ -140,8 +140,6 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "wiki_ingest_tool",
         "wiki_query_tool",
         "wiki_apply_tool",
-        "wiki_compile_tool",
-        "wiki_maintain_tool",
     }
 )
 
@@ -197,9 +195,7 @@ AUTO_APPROVED_BUILTIN_TOOLS: dict[str, str] = {
     "update_ui_data_tool": "display",
     "web_search_tool": "read_only",
     "wiki_apply_tool": "user_visible",  # apply compiled wiki entry into store
-    "wiki_compile_tool": "user_visible",  # compile draft sources into wiki entry
     "wiki_ingest_tool": "user_visible",  # ingest external content into wiki
-    "wiki_maintain_tool": "user_visible",  # wiki maintenance pass
     "wiki_query_tool": "read_only",  # wiki retrieval, pure read
 }
 
@@ -684,9 +680,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_read_only=True, is_concurrent_safe=True, is_idempotent=True
     ),
     "wiki_apply_tool": SafetyMetadata(),
-    "wiki_compile_tool": SafetyMetadata(),
     "wiki_ingest_tool": SafetyMetadata(),
-    "wiki_maintain_tool": SafetyMetadata(),
     # browser HITL prompt — user-visible, no side effects beyond asking
     "browser_ask_human_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=False, is_idempotent=True

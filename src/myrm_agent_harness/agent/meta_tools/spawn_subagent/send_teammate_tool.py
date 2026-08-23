@@ -74,12 +74,12 @@ def create_send_teammate_message_tool(parent_agent: BaseAgent) -> BaseTool:
 
         agent_type = "unknown"
         for child in parent_agent.list_children():
-            if child.get("task_id") == from_task_id:
+            if isinstance(child, dict) and child.get("task_id") == from_task_id:
                 agent_type = str(child.get("agent_type", "unknown"))
                 break
 
         roster = mailbox.list_active_roster(exclude_task_id=from_task_id)
-        active_ids = {entry["task_id"] for entry in roster}
+        active_ids = {entry["task_id"] for entry in roster if isinstance(entry, dict) and "task_id" in entry}
         if target_task_id not in active_ids:
             return {
                 "success": False,

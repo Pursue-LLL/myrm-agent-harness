@@ -15,10 +15,18 @@ Exports verification entry points for use in goal_agent_tools.
 
 from myrm_agent_harness.agent.goals.verification.base import (
     AggregatedVerificationResult,
+    ReviewComment,
+    ReviewSeverity,
     VerificationResult,
 )
 from myrm_agent_harness.agent.goals.verification.gatekeeper import (
     VerificationGatekeeper,
 )
 
-__all__ = ["AggregatedVerificationResult", "VerificationGatekeeper", "VerificationResult"]
+__all__ = [
+    "AggregatedVerificationResult",
+    "ReviewComment",
+    "ReviewSeverity",
+    "VerificationGatekeeper",
+    "VerificationResult",
+]

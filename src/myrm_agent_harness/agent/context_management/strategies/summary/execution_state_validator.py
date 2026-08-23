@@ -70,7 +70,10 @@ def extract_physical_modified_files(
     chat_id: str | None,
     messages: list[BaseMessage] | None = None,
 ) -> set[str]:
-    """Extract authoritative set of modified/created files from ArtifactTracker and ToolMessages."""
+    """Extract authoritative set of modified/created files from ArtifactTracker and ToolMessages.
+
+    Includes files recorded in child subagent session trackers and handover states.
+    """
     physical_files: set[str] = set()
 
     if chat_id:
@@ -81,6 +84,20 @@ def extract_physical_modified_files(
                     norm = normalize_file_path(record.path)
                     if norm:
                         physical_files.add(norm)
+
+        # Branch-scoped subagent artifacts merge
+        try:
+            from myrm_agent_harness.agent.sub_agents.branch_scoped_compaction import (
+                merge_subagent_branch_artifacts,
+            )
+
+            branch_files = merge_subagent_branch_artifacts(chat_id)
+            for bf in branch_files:
+                norm_bf = normalize_file_path(bf)
+                if norm_bf:
+                    physical_files.add(norm_bf)
+        except Exception as e:
+            logger.debug("[ExecutionStateConsistency] Failed to merge branch artifacts: %s", e)
 
     if messages:
         # Secondary fallback / corroboration from ToolMessage metadata or write/edit tool calls
@@ -165,21 +182,36 @@ def reconcile_summary_execution_state(
     """Reconcile summary fields with physical execution truth (Auto-Reconcile).
 
     - Removes hallucinated unwritten files from `files_modified`.
-    - Injects missing on-disk modified files into `files_modified`.
+    - Injects missing on-disk modified files (including subagent modifications) into `files_modified`.
     - Preserves deterministic ordering without altering other summary semantics.
     """
     if not chat_id:
         return summary
 
     tracker = get_artifact_tracker(chat_id)
-    if not tracker:
-        return summary
+    physical_created_modified: dict[str, str] = {}
+    if tracker:
+        physical_created_modified.update(
+            {
+                normalize_file_path(r.path): r.path
+                for r in tracker.records
+                if r.action in (ArtifactAction.CREATED, ArtifactAction.MODIFIED)
+            }
+        )
 
-    physical_created_modified = {
-        normalize_file_path(r.path): r.path
-        for r in tracker.records
-        if r.action in (ArtifactAction.CREATED, ArtifactAction.MODIFIED)
-    }
+    # Branch-scoped subagent artifacts merge
+    try:
+        from myrm_agent_harness.agent.sub_agents.branch_scoped_compaction import (
+            merge_subagent_branch_artifacts,
+        )
+
+        branch_files = merge_subagent_branch_artifacts(chat_id)
+        for bf in branch_files:
+            norm_bf = normalize_file_path(bf)
+            if norm_bf and norm_bf not in physical_created_modified:
+                physical_created_modified[norm_bf] = bf
+    except Exception as e:
+        logger.debug("[ExecutionStateConsistency] Failed to reconcile branch artifacts: %s", e)
 
     if not physical_created_modified and not summary.files_modified:
         return summary

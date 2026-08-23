@@ -186,7 +186,7 @@ class SkillCurator:
         assert self._llm is not None
         assert self._write_backend is not None
 
-        from .consolidation import SkillConsolidator
+        from .consolidation.orchestrator import SkillConsolidator
 
         consolidator = SkillConsolidator(
             embedding_service=self._embedding_service,

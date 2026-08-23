@@ -278,6 +278,14 @@ Protocol-first architecture with strict framework-business separation.
     change, so the live scheduler and the persisted config never diverge (the GUI's
     concurrency badge reflects what the dispatcher actually enforces).
 
+27. **Formal Replanner (DAG Revision)**: `KanbanStore.revise_plan(spec: PlanRevisionSpec) -> PlanRevisionOutcome`
+    provides an atomic transaction mechanism to mutate tasks (add, update, remove) and DAG
+    dependency edges within a single batch. All changes are validated against completed task
+    immutability (COMPLETED/IN_REVIEW tasks cannot be altered or removed) and full-graph
+    acyclicity (DFS cycle detection on a shadow graph). Successful revisions emit `PLAN_REVISED`
+    audit events, terminate running executions for mutated tasks, cascade-unblock ready downstream tasks,
+    and wake the dispatcher.
+
 ## Domain Model
 
 - `KanbanBoard`: Top-level grouping with `BoardSettings` (includes `default_workdir`, `block_recurrence_limit` for block→unblock→TRIAGE escalation)
@@ -290,11 +298,15 @@ Protocol-first architecture with strict framework-business separation.
 - `TaskRun`: Independent record per execution attempt (run_id, worker_id, outcome, duration)
 - `TaskRunOutcome`: COMPLETED / BLOCKED / CRASHED / RECLAIMED / TIMED_OUT
 - `TaskEvent`: Persistent lifecycle event for audit and catch-up
-- `TaskEventKind`: CREATED / CLAIMED / ASSIGNED / COMPLETED / FAILED / BLOCKED / UNBLOCKED / RETRYING / RECLAIMED / PROMOTED / ARCHIVED / HEARTBEAT / USER_COMMENT / VERIFICATION_FAILED / BRANCH_SWITCHED / MERGE_CONFLICT / SPECIFIED / DECOMPOSED / TIMED_OUT / REVIEW_REQUESTED / APPROVED / REJECTED
+- `TaskEventKind`: CREATED / CLAIMED / ASSIGNED / COMPLETED / FAILED / BLOCKED / UNBLOCKED / RETRYING / RECLAIMED / PROMOTED / ARCHIVED / HEARTBEAT / USER_COMMENT / VERIFICATION_FAILED / BRANCH_SWITCHED / MERGE_CONFLICT / SPECIFIED / DECOMPOSED / TIMED_OUT / REVIEW_REQUESTED / APPROVED / REJECTED / PLAN_REVISED
 - `TaskTimeoutError`: Exception raised when a task exceeds its `max_runtime_seconds` limit (carries `elapsed_seconds`, `limit_seconds`)
 - `SpecifyOutcome`: Result of a single Specifier pass (ok, new_title, new_body, reason, prompt_tokens, completion_tokens, persisted)
 - `DecomposeChildSpec`: Spec for a single child task (title, body, assignee, parent_indices)
 - `DecomposeOutcome`: Result of a Decomposer pass (ok, fanout, children, rationale, tokens, persisted, child_ids, new_title, new_body, new_assignee)
+- `PlanRevisionSpec`: Batch revision DTO specifying task additions, updates, removals, and edge changes
+- `PlanRevisionOutcome`: Strongly-typed result of an atomic plan revision (ok, reason, added/updated/removed task IDs and edges)
+- `TaskReplanner`: Protocol contract for AI-driven DAG replanning
+
 
 ## File Inventory
 

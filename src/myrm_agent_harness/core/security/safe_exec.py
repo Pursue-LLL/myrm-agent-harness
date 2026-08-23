@@ -116,18 +116,32 @@ async def safe_exec(
     cwd: Path | None = None,
     env: dict[str, str] | None = None,
     allowed_issuers: list[str] | None = None,
+    require_sandbox: bool = False,
+    sandbox_available: bool = True,
 ) -> ExecResult:
     """Execute *command* safely — direct exec preferred, shell fallback when needed.
 
     Process lifecycle:
+    - If ``require_sandbox=True`` and ``sandbox_available=False``, fails closed immediately.
     - Each subprocess runs in its own process group (``start_new_session``)
     - On timeout the entire process tree is killed via SIGKILL
     - Callers receive ``asyncio.TimeoutError`` after cleanup completes
 
     Raises:
+        MissingDependencyFailClosedError: when require_sandbox is True but sandbox is unavailable.
         asyncio.TimeoutError: when execution exceeds *timeout* seconds.
         OSError: when the target binary cannot be found (direct mode).
     """
+    if require_sandbox and not sandbox_available:
+        from myrm_agent_harness.core.security.missing_semantics import (
+            MissingDependencyFailClosedError,
+        )
+
+        raise MissingDependencyFailClosedError(
+            component_name="sandbox",
+            action="safe_exec",
+            repair_hint="Ensure containerized sandbox is active before running isolated commands.",
+        )
     use_shell = needs_shell(command)
     argv: list[str] = []
 

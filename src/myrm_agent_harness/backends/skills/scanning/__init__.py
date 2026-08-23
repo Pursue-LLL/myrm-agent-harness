@@ -18,10 +18,13 @@ from myrm_agent_harness.backends.skills.scanning.cache import (
 )
 from myrm_agent_harness.backends.skills.scanning.dependency_extractor import (
     DeclaredDependency,
+    extract_dependencies_from_bun_lock,
     extract_dependencies_from_files,
     extract_dependencies_from_package_json,
+    extract_dependencies_from_package_lock_json,
     extract_dependencies_from_pyproject_toml,
     extract_dependencies_from_requirements_txt,
+    extract_dependencies_from_uv_lock,
     extract_skill_dependencies,
 )
 from myrm_agent_harness.backends.skills.scanning.osv_scanner import (
@@ -89,10 +92,13 @@ __all__ = [
     "audit_skill_directory",
     "check_lifecycle_scripts",
     "compute_scan_summary",
+    "extract_dependencies_from_bun_lock",
     "extract_dependencies_from_files",
     "extract_dependencies_from_package_json",
+    "extract_dependencies_from_package_lock_json",
     "extract_dependencies_from_pyproject_toml",
     "extract_dependencies_from_requirements_txt",
+    "extract_dependencies_from_uv_lock",
     "extract_skill_dependencies",
     "format_scan_report",
     "get_known_advisories_catalog",
