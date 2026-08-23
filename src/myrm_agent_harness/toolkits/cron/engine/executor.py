@@ -482,7 +482,11 @@ class JobExecutor:
         snippet = (result.output or "")[:100] if result.success else (result.error or "unknown")[:100]
         text = f"[{job.name}] {snippet}"
         try:
-            await self._push_callback(job.user_id, job.name, text, level)
+            # Support both 4-arg and 5-arg (with chat_id kwarg) push callbacks
+            try:
+                await self._push_callback(job.user_id, job.name, text, level, chat_id=job.chat_id)
+            except TypeError:
+                await self._push_callback(job.user_id, job.name, text, level)
         except Exception as exc:
             logger.warning("Push notification failed for job %s: %s", job.id, exc)
 

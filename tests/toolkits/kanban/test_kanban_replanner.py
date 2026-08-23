@@ -139,6 +139,36 @@ class TestReplanStore:
         assert "cycle" in outcome.reason
 
 
+    async def test_remove_edge_and_task_success(
+        self, store: InMemoryKanbanStore, board: KanbanBoard
+    ) -> None:
+        t1 = await _create_task(store, "t_del_1")
+        t2 = await _create_task(store, "t_del_2")
+        await store.add_edge("t_del_1", "t_del_2")
+
+        spec = PlanRevisionSpec(
+            board_id="b_replan",
+            rationale="Prune redundant branch",
+            task_changes=(
+                TaskRevisionItem(
+                    action="remove",
+                    task_id="t_del_2",
+                ),
+            ),
+            remove_edges=(("t_del_1", "t_del_2"),),
+        )
+        outcome = await store.revise_plan(spec)
+        assert outcome.ok is True
+        assert "t_del_2" in outcome.removed_task_ids
+
+        # Verify task is archived and edges removed
+        t_del_2 = await store.get_task("t_del_2")
+        assert t_del_2 is not None
+        assert t_del_2.status == TaskStatus.ARCHIVED
+        children = await store.list_children("t_del_1")
+        assert "t_del_2" not in children
+
+
 class TestOrchestratorToolReplan:
     async def test_orchestrator_tool_revise_plan_success(
         self,

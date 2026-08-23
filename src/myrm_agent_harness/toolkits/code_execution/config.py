@@ -100,6 +100,14 @@ class LocalExecutionConfig(BaseModel):
     max_output_bytes: int = Field(
         default=5 * 1024 * 1024, description="Max output buffer bytes to prevent memory overflow"
     )
+    require_sandbox_isolation: bool = Field(
+        default=False,
+        description="When enabled, mandates container/sandbox isolation; missing sandbox will fail-closed",
+    )
+    sandbox_available: bool = Field(
+        default=True,
+        description="Current health/availability status of the sandbox provider",
+    )
 
 
 class ExecutionConfig(BaseModel):

@@ -7,24 +7,21 @@ security capabilities without coupling to the agent framework.
 """
 
 from myrm_agent_harness.core.security.missing_semantics import (
-    MissingDependencyFailClosedError,
-    MissingDependencyFailFastError,
+    MissingSemanticsBlockedError,
     MissingSemanticsContract,
-    MissingSemanticsError,
+    MissingSemanticsDecision,
     MissingSemanticsPolicy,
-    enforce_missing_semantics,
-    get_registered_contract,
-    list_registered_contracts,
+    SemanticsCategory,
+    evaluate_missing_capability,
+    get_missing_semantics_matrix,
 )
 
 __all__ = [
-    "MissingDependencyFailClosedError",
-    "MissingDependencyFailFastError",
+    "MissingSemanticsBlockedError",
     "MissingSemanticsContract",
-    "MissingSemanticsError",
+    "MissingSemanticsDecision",
     "MissingSemanticsPolicy",
-    "enforce_missing_semantics",
-    "get_registered_contract",
-    "list_registered_contracts",
+    "SemanticsCategory",
+    "evaluate_missing_capability",
+    "get_missing_semantics_matrix",
 ]
-

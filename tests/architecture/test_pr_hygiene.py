@@ -98,6 +98,22 @@ def test_pr_body_completeness_validation() -> None:
     assert not validate_pr_body("").is_valid
     assert not validate_pr_body("Too short description").is_valid
 
+    # Body with only HTML comments
+    dummy_comment_body = """
+    ## 1. Description & Motivation (修改动机与根本原因)
+    <!-- Fill in details -->
+    ## 2. Affected Subsystems (涉及子系统与影响面)
+    <!-- Subsystems -->
+    ## 3. Breaking Changes & Contract Compatibility (破坏性变更声明)
+    <!-- Breaking -->
+    ## 4. Test Plan & Verification Evidence (测试计划与验证证据)
+    <!-- Test -->
+    """
+    assert not validate_pr_body(dummy_comment_body).is_valid, "Pure comment PR body should be rejected"
+
+    # Bot bypass
+    assert validate_pr_body("", bypass_for_bots=True).is_valid
+
 
 @pytest.mark.architecture
 def test_repo_templates_exist_and_conform() -> None:

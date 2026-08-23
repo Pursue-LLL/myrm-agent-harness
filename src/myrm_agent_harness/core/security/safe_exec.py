@@ -81,7 +81,10 @@ def credential_env_overrides(
         normalized_allowed = {issuer.lower() for issuer in allowed_issuers}
 
     for cred in credentials:
-        if normalized_allowed is not None and cred.issuer.lower() not in normalized_allowed:
+        if (
+            normalized_allowed is not None
+            and cred.issuer.lower() not in normalized_allowed
+        ):
             continue
         if cred.issuer == "feishu":
             overrides["FEISHU_USER_ACCESS_TOKEN"] = cred.token
@@ -128,19 +131,20 @@ async def safe_exec(
     - Callers receive ``asyncio.TimeoutError`` after cleanup completes
 
     Raises:
-        MissingDependencyFailClosedError: when require_sandbox is True but sandbox is unavailable.
+        MissingSemanticsBlockedError: when require_sandbox is True but sandbox is unavailable.
         asyncio.TimeoutError: when execution exceeds *timeout* seconds.
         OSError: when the target binary cannot be found (direct mode).
     """
     if require_sandbox and not sandbox_available:
         from myrm_agent_harness.core.security.missing_semantics import (
-            MissingDependencyFailClosedError,
+            SemanticsCategory,
+            evaluate_missing_capability,
         )
 
-        raise MissingDependencyFailClosedError(
-            component_name="sandbox",
-            action="safe_exec",
-            repair_hint="Ensure containerized sandbox is active before running isolated commands.",
+        evaluate_missing_capability(
+            SemanticsCategory.SANDBOX_ISOLATION,
+            is_available=False,
+            detail="safe_exec requires sandbox isolation, but provider is unavailable",
         )
     use_shell = needs_shell(command)
     argv: list[str] = []
@@ -156,7 +160,9 @@ async def safe_exec(
             use_shell = True
         else:
             if not argv:
-                return ExecResult(stdout="", stderr="empty command", returncode=1, mode="direct")
+                return ExecResult(
+                    stdout="", stderr="empty command", returncode=1, mode="direct"
+                )
 
     from myrm_agent_harness.core.security.types import user_credentials_ctx
     from myrm_agent_harness.toolkits.code_execution.security.validator import (
@@ -169,7 +175,9 @@ async def safe_exec(
 
     try:
         credentials = user_credentials_ctx.get()
-        active_env.update(credential_env_overrides(credentials, allowed_issuers=allowed_issuers))
+        active_env.update(
+            credential_env_overrides(credentials, allowed_issuers=allowed_issuers)
+        )
     except LookupError:
         pass
 
@@ -197,7 +205,9 @@ async def safe_exec(
         mode = "direct"
 
     try:
-        stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(), timeout=timeout
+        )
     except TimeoutError:
         _kill_process_tree(proc)
         raise

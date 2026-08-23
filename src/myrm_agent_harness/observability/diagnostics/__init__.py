@@ -15,6 +15,7 @@ Part of the observability package — active health probing and benchmarking.
 
 import myrm_agent_harness.observability.diagnostics.benchmark_probes
 import myrm_agent_harness.observability.diagnostics.probes  # side-effect: registers probes/benchmarks
+import myrm_agent_harness.observability.diagnostics.supply_chain  # noqa: F401  # side-effect: registers supply chain probe
 import myrm_agent_harness.observability.diagnostics.system_resources  # noqa: F401  # side-effect: registers system resource probe
 
 from .manager import register_diagnostic, register_protocol, run_all_diagnostics

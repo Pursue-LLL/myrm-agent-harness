@@ -11,7 +11,7 @@ Pre-agent routing layer. Determines which LLM tier/model to use before Agent cre
 | __init__.py | Package | Lazy-import init | — |
 | complexity_router.py | Core | Two-phase (rule+LLM judge) task complexity routing with session momentum. Selects SIMPLE/STANDARD/REASONING model tier. | ✅ |
 | privacy_routing.py | Core | Privacy-aware model routing. Routes to appropriate models based on PII sensitivity levels. | ✅ |
-| specialty_router.py | Core | Cross-vendor task domain specialty classification and routing (CODE, LONG_DOC, REASONING, MULTIMODAL, GENERAL). | ✅ |
+| specialty_router.py | Core | Cross-vendor task domain specialty classification and routing (CODE, LONG_DOC, REASONING, MULTIMODAL, CASUAL, GENERAL) with session momentum & fallback chain. | ✅ |
 
 ## Key Dependencies
 

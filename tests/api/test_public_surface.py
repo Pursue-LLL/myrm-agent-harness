@@ -15,6 +15,8 @@ def test_api_package_exports_match_all() -> None:
     api = importlib.import_module("myrm_agent_harness.api")
     assert sorted(api.__all__) == sorted(
         [
+            "AdvisoryAck",
+            "AdvisoryAckRegistry",
             "AgentConfig",
             "AgentEventType",
             "AgentProfileBackend",
@@ -26,25 +28,27 @@ def test_api_package_exports_match_all() -> None:
             "ConfigIncompleteError",
             "HookEvent",
             "HookRegistryProtocol",
+            "InstalledSkillRescanEngine",
             "IntegrationProvider",
             "KanbanStore",
             "LLMConfig",
             "SkillAgent",
             "SkillBackend",
+            "SkillRescanResult",
             "create_skill_agent",
             "delete_subagent_checkpoint",
             "get_distribution_mode",
             "get_subagent_checkpointer",
             "get_workspace_root",
-                "is_compiled_distribution",
-                "is_registered_action_tool",
-                "route_task",
-                "route_task_specialty",
-                "set_workspace_root",
-                "TaskSpecialty",
-                "track_background_task",
-            ]
-        )
+            "is_compiled_distribution",
+            "is_registered_action_tool",
+            "route_task",
+            "route_task_specialty",
+            "set_workspace_root",
+            "TaskSpecialty",
+            "track_background_task",
+        ]
+    )
 
 
 @pytest.mark.api

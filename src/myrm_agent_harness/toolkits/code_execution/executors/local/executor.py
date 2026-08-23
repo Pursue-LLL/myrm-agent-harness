@@ -138,6 +138,19 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
     @handle_execution_error("LocalExecutor")
     async def execute(self, context: ExecutionContext) -> ExecutionResult:
         """Execute Python code (stateless — each call runs in a fresh subprocess)."""
+        from myrm_agent_harness.core.security.missing_semantics import (
+            SemanticsCategory,
+            evaluate_missing_capability,
+        )
+
+        # Enforce Missing Semantics contract on sandbox isolation
+        if self.config.local.require_sandbox_isolation:
+            evaluate_missing_capability(
+                SemanticsCategory.SANDBOX_ISOLATION,
+                is_available=self.config.local.sandbox_available,
+                detail="Python execution requires sandbox isolation, but provider is unavailable",
+            )
+
         start_time = time.time()
 
         self._helper.log_execution_start("LocalExecutor", "Python", context.code)
@@ -241,9 +254,21 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
     @handle_execution_error("LocalExecutor")
     async def execute_bash(self, context: ExecutionContext) -> ExecutionResult:
         """Execute a Bash command in a persistent session (state persists across calls)."""
+        from myrm_agent_harness.core.security.missing_semantics import (
+            SemanticsCategory,
+            evaluate_missing_capability,
+        )
         from myrm_agent_harness.toolkits.code_execution.security.validator import (
             validate_command,
         )
+
+        # Enforce Missing Semantics contract on sandbox isolation
+        if self.config.local.require_sandbox_isolation:
+            evaluate_missing_capability(
+                SemanticsCategory.SANDBOX_ISOLATION,
+                is_available=self.config.local.sandbox_available,
+                detail="Bash execution requires sandbox isolation, but provider is unavailable",
+            )
 
         start_time = time.time()
         command = context.code

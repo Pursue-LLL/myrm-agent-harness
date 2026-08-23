@@ -516,6 +516,7 @@ class VerificationResult:
     passed: bool
     reason: str | None = None
     error_logs: str | None = None
+    comments: list[dict[str, object]] = field(default_factory=list)
 
 
 class TaskTimeoutError(Exception):

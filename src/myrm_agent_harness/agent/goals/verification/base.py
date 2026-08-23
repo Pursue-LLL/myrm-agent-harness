@@ -28,8 +28,8 @@ class ReviewSeverity(str, Enum):
     """Severity tier for verification review comments."""
 
     CRITICAL = "critical"  # Blocking failure: test crash, syntax error, missing required outcome
-    WARNING = "warning"    # Non-blocking issue: code smell, suboptimal implementation
-    INFO = "info"          # Observational feedback: styling hint, optional suggestion
+    WARNING = "warning"  # Non-blocking issue: code smell, suboptimal implementation
+    INFO = "info"  # Observational feedback: styling hint, optional suggestion
 
 
 @dataclass(slots=True)
@@ -47,7 +47,11 @@ class ReviewComment:
         """Serialize review comment for metadata persistence and SSE transport."""
         result: dict[str, object] = {
             "message": self.message,
-            "severity": self.severity.value if isinstance(self.severity, ReviewSeverity) else str(self.severity),
+            "severity": (
+                self.severity.value
+                if isinstance(self.severity, ReviewSeverity)
+                else str(self.severity)
+            ),
         }
         if self.target_path:
             result["target_path"] = self.target_path
@@ -74,7 +78,9 @@ class ReviewComment:
             severity=severity,
             target_path=str(data["target_path"]) if data.get("target_path") else None,
             line_range=str(data["line_range"]) if data.get("line_range") else None,
-            fix_suggestion=str(data["fix_suggestion"]) if data.get("fix_suggestion") else None,
+            fix_suggestion=(
+                str(data["fix_suggestion"]) if data.get("fix_suggestion") else None
+            ),
             id=str(data["id"]) if data.get("id") else None,
         )
 
@@ -151,7 +157,9 @@ class BaseCriterion(ABC):
         self.config = kwargs
 
     @abstractmethod
-    async def verify(self, goal_provider: GoalProvider | None = None) -> VerificationResult:
+    async def verify(
+        self, goal_provider: GoalProvider | None = None
+    ) -> VerificationResult:
         """Execute the verification logic.
 
         Args:
