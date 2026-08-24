@@ -13,6 +13,14 @@ isolation already exists and transparently degrades to NullProvider.
 from myrm_agent_harness.toolkits.code_execution.sandbox.detector import (
     detect_sandbox_provider,
 )
+from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate import (
+    MountMode,
+    MountSpec,
+    MountValidationResult,
+    MountViolationType,
+    validate_and_sanitize_mounts,
+    validate_mount_spec,
+)
 from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
     SandboxMode,
     SandboxPolicy,
@@ -21,9 +29,15 @@ from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
 )
 
 __all__ = [
+    "MountMode",
+    "MountSpec",
+    "MountValidationResult",
+    "MountViolationType",
     "SandboxMode",
     "SandboxPolicy",
     "SandboxProvider",
     "SandboxStatus",
     "detect_sandbox_provider",
+    "validate_and_sanitize_mounts",
+    "validate_mount_spec",
 ]

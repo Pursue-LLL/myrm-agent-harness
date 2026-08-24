@@ -77,6 +77,14 @@ from myrm_agent_harness.agent.streaming.step_builder import build_step_data
 from myrm_agent_harness.core.security.detection.pseudonym_store import (
     get_pseudonym_store as build_pseudonym_store,
 )
+from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate import (
+    MountMode,
+    MountSpec,
+    MountValidationResult,
+    MountViolationType,
+    validate_and_sanitize_mounts,
+    validate_mount_spec,
+)
 from myrm_agent_harness.core.security.guards.privacy_tracker import (
     get_privacy_policy,
     set_privacy_policy,
@@ -169,6 +177,12 @@ __all__ = [
     "persist_extracted_memories",
     "persist_terminal_state",
     "persist_vault_log_ref",
+    "MountMode",
+    "MountSpec",
+    "MountValidationResult",
+    "MountViolationType",
+    "validate_and_sanitize_mounts",
+    "validate_mount_spec",
     "read_evicted_line_range",
     "restore_memory_pseudonymizer",
     "set_approval_user_id",

@@ -302,7 +302,8 @@ markers = [
 [tool.coverage.run]
 source = ["myrm_agent_harness"]
 omit = [
-
+  "**/providers/_win32_defs.py",
+  "**/providers/appcontainer.py",
   "**/backends/skills/local.py",
   "**/backends/skills/storage.py",
   "**/backends/skills/composite.py",
@@ -372,6 +373,7 @@ include = [
   "*/myrm_agent_harness/toolkits/file_parsers/*",
   "*/myrm_agent_harness/toolkits/computer_use/*",
   "*/myrm_agent_harness/toolkits/llms/consensus/*",
+  "*/myrm_agent_harness/toolkits/code_execution/sandbox/*",
 ]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "\\.\\.\\."]
 
