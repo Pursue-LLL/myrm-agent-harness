@@ -122,6 +122,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "kanban_unblock": ToolLayer.EXTENDED,
     "kanban_cancel_task": ToolLayer.EXTENDED,
     "kanban_retry_task": ToolLayer.EXTENDED,
+    "kanban_revise_plan": ToolLayer.EXTENDED,
     # --- 记忆工具（search/save/manage → COMMON；sessions/wiki 通过 corpus ACL）---
     # --- 技能工具 ---
     "skill_search_tool": ToolLayer.EXTENDED,

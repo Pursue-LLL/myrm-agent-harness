@@ -101,22 +101,28 @@ class TestIndexRawText:
     """Tests for WikiIndexer.index_raw_text FTS5 interim indexing."""
 
     @pytest.fixture()
-    def db_path(self, tmp_path: Path) -> Path:
-        return tmp_path / "test_wiki.db"
+    def db_path(self, tmp_path: Path):
+        path = tmp_path / "test_wiki.db"
+        yield path
 
     def _create_fts_table(self, db_path: Path) -> None:
-        with sqlite3.connect(str(db_path)) as conn:
+        conn = sqlite3.connect(str(db_path))
+        try:
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS wiki_fts USING fts5(
                     concept_name,
                     truth_content
                 )
             """)
+            conn.commit()
+        finally:
+            conn.close()
 
     def test_index_raw_text_inserts_with_raw_prefix(self, db_path: Path) -> None:
         self._create_fts_table(db_path)
 
-        with sqlite3.connect(str(db_path)) as conn:
+        conn = sqlite3.connect(str(db_path))
+        try:
             conn.execute(
                 "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)",
                 ("raw:test_doc", "Hello world test content"),
@@ -126,8 +132,6 @@ class TestIndexRawText:
                 "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)",
                 ("raw:test_doc", "Hello world test content"),
             )
-
-        with sqlite3.connect(str(db_path)) as conn:
             cursor = conn.execute(
                 "SELECT concept_name, truth_content FROM wiki_fts WHERE concept_name = ?",
                 ("raw:test_doc",),
@@ -136,19 +140,20 @@ class TestIndexRawText:
             assert len(rows) == 1
             assert rows[0][0] == "raw:test_doc"
             assert "Hello world" in rows[0][1]
+        finally:
+            conn.close()
 
     def test_raw_entry_truncates_large_text(self, db_path: Path) -> None:
         self._create_fts_table(db_path)
         large_text = "a" * 10000
 
         preview = large_text[:5000]
-        with sqlite3.connect(str(db_path)) as conn:
+        conn = sqlite3.connect(str(db_path))
+        try:
             conn.execute(
                 "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)",
                 ("raw:large_doc", preview),
             )
-
-        with sqlite3.connect(str(db_path)) as conn:
             cursor = conn.execute(
                 "SELECT truth_content FROM wiki_fts WHERE concept_name = ?",
                 ("raw:large_doc",),
@@ -156,26 +161,25 @@ class TestIndexRawText:
             row = cursor.fetchone()
             assert row is not None
             assert len(row[0]) == 5000
+        finally:
+            conn.close()
 
     def test_upsert_removes_raw_entry(self, db_path: Path) -> None:
         """When compiled version upserts, raw: entry should be deleted."""
         self._create_fts_table(db_path)
 
-        with sqlite3.connect(str(db_path)) as conn:
+        conn = sqlite3.connect(str(db_path))
+        try:
             conn.execute(
                 "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)",
                 ("raw:doc1", "raw content"),
             )
-
-        with sqlite3.connect(str(db_path)) as conn:
             conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", ("doc1",))
             conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", ("raw:doc1",))
             conn.execute(
                 "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)",
                 ("doc1", "compiled truth content"),
             )
-
-        with sqlite3.connect(str(db_path)) as conn:
             raw_cursor = conn.execute("SELECT * FROM wiki_fts WHERE concept_name = ?", ("raw:doc1",))
             assert raw_cursor.fetchone() is None
 
@@ -183,17 +187,18 @@ class TestIndexRawText:
             row = compiled_cursor.fetchone()
             assert row is not None
             assert "compiled truth" in row[0]
+        finally:
+            conn.close()
 
     def test_fts5_search_finds_raw_entries(self, db_path: Path) -> None:
         self._create_fts_table(db_path)
 
-        with sqlite3.connect(str(db_path)) as conn:
+        conn = sqlite3.connect(str(db_path))
+        try:
             conn.execute(
                 "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)",
                 ("raw:kubernetes_guide", "Kubernetes pod deployment scaling strategies"),
             )
-
-        with sqlite3.connect(str(db_path)) as conn:
             cursor = conn.execute(
                 "SELECT concept_name, rank FROM wiki_fts WHERE wiki_fts MATCH ?",
                 ("kubernetes",),
@@ -201,6 +206,8 @@ class TestIndexRawText:
             results = cursor.fetchall()
             assert len(results) >= 1
             assert any("raw:kubernetes_guide" in r[0] for r in results)
+        finally:
+            conn.close()
 
 
 class TestCompilerEnqueueRawIndex:

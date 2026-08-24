@@ -267,17 +267,7 @@
   {
     "layer": "EXTENDED",
     "layer_value": 3,
-    "name": "wiki_compile_tool"
-  },
-  {
-    "layer": "EXTENDED",
-    "layer_value": 3,
     "name": "wiki_ingest_tool"
-  },
-  {
-    "layer": "EXTENDED",
-    "layer_value": 3,
-    "name": "wiki_maintain_tool"
   },
   {
     "layer": "EXTENDED",

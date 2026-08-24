@@ -1290,12 +1290,14 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | `kanban_complete` | user_visible |
 | `kanban_heartbeat` | user_visible |
 | `kanban_retry_task` | user_visible |
+| `kanban_revise_plan` | user_visible |
 | `kanban_unblock` | user_visible |
+| `list_pdf_templates` | read_only |
+| `get_pdf_template_schema` | read_only |
+| `render_pdf_template` | user_visible |
 | `wiki_query_tool` | read_only |
 | `wiki_apply_tool` | user_visible |
-| `wiki_compile_tool` | user_visible |
 | `wiki_ingest_tool` | user_visible |
-| `wiki_maintain_tool` | user_visible |
 
 `browser_interact_tool` / `browser_manage_tool` / `bash_process_tool` / `desktop_*` 由 `resolve_permission_type()` 动态解析（子 action 映射到细粒度权限），不在 `AUTO_APPROVED_BUILTIN_TOOLS` 声明。
 

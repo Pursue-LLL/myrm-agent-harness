@@ -49,9 +49,59 @@ __all__ = [
     "AdvisoryAck",
     "AdvisoryAckRegistry",
     "SkillRescanResult",
+    "compute_workflow_fingerprint",
+    "MissingDependencyFailClosedError",
+    "MissingDependencyFailFastError",
+    "MissingSemanticsBlockedError",
+    "MissingSemanticsContract",
+    "MissingSemanticsDecision",
+    "MissingSemanticsError",
+    "MissingSemanticsPolicy",
+    "SemanticsCategory",
+    "evaluate_missing_capability",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "MissingDependencyFailClosedError": (
+        "myrm_agent_harness.core.security.missing_semantics",
+        "MissingDependencyFailClosedError",
+    ),
+    "MissingDependencyFailFastError": (
+        "myrm_agent_harness.core.security.missing_semantics",
+        "MissingDependencyFailFastError",
+    ),
+    "MissingSemanticsBlockedError": (
+        "myrm_agent_harness.core.security.missing_semantics",
+        "MissingSemanticsBlockedError",
+    ),
+    "MissingSemanticsContract": (
+        "myrm_agent_harness.core.security.missing_semantics",
+        "MissingSemanticsContract",
+    ),
+    "MissingSemanticsDecision": (
+        "myrm_agent_harness.core.security.missing_semantics",
+        "MissingSemanticsDecision",
+    ),
+    "MissingSemanticsError": (
+        "myrm_agent_harness.core.security.missing_semantics",
+        "MissingSemanticsError",
+    ),
+    "MissingSemanticsPolicy": (
+        "myrm_agent_harness.core.security.missing_semantics",
+        "MissingSemanticsPolicy",
+    ),
+    "SemanticsCategory": (
+        "myrm_agent_harness.core.security.missing_semantics",
+        "SemanticsCategory",
+    ),
+    "evaluate_missing_capability": (
+        "myrm_agent_harness.core.security.missing_semantics",
+        "evaluate_missing_capability",
+    ),
+    "compute_workflow_fingerprint": (
+        "myrm_agent_harness.toolkits.cron.engine.fingerprint",
+        "compute_workflow_fingerprint",
+    ),
     "route_task": (
         "myrm_agent_harness.toolkits.llms.routing.complexity_router",
         "route_task",

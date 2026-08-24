@@ -513,3 +513,4 @@ class SkillAgent(
     async def close(self) -> None:
         """Release resources held by this agent."""
         self.memory_manager = None
+        await self.cleanup_tools()

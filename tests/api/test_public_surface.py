@@ -25,6 +25,7 @@ def test_api_package_exports_match_all() -> None:
             "AgentStreamEvent",
             "build_parent_delegatable_toolkit",
             "CompletionStatus",
+            "compute_workflow_fingerprint",
             "ConfigIncompleteError",
             "HookEvent",
             "HookRegistryProtocol",
@@ -47,6 +48,15 @@ def test_api_package_exports_match_all() -> None:
             "set_workspace_root",
             "TaskSpecialty",
             "track_background_task",
+            "MissingDependencyFailClosedError",
+            "MissingDependencyFailFastError",
+            "MissingSemanticsBlockedError",
+            "MissingSemanticsContract",
+            "MissingSemanticsDecision",
+            "MissingSemanticsError",
+            "MissingSemanticsPolicy",
+            "SemanticsCategory",
+            "evaluate_missing_capability",
         ]
     )
 

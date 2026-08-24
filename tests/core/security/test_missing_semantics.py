@@ -17,7 +17,9 @@ from myrm_agent_harness.core.security.missing_semantics import (
 )
 from myrm_agent_harness.core.security.safe_exec import safe_exec
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
-from myrm_agent_harness.toolkits.code_execution.executors.local.executor import LocalExecutor
+from myrm_agent_harness.toolkits.code_execution.executors.local.executor import (
+    LocalExecutor,
+)
 from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext
 
 
@@ -43,7 +45,9 @@ def test_missing_semantics_matrix_integrity():
 
 def test_evaluate_missing_capability_available():
     """Available capabilities should always PROCEED regardless of policy."""
-    decision = evaluate_missing_capability(SemanticsCategory.SANDBOX_ISOLATION, is_available=True)
+    decision = evaluate_missing_capability(
+        SemanticsCategory.SANDBOX_ISOLATION, is_available=True
+    )
     assert decision.action == "PROCEED"
     assert decision.is_available is True
 
@@ -64,7 +68,9 @@ def test_evaluate_missing_capability_fail_closed():
 
 def test_evaluate_missing_capability_fail_fast():
     """Missing fail-fast capabilities should produce ABORT action."""
-    decision = evaluate_missing_capability(SemanticsCategory.CORE_DATABASE, is_available=False)
+    decision = evaluate_missing_capability(
+        SemanticsCategory.CORE_DATABASE, is_available=False
+    )
     assert decision.action == "ABORT"
     assert decision.is_available is False
     assert decision.error_code == "ERR_MISSING_CORE_DATABASE"
@@ -72,7 +78,9 @@ def test_evaluate_missing_capability_fail_fast():
 
 def test_evaluate_missing_capability_fallback():
     """Missing fallback capabilities should produce FALLBACK action without exception."""
-    decision = evaluate_missing_capability(SemanticsCategory.SECURITY_REVIEWER, is_available=False)
+    decision = evaluate_missing_capability(
+        SemanticsCategory.SECURITY_REVIEWER, is_available=False
+    )
     assert decision.action == "FALLBACK"
     assert decision.is_available is False
     assert decision.error_code == "WARN_FALLBACK_DEFAULT_MODEL"
@@ -102,8 +110,12 @@ async def test_local_executor_sandbox_missing_python_fail_closed():
 
     result = await executor.execute(context)
     assert result.success is False
-    assert "ERR_MISSING_SANDBOX_ISOLATION" in (result.error or "") or "ERR_MISSING_SANDBOX_ISOLATION" in (result.stderr or "")
-    assert "MissingSemanticsBlockedError" in (result.stderr or "")
+    assert "ERR_MISSING_SANDBOX_ISOLATION" in (
+        result.error or ""
+    ) or "ERR_MISSING_SANDBOX_ISOLATION" in (result.stderr or "")
+    assert "MissingDependencyFailClosedError" in (
+        result.stderr or ""
+    ) or "MissingSemanticsBlockedError" in (result.stderr or "")
 
 
 @pytest.mark.asyncio
@@ -118,5 +130,9 @@ async def test_local_executor_sandbox_missing_bash_fail_closed():
 
     result = await executor.execute_bash(context)
     assert result.success is False
-    assert "ERR_MISSING_SANDBOX_ISOLATION" in (result.error or "") or "ERR_MISSING_SANDBOX_ISOLATION" in (result.stderr or "")
-    assert "MissingSemanticsBlockedError" in (result.stderr or "")
+    assert "ERR_MISSING_SANDBOX_ISOLATION" in (
+        result.error or ""
+    ) or "ERR_MISSING_SANDBOX_ISOLATION" in (result.stderr or "")
+    assert "MissingDependencyFailClosedError" in (
+        result.stderr or ""
+    ) or "MissingSemanticsBlockedError" in (result.stderr or "")

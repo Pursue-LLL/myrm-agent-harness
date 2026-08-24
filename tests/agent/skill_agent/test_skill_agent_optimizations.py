@@ -96,3 +96,19 @@ async def test_skills_backend_exception_returns_empty_list():
     skills2 = await agent._get_cached_skills()
     assert skills2 == []
     assert mock_skill_backend.list_skills.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_skill_agent_close_triggers_cleanup_tools():
+    """SkillAgent.close() must await cleanup_tools() and reset memory_manager."""
+    mock_llm = AsyncMock()
+    mock_skill_backend = AsyncMock()
+    mock_skill_backend.list_skills = AsyncMock(return_value=[])
+
+    agent = SkillAgent(llm=mock_llm, skill_backend=mock_skill_backend)
+    agent.cleanup_tools = AsyncMock()
+
+    await agent.close()
+
+    assert agent.memory_manager is None
+    agent.cleanup_tools.assert_awaited_once()
