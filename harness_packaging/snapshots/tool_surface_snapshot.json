@@ -192,6 +192,11 @@
   {
     "layer": "EXTENDED",
     "layer_value": 3,
+    "name": "kanban_revise_plan"
+  },
+  {
+    "layer": "EXTENDED",
+    "layer_value": 3,
     "name": "kanban_show"
   },
   {
