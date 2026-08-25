@@ -82,6 +82,17 @@ class _TestOpenAIChat(BaseChatModel):
         text = data["choices"][0]["message"]["content"]
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content=text))])
 
+    async def _agenerate(
+        self,
+        messages: list[BaseMessage],
+        stop: list[str] | None = None,
+        run_manager: Any = None,
+        **kwargs: Any,
+    ) -> ChatResult:
+        import asyncio
+
+        return await asyncio.to_thread(self._generate, messages, stop, run_manager, **kwargs)
+
 
 class _StructuredOutputWrapper:
     """Wraps a _TestOpenAIChat to parse JSON response into a Pydantic model."""
@@ -91,6 +102,7 @@ class _StructuredOutputWrapper:
         self._schema = schema
 
     async def ainvoke(self, input: Any, **kwargs: Any) -> Any:
+        import asyncio
         import re
 
         field_hint = ""
@@ -117,7 +129,7 @@ class _StructuredOutputWrapper:
             if isinstance(last, HumanMessage):
                 input = [*input[:-1], HumanMessage(content=last.content + field_hint)]
 
-        result = self._llm.invoke(input)
+        result = await asyncio.to_thread(self._llm.invoke, input)
         text = result.content
         json_match = re.search(r"\{[\s\S]*\}", text)
         if json_match:

@@ -106,6 +106,7 @@ class BackgroundEvolutionTaskManager:
                     result.reason,
                     result.retry_after_seconds,
                 )
+                coro.close()
                 return None
             ticket = result
 

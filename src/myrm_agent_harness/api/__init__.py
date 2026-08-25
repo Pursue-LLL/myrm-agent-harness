@@ -31,6 +31,8 @@ __all__ = [
     "ComplianceStatus",
     "ComplianceViolation",
     "ConfigIncompleteError",
+    "ConnectorErrorCategory",
+    "ConnectorHealthStatus",
     "Doctor",
     "HookEvent",
     "HookRegistryProtocol",
@@ -46,11 +48,19 @@ __all__ = [
     "MissingSemanticsDecision",
     "MissingSemanticsError",
     "MissingSemanticsPolicy",
+    "PrivacyFailClosedLadder",
+    "PrivacyFailClosedViolationError",
     "PrivacyLadderLevel",
-    "PrivacyLadderScanResult",
-    "PrivacyLadderValidator",
-    "PrivacyLadderViolation",
-    "PrivacyScanVerdict",
+    "PrivacyLadderVerdict",
+    "PrivacyLadderViolationType",
+    "PrivacyScope",
+    "SEAL_FILENAME",
+    "SEAL_MAGIC_HEADER",
+    "FileChecksum",
+    "IntegritySealer",
+    "IntegrityStatus",
+    "IntegrityVerificationResult",
+    "SealManifest",
     "SafetyMetadata",
     "SemanticsCategory",
     "SkillAgent",
@@ -110,6 +120,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "ComplianceViolation",
     ),
     "ConfigIncompleteError": ("myrm_agent_harness.api.config", "ConfigIncompleteError"),
+    "ConnectorErrorCategory": (
+        "myrm_agent_harness.toolkits.cron.engine.connector_health",
+        "ConnectorErrorCategory",
+    ),
+    "ConnectorHealthStatus": (
+        "myrm_agent_harness.toolkits.cron.engine.connector_health",
+        "ConnectorHealthStatus",
+    ),
     "Doctor": ("myrm_agent_harness.runtime.doctor", "Doctor"),
     "HookEvent": ("myrm_agent_harness.api.protocols", "HookEvent"),
     "HookRegistryProtocol": (
@@ -155,25 +173,57 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.core.security.missing_semantics",
         "MissingSemanticsPolicy",
     ),
+    "PrivacyFailClosedLadder": (
+        "myrm_agent_harness.core.security.guards.privacy_ladder",
+        "PrivacyFailClosedLadder",
+    ),
+    "PrivacyFailClosedViolationError": (
+        "myrm_agent_harness.core.security.guards.privacy_ladder",
+        "PrivacyFailClosedViolationError",
+    ),
     "PrivacyLadderLevel": (
-        "myrm_agent_harness.core.security.privacy",
+        "myrm_agent_harness.core.security.guards.privacy_ladder",
         "PrivacyLadderLevel",
     ),
-    "PrivacyLadderScanResult": (
-        "myrm_agent_harness.core.security.privacy",
-        "PrivacyLadderScanResult",
+    "PrivacyLadderVerdict": (
+        "myrm_agent_harness.core.security.guards.privacy_ladder",
+        "PrivacyLadderVerdict",
     ),
-    "PrivacyLadderValidator": (
-        "myrm_agent_harness.core.security.privacy",
-        "PrivacyLadderValidator",
+    "PrivacyLadderViolationType": (
+        "myrm_agent_harness.core.security.guards.privacy_ladder",
+        "PrivacyLadderViolationType",
     ),
-    "PrivacyLadderViolation": (
-        "myrm_agent_harness.core.security.privacy",
-        "PrivacyLadderViolation",
+    "PrivacyScope": (
+        "myrm_agent_harness.core.security.guards.privacy_ladder",
+        "PrivacyScope",
     ),
-    "PrivacyScanVerdict": (
-        "myrm_agent_harness.core.security.privacy",
-        "PrivacyScanVerdict",
+    "FileChecksum": (
+        "myrm_agent_harness.core.security.integrity.seal",
+        "FileChecksum",
+    ),
+    "IntegritySealer": (
+        "myrm_agent_harness.core.security.integrity.seal",
+        "IntegritySealer",
+    ),
+    "IntegrityStatus": (
+        "myrm_agent_harness.core.security.integrity.seal",
+        "IntegrityStatus",
+    ),
+    "IntegrityVerificationResult": (
+        "myrm_agent_harness.core.security.integrity.seal",
+        "IntegrityVerificationResult",
+    ),
+    "SEAL_FILENAME": (
+        "myrm_agent_harness.core.security.integrity.seal",
+        "SEAL_FILENAME",
+    ),
+    "SEAL_MAGIC_HEADER": (
+        "myrm_agent_harness.core.security.integrity.seal",
+        "SEAL_MAGIC_HEADER",
+    ),
+    "SealManifest": (
+        "myrm_agent_harness.core.security.integrity.seal",
+        "SealManifest",
     ),
     "SafetyMetadata": (
         "myrm_agent_harness.core.security.tool_registry.registry",
@@ -197,6 +247,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.api.subagents",
         "build_parent_delegatable_toolkit",
     ),
+    "classify_connector_error": (
+        "myrm_agent_harness.toolkits.cron.engine.connector_health",
+        "classify_connector_error",
+    ),
     "compute_workflow_fingerprint": (
         "myrm_agent_harness.toolkits.cron.engine.fingerprint",
         "compute_workflow_fingerprint",
@@ -213,6 +267,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "evict_skill_safety_metadata": (
         "myrm_agent_harness.core.security.tool_registry.registry",
         "evict_skill_safety_metadata",
+    ),
+    "generate_fix_suggestion": (
+        "myrm_agent_harness.toolkits.cron.engine.connector_health",
+        "generate_fix_suggestion",
     ),
     "get_distribution_mode": (
         "myrm_agent_harness.distribution.probe",
@@ -234,6 +292,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "is_registered_action_tool": (
         "myrm_agent_harness.agent.tool_management.tool_layers",
         "is_registered_action_tool",
+    ),
+    "redact_connector_url": (
+        "myrm_agent_harness.toolkits.cron.engine.connector_health",
+        "redact_connector_url",
     ),
     "register_ptc_safety_metadata": (
         "myrm_agent_harness.core.security.tool_registry.registry",

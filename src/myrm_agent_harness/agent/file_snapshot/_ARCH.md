@@ -15,6 +15,7 @@ Workspace file versioning and rollback subsystem. Provides transparent file-leve
 | local_store.py | Implementation | LocalFileSnapshotStore — file copy + JSON manifest. Fallback when git is absent. | ✅ |
 | factory.py | Factory | create_file_snapshot_store() — auto-selects Shadow Git or Local File based on git availability. | ✅ |
 | restore_inbox.py | Notification | In-process deque inbox. Server pushes restore events; agent_runtime drains them as HumanMessage on next turn. | ✅ |
+| sealed_io.py | Core I/O | Atomic write (temp+fsync+replace), SHA-256 integrity sealing, and .corrupted/ quarantine isolation. | ✅ |
 | external_effect_detector.py | Detector | Pure-function regex detector for irreversible external effects (database/container/network mutations). | ✅ |
 
 ## Key Dependencies

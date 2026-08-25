@@ -319,6 +319,11 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDepende
             self._conn.close()
         logger.debug("SkillStore closed (WAL checkpointed)")
 
+    def __del__(self) -> None:
+        """Ensure connection is closed on garbage collection."""
+        with suppress(Exception):
+            self.close()
+
     async def __aenter__(self):
         return self
 

@@ -264,7 +264,9 @@ class SnapshotStore:
             payload = json.dumps(data, ensure_ascii=False)
 
             async with self._get_lock():
-                await asyncio.to_thread(target.write_text, payload, "utf-8")
+                from myrm_agent_harness.agent.file_snapshot.sealed_io import atomic_sealed_write
+
+                await asyncio.to_thread(atomic_sealed_write, target, data)
         except OSError:
             logger.warning(
                 "Failed to persist snapshots to disk for session=%s msg=%s",
@@ -278,13 +280,17 @@ class SnapshotStore:
         if not snapshots_dir.is_dir():
             return []
 
+        from myrm_agent_harness.agent.file_snapshot.sealed_io import verify_and_load_sealed
+
         result: list[tuple[str, list[FileSnapshot]]] = []
         try:
             for entry in sorted(snapshots_dir.iterdir()):
                 if entry.suffix != ".json":
                     continue
                 message_id = entry.stem
-                raw = json.loads(await asyncio.to_thread(entry.read_text, "utf-8"))
+                is_valid, raw, _ = await asyncio.to_thread(verify_and_load_sealed, entry, True)
+                if not is_valid or not isinstance(raw, list):
+                    continue
                 snaps = [
                     FileSnapshot(
                         path=item["path"],
