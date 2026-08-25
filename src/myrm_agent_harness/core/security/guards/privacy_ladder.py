@@ -237,6 +237,9 @@ class PrivacyFailClosedLadder:
             text_to_scan = content if isinstance(content, str) else content.decode("utf-8", errors="ignore")
             if text_to_scan:
                 policy = privacy_policy or get_privacy_policy()
+                # For fail-closed ladder file content inspection, ensure enabled policy is used
+                if not policy.enabled:
+                    policy = PrivacyPolicy(enabled=True)
                 classification = classify_content(text_to_scan, policy)
 
                 if classification.level == SensitivityLevel.S3 and not effective_scope.allow_s3_persistence:
@@ -249,7 +252,7 @@ class PrivacyFailClosedLadder:
                             "from unencrypted workspace persistence"
                         ),
                         detected_sensitivity=SensitivityLevel.S3,
-                        matched_patterns=tuple(classification.matched_patterns),
+                        matched_patterns=tuple(classification.patterns),
                     )
 
         return PrivacyLadderVerdict(

@@ -207,3 +207,13 @@ class TestCreateLitellmModel:
         create_litellm_model("openai/gpt-4o", native_tools={"web_search"})
         call_kwargs = mock_cls.call_args[1]
         assert call_kwargs["web_search_options"] == {}
+
+    @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
+    def test_local_endpoint_injects_num_ctx_64000(self, mock_cls: MagicMock) -> None:
+        """Local endpoint (e.g. localhost:11434) should inject num_ctx=64000 into extra_body.options."""
+        create_litellm_model("ollama/qwen2.5:14b", base_url="http://localhost:11434/v1")
+        call_kwargs = mock_cls.call_args[1]
+        assert "extra_body" in call_kwargs
+        assert "options" in call_kwargs["extra_body"]
+        assert call_kwargs["extra_body"]["options"]["num_ctx"] == 64000
+

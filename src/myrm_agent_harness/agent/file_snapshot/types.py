@@ -20,6 +20,11 @@ class SnapshotTrigger(StrEnum):
     EXECUTE_TERMINAL = "execute_terminal"
     MANUAL = "manual"
     PRE_ROLLBACK = "pre_rollback"
+    TURN_COMPLETED = "turn_completed"
+    TOOL_COMPLETED = "tool_completed"
+    SESSION_ENDED = "session_ended"
+    CHECKPOINT_SYNC = "checkpoint_sync"
+
 
 
 SnapshotId = str

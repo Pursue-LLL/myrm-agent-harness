@@ -37,6 +37,14 @@ from myrm_agent_harness.infra.incremental.hash_monitor import (
 from myrm_agent_harness.infra.incremental.manager import IncrementalMonitorManager
 from myrm_agent_harness.observability.tracing import TracingContext
 from myrm_agent_harness.toolkits.cron.delivery_guard import is_silent_output
+from myrm_agent_harness.toolkits.cron.engine.connector_health import (
+    ConnectorFailureDetail,
+    ConnectorHealthStatus,
+    StructuredAlertPayload,
+    classify_connector_error,
+    generate_fix_suggestion,
+    redact_connector_url,
+)
 from myrm_agent_harness.toolkits.cron.engine.helpers import (
     classify_transient_error,
     error_backoff_ms,
@@ -458,6 +466,23 @@ class JobExecutor:
             await self._delivery.deliver(job, delivery_result)
         except Exception as exc:
             logger.warning("Delivery failed for job %s: %s", job.id, exc)
+            category, summary = classify_connector_error(exc)
+            redacted_target = redact_connector_url(job.delivery.target) if job.delivery else ""
+            
+            # Attach structured failure detail into metadata
+            failure_detail = ConnectorFailureDetail(
+                category=category,
+                target=redacted_target,
+                message=str(exc)[:500],
+            )
+            if result.metadata is None:
+                # We can't mutate frozen JobResult metadata directly, but CronRunRecord gets metadata dict
+                result = dc_replace(result, metadata={"connector_failure": failure_detail.to_dict()})
+            elif isinstance(result.metadata, dict) and "connector_failure" not in result.metadata:
+                new_meta = dict(result.metadata)
+                new_meta["connector_failure"] = failure_detail.to_dict()
+                result = dc_replace(result, metadata=new_meta)
+                
             return DeliveryStatus.FAILED, str(exc)[:500]
 
         if job.deduplicate and result.success:
@@ -689,14 +714,36 @@ class JobExecutor:
         job.last_failure_alert_at = now
 
         error_snippet = (job.last_error or "unknown error")[:200]
+        category, summary = classify_connector_error(job.last_error or "unknown error")
+        fix_suggestion = generate_fix_suggestion(category)
+        target = redact_connector_url(job.delivery.target if job.delivery else "")
+        status = ConnectorHealthStatus.DOWN if failures >= 3 else ConnectorHealthStatus.DEGRADED
+
+        structured_payload = StructuredAlertPayload(
+            job_id=job.id,
+            job_name=job.name,
+            consecutive_failures=failures,
+            status=status,
+            category=category,
+            target=target,
+            error_summary=summary,
+            fix_suggestion=fix_suggestion,
+            timestamp=now.isoformat(),
+        )
+
         alert_result = JobResult(
             success=True,
             output=(
                 f' Cron job "{job.name}" failed {failures} consecutive times.\n'
-                f"Last error: {error_snippet}\n\n"
+                f"Category: {category.value}\n"
+                f"Last error: {error_snippet}\n"
+                f"Suggestion: {fix_suggestion}\n\n"
                 f"The task has been auto-paused or will retry with backoff. "
                 f"Please check the task configuration in Settings → Cron."
             ),
+            metadata={
+                "structured_alert": structured_payload.to_dict(),
+            },
         )
 
         effective_delivery = alert_config.delivery or job.failure_delivery or self._global_failure_delivery

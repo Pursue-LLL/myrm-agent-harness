@@ -29,6 +29,10 @@ from datetime import UTC, datetime
 import httpx
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
+from myrm_agent_harness.toolkits.cron.engine.connector_health import (
+    classify_connector_error,
+    redact_connector_url,
+)
 from myrm_agent_harness.toolkits.cron.types import CronJob, JobResult
 
 logger = logging.getLogger(__name__)
@@ -160,12 +164,14 @@ class WebhookDelivery:
                     raise
                 if attempt < self._max_retries:
                     delay = _BACKOFF_BASE_S * (2**attempt)
+                    category, summary = classify_connector_error(exc)
                     logger.warning(
-                        "%s attempt %d/%d failed: %s — retrying in %.1fs",
+                        "%s attempt %d/%d failed [%s: %s] — retrying in %.1fs",
                         label,
                         attempt + 1,
                         self._max_retries + 1,
-                        exc,
+                        category.value,
+                        summary,
                         delay,
                     )
                     await asyncio.sleep(delay)

@@ -94,3 +94,42 @@ def test_ignored_transient_cache_paths(tmp_path: Path) -> None:
 
     res_nodemodules = validator.evaluate_path("node_modules/package/index.js")
     assert res_nodemodules.verdict == PrivacyScanVerdict.IGNORED
+
+
+def test_edge_cases_and_symlink_escape(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    secret_dir = tmp_path / "secret_data"
+    secret_dir.mkdir()
+    secret_file = secret_dir / "confidential.txt"
+    secret_file.write_text("top_secret")
+
+    # Symlink inside workspace pointing outside
+    symlink_target = workspace / "sym_link_escape"
+    try:
+        os.symlink(secret_dir, symlink_target)
+    except OSError:
+        return
+
+    validator = PrivacyLadderValidator(workspace_root=workspace, session_id="sess_123")
+
+    # Evaluating the symlinked directory path
+    res_symlink = validator.evaluate_path("sym_link_escape/confidential.txt")
+    assert res_symlink.verdict == PrivacyScanVerdict.FAIL_CLOSED
+    assert any(v.level == PrivacyLadderLevel.WORKSPACE_LEVEL for v in res_symlink.violations)
+
+    # Empty string path
+    res_empty = validator.evaluate_path("   ")
+    assert res_empty.verdict == PrivacyScanVerdict.FAIL_CLOSED
+
+
+def test_custom_patterns(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    validator = PrivacyLadderValidator(
+        workspace_root=workspace,
+        custom_ignore_files=("*.custom_cache",),
+    )
+    res_custom = validator.evaluate_path("data.custom_cache")
+    assert res_custom.verdict == PrivacyScanVerdict.IGNORED

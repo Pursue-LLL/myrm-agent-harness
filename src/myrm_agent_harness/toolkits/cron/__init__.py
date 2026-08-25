@@ -43,6 +43,15 @@ cron framework.
 """
 
 from myrm_agent_harness.toolkits.cron.delivery import WebhookDelivery
+from myrm_agent_harness.toolkits.cron.engine.connector_health import (
+    ConnectorErrorCategory,
+    ConnectorFailureDetail,
+    ConnectorHealthStatus,
+    StructuredAlertPayload,
+    classify_connector_error,
+    generate_fix_suggestion,
+    redact_connector_url,
+)
 from myrm_agent_harness.toolkits.cron.engine.scheduler import CronScheduler
 from myrm_agent_harness.toolkits.cron.heartbeat import (
     HEARTBEAT_JOB_NAME,
@@ -102,6 +111,9 @@ from myrm_agent_harness.toolkits.cron.types import (
 __all__ = [
     "HEARTBEAT_JOB_NAME",
     "ConcurrencyLock",
+    "ConnectorErrorCategory",
+    "ConnectorFailureDetail",
+    "ConnectorHealthStatus",
     "CronConfig",
     "CronJob",
     "CronJobPatch",
@@ -134,6 +146,7 @@ __all__ = [
     "StreamListener",
     "StreamProtocol",
     "StreamTrigger",
+    "StructuredAlertPayload",
     "SystemEventTrigger",
     "TransientErrorKind",
     "TriggerConfig",
@@ -141,11 +154,14 @@ __all__ = [
     "TriggerProvider",
     "WebhookDelivery",
     "WebhookTrigger",
+    "classify_connector_error",
     "dict_to_trigger_config",
     "disable_heartbeat",
     "enable_heartbeat",
+    "generate_fix_suggestion",
     "generate_webhook_path",
     "generate_webhook_secret",
     "get_heartbeat_status",
+    "redact_connector_url",
     "trigger_config_to_dict",
 ]

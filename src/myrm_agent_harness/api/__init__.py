@@ -46,6 +46,11 @@ __all__ = [
     "MissingSemanticsDecision",
     "MissingSemanticsError",
     "MissingSemanticsPolicy",
+    "PrivacyLadderLevel",
+    "PrivacyLadderScanResult",
+    "PrivacyLadderValidator",
+    "PrivacyLadderViolation",
+    "PrivacyScanVerdict",
     "SafetyMetadata",
     "SemanticsCategory",
     "SkillAgent",
@@ -150,6 +155,26 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.core.security.missing_semantics",
         "MissingSemanticsPolicy",
     ),
+    "PrivacyLadderLevel": (
+        "myrm_agent_harness.core.security.privacy",
+        "PrivacyLadderLevel",
+    ),
+    "PrivacyLadderScanResult": (
+        "myrm_agent_harness.core.security.privacy",
+        "PrivacyLadderScanResult",
+    ),
+    "PrivacyLadderValidator": (
+        "myrm_agent_harness.core.security.privacy",
+        "PrivacyLadderValidator",
+    ),
+    "PrivacyLadderViolation": (
+        "myrm_agent_harness.core.security.privacy",
+        "PrivacyLadderViolation",
+    ),
+    "PrivacyScanVerdict": (
+        "myrm_agent_harness.core.security.privacy",
+        "PrivacyScanVerdict",
+    ),
     "SafetyMetadata": (
         "myrm_agent_harness.core.security.tool_registry.registry",
         "SafetyMetadata",
@@ -160,6 +185,26 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
     "SkillAgent": ("myrm_agent_harness.api.factory", "SkillAgent"),
     "SkillBackend": ("myrm_agent_harness.api.protocols", "SkillBackend"),
+    "PrivacyLadderLevel": (
+        "myrm_agent_harness.core.security.privacy",
+        "PrivacyLadderLevel",
+    ),
+    "PrivacyLadderScanResult": (
+        "myrm_agent_harness.core.security.privacy",
+        "PrivacyLadderScanResult",
+    ),
+    "PrivacyLadderValidator": (
+        "myrm_agent_harness.core.security.privacy",
+        "PrivacyLadderValidator",
+    ),
+    "PrivacyLadderViolation": (
+        "myrm_agent_harness.core.security.privacy",
+        "PrivacyLadderViolation",
+    ),
+    "PrivacyScanVerdict": (
+        "myrm_agent_harness.core.security.privacy",
+        "PrivacyScanVerdict",
+    ),
     "SkillRescanResult": (
         "myrm_agent_harness.backends.skills.scanning.rescan_engine",
         "SkillRescanResult",

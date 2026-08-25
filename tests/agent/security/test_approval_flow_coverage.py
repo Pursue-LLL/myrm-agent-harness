@@ -42,8 +42,10 @@ class FakeStore:
         tool_name: str | None = None,
         tool_args_hash: str | None = None,
         command_pattern: str | None = None,
+        agent_id: str | None = None,
     ) -> None:
         self.removed.append((user_id, permission, tool_name, tool_args_hash, command_pattern))
+
 
 
 class TestDefaultUserID:

@@ -18,7 +18,7 @@ from .local_store import LocalFileSnapshotStore
 from .protocols import FileSnapshotProtocol
 from .restore_inbox import drain_restore_notifications, push_restore_notification
 from .shadow_git_store import ShadowGitSnapshotStore
-from .types import FileDiff, FileSnapshotInfo, RestoreResult, SnapshotId
+from .types import FileDiff, FileSnapshotInfo, RestoreResult, SnapshotId, SnapshotTrigger
 
 __all__ = [
     "FileDiff",
@@ -28,8 +28,10 @@ __all__ = [
     "RestoreResult",
     "ShadowGitSnapshotStore",
     "SnapshotId",
+    "SnapshotTrigger",
     "create_file_snapshot_store",
     "drain_restore_notifications",
     "get_cached_store",
     "push_restore_notification",
 ]
+

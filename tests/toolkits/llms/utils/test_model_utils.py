@@ -63,3 +63,9 @@ class TestGetModelContextLimit:
         llm.model_max_context_length = -100
         llm.max_input_tokens = 4096
         assert get_model_context_limit(llm) == 4096
+
+    def test_extra_body_options_num_ctx(self) -> None:
+        llm = MagicMock(spec=[])
+        llm.extra_body = {"options": {"num_ctx": 64000}}
+        assert get_model_context_limit(llm) == 64000
+
