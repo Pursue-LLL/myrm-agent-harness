@@ -21,6 +21,14 @@ from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate impo
     validate_and_sanitize_mounts,
     validate_mount_spec,
 )
+from myrm_agent_harness.toolkits.code_execution.sandbox.privacy_ladder import (
+    PrivacyLadderResult,
+    PrivacyLadderScope,
+    PrivacyLadderViolationType,
+    PrivacyTier,
+    validate_and_sanitize_persistence_paths,
+    validate_privacy_ladder,
+)
 from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
     SandboxMode,
     SandboxPolicy,
@@ -33,11 +41,17 @@ __all__ = [
     "MountSpec",
     "MountValidationResult",
     "MountViolationType",
+    "PrivacyLadderResult",
+    "PrivacyLadderScope",
+    "PrivacyLadderViolationType",
+    "PrivacyTier",
     "SandboxMode",
     "SandboxPolicy",
     "SandboxProvider",
     "SandboxStatus",
     "detect_sandbox_provider",
     "validate_and_sanitize_mounts",
+    "validate_and_sanitize_persistence_paths",
     "validate_mount_spec",
+    "validate_privacy_ladder",
 ]

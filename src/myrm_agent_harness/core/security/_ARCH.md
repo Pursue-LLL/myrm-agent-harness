@@ -24,6 +24,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | tool_registry/ | Tool registry domain — `registry.py` (tool safety SSOT: permission mapping, canonical params, safety metadata, tool groups) + `safety.py` (module-load coverage gate), `__init__.py` (aggregation facade). |
 | detection/ | PII classification, content boundary marking, leak detection, prompt injection guard, pseudonymization. |
 | persistence/ | Pre-write content scan SSOT — profiles for Memory / Wiki raw / Wiki publish ([persistence/_ARCH.md](persistence/_ARCH.md)). |
+| privacy/ | 3-Level fail-closed privacy ladder validator for sandbox and workspace persistence ([privacy/_ARCH.md](privacy/_ARCH.md)). |
 | guards/ | Session-level security guards — privacy tracker, unified SSRF (`ssrf.py`), skill DLP allowlist (`url_allowlist.py`). |
 | http/ | SSRF-protected outbound HTTP fetch — DNS pinning and redirect validation (`secure_fetch.py`). |
 

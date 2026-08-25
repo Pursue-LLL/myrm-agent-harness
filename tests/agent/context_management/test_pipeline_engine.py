@@ -257,6 +257,17 @@ class TestContextPipeline:
         await pipeline.process(_make_context())
 
         assert processor.lock_states == [False]
+
+    @pytest.mark.asyncio
+    async def test_create_default_pipeline_includes_media_budget_governor(self) -> None:
+        """Integration verification: default pipeline includes media_budget_governor in chain."""
+        pipeline = create_default_pipeline()
+        names = [p.name for p in pipeline.processors]
+        assert "media_budget_governor" in names
+        # Verify ordering: media_budget_governor runs after media_resolver
+        if "media_resolver" in names:
+            assert names.index("media_budget_governor") > names.index("media_resolver")
+
         assert get_active_session_count() == 0
 
     @pytest.mark.asyncio

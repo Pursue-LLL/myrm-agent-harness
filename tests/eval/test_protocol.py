@@ -230,6 +230,16 @@ class TestEvalManifest:
         d = r.to_dict()
         assert "manifest" not in d
 
+    def test_operational_assurance_category_enum(self) -> None:
+        from myrm_agent_harness.eval.protocols import OperationalAssuranceCategory
+
+        assert OperationalAssuranceCategory.PERMISSION_DENIED.value == "permission_denied"
+        assert OperationalAssuranceCategory.TOOL_TIMEOUT.value == "tool_timeout"
+        assert OperationalAssuranceCategory.INTERRUPTED_RECOVERY.value == "interrupted_recovery"
+        assert OperationalAssuranceCategory.SANDBOX_EXHAUSTION.value == "sandbox_exhaustion"
+        assert OperationalAssuranceCategory.SKILL_CONFLICT.value == "skill_conflict"
+        assert OperationalAssuranceCategory.EVIDENCE_EXPIRATION.value == "evidence_expiration"
+
     def test_benchmark_spec_compaction_ab_support(self) -> None:
         from myrm_agent_harness.eval.benchmarks import BenchmarkSpec
 

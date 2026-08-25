@@ -27,6 +27,15 @@ def get_model_context_limit(llm: BaseChatModel) -> int | None:
         if isinstance(val, int) and val > 0:
             return val
 
+    # Check extra_body options num_ctx (Ollama / Local endpoints)
+    extra_body = getattr(llm, "extra_body", None)
+    if isinstance(extra_body, dict):
+        options = extra_body.get("options")
+        if isinstance(options, dict):
+            num_ctx = options.get("num_ctx")
+            if isinstance(num_ctx, int) and num_ctx > 0:
+                return num_ctx
+
     model_name = getattr(llm, "model_name", "") or getattr(llm, "model", "") or ""
     if not model_name:
         return None

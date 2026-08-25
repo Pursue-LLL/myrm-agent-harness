@@ -260,13 +260,13 @@ def create_ast_symbol_search_tool(io_config: FileIOConfig | None = None) -> Base
             files_to_scan.append(p)
         else:
             candidates = collect_candidate_files(
-                root_path=p,
+                search_root=p,
                 file_pattern=file_pattern if file_pattern != "*" else "**/*",
                 include_ignored=False,
                 include_hidden=False,
-                max_results=io_cfg.max_search_results,
+                max_files=io_cfg.max_search_results,
             )
-            files_to_scan.extend([p / c for c in candidates if (p / c).suffix.lower() in _LANG_EXTENSIONS])
+            files_to_scan.extend([c for c in candidates if c.suffix.lower() in _LANG_EXTENSIONS])
 
         if not files_to_scan:
             return f"No code files found under '{path}' matching pattern '{file_pattern}'."
@@ -277,7 +277,7 @@ def create_ast_symbol_search_tool(io_config: FileIOConfig | None = None) -> Base
 
         for file_path in files_to_scan[:50]:
             try:
-                rel_display = str(file_path.relative_to(p)) if p.is_dir() else path
+                rel_display = str(file_path.relative_to(p)) if p.is_dir() else str(file_path.name)
                 content = file_path.read_text(encoding="utf-8", errors="replace")
                 symbols = extract_symbols_from_code(content, file_path.name)
 

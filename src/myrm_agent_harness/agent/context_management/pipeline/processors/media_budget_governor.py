@@ -131,7 +131,8 @@ class CumulativeImageBudgetGovernor:
         """Scan all messages and collect base64 image items with byte sizes."""
         items: list[ImageItemRef] = []
         total_msgs = len(messages)
-        focus_cutoff_idx = max(0, total_msgs - self.focus_window_turns)
+        # Protect the latest N messages (matching focus_window_turns) from aggressive eviction
+        focus_cutoff_idx = max(0, total_msgs - max(1, self.focus_window_turns))
 
         for msg_idx, msg in enumerate(messages):
             content = getattr(msg, "content", None)

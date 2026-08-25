@@ -16,6 +16,7 @@ from myrm_agent_harness.agent.context_management.pipeline.processors.media_budge
     MediaBudgetGovernorProcessor,
     _downsample_base64_image,
 )
+from myrm_agent_harness.utils.image_utils import estimate_base64_byte_size
 
 
 def _make_dummy_base64_image(width: int = 800, height: int = 600, color: tuple[int, int, int] = (100, 150, 200)) -> str:
@@ -85,9 +86,9 @@ class TestCumulativeImageBudgetGovernor:
         """When total payload exceeds budget, older non-focus images are downsampled to Tier 2."""
         img_large = _make_dummy_base64_image(width=1000, height=1000)
         img_focus = _make_dummy_base64_image(width=1000, height=1000)
-        single_img_size = len(img_large)
+        single_img_size = estimate_base64_byte_size(img_large)
 
-        # Set budget lower than 2 large images (~44KB) but higher than 1 large + 1 small (~23KB)
+        # Set budget lower than 2 large images (~33KB) but higher than 1 large + 1 small (~17KB)
         small_budget = int(single_img_size * 1.5)
         gov = CumulativeImageBudgetGovernor(
             max_cumulative_bytes=small_budget,
@@ -133,6 +134,47 @@ class TestCumulativeImageBudgetGovernor:
         # Turn 1 should be converted to text placeholder
         assert msgs[0].content[1]["type"] == "text"  # type: ignore[index]
         assert "[Historical Image omitted" in msgs[0].content[1]["text"]  # type: ignore[index]
+
+    @pytest.mark.asyncio
+    async def test_string_content_message_is_skipped_safely(self) -> None:
+        """Messages with plain string content should not crash the governor."""
+        gov = CumulativeImageBudgetGovernor(max_cumulative_bytes=1000)
+        msgs: list[BaseMessage] = [
+            HumanMessage(content="just plain text"),
+            AIMessage(content="plain response"),
+        ]
+        downsampled, textified = await gov.enforce_budget(msgs)
+        assert downsampled == 0
+        assert textified == 0
+
+    @pytest.mark.asyncio
+    async def test_mixed_multiple_images_in_single_turn(self) -> None:
+        """When a turn has multiple images, budget governor accounts for each item correctly."""
+        img1 = _make_dummy_base64_image(width=800, height=800)
+        img2 = _make_dummy_base64_image(width=800, height=800)
+        img_focus = _make_dummy_base64_image(width=800, height=800)
+
+        gov = CumulativeImageBudgetGovernor(
+            max_cumulative_bytes=estimate_base64_byte_size(img1) * 2,
+            focus_window_turns=1,
+        )
+
+        msgs: list[BaseMessage] = [
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": "turn 1 multi-image"},
+                    {"type": "image_url", "image_url": {"url": img1}},
+                    {"type": "image_url", "image_url": {"url": img2}},
+                ]
+            ),
+            AIMessage(content="response 1"),
+            _make_human_image_message(img_focus, "turn 2 (focus)"),
+        ]
+
+        downsampled, textified = await gov.enforce_budget(msgs)
+        assert downsampled + textified >= 1
+        assert msgs[2].content[1]["image_url"]["url"] == img_focus  # type: ignore[index]
+
 
 
 class TestMediaBudgetGovernorProcessor:

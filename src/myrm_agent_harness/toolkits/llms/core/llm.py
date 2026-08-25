@@ -199,15 +199,22 @@ def create_litellm_model(
     if "first_event_timeout" not in llm_kwargs and reasoning_floor is not None:
         llm_kwargs["first_event_timeout"] = min(reasoning_floor / 2, 300.0)
 
-    # Local endpoints: relax stall detection to avoid killing long prefills
+    # Local endpoints: relax stall detection to avoid killing long prefills and ensure 64k agentic context window
     if _is_local_endpoint(base_url):
-        logger.info("Local endpoint detected (%s), relaxing stall timeouts", base_url)
+        logger.info("Local endpoint detected (%s), relaxing stall timeouts and configuring num_ctx", base_url)
         if "first_event_timeout" not in llm_kwargs:
             llm_kwargs["first_event_timeout"] = _LOCAL_FIRST_EVENT_TIMEOUT
         if "inter_chunk_timeout" not in llm_kwargs:
             llm_kwargs["inter_chunk_timeout"] = _LOCAL_INTER_CHUNK_TIMEOUT
         if "request_timeout" not in llm_kwargs:
             llm_kwargs["request_timeout"] = _LOCAL_REQUEST_TIMEOUT
+
+        # For Ollama / local endpoints, ensure num_ctx=64000 is passed in options
+        extra_body = llm_kwargs.setdefault("extra_body", {})
+        if isinstance(extra_body, dict):
+            options = extra_body.setdefault("options", {})
+            if isinstance(options, dict) and "num_ctx" not in options:
+                options["num_ctx"] = 64000
 
     llm_kwargs = clean_model_kwargs(llm_kwargs, model)
 
