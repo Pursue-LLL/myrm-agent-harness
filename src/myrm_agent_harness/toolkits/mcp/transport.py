@@ -271,7 +271,12 @@ class ExecutorStdioTransport:
             # Yield the streams to the MCP SDK
             yield read_stream_rx, write_stream_tx
         finally:
-            await self.close()
+            with anyio.CancelScope(shield=True):
+                await self.close()
+                await read_stream_tx.aclose()
+                await read_stream_rx.aclose()
+                await write_stream_tx.aclose()
+                await write_stream_rx.aclose()
 
     async def close(self) -> None:
         """Close the transport and terminate the process."""

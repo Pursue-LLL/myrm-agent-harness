@@ -36,6 +36,7 @@ from .connection_manager import (
     get_mcp_connection,
     get_mcp_connection_manager,
 )
+from .env_guard import is_dangerous_env_key, sanitize_mcp_env
 from .oauth import (
     MCPOAuthConfig,
     MCPOAuthProvider,
@@ -79,6 +80,8 @@ __all__ = [
     "get_mcp_connection",
     "get_mcp_connection_manager",
     "get_schema_coercion_stats",
+    "is_dangerous_env_key",
     "reset_schema_coercion_stats",
     "resolve_stdio_launch",
+    "sanitize_mcp_env",
 ]

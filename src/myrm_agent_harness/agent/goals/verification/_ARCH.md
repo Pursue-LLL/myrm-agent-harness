@@ -8,7 +8,7 @@
 | 文件 | 地位 | 职责 | I/O/P |
 |------|------|------|-------|
 | __init__.py | 辅助 | 模块导出 | ✅ |
-| base.py | 核心 | 定义 `BaseCriterion`、`VerificationResult`、`AggregatedVerificationResult` 基类 | ✅ |
+| base.py | 核心 | 定义 `BaseCriterion`、`ReviewSeverity`、`ReviewComment`、`VerificationResult`、`AggregatedVerificationResult` 基类与结构化审查意见 SSOT | ✅ |
 | gatekeeper.py | 核心 | `VerificationGatekeeper` 验证协调器，顺序执行准则，返回逐条结果含计时 | ✅ |
 | shell.py | 核心 | `ShellCriterion` 实现，在沙箱内运行终端命令判定通过与否 | ✅ |
 | semantic.py | 核心 | `SemanticCriterion` 实现，将判断任务委托给 Server 层的 GoalProvider | ✅ |

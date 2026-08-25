@@ -50,7 +50,12 @@ __all__ = [
     "AdvisoryAckRegistry",
     "SkillRescanResult",
     "compute_workflow_fingerprint",
-    "MissingDependencyFailClosedError",
+        "evict_skill_safety_metadata",
+        "MCPAnnotations",
+        "SafetyMetadata",
+        "get_ptc_safety_metadata",
+        "register_ptc_safety_metadata",
+        "MissingDependencyFailClosedError",
     "MissingDependencyFailFastError",
     "MissingSemanticsBlockedError",
     "MissingSemanticsContract",
@@ -101,6 +106,46 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "compute_workflow_fingerprint": (
         "myrm_agent_harness.toolkits.cron.engine.fingerprint",
         "compute_workflow_fingerprint",
+    ),
+    "evict_skill_safety_metadata": (
+        "myrm_agent_harness.core.security.tool_registry.registry",
+        "evict_skill_safety_metadata",
+    ),
+    "MCPAnnotations": (
+        "myrm_agent_harness.core.security.tool_registry.registry",
+        "MCPAnnotations",
+    ),
+    "SafetyMetadata": (
+        "myrm_agent_harness.core.security.tool_registry.registry",
+        "SafetyMetadata",
+    ),
+    "get_ptc_safety_metadata": (
+        "myrm_agent_harness.core.security.tool_registry.registry",
+        "get_ptc_safety_metadata",
+    ),
+    "register_ptc_safety_metadata": (
+        "myrm_agent_harness.core.security.tool_registry.registry",
+        "register_ptc_safety_metadata",
+    ),
+    "evict_skill_safety_metadata": (
+        "myrm_agent_harness.core.security.tool_registry",
+        "evict_skill_safety_metadata",
+    ),
+    "MCPAnnotations": (
+        "myrm_agent_harness.core.security.tool_registry",
+        "MCPAnnotations",
+    ),
+    "SafetyMetadata": (
+        "myrm_agent_harness.core.security.tool_registry",
+        "SafetyMetadata",
+    ),
+    "get_ptc_safety_metadata": (
+        "myrm_agent_harness.core.security.tool_registry",
+        "get_ptc_safety_metadata",
+    ),
+    "register_ptc_safety_metadata": (
+        "myrm_agent_harness.core.security.tool_registry",
+        "register_ptc_safety_metadata",
     ),
     "route_task": (
         "myrm_agent_harness.toolkits.llms.routing.complexity_router",

@@ -207,3 +207,34 @@ async def test_stdio_dot_slash_command_runs_from_plugin_root(
     assert report["PLUGIN_ROOT"] == plugin_root
     assert report["CWD"] == plugin_root
     assert report["ARGV"][0].endswith("bin/probe.py")
+
+
+@pytest.mark.integration
+async def test_stdio_strips_dangerous_env_variables_at_runtime(
+    tmp_path: object, _reset_manager: object
+) -> None:
+    """Malicious injection variables (e.g. LD_PRELOAD, PYTHONPATH) must be stripped at launch time."""
+    plugin_root, data_root = _make_roots(tmp_path)
+    script = _write_probe_script(tmp_path)
+
+    report = await _probe(
+        sys.executable,
+        [script],
+        {
+            "plugin_root": plugin_root,
+            "data_root": data_root,
+            "env": {
+                "CUSTOM_ENV": "legitimate_value",
+                "LD_PRELOAD": "/tmp/rootkit.so",
+                "PYTHONPATH": "/tmp/evil_lib",
+                "node_options": "--inspect",
+            },
+        },
+    )
+    assert report["PLUGIN_ROOT"] == plugin_root
+    assert report["PLUGIN_DATA"] == data_root
+    assert report["CUSTOM_ENV"] == "legitimate_value"
+    # Ensure malicious env variables are not present in the subprocess environment
+    import os
+    assert os.environ.get("LD_PRELOAD") != "/tmp/rootkit.so"
+

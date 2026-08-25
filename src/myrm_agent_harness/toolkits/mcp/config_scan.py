@@ -298,6 +298,20 @@ def scan_mcp_config(config: MCPConfigSnapshot) -> MCPConfigScanResult:
                     )
 
     for env_key, env_value in _extract_env_map(config.extra_params).items():
+        from .env_guard import is_dangerous_env_key
+
+        is_dangerous, reason = is_dangerous_env_key(env_key)
+        if is_dangerous:
+            findings.append(
+                MCPScanFinding(
+                    threat_type="dangerous_env_injection",
+                    severity=MCPScanSeverity.CRITICAL,
+                    description=f"Environment variable '{env_key}' is a dangerous injection vector: {reason}",
+                    field=f"extra_params.env.{env_key}",
+                    recommendation="Remove this dangerous environment variable to prevent arbitrary code execution",
+                )
+            )
+
         _append_credential_findings(findings, content=env_value, field=f"extra_params.env.{env_key}")
         if env_value and not _is_secret_reference(env_value):
             key_lower = env_key.lower()

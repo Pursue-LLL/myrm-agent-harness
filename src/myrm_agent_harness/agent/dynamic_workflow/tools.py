@@ -52,11 +52,11 @@ from myrm_agent_harness.agent.sub_agents.spawn_prep import (
     merge_candidate_from_spawn_dict,
     sanitize_spawn_result_for_store,
 )
+from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
     from myrm_agent_harness.agent.sub_agents.types import SubagentCatalog
-    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 logger = logging.getLogger(__name__)
 

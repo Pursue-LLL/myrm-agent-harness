@@ -10,6 +10,7 @@ import pytest
 from myrm_agent_harness.agent.dynamic_workflow.spawn_cache import SpawnCacheParams
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
 from myrm_agent_harness.agent.dynamic_workflow.tools import (
+    HumanAskTool,
     NotifyProgressTool,
     SpawnSubagentTool,
     WorkflowRunGuard,
@@ -960,3 +961,65 @@ async def test_spawn_parallel_writers_use_isolated_copy(mock_parent_agent):
     configs = [call.kwargs["config"] for call in mock_parent_agent._spawn_child.await_args_list]
     assert len(configs) == 2
     assert all(cfg.workspace_policy == WorkspacePolicy.ISOLATED_COPY for cfg in configs)
+
+
+@pytest.mark.asyncio
+async def test_human_ask_tool_normal_resolution():
+    queue = asyncio.Queue()
+    mock_gate = AsyncMock(return_value="continue")
+
+    tool = HumanAskTool(
+        event_queue=queue,
+        message_id="msg_123",
+        ask_gate_callable=mock_gate,
+    )
+
+    result = await tool._arun(
+        question="Deploy to production?",
+        options=["continue", "abort"],
+        timeout_seconds=60,
+        default_action="abort",
+    )
+
+    assert result["success"] is True
+    assert result["answer"] == "continue"
+    assert result["timed_out"] is False
+    assert result["error"] == ""
+
+    # Verify events emitted to queue
+    events = []
+    while not queue.empty():
+        events.append(queue.get_nowait())
+
+    assert len(events) == 2
+    assert events[0]["data"]["status"] == "waiting"
+    assert events[0]["data"]["question"] == "Deploy to production?"
+    assert events[1]["data"]["status"] == "resolved"
+    assert events[1]["data"]["answer"] == "continue"
+
+
+@pytest.mark.asyncio
+async def test_human_ask_tool_timeout_fallback():
+    queue = asyncio.Queue()
+
+    async def _timing_out_gate(q, opts, timeout, default):
+        raise asyncio.TimeoutError()
+
+    tool = HumanAskTool(
+        event_queue=queue,
+        message_id="msg_timeout",
+        ask_gate_callable=_timing_out_gate,
+    )
+
+    result = await tool._arun(
+        question="Deploy?",
+        options=["yes", "no"],
+        timeout_seconds=10,
+        default_action="no",
+    )
+
+    assert result["success"] is False
+    assert result["answer"] == "no"
+    assert result["timed_out"] is True
+    assert "timed out" in result["error"]
+

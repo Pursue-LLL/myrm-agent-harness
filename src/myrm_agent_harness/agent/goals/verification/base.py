@@ -1,6 +1,7 @@
 """Verification protocols and base classes for Goal acceptance criteria.
 
 [INPUT]
+- GoalProvider protocol from protocols.py (optional semantic context).
 
 [OUTPUT]
 - ReviewSeverity: Enum for verification comment severity levels (CRITICAL, WARNING, INFO).
@@ -18,7 +19,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.goals.protocols import GoalProvider

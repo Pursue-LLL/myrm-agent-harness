@@ -428,17 +428,24 @@ class MCPSessionActor:
         from mcp import StdioServerParameters
         from mcp.client.stdio import stdio_client
 
+        from .env_guard import sanitize_mcp_env
+
         raw_command = conn.get("command")
         raw_args = conn.get("args")
         args_list = raw_args if isinstance(raw_args, list) else []
         env = conn.get("env")
         cwd = conn.get("cwd")
 
+        sanitized_env: dict[str, str] | None = None
+        if isinstance(env, dict):
+            clean_env, _ = sanitize_mcp_env({str(k): str(v) for k, v in env.items() if v is not None})
+            sanitized_env = clean_env if clean_env else None
+
         return stdio_client(
             StdioServerParameters(
                 command=str(raw_command),
                 args=[str(a) for a in args_list],
-                env=cast(dict[str, str] | None, env) if isinstance(env, dict) else None,
+                env=sanitized_env,
                 cwd=str(cwd) if cwd else None,
             )
         )

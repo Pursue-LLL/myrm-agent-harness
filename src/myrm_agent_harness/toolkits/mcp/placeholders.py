@@ -43,6 +43,8 @@ from __future__ import annotations
 
 import re
 
+from .env_guard import sanitize_mcp_env
+
 _EnvDict = dict[str, str]
 
 _PLACEHOLDER_PATTERN = re.compile(r"\$\{(PLUGIN_ROOT|PLUGIN_DATA)\}")
@@ -123,7 +125,9 @@ def resolve_stdio_launch(
                 if val is not None and val != ""
             }
             if expanded:
-                env = expanded
+                sanitized_env, _blocked = sanitize_mcp_env(expanded)
+                if sanitized_env:
+                    env = sanitized_env
 
     if plugin_root is not None or data_root is not None:
         # Client-provided reserved variables (§9.1): the parser already rejects
