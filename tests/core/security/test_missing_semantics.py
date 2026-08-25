@@ -9,9 +9,11 @@ Verifies:
 
 import pytest
 from myrm_agent_harness.core.security.missing_semantics import (
+    MissingDependencyFailClosedError,
     MissingSemanticsBlockedError,
     MissingSemanticsPolicy,
     SemanticsCategory,
+    enforce_missing_semantics,
     evaluate_missing_capability,
     get_missing_semantics_matrix,
 )
@@ -84,6 +86,62 @@ def test_evaluate_missing_capability_fallback():
     assert decision.action == "FALLBACK"
     assert decision.is_available is False
     assert decision.error_code == "WARN_FALLBACK_DEFAULT_MODEL"
+
+
+def test_missing_semantics_to_diagnostic_dict_and_error_hierarchy():
+    """Verify exception diagnostic dictionary serialization and contract inheritance."""
+    err = MissingDependencyFailClosedError(
+        "sandbox_isolation",
+        action="execute_bash",
+        repair_hint="Install docker or run with sandbox disabled.",
+        details="Sandbox socket not found.",
+        error_code="ERR_MISSING_SANDBOX_ISOLATION",
+    )
+    diag = err.to_diagnostic_dict()
+    assert diag["error_code"] == "ERR_MISSING_SANDBOX_ISOLATION"
+    assert diag["policy"] == "fail_closed"
+    assert diag["component_name"] == "sandbox_isolation"
+    assert diag["action"] == "execute_bash"
+    assert "Install docker" in diag["repair_hint"]
+    assert "Sandbox socket not found" in diag["details"]
+
+
+@pytest.mark.asyncio
+async def test_enforce_missing_semantics_decorator_sync():
+    """Test sync function decoration with missing semantics enforcement."""
+    @enforce_missing_semantics(
+        policy=MissingSemanticsPolicy.FAIL_CLOSED,
+        component_name="sandbox_isolation",
+        guard_fn=lambda *args, **kwargs: kwargs.get("sandbox_ok", False),
+    )
+    def run_sync_action(sandbox_ok: bool = False) -> str:
+        return "success"
+
+    # Should raise when check fails
+    with pytest.raises(MissingDependencyFailClosedError):
+        run_sync_action(sandbox_ok=False)
+
+    # Should succeed when check passes
+    assert run_sync_action(sandbox_ok=True) == "success"
+
+
+@pytest.mark.asyncio
+async def test_enforce_missing_semantics_decorator_async():
+    """Test async coroutine decoration with missing semantics enforcement."""
+    @enforce_missing_semantics(
+        policy=MissingSemanticsPolicy.FAIL_CLOSED,
+        component_name="sandbox_isolation",
+        guard_fn=lambda *args, **kwargs: kwargs.get("sandbox_ok", False),
+    )
+    async def run_async_action(sandbox_ok: bool = False) -> str:
+        return "async_success"
+
+    # Should raise when check fails
+    with pytest.raises(MissingDependencyFailClosedError):
+        await run_async_action(sandbox_ok=False)
+
+    # Should succeed when check passes
+    assert await run_async_action(sandbox_ok=True) == "async_success"
 
 
 @pytest.mark.asyncio

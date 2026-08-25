@@ -61,6 +61,7 @@ class Doctor:
                 self._check_optional_deps,
                 self._check_llm_config,
                 self._check_deploy_mode,
+                self._check_compliance_state,
             ]
         )
 

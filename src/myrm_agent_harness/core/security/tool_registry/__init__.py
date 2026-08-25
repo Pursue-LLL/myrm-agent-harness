@@ -42,6 +42,8 @@ from .registry import (
     register_ptc_safety_metadata,
     resolve_permission_type,
     resolve_safety_metadata,
+    unregister_ptc_safety_metadata,
+    evict_skill_safety_metadata,
 )
 from .safety import check_safety_coverage
 
@@ -71,4 +73,6 @@ __all__ = [
     "register_ptc_safety_metadata",
     "resolve_permission_type",
     "resolve_safety_metadata",
+    "unregister_ptc_safety_metadata",
+    "evict_skill_safety_metadata",
 ]

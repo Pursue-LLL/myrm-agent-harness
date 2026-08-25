@@ -121,7 +121,9 @@ class WorkflowRunGuard:
         self._merge_results.append(result)
 
 
-def _normalize_spawn_result(result: object, *, task_id: str, agent_type: str) -> dict[str, object]:
+def _normalize_spawn_result(
+    result: object, *, task_id: str, agent_type: str
+) -> dict[str, object]:
     if isinstance(result, dict):
         return result
 
@@ -146,7 +148,9 @@ class SpawnSubagentInput(BaseModel):
         default="generalPurpose",
         description="Type of agent to spawn (e.g., 'generalPurpose', 'shell').",
     )
-    task_description: str = Field(..., description="The prompt/task for the sub-agent to execute.")
+    task_description: str = Field(
+        ..., description="The prompt/task for the sub-agent to execute."
+    )
     readonly: bool = Field(
         default=False,
         description="If true, sub-agent cannot write files or run bash commands. Use for analysis-only tasks.",
@@ -173,7 +177,9 @@ class SpawnSubagentTool(BaseTool):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str = "spawn_subagent"
-    description: str = "Spawn a sub-agent to execute a task. This tool blocks until the sub-agent completes."
+    description: str = (
+        "Spawn a sub-agent to execute a task. This tool blocks until the sub-agent completes."
+    )
     args_schema: type[BaseModel] = SpawnSubagentInput
 
     parent_agent: object
@@ -257,9 +263,16 @@ class SpawnSubagentTool(BaseTool):
                 )
                 cached = None
             if cached:
-                logger.info("DW cache hit: workflow=%s task=%s", self.workflow_id, task_id)
-                await self._emit_spawn_stage(f"Using cached result for sub-agent `{task_id}`.")
-                if self.run_guard is not None and cached.get("workspace_merge_status") != "merged":
+                logger.info(
+                    "DW cache hit: workflow=%s task=%s", self.workflow_id, task_id
+                )
+                await self._emit_spawn_stage(
+                    f"Using cached result for sub-agent `{task_id}`."
+                )
+                if (
+                    self.run_guard is not None
+                    and cached.get("workspace_merge_status") != "merged"
+                ):
                     self.run_guard.record_merge_candidate(cached)
                 return cached
 
@@ -323,7 +336,9 @@ class SpawnSubagentTool(BaseTool):
 
         try:
             try:
-                with memory_isolation_scope(parent_agent=self.parent_agent, config=config):
+                with memory_isolation_scope(
+                    parent_agent=self.parent_agent, config=config
+                ):
                     if use_adversarial:
                         if not hasattr(self.parent_agent, "_subagent_manager"):
                             logger.warning(
@@ -333,7 +348,9 @@ class SpawnSubagentTool(BaseTool):
                                 f"Sub-agent `{task_id}`: adversarial verify unavailable, using direct spawn.",
                                 level="warn",
                             )
-                            result = await cast("BaseAgent", self.parent_agent)._spawn_child(
+                            result = await cast(
+                                "BaseAgent", self.parent_agent
+                            )._spawn_child(
                                 task_id=task_id,
                                 agent_type=agent_type,
                                 task_description=task_description,
@@ -344,7 +361,9 @@ class SpawnSubagentTool(BaseTool):
                                     self.tool_registry_getter,
                                 ),
                                 wait=True,
-                                cancel_token=cast("CancellationToken | None", self.cancel_token),
+                                cancel_token=cast(
+                                    "CancellationToken | None", self.cancel_token
+                                ),
                             )
                         else:
                             manager = self.parent_agent._subagent_manager
@@ -355,7 +374,9 @@ class SpawnSubagentTool(BaseTool):
                             v_type = verifier_agent_type or agent_type
                             verifier_config = config
                             if self.catalog:
-                                resolved_verifier = await cast("SubagentCatalog", self.catalog).resolve(v_type)
+                                resolved_verifier = await cast(
+                                    "SubagentCatalog", self.catalog
+                                ).resolve(v_type)
                                 if resolved_verifier is not None:
                                     verifier_config = resolved_verifier
                             verifier_config = replace(
@@ -376,11 +397,15 @@ class SpawnSubagentTool(BaseTool):
                                     self.tool_registry_getter,
                                 ),
                                 max_rounds=max_verification_rounds,
-                                cancel_token=cast("CancellationToken | None", self.cancel_token),
+                                cancel_token=cast(
+                                    "CancellationToken | None", self.cancel_token
+                                ),
                                 task_id=task_id,
                             )
                     else:
-                        result = await cast("BaseAgent", self.parent_agent)._spawn_child(
+                        result = await cast(
+                            "BaseAgent", self.parent_agent
+                        )._spawn_child(
                             task_id=task_id,
                             agent_type=agent_type,
                             task_description=task_description,
@@ -391,7 +416,9 @@ class SpawnSubagentTool(BaseTool):
                                 self.tool_registry_getter,
                             ),
                             wait=True,
-                            cancel_token=cast("CancellationToken | None", self.cancel_token),
+                            cancel_token=cast(
+                                "CancellationToken | None", self.cancel_token
+                            ),
                         )
             except Exception as e:
                 logger.error("DW spawn failed: task=%s error=%s", task_id, e)
@@ -410,7 +437,9 @@ class SpawnSubagentTool(BaseTool):
             if self.run_guard is not None:
                 self.run_guard.release_spawn_slot(readonly=readonly)
 
-        final_result = _normalize_spawn_result(result, task_id=task_id, agent_type=agent_type)
+        final_result = _normalize_spawn_result(
+            result, task_id=task_id, agent_type=agent_type
+        )
 
         if self.run_guard is not None:
             self.run_guard.record_merge_candidate(final_result)
@@ -538,6 +567,9 @@ class HumanAskInput(BaseModel):
     )
 
 
+AskGateCallable = Callable[[str, list[str], int, str], Awaitable[str | None]]
+
+
 class HumanAskTool(BaseTool):
     """PTC tool that suspends the Dynamic Workflow execution and requests mid-run user input via PhaseWaiter."""
 
@@ -552,7 +584,7 @@ class HumanAskTool(BaseTool):
 
     event_queue: asyncio.Queue[dict[str, object]]
     message_id: str = ""
-    ask_gate_callable: Callable[[str, list[str], int, str], Awaitable[str | None]] | None = None
+    ask_gate_callable: AskGateCallable | None = None
     cancel_token: CancellationToken | None = None
 
     def _run(
@@ -605,16 +637,25 @@ class HumanAskTool(BaseTool):
 
         try:
             if self.ask_gate_callable is not None:
-                answer = await self.ask_gate_callable(question, opts, timeout_sec, default_action)
+                answer = await self.ask_gate_callable(
+                    question, opts, timeout_sec, default_action
+                )
             else:
                 # Direct fallback when gate callable is not injected (e.g. unattended tests)
-                logger.info("HumanAskTool has no server ask_gate_callable; using default_action='%s'", default_action)
+                logger.info(
+                    "HumanAskTool has no server ask_gate_callable; using default_action='%s'",
+                    default_action,
+                )
                 answer = default_action or (opts[0] if opts else "continue")
         except asyncio.TimeoutError:
             timed_out = True
             answer = default_action
             error_msg = f"User response timed out after {timeout_sec}s; applied default: '{default_action}'"
-            logger.warning("HumanAskTool timed out: message_id=%s, applied default='%s'", self.message_id, default_action)
+            logger.warning(
+                "HumanAskTool timed out: message_id=%s, applied default='%s'",
+                self.message_id,
+                default_action,
+            )
         except Exception as exc:
             error_msg = f"human_ask failed: {exc}"
             logger.error("HumanAskTool error: %s", exc, exc_info=True)
@@ -639,4 +680,3 @@ class HumanAskTool(BaseTool):
             "error": error_msg,
             "timed_out": timed_out,
         }
-
