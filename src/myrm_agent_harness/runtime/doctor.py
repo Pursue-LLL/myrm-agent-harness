@@ -247,6 +247,42 @@ class Doctor:
         except Exception as e:
             return DoctorCheckResult("llm_conn", CheckStatus.ERROR, f"LLM probe failed: {str(e)[:100]}")
 
+    async def _check_compliance_state(self) -> DoctorCheckResult:
+        """Verify zero-darkline capability eviction compliance state."""
+        try:
+            from myrm_agent_harness.runtime.compliance import (
+                ComplianceAuditEngine,
+                ComplianceStatus,
+            )
+
+            report = ComplianceAuditEngine.evaluate_full_compliance()
+            if report.status == ComplianceStatus.COMPLIANT:
+                return DoctorCheckResult(
+                    "compliance_audit",
+                    CheckStatus.OK,
+                    f"Zero-darkline eviction compliant (Score: {report.compliance_score}/100)",
+                )
+            elif report.status == ComplianceStatus.WARNING:
+                return DoctorCheckResult(
+                    "compliance_audit",
+                    CheckStatus.WARNING,
+                    f"Compliance warning: {len(report.violations)} issues detected (Score: {report.compliance_score})",
+                    fix="; ".join(report.remediation_hints[:2]),
+                )
+            else:
+                return DoctorCheckResult(
+                    "compliance_audit",
+                    CheckStatus.ERROR,
+                    f"Capability eviction non-compliant: {len(report.violations)} violations (Score: {report.compliance_score})",
+                    fix="; ".join(report.remediation_hints[:2]),
+                )
+        except Exception as e:
+            return DoctorCheckResult(
+                "compliance_audit",
+                CheckStatus.WARNING,
+                f"Compliance self-check skipped: {str(e)[:80]}",
+            )
+
     async def _check_system_resources(self) -> list[DoctorCheckResult]:
         from myrm_agent_harness.toolkits.browser.doctor import _check_disk, _check_memory
 
