@@ -187,6 +187,7 @@ def build_default_processors(
         CompressProcessor,
         ExplicitCacheProcessor,
         FilterProcessor,
+        MediaBudgetGovernorProcessor,
         MediaFilterProcessor,
         MediaResolverProcessor,
         NormalizeProcessor,
@@ -271,6 +272,7 @@ def build_default_processors(
             PostCompactionRefetchGuardProcessor(),
             NormalizeProcessor(),
             MediaResolverProcessor(file_content_reader=file_content_reader),
+            MediaBudgetGovernorProcessor(),
             ExplicitCacheProcessor(),
         ]
     )

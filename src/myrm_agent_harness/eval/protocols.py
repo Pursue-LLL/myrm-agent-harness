@@ -27,12 +27,24 @@ flows through the AgentExecutor protocol injected by the caller.
 
 from __future__ import annotations
 
+import enum
 import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
+
+
+class OperationalAssuranceCategory(str, enum.Enum):
+    """Canonical operational failure & security assurance evaluation category."""
+
+    PERMISSION_DENIED = "permission_denied"
+    TOOL_TIMEOUT = "tool_timeout"
+    INTERRUPTED_RECOVERY = "interrupted_recovery"
+    SANDBOX_EXHAUSTION = "sandbox_exhaustion"
+    SKILL_CONFLICT = "skill_conflict"
+    EVIDENCE_EXPIRATION = "evidence_expiration"
 
 
 @dataclass(frozen=True, slots=True)

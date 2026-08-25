@@ -8,6 +8,10 @@ from .cache_optimizer import ExplicitCacheProcessor
 from .cache_ttl_prune_processor import CacheTtlPruneProcessor
 from .compress_processor import CompressProcessor
 from .filter_processor import FilterProcessor
+from .media_budget_governor import (
+    CumulativeImageBudgetGovernor,
+    MediaBudgetGovernorProcessor,
+)
 from .media_filter import MediaFilterProcessor
 from .media_resolver import MediaResolverProcessor
 from .normalize_processor import NormalizeProcessor
@@ -23,8 +27,10 @@ __all__ = [
     "ActiveToolResultPruneProcessor",
     "CacheTtlPruneProcessor",
     "CompressProcessor",
+    "CumulativeImageBudgetGovernor",
     "ExplicitCacheProcessor",
     "FilterProcessor",
+    "MediaBudgetGovernorProcessor",
     "MediaFilterProcessor",
     "MediaResolverProcessor",
     "NormalizeProcessor",
