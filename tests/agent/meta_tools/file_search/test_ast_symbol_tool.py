@@ -117,3 +117,54 @@ pub fn verify_signature(data: &[u8]) -> bool {
     assert "TokenStore" in rust_names
     assert "Role" in rust_names
     assert "verify_signature" in rust_names
+
+
+@pytest.mark.asyncio
+async def test_ast_symbol_search_tool_execution(tmp_path):
+    from myrm_agent_harness.toolkits.code_execution.executors.base import set_executor
+
+    # Create test code files
+    py_file = tmp_path / "service.py"
+    py_file.write_text("class Account:\n    def get_balance(self) -> int:\n        return 100\n", encoding="utf-8")
+    
+    ts_file = tmp_path / "helper.ts"
+    ts_file.write_text("export function formatCurrency(amount: number): string {\n    return '$' + amount;\n}\n", encoding="utf-8")
+
+    tool = create_ast_symbol_search_tool()
+
+    class DummyExecutor:
+        async def resolve_path(self, p: str) -> str:
+            if p == ".":
+                return str(tmp_path)
+            return str(tmp_path / p)
+
+    set_executor(DummyExecutor())
+
+    config = {"configurable": {}}
+
+    # 1. Test directory outline
+    res_outline = await tool.ainvoke({"path": ".", "mode": "outline"}, config=config)
+    assert "Account" in res_outline
+    assert "get_balance" in res_outline
+    assert "formatCurrency" in res_outline
+
+    # 2. Test query search
+    res_query = await tool.ainvoke({"path": ".", "query": "currency", "mode": "find_symbols"}, config=config)
+    assert "formatCurrency" in res_query
+    assert "Account" not in res_query
+
+    # 3. Test single file scan
+    res_file = await tool.ainvoke({"path": "service.py", "mode": "outline"}, config=config)
+    assert "Account" in res_file
+    assert "get_balance" in res_file
+
+    # 4. Test not found query
+    res_none = await tool.ainvoke({"path": ".", "query": "NonExistentSymbol"}, config=config)
+    assert "No symbols found matching 'NonExistentSymbol'" in res_none
+
+    # 5. Test empty directory
+    empty_dir = tmp_path / "empty_dir"
+    empty_dir.mkdir()
+    res_empty = await tool.ainvoke({"path": "empty_dir"}, config=config)
+    assert "No code files found" in res_empty
+

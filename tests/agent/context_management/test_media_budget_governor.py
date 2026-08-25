@@ -85,9 +85,10 @@ class TestCumulativeImageBudgetGovernor:
         """When total payload exceeds budget, older non-focus images are downsampled to Tier 2."""
         img_large = _make_dummy_base64_image(width=1000, height=1000)
         img_focus = _make_dummy_base64_image(width=1000, height=1000)
+        single_img_size = len(img_large)
 
-        # Set budget lower than 2 large images but higher than 1 large + 1 small
-        small_budget = 40 * 1024  # ~40KB budget
+        # Set budget lower than 2 large images (~44KB) but higher than 1 large + 1 small (~23KB)
+        small_budget = int(single_img_size * 1.5)
         gov = CumulativeImageBudgetGovernor(
             max_cumulative_bytes=small_budget,
             focus_window_turns=1,  # Only last turn is protected
