@@ -988,7 +988,7 @@ class TestRunAndRecordTracing:
         delivery.deliver = AsyncMock(side_effect=RuntimeError("Webhook returned 502: Bad Gateway"))
 
         runner = AsyncMock()
-        runner.run = AsyncMock(return_value=JobResult(success=True, output="Payload text"))
+        runner.run = AsyncMock(return_value=JobResult(success=False, error="Webhook returned 502: Bad Gateway"))
 
         saved_runs = []
         store.save_run = AsyncMock(side_effect=lambda r: saved_runs.append(r) or r)

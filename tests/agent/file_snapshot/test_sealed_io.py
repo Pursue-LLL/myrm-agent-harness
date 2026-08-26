@@ -95,3 +95,73 @@ def test_quarantine_non_existent_file(tmp_path: Path):
     non_existent = tmp_path / "does_not_exist.json"
     res = quarantine_corrupted_file(non_existent, "reason")
     assert res is None
+
+
+def test_atomic_sealed_write_nested_directory_creation(tmp_path: Path):
+    nested_target = tmp_path / "deep" / "nested" / "dir" / "snapshot.json"
+    data = {"nested": True, "value": 42}
+    written = atomic_sealed_write(nested_target, data)
+    assert written.exists()
+    assert written == nested_target
+
+    is_valid, payload, envelope = verify_and_load_sealed(nested_target)
+    assert is_valid is True
+    assert payload == data
+    assert envelope is not None
+
+
+def test_empty_or_whitespace_file_detection(tmp_path: Path):
+    empty_file = tmp_path / "empty.json"
+    empty_file.write_text("   \n\t  ", "utf-8")
+
+    is_valid, payload, envelope = verify_and_load_sealed(empty_file, auto_quarantine=True)
+    assert is_valid is False
+    assert payload is None
+    assert envelope is None
+    assert not empty_file.exists()
+
+    quarantine_dir = tmp_path / ".corrupted"
+    assert quarantine_dir.is_dir()
+    corrupted_files = list(quarantine_dir.glob("empty.json.*.corrupted"))
+    assert len(corrupted_files) == 1
+
+
+def test_verify_without_auto_quarantine(tmp_path: Path):
+    target = tmp_path / "corrupt_no_move.json"
+    target.write_text("invalid json content {{{", "utf-8")
+
+    is_valid, payload, envelope = verify_and_load_sealed(target, auto_quarantine=False)
+    assert is_valid is False
+    assert payload is None
+    assert envelope is None
+    # File should stay in place when auto_quarantine is False
+    assert target.exists()
+    assert not (tmp_path / ".corrupted").exists()
+
+
+def test_unicode_and_special_characters_payload(tmp_path: Path):
+    target = tmp_path / "unicode_snapshot.json"
+    data = {
+        "text": "中文字符串测试",
+        "japanese": "日本語テスト",
+        "special": " \t\n\r/\\\"'`~!@#$%^&*()_+{}[]:;,.<>?",
+        "nested_list": [{"id": 1, "emoji_description": "rocket_test"}],
+    }
+
+    atomic_sealed_write(target, data, ensure_ascii=False)
+    is_valid, payload, envelope = verify_and_load_sealed(target)
+    assert is_valid is True
+    assert payload == data
+    assert envelope is not None
+    assert envelope.checksum.startswith("sha256:")
+
+
+def test_non_dict_sealed_envelope_handling(tmp_path: Path):
+    target = tmp_path / "array_sealed.json"
+    target.write_text('[1, 2, 3, "legacy array without envelope"]', "utf-8")
+
+    is_valid, payload, envelope = verify_and_load_sealed(target)
+    assert is_valid is True
+    assert payload == [1, 2, 3, "legacy array without envelope"]
+    assert envelope is None
+

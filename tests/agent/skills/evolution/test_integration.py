@@ -25,6 +25,7 @@ async def test_integration_register_hooks(clean_integration):
     try:
         integration.queue = MagicMock()
         integration.queue.enqueue = AsyncMock()
+        integration.queue.stop = AsyncMock()
 
         mock_registry = MagicMock()
         integration.register_hooks(mock_registry)
@@ -55,7 +56,8 @@ async def test_integration_register_hooks(clean_integration):
         await integration.close()
 
 
-def test_global_integration_setter_getter(clean_integration):
+@pytest.mark.asyncio
+async def test_global_integration_setter_getter(clean_integration):
     integration = EvolutionIntegration(db_path=":memory:")
     try:
         set_global_evolution_integration(integration)
@@ -63,7 +65,7 @@ def test_global_integration_setter_getter(clean_integration):
         set_global_evolution_integration(None)
         assert get_global_evolution_integration() is None
     finally:
-        integration.close()
+        await integration.close()
 
 
 @pytest.mark.asyncio
@@ -110,6 +112,7 @@ async def test_record_execution_quarantine(clean_integration):
         integration.tracker = MagicMock()
         integration.queue = MagicMock()
         integration.queue.enqueue = AsyncMock()
+        integration.queue.stop = AsyncMock()
         integration.engine = MagicMock()
 
         mock_metrics = MagicMock(spec=SkillMetrics)
@@ -119,6 +122,7 @@ async def test_record_execution_quarantine(clean_integration):
 
         integration.store = MagicMock()
         integration.store.deactivate_skill = AsyncMock()
+        integration.store.close = MagicMock()
 
         await integration.record_execution(
             skill_id="test_skill", success=False, error_message="TypeError: test", context={"task": "test"}

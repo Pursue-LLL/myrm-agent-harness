@@ -190,7 +190,23 @@ class JobExecutor:
         result = await self._apply_incremental_monitoring(job, result)
 
         model, usage_in, usage_out, usage_total = _extract_telemetry(result)
-        delivery_status, delivery_error, result = await self._try_deliver(job, result)
+        delivery_status, delivery_error = await self._try_deliver(job, result)
+
+        # Merge any connector failure detail attached during delivery into metadata
+        run_metadata = dict(result.metadata) if isinstance(result.metadata, dict) else (result.metadata or None)
+        if delivery_status == DeliveryStatus.FAILED and delivery_error:
+            category, _ = classify_connector_error(delivery_error)
+            target = redact_connector_url(job.delivery.target) if job.delivery else ""
+            fail_detail = ConnectorFailureDetail(
+                category=category,
+                target=target,
+                message=delivery_error[:500],
+            )
+            if run_metadata is None:
+                run_metadata = {"connector_failure": fail_detail.to_dict()}
+            elif "connector_failure" not in run_metadata:
+                run_metadata = dict(run_metadata)
+                run_metadata["connector_failure"] = fail_detail.to_dict()
 
         prev_hash = await self._store.get_latest_integrity_hash(job.id) or GENESIS_HASH
 
@@ -210,7 +226,7 @@ class JobExecutor:
             trigger_source=trigger_source,
             delivery_status=delivery_status,
             delivery_error=delivery_error,
-            metadata=result.metadata,
+            metadata=run_metadata,
             prev_hash=prev_hash,
         )
         integrity_hash = compute_integrity_hash(run, prev_hash)
