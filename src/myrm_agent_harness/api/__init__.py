@@ -74,6 +74,7 @@ __all__ = [
     "SkillRescanResult",
     "TaskSpecialty",
     "build_parent_delegatable_toolkit",
+    "calculate_trajectory_determinism",
     "classify_connector_error",
     "compute_workflow_fingerprint",
     "create_skill_agent",
@@ -279,6 +280,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "build_parent_delegatable_toolkit": (
         "myrm_agent_harness.api.subagents",
         "build_parent_delegatable_toolkit",
+    ),
+    "calculate_trajectory_determinism": (
+        "myrm_agent_harness.eval.assertions",
+        "calculate_trajectory_determinism",
     ),
     "classify_connector_error": (
         "myrm_agent_harness.toolkits.cron.engine.connector_health",
