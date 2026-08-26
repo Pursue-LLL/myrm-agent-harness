@@ -33,6 +33,7 @@ __all__ = [
     "ConfigIncompleteError",
     "ConnectorErrorCategory",
     "ConnectorHealthStatus",
+    "DesktopRecordedEvent",
     "Doctor",
     "HookEvent",
     "HookRegistryProtocol",
@@ -72,7 +73,10 @@ __all__ = [
     "SkillAgent",
     "SkillBackend",
     "SkillRescanResult",
+    "SynthesizedSkillDraft",
     "TaskSpecialty",
+    "WorkflowIntentPlan",
+    "WorkflowSkillCompiler",
     "build_parent_delegatable_toolkit",
     "calculate_trajectory_determinism",
     "classify_connector_error",
@@ -93,6 +97,7 @@ __all__ = [
     "route_task",
     "route_task_specialty",
     "set_workspace_root",
+    "synthesize_desktop_skill_draft",
     "track_background_task",
     "unregister_ptc_safety_metadata",
 ]
@@ -137,6 +142,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ConnectorHealthStatus": (
         "myrm_agent_harness.toolkits.cron.engine.connector_health",
         "ConnectorHealthStatus",
+    ),
+    "DesktopRecordedEvent": (
+        "myrm_agent_harness.toolkits.computer_use.recording",
+        "DesktopRecordedEvent",
     ),
     "Doctor": ("myrm_agent_harness.runtime.doctor", "Doctor"),
     "HookEvent": ("myrm_agent_harness.api.protocols", "HookEvent"),
@@ -273,9 +282,21 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.backends.skills.scanning.rescan_engine",
         "SkillRescanResult",
     ),
+    "SynthesizedSkillDraft": (
+        "myrm_agent_harness.toolkits.computer_use.recording",
+        "SynthesizedSkillDraft",
+    ),
     "TaskSpecialty": (
         "myrm_agent_harness.toolkits.llms.routing.specialty_router",
         "TaskSpecialty",
+    ),
+    "WorkflowIntentPlan": (
+        "myrm_agent_harness.backends.skills.workflow_compiler",
+        "WorkflowIntentPlan",
+    ),
+    "WorkflowSkillCompiler": (
+        "myrm_agent_harness.backends.skills.workflow_compiler",
+        "WorkflowSkillCompiler",
     ),
     "build_parent_delegatable_toolkit": (
         "myrm_agent_harness.api.subagents",
@@ -348,6 +369,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "route_task_specialty",
     ),
     "set_workspace_root": ("myrm_agent_harness.api.hooks", "set_workspace_root"),
+    "synthesize_desktop_skill_draft": (
+        "myrm_agent_harness.toolkits.computer_use.recording",
+        "synthesize_desktop_skill_draft",
+    ),
     "track_background_task": (
         "myrm_agent_harness.agent.skill_agent.context",
         "track_background_task",
