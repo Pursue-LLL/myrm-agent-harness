@@ -40,7 +40,11 @@ async def test_integration_register_hooks(clean_integration):
         assert handler is not None
 
         # Test the handler
-        payload = {"session_id": "session-123", "tool_call_ids": ["call_1", "call_2"], "agent_id": "agent-1"}
+        payload = {
+            "session_id": "session-123",
+            "tool_call_ids": ["call_1", "call_2"],
+            "agent_id": "agent-1",
+        }
 
         await handler("TRACE_SLICE_READY", payload)
 
@@ -71,9 +75,15 @@ async def test_global_integration_setter_getter(clean_integration):
 @pytest.mark.asyncio
 async def test_integration_initialization_with_llm(clean_integration):
     mock_llm = MagicMock()
-    with patch("myrm_agent_harness.agent.skills.evolution.infra.integration.SkillEvolutionEngine"):
+    with patch(
+        "myrm_agent_harness.agent.skills.evolution.infra.integration.SkillEvolutionEngine"
+    ):
         integration = EvolutionIntegration(
-            db_path=":memory:", llm=mock_llm, enable_background_queue=True, enable_tde=True, enable_tool_calling=True
+            db_path=":memory:",
+            llm=mock_llm,
+            enable_background_queue=True,
+            enable_tde=True,
+            enable_tool_calling=True,
         )
         try:
             assert integration.engine is not None
@@ -97,7 +107,12 @@ async def test_record_execution_success(clean_integration):
 
         integration.store = MagicMock()
 
-        await integration.record_execution(skill_id="test_skill", success=True, error_message="", context={"task": "test"})
+        await integration.record_execution(
+            skill_id="test_skill",
+            success=True,
+            error_message="",
+            context={"task": "test"},
+        )
         integration.tracker.record_execution.assert_called_once()
     finally:
         await integration.close()
@@ -125,7 +140,10 @@ async def test_record_execution_quarantine(clean_integration):
         integration.store.close = MagicMock()
 
         await integration.record_execution(
-            skill_id="test_skill", success=False, error_message="TypeError: test", context={"task": "test"}
+            skill_id="test_skill",
+            success=False,
+            error_message="TypeError: test",
+            context={"task": "test"},
         )
         integration.store.deactivate_skill.assert_called_once()
         integration.queue.enqueue.assert_called_once()
@@ -138,7 +156,9 @@ async def test_get_skills_needing_fix(clean_integration):
     integration = EvolutionIntegration(db_path=":memory:")
     try:
         integration.tracker = MagicMock()
-        integration.tracker.get_skills_needing_fix = AsyncMock(return_value=["skill1", "skill2"])
+        integration.tracker.get_skills_needing_fix = AsyncMock(
+            return_value=["skill1", "skill2"]
+        )
 
         result = await integration.get_skills_needing_fix()
         assert result == ["skill1", "skill2"]
@@ -154,7 +174,9 @@ async def test_evolve_skill(clean_integration):
         integration.engine = MagicMock()
         integration.engine.fix_skill = AsyncMock(return_value=MagicMock())
 
-        result = await integration.evolve_skill("test_skill", EvolutionType.FIX, reason="error")
+        result = await integration.evolve_skill(
+            "test_skill", EvolutionType.FIX, reason="error"
+        )
         assert result is not None
         integration.engine.fix_skill.assert_called_once()
     finally:
@@ -196,16 +218,22 @@ async def test_close(clean_integration):
 
 @pytest.mark.asyncio
 async def test_get_stats(clean_integration):
-    integration = EvolutionIntegration(db_path=":memory:", enable_background_queue=True, enable_embedding_cache=True)
+    integration = EvolutionIntegration(
+        db_path=":memory:", enable_background_queue=True, enable_embedding_cache=True
+    )
     try:
         integration.metrics_tracker = MagicMock()
-        integration.metrics_tracker.get_report = MagicMock(return_value={"test": "metric"})
+        integration.metrics_tracker.get_report = MagicMock(
+            return_value={"test": "metric"}
+        )
         integration.queue = MagicMock()
         integration.queue.stop = AsyncMock()
         integration.queue.get_stats = MagicMock(return_value={"test": "queue"})
         integration.embedding_cache = MagicMock()
         integration.embedding_cache.close = MagicMock()
-        integration.embedding_cache.get_stats = MagicMock(return_value={"test": "cache"})
+        integration.embedding_cache.get_stats = MagicMock(
+            return_value={"test": "cache"}
+        )
 
         stats = integration.get_stats()
         assert stats["metrics"] == {"test": "metric"}
@@ -236,8 +264,12 @@ async def test_evolve_skill_screener_blocks(clean_integration):
 
 @pytest.mark.asyncio
 async def test_enable_skill_evolution(clean_integration):
-    with patch("myrm_agent_harness.agent.skills.evolution.infra.integration.SkillEvolutionEngine"):
-        integration = enable_skill_evolution(db_path=":memory:", enable_background_queue=True)
+    with patch(
+        "myrm_agent_harness.agent.skills.evolution.infra.integration.SkillEvolutionEngine"
+    ):
+        integration = enable_skill_evolution(
+            db_path=":memory:", enable_background_queue=True
+        )
         try:
             assert isinstance(integration, EvolutionIntegration)
             assert integration.queue is not None

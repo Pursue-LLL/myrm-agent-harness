@@ -20,6 +20,7 @@ LLM tools: **57** (Harness 51: CORE 8 + COMMON 4 + EXTENDED 39; External 6: serv
 大语言模型在面对工具选择时，与人类面对选择困难症类似：
 - 工具越多 → 动作空间越大 → 决策难度指数增长
 - 工具越少 → 选项精简 → 准确率提升（零幻觉调用）
+- CI 架构硬门禁保护：通过 `TestPromptTokenBudgetGate` 严格锁定 Turn-1 默认工具集（CORE+COMMON 13个工具）总预算上限 $\le 6,500$ tokens，Full 模式系统提示词 $\le 2,000$ tokens，Lean 模式 $\le 1,200$ tokens 且压缩比 $\le 0.70$。
 
 ### 1.2 框架能力 vs 业务扩展（边界红线）
 
