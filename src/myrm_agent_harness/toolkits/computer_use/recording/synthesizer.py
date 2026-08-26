@@ -24,18 +24,22 @@ from .types import (
     ToolLiftingCandidate,
 )
 
-_FILE_PATH_PATTERN = re.compile(r"([a-zA-Z]:\\[^\s\"\'<>|*?]+\.[a-zA-Z0-9]+|/(?:[^\s\"\'<>|*?]+/)+[^\s\"\'<>|*?]+\.[a-zA-Z0-9]+)")
+_FILE_PATH_PATTERN = re.compile(
+    r"([a-zA-Z]:\\[^\s\"\'<>|*?]+\.[a-zA-Z0-9]+|/(?:[^\s\"\'<>|*?]+/)+[^\s\"\'<>|*?]+\.[a-zA-Z0-9]+)"
+)
 _DATE_PATTERN = re.compile(r"\b(20\d{2}[-/.]\d{1,2}[-/.]\d{1,2})\b")
 _EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
 
 
-def cluster_and_debounce_events(events: list[DesktopRecordedEvent]) -> list[DesktopRecordedEvent]:
+def cluster_and_debounce_events(
+    events: list[DesktopRecordedEvent],
+) -> list[DesktopRecordedEvent]:
     """Cluster consecutive keystrokes and debounce redundant focus/mouse events."""
     if not events:
         return []
 
     clustered: list[DesktopRecordedEvent] = []
-    
+
     for ev in events:
         if not clustered:
             clustered.append(ev)
@@ -76,7 +80,9 @@ def cluster_and_debounce_events(events: list[DesktopRecordedEvent]) -> list[Desk
     return clustered
 
 
-def detect_tool_lifting_candidates(events: list[DesktopRecordedEvent]) -> list[ToolLiftingCandidate]:
+def detect_tool_lifting_candidates(
+    events: list[DesktopRecordedEvent],
+) -> list[ToolLiftingCandidate]:
     """Identify sequences of GUI operations that can be elevated to robust code/CLI executions."""
     candidates: list[ToolLiftingCandidate] = []
     seq_window: list[DesktopRecordedEvent] = []
@@ -86,7 +92,10 @@ def detect_tool_lifting_candidates(events: list[DesktopRecordedEvent]) -> list[T
         title_lower = (ev.window_title or "").lower()
 
         # Terminal / Shell tool lifting
-        if any(term in app_lower for term in ["terminal", "iterm", "cmd", "powershell", "alacritty", "kitty"]):
+        if any(
+            term in app_lower
+            for term in ["terminal", "iterm", "cmd", "powershell", "alacritty", "kitty"]
+        ):
             if ev.action == RecordedActionType.TYPE.value and ev.value:
                 cmd = ev.value.strip()
                 candidates.append(
@@ -100,7 +109,10 @@ def detect_tool_lifting_candidates(events: list[DesktopRecordedEvent]) -> list[T
                 )
 
         # File Editor / Text Editor tool lifting
-        elif any(ed in app_lower for ed in ["textedit", "notepad", "code", "sublime"]) and ev.action == RecordedActionType.TYPE.value:
+        elif (
+            any(ed in app_lower for ed in ["textedit", "notepad", "code", "sublime"])
+            and ev.action == RecordedActionType.TYPE.value
+        ):
             if ev.value and len(ev.value) > 10:
                 candidates.append(
                     ToolLiftingCandidate(
@@ -114,7 +126,10 @@ def detect_tool_lifting_candidates(events: list[DesktopRecordedEvent]) -> list[T
 
         # Excel / Spreadsheet manipulation tool lifting
         elif any(sheet in app_lower for sheet in ["excel", "wps", "calc", "numbers"]):
-            if ev.action == RecordedActionType.CLICK.value and "export" in (ev.element_title or "").lower():
+            if (
+                ev.action == RecordedActionType.CLICK.value
+                and "export" in (ev.element_title or "").lower()
+            ):
                 candidates.append(
                     ToolLiftingCandidate(
                         original_seqs=[ev.seq],
@@ -199,7 +214,11 @@ def synthesize_desktop_skill_draft(
                     target_app=ev.app_name or "System",
                     tool_name=cand.lifted_tool,
                     parameters={"snippet": cand.code_snippet or ""},
-                    variables=[s["name"] for s in slots if s["default_value"] in (cand.code_snippet or "")],
+                    variables=[
+                        s["name"]
+                        for s in slots
+                        if s["default_value"] in (cand.code_snippet or "")
+                    ],
                 )
             )
             step_seq += 1
@@ -213,20 +232,27 @@ def synthesize_desktop_skill_draft(
                 description=step_desc,
                 action_type="semantic_dref" if ev.dref_id else "gui_interaction",
                 target_app=ev.app_name or "Desktop",
-                tool_name="desktop_interact_tool" if ev.dref_id else "desktop_snapshot_tool",
+                tool_name=(
+                    "desktop_interact_tool" if ev.dref_id else "desktop_snapshot_tool"
+                ),
                 parameters={
                     "dref": ev.dref_id or "",
                     "action": ev.action,
                     "value": ev.value or "",
                     "element_title": ev.element_title or "",
                 },
-                variables=[s["name"] for s in slots if s["default_value"] in (ev.value or "")],
+                variables=[
+                    s["name"] for s in slots if s["default_value"] in (ev.value or "")
+                ],
             )
         )
         step_seq += 1
 
     formatted_name = skill_name.strip() or "desktop_workflow_skill"
-    formatted_desc = description.strip() or f"Automated workflow recorded from desktop activity across {', '.join({e.app_name for e in clustered if e.app_name}) or 'desktop applications'}."
+    formatted_desc = (
+        description.strip()
+        or f"Automated workflow recorded from desktop activity across {', '.join({e.app_name for e in clustered if e.app_name}) or 'desktop applications'}."
+    )
 
     draft = SynthesizedSkillDraft(
         skill_name=formatted_name,
@@ -272,11 +298,11 @@ def render_skill_markdown(draft: SynthesizedSkillDraft) -> str:
     lines: list[str] = [
         "---",
         f"name: {draft.skill_name}",
-        f"description: \"{draft.description}\"",
+        f'description: "{draft.description}"',
         "triggers:",
     ]
     for trg in draft.triggers:
-        lines.append(f"  - \"{trg}\"")
+        lines.append(f'  - "{trg}"')
 
     if draft.parameters:
         lines.append("parameters:")
@@ -311,7 +337,9 @@ def render_skill_markdown(draft: SynthesizedSkillDraft) -> str:
 
     lines.append("## Verification & Quality Assurance")
     lines.append("1. Verify the final application state meets the expected outcome.")
-    lines.append("2. In case of UI element drift, fallback to `desktop_snapshot_tool` to re-resolve `@dref`.")
+    lines.append(
+        "2. In case of UI element drift, fallback to `desktop_snapshot_tool` to re-resolve `@dref`."
+    )
     lines.append("")
 
     return "\n".join(lines)

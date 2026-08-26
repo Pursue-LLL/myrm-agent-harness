@@ -202,6 +202,7 @@ class EvalCase:
     compaction_assertions: list[CompactionAssertion] = field(default_factory=list)
     post_episode_assertions: list[PostEpisodeAssertion] = field(default_factory=list)
     canary_protected: bool = False
+    canary_token: str = ""
     metadata: dict[str, str] = field(default_factory=dict)
 
 

@@ -113,6 +113,8 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
 
     from .protocols import (
         CompactionAssertion,
+        PostEpisodeAssertion,
+        RetrievalAssertion,
         SandboxAssertion,
         SemanticAssertion,
         StateAssertion,
@@ -133,7 +135,11 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
     state_assertions = []
     for a in item.get("state_assertions", []):
         state_assertions.append(
-            StateAssertion(type=a.get("type"), expected=a.get("expected"), threshold=a.get("threshold", 0.8))
+            StateAssertion(
+                type=a.get("type"),
+                expected=a.get("expected"),
+                threshold=a.get("threshold", 0.8),
+            )
         )
 
     semantic_assertions = []
@@ -155,11 +161,52 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
         compaction_assertions.append(
             CompactionAssertion(
                 type=a.get("type", "compaction_fidelity"),
-                expected_constraints=tuple(str(x) for x in a.get("expected_constraints", ())),
+                expected_constraints=tuple(
+                    str(x) for x in a.get("expected_constraints", ())
+                ),
                 forbidden_claims=tuple(str(x) for x in a.get("forbidden_claims", ())),
-                required_artifacts=tuple(str(x) for x in a.get("required_artifacts", ())),
+                required_artifacts=tuple(
+                    str(x) for x in a.get("required_artifacts", ())
+                ),
                 expected_tools=tuple(str(x) for x in a.get("expected_tools", ())),
                 min_fidelity_score=float(a.get("min_fidelity_score", 0.8)),
+            )
+        )
+
+    retrieval_assertions = []
+    for a in item.get("retrieval_assertions", []):
+        retrieval_assertions.append(
+            RetrievalAssertion(
+                type=a.get("type", "retrieval_quality"),
+                expected_spans=tuple(str(x) for x in a.get("expected_spans", ())),
+                expected_doc_ids=tuple(str(x) for x in a.get("expected_doc_ids", ())),
+                min_recall=float(a.get("min_recall", 1.0)),
+                max_duplicate_rate=(
+                    float(a["max_duplicate_rate"])
+                    if a.get("max_duplicate_rate") is not None
+                    else None
+                ),
+                min_distinct_sources=(
+                    int(a["min_distinct_sources"])
+                    if a.get("min_distinct_sources") is not None
+                    else None
+                ),
+                top_k=int(a.get("top_k", 5)),
+                strip_headers=bool(a.get("strip_headers", True)),
+            )
+        )
+
+    post_episode_assertions = []
+    for a in item.get("post_episode_assertions", []):
+        post_episode_assertions.append(
+            PostEpisodeAssertion(
+                assertion_id=str(a.get("assertion_id", "post_ep")),
+                assertion_type=str(a.get("assertion_type", "hidden_test_suite")),
+                command=str(a.get("command", "")),
+                expected_output=str(a.get("expected_output", "")),
+                timeout_seconds=int(a.get("timeout_seconds", 300)),
+                is_hidden=bool(a.get("is_hidden", True)),
+                metadata=dict(a.get("metadata") or {}),
             )
         )
 
@@ -170,6 +217,10 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
         sandbox_assertions=sandbox_assertions,
         state_assertions=state_assertions,
         semantic_assertions=semantic_assertions,
+        retrieval_assertions=retrieval_assertions,
         compaction_assertions=compaction_assertions,
+        post_episode_assertions=post_episode_assertions,
+        canary_protected=bool(item.get("canary_protected", False)),
+        canary_token=str(item.get("canary_token", "")),
         metadata={str(k): str(v) for k, v in (item.get("metadata") or {}).items()},
     )

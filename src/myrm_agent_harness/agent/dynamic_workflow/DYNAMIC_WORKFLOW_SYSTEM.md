@@ -58,7 +58,7 @@ Summarization LLM → 用户可读 Markdown
 | `template_validation.py` | 模板脚本校验、占位符替换、trust_latch plan_confirm 跳过护栏 |
 | `paths.py` | `{harness_root}/.myrm/workflow_events.db` 路径 SSOT（与 background_jobs 同根） |
 | `spawn_cache.py` | `SpawnCacheParams` / fingerprint SSOT |
-| `tools.py` | `SpawnSubagentTool`（WorkflowRunGuard、cache 指纹、非 readonly ISOLATED_COPY、adversarial verify）/ `NotifyProgressTool` / `HumanAskTool`（Mid-run Human-in-the-loop Gate） |
+| `tools.py` | `SpawnSubagentTool`（WorkflowRunGuard、cache 指纹、非 readonly ISOLATED_COPY、adversarial verify）/ `NotifyProgressTool` / `HumanAskTool`（Mid-run Human-in-the-loop Gate via PhaseWaiter / ask_gate） |
 
 ---
 

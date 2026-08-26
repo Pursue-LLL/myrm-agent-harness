@@ -194,7 +194,9 @@ class TestLoadMultiTurnCases:
         data = [
             {
                 "message": "Single turn test",
-                "semantic_assertions": [{"type": "llm_judge", "expected": "friendly", "threshold": 0.9}],
+                "semantic_assertions": [
+                    {"type": "llm_judge", "expected": "friendly", "threshold": 0.9}
+                ],
             },
             {"turns": [{"message": "Multi turn test"}]},
         ]
@@ -265,3 +267,42 @@ class TestLoaderEdgeCases:
 
         cases = load_cases(path)
         assert cases[0].metadata == {"count": "42", "flag": "True"}
+
+    def test_load_cases_with_retrieval_and_post_episode_and_canary(
+        self, tmp_path: Path
+    ) -> None:
+        data = [
+            {
+                "message": "Find doc and verify",
+                "retrieval_assertions": [
+                    {
+                        "type": "retrieval_quality",
+                        "expected_spans": ["Span A", "Span B"],
+                        "expected_doc_ids": ["doc-1"],
+                        "min_recall": 0.8,
+                        "top_k": 3,
+                    }
+                ],
+                "post_episode_assertions": [
+                    {
+                        "assertion_id": "post-1",
+                        "assertion_type": "sandbox_state",
+                        "command": "pytest",
+                    }
+                ],
+                "canary_protected": True,
+                "canary_token": "token-12345",
+            }
+        ]
+        path = tmp_path / "full_cases.json"
+        path.write_text(json.dumps(data))
+
+        cases = load_cases(path)
+        assert len(cases) == 1
+        c = cases[0]
+        assert len(c.retrieval_assertions) == 1
+        assert c.retrieval_assertions[0].expected_spans == ("Span A", "Span B")
+        assert len(c.post_episode_assertions) == 1
+        assert c.post_episode_assertions[0].command == "pytest"
+        assert c.canary_protected is True
+        assert c.canary_token == "token-12345"

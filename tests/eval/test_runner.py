@@ -31,7 +31,9 @@ class MockExecutor:
         self._call_log: list[tuple[str, str | None]] = []
         self._session_counter = 0
 
-    async def execute(self, message: str, *, session_id: str | None = None) -> AgentResponse:
+    async def execute(
+        self, message: str, *, session_id: str | None = None
+    ) -> AgentResponse:
         self._call_log.append((message, session_id))
         if message in self._fail_on:
             msg = f"Simulated failure for: {message}"
@@ -126,7 +128,9 @@ class TestEvalRunnerSingleTurn:
             def __init__(self) -> None:
                 self._counter = 0
 
-            async def execute(self, message: str, *, session_id: str | None = None) -> AgentResponse:
+            async def execute(
+                self, message: str, *, session_id: str | None = None
+            ) -> AgentResponse:
                 import time
 
                 start = time.perf_counter()
@@ -139,7 +143,9 @@ class TestEvalRunnerSingleTurn:
                 return f"s-{self._counter}"
 
         runner = EvalRunner(SlowExecutor(), max_concurrency=5)
-        cases = [EvalCase(message=f"msg-{i}", expected_tools=["tool"]) for i in range(5)]
+        cases = [
+            EvalCase(message=f"msg-{i}", expected_tools=["tool"]) for i in range(5)
+        ]
         result = await runner.run(cases)
 
         assert result.pass_count == 5
@@ -148,7 +154,9 @@ class TestEvalRunnerSingleTurn:
     @pytest.mark.asyncio
     async def test_progress_callback(self) -> None:
         completed: list[EvalTurnResult] = []
-        executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["tool"]))
+        executor = MockExecutor(
+            default_response=AgentResponse(answer="ok", tools_called=["tool"])
+        )
         runner = EvalRunner(executor, on_case_complete=completed.append)
 
         await runner.run(
@@ -169,7 +177,9 @@ class TestEvalRunnerMultiTurn:
         executor = MockExecutor(
             responses={
                 "Hello": AgentResponse(answer="Hi", tools_called=[]),
-                "Search X": AgentResponse(answer="Found X", tools_called=["web_search"]),
+                "Search X": AgentResponse(
+                    answer="Found X", tools_called=["web_search"]
+                ),
             }
         )
         runner = EvalRunner(executor)
@@ -231,7 +241,9 @@ class TestEvalResult:
 
     @pytest.mark.asyncio
     async def test_to_dict(self) -> None:
-        executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+        executor = MockExecutor(
+            default_response=AgentResponse(answer="ok", tools_called=["t"])
+        )
         runner = EvalRunner(executor)
         result = await runner.run([EvalCase(message="test", expected_tools=["t"])])
 
@@ -255,7 +267,9 @@ class TestEvalResult:
 
     @pytest.mark.asyncio
     async def test_summary(self) -> None:
-        executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+        executor = MockExecutor(
+            default_response=AgentResponse(answer="ok", tools_called=["t"])
+        )
         runner = EvalRunner(executor)
         result = await runner.run([EvalCase(message="test", expected_tools=["t"])])
 
@@ -296,14 +310,18 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_max_concurrency_negative_clamped(self) -> None:
         """Negative max_concurrency should be clamped to 1."""
-        executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+        executor = MockExecutor(
+            default_response=AgentResponse(answer="ok", tools_called=["t"])
+        )
         runner = EvalRunner(executor, max_concurrency=-5)
         result = await runner.run([EvalCase(message="test", expected_tools=["t"])])
         assert result.pass_count == 1
 
     @pytest.mark.asyncio
     async def test_max_concurrency_zero_clamped(self) -> None:
-        executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+        executor = MockExecutor(
+            default_response=AgentResponse(answer="ok", tools_called=["t"])
+        )
         runner = EvalRunner(executor, max_concurrency=0)
         result = await runner.run([EvalCase(message="test", expected_tools=["t"])])
         assert result.pass_count == 1
@@ -313,7 +331,9 @@ class TestEdgeCases:
         """create_session raising should be captured as error."""
 
         class FailSessionExecutor:
-            async def execute(self, message: str, *, session_id: str | None = None) -> AgentResponse:
+            async def execute(
+                self, message: str, *, session_id: str | None = None
+            ) -> AgentResponse:
                 return AgentResponse(answer="ok")
 
             async def create_session(self) -> str:
@@ -354,7 +374,9 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_all_failed(self) -> None:
-        executor = MockExecutor(default_response=AgentResponse(answer="nope", tools_called=["wrong"]))
+        executor = MockExecutor(
+            default_response=AgentResponse(answer="nope", tools_called=["wrong"])
+        )
         runner = EvalRunner(executor)
         result = await runner.run(
             [
@@ -374,7 +396,9 @@ class TestEdgeCases:
         def bad_callback(result: EvalTurnResult) -> None:
             raise ValueError("callback error")
 
-        executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+        executor = MockExecutor(
+            default_response=AgentResponse(answer="ok", tools_called=["t"])
+        )
         runner = EvalRunner(executor, on_case_complete=bad_callback)
         result = await runner.run(
             [
@@ -388,7 +412,9 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_multi_turn_concurrent_multiple_sessions(self) -> None:
         """Multiple multi-turn sessions should run concurrently."""
-        executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+        executor = MockExecutor(
+            default_response=AgentResponse(answer="ok", tools_called=["t"])
+        )
         runner = EvalRunner(executor, max_concurrency=3)
         cases = [
             MultiTurnEvalCase(
@@ -460,7 +486,10 @@ class TestEdgeCases:
         assert result.pass_count == 1
         assert result.fail_count == 1
         assert result.skip_count == 1
-        assert result.turn_results[2].assertion_details == "skipped: prior turn assertion failed"
+        assert (
+            result.turn_results[2].assertion_details
+            == "skipped: prior turn assertion failed"
+        )
 
     @pytest.mark.asyncio
     async def test_multi_turn_on_turn_fail_abort(self) -> None:
@@ -539,7 +568,9 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_multi_turn_all_pass_with_abort_strategy(self) -> None:
         """All turns pass — abort strategy has no effect."""
-        executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+        executor = MockExecutor(
+            default_response=AgentResponse(answer="ok", tools_called=["t"])
+        )
         runner = EvalRunner(executor)
         result = await runner.run_multi_turn(
             [
@@ -610,7 +641,9 @@ class TestEdgeCases:
         """require_all=True flows through runner correctly."""
         executor = MockExecutor(
             responses={
-                "both": AgentResponse(answer="ok", tools_called=["web_search", "code_exec"]),
+                "both": AgentResponse(
+                    answer="ok", tools_called=["web_search", "code_exec"]
+                ),
             }
         )
         runner = EvalRunner(executor)
@@ -628,7 +661,9 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_to_dict_all_fields(self) -> None:
         """Verify to_dict contains all expected fields."""
-        executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+        executor = MockExecutor(
+            default_response=AgentResponse(answer="ok", tools_called=["t"])
+        )
         runner = EvalRunner(executor)
         result = await runner.run([EvalCase(message="test", expected_tools=["t"])])
 
@@ -708,7 +743,9 @@ class TestEdgeCases:
             async def create_session(self) -> str:
                 return "s"
 
-            async def execute(self, message: str, *, session_id: str | None = None) -> AgentResponse:
+            async def execute(
+                self, message: str, *, session_id: str | None = None
+            ) -> AgentResponse:
                 nonlocal call_count
                 call_count += 1
                 return AgentResponse(answer="ok", tools_called=["t"])
@@ -740,7 +777,9 @@ class TestEdgeCases:
 @pytest.mark.asyncio
 async def test_run_abort_before_start() -> None:
     """Aborting before run() starts yields zero cases (semaphore-inner guard)."""
-    executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+    executor = MockExecutor(
+        default_response=AgentResponse(answer="ok", tools_called=["t"])
+    )
     runner = EvalRunner(executor)
     runner.abort()
     result = await runner.run(
@@ -787,16 +826,24 @@ async def test_sandbox_and_state_assertions_execute(tmp_path, monkeypatch) -> No
     sandbox.bind_workspace(str(tmp_path))
 
     class SandboxCapableExecutor(MockExecutor):
-        def get_sandbox_executor(self, *, session_id: str | None = None) -> LocalExecutor:
+        def get_sandbox_executor(
+            self, *, session_id: str | None = None
+        ) -> LocalExecutor:
             return sandbox
 
-    runner = EvalRunner(SandboxCapableExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"])))
+    runner = EvalRunner(
+        SandboxCapableExecutor(
+            default_response=AgentResponse(answer="ok", tools_called=["t"])
+        )
+    )
     result = await runner.run(
         [
             EvalCase(
                 message="test",
                 expected_tools=["t"],
-                sandbox_assertions=[SandboxAssertion(type="file_exists", target=str(target))],
+                sandbox_assertions=[
+                    SandboxAssertion(type="file_exists", target=str(target))
+                ],
                 state_assertions=[StateAssertion(type="contains", expected="ok")],
             )
         ]

@@ -82,6 +82,34 @@ class JsonlReporter:
                             }
                             for a in getattr(turn.case, "compaction_assertions", [])
                         ],
+                        "retrieval_assertions": [
+                            {
+                                "type": a.type,
+                                "expected_spans": list(a.expected_spans),
+                                "expected_doc_ids": list(a.expected_doc_ids),
+                                "min_recall": a.min_recall,
+                                "max_duplicate_rate": a.max_duplicate_rate,
+                                "min_distinct_sources": a.min_distinct_sources,
+                                "top_k": a.top_k,
+                                "strip_headers": a.strip_headers,
+                            }
+                            for a in getattr(turn.case, "retrieval_assertions", [])
+                        ],
+                        "post_episode_assertions": [
+                            {
+                                "assertion_id": a.assertion_id,
+                                "assertion_type": a.assertion_type,
+                                "command": a.command,
+                                "expected_output": a.expected_output,
+                                "timeout_seconds": a.timeout_seconds,
+                                "is_hidden": a.is_hidden,
+                            }
+                            for a in getattr(turn.case, "post_episode_assertions", [])
+                        ],
+                        "canary_protected": getattr(
+                            turn.case, "canary_protected", False
+                        ),
+                        "canary_token": getattr(turn.case, "canary_token", ""),
                     },
                     "actual_tools": turn.response.tools_called,
                     "tool_call_details": turn.response.tool_call_details,
@@ -109,8 +137,12 @@ class JsonlReporter:
                 "pass_rate": result.pass_rate,
                 "all_passed": result.all_passed,
                 "total_ms": result.total_ms,
-                "avg_time_secs": (round(total_time_secs / case_count, 3) if case_count else 0.0),
-                "avg_total_tokens": (round(total_tokens_sum / case_count) if case_count else 0),
+                "avg_time_secs": (
+                    round(total_time_secs / case_count, 3) if case_count else 0.0
+                ),
+                "avg_total_tokens": (
+                    round(total_tokens_sum / case_count) if case_count else 0
+                ),
             }
             if result.avg_pass_rate is not None:
                 summary["avg_pass_rate"] = result.avg_pass_rate
@@ -152,7 +184,9 @@ class MarkdownReporter:
 
         if total_tokens > 0:
             avg_tokens = total_tokens // result.total_cases if result.total_cases else 0
-            lines.append(f"- **Total Tokens**: {total_tokens:,} (avg {avg_tokens:,}/case)")
+            lines.append(
+                f"- **Total Tokens**: {total_tokens:,} (avg {avg_tokens:,}/case)"
+            )
         if total_cost > 0:
             lines.append(f"- **Total Cost**: ${total_cost:.4f}")
 
@@ -183,7 +217,11 @@ class MarkdownReporter:
         )
 
         for i, turn in enumerate(result.turn_results, 1):
-            status = " PASS" if turn.assertion_passed else (" FAIL" if turn.assertion_passed is False else " SKIP")
+            status = (
+                " PASS"
+                if turn.assertion_passed
+                else (" FAIL" if turn.assertion_passed is False else " SKIP")
+            )
             if turn.error:
                 status = " ERROR"
 
@@ -201,7 +239,9 @@ class MarkdownReporter:
             )
 
             if turn.scores:
-                score_desc = ", ".join(f"{k}: {v:g}" for k, v in sorted(turn.scores.items()))
+                score_desc = ", ".join(
+                    f"{k}: {v:g}" for k, v in sorted(turn.scores.items())
+                )
                 lines.extend(
                     [
                         f"- **Scores**: `{score_desc}`",
@@ -216,7 +256,12 @@ class MarkdownReporter:
             if turn.contamination_audit:
                 audit_info = turn.contamination_audit
                 cheat = audit_info.get("cheat_detected", False)
-                lines.extend([f"- **Anti-Contamination**: `{'VIOLATION' if cheat else 'CLEAN'}`", ""])
+                lines.extend(
+                    [
+                        f"- **Anti-Contamination**: `{'VIOLATION' if cheat else 'CLEAN'}`",
+                        "",
+                    ]
+                )
 
             if turn.assertion_details:
                 lines.extend(

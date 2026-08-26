@@ -158,7 +158,9 @@ class SpawnSubagentInput(BaseModel):
         default=False,
         description="If true, sub-agent cannot write files or run bash commands. Use for analysis-only tasks.",
     )
-    verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = Field(
+    verification_mode: Literal[
+        "none", "adversarial", "auditor_blind", "multi_skeptic"
+    ] = Field(
         default="none",
         description='Verification: "none" (default), "adversarial" (standard retry loop), "auditor_blind" (omits worker narrative to eliminate confirmation bias), or "multi_skeptic" (parallel multi-verifier voting).',
     )
@@ -218,7 +220,9 @@ class SpawnSubagentTool(BaseTool):
         agent_type: str,
         task_description: str,
         readonly: bool = False,
-        verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = "none",
+        verification_mode: Literal[
+            "none", "adversarial", "auditor_blind", "multi_skeptic"
+        ] = "none",
         verifier_agent_type: str | None = None,
         max_verification_rounds: int = 2,
     ) -> object:
@@ -230,7 +234,9 @@ class SpawnSubagentTool(BaseTool):
         agent_type: str = "generalPurpose",
         task_description: str = "",
         readonly: bool = False,
-        verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = "none",
+        verification_mode: Literal[
+            "none", "adversarial", "auditor_blind", "multi_skeptic"
+        ] = "none",
         verifier_agent_type: str | None = None,
         max_verification_rounds: int = 2,
     ) -> object:
@@ -391,12 +397,16 @@ class SpawnSubagentTool(BaseTool):
                                 workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX,
                             )
 
-                            v_mode_param: Literal["adversarial", "auditor_blind", "multi_skeptic"] = (
+                            v_mode_param: Literal[
+                                "adversarial", "auditor_blind", "multi_skeptic"
+                            ] = (
                                 "auditor_blind"
-                                if verification_mode == DwVerificationMode.AUDITOR_BLIND.value
+                                if verification_mode
+                                == DwVerificationMode.AUDITOR_BLIND.value
                                 else (
                                     "multi_skeptic"
-                                    if verification_mode == DwVerificationMode.MULTI_SKEPTIC.value
+                                    if verification_mode
+                                    == DwVerificationMode.MULTI_SKEPTIC.value
                                     else "adversarial"
                                 )
                             )

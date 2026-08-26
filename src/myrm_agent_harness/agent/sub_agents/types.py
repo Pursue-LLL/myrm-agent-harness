@@ -95,7 +95,9 @@ class DelegationCapabilityManifest:
 
 
 DELEGATION_CAPABILITY_MANIFEST = DelegationCapabilityManifest.default()
-_SUBAGENT_DEFAULT_BLACKLIST: frozenset[str] = DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
+_SUBAGENT_DEFAULT_BLACKLIST: frozenset[str] = (
+    DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
+)
 
 
 class SubAgentStatus(StrEnum):
@@ -305,7 +307,9 @@ class SubAgentResult:
         if self.handover_state:
             data["handover_state"] = self.handover_state.to_dict()
         if self.accumulated_duration_seconds is not None:
-            data["accumulated_duration_seconds"] = round(self.accumulated_duration_seconds, 3)
+            data["accumulated_duration_seconds"] = round(
+                self.accumulated_duration_seconds, 3
+            )
         if self.still_running:
             data["still_running"] = True
         if self.verification:
@@ -532,7 +536,9 @@ class SubagentConfig:
             if ts <= 0:
                 object.__setattr__(self, "timeout_seconds", None)
             else:
-                object.__setattr__(self, "timeout_seconds", max(self._MIN_TIMEOUT_SECONDS, ts))
+                object.__setattr__(
+                    self, "timeout_seconds", max(self._MIN_TIMEOUT_SECONDS, ts)
+                )
 
 
 class SubagentCatalog(Protocol):

@@ -112,4 +112,3 @@ def revert_workspace_mutations(
         except OSError:
             pass
     return reverted
-

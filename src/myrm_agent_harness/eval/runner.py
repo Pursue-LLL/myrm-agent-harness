@@ -32,7 +32,7 @@ from .assertions import (
     evaluate_state_assertions,
     evaluate_tool_assertions,
 )
-from .canary import EvalCanaryGate
+from .canary import CANARY_GUID, EvalCanaryGate
 from .compaction_assertions import evaluate_compaction_assertions
 from .contamination import audit_episode_trajectory_for_contamination
 from .protocols import (
@@ -273,8 +273,13 @@ class EvalRunner:
         # Trajectory anti-contamination audit
         contamination_audit_dict: dict[str, object] | None = None
         if response.tool_call_details:
+            dynamic_canaries = [CANARY_GUID]
+            case_canary = getattr(case, "canary_token", None)
+            if case_canary and case_canary not in dynamic_canaries:
+                dynamic_canaries.append(case_canary)
             audit_res = audit_episode_trajectory_for_contamination(
-                response.tool_call_details
+                response.tool_call_details,
+                canary_tokens=dynamic_canaries,
             )
             contamination_audit_dict = audit_res.to_dict()
             if audit_res.cheat_detected:

@@ -23,7 +23,9 @@ from myrm_agent_harness.agent.sub_agents.types import (
     VerificationSummary,
 )
 
-_GET_EXECUTOR_PATH = "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor"
+_GET_EXECUTOR_PATH = (
+    "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor"
+)
 
 
 def _mock_executor(*, has_executed: bool = True) -> MagicMock:
@@ -38,7 +40,9 @@ def _mock_executor(*, has_executed: bool = True) -> MagicMock:
 # ---------------------------------------------------------------------------
 
 
-def _ok(task_id: str = "t1", agent_type: str = "worker", result: str = "done") -> SubAgentResult:
+def _ok(
+    task_id: str = "t1", agent_type: str = "worker", result: str = "done"
+) -> SubAgentResult:
     return SubAgentResult(
         success=True,
         task_id=task_id,
@@ -49,7 +53,9 @@ def _ok(task_id: str = "t1", agent_type: str = "worker", result: str = "done") -
     )
 
 
-def _fail(task_id: str = "t1", agent_type: str = "worker", error: str = "boom") -> SubAgentResult:
+def _fail(
+    task_id: str = "t1", agent_type: str = "worker", error: str = "boom"
+) -> SubAgentResult:
     return SubAgentResult(
         success=False,
         task_id=task_id,
@@ -76,17 +82,23 @@ def _verdict_json(
 
 class TestVerificationVerdict:
     def test_frozen_immutability(self):
-        v = VerificationVerdict(passed=True, summary="ok", confidence="HIGH", findings=[], raw="")
+        v = VerificationVerdict(
+            passed=True, summary="ok", confidence="HIGH", findings=[], raw=""
+        )
         with pytest.raises(FrozenInstanceError):
             v.passed = False  # type: ignore[misc]
 
     def test_slots(self):
-        v = VerificationVerdict(passed=True, summary="ok", confidence="HIGH", findings=[], raw="x")
+        v = VerificationVerdict(
+            passed=True, summary="ok", confidence="HIGH", findings=[], raw="x"
+        )
         assert not hasattr(v, "__dict__")
 
     def test_fields(self):
         findings = [{"severity": "CRITICAL", "description": "NPE"}]
-        v = VerificationVerdict(passed=False, summary="bad", confidence="LOW", findings=findings, raw="raw")
+        v = VerificationVerdict(
+            passed=False, summary="bad", confidence="LOW", findings=findings, raw="raw"
+        )
         assert v.passed is False
         assert v.summary == "bad"
         assert v.confidence == "LOW"
@@ -129,7 +141,9 @@ class TestVerificationSummary:
         }
 
     def test_subagent_result_round_trip(self):
-        summary = VerificationSummary(passed=True, rounds=1, max_rounds=2, confidence="HIGH")
+        summary = VerificationSummary(
+            passed=True, rounds=1, max_rounds=2, confidence="HIGH"
+        )
         result = _ok()
         result.verification = summary
         data = result.to_dict()
@@ -173,7 +187,11 @@ class TestParseVerdict:
         assert len(v.findings) == 2
 
     def test_markdown_fenced_json(self):
-        raw = "Here is my verdict:\n```json\n" + _verdict_json("PASS", "ok STDOUT") + "\n```\nEnd."
+        raw = (
+            "Here is my verdict:\n```json\n"
+            + _verdict_json("PASS", "ok STDOUT")
+            + "\n```\nEnd."
+        )
         v = _parse_verdict(raw)
         assert v.passed is True
 
@@ -183,7 +201,11 @@ class TestParseVerdict:
         assert v.passed is False
 
     def test_json_embedded_in_text(self):
-        raw = "Based on my analysis, " + _verdict_json("PASS", "Looks good STDOUT") + " that is my verdict."
+        raw = (
+            "Based on my analysis, "
+            + _verdict_json("PASS", "Looks good STDOUT")
+            + " that is my verdict."
+        )
         v = _parse_verdict(raw)
         assert v.passed is True
         assert v.summary == "Looks good STDOUT"
@@ -219,7 +241,9 @@ class TestParseVerdict:
         assert v.passed is False
 
     def test_verdict_case_insensitive_json(self):
-        v = _parse_verdict('{"verdict": "pass", "summary": "ok STDOUT", "confidence": "HIGH", "findings": []}')
+        v = _parse_verdict(
+            '{"verdict": "pass", "summary": "ok STDOUT", "confidence": "HIGH", "findings": []}'
+        )
         assert v.passed is True
 
     def test_verdict_with_extra_fields_ignored(self):
@@ -244,7 +268,9 @@ class TestParseVerdict:
         assert len(v.findings) == 1
 
     def test_whitespace_around_verdict(self):
-        v = _parse_verdict('  {"verdict": " PASS ", "summary": "ok STDOUT", "confidence": "HIGH", "findings": []}  ')
+        v = _parse_verdict(
+            '  {"verdict": " PASS ", "summary": "ok STDOUT", "confidence": "HIGH", "findings": []}  '
+        )
         assert v.passed is True
 
     def test_missing_confidence_defaults_to_unknown(self):
@@ -252,7 +278,9 @@ class TestParseVerdict:
         assert v.confidence == "UNKNOWN"
 
     def test_missing_summary_defaults_to_empty(self):
-        v = _parse_verdict('{"verdict": "PASS", "confidence": "HIGH", "findings": [], "STDOUT": "here"}')
+        v = _parse_verdict(
+            '{"verdict": "PASS", "confidence": "HIGH", "findings": [], "STDOUT": "here"}'
+        )
         assert v.summary == ""
 
     def test_prose_with_trailing_comma_and_bare_newline(self):
@@ -405,7 +433,9 @@ class TestRunWithVerification:
             max_rounds=2,
         )
         assert "FAIL after 2 round(s)" in result.result
-        assert result.success is False, "Verification failure must propagate success=False"
+        assert (
+            result.success is False
+        ), "Verification failure must propagate success=False"
         assert result.verification is not None
         assert result.verification.passed is False
         assert result.verification.max_rounds == 2
@@ -435,7 +465,9 @@ class TestRunWithVerification:
         )
         assert not result.success
         assert "worker crashed" in result.error
-        assert result.verification is None, "Worker failure must not fabricate a verification outcome"
+        assert (
+            result.verification is None
+        ), "Worker failure must not fabricate a verification outcome"
 
     @pytest.mark.asyncio
     async def test_verifier_failure_aborts(self):
@@ -763,7 +795,9 @@ class TestRunWithVerification:
 
     @pytest.mark.asyncio
     @patch(_GET_EXECUTOR_PATH)
-    async def test_business_task_id_first_worker_visible_retries_internal(self, mock_get_executor):
+    async def test_business_task_id_first_worker_visible_retries_internal(
+        self, mock_get_executor
+    ):
         """With a business task_id, the first worker runs under that id (visible),
         while retry workers and verifiers spawn as internal nodes."""
         mock_get_executor.return_value = _mock_executor(has_executed=True)
@@ -781,7 +815,9 @@ class TestRunWithVerification:
                     kwargs["agent_type"],
                     _verdict_json("FAIL", "Issues found", "HIGH"),
                 )
-            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH"))
+            return _ok(
+                tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH")
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -821,7 +857,9 @@ class TestRunWithVerification:
             tid = kwargs["task_id"]
             if "worker" in tid:
                 return _ok(tid, kwargs["agent_type"], "work output")
-            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH"))
+            return _ok(
+                tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH")
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -858,7 +896,9 @@ class TestRunWithVerification:
             tid = kwargs["task_id"]
             if "worker" in tid:
                 return _ok(tid, kwargs["agent_type"], "work output")
-            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH"))
+            return _ok(
+                tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH")
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -1035,7 +1075,9 @@ class TestInternalIdUniqueness:
             spawned.append(kwargs["task_id"])
             if kwargs["agent_type"] == "w":
                 return _ok(kwargs["task_id"], "w", "work output")
-            return _ok(kwargs["task_id"], "v", _verdict_json("PASS", "ok STDOUT", "HIGH"))
+            return _ok(
+                kwargs["task_id"], "v", _verdict_json("PASS", "ok STDOUT", "HIGH")
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -1056,7 +1098,11 @@ class TestInternalIdUniqueness:
             )
             assert result.success
 
-        internal_ids = [tid for tid in spawned if tid.startswith(("verify-worker-", "verify-check-"))]
+        internal_ids = [
+            tid
+            for tid in spawned
+            if tid.startswith(("verify-worker-", "verify-check-"))
+        ]
         assert len(internal_ids) == 2  # one verifier per invocation
         assert len(internal_ids) == len(set(internal_ids)), internal_ids
 
@@ -1068,7 +1114,9 @@ class TestInternalIdUniqueness:
 
 class TestFormatWorkerOutput:
     def test_dict_with_text_returns_text(self):
-        assert _format_worker_output_for_verifier({"text": "hello", "other": 1}) == "hello"
+        assert (
+            _format_worker_output_for_verifier({"text": "hello", "other": 1}) == "hello"
+        )
 
     def test_dict_without_text_returns_filtered_json(self):
         result = _format_worker_output_for_verifier(
@@ -1088,7 +1136,9 @@ class TestFormatWorkerOutput:
 
 class TestAppendVerificationBlock:
     def test_dict_with_prior_summary_appends(self):
-        updated = _append_verification_block({"result": "r", "_verification_summary": "old"}, "block")
+        updated = _append_verification_block(
+            {"result": "r", "_verification_summary": "old"}, "block"
+        )
         assert updated["_verification_summary"] == "old\n\nblock"
 
     def test_dict_without_prior_sets_summary_and_append_text(self):
@@ -1137,7 +1187,9 @@ class TestBuildVerifierToolRegistryGetter:
         mcp_rw.readonly = None
         mcp_rw.metadata = {"readonly": False, "is_mcp": True}
 
-        getter = _build_verifier_tool_registry_getter(lambda: [ro, plain, mcp_ro, mcp_rw], {})
+        getter = _build_verifier_tool_registry_getter(
+            lambda: [ro, plain, mcp_ro, mcp_rw], {}
+        )
         tools = getter()
         assert ro in tools
         assert plain in tools
@@ -1180,9 +1232,13 @@ class TestRunWithVerificationCancelled:
 class TestExecuteVerifierRoundWorkspaceDiff:
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.sub_agents._verifier_round.diff_snapshots")
-    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot")
+    @patch(
+        "myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot"
+    )
     @patch("myrm_agent_harness.toolkits.code_execution.executors.base.get_executor")
-    async def test_diff_injected_and_verdict_returned(self, mock_get_executor, mock_snapshot, mock_diff):
+    async def test_diff_injected_and_verdict_returned(
+        self, mock_get_executor, mock_snapshot, mock_diff
+    ):
         from myrm_agent_harness.agent.sub_agents._verifier_round import (
             _execute_verifier_round,
         )
@@ -1226,9 +1282,13 @@ class TestExecuteVerifierRoundWorkspaceDiff:
 
 class TestRunWithVerificationSnapshotFailure:
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @patch(
+        "myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot"
+    )
     @patch(_GET_EXECUTOR_PATH)
-    async def test_pre_snapshot_failure_does_not_abort(self, mock_get_executor, mock_snapshot):
+    async def test_pre_snapshot_failure_does_not_abort(
+        self, mock_get_executor, mock_snapshot
+    ):
         mock_get_executor.return_value = _mock_executor(has_executed=True)
         mock_snapshot.side_effect = OSError("snapshot failed")
         mgr = MagicMock()
@@ -1268,8 +1328,12 @@ class TestRunWithVerificationSnapshotFailure:
 class TestAuditorBlindAndSnapshotRevert:
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.sub_agents._verifier_round.diff_snapshots")
-    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot")
-    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.revert_workspace_mutations")
+    @patch(
+        "myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot"
+    )
+    @patch(
+        "myrm_agent_harness.agent.sub_agents._verifier_round.revert_workspace_mutations"
+    )
     @patch(_GET_EXECUTOR_PATH)
     async def test_auditor_blind_omits_worker_narrative_when_diff_present(
         self, mock_get_executor, mock_revert, mock_snapshot, mock_diff
@@ -1327,7 +1391,9 @@ class TestAuditorBlindAndSnapshotRevert:
         base_file = tmp_path / "base.py"
         base_file.write_text("print('base')")
 
-        pre_snapshot = {"base.py": (base_file.stat().st_mtime, base_file.stat().st_size)}
+        pre_snapshot = {
+            "base.py": (base_file.stat().st_mtime, base_file.stat().st_size)
+        }
 
         # Verifier created stray test files
         stray_file = tmp_path / "test_temp_out.py"
@@ -1351,7 +1417,9 @@ class TestAuditorBlindAndSnapshotRevert:
 
 class TestMultiSkepticVerification:
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @patch(
+        "myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot"
+    )
     @patch(_GET_EXECUTOR_PATH)
     async def test_multi_skeptic_majority_pass(self, mock_get_executor, mock_snapshot):
         mock_get_executor.return_value = _mock_executor(has_executed=True)
@@ -1395,12 +1463,19 @@ class TestMultiSkepticVerification:
         assert result.success
         assert result.verification is not None
         assert result.verification.passed is True
-        assert "Multi-Skeptic Voting: 2/3 approved (majority=PASS)" in result.verification.summary
+        assert (
+            "Multi-Skeptic Voting: 2/3 approved (majority=PASS)"
+            in result.verification.summary
+        )
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @patch(
+        "myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot"
+    )
     @patch(_GET_EXECUTOR_PATH)
-    async def test_multi_skeptic_fail_closed_on_crash(self, mock_get_executor, mock_snapshot):
+    async def test_multi_skeptic_fail_closed_on_crash(
+        self, mock_get_executor, mock_snapshot
+    ):
         mock_get_executor.return_value = _mock_executor(has_executed=True)
         mock_snapshot.return_value = {}
 
@@ -1432,4 +1507,3 @@ class TestMultiSkepticVerification:
         assert not result.success
         assert result.status == SubAgentStatus.BLOCKED
         assert "Fail-Closed blocked" in result.error
-

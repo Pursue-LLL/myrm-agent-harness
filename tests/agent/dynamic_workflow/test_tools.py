@@ -49,7 +49,9 @@ def mock_parent_agent():
 
 
 @pytest.mark.asyncio
-async def test_spawn_tool_cache_miss_when_verification_mode_changes(temp_store, mock_parent_agent):
+async def test_spawn_tool_cache_miss_when_verification_mode_changes(
+    temp_store, mock_parent_agent
+):
     params = _cache_params(task_description="scan")
     temp_store.save_result(
         "wf_verify_cache",
@@ -60,7 +62,10 @@ async def test_spawn_tool_cache_miss_when_verification_mode_changes(temp_store, 
         spawn_params=params,
     )
 
-    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "verified"}
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "result": "verified",
+    }
     mock_parent_agent._subagent_manager = MagicMock()
 
     tool = SpawnSubagentTool(
@@ -70,7 +75,9 @@ async def test_spawn_tool_cache_miss_when_verification_mode_changes(temp_store, 
         store=temp_store,
     )
 
-    with patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification") as mock_verify:
+    with patch(
+        "myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification"
+    ) as mock_verify:
         mock_verify.return_value = {"success": True, "result": "verified"}
         result = await tool._arun(
             "task_1",
@@ -110,7 +117,9 @@ async def test_spawn_tool_cache_hit(temp_store, mock_parent_agent):
 
 
 @pytest.mark.asyncio
-async def test_spawn_tool_cache_miss_when_merge_still_pending(temp_store, mock_parent_agent):
+async def test_spawn_tool_cache_miss_when_merge_still_pending(
+    temp_store, mock_parent_agent
+):
     params = _cache_params(task_description="write notes")
     temp_store.save_result(
         "wf_pending",
@@ -146,7 +155,9 @@ async def test_spawn_tool_cache_miss_when_merge_still_pending(temp_store, mock_p
 
 
 @pytest.mark.asyncio
-async def test_spawn_tool_cache_hit_records_pending_merge(temp_store, mock_parent_agent):
+async def test_spawn_tool_cache_hit_records_pending_merge(
+    temp_store, mock_parent_agent
+):
     params = _cache_params(task_description="write notes")
     cached_payload = {
         "success": True,
@@ -218,7 +229,10 @@ async def test_spawn_tool_cache_miss(temp_store, mock_parent_agent):
 @pytest.mark.asyncio
 async def test_spawn_tool_dict_result(mock_parent_agent):
     """spawn_child may return a dict directly — must pass through unchanged."""
-    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "dict-path"}
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "result": "dict-path",
+    }
 
     tool = SpawnSubagentTool(
         parent_agent=mock_parent_agent,
@@ -280,7 +294,10 @@ async def test_spawn_tool_catalog_resolve(mock_parent_agent):
     mock_catalog = AsyncMock()
     mock_catalog.resolve.return_value = custom_config
 
-    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "catalog-used"}
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "result": "catalog-used",
+    }
 
     tool = SpawnSubagentTool(
         parent_agent=mock_parent_agent,
@@ -304,7 +321,10 @@ async def test_spawn_tool_catalog_fallback(mock_parent_agent):
     mock_catalog = AsyncMock()
     mock_catalog.resolve.return_value = None
 
-    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "fallback"}
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "result": "fallback",
+    }
 
     tool = SpawnSubagentTool(
         parent_agent=mock_parent_agent,
@@ -346,7 +366,10 @@ async def test_spawn_tool_readonly_enforces_sandbox_policy(mock_parent_agent):
     """readonly=True sets workspace_policy=READ_ONLY_SANDBOX on the config."""
     from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
 
-    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "read-only"}
+    mock_parent_agent._spawn_child.return_value = {
+        "success": True,
+        "result": "read-only",
+    }
 
     tool = SpawnSubagentTool(
         parent_agent=mock_parent_agent,
@@ -355,7 +378,9 @@ async def test_spawn_tool_readonly_enforces_sandbox_policy(mock_parent_agent):
         store=None,
     )
 
-    await tool._arun("task_1", "generalPurpose", "scan for vulnerabilities", readonly=True)
+    await tool._arun(
+        "task_1", "generalPurpose", "scan for vulnerabilities", readonly=True
+    )
 
     call_kwargs = mock_parent_agent._spawn_child.call_args[1]
     config = call_kwargs["config"]
@@ -429,7 +454,10 @@ async def test_spawn_tool_readonly_false_no_enforcement(mock_parent_agent):
 @pytest.mark.asyncio
 async def test_spawn_tool_readonly_with_catalog_config(mock_parent_agent):
     """readonly=True works correctly with catalog-resolved config."""
-    from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, WorkspacePolicy
+    from myrm_agent_harness.agent.sub_agents.types import (
+        SubagentConfig,
+        WorkspacePolicy,
+    )
 
     custom_config = SubagentConfig(
         system_prompt="I am a security scanner.",
@@ -828,7 +856,9 @@ async def test_spawn_default_none_skips_verification(mock_parent_agent):
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification")
-async def test_spawn_adversarial_calls_run_with_verification(mock_run_verify, mock_parent_agent):
+async def test_spawn_adversarial_calls_run_with_verification(
+    mock_run_verify, mock_parent_agent
+):
     """verification_mode=adversarial routes through run_with_verification."""
     from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubAgentStatus
 
@@ -872,7 +902,9 @@ async def test_spawn_adversarial_calls_run_with_verification(mock_run_verify, mo
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification")
-async def test_spawn_adversarial_writable_records_isolated_merge(mock_run_verify, mock_parent_agent):
+async def test_spawn_adversarial_writable_records_isolated_merge(
+    mock_run_verify, mock_parent_agent
+):
     from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubAgentStatus
 
     mock_parent_agent._subagent_manager = MagicMock()
@@ -915,10 +947,14 @@ async def test_spawn_adversarial_writable_records_isolated_merge(mock_run_verify
 
 @pytest.mark.asyncio
 @patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification")
-async def test_spawn_adversarial_no_manager_falls_back_to_spawn(mock_run_verify, mock_parent_agent):
+async def test_spawn_adversarial_no_manager_falls_back_to_spawn(
+    mock_run_verify, mock_parent_agent
+):
     """Missing SubagentManager falls back to direct spawn."""
     parent = MagicMock(spec=["_spawn_child", "context"])
-    parent._spawn_child = AsyncMock(return_value={"success": True, "result": "fallback"})
+    parent._spawn_child = AsyncMock(
+        return_value={"success": True, "result": "fallback"}
+    )
     parent.context = {}
 
     tool = SpawnSubagentTool(
@@ -942,7 +978,9 @@ async def test_spawn_adversarial_no_manager_falls_back_to_spawn(mock_run_verify,
 
 @pytest.mark.asyncio
 async def test_spawn_parallel_writers_use_isolated_copy(mock_parent_agent):
-    mock_parent_agent._spawn_child = AsyncMock(return_value={"success": True, "result": "ok"})
+    mock_parent_agent._spawn_child = AsyncMock(
+        return_value={"success": True, "result": "ok"}
+    )
     mock_parent_agent.context = {"workspace_path": "/tmp/ws"}
 
     guard = WorkflowRunGuard(max_spawns=10, max_concurrent=2)
@@ -958,7 +996,9 @@ async def test_spawn_parallel_writers_use_isolated_copy(mock_parent_agent):
         tool._arun("t2", "generalPurpose", "write b", readonly=False),
     )
 
-    configs = [call.kwargs["config"] for call in mock_parent_agent._spawn_child.await_args_list]
+    configs = [
+        call.kwargs["config"] for call in mock_parent_agent._spawn_child.await_args_list
+    ]
     assert len(configs) == 2
     assert all(cfg.workspace_policy == WorkspacePolicy.ISOLATED_COPY for cfg in configs)
 
@@ -1083,7 +1123,9 @@ async def test_spawn_subagent_auditor_blind_and_multi_skeptic_mode(mock_parent_a
         workflow_id="wf_modes_test",
     )
 
-    with patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification") as mock_verify:
+    with patch(
+        "myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification"
+    ) as mock_verify:
         mock_verify.return_value = {"success": True, "result": "blind_ok"}
 
         # 1. Auditor Blind mode
@@ -1106,6 +1148,3 @@ async def test_spawn_subagent_auditor_blind_and_multi_skeptic_mode(mock_parent_a
         )
         assert res2["success"] is True
         assert mock_verify.call_args.kwargs["verification_mode"] == "multi_skeptic"
-
-
-
