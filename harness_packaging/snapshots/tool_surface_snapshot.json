@@ -67,6 +67,11 @@
   {
     "layer": "EXTENDED",
     "layer_value": 3,
+    "name": "ast_symbol_search_tool"
+  },
+  {
+    "layer": "EXTENDED",
+    "layer_value": 3,
     "name": "browser_ask_human_tool"
   },
   {
