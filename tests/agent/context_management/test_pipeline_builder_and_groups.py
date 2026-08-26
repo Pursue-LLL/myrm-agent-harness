@@ -116,6 +116,7 @@ def test_build_default_processors_with_session_notes() -> None:
         "post_compaction_refetch_guard",
         "normalize",
         "media_resolver",
+        "media_budget_governor",
         "explicit_cache",
     ]
 
