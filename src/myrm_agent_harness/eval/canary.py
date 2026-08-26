@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Sequence
 
 
 # Standard benchmark canary GUID (SWE-bench & BIG-bench aligned).
@@ -43,7 +43,7 @@ class CanaryScanResult:
     is_protected: bool
     canary_found: bool
     violations: list[str] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 def embed_canary_header(content: str) -> str:
@@ -58,7 +58,7 @@ def verify_canary_presence(content: str) -> bool:
     return CANARY_GUID in content
 
 
-def scan_dataset_canary_integrity(data: Any) -> CanaryScanResult:
+def scan_dataset_canary_integrity(data: object) -> CanaryScanResult:
     """Recursively scan an evaluation dataset structure for canary integrity and leak risks.
 
     Returns CanaryScanResult with validation status and any integrity violations.
@@ -98,5 +98,5 @@ class EvalCanaryGate:
         return verify_canary_presence(text)
 
     @staticmethod
-    def audit_dataset(dataset: Any) -> CanaryScanResult:
+    def audit_dataset(dataset: object) -> CanaryScanResult:
         return scan_dataset_canary_integrity(dataset)
