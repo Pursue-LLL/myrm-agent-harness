@@ -80,5 +80,3 @@ class TestGetModelContextLimit:
         llm.extra_body = {"options": {"num_ctx": 0}}
         llm.max_input_tokens = 16384
         assert get_model_context_limit(llm) == 16384
-
-

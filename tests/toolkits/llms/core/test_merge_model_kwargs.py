@@ -138,7 +138,9 @@ class TestResolveWebSearchOptions:
         mock_litellm = MagicMock()
         mock_litellm.supports_web_search.return_value = False
         with patch.dict("sys.modules", {"litellm": mock_litellm}):
-            result = _resolve_web_search_options("anthropic/claude-4-sonnet", None, None)
+            result = _resolve_web_search_options(
+                "anthropic/claude-4-sonnet", None, None
+            )
         assert result is None
 
     def test_auto_detect_import_error(self) -> None:
@@ -227,5 +229,3 @@ class TestCreateLitellmModel:
         )
         call_kwargs = mock_cls.call_args[1]
         assert call_kwargs["extra_body"]["options"]["num_ctx"] == 32768
-
-

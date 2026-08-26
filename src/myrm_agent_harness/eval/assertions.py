@@ -559,6 +559,92 @@ async def evaluate_semantic_assertions(
     return True, "All semantic assertions passed."
 
 
+def calculate_trajectory_determinism(
+    orig_steps: list[dict[str, Any]],
+    replay_steps: list[dict[str, Any]],
+) -> DeterminismReplayResult:
+    """Calculate quantitative trajectory determinism comparing two execution traces."""
+    from .protocols import DeterminismReplayResult
+
+    orig_tool_names = [s.get("tool_name", "") for s in orig_steps if s.get("tool_name")]
+    replay_tool_names = [s.get("tool_name", "") for s in replay_steps if s.get("tool_name")]
+
+    if not orig_tool_names and not replay_tool_names:
+        return DeterminismReplayResult(
+            determinism_score=1.0,
+            tool_sequence_similarity=1.0,
+            tool_set_jaccard=1.0,
+            args_similarity=1.0,
+            original_tool_count=0,
+            replayed_tool_count=0,
+            drifted_tools=[],
+            verdict="DETERMINISTIC",
+        )
+
+    # 1. Jaccard similarity of tool sets
+    set_orig = set(orig_tool_names)
+    set_replay = set(replay_tool_names)
+    union_set = set_orig | set_replay
+    jaccard = len(set_orig & set_replay) / len(union_set) if union_set else 1.0
+
+    # 2. Sequence Levenshtein-based similarity
+    max_len = max(len(orig_tool_names), len(replay_tool_names))
+    if max_len == 0:
+        seq_sim = 1.0
+    else:
+        # Simple positional match ratio
+        min_len = min(len(orig_tool_names), len(replay_tool_names))
+        matches = sum(1 for i in range(min_len) if orig_tool_names[i] == replay_tool_names[i])
+        seq_sim = matches / max_len
+
+    # 3. Arguments similarity on matched step positions
+    args_matches = 0
+    total_compared_args = 0
+    drifted: list[str] = []
+
+    for i in range(min(len(orig_steps), len(replay_steps))):
+        orig_s = orig_steps[i]
+        replay_s = replay_steps[i]
+        t_orig = orig_s.get("tool_name", "")
+        t_replay = replay_s.get("tool_name", "")
+
+        if t_orig == t_replay and t_orig:
+            total_compared_args += 1
+            if orig_s.get("arguments") == replay_s.get("arguments"):
+                args_matches += 1
+            else:
+                drifted.append(f"Step {i+1} ({t_orig}): args drifted")
+        else:
+            if t_orig or t_replay:
+                drifted.append(f"Step {i+1}: tool diverged ({t_orig} vs {t_replay})")
+
+    if len(orig_tool_names) != len(replay_tool_names):
+        drifted.append(f"Length mismatch: {len(orig_tool_names)} vs {len(replay_tool_names)} tool calls")
+
+    args_sim = (args_matches / total_compared_args) if total_compared_args > 0 else 1.0
+
+    # Composite Determinism Score (weighted: 40% seq, 30% set, 30% args)
+    composite_score = 0.4 * seq_sim + 0.3 * jaccard + 0.3 * args_sim
+
+    if composite_score >= 0.95:
+        verdict = "DETERMINISTIC"
+    elif composite_score >= 0.65:
+        verdict = "MINOR_DRIFT"
+    else:
+        verdict = "DIVERGED"
+
+    return DeterminismReplayResult(
+        determinism_score=composite_score,
+        tool_sequence_similarity=seq_sim,
+        tool_set_jaccard=jaccard,
+        args_similarity=args_sim,
+        original_tool_count=len(orig_tool_names),
+        replayed_tool_count=len(replay_tool_names),
+        drifted_tools=drifted,
+        verdict=verdict,
+    )
+
+
 # Re-export retrieval assertion helpers from retrieval_assertions module
 from .retrieval_assertions import (  # noqa: E402
     CollapsedHit,
@@ -571,6 +657,7 @@ from .retrieval_assertions import (  # noqa: E402
 __all__ = [
     "CollapsedHit",
     "ToolAssertion",
+    "calculate_trajectory_determinism",
     "collapse_retrieval_hits",
     "evaluate_retrieval_assertions",
     "evaluate_sandbox_assertions",

@@ -533,6 +533,32 @@ class SkillABReportData:
         }
 
 
+@dataclass(slots=True)
+class DeterminismReplayResult:
+    """Quantitative evaluation metrics comparing original and replayed trajectories."""
+
+    determinism_score: float  # 0.0 to 1.0 composite score
+    tool_sequence_similarity: float  # 0.0 to 1.0 (Levenshtein / exact order match)
+    tool_set_jaccard: float  # 0.0 to 1.0 Jaccard index of called tools
+    args_similarity: float  # 0.0 to 1.0 match rate of tool arguments
+    original_tool_count: int
+    replayed_tool_count: int
+    drifted_tools: list[str] = field(default_factory=list)
+    verdict: str = "DETERMINISTIC"  # "DETERMINISTIC", "MINOR_DRIFT", "DIVERGED"
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "determinism_score": round(self.determinism_score, 4),
+            "tool_sequence_similarity": round(self.tool_sequence_similarity, 4),
+            "tool_set_jaccard": round(self.tool_set_jaccard, 4),
+            "args_similarity": round(self.args_similarity, 4),
+            "original_tool_count": self.original_tool_count,
+            "replayed_tool_count": self.replayed_tool_count,
+            "drifted_tools": self.drifted_tools,
+            "verdict": self.verdict,
+        }
+
+
 @runtime_checkable
 class AgentExecutor(Protocol):
     """Protocol for business-layer agent execution.
