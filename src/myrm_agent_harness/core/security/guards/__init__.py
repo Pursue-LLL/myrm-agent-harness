@@ -1,4 +1,15 @@
-"""Core security guards — SSRF protection, privacy tracking, and privacy fail-closed ladder."""
+"""Core security guards — SSRF protection, privacy tracking, and privacy fail-closed ladder.
+
+[INPUT]
+- .privacy_ladder (POS: Privacy fail closed ladder)
+- .privacy_tracker (POS: Privacy tracker)
+
+[OUTPUT]
+- PrivacyFailClosedLadder, PrivacyTracker: security guards
+
+[POS]
+Core security guards exports.
+"""
 
 from .privacy_ladder import (
     PrivacyFailClosedLadder,

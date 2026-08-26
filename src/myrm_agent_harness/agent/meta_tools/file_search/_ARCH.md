@@ -9,7 +9,6 @@ with path-grouped densified output (auto-deduplicates repeated paths) and intell
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | File search tool module exports | — |
-| ast_symbol_tool.py | Core | Lightweight multi-language AST and code symbol outline/search tool (zero-daemon) | ✅ |
 | glob_tool.py | Core | File search tool. Searches for files using glob patterns (* and **) | ✅ |
 | grep_tool.py | Core | Content search tool. Regex and literal (--fixed-strings) modes. Path-grouped densified output, line truncation, non-code capping. Three-tier search engine (ripgrep > mmap > Python) | ✅ |
 | fallback_discovery.py | Core | Shared fallback candidate discovery for glob/grep (git-aware listing, root ignore files for non-git fallback, hidden policy, bounded scan). | ✅ |

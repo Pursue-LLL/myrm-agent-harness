@@ -174,7 +174,10 @@ def create_wiki_agent_tools(
                 if is_supported(str(src_path)):
                     content = await _parse_binary_document(str(src_path))
                 else:
-                    content = src_path.read_text(encoding="utf-8")
+                    try:
+                        content = src_path.read_text(encoding="utf-8")
+                    except UnicodeDecodeError:
+                        content = src_path.read_text(encoding="utf-8", errors="replace")
                 filename = filename or src_path.name
                 if not filename.endswith(".md"):
                     filename = Path(filename).stem + ".md"

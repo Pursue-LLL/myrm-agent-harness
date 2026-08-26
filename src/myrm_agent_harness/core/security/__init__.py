@@ -1,9 +1,13 @@
 """Core security — foundational security primitives used across all layers.
 
-This module provides security types, detection, guards, and policy
-enforcement used by both ``agent/`` and ``toolkits/``. It has zero
-dependency on ``agent/`` internals, enabling ``toolkits/`` to import
-security capabilities without coupling to the agent framework.
+[INPUT]
+- myrm_agent_harness.core.security.missing_semantics (POS: Missing semantics contract and evaluation)
+
+[OUTPUT]
+- MissingSemanticsPolicy, MissingSemanticsDecision, enforce_missing_semantics, evaluate_missing_capability: security API
+
+[POS]
+Core security exports. Foundational security primitives used across all layers.
 """
 
 from myrm_agent_harness.core.security.missing_semantics import (

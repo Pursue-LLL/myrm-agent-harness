@@ -651,6 +651,32 @@ class TestProcessPermanentError:
         assert _get_failures() == 1
 
 
+class TestSummarizeProcessorSummarizerLLM:
+    """Cover dedicated summarizer_llm invocation over primary llm."""
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize"
+    )
+    async def test_uses_summarizer_llm_when_provided(self, mock_guarded) -> None:
+        primary_llm = AsyncMock()
+        aux_compactor_llm = AsyncMock()
+        summary = StructuredSummary(user_goal="compaction goal")
+        mock_guarded.return_value = ([HumanMessage(content="s")], summary)
+
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="long conversation turn")],
+            user_query="query",
+            llm=primary_llm,
+            summarizer_llm=aux_compactor_llm,
+        )
+
+        await processor.process(context)
+        # Verify _guarded_summarize received aux_compactor_llm instead of primary_llm
+        assert mock_guarded.call_args.kwargs.get("llm") is aux_compactor_llm
+
+
 class TestRecordFallbackCall:
     def test_increments(self) -> None:
         _sp._fallback_calls = 0
