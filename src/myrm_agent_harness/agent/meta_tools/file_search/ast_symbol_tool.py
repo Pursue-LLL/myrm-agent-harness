@@ -44,7 +44,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-SymbolKind = Literal["class", "interface", "function", "method", "type", "struct", "enum", "constant"]
+SymbolKind = Literal[
+    "class", "interface", "function", "method", "type", "struct", "enum", "constant"
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,10 +101,18 @@ def _extract_python_symbols(source: str) -> list[CodeSymbol]:
             for item in node.body:
                 if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     m_doc = ast.get_docstring(item)
-                    m_doc_summary = m_doc.strip().split("\n")[0][:100] if m_doc else None
-                    prefix = "async def " if isinstance(item, ast.AsyncFunctionDef) else "def "
+                    m_doc_summary = (
+                        m_doc.strip().split("\n")[0][:100] if m_doc else None
+                    )
+                    prefix = (
+                        "async def "
+                        if isinstance(item, ast.AsyncFunctionDef)
+                        else "def "
+                    )
                     args_str = ast.unparse(item.args)
-                    return_str = f" -> {ast.unparse(item.returns)}" if item.returns else ""
+                    return_str = (
+                        f" -> {ast.unparse(item.returns)}" if item.returns else ""
+                    )
                     m_sig = f"{prefix}{item.name}({args_str}){return_str}"
                     symbols.append(
                         CodeSymbol(
@@ -135,17 +145,53 @@ def _extract_python_symbols(source: str) -> list[CodeSymbol]:
 
 _PATTERNS: dict[str, list[tuple[re.Pattern[str], SymbolKind]]] = {
     "typescript": [
-        (re.compile(r"^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z0-9_$]+)(?:<[^>]+>)?(?:\s+extends\s+[^{]+)?(?:\s+implements\s+[^{]+)?"), "class"),
-        (re.compile(r"^\s*(?:export\s+)?interface\s+([A-Za-z0-9_$]+)(?:<[^>]+>)?(?:\s+extends\s+[^{]+)?"), "interface"),
-        (re.compile(r"^\s*(?:export\s+)?type\s+([A-Za-z0-9_$]+)(?:<[^>]+>)?\s*="), "type"),
+        (
+            re.compile(
+                r"^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z0-9_$]+)(?:<[^>]+>)?(?:\s+extends\s+[^{]+)?(?:\s+implements\s+[^{]+)?"
+            ),
+            "class",
+        ),
+        (
+            re.compile(
+                r"^\s*(?:export\s+)?interface\s+([A-Za-z0-9_$]+)(?:<[^>]+>)?(?:\s+extends\s+[^{]+)?"
+            ),
+            "interface",
+        ),
+        (
+            re.compile(r"^\s*(?:export\s+)?type\s+([A-Za-z0-9_$]+)(?:<[^>]+>)?\s*="),
+            "type",
+        ),
         (re.compile(r"^\s*(?:export\s+)?enum\s+([A-Za-z0-9_$]+)"), "enum"),
-        (re.compile(r"^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\([^)]*\)"), "function"),
-        (re.compile(r"^\s*(?:export\s+)?const\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?\([^)]*\)\s*(?::\s*[^=]+)?=>"), "function"),
+        (
+            re.compile(
+                r"^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\([^)]*\)"
+            ),
+            "function",
+        ),
+        (
+            re.compile(
+                r"^\s*(?:export\s+)?const\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?\([^)]*\)\s*(?::\s*[^=]+)?=>"
+            ),
+            "function",
+        ),
     ],
     "javascript": [
-        (re.compile(r"^\s*(?:export\s+)?(?:default\s+)?class\s+([A-Za-z0-9_$]+)"), "class"),
-        (re.compile(r"^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\("), "function"),
-        (re.compile(r"^\s*(?:export\s+)?const\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>"), "function"),
+        (
+            re.compile(r"^\s*(?:export\s+)?(?:default\s+)?class\s+([A-Za-z0-9_$]+)"),
+            "class",
+        ),
+        (
+            re.compile(
+                r"^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\("
+            ),
+            "function",
+        ),
+        (
+            re.compile(
+                r"^\s*(?:export\s+)?const\s+([A-Za-z0-9_$]+)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>"
+            ),
+            "function",
+        ),
     ],
     "go": [
         (re.compile(r"^type\s+([A-Za-z0-9_]+)\s+struct"), "struct"),
@@ -157,7 +203,10 @@ _PATTERNS: dict[str, list[tuple[re.Pattern[str], SymbolKind]]] = {
         (re.compile(r"^\s*(?:pub\s+)?(?:struct)\s+([A-Za-z0-9_]+)"), "struct"),
         (re.compile(r"^\s*(?:pub\s+)?(?:enum)\s+([A-Za-z0-9_]+)"), "enum"),
         (re.compile(r"^\s*(?:pub\s+)?(?:trait)\s+([A-Za-z0-9_]+)"), "interface"),
-        (re.compile(r"^\s*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)\s*\("), "function"),
+        (
+            re.compile(r"^\s*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z0-9_]+)\s*\("),
+            "function",
+        ),
     ],
     "python": [
         (re.compile(r"^\s*class\s+([A-Za-z0-9_]+)"), "class"),
@@ -173,7 +222,12 @@ def _extract_regex_symbols(source: str, lang: str) -> list[CodeSymbol]:
 
     for idx, line in enumerate(lines, start=1):
         stripped = line.strip()
-        if not stripped or stripped.startswith("//") or stripped.startswith("#") or stripped.startswith("/*"):
+        if (
+            not stripped
+            or stripped.startswith("//")
+            or stripped.startswith("#")
+            or stripped.startswith("/*")
+        ):
             continue
 
         for pat, kind in patterns:
@@ -204,13 +258,21 @@ def extract_symbols_from_code(source: str, filename: str) -> list[CodeSymbol]:
 class AstSymbolInput(BaseModel):
     """AST 代码符号搜索工具输入参数"""
 
-    path: str = Field(default=".", description="目标文件路径或要扫描的目录路径（默认当前工作区根目录）")
-    query: str | None = Field(default=None, description="符号名称搜索关键词（如 'AuthService' 或 'login'）；传 None 时输出大纲")
+    path: str = Field(
+        default=".",
+        description="目标文件路径或要扫描的目录路径（默认当前工作区根目录）",
+    )
+    query: str | None = Field(
+        default=None,
+        description="符号名称搜索关键词（如 'AuthService' 或 'login'）；传 None 时输出大纲",
+    )
     mode: Literal["outline", "find_symbols"] = Field(
         default="outline",
         description="'outline'：提取指定文件或目录的代码结构大纲；'find_symbols'：跨文件检索特定符号定义",
     )
-    file_pattern: str = Field(default="*", description="目录扫描时的文件通配过滤（如 '*.py'、'*.ts'）")
+    file_pattern: str = Field(
+        default="*", description="目录扫描时的文件通配过滤（如 '*.py'、'*.ts'）"
+    )
 
 
 def create_ast_symbol_search_tool(io_config: FileIOConfig | None = None) -> BaseTool:
@@ -266,10 +328,14 @@ def create_ast_symbol_search_tool(io_config: FileIOConfig | None = None) -> Base
                 include_hidden=False,
                 max_files=io_cfg.max_search_results,
             )
-            files_to_scan.extend([c for c in candidates if c.suffix.lower() in _LANG_EXTENSIONS])
+            files_to_scan.extend(
+                [c for c in candidates if c.suffix.lower() in _LANG_EXTENSIONS]
+            )
 
         if not files_to_scan:
-            return f"No code files found under '{path}' matching pattern '{file_pattern}'."
+            return (
+                f"No code files found under '{path}' matching pattern '{file_pattern}'."
+            )
 
         output_lines: list[str] = []
         total_symbols = 0
@@ -277,14 +343,18 @@ def create_ast_symbol_search_tool(io_config: FileIOConfig | None = None) -> Base
 
         for file_path in files_to_scan[:50]:
             try:
-                rel_display = str(file_path.relative_to(p)) if p.is_dir() else str(file_path.name)
+                rel_display = (
+                    str(file_path.relative_to(p)) if p.is_dir() else str(file_path.name)
+                )
                 content = file_path.read_text(encoding="utf-8", errors="replace")
                 symbols = extract_symbols_from_code(content, file_path.name)
 
                 if target_query:
                     symbols = [
-                        s for s in symbols
-                        if target_query in s.name.lower() or target_query in s.signature.lower()
+                        s
+                        for s in symbols
+                        if target_query in s.name.lower()
+                        or target_query in s.signature.lower()
                     ]
 
                 if not symbols:
@@ -294,8 +364,12 @@ def create_ast_symbol_search_tool(io_config: FileIOConfig | None = None) -> Base
                 output_lines.append(f"📄 {rel_display}")
                 for s in symbols:
                     container_prefix = f"{s.container}." if s.container else ""
-                    doc_suffix = f"  # {s.docstring_summary}" if s.docstring_summary else ""
-                    output_lines.append(f"  Line {s.line:4d} [{s.kind:9s}] {container_prefix}{s.signature}{doc_suffix}")
+                    doc_suffix = (
+                        f"  # {s.docstring_summary}" if s.docstring_summary else ""
+                    )
+                    output_lines.append(
+                        f"  Line {s.line:4d} [{s.kind:9s}] {container_prefix}{s.signature}{doc_suffix}"
+                    )
                 output_lines.append("")
             except Exception as e:
                 logger.debug("Failed to extract symbols from %s: %s", file_path, e)
@@ -306,7 +380,9 @@ def create_ast_symbol_search_tool(io_config: FileIOConfig | None = None) -> Base
                 return f"No symbols found matching '{query}' in {len(files_to_scan)} files."
             return f"No symbols extracted from {len(files_to_scan)} files."
 
-        summary = f"Found {total_symbols} symbols across {len(files_to_scan)} code files:\n\n"
+        summary = (
+            f"Found {total_symbols} symbols across {len(files_to_scan)} code files:\n\n"
+        )
         return summary + "\n".join(output_lines).strip()
 
     return ast_symbol_func

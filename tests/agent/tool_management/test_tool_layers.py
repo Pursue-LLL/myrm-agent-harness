@@ -11,7 +11,9 @@ from myrm_agent_harness.agent.tool_management.tool_layers import (
 
 class TestToolLayer:
     def test_layer_ordering(self):
-        assert ToolLayer.CORE < ToolLayer.COMMON < ToolLayer.EXTENDED < ToolLayer.EXTERNAL
+        assert (
+            ToolLayer.CORE < ToolLayer.COMMON < ToolLayer.EXTENDED < ToolLayer.EXTERNAL
+        )
 
     def test_layer_values(self):
         assert ToolLayer.CORE == 1
@@ -55,7 +57,9 @@ class TestGetToolLayer:
             "ast_symbol_search_tool",
         ]
         for tool in extended_tools:
-            assert get_tool_layer(tool) == ToolLayer.EXTENDED, f"{tool} should be EXTENDED"
+            assert (
+                get_tool_layer(tool) == ToolLayer.EXTENDED
+            ), f"{tool} should be EXTENDED"
 
     def test_unknown_tool_defaults_to_external(self):
         assert get_tool_layer("totally_unknown_tool") == ToolLayer.EXTERNAL
@@ -99,7 +103,9 @@ class TestCommonLayerSortKey:
         from myrm_agent_harness.agent.tool_management.types import ToolSource
 
         def _tool(name: str) -> StructuredTool:
-            return StructuredTool.from_function(lambda: None, name=name, description="d")
+            return StructuredTool.from_function(
+                lambda: None, name=name, description="d"
+            )
 
         reg = ToolRegistry()
         for name in (
