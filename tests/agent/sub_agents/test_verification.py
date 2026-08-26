@@ -1258,3 +1258,178 @@ class TestRunWithVerificationSnapshotFailure:
             max_rounds=2,
         )
         assert result.success
+
+
+# ---------------------------------------------------------------------------
+# Auditor Blind & Snapshot Mutation Revert Tests
+# ---------------------------------------------------------------------------
+
+
+class TestAuditorBlindAndSnapshotRevert:
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.diff_snapshots")
+    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot")
+    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.revert_workspace_mutations")
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_auditor_blind_omits_worker_narrative_when_diff_present(
+        self, mock_get_executor, mock_revert, mock_snapshot, mock_diff
+    ):
+        from myrm_agent_harness.agent.sub_agents._verifier_round import (
+            _execute_verifier_round,
+        )
+
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
+        mock_snapshot.return_value = {"file.py": (10.0, 5)}
+        mock_diff.return_value = "## Workspace Changes\n- `file.py` modified"
+        mock_revert.return_value = []
+
+        spawned_desc = []
+        mgr = MagicMock()
+
+        async def _spawn(**kwargs):
+            spawned_desc.append(kwargs["task_description"])
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("PASS", "Blind check ok STDOUT", "HIGH"),
+            )
+
+        mgr.spawn_child = _spawn
+        cfg = SubagentConfig(system_prompt="verifier")
+
+        verdict = await _execute_verifier_round(
+            mgr,
+            worker_output="I am the best worker and I fixed all bugs perfectly!",
+            worker_type="w",
+            verifier_type="v",
+            verifier_config=cfg,
+            context={"workspace_path": "/tmp/w"},
+            tool_registry_getter=lambda: [],
+            round_num=1,
+            max_rounds=1,
+            pre_snapshot={"file.py": (0.0, 0)},
+            auditor_blind=True,
+        )
+
+        assert verdict is not None
+        assert verdict.passed
+        assert len(spawned_desc) == 1
+        # Worker subjective narrative must be stripped in auditor_blind mode
+        assert "I am the best worker" not in spawned_desc[0]
+        assert "Auditor Blind" in spawned_desc[0]
+        assert mock_revert.called
+
+    def test_revert_workspace_mutations_deletes_added_files(self, tmp_path):
+        from myrm_agent_harness.agent.sub_agents._workspace_diff import (
+            revert_workspace_mutations,
+        )
+
+        base_file = tmp_path / "base.py"
+        base_file.write_text("print('base')")
+
+        pre_snapshot = {"base.py": (base_file.stat().st_mtime, base_file.stat().st_size)}
+
+        # Verifier created stray test files
+        stray_file = tmp_path / "test_temp_out.py"
+        stray_file.write_text("print('stray')")
+
+        post_snapshot = {
+            "base.py": (base_file.stat().st_mtime, base_file.stat().st_size),
+            "test_temp_out.py": (stray_file.stat().st_mtime, stray_file.stat().st_size),
+        }
+
+        reverted = revert_workspace_mutations(tmp_path, pre_snapshot, post_snapshot)
+        assert "test_temp_out.py" in reverted
+        assert not stray_file.exists()
+        assert base_file.exists()
+
+
+# ---------------------------------------------------------------------------
+# Multi-Skeptic Voting & Fail-Closed Tests
+# ---------------------------------------------------------------------------
+
+
+class TestMultiSkepticVerification:
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_multi_skeptic_majority_pass(self, mock_get_executor, mock_snapshot):
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
+        mock_snapshot.return_value = {"file.py": (10.0, 5)}
+
+        mgr = MagicMock()
+        call_count = 0
+
+        async def _spawn(**kwargs):
+            nonlocal call_count
+            task_id = kwargs["task_id"]
+            if "worker" in task_id or task_id == "biz-task":
+                return _ok(task_id, "worker", "worker done")
+            call_count += 1
+            # 2 Pass, 1 Fail -> Majority PASS
+            verdict_str = "PASS" if call_count <= 2 else "FAIL"
+            return _ok(
+                task_id,
+                "verifier",
+                _verdict_json(verdict_str, f"Skeptic {call_count} STDOUT", "HIGH"),
+            )
+
+        mgr.spawn_child = _spawn
+        w_cfg = SubagentConfig(system_prompt="worker")
+        v_cfg = SubagentConfig(system_prompt="verifier")
+
+        result = await run_with_verification(
+            mgr,
+            worker_type="worker",
+            worker_config=w_cfg,
+            worker_task="do task",
+            verifier_type="verifier",
+            verifier_config=v_cfg,
+            context={"workspace_path": "/tmp/w"},
+            tool_registry_getter=lambda: [],
+            max_rounds=1,
+            task_id="biz-task",
+            verification_mode="multi_skeptic",
+        )
+
+        assert result.success
+        assert result.verification is not None
+        assert result.verification.passed is True
+        assert "Multi-Skeptic Voting: 2/3 approved (majority=PASS)" in result.verification.summary
+
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_multi_skeptic_fail_closed_on_crash(self, mock_get_executor, mock_snapshot):
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
+        mock_snapshot.return_value = {}
+
+        mgr = MagicMock()
+
+        async def _spawn(**kwargs):
+            task_id = kwargs["task_id"]
+            if "worker" in task_id:
+                return _ok(task_id, "worker", "worker done")
+            raise RuntimeError("Fatal verifier sandboxing crash")
+
+        mgr.spawn_child = _spawn
+        w_cfg = SubagentConfig(system_prompt="worker")
+        v_cfg = SubagentConfig(system_prompt="verifier")
+
+        result = await run_with_verification(
+            mgr,
+            worker_type="worker",
+            worker_config=w_cfg,
+            worker_task="do task",
+            verifier_type="verifier",
+            verifier_config=v_cfg,
+            context={"workspace_path": "/tmp/w"},
+            tool_registry_getter=lambda: [],
+            max_rounds=1,
+            verification_mode="multi_skeptic",
+        )
+
+        assert not result.success
+        assert result.status == SubAgentStatus.BLOCKED
+        assert "Fail-Closed blocked" in result.error
+

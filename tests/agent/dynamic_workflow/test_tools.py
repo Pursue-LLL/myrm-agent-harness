@@ -1071,3 +1071,41 @@ async def test_human_ask_tool_cancellation():
     assert "cancelled" in result["error"].lower()
 
 
+@pytest.mark.asyncio
+async def test_spawn_subagent_auditor_blind_and_multi_skeptic_mode(mock_parent_agent):
+    from myrm_agent_harness.agent.dynamic_workflow.tools import DwVerificationMode
+
+    mock_parent_agent._subagent_manager = MagicMock()
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_modes_test",
+    )
+
+    with patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification") as mock_verify:
+        mock_verify.return_value = {"success": True, "result": "blind_ok"}
+
+        # 1. Auditor Blind mode
+        res1 = await tool._arun(
+            "task_blind",
+            "generalPurpose",
+            "do blind audit",
+            verification_mode=DwVerificationMode.AUDITOR_BLIND.value,
+        )
+        assert res1["success"] is True
+        assert mock_verify.call_args.kwargs["verification_mode"] == "auditor_blind"
+
+        # 2. Multi-Skeptic mode
+        mock_verify.return_value = {"success": True, "result": "skeptic_ok"}
+        res2 = await tool._arun(
+            "task_skeptic",
+            "generalPurpose",
+            "do skeptic audit",
+            verification_mode=DwVerificationMode.MULTI_SKEPTIC.value,
+        )
+        assert res2["success"] is True
+        assert mock_verify.call_args.kwargs["verification_mode"] == "multi_skeptic"
+
+
+

@@ -256,7 +256,8 @@ class EvalTurnResult:
     assertion_details: str | None = None
     post_episode_passed: bool | None = None
     canary_verified: bool | None = None
-    post_episode_details: list[dict[str, Any]] = field(default_factory=list)
+    post_episode_details: list[dict[str, object]] = field(default_factory=list)
+    contamination_audit: dict[str, object] | None = None
     timings: EvalTimings = field(default_factory=EvalTimings)
     error: str | None = None
     scores: dict[str, float] = field(
@@ -478,6 +479,9 @@ class EvalResult:
                 "blocked_count": r.response.blocked_count,
                 "assertion_passed": r.assertion_passed,
                 "assertion_details": r.assertion_details,
+                "post_episode_passed": r.post_episode_passed,
+                "canary_verified": r.canary_verified,
+                "contamination_audit": r.contamination_audit,
                 "scores": r.scores,
                 "total_ms": round(r.timings.total_ms, 2),
                 "token_usage": r.response.token_usage,

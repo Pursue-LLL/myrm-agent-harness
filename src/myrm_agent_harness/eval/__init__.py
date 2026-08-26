@@ -16,6 +16,7 @@ from .assertions import (
     canonicalize_tool_name,
     collapse_retrieval_hits,
     evaluate_compaction_assertions,
+    evaluate_post_episode_assertions,
     evaluate_retrieval_assertions,
     evaluate_sandbox_assertions,
     evaluate_semantic_assertions,
@@ -32,6 +33,15 @@ from .builder import build_skill_eval_cases, extract_case_from_trajectory
 from .canary import CANARY_GUID, CANARY_PREAMBLE, CanaryScanResult, EvalCanaryGate, embed_canary_header, scan_dataset_canary_integrity, verify_canary_presence
 from .compaction_ab import CompactionABEvaluator, CompactionABResult
 from .compaction_assertions import evaluate_compaction_assertions
+from .contamination import (
+    DEFAULT_HIDDEN_TEST_PATTERNS,
+    ContaminationAuditResult,
+    ContaminationViolation,
+    ContaminationViolationType,
+    audit_episode_trajectory_for_contamination,
+    scrub_canary_from_query,
+    verify_workspace_clean_of_hidden_tests,
+)
 from .decontam import (
     HUGGINGFACE_DOMAINS,
     HUGGINGFACE_QUERY_MARKERS,
@@ -54,6 +64,7 @@ from .protocols import (
     MultiTurnEvalCase,
     OnTurnFail,
     OperationalAssuranceCategory,
+    PostEpisodeAssertion,
     RetrievalAssertion,
     SandboxAssertion,
     SemanticAssertion,
@@ -78,6 +89,10 @@ __all__ = [
     "CompactionABResult",
     "CompactionAssertion",
     "CompactionFidelityScore",
+    "ContaminationAuditResult",
+    "ContaminationViolation",
+    "ContaminationViolationType",
+    "DEFAULT_HIDDEN_TEST_PATTERNS",
     "DeterminismReplayResult",
     "EvalCanaryGate",
     "EvalCase",
