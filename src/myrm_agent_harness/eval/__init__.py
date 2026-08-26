@@ -118,6 +118,7 @@ __all__ = [
     "SkillABReportData",
     "StateAssertion",
     "ToolAssertion",
+    "audit_episode_trajectory_for_contamination",
     "build_skill_eval_cases",
     "calculate_trajectory_determinism",
     "collapse_retrieval_hits",
@@ -136,5 +137,7 @@ __all__ = [
     "normalize_answer",
     "register_benchmark",
     "scan_dataset_canary_integrity",
+    "scrub_canary_from_query",
     "verify_canary_presence",
+    "verify_workspace_clean_of_hidden_tests",
 ]

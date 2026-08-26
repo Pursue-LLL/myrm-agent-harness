@@ -42,7 +42,7 @@ class MockAgentExecutor:
     async def create_session(self) -> str:
         return "sess-test-canary-01"
 
-    async def run(self, session_id: str, message: str) -> AgentResponse:
+    async def execute(self, message: str, session_id: str | None = None) -> AgentResponse:
         return AgentResponse(answer=self.answer, tools_called=["shell_execute"])
 
     def get_sandbox_executor(self, session_id: str):
@@ -139,8 +139,11 @@ async def test_eval_runner_canary_and_post_episode_integration():
         ],
     )
 
-    result = await runner.run_case(case)
-    assert result.assertion_passed
-    assert result.canary_verified
-    assert result.post_episode_passed
-    assert len(result.post_episode_details) == 1
+    result = await runner.run([case])
+    assert result.total_cases == 1
+    assert result.passed_cases == 1
+    turn_res = result.turn_results[0]
+    assert turn_res.assertion_passed
+    assert turn_res.canary_verified
+    assert turn_res.post_episode_passed
+    assert len(turn_res.post_episode_details) == 1
