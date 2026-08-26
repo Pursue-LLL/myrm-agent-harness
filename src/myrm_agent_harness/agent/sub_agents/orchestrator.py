@@ -310,11 +310,16 @@ async def execute_dag_plan(
                     # Use asyncio.create_task instead of tg.create_task to avoid the unhandled exception
                     # crashing the TaskGroup and cancelling other tasks prematurely in our tests
                     try:
+                        step_coro = execute_step(step)
                         # In tests we might not be in a TaskGroup context if mocked
                         if hasattr(tg, "create_task"):
-                            tg.create_task(execute_step(step))
+                            try:
+                                tg.create_task(step_coro)
+                            except Exception:
+                                step_coro.close()
+                                raise
                         else:
-                            _bg_task = asyncio.create_task(execute_step(step))
+                            _bg_task = asyncio.create_task(step_coro)
                             # keep a reference to avoid garbage collection
                             if not hasattr(tg, "_bg_tasks"):
                                 tg._bg_tasks = set()

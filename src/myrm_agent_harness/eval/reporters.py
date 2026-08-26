@@ -87,6 +87,9 @@ class JsonlReporter:
                     "tool_call_details": turn.response.tool_call_details,
                     "limit_reached": turn.response.limit_reached,
                     "blocked_count": turn.response.blocked_count,
+                    "canary_verified": turn.canary_verified,
+                    "post_episode_passed": turn.post_episode_passed,
+                    "contamination_audit": turn.contamination_audit,
                     "actual_output": turn.response.answer,
                     "usage": turn.response.token_usage,
                     "time_secs": round(time_secs, 3),
@@ -205,6 +208,15 @@ class MarkdownReporter:
                         "",
                     ]
                 )
+
+            if turn.canary_verified is not None:
+                canary_status = "VERIFIED" if turn.canary_verified else "FAILED"
+                lines.extend([f"- **Canary Protected**: `{canary_status}`", ""])
+
+            if turn.contamination_audit:
+                audit_info = turn.contamination_audit
+                cheat = audit_info.get("cheat_detected", False)
+                lines.extend([f"- **Anti-Contamination**: `{'VIOLATION' if cheat else 'CLEAN'}`", ""])
 
             if turn.assertion_details:
                 lines.extend(

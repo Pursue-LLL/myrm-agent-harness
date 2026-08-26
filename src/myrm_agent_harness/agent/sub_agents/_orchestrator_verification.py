@@ -274,6 +274,7 @@ async def run_with_verification(
 
             if not valid_verdicts:
                 logger.warning("[verification] All skeptics crashed; fail-closed blocked.")
+                last_worker_result.success = False
                 last_worker_result.status = SubAgentStatus.BLOCKED
                 last_worker_result.error = "Multi-skeptic verifiers crashed unexpectedly (Fail-Closed blocked)."
                 _sync_business_result(business_result, last_worker_result, task_id)
@@ -319,6 +320,7 @@ async def run_with_verification(
                 )
             except Exception as exc:
                 logger.error("[verification] Verifier round crashed: %s", exc)
+                last_worker_result.success = False
                 last_worker_result.status = SubAgentStatus.BLOCKED
                 last_worker_result.error = f"Verifier crashed unexpectedly: {exc}"
                 _sync_business_result(business_result, last_worker_result, task_id)

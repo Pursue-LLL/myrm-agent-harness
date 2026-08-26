@@ -34,6 +34,7 @@ from .assertions import (
     evaluate_tool_assertions,
 )
 from .canary import EvalCanaryGate
+from .contamination import audit_episode_trajectory_for_contamination
 from .protocols import (
     AgentResponse,
     EvalCase,
@@ -263,6 +264,16 @@ class EvalRunner:
                 passed = False
                 details = f"{details} | Canary signature missing" if details else "Canary signature missing"
 
+        # Trajectory anti-contamination audit
+        contamination_audit_dict: dict[str, object] | None = None
+        if response.tool_call_details:
+            audit_res = audit_episode_trajectory_for_contamination(response.tool_call_details)
+            contamination_audit_dict = audit_res.to_dict()
+            if audit_res.cheat_detected:
+                passed = False
+                cheat_msg = "Anti-contamination violation: cheat attempt detected in trajectory"
+                details = f"{details} | {cheat_msg}" if details else cheat_msg
+
         timings = EvalTimings(
             total_ms=(time.perf_counter() - turn_start) * 1000,
             extra=response.extra_timings,
@@ -276,6 +287,7 @@ class EvalRunner:
             post_episode_passed=post_ep_passed,
             canary_verified=canary_ok,
             post_episode_details=post_ep_details,
+            contamination_audit=contamination_audit_dict,
             timings=timings,
             scores=sb_scores,
         )
