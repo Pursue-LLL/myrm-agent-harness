@@ -9,6 +9,9 @@ from myrm_agent_harness.backends.skills.forgetting_strategy import (
     DefaultForgettingStrategy,
     ForgettingConfig,
     ForgettingReason,
+    SkillDoctorFinding,
+    SkillHealthDiagnosis,
+    evaluate_skill_health_findings,
 )
 from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus, SkillMetadata, SkillTrust, SkillUsageStats
 
@@ -285,3 +288,63 @@ def test_forgetting_reason_dataclass() -> None:
     assert reason.reason_type == "stale"
     assert reason.reason_message == "Never used for 37+ days"
     assert reason.stats.call_count == 1
+
+
+def test_evaluate_skill_health_findings_wrong_but_frequent() -> None:
+    """Test detecting wrong_but_frequent finding (Hermes Failure Mode #142)."""
+    cfg = CuratorConfig(min_call_count_for_quality_check=5, min_success_rate=0.3)
+    bad_stats = SkillUsageStats(
+        call_count=20,
+        success_count=2,  # 10% success rate
+        failure_count=18,
+        pinned=True,  # Pinned exempts it from LRU eviction!
+        lifecycle_status=SkillLifecycleStatus.ACTIVE,
+    )
+    bad_skill = create_skill_metadata("buggy_crawler", usage_stats=bad_stats)
+
+    good_stats = SkillUsageStats(
+        call_count=10,
+        success_count=9,
+        failure_count=1,
+        pinned=False,
+        lifecycle_status=SkillLifecycleStatus.ACTIVE,
+    )
+    good_skill = create_skill_metadata("good_helper", usage_stats=good_stats)
+
+    diagnosis = evaluate_skill_health_findings([bad_skill, good_skill], cfg)
+
+    assert diagnosis.total_skills == 2
+    assert diagnosis.active_skills == 2
+    assert diagnosis.pinned_skills == 1
+    assert len(diagnosis.findings) == 1
+
+    f = diagnosis.findings[0]
+    assert f.skill_name == "buggy_crawler"
+    assert f.finding_type == "wrong_but_frequent"
+    assert f.severity == "critical"
+    assert f.pinned is True
+    assert f.recommended_action == "unpin_and_archive"
+    assert diagnosis.health_score < 100.0
+
+
+def test_evaluate_skill_health_findings_bloat() -> None:
+    """Test detecting library bloat when active skills exceed max_skills."""
+    cfg = CuratorConfig(max_skills=2)
+    skills = [
+        create_skill_metadata(
+            f"skill_{i}",
+            usage_stats=SkillUsageStats(
+                call_count=1,
+                success_count=1,
+                failure_count=0,
+                lifecycle_status=SkillLifecycleStatus.ACTIVE,
+            ),
+        )
+        for i in range(5)
+    ]
+
+    diagnosis = evaluate_skill_health_findings(skills, cfg)
+    assert diagnosis.total_skills == 5
+    assert diagnosis.active_skills == 5
+    assert any(f.finding_type == "hoarding_bloat" for f in diagnosis.findings)
+

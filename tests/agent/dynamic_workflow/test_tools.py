@@ -1023,3 +1023,51 @@ async def test_human_ask_tool_timeout_fallback():
     assert result["timed_out"] is True
     assert "timed out" in result["error"]
 
+
+@pytest.mark.asyncio
+async def test_human_ask_tool_no_gate_fallback():
+    queue = asyncio.Queue()
+
+    tool = HumanAskTool(
+        event_queue=queue,
+        message_id="msg_no_gate",
+        ask_gate_callable=None,
+    )
+
+    result = await tool._arun(
+        question="Proceed?",
+        options=["continue", "stop"],
+        timeout_seconds=30,
+        default_action="continue",
+    )
+
+    assert result["success"] is True
+    assert result["answer"] == "continue"
+    assert result["timed_out"] is False
+
+
+@pytest.mark.asyncio
+async def test_human_ask_tool_cancellation():
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+
+    queue = asyncio.Queue()
+    token = CancellationToken()
+    token.cancel()
+
+    tool = HumanAskTool(
+        event_queue=queue,
+        message_id="msg_cancelled",
+        cancel_token=token,
+    )
+
+    result = await tool._arun(
+        question="Should not run",
+        options=["a", "b"],
+        default_action="a",
+    )
+
+    assert result["success"] is False
+    assert result["answer"] == "a"
+    assert "cancelled" in result["error"].lower()
+
+

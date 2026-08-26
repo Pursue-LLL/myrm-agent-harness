@@ -190,6 +190,36 @@ output = {"discovery": discovery, "audits": successful, "failures": failed}
 print(json.dumps(output, indent=2, ensure_ascii=False))
 ```
 
+Example — Mid-Run Human Gate (checkpoint / decision):
+```python
+import myrm_tools
+import json
+
+# Stage 1: Preliminary analysis
+myrm_tools.notify("Performing preliminary check", step_index=1, total_steps=2, category="analysis")
+try:
+    check = myrm_tools.spawn_subagent(
+        task_id="check_1",
+        agent_type="generalPurpose",
+        task_description="Analyze schema migration for breaking changes.",
+        readonly=True,
+    )
+except Exception as e:
+    check = {"success": False, "error": str(e)}
+
+# Mid-run decision gate: request user confirmation or guidance before proceeding
+gate_decision = myrm_tools.human_ask(
+    question="Preliminary check complete. Proceed with execution, abort, or provide guidance?",
+    options=["continue", "stop", "instructions"],
+    default_action="stop",
+    timeout_seconds=300,
+)
+user_choice = gate_decision.get("answer")
+
+myrm_tools.notify("Finalizing workflow", step_index=2, total_steps=2, category="summary")
+print(json.dumps({"check": check, "decision": user_choice}, indent=2, ensure_ascii=False))
+```
+
 Write ONLY the Python script. Do not include markdown formatting or explanations. \
 The script will be executed in a secure sandbox."""
 
