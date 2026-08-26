@@ -21,7 +21,10 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .compaction_assertions import canonicalize_tool_name, evaluate_compaction_assertions
+from .compaction_assertions import (
+    canonicalize_tool_name,
+    evaluate_compaction_assertions,
+)
 from .protocols import (
     AgentResponse,
     CompactionAssertion,
@@ -108,11 +111,19 @@ class CompactionABEvaluator:
 
         # Baseline comparative tool alignment check
         baseline_tools = {
-            canonicalize_tool_name(str(t.get("name") if isinstance(t, dict) else getattr(t, "name", str(t))))
+            canonicalize_tool_name(
+                str(
+                    t.get("name") if isinstance(t, dict) else getattr(t, "name", str(t))
+                )
+            )
             for t in baseline_response.tools_called
         }
         compacted_tools = {
-            canonicalize_tool_name(str(t.get("name") if isinstance(t, dict) else getattr(t, "name", str(t))))
+            canonicalize_tool_name(
+                str(
+                    t.get("name") if isinstance(t, dict) else getattr(t, "name", str(t))
+                )
+            )
             for t in compacted_response.tools_called
         }
 

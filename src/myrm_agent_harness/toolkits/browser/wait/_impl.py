@@ -25,7 +25,10 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from patchright.async_api import TimeoutError as PlaywrightTimeoutError
+try:
+    from patchright.async_api import TimeoutError as PlaywrightTimeoutError
+except ImportError:
+    PlaywrightTimeoutError = TimeoutError  # type: ignore[assignment, misc]
 
 from ._dom_stable_js import generate_dom_stable_js
 from ._types import ReasonType, WaitMetrics, WaitStrategy, _HybridTaskResult

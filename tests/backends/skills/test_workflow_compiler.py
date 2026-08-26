@@ -11,7 +11,10 @@ from myrm_agent_harness.backends.skills.workflow_compiler import (
 
 
 def test_slugify_skill_name() -> None:
-    assert slugify_skill_name("ERP Financial Reconciliation") == "erp-financial-reconciliation"
+    assert (
+        slugify_skill_name("ERP Financial Reconciliation")
+        == "erp-financial-reconciliation"
+    )
     assert slugify_skill_name("  Batch Export 2026!  ") == "batch-export-2026"
     assert slugify_skill_name("") == "desktop-workflow-skill"
 

@@ -13,10 +13,17 @@ from myrm_agent_harness.backends.skills.forgetting_strategy import (
     SkillHealthDiagnosis,
     evaluate_skill_health_findings,
 )
-from myrm_agent_harness.backends.skills.types import SkillLifecycleStatus, SkillMetadata, SkillTrust, SkillUsageStats
+from myrm_agent_harness.backends.skills.types import (
+    SkillLifecycleStatus,
+    SkillMetadata,
+    SkillTrust,
+    SkillUsageStats,
+)
 
 
-def create_skill_metadata(name: str, usage_stats: SkillUsageStats | None = None) -> SkillMetadata:
+def create_skill_metadata(
+    name: str, usage_stats: SkillUsageStats | None = None
+) -> SkillMetadata:
     """Helper to create SkillMetadata for testing."""
     skill = SkillMetadata(name=name, description="Test skill")
     if usage_stats:
@@ -30,7 +37,9 @@ def test_should_forget_stale_skill() -> None:
     strategy = DefaultForgettingStrategy(config)
 
     old_created = datetime.now(UTC) - timedelta(days=60)
-    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old_created)
+    stats = SkillUsageStats(
+        call_count=0, success_count=0, failure_count=0, created_at=old_created
+    )
     skill = create_skill_metadata("stale_skill", usage_stats=stats)
     reason = strategy.should_forget(skill)
 
@@ -44,18 +53,24 @@ def test_should_not_forget_never_used_within_stale_threshold() -> None:
     strategy = DefaultForgettingStrategy(config)
 
     recent_created = datetime.now(UTC) - timedelta(days=5)
-    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=recent_created)
+    stats = SkillUsageStats(
+        call_count=0, success_count=0, failure_count=0, created_at=recent_created
+    )
     skill = create_skill_metadata("young_skill", usage_stats=stats)
     assert strategy.should_forget(skill) is None
 
 
 def test_protect_system_skills_exempt() -> None:
     """Prebuilt skills under /prebuilt/ are exempt when protect_system_skills is True."""
-    config = ForgettingConfig(stale_after_days=7, protect_system_skills=True, grace_period_days=0)
+    config = ForgettingConfig(
+        stale_after_days=7, protect_system_skills=True, grace_period_days=0
+    )
     strategy = DefaultForgettingStrategy(config)
 
     old_created = datetime.now(UTC) - timedelta(days=100)
-    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old_created)
+    stats = SkillUsageStats(
+        call_count=0, success_count=0, failure_count=0, created_at=old_created
+    )
     skill = SkillMetadata(
         name="prebuilt_skill",
         description="Test skill",
@@ -72,14 +87,20 @@ def test_should_forget_low_quality_skill() -> None:
 
     # Skill with low success rate
     stats = SkillUsageStats(
-        call_count=10, success_count=2, failure_count=8, last_used_at=datetime.now(UTC), total_duration_ms=1000.0
+        call_count=10,
+        success_count=2,
+        failure_count=8,
+        last_used_at=datetime.now(UTC),
+        total_duration_ms=1000.0,
     )
     skill = create_skill_metadata("low_quality_skill", usage_stats=stats)
     reason = strategy.should_forget(skill)
 
     assert reason is not None
     assert reason.reason_type == "low_quality"
-    assert ("20" in reason.reason_message or "0.2" in reason.reason_message) and "%" in reason.reason_message
+    assert (
+        "20" in reason.reason_message or "0.2" in reason.reason_message
+    ) and "%" in reason.reason_message
 
 
 def test_should_not_forget_high_quality_skill() -> None:
@@ -89,7 +110,11 @@ def test_should_not_forget_high_quality_skill() -> None:
 
     # Skill with high success rate and recent usage
     stats = SkillUsageStats(
-        call_count=10, success_count=9, failure_count=1, last_used_at=datetime.now(UTC), total_duration_ms=1000.0
+        call_count=10,
+        success_count=9,
+        failure_count=1,
+        last_used_at=datetime.now(UTC),
+        total_duration_ms=1000.0,
     )
     skill = create_skill_metadata("good_skill", usage_stats=stats)
     reason = strategy.should_forget(skill)
@@ -105,7 +130,11 @@ def test_should_forget_inactive_skill() -> None:
     # Skill used long ago
     old_date = datetime.now(UTC) - timedelta(days=60)
     stats = SkillUsageStats(
-        call_count=10, success_count=8, failure_count=2, last_used_at=old_date, total_duration_ms=1000.0
+        call_count=10,
+        success_count=8,
+        failure_count=2,
+        last_used_at=old_date,
+        total_duration_ms=1000.0,
     )
     skill = create_skill_metadata("inactive_skill", usage_stats=stats)
     reason = strategy.should_forget(skill)
@@ -122,7 +151,11 @@ def test_low_quality_threshold_not_met() -> None:
 
     # Skill with low success rate but few calls
     stats = SkillUsageStats(
-        call_count=3, success_count=0, failure_count=3, last_used_at=datetime.now(UTC), total_duration_ms=300.0
+        call_count=3,
+        success_count=0,
+        failure_count=3,
+        last_used_at=datetime.now(UTC),
+        total_duration_ms=300.0,
     )
     skill = create_skill_metadata("new_skill", usage_stats=stats)
     reason = strategy.should_forget(skill)
@@ -168,7 +201,11 @@ def test_select_lru_candidates_no_eviction_needed() -> None:
         create_skill_metadata(
             f"skill_{i}",
             usage_stats=SkillUsageStats(
-                call_count=1, success_count=1, failure_count=0, last_used_at=datetime.now(UTC), total_duration_ms=100.0
+                call_count=1,
+                success_count=1,
+                failure_count=0,
+                last_used_at=datetime.now(UTC),
+                total_duration_ms=100.0,
             ),
         )
         for i in range(5)
@@ -199,11 +236,15 @@ def test_should_not_forget_pinned_or_evolution_locked() -> None:
     config = ForgettingConfig(stale_after_days=7, grace_period_days=0)
     strategy = DefaultForgettingStrategy(config)
     old = datetime.now(UTC) - timedelta(days=100)
-    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old, pinned=True)
+    stats = SkillUsageStats(
+        call_count=0, success_count=0, failure_count=0, created_at=old, pinned=True
+    )
     pinned = create_skill_metadata("pinned_skill", usage_stats=stats)
     assert strategy.should_forget(pinned) is None
 
-    unlocked_stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old)
+    unlocked_stats = SkillUsageStats(
+        call_count=0, success_count=0, failure_count=0, created_at=old
+    )
     locked = SkillMetadata(
         name="locked_skill",
         description="Evolution locked",
@@ -214,10 +255,14 @@ def test_should_not_forget_pinned_or_evolution_locked() -> None:
 
 
 def test_protect_installed_skills_exempt() -> None:
-    config = ForgettingConfig(stale_after_days=7, protect_installed_skills=True, grace_period_days=0)
+    config = ForgettingConfig(
+        stale_after_days=7, protect_installed_skills=True, grace_period_days=0
+    )
     strategy = DefaultForgettingStrategy(config)
     old = datetime.now(UTC) - timedelta(days=100)
-    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=old)
+    stats = SkillUsageStats(
+        call_count=0, success_count=0, failure_count=0, created_at=old
+    )
     skill = SkillMetadata(
         name="hub_skill",
         description="Installed from hub",
@@ -231,7 +276,9 @@ def test_grace_period_exempt() -> None:
     config = ForgettingConfig(stale_after_days=7, grace_period_days=30)
     strategy = DefaultForgettingStrategy(config)
     recent = datetime.now(UTC) - timedelta(days=5)
-    stats = SkillUsageStats(call_count=0, success_count=0, failure_count=0, created_at=recent)
+    stats = SkillUsageStats(
+        call_count=0, success_count=0, failure_count=0, created_at=recent
+    )
     skill = create_skill_metadata("grace_skill", usage_stats=stats)
     assert strategy.should_forget(skill) is None
 
@@ -253,7 +300,9 @@ def test_archived_skill_skipped() -> None:
 
 
 def test_stale_skill_promoted_to_archive() -> None:
-    config = ForgettingConfig(stale_after_days=30, archive_after_days=60, grace_period_days=0)
+    config = ForgettingConfig(
+        stale_after_days=30, archive_after_days=60, grace_period_days=0
+    )
     strategy = DefaultForgettingStrategy(config)
     stale_since = datetime.now(UTC) - timedelta(days=90)
     stats = SkillUsageStats(
@@ -281,7 +330,10 @@ def test_forgetting_reason_dataclass() -> None:
     """Test ForgettingReason dataclass."""
     stats = SkillUsageStats(call_count=1, success_count=0, failure_count=1)
     reason = ForgettingReason(
-        skill_name="test_skill", reason_type="stale", reason_message="Never used for 37+ days", stats=stats
+        skill_name="test_skill",
+        reason_type="stale",
+        reason_message="Never used for 37+ days",
+        stats=stats,
     )
 
     assert reason.skill_name == "test_skill"
@@ -347,4 +399,3 @@ def test_evaluate_skill_health_findings_bloat() -> None:
     assert diagnosis.total_skills == 5
     assert diagnosis.active_skills == 5
     assert any(f.finding_type == "hoarding_bloat" for f in diagnosis.findings)
-

@@ -1949,3 +1949,39 @@ class TestCancelExecution:
         assert "t1" not in d._task_id_to_exec
 
         await d.stop()
+
+    @pytest.mark.asyncio
+    async def test_structured_execution_result_blocked_does_not_increment_failures(self) -> None:
+        """When TaskRunner returns TaskExecutionResult.blocked, task moves to BLOCKED without crashing."""
+        from myrm_agent_harness.toolkits.kanban.types import BlockKind, TaskExecutionResult
+
+        class _BlockedRunner:
+            async def run(self, task: KanbanTask) -> TaskExecutionResult:
+                return TaskExecutionResult.blocked(
+                    "Goal entered wait on background test",
+                    block_kind=BlockKind.EXTERNAL,
+                    metadata_patch={"acceptance_results": [{"label": "test", "passed": False}]},
+                )
+
+        store = InMemoryKanbanStore()
+        board = _make_board(auto_block_failures=2)
+        await store.save_board(board)
+        task = _make_task(status=TaskStatus.READY)
+        await store.save_task(task)
+
+        d = KanbanDispatcher(store, _BlockedRunner(), board)
+        await d.start()
+        await asyncio.sleep(0.1)
+        await d.stop()
+
+        updated = await store.get_task("t1")
+        assert updated is not None
+        assert updated.status == TaskStatus.BLOCKED
+        assert updated.block_kind == BlockKind.EXTERNAL
+        assert updated.blocked_reason == "Goal entered wait on background test"
+        assert updated.consecutive_failures == 0
+        assert updated.metadata.get("acceptance_results") == [{"label": "test", "passed": False}]
+
+        runs = await store.list_runs("t1")
+        assert len(runs) == 1
+        assert runs[0].outcome == TaskRunOutcome.BLOCKED

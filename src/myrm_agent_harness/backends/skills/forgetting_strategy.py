@@ -103,7 +103,9 @@ class CuratorConfig:
     consolidation_min_cluster_size: int = _DEFAULT_CONSOLIDATION_MIN_CLUSTER_SIZE
     """Minimum skills in a cluster to be considered for consolidation."""
 
-    consolidation_similarity_threshold: float = _DEFAULT_CONSOLIDATION_SIMILARITY_THRESHOLD
+    consolidation_similarity_threshold: float = (
+        _DEFAULT_CONSOLIDATION_SIMILARITY_THRESHOLD
+    )
     """Minimum embedding cosine similarity to group skills into a cluster."""
 
     def to_dict(self) -> dict[str, object]:
@@ -132,22 +134,39 @@ class CuratorConfig:
             enabled=bool(data.get("enabled", True)),
             interval_hours=int(data.get("interval_hours", _DEFAULT_INTERVAL_HOURS)),
             stale_after_days=int(data.get("stale_after_days", _DEFAULT_STALE_DAYS)),
-            archive_after_days=int(data.get("archive_after_days", _DEFAULT_ARCHIVE_DAYS)),
-            grace_period_days=int(data.get("grace_period_days", _DEFAULT_GRACE_PERIOD_DAYS)),
-            min_success_rate=float(data.get("min_success_rate", _DEFAULT_MIN_SUCCESS_RATE)),
+            archive_after_days=int(
+                data.get("archive_after_days", _DEFAULT_ARCHIVE_DAYS)
+            ),
+            grace_period_days=int(
+                data.get("grace_period_days", _DEFAULT_GRACE_PERIOD_DAYS)
+            ),
+            min_success_rate=float(
+                data.get("min_success_rate", _DEFAULT_MIN_SUCCESS_RATE)
+            ),
             max_skills=int(data.get("max_skills", _DEFAULT_MAX_SKILLS)),
             min_call_count_for_quality_check=int(
-                data.get("min_call_count_for_quality_check", _DEFAULT_MIN_CALL_COUNT_FOR_QUALITY_CHECK)
+                data.get(
+                    "min_call_count_for_quality_check",
+                    _DEFAULT_MIN_CALL_COUNT_FOR_QUALITY_CHECK,
+                )
             ),
             protect_installed_skills=bool(data.get("protect_installed_skills", True)),
             protect_system_skills=bool(data.get("protect_system_skills", True)),
             consolidation_enabled=bool(data.get("consolidation_enabled", False)),
-            consolidation_min_skills=int(data.get("consolidation_min_skills", _DEFAULT_CONSOLIDATION_MIN_SKILLS)),
+            consolidation_min_skills=int(
+                data.get("consolidation_min_skills", _DEFAULT_CONSOLIDATION_MIN_SKILLS)
+            ),
             consolidation_min_cluster_size=int(
-                data.get("consolidation_min_cluster_size", _DEFAULT_CONSOLIDATION_MIN_CLUSTER_SIZE)
+                data.get(
+                    "consolidation_min_cluster_size",
+                    _DEFAULT_CONSOLIDATION_MIN_CLUSTER_SIZE,
+                )
             ),
             consolidation_similarity_threshold=float(
-                data.get("consolidation_similarity_threshold", _DEFAULT_CONSOLIDATION_SIMILARITY_THRESHOLD)
+                data.get(
+                    "consolidation_similarity_threshold",
+                    _DEFAULT_CONSOLIDATION_SIMILARITY_THRESHOLD,
+                )
             ),
         )
 
@@ -233,7 +252,10 @@ class DefaultForgettingStrategy:
             return None
 
         # 2. Installed (hub/registry) skills optionally exempt
-        if self._config.protect_installed_skills and skill.trust == SkillTrust.INSTALLED:
+        if (
+            self._config.protect_installed_skills
+            and skill.trust == SkillTrust.INSTALLED
+        ):
             return None
 
         # 2b. Prebuilt/system skills optionally exempt
@@ -346,7 +368,8 @@ class DefaultForgettingStrategy:
 
         sorted_skills = sorted(
             eligible,
-            key=lambda s: s.usage_stats.last_used_at or datetime.min.replace(tzinfo=UTC),
+            key=lambda s: s.usage_stats.last_used_at
+            or datetime.min.replace(tzinfo=UTC),
         )
 
         evict_count = len(eligible) - self._config.max_skills
@@ -356,7 +379,9 @@ class DefaultForgettingStrategy:
             ForgettingReason(
                 skill_name=skill.name,
                 reason_type="lru_eviction",
-                reason_message=(f"LRU eviction (active skill count {len(eligible)} > max {self._config.max_skills})"),
+                reason_message=(
+                    f"LRU eviction (active skill count {len(eligible)} > max {self._config.max_skills})"
+                ),
                 stats=skill.usage_stats,
                 target_status=SkillLifecycleStatus.STALE,
             )
@@ -458,7 +483,10 @@ def evaluate_skill_health_findings(
             pinned_count += 1
 
         # Check 1: Wrong but frequent (Hermes Failure Mode #142)
-        if stats.call_count >= cfg.min_call_count_for_quality_check and stats.success_rate < cfg.min_success_rate:
+        if (
+            stats.call_count >= cfg.min_call_count_for_quality_check
+            and stats.success_rate < cfg.min_success_rate
+        ):
             severity = "critical" if stats.success_rate < 0.15 else "warning"
             action = "unpin_and_archive" if stats.pinned else "archive"
             msg = (
@@ -515,7 +543,11 @@ def evaluate_skill_health_findings(
                 success_rate=1.0,
                 pinned=False,
                 recommended_action="archive",
-                details={"active_count": active, "max_skills": cfg.max_skills, "excess": excess},
+                details={
+                    "active_count": active,
+                    "max_skills": cfg.max_skills,
+                    "excess": excess,
+                },
             )
         )
 
@@ -539,4 +571,3 @@ def evaluate_skill_health_findings(
         findings=findings,
         health_score=score,
     )
-

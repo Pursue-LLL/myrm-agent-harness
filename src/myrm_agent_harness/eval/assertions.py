@@ -684,7 +684,7 @@ async def evaluate_post_episode_assertions(
                     if expected_output:
                         res["passed"] = expected_output in res["output"]
                     else:
-                        res["passed"] = (getattr(cmd_res, "exit_code", 1) == 0)
+                        res["passed"] = getattr(cmd_res, "exit_code", 1) == 0
                 except Exception as e:
                     res["output"] = str(e)
                     res["passed"] = False

@@ -109,16 +109,22 @@ async def evaluate_compaction_assertions(
         for constraint in assertion.expected_constraints:
             norm_c = _normalize_span(constraint)
             # Check direct span or semantic keyword presence
-            if norm_c in norm_actual_text or all(w in norm_actual_text for w in norm_c.split() if len(w) > 3):
+            if norm_c in norm_actual_text or all(
+                w in norm_actual_text for w in norm_c.split() if len(w) > 3
+            ):
                 recalled_count += 1
             else:
                 missed_constraints.append(constraint)
 
         total_constraints = len(assertion.expected_constraints)
-        constraint_score = (recalled_count / total_constraints) if total_constraints > 0 else 1.0
+        constraint_score = (
+            (recalled_count / total_constraints) if total_constraints > 0 else 1.0
+        )
 
         # 2. Decision Fidelity (Tool Selection)
-        expected_tool_names = {canonicalize_tool_name(t) for t in assertion.expected_tools}
+        expected_tool_names = {
+            canonicalize_tool_name(t) for t in assertion.expected_tools
+        }
         if expected_tool_names:
             matched_tools = expected_tool_names & actual_tools
             decision_score = len(matched_tools) / len(expected_tool_names)
@@ -145,14 +151,24 @@ async def evaluate_compaction_assertions(
                 missing_artifacts.append(artifact)
 
         total_artifacts = len(assertion.required_artifacts)
-        artifact_score = (artifact_recalled / total_artifacts) if total_artifacts > 0 else 1.0
+        artifact_score = (
+            (artifact_recalled / total_artifacts) if total_artifacts > 0 else 1.0
+        )
 
         # 5. Continuation Success (Basic non-empty / error-free response check)
-        continuation_score = 1.0 if (actual_text.strip() and not response.limit_reached) else 0.5
+        continuation_score = (
+            1.0 if (actual_text.strip() and not response.limit_reached) else 0.5
+        )
 
         # Calculate weighted overall fidelity
         weights = [0.30, 0.25, 0.20, 0.15, 0.10]
-        scores = [constraint_score, decision_score, state_score, artifact_score, continuation_score]
+        scores = [
+            constraint_score,
+            decision_score,
+            state_score,
+            artifact_score,
+            continuation_score,
+        ]
         overall_fidelity = sum(w * s for w, s in zip(weights, scores, strict=True))
 
         # Check against minimum required fidelity score
@@ -177,12 +193,18 @@ async def evaluate_compaction_assertions(
         if missing_artifacts:
             issues.append(f"Missing artifacts: {missing_artifacts}")
         if expected_tool_names and decision_score < 1.0:
-            issues.append(f"Tool mismatch (expected {expected_tool_names}, called {actual_tools})")
+            issues.append(
+                f"Tool mismatch (expected {expected_tool_names}, called {actual_tools})"
+            )
 
         detail_msg = (
             f"Compaction assertion #{idx} {'PASSED' if case_passed else 'FAILED'} "
             f"(Fidelity: {overall_fidelity:.2f} >= {assertion.min_fidelity_score:.2f}). "
-            + (f"Issues: {'; '.join(issues)}" if issues else "All 5 dimensions satisfied.")
+            + (
+                f"Issues: {'; '.join(issues)}"
+                if issues
+                else "All 5 dimensions satisfied."
+            )
         )
         details_list.append(detail_msg)
 

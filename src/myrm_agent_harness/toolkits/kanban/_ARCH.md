@@ -286,6 +286,16 @@ Protocol-first architecture with strict framework-business separation.
     audit events, terminate running executions for mutated tasks, cascade-unblock ready downstream tasks,
     and wake the dispatcher.
 
+28. **Goal↔Kanban Long-Run Bridge SSOT**: `TaskExecutionResult` allows TaskRunners
+    (such as goal-mode runners) to return explicit outcomes (`SUCCESS`, `BLOCKED`, `FAILURE`)
+    with typed `BlockKind`, `blocked_reason`, `scheduled_until`, and `metadata_patch`.
+    When a goal enters `PAUSED`, `WAIT`, `NEEDS_HUMAN_REVIEW`, or `BUDGET_LIMITED`, the runner
+    yields a structured `TaskExecutionResult.blocked(...)`. The dispatcher handles this via
+    `_handle_blocked`, cleanly transitioning the task to `TaskStatus.BLOCKED` with
+    `TaskRunOutcome.BLOCKED` and `TaskEventKind.BLOCKED` without incrementing `consecutive_failures`
+    or triggering crash degradation. When unblocking a goal-mode task, the server orchestrator
+    automatically synchronizes with `GoalRegistry` to resume the goal, maintaining a bidirectional SSOT.
+
 ## Domain Model
 
 - `KanbanBoard`: Top-level grouping with `BoardSettings` (includes `default_workdir`, `block_recurrence_limit` for block→unblock→TRIAGE escalation)
@@ -299,6 +309,8 @@ Protocol-first architecture with strict framework-business separation.
 - `TaskRunOutcome`: COMPLETED / BLOCKED / CRASHED / RECLAIMED / TIMED_OUT
 - `TaskEvent`: Persistent lifecycle event for audit and catch-up
 - `TaskEventKind`: CREATED / CLAIMED / ASSIGNED / COMPLETED / FAILED / BLOCKED / UNBLOCKED / RETRYING / RECLAIMED / PROMOTED / ARCHIVED / HEARTBEAT / USER_COMMENT / VERIFICATION_FAILED / BRANCH_SWITCHED / MERGE_CONFLICT / SPECIFIED / DECOMPOSED / TIMED_OUT / REVIEW_REQUESTED / APPROVED / REJECTED / PLAN_REVISED
+- `TaskExecutionOutcome`: SUCCESS / BLOCKED / FAILURE
+- `TaskExecutionResult`: Structured outcome container for TaskRunner (supports explicit block_kind, blocked_reason, scheduled_until, metadata_patch)
 - `TaskTimeoutError`: Exception raised when a task exceeds its `max_runtime_seconds` limit (carries `elapsed_seconds`, `limit_seconds`)
 - `SpecifyOutcome`: Result of a single Specifier pass (ok, new_title, new_body, reason, prompt_tokens, completion_tokens, persisted)
 - `DecomposeChildSpec`: Spec for a single child task (title, body, assignee, parent_indices)

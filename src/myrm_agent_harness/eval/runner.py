@@ -255,23 +255,33 @@ class EvalRunner:
                 sandbox_executor=sandbox_executor,
             )
             if post_ep_passed is not None:
-                passed = post_ep_passed if passed is None else (passed and post_ep_passed)
+                passed = (
+                    post_ep_passed if passed is None else (passed and post_ep_passed)
+                )
 
         canary_ok: bool | None = None
         if getattr(case, "canary_protected", False):
             canary_ok = EvalCanaryGate.check_presence(case.message)
             if canary_ok is False:
                 passed = False
-                details = f"{details} | Canary signature missing" if details else "Canary signature missing"
+                details = (
+                    f"{details} | Canary signature missing"
+                    if details
+                    else "Canary signature missing"
+                )
 
         # Trajectory anti-contamination audit
         contamination_audit_dict: dict[str, object] | None = None
         if response.tool_call_details:
-            audit_res = audit_episode_trajectory_for_contamination(response.tool_call_details)
+            audit_res = audit_episode_trajectory_for_contamination(
+                response.tool_call_details
+            )
             contamination_audit_dict = audit_res.to_dict()
             if audit_res.cheat_detected:
                 passed = False
-                cheat_msg = "Anti-contamination violation: cheat attempt detected in trajectory"
+                cheat_msg = (
+                    "Anti-contamination violation: cheat attempt detected in trajectory"
+                )
                 details = f"{details} | {cheat_msg}" if details else cheat_msg
 
         timings = EvalTimings(
