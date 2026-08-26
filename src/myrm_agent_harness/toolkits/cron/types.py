@@ -143,9 +143,13 @@ class CronConfig:
 
     def __post_init__(self) -> None:
         if self.max_concurrent > 100:
-            raise ValueError("max_concurrent must be <= 100 to prevent resource exhaustion")
+            raise ValueError(
+                "max_concurrent must be <= 100 to prevent resource exhaustion"
+            )
         if self.max_per_user > 100:
-            raise ValueError("max_per_user must be <= 100 to prevent resource exhaustion")
+            raise ValueError(
+                "max_per_user must be <= 100 to prevent resource exhaustion"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,7 +172,9 @@ class Schedule:
     def __post_init__(self) -> None:
         if self.kind == ScheduleKind.CRON and not self.expr:
             raise ValueError("cron schedule requires 'expr'")
-        if self.kind == ScheduleKind.INTERVAL and (not self.interval_ms or self.interval_ms < 100):
+        if self.kind == ScheduleKind.INTERVAL and (
+            not self.interval_ms or self.interval_ms < 100
+        ):
             raise ValueError("interval_ms must be >= 100 to prevent CPU storms")
         if self.kind == ScheduleKind.ONCE and not self.run_at:
             raise ValueError("once schedule requires 'run_at'")
@@ -242,7 +248,9 @@ class CronJob:
         if self.timeout_seconds < 10:
             raise ValueError("timeout_seconds must be >= 10 to prevent alert storms")
         if self.retry_backoff_ms < 100:
-            raise ValueError("retry_backoff_ms must be >= 100 to prevent service overload")
+            raise ValueError(
+                "retry_backoff_ms must be >= 100 to prevent service overload"
+            )
         if self.max_retries > 10:
             raise ValueError("max_retries must be <= 10 to prevent resource waste")
         if self.max_fires is not None and self.max_fires < 1:

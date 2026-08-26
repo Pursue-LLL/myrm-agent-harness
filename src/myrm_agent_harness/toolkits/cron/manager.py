@@ -51,7 +51,11 @@ from myrm_agent_harness.toolkits.cron.types import (
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.infra.incremental.types import MonitorConfig, MonitorState, ResetReason
+    from myrm_agent_harness.infra.incremental.types import (
+        MonitorConfig,
+        MonitorState,
+        ResetReason,
+    )
     from myrm_agent_harness.toolkits.cron.engine.scheduler import CronScheduler
     from myrm_agent_harness.toolkits.cron.protocols import CronStore
     from myrm_agent_harness.toolkits.cron.types import CronRunRecord, Schedule
@@ -108,7 +112,9 @@ class CronManager:
         name_filter: str | None = None,
         chat_id: str | None = None,
     ) -> int:
-        return await self._store.count_jobs(user_id=user_id, name_filter=name_filter, chat_id=chat_id)
+        return await self._store.count_jobs(
+            user_id=user_id, name_filter=name_filter, chat_id=chat_id
+        )
 
     async def get_job(self, job_id: str, user_id: str) -> CronJob | None:
         job = await self._store.get_job(job_id)
@@ -129,7 +135,9 @@ class CronManager:
             job = await self._store.get_job(job_id)
             if not job or job.user_id != user_id:
                 return []
-        return await self._store.list_runs(job_id, limit=limit, offset=offset, status=status)
+        return await self._store.list_runs(
+            job_id, limit=limit, offset=offset, status=status
+        )
 
     async def count_runs(
         self,
@@ -148,7 +156,9 @@ class CronManager:
         """Return the monitor state for a job, or None if not found."""
         return await self._store.get_monitor_state(job_id)
 
-    async def batch_get_monitor_states(self, job_ids: list[str]) -> dict[str, MonitorState]:
+    async def batch_get_monitor_states(
+        self, job_ids: list[str]
+    ) -> dict[str, MonitorState]:
         """Batch get monitor states for multiple jobs.
 
         Returns dict mapping job_id to MonitorState. Missing jobs are omitted.
@@ -306,7 +316,11 @@ class CronManager:
             chat_id=source.chat_id,
             agent_id=source.agent_id,
             workflow_template_id=source.workflow_template_id,
-            workflow_template_args=(dict(source.workflow_template_args) if source.workflow_template_args else None),
+            workflow_template_args=(
+                dict(source.workflow_template_args)
+                if source.workflow_template_args
+                else None
+            ),
             command=source.command,
             required_capabilities=source.required_capabilities,
             allowed_roots=source.allowed_roots,
@@ -336,10 +350,14 @@ class CronManager:
         )
         cloned = await self._store.save_job(cloned)
         self._scheduler.notify_change()
-        logger.warning("Cron job duplicated: %s -> %s (%s)", source.name, final_name, new_id)
+        logger.warning(
+            "Cron job duplicated: %s -> %s (%s)", source.name, final_name, new_id
+        )
         return cloned
 
-    async def _reset_baseline_on_change(self, job_id: str, reset_reason: ResetReason) -> None:
+    async def _reset_baseline_on_change(
+        self, job_id: str, reset_reason: ResetReason
+    ) -> None:
         """Reset monitor baseline and record reason.
 
         Called when command/prompt/monitor_type changes with enabled monitoring.
@@ -363,7 +381,9 @@ class CronManager:
             job_id,
         )
 
-    async def update_job(self, job_id: str, user_id: str, patch: CronJobPatch) -> CronJob | None:
+    async def update_job(
+        self, job_id: str, user_id: str, patch: CronJobPatch
+    ) -> CronJob | None:
         """Update job fields via patch.
 
         Auto-resets monitor baseline when command/prompt/monitor_type changes
@@ -545,12 +565,16 @@ class CronManager:
         state.last_reset_at = datetime.now(UTC)
         state.last_reset_reason = "manual"
         await self._store.save_monitor_state(state)
-        logger.info("Manually reset monitor baseline for job %s (user: %s)", job_id, user_id)
+        logger.info(
+            "Manually reset monitor baseline for job %s (user: %s)", job_id, user_id
+        )
 
         return True
 
     async def pause_job(self, job_id: str, user_id: str) -> CronJob | None:
-        return await self.update_job(job_id, user_id, CronJobPatch(status=JobStatus.PAUSED))
+        return await self.update_job(
+            job_id, user_id, CronJobPatch(status=JobStatus.PAUSED)
+        )
 
     async def resume_job(self, job_id: str, user_id: str) -> CronJob | None:
         job = await self._store.get_job(job_id)
@@ -590,11 +614,17 @@ class CronManager:
         if job.status == JobStatus.COMPLETED:
             raise ValueError("completed jobs cannot be resumed")
         if job.expires_at is not None:
-            ea = job.expires_at if job.expires_at.tzinfo else job.expires_at.replace(tzinfo=UTC)
+            ea = (
+                job.expires_at
+                if job.expires_at.tzinfo
+                else job.expires_at.replace(tzinfo=UTC)
+            )
             if now >= ea:
                 raise ValueError("job has expired; extend expires_at before resuming")
         if job.max_fires is not None and job.fire_count >= job.max_fires:
-            raise ValueError("max execution count reached; increase max_fires before resuming")
+            raise ValueError(
+                "max execution count reached; increase max_fires before resuming"
+            )
 
     def _validate_create(
         self,
@@ -610,7 +640,9 @@ class CronManager:
             if not command:
                 raise ValueError("SHELL job requires a non-empty 'command'")
         elif not prompt:
-            raise ValueError(f"{job_type.value.upper()} job requires a non-empty 'prompt'")
+            raise ValueError(
+                f"{job_type.value.upper()} job requires a non-empty 'prompt'"
+            )
 
         if schedule.kind == ScheduleKind.CRON and not validate_cron_expr(schedule.expr):
             raise ValueError(f"invalid cron expression: {schedule.expr!r}")
@@ -624,14 +656,20 @@ class CronManager:
         if schedule.tz and not validate_timezone(schedule.tz):
             raise ValueError(f"unknown timezone: {schedule.tz!r}")
 
-    async def _validate_context_from(self, job_id: str, context_from: tuple[str, ...]) -> None:
+    async def _validate_context_from(
+        self, job_id: str, context_from: tuple[str, ...]
+    ) -> None:
         """Ensure context_from references are valid and non-circular."""
         for ref_id in context_from:
             if ref_id == job_id:
-                raise ValueError(f"context_from must not reference the job itself: {ref_id!r}")
+                raise ValueError(
+                    f"context_from must not reference the job itself: {ref_id!r}"
+                )
             ref_job = await self._store.get_job(ref_id)
             if ref_job is None:
-                raise ValueError(f"context_from references non-existent job: {ref_id!r}")
+                raise ValueError(
+                    f"context_from references non-existent job: {ref_id!r}"
+                )
 
     @staticmethod
     def _ensure_webhook_credentials(triggers: TriggerConfig) -> TriggerConfig:
