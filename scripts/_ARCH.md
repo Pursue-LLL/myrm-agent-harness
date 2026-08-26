@@ -33,6 +33,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `fractal_header_baseline.txt` | 辅助 | 允许暂缺 IOP 头的 legacy 路径清单（相对 `src/`）；新文件不得加入 | — |
 | `detect_blocking_io.py` | 辅助 | 阻塞 I/O 检测 | ✅ |
 | `measure_turn1_token_inventory.py` | 辅助 | Turn-1 bind_tools token 成本测量（tiktoken planning SSOT） | ✅ |
+| `measure_tool_schema_tokens.py` | 辅助 | Tool Description + JSON Schema Parameters 细粒度 token 成本测量与导出 | ✅ |
 
 ## 边界 enforcement 用法
 

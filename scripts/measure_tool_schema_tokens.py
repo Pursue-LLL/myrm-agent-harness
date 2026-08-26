@@ -8,6 +8,20 @@ Usage:
     python scripts/measure_tool_schema_tokens.py
     python scripts/measure_tool_schema_tokens.py --json
     python scripts/measure_tool_schema_tokens.py --all-registered
+
+[INPUT]
+- myrm_agent_harness.agent.tool_management.tool_layers (POS: Tool layer sorting and grouping)
+- myrm_agent_harness.utils.text_utils (POS: Token counting utility with planning encoding)
+- myrm_agent_harness.utils.token_estimation (POS: Token estimation constants)
+
+[OUTPUT]
+- measure_single_tool_tokens: Granular token measurement for a single tool
+- measure_turn1_tool_schema_tokens: Granular token breakdown report for Turn-1 default tools
+- main: CLI entry point for token schema measurement
+
+[POS]
+Granular tool schema token measurement script. Measures Tool Description, JSON Schema parameters,
+and wrapper token contributions for registered agent tools.
 """
 
 from __future__ import annotations

@@ -492,3 +492,45 @@ class TestHeadersMerging:
         cfg = FakeMCPServerConfig(type="sse", url="https://example.com/sse")
         headers = MCPClientManager.get_headers(cfg)
         assert headers == {}
+
+
+class TestRedirectGuardIntegration:
+    """Verify build_streamable_http_client and _build_tls_client_factory inject redirect guards."""
+
+    @pytest.mark.asyncio
+    async def test_build_streamable_http_client_with_url(self) -> None:
+        import httpx2
+
+        client = MCPClientManager.build_streamable_http_client(
+            headers={"Authorization": "Bearer tok"},
+            url="https://api.example.com/mcp",
+        )
+        try:
+            assert isinstance(client, httpx2.AsyncClient)
+            assert client.follow_redirects is True
+            assert "request" in client.event_hooks
+            assert len(client.event_hooks["request"]) > 0
+        finally:
+            await client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_tls_factory_injects_redirect_guard(self, tls_certs: dict[str, str]) -> None:
+        import httpx2
+
+        cfg = FakeMCPServerConfig(
+            name="custom-tls",
+            url="https://api.example.com/sse",
+            client_cert=tls_certs["cert"],
+            client_key=tls_certs["key"],
+        )
+        factory = MCPClientManager._build_tls_client_factory(cfg)
+        assert factory is not None
+        client = factory(headers={"X-Secret": "123"}, timeout=None, auth=None)
+        try:
+            assert isinstance(client, httpx2.AsyncClient)
+            assert client.follow_redirects is True
+            assert "request" in client.event_hooks
+            assert len(client.event_hooks["request"]) > 0
+        finally:
+            await client.aclose()
+

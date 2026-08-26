@@ -7,8 +7,9 @@ SSRF-protected outbound HTTP primitives shared by harness toolkits, agent pipeli
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Re-exports secure fetch API. | — |
-| secure_fetch.py | Core | DNS-pinned HTTP with manual redirect loop (`secure_get`, `secure_request`, `resolve_secure_http_target`). `secure_get`/`secure_request` accept `max_content_length` to abort oversized bodies mid-stream (`ContentTooLargeError`); defaults to `DEFAULT_MAX_CONTENT_LENGTH` (20 MB) unless `None` is passed to disable. | ✅ |
+| __init__.py | Package | Re-exports secure fetch and redirect guard APIs. | — |
+| redirect_guard.py | Core | Outbound HTTP redirect sensitive header protection. `extract_origin` (default port 80/443 normalization), `is_same_origin`, `is_sensitive_header` (standard RFC keys + wildcard regex), `strip_sensitive_headers_on_redirect` (purges credentials on cross-origin redirect and blocks HTTPS->HTTP downgrade), and `create_mcp_redirect_guard_event_hooks` (httpx/httpx2 client hooks for MCP transports). | ✅ |
+| secure_fetch.py | Core | DNS-pinned HTTP with manual redirect loop (`secure_get`, `secure_request`, `resolve_secure_http_target`) and integrated cross-origin sensitive header stripping (`strip_sensitive_headers_on_redirect`). `secure_get`/`secure_request` accept `max_content_length` to abort oversized bodies mid-stream (`ContentTooLargeError`); defaults to `DEFAULT_MAX_CONTENT_LENGTH` (20 MB) unless `None` is passed to disable. | ✅ |
 
 ## Key Dependencies
 

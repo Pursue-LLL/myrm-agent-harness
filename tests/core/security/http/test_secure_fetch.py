@@ -361,20 +361,53 @@ async def test_resolve_target_too_many_redirects() -> None:
 
 
 @pytest.mark.asyncio
-async def test_secure_request_too_many_redirects() -> None:
-    redirect_response = httpx.Response(
-        302,
-        headers={"Location": "https://example.com/final"},
-        request=httpx.Request("GET", "https://example.com/start"),
-    )
+async def test_secure_request_strips_sensitive_headers_across_cross_origin_redirect() -> None:
+    """Redirect to another origin purges Authorization and custom secrets."""
+    call_count = 0
+    captured_requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        captured_requests.append(request)
+        if call_count == 1:
+            return httpx.Response(
+                302,
+                headers={"Location": "https://other-domain.com/collect"},
+                request=request,
+            )
+        return httpx.Response(200, text="ok", request=request)
+
     with patch(
         "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
-        new=AsyncMock(return_value=("https://93.184.216.34/", {"Host": "example.com"})),
+        new=AsyncMock(
+            side_effect=[
+                ("https://1.1.1.1/start", {"Host": "example.com"}),
+                ("https://2.2.2.2/collect", {"Host": "other-domain.com"}),
+            ]
+        ),
     ):
-        transport = httpx.MockTransport(lambda _req: redirect_response)
-        async with httpx.AsyncClient(transport=transport) as client:
-            with pytest.raises(SSRFSecurityError, match="Too many redirects"):
-                await secure_request(client, "GET", "https://example.com/start", max_redirects=0)
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+            resp = await secure_request(
+                client,
+                "GET",
+                "https://example.com/start",
+                headers={
+                    "Authorization": "Bearer token123",
+                    "X-Api-Key": "my-secret-key",
+                    "Content-Type": "application/json",
+                },
+            )
+            assert resp.status_code == 200
+            assert len(captured_requests) == 2
+            # First request had sensitive headers
+            assert captured_requests[0].headers["Authorization"] == "Bearer token123"
+            assert captured_requests[0].headers["X-Api-Key"] == "my-secret-key"
+            # Second request had sensitive headers stripped
+            assert "Authorization" not in captured_requests[1].headers
+            assert "X-Api-Key" not in captured_requests[1].headers
+            assert captured_requests[1].headers["Content-Type"] == "application/json"
 
 
 @pytest.mark.asyncio

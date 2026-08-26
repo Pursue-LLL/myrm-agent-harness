@@ -21,7 +21,6 @@ sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 from myrm_agent_harness.agent.streaming.model_discipline import (
     AGENT_CORE_RULES,
-    resolve_execution_discipline,
 )
 from myrm_agent_harness.agent.streaming.utils import (
     DATETIME_SYSTEM_RULES,

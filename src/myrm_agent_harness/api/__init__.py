@@ -36,6 +36,7 @@ __all__ = [
     "Doctor",
     "HookEvent",
     "HookRegistryProtocol",
+    "InsecureRedirectSecurityError",
     "InstalledSkillRescanEngine",
     "IntegrationProvider",
     "KanbanStore",
@@ -48,6 +49,7 @@ __all__ = [
     "MissingSemanticsDecision",
     "MissingSemanticsError",
     "MissingSemanticsPolicy",
+    "Origin",
     "PrivacyFailClosedLadder",
     "PrivacyFailClosedViolationError",
     "PrivacyLadderLevel",
@@ -141,6 +143,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.api.protocols",
         "HookRegistryProtocol",
     ),
+    "InsecureRedirectSecurityError": (
+        "myrm_agent_harness.core.security.http.redirect_guard",
+        "InsecureRedirectSecurityError",
+    ),
     "InstalledSkillRescanEngine": (
         "myrm_agent_harness.backends.skills.scanning.rescan_engine",
         "InstalledSkillRescanEngine",
@@ -179,6 +185,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "MissingSemanticsPolicy": (
         "myrm_agent_harness.core.security.missing_semantics",
         "MissingSemanticsPolicy",
+    ),
+    "Origin": (
+        "myrm_agent_harness.core.security.http.redirect_guard",
+        "Origin",
     ),
     "PrivacyFailClosedLadder": (
         "myrm_agent_harness.core.security.guards.privacy_ladder",

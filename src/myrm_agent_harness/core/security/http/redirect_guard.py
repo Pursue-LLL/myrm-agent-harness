@@ -67,7 +67,7 @@ _STANDARD_SENSITIVE_HEADERS: frozenset[str] = frozenset(
 )
 
 _SENSITIVE_KEY_PATTERN = re.compile(
-    r"^(x-)?(api[-_]?key|auth[-_]?token|secret|access[-_]?token|bearer[-_]?token|private[-_]?key|session[-_]?token|client[-_]?secret)$",
+    r"^(x[-_])?(api[-_]?key|auth[-_]?token|secret|access[-_]?token|bearer[-_]?token|private[-_]?key|session[-_]?token|client[-_]?secret)$",
     re.IGNORECASE,
 )
 
@@ -143,8 +143,8 @@ def strip_sensitive_headers_on_redirect(
 
     Rules:
     1. Same-Origin: keep all headers.
-    2. Protocol Downgrade (HTTPS -> HTTP): raise InsecureRedirectSecurityError unless allowed,
-       and purge all sensitive headers.
+    2. Protocol Downgrade (HTTPS -> HTTP): raise InsecureRedirectSecurityError if
+       sensitive headers are present, unless allowed, and purge all sensitive headers.
     3. Cross-Origin: purge sensitive headers (RFC standard & custom) and record an audit decision.
     """
     origin_from = extract_origin(from_url)
@@ -160,14 +160,16 @@ def strip_sensitive_headers_on_redirect(
 
     # Detect HTTPS -> HTTP downgrade
     if origin_from.is_secure and not origin_to.is_secure:
-        msg = f"Insecure protocol downgrade redirect from {from_url} to {to_url}"
-        record_decision(
-            tool_name=tool_name,
-            decision="INSECURE_REDIRECT_BLOCKED",
-            reason=msg,
-        )
-        if not allow_insecure_downgrade:
-            raise InsecureRedirectSecurityError(msg)
+        has_sensitive = any(is_sensitive_header(k, custom_sensitive_headers) for k in headers)
+        if has_sensitive:
+            msg = f"Insecure protocol downgrade redirect from {from_url} to {to_url} with sensitive credentials"
+            record_decision(
+                tool_name=tool_name,
+                decision="INSECURE_REDIRECT_BLOCKED",
+                reason=msg,
+            )
+            if not allow_insecure_downgrade:
+                raise InsecureRedirectSecurityError(msg)
 
     # Same origin check
     if (
@@ -221,8 +223,9 @@ def create_mcp_redirect_guard_event_hooks(
             or initial_origin.host != target_origin.host
             or initial_origin.port != target_origin.port
         ):
+            has_sensitive = any(is_sensitive_header(k, custom_sensitive_headers) for k in request.headers)
             # Check for insecure downgrade
-            if initial_origin.is_secure and not target_origin.is_secure:
+            if initial_origin.is_secure and not target_origin.is_secure and has_sensitive:
                 msg = f"MCP Insecure protocol downgrade redirect blocked: {initial_url} -> {request.url}"
                 record_decision(
                     tool_name="mcp_transport",
