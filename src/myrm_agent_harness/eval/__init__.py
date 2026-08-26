@@ -22,7 +22,12 @@ from .assertions import (
     evaluate_state_assertions,
     evaluate_tool_assertions,
 )
-from .benchmarks import BenchmarkSpec, get_benchmark, list_benchmarks, register_benchmark
+from .benchmarks import (
+    BenchmarkSpec,
+    get_benchmark,
+    list_benchmarks,
+    register_benchmark,
+)
 from .builder import build_skill_eval_cases, extract_case_from_trajectory
 from .compaction_ab import CompactionABEvaluator, CompactionABResult
 from .compaction_assertions import evaluate_compaction_assertions

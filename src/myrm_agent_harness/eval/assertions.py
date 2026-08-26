@@ -30,7 +30,10 @@ from typing import TYPE_CHECKING, Any
 
 from myrm_agent_harness.utils.chat_utils import extract_litellm_answer_text
 
-from .compaction_assertions import canonicalize_tool_name, evaluate_compaction_assertions
+from .compaction_assertions import (
+    canonicalize_tool_name,
+    evaluate_compaction_assertions,
+)
 from .decontam import normalize_answer
 from .suite_judge import evaluate_test_suite_assertion
 
@@ -567,7 +570,9 @@ def calculate_trajectory_determinism(
     from .protocols import DeterminismReplayResult
 
     orig_tool_names = [s.get("tool_name", "") for s in orig_steps if s.get("tool_name")]
-    replay_tool_names = [s.get("tool_name", "") for s in replay_steps if s.get("tool_name")]
+    replay_tool_names = [
+        s.get("tool_name", "") for s in replay_steps if s.get("tool_name")
+    ]
 
     if not orig_tool_names and not replay_tool_names:
         return DeterminismReplayResult(
@@ -594,7 +599,9 @@ def calculate_trajectory_determinism(
     else:
         # Simple positional match ratio
         min_len = min(len(orig_tool_names), len(replay_tool_names))
-        matches = sum(1 for i in range(min_len) if orig_tool_names[i] == replay_tool_names[i])
+        matches = sum(
+            1 for i in range(min_len) if orig_tool_names[i] == replay_tool_names[i]
+        )
         seq_sim = matches / max_len
 
     # 3. Arguments similarity on matched step positions
@@ -619,7 +626,9 @@ def calculate_trajectory_determinism(
                 drifted.append(f"Step {i+1}: tool diverged ({t_orig} vs {t_replay})")
 
     if len(orig_tool_names) != len(replay_tool_names):
-        drifted.append(f"Length mismatch: {len(orig_tool_names)} vs {len(replay_tool_names)} tool calls")
+        drifted.append(
+            f"Length mismatch: {len(orig_tool_names)} vs {len(replay_tool_names)} tool calls"
+        )
 
     args_sim = (args_matches / total_compared_args) if total_compared_args > 0 else 1.0
 

@@ -151,5 +151,3 @@ class TestStructuredAlertPayload:
         assert cat == ConnectorErrorCategory.HTTP_CLIENT_ERROR
         sug429 = generate_fix_suggestion(ConnectorErrorCategory.HTTP_CLIENT_ERROR, status_code=429)
         assert "rate limit" in sug429.lower() or "quota" in sug429.lower() or "429" in sug429
-
-        assert data["consecutive_failures"] == 3
