@@ -30,16 +30,15 @@ from pathlib import Path
 
 from myrm_agent_harness.eval.canary import CANARY_GUID
 
-
 # Default hidden patterns that should never exist inside an agent's active workspace.
 DEFAULT_HIDDEN_TEST_PATTERNS: tuple[str, ...] = (
     "verifier.toml",
     "tests/verifier.py",
     "tests/scorer.py",
-    "eval_tests/",
-    "hidden_tests/",
-    "hidden_eval/",
-    "eval_grader/",
+    "eval_tests",
+    "hidden_tests",
+    "hidden_eval",
+    "eval_grader",
     ".gold.patch",
     "golden.patch",
     "hidden_test",

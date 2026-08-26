@@ -25,7 +25,6 @@ from typing import TYPE_CHECKING, Any
 
 from .assertions import (
     ToolAssertion,
-    evaluate_compaction_assertions,
     evaluate_post_episode_assertions,
     evaluate_retrieval_assertions,
     evaluate_sandbox_assertions,
@@ -34,6 +33,7 @@ from .assertions import (
     evaluate_tool_assertions,
 )
 from .canary import EvalCanaryGate
+from .compaction_assertions import evaluate_compaction_assertions
 from .contamination import audit_episode_trajectory_for_contamination
 from .protocols import (
     AgentResponse,

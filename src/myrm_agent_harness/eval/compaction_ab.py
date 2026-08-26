@@ -18,7 +18,7 @@ Ensures zero amnesia and high decision fidelity across context window compaction
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from .compaction_assertions import canonicalize_tool_name, evaluate_compaction_assertions
@@ -26,8 +26,6 @@ from .protocols import (
     AgentResponse,
     CompactionAssertion,
     CompactionFidelityScore,
-    EvalCase,
-    EvalTurnResult,
 )
 
 if TYPE_CHECKING:

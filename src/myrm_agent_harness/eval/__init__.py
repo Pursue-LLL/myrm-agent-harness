@@ -13,9 +13,7 @@ from .assertions import (
     CollapsedHit,
     ToolAssertion,
     calculate_trajectory_determinism,
-    canonicalize_tool_name,
     collapse_retrieval_hits,
-    evaluate_compaction_assertions,
     evaluate_post_episode_assertions,
     evaluate_retrieval_assertions,
     evaluate_sandbox_assertions,
@@ -40,6 +38,10 @@ from .canary import (
     verify_canary_presence,
 )
 from .compaction_ab import CompactionABEvaluator, CompactionABResult
+from .compaction_assertions import (
+    canonicalize_tool_name,
+    evaluate_compaction_assertions,
+)
 from .contamination import (
     DEFAULT_HIDDEN_TEST_PATTERNS,
     ContaminationAuditResult,

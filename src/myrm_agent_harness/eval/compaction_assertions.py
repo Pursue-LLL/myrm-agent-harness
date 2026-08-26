@@ -22,11 +22,10 @@ semantic evaluation for agent context compaction quality across 5 dimensions:
 from __future__ import annotations
 
 import logging
-import os
 import re
 from typing import TYPE_CHECKING, Any
 
-from .protocols import CompactionAssertion, CompactionFidelityScore
+from .protocols import CompactionAssertion
 
 if TYPE_CHECKING:
     from .protocols import AgentResponse, JudgeConfig
@@ -154,23 +153,13 @@ async def evaluate_compaction_assertions(
         # Calculate weighted overall fidelity
         weights = [0.30, 0.25, 0.20, 0.15, 0.10]
         scores = [constraint_score, decision_score, state_score, artifact_score, continuation_score]
-        overall_fidelity = sum(w * s for w, s in zip(weights, scores))
+        overall_fidelity = sum(w * s for w, s in zip(weights, scores, strict=True))
 
         # Check against minimum required fidelity score
         case_passed = (
             overall_fidelity >= assertion.min_fidelity_score
             and not violated_claims
             and (constraint_score >= 0.8 if total_constraints > 0 else True)
-        )
-
-        fidelity_score_obj = CompactionFidelityScore(
-            constraint_recall=constraint_score,
-            decision_fidelity=decision_score,
-            state_accuracy=state_score,
-            artifact_coverage=artifact_score,
-            continuation_success=continuation_score,
-            overall_fidelity=overall_fidelity,
-            token_savings_pct=0.0,
         )
 
         if scores_out is not None:

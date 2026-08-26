@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 
 
-class OperationalAssuranceCategory(str, enum.Enum):
+class OperationalAssuranceCategory(enum.StrEnum):
     """Canonical operational failure & security assurance evaluation category."""
 
     PERMISSION_DENIED = "permission_denied"
