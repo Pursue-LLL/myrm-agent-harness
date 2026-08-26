@@ -217,3 +217,15 @@ class TestCreateLitellmModel:
         assert "options" in call_kwargs["extra_body"]
         assert call_kwargs["extra_body"]["options"]["num_ctx"] == 64000
 
+    @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
+    def test_local_endpoint_preserves_custom_num_ctx(self, mock_cls: MagicMock) -> None:
+        """If caller explicitly provides num_ctx in extra_body.options, do not overwrite it."""
+        create_litellm_model(
+            "ollama/qwen2.5:14b",
+            base_url="http://127.0.0.1:11434/v1",
+            extra_body={"options": {"num_ctx": 32768}},
+        )
+        call_kwargs = mock_cls.call_args[1]
+        assert call_kwargs["extra_body"]["options"]["num_ctx"] == 32768
+
+

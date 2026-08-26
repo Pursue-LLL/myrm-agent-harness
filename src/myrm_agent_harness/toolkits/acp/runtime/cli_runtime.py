@@ -26,6 +26,7 @@ import os
 import signal
 from collections.abc import AsyncIterator
 
+from myrm_agent_harness.toolkits.acp.auth._profiles import profile_for
 from myrm_agent_harness.toolkits.acp.runtime._base import BaseRuntime, build_safe_env
 from myrm_agent_harness.toolkits.acp.runtime._parser import (
     extract_text_from_event,
@@ -150,6 +151,13 @@ class CliRuntime(BaseRuntime):
 
         if self._config.max_turns > 0 and _supports_max_turns(command):
             args.extend(["--max-turns", str(self._config.max_turns)])
+
+        if self._config.permission_mode in ("allow_all", "bypass"):
+            profile = profile_for(command)
+            if profile and profile.non_interactive_flags:
+                for flag in profile.non_interactive_flags:
+                    if flag not in args:
+                        args.append(flag)
 
         uses_stdin = any(arg == "-p" for arg in self._config.args)
         if not uses_stdin:

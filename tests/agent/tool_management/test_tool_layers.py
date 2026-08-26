@@ -52,6 +52,7 @@ class TestGetToolLayer:
             "skill_select_tool",
             "skill_manage_tool",
             "browser_navigate_tool",
+            "ast_symbol_search_tool",
         ]
         for tool in extended_tools:
             assert get_tool_layer(tool) == ToolLayer.EXTENDED, f"{tool} should be EXTENDED"

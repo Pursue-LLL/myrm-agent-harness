@@ -971,3 +971,39 @@ class TestRunAndRecordTracing:
 
         assert TracingContext.get_trace_id() == "-"
         assert TracingContext.get_session_id() == "-"
+
+    @pytest.mark.asyncio
+    async def test_structured_alert_and_connector_failure_in_metadata(self) -> None:
+        """Delivery failure embeds connector_failure into metadata, and consecutive failures generate structured alert."""
+        executor, store, delivery = _make_executor()
+        job = _make_job(
+            delivery=DeliveryConfig(channel="webhook", target="https://api.example.com/webhook?token=secret99"),
+            failure_alert=FailureAlertConfig(
+                after=3,
+                delivery=DeliveryConfig(channel="webhook", target="https://alert.example.com/notify"),
+            ),
+            consecutive_failures=2,
+            last_error="Webhook returned 502: Bad Gateway",
+        )
+        delivery.deliver = AsyncMock(side_effect=RuntimeError("Webhook returned 502: Bad Gateway"))
+
+        runner = AsyncMock()
+        runner.run = AsyncMock(return_value=JobResult(success=True, output="Payload text"))
+
+        saved_runs = []
+        store.save_run = AsyncMock(side_effect=lambda r: saved_runs.append(r) or r)
+
+        await executor.run_and_record(job, runner)
+
+        assert len(saved_runs) == 1
+        run_record = saved_runs[0]
+        assert run_record.delivery_status == DeliveryStatus.FAILED
+        assert run_record.metadata is not None
+        assert "connector_failure" in run_record.metadata
+        conn_fail = run_record.metadata["connector_failure"]
+        assert conn_fail["category"] == "http_server_error"
+        assert "secret99" not in conn_fail["target"]
+        assert "502" in conn_fail["message"]
+
+        assert job.consecutive_failures == 3
+

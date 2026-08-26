@@ -13,6 +13,7 @@ orphaned WAL companions left by an unclean shutdown — the foundation of the
 - validate_sqlite_header / check_page_count_invariant / cleanup_orphan_wal: file-level guards
 - quick_check_sync: bounded corruption canary
 - checkpoint_truncate_sync / checkpoint_truncate_async: WAL flush helpers
+- incremental_vacuum_sync / incremental_vacuum_async: storage freelist compaction primitives
 
 [POS]
 Leaf integrity module for the unified SQLite hardening factory. No dependency on
@@ -179,3 +180,24 @@ async def checkpoint_truncate_async(conn: aiosqlite.Connection) -> None:
         await conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     except sqlite3.Error as exc:
         logger.debug("WAL checkpoint (async) skipped: %s", exc)
+
+
+def incremental_vacuum_sync(conn: sqlite3.Connection, pages: int = 100) -> None:
+    """Incrementally reclaim up to ``pages`` free pages from the freelist (sync)."""
+    if pages <= 0:
+        return
+    try:
+        conn.execute(f"PRAGMA incremental_vacuum({pages})")
+    except sqlite3.Error as exc:
+        logger.debug("incremental_vacuum (sync) skipped: %s", exc)
+
+
+async def incremental_vacuum_async(conn: aiosqlite.Connection, pages: int = 100) -> None:
+    """Incrementally reclaim up to ``pages`` free pages from the freelist (async)."""
+    if pages <= 0:
+        return
+    try:
+        await conn.execute(f"PRAGMA incremental_vacuum({pages})")
+    except sqlite3.Error as exc:
+        logger.debug("incremental_vacuum (async) skipped: %s", exc)
+

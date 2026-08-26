@@ -151,9 +151,9 @@ def create_execute_script_tool(session: BrowserSession):
     class ExecuteScriptInput(BaseModel):
         """Execute a Python script for batch browser actions.
 
-        Use this tool to perform multiple steps (e.g., filling a form, scraping a list)
-        in a single turn. The script has access to `session` and `refs` (a dict mapping
-        ref IDs to their metadata).
+        Use this tool to perform multiple steps (e.g., filling a form, scraping a list, sequential clicks)
+        in a single turn. Preferred over multiple single-step browser interactions when performing >= 3 sequential actions.
+        The script has access to `session` and `refs` (a dict mapping ref IDs to their metadata).
 
         You can use `await session.interact(action, ref, text)` directly in the script!
         Example:

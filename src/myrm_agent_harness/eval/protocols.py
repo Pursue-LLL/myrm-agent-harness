@@ -454,6 +454,85 @@ class EvalResult:
         )
 
 
+@dataclass(slots=True)
+class SkillABArmMetrics:
+    """Summary metrics for a single arm in a Skill A/B evaluation."""
+
+    arm_name: str
+    skill_id: str | None
+    pass_count: int
+    total_cases: int
+    pass_rate: float
+    avg_tool_calls: float
+    total_tokens: int
+    avg_latency_ms: float
+    side_effects_count: int = 0
+
+
+@dataclass(slots=True)
+class SkillABReportData:
+    """Aggregated three-arm Skill A/B comparative evaluation report."""
+
+    dataset_id: str
+    baseline_skill_id: str | None
+    candidate_skill_id: str
+    no_skill_metrics: SkillABArmMetrics
+    baseline_metrics: SkillABArmMetrics
+    candidate_metrics: SkillABArmMetrics
+    success_rate_delta: float
+    token_savings_pct: float
+    step_reduction_pct: float
+    verdict: str  # e.g., "IMPROVED", "REGRESSED", "INCONCLUSIVE"
+    created_at: str
+    manifest: EvalManifest | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "dataset_id": self.dataset_id,
+            "baseline_skill_id": self.baseline_skill_id,
+            "candidate_skill_id": self.candidate_skill_id,
+            "no_skill_metrics": {
+                "arm_name": self.no_skill_metrics.arm_name,
+                "skill_id": self.no_skill_metrics.skill_id,
+                "pass_count": self.no_skill_metrics.pass_count,
+                "total_cases": self.no_skill_metrics.total_cases,
+                "pass_rate": self.no_skill_metrics.pass_rate,
+                "avg_tool_calls": self.no_skill_metrics.avg_tool_calls,
+                "total_tokens": self.no_skill_metrics.total_tokens,
+                "avg_latency_ms": self.no_skill_metrics.avg_latency_ms,
+                "side_effects_count": self.no_skill_metrics.side_effects_count,
+            },
+            "baseline_metrics": {
+                "arm_name": self.baseline_metrics.arm_name,
+                "skill_id": self.baseline_metrics.skill_id,
+                "pass_count": self.baseline_metrics.pass_count,
+                "total_cases": self.baseline_metrics.total_cases,
+                "pass_rate": self.baseline_metrics.pass_rate,
+                "avg_tool_calls": self.baseline_metrics.avg_tool_calls,
+                "total_tokens": self.baseline_metrics.total_tokens,
+                "avg_latency_ms": self.baseline_metrics.avg_latency_ms,
+                "side_effects_count": self.baseline_metrics.side_effects_count,
+            },
+            "candidate_metrics": {
+                "arm_name": self.candidate_metrics.arm_name,
+                "skill_id": self.candidate_metrics.skill_id,
+                "pass_count": self.candidate_metrics.pass_count,
+                "total_cases": self.candidate_metrics.total_cases,
+                "pass_rate": self.candidate_metrics.pass_rate,
+                "avg_tool_calls": self.candidate_metrics.avg_tool_calls,
+                "total_tokens": self.candidate_metrics.total_tokens,
+                "avg_latency_ms": self.candidate_metrics.avg_latency_ms,
+                "side_effects_count": self.candidate_metrics.side_effects_count,
+            },
+            "success_rate_delta": round(self.success_rate_delta, 4),
+            "token_savings_pct": round(self.token_savings_pct, 4),
+            "step_reduction_pct": round(self.step_reduction_pct, 4),
+            "verdict": self.verdict,
+            "created_at": self.created_at,
+            "manifest": self.manifest.to_dict() if self.manifest else None,
+        }
+
+
 @runtime_checkable
 class AgentExecutor(Protocol):
     """Protocol for business-layer agent execution.

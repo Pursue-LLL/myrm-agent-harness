@@ -139,6 +139,22 @@ class AggregatedVerificationResult:
         return sum(1 for r in self.per_criterion if not r.passed)
 
     @property
+    def reason(self) -> str | None:
+        """First failure reason or summary."""
+        for r in self.per_criterion:
+            if not r.passed and r.reason:
+                return r.reason
+        return None
+
+    @property
+    def error_logs(self) -> str | None:
+        """Combined error logs from failed criteria."""
+        logs = [
+            r.error_logs for r in self.per_criterion if not r.passed and r.error_logs
+        ]
+        return "\n".join(logs) if logs else None
+
+    @property
     def all_comments(self) -> list[ReviewComment]:
         """Flatten all review comments across criteria."""
         out: list[ReviewComment] = []

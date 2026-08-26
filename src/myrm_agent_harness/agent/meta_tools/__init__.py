@@ -52,7 +52,11 @@ from .file_ops import (
     create_file_read_tool,
     create_file_write_tool,
 )
-from .file_search import create_glob_tool, create_grep_tool
+from .file_search import (
+    create_ast_symbol_search_tool,
+    create_glob_tool,
+    create_grep_tool,
+)
 from .skills.manage import create_skill_manage_tool
 from .skills.market import create_skill_market_tool
 from .skills.select import create_select_skill_tool
@@ -236,6 +240,7 @@ __all__ = [
     "SKILL_INLINE_THRESHOLD",
     "SKILL_SELECT_INLINE_MAX",
     "FileAccessMode",
+    "create_ast_symbol_search_tool",
     "create_bash_code_execute_tool",
     "create_bash_process_tool",
     "create_delegate_task_tool",

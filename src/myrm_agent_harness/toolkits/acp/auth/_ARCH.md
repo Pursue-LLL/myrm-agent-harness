@@ -11,7 +11,7 @@ business layer drives GUI/SaaS login, status badges, and credential persistence.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Public surface of the ACP auth subsystem. | ✅ |
-| _profiles.py | Internal | Per-backend auth profiles: credential paths, login command, strategy, api-key env. | ✅ |
+| _profiles.py | Internal | Per-backend auth profiles: credential paths, login command, strategy, api-key env, and sandbox non-interactive flags. | ✅ |
 | credential_store.py | Core | Detect / import / clear subscription credentials (atomic, owner-only writes). | ✅ |
 | login_session.py | Core | Drive `<cli> login` and stream structured AuthEvents (URL/code → SUCCESS/ERROR). | ✅ |
 

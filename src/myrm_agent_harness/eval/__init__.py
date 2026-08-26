@@ -49,6 +49,8 @@ from .protocols import (
     RetrievalAssertion,
     SandboxAssertion,
     SemanticAssertion,
+    SkillABArmMetrics,
+    SkillABReportData,
     StateAssertion,
 )
 from .reporters import JsonlReporter, MarkdownReporter
@@ -83,6 +85,8 @@ __all__ = [
     "RetrievalAssertion",
     "SandboxAssertion",
     "SemanticAssertion",
+    "SkillABArmMetrics",
+    "SkillABReportData",
     "StateAssertion",
     "ToolAssertion",
     "build_skill_eval_cases",

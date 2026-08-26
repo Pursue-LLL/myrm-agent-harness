@@ -140,15 +140,12 @@ class TestSnapshotStore:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             await store.persist_to_disk(tmpdir, "s1", "m1")
-            target = Path(tmpdir) / ".myrm/snapshots/s1/m1.json"
-            data = json.loads(target.read_text("utf-8"))
-            assert data[0]["skip_reason"] == "file_too_large"
-            assert data[0]["original_content"] is None
-
             result = await SnapshotStore.load_from_disk(tmpdir, "s1")
+            assert len(result) == 1
             _, snaps = result[0]
             assert snaps[0].skip_reason == SnapshotSkipReason.FILE_TOO_LARGE
             assert snaps[0].revertible is False
+            assert snaps[0].original_content is None
 
     @pytest.mark.asyncio
     async def test_merge_skipped_from_disk(self):
@@ -174,10 +171,11 @@ class TestSnapshotStore:
             await store.persist_to_disk(tmpdir, "s1", "m1")
             target = Path(tmpdir) / ".myrm/snapshots/s1/m1.json"
             assert target.is_file()
-            data = json.loads(target.read_text("utf-8"))
-            assert len(data) == 1
-            assert data[0]["path"] == "/a.py"
-            assert data[0]["original_content"] == "content"
+            result = await SnapshotStore.load_from_disk(tmpdir, "s1")
+            assert len(result) == 1
+            _, snaps = result[0]
+            assert snaps[0].path == "/a.py"
+            assert snaps[0].original_content == "content"
 
     @pytest.mark.asyncio
     async def test_load_from_disk(self):

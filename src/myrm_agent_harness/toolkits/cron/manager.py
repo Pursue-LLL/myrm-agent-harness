@@ -487,6 +487,12 @@ class CronManager:
             job.acceptance_criteria = ()
         elif patch.acceptance_criteria is not None:
             job.acceptance_criteria = patch.acceptance_criteria
+        if patch.consecutive_failures is not None:
+            job.consecutive_failures = patch.consecutive_failures
+        if patch.clear_last_error:
+            job.last_error = None
+        elif patch.last_error is not None:
+            job.last_error = patch.last_error
         job.updated_at = now
 
         if reset_reason:

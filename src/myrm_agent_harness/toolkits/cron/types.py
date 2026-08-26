@@ -302,6 +302,9 @@ class CronJobPatch:
     clear_triggers: bool = False
     acceptance_criteria: tuple[dict[str, object], ...] | None = None
     clear_acceptance_criteria: bool = False
+    consecutive_failures: int | None = None
+    last_error: str | None = None
+    clear_last_error: bool = False
 
 
 class DeliveryStatus(StrEnum):

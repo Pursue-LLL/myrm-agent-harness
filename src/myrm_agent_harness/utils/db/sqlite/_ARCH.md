@@ -10,7 +10,7 @@
 |------|------|------|-------|
 | `__init__.py` | 门面 | 对外导出 Profile 预设、连接硬化、完整性原语与 SchemaGate | ✅ |
 | `profile.py` | 配置 | 冻结的 `SQLiteProfile` PRAGMA 规格与五档预设（`DEFAULT`/`DURABLE`/`SENSITIVE`/`CACHE`/`READONLY`） | ✅ |
-| `integrity.py` | 叶子 | 文件级守卫与崩溃恢复：header magic 校验、`page_count` 截断不变量、孤儿 WAL 清理、有界 `quick_check_sync`、WAL `checkpoint_truncate`、`prepare_database_file` | ✅ |
+| `integrity.py` | 叶子 | 文件级守卫与崩溃恢复：header magic 校验、`page_count` 截断不变量、孤儿 WAL 清理、有界 `quick_check_sync`、WAL `checkpoint_truncate`、`incremental_vacuum`、`prepare_database_file` | ✅ |
 | `schema_gate.py` | 叶子 | 存储能力契约 `StorageCapabilities` 与 Fail-Closed 启动门禁：`PRAGMA user_version` 防降级破坏、结构完整性校验 | ✅ |
 | `hardening.py` | 核心 | `harden_connection_sync/async`（应用 Profile 与可选能力门禁，返回 journal 模式）、`connect_async` 上下文管理器、`should_fallback_to_delete`（WAL→DELETE 降级的唯一决策真源） | ✅ |
 

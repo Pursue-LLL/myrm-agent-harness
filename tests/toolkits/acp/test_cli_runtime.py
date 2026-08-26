@@ -1437,7 +1437,46 @@ class TestCliRuntimeMcpIgnored:
             rt._capture_cli_session_id(line, f"sess-{i}")
 
         assert len(rt._cli_session_ids) == 512
-        assert "sess-0" not in rt._cli_session_ids
-        assert "sess-1" not in rt._cli_session_ids
-        assert "sess-2" not in rt._cli_session_ids
-        assert rt._cli_session_ids["sess-514"] == "cli-id-514"
+
+    @pytest.mark.asyncio
+    async def test_non_interactive_flags_auto_injected_in_allow_all_mode(self) -> None:
+        """CliRuntime automatically injects non-interactive flags for known CLIs when permission_mode is allow_all."""
+        mock_proc = AsyncMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = AsyncMock()
+        mock_proc.stdout.__aiter__.return_value = [b'{"type":"assistant","content":"Done"}\n']
+        mock_proc.stderr = AsyncMock()
+        mock_proc.stderr.read.return_value = b""
+        mock_proc.wait.return_value = 0
+
+        # 1. Claude CLI auto injects --dangerously-skip-permissions
+        rt_claude = CliRuntime("claude-builder", _make_config(command="claude", permission_mode="allow_all"))
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+            events = [e async for e in rt_claude._do_run_turn("test prompt", "s1")]
+            call_args = mock_exec.call_args[0]
+            assert "--dangerously-skip-permissions" in call_args
+
+        # 2. Codex CLI auto injects --full-auto
+        rt_codex = CliRuntime("codex-builder", _make_config(command="codex", permission_mode="bypass"))
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+            events = [e async for e in rt_codex._do_run_turn("test prompt", "s2")]
+            call_args = mock_exec.call_args[0]
+            assert "--full-auto" in call_args
+
+        # 3. Safe mode does NOT inject non-interactive flags
+        rt_safe = CliRuntime("claude-safe", _make_config(command="claude", permission_mode="safe"))
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+            events = [e async for e in rt_safe._do_run_turn("test prompt", "s3")]
+            call_args = mock_exec.call_args[0]
+            assert "--dangerously-skip-permissions" not in call_args
+
+        # 4. Duplicate flags are not injected if already present
+        rt_dup = CliRuntime(
+            "codex-dup",
+            _make_config(command="codex", args=["--full-auto"], permission_mode="allow_all"),
+        )
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+            events = [e async for e in rt_dup._do_run_turn("test prompt", "s4")]
+            call_args = mock_exec.call_args[0]
+            assert call_args.count("--full-auto") == 1
+

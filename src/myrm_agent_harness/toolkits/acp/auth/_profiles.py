@@ -53,6 +53,7 @@ class AuthProfile:
     logout_args: tuple[str, ...] | None
     needs_code_input: bool  # whether login expects the user to paste a code back via stdin
     api_key_env: tuple[str, ...]  # provider key env names used in api_key mode
+    non_interactive_flags: tuple[str, ...] = ()  # CLI flags to bypass prompts in auto/sandbox mode
 
     def resolve_home(self, env: Mapping[str, str]) -> Path:
         """Resolve the CLI home directory, honouring an override env var if set."""
@@ -88,6 +89,7 @@ _PROFILES: dict[str, AuthProfile] = {
         logout_args=("logout",),
         needs_code_input=False,
         api_key_env=("OPENAI_API_KEY",),
+        non_interactive_flags=("--full-auto",),
     ),
     "claude": AuthProfile(
         backend="claude",
@@ -99,6 +101,7 @@ _PROFILES: dict[str, AuthProfile] = {
         logout_args=None,
         needs_code_input=True,
         api_key_env=("ANTHROPIC_API_KEY",),
+        non_interactive_flags=("--dangerously-skip-permissions",),
     ),
     "gemini": AuthProfile(
         backend="gemini",
@@ -110,6 +113,7 @@ _PROFILES: dict[str, AuthProfile] = {
         logout_args=None,
         needs_code_input=False,
         api_key_env=("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+        non_interactive_flags=("-y",),
     ),
     "qwen": AuthProfile(
         backend="qwen",
@@ -121,6 +125,7 @@ _PROFILES: dict[str, AuthProfile] = {
         logout_args=None,
         needs_code_input=False,
         api_key_env=("DASHSCOPE_API_KEY", "QWEN_API_KEY"),
+        non_interactive_flags=("-y",),
     ),
 }
 

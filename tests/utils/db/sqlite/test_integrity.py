@@ -16,6 +16,8 @@ from myrm_agent_harness.utils.db.sqlite import (
     checkpoint_truncate_sync,
     cleanup_orphan_wal,
     harden_connection_sync,
+    incremental_vacuum_async,
+    incremental_vacuum_sync,
     on_disk_journal_mode_is_wal,
     prepare_database_file,
     quick_check_sync,
@@ -233,3 +235,70 @@ async def test_checkpoint_truncate_async_swallows_errors() -> None:
             raise sqlite3.OperationalError("boom")
 
     await checkpoint_truncate_async(_Conn())  # type: ignore[arg-type]
+
+
+# ── incremental vacuum helpers ────────────────────────────────────────
+
+
+def test_incremental_vacuum_sync_healthy(tmp_path: Path) -> None:
+    p = tmp_path / "vac.db"
+    conn = sqlite3.connect(str(p))
+    conn.execute("PRAGMA auto_vacuum = INCREMENTAL")
+    conn.execute("CREATE TABLE t(x TEXT)")
+    conn.executemany("INSERT INTO t VALUES (?)", [(f"val-{i}",) for i in range(500)])
+    conn.commit()
+    conn.execute("DELETE FROM t WHERE 1=1")
+    conn.commit()
+    incremental_vacuum_sync(conn, pages=50)
+    incremental_vacuum_sync(conn, pages=0)  # boundary check
+    conn.close()
+
+
+def test_incremental_vacuum_sync_swallows_errors() -> None:
+    class _Conn:
+        def execute(self, _sql):
+            raise sqlite3.OperationalError("vacuum failed")
+
+    incremental_vacuum_sync(_Conn(), pages=10)  # type: ignore[arg-type]  # best effort, no raise
+
+
+async def test_incremental_vacuum_async_healthy(tmp_path: Path) -> None:
+    import aiosqlite
+
+    p = tmp_path / "vaca.db"
+    conn = sqlite3.connect(str(p))
+    conn.execute("PRAGMA auto_vacuum = INCREMENTAL")
+    conn.execute("CREATE TABLE t(x TEXT)")
+    conn.executemany("INSERT INTO t VALUES (?)", [(f"val-{i}",) for i in range(500)])
+    conn.commit()
+    conn.execute("DELETE FROM t WHERE 1=1")
+    conn.commit()
+    conn.close()
+
+    async with aiosqlite.connect(str(p)) as db:
+        await incremental_vacuum_async(db, pages=50)
+        await incremental_vacuum_async(db, pages=-1)  # boundary check
+
+
+async def test_incremental_vacuum_async_swallows_errors() -> None:
+    class _Conn:
+        async def execute(self, _sql):
+            raise sqlite3.OperationalError("boom")
+
+    await incremental_vacuum_async(_Conn(), pages=10)  # type: ignore[arg-type]
+
+
+def test_on_disk_journal_mode_oserror(tmp_path: Path, monkeypatch) -> None:
+    p = tmp_path / "oserr.db"
+    p.write_bytes(b"SQLite format 3\x00" + b"\x00" * 30)
+    monkeypatch.setattr(Path, "open", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk error")))
+    assert not on_disk_journal_mode_is_wal(p)
+
+
+def test_validate_sqlite_header_oserror(tmp_path: Path, monkeypatch) -> None:
+    p = tmp_path / "oserr2.db"
+    p.write_bytes(b"SQLite format 3\x00" + b"\x00" * 30)
+    monkeypatch.setattr(Path, "open", lambda *args, **kwargs: (_ for _ in ()).throw(OSError("disk error")))
+    validate_sqlite_header(p)  # no raise on OSError
+
+

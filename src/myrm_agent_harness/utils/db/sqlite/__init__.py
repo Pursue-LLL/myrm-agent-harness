@@ -10,7 +10,7 @@ per-connection PRAGMA blocks.
 [OUTPUT]
 - SQLiteProfile + presets (DEFAULT/DURABLE/SENSITIVE/CACHE/READONLY)
 - harden_connection_sync / harden_connection_async
-- prepare_database_file + integrity guards + WAL checkpoint helpers
+- prepare_database_file + integrity guards + WAL checkpoint helpers + incremental_vacuum
 - SQLiteIntegrityError
 
 [POS]
@@ -31,6 +31,8 @@ from .integrity import (
     checkpoint_truncate_async,
     checkpoint_truncate_sync,
     cleanup_orphan_wal,
+    incremental_vacuum_async,
+    incremental_vacuum_sync,
     on_disk_journal_mode_is_wal,
     prepare_database_file,
     quick_check_sync,
@@ -67,6 +69,8 @@ __all__ = [
     "connect_async",
     "harden_connection_async",
     "harden_connection_sync",
+    "incremental_vacuum_async",
+    "incremental_vacuum_sync",
     "on_disk_journal_mode_is_wal",
     "prepare_database_file",
     "quick_check_sync",

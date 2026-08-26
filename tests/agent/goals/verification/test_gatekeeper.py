@@ -1,7 +1,9 @@
 import pytest
 
 from myrm_agent_harness.agent.goals.verification.base import VerificationResult
-from myrm_agent_harness.agent.goals.verification.gatekeeper import VerificationGatekeeper
+from myrm_agent_harness.agent.goals.verification.gatekeeper import (
+    VerificationGatekeeper,
+)
 
 
 class MockCriterion:
@@ -40,8 +42,12 @@ async def test_verify_all_fail_all():
     gatekeeper = VerificationGatekeeper([])
     gatekeeper.criteria = [
         MockCriterion(passed=True, label="ok"),
-        MockCriterion(passed=False, reason="Reason 1", error_logs="Logs 1", label="fail-1"),
-        MockCriterion(passed=False, reason="Reason 2", error_logs="Logs 2", label="fail-2"),
+        MockCriterion(
+            passed=False, reason="Reason 1", error_logs="Logs 1", label="fail-1"
+        ),
+        MockCriterion(
+            passed=False, reason="Reason 2", error_logs="Logs 2", label="fail-2"
+        ),
     ]
 
     result = await gatekeeper.verify_all()
@@ -57,12 +63,17 @@ async def test_verify_all_fail_all():
     assert len(serialized) == 3
     assert serialized[1]["label"] == "fail-1"
     assert serialized[1]["passed"] is False
+    assert result.reason == "Reason 1"
+    assert "Logs 1" in (result.error_logs or "")
 
 
 @pytest.mark.asyncio
 async def test_gatekeeper_registry():
     # Test initialization from config
-    configs = [{"type": "shell", "command": "echo 1"}, {"type": "semantic", "criteria": "test criteria"}]
+    configs = [
+        {"type": "shell", "command": "echo 1"},
+        {"type": "semantic", "criteria": "test criteria"},
+    ]
     gatekeeper = VerificationGatekeeper(configs)
     assert len(gatekeeper.criteria) == 2
     assert type(gatekeeper.criteria[0]).__name__ == "ShellCriterion"
