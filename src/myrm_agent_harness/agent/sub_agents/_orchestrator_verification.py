@@ -20,12 +20,13 @@ Adversarial verification orchestration — Worker -> Verifier -> Retry loop with
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
 from collections.abc import Callable
 from dataclasses import fields
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from langchain_core.tools import BaseTool
 
@@ -143,6 +144,7 @@ async def run_with_verification(
     verifier_task_template: str = "",
     cancel_token: CancellationToken | None = None,
     task_id: str | None = None,
+    verification_mode: Literal["adversarial", "auditor_blind", "multi_skeptic"] = "adversarial",
 ) -> SubAgentResult:
     """Execute a worker then verify via an adversarial verifier, retrying on failure.
 
@@ -185,11 +187,12 @@ async def run_with_verification(
             worker_internal = True
 
         logger.info(
-            "[verification] Round %d/%d — spawning worker '%s'%s",
+            "[verification] Round %d/%d — spawning worker '%s'%s [mode=%s]",
             round_num,
             max_rounds,
             worker_type,
             " (internal)" if worker_internal else "",
+            verification_mode,
         )
 
         pre_snapshot: dict[str, tuple[float, int]] = {}
@@ -229,22 +232,102 @@ async def run_with_verification(
             )
             break
 
-        verdict = await _execute_verifier_round(
-            manager,
-            worker_output=_format_worker_output_for_verifier(worker_result.result),
-            worker_type=worker_type,
-            verifier_type=verifier_type,
-            verifier_config=verifier_config,
-            context=context,
-            tool_registry_getter=tool_registry_getter,
-            round_num=round_num,
-            max_rounds=max_rounds,
-            verifier_task_template=verifier_task_template,
-            pre_snapshot=pre_snapshot,
-            cancel_token=cancel_token,
-        )
+        if verification_mode == "multi_skeptic":
+            skeptic_perspectives = [
+                ("Contract & Core Logic", "Verify core logic, inputs, outputs, and requirements strictly."),
+                ("Edge Cases & Boundaries", "Test boundary conditions, empty/malformed inputs, timeout, and exceptions."),
+                ("Side Effects & Integrity", "Verify that no unintended side-effects, regression, or security gaps exist."),
+            ]
+
+            async def _run_single_skeptic(p_title: str, p_rule: str) -> VerificationVerdict | None:
+                skeptic_template = (
+                    f"### Skeptic Focus: {p_title}\n{p_rule}\n\n{verifier_task_template}"
+                    if verifier_task_template
+                    else f"### Skeptic Focus: {p_title}\n{p_rule}"
+                )
+                return await _execute_verifier_round(
+                    manager,
+                    worker_output=_format_worker_output_for_verifier(worker_result.result),
+                    worker_type=worker_type,
+                    verifier_type=verifier_type,
+                    verifier_config=verifier_config,
+                    context=context,
+                    tool_registry_getter=tool_registry_getter,
+                    round_num=round_num,
+                    max_rounds=max_rounds,
+                    verifier_task_template=skeptic_template,
+                    pre_snapshot=pre_snapshot,
+                    cancel_token=cancel_token,
+                    auditor_blind=True,
+                )
+
+            skeptic_results = await asyncio.gather(
+                *[_run_single_skeptic(t, r) for (t, r) in skeptic_perspectives],
+                return_exceptions=True,
+            )
+            valid_verdicts: list[VerificationVerdict] = []
+            for res in skeptic_results:
+                if isinstance(res, VerificationVerdict):
+                    valid_verdicts.append(res)
+                elif isinstance(res, Exception):
+                    logger.error("[verification] Skeptic execution raised exception: %s", res)
+
+            if not valid_verdicts:
+                logger.warning("[verification] All skeptics crashed; fail-closed blocked.")
+                last_worker_result.status = SubAgentStatus.BLOCKED
+                last_worker_result.error = "Multi-skeptic verifiers crashed unexpectedly (Fail-Closed blocked)."
+                _sync_business_result(business_result, last_worker_result, task_id)
+                return last_worker_result
+
+            pass_count = sum(1 for v in valid_verdicts if v.passed)
+            majority_passed = pass_count >= 2
+            confidence = "HIGH" if pass_count == 3 else ("MEDIUM" if pass_count == 2 else "LOW")
+            all_findings: list[dict[str, str]] = []
+            for v in valid_verdicts:
+                all_findings.extend(v.findings)
+
+            combined_summary = (
+                f"Multi-Skeptic Voting: {pass_count}/{len(valid_verdicts)} approved "
+                f"(majority={'PASS' if majority_passed else 'FAIL'}). "
+                + "; ".join(v.summary for v in valid_verdicts if v.summary)
+            )
+            combined_raw = "\n---\n".join(v.raw for v in valid_verdicts if v.raw)
+            verdict = VerificationVerdict(
+                passed=majority_passed,
+                confidence=confidence,
+                summary=combined_summary,
+                findings=all_findings,
+                raw=combined_raw,
+            )
+        else:
+            is_blind = verification_mode == "auditor_blind"
+            try:
+                verdict = await _execute_verifier_round(
+                    manager,
+                    worker_output=_format_worker_output_for_verifier(worker_result.result),
+                    worker_type=worker_type,
+                    verifier_type=verifier_type,
+                    verifier_config=verifier_config,
+                    context=context,
+                    tool_registry_getter=tool_registry_getter,
+                    round_num=round_num,
+                    max_rounds=max_rounds,
+                    verifier_task_template=verifier_task_template,
+                    pre_snapshot=pre_snapshot,
+                    cancel_token=cancel_token,
+                    auditor_blind=is_blind,
+                )
+            except Exception as exc:
+                logger.error("[verification] Verifier round crashed: %s", exc)
+                last_worker_result.status = SubAgentStatus.BLOCKED
+                last_worker_result.error = f"Verifier crashed unexpectedly: {exc}"
+                _sync_business_result(business_result, last_worker_result, task_id)
+                return last_worker_result
 
         if verdict is None:
+            logger.warning("[verification] Verifier returned None verdict; fail-closed blocked.")
+            last_worker_result.status = SubAgentStatus.BLOCKED
+            last_worker_result.error = "Verifier subagent failed to complete"
             break
 
         if verdict.passed:

@@ -9,6 +9,7 @@ human-readable diff summary for Verifier agents.
 [OUTPUT]
 - take_workspace_snapshot: Collect {relative_path: (mtime, size)} mapping.
 - diff_snapshots: Generate diff summary from two snapshots.
+- revert_workspace_mutations: Remove untracked files added to workspace during verification.
 
 [POS]
 Workspace diff for adversarial verification — stat-based, no git dependency.
@@ -86,3 +87,29 @@ def diff_snapshots(
             lines.append(f"- ... and {len(removed) - 20} more")
 
     return "\n".join(lines)
+
+
+def revert_workspace_mutations(
+    workspace: str | Path,
+    pre_snapshot: dict[str, tuple[float, int]],
+    post_snapshot: dict[str, tuple[float, int]],
+) -> list[str]:
+    """Revert mutations by removing newly added files that were created during verification.
+
+    Returns list of cleaned relative file paths.
+    """
+    root = Path(workspace)
+    if not root.is_dir():
+        return []
+    reverted: list[str] = []
+    added = sorted(post_snapshot.keys() - pre_snapshot.keys())
+    for rel in added:
+        fp = root / rel
+        try:
+            if fp.is_file() or fp.is_symlink():
+                fp.unlink(missing_ok=True)
+                reverted.append(rel)
+        except OSError:
+            pass
+    return reverted
+

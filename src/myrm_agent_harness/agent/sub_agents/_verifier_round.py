@@ -32,6 +32,7 @@ from myrm_agent_harness.agent.sub_agents._verification_parsing import (
 )
 from myrm_agent_harness.agent.sub_agents._workspace_diff import (
     diff_snapshots,
+    revert_workspace_mutations,
     take_workspace_snapshot,
 )
 from myrm_agent_harness.agent.sub_agents.types import (
@@ -94,6 +95,7 @@ async def _execute_verifier_round(
     verifier_task_template: str = "",
     pre_snapshot: dict[str, tuple[float, int]] | None = None,
     cancel_token: CancellationToken | None = None,
+    auditor_blind: bool = False,
 ) -> VerificationVerdict | None:
     """Spawn a verifier subagent for an existing worker output and return the parsed verdict."""
     from myrm_agent_harness.agent.skills.evolution.execution.executor_context import (
@@ -137,7 +139,25 @@ async def _execute_verifier_round(
             "Files modified but not reported by the worker may contain unintended side effects.\n\n"
         )
 
-    if verifier_task_template:
+    if auditor_blind and workspace_diff:
+        blind_notice = (
+            "## Verification Mode: Auditor Blind\n"
+            "Worker subjective narrative is omitted to eliminate confirmation bias. "
+            "Inspect and execute test assertions against the physical workspace changes above.\n"
+        )
+        if verifier_task_template:
+            if "{worker_result}" in verifier_task_template:
+                verifier_task_desc = base_desc + verifier_task_template.replace(
+                    "{worker_result}", blind_notice
+                )
+            else:
+                verifier_task_desc = (
+                    base_desc
+                    + f"SPECIFIC VERIFICATION CRITERIA:\n{verifier_task_template}\n\n{blind_notice}"
+                )
+        else:
+            verifier_task_desc = base_desc + blind_notice
+    elif verifier_task_template:
         if "{worker_result}" in verifier_task_template:
             verifier_task_desc = base_desc + verifier_task_template.replace("{worker_result}", worker_output)
         else:
@@ -150,15 +170,16 @@ async def _execute_verifier_round(
 
     round_verifier_config = dataclasses.replace(
         verifier_config,
-        description=f"\u72ec\u7acb\u5ba1\u67e5\u4e2d... [\u8f6e\u6b21 {round_num}/{max_rounds}]",
+        description=f"独立审查中... [轮次 {round_num}/{max_rounds}]",
         display_name=f"Adversarial Verifier ({round_num}/{max_rounds})",
     )
 
     logger.info(
-        "[verification] Round %d/%d — spawning verifier '%s'",
+        "[verification] Round %d/%d — spawning verifier '%s'%s",
         round_num,
         max_rounds,
         verifier_type,
+        " [blind]" if auditor_blind else "",
     )
 
     verifier_tool_registry_getter = _build_verifier_tool_registry_getter(tool_registry_getter, context)
@@ -172,19 +193,40 @@ async def _execute_verifier_round(
     elif not current_executor and use_readonly:
         logger.warning("[verification] No current executor found, cannot apply READ_ONLY_SANDBOX")
 
+    audit_pre_snapshot: dict[str, tuple[float, int]] = {}
+    if workspace_path and isinstance(workspace_path, str):
+        try:
+            audit_pre_snapshot = take_workspace_snapshot(workspace_path)
+        except Exception as exc:
+            logger.debug("[verification] Audit pre-snapshot failed: %s", exc)
+
     ctx_mgr = ExecutorContextManager(proxy_executor) if proxy_executor else contextlib.nullcontext()
-    with ctx_mgr:
-        verifier_result = await manager.spawn_child(
-            task_id=verifier_task_id,
-            agent_type=verifier_type,
-            task_description=verifier_task_desc,
-            config=round_verifier_config,
-            context=context,
-            tool_registry_getter=verifier_tool_registry_getter,
-            wait=True,
-            cancel_token=cancel_token,
-            internal=True,
-        )
+    try:
+        with ctx_mgr:
+            verifier_result = await manager.spawn_child(
+                task_id=verifier_task_id,
+                agent_type=verifier_type,
+                task_description=verifier_task_desc,
+                config=round_verifier_config,
+                context=context,
+                tool_registry_getter=verifier_tool_registry_getter,
+                wait=True,
+                cancel_token=cancel_token,
+                internal=True,
+            )
+    finally:
+        if audit_pre_snapshot and workspace_path and isinstance(workspace_path, str):
+            try:
+                audit_post_snapshot = take_workspace_snapshot(workspace_path)
+                reverted = revert_workspace_mutations(workspace_path, audit_pre_snapshot, audit_post_snapshot)
+                if reverted:
+                    logger.info(
+                        "[verification] Reverted %d mutation(s) created during verification: %s",
+                        len(reverted),
+                        reverted,
+                    )
+            except Exception as exc:
+                logger.warning("[verification] Mutation restore failed: %s", exc)
 
     tracked_executor = proxy_executor or current_executor
     if tracked_executor:
@@ -273,6 +315,7 @@ async def verify_worker_output(
     context: dict[str, object],
     tool_registry_getter: Callable[[], list[BaseTool]],
     verifier_task_template: str = "",
+    auditor_blind: bool = False,
 ) -> VerificationVerdict:
     """Verify an existing worker output without re-running the worker."""
     verdict = await _execute_verifier_round(
@@ -286,6 +329,7 @@ async def verify_worker_output(
         round_num=1,
         max_rounds=1,
         verifier_task_template=verifier_task_template,
+        auditor_blind=auditor_blind,
     )
     if verdict is None:
         return VerificationVerdict(

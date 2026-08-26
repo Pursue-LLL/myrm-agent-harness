@@ -176,6 +176,19 @@ class CompactionAssertion:
 
 
 @dataclass(frozen=True, slots=True)
+class PostEpisodeAssertion:
+    """Post-episode ground-truth assertion evaluated in isolation after agent finishes."""
+
+    assertion_id: str
+    assertion_type: str  # e.g. "hidden_test_suite", "sandbox_state", "canary_check", "semantic_judge"
+    command: str = ""
+    expected_output: str = ""
+    timeout_seconds: int = 300
+    is_hidden: bool = True
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class EvalCase:
     """Single eval test case."""
 
@@ -187,6 +200,8 @@ class EvalCase:
     semantic_assertions: list[SemanticAssertion] = field(default_factory=list)
     retrieval_assertions: list[RetrievalAssertion] = field(default_factory=list)
     compaction_assertions: list[CompactionAssertion] = field(default_factory=list)
+    post_episode_assertions: list[PostEpisodeAssertion] = field(default_factory=list)
+    canary_protected: bool = False
     metadata: dict[str, str] = field(default_factory=dict)
 
 
@@ -239,6 +254,9 @@ class EvalTurnResult:
     response: AgentResponse
     assertion_passed: bool | None = None
     assertion_details: str | None = None
+    post_episode_passed: bool | None = None
+    canary_verified: bool | None = None
+    post_episode_details: list[dict[str, Any]] = field(default_factory=list)
     timings: EvalTimings = field(default_factory=EvalTimings)
     error: str | None = None
     scores: dict[str, float] = field(
