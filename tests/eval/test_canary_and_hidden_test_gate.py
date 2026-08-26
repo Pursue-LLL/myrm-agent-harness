@@ -141,7 +141,7 @@ async def test_eval_runner_canary_and_post_episode_integration():
 
     result = await runner.run([case])
     assert result.total_cases == 1
-    assert result.passed_cases == 1
+    assert result.pass_count == 1
     turn_res = result.turn_results[0]
     assert turn_res.assertion_passed
     assert turn_res.canary_verified
