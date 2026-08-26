@@ -82,6 +82,14 @@ class WorkflowEventStore:
             columns = {row[1] for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()}
             if "spawn_params_json" not in columns:
                 conn.execute("ALTER TABLE subagent_events ADD COLUMN spawn_params_json TEXT NOT NULL DEFAULT ''")
+            if "identity_hash" not in columns:
+                conn.execute("ALTER TABLE subagent_events ADD COLUMN identity_hash TEXT NOT NULL DEFAULT ''")
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_subagent_events_identity_hash
+                ON subagent_events (identity_hash, created_at DESC)
+                """
+            )
 
     def get_cached_result(
         self,
@@ -89,9 +97,16 @@ class WorkflowEventStore:
         task_id: str,
         *,
         expected: SpawnCacheParams,
+        allow_identity_fallback: bool = True,
     ) -> dict[str, object] | None:
-        """Retrieve a cached result only when spawn parameters match."""
+        """Retrieve a cached result.
+
+        L1: Exact match on (workflow_id, task_id).
+        L2: If L1 misses, allow_identity_fallback is True, and expected.readonly is True,
+            falls back to querying by identity_hash across previous runs/forks.
+        """
         with self._connect() as conn:
+            # L1: Exact match on (workflow_id, task_id)
             cursor = conn.execute(
                 """
                 SELECT result_json, spawn_params_json, agent_type, task_description
@@ -101,23 +116,57 @@ class WorkflowEventStore:
                 (workflow_id, task_id),
             )
             row = cursor.fetchone()
-            if not row:
-                return None
+            if row:
+                (
+                    result_json,
+                    spawn_params_json,
+                    stored_agent_type,
+                    stored_task_description,
+                ) = row
+                if self._params_match(
+                    expected=expected,
+                    spawn_params_json=str(spawn_params_json or ""),
+                    _stored_agent_type=str(stored_agent_type),
+                    _stored_task_description=str(stored_task_description),
+                ):
+                    return cast("dict[str, object] | None", json.loads(result_json))
 
-            (
-                result_json,
-                spawn_params_json,
-                stored_agent_type,
-                stored_task_description,
-            ) = row
-            if not self._params_match(
-                expected=expected,
-                spawn_params_json=str(spawn_params_json or ""),
-                _stored_agent_type=str(stored_agent_type),
-                _stored_task_description=str(stored_task_description),
-            ):
-                return None
-            return cast("dict[str, object] | None", json.loads(result_json))
+            # L2: Identity-hash fallback across runs/forks (strictly for readonly subagents)
+            if allow_identity_fallback and expected.readonly:
+                identity_hash = expected.fingerprint()
+                cursor = conn.execute(
+                    """
+                    SELECT result_json, spawn_params_json, agent_type, task_description
+                    FROM subagent_events
+                    WHERE identity_hash = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    (identity_hash,),
+                )
+                row = cursor.fetchone()
+                if row:
+                    (
+                        result_json,
+                        spawn_params_json,
+                        stored_agent_type,
+                        stored_task_description,
+                    ) = row
+                    if self._params_match(
+                        expected=expected,
+                        spawn_params_json=str(spawn_params_json or ""),
+                        _stored_agent_type=str(stored_agent_type),
+                        _stored_task_description=str(stored_task_description),
+                    ):
+                        try:
+                            parsed = cast("dict[str, object]", json.loads(result_json))
+                            # Only reuse successful cached results
+                            if parsed.get("success") is True or (not parsed.get("error") and "result" in parsed):
+                                return parsed
+                        except Exception:
+                            pass
+
+        return None
 
     def update_stored_result(
         self,
@@ -162,14 +211,15 @@ class WorkflowEventStore:
         *,
         spawn_params: SpawnCacheParams,
     ) -> None:
-        """Save a completed sub-agent result with spawn parameter fingerprint."""
+        """Save a completed sub-agent result with spawn parameter fingerprint and identity_hash."""
         params_json = json.dumps(asdict(spawn_params), ensure_ascii=False)
+        identity_hash = spawn_params.fingerprint()
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO subagent_events
-                (workflow_id, task_id, agent_type, task_description, result_json, spawn_params_json)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (workflow_id, task_id, agent_type, task_description, result_json, spawn_params_json, identity_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     workflow_id,
@@ -178,8 +228,40 @@ class WorkflowEventStore:
                     task_description,
                     json.dumps(result),
                     params_json,
+                    identity_hash,
                 ),
             )
+
+    def append_journal_entry(
+        self,
+        journal_path: str | Path,
+        *,
+        workflow_id: str,
+        task_id: str,
+        agent_type: str,
+        task_description: str,
+        result: dict[str, object],
+        spawn_params: SpawnCacheParams,
+    ) -> None:
+        """Append a subagent execution event to workspace .workflow-journal.jsonl sidecar."""
+        try:
+            path = Path(journal_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            entry = {
+                "workflow_id": workflow_id,
+                "task_id": task_id,
+                "agent_type": agent_type,
+                "task_description": task_description,
+                "identity_hash": spawn_params.fingerprint(),
+                "readonly": spawn_params.readonly,
+                "verification_mode": spawn_params.verification_mode,
+                "success": bool(result.get("success", False)),
+                "result": result,
+            }
+            with path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
 
     def save_orchestration_script(self, workflow_id: str, script_code: str) -> None:
         """Persist generated orchestration script for approval resume."""

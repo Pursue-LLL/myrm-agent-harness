@@ -53,7 +53,7 @@ Summarization LLM → 用户可读 Markdown
 | `prompts.py` | `ORCHESTRATOR_PROMPT` / `SUMMARIZATION_PROMPT` / `_MAX_STDOUT_FOR_SUMMARY` |
 | `preflight.py` | 静态 spawn + llm_query 分析；费用预估；`WorkflowPlanReview` / `WorkflowApprovalGate` |
 | `notify_stream.py` | PTC 执行期间并发 drain notify queue |
-| `store.py` | SQLite Event Sourcing；`SpawnCacheParams` 指纹 cache + orchestration script 持久化 |
+| `store.py` | SQLite Event Sourcing；`identity_hash` 索引化跨 run/Fork 只读断点复用 + `SpawnCacheParams` 指纹 cache + 工作区 `.workflow-journal.jsonl` Sidecar 镜像 + orchestration script 持久化 |
 | `template_store.py` | 用户命名模板库 `workflow_templates`；save-from-run；pinned rerun 加载 |
 | `template_validation.py` | 模板脚本校验、占位符替换、trust_latch plan_confirm 跳过护栏 |
 | `paths.py` | `{harness_root}/.myrm/workflow_events.db` 路径 SSOT（与 background_jobs 同根） |

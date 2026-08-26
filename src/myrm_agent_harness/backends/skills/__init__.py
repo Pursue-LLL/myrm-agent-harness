@@ -83,8 +83,20 @@ from myrm_agent_harness.backends.skills.scanning_write_backend import (
 )
 from myrm_agent_harness.backends.skills.storage import StorageSkillBackend
 from myrm_agent_harness.backends.skills.types import skill_visible_for_tools
+from myrm_agent_harness.backends.skills.workflow_compiler import (
+    DesktopEvent,
+    WorkflowIntentPlan,
+    WorkflowPlanStep,
+    WorkflowSkillCompiler,
+    compile_workflow_plan_to_skill_markdown,
+)
 
 __all__ = [
+    "DesktopEvent",
+    "WorkflowIntentPlan",
+    "WorkflowPlanStep",
+    "WorkflowSkillCompiler",
+    "compile_workflow_plan_to_skill_markdown",
     "TEMPLATE_PERMISSIONS",
     "ABTestStoreProtocol",
     "CompositeSkillBackend",

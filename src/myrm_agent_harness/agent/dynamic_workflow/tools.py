@@ -32,6 +32,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from enum import StrEnum
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
 from langchain_core.tools import BaseTool
@@ -445,14 +446,30 @@ class SpawnSubagentTool(BaseTool):
             self.run_guard.record_merge_candidate(final_result)
 
         if self.store:
+            stored_result = sanitize_spawn_result_for_store(final_result)
             self.store.save_result(
                 workflow_id=self.workflow_id,
                 task_id=task_id,
                 agent_type=agent_type,
                 task_description=task_description,
-                result=sanitize_spawn_result_for_store(final_result),
+                result=stored_result,
                 spawn_params=cache_params,
             )
+            # Sidecar journal mirror (best-effort workspace snapshot)
+            ws_root = None
+            if self.parent_agent and getattr(self.parent_agent, "context", None):
+                ws_root = getattr(self.parent_agent.context, "workspace_dir", None)
+            if ws_root:
+                journal_file = Path(ws_root) / ".myrm" / ".workflow-journal.jsonl"
+                self.store.append_journal_entry(
+                    journal_file,
+                    workflow_id=self.workflow_id,
+                    task_id=task_id,
+                    agent_type=agent_type,
+                    task_description=task_description,
+                    result=stored_result,
+                    spawn_params=cache_params,
+                )
 
         if final_result.get("success"):
             await self._emit_spawn_stage(f"Sub-agent `{task_id}` completed.")
