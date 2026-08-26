@@ -112,6 +112,7 @@ class SubAgentStatus(StrEnum):
     PENDING_APPROVAL = "pending_approval"
     YIELDED = "yielded"
     INTERRUPTED = "interrupted"
+    BLOCKED = "blocked"
 
 
 @dataclass(frozen=True, slots=True)
