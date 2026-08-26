@@ -23,10 +23,10 @@ Harness framework evaluation layer - pure algorithmic & zero direct IO side effe
 
 from __future__ import annotations
 
-import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Sequence
+from enum import StrEnum
+from pathlib import Path
 
 from myrm_agent_harness.eval.canary import CANARY_GUID
 
@@ -37,14 +37,17 @@ DEFAULT_HIDDEN_TEST_PATTERNS: tuple[str, ...] = (
     "tests/verifier.py",
     "tests/scorer.py",
     "eval_tests/",
+    "hidden_tests/",
+    "hidden_eval/",
+    "eval_grader/",
     ".gold.patch",
     "golden.patch",
-    "hidden_test_",
+    "hidden_test",
     "ground_truth",
 )
 
 
-class ContaminationViolationType(str, Enum):
+class ContaminationViolationType(StrEnum):
     """Classification of anti-contamination and cheating violations."""
 
     HIDDEN_PATH_ACCESSED = "hidden_path_accessed"
@@ -94,7 +97,7 @@ class ContaminationAuditResult:
 
 
 def verify_workspace_clean_of_hidden_tests(
-    workspace_files: Sequence[str],
+    workspace: Sequence[str] | Path | str,
     hidden_patterns: Sequence[str] | None = None,
 ) -> tuple[bool, list[str]]:
     """Verify that an agent workspace is clean of hidden tests and golden assets.
@@ -105,7 +108,18 @@ def verify_workspace_clean_of_hidden_tests(
     patterns = hidden_patterns if hidden_patterns is not None else DEFAULT_HIDDEN_TEST_PATTERNS
     dirty_files: list[str] = []
 
-    for file_path in workspace_files:
+    if isinstance(workspace, (Path, str)):
+        root = Path(workspace)
+        if root.exists() and root.is_dir():
+            file_paths = [str(p.relative_to(root)) for p in root.rglob("*") if p.is_file()]
+        elif root.exists():
+            file_paths = [root.name]
+        else:
+            file_paths = []
+    else:
+        file_paths = list(workspace)
+
+    for file_path in file_paths:
         normalized = file_path.replace("\\", "/").strip()
         for pat in patterns:
             if pat.endswith("/"):
@@ -151,9 +165,18 @@ def audit_episode_trajectory_for_contamination(
     scanned_count = len(tool_call_details)
 
     for call in tool_call_details:
-        tool_name = str(call.get("name") or call.get("tool") or "")
-        arguments = call.get("args") or call.get("arguments") or call.get("input") or {}
-        arg_str = str(arguments)
+        tool_name = str(call.get("tool_name") or call.get("name") or call.get("tool") or call.get("step_key") or "")
+        arg_candidates = [
+            call.get("args"),
+            call.get("arguments"),
+            call.get("input"),
+            call.get("detail"),
+            call.get("command"),
+            call.get("path"),
+            call.get("query"),
+        ]
+        arg_parts = [str(x) for x in arg_candidates if x is not None]
+        arg_str = " ".join(arg_parts) if arg_parts else str(call)
 
         # 1. Check for canary string leaking in outbound web tools
         if tool_name in {"web_search", "web_fetch", "search", "browse", "fetch"}:

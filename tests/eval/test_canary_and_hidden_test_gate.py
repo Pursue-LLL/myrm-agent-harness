@@ -155,11 +155,15 @@ def test_verify_workspace_clean_of_hidden_tests(tmp_path):
     # 1. Clean workspace with only normal files
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "main.py").write_text("print('hello')")
-    assert verify_workspace_clean_of_hidden_tests(tmp_path)
+    is_clean, dirty = verify_workspace_clean_of_hidden_tests(tmp_path)
+    assert is_clean
+    assert len(dirty) == 0
 
     # 2. Contaminated workspace with leaked test patch
     (tmp_path / "hidden_eval.patch").write_text("diff --git a/test.py")
-    assert not verify_workspace_clean_of_hidden_tests(tmp_path)
+    is_clean_dirty, dirty_files = verify_workspace_clean_of_hidden_tests(tmp_path)
+    assert not is_clean_dirty
+    assert len(dirty_files) > 0
 
 
 def test_audit_episode_trajectory_for_contamination():
@@ -170,7 +174,7 @@ def test_audit_episode_trajectory_for_contamination():
     ]
     res_clean = audit_episode_trajectory_for_contamination(clean_trajectory)
     assert not res_clean.cheat_detected
-    assert len(res_clean.probed_hidden_paths) == 0
+    assert len(res_clean.violations) == 0
 
     # 2. Contaminated trajectory trying to peek at hidden test/grading directories
     cheat_trajectory = [
@@ -179,7 +183,7 @@ def test_audit_episode_trajectory_for_contamination():
     ]
     res_cheat = audit_episode_trajectory_for_contamination(cheat_trajectory)
     assert res_cheat.cheat_detected
-    assert len(res_cheat.probed_hidden_paths) > 0
+    assert len(res_cheat.violations) > 0
 
 
 @pytest.mark.asyncio
@@ -202,7 +206,6 @@ async def test_eval_runner_anti_contamination_trajectory_violation():
 
     case = EvalCase(
         message="Solve the task",
-        expected_output="I solved it",
     )
     result = await runner.run([case])
     assert result.total_cases == 1

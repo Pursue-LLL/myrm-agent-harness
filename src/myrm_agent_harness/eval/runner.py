@@ -21,7 +21,7 @@ import logging
 import time
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .assertions import (
     ToolAssertion,

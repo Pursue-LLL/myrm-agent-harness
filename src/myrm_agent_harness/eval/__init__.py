@@ -30,9 +30,16 @@ from .benchmarks import (
     register_benchmark,
 )
 from .builder import build_skill_eval_cases, extract_case_from_trajectory
-from .canary import CANARY_GUID, CANARY_PREAMBLE, CanaryScanResult, EvalCanaryGate, embed_canary_header, scan_dataset_canary_integrity, verify_canary_presence
+from .canary import (
+    CANARY_GUID,
+    CANARY_PREAMBLE,
+    CanaryScanResult,
+    EvalCanaryGate,
+    embed_canary_header,
+    scan_dataset_canary_integrity,
+    verify_canary_presence,
+)
 from .compaction_ab import CompactionABEvaluator, CompactionABResult
-from .compaction_assertions import evaluate_compaction_assertions
 from .contamination import (
     DEFAULT_HIDDEN_TEST_PATTERNS,
     ContaminationAuditResult,
@@ -76,13 +83,14 @@ from .reporters import JsonlReporter, MarkdownReporter
 from .runner import EvalRunner
 
 __all__ = [
+    "CANARY_GUID",
+    "CANARY_PREAMBLE",
+    "DEFAULT_HIDDEN_TEST_PATTERNS",
     "HUGGINGFACE_DOMAINS",
     "HUGGINGFACE_QUERY_MARKERS",
     "AgentExecutor",
     "AgentResponse",
     "BenchmarkSpec",
-    "CANARY_GUID",
-    "CANARY_PREAMBLE",
     "CanaryScanResult",
     "CollapsedHit",
     "CompactionABEvaluator",
@@ -92,7 +100,6 @@ __all__ = [
     "ContaminationAuditResult",
     "ContaminationViolation",
     "ContaminationViolationType",
-    "DEFAULT_HIDDEN_TEST_PATTERNS",
     "DeterminismReplayResult",
     "EvalCanaryGate",
     "EvalCase",
@@ -121,8 +128,10 @@ __all__ = [
     "audit_episode_trajectory_for_contamination",
     "build_skill_eval_cases",
     "calculate_trajectory_determinism",
+    "canonicalize_tool_name",
     "collapse_retrieval_hits",
     "embed_canary_header",
+    "evaluate_compaction_assertions",
     "evaluate_post_episode_assertions",
     "evaluate_retrieval_assertions",
     "evaluate_sandbox_assertions",
