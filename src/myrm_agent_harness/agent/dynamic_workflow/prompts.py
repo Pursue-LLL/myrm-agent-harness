@@ -24,7 +24,11 @@ It contains five functions:
 1. `myrm_tools.spawn_subagent(task_id: str, agent_type: str, task_description: str, readonly: bool = False, verification_mode: str = "none", verifier_agent_type: str | None = None, max_verification_rounds: int = 2) -> dict`
    Spawns a sub-agent that has access to tools (web search, file operations, code execution, etc.).
    Blocks until the sub-agent completes. Returns dict with keys: success, task_id, agent_type, result, error, status.
-   verification_mode: "none" (default) or "adversarial" (worker+verifier retry; result may include [Verification: PASS/FAIL]).
+   verification_mode options:
+   - "none" (default): Fast, direct sub-agent execution without verification.
+   - "adversarial": Standard worker + verifier retry loop (result includes [Verification: PASS/FAIL]).
+   - "auditor_blind": Strips worker's self-praising narrative so the verifier inspects only objective facts and diffs, with automatic workspace mutation self-healing revert.
+   - "multi_skeptic": Spawns 3 independent skeptic verifiers in parallel and applies a 2/3 majority vote with Fail-Closed protection against sandbox crashes.
 
 2. `myrm_tools.notify(message: str, progress: int = -1, step_index: int = 0, total_steps: int = 0, category: str = '', level: str = 'info') -> dict`
    Reports workflow stage progress to the user interface in real-time.

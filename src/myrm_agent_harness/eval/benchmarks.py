@@ -76,6 +76,7 @@ class BenchmarkSpec:
     supports_memory_ab: bool = True
     supports_compaction_ab: bool = True
     canary_protected: bool = False
+    canary_token: str = ""
     max_tool_calls: int = 0
     max_iterations: int = 0
     harness: str = "myrm"
@@ -93,6 +94,7 @@ class BenchmarkSpec:
             "supports_memory_ab": self.supports_memory_ab,
             "supports_compaction_ab": self.supports_compaction_ab,
             "canary_protected": self.canary_protected,
+            "canary_token": self.canary_token,
             "max_tool_calls": self.max_tool_calls,
             "max_iterations": self.max_iterations,
             "harness": self.harness,

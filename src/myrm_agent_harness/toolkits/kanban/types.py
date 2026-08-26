@@ -519,6 +519,73 @@ class VerificationResult:
     comments: list[dict[str, object]] = field(default_factory=list)
 
 
+class TaskExecutionOutcome(StrEnum):
+    """Structured outcome for TaskRunner execution."""
+
+    SUCCESS = "success"
+    BLOCKED = "blocked"
+    FAILURE = "failure"
+
+
+@dataclass(frozen=True, slots=True)
+class TaskExecutionResult:
+    """Detailed execution result returned by a TaskRunner.
+
+    Allows runners (such as goal-mode runners) to explicitly signal
+    success, intentional blockage (human review/wait/budget pause), or failure
+    without relying on boolean ambiguity or database state side-effects.
+    """
+
+    outcome: TaskExecutionOutcome
+    message: str = ""
+    block_kind: BlockKind | None = None
+    blocked_reason: str | None = None
+    scheduled_until: datetime | None = None
+    metadata_patch: dict[str, object] = field(default_factory=dict)
+
+    @property
+    def is_success(self) -> bool:
+        return self.outcome == TaskExecutionOutcome.SUCCESS
+
+    @property
+    def is_blocked(self) -> bool:
+        return self.outcome == TaskExecutionOutcome.BLOCKED
+
+    @classmethod
+    def success(cls, summary: str, metadata_patch: dict[str, object] | None = None) -> TaskExecutionResult:
+        return cls(
+            outcome=TaskExecutionOutcome.SUCCESS,
+            message=summary,
+            metadata_patch=metadata_patch or {},
+        )
+
+    @classmethod
+    def blocked(
+        cls,
+        reason: str,
+        *,
+        block_kind: BlockKind = BlockKind.HUMAN,
+        scheduled_until: datetime | None = None,
+        metadata_patch: dict[str, object] | None = None,
+    ) -> TaskExecutionResult:
+        return cls(
+            outcome=TaskExecutionOutcome.BLOCKED,
+            message=reason,
+            block_kind=block_kind,
+            blocked_reason=reason,
+            scheduled_until=scheduled_until,
+            metadata_patch=metadata_patch or {},
+        )
+
+    @classmethod
+    def failure(cls, error: str, metadata_patch: dict[str, object] | None = None) -> TaskExecutionResult:
+        return cls(
+            outcome=TaskExecutionOutcome.FAILURE,
+            message=error,
+            metadata_patch=metadata_patch or {},
+        )
+
+
 class TaskTimeoutError(Exception):
     """Raised when a task exceeds its max_runtime_seconds.
 

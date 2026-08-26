@@ -36,8 +36,10 @@ from myrm_agent_harness.toolkits.kanban.dispatcher_zombie import (
     KanbanDispatcherZombieMixin,
 )
 from myrm_agent_harness.toolkits.kanban.types import (
+    BlockKind,
     KanbanTask,
     TaskEventKind,
+    TaskExecutionResult,
     TaskRunOutcome,
     TaskStatus,
     TaskTimeoutError,
@@ -408,15 +410,42 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
         )
 
         try:
-            success, result_text = await self._runner.run(task)
+            exec_output = await self._runner.run(task)
             heartbeat_handle.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat_handle
 
-            if success:
-                await self._handle_success(task_id, result_text, run.run_id)
+            if isinstance(exec_output, TaskExecutionResult):
+                if exec_output.is_success:
+                    await self._handle_success(task_id, exec_output.message, run.run_id)
+                elif exec_output.is_blocked:
+                    await self._handle_blocked(
+                        task_id,
+                        exec_output.blocked_reason or exec_output.message,
+                        run.run_id,
+                        block_kind=exec_output.block_kind or BlockKind.HUMAN,
+                        scheduled_until=exec_output.scheduled_until,
+                        metadata_patch=exec_output.metadata_patch,
+                    )
+                else:
+                    await self._handle_failure(task_id, exec_output.message, run.run_id)
             else:
-                await self._handle_failure(task_id, result_text, run.run_id)
+                success, result_text = exec_output
+                if success:
+                    await self._handle_success(task_id, result_text, run.run_id)
+                else:
+                    # If task was already marked BLOCKED by the runner, route to blocked handler
+                    fresh_task = await self._store.get_task(task_id)
+                    if fresh_task and fresh_task.status == TaskStatus.BLOCKED:
+                        await self._handle_blocked(
+                            task_id,
+                            fresh_task.blocked_reason or result_text,
+                            run.run_id,
+                            block_kind=fresh_task.block_kind or BlockKind.HUMAN,
+                            scheduled_until=fresh_task.scheduled_until,
+                        )
+                    else:
+                        await self._handle_failure(task_id, result_text, run.run_id)
         except asyncio.CancelledError:
             heartbeat_handle.cancel()
             raise
@@ -582,6 +611,72 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
         await self._promote_dependents(task_id)
         self.wake()
         logger.info("Task %s completed", task_id[:8])
+
+    async def _handle_blocked(
+        self,
+        task_id: str,
+        reason: str,
+        run_id: str,
+        *,
+        block_kind: BlockKind = BlockKind.HUMAN,
+        scheduled_until: datetime | None = None,
+        metadata_patch: dict[str, object] | None = None,
+    ) -> None:
+        """Handle an intentional task blockage (e.g., human review, wait state, budget limit pause).
+
+        Persists the task status as BLOCKED, records a clean TaskRunOutcome.BLOCKED without
+        incrementing consecutive_failures or triggering crash/retry degradation.
+        """
+        task = await self._store.get_task(task_id)
+        if task is None:
+            return
+
+        task.status = TaskStatus.BLOCKED
+        task.blocked_reason = reason
+        task.block_kind = block_kind
+        task.scheduled_until = scheduled_until
+        task.progress_note = None
+        task.error = ""
+        # Do not increment consecutive_failures for intentional blocks
+        task.consecutive_failures = 0
+
+        if metadata_patch:
+            task.metadata = {**task.metadata, **metadata_patch}
+
+        usage = (
+            task.metadata.pop("last_token_usage", None)
+            if isinstance(task.metadata, dict)
+            else None
+        )
+        cost = (
+            task.metadata.pop("last_cost_usd", None)
+            if isinstance(task.metadata, dict)
+            else None
+        )
+        run_token_usage = usage if isinstance(usage, dict) else None
+        run_cost_usd = float(cost) if isinstance(cost, (int, float)) else None
+
+        await self._store.save_task(task)
+        await self._store.complete_run(
+            run_id,
+            TaskRunOutcome.BLOCKED,
+            error=reason,
+            token_usage=run_token_usage,
+            cost_usd=run_cost_usd,
+        )
+        await self._store.append_event(
+            task_id,
+            TaskEventKind.BLOCKED,
+            payload={
+                "reason": reason,
+                "block_kind": block_kind.value,
+                **({"scheduled_until": scheduled_until.isoformat()} if scheduled_until else {}),
+            },
+            run_id=run_id,
+        )
+        self.emit("task_blocked", task)
+        self.wake()
+        logger.info("Task %s entered intentional BLOCKED (%s): %s", task_id[:8], block_kind.value, reason[:80])
 
     # -- Dependency promotion --
 

@@ -38,6 +38,7 @@ if TYPE_CHECKING:
         TaskEdge,
         TaskEvent,
         TaskEventKind,
+        TaskExecutionResult,
         TaskRun,
         TaskRunOutcome,
         TaskStatus,
@@ -263,12 +264,14 @@ class TaskRunner(Protocol):
     SubagentManager, agent configuration, and tool injection.
     """
 
-    async def run(self, task: KanbanTask) -> tuple[bool, str]:
+    async def run(
+        self, task: KanbanTask
+    ) -> tuple[bool, str] | TaskExecutionResult:
         """Execute a task.
 
         Returns:
-            (success, result_or_error) — True + result text on success,
-            False + error message on failure.
+            Either a legacy (success, result_or_error) tuple,
+            or a structured TaskExecutionResult.
         """
         ...
 
