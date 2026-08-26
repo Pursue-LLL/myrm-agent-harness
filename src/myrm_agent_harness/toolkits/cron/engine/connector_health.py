@@ -159,7 +159,8 @@ def classify_connector_error(
     if any(k in lower for k in (
         "connection refused", "econnrefused", "name or service not known",
         "nodename nor servname", "dns", "unreachable", "network is unreachable",
-        "ssl", "certificate", "tlsv1", "handshake failure"
+        "ssl", "certificate", "tlsv1", "handshake failure", "connection reset",
+        "econnreset", "connection aborted",
     )):
         return ConnectorErrorCategory.NETWORK_UNREACHABLE, "Destination network or DNS unreachable"
 
@@ -237,6 +238,10 @@ def generate_fix_suggestion(category: ConnectorErrorCategory, status_code: int |
         if status_code == 503:
             return "Target server is overloaded or undergoing maintenance. Retry with exponential backoff."
         return "Target server encountered an internal error (5xx). Check destination server health."
+    if category == ConnectorErrorCategory.HTTP_CLIENT_ERROR:
+        if status_code == 429:
+            return "Target server rate limit exceeded (429). Check API quotas or back off frequency."
+        return "Target endpoint rejected the request payload (4xx). Verify request path and schema."
     if category == ConnectorErrorCategory.NETWORK_UNREACHABLE:
         return "Check destination host DNS resolution, firewall rules, and SSL certificate validity."
     if category == ConnectorErrorCategory.TIMEOUT:

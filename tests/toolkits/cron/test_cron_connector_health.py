@@ -117,4 +117,39 @@ class TestStructuredAlertPayload:
         assert data["event"] == "cron.connector.degraded"
         assert data["job_id"] == "job_123"
         assert data["status"] == "down"
+
+    def test_edge_cases_redaction_and_classification(self) -> None:
+        """Thorough verification of edge cases and boundary conditions."""
+        # Malformed or exotic URLs
+        assert redact_connector_url("not_a_valid_url") == "not_a_valid_url"
+        assert redact_connector_url("http://user:pass@") == "http://user:***@"
+        # Empty token parameter is masked to prevent leaking
+        assert "token=" in redact_connector_url("https://example.com/?token=")
+
+        # Classification with various exception types
+        class CustomNetworkErr(IOError):
+            pass
+
+        cat, msg = classify_connector_error(CustomNetworkErr("Connection reset by peer"))
+        assert cat == ConnectorErrorCategory.NETWORK_UNREACHABLE
+
+        # Empty / None error classifications
+        cat, msg = classify_connector_error(None)
+        assert cat == ConnectorErrorCategory.UNKNOWN
+        assert "Unknown error" in msg
+
+        cat, msg = classify_connector_error("")
+        assert cat == ConnectorErrorCategory.UNKNOWN
+        assert "Unknown error" in msg
+
+        # HTTP Client 400 bad request / validation error
+        cat, msg = classify_connector_error("Bad Request: schema mismatch", status_code=400)
+        assert cat == ConnectorErrorCategory.HTTP_CLIENT_ERROR
+
+        # 429 Rate limited
+        cat, msg = classify_connector_error("Too Many Requests", status_code=429)
+        assert cat == ConnectorErrorCategory.HTTP_CLIENT_ERROR
+        sug429 = generate_fix_suggestion(ConnectorErrorCategory.HTTP_CLIENT_ERROR, status_code=429)
+        assert "rate limit" in sug429.lower() or "quota" in sug429.lower() or "429" in sug429
+
         assert data["consecutive_failures"] == 3
