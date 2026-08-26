@@ -28,6 +28,10 @@ from myrm_agent_harness.core.security.guards.ssrf import (
     SSRFSecurityError,
     async_pin_url,
 )
+from myrm_agent_harness.core.security.http.redirect_guard import (
+    InsecureRedirectSecurityError,
+    strip_sensitive_headers_on_redirect,
+)
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 logger = logging.getLogger(__name__)
@@ -180,6 +184,12 @@ async def resolve_secure_http_target(
                 )
 
             logical_url, current_method = redirected
+            request_headers = strip_sensitive_headers_on_redirect(
+                from_url=url if redirect_count == 0 else logical_url,
+                to_url=logical_url,
+                headers=request_headers,
+                tool_name="secure_http_target_resolution",
+            )
             redirect_count += 1
             if redirect_count > max_redirects:
                 raise SSRFSecurityError(f"Too many redirects (limit: {max_redirects}) for {url}")
@@ -254,8 +264,15 @@ async def secure_request(
             break
 
         await response.aclose()
+        prev_url = logical_url
         response = None
         logical_url, current_method = redirected
+        request_headers = strip_sensitive_headers_on_redirect(
+            from_url=prev_url,
+            to_url=logical_url,
+            headers=request_headers,
+            tool_name="secure_http_request",
+        )
         redirect_count += 1
         if redirect_count > max_redirects:
             raise SSRFSecurityError(f"Too many redirects (limit: {max_redirects}) for {url}")

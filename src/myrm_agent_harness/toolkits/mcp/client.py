@@ -28,6 +28,10 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
+from myrm_agent_harness.core.security.http.redirect_guard import (
+    create_mcp_redirect_guard_event_hooks,
+)
+
 if TYPE_CHECKING:
     import httpx2
     from mcp import StdioServerParameters
@@ -234,12 +238,16 @@ class MCPClientManager:
             timeout: httpx2.Timeout | None = None,
             auth: httpx2.Auth | None = None,
         ) -> httpx2.AsyncClient:
+            event_hooks = None
+            if server_config.url:
+                event_hooks = create_mcp_redirect_guard_event_hooks(str(server_config.url))
             return httpx2.AsyncClient(
                 headers=headers,
                 timeout=timeout,
                 auth=auth,
                 verify=ssl_context,
                 follow_redirects=True,
+                event_hooks=event_hooks,
             )
 
         logger.info(
@@ -258,20 +266,27 @@ class MCPClientManager:
     @staticmethod
     def build_streamable_http_client(
         headers: dict[str, str],
+        *,
+        url: str | None = None,
     ) -> httpx2.AsyncClient:
         """Build a shared ``httpx2.AsyncClient`` for streamable HTTP transports.
 
         Single construction point for the MCP streamable-HTTP transport client
-        (auth headers + MCP-appropriate timeouts + redirect following). The
-        caller owns the returned client and must close it when the session or
+        (auth headers + MCP-appropriate timeouts + redirect following + redirect security guard).
+        The caller owns the returned client and must close it when the session or
         one-shot enumeration ends.
         """
         import httpx2
+
+        event_hooks = None
+        if url:
+            event_hooks = create_mcp_redirect_guard_event_hooks(url)
 
         return httpx2.AsyncClient(
             headers=headers,
             timeout=httpx2.Timeout(30.0, read=300.0),
             follow_redirects=True,
+            event_hooks=event_hooks,
         )
 
     @staticmethod

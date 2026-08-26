@@ -167,6 +167,7 @@ async def test_start_background_queue(clean_integration):
     try:
         integration.queue = MagicMock()
         integration.queue.start = AsyncMock()
+        integration.queue.stop = AsyncMock()
         integration.queue.set_evolution_handler = MagicMock()
         integration.engine = MagicMock()  # Queue won't start without engine
 
@@ -200,8 +201,10 @@ async def test_get_stats(clean_integration):
         integration.metrics_tracker = MagicMock()
         integration.metrics_tracker.get_report = MagicMock(return_value={"test": "metric"})
         integration.queue = MagicMock()
+        integration.queue.stop = AsyncMock()
         integration.queue.get_stats = MagicMock(return_value={"test": "queue"})
         integration.embedding_cache = MagicMock()
+        integration.embedding_cache.close = MagicMock()
         integration.embedding_cache.get_stats = MagicMock(return_value={"test": "cache"})
 
         stats = integration.get_stats()
@@ -231,11 +234,12 @@ async def test_evolve_skill_screener_blocks(clean_integration):
         await integration.close()
 
 
-def test_enable_skill_evolution(clean_integration):
+@pytest.mark.asyncio
+async def test_enable_skill_evolution(clean_integration):
     with patch("myrm_agent_harness.agent.skills.evolution.infra.integration.SkillEvolutionEngine"):
         integration = enable_skill_evolution(db_path=":memory:", enable_background_queue=True)
         try:
             assert isinstance(integration, EvolutionIntegration)
             assert integration.queue is not None
         finally:
-            integration.close()
+            await integration.close()

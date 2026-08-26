@@ -187,8 +187,14 @@ class MCPSessionActor:
         # Idle keepalive only matters for remote transports that sit behind LBs /
         # NAT; a local stdio pipe never idle-disconnects (interval 0 = disabled).
         transport = str(connection.get("transport", "")).lower()
-        remote_keepalive = float(keepalive_interval) if keepalive_interval is not None else _KEEPALIVE_INTERVAL
-        self._keepalive_interval = remote_keepalive if transport in _KEEPALIVE_TRANSPORTS else 0.0
+        remote_keepalive = (
+            float(keepalive_interval)
+            if keepalive_interval is not None
+            else _KEEPALIVE_INTERVAL
+        )
+        self._keepalive_interval = (
+            remote_keepalive if transport in _KEEPALIVE_TRANSPORTS else 0.0
+        )
 
         self._queue: asyncio.Queue[_ToolCall | object] = asyncio.Queue()
         self._task: asyncio.Task[None] | None = None
@@ -236,7 +242,9 @@ class MCPSessionActor:
         fresh token instead of replaying stale credentials.
         """
         raw_headers = self._connection.get("headers")
-        existing: dict[str, str] = dict(raw_headers) if isinstance(raw_headers, dict) else {}
+        existing: dict[str, str] = (
+            dict(raw_headers) if isinstance(raw_headers, dict) else {}
+        )
         existing.update(new_headers)
         self._connection["headers"] = cast(dict[str, object], existing)
 
@@ -247,23 +255,34 @@ class MCPSessionActor:
         keep queueing and are served once the session is back, rather than being
         rejected for a transient gap.
         """
-        return not self._closed and self._start_error is None and self._task is not None and not self._task.done()
+        return (
+            not self._closed
+            and self._start_error is None
+            and self._task is not None
+            and not self._task.done()
+        )
 
     async def start(self) -> None:
         """Open the session and block until tools are ready (or fail loudly)."""
         if self._task is not None:
             return
-        self._task = asyncio.create_task(self._run(), name=f"mcp-actor-{self.server_name}")
+        self._task = asyncio.create_task(
+            self._run(), name=f"mcp-actor-{self.server_name}"
+        )
         # Guarantee no caller is left awaiting a future forever: whenever the
         # owner task ends (reconnect exhausted, crash, cancellation), every
         # still-queued call is failed deterministically.
         self._task.add_done_callback(self._on_owner_done)
-        budget = (self._connect_timeout + _SESSION_START_RETRY_BACKOFF) * _SESSION_START_MAX_ATTEMPTS + 5.0
+        budget = (
+            self._connect_timeout + _SESSION_START_RETRY_BACKOFF
+        ) * _SESSION_START_MAX_ATTEMPTS + 5.0
         try:
             await asyncio.wait_for(self._ready.wait(), timeout=budget)
         except TimeoutError as exc:
             await self.close()
-            raise RuntimeError(f"MCP server '{self.server_name}' did not become ready within {budget:.0f}s") from exc
+            raise RuntimeError(
+                f"MCP server '{self.server_name}' did not become ready within {budget:.0f}s"
+            ) from exc
         if self._start_error is not None:
             await self.close()
             raise self._start_error
@@ -271,7 +290,9 @@ class MCPSessionActor:
     async def call(self, tool_name: str, params: dict[str, object]) -> object:
         """Submit a tool call to the warm session and await its result."""
         if not self.is_healthy():
-            raise RuntimeError(f"MCP session for '{self.server_name}' is not healthy (closed or failed)")
+            raise RuntimeError(
+                f"MCP session for '{self.server_name}' is not healthy (closed or failed)"
+            )
         self._last_activity = time.time()
         future: asyncio.Future[object] = asyncio.get_running_loop().create_future()
         await self._queue.put(_ToolCall(tool_name, params, future))
@@ -284,7 +305,9 @@ class MCPSessionActor:
         ``_meta.ui.resourceUri`` in tool results.
         """
         if not self.is_healthy():
-            raise RuntimeError(f"MCP session for '{self.server_name}' is not healthy (closed or failed)")
+            raise RuntimeError(
+                f"MCP session for '{self.server_name}' is not healthy (closed or failed)"
+            )
         self._last_activity = time.time()
         future: asyncio.Future[object] = asyncio.get_running_loop().create_future()
         await self._queue.put(_ResourceRead(uri, future))
@@ -298,7 +321,9 @@ class MCPSessionActor:
         if self._task is not None and not self._task.done():
             await self._queue.put(_SHUTDOWN)
             try:
-                await asyncio.wait_for(asyncio.shield(self._task), timeout=_CLOSE_TIMEOUT)
+                await asyncio.wait_for(
+                    asyncio.shield(self._task), timeout=_CLOSE_TIMEOUT
+                )
             except (TimeoutError, asyncio.CancelledError):
                 self._task.cancel()
                 with contextlib.suppress(asyncio.CancelledError, Exception):
@@ -346,7 +371,10 @@ class MCPSessionActor:
                 )
                 return ElicitResult(action="decline")
 
-            message = getattr(params, "message", "") or f"MCP server '{server_name}' requests confirmation"
+            message = (
+                getattr(params, "message", "")
+                or f"MCP server '{server_name}' requests confirmation"
+            )
             schema = getattr(params, "requested_schema", None) or {}
 
             try:
@@ -405,10 +433,14 @@ class MCPSessionActor:
         if transport in ("sse", "streamable_http"):
             url = conn.get("url")
             if not url:
-                raise ValueError(f"MCP server '{self.server_name}': HTTP transport requires 'url'")
+                raise ValueError(
+                    f"MCP server '{self.server_name}': HTTP transport requires 'url'"
+                )
             url_str = str(url)
             raw_headers = conn.get("headers")
-            headers: dict[str, str] = dict(raw_headers) if isinstance(raw_headers, dict) else {}
+            headers: dict[str, str] = (
+                dict(raw_headers) if isinstance(raw_headers, dict) else {}
+            )
             if transport == "sse":
                 from mcp.client.sse import sse_client
 
@@ -416,7 +448,7 @@ class MCPSessionActor:
             if headers:
                 from .client import MCPClientManager
 
-                http_client = MCPClientManager.build_streamable_http_client(headers)
+                http_client = MCPClientManager.build_streamable_http_client(headers, url=url_str)
                 self._http_client = http_client
                 from mcp.client.streamable_http import streamable_http_client
 
@@ -438,7 +470,9 @@ class MCPSessionActor:
 
         sanitized_env: dict[str, str] | None = None
         if isinstance(env, dict):
-            clean_env, _ = sanitize_mcp_env({str(k): str(v) for k, v in env.items() if v is not None})
+            clean_env, _ = sanitize_mcp_env(
+                {str(k): str(v) for k, v in env.items() if v is not None}
+            )
             sanitized_env = clean_env if clean_env else None
 
         return stdio_client(
@@ -495,7 +529,9 @@ class MCPSessionActor:
                 elicitation_cb = self._build_elicitation_callback()
                 client_kwargs: dict[str, object] = {
                     "message_handler": self._make_notification_handler(),
-                    "client_info": Implementation(name="myrm-agent", version=__version__),
+                    "client_info": Implementation(
+                        name="myrm-agent", version=__version__
+                    ),
                 }
                 if elicitation_cb is not None:
                     client_kwargs["elicitation_callback"] = elicitation_cb
@@ -594,7 +630,9 @@ class MCPSessionActor:
                 if get_task is None:
                     get_task = asyncio.ensure_future(self._queue.get())
                 if self._keepalive_interval > 0:
-                    done, _pending = await asyncio.wait({get_task}, timeout=self._keepalive_interval)
+                    done, _pending = await asyncio.wait(
+                        {get_task}, timeout=self._keepalive_interval
+                    )
                     if not done:
                         if await self._keepalive_ok(session):
                             continue
@@ -622,7 +660,9 @@ class MCPSessionActor:
                         # that is going away, then re-raise to keep cancel semantics.
                         if not item.future.done():
                             item.future.set_exception(
-                                RuntimeError(f"MCP session '{self.server_name}' closed during resource read")
+                                RuntimeError(
+                                    f"MCP session '{self.server_name}' closed during resource read"
+                                )
                             )
                         raise
                     except (
@@ -656,7 +696,11 @@ class MCPSessionActor:
                     # fail the caller's future so it never hangs on a session
                     # that is going away, then re-raise to keep cancel semantics.
                     if not item.future.done():
-                        item.future.set_exception(RuntimeError(f"MCP session '{self.server_name}' closed during call"))
+                        item.future.set_exception(
+                            RuntimeError(
+                                f"MCP session '{self.server_name}' closed during call"
+                            )
+                        )
                     raise
                 except (
                     ConnectionError,
@@ -787,7 +831,9 @@ class MCPSessionActor:
                 ToolListChangedNotification,
             )
         except ImportError:
-            logger.debug("MCP SDK notification types unavailable; dynamic tool discovery disabled")
+            logger.debug(
+                "MCP SDK notification types unavailable; dynamic tool discovery disabled"
+            )
             return None
 
         async def _handler(message: object) -> None:
@@ -811,7 +857,9 @@ class MCPSessionActor:
                         self.server_name,
                     )
             except Exception:
-                logger.exception("Error in MCP notification handler for '%s'", self.server_name)
+                logger.exception(
+                    "Error in MCP notification handler for '%s'", self.server_name
+                )
 
         return _handler
 
@@ -889,7 +937,9 @@ class MCPSessionActor:
 
     def _fail_to_start(self, detail: str) -> None:
         """Give up establishing the first session: surface a hard start error."""
-        self._start_error = RuntimeError(f"MCP server '{self.server_name}' failed to start: {detail}")
+        self._start_error = RuntimeError(
+            f"MCP server '{self.server_name}' failed to start: {detail}"
+        )
         self._ready.set()
         self._fail_pending(self._start_error)
         self._maybe_emit_auth_expired(detail)
@@ -902,7 +952,11 @@ class MCPSessionActor:
             _RECONNECT_MAX_ATTEMPTS,
             detail,
         )
-        self._fail_pending(RuntimeError(f"MCP session '{self.server_name}' reconnect exhausted: {detail}"))
+        self._fail_pending(
+            RuntimeError(
+                f"MCP session '{self.server_name}' reconnect exhausted: {detail}"
+            )
+        )
         self._maybe_emit_auth_expired(detail)
 
     def _maybe_emit_auth_expired(self, detail: str) -> None:
@@ -930,7 +984,9 @@ class MCPSessionActor:
             headers = await self._auth_provider.get_auth_headers(self.server_name, url)
             if headers:
                 raw_headers = conn.get("headers")
-                existing: dict[str, str] = dict(raw_headers) if isinstance(raw_headers, dict) else {}
+                existing: dict[str, str] = (
+                    dict(raw_headers) if isinstance(raw_headers, dict) else {}
+                )
                 existing.update(headers)
                 conn["headers"] = cast(dict[str, object], existing)
                 self._connection["headers"] = cast(dict[str, object], existing)
@@ -948,12 +1004,16 @@ class MCPSessionActor:
     @staticmethod
     def _reconnect_backoff(attempt: int) -> float:
         """Exponential backoff with a cap for the n-th reconnect attempt."""
-        return min(_RECONNECT_BACKOFF_BASE * 2.0 ** (attempt - 1), _RECONNECT_BACKOFF_CAP)
+        return min(
+            _RECONNECT_BACKOFF_BASE * 2.0 ** (attempt - 1), _RECONNECT_BACKOFF_CAP
+        )
 
     async def _invoke(self, tool_name: str, params: dict[str, object]) -> object:
         tool = self._resolve_tool(tool_name)
         if tool is None:
-            raise RuntimeError(f"MCP tool not found: {self.server_name}.{tool_name}. Available: {sorted(self._tools)}")
+            raise RuntimeError(
+                f"MCP tool not found: {self.server_name}.{tool_name}. Available: {sorted(self._tools)}"
+            )
         return await tool.ainvoke(params)
 
     async def _read_resource(self, session: object, uri: str) -> bytes:
@@ -1017,7 +1077,11 @@ class MCPSessionActor:
 
     def _on_owner_done(self, _task: asyncio.Task[None]) -> None:
         """Owner task ended for any reason — drain so no queued call hangs."""
-        self._fail_pending(RuntimeError(f"MCP session '{self.server_name}' ended before the call completed"))
+        self._fail_pending(
+            RuntimeError(
+                f"MCP session '{self.server_name}' ended before the call completed"
+            )
+        )
 
     def _fail_pending(self, error: Exception) -> None:
         while not self._queue.empty():

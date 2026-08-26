@@ -312,7 +312,8 @@ Token 明细（历史 tiktoken 计量保留）：
   ↑ 同用户会话内稳定
 ```
 
-**实测 Turn1 工具层合计**：描述 **5,513** + schema **845** = **6,358 tokens**（13 工具，`measure_turn1_token_inventory.py`，o200k_base）。
+**实测 Turn1 工具层合计**：描述 **5,513** + schema **845** = **6,358 tokens**（13 工具，`measure_turn1_token_inventory.py` / `measure_tool_schema_tokens.py`，o200k_base）。
+CI 门禁 `TestPromptTokenBudgetGate` 严格锁定：Turn-1 默认工具集 ≤ 6,500 tokens，Full 模式系统提示词 ≤ 2,000 tokens，Lean 模式 ≤ 1,200 tokens 且压缩比 ≤ 0.70。
 
 ---
 

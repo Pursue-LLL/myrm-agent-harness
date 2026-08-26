@@ -418,9 +418,9 @@ class JobExecutor:
         self,
         job: CronJob,
         result: JobResult,
-    ) -> tuple[DeliveryStatus, str | None, JobResult]:
+    ) -> tuple[DeliveryStatus, str | None]:
         if job.delivery.channel == "none":
-            return DeliveryStatus.SKIPPED, None, result
+            return DeliveryStatus.SKIPPED, None
 
         metadata = result.metadata or {}
         contract_error_kind = metadata.get("monitor_contract_error")
@@ -441,7 +441,7 @@ class JobExecutor:
                 job.id,
                 failure_count,
             )
-            return DeliveryStatus.SKIPPED, "monitor_contract_error_dedup", result
+            return DeliveryStatus.SKIPPED, "monitor_contract_error_dedup"
 
         if result.success:
             if result.exit_code == 0 and job.monitor_config and job.monitor_config.enabled:
@@ -452,21 +452,21 @@ class JobExecutor:
                     )
                 else:
                     logger.info("Job %s: exit_code=0, no new content — skipping delivery", job.id)
-                    return DeliveryStatus.SKIPPED, "no_new_content", result
+                    return DeliveryStatus.SKIPPED, "no_new_content"
 
             output_text = (result.output or "").strip()
             if not output_text:
                 logger.info("Job %s: empty output — skipping delivery", job.id)
-                return DeliveryStatus.SKIPPED, "empty_output", result
+                return DeliveryStatus.SKIPPED, "empty_output"
             if is_silent_output(output_text):
                 logger.warning("Job %s: [SILENT] response — skipping delivery", job.id)
-                return DeliveryStatus.SKIPPED, "silent_response", result
+                return DeliveryStatus.SKIPPED, "silent_response"
 
             if job.deduplicate and output_text:
                 current_hash = _output_hash(output_text)
                 if current_hash == job.last_output_hash:
                     logger.warning("Job %s: duplicate output — skipping delivery", job.id)
-                    return DeliveryStatus.SKIPPED, "duplicate_output", result
+                    return DeliveryStatus.SKIPPED, "duplicate_output"
 
         delivery_result = result
         if result.incremental_delta:
@@ -482,31 +482,14 @@ class JobExecutor:
             await self._delivery.deliver(job, delivery_result)
         except Exception as exc:
             logger.warning("Delivery failed for job %s: %s", job.id, exc)
-            category, summary = classify_connector_error(exc)
-            redacted_target = redact_connector_url(job.delivery.target) if job.delivery else ""
-
-            # Attach structured failure detail into metadata
-            failure_detail = ConnectorFailureDetail(
-                category=category,
-                target=redacted_target,
-                message=str(exc)[:500],
-            )
-            if result.metadata is None:
-                # We can't mutate frozen JobResult metadata directly, but CronRunRecord gets metadata dict
-                result = dc_replace(result, metadata={"connector_failure": failure_detail.to_dict()})
-            elif isinstance(result.metadata, dict) and "connector_failure" not in result.metadata:
-                new_meta = dict(result.metadata)
-                new_meta["connector_failure"] = failure_detail.to_dict()
-                result = dc_replace(result, metadata=new_meta)
-
-            return DeliveryStatus.FAILED, str(exc)[:500], result
+            return DeliveryStatus.FAILED, str(exc)[:500]
 
         if job.deduplicate and result.success:
             output_text = (result.output or "").strip()
             if output_text:
                 job.last_output_hash = _output_hash(output_text)
 
-        return DeliveryStatus.DELIVERED, None, result
+        return DeliveryStatus.DELIVERED, None
 
     async def _push_notification(
         self,
