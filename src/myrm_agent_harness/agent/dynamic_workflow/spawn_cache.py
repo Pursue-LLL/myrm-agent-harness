@@ -19,7 +19,7 @@ class SpawnCacheParams:
     agent_type: str
     task_description: str
     readonly: bool
-    verification_mode: Literal["none", "adversarial"]
+    verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"]
     verifier_agent_type: str | None
     max_verification_rounds: int
 

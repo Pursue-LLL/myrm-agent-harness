@@ -26,12 +26,14 @@ from typing import TYPE_CHECKING
 from .assertions import (
     ToolAssertion,
     evaluate_compaction_assertions,
+    evaluate_post_episode_assertions,
     evaluate_retrieval_assertions,
     evaluate_sandbox_assertions,
     evaluate_semantic_assertions,
     evaluate_state_assertions,
     evaluate_tool_assertions,
 )
+from .canary import EvalCanaryGate
 from .protocols import (
     AgentResponse,
     EvalCase,
@@ -240,6 +242,27 @@ class EvalRunner:
                 if comp_details:
                     details = f"{details} | {comp_details}" if details else comp_details
 
+        # Post-episode assertion evaluation in isolation
+        post_ep_passed: bool | None = None
+        post_ep_details: list[dict[str, Any]] = []
+        if getattr(case, "post_episode_assertions", None):
+            sandbox_executor = getattr(
+                self._executor, "get_sandbox_executor", lambda session_id: None
+            )(session_id=sid)
+            post_ep_passed, post_ep_details = await evaluate_post_episode_assertions(
+                case.post_episode_assertions,
+                sandbox_executor=sandbox_executor,
+            )
+            if post_ep_passed is not None:
+                passed = post_ep_passed if passed is None else (passed and post_ep_passed)
+
+        canary_ok: bool | None = None
+        if getattr(case, "canary_protected", False):
+            canary_ok = EvalCanaryGate.check_presence(case.message)
+            if canary_ok is False:
+                passed = False
+                details = f"{details} | Canary signature missing" if details else "Canary signature missing"
+
         timings = EvalTimings(
             total_ms=(time.perf_counter() - turn_start) * 1000,
             extra=response.extra_timings,
@@ -250,6 +273,9 @@ class EvalRunner:
             response=response,
             assertion_passed=passed,
             assertion_details=details,
+            post_episode_passed=post_ep_passed,
+            canary_verified=canary_ok,
+            post_episode_details=post_ep_details,
             timings=timings,
             scores=sb_scores,
         )

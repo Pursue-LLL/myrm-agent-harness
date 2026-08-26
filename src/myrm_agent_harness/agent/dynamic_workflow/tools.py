@@ -68,6 +68,8 @@ DEFAULT_MAX_CONCURRENT_SPAWNS = 5
 class DwVerificationMode(StrEnum):
     NONE = "none"
     ADVERSARIAL = "adversarial"
+    AUDITOR_BLIND = "auditor_blind"
+    MULTI_SKEPTIC = "multi_skeptic"
 
 
 class WorkflowRunGuard:
@@ -156,9 +158,9 @@ class SpawnSubagentInput(BaseModel):
         default=False,
         description="If true, sub-agent cannot write files or run bash commands. Use for analysis-only tasks.",
     )
-    verification_mode: Literal["none", "adversarial"] = Field(
+    verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = Field(
         default="none",
-        description='Verification: "none" (default) or "adversarial" (worker+verifier retry loop).',
+        description='Verification: "none" (default), "adversarial" (standard retry loop), "auditor_blind" (omits worker narrative to eliminate confirmation bias), or "multi_skeptic" (parallel multi-verifier voting).',
     )
     verifier_agent_type: str | None = Field(
         default=None,
@@ -216,7 +218,7 @@ class SpawnSubagentTool(BaseTool):
         agent_type: str,
         task_description: str,
         readonly: bool = False,
-        verification_mode: Literal["none", "adversarial"] = "none",
+        verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = "none",
         verifier_agent_type: str | None = None,
         max_verification_rounds: int = 2,
     ) -> object:
@@ -228,7 +230,7 @@ class SpawnSubagentTool(BaseTool):
         agent_type: str = "generalPurpose",
         task_description: str = "",
         readonly: bool = False,
-        verification_mode: Literal["none", "adversarial"] = "none",
+        verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"] = "none",
         verifier_agent_type: str | None = None,
         max_verification_rounds: int = 2,
     ) -> object:
@@ -327,10 +329,14 @@ class SpawnSubagentTool(BaseTool):
         config = workspace_prep.config
         child_context = workspace_prep.child_context
 
-        use_adversarial = verification_mode == DwVerificationMode.ADVERSARIAL.value
+        use_verification = verification_mode in {
+            DwVerificationMode.ADVERSARIAL.value,
+            DwVerificationMode.AUDITOR_BLIND.value,
+            DwVerificationMode.MULTI_SKEPTIC.value,
+        }
         stage_label = (
-            f"Spawning sub-agent `{task_id}` ({agent_type}) with adversarial verification..."
-            if use_adversarial
+            f"Spawning sub-agent `{task_id}` ({agent_type}) with {verification_mode} verification..."
+            if use_verification
             else f"Spawning sub-agent `{task_id}` ({agent_type})..."
         )
         await self._emit_spawn_stage(stage_label)
@@ -340,13 +346,13 @@ class SpawnSubagentTool(BaseTool):
                 with memory_isolation_scope(
                     parent_agent=self.parent_agent, config=config
                 ):
-                    if use_adversarial:
+                    if use_verification:
                         if not hasattr(self.parent_agent, "_subagent_manager"):
                             logger.warning(
-                                "DW adversarial verify unavailable (no SubagentManager); falling back to direct spawn"
+                                "DW verification unavailable (no SubagentManager); falling back to direct spawn"
                             )
                             await self._emit_spawn_stage(
-                                f"Sub-agent `{task_id}`: adversarial verify unavailable, using direct spawn.",
+                                f"Sub-agent `{task_id}`: verification unavailable, using direct spawn.",
                                 level="warn",
                             )
                             result = await cast(
@@ -385,6 +391,16 @@ class SpawnSubagentTool(BaseTool):
                                 workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX,
                             )
 
+                            v_mode_param: Literal["adversarial", "auditor_blind", "multi_skeptic"] = (
+                                "auditor_blind"
+                                if verification_mode == DwVerificationMode.AUDITOR_BLIND.value
+                                else (
+                                    "multi_skeptic"
+                                    if verification_mode == DwVerificationMode.MULTI_SKEPTIC.value
+                                    else "adversarial"
+                                )
+                            )
+
                             result = await run_with_verification(
                                 manager=manager,
                                 worker_type=agent_type,
@@ -402,6 +418,7 @@ class SpawnSubagentTool(BaseTool):
                                     "CancellationToken | None", self.cancel_token
                                 ),
                                 task_id=task_id,
+                                verification_mode=v_mode_param,
                             )
                     else:
                         result = await cast(

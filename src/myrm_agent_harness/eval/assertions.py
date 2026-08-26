@@ -654,6 +654,55 @@ def calculate_trajectory_determinism(
     )
 
 
+async def evaluate_post_episode_assertions(
+    assertions: list[Any] | tuple[Any, ...],
+    sandbox_executor: Any = None,
+) -> tuple[bool, list[dict[str, Any]]]:
+    """Execute ground-truth post-episode assertions in isolation after agent turn completion."""
+    if not assertions:
+        return True, []
+    logs: list[dict[str, Any]] = []
+    all_passed = True
+    for assertion in assertions:
+        assertion_id = getattr(assertion, "assertion_id", "post_ep_step")
+        assertion_type = getattr(assertion, "assertion_type", "hidden_test_suite")
+        command = getattr(assertion, "command", "")
+        expected_output = getattr(assertion, "expected_output", "")
+        timeout_seconds = getattr(assertion, "timeout_seconds", 300)
+
+        res: dict[str, Any] = {
+            "assertion_id": assertion_id,
+            "type": assertion_type,
+            "passed": False,
+            "output": "",
+        }
+        if assertion_type in ("hidden_test_suite", "sandbox_state"):
+            if sandbox_executor and command:
+                try:
+                    cmd_res = await sandbox_executor.execute_command(
+                        command,
+                        timeout=timeout_seconds,
+                    )
+                    res["output"] = getattr(cmd_res, "output", "") or ""
+                    if expected_output:
+                        res["passed"] = expected_output in res["output"]
+                    else:
+                        res["passed"] = (getattr(cmd_res, "exit_code", 1) == 0)
+                except Exception as e:
+                    res["output"] = str(e)
+                    res["passed"] = False
+            else:
+                res["passed"] = bool(command)
+        else:
+            res["passed"] = True
+
+        if not res["passed"]:
+            all_passed = False
+        logs.append(res)
+
+    return all_passed, logs
+
+
 # Re-export retrieval assertion helpers from retrieval_assertions module
 from .retrieval_assertions import (  # noqa: E402
     CollapsedHit,
@@ -668,6 +717,7 @@ __all__ = [
     "ToolAssertion",
     "calculate_trajectory_determinism",
     "collapse_retrieval_hits",
+    "evaluate_post_episode_assertions",
     "evaluate_retrieval_assertions",
     "evaluate_sandbox_assertions",
     "evaluate_semantic_assertions",

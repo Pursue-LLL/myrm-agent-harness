@@ -29,6 +29,7 @@ from .benchmarks import (
     register_benchmark,
 )
 from .builder import build_skill_eval_cases, extract_case_from_trajectory
+from .canary import CANARY_GUID, CANARY_PREAMBLE, CanaryScanResult, EvalCanaryGate, embed_canary_header, scan_dataset_canary_integrity, verify_canary_presence
 from .compaction_ab import CompactionABEvaluator, CompactionABResult
 from .compaction_assertions import evaluate_compaction_assertions
 from .decontam import (
@@ -69,12 +70,16 @@ __all__ = [
     "AgentExecutor",
     "AgentResponse",
     "BenchmarkSpec",
+    "CANARY_GUID",
+    "CANARY_PREAMBLE",
+    "CanaryScanResult",
     "CollapsedHit",
     "CompactionABEvaluator",
     "CompactionABResult",
     "CompactionAssertion",
     "CompactionFidelityScore",
     "DeterminismReplayResult",
+    "EvalCanaryGate",
     "EvalCase",
     "EvalManifest",
     "EvalResult",
@@ -90,6 +95,7 @@ __all__ = [
     "MultiTurnEvalCase",
     "OnTurnFail",
     "OperationalAssuranceCategory",
+    "PostEpisodeAssertion",
     "RetrievalAssertion",
     "SandboxAssertion",
     "SemanticAssertion",
@@ -100,6 +106,8 @@ __all__ = [
     "build_skill_eval_cases",
     "calculate_trajectory_determinism",
     "collapse_retrieval_hits",
+    "embed_canary_header",
+    "evaluate_post_episode_assertions",
     "evaluate_retrieval_assertions",
     "evaluate_sandbox_assertions",
     "evaluate_semantic_assertions",
@@ -112,4 +120,6 @@ __all__ = [
     "load_multi_turn_cases",
     "normalize_answer",
     "register_benchmark",
+    "scan_dataset_canary_integrity",
+    "verify_canary_presence",
 ]
