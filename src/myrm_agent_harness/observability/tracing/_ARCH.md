@@ -7,8 +7,8 @@ ContextVar-based request tracing primitives for log correlation. Provides trace_
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Re-exports TracingContext, TracingLogFilter, JsonFormatter. | ✅ |
-| `context.py` | Core | ContextVar storage for trace_id and session_id with token-based reset. | ✅ |
+| `__init__.py` | Package | Re-exports TracingContext, TracingLogFilter, JsonFormatter, resolve_current_trace_id. | ✅ |
+| `context.py` | Core | ContextVar storage for trace_id and session_id with token-based reset and resolve_current_trace_id fallback. | ✅ |
 | `log_filter.py` | Core | logging.Filter that reads TracingContext and injects fields into LogRecord. | ✅ |
 | `json_formatter.py` | Core | JSON log formatter with tracing fields and automatic secret redaction. | ✅ |
 

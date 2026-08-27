@@ -15,7 +15,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | __init__.py              | Package  | Pluggable memory system for AI agents.                                                                        | —     |
 | manager.py               | Core     | Public import path for ``MemoryManager`` and memory error types. | ✅    |
 | setup.py                 | Core     | Out-of-the-box local memory factory. Combines SQLite and embedded Qdrant to provide zero-config               | ✅    |
-| types.py                 | Core     | Memory type system foundation. Provides MemoryType, MemoryStatus, exact mutation outcome DTOs, profile attribute snapshots, BaseMemory and all typed memory schemas. | ✅    |
+| types.py                 | Core     | Memory type system foundation. Provides MemoryType, MemoryStatus, exact mutation outcome DTOs, profile attribute snapshots, BaseMemory (with trace_id), and all typed memory schemas. | ✅    |
 | config.py                | Core     | Memory configuration — functional switches and retrieval params only.                                         | ✅    |
 | memory_agent_tools.py    | Facade   | Stable import path → ``agent_surface/memory_agent_tools.py``. | —     |
 | _memory_agent_tool_descriptions.py | Facade | Stable import path → ``agent_surface/_memory_agent_tool_descriptions.py``. | — |
