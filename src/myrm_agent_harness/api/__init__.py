@@ -83,6 +83,7 @@ __all__ = [
     "compute_workflow_fingerprint",
     "create_skill_agent",
     "delete_subagent_checkpoint",
+    "evaluate_five_contract_progress",
     "evaluate_missing_capability",
     "evict_skill_safety_metadata",
     "generate_fix_suggestion",
@@ -93,6 +94,7 @@ __all__ = [
     "is_compiled_distribution",
     "is_registered_action_tool",
     "redact_connector_url",
+    "redact_sensitive_text",
     "register_ptc_safety_metadata",
     "route_task",
     "route_task_specialty",
@@ -319,6 +321,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.api.subagents",
         "delete_subagent_checkpoint",
     ),
+    "evaluate_five_contract_progress": (
+        "myrm_agent_harness.eval.contracts",
+        "evaluate_five_contract_progress",
+    ),
     "evaluate_missing_capability": (
         "myrm_agent_harness.core.security.missing_semantics",
         "evaluate_missing_capability",
@@ -355,6 +361,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "redact_connector_url": (
         "myrm_agent_harness.toolkits.cron.engine.connector_health",
         "redact_connector_url",
+    ),
+    "redact_sensitive_text": (
+        "myrm_agent_harness.core.security.redact.engine",
+        "redact_sensitive_text",
     ),
     "register_ptc_safety_metadata": (
         "myrm_agent_harness.core.security.tool_registry.registry",

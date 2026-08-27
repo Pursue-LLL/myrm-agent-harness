@@ -282,6 +282,10 @@ class VariantGenerator:
         if constraints:
             sections.append(f"\n## Historical Constraints (MUST obey or rejection is guaranteed)\n{constraints}")
 
+        gene_bank_section = self._build_gene_bank_prior_section(getattr(skill, "gene_bank_priors", []))
+        if gene_bank_section:
+            sections.append(gene_bank_section)
+
         sections.append(f"\nCurrent Skill Content:\n{skill.content[:4000]}")
         sections.append(_STRUCTURED_OUTPUT)
 
@@ -342,6 +346,10 @@ class VariantGenerator:
 
         if constraints:
             sections.append(f"\n## Historical Constraints (MUST obey)\n{constraints}")
+
+        gene_bank_section = self._build_gene_bank_prior_section(getattr(skill, "gene_bank_priors", []))
+        if gene_bank_section:
+            sections.append(gene_bank_section)
 
         sections.append(f"\nCurrent Skill Content:\n{skill.content[:4000]}")
         sections.append(_STRUCTURED_OUTPUT)

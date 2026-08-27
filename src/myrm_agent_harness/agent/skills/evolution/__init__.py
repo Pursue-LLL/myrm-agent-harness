@@ -28,15 +28,22 @@ from myrm_agent_harness.toolkits.retriever.embedding.cache import (
 )
 
 from .core.engine import SkillEvolutionEngine
+from .core.gene_bank import GeneBankArchive
 from .core.proposal_builder import ProposalBuilder
 from .core.types import (
+    EvolutionLayer,
     EvolutionProposal,
     EvolutionRequest,
     EvolutionType,
     ExecutionAnalysis,
+    FailurePathology,
+    GeneCellKey,
+    GeneEliteRecord,
     SkillLineage,
     SkillMetrics,
     SkillRecord,
+    SkillVerificationType,
+    VerificationProof,
 )
 from .db.store import SkillStore
 from .execution.dependency import SkillDependencyTracker, get_dependency_tracker
@@ -84,8 +91,15 @@ __all__ = [
     "EvolutionScreener",
     "EvolutionToolConfig",
     # Types
+    "EvolutionLayer",
     "EvolutionType",
     "ExecutionAnalysis",
+    "FailurePathology",
+    "GeneBankArchive",
+    "GeneCellKey",
+    "GeneEliteRecord",
+    "SkillVerificationType",
+    "VerificationProof",
     # Tool System (P1-7: +8-12%成功率, 优化版 9.7/10)
     "ExecutorContextManager",
     "InMemoryAntiLoopState",
