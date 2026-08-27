@@ -11,6 +11,13 @@ External consumers import here instead of reaching into ``agent.security``.
 
 from __future__ import annotations
 
+from myrm_agent_harness.agent.security.batch_risk import (
+    BatchApprovalItem,
+    BatchItemRiskLevel,
+    BatchRiskItemDetail,
+    BatchRiskReport,
+    classify_batch_approval_risk,
+)
 from myrm_agent_harness.agent.security.managed_approval_policy import (
     ManagedApprovalPolicy,
     configure_process_managed_approval_policy,
@@ -25,7 +32,12 @@ from myrm_agent_harness.utils.url_utils import (
 )
 
 __all__ = [
+    "BatchApprovalItem",
+    "BatchItemRiskLevel",
+    "BatchRiskItemDetail",
+    "BatchRiskReport",
     "ManagedApprovalPolicy",
+    "classify_batch_approval_risk",
     "clear_dynamic_blocked_hostnames",
     "configure_process_managed_approval_policy",
     "get_process_managed_approval_policy",
