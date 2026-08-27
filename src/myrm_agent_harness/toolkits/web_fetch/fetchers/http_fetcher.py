@@ -338,10 +338,12 @@ class HttpFetcher:
                 current_url,
             )
             body = body[:DEFAULT_MAX_RESPONSE_BYTES]
-        encoding = getattr(response, "encoding", None) or "utf-8"
+        encoding = getattr(response, "encoding", None)
 
         if is_text:
-            html = body.decode(encoding, errors="replace")
+            from ..charset_detector import detect_and_decode_html
+
+            html, _detected_enc = detect_and_decode_html(body, encoding)
             return FetchResult(
                 html=html,
                 url=response_url,

@@ -21,6 +21,7 @@ converting raw HTML into clean Markdown Documents with metadata.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 
@@ -90,8 +91,61 @@ class ContentPipeline:
 
         return (fit, result.was_truncated) if len(fit) > _FIT_MARKDOWN_THRESHOLD else ("", False)
 
+    def _try_structured_data_bypass(
+        self, fetch_result: FetchResult, max_chars: int = 0
+    ) -> Document | None:
+        content_type = (fetch_result.headers.get("content-type") or fetch_result.headers.get("Content-Type") or "").lower()
+        body_text = fetch_result.html.strip()
+
+        # 1. JSON bypass
+        if "application/json" in content_type or (body_text.startswith(("{", "[")) and body_text.endswith(("}", "]"))):
+            try:
+                parsed = json.loads(body_text)
+                formatted_json = json.dumps(parsed, indent=2, ensure_ascii=False)
+                was_truncated = False
+                if max_chars > 0 and len(formatted_json) > max_chars:
+                    formatted_json = formatted_json[:max_chars] + "\n\n[TRUNCATED]"
+                    was_truncated = True
+                content = f"```json\n{formatted_json}\n```"
+                return Document(
+                    page_content=content,
+                    metadata={
+                        "url": fetch_result.url,
+                        "title": f"JSON Data ({fetch_result.url})",
+                        "description": "Raw JSON response",
+                        "was_truncated": was_truncated,
+                    },
+                )
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        # 2. XML / RSS / Atom bypass
+        if "application/xml" in content_type or "text/xml" in content_type:
+            was_truncated = False
+            content = body_text
+            if max_chars > 0 and len(content) > max_chars:
+                content = content[:max_chars] + "\n\n[TRUNCATED]"
+                was_truncated = True
+            wrapped = f"```xml\n{content}\n```"
+            return Document(
+                page_content=wrapped,
+                metadata={
+                    "url": fetch_result.url,
+                    "title": f"XML Data ({fetch_result.url})",
+                    "description": "Raw XML response",
+                    "was_truncated": was_truncated,
+                },
+            )
+
+        return None
+
     def process(self, fetch_result: FetchResult, max_chars: int = 0) -> Document | None:
-        """will FetchResult 's HTML convertsas Document"""
+        """Converts FetchResult HTML or structured data into a clean Document."""
+        # Fast path: check for structured JSON / XML data bypass
+        structured_doc = self._try_structured_data_bypass(fetch_result, max_chars)
+        if structured_doc is not None:
+            return structured_doc
+
         was_truncated = False
         if self._md_generator is None:
             content = self._extract_raw_markdown(fetch_result.html, fetch_result.url)
