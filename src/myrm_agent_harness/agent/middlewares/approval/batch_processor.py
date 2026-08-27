@@ -282,6 +282,15 @@ async def evaluate_tool_batch(
                 command=shell_command,
                 agent_id=current_agent_id,
             )
+            # If batch assessment marked this batch as high-risk/dual insurance, block allowlist bypass
+            if allowlist_would_match and batch_assessment.allow_always_blocked:
+                record_decision(
+                    tool_name,
+                    "BATCH_RISK_DUAL_INSURANCE_ESCALATED",
+                    f"batch high-risk dual insurance blocked allowlist bypass: {effective_tool_name}",
+                )
+                allowlist_would_match = False
+
             if not map_honor_allowlist(map_policy, agent_primary_model):
                 if allowlist_would_match:
                     record_decision(
@@ -768,6 +777,20 @@ async def evaluate_tool_batch(
         if reason.startswith("Shell threat"):
             extra_ctx = extra_ctx or {}
             extra_ctx["high_risk"] = True
+
+        if batch_assessment.is_high_risk:
+            extra_ctx = extra_ctx or {}
+            extra_ctx["high_risk"] = True
+            extra_ctx["hide_allow_always"] = True
+            if batch_assessment.requires_dual_insurance:
+                extra_ctx["requires_dual_insurance"] = True
+            if batch_assessment.reasons:
+                extra_ctx["batch_impact_summary"] = {
+                    "batch_size": batch_assessment.batch_size,
+                    "mutating_count": batch_assessment.mutating_count,
+                    "reasons": list(batch_assessment.reasons),
+                    "impacted_targets": list(batch_assessment.impacted_targets[:10]),
+                }
 
         pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
 

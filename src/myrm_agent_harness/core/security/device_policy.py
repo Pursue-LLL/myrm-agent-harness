@@ -41,6 +41,7 @@ _MUTATING_PERMISSIONS: frozenset[str] = frozenset({
     "skill_manage",
     "cron_manage",
     "desktop_control",
+    "system_manage",
 })
 
 # High-risk verbs that trigger dual insurance in batch execution or compound commands
