@@ -241,6 +241,7 @@ class BaseMemory(BaseModel):
         description="LLM-estimated validity window in days. None = use global half-life fallback.",
     )
     status: MemoryStatus = Field(default=MemoryStatus.ACTIVE, description="Unified lifecycle status")
+    trace_id: str | None = Field(default=None, description="Execution trace ID that produced this memory commit")
     scope: MemoryScope = Field(default_factory=MemoryScope)
     lifecycle: MemoryLifecycle | None = None
 
@@ -519,6 +520,11 @@ class MemorySearchResult(BaseModel):
     @property
     def content(self) -> str:
         return self.memory.content
+
+    @property
+    def trace_id(self) -> str | None:
+        """Execution trace ID associated with this memory."""
+        return getattr(self.memory, "trace_id", None)
 
 
 # ── Pending record ──────────────────────────────────────────────────

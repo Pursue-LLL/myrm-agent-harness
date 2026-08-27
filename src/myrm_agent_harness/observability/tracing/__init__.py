@@ -18,7 +18,7 @@ Harness-layer tracing primitives, parallel to ``observability/metrics/``.
 Zero external dependencies — uses only Python stdlib (contextvars, logging, json).
 """
 
-from .context import TracingContext
+from .context import TracingContext, resolve_current_trace_id
 from .json_formatter import JsonFormatter
 from .log_filter import TracingLogFilter
 
@@ -26,4 +26,5 @@ __all__ = [
     "JsonFormatter",
     "TracingContext",
     "TracingLogFilter",
+    "resolve_current_trace_id",
 ]

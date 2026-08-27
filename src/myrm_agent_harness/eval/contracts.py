@@ -165,7 +165,7 @@ def evaluate_five_contract_progress(
         c2 = PhaseContractRecord(
             phase=DeliveryContractPhase.SCENE_ENVIRONMENT,
             status=ContractStatus.VIOLATED if execution_error else ContractStatus.IN_PROGRESS,
-            summary="Workspace initialization issue" if execution_error else "Mounting sandbox & tools",
+            summary=f"Workspace initialization error: {execution_error}" if execution_error else "Mounting sandbox & tools",
             progress_pct=30,
         )
         current_phase = DeliveryContractPhase.SCENE_ENVIRONMENT

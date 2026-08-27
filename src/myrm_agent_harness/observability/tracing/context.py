@@ -59,3 +59,28 @@ class TracingContext:
     def generate_trace_id() -> str:
         """Generate a compact 32-char hex trace ID (UUID4 without dashes)."""
         return uuid.uuid4().hex
+
+
+def resolve_current_trace_id() -> str | None:
+    """Resolve active trace ID across OpenTelemetry, ContextVar TracingContext, or None.
+
+    Hierarchy:
+    1. Active OpenTelemetry Span trace_id (valid 32-hex string)
+    2. ContextVar TracingContext.get_trace_id() (if set and not unset '-')
+    3. None
+    """
+    try:
+        from myrm_agent_harness.infra.tracing.propagation import get_current_trace_id
+
+        otel_trace = get_current_trace_id()
+        if otel_trace and otel_trace != "0" * 32:
+            return otel_trace
+    except Exception:
+        pass
+
+    ctx_trace = TracingContext.get_trace_id()
+    if ctx_trace and ctx_trace != _UNSET:
+        return ctx_trace
+
+    return None
+

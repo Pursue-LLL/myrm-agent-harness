@@ -121,6 +121,7 @@ class MemoryWriter:
 
     async def store(self, memory: AnyMemory, *, bypass_approval: bool = False) -> AnyMemory:
         self._validate_supported_memory(memory)
+        self._attach_current_trace_id(memory)
         bound_memory = self._bind_scope(memory)
         self._validate_write_scope(bound_memory)
         if self._config.security_scan_enabled:
@@ -150,6 +151,7 @@ class MemoryWriter:
 
         for memory in memories:
             self._validate_supported_memory(memory)
+            self._attach_current_trace_id(memory)
         bound_memories = [self._bind_scope(memory) for memory in memories]
         for bound_memory in bound_memories:
             self._validate_write_scope(bound_memory)
@@ -309,6 +311,19 @@ class MemoryWriter:
         memory_namespaces = set(memory.scope.namespaces)
         if not memory_namespaces.issubset(allowed):
             raise MemoryError(f"Memory write scope {sorted(memory_namespaces)} exceeds allowed scope {sorted(allowed)}")
+
+    @staticmethod
+    def _attach_current_trace_id(memory: AnyMemory) -> None:
+        """Inject active execution trace ID into memory if not already set."""
+        if hasattr(memory, "trace_id") and not getattr(memory, "trace_id", None):
+            try:
+                from myrm_agent_harness.observability.tracing import resolve_current_trace_id
+
+                tid = resolve_current_trace_id()
+                if tid:
+                    memory.trace_id = tid
+            except Exception:
+                pass
 
     @staticmethod
     def _enforce_agent_self_priority_ceiling(memory: ProceduralMemory) -> None:

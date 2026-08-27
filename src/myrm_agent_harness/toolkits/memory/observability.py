@@ -101,6 +101,7 @@ class MemoryOperationEvent(BaseModel):
     target_kind: str | None = None
     target_id: str | None = None
     correlation_id: str | None = None
+    trace_id: str | None = None
     influence_refs: list[MemoryInfluenceRef] = Field(default_factory=list)
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
 

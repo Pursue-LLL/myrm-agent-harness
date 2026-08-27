@@ -86,8 +86,15 @@ class MemorySession:
         if self._check_duplicate(content):
             return None
 
+        from myrm_agent_harness.observability.tracing import resolve_current_trace_id
+
         mem = SemanticMemory(
-            user_id=self.user_id, content=content, importance=importance, tags=tags or [], source_chat_id=self.chat_id
+            user_id=self.user_id,
+            content=content,
+            importance=importance,
+            tags=tags or [],
+            source_chat_id=self.chat_id,
+            trace_id=resolve_current_trace_id(),
         )
         self._buffer.append(mem)
         return mem
@@ -103,12 +110,15 @@ class MemorySession:
         if self._check_duplicate(content):
             return None
 
+        from myrm_agent_harness.observability.tracing import resolve_current_trace_id
+
         mem = EpisodicMemory(
             user_id=self.user_id,
             content=content,
             event_type=event_type,
             related_entities=related_entities or [],
             source_chat_id=self.chat_id,
+            trace_id=resolve_current_trace_id(),
         )
         self._buffer.append(mem)
         return mem
@@ -131,6 +141,8 @@ class MemorySession:
         if self._check_duplicate(content):
             return None
 
+        from myrm_agent_harness.observability.tracing import resolve_current_trace_id
+
         mem = ProceduralMemory(
             user_id=self.user_id,
             content=content,
@@ -139,6 +151,7 @@ class MemorySession:
             priority=priority,
             trigger_keywords=trigger_keywords or [],
             source=source,
+            trace_id=resolve_current_trace_id(),
         )
         self._buffer.append(mem)
         return mem
