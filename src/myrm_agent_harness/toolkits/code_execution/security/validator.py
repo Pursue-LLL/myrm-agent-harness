@@ -186,18 +186,28 @@ def _is_path_allowed(path_str: str, allowed_paths: list[Path]) -> bool:
     Rules:
     1. Forbidden paths (FORBIDDEN_PATHS) → always denied
     2. Relative path without .. → safe (within workspace)
-    3. Absolute or .. path → must be under an allowed directory
+    3. Absolute or .. path → must be under an allowed directory (or contain wildcards matching allowed parent)
     """
     if _is_forbidden_path(path_str):
         return False
 
     try:
-        path = Path(path_str)
-
-        if not path.is_absolute() and ".." not in path_str:
+        # Strip trailing glob patterns like * or *.py before resolving
+        clean_path_str = re.sub(r"[\*\?].*$", "", path_str).rstrip("/")
+        if not clean_path_str:
             return True
 
-        resolved = path.resolve()
+        path = Path(clean_path_str)
+
+        if not path.is_absolute() and ".." not in clean_path_str:
+            return True
+
+        # If path doesn't exist yet, check its existing ancestor directory
+        target_path = path
+        while not target_path.exists() and target_path.parent != target_path:
+            target_path = target_path.parent
+
+        resolved = target_path.resolve()
 
         for allowed in allowed_paths:
             allowed_resolved = allowed.resolve()
@@ -205,7 +215,12 @@ def _is_path_allowed(path_str: str, allowed_paths: list[Path]) -> bool:
                 resolved.relative_to(allowed_resolved)
                 return True
             except ValueError:
-                continue
+                # Also allow if allowed_resolved is inside target (e.g. root check)
+                try:
+                    allowed_resolved.relative_to(resolved)
+                    return True
+                except ValueError:
+                    continue
 
         return False
     except Exception:

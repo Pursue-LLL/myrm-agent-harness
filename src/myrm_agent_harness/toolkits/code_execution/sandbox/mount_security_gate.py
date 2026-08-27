@@ -8,7 +8,7 @@ sandboxes (bwrap, seatbelt, appcontainer) and multi-session workspace directory 
 
 [OUTPUT]
 - MountMode (Enum: RO, RW)
-- MountViolationType (Enum: NULL_BYTE, PATH_TRAVERSAL, DANGEROUS_PATH, BLOCKED_DEVICE, SYMLINK_ESCAPE, PERMISSION_VIOLATION, UNAUTHORIZED_BOUNDARY)
+- MountViolationType (Enum: NULL_BYTE, PATH_TRAVERSAL, DANGEROUS_PATH, BLOCKED_DEVICE, SYMLINK_ESCAPE, PERMISSION_VIOLATION, UNAUTHORIZED_BOUNDARY, TARGET_COLLISION)
 - MountSpec (immutable dataclass)
 - MountValidationResult (immutable dataclass)
 - validate_mount_spec(spec, ...) -> MountValidationResult
@@ -23,11 +23,10 @@ from __future__ import annotations
 
 import logging
 import os
-import platform
 import sys
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
+from typing import Final
 
 from myrm_agent_harness.core.security.path_security import (
     is_blocked_device_path,
@@ -35,6 +34,30 @@ from myrm_agent_harness.core.security.path_security import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Protected in-sandbox target paths where overwriting or mounting is strictly prohibited
+_PROHIBITED_CONTAINER_TARGETS: Final[frozenset[str]] = frozenset(
+    {
+        "/bin",
+        "/sbin",
+        "/usr",
+        "/usr/bin",
+        "/usr/sbin",
+        "/lib",
+        "/lib64",
+        "/usr/lib",
+        "/usr/lib64",
+        "/etc/ld.so.preload",
+        "/etc/ld.so.conf",
+        "/etc/ld.so.conf.d",
+        "/etc/shadow",
+        "/etc/passwd",
+        "/etc/sudoers",
+        "/proc",
+        "/sys",
+        "/dev",
+    }
+)
 
 
 class MountMode(StrEnum):
@@ -55,6 +78,7 @@ class MountViolationType(StrEnum):
     SYMLINK_ESCAPE = "symlink_escape"
     PERMISSION_VIOLATION = "permission_violation"
     UNAUTHORIZED_BOUNDARY = "unauthorized_boundary"
+    TARGET_COLLISION = "target_collision"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,21 +119,35 @@ def _normalize_case_for_os(path_str: str) -> str:
     return path_str
 
 
-def _resolve_physical_path(raw_path: str) -> str:
+def _is_unc_path(path_str: str) -> bool:
+    """Detect Windows UNC/SMB network share paths (e.g. \\\\server\\share or //server/share)."""
+    p = path_str.strip()
+    if p.startswith(("\\\\.\\", "\\\\?\\", "//./", "//?/")):
+        # Device / direct namespace paths are handled by device checker
+        return False
+    return p.startswith(("\\\\", "//"))
+
+
+def _resolve_physical_path(raw_path: str, max_depth: int = 32) -> str:
     """Resolve physical realpath, handling existing vs pending non-existent subpaths securely."""
     expanded = os.path.expanduser(raw_path.strip())
     if os.path.exists(expanded):
         return os.path.realpath(expanded)
 
-    # For pending targets that do not exist yet, resolve existing parent chain
-    parts = []
+    # For pending targets that do not exist yet, resolve existing parent chain with depth limit
+    parts: list[str] = []
     curr = expanded
-    while curr and not os.path.exists(curr):
+    depth = 0
+    while curr and not os.path.exists(curr) and depth < max_depth:
         parent, tail = os.path.split(curr)
         if not tail or parent == curr:
             break
         parts.append(tail)
         curr = parent
+        depth += 1
+
+    if depth >= max_depth:
+        raise ValueError(f"Path nesting exceeds maximum resolution depth limit of {max_depth}")
 
     resolved_parent = os.path.realpath(curr) if os.path.exists(curr) else curr
     for tail in reversed(parts):
@@ -134,6 +172,41 @@ def _is_path_enclosed_in_boundary(target_path: str, boundary_path: str) -> bool:
         return False
 
 
+def _validate_in_sandbox_target_path(target_path: str) -> tuple[bool, MountViolationType | None, str]:
+    """Validate sandbox internal destination path against injection and system overwrite."""
+    if not target_path:
+        return True, None, ""
+
+    if "\0" in target_path:
+        return False, MountViolationType.NULL_BYTE, f"Null byte detected in target path: {target_path!r}"
+
+    trimmed = target_path.strip()
+    if not trimmed:
+        return False, MountViolationType.EMPTY_PATH, "Target path cannot be empty"
+
+    if _is_unc_path(trimmed):
+        return False, MountViolationType.PATH_TRAVERSAL, f"UNC network paths prohibited for target: {trimmed}"
+
+    # Detect relative traversal escape in raw and normalized target
+    if ".." in trimmed:
+        parts = trimmed.replace("\\", "/").split("/")
+        if ".." in parts:
+            return False, MountViolationType.PATH_TRAVERSAL, f"Path traversal in target path: {trimmed}"
+
+    normalized_target = os.path.normpath(trimmed)
+    if normalized_target == ".." or normalized_target.startswith(f"..{os.sep}") or normalized_target.startswith("../"):
+        return False, MountViolationType.PATH_TRAVERSAL, f"Path traversal in target path: {trimmed}"
+
+    # Target path must not clobber critical system roots inside the container/sandbox
+    target_lower = normalized_target.lower()
+    for prohibited in _PROHIBITED_CONTAINER_TARGETS:
+        prohibited_norm = os.path.normpath(prohibited).lower()
+        if target_lower == prohibited_norm or target_lower.startswith(prohibited_norm + os.sep) or target_lower.startswith(prohibited_norm + "/"):
+            return False, MountViolationType.DANGEROUS_PATH, f"Mount target attempts to overwrite critical container root '{prohibited}': {trimmed}"
+
+    return True, None, ""
+
+
 def validate_mount_spec(
     spec: MountSpec,
     *,
@@ -145,11 +218,12 @@ def validate_mount_spec(
 
     Verification pipeline:
     1. Null byte & empty string check.
-    2. Blocked device check (CON, NUL, COM*, \\\\.\\*, /dev/*).
-    3. Traversal (..) check.
+    2. UNC / SMB network share injection check (prevent NTLM hash relay).
+    3. Blocked device check (CON, NUL, COM*, \\\\.\\*, /dev/*).
     4. Dangerous host system paths check (/etc, /proc, ~/.ssh, etc.).
-    5. Symlink escape & boundary enclosure check.
-    6. Read-Only vs Read-Write least privilege enforcement.
+    5. Physical canonical path resolution & boundary enclosure check.
+    6. In-sandbox target path validation (prevent container system file overwrite).
+    7. Read-Only vs Read-Write least privilege enforcement.
     """
     raw_src = spec.source_path
     if "\0" in raw_src:
@@ -167,7 +241,15 @@ def validate_mount_spec(
             error_message="Mount source path cannot be empty",
         )
 
-    # 2. Blocked device check
+    # 2. Blocked UNC / SMB network path check
+    if _is_unc_path(trimmed):
+        return MountValidationResult(
+            is_valid=False,
+            violation_type=MountViolationType.PATH_TRAVERSAL,
+            error_message=f"UNC network share paths are prohibited to prevent NTLM hash exfiltration: {trimmed}",
+        )
+
+    # 3. Blocked device check
     if is_blocked_device_path(trimmed):
         return MountValidationResult(
             is_valid=False,
@@ -175,7 +257,7 @@ def validate_mount_spec(
             error_message=f"Mount path refers to a blocked character/block or system device: {trimmed}",
         )
 
-    # 3. Dangerous system path check
+    # 4. Dangerous system path check
     if not allow_dangerous_override and is_dangerous_path(trimmed):
         return MountValidationResult(
             is_valid=False,
@@ -217,7 +299,18 @@ def validate_mount_spec(
                 error_message=f"Mount source {resolved_src} is outside allowed boundaries: {allowed_boundaries}",
             )
 
-    # 6. Mode enforcement / Least privilege
+    # 6. Validate in-sandbox target path if specified
+    raw_target = spec.target_path.strip() if spec.target_path else ""
+    if raw_target:
+        is_target_valid, target_violation, target_err = _validate_in_sandbox_target_path(raw_target)
+        if not is_target_valid:
+            return MountValidationResult(
+                is_valid=False,
+                violation_type=target_violation or MountViolationType.DANGEROUS_PATH,
+                error_message=target_err,
+            )
+
+    # 7. Mode enforcement / Least privilege
     effective_mode = spec.mode
     if require_write is True and spec.mode == MountMode.RO:
         return MountValidationResult(
@@ -229,10 +322,11 @@ def validate_mount_spec(
     # Preserve the normalized path (so /home/... isn't unnecessarily rewritten to /System/Volumes/Data/home/...)
     # while guaranteeing realpath validation passed
     normalized_src = os.path.normpath(os.path.expanduser(trimmed))
+    normalized_target = os.path.normpath(raw_target) if raw_target else normalized_src
 
     sanitized = MountSpec(
         source_path=normalized_src,
-        target_path=spec.target_path or normalized_src,
+        target_path=normalized_target,
         mode=effective_mode,
         label=spec.label,
     )
@@ -247,7 +341,8 @@ def validate_and_sanitize_mounts(
 ) -> tuple[MountSpec, ...]:
     """Validate a batch of MountSpecs and return sanitized, deduplicated valid specs."""
     valid_specs: list[MountSpec] = []
-    seen: set[tuple[str, MountMode]] = set()
+    seen_sources: set[tuple[str, MountMode]] = set()
+    seen_targets: dict[str, MountSpec] = {}
 
     for spec in mounts:
         result = validate_mount_spec(
@@ -257,9 +352,22 @@ def validate_and_sanitize_mounts(
         )
         if result.is_valid and result.sanitized_spec:
             s = result.sanitized_spec
-            key = (_normalize_case_for_os(s.source_path), s.mode)
-            if key not in seen:
-                seen.add(key)
+            src_key = (_normalize_case_for_os(s.source_path), s.mode)
+            target_key = _normalize_case_for_os(s.target_path)
+
+            if target_key in seen_targets:
+                existing = seen_targets[target_key]
+                logger.warning(
+                    "[SandboxMountSecurityGate] Target collision detected for '%s': existing=%s, conflicting=%s",
+                    s.target_path,
+                    existing.source_path,
+                    s.source_path,
+                )
+                continue
+
+            if src_key not in seen_sources:
+                seen_sources.add(src_key)
+                seen_targets[target_key] = s
                 valid_specs.append(s)
         else:
             logger.warning(

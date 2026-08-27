@@ -71,7 +71,16 @@ async def run_python_subprocess(
         )
 
         process_env = sanitize_env(os.environ.copy())
-        python_path = os.pathsep.join(sys.path)
+        # Inject venv site-packages into PYTHONPATH if python_executable is from a venv
+        python_exec_path = Path(python_executable)
+        venv_root = python_exec_path.parent.parent
+        venv_lib = venv_root / "lib"
+        extra_paths = []
+        if venv_lib.exists():
+            for sp in venv_lib.glob("python*/site-packages"):
+                extra_paths.append(str(sp))
+
+        python_path = os.pathsep.join(extra_paths + sys.path)
         if "PYTHONPATH" in process_env:
             process_env["PYTHONPATH"] = python_path + os.pathsep + process_env["PYTHONPATH"]
         else:

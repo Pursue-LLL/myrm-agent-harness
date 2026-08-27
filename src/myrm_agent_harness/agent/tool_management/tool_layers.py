@@ -53,7 +53,7 @@ class ToolLayer(IntEnum):
 # 3. harness 可选工具放 EXTENDED
 # 4. 框架外工具(server vendor / MCP / OpenAPI)放 EXTERNAL,永远在最后
 #
-# 排序规则:按层级排序; COMMON 层内 memory 组优先于 web_search，其余按名称字母序
+# 排序规则:按层级排序; COMMON 层内 web_search 优先于 memory 组，其余按名称字母序
 # 缓存原理:Prompt Cache 是前缀匹配,CORE 工具放最前面可保证永远被缓存
 #
 # 工具名称必须与 @tool() 装饰器中声明的名称完全一致
@@ -75,7 +75,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "glob_tool": ToolLayer.CORE,
     "grep_tool": ToolLayer.CORE,
     # ============================================================
-    # COMMON - 默认开启但用户可在 GUI 关闭（放中间；组内 memory 优先于 web_search）
+    # COMMON - 默认开启但用户可在 GUI 关闭（放中间；组内 web_search 优先于 memory）
     # ============================================================
     "web_search_tool": ToolLayer.COMMON,
     "memory_search_tool": ToolLayer.COMMON,
@@ -140,12 +140,12 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
 }
 
 
-# COMMON 层组内排序：高频默认能力簇优先，单工具开关次之（组内仍按 name 稳定排序）
+# COMMON 层组内排序：web_search 优先置顶，记忆三件套紧随其后（组内仍按 rank 稳定排序）
 _COMMON_LAYER_SORT_RANK: dict[str, int] = {
-    "memory_manage_tool": 0,
-    "memory_search_tool": 1,
-    "memory_save_tool": 2,
-    "web_search_tool": 10,
+    "web_search_tool": 0,
+    "memory_manage_tool": 10,
+    "memory_search_tool": 11,
+    "memory_save_tool": 12,
 }
 
 # EXTENDED: skill cluster first so toggling other EXTENDED tools preserves skill prefix cache.

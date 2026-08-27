@@ -95,7 +95,7 @@ class TestRegisterToolLayer:
 
 
 class TestCommonLayerSortKey:
-    def test_memory_block_before_web_search(self) -> None:
+    def test_web_search_before_memory_block(self) -> None:
         from langchain_core.tools import StructuredTool
 
         from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
@@ -108,12 +108,14 @@ class TestCommonLayerSortKey:
 
         reg = ToolRegistry()
         for name in (
-            "web_search_tool",
+            "memory_manage_tool",
             "memory_search_tool",
             "memory_save_tool",
-            "memory_manage_tool",
+            "web_search_tool",
         ):
             reg.register(_tool(name), source=ToolSource.USER)
         names = [t.name for t in reg.resolve()]
-        assert names.index("memory_manage_tool") < names.index("web_search_tool")
-        assert names.index("memory_search_tool") < names.index("web_search_tool")
+        assert names.index("web_search_tool") < names.index("memory_manage_tool")
+        assert names.index("web_search_tool") < names.index("memory_search_tool")
+        assert names.index("web_search_tool") < names.index("memory_save_tool")
+

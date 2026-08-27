@@ -146,6 +146,74 @@ class TestMountValidationRules:
         assert _is_path_enclosed_in_boundary("\0invalid", "/tmp") is False
 
 
+    def test_unc_path_rejection(self) -> None:
+        unc_paths = [
+            r"\\evil-smb.com\share",
+            r"\\192.168.1.100\payload",
+            "//evil-smb.com/share",
+        ]
+        for p in unc_paths:
+            spec = MountSpec(source_path=p)
+            result = validate_mount_spec(spec)
+            assert result.is_valid is False
+            assert result.violation_type == MountViolationType.PATH_TRAVERSAL
+
+    def test_target_path_null_byte_and_traversal(self) -> None:
+        with tempfile.TemporaryDirectory() as ws:
+            # Null byte in target
+            spec1 = MountSpec(source_path=ws, target_path="/app/cache\0/etc")
+            result1 = validate_mount_spec(spec1)
+            assert result1.is_valid is False
+            assert result1.violation_type == MountViolationType.NULL_BYTE
+
+            # Traversal in target
+            spec2 = MountSpec(source_path=ws, target_path="/app/../../../etc/shadow")
+            result2 = validate_mount_spec(spec2)
+            assert result2.is_valid is False
+            assert result2.violation_type == MountViolationType.PATH_TRAVERSAL
+
+    def test_target_path_prohibited_container_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as ws:
+            prohibited_targets = [
+                "/bin",
+                "/usr/bin",
+                "/sbin",
+                "/etc/ld.so.preload",
+                "/etc/shadow",
+                "/etc/passwd",
+                "/proc",
+                "/sys",
+                "/dev",
+            ]
+            for target in prohibited_targets:
+                spec = MountSpec(source_path=ws, target_path=target)
+                result = validate_mount_spec(spec)
+                assert result.is_valid is False
+                assert result.violation_type == MountViolationType.DANGEROUS_PATH
+
+    def test_target_collision_detection_in_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as ws:
+            sub1 = os.path.join(ws, "sub1")
+            sub2 = os.path.join(ws, "sub2")
+            os.makedirs(sub1, exist_ok=True)
+            os.makedirs(sub2, exist_ok=True)
+
+            mounts = [
+                MountSpec(source_path=sub1, target_path="/workspace/data", mode=MountMode.RW),
+                MountSpec(source_path=sub2, target_path="/workspace/data", mode=MountMode.RO),  # collision
+            ]
+
+            sanitized = validate_and_sanitize_mounts(mounts)
+            assert len(sanitized) == 1
+            assert sanitized[0].source_path == os.path.normpath(sub1)
+
+    def test_resolution_depth_limit(self) -> None:
+        deep_path = "/tmp" + "/a" * 40
+        with pytest.raises(ValueError, match="depth limit"):
+            from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate import _resolve_physical_path
+            _resolve_physical_path(deep_path, max_depth=10)
+
+
 class TestBatchMountSanitizationAndPolicyBridge:
     def test_validate_and_sanitize_mounts_batch(self) -> None:
         with tempfile.TemporaryDirectory() as ws:

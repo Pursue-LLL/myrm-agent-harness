@@ -41,18 +41,18 @@
 
 ---
 
-## 三、COMMON 工具层（注册 4 个；memory 三件套 + web_search）
+## 三、COMMON 工具层（注册 4 个；web_search + memory 三件套）
 
-默认 Turn1 bind：**memory×3 + web_search**（`DEFAULT_ENABLED_BUILTIN_TOOLS` 含 memory；`todo_write` 与 `request_answer_user_tool` 默认不 bind，见各 opt-in 开关）。
+默认 Turn1 bind：**web_search + memory×3**（`DEFAULT_ENABLED_BUILTIN_TOOLS` 含 memory；`todo_write` 与 `request_answer_user_tool` 默认不 bind，见各 opt-in 开关）。
 
-组内排序（`get_tool_registry_sort_key`）：**memory 块 → web_search**。
+组内排序（`get_tool_registry_sort_key`）：**web_search → memory 块**。
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 12 | **memory_search_tool** | **143** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 统一检索（corpus ACL 与 policy 一致；默认仅 memory corpus） | enable_memory |
-| 13 | **memory_save_tool** | **659** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 写入长期记忆（EN core；wiki/approval 动态段；保留原有关键 guardrail 短语） | enable_memory |
-| 14 | **memory_manage_tool** | **315** | 同上 | 更新/删除/纠正/评分；correct→knowledge only（preserves history）；update→措辞微调；instruction→category=rule | enable_memory |
-| 15 | **web_search_tool** | **1,001** | `harness/toolkits/web_search/_web_search_tool_description.py` | 网络搜索（EN/ZH LLM-facing query-rewrite SSOT；server 传 locale） | GUI 可关 |
+| 12 | **web_search_tool** | **1,001** | `harness/toolkits/web_search/_web_search_tool_description.py` | 网络搜索（EN/ZH LLM-facing query-rewrite SSOT；server 传 locale） | GUI 可关 |
+| 13 | **memory_search_tool** | **143** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 统一检索（corpus ACL 与 policy 一致；默认仅 memory corpus） | enable_memory |
+| 14 | **memory_save_tool** | **659** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 写入长期记忆（EN core；wiki/approval 动态段；保留原有关键 guardrail 短语） | enable_memory |
+| 15 | **memory_manage_tool** | **315** | 同上 | 更新/删除/纠正/评分；correct→knowledge only（preserves history）；update→措辞微调；instruction→category=rule | enable_memory |
 
 **COMMON Turn1 实测（默认 profile，`measure_turn1_token_inventory.py`）**：**2,118 tokens**（4 工具；memory×3 + web_search；English 描述；默认 memory_search 仅 memory corpus）
 
@@ -299,8 +299,8 @@ Token 明细（历史 tiktoken 计量保留）：
 [CORE: web_fetch + bash + file_* + glob + grep (~3,207 tok, 8 tools)]
   ↑ 通用 Agent 基线前缀（agent 模式）
 
-[COMMON: memory_* + web_search (~2,118 tok)]
-  ↑ memory 组优先；web_search GUI 可关
+[COMMON: web_search + memory_* (~2,118 tok)]
+  ↑ web_search 优先；memory 组紧随；GUI 可关
 
 [EXTENDED: skill_select (~188 tok)]
   ↑ 按需变化，不影响 CORE/COMMON 前缀

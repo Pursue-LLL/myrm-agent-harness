@@ -3,13 +3,19 @@
 Integrates with SandboxMountSecurityGate to validate and sanitize all mount targets
 before injecting them into OS-level SandboxPolicy writable/readable paths.
 
+[INPUT]
+- myrm_agent_harness.core.security.types::AccessRoot (POS: Permission engine access root)
+- myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate::validate_and_sanitize_mounts (POS: Sandbox mount security gate)
+- myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types::SandboxPolicy (POS: Sandbox security policy DTO)
+
+[OUTPUT]
+- build_sandbox_policy_from_path_policy: Converts access roots into sanitized SandboxPolicy
+
 [POS]
-See module docstring.
+Layer 2.5 Policy Bridge. Converts high-level PathPolicy roots into OS-level SandboxPolicy boundaries.
 """
 
 from __future__ import annotations
-
-import os
 
 from myrm_agent_harness.core.security.types import AccessRoot
 from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate import (
