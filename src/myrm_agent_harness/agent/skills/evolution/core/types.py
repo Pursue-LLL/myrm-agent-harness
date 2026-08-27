@@ -36,6 +36,98 @@ class EvolutionType(StrEnum):
     OPTIMIZE_DESCRIPTION = "optimize_description"  # Refine description for better matching
 
 
+class EvolutionLayer(StrEnum):
+    """Layer where the skill or harness modification takes place (MAP-Elites Dimension 1)."""
+
+    PROMPT = "prompt"  # Prompt guidelines, rules, persona adjustments
+    TOOL_CODE = "tool_code"  # Executable Python/Shell code, scripts, tools
+    RUNTIME_CONFIG = "runtime_config"  # Timeout, retries, concurrency, sandbox config
+    KNOWLEDGE_RULE = "knowledge_rule"  # Static lookup data, domain constraints, schema
+
+
+class FailurePathology(StrEnum):
+    """Failure pathology category targeted by the patch (MAP-Elites Dimension 2)."""
+
+    PARAM_ERROR = "param_error"  # Missing or invalid arguments
+    TIMEOUT_RETRY = "timeout_retry"  # Network or execution timeout, rate limits
+    ENV_MISSING = "env_missing"  # Missing binaries, packages, or permissions
+    SEMANTIC_MISUSE = "semantic_misuse"  # Wrong tool selection, misinterpretation
+    LOGIC_HALLUCINATION = "logic_hallucination"  # Fabricated facts or invalid syntax
+    UNHANDLED_EXCEPTION = "unhandled_exception"  # Runtime crash or uncaught error
+
+
+@dataclass(frozen=True)
+class GeneCellKey:
+    """Composite coordinate key for MAP-Elites Gene Bank."""
+
+    layer: EvolutionLayer
+    pathology: FailurePathology
+
+    def to_key_str(self) -> str:
+        return f"{self.layer.value}:{self.pathology.value}"
+
+    @classmethod
+    def from_key_str(cls, key_str: str) -> GeneCellKey:
+        parts = key_str.split(":", 1)
+        if len(parts) == 2:
+            try:
+                return cls(
+                    layer=EvolutionLayer(parts[0]),
+                    pathology=FailurePathology(parts[1]),
+                )
+            except ValueError:
+                pass
+        return cls(layer=EvolutionLayer.PROMPT, pathology=FailurePathology.UNHANDLED_EXCEPTION)
+
+
+@dataclass
+class GeneEliteRecord:
+    """An elite patch candidate stored within a specific MAP-Elites gene cell."""
+
+    cell_key: GeneCellKey
+    skill_name: str
+    patch_summary: str
+    patch_content: str
+    fitness_score: float
+    verification_proof: VerificationProof | None = None
+    created_at: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "cell_key": self.cell_key.to_key_str(),
+            "layer": self.cell_key.layer.value,
+            "pathology": self.cell_key.pathology.value,
+            "skill_name": self.skill_name,
+            "patch_summary": self.patch_summary,
+            "patch_content": self.patch_content,
+            "fitness_score": self.fitness_score,
+            "verification_proof": (
+                self.verification_proof.to_dict() if self.verification_proof else None
+            ),
+            "created_at": self.created_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> GeneEliteRecord:
+        key_str = str(data.get("cell_key", f"{data.get('layer', 'prompt')}:{data.get('pathology', 'unhandled_exception')}"))
+        proof_data = data.get("verification_proof")
+        return cls(
+            cell_key=GeneCellKey.from_key_str(key_str),
+            skill_name=str(data.get("skill_name", "")),
+            patch_summary=str(data.get("patch_summary", "")),
+            patch_content=str(data.get("patch_content", "")),
+            fitness_score=float(data.get("fitness_score", 0.0)),
+            verification_proof=(
+                VerificationProof.from_dict(proof_data) if proof_data else None
+            ),
+            created_at=(
+                datetime.fromisoformat(data["created_at"])
+                if data.get("created_at")
+                else datetime.now()
+            ),
+        )
+
+
 class SkillVerificationType(StrEnum):
     """Classification of verification requirements for a skill."""
 
@@ -446,6 +538,8 @@ class EvolutionProposal:
     recommended_form: str = "skill"  # "skill" | "cron_job" | "skip"
     form_metadata: dict[str, Any] | None = None  # {schedule_hint, form_reasoning}
     verification_proof: VerificationProof | None = None
+    target_layer: EvolutionLayer = EvolutionLayer.PROMPT
+    target_pathology: FailurePathology = FailurePathology.UNHANDLED_EXCEPTION
     created_at: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
@@ -467,6 +561,8 @@ class EvolutionProposal:
             "recommended_form": self.recommended_form,
             "form_metadata": self.form_metadata,
             "verification_proof": self.verification_proof.to_dict() if self.verification_proof else None,
+            "target_layer": self.target_layer.value,
+            "target_pathology": self.target_pathology.value,
             "created_at": self.created_at.isoformat(),
         }
 

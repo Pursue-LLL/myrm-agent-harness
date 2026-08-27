@@ -145,3 +145,87 @@ class TestBashFlavorNoColor:
         flavor = BashFlavor()
         wrapped = flavor.build_wrapped_command("echo a; echo b", "EX", "END", "$?")
         assert "{\necho a; echo b\n__myrm_rc__=$?\n}\n" in wrapped
+
+
+class TestPowerShellFlavor:
+    """Tests for PowerShellFlavor init commands, env setting, and command wrapping."""
+
+    def test_init_commands_contain_utf8_and_progress_preference(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.session.shell_flavor import (
+            PowerShellFlavor,
+        )
+
+        flavor = PowerShellFlavor()
+        cmds = flavor.build_init_commands("C:\\workspace", timeout=60, max_memory_mb=2048)
+
+        joined = "\n".join(cmds)
+        assert "OutputEncoding = [System.Text.Encoding]::UTF8" in joined
+        assert "$ProgressPreference = 'SilentlyContinue'" in joined
+        assert "$ErrorActionPreference = 'Continue'" in joined
+        assert "function prompt { '' }" in joined
+        assert "function exit" in joined
+        assert "Set-Location -LiteralPath 'C:\\workspace'" in joined
+
+    def test_format_env_set(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.session.shell_flavor import (
+            PowerShellFlavor,
+        )
+
+        flavor = PowerShellFlavor()
+        cmd = flavor.format_env_set("MY_KEY", "value with 'quote' & $special")
+        assert cmd == "$env:MY_KEY = 'value with ''quote'' & $special'"
+
+    def test_build_wrapped_command(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.session.shell_flavor import (
+            PowerShellFlavor,
+        )
+
+        flavor = PowerShellFlavor()
+        wrapped = flavor.build_wrapped_command("Get-ChildItem", "EXIT_MARK", "END_MARK", "$__myrm_rc__")
+
+        assert "& {" in wrapped
+        assert "Get-ChildItem" in wrapped
+        assert "$LASTEXITCODE" in wrapped
+        assert "Write-Output 'EXIT_MARK'$__myrm_rc__" in wrapped
+        assert "Write-Output 'END_MARK'" in wrapped
+
+    def test_get_flavor_returns_powershell_when_configured(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.platform import PlatformInfo
+        from myrm_agent_harness.toolkits.code_execution.session.shell_flavor import (
+            PowerShellFlavor,
+            WindowsFlavor,
+            get_flavor,
+        )
+
+        pwsh_platform = PlatformInfo(
+            os_type="windows",
+            os_release="10.0",
+            arch="AMD64",
+            is_wsl=False,
+            shell_path="powershell.exe",
+            shell_args=("-NoLogo", "-NoProfile"),
+            shell_type="powershell",
+            exit_code_var="$__myrm_rc__",
+            env_set_template="$env:{key}={value}",
+            path_separator=";",
+            process_group_creation_flag=0x00000200,
+            safe_env_vars=frozenset(),
+        )
+        assert isinstance(get_flavor(pwsh_platform), PowerShellFlavor)
+
+        cmd_platform = PlatformInfo(
+            os_type="windows",
+            os_release="10.0",
+            arch="AMD64",
+            is_wsl=False,
+            shell_path="cmd.exe",
+            shell_args=("/Q",),
+            shell_type="cmd",
+            exit_code_var="%ERRORLEVEL%",
+            env_set_template="set {key}={value}",
+            path_separator=";",
+            process_group_creation_flag=0x00000200,
+            safe_env_vars=frozenset(),
+        )
+        assert isinstance(get_flavor(cmd_platform), WindowsFlavor)
+

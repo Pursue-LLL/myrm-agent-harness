@@ -186,3 +186,75 @@ def attach_wiki_scope_id(
         entry["agent_id"] = scope
         scoped.append(entry)
     return scoped
+
+
+_EVIDENCE_CARD_INSTRUCTION = (
+    "\n\n[Evidence-Card Answer Contract]\n"
+    "- Ground every factual statement in the retrieved snippets with a source reference (e.g. `[source: file.md#Lxx-Lyy]`).\n"
+    "- If different sources or notes disagree or present conflicting rules/versions, present BOTH perspectives clearly (`disagree -> show both`).\n"
+    "- If the vault contains no relevant facts for a part of the question, honestly state that it is not documented in the vault rather than guessing or filling gaps from general knowledge alone."
+)
+
+
+def format_evidence_cards_context(
+    base_answer: str,
+    snippets: list[SourceSnippet],
+    *,
+    structure: WikiStructure | None = None,
+) -> str:
+    """Format retrieval answer with structured line-level evidence anchors and response contract.
+
+    Injects explicit line range anchors and confidence/status indicators before snippets,
+    guaranteeing deterministic citation capabilities and honest conflict disclosure.
+    """
+    card_sections: list[str] = []
+
+    for snip in snippets:
+        if not snip.snippet and not snip.claim_text:
+            continue
+
+        header_parts: list[str] = []
+        doc_path = snip.evidence_path or snip.article_path
+        if doc_path:
+            norm_path = doc_path.replace("\\", "/")
+            if structure is not None:
+                try:
+                    p = Path(norm_path)
+                    if p.is_absolute():
+                        norm_path = str(p.relative_to(structure.vault_dir)).replace("\\", "/")
+                except (ValueError, Exception):
+                    pass
+            if snip.line_range:
+                header_parts.append(f"source: {norm_path}#{snip.line_range}")
+            else:
+                header_parts.append(f"source: {norm_path}")
+
+        if snip.claim_status:
+            header_parts.append(f"status: {snip.claim_status}")
+        elif snip.evidence_snapshot_status:
+            header_parts.append(f"status: {snip.evidence_snapshot_status}")
+
+        if snip.claim_confidence > 0.0 and snip.claim_confidence != 0.5:
+            header_parts.append(f"confidence: {snip.claim_confidence:.2f}")
+
+        if snip.section:
+            header_parts.append(f"section: {snip.section}")
+
+        header = " | ".join(header_parts)
+        text_body = (snip.snippet or snip.claim_text or "").strip()
+        if header:
+            card_sections.append(f"--- [Evidence Card: {header}] ---\n{text_body}")
+        else:
+            card_sections.append(text_body)
+
+    parts: list[str] = []
+    trimmed_base = (base_answer or "").strip()
+    if trimmed_base:
+        parts.append(trimmed_base)
+
+    if card_sections:
+        parts.append("## Evidence Snippets & Line Anchors\n" + "\n\n".join(card_sections))
+
+    parts.append(_EVIDENCE_CARD_INSTRUCTION)
+    return "\n\n".join(parts)
+

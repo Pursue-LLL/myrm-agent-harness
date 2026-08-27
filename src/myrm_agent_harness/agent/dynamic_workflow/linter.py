@@ -54,6 +54,7 @@ class WorkflowLintReport:
     llm_query_batched_calls_found: int
     goal_brief: str
     summary: str
+    steer_child_calls_found: int = 0
 
     @property
     def warnings(self) -> list[str]:
@@ -74,6 +75,7 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
         self.spawn_count = 0
         self.llm_query_count = 0
         self.llm_query_batched_count = 0
+        self.steer_child_count = 0
         self.module_aliases: set[str] = {self._MYRM_TOOLS_MODULE}
         self.imported_func_aliases: dict[str, str] = {}
         self._try_depth = 0
@@ -186,6 +188,8 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
             self.llm_query_count += 1
         elif tool_name == "llm_query_batched":
             self.llm_query_batched_count += 1
+        elif tool_name == "steer_child":
+            self.steer_child_count += 1
 
         # Check ThreadPoolExecutor max_workers
         if isinstance(func, ast.Name) and func.id == "ThreadPoolExecutor":
@@ -246,6 +250,7 @@ def lint_workflow_script(script_code: str, query: str = "") -> WorkflowLintRepor
             llm_query_batched_calls_found=0,
             goal_brief=query[:120] if query else "Empty workflow",
             summary="Static lint failed: Script is empty.",
+            steer_child_calls_found=0,
         )
 
     try:
@@ -265,6 +270,7 @@ def lint_workflow_script(script_code: str, query: str = "") -> WorkflowLintRepor
             llm_query_batched_calls_found=0,
             goal_brief=query[:120] if query else "Invalid workflow",
             summary=f"Static lint failed: {fatal_issue.message}",
+            steer_child_calls_found=0,
         )
 
     visitor = _WorkflowASTVisitor()
@@ -300,4 +306,5 @@ def lint_workflow_script(script_code: str, query: str = "") -> WorkflowLintRepor
         llm_query_batched_calls_found=visitor.llm_query_batched_count,
         goal_brief=goal_brief,
         summary=summary,
+        steer_child_calls_found=visitor.steer_child_count,
     )

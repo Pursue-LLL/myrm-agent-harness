@@ -83,6 +83,7 @@ from myrm_agent_harness.agent.dynamic_workflow.tools import (
     HumanAskTool,
     NotifyProgressTool,
     SpawnSubagentTool,
+    SteerChildTool,
     WorkflowRunGuard,
 )
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
@@ -215,6 +216,9 @@ async def run_dynamic_workflow_stream(
         message_id=message_id,
         ask_gate_callable=ask_gate,
         cancel_token=cancel_token,
+    )
+    steer_child_tool = SteerChildTool(
+        parent_agent=parent_agent,
     )
     llm_query_tool = LlmQueryTool(
         parent_agent=parent_agent,
@@ -533,10 +537,13 @@ async def run_dynamic_workflow_stream(
                     spawn_tool,
                     notify_tool,
                     human_ask_tool,
+                    steer_child_tool,
                     llm_query_tool,
                     llm_query_batched_tool,
                 ],
-                override_allowed=frozenset({"spawn_subagent", "notify", "human_ask"}),
+                override_allowed=frozenset(
+                    {"spawn_subagent", "notify", "human_ask", "steer_child"}
+                ),
             )
         )
         async for notify_event in iter_notify_events_while_task_runs(

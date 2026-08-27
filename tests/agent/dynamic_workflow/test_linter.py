@@ -148,3 +148,24 @@ with ThreadPoolExecutor(max_workers=16) as executor:
     report = lint_workflow_script(script)
     assert report.is_valid is True
     assert any("EXCESSIVE_WORKERS" in warn for warn in report.warnings)
+
+
+def test_lint_steer_child_call():
+    script = """\
+import myrm_tools
+import json
+
+try:
+    r = myrm_tools.spawn_subagent(task_id="t1", agent_type="generalPurpose", task_description="x")
+except Exception as e:
+    r = {"error": str(e)}
+
+steer_res = myrm_tools.steer_child(task_id="t1", message="Please refine findings")
+print(json.dumps({"sub": r, "steer": steer_res}))
+"""
+    report = lint_workflow_script(script)
+    assert report.is_valid is True
+    assert report.spawn_calls_found == 1
+    assert report.steer_child_calls_found == 1
+    assert len(report.warnings) == 0
+

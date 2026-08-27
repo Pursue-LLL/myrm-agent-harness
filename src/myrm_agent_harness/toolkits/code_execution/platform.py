@@ -25,6 +25,7 @@ import functools
 import logging
 import os
 import platform
+import shutil
 import sys
 from dataclasses import dataclass
 from typing import Literal
@@ -32,7 +33,7 @@ from typing import Literal
 _logger = logging.getLogger(__name__)
 
 OSType = Literal["windows", "macos", "linux"]
-ShellType = Literal["bash", "cmd"]
+ShellType = Literal["bash", "powershell", "cmd"]
 
 _POSIX_SAFE_ENV_VARS: frozenset[str] = frozenset(
     {
@@ -126,6 +127,8 @@ class PlatformInfo:
         if self.os_type == "macos":
             return "bash (BSD toolchain: use vm_stat instead of free, no GNU long options for ps/top)"
         if self.os_type == "windows":
+            if self.shell_type == "powershell":
+                return "powershell (PowerShell toolchain: use Get-ChildItem/Test-Path/Select-String or common aliases ls/cat/grep)"
             return "cmd.exe (use dir/type/tasklist instead of ls/cat/ps)"
         if self.is_wsl:
             return "bash (Linux on WSL, but host is Windows)"
@@ -180,6 +183,23 @@ def detect_platform() -> PlatformInfo:
     is_wsl = _detect_wsl()
 
     if os_type == "windows":
+        powershell_bin = shutil.which("powershell.exe") or shutil.which("pwsh.exe") or shutil.which("powershell") or shutil.which("pwsh")
+        if powershell_bin:
+            return PlatformInfo(
+                os_type=os_type,
+                os_release=platform.release(),
+                arch=platform.machine(),
+                is_wsl=False,
+                shell_path=powershell_bin,
+                shell_args=("-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass"),
+                shell_type="powershell",
+                exit_code_var="$__myrm_rc__",
+                env_set_template="$env:{key}={value}",
+                path_separator=";",
+                process_group_creation_flag=0x00000200,  # CREATE_NEW_PROCESS_GROUP
+                safe_env_vars=_WINDOWS_SAFE_ENV_VARS,
+            )
+
         return PlatformInfo(
             os_type=os_type,
             os_release=platform.release(),

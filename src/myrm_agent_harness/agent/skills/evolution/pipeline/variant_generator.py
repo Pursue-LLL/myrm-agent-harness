@@ -23,6 +23,7 @@ Variant Generator for Skill Evolution.
 import asyncio
 import json
 import logging
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
@@ -367,6 +368,20 @@ class VariantGenerator:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_gene_bank_prior_section(diverse_elites: list[Any]) -> str:
+        """Inject MAP-Elites diverse exemplars across layers to prevent evolution collapse."""
+        if not diverse_elites:
+            return ""
+        lines: list[str] = ["## Diverse Multi-Layer Defensive Exemplars (MAP-Elites Prior)"]
+        lines.append("Consider solutions across different layers (Prompt, Tool Code, Runtime Config) to avoid over-fitting to prompt-only tweaks:")
+        for elite in diverse_elites:
+            layer_val = getattr(elite, "cell_key", None)
+            layer_name = layer_val.layer.value if layer_val else "unknown"
+            summary = getattr(elite, "patch_summary", "")
+            lines.append(f"- [{layer_name.upper()}] {summary}")
+        return "\n".join(lines)
 
     @staticmethod
     def _build_eval_cases_section(skill: SkillRecord) -> str:

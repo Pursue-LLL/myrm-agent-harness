@@ -131,6 +131,25 @@ class TestPlatformInfoProperties:
     def test_shell_hint_windows(self, windows_info: PlatformInfo):
         assert "cmd.exe" in windows_info.shell_hint
 
+    def test_shell_hint_windows_powershell(self):
+        pwsh_info = PlatformInfo(
+            os_type="windows",
+            os_release="10.0",
+            arch="AMD64",
+            is_wsl=False,
+            shell_path="powershell.exe",
+            shell_args=("-NoLogo", "-NoProfile"),
+            shell_type="powershell",
+            exit_code_var="$__myrm_rc__",
+            env_set_template="$env:{key}={value}",
+            path_separator=";",
+            process_group_creation_flag=0x00000200,
+            safe_env_vars=frozenset(),
+        )
+        assert "powershell" in pwsh_info.shell_hint
+        assert "Get-ChildItem" in pwsh_info.shell_hint
+
+
     def test_shell_hint_wsl(self, linux_wsl_info: PlatformInfo):
         hint = linux_wsl_info.shell_hint
         assert "WSL" in hint

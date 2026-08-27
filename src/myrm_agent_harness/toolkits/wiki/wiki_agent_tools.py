@@ -45,7 +45,11 @@ from .pipeline.apply import (
 from .pipeline.compiler import WikiCompiler
 from .retrieval.indexer import WikiIndexer
 from .retrieval.query import WikiQueryEngine
-from .retrieval.source_citations import attach_wiki_scope_id, build_wiki_query_sources
+from .retrieval.source_citations import (
+    attach_wiki_scope_id,
+    build_wiki_query_sources,
+    format_evidence_cards_context,
+)
 
 logger = get_agent_logger(__name__)
 
@@ -274,8 +278,14 @@ def create_wiki_agent_tools(
                 wrap_with_external_sources_tag,
             )
 
+            evidence_context = format_evidence_cards_context(
+                result.answer,
+                result.source_snippets,
+                structure=structure,
+            )
+
             wrapped_context = wrap_with_external_sources_tag(
-                result.answer, source="LLM-Wiki"
+                evidence_context, source="LLM-Wiki"
             )
 
             sources = attach_wiki_scope_id(

@@ -13,6 +13,7 @@ from myrm_agent_harness.agent.dynamic_workflow.tools import (
     HumanAskTool,
     NotifyProgressTool,
     SpawnSubagentTool,
+    SteerChildTool,
     WorkflowRunGuard,
 )
 from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
@@ -1148,3 +1149,31 @@ async def test_spawn_subagent_auditor_blind_and_multi_skeptic_mode(mock_parent_a
         )
         assert res2["success"] is True
         assert mock_verify.call_args.kwargs["verification_mode"] == "multi_skeptic"
+
+
+@pytest.mark.asyncio
+async def test_steer_child_tool_success_and_fallback(mock_parent_agent):
+    mock_parent_agent.steer_child = MagicMock(return_value=True)
+
+    tool = SteerChildTool(parent_agent=mock_parent_agent)
+
+    # 1. Success case
+    res1 = await tool._arun(task_id="child_1", message="Refine findings")
+    assert res1["success"] is True
+    assert res1["task_id"] == "child_1"
+    assert "successfully queued" in res1["message"]
+    mock_parent_agent.steer_child.assert_called_once_with("child_1", "Refine findings")
+
+    # 2. Not found / already completed case
+    mock_parent_agent.steer_child.return_value = False
+    res2 = await tool._arun(task_id="child_dead", message="Refine findings")
+    assert res2["success"] is False
+    assert res2["task_id"] == "child_dead"
+    assert "not found or already completed" in res2["error"]
+
+    # 3. Parent agent without steer_child attribute
+    tool_no_attr = SteerChildTool(parent_agent=object())
+    res3 = await tool_no_attr._arun(task_id="child_any", message="msg")
+    assert res3["success"] is False
+    assert "does not support steer_child" in res3["error"]
+

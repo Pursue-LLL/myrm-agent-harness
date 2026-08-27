@@ -14,6 +14,7 @@
 - SpawnSubagentTool: PTC tool exposed as myrm_tools.spawn_subagent
 - NotifyProgressTool: PTC tool exposed as myrm_tools.notify — emits workflow stage events to the frontend
 - HumanAskTool: PTC tool exposed as myrm_tools.human_ask — suspends workflow for mid-run user input / decision
+- SteerChildTool: PTC tool exposed as myrm_tools.steer_child — dynamically injects corrective message into a running/warmed child subagent
 - WorkflowRunGuard: Per-workflow spawn counter, concurrency semaphore, parallel writer tracking
 
 [POS]
@@ -23,6 +24,7 @@ adversarial. Shares spawn prep with delegate_task_tool via spawn_prep.py.
 WorkflowEventStore provides L2 persistent caching beyond the delegate's 60s TTL.
 NotifyProgressTool provides real-time workflow stage notifications from PTC scripts.
 HumanAskTool provides mid-run human-in-the-loop gate via PhaseWaiter.
+SteerChildTool provides runtime steering and redirection into child subagents.
 """
 
 from __future__ import annotations
@@ -724,3 +726,63 @@ class HumanAskTool(BaseTool):
             "error": error_msg,
             "timed_out": timed_out,
         }
+
+
+# ---------------------------------------------------------------------------
+# SteerChildTool — dynamically inject corrective messages into child subagents
+# ---------------------------------------------------------------------------
+
+
+class SteerChildInput(BaseModel):
+    """Input schema for myrm_tools.steer_child mid-run subagent steering."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    task_id: str = Field(
+        ...,
+        description="The unique task_id of the target sub-agent to steer.",
+    )
+    message: str = Field(
+        ...,
+        description="Corrective or follow-up instruction message injected into the sub-agent's next turn.",
+        max_length=4000,
+    )
+
+
+class SteerChildTool(BaseTool):
+    """PTC tool that injects steering messages into a child subagent."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    name: str = "steer_child"
+    description: str = (
+        "Inject a corrective or follow-up instruction into a running or active child sub-agent. "
+        "Allows dynamic redirection in multi-stage workflows without cold-respawning."
+    )
+    args_schema: type[BaseModel] = SteerChildInput
+
+    parent_agent: object
+
+    def _run(self, task_id: str, message: str) -> dict[str, object]:
+        if not hasattr(self.parent_agent, "steer_child"):
+            return {
+                "success": False,
+                "task_id": task_id,
+                "error": "Parent agent does not support steer_child.",
+            }
+        steered = self.parent_agent.steer_child(task_id, message)
+        if steered:
+            return {
+                "success": True,
+                "task_id": task_id,
+                "message": f"Steering message successfully queued for sub-agent `{task_id}`.",
+            }
+        return {
+            "success": False,
+            "task_id": task_id,
+            "error": f"Could not steer `{task_id}`: sub-agent not found or already completed.",
+        }
+
+    async def _arun(self, task_id: str, message: str) -> dict[str, object]:
+        return self._run(task_id=task_id, message=message)
+

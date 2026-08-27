@@ -179,3 +179,42 @@ def test_build_wiki_query_sources_omits_fallback_claim_confidence() -> None:
 
     sources = build_wiki_query_sources(result)
     assert "claim_confidence" not in sources[0]
+
+
+def test_format_evidence_cards_context() -> None:
+    from myrm_agent_harness.toolkits.wiki.retrieval.source_citations import (
+        format_evidence_cards_context,
+    )
+
+    base_answer = "## Recent vault context\nSome activity"
+    snippets = [
+        SourceSnippet(
+            article_path="/concepts/billing.md",
+            article_name="billing",
+            snippet="Exponential backoff retry is applied up to 5 times.",
+            evidence_path="raw/billing.md",
+            line_range="L40-L48",
+            claim_status="verified",
+            claim_confidence=0.95,
+        ),
+        SourceSnippet(
+            article_path="/concepts/legacy_billing.md",
+            article_name="legacy_billing",
+            snippet="Fixed interval 5s retry.",
+            evidence_path="raw/legacy_billing.md",
+            line_range="L12-L16",
+            claim_status="stale",
+            claim_confidence=0.70,
+        ),
+    ]
+
+    formatted = format_evidence_cards_context(base_answer, snippets)
+
+    assert "## Recent vault context" in formatted
+    assert "## Evidence Snippets & Line Anchors" in formatted
+    assert "--- [Evidence Card: source: raw/billing.md#L40-L48 | status: verified | confidence: 0.95] ---" in formatted
+    assert "Exponential backoff retry is applied up to 5 times." in formatted
+    assert "--- [Evidence Card: source: raw/legacy_billing.md#L12-L16 | status: stale | confidence: 0.70] ---" in formatted
+    assert "[Evidence-Card Answer Contract]" in formatted
+    assert "disagree -> show both" in formatted
+
