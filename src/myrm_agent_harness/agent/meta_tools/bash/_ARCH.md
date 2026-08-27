@@ -68,6 +68,7 @@ bash/
 | `_tool/tool_description.py` | Internal | 静态缓存稳定 `TOOL_DESCRIPTION`。 |
 | `_tool/formatting.py` | Core | 输出压缩编排/截断/脱敏/wrapping；消费压缩域 `BASH_OUTPUT_MAX_CHARS`。 |
 | `_tool/exit_semantics.py` | Core | Exit-code 语义解释。 |
+| `_tool/terminal_hints.py` | Core | 输出模式故障自愈诊断与伪成功（Masked Success）防护。 |
 | `_tool/helpers.py` | Core | BashInput schema、OS hint、上下文恢复。 |
 | `_tool/multimodal.py` | Core | Vision ContentBlock 内联返回。 |
 | `_tool/background_listeners.py` | Core | 后台 spawn ptc_notify 监听与退出分类。 |

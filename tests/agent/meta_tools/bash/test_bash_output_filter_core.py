@@ -22,3 +22,16 @@ def test_filter_pattern_length_rejected() -> None:
 def test_filter_output_lines_empty_input() -> None:
     pattern = compile_output_filter("x")
     assert filter_output_lines([], pattern) == []
+
+
+def test_compile_output_filter_case_insensitive_and_strip() -> None:
+    import pytest
+
+    pattern = compile_output_filter("  error|warn  ")
+    assert pattern.search("ERROR: uppercase") is not None
+    assert pattern.search("warn: lowercase") is not None
+    assert pattern.search("ok line") is None
+
+    with pytest.raises(ValueError, match="cannot be empty"):
+        compile_output_filter("   ")
+

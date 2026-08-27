@@ -454,12 +454,14 @@ def create_bash_code_execute_tool(
                             storage_truncated=e.stderr_evicted_storage_truncated,
                         )
 
-                if "git clone" in command and "github.com" in command:
-                    git_hint = (
-                        "[ Diagnostic Hint] 'git clone' failed or timed out. For large repositories, it is recommended to use curl to download the tarball instead:\n"
-                        "curl -sL https://api.github.com/repos/<owner>/<repo>/tarball -o repo.tar.gz && tar -xzf repo.tar.gz"
-                    )
-                    hint = f"{hint}\n\n{git_hint}" if hint else git_hint
+                from myrm_agent_harness.agent.meta_tools.bash._tool.terminal_hints import (
+                    annotate_failure,
+                )
+
+                error_text = f"{e}\n{getattr(e, 'stderr', '')}\n{getattr(e, 'stdout', '')}"
+                auto_hint = annotate_failure(command, getattr(e, "exit_code", 1), error_text)
+                if auto_hint:
+                    hint = f"{hint}\n\n[Diagnostic Hint] {auto_hint}" if hint else f"[Diagnostic Hint] {auto_hint}"
 
             raise ToolError(
                 message=str(e),

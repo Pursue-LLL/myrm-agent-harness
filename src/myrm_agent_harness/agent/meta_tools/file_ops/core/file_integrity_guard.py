@@ -138,9 +138,17 @@ _integrity_guards: dict[int, FileIntegrityGuard] = {}
 
 
 def get_file_integrity_guard(executor: CodeExecutor | None) -> FileIntegrityGuard | None:
-    if executor is None:
+    effective_executor = executor
+    if effective_executor is None:
+        from myrm_agent_harness.toolkits.code_execution.executors.base import (
+            get_executor,
+        )
+
+        effective_executor = get_executor()
+
+    if effective_executor is None:
         return None
-    eid = id(executor)
+    eid = id(effective_executor)
     if eid not in _integrity_guards:
         _integrity_guards[eid] = FileIntegrityGuard()
     return _integrity_guards[eid]

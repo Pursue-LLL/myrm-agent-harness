@@ -29,10 +29,9 @@ def build_poll_output(
 ) -> tuple[dict[str, object], int]:
     """Return poll payload and updated empty_poll_streak."""
     baseline = since_cursor if since_cursor is not None else 0
-    next_cursor = cursor
-    stdout_filtered = [text for cur, text in stdout_buffer if cur > baseline]
-    stderr_filtered = [text for cur, text in stderr_buffer if cur > baseline]
-    has_new_output = bool(stdout_filtered or stderr_filtered)
+    stdout_items = [(cur, text) for cur, text in stdout_buffer if cur > baseline]
+    stderr_items = [(cur, text) for cur, text in stderr_buffer if cur > baseline]
+    has_new_output = bool(stdout_items or stderr_items)
     streak = empty_poll_streak
     if since_cursor is not None:
         streak = 0 if has_new_output else empty_poll_streak + 1
@@ -42,10 +41,10 @@ def build_poll_output(
         "suggested_wait_ms": _POLL_BACKOFF_MS[streak_idx],
     }
 
-    if since_cursor is not None and stdout_buffer and stderr_buffer:
+    if since_cursor is not None and (stdout_buffer or stderr_buffer):
         oldest_kept = min(
-            stdout_buffer[0][0] if stdout_buffer else next_cursor,
-            stderr_buffer[0][0] if stderr_buffer else next_cursor,
+            stdout_buffer[0][0] if stdout_buffer else cursor,
+            stderr_buffer[0][0] if stderr_buffer else cursor,
         )
         dropped = oldest_kept > baseline + 1 and (
             len(stdout_buffer) == _OUTPUT_TAIL_LINES or len(stderr_buffer) == _OUTPUT_TAIL_LINES
@@ -53,9 +52,24 @@ def build_poll_output(
     else:
         dropped = False
 
+    if since_cursor is not None:
+        # Incremental streaming mode: slice forward [:max_lines] and advance next_cursor
+        # to the maximum cursor actually consumed in this batch, preventing log gaps.
+        stdout_slice = stdout_items[:max_lines]
+        stderr_slice = stderr_items[:max_lines]
+        consumed_cursors = [cur for cur, _ in stdout_slice] + [cur for cur, _ in stderr_slice]
+        next_cursor = max(consumed_cursors) if consumed_cursors else baseline
+        stdout_output = [text for _, text in stdout_slice]
+        stderr_output = [text for _, text in stderr_slice]
+    else:
+        # Snapshot mode: return the latest tail lines and global latest cursor.
+        next_cursor = cursor
+        stdout_output = [text for _, text in stdout_items[-max_lines:]]
+        stderr_output = [text for _, text in stderr_items[-max_lines:]]
+
     payload: dict[str, object] = {
-        "stdout": stdout_filtered[-max_lines:],
-        "stderr": stderr_filtered[-max_lines:],
+        "stdout": stdout_output,
+        "stderr": stderr_output,
         "next_cursor": next_cursor,
         "dropped": dropped,
         "poll_hint": poll_hint,

@@ -245,6 +245,7 @@ class WorkspacePolicy(StrEnum):
 
     INHERIT = "inherit"
     ISOLATED_COPY = "isolated_copy"
+    GIT_WORKTREE = "git_worktree"
     READ_ONLY_SANDBOX = "read_only_sandbox"
 
 

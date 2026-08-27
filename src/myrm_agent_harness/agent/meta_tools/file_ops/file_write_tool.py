@@ -89,7 +89,7 @@ def create_file_write_tool(skills: list[SkillMetadata] | None = None) -> BaseToo
 
     @tool(
         "file_write_tool",
-        description="""创建新文件（不能覆盖已有文件，修改已有文件请用 file_edit_tool）。当需要创建文件时，必须使用本工具而非 bash echo/heredoc/tee。
+        description="""创建新文件或全量覆写文件。当仅需局部修改已有代码时，必须使用 file_edit_tool（严禁使用 bash echo/heredoc/tee 写入文件）。
 
 参数：
 - path: 文件路径 (支持普通路径或 "@file_id")

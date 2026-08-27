@@ -66,7 +66,7 @@ class TestCreateDelegateTool:
     def test_returns_tool_function(self) -> None:
         pool = _make_pool({"claude": _cfg()})
         tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
-        assert tool_func.name == "delegate_to_agent_tool"
+        assert tool_func.name in ("delegate_to_agent_tool", "invoke_acp_agent_tool")
         assert "Available agents" not in tool_func.description
         assert "configured backend" in tool_func.description
 

@@ -11,6 +11,7 @@ bash 工具横切能力域：LLM 描述提示词、输出格式化/截断、退�
 | `tool_description.py` | Internal | 静态缓存稳定 `TOOL_DESCRIPTION`（能力/合并规则/后台任务/eviction 读取提示）。 | ✅ |
 | `formatting.py` | Core | 输出压缩编排、截断、脱敏、wrapping；消费压缩域 `BASH_OUTPUT_MAX_CHARS` 做硬截断。 | ✅ |
 | `exit_semantics.py` | Core | Exit-code 语义解释（grep=1、git diff、信号）。 | ✅ |
+| `terminal_hints.py` | Core | 输出模式故障自愈诊断与伪成功（Masked Success）防护。 | ✅ |
 | `helpers.py` | Core | BashInput schema（reason 必填）、OS hint、上下文恢复/访问追踪。 | ✅ |
 | `multimodal.py` | Core | Vision ContentBlock 内联返回（生成图片）。 | ✅ |
 | `background_listeners.py` | Core | 后台 spawn ptc_notify 监听与退出分类。 | ✅ |

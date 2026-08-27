@@ -52,6 +52,7 @@ __all__ = [
     "create_conversation_search_tool",
     "create_cron_tools",
     "create_delegate_to_agent_tool",
+    "create_invoke_acp_agent_tool",
     "create_litellm_model",
     "create_memory_tools",
     "create_web_fetch_tool",
@@ -83,6 +84,10 @@ _LAZY_IMPORTS = {
     "create_delegate_to_agent_tool": (
         "myrm_agent_harness.toolkits.acp.acp_agent_tools",
         "create_delegate_to_agent_tool",
+    ),
+    "create_invoke_acp_agent_tool": (
+        "myrm_agent_harness.toolkits.acp.acp_agent_tools",
+        "create_invoke_acp_agent_tool",
     ),
 }
 

@@ -34,3 +34,21 @@ def test_build_poll_output_marks_dropped_when_ring_evicts() -> None:
     )
     assert payload["dropped"] is True
     assert streak == 0
+
+
+def test_build_poll_output_forward_slice_advances_cursor_accurately() -> None:
+    # 5 items (cursors 10..14), request max_lines=2 with since_cursor=9
+    stdout = deque([(10, "line-10"), (11, "line-11"), (12, "line-12"), (13, "line-13"), (14, "line-14")])
+    stderr: deque[tuple[int, str]] = deque()
+    payload, streak = build_poll_output(
+        stdout_buffer=stdout,
+        stderr_buffer=stderr,
+        cursor=14,
+        empty_poll_streak=0,
+        max_lines=2,
+        since_cursor=9,
+    )
+    # Should yield forward first 2 lines (10, 11) and advance next_cursor to 11
+    assert payload["stdout"] == ["line-10", "line-11"]
+    assert payload["next_cursor"] == 11
+

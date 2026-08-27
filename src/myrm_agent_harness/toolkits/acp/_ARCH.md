@@ -11,7 +11,7 @@ Detailed design: [ACP_SYSTEM.md](ACP_SYSTEM.md)
 |------|------|-------------|-------|
 | __init__.py | Package | ACP toolkit entry point. Provides lazy-loaded access to server and runtime components | ✅ |
 | __main__.py | Internal | CLI entry point for the ACP server. | ✅ |
-| acp_agent_tools.py | Core | Delegate tasks to external ACP-compatible agents. | ✅ |
+| acp_agent_tools.py | Core | Invoke external ACP-compatible agents (`invoke_acp_agent_tool`, `create_invoke_acp_agent_tool`). | ✅ |
 | types.py | Config | ACP runtime type definitions layer. Provides all ACP-related core abstractions and data | ✅ |
 
 | Submodule | Description |

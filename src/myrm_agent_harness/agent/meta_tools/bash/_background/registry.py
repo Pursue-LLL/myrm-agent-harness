@@ -234,6 +234,10 @@ class BackgroundProcessRegistry:
             )
             if since_cursor is not None:
                 entry.empty_poll_streak = streak
+            if payload.get("dropped") and entry.spill_writer is not None:
+                spill_ref = entry.spill_writer.vault_log_ref
+                if spill_ref:
+                    payload["spill_log_ref"] = spill_ref
         return payload
 
     async def wait_for_process(

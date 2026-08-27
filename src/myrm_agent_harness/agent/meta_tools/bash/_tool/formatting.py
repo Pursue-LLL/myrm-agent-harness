@@ -83,6 +83,11 @@ def format_result(result: Mapping[str, object], command: str = "") -> tuple[str,
     if stderr_str:
         output_parts.append(f"[stderr]\n{stderr_str}")
 
+    from myrm_agent_harness.agent.meta_tools.bash._tool.terminal_hints import (
+        annotate_failure,
+        annotate_masked_success,
+    )
+
     if exit_code != "0":
         try:
             code_int = int(exit_code)
@@ -93,6 +98,14 @@ def format_result(result: Mapping[str, object], command: str = "") -> tuple[str,
             output_parts.append(f"[exit_code: {exit_code} — {meaning}]")
         else:
             output_parts.append(f"[exit_code: {exit_code}]")
+
+        hint = annotate_failure(command, code_int, f"{stdout_str}\n{stderr_str}") if command else None
+        if hint:
+            output_parts.append(f"[Auto-Hint] {hint}")
+    else:
+        masked_note = annotate_masked_success(command, stdout_str) if command else None
+        if masked_note:
+            output_parts.append(masked_note)
 
     if not output_parts:
         return "(no output)", False, {}

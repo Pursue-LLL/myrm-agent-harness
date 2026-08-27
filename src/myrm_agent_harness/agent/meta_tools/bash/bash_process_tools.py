@@ -116,7 +116,9 @@ class _BashProcessInput(BaseModel):
     )
     filter: str | None = Field(
         default=None,
-        description=("For output: optional regex applied per line — only matching stdout/stderr lines are returned."),
+        description=(
+            "For output: optional regex applied per line (e.g. 'ERROR|WARN') — only matching stdout/stderr lines are returned."
+        ),
     )
     data: str = Field(
         default="",
@@ -160,7 +162,7 @@ async def _handle_output(
 
         try:
             line_filter = compile_output_filter(filter_pattern)
-        except re.error as exc:
+        except (re.error, ValueError) as exc:
             return {
                 "content": f"Invalid output filter regex: {exc}",
                 "metadata": {
@@ -204,6 +206,8 @@ async def _handle_output(
         "dropped": streams["dropped"],
         "poll_hint": poll_hint,
     }
+    if streams.get("spill_log_ref"):
+        content["spill_log_ref"] = streams["spill_log_ref"]
     if info.status == "running":
         content["waiting_for_input"] = info.waiting_for_input
         content["last_output_at"] = info.last_output_at

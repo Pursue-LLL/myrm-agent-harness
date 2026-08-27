@@ -1180,3 +1180,28 @@ class TestMemorySaveSessionBuffer:
         result = await tool.ainvoke({"content": "be terse", "category": "instruction"})
 
         assert "duplicate detected" in result
+
+    @pytest.mark.asyncio
+    async def test_save_shared_write_downgrades_when_blocked_by_policy(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        from unittest.mock import MagicMock
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+        from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchPolicy
+
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        policy = MemorySearchPolicy(allow_shared_write=False)
+        tools = create_memory_tools(manager, search_policy=policy)
+        save_tool = next(t for t in tools if t.name == "memory_save_tool")
+
+        with patch.object(
+            MemoryManager,
+            "add_knowledge",
+            AsyncMock(return_value=MagicMock(id="k-1")),
+        ) as mock_add:
+            result = await save_tool.ainvoke(
+                {"content": "sensitive fact from channel", "category": "knowledge", "write_target": "shared"}
+            )
+            assert "stored" in result or "submitted" in result
+            mock_add.assert_called_once()
+            assert mock_add.call_args.kwargs.get("write_target") == "bound"

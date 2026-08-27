@@ -393,9 +393,74 @@ async def test_bash_process_output_with_line_filter() -> None:
 
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "chat-good-filter"}}}
-    result = await tool.ainvoke({"action": "output", "pid": 9037, "filter": "ERROR|WARN"}, config=config)
+    # Case-insensitive and strip test: lowercase 'error|warn' with whitespace matches uppercase 'ERROR: boom'
+    result = await tool.ainvoke({"action": "output", "pid": 9037, "filter": "  error|warn  "}, config=config)
     assert "ERROR: boom" in result["content"]["stdout"][0]
-    assert result["metadata"]["filter"] == "ERROR|WARN"
+    assert "  error|warn  " in result["metadata"]["filter"]
+
+
+@pytest.mark.asyncio
+async def test_bash_process_output_empty_filter_error() -> None:
+    registry = get_background_registry()
+    proc = _FakeProc(pid=9039, stdout=[b"ok\n"], stderr=[])
+    await registry.register(
+        cast(AsyncProcessProtocol, proc),
+        command="echo line",
+        session_id="chat-empty-filter",
+    )
+    tool = create_bash_process_tool()
+    config = {"configurable": {"context": {"session_id": "chat-empty-filter"}}}
+    result = await tool.ainvoke({"action": "output", "pid": 9039, "filter": "   "}, config=config)
+    assert result["metadata"]["error"] == "invalid_filter"
+
+
+@pytest.mark.asyncio
+async def test_bash_process_output_incremental_cursor_paging() -> None:
+    registry = get_background_registry()
+    # Output 5 lines (cursors 1..5)
+    lines = [f"log-{i}\n".encode() for i in range(1, 6)]
+    proc = _FakeProc(pid=9040, stdout=lines, stderr=[])
+    await registry.register(
+        cast(AsyncProcessProtocol, proc),
+        command="generate_logs",
+        session_id="chat-paging",
+    )
+    await asyncio.sleep(0.05)
+
+    tool = create_bash_process_tool()
+    config = {"configurable": {"context": {"session_id": "chat-paging"}}}
+
+    # Batch 1: since_cursor=0, max_lines=2 -> returns log-1, log-2; next_cursor=2
+    res1 = await tool.ainvoke(
+        {"action": "output", "pid": 9040, "since_cursor": 0, "max_lines": 2},
+        config=config,
+    )
+    assert res1["content"]["stdout"] == ["log-1", "log-2"]
+    assert res1["content"]["next_cursor"] == 2
+
+    # Batch 2: since_cursor=2, max_lines=2 -> returns log-3, log-4; next_cursor=4
+    res2 = await tool.ainvoke(
+        {"action": "output", "pid": 9040, "since_cursor": 2, "max_lines": 2},
+        config=config,
+    )
+    assert res2["content"]["stdout"] == ["log-3", "log-4"]
+    assert res2["content"]["next_cursor"] == 4
+
+    # Batch 3: since_cursor=4, max_lines=2 -> returns log-5; next_cursor=5
+    res3 = await tool.ainvoke(
+        {"action": "output", "pid": 9040, "since_cursor": 4, "max_lines": 2},
+        config=config,
+    )
+    assert res3["content"]["stdout"] == ["log-5"]
+    assert res3["content"]["next_cursor"] == 5
+
+    # Batch 4: since_cursor=5, max_lines=2 -> empty; next_cursor=5
+    res4 = await tool.ainvoke(
+        {"action": "output", "pid": 9040, "since_cursor": 5, "max_lines": 2},
+        config=config,
+    )
+    assert res4["content"]["stdout"] == []
+    assert res4["content"]["next_cursor"] == 5
 
 
 @pytest.mark.asyncio

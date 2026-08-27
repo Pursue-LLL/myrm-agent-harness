@@ -108,14 +108,14 @@ do the steps yourself sequentially instead of spawning workers
 
 ```
 #  Wrong — wrapping a single non-decomposable task
-delegate_task_tool(task="Run the test suite", ...)
+delegate_task_tool(objective="Run the test suite", ...)
 
 #  Right — execute directly, no parallel decomposition possible
 bash("pytest tests/")
 
 #  Wrong — sequential dependency forced into parallel workers
-delegate_task_tool(task="Read the config file", ...)
-delegate_task_tool(task="Based on the config, update the code", ...)
+delegate_task_tool(objective="Read the config file", ...)
+delegate_task_tool(objective="Based on the config, update the code", ...)
 
 #  Right — do sequential steps yourself
 config = read_file("config.yaml")
@@ -213,10 +213,10 @@ delegate understanding to the worker. You must synthesize.
 
 ```
 # Anti-pattern — lazy delegation
-delegate_task_tool(task="Based on findings, fix the auth bug", ...)
+delegate_task_tool(objective="Based on findings, fix the auth bug", ...)
 
 # Good — synthesized spec
-delegate_task_tool(task="Fix null pointer in src/auth/validate.ts:42. \
+delegate_task_tool(objective="Fix null pointer in src/auth/validate.ts:42. \
 The user field is undefined when sessions expire. Add null check before \
 user.id access — if null, return 401 with 'Session expired'. Run tests \
 and commit.", ...)

@@ -85,6 +85,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # EXTENDED - harness 可选能力(Turn1 按需); EXTERNAL 在其后, 见 get_tool_layer 默认 fallback
     # ============================================================
     # --- ACP（Agent Communication Protocol）---
+    "invoke_acp_agent_tool": ToolLayer.EXTENDED,
     "delegate_to_agent_tool": ToolLayer.EXTENDED,
     # --- 浏览器工具 ---
     "browser_extract_tool": ToolLayer.EXTENDED,

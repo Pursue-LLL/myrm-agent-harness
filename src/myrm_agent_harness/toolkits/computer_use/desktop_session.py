@@ -83,6 +83,7 @@ class DesktopSession(ComputerSession):
         self._view_update_callback = view_update_callback
         self._last_tree_text: str = ""
         self._last_snapshot_time: float = 0.0
+        self._action_lock: asyncio.Lock = asyncio.Lock()
 
     @property
     def ref_registry(self) -> DRefRegistry:
@@ -248,95 +249,108 @@ class DesktopSession(ComputerSession):
         text: str = "",
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
-        meta = self._refs.meta
-        app_name = meta.app_name if meta else ""
-        window_title = meta.window_title if meta else ""
-        app_id = meta.app_id if meta else ""
+        async with self._action_lock:
+            meta = self._refs.meta
+            app_name = meta.app_name if meta else ""
+            window_title = meta.window_title if meta else ""
+            app_id = meta.app_id if meta else ""
 
-        app_denied = await self.check_app_approval(
-            app_name=app_name,
-            window_title=window_title,
-            app_id=app_id,
-            operation=f"desktop_interact({action}, @{ref})",
-        )
-        if app_denied is not None:
-            return f"Control denied: {app_denied.error}"
-
-        try:
-            stale_error = await self._revalidate_if_stale_after_approval(
-                interact_ref=ref
+            app_denied = await self.check_app_approval(
+                app_name=app_name,
+                window_title=window_title,
+                app_id=app_id,
+                operation=f"desktop_interact({action}, @{ref})",
             )
-            if stale_error is not None:
-                return stale_error
+            if app_denied is not None:
+                return f"Control denied: {app_denied.error}"
 
             try:
-                element = self._refs.get(ref)
-            except DRefStaleError as exc:
-                return str(exc)
-
-            effective_action = action
-            effective_text = text
-
-            if action == "fill_credential":
-                from myrm_agent_harness.core.security.credential_vault import (
-                    get_global_credential_vault,
+                stale_error = await self._revalidate_if_stale_after_approval(
+                    interact_ref=ref
                 )
+                if stale_error is not None:
+                    return stale_error
 
-                vault = get_global_credential_vault()
-                is_totp = text.endswith("-totp")
                 try:
-                    if is_totp:
-                        effective_text = vault.get_totp_token(text)
-                    else:
-                        effective_text = vault.get_password(text)
-                except Exception:
-                    return f"Failed to retrieve credential for label '{text}'"
-                effective_action = "fill"
-            elif action == "set_value":
-                effective_action = "set_value"
+                    element = self._refs.get(ref)
+                except DRefStaleError as exc:
+                    remedy_hint = (
+                        f"[REMEDY_HINT: The element reference @{ref} is stale because the UI state has changed. "
+                        "Call desktop_snapshot_tool(scope='foreground') to refresh the @dref element tree.]"
+                    )
+                    return f"{exc}\n{remedy_hint}"
 
-            snapshot_app = self._refs.meta.app_name if self._refs.meta else None
-            ax_result = invoke_element(
-                self._backend,
-                element,
-                effective_action,
-                effective_text,
-                app_name=snapshot_app,
-            )
-            if not ax_result.success:
-                bbox_result = await try_bbox_click(
-                    self, element, effective_action, effective_text, modifiers
-                )
-                if not bbox_result.success:
-                    return (
-                        f"desktop_interact failed for @{element.ref_id}: "
-                        f"{ax_result.error}; bbox fallback: {bbox_result.error}"
+                effective_action = action
+                effective_text = text
+
+                if action == "fill_credential":
+                    from myrm_agent_harness.core.security.credential_vault import (
+                        get_global_credential_vault,
                     )
 
-            await asyncio.sleep(self._config.screenshot_delay)
-            if self._refs.meta and self._refs.meta.app_name:
-                follow_up = await self.desktop_snapshot(
-                    scope="target",
-                    app_name=self._refs.meta.app_name,
-                    include_screenshot=False,
+                    vault = get_global_credential_vault()
+                    is_totp = text.endswith("-totp")
+                    try:
+                        if is_totp:
+                            effective_text = vault.get_totp_token(text)
+                        else:
+                            effective_text = vault.get_password(text)
+                    except Exception:
+                        return f"Failed to retrieve credential for label '{text}'"
+                    effective_action = "fill"
+                elif action == "set_value":
+                    effective_action = "set_value"
+
+                snapshot_app = self._refs.meta.app_name if self._refs.meta else None
+                ax_result = invoke_element(
+                    self._backend,
+                    element,
+                    effective_action,
+                    effective_text,
+                    app_name=snapshot_app,
                 )
-            else:
-                follow_up = await self.desktop_snapshot(
-                    scope="foreground",
-                    include_screenshot=False,
-                )
-            if action == "fill_credential":
-                result_prefix = f"Filled credential '{text}' into @{element.ref_id} [CREDENTIAL_FILLED]\n\n"
-            else:
-                result_prefix = f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
-            if isinstance(follow_up, list):
-                first = follow_up[0]
-                if hasattr(first, "text"):
-                    first.text = result_prefix + getattr(first, "text", "")
-                return follow_up
-            return f"{result_prefix}{follow_up}"
-        finally:
-            self.clear_operation_foreground_waiver()
+                if not ax_result.success:
+                    bbox_result = await try_bbox_click(
+                        self, element, effective_action, effective_text, modifiers
+                    )
+                    if not bbox_result.success:
+                        remedy_hint = (
+                            f"[REMEDY_HINT: Action '{action}' on @{element.ref_id} failed via accessibility invocation "
+                            f"({ax_result.error}) and bounding-box fallback ({bbox_result.error}). "
+                            "The target window may be minimized, occluded, or scrolled off-screen. "
+                            "Suggested remedies: 1) Call desktop_snapshot_tool(scope='foreground') to verify window state; "
+                            "2) Call desktop_snapshot_tool(scope='target', app_name='...') to bring the app window forward; "
+                            "3) Use desktop_vision_tool if the element is custom-rendered on canvas.]"
+                        )
+                        return (
+                            f"desktop_interact failed for @{element.ref_id}: "
+                            f"{ax_result.error}; bbox fallback: {bbox_result.error}\n{remedy_hint}"
+                        )
+
+                await asyncio.sleep(self._config.screenshot_delay)
+                if self._refs.meta and self._refs.meta.app_name:
+                    follow_up = await self.desktop_snapshot(
+                        scope="target",
+                        app_name=self._refs.meta.app_name,
+                        include_screenshot=False,
+                    )
+                else:
+                    follow_up = await self.desktop_snapshot(
+                        scope="foreground",
+                        include_screenshot=False,
+                    )
+                if action == "fill_credential":
+                    result_prefix = f"Filled credential '{text}' into @{element.ref_id} [CREDENTIAL_FILLED]\n\n"
+                else:
+                    result_prefix = f"Action '{action}' on @{element.ref_id} succeeded.\n\n"
+                if isinstance(follow_up, list):
+                    first = follow_up[0]
+                    if hasattr(first, "text"):
+                        first.text = result_prefix + getattr(first, "text", "")
+                    return follow_up
+                return f"{result_prefix}{follow_up}"
+            finally:
+                self.clear_operation_foreground_waiver()
 
     async def desktop_vision_capture(self) -> str | list[object]:
         result = await self.take_screenshot()
@@ -355,120 +369,121 @@ class DesktopSession(ComputerSession):
         duration: float = 2.0,
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
-        from myrm_agent_harness.toolkits.computer_use import safety
+        async with self._action_lock:
+            from myrm_agent_harness.toolkits.computer_use import safety
 
-        # [SECURITY] Sensitive app guard — lightweight foreground app check.
-        fg_info = inspect_backend(self._backend)
-        fg_app = str(fg_info.get("app_name", "") or "")
-        fg_title = str(fg_info.get("window_title", "") or "")
-        fg_app_id = str(fg_info.get("app_id", "") or "")
+            # [SECURITY] Sensitive app guard — lightweight foreground app check.
+            fg_info = inspect_backend(self._backend)
+            fg_app = str(fg_info.get("app_name", "") or "")
+            fg_title = str(fg_info.get("window_title", "") or "")
+            fg_app_id = str(fg_info.get("app_id", "") or "")
 
-        blocked = safety.is_sensitive_app(fg_app, fg_title, fg_app_id)
-        if blocked:
-            logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
-            return f"Safety: {blocked}"
+            blocked = safety.is_sensitive_app(fg_app, fg_title, fg_app_id)
+            if blocked:
+                logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
+                return f"Safety: {blocked}"
 
-        # [SECURITY] Foreground permission gate for coordinate-based actions.
-        if safety.is_foreground_required(action):
-            app_denied = await self.check_app_approval(
-                app_name=fg_app,
-                window_title=fg_title,
-                app_id=fg_app_id,
-                operation=f"desktop_vision_action({action})",
-            )
-            if app_denied is not None:
-                return f"Control denied: {app_denied.error}"
-
-            try:
-                permission_denied = await self.check_foreground_permission(
-                    reason=f"Vision action '{action}' requires foreground mouse/keyboard control",
-                    operation=f"desktop_vision_action({action})",
-                    estimated_duration_seconds=5.0,
+            # [SECURITY] Foreground permission gate for coordinate-based actions.
+            if safety.is_foreground_required(action):
+                app_denied = await self.check_app_approval(
                     app_name=fg_app,
                     window_title=fg_title,
                     app_id=fg_app_id,
+                    operation=f"desktop_vision_action({action})",
                 )
-                if permission_denied is not None:
-                    return f"Permission denied: {permission_denied.error}"
+                if app_denied is not None:
+                    return f"Control denied: {app_denied.error}"
 
-                stale_error = await self._revalidate_if_stale_after_approval()
-                if stale_error is not None:
-                    return stale_error
-            finally:
-                self.clear_operation_foreground_waiver()
+                try:
+                    permission_denied = await self.check_foreground_permission(
+                        reason=f"Vision action '{action}' requires foreground mouse/keyboard control",
+                        operation=f"desktop_vision_action({action})",
+                        estimated_duration_seconds=5.0,
+                        app_name=fg_app,
+                        window_title=fg_title,
+                        app_id=fg_app_id,
+                    )
+                    if permission_denied is not None:
+                        return f"Permission denied: {permission_denied.error}"
 
-        if action in (
-            "left_click",
-            "right_click",
-            "middle_click",
-            "double_click",
-            "triple_click",
-        ):
-            if coordinate is None or len(coordinate) != 2:
-                return "Error: coordinate [x, y] is required for click actions"
-            clicks = {"double_click": 2, "triple_click": 3}.get(action, 1)
-            button = {"right_click": "right", "middle_click": "middle"}.get(
-                action, "left"
-            )
-            result = await self.click_at(
-                coordinate[0],
-                coordinate[1],
-                button=button,
-                clicks=clicks,
-                modifiers=modifiers,
-            )
-        elif action == "type":
-            if not text:
-                return "Error: text is required for type action"
-            text_blocked = safety.is_dangerous_type_text(text)
-            if text_blocked:
-                return f"Safety: {text_blocked}"
-            result = await self.type_text(text)
-        elif action == "key":
-            if not text:
-                return "Error: text (key combo) is required for key action"
-            key_blocked = safety.is_blocked_key_combo(text)
-            if key_blocked:
-                return f"Safety: {key_blocked}"
-            result = await self.key_press(text)
-        elif action == "scroll":
-            if coordinate is None or len(coordinate) != 2 or not scroll_direction:
-                return "Error: coordinate and scroll_direction are required for scroll"
-            result = await self.scroll_at(
-                coordinate[0],
-                coordinate[1],
-                scroll_direction,
-                scroll_amount,
-                modifiers=modifiers,
-            )
-        elif action == "drag":
-            if start_coordinate is None or coordinate is None:
-                return "Error: start_coordinate and coordinate are required for drag"
-            result = await self.drag(
-                start_coordinate[0],
-                start_coordinate[1],
-                coordinate[0],
-                coordinate[1],
-                modifiers=modifiers,
-            )
-        elif action == "mouse_move":
-            if coordinate is None or len(coordinate) != 2:
-                return "Error: coordinate [x, y] is required for mouse_move"
-            result = await self.mouse_move_to(coordinate[0], coordinate[1])
-        elif action in ("capture", "screenshot"):
-            return await self.desktop_vision_capture()
-        elif action == "wait":
-            result = await self.wait_seconds(duration)
-        else:
-            return f"Error: unknown vision action '{action}'"
+                    stale_error = await self._revalidate_if_stale_after_approval()
+                    if stale_error is not None:
+                        return stale_error
+                finally:
+                    self.clear_operation_foreground_waiver()
 
-        if not result.success:
-            return f"Vision action '{action}' failed: {result.error}"
-        if result.screenshot_base64:
-            return self._build_multimodal_response(
-                result, f"Vision action '{action}' completed."
-            )
-        return f"Vision action '{action}' completed."
+            if action in (
+                "left_click",
+                "right_click",
+                "middle_click",
+                "double_click",
+                "triple_click",
+            ):
+                if coordinate is None or len(coordinate) != 2:
+                    return "Error: coordinate [x, y] is required for click actions"
+                clicks = {"double_click": 2, "triple_click": 3}.get(action, 1)
+                button = {"right_click": "right", "middle_click": "middle"}.get(
+                    action, "left"
+                )
+                result = await self.click_at(
+                    coordinate[0],
+                    coordinate[1],
+                    button=button,
+                    clicks=clicks,
+                    modifiers=modifiers,
+                )
+            elif action == "type":
+                if not text:
+                    return "Error: text is required for type action"
+                text_blocked = safety.is_dangerous_type_text(text)
+                if text_blocked:
+                    return f"Safety: {text_blocked}"
+                result = await self.type_text(text)
+            elif action == "key":
+                if not text:
+                    return "Error: text (key combo) is required for key action"
+                key_blocked = safety.is_blocked_key_combo(text)
+                if key_blocked:
+                    return f"Safety: {key_blocked}"
+                result = await self.key_press(text)
+            elif action == "scroll":
+                if coordinate is None or len(coordinate) != 2 or not scroll_direction:
+                    return "Error: coordinate and scroll_direction are required for scroll"
+                result = await self.scroll_at(
+                    coordinate[0],
+                    coordinate[1],
+                    scroll_direction,
+                    scroll_amount,
+                    modifiers=modifiers,
+                )
+            elif action == "drag":
+                if start_coordinate is None or coordinate is None:
+                    return "Error: start_coordinate and coordinate are required for drag"
+                result = await self.drag(
+                    start_coordinate[0],
+                    start_coordinate[1],
+                    coordinate[0],
+                    coordinate[1],
+                    modifiers=modifiers,
+                )
+            elif action == "mouse_move":
+                if coordinate is None or len(coordinate) != 2:
+                    return "Error: coordinate [x, y] is required for mouse_move"
+                result = await self.mouse_move_to(coordinate[0], coordinate[1])
+            elif action in ("capture", "screenshot"):
+                return await self.desktop_vision_capture()
+            elif action == "wait":
+                result = await self.wait_seconds(duration)
+            else:
+                return f"Error: unknown vision action '{action}'"
+
+            if not result.success:
+                return f"Vision action '{action}' failed: {result.error}"
+            if result.screenshot_base64:
+                return self._build_multimodal_response(
+                    result, f"Vision action '{action}' completed."
+                )
+            return f"Vision action '{action}' completed."
 
     def _build_multimodal_response(
         self, result: ActionResult, action_description: str

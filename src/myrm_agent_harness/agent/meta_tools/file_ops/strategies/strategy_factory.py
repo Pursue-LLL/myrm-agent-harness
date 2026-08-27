@@ -51,10 +51,18 @@ class FileSystemStrategyFactory:
             return MCPFileSystemStrategy(skills)
 
         backend = storage_backend
-        if executor is not None and backend is None:
+        effective_executor = executor
+        if effective_executor is None:
+            from myrm_agent_harness.toolkits.code_execution.executors.base import (
+                get_executor,
+            )
+
+            effective_executor = get_executor()
+
+        if effective_executor is not None and backend is None:
             from myrm_agent_harness.agent.meta_tools.file_ops.executor_storage_adapter import ExecutorStorageAdapter
 
-            backend = ExecutorStorageAdapter(executor)
+            backend = ExecutorStorageAdapter(effective_executor)
 
         if backend is None:
             raise ValueError("executor or storage_backend is required for non-MCP paths.")

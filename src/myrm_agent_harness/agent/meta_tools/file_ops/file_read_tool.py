@@ -188,11 +188,10 @@ class FileReadInput(BaseModel):
 
     paths: list[str] = Field(
         description=(
-            "文件路径数组（必须是数组，不是字符串）。"
-            "支持：本地文件、MCP 路径（/mcp/skill/function.md）、"
+            "文件路径列表（支持批量读取）。"
+            "支持：本地文件路径、MCP 路径（/mcp/.../*.md）、"
             "File ID（@file_001）、vault 指针（vault://uuid）、行号范围（file.py:1-50）、目录。"
-            "不支持 URL（http/https），仅支持本地文件路径！"
-            "禁止凭空编造不存在的路径！"
+            "不支持网络 URL（http/https，访问网页请用 web_fetch_tool）。"
         )
     )
 
@@ -280,7 +279,7 @@ def create_file_read_tool(
         "file_read_tool",
         description="""读取文件内容或目录列表。支持图片（png/jpg/gif/webp）、PDF、Office 文档（docx/xlsx/xls）和 Jupyter Notebook（ipynb）。
 参数：
-- paths: 文件路径数组（必须是 JSON 数组，不是字符串）。支持行号范围语法：
+- paths: 文件路径列表（JSON 数组）。支持行号范围语法：
   - `["file.py"]` - 读取整个文件
   - `["file.py:1-50"]` - 读取第 1-50 行
   - `["file.py:100-"]` - 从第 100 行读取到文件末尾
@@ -293,8 +292,7 @@ def create_file_read_tool(
 - chunk_size_mb: streaming 块大小（默认 10MB）
 - parse_mode: Office 文档解析模式（structure/content/audit）
 
-**注意**: 必须是 JSON 数组，不是字符串！禁止凭空编造不存在的路径！
-**不支持 URL（http/https）**：此工具仅读取本地文件，不能访问网页 URL。
+**注意**: 仅支持本地文件/沙箱路径，不支持网络 URL（网页请用 web_fetch_tool）。
 """,
         args_schema=FileReadInput,
     )

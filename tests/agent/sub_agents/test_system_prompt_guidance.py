@@ -58,7 +58,10 @@ def test_system_prompt_contains_delegation_guardrails():
     assert "sequential dependencies" in prompt, "Must warn against forcing sequential tasks into parallel workers"
     assert "Ultra-simple actions" in prompt, "Must mention ultra-simple actions should not be delegated"
     assert "Do NOT spawn a worker" in prompt, "Must have explicit Do NOT spawn section"
-    assert 'delegate_task_tool(task="Run the test suite"' in prompt, "Must include wrong delegation example"
+    assert (
+        'delegate_task_tool(objective="Run the test suite"' in prompt
+        or 'delegate_task_tool(task="Run the test suite"' in prompt
+    ), "Must include wrong delegation example"
     assert 'bash("pytest tests/")' in prompt, "Must include right direct-execution example"
 
 

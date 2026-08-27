@@ -66,3 +66,14 @@ def test_resolve_unknown_corpus() -> None:
     assert corpora == []
     assert reason is not None
     assert "Unknown corpus" in reason
+
+
+def test_memory_search_policy_allow_shared_write_default_true() -> None:
+    policy = MemorySearchPolicy()
+    assert policy.allow_shared_write is True
+
+
+def test_memory_search_policy_allow_shared_write_disabled() -> None:
+    policy = MemorySearchPolicy(allow_shared_write=False)
+    assert policy.allow_shared_write is False
+

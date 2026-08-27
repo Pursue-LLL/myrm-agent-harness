@@ -156,9 +156,17 @@ _dedup_guards: dict[int, ReadDedupGuard] = {}
 
 
 def get_read_dedup_guard(executor: CodeExecutor | None) -> ReadDedupGuard | None:
-    if executor is None:
+    effective_executor = executor
+    if effective_executor is None:
+        from myrm_agent_harness.toolkits.code_execution.executors.base import (
+            get_executor,
+        )
+
+        effective_executor = get_executor()
+
+    if effective_executor is None:
         return None
-    eid = id(executor)
+    eid = id(effective_executor)
     if eid not in _dedup_guards:
         _dedup_guards[eid] = ReadDedupGuard()
     return _dedup_guards[eid]

@@ -16,7 +16,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |
 | som_overlay.py | Core | SOM numbered overlay on JPEG; agent path when `include_screenshot=True`, inspector refresh when screenshot captured; stable [N]↔@dref map (cap 80) | ✅ |
 | session.py | Core | ComputerSession orchestrator (coordinate I/O, app + foreground gates, operation-scoped foreground waiver) | ✅ |
-| desktop_session.py | Core | DesktopSession: AX snapshot, @dref registry, shared approval revalidation, DESKTOP_VIEW_UPDATE, export_inspector_snapshot | ✅ |
+| desktop_session.py | Core | DesktopSession: AX snapshot, @dref registry, action lock serialization, self-healing remedy hints, shared approval revalidation, DESKTOP_VIEW_UPDATE, export_inspector_snapshot | ✅ |
 | desktop_agent_tools.py | Core | 3 LangChain tools: snapshot / interact / vision | ✅ |
 
 | Submodule | Description |
@@ -61,8 +61,9 @@ Agent → desktop_agent_tools (3 tools)
 8. **Permission probing**: `DesktopSession.check_permissions()` + server `GET /webui/desktop/permissions`; Settings Doctor surfaces the same probe via `observability/diagnostics/probes.check_desktop_permissions_health` (`DesktopControl` component).
 9. **Native API routing hints**: `inspect_foreground()` appends AppleScript/COM/D-Bus hints in snapshot recommendation text
 10. **Background input (cua-driver)**: optional focus-free input proxy
-11. **Desktop control gate**: `check_app_approval` on interact and vision mutating actions; uses snapshot meta or `inspect_backend()` fallback; `check_foreground_permission` for coordinate/healer paths with operation-scoped waiver after app approval. Server `DesktopControlGate` via `ForegroundPermissionCallback` (empty app fail-closed). LOCAL `background_strict`; sandbox auto-grants. SSE `desktop_control_approval_request` opens Desktop Inspector; resolve `POST /webui/desktop/approval/resolve`. Persist `{workspace}/.agent/desktop_control/approved_apps.json` keyed by stable `app_id` when available; list/revoke via `GET/DELETE /webui/desktop/trust/apps`
+11. **Desktop control gate**: `check_app_approval` on interact and vision mutating actions; uses snapshot meta or `inspect_backend()` fallback; `check_foregroundPermission` for coordinate/healer paths with operation-scoped waiver after app approval. Server `DesktopControlGate` via `ForegroundPermissionCallback` (empty app fail-closed). LOCAL `background_strict`; sandbox auto-grants. SSE `desktop_control_approval_request` opens Desktop Inspector; resolve `POST /webui/desktop/approval/resolve`. Persist `{workspace}/.agent/desktop_control/approved_apps.json` keyed by stable `app_id` when available; list/revoke via `GET/DELETE /webui/desktop/trust/apps`
 12. **Session lifecycle**: `ComputerSession.close()` on agent session end
+13. **Action Serialization & Self-Healing**: `DesktopSession` enforces session-level concurrency control via `asyncio.Lock()`, serializing mutating desktop actions (`desktop_interact`, `desktop_vision_action`) while keeping AX snapshots non-blocking. Stale references (`DRefStaleError`) and invocation/fallback failures return structured `[REMEDY_HINT: ...]` to guide LLM self-healing without hallucinated retries.
 
 ## Key Dependencies
 

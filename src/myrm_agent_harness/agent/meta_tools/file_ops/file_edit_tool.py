@@ -41,29 +41,29 @@ logger = logging.getLogger(__name__)
 
 
 class StrReplaceEditInput(BaseModel):
-    """Single search-and-replace edit."""
+    """单条精确字符串替换规则"""
 
-    old_str: str = Field(description="Text to replace (must be unique in file; include indentation)")
-    new_str: str = Field(default="", description="Replacement text (empty string deletes old_str)")
+    old_str: str = Field(description="待替换的原始文本（必须在文件中全局唯一；须包含完整缩进）")
+    new_str: str = Field(default="", description="替换后的新文本（留空字符串表示删除 old_str）")
 
 
 class FileEditInput(BaseModel):
     """文件编辑工具输入参数"""
 
-    path: str = Field(description="File path (supports File ID such as @file_001)")
+    path: str = Field(description="文件路径（支持普通路径或 File ID，如 @file_001）")
     edits: list[StrReplaceEditInput] = Field(
         description=(
-            "Ordered list of search-and-replace edits applied atomically in one transaction. "
-            "Each edit uses exact match (fuzzy fallback). Max 20 edits; disjoint regions recommended."
+            "有序的字符串替换列表，在单次调用中以事务方式原子应用。"
+            "每条替换使用精确匹配（支持模糊回退）。最多 20 条替换，建议替换区域不重叠。"
         )
     )
     verify_command: str | None = Field(
         default=None,
         description=(
-            "Optional post-edit verify command (e.g. 'python -m py_compile file.py'). On failure, all edits roll back."
+            "编辑后自动执行的语法/类型校验命令（如 'python -m py_compile file.py'）。校验失败将自动回滚全部替换。"
         ),
     )
-    reason: str | None = Field(default=None, description="Optional reason for logs")
+    reason: str | None = Field(default=None, description="操作原因（可选，用于日志记录）")
 
     @model_validator(mode="before")
     @classmethod

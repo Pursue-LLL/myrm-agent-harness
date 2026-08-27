@@ -16,7 +16,8 @@ or CLI interface via the unified RuntimePool.
 [OUTPUT]
 - DelegateUsage: Token usage statistics from an external agent delegation.
 - DelegateMeta: Metadata collected during an external agent delegation turn.
-- create_delegate_to_agent_tool: Create the delegate_to_agent tool.
+- create_invoke_acp_agent_tool: Create the invoke_acp_agent tool.
+- create_delegate_to_agent_tool: Backward-compatibility alias for create_invoke_acp_agent_tool.
 
 [POS]
 Delegate tasks to external ACP-compatible agents.
@@ -67,13 +68,13 @@ _MAX_RETRIES = 1
 _DEFAULT_MAX_TURNS = 25
 
 
-def create_delegate_to_agent_tool(
+def create_invoke_acp_agent_tool(
     pool: RuntimePool,
     *,
     cwd: str | None = None,
     session_scope: str | None = None,
 ) -> BaseTool:
-    """Create the delegate_to_agent tool.
+    """Create the invoke_acp_agent tool.
 
     Args:
         pool: Pre-configured RuntimePool with registered backends.
@@ -87,7 +88,7 @@ def create_delegate_to_agent_tool(
 
     effective_cwd = cwd or str(WorkspacePathResolver.resolve_workspace_root())
 
-    tool_description = """Delegate a task to an external coding agent.
+    tool_description = """Invoke an external ACP coding agent.
 
 Use this tool when you need another AI agent (Claude Code, Codex, Gemini CLI, etc.)
 to perform a coding task. The external agent runs as a separate process with its own
@@ -108,22 +109,21 @@ context and capabilities.
 ## Notes
 - The external agent runs independently — provide ALL context in the task.
 - Response is the agent's complete text output (tool calls are summarized).
-- Each agent has a max-turns safety limit (default 25).
 - If agent_name is unknown, the error lists currently configured backends.
 """
 
-    class DelegateInput(BaseModel):
+    class InvokeACPAgentInput(BaseModel):
         agent_name: str = Field(description="Name of the external agent")
         task: str = Field(description="Complete task description with full context")
         mode: str = Field(default="persistent", description="'persistent' or 'oneshot'")
 
-    @tool("delegate_to_agent_tool", description=tool_description, args_schema=DelegateInput)
-    async def delegate_to_agent_func(
+    @tool("invoke_acp_agent_tool", description=tool_description, args_schema=InvokeACPAgentInput)
+    async def invoke_acp_agent_func(
         agent_name: str,
         task: str,
         mode: str = "persistent",
     ) -> str:
-        """Delegate a task to an external agent and return its response."""
+        """Invoke an external ACP agent and return its response."""
         if mode not in ("persistent", "oneshot"):
             return f"[error] Invalid mode '{mode}'. Use 'persistent' or 'oneshot'."
 
@@ -133,7 +133,7 @@ context and capabilities.
 
         enriched_task = f"{task}\n\n[Context: cwd={effective_cwd}]"
 
-        logger.info("acp_delegate agent=%s mode=%s task_length=%d", agent_name, mode, len(task))
+        logger.info("acp_invoke agent=%s mode=%s task_length=%d", agent_name, mode, len(task))
 
         t0 = time.monotonic()
         for attempt in range(_MAX_RETRIES + 1):
@@ -159,7 +159,7 @@ context and capabilities.
                 ]
                 if usage:
                     log_parts.append(f"tokens={usage['total_tokens']}")
-                logger.info("acp_delegate_done %s", " ".join(log_parts))
+                logger.info("acp_invoke_done %s", " ".join(log_parts))
 
                 summary = f"agent={agent_name}, elapsed={elapsed:.1f}s, truncated={truncated}"
                 if meta["tool_calls"]:
@@ -174,7 +174,7 @@ context and capabilities.
                             {
                                 "type": AgentEventType.TOKEN_USAGE.value,
                                 "data": {
-                                    "source": f"delegate:{agent_name}",
+                                    "source": f"invoke_acp:{agent_name}",
                                     "input_tokens": usage["input_tokens"],
                                     "output_tokens": usage["output_tokens"],
                                     "total_tokens": usage["total_tokens"],
@@ -198,20 +198,34 @@ context and capabilities.
                 last_error = f"{type(exc).__name__}: {exc}"
                 if retryable and attempt < _MAX_RETRIES:
                     logger.warning(
-                        "acp_delegate_retry agent=%s attempt=%d error=%s",
+                        "acp_invoke_retry agent=%s attempt=%d error=%s",
                         agent_name,
                         attempt + 1,
                         exc,
                     )
                     continue
 
-                logger.error("acp_delegate_error agent=%s error=%s", agent_name, exc, exc_info=True)
+                logger.error("acp_invoke_error agent=%s error=%s", agent_name, exc, exc_info=True)
                 return f"[error] Delegation to '{agent_name}' failed: {last_error}"
 
-        logger.error("acp_delegate_retry_exhausted agent=%s retries=%d", agent_name, _MAX_RETRIES)
+        logger.error("acp_invoke_retry_exhausted agent=%s retries=%d", agent_name, _MAX_RETRIES)
         return f"[error] Delegation to '{agent_name}' failed after {_MAX_RETRIES + 1} attempts: {last_error}"
 
-    return delegate_to_agent_func
+    return invoke_acp_agent_func
+
+
+def create_delegate_to_agent_tool(
+    pool: RuntimePool,
+    *,
+    cwd: str | None = None,
+    session_scope: str | None = None,
+) -> BaseTool:
+    """Backward-compatible alias for create_invoke_acp_agent_tool."""
+    return create_invoke_acp_agent_tool(
+        pool,
+        cwd=cwd,
+        session_scope=session_scope,
+    )
 
 
 def _as_int(value: object) -> int:

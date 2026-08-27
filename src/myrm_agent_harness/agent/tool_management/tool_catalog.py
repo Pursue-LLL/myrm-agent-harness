@@ -79,6 +79,7 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "x_search_tool": "x-live-search prebuilt skill bound",
     "channel_notify_tool": "Agent notify_targets configured",
     "cron_manage_tool": "user cron capability wired",
+    "invoke_acp_agent_tool": "external ACP agent configured",
     "delegate_to_agent_tool": "external ACP agent configured",
     "render_ui_tool": "enabled_builtin_tools: render_ui",
     "update_ui_data_tool": "enabled_builtin_tools: render_ui",

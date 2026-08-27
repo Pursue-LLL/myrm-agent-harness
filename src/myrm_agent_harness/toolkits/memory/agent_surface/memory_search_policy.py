@@ -7,7 +7,7 @@ conversation, and web corpus providers; runtime cannot broaden corpora beyond po
 - toolkits.memory.types (POS: Memory type system)
 
 [OUTPUT]
-- MemorySearchPolicy: Runtime ACL flags for wiki/sessions/web corpora.
+- MemorySearchPolicy: Runtime ACL flags for wiki/sessions/web corpora and shared memory write bounds.
 - MemorySearchBackends: Optional wiki/sessions/web providers plus wiki_structure for citation URI parity.
 - resolve_search_corpora: Merge policy flags with requested corpus selection.
 

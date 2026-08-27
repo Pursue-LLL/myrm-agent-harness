@@ -94,6 +94,7 @@ TOOL_PERMISSION_MAP: dict[str, str] = {
     "browser_inspect_tool": "browser_read",
     "browser_snapshot_tool": "browser_read",
     "browser_extract_tool": "browser_read",
+    "invoke_acp_agent_tool": "delegate_agent",
     "delegate_to_agent_tool": "delegate_agent",
     "delegate_task_tool": "delegate_agent",
     "subagent_control_tool": "delegate_agent",
@@ -348,7 +349,7 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     "image_generation": frozenset({"image_tool"}),
     "video_generation": frozenset({"video_tool"}),
     "tts": frozenset({"tts_generate"}),
-    "external_cli": frozenset({"delegate_to_agent_tool"}),
+    "external_cli": frozenset({"invoke_acp_agent_tool", "delegate_to_agent_tool"}),
 }
 
 TOOL_TO_GROUP: dict[str, str] = {
@@ -408,6 +409,7 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "complete_goal_tool": [],
     "cron_manage_tool": ["action", "job_id", "name_filter"],
     "delegate_task_tool": ["mode", "agent_type"],
+    "invoke_acp_agent_tool": ["agent_name"],
     "delegate_to_agent_tool": ["agent_name"],
     "render_ui_tool": [],
     "request_answer_user_tool": [],
@@ -684,6 +686,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "delegate_task_tool": SafetyMetadata(is_concurrent_safe=True),
     "subagent_control_tool": SafetyMetadata(is_concurrent_safe=True),
     # CliRuntime uses a single subprocess per backend — parallel turns are unsafe.
+    "invoke_acp_agent_tool": SafetyMetadata(),
     "delegate_to_agent_tool": SafetyMetadata(),
     # Destructive tools (explicit fail-closed: is_concurrent_safe=False)
     "bash_code_execute_tool": SafetyMetadata(is_destructive=True),
