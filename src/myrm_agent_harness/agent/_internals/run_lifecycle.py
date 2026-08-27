@@ -370,7 +370,6 @@ def cleanup_run(
         set_pii_pseudonymizer(None)
 
         from myrm_agent_harness.toolkits.code_execution.executors.base import (
-            clear_and_close_stashed_executor,
             clear_stashed_executor,
             set_executor,
         )
@@ -380,7 +379,7 @@ def cleanup_run(
         if merged_context:
             cleanup_session_id = str(merged_context.get("session_id", ""))
             if cleanup_session_id:
-                await clear_and_close_stashed_executor(cleanup_session_id)
+                clear_stashed_executor(cleanup_session_id)
 
         collect_tracker_stats(stats)
 

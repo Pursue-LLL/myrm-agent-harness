@@ -3,23 +3,25 @@
 Defines the unified interface for code execution and file operations.
 CodeExecutor is the single entry point for all execution operations.
 
-Lifecycle: bind_workspace(path) -> execute()/execute_bash()/read_file()/... -> cleanup()
+Lifecycle: bind_workspace(path) -> execute()/execute_bash()/read_file()/... -> close()
 
 [INPUT]
 - toolkits.code_execution.config::ExecutionConfig (POS: Code execution configuration layer. Defines execution modes, network policies, and runtime settings for the Agent-in-Sandbox architecture.)
 
 [OUTPUT]
-- CodeExecutor: Abstract base class for code executors.
+- CodeExecutor: Abstract base class for code executors with async close lifecycle.
 - CodeExecutorMiddleware: Executor middleware base class (decorator pattern).
 - get_executor: Return the current executor for this async context, or ``...
 - set_executor: Bind (or clear) the executor for the current async context.
 - reset_executor: Restore a previous executor binding from a ContextVar token.
 - require_executor: Return the current executor, raising if unavailable.
+- clear_and_close_stashed_executor: Remove and close stashed executor asynchronously.
 
 [POS]
 Code executor base classes.
 """
 
+import asyncio
 import logging
 import shlex
 import uuid
@@ -500,8 +502,14 @@ def get_stashed_executor(session_id: str) -> CodeExecutor | None:
 
 
 def clear_stashed_executor(session_id: str) -> None:
-    """Remove stashed executor entry on session teardown."""
-    _session_executor_stash.pop(session_id, None)
+    """Remove stashed executor entry on session teardown and close it in background if loop running."""
+    executor = _session_executor_stash.pop(session_id, None)
+    if executor is not None:
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(executor.close())
+        except RuntimeError:
+            pass
 
 
 async def clear_and_close_stashed_executor(session_id: str) -> None:

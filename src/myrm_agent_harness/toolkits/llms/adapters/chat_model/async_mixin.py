@@ -456,10 +456,22 @@ class ChatLiteLLMAsyncMixin:
             except StreamStallTimeoutError:
                 raise
             except Exception as e:
+                from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
+                    is_gateway_param_rejection,
+                    sanitize_gateway_params_on_400,
+                )
                 from myrm_agent_harness.toolkits.llms.errors.classifier import (
                     is_context_overflow,
                     parse_available_output_tokens_from_error,
                 )
+
+                if is_gateway_param_rejection(e) and attempt < max_attempts - 1:
+                    stripped = sanitize_gateway_params_on_400(params, e)
+                    if stripped:
+                        logger.warning(
+                            f" Gateway streaming rejected params {stripped}, retrying without them (attempt {attempt + 1})"
+                        )
+                        continue
 
                 if is_context_overflow(e):
                     available = parse_available_output_tokens_from_error(e)

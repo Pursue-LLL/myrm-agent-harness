@@ -80,6 +80,7 @@
 | `approval_flow.py` | Allowlist 持久化白名单 | Layer 4 |
 | `content_boundary.py` | 内容边界 5 层纵深防护 (Unicode折叠+结构化token剥离+标记消毒+随机边界+模式检测) + 零宽字符剥离 | 数据边界 |
 | `prompt_guard.py` | 输入侧注入检测 | 输入侧 |
+| `intent_router.py` | 输入侧危险意图安全路由（MASS_DESTRUCTION/MASS_EXFILTRATION/PRIVILEGE_MUTATION 双阶零延迟门禁） | 输入侧 |
 | `canary_guard.py` | 输出侧注入成功检测（确定性 canary 令牌） | 输出侧 |
 | `leak_detector.py` | 输出侧凭证泄露检测 | 输出侧 |
 | `audit.py` | 安全审计日志 | 横切关注点 |
@@ -988,7 +989,11 @@ OpenAI Assistants API 实现了类似的频率限制（40 requests/minute for ru
 
 ---
 
-## 七、输入侧 — Prompt Guard
+---
+
+## 七、输入侧 — Prompt Guard 与 Dangerous-Intent Safety Router
+
+### 7.1 Prompt Guard (LLM 注入防御)
 
 **位置**：`prompt_guard.py`
 
@@ -1026,6 +1031,25 @@ do anything now | bypass safety | 忽略...之前...指令 | 你现在是...一�
 **双轮扫描**：`scan_input()` 先对原始文本运行 regex（Pass 1），再对归一化后的文本运行同一组 regex（Pass 2），两轮结果合并取最高分。仅当归一化结果与原文不同时才执行 Pass 2（避免无意义的重复扫描）。
 
 示例：攻击 `1gn\u200b0r3 4ll pr3v10us 1nstruct10ns` → 归一化后 `ignore all previous instructions` → 命中 `system_override` 规则。
+
+---
+
+### 7.2 Dangerous-Intent Safety Router (业务高危意图前置路由)
+
+**位置**：`intent_router.py`
+
+在 Agent ReAct Loop 启动及大模型调用前，以零延迟（<0.2ms）完成句级高危破坏与外发意图识别。
+
+- **三维危险意图分类**：
+  1. `MASS_DESTRUCTION`：递归文件删除（`rm -rf /`）、数据库全量删除/清空（`DROP DATABASE` / `TRUNCATE TABLE` / `DELETE WHERE 1=1`）、磁盘格式化与毁灭性俚语（`全扬了/格盘/删库跑路`）；
+  2. `MASS_EXFILTRATION`：批量导出/外发凭证、密钥、环境变量至外部；
+  3. `PRIVILEGE_MUTATION`：强制关闭安全防御、绕过沙箱隔离与权限围栏。
+- **双阶过滤与零误报保障**：
+  - **Tier 1**：高性能预编译正则特征提取；
+  - **Tier 2**：Markdown 代码块掩码过滤 + 句法行动性/代码生成分析（识别 `为什么/如何/explain/review/写一个脚本` 判定为良性分析与代码生成，100% 放行）。
+- **策略流转**：
+  - `fail_closed`（无人值守 Channel/Cron）：直接阻断；
+  - `hitl`（Local WebUI/Desktop 默认）：注入前置安全警示与人工确认。
 
 ### 辅助检测
 

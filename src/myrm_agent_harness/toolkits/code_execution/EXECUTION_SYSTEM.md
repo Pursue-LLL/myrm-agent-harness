@@ -106,9 +106,9 @@ PTC（程序化工具调用）
 | `write_file(path, content)` | 默认实现 | 写入文件 |
 | `list_files(path)` | 默认实现 | 列出目录文件 |
 | `bind_workspace(path)` | 具体 | 绑定工作目录 |
-| `cleanup()` | 虚拟 | 资源清理 |
+| `close()` | 虚拟 | 异步资源清理（级联释放 Bash 会话与沙箱句柄，支持 `async with`） |
 
-**生命周期**：`bind_workspace(path)` → 执行操作 → `cleanup()`
+**生命周期**：`bind_workspace(path)` → 执行操作 → `close()`
 
 **ContextVar 管理**：所有工具通过 `get_executor()` / `set_executor()` / `require_executor()` 共享 executor 实例，避免 LangGraph checkpoint 序列化问题。
 

@@ -103,8 +103,8 @@ _PATTERNS: tuple[tuple[DangerousIntent, str, re.Pattern[str]], ...] = (
         DangerousIntent.MASS_DESTRUCTION,
         "destructive_shell_cmd",
         re.compile(
-            r"(?i)(?:\b(?:rm\s+-(?:r[fv]|fr|rf)\s+(?:/|\*|~|\.\.|/var|/usr|/etc|/home|/root)|"
-            r"rmdir\s+/[sq]\s+/[sq]|del\s+/[fs]\s+/[fs]\s+[a-z]:\\)\b)",
+            r"(?i)(?:\b(?:rm\s+-[a-z0-9]*[rf][a-z0-9]*\s+(?:/|\*|~|\.\.|/var|/usr|/etc|/home|/root|/\*)|"
+            r"rmdir\s+/[sq]\s+/[sq]|del\s+/[fs]\s+/[fs]\s+[a-z]:\\))",
         ),
     ),
     (

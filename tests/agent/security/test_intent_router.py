@@ -180,7 +180,7 @@ class TestMiddlewareLifecycleIntegration:
 
     def test_fail_closed_mode(self) -> None:
         cfg = SecurityConfig(dangerous_intent_policy="fail_closed")
-        token = set_security_config(cfg)
+        set_security_config(cfg)
         try:
             mw = SecurityGuardrailMiddleware()
             state = {"messages": [HumanMessage(content="drop database production;")]}
@@ -189,11 +189,11 @@ class TestMiddlewareLifecycleIntegration:
             last_msg = new_state["messages"][-1]
             assert "[BLOCKED_INTENT]" in last_msg.content
         finally:
-            token.var.set(None)
+            set_security_config(None)
 
     def test_hitl_mode(self) -> None:
         cfg = SecurityConfig(dangerous_intent_policy="hitl")
-        token = set_security_config(cfg)
+        set_security_config(cfg)
         try:
             mw = SecurityGuardrailMiddleware()
             state = {"messages": [HumanMessage(content="drop database production;")]}
@@ -203,15 +203,15 @@ class TestMiddlewareLifecycleIntegration:
             assert "[SAFETY_CAUTION:" in last_msg.content
             assert "drop database production;" in last_msg.content
         finally:
-            token.var.set(None)
+            set_security_config(None)
 
     def test_safe_request_untouched(self) -> None:
         cfg = SecurityConfig(dangerous_intent_policy="fail_closed")
-        token = set_security_config(cfg)
+        set_security_config(cfg)
         try:
             mw = SecurityGuardrailMiddleware()
             state = {"messages": [HumanMessage(content="Explain what is Python async/await")]}
             new_state = mw.before_model(state, None)
             assert new_state is None  # no modifications needed
         finally:
-            token.var.set(None)
+            set_security_config(None)
