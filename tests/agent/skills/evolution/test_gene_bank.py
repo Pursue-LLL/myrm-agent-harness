@@ -122,3 +122,34 @@ def test_gene_bank_archive_diversity_retrieval_and_serialization():
     restored_elites = restored.get_cell_elites(key_prompt)
     assert len(restored_elites) == 1
     assert restored_elites[0].patch_summary == "Clarify SQL schema prompt"
+
+
+def test_variant_generator_prompt_integration_with_gene_bank_priors():
+    """Verify VariantGenerator properly builds the gene bank prior section."""
+    from myrm_agent_harness.agent.skills.evolution.core.types import SkillRecord
+    from myrm_agent_harness.agent.skills.evolution.pipeline.variant_generator import VariantGenerator
+
+    generator = VariantGenerator(llm=None)
+    key_prompt = GeneCellKey(layer=EvolutionLayer.PROMPT, pathology=FailurePathology.PARAM_ERROR)
+    priors = [
+        GeneEliteRecord(
+            cell_key=key_prompt,
+            skill_name="test-skill",
+            patch_summary="Add schema validation note to prompt",
+            patch_content="...",
+            fitness_score=0.9,
+        )
+    ]
+    skill = SkillRecord(
+        id="s1",
+        name="test-skill",
+        description="A test skill",
+        content="Original content",
+    )
+    # Attach priors dynamically as attribute
+    setattr(skill, "gene_bank_priors", priors)
+
+    prompt = generator._build_variant_prompt(skill, "param error", "trace")
+    assert "Diverse Multi-Layer Defensive Exemplars (MAP-Elites Prior)" in prompt
+    assert "[PROMPT] Add schema validation note to prompt" in prompt
+
