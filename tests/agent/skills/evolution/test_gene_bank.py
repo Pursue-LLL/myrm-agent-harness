@@ -126,8 +126,14 @@ def test_gene_bank_archive_diversity_retrieval_and_serialization():
 
 def test_variant_generator_prompt_integration_with_gene_bank_priors():
     """Verify VariantGenerator properly builds the gene bank prior section."""
-    from myrm_agent_harness.agent.skills.evolution.core.types import SkillRecord
-    from myrm_agent_harness.agent.skills.evolution.pipeline.variant_generator import VariantGenerator
+    from myrm_agent_harness.agent.skills.evolution.core.types import (
+        EvolutionType,
+        SkillLineage,
+        SkillRecord,
+    )
+    from myrm_agent_harness.agent.skills.evolution.pipeline.variant_generator import (
+        VariantGenerator,
+    )
 
     generator = VariantGenerator(llm=None)
     key_prompt = GeneCellKey(layer=EvolutionLayer.PROMPT, pathology=FailurePathology.PARAM_ERROR)
@@ -141,10 +147,12 @@ def test_variant_generator_prompt_integration_with_gene_bank_priors():
         )
     ]
     skill = SkillRecord(
-        id="s1",
+        skill_id="s1",
         name="test-skill",
         description="A test skill",
         content="Original content",
+        path="/path/to/skill",
+        lineage=SkillLineage(evolution_type=EvolutionType.FIX),
     )
     # Attach priors dynamically as attribute
     setattr(skill, "gene_bank_priors", priors)
