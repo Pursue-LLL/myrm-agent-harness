@@ -86,7 +86,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # --- ACP（Agent Communication Protocol）---
     "invoke_acp_agent_tool": ToolLayer.EXTENDED,
-    "delegate_to_agent_tool": ToolLayer.EXTENDED,
     # --- 浏览器工具 ---
     "browser_extract_tool": ToolLayer.EXTENDED,
     "browser_inspect_tool": ToolLayer.EXTENDED,
@@ -138,10 +137,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "wiki_ingest_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,
     "wiki_apply_tool": ToolLayer.EXTENDED,
-    # --- PDF 模板导出工具 ---
-    "list_pdf_templates": ToolLayer.EXTENDED,
-    "get_pdf_template_schema": ToolLayer.EXTENDED,
-    "render_pdf_template": ToolLayer.EXTENDED,
 }
 
 

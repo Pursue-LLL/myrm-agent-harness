@@ -30,24 +30,46 @@ from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
-
-    from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
-    from myrm_agent_harness.backends.skills.types import SkillMetadata
     from myrm_agent_harness.toolkits.memory.protocols.cache import (
         EmbeddingCacheProtocol,
     )
     from myrm_agent_harness.toolkits.retriever.embedding.factory import EmbeddingConfig
 
-_MARKET_INSTALLED_LINE = "NOT for installing new skills from external markets — use `skill_market_tool` for that."
-_MARKET_OFF_LINE = (
+from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
+from myrm_agent_harness.backends.skills.types import SkillMetadata
+from myrm_agent_harness.utils.locale import is_chinese
+
+_MARKET_INSTALLED_LINE_EN = "NOT for installing new skills from external markets — use `skill_market_tool` for that."
+_MARKET_OFF_LINE_EN = (
     "NOT for installing new skills from external markets. "
     "Install skills via product Settings → Skills → Discover, "
     "or enable the Skill Market capability on this agent profile."
 )
 
+_MARKET_INSTALLED_LINE_ZH = "本工具**不用于**从外部市场安装新技能 — 如需安装新技能请使用 `skill_market_tool`。"
+_MARKET_OFF_LINE_ZH = "本工具**不用于**从外部市场安装新技能。"
 
-def _build_tool_description(*, market_tool_mounted: bool) -> str:
-    market_line = _MARKET_INSTALLED_LINE if market_tool_mounted else _MARKET_OFF_LINE
+
+def _build_tool_description(*, market_tool_mounted: bool, locale: str | None = None) -> str:
+    if is_chinese(locale):
+        market_line = _MARKET_INSTALLED_LINE_ZH if market_tool_mounted else _MARKET_OFF_LINE_ZH
+        return f"""在当前 Agent 已绑定的技能库（绑定技能 + MCP PTC 技能）中搜索缺失的能力。
+{market_line}
+
+重要：在因缺少能力而拒绝用户请求前，必须先在此搜索。切勿在未检查是否存在技能前宣称无法完成某项任务（如绘图、视频生成、GitHub、Jira 等）。
+
+**查询方式**：
+- 支持任意自然语言查询。
+- 跨语言最佳效果格式："概念/翻译/同义词"（例如："火车票/railway ticket/train booking"）。
+- 使用 query="*" 列出所有已绑定的可搜索技能。
+
+**后续操作**：
+- 命中技能后，必须使用 `skill_select_tool` 加载其 SOP 文档后再执行。
+
+**示例**：视频生成、GitHub 集成、数据库操作。
+"""
+
+    market_line = _MARKET_INSTALLED_LINE_EN if market_tool_mounted else _MARKET_OFF_LINE_EN
     return f"""Search for missing capabilities among skills already available to this agent (bound library + MCP PTC skills).
 {market_line}
 
@@ -71,6 +93,7 @@ def create_discover_capability_tool(
     cache: EmbeddingCacheProtocol | None = None,
     *,
     market_tool_mounted: bool = False,
+    locale: str | None = None,
 ) -> BaseTool:
     """创建统一能力发现工具
 
@@ -101,7 +124,7 @@ def create_discover_capability_tool(
     else:
         engine = None
 
-    tool_description = _build_tool_description(market_tool_mounted=market_tool_mounted)
+    tool_description = _build_tool_description(market_tool_mounted=market_tool_mounted, locale=locale)
 
     class DiscoverCapabilityInput(BaseModel):
         query: str = Field(
@@ -157,6 +180,7 @@ def sync_discover_capability_tool(
     available_tool_groups: frozenset[str] | None = None,
     embedding_config: EmbeddingConfig | None = None,
     embedding_cache: EmbeddingCacheProtocol | None = None,
+    locale: str | None = None,
 ) -> BaseTool | None:
     """Register skill_search_tool when inline catalog has hidden bound skills.
 
@@ -197,6 +221,7 @@ def sync_discover_capability_tool(
         embedding_config=embedding_config,
         cache=embedding_cache,
         market_tool_mounted=market_tool_mounted,
+        locale=locale,
     )
     registry.register(tool, source=ToolSource.META)
     return tool

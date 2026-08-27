@@ -193,7 +193,7 @@ class StreamDispatcherMixin:
                             logger.warning(" %s", self._repetition_scrubber.aborted_reason)
                             await self._emit_event(
                                 {
-                                    "type": AgentEventType.STREAM_ERROR.value,
+                                    "type": AgentEventType.ERROR.value,
                                     "data": self._repetition_scrubber.aborted_reason,
                                     "messageId": ctx.message_id,
                                 },

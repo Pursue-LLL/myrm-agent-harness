@@ -429,7 +429,7 @@ def check_interactive_command(command: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 _PIP_INSTALL_RE = re.compile(
-    r"(?:pip3?|python3?\s+-m\s+pip|uv\s+pip)\s+install\s+(.+?)(?:\s*(?:&&|;|\|)\s*|$)",
+    r"(?:pip3?|python3?\s+-m\s+pip|uv\s+pip)\s+install\s+(.+?)(?:\s*(?:&&|;|\||2>&1|1>&2|2>|1>|>|<)\s*|$)",
     re.IGNORECASE,
 )
 _UV_ADD_RE = re.compile(
@@ -522,6 +522,8 @@ def _extract_pip_packages(args_str: str) -> list[str]:
             if token in _PIP_FLAGS_WITH_VALUE:
                 skip_next = i + 1 < len(tokens)
             continue
+        if token in ("2>&1", "1>&2", "2>", "1>", ">", "<", "|", "||", "&&", ";"):
+            break
         if any(token.startswith(prefix) for prefix in _LOCAL_PACKAGE_PREFIXES):
             continue
         if _REQUIREMENTS_FILE_RE.match(token):

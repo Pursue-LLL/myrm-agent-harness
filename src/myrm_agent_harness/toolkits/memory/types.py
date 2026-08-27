@@ -552,6 +552,58 @@ class PendingRecord(BaseModel):
     conflict_importance: float | None = None
     conflict_auto_resolve_at: datetime | None = None
 
+    @property
+    def confidence(self) -> float | None:
+        """Confidence score of the candidate memory (0.0 to 1.0)."""
+        raw = self.memory_data.get("confidence")
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        return None
+
+    @property
+    def importance(self) -> float | None:
+        """Importance score of the candidate memory (0.0 to 1.0)."""
+        if self.conflict_importance is not None:
+            return self.conflict_importance
+        raw = self.memory_data.get("importance")
+        if isinstance(raw, (int, float)):
+            return float(raw)
+        return None
+
+    @property
+    def kind(self) -> str | None:
+        """Projected category or kind of the candidate memory."""
+        raw = self.memory_data.get("projected_category") or self.memory_data.get("kind")
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return None
+
+    @property
+    def influence_explanation(self) -> str | None:
+        """Reasoning or explanation for why the candidate was extracted."""
+        raw = self.memory_data.get("influence_explanation") or self.memory_data.get("reasoning")
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return None
+
+    @property
+    def expected_valid_days(self) -> int | None:
+        """Estimated validity window in days."""
+        raw = self.memory_data.get("expected_valid_days")
+        if isinstance(raw, int):
+            return raw
+        if isinstance(raw, str) and raw.isdigit():
+            return int(raw)
+        return None
+
+    @property
+    def tags(self) -> list[str]:
+        """Tags attached to the candidate memory."""
+        raw = self.memory_data.get("tags")
+        if isinstance(raw, list):
+            return [str(item) for item in raw if isinstance(item, (str, int))]
+        return []
+
 
 # ── Type aliases ────────────────────────────────────────────────────
 

@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor
 from myrm_agent_harness.utils.errors import ToolError
+from myrm_agent_harness.utils.locale import is_chinese
 
 from .constants import MAX_FILE_WRITE_SIZE_BYTES
 from .core import FileOperationService, OperationContext, OperationType
@@ -67,7 +68,37 @@ class FileWriteInput(BaseModel):
     reason: str | None = Field(default=None, description="执行命令的原因（可选，用于日志）")
 
 
-def create_file_write_tool(skills: list[SkillMetadata] | None = None) -> BaseTool:
+_FILE_WRITE_TOOL_DESCRIPTION_ZH = """创建新文件或全量覆写文件。当仅需局部修改已有代码时，必须使用 file_edit_tool（严禁使用 bash echo/heredoc/tee 写入文件）。
+
+参数：
+- path: 文件路径 (支持普通路径或 "@file_id")
+- content: 写入的完整内容（不能为空或纯空白）
+- verify_command: 写入后自动执行的语法/类型校验命令（强烈建议提供，如 'python -m py_compile file.py'）。校验失败会拒绝写入，避免死循环。
+- reason: 操作原因（可选）
+"""
+
+_FILE_WRITE_TOOL_DESCRIPTION_EN = """Create a new file or completely overwrite an existing file. When modifying only a portion of an existing file, you MUST use file_edit_tool instead (never use bash echo/heredoc/tee to write files).
+
+Parameters:
+- path: File path (supports normal path or "@file_id")
+- content: Full content to write (must not be empty or whitespace only)
+- verify_command: Syntax/type check command executed automatically after write (strongly recommended, e.g. 'python -m py_compile file.py'). Write is rejected on failure to prevent loops.
+- reason: Optional operational purpose
+"""
+
+
+def resolve_file_write_tool_description(locale: str | None = None) -> str:
+    """Resolve LLM-facing file_write_tool description."""
+    if is_chinese(locale):
+        return _FILE_WRITE_TOOL_DESCRIPTION_ZH
+    return _FILE_WRITE_TOOL_DESCRIPTION_EN
+
+
+def create_file_write_tool(
+    skills: list[SkillMetadata] | None = None,
+    *,
+    locale: str | None = None,
+) -> BaseTool:
     """创建文件写入工具
 
     内部使用 FileOperationService，自动处理：
@@ -79,6 +110,7 @@ def create_file_write_tool(skills: list[SkillMetadata] | None = None) -> BaseToo
 
     Args:
         skills: MCP 技能列表（保留仅供工具创建时使用）
+        locale: 提示词语言
 
     Returns:
         file_write_tool 工具函数
@@ -89,14 +121,7 @@ def create_file_write_tool(skills: list[SkillMetadata] | None = None) -> BaseToo
 
     @tool(
         "file_write_tool",
-        description="""创建新文件或全量覆写文件。当仅需局部修改已有代码时，必须使用 file_edit_tool（严禁使用 bash echo/heredoc/tee 写入文件）。
-
-参数：
-- path: 文件路径 (支持普通路径或 "@file_id")
-- content: 写入的完整内容（不能为空或纯空白）
-- verify_command: 写入后自动执行的语法/类型校验命令（强烈建议提供，如 'python -m py_compile file.py'）。校验失败会拒绝写入，避免死循环。
-- reason: 操作原因（可选）
-""",
+        description=resolve_file_write_tool_description(locale),
         args_schema=FileWriteInput,
     )
     async def file_write_func(

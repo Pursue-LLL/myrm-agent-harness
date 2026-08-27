@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor
 from myrm_agent_harness.utils.errors import ToolError
+from myrm_agent_harness.utils.locale import is_chinese
 
 from .fallback_discovery import collect_candidate_files
 from .path_hint import format_path_not_found_hint, suggest_similar_paths
@@ -53,19 +54,13 @@ class GlobInput(BaseModel):
     include_ignored: bool = Field(default=False, description="是否包含被 .gitignore 忽略的文件（默认 False）")
 
 
-def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
-    """创建文件搜索工具
-
-    从 context 动态获取 executor 进行路径解析。
-
-    Returns:
-        glob_tool 工具函数
-    """
-    io_cfg = io_config or DEFAULT_FILE_IO_CONFIG
-
-    @tool(
-        "glob_tool",
-        description=f"""搜索匹配的文件（支持通配符）。Output: one file path per line.
+def resolve_glob_tool_description(
+    io_cfg: FileIOConfig,
+    locale: str | None = None,
+) -> str:
+    """Resolve LLM-facing glob_tool description."""
+    if is_chinese(locale):
+        return f"""搜索匹配的文件（支持通配符）。Output: one file path per line.
 
 用途：
 - 查找特定类型的文件
@@ -92,7 +87,58 @@ def create_glob_tool(io_config: FileIOConfig | None = None) -> BaseTool:
 注意：
 - 使用 ** 进行递归搜索
 - 搜索结果按路径排序
-""",
+"""
+    return f"""Search for matching files using glob patterns. Output: one file path per line.
+
+Use cases:
+- Find specific file types
+- Batch file search
+- Project structure exploration
+
+Parameters:
+- pattern: Match pattern (supports * and **), required
+  * `*`: matches any characters (excluding /)
+  * `**`: matches directories across arbitrary levels
+- path: Search directory (default '.')
+- include_ignored: Whether to include files ignored by .gitignore (default False)
+
+Examples:
+- Find all Python files: glob_tool(pattern="**/*.py")
+- Find test files: glob_tool(pattern="**/test_*.py")
+- Find JS files in directory: glob_tool(pattern="*.js", path="src")
+- Find config files: glob_tool(pattern="**/*.{{yaml,yml,json}}")
+
+Limits:
+- Returns at most {io_cfg.max_search_results} results
+- Only returns files, not directories
+
+Notes:
+- Use ** for recursive search
+- Search results are sorted by path
+"""
+
+
+def create_glob_tool(
+    io_config: FileIOConfig | None = None,
+    *,
+    locale: str | None = None,
+) -> BaseTool:
+    """创建文件搜索工具
+
+    从 context 动态获取 executor 进行路径解析。
+
+    Args:
+        io_config: 文件 IO 配置（可选）
+        locale: 提示词语言
+
+    Returns:
+        glob_tool 工具函数
+    """
+    io_cfg = io_config or DEFAULT_FILE_IO_CONFIG
+
+    @tool(
+        "glob_tool",
+        description=resolve_glob_tool_description(io_cfg, locale),
         args_schema=GlobInput,
     )
     async def glob_func(

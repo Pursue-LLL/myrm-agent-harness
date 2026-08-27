@@ -122,11 +122,6 @@
   {
     "layer": "EXTENDED",
     "layer_value": 3,
-    "name": "delegate_to_agent_tool"
-  },
-  {
-    "layer": "EXTENDED",
-    "layer_value": 3,
     "name": "desktop_interact_tool"
   },
   {
@@ -142,7 +137,7 @@
   {
     "layer": "EXTENDED",
     "layer_value": 3,
-    "name": "get_pdf_template_schema"
+    "name": "invoke_acp_agent_tool"
   },
   {
     "layer": "EXTENDED",
@@ -203,16 +198,6 @@
     "layer": "EXTENDED",
     "layer_value": 3,
     "name": "kanban_unblock"
-  },
-  {
-    "layer": "EXTENDED",
-    "layer_value": 3,
-    "name": "list_pdf_templates"
-  },
-  {
-    "layer": "EXTENDED",
-    "layer_value": 3,
-    "name": "render_pdf_template"
   },
   {
     "layer": "EXTENDED",

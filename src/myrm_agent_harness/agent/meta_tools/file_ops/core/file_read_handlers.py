@@ -36,6 +36,7 @@ from ..utils.image_reader import read_image_as_content_blocks
 from ..utils.pdf_reader import read_pdf_as_content_blocks
 from ..utils.vault_read import path_base, read_vault_paths_to_parts
 from ..utils.video_reader import read_video_as_content_blocks
+from .file_integrity_guard import get_file_integrity_guard
 from .file_operation_service import FileOperationService, OperationContext, OperationType
 from .file_read_truncation import truncate_file_output
 from .result_formatter import clamp_line
@@ -356,10 +357,16 @@ async def process_text_paths(
                 )
 
             if effective_mode == "preview":
+                guard = get_file_integrity_guard(executor)
+                if guard is not None:
+                    guard.record_read_marker(str(workspace_path))
                 content = await read_file_preview(workspace_path)
                 content = _clamp_multiline(content, DEFAULT_FILE_IO_CONFIG.max_read_line_length)
                 text_content_parts.append(f"=== {base_path_str} (preview mode) ===\n{content}")
             elif effective_mode == "stream":
+                guard = get_file_integrity_guard(executor)
+                if guard is not None:
+                    guard.record_read_marker(str(workspace_path))
                 content = await read_file_chunked(workspace_path, chunk_size_mb=chunk_size_mb)
                 content = _clamp_multiline(content, DEFAULT_FILE_IO_CONFIG.max_read_line_length)
                 text_content_parts.append(f"=== {base_path_str} ===\n{content}")

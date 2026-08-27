@@ -44,6 +44,7 @@ from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor
 from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.utils.errors import ToolError
+from myrm_agent_harness.utils.locale import is_chinese
 
 from ._formatter import format_grep_results
 from .fallback_discovery import collect_candidate_files
@@ -204,15 +205,13 @@ class GrepInput(BaseModel):
     context_lines: int = Field(default=0, ge=0, le=10, description="匹配行前后的上下文行数（默认 0，最大 10）")
 
 
-def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
-    """创建内容搜索工具
-
-    从 context 动态获取 executor 进行路径解析。
-    """
-    io_cfg = io_config or DEFAULT_FILE_IO_CONFIG
-    regex_validator = RegexValidator(io_cfg)
-
-    tool_description = f"""搜索文件内容。Output: one line per match as 'path:line_number: content'.
+def resolve_grep_tool_description(
+    io_cfg: FileIOConfig,
+    locale: str | None = None,
+) -> str:
+    """Resolve LLM-facing grep_tool description."""
+    if is_chinese(locale):
+        return f"""搜索文件内容。Output: one line per match as 'path:line_number: content'.
 
 参数：
 - pattern: 搜索模式（必需）
@@ -220,6 +219,7 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
 - file_pattern: 文件匹配模式（默认 **/*）
 - ignore_case: 忽略大小写（默认 False）
 - literal: 精确文本匹配（默认 False）。当 pattern 包含 .()[]{{}}$^|*+?\\ 等特殊字符时使用，无需转义
+- context_lines: 匹配行前后的上下文行数（默认 0，最大 10）
 
 示例：
 - 查找函数定义：grep_tool(pattern="def main")
@@ -229,6 +229,39 @@ def create_grep_tool(io_config: FileIOConfig | None = None) -> BaseTool:
 
 限制：最多 {io_cfg.max_search_results} 个结果，{io_cfg.max_search_files} 个文件，超时 {int(io_cfg.search_timeout_seconds)}s
 """
+    return f"""Search file contents for matching text patterns. Output: one line per match as 'path:line_number: content'.
+
+Parameters:
+- pattern: Search pattern (regex or literal text when literal=True), required
+- path: Search directory (default '.')
+- file_pattern: File glob pattern (default '**/*')
+- ignore_case: Ignore casing (default False)
+- literal: Exact string matching (default False). Use when pattern contains special characters like .()[]{{}}$^|*+?\\ without escaping
+- context_lines: Context lines before/after matches (default 0, max 10)
+
+Examples:
+- Find function definitions: grep_tool(pattern="def main")
+- Exact match with special characters: grep_tool(pattern="response.json()", literal=True)
+- Regex search: grep_tool(pattern="class \\w+\\(.*\\):")
+- Search inside Python files: grep_tool(pattern="TODO", file_pattern="**/*.py")
+
+Limits: at most {io_cfg.max_search_results} results, {io_cfg.max_search_files} files, timeout {int(io_cfg.search_timeout_seconds)}s
+"""
+
+
+def create_grep_tool(
+    io_config: FileIOConfig | None = None,
+    *,
+    locale: str | None = None,
+) -> BaseTool:
+    """创建内容搜索工具
+
+    从 context 动态获取 executor 进行路径解析。
+    """
+    io_cfg = io_config or DEFAULT_FILE_IO_CONFIG
+    regex_validator = RegexValidator(io_cfg)
+
+    tool_description = resolve_grep_tool_description(io_cfg, locale)
 
     @tool("grep_tool", description=tool_description, args_schema=GrepInput)
     async def grep_func(

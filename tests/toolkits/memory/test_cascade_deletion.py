@@ -22,10 +22,13 @@ def tmp_db(tmp_path: Path) -> str:
 
 
 @pytest.fixture
-async def store(tmp_db: str) -> SQLiteRelationalStore:
+async def store(tmp_db: str):
     s = SQLiteRelationalStore(db_path=tmp_db)
     await s._get_connection()
-    return s
+    try:
+        yield s
+    finally:
+        await s.close()
 
 
 @pytest.mark.asyncio

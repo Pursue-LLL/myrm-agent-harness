@@ -32,6 +32,7 @@ from myrm_agent_harness.agent.meta_tools.skills.select.skill_document_loader imp
     get_skill_file,
 )
 from myrm_agent_harness.backends.skills.types import SkillInstance, SkillMetadata
+from myrm_agent_harness.utils.locale import is_chinese
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +43,18 @@ __all__ = [
 ]
 
 
-def build_skill_select_static_description() -> str:
-    """Static skill_select_tool description (catalog lives in HumanMessage)."""
-    return """Select bound skills and load their SOP documentation.
+_SKILL_SELECT_TOOL_DESCRIPTION_ZH = """选择已绑定的技能并加载其 SOP 文档。
+
+已绑定技能目录位于本会话首条用户消息开头的 <bound_skills> 块中。
+规则：
+1. 选择 <bound_skills> 目录中列出的技能 → 阅读并严格遵循返回的 SOP 文档。
+2. 每个技能只需选择一次 — 在整个会话（即使 resume）中持续有效。切勿重复选择；对于 scripts/、references/、templates/ 或 assets/ 下的辅助文件，使用 skill_select_tool(file_path=...)，然后使用 bash_code_execute_tool 执行。
+3. 如有助于解决用户问题，可同时选择多个技能。
+4. available="false" 的技能无法加载 — 自动跳过。
+5. 切勿混淆工具（_tool 后缀，可直接调用）与技能（_skill 后缀，仅能通过本工具选择加载）。
+6. 当用户消息以 [use <skill_name>] 开头时，必须立即选择该技能。"""
+
+_SKILL_SELECT_TOOL_DESCRIPTION_EN = """Select bound skills and load their SOP documentation.
 
 The bound skill catalog is in the <bound_skills> block at the start of the first user message in this conversation.
 Rules:
@@ -54,6 +64,13 @@ Rules:
 4. Skills with available="false" cannot be loaded — skip them.
 5. Do NOT confuse tools (_tool suffix, callable) with skills (_skill suffix, select via this tool only).
 6. When the user's message starts with [use <skill_name>], you MUST immediately select that skill."""
+
+
+def build_skill_select_static_description(locale: str | None = None) -> str:
+    """Static skill_select_tool description (catalog lives in HumanMessage)."""
+    if is_chinese(locale):
+        return _SKILL_SELECT_TOOL_DESCRIPTION_ZH
+    return _SKILL_SELECT_TOOL_DESCRIPTION_EN
 
 
 _SKILL_SEARCH_HINTS: dict[str, str] = {
@@ -68,9 +85,11 @@ def create_select_skill_tool(
     skills: list[SkillMetadata],
     skill_backend: SkillBackend,
     skill_instances: dict[str, SkillInstance] | None = None,
+    *,
+    locale: str | None = None,
 ) -> BaseTool:
     """Create the skill-select meta-tool."""
-    tool_description = build_skill_select_static_description()
+    tool_description = build_skill_select_static_description(locale)
 
     class SelectSkillInput(BaseModel):
         skill_names: list[str] = Field(

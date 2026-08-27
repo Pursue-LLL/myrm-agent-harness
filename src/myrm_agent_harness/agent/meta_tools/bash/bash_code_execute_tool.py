@@ -77,6 +77,7 @@ from myrm_agent_harness.agent.meta_tools.bash._tool.multimodal import (
 )
 from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
     TOOL_DESCRIPTION,
+    resolve_bash_code_execute_tool_description,
 )
 
 if TYPE_CHECKING:
@@ -110,6 +111,7 @@ def create_bash_code_execute_tool(
     *,
     skill_env_map: dict[str, dict[str, str]] | None = None,
     global_env: dict[str, str] | None = None,
+    locale: str | None = None,
 ) -> BaseTool:
     """Create the bash code execution LangChain tool."""
 
@@ -118,7 +120,7 @@ def create_bash_code_execute_tool(
         s.name: s.oauth_issuer for s in (skills or []) if s.oauth_issuer and s.name
     }
 
-    description = TOOL_DESCRIPTION + get_os_hint()
+    description = resolve_bash_code_execute_tool_description(locale) + get_os_hint(locale=locale)
 
     @tool("bash_code_execute_tool", description=description, args_schema=BashInput)
     async def bash_func(

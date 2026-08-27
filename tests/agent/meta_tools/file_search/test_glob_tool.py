@@ -94,7 +94,9 @@ class TestCreateGlobTool:
     def test_factory_creates_tool(self) -> None:
         tool_fn = create_glob_tool()
         assert tool_fn.name == "glob_tool"
-        assert "搜索匹配的文件" in tool_fn.description
+        assert "Search for matching files" in tool_fn.description
+        tool_zh = create_glob_tool(locale="zh-CN")
+        assert "搜索匹配的文件" in tool_zh.description
 
     def test_custom_config(self) -> None:
         cfg = FileIOConfig(max_search_results=5)

@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-HARNESS_ROOT = REPO_ROOT / "myrm-agent-harness"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+HARNESS_ROOT = REPO_ROOT
 HARNESS_SRC = HARNESS_ROOT / "src" / "myrm_agent_harness"
-SERVER_ROOT = REPO_ROOT / "myrm-agent" / "myrm-agent-server"
+SERVER_ROOT = REPO_ROOT.parent / "myrm-agent" / "myrm-agent-server"
 SERVER_SRC = SERVER_ROOT / "app"
 
 SCAN_ROOTS: tuple[Path, ...] = (HARNESS_SRC, SERVER_SRC)
@@ -45,6 +45,8 @@ SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset(
         "dispatch_research",
         "finalize_report",
         "think",
+        "request_answer_user_tool",
+        "skill_search_tool",
     }
 )
 
@@ -78,7 +80,7 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
 
 BOOTSTRAP_FILES: frozenset[str] = frozenset(
     {
-        "myrm-agent/myrm-agent-server/app/ai_agents/general_agent/tools/_tool_layer_bootstrap.py",
+        str(SERVER_ROOT / "app" / "ai_agents" / "general_agent" / "tools" / "_tool_layer_bootstrap.py"),
     }
 )
 

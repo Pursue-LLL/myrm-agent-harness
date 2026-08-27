@@ -51,18 +51,23 @@ async def track_context_access_in_command(command: str, session_id: str) -> None
         pass
 
 
-def get_os_hint() -> str:
+def get_os_hint(locale: str | None = None) -> str:
     """Generate OS + toolchain hint for LLM to produce correct commands."""
     from myrm_agent_harness.toolkits.code_execution.env_probe import (
         get_environment_probe_line,
     )
     from myrm_agent_harness.toolkits.code_execution.platform import detect_platform
+    from myrm_agent_harness.utils.locale import is_chinese
 
     plat = detect_platform()
-    lines = [f"\n\n## 当前系统\nOS: {plat.prompt_label}, Shell: {plat.shell_hint}"]
-
-    if plat.os_type == "macos":
-        lines.append("注意 sed/grep/date/stat/readlink 等命令语法与 Linux GNU 版本不同。")
+    if is_chinese(locale):
+        lines = [f"\n\n## 当前系统\nOS: {plat.prompt_label}, Shell: {plat.shell_hint}"]
+        if plat.os_type == "macos":
+            lines.append("注意 sed/grep/date/stat/readlink 等命令语法与 Linux GNU 版本不同。")
+    else:
+        lines = [f"\n\n## Environment\nOS: {plat.prompt_label}, Shell: {plat.shell_hint}"]
+        if plat.os_type == "macos":
+            lines.append("Note that BSD sed/grep/date/stat/readlink syntax differs from Linux GNU versions.")
 
     env_line = get_environment_probe_line()
     if env_line:

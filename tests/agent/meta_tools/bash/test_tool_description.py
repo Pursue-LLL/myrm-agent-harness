@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import get_os_hint
 from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
+    DEFAULT_BASH_TOOL_DESCRIPTION_LOCALE,
     TOOL_DESCRIPTION,
+    TOOL_DESCRIPTION_EN,
+    TOOL_DESCRIPTION_ZH,
+    resolve_bash_code_execute_tool_description,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     create_bash_code_execute_tool,
@@ -17,25 +21,34 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
 def test_tool_description_module_exports() -> None:
     from myrm_agent_harness.agent.meta_tools.bash._tool import tool_description as mod
 
-    assert mod.__all__ == ["TOOL_DESCRIPTION"]
-    assert 2400 < len(TOOL_DESCRIPTION) < 5000
+    assert "TOOL_DESCRIPTION" in mod.__all__
+    assert "TOOL_DESCRIPTION_EN" in mod.__all__
+    assert "TOOL_DESCRIPTION_ZH" in mod.__all__
+    assert "resolve_bash_code_execute_tool_description" in mod.__all__
+    assert 2400 < len(TOOL_DESCRIPTION_ZH) < 5000
+    assert 2000 < len(TOOL_DESCRIPTION_EN) < 6000
 
 
 def test_create_bash_tool_static_description_only() -> None:
-    bash_tool = create_bash_code_execute_tool()
-    description = bash_tool.description
+    bash_tool_default = create_bash_code_execute_tool()
+    description_en = bash_tool_default.description
 
-    assert description.startswith(TOOL_DESCRIPTION)
-    assert get_os_hint() in description
-    assert "## PTC" not in description
-    assert "Turn1-bound tools" not in description
-    assert "myrm_tools.web_search_tool" not in description
-    assert "tools.session_store" not in description
+    assert description_en.startswith(TOOL_DESCRIPTION_EN)
+    assert get_os_hint(locale="en") in description_en
+    assert "## PTC" not in description_en
+    assert "Turn1-bound tools" not in description_en
+    assert "myrm_tools.web_search_tool" not in description_en
+    assert "tools.session_store" not in description_en
 
-    static_pos = description.find("**Shell 命令**")
-    os_pos = description.find(get_os_hint().strip()[:20])
+    bash_tool_zh = create_bash_code_execute_tool(locale="zh-CN")
+    description_zh = bash_tool_zh.description
+    assert description_zh.startswith(TOOL_DESCRIPTION_ZH)
+    assert get_os_hint(locale="zh-CN") in description_zh
+
+    static_pos = description_zh.find("**Shell 命令**")
+    os_pos = description_zh.find(get_os_hint(locale="zh-CN").strip()[:20])
     assert 0 <= static_pos < os_pos
-    assert description == TOOL_DESCRIPTION + get_os_hint()
+    assert description_zh == TOOL_DESCRIPTION_ZH + get_os_hint(locale="zh-CN")
 
 
 def test_native_tool_priority_section_still_directs_single_calls() -> None:

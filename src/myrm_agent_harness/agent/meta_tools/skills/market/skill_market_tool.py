@@ -30,13 +30,14 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.context_management.context import extract_context_from_runnable_config
+from myrm_agent_harness.utils.locale import is_chinese
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
     from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult, SkillMarketBackend
 
-TOOL_DESCRIPTION = """Install NEW skills and Agent Plugins from external markets (GitHub, skills.sh, ClawHub, etc.).
+TOOL_DESCRIPTION_EN = """Install NEW skills and Agent Plugins from external markets (GitHub, skills.sh, ClawHub, etc.).
 
 Use this tool when:
 - User asks "find me a skill for X" or "is there a plugin that can..."
@@ -55,6 +56,35 @@ Important workflow:
 - For install_from_url: User provides a GitHub URL, you install directly
 - For uninstall: Confirm with the user before uninstalling
 """
+
+TOOL_DESCRIPTION_ZH = """从外部市场（GitHub、skills.sh、ClawHub 等）安装新技能和 Agent 插件。
+
+适用场景：
+- 用户询问“帮我找个 X 技能”或“有没有插件能做...”
+- 用户希望扩展新技能或多技能 Agent 插件
+- 用户提供 GitHub URL 安装技能/插件
+- 用户希望卸载先前安装的技能
+
+四类操作：
+1. action="search": 按关键词搜索技能或插件
+2. action="install": 按 ID 和 source 安装技能/插件（来自搜索结果）
+3. action="install_from_url": 直接从 GitHub URL 安装
+4. action="uninstall": 按 ID 卸载本地已安装技能
+
+重要工作流：
+- 搜索并安装：始终先搜索并展示结果，仅在用户确认后执行安装
+- URL 安装：用户提供 GitHub URL，直接执行安装
+- 卸载：卸载前须向用户确认
+"""
+
+TOOL_DESCRIPTION = TOOL_DESCRIPTION_EN
+
+
+def resolve_skill_market_tool_description(locale: str | None = None) -> str:
+    """Resolve LLM-facing skill_market_tool description."""
+    if is_chinese(locale):
+        return TOOL_DESCRIPTION_ZH
+    return TOOL_DESCRIPTION_EN
 
 _SKILL_SEARCH_MARKET_HINTS: dict[str, str] = {
     "skill_search_tool": ("NOT for searching skills already bound to this agent — use skill_search_tool for that."),
@@ -82,6 +112,7 @@ def create_skill_market_tool(
     *,
     install_from_url_fn: InstallFromUrlFn | None = None,
     uninstall_fn: UninstallFn | None = None,
+    locale: str | None = None,
 ) -> BaseTool:
     """Create the skill market tool.
 
@@ -89,6 +120,7 @@ def create_skill_market_tool(
         market_backend: Skill market backend (Protocol injection)
         install_from_url_fn: Optional callback for direct URL install (business layer)
         uninstall_fn: Optional callback for uninstall (business layer)
+        locale: Tool description locale (default: English).
     """
 
     class SkillMarketInput(BaseModel):
@@ -103,7 +135,7 @@ def create_skill_market_tool(
         source: str = Field(default="", description="Skill source from search results (required for action='install')")
         url: str = Field(default="", description="GitHub URL or owner/repo (required for action='install_from_url')")
 
-    @tool("skill_market_tool", description=TOOL_DESCRIPTION, args_schema=SkillMarketInput)
+    @tool("skill_market_tool", description=resolve_skill_market_tool_description(locale), args_schema=SkillMarketInput)
     async def skill_market_func(
         action: str, query: str = "", skill_id: str = "", source: str = "", url: str = "", *, config: RunnableConfig
     ) -> str:

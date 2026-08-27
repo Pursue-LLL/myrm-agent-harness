@@ -462,3 +462,49 @@ async def test_dispatch_messages_token_events(ctx):
     events = executor._compactor.events
     token_usage_events = [e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TOKEN_USAGE]
     assert len(token_usage_events) >= 1
+
+
+@pytest.mark.asyncio
+async def test_dispatch_messages_repetition_loop_aborted(ctx):
+    """Messages stream mode intercepts repetition loop and emits AgentEventType.ERROR."""
+    executor = _make_executor(ctx)
+    loop_line = "Error: repeated line loop failure.\n"
+    long_repetitive_text = loop_line * 15
+
+    msg_mock = AIMessage(content=long_repetitive_text)
+    metadata_mock = MagicMock()
+    metadata_mock.tags = []
+    chunk = ("messages", (msg_mock, metadata_mock))
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.streaming.stream_dispatcher.process_messages_chunk",
+            return_value=[
+                (
+                    {
+                        "type": AgentEventType.MESSAGE.value,
+                        "data": long_repetitive_text,
+                        "messageId": "disp_test",
+                    },
+                    False,
+                )
+            ],
+        ),
+        patch(
+            "myrm_agent_harness.agent.streaming.stream_dispatcher.get_pending_token_events",
+            return_value=[],
+        ),
+        patch(
+            "myrm_agent_harness.agent.streaming.stream_dispatcher.get_pending_privacy_event",
+            return_value=None,
+        ),
+        patch(
+            "myrm_agent_harness.agent.streaming.stream_dispatcher.get_pending_route_event",
+            return_value=None,
+        ),
+    ):
+        await executor._dispatch_chunk(chunk, ctx, [])
+
+    assert len(executor._compactor.events) == 1
+    assert executor._compactor.events[0]["type"] == AgentEventType.ERROR.value
+    assert "Model repetition loop detected" in executor._compactor.events[0]["data"]

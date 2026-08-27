@@ -324,6 +324,7 @@ async def create_skill_agent(
         parallel_tool_calls=engine_params.enable_parallel_tool_calls,
         collect_artifacts=collect_artifacts,
         locale=spec.locale,
+        prompt_locale=spec.prompt_locale or spec.locale,
         channel_name=spec.channel_name,
         security_config=spec.security_config,
         engine_params=engine_params,

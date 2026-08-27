@@ -1,4 +1,9 @@
-"""Workspace execution coordination for parallel subagents."""
+"""Workspace execution coordination for parallel subagents.
+
+[POS] Top-level workspace coordination module entry.
+[INPUT] Tasks, SubagentConfig, sync-backs.
+[OUTPUT] Worktree context, batch merge results, isolation policies.
+"""
 
 from myrm_agent_harness.agent.workspace_coordination.git_worktree import (
     build_worktree_context_note,

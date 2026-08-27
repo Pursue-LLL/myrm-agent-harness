@@ -44,6 +44,7 @@ from myrm_agent_harness.agent.context_management.context import (
 from myrm_agent_harness.agent.context_management.infra.evicted import (
     normalize_delivery_chat_id,
 )
+from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor
 from myrm_agent_harness.agent.meta_tools.file_search.path_hint import (
     find_existing_unicode_path,
     format_path_not_found_hint,
@@ -58,6 +59,7 @@ from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
 from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
 from myrm_agent_harness.utils.errors import ToolError
+from myrm_agent_harness.utils.locale import is_chinese
 
 from .core.file_read_handlers import (
     append_media_text_parts,
@@ -268,16 +270,7 @@ class FileReadInput(BaseModel):
         return None
 
 
-def create_file_read_tool(
-    skills: list[SkillMetadata] | None = None,
-    *,
-    path_policy: FileReadPathPolicy = "full",
-) -> BaseTool:
-    """创建 file_read_tool（详见 file_read_handlers 与 FileOperationService）。"""
-
-    @tool(
-        "file_read_tool",
-        description="""读取文件内容或目录列表。支持图片（png/jpg/gif/webp）、PDF、Office 文档（docx/xlsx/xls）和 Jupyter Notebook（ipynb）。
+_FILE_READ_TOOL_DESCRIPTION_ZH = """读取文件内容或目录列表。支持图片（png/jpg/gif/webp）、PDF、Office 文档（docx/xlsx/xls）和 Jupyter Notebook（ipynb）。
 参数：
 - paths: 文件路径列表（JSON 数组）。支持行号范围语法：
   - `["file.py"]` - 读取整个文件
@@ -293,7 +286,45 @@ def create_file_read_tool(
 - parse_mode: Office 文档解析模式（structure/content/audit）
 
 **注意**: 仅支持本地文件/沙箱路径，不支持网络 URL（网页请用 web_fetch_tool）。
-""",
+"""
+
+_FILE_READ_TOOL_DESCRIPTION_EN = """Read file contents or directory listing. Supports images (png/jpg/gif/webp), PDF, Office documents (docx/xlsx/xls), and Jupyter Notebooks (ipynb).
+Parameters:
+- paths: List of file paths (JSON array). Supports line range syntax:
+  - `["file.py"]` - Read entire file
+  - `["file.py:1-50"]` - Read lines 1-50
+  - `["file.py:100-"]` - Read from line 100 to EOF
+  - `["src/"]` - List all files under directory
+  - `["chart.png"]` / `["report.pdf"]` / `["contract.docx"]` / `["data.xlsx"]` / `["analysis.ipynb"]` - Multimodal read
+  - `["vault://<uuid>"]` - Read spilled auto-vault content
+  - `["vault://<uuid>:1-50"]` - Read specific line range from vault
+- mode: Read mode ('all' default | 'preview' fast preview | 'stream' large file chunking)
+  - Large files (>100MB): use mode='preview' or line ranges
+- chunk_size_mb: Streaming chunk size in MB (default 10)
+- parse_mode: Office document parsing mode (structure/content/audit)
+
+**Note**: Only supports local files / sandbox paths; does NOT support web URLs (use web_fetch_tool for webpages).
+"""
+
+
+def resolve_file_read_tool_description(locale: str | None = None) -> str:
+    """Resolve LLM-facing file_read_tool description."""
+    if is_chinese(locale):
+        return _FILE_READ_TOOL_DESCRIPTION_ZH
+    return _FILE_READ_TOOL_DESCRIPTION_EN
+
+
+def create_file_read_tool(
+    skills: list[SkillMetadata] | None = None,
+    *,
+    path_policy: FileReadPathPolicy = "full",
+    locale: str | None = None,
+) -> BaseTool:
+    """创建 file_read_tool（详见 file_read_handlers 与 FileOperationService）。"""
+
+    @tool(
+        "file_read_tool",
+        description=resolve_file_read_tool_description(locale),
         args_schema=FileReadInput,
     )
     async def file_read_func(
@@ -353,7 +384,10 @@ def create_file_read_tool(
             valid_paths = healed_paths
 
             ctx = extract_context_from_runnable_config(config)
-            executor = get_executor()
+            try:
+                executor = ensure_executor(config)
+            except RuntimeError:
+                executor = get_executor()
             await _assert_paths_allowed_for_read(valid_paths, config, executor)
             if path_policy == "evicted_uploaded":
                 chat_id = str(ctx.get("chat_id") or "")

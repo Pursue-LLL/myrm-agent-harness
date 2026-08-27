@@ -153,22 +153,6 @@ _DESKTOP_DEPS = (
     ),
 )
 
-_PDF_TEMPLATE_DEPS = (
-    EnvDependencySpec(
-        name="jinja2",
-        kind=DependencyKind.PYTHON_PACKAGE,
-        level=RequirementLevel.HARD_REQUIRED,
-        description="Jinja2 HTML template engine",
-    ),
-    EnvDependencySpec(
-        name="weasyprint",
-        kind=DependencyKind.PYTHON_PACKAGE,
-        level=RequirementLevel.SOFT_OPTIONAL,
-        description="HTML to PDF rendering engine",
-        fallback_strategy="HTML markup raw preview fallback",
-    ),
-)
-
 _VIDEO_TOOL_DEPS = (
     EnvDependencySpec(
         name="ffmpeg",
@@ -210,14 +194,6 @@ TOOL_ENV_DEPENDENCY_REGISTRY: dict[str, ToolEnvDependencyProfile] = {
     "desktop_snapshot_tool": ToolEnvDependencyProfile(tool_name="desktop_snapshot_tool", dependencies=_DESKTOP_DEPS),
     "desktop_interact_tool": ToolEnvDependencyProfile(tool_name="desktop_interact_tool", dependencies=_DESKTOP_DEPS),
     "desktop_vision_tool": ToolEnvDependencyProfile(tool_name="desktop_vision_tool", dependencies=_DESKTOP_DEPS),
-    # PDF templates
-    "list_pdf_templates": ToolEnvDependencyProfile(tool_name="list_pdf_templates", dependencies=_PDF_TEMPLATE_DEPS),
-    "get_pdf_template_schema": ToolEnvDependencyProfile(
-        tool_name="get_pdf_template_schema", dependencies=_PDF_TEMPLATE_DEPS
-    ),
-    "render_pdf_template": ToolEnvDependencyProfile(
-        tool_name="render_pdf_template", dependencies=_PDF_TEMPLATE_DEPS
-    ),
     # Media generation & processing (when enabled in runtime)
 }
 

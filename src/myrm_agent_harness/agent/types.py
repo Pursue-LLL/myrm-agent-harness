@@ -159,6 +159,7 @@ class AgentRuntimeSpec:
 
     # --- Additional Config ---
     locale: str | None = None
+    prompt_locale: str | None = None
     channel_name: str | None = None
     security_config: SecurityConfig | None = None
     engine_params: dict[str, object] | None = None
@@ -189,6 +190,7 @@ class AgentRuntimeConfig:
     collect_artifacts: bool = field(default=False)
     security_config: SecurityConfig | None = field(default=None)
     locale: str | None = field(default=None)
+    prompt_locale: str | None = field(default=None)
     channel_name: str | None = field(default=None)
     engine_params: EngineParams = field(default_factory=EngineParams)
     agent_id: str = field(default="")

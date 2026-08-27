@@ -21,6 +21,11 @@ from myrm_agent_harness.toolkits.memory.config import MemoryConfig, RetrievalCon
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import ConversationMemory, MemoryType
 
+pytestmark = [
+    pytest.mark.filterwarnings("ignore::ResourceWarning"),
+    pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning"),
+]
+
 
 @pytest.fixture
 async def memory_manager():
@@ -56,6 +61,12 @@ async def memory_manager():
 
         from qdrant_client.models import Distance, VectorParams
 
+        for coll in (config.semantic_collection, config.episodic_collection):
+            vector_store._client.create_collection(  # type: ignore[attr-defined]
+                collection_name=coll,
+                vectors_config=VectorParams(size=768, distance=Distance.COSINE),
+            )
+
         vector_store._client.create_collection(  # type: ignore[attr-defined]
             collection_name=config.conversation_collection,
             vectors_config={
@@ -64,9 +75,14 @@ async def memory_manager():
             },
         )
 
-        yield manager
-
-        await evict_embedded_store(tmp_dir)
+        try:
+            yield manager
+        finally:
+            import gc
+            if hasattr(manager, "close"):
+                await manager.close()
+            await evict_embedded_store(tmp_dir)
+            gc.collect()
 
 
 @pytest.mark.asyncio
@@ -99,7 +115,9 @@ async def test_conversation_dual_channel_search(memory_manager: MemoryManager):
 
     assert len(stored) == 3
 
-    results = await memory_manager.search("Python", memory_types=[MemoryType.CONVERSATION], limit=5, include_raw=False)
+    results = await memory_manager.search(
+        "Python", memory_types=[MemoryType.CONVERSATION], limit=5, include_raw=False, track_access=False
+    )
 
     assert len(results) > 0
 
@@ -126,14 +144,14 @@ async def test_conversation_lazy_loading(memory_manager: MemoryManager):
     await memory_manager.store_batch([conv])
 
     results_without_raw = await memory_manager.search(
-        "lazy loading", memory_types=[MemoryType.CONVERSATION], limit=1, include_raw=False
+        "lazy loading", memory_types=[MemoryType.CONVERSATION], limit=1, include_raw=False, track_access=False
     )
 
     assert len(results_without_raw) == 1
     assert results_without_raw[0].memory.raw_exchange == ""
 
     results_with_raw = await memory_manager.search(
-        "lazy loading", memory_types=[MemoryType.CONVERSATION], limit=1, include_raw=True
+        "lazy loading", memory_types=[MemoryType.CONVERSATION], limit=1, include_raw=True, track_access=False
     )
 
     assert len(results_with_raw) == 1
@@ -154,7 +172,9 @@ async def test_conversation_rrf_fusion(memory_manager: MemoryManager):
 
     await memory_manager.store_batch([conv])
 
-    results = await memory_manager.search("Python", memory_types=[MemoryType.CONVERSATION], limit=10, use_rrf=True)
+    results = await memory_manager.search(
+        "Python", memory_types=[MemoryType.CONVERSATION], limit=10, use_rrf=True, track_access=False
+    )
 
     ids = [r.memory.id for r in results]
     unique_ids = set(ids)
@@ -184,6 +204,7 @@ async def test_adaptive_channel_cost_optimization(memory_manager: MemoryManager)
         "bug",  # Short query → summary only
         memory_types=[MemoryType.CONVERSATION],
         limit=10,
+        track_access=False,
     )
 
     assert len(results_short) >= 1, "Should find conversation with short query"
@@ -191,7 +212,7 @@ async def test_adaptive_channel_cost_optimization(memory_manager: MemoryManager)
 
     # Test long query (should use dual-channel)
     results_long = await memory_manager.search(
-        "How to fix the production bug", memory_types=[MemoryType.CONVERSATION], limit=10
+        "How to fix the production bug", memory_types=[MemoryType.CONVERSATION], limit=10, track_access=False
     )
 
     assert len(results_long) >= 1, "Should find conversation with long query"
@@ -216,6 +237,7 @@ async def test_adaptive_quoted_phrase_forces_dual(memory_manager: MemoryManager)
         '"leak"',  # Quoted phrase forces dual-channel
         memory_types=[MemoryType.CONVERSATION],
         limit=10,
+        track_access=False,
     )
 
     # Should find the conversation due to exact match from raw embedding
@@ -244,6 +266,6 @@ async def test_adaptive_with_various_configs(memory_manager: MemoryManager):
     )
 
     # Search should work with default adaptive config
-    results = await memory_manager.search("test", memory_types=[MemoryType.CONVERSATION], limit=10)
+    results = await memory_manager.search("test", memory_types=[MemoryType.CONVERSATION], limit=10, track_access=False)
 
     assert len(results) >= 1, "Should find conversation with adaptive enabled"

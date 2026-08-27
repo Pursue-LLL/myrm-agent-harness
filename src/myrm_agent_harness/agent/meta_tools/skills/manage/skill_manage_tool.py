@@ -46,6 +46,7 @@ from myrm_agent_harness.agent.context_management.context import (
 from myrm_agent_harness.agent.meta_tools.skills.manage.lock_manager import (
     SkillLockManager,
 )
+from myrm_agent_harness.utils.locale import is_chinese
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -60,7 +61,7 @@ logger = logging.getLogger(__name__)
 
 SKILL_NAME_PATTERN = re.compile(r"^[a-zA-Z][a-zA-Z0-9_-]*$")
 
-TOOL_DESCRIPTION = """Manage skills (reusable procedural knowledge): save, patch, delete, write_file, remove_file, lock, unlock.
+TOOL_DESCRIPTION_EN = """Manage skills (reusable procedural knowledge): save, patch, delete, write_file, remove_file, lock, unlock.
 
 Actions:
 - save: Create or fully replace a skill.
@@ -85,6 +86,40 @@ description: "Brief description"
 <instructions>
 """
 
+TOOL_DESCRIPTION_ZH = """管理技能（可复用流程知识）：save、patch、delete、write_file、remove_file、lock、unlock。
+
+操作：
+- save: 创建新技能或全量覆写已有技能。
+- patch: 通过替换局部内容片段进行局部更新。
+- delete: 删除技能。
+- write_file: 新增或覆写辅助文件（scripts/、references/、templates/、assets/）。
+- remove_file: 删除辅助文件。
+- lock: 锁定技能防止自动演化（保护用户编辑内容）。
+- unlock: 解锁技能以重新启用自动演化。
+
+重要 — 自主学习：在完成复杂多步任务（5+ 次工具调用）后，在最终回复前评估工作流是否可复用且值得保存为技能。在修复非显而易见的棘手错误或发现通用工作流时也应保存。简单单次任务跳过。
+patch 时机：技能在执行中使用发现过时、不完整或错误时 — 立即修复。
+创建或删除前须向用户确认。
+优质技能：编号步骤、确切命令、踩坑要点、验证步骤。
+
+Save 内容必须为带有 YAML frontmatter 的有效 SKILL.md：
+---
+name: my_skill
+description: "简要描述"
+---
+# 技能标题
+<instructions>
+"""
+
+TOOL_DESCRIPTION = TOOL_DESCRIPTION_EN
+
+
+def resolve_skill_manage_tool_description(locale: str | None = None) -> str:
+    """Resolve LLM-facing skill_manage_tool description."""
+    if is_chinese(locale):
+        return TOOL_DESCRIPTION_ZH
+    return TOOL_DESCRIPTION_EN
+
 
 def _extract_user_id(config: RunnableConfig) -> str:
     """Extract user_id from RunnableConfig context (framework pattern)."""
@@ -102,6 +137,8 @@ def create_skill_manage_tool(
     write_backend: ScanningSkillWriteBackend,
     skill_backend: SkillBackend | None,
     similarity_checker: SkillSimilarityChecker | None = None,
+    *,
+    locale: str | None = None,
 ) -> BaseTool:
     """Create the skill management tool.
 
@@ -111,6 +148,7 @@ def create_skill_manage_tool(
         similarity_checker: Optional checker to warn about semantically similar skills on save.
                            When provided, save actions will query for similar skills and include
                            a warning in the response if high-similarity matches are found.
+        locale: Tool description locale (default: English).
     """
 
     class SkillManageInput(BaseModel):
@@ -130,7 +168,7 @@ def create_skill_manage_tool(
             description="For write_file/remove_file: path under scripts/, references/, templates/, or assets/.",
         )
 
-    @tool("skill_manage_tool", description=TOOL_DESCRIPTION, args_schema=SkillManageInput)
+    @tool("skill_manage_tool", description=resolve_skill_manage_tool_description(locale), args_schema=SkillManageInput)
     async def skill_manage_func(
         action: str,
         name: str,

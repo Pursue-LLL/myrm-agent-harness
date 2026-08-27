@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor
 from myrm_agent_harness.utils.errors import ToolError
+from myrm_agent_harness.utils.locale import is_chinese
 
 from .core import FileOperationService, OperationContext, OperationType, StrReplaceEdit
 from .core.file_edit_normalizer import normalize_edits_payload
@@ -76,7 +77,37 @@ class FileEditInput(BaseModel):
         return payload
 
 
-def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool:
+_FILE_EDIT_TOOL_DESCRIPTION_ZH = """精确编辑文件内容（有序字符串替换）。当需要修改文件时，必须使用本工具而非 bash sed/awk/perl。
+
+参数：
+- path: 文件路径 (支持普通路径或 "@file_id")
+- edits: JSON 数组 [{old_str, new_str}]，单次调用原子写入（最多 20 条）。每条 old_str 必须唯一且精确匹配（含缩进）；建议区域不重叠。
+- verify_command: 编辑后自动执行的语法/类型校验命令（强烈建议，如 'python -m py_compile file.py'）。校验失败会回滚全部 edits。
+- reason: 操作原因（可选）
+"""
+
+_FILE_EDIT_TOOL_DESCRIPTION_EN = """Accurately edit file contents via ordered string replacements. When modifying files, you MUST use this tool instead of bash sed/awk/perl.
+
+Parameters:
+- path: File path (supports normal path or "@file_id")
+- edits: JSON array [{old_str, new_str}] applied atomically in a single call (up to 20 edits). Each old_str must be unique and exact (including indentation); non-overlapping regions recommended.
+- verify_command: Syntax/type check command executed automatically after edit (strongly recommended, e.g. 'python -m py_compile file.py'). All edits are rolled back on failure.
+- reason: Optional operational purpose
+"""
+
+
+def resolve_file_edit_tool_description(locale: str | None = None) -> str:
+    """Resolve LLM-facing file_edit_tool description."""
+    if is_chinese(locale):
+        return _FILE_EDIT_TOOL_DESCRIPTION_ZH
+    return _FILE_EDIT_TOOL_DESCRIPTION_EN
+
+
+def create_file_edit_tool(
+    skills: list[SkillMetadata] | None = None,
+    *,
+    locale: str | None = None,
+) -> BaseTool:
     """创建文件编辑工具
 
     内部使用 FileOperationService，自动处理：
@@ -89,6 +120,7 @@ def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
 
     Args:
         skills: MCP 技能列表（保留仅供工具创建时使用）
+        locale: 提示词语言
 
     Returns:
         file_edit_tool 工具函数
@@ -99,14 +131,7 @@ def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
 
     @tool(
         "file_edit_tool",
-        description="""精确编辑文件内容（有序字符串替换）。当需要修改文件时，必须使用本工具而非 bash sed/awk/perl。
-
-参数：
-- path: 文件路径 (支持普通路径或 "@file_id")
-- edits: JSON 数组 [{old_str, new_str}]，单次调用原子写入（最多 20 条）。每条 old_str 必须唯一且精确匹配（含缩进）；建议区域不重叠。
-- verify_command: 编辑后自动执行的语法/类型校验命令（强烈建议，如 'python -m py_compile file.py'）。校验失败会回滚全部 edits。
-- reason: 操作原因（可选）
-""",
+        description=resolve_file_edit_tool_description(locale),
         args_schema=FileEditInput,
     )
     async def file_edit_func(

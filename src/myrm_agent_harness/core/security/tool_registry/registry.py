@@ -143,9 +143,6 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "wiki_ingest_tool",
         "wiki_query_tool",
         "wiki_apply_tool",
-        "list_pdf_templates",
-        "get_pdf_template_schema",
-        "render_pdf_template",
     }
 )
 
@@ -178,7 +175,6 @@ AUTO_APPROVED_BUILTIN_TOOLS: dict[str, str] = {
     "ask_question_tool": "user_visible",  # interactive clarification, user sees every question
     "browser_ask_human_tool": "user_visible",  # in-page HITL prompt (2FA/CAPTCHA), user sees every prompt
     "complete_goal_tool": "internal",  # goal-state marking signal
-    "get_pdf_template_schema": "read_only",  # inspect required variables schema, pure read
     "kanban_add_task": "user_visible",  # kanban task creation, user opt-in + board UI
     "kanban_attach": "user_visible",  # attach files/notes to kanban task
     "kanban_block": "user_visible",  # mark task blocked
@@ -191,11 +187,9 @@ AUTO_APPROVED_BUILTIN_TOOLS: dict[str, str] = {
     "kanban_revise_plan": "user_visible",  # orchestrator plan revision, user-visible
     "kanban_show": "read_only",  # show kanban task detail, pure read
     "kanban_unblock": "user_visible",  # unblock kanban task
-    "list_pdf_templates": "read_only",  # query template catalog, pure read
     "memory_manage_tool": "user_visible",  # memory housekeeping, user-visible + audited
     "memory_save_tool": "user_visible",  # memory writes, user-visible + scan-audited
     "memory_search_tool": "read_only",
-    "render_pdf_template": "user_visible",  # generate compiled PDF document
     "render_ui_tool": "display",
     "request_answer_user_tool": "internal",  # answer-phase gating signal
     "skill_market_tool": "user_visible",  # skill install from market, trust-scanned + user-visible
@@ -325,13 +319,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "kanban_cancel_task",
             "kanban_retry_task",
             "kanban_revise_plan",
-        }
-    ),
-    "pdf_templates": frozenset(
-        {
-            "list_pdf_templates",
-            "get_pdf_template_schema",
-            "render_pdf_template",
         }
     ),
     "wiki": frozenset(
@@ -733,14 +720,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "kanban_retry_task": SafetyMetadata(),
     "kanban_revise_plan": SafetyMetadata(),
     "kanban_unblock": SafetyMetadata(),
-    # pdf template generation tools
-    "list_pdf_templates": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "get_pdf_template_schema": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "render_pdf_template": SafetyMetadata(),
     # wiki knowledge-base tools — query read-only; mutations stateful
     "wiki_query_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=True, is_idempotent=True

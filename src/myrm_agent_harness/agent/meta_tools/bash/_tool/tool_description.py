@@ -4,10 +4,14 @@ Decoupled from ``bash_code_execute_tool.py`` to keep the tool factory focused on
 and to satisfy the file-size guideline (single file ≤ 500 lines).
 
 [INPUT]
-- (none)
+- utils.locale::is_chinese (POS: BCP-47 Chinese detection for description locale)
 
 [OUTPUT]
-- TOOL_DESCRIPTION: Static description string injected into the LangChain tool.
+- DEFAULT_BASH_TOOL_DESCRIPTION_LOCALE: Default English locale constant ("en")
+- TOOL_DESCRIPTION_EN: English tool description SSOT
+- TOOL_DESCRIPTION_ZH: Chinese tool description SSOT
+- TOOL_DESCRIPTION: Backward compatibility alias to Chinese description
+- resolve_bash_code_execute_tool_description(): Locale-aware resolver
 
 [POS]
 Prompt content displayed to the LLM. Defines the contract for calling
@@ -15,7 +19,15 @@ Prompt content displayed to the LLM. Defines the contract for calling
 background job stdin/eviction hints, output format, and prohibitions.
 """
 
-TOOL_DESCRIPTION = """
+from __future__ import annotations
+
+from typing import Final
+
+from myrm_agent_harness.utils.locale import is_chinese
+
+DEFAULT_BASH_TOOL_DESCRIPTION_LOCALE: Final[str] = "en"
+
+TOOL_DESCRIPTION_ZH: Final[str] = """
 使用该工具执行准确的 Shell 命令或 Python 代码来高效精准地解决用户问题。严禁任何假设和猜测!
 
 ## 能力
@@ -123,4 +135,116 @@ asyncio.run(main())
 后台脚本若 `echo 'MYRM_PROGRESS {"percent": 42, "message": "Compiling"}'`(或 `{"current": 3, "total": 10}`),自动显示进度条,无需 LLM 参与。检查点用 `MYRM_CHECKPOINT {"message": "..."}`。三方工具的自然输出(如 `Building 42%`、`3/10 tests`、`Compiling main.rs`)也会被启发式识别。
 """.strip()
 
-__all__ = ["TOOL_DESCRIPTION"]
+TOOL_DESCRIPTION_EN: Final[str] = """
+Execute Shell commands or Python code to solve problems accurately and efficiently. Do NOT make assumptions or guesses!
+
+## Capabilities
+
+1. **Shell commands**: Execute shell commands (mv/cp/rm, package management, build & test, git, curl, etc.).
+2. **Execute scripts**: Run existing script files (`python script.py` / `bash script.sh`).
+3. **Execute Python code**: **Pass Python source code directly as `command`**.
+   - Pre-installed libraries: pandas, numpy, scipy, matplotlib, seaborn; Python standard library (json, datetime, re, etc.) are available.
+   - **Do NOT** wrap with `python -c "..."` — shell escaping can break quotes and multi-line strings. Pass raw Python code directly as `command`.
+4. **Combined execution (pipelining)**: Chain multiple steps in a single call:
+   - ① Python source (asyncio.gather / sequential / control flow, including skill batching);
+   - ② Shell chaining with `&&`/`|`, or running existing scripts (see #2).
+   - Only pipeline when return structures are concrete; otherwise use `[OBSERVATION]` first (see "Principles").
+
+## Prefer Dedicated Tools
+
+- Read / Write / Edit: **MUST** use `file_read_tool` / `file_write_tool` / `file_edit_tool`. Do **NOT** use echo/cat/sed/awk/tee/perl.
+- Find files / search content / list dirs: **MUST** use `glob_tool` / `grep_tool`. Do **NOT** use bash `find/grep/ls` recursively.
+
+`bash_code_execute_tool` is for: system/runtime operations (mv/cp/rm, build, test, git, curl), Python/script execution, and background tasks.
+
+## Principles
+
+### Accuracy First, Efficiency Second
+
+Combining multiple tasks improves efficiency, but **only when the return value structure of target methods is concrete**. Always analyze dependencies. NEVER guess return structures.
+
+1. **Concrete return value**: Field names and types are explicitly documented (e.g., `{"code": str}`, `list[{"id": int}]`).
+2. **Ambiguous return value**: Only says "returns dict" or "JSON result" without field breakdown → must emit `[OBSERVATION]` first to inspect.
+
+#### Concrete structure → Combine into one Python execution:
+```python
+import asyncio
+
+async def main():
+    date, codes = await asyncio.gather(fetch_date(), fetch_codes())
+    tickets = await query_tickets(date=date, from_station=codes["from"], to_station=codes["to"])
+    print(f"[RESULT] {tickets}")
+
+asyncio.run(main())
+```
+
+#### Ambiguous structure → Output OBSERVATION first, combine next turn:
+```python
+import asyncio
+
+async def main():
+    date, codes = await asyncio.gather(fetch_date(), fetch_codes())
+    print(f"[OBSERVATION] date={date}, codes={codes}")
+
+asyncio.run(main())
+```
+
+### Optimization Strategies
+
+- When dependencies and return structures are clear, combine multiple steps into one Python script with while/if/try control flow to avoid multiple tool roundtrips.
+- Output only necessary data: analyze large data (CSV/JSON/logs) in Python and print only summaries.
+- When large output is evicted/truncated, read the returned path under `.context/.../evicted/` using `file_read_tool`.
+- When a command fails, read stdout/stderr and error messages to identify the root cause before fixing. Do not blindly retry the same failed command.
+
+### Async Patterns
+Skill/async invocations must be awaited. Use `async def main(): ...` + `asyncio.run(main())` entrypoint.
+
+### Paths
+Prefer `/workspace/...` (default working directory) in commands and Python code.
+
+### Python is Stateless, Bash is Persistent
+- **Python**: Each execution runs in an independent process; variables and imports do not persist. For cross-turn persistence, write to `/workspace/...` via `json.dump` or `file_write_tool`. Never put large payloads into `[RESULT]` or `[OBSERVATION]`.
+- **Bash**: Session is persistent across turns (isolated by chat_id); environment variables, working directory, and shell functions persist.
+
+## Prohibitions
+- Do NOT write comments in disposable scripts (saves tokens).
+- NEVER assume or guess return value structures.
+- Do NOT leave debug code or superfluous print statements.
+
+## Output Format (Only two allowed)
+- `print(f"[OBSERVATION] {variable}")` — Inspect unknown return value structures.
+- `print(f"[RESULT] {result}")` — Output final results.
+
+## Background Tasks (Optional)
+For dev servers, watchers, or long-running jobs, pass `run_in_background=true` to return `{pid, status}` immediately without blocking. Max 5 concurrent jobs per session.
+**Note**: Do NOT append `&` at the end of the command when `run_in_background=true` (the tool handles backgrounding automatically).
+Use `bash_process_tool` to manage background jobs: `list` (includes `last_progress`), `output` (incremental tail with `since_cursor`), `wait`, `kill`, `write_stdin`, `submit_stdin`, `close_stdin`.
+When output/wait returns `waiting_for_input=true`, check `input_wait_hint` and respond using `submit_stdin`.
+
+### Progress Reporting
+Background scripts can emit `echo 'MYRM_PROGRESS {"percent": 42, "message": "Compiling"}'` (or `{"current": 3, "total": 10}`) to automatically update UI progress bars without LLM turns. Use `MYRM_CHECKPOINT {"message": "..."}` for checkpoints.
+""".strip()
+
+# Backward-compatible alias for existing imports expecting Chinese constant
+TOOL_DESCRIPTION: Final[str] = TOOL_DESCRIPTION_ZH
+
+
+def resolve_bash_code_execute_tool_description(
+    locale: str | None = DEFAULT_BASH_TOOL_DESCRIPTION_LOCALE,
+) -> str:
+    """Resolve LLM-facing bash_code_execute_tool description based on locale.
+
+    Defaults to English when locale is omitted or non-Chinese.
+    """
+    if is_chinese(locale):
+        return TOOL_DESCRIPTION_ZH
+    return TOOL_DESCRIPTION_EN
+
+
+__all__ = [
+    "DEFAULT_BASH_TOOL_DESCRIPTION_LOCALE",
+    "TOOL_DESCRIPTION",
+    "TOOL_DESCRIPTION_EN",
+    "TOOL_DESCRIPTION_ZH",
+    "resolve_bash_code_execute_tool_description",
+]

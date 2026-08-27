@@ -86,6 +86,12 @@ class SkillAgentToolsMixin:
                 for tool in self.user_tools  # type: ignore[attr-defined]
             )
 
+        prompt_locale = (
+            getattr(self.config, "prompt_locale", None)
+            or getattr(self.config, "locale", None)
+            or "en"
+        )  # type: ignore[attr-defined]
+
         supplemental_user_tools: list[BaseTool] = []
         if self.market_backend is not None and not _user_has_tool("skill_market_tool"):  # type: ignore[attr-defined]
             from myrm_agent_harness.agent.meta_tools.skills.market import (
@@ -100,6 +106,7 @@ class SkillAgentToolsMixin:
                     market_backend,
                     install_from_url_fn=install_url_fn,
                     uninstall_fn=uninstall_fn,
+                    locale=prompt_locale,
                 )
             )
             logger.info(" skill_market_tool mounted via market_backend (server/user_tools SSOT)")
@@ -114,6 +121,7 @@ class SkillAgentToolsMixin:
                     self.write_backend,  # type: ignore[attr-defined]
                     self.skill_backend,  # type: ignore[attr-defined]
                     self._similarity_checker,  # type: ignore[attr-defined]
+                    locale=prompt_locale,
                 )
             )
             logger.info(" skill_manage_tool mounted via write_backend (server/user_tools SSOT)")
@@ -136,6 +144,7 @@ class SkillAgentToolsMixin:
             available_tool_names=self._available_tool_names,  # type: ignore[attr-defined]
             available_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]
             skill_instances=skill_instance_by_name or None,
+            locale=prompt_locale,
         )
 
         todo_tool = await self._create_todo_write_tool()
@@ -188,6 +197,7 @@ class SkillAgentToolsMixin:
             available_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]
             embedding_config=self._embedding_config,  # type: ignore[attr-defined]
             embedding_cache=getattr(self, "_embedding_cache", None),
+            locale=prompt_locale,
         )
 
         self._tool_registry = registry  # type: ignore[attr-defined]

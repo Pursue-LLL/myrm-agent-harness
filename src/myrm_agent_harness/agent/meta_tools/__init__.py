@@ -45,7 +45,7 @@ from myrm_agent_harness.agent.skills.runtime.catalog_display import (
     resolve_catalog_display_skills,
 )
 
-from .answer_user_tool import request_answer_user_tool
+from .answer_user_tool import create_answer_user_tool, request_answer_user_tool
 from .bash import create_bash_code_execute_tool, create_bash_process_tool
 from .file_ops import (
     create_file_edit_tool,
@@ -81,6 +81,7 @@ def get_meta_tools(
     available_tool_names: frozenset[str] | None = None,
     available_tool_groups: frozenset[str] | None = None,
     skill_instances: dict[str, SkillInstance] | None = None,
+    locale: str | None = None,
 ) -> list[BaseTool]:
     """获取元工具列表
 
@@ -166,6 +167,7 @@ def get_meta_tools(
             catalog_resolution.filtered_skills,
             skill_backend,
             skill_instances=skill_instances,
+            locale=locale,
         )
         tools.append(skill_select_tool)
         if skill_configs is not None:
@@ -192,23 +194,23 @@ def get_meta_tools(
             logger.info(" skill_select_tool 未加载(skill_backend 未提供)")
 
     if enable_answer_tool:
-        tools.append(request_answer_user_tool)
+        tools.append(create_answer_user_tool(locale=locale))
         logger.info(" request_answer_user_tool 已加载")
     else:
         logger.info(" request_answer_user_tool 已跳过 (enable_answer_tool=False)")
 
     if resolved_file_access == FileAccessMode.FULL:
-        file_read_tool = create_file_read_tool(skills=skills)
-        file_write_tool = create_file_write_tool(skills=skills)
-        file_edit_tool = create_file_edit_tool(skills=skills)
-        glob_tool = create_glob_tool()
-        grep_tool = create_grep_tool()
+        file_read_tool = create_file_read_tool(skills=skills, locale=locale)
+        file_write_tool = create_file_write_tool(skills=skills, locale=locale)
+        file_edit_tool = create_file_edit_tool(skills=skills, locale=locale)
+        glob_tool = create_glob_tool(locale=locale)
+        grep_tool = create_grep_tool(locale=locale)
         tools.extend(
             [file_read_tool, file_write_tool, file_edit_tool, glob_tool, grep_tool]
         )
     elif resolved_file_access == FileAccessMode.SPILL_AND_UPLOADS:
         file_read_tool = create_file_read_tool(
-            skills=skills, path_policy="evicted_uploaded"
+            skills=skills, path_policy="evicted_uploaded", locale=locale
         )
         tools.append(file_read_tool)
         logger.info(
@@ -222,9 +224,10 @@ def get_meta_tools(
             skills=skills,
             skill_env_map=skill_env_map,
             global_env=global_env,
+            locale=locale,
         )
         tools.append(bash_code_execute)
-        tools.append(create_bash_process_tool())
+        tools.append(create_bash_process_tool(locale=locale))
     else:
         logger.info("Bash tool disabled by caller configuration")
 

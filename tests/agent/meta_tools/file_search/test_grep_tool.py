@@ -244,7 +244,9 @@ class TestCreateGrepTool:
     def test_factory_creates_tool(self) -> None:
         tool_fn = create_grep_tool()
         assert tool_fn.name == "grep_tool"
-        assert "搜索文件内容" in tool_fn.description
+        assert "Search file contents" in tool_fn.description
+        tool_zh = create_grep_tool(locale="zh-CN")
+        assert "搜索文件内容" in tool_zh.description
 
     def test_custom_config(self) -> None:
         cfg = FileIOConfig(max_search_results=10, max_search_files=5)

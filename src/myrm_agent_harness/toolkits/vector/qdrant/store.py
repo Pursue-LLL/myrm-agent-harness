@@ -488,10 +488,14 @@ class QdrantVectorStore(VectorStore):
             logger.debug("Skipping close for EMBEDDED Qdrant client (managed as singleton)")
             return
 
-        if self._is_async and hasattr(self._client, "close"):
-            await self._client.close()
-        elif hasattr(self._client, "close"):
-            self._client.close()
+        if hasattr(self._client, "close"):
+            close_method = getattr(self._client, "close")
+            if asyncio.iscoroutinefunction(close_method):
+                await close_method()
+            else:
+                res = close_method()
+                if asyncio.iscoroutine(res):
+                    await res
         logger.debug("Qdrant connection closed")
 
     async def hard_close(self) -> None:
@@ -501,10 +505,14 @@ class QdrantVectorStore(VectorStore):
         (e.g. a throwaway isolated evaluation volume). The regular ``close()``
         skips EMBEDDED clients because they are shared per path.
         """
-        if self._is_async and hasattr(self._client, "close"):
-            await self._client.close()
-        elif hasattr(self._client, "close"):
-            self._client.close()
+        if hasattr(self._client, "close"):
+            close_method = getattr(self._client, "close")
+            if asyncio.iscoroutinefunction(close_method):
+                await close_method()
+            else:
+                res = close_method()
+                if asyncio.iscoroutine(res):
+                    await res
         logger.debug("Qdrant connection closed (forced)")
 
     # Health & diagnostics

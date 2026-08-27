@@ -1292,9 +1292,6 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | `kanban_retry_task` | user_visible |
 | `kanban_revise_plan` | user_visible |
 | `kanban_unblock` | user_visible |
-| `list_pdf_templates` | read_only |
-| `get_pdf_template_schema` | read_only |
-| `render_pdf_template` | user_visible |
 | `wiki_query_tool` | read_only |
 | `wiki_apply_tool` | user_visible |
 | `wiki_ingest_tool` | user_visible |

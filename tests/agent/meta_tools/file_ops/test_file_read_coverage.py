@@ -706,7 +706,7 @@ async def test_file_read_appends_mcp_next_step_hint_for_mcp_doc_batch() -> None:
     mock_executor = MagicMock()
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.ensure_executor",
             return_value=mock_executor,
         ),
         patch(
@@ -731,7 +731,7 @@ async def test_file_read_no_hint_for_plain_workspace_paths() -> None:
     mock_executor = MagicMock()
     with (
         patch(
-            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.ensure_executor",
             return_value=mock_executor,
         ),
         patch(

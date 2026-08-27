@@ -30,6 +30,7 @@ from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
 from myrm_agent_harness.agent.meta_tools.bash._background.types import (
     build_input_wait_hint,
 )
+from myrm_agent_harness.utils.locale import is_chinese
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
@@ -317,19 +318,37 @@ async def _handle_stdin(
     }
 
 
-def create_bash_process_tool() -> BaseTool:
+_BASH_PROCESS_TOOL_DESCRIPTION_EN = (
+    "Manage background bash processes started with bash_code_execute_tool(run_in_background=true). "
+    "When output or wait returns waiting_for_input=true, read input_wait_hint and answer with "
+    "submit_stdin (do not blind-poll). "
+    "Actions: list (session jobs + last_progress), output (tail/incremental poll via since_cursor), "
+    "wait (block until exit or timeout_seconds, max 120), kill (SIGTERM or force SIGKILL), "
+    "write_stdin (raw stdin), submit_stdin (stdin + Enter), close_stdin (EOF)."
+)
+
+_BASH_PROCESS_TOOL_DESCRIPTION_ZH = (
+    "管理通过 bash_code_execute_tool(run_in_background=true) 启动的后台进程。"
+    "当 output 或 wait 返回 waiting_for_input=true 时，根据 input_wait_hint 使用 submit_stdin 响应（切勿盲目轮询）。"
+    "操作：list（会话任务与进度），output（查看增量输出/配合 since_cursor 轮询），"
+    "wait（阻塞等待结束或超时，最大 120s），kill（默认 SIGTERM，force 时发送 SIGKILL），"
+    "write_stdin（原始 stdin），submit_stdin（stdin+换行），close_stdin（EOF）。"
+)
+
+
+def resolve_bash_process_tool_description(locale: str | None = None) -> str:
+    """Resolve LLM-facing bash_process_tool description."""
+    if is_chinese(locale):
+        return _BASH_PROCESS_TOOL_DESCRIPTION_ZH
+    return _BASH_PROCESS_TOOL_DESCRIPTION_EN
+
+
+def create_bash_process_tool(locale: str | None = None) -> BaseTool:
     """Return the unified background process management tool."""
 
     @tool(
         BASH_PROCESS_TOOL_NAME,
-        description=(
-            "Manage background bash processes started with bash_code_execute_tool(run_in_background=true). "
-            "When output or wait returns waiting_for_input=true, read input_wait_hint and answer with "
-            "submit_stdin (do not blind-poll). "
-            "Actions: list (session jobs + last_progress), output (tail/incremental poll via since_cursor), "
-            "wait (block until exit or timeout_seconds, max 120), kill (SIGTERM or force SIGKILL), "
-            "write_stdin (raw stdin), submit_stdin (stdin + Enter), close_stdin (EOF)."
-        ),
+        description=resolve_bash_process_tool_description(locale),
         args_schema=_BashProcessInput,
     )
     async def _bash_process(
