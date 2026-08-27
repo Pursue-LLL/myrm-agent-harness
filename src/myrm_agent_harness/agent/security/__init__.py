@@ -95,6 +95,12 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "MessageFilterPipeline": (".message_filtering", "MessageFilterPipeline"),
     "PIIRedactionFilter": (".message_filtering", "PIIRedactionFilter"),
     "SystemRoleFilter": (".message_filtering", "SystemRoleFilter"),
+    # batch_risk.py
+    "BatchApprovalItem": (".batch_risk", "BatchApprovalItem"),
+    "BatchItemRiskLevel": (".batch_risk", "BatchItemRiskLevel"),
+    "BatchRiskItemDetail": (".batch_risk", "BatchRiskItemDetail"),
+    "BatchRiskReport": (".batch_risk", "BatchRiskReport"),
+    "classify_batch_approval_risk": (".batch_risk", "classify_batch_approval_risk"),
 }
 
 __all__ = list(_EXPORTS.keys())
