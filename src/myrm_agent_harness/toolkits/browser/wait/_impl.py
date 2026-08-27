@@ -44,7 +44,10 @@ logger = logging.getLogger(__name__)
 
 # Patchright raises its own TimeoutError (a subclass of Error, NOT builtins.TimeoutError),
 # so both exception types must be caught wherever a wait may time out.
-_TIMEOUT_ERRORS: tuple[type[BaseException], ...] = (TimeoutError, PlaywrightTimeoutError)
+_TIMEOUT_ERRORS: tuple[type[BaseException], ...] = (
+    TimeoutError,
+    PlaywrightTimeoutError,
+)
 
 
 def _elapsed_ms_since(start_time: float) -> int:
@@ -52,7 +55,9 @@ def _elapsed_ms_since(start_time: float) -> int:
     return int((time.perf_counter() - start_time) * 1000)
 
 
-async def wait_networkidle_only(page: Page, max_ms: int, start_time: float) -> WaitMetrics:
+async def wait_networkidle_only(
+    page: Page, max_ms: int, start_time: float
+) -> WaitMetrics:
     """Network idle detection only."""
     try:
         await page.wait_for_load_state("networkidle", timeout=max_ms)
@@ -74,7 +79,9 @@ async def wait_networkidle_only(page: Page, max_ms: int, start_time: float) -> W
         )
 
 
-async def wait_dom_stable_only(page: Page, max_ms: int, quiet_ms: int, start_time: float) -> WaitMetrics:
+async def wait_dom_stable_only(
+    page: Page, max_ms: int, quiet_ms: int, start_time: float
+) -> WaitMetrics:
     """DOM stability detection only."""
     try:
         result = await page.evaluate(generate_dom_stable_js(max_ms, quiet_ms))
@@ -188,13 +195,17 @@ async def wait_smart(
                     )
                 elif learned_timeout > 0:
                     fast_timeout_ms = min(learned_timeout, max_ms)
-                    logger.debug(f"Wait: SMART strategy - using learned fast_timeout={fast_timeout_ms}ms for {domain}")
+                    logger.debug(
+                        f"Wait: SMART strategy - using learned fast_timeout={fast_timeout_ms}ms for {domain}"
+                    )
         except Exception as e:
             logger.warning(f"Failed to get learned timeout for {domain}: {e}")
 
     if skip_fast_path:
         logger.debug(f"Wait: SMART strategy - directly using hybrid for {domain}")
-        hybrid_metrics = await wait_hybrid(page, max_ms, quiet_ms, grace_period_ms, start_time)
+        hybrid_metrics = await wait_hybrid(
+            page, max_ms, quiet_ms, grace_period_ms, start_time
+        )
         return WaitMetrics(
             strategy=WaitStrategy.SMART,
             reason=hybrid_metrics.reason,
@@ -211,7 +222,9 @@ async def wait_smart(
         hybrid_metrics = await wait_spa_stable(page, fast_timeout_ms, start_time)
         if hybrid_metrics.reason != "capped":
             elapsed_ms = _elapsed_ms_since(start_time)
-            logger.debug(f"Wait: SMART strategy - SPA stable succeeded in {elapsed_ms}ms")
+            logger.debug(
+                f"Wait: SMART strategy - SPA stable succeeded in {elapsed_ms}ms"
+            )
             return WaitMetrics(
                 strategy=WaitStrategy.SMART,
                 reason="both",
@@ -247,7 +260,9 @@ async def wait_smart(
             f"switching to hybrid (remaining={remaining_ms}ms)"
         )
 
-        hybrid_metrics = await wait_hybrid(page, remaining_ms, quiet_ms, grace_period_ms, start_time)
+        hybrid_metrics = await wait_hybrid(
+            page, remaining_ms, quiet_ms, grace_period_ms, start_time
+        )
         return WaitMetrics(
             strategy=WaitStrategy.SMART,
             reason=hybrid_metrics.reason,
@@ -376,7 +391,9 @@ def _build_hybrid_metrics(
     )
 
 
-async def wait_hybrid(page: Page, max_ms: int, quiet_ms: int, grace_period_ms: int, start_time: float) -> WaitMetrics:
+async def wait_hybrid(
+    page: Page, max_ms: int, quiet_ms: int, grace_period_ms: int, start_time: float
+) -> WaitMetrics:
     """Hybrid detection (first-to-finish + grace period validation).
 
     Strategy:
@@ -386,11 +403,17 @@ async def wait_hybrid(page: Page, max_ms: int, quiet_ms: int, grace_period_ms: i
     4. Second task finishes within grace → reason="both"
     5. Otherwise return immediately → reason="first_completed"
     """
-    dom_task = asyncio.create_task(page.evaluate(generate_dom_stable_js(max_ms, quiet_ms)))
-    network_task = asyncio.create_task(page.wait_for_load_state("networkidle", timeout=max_ms))
+    dom_task = asyncio.create_task(
+        page.evaluate(generate_dom_stable_js(max_ms, quiet_ms))
+    )
+    network_task = asyncio.create_task(
+        page.wait_for_load_state("networkidle", timeout=max_ms)
+    )
 
     try:
-        done, pending = await asyncio.wait([dom_task, network_task], return_when=asyncio.FIRST_COMPLETED)
+        done, pending = await asyncio.wait(
+            [dom_task, network_task], return_when=asyncio.FIRST_COMPLETED
+        )
 
         first_elapsed_ms = _elapsed_ms_since(start_time)
         result = _handle_first_completed(dom_task, network_task, done, first_elapsed_ms)
@@ -398,7 +421,9 @@ async def wait_hybrid(page: Page, max_ms: int, quiet_ms: int, grace_period_ms: i
         remaining_ms = max(0, max_ms - first_elapsed_ms)
         grace_ms = min(grace_period_ms, remaining_ms)
 
-        result = await _apply_grace_period(result, dom_task, network_task, pending, grace_ms, start_time)
+        result = await _apply_grace_period(
+            result, dom_task, network_task, pending, grace_ms, start_time
+        )
 
     except _TIMEOUT_ERRORS:
         await _cleanup_hybrid_tasks(dom_task, network_task)

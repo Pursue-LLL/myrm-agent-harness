@@ -410,6 +410,12 @@ class EvalResult:
             result["avg_pass_rate"] = self.avg_pass_rate
         if self.manifest is not None:
             result["manifest"] = self.manifest.to_dict()
+
+        from .trajectory_analysis import aggregate_failure_modes
+
+        failure_analysis = aggregate_failure_modes(self)
+        result["failure_analysis"] = failure_analysis
+
         result["turns"] = [
             {
                 "message": r.case.message,

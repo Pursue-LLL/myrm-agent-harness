@@ -35,15 +35,22 @@ def test_store_init(temp_db_path):
 
     conn = sqlite3.connect(temp_db_path)
     try:
-        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='subagent_events'")
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='subagent_events'"
+        )
         assert cursor.fetchone() is not None
-        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='orchestration_scripts'")
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='orchestration_scripts'"
+        )
         assert cursor.fetchone() is not None
 
         journal = conn.execute("PRAGMA journal_mode").fetchone()[0]
         assert journal.lower() == "wal"
 
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()}
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()
+        }
         assert "spawn_params_json" in columns
     finally:
         conn.close()
@@ -89,7 +96,9 @@ def test_store_cache_miss_on_param_change(temp_db_path):
         spawn_params=original,
     )
 
-    changed = _default_params(task_description="scan pricing", verification_mode="adversarial")
+    changed = _default_params(
+        task_description="scan pricing", verification_mode="adversarial"
+    )
     assert store.get_cached_result(workflow_id, task_id, expected=changed) is None
 
 
@@ -136,8 +145,22 @@ def test_store_overwrite(temp_db_path):
     task_id = "task_1"
     params = _default_params(task_description="desc1")
 
-    store.save_result(workflow_id, task_id, params.agent_type, params.task_description, {"val": 1}, spawn_params=params)
-    store.save_result(workflow_id, task_id, params.agent_type, params.task_description, {"val": 2}, spawn_params=params)
+    store.save_result(
+        workflow_id,
+        task_id,
+        params.agent_type,
+        params.task_description,
+        {"val": 1},
+        spawn_params=params,
+    )
+    store.save_result(
+        workflow_id,
+        task_id,
+        params.agent_type,
+        params.task_description,
+        {"val": 2},
+        spawn_params=params,
+    )
 
     cached = store.get_cached_result(workflow_id, task_id, expected=params)
     assert cached["val"] == 2
@@ -148,7 +171,14 @@ def test_connect_rollback_on_error(temp_db_path):
     store = WorkflowEventStore(temp_db_path)
     params = _default_params(task_description="desc")
 
-    store.save_result("wf_err", "t1", params.agent_type, params.task_description, {"ok": True}, spawn_params=params)
+    store.save_result(
+        "wf_err",
+        "t1",
+        params.agent_type,
+        params.task_description,
+        {"ok": True},
+        spawn_params=params,
+    )
 
     with pytest.raises(sqlite3.OperationalError), store._connect() as conn:
         conn.execute("INSERT INTO nonexistent_table VALUES (1)")
@@ -285,6 +315,7 @@ def test_store_append_journal_entry(tmp_path, temp_db_path):
     assert journal_file.exists()
     content = journal_file.read_text(encoding="utf-8").strip()
     import json
+
     data = json.loads(content)
     assert data["workflow_id"] == "wf_audit"
     assert data["task_id"] == "task_audit_1"
@@ -292,4 +323,3 @@ def test_store_append_journal_entry(tmp_path, temp_db_path):
     assert data["readonly"] is True
     assert data["success"] is True
     assert data["result"]["verdict"] == "approved"
-

@@ -79,11 +79,18 @@ class WorkflowEventStore:
                 )
                 """
             )
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()}
+            columns = {
+                row[1]
+                for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()
+            }
             if "spawn_params_json" not in columns:
-                conn.execute("ALTER TABLE subagent_events ADD COLUMN spawn_params_json TEXT NOT NULL DEFAULT ''")
+                conn.execute(
+                    "ALTER TABLE subagent_events ADD COLUMN spawn_params_json TEXT NOT NULL DEFAULT ''"
+                )
             if "identity_hash" not in columns:
-                conn.execute("ALTER TABLE subagent_events ADD COLUMN identity_hash TEXT NOT NULL DEFAULT ''")
+                conn.execute(
+                    "ALTER TABLE subagent_events ADD COLUMN identity_hash TEXT NOT NULL DEFAULT ''"
+                )
             conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_subagent_events_identity_hash
@@ -161,7 +168,9 @@ class WorkflowEventStore:
                         try:
                             parsed = cast("dict[str, object]", json.loads(result_json))
                             # Only reuse successful cached results
-                            if parsed.get("success") is True or (not parsed.get("error") and "result" in parsed):
+                            if parsed.get("success") is True or (
+                                not parsed.get("error") and "result" in parsed
+                            ):
                                 return parsed
                         except Exception:
                             pass

@@ -83,13 +83,23 @@ from .protocols import (
 )
 from .reporters import JsonlReporter, MarkdownReporter
 from .runner import EvalRunner
+from .trajectory_analysis import (
+    WEIGHTS_RUBRIC_7D,
+    FailureMode,
+    TrajectoryFailureAnalysis,
+    aggregate_failure_modes,
+    analyze_turn_failure_mode,
+)
 
 __all__ = [
     "CANARY_GUID",
     "CANARY_PREAMBLE",
     "DEFAULT_HIDDEN_TEST_PATTERNS",
+    "FailureMode",
     "HUGGINGFACE_DOMAINS",
     "HUGGINGFACE_QUERY_MARKERS",
+    "TrajectoryFailureAnalysis",
+    "WEIGHTS_RUBRIC_7D",
     "AgentExecutor",
     "AgentResponse",
     "BenchmarkSpec",
@@ -127,6 +137,8 @@ __all__ = [
     "SkillABReportData",
     "StateAssertion",
     "ToolAssertion",
+    "aggregate_failure_modes",
+    "analyze_turn_failure_mode",
     "audit_episode_trajectory_for_contamination",
     "build_skill_eval_cases",
     "calculate_trajectory_determinism",
