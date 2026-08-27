@@ -156,3 +156,6 @@ class SeatbeltProvider:
     ) -> asyncio.subprocess.Process | None:
         """Seatbelt uses wrap_command path; no native process creation needed."""
         return None
+
+    def cleanup(self) -> None:
+        pass

@@ -679,6 +679,7 @@ class TestEdgeCases:
             "total_ms",
             "total_tokens",
             "total_cost",
+            "failure_analysis",
             "turns",
         }
         assert required_keys == set(d.keys())

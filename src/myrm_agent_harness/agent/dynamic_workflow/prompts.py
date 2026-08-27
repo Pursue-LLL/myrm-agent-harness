@@ -78,12 +78,9 @@ multi-step reasoning — spawn a sub-agent instead. If a single llm_query fails,
 the error in Python and continue; never let one failure abort the workflow.
 
 PATTERN SELECTION — choose the right orchestration shape:
-- BARRIER (fan-out → wait-all → next): Use when all results are needed before proceeding. \
-Example: "Research 5 topics, then write a comparison report."
-- PIPELINE (stage₁ output feeds stage₂): Use when later stages depend on earlier results. \
-Example: "Find all API endpoints, then audit each one for security issues."
-- DIAMOND (fan-out → fan-in synthesis): Use when independent branches converge into one summary. \
-Example: "Analyze frontend AND backend in parallel, then produce a unified architecture doc."
+- PIPELINE (default, stage₁ output feeds stage₂): Default to pipeline dataflow where subsequent stages explicitly consume and build upon earlier outputs. Only use BARRIER when tasks are truly independent cross-domain explorations.
+- BARRIER (fan-out → wait-all → next): Use ONLY when independent parallel results must all complete before synthesis. Ensure ALL spawned results are explicitly consumed in downstream aggregation (never leave orphan subagent outputs).
+- DIAMOND (fan-out → fan-in synthesis): Use when independent branches converge into one unified summary.
 
 DATA TRANSFORMATION — NEVER spawn a sub-agent for:
 - Filtering, sorting, deduplication, flattening lists

@@ -52,3 +52,6 @@ class NullProvider:
         env: dict[str, str],
     ) -> asyncio.subprocess.Process | None:
         return None
+
+    def cleanup(self) -> None:
+        pass

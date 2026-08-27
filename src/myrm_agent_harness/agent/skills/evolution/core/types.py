@@ -36,6 +36,60 @@ class EvolutionType(StrEnum):
     OPTIMIZE_DESCRIPTION = "optimize_description"  # Refine description for better matching
 
 
+class SkillVerificationType(StrEnum):
+    """Classification of verification requirements for a skill."""
+
+    CODE_EXECUTABLE = "code_executable"  # Contains Python or Shell code blocks to run
+    PROMPT_INSTRUCTION = "prompt_instruction"  # Pure textual or prompt instruction
+
+
+@dataclass
+class VerificationProof:
+    """Proof of sandbox execution verification for a skill evolution proposal."""
+
+    is_verified: bool = False
+    hollow_detected: bool = False
+    success_streak: int = 0
+    blast_radius: dict[str, int] = field(default_factory=lambda: {"files": 0, "lines": 0})
+    verification_summary: str = ""
+    command_results: list[dict[str, Any]] = field(default_factory=list)
+    environment: EnvironmentFingerprint | None = None
+    verified_at: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "is_verified": self.is_verified,
+            "hollow_detected": self.hollow_detected,
+            "success_streak": self.success_streak,
+            "blast_radius": self.blast_radius,
+            "verification_summary": self.verification_summary,
+            "command_results": self.command_results,
+            "environment": self.environment.to_dict() if self.environment else None,
+            "verified_at": self.verified_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> VerificationProof:
+        return cls(
+            is_verified=bool(data.get("is_verified", False)),
+            hollow_detected=bool(data.get("hollow_detected", False)),
+            success_streak=int(data.get("success_streak", 0)),
+            blast_radius=data.get("blast_radius", {"files": 0, "lines": 0}),
+            verification_summary=str(data.get("verification_summary", "")),
+            command_results=data.get("command_results", []),
+            environment=(
+                EnvironmentFingerprint.from_dict(data["environment"])
+                if data.get("environment")
+                else None
+            ),
+            verified_at=(
+                datetime.fromisoformat(data["verified_at"])
+                if data.get("verified_at")
+                else datetime.now()
+            ),
+        )
+
+
 @dataclass
 class EnvironmentFingerprint:
     """Environment context for a skill to ensure safe cross-device sharing."""
@@ -391,6 +445,7 @@ class EvolutionProposal:
     updated_eval_cases: list[dict[str, Any]] | None = None
     recommended_form: str = "skill"  # "skill" | "cron_job" | "skip"
     form_metadata: dict[str, Any] | None = None  # {schedule_hint, form_reasoning}
+    verification_proof: VerificationProof | None = None
     created_at: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict[str, Any]:
@@ -411,6 +466,7 @@ class EvolutionProposal:
             "updated_eval_cases": self.updated_eval_cases,
             "recommended_form": self.recommended_form,
             "form_metadata": self.form_metadata,
+            "verification_proof": self.verification_proof.to_dict() if self.verification_proof else None,
             "created_at": self.created_at.isoformat(),
         }
 

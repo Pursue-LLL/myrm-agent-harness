@@ -239,8 +239,11 @@ class FleetEvalRunner:
         if resume_turn_results:
             for r in resume_turn_results:
                 if r.assertion_passed is True:
-                    k = r.case.metadata.get("wb_bench_task_id") or r.case.metadata.get("task_id") or r.case.message.strip()
-                    completed_map[str(k)] = r
+                    k_meta = r.case.metadata.get("wb_bench_task_id") or r.case.metadata.get("task_id")
+                    if k_meta:
+                        completed_map[str(k_meta)] = r
+                    if r.case.message:
+                        completed_map[r.case.message.strip()] = r
 
         resumed_count = 0
         cases_to_run: list[MultiTurnEvalCase] = []
@@ -248,9 +251,11 @@ class FleetEvalRunner:
 
         for c in target_cases:
             ckey = self._get_case_key(c)
-            if ckey in completed_map:
+            first_msg = c.turns[0].message.strip() if c.turns else ""
+            matched_res = completed_map.get(ckey) or (completed_map.get(first_msg) if first_msg else None)
+            if matched_res is not None:
                 resumed_count += 1
-                prefilled_results.append(completed_map[ckey])
+                prefilled_results.append(matched_res)
             else:
                 cases_to_run.append(c)
 

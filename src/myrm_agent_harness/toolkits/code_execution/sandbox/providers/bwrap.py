@@ -138,3 +138,6 @@ class BwrapProvider:
     ) -> asyncio.subprocess.Process | None:
         """Bwrap uses wrap_command path; no native process creation needed."""
         return None
+
+    def cleanup(self) -> None:
+        pass

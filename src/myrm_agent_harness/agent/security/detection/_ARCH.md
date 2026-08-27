@@ -7,8 +7,9 @@ Agent Security Detection module.
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Public API exports for detection subsystem (classify_content, redact_pii, scan_for_leaks, etc.) | ✅ |
+| __init__.py | Package | Public API exports for detection subsystem (classify_content, redact_pii, scan_for_leaks, scan_dangerous_intent, etc.) | ✅ |
 | content_boundary.py | Core | Content boundary defense core. Five-layer defense-in-depth (Unicode folding, structural framing strip, marker sanitization, random boundaries, pattern detection) for prompt injection prevention. | ✅ |
+| intent_router.py | Core | Intake-stage dangerous intent router re-export facade (`DangerousIntent`, `IntentSafetyResult`, `scan_dangerous_intent`). | ✅ |
 | leak_detector.py | Core | Output-side credential leak detector. 40+ credential pattern matchers (API key prefixes + blockchain + cloud infra + ENV/JSON/Header context + mnemonic + Shannon entropy + PEM block-level multiline redaction) for preventing secret exfiltration. | ✅ |
 | pii_classifier.py | Core | Input-side PII classification engine. 30+ built-in regex patterns (bilingual CN/EN) with short-circu | ✅ |
 | pii_redactor.py | Core | PII redactor. Type-aware smart masking (phone numbers retain first 3 and last 4 digits, emails retai | ✅ |

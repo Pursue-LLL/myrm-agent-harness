@@ -1,10 +1,11 @@
-"""Dynamic Workflow preflight — static spawn analysis and cost estimation.
+"""Dynamic Workflow preflight — static spawn analysis, AST linting and cost estimation.
 
 [INPUT]
 - agent.base_agent::BaseAgent (POS: Parent agent with budget checker)
 - agent.sub_agents.types::SubagentCatalog (POS: Subagent type resolution)
 - agent.meta_tools.spawn_subagent._delegate_budget::_estimate_batch_cost (POS: Batch cost estimation)
 - agent.dynamic_workflow.tools::DEFAULT_MAX_CONCURRENT_SPAWNS (POS: Per-workflow concurrency cap)
+- agent.dynamic_workflow.linter::WorkflowLintReport, lint_workflow_script (POS: AST linter)
 
 [OUTPUT]
 - WorkflowPlanReview: Preflight summary DTO for HITL card
@@ -15,7 +16,7 @@
 
 [POS]
 Trust-layer preflight for Dynamic Workflow. Keeps orchestration engine lean by isolating
-static script analysis and batch cost estimation from PTC execution.
+static AST script analysis, dataflow linting, and batch cost estimation from PTC execution.
 """
 
 from __future__ import annotations
@@ -26,6 +27,10 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.dynamic_workflow.linter import (
+    WorkflowLintReport,
+    lint_workflow_script,
+)
 from myrm_agent_harness.agent.dynamic_workflow.tools import (
     DEFAULT_MAX_CONCURRENT_SPAWNS,
 )
@@ -57,31 +62,46 @@ class WorkflowPlanReview:
     remaining_budget_usd: float | None
     cost_status: str
     # Call-site counts for llm_query (direct) and llm_query_batched (parallel batch).
-    # A batched call is a single call site that fans out to many LLM sub-calls at runtime.
     llm_query_single_calls: int = 0
     llm_query_batched_calls: int = 0
+    lint_report: WorkflowLintReport | None = None
+    goal_brief: str = ""
 
 
 WorkflowApprovalGate = Callable[[WorkflowPlanReview], Awaitable[bool]]
 
 
 def count_spawn_calls(script_code: str) -> int:
-    return len(_SPAWN_CALL_PATTERN.findall(script_code))
+    """Count spawn calls via AST linter with regex fallback."""
+    cleaned = strip_script_markdown(script_code)
+    try:
+        report = lint_workflow_script(cleaned)
+        if report.spawn_calls_found > 0:
+            return report.spawn_calls_found
+    except Exception:
+        pass
+    return len(_SPAWN_CALL_PATTERN.findall(cleaned))
 
 
 def count_llm_query_calls(script_code: str) -> tuple[int, int]:
     """Count literal llm_query and llm_query_batched call sites in the script.
 
-    Returns (single_calls, batched_calls). A batched call is a single PTC RPC but
-    fans out to multiple LLM sub-calls internally.
+    Returns (single_calls, batched_calls).
     """
-    single = len(_LLM_QUERY_CALL_PATTERN.findall(script_code))
-    batched = len(_LLM_QUERY_BATCHED_CALL_PATTERN.findall(script_code))
+    cleaned = strip_script_markdown(script_code)
+    try:
+        report = lint_workflow_script(cleaned)
+        if report.llm_query_calls_found > 0 or report.llm_query_batched_calls_found > 0:
+            return report.llm_query_calls_found, report.llm_query_batched_calls_found
+    except Exception:
+        pass
+    single = len(_LLM_QUERY_CALL_PATTERN.findall(cleaned))
+    batched = len(_LLM_QUERY_BATCHED_CALL_PATTERN.findall(cleaned))
     return single, batched
 
 
 def strip_script_markdown(script_code: str) -> str:
-    cleaned = script_code
+    cleaned = script_code.strip()
     if cleaned.startswith("```python"):
         cleaned = cleaned[9:]
     elif cleaned.startswith("```"):
@@ -93,6 +113,9 @@ def strip_script_markdown(script_code: str) -> str:
 
 def format_plan_preview(review: WorkflowPlanReview) -> str:
     lines: list[str] = []
+
+    if review.goal_brief:
+        lines.append(f"Goal: {review.goal_brief}")
 
     if review.spawn_count > 0:
         lines.append(
@@ -118,6 +141,16 @@ def format_plan_preview(review: WorkflowPlanReview) -> str:
         cost_line = "Cost estimate unavailable."
     lines.append(cost_line)
 
+    if review.lint_report and not review.lint_report.is_valid:
+        lines.append("\n❌ Static Verification Errors:")
+        for err in review.lint_report.fatal_errors:
+            lines.append(f"  - {err}")
+
+    if review.lint_report and review.lint_report.warnings:
+        lines.append("\n⚠️ Static Verification Warnings:")
+        for warn in review.lint_report.warnings:
+            lines.append(f"  - {warn}")
+
     header = "\n".join(lines) + "\n\n--- Workflow plan preview ---\n"
     preview = review.script_code
     if len(preview) > 12_000:
@@ -130,12 +163,7 @@ def _estimate_llm_query_cost(
     single_calls: int,
     batched_calls: int,
 ) -> tuple[float | None, str]:
-    """Estimate the USD cost of llm_query call sites using the parent model's pricing.
-
-    Static estimation: llm_query ≈ single call; llm_query_batched ≈ assumed N items
-    in one batch. Returns (cost_usd, cost_status); cost may be None when the parent
-    model price is unknown.
-    """
+    """Estimate the USD cost of llm_query call sites using the parent model's pricing."""
     from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
         _resolve_model_name,
     )
@@ -170,12 +198,7 @@ async def estimate_workflow_cost(
     *,
     llm_query_calls: tuple[int, int] = (0, 0),
 ) -> tuple[float | None, float | None, str]:
-    """Estimate total workflow cost from spawn calls plus llm_query call sites.
-
-    ``llm_query_calls`` is (single_calls, batched_calls) as returned by
-    ``count_llm_query_calls``. Spawn cost dominates; llm_query cost is added when
-    both are estimable, otherwise the llm_query portion is reported best-effort.
-    """
+    """Estimate total workflow cost from spawn calls plus llm_query call sites."""
     if spawn_count <= 0 and llm_query_calls == (0, 0):
         return None, None, "no_spawns"
 

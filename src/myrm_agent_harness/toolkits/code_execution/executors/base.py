@@ -94,6 +94,21 @@ class CodeExecutor(ABC):
         """Execute a Bash command."""
         ...
 
+    async def close(self) -> None:
+        """Release underlying processes, file descriptors, and sandbox resources."""
+        pass
+
+    async def __aenter__(self) -> "CodeExecutor":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
+        await self.close()
+
     async def execute_bash_stream(self, context: ExecutionContext) -> AsyncIterator[str]:
         """Execute a Bash command with real-time output streaming.
 
@@ -422,6 +437,9 @@ class CodeExecutorMiddleware(CodeExecutor):
     async def restore_workspace(self, session_id: str, storage_path: str) -> bool:
         return await self.inner.restore_workspace(session_id, storage_path)
 
+    async def close(self) -> None:
+        await self.inner.close()
+
 
 # ---------------------------------------------------------------------------
 # Executor ContextVar — runtime instance management
@@ -484,3 +502,13 @@ def get_stashed_executor(session_id: str) -> CodeExecutor | None:
 def clear_stashed_executor(session_id: str) -> None:
     """Remove stashed executor entry on session teardown."""
     _session_executor_stash.pop(session_id, None)
+
+
+async def clear_and_close_stashed_executor(session_id: str) -> None:
+    """Remove stashed executor entry and explicitly close it on session teardown."""
+    executor = _session_executor_stash.pop(session_id, None)
+    if executor is not None:
+        try:
+            await executor.close()
+        except Exception as e:
+            logger.warning("Failed to close stashed executor for session %s: %s", session_id, e)

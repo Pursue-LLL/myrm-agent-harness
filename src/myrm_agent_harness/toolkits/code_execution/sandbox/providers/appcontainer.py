@@ -378,23 +378,7 @@ class AppContainerProvider:
         for path, _ in self._acl_paths:
             if not os.path.exists(path):
                 continue
-            try:
-                proc = asyncio.get_event_loop().run_until_complete(
-                    asyncio.create_subprocess_exec(
-                        "icacls",
-                        path,
-                        "/remove",
-                        f"*{self._container_sid}",
-                        "/T",
-                        "/C",
-                        "/Q",
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                )
-                asyncio.get_event_loop().run_until_complete(asyncio.wait_for(proc.communicate(), timeout=15))
-            except (TimeoutError, OSError, RuntimeError):
-                _remove_acl_sync(path, self._container_sid)
+            _remove_acl_sync(path, self._container_sid)
 
 
 class AppContainerProcess:

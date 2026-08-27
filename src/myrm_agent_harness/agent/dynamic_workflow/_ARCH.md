@@ -59,7 +59,8 @@ SSE events (message / message_end / status)
 
 | File | Role | Description |
 |------|------|-------------|
-| `preflight.py` | Trust | Static spawn + llm_query counting, batch cost estimate, plan preview formatting, approval gate protocol. |
+| `linter.py` | Static Lint | `WorkflowScriptASTLinter` — AST 语法合法性检验、无界循环检测、异常隔离捕获校验、Def-Use 数据流假边分析（Dead Output Detection）、Goal Brief 提取。 |
+| `preflight.py` | Trust | Static spawn + llm_query counting, AST lint report integration, batch cost estimate, plan preview formatting, approval gate protocol. |
 | `prompts.py` | Prompts | `ORCHESTRATOR_PROMPT` (script generation guidance) / `SUMMARIZATION_PROMPT` (output → user Markdown) / `_MAX_STDOUT_FOR_SUMMARY`. |
 | `__init__.py` | Engine | Core entry point (`run_dynamic_workflow_stream`). Script generation (orchestrator 响应经 `utils.chat_utils::extract_answer_text` 提取，兼容内联 think 剥离与 reasoning 模型), preflight, optional `approval_gate`, PTC execution, summarization. Re-exports prompts from `prompts.py`. |
 | `store.py` | Persistence | `WorkflowEventStore` — `identity_hash` indexed cross-run/fork readonly replay + fingerprinted sub-agent cache + `.workflow-journal.jsonl` sidecar + orchestration script persistence. |

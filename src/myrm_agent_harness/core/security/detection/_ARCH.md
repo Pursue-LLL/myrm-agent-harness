@@ -1,15 +1,16 @@
 # core/security/detection/
 
 ## Overview
-Security detection modules — PII classification, content boundary marking, information leak detection, prompt injection guard, and pseudonymization.
+Security detection modules — PII classification, content boundary marking, information leak detection, prompt injection guard, intent router, and pseudonymization.
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Module docstring. | — |
+| __init__.py | Package | Module public exports for core security detection subsystem. | — |
 | content_boundary.py | Core | Content boundary marking — wraps untrusted/tool output with delimiters; `extract_wrapped_payload` unwraps envelopes for programmatic (PTC) consumers. | ✅ |
 | instruction_shape.py | Core | Instruction-shape detector — sentence-level agent-directed shapes (guardrail bypass, unattended execution, exfiltration, spoofed approval, agent command, untrusted-channel-write) in durable content. | ✅ |
+| intent_router.py | Core | Intake-stage dangerous intent router — dual-tier regex & actionability detection for mass destruction, mass exfiltration, and privilege mutation. | ✅ |
 | leak_detector.py | Core | Information leak detector — identifies sensitive data patterns in text, incl. password-like heuristic and numeric-credential (PIN/OTP/2FA) detection. | ✅ |
 | pii_classifier.py | Core | PII classifier — detects personally identifiable information (emails, phones, IDs, etc.). | ✅ |
 | prompt_guard.py | Core | Prompt injection guard — detects prompt injection attempts in user/tool input. | ✅ |
@@ -19,5 +20,5 @@ Security detection modules — PII classification, content boundary marking, inf
 
 ## Key Dependencies
 
-- `content_boundary.strip_invisible_unicode` — used by `instruction_shape` for anti-obfuscation normalization before matching.
+- `content_boundary.strip_invisible_unicode` — used by `instruction_shape` and `intent_router` for anti-obfuscation normalization before matching.
 - No external runtime dependencies (foundation layer).

@@ -58,6 +58,9 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_pseudonym_store,
     get_terminal_errors,
 )
+from myrm_agent_harness.agent.security.detection.intent_router import (
+    scan_dangerous_intent,
+)
 from myrm_agent_harness.agent.security.detection.leak_detector import (
     log_leaks,
     redact_leaks,
@@ -206,6 +209,72 @@ class SecurityGuardrailMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         new_messages: list[Any] | None = None
 
         policy = get_privacy_policy()
+
+        # Layer ⓪.⑤: Intake Dangerous-Intent Safety Router
+        for msg in reversed(messages):
+            if isinstance(msg, HumanMessage):
+                content = msg.content
+                if isinstance(content, str):
+                    intent_result = scan_dangerous_intent(content)
+                    if not intent_result.safe:
+                        from myrm_agent_harness.agent.middlewares._session_context import (
+                            get_security_config,
+                        )
+                        from myrm_agent_harness.agent.security.audit import (
+                            record_decision as _record_intent_decision,
+                        )
+
+                        intent_name = (
+                            intent_result.intent.value if intent_result.intent else "unknown"
+                        )
+                        _record_intent_decision(
+                            "user_input",
+                            "DANGEROUS_INTENT_DETECTED",
+                            f"intent={intent_name} pattern={intent_result.matched_pattern}",
+                        )
+                        try:
+                            sec_cfg = get_security_config()
+                        except LookupError:
+                            sec_cfg = None
+                        intent_mode = (
+                            sec_cfg.dangerous_intent_policy if sec_cfg else "hitl"
+                        )
+                        if intent_mode == "fail_closed":
+                            if new_messages is None:
+                                new_messages = list(messages)
+                            idx = messages.index(msg)
+                            new_messages[idx] = HumanMessage(
+                                content=(
+                                    f"[BLOCKED_INTENT] This request was blocked by the safety router because "
+                                    f"it contains a dangerous actionable operation intent ({intent_name}). "
+                                    f"Please confirm your request through the appropriate authorization channel or rephrase."
+                                ),
+                                id=msg.id,
+                            )
+                            _record_intent_decision(
+                                "user_input",
+                                "DANGEROUS_INTENT_BLOCKED",
+                                f"intent={intent_name} pattern={intent_result.matched_pattern}",
+                            )
+                            logger.warning(
+                                "[IntentRouter] Blocked dangerous intent user message: intent=%s pattern=%s",
+                                intent_name,
+                                intent_result.matched_pattern,
+                            )
+                            break
+                        elif intent_mode == "hitl":
+                            if new_messages is None:
+                                new_messages = list(messages)
+                            idx = messages.index(msg)
+                            caution_prefix = (
+                                f"[SAFETY_CAUTION: Actionable high-risk intent detected ({intent_name}) - "
+                                f"do NOT execute destructive changes silently; require explicit confirmation]\n"
+                            )
+                            new_messages[idx] = HumanMessage(
+                                content=f"{caution_prefix}{content}",
+                                id=msg.id,
+                            )
+                            break
 
         # Layer ①: Prompt Guard — scan last HumanMessage for injection
         for msg in reversed(messages):

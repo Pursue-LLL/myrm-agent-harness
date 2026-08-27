@@ -8,6 +8,7 @@
 - dynamic_workflow.prompts::SUMMARIZATION_PROMPT (POS: 执行结果汇总提示词 — 原始 stdout → 用户 Markdown)
 - dynamic_workflow.prompts::_MAX_STDOUT_FOR_SUMMARY (POS: 汇总前 stdout 截断预算)
 - dynamic_workflow.llm_query_tool::LlmQueryTool, LlmQueryBatchedTool (POS: PTC lightweight LLM sub-call primitives)
+- dynamic_workflow.linter::WorkflowLintReport, lint_workflow_script (POS: Dynamic Workflow AST static analysis and dataflow false-edge linter)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — str / block list / think 剥离 / reasoning 回退)
 - toolkits.code_execution.ptc::inject_ptc_for_python_execution (POS: Sandbox execution)
 - utils.runtime.cancellation::CancellationToken
@@ -39,6 +40,12 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
+from myrm_agent_harness.agent.dynamic_workflow.linter import (
+    LintIssue,
+    LintSeverity,
+    WorkflowLintReport,
+    lint_workflow_script,
+)
 from myrm_agent_harness.agent.dynamic_workflow.llm_query_tool import (
     LlmQueryBatchedTool,
     LlmQueryTool,
@@ -354,8 +361,15 @@ async def run_dynamic_workflow_stream(
 
     assert script_code is not None
 
-    spawn_count = count_spawn_calls(script_code)
-    llm_query_calls = count_llm_query_calls(script_code)
+    lint_report = lint_workflow_script(script_code, query=query)
+    spawn_count = lint_report.spawn_calls_found or count_spawn_calls(script_code)
+    llm_query_calls = (
+        lint_report.llm_query_calls_found,
+        lint_report.llm_query_batched_calls_found,
+    )
+    if llm_query_calls == (0, 0):
+        llm_query_calls = count_llm_query_calls(script_code)
+
     estimated_cost_usd, remaining_budget_usd, cost_status = (
         await estimate_workflow_cost(
             parent_agent,
@@ -373,6 +387,8 @@ async def run_dynamic_workflow_stream(
         cost_status=cost_status,
         llm_query_single_calls=llm_query_calls[0],
         llm_query_batched_calls=llm_query_calls[1],
+        lint_report=lint_report,
+        goal_brief=lint_report.goal_brief,
     )
 
     skip_plan_confirm = pinned_template is not None and can_skip_plan_confirm(
@@ -431,6 +447,20 @@ async def run_dynamic_workflow_stream(
             return
 
     store.save_orchestration_script(workflow_id, script_code)
+
+    if not lint_report.is_valid:
+        yield {
+            "type": "message",
+            "messageId": message_id,
+            "data": f"Dynamic Workflow static verification failed: {lint_report.summary}",
+        }
+        yield {
+            "type": "message_end",
+            "messageId": message_id,
+            "usage": {},
+            "completion_status": "error",
+        }
+        return
 
     # --- Phase 3: Execute via PTC ---
     if cancel_token and cancel_token.is_cancelled:

@@ -101,6 +101,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         self._current_workspace: Path | None = None
         self._readonly_paths: list[str] = []
         self._bash_sessions: dict[str, LocalPersistentSession] = {}
+        self._closed: bool = False
 
         if workspace_path:
             self.bind_workspace(workspace_path)
@@ -491,7 +492,14 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             except Exception as e:
                 logger.warning(f" [LocalExecutor] Failed to close session {session_key}: {e}")
             finally:
-                del self._bash_sessions[session_key]
+                self._bash_sessions.pop(session_key, None)
+
+    async def close(self) -> None:
+        """Explicitly release bash sessions and local resources."""
+        if self._closed:
+            return
+        self._closed = True
+        await self.cleanup_bash_sessions()
 
     async def _prepare_bash_command(self, command: str) -> str:
         """Rewrite workspace paths and pip commands for the local environment."""

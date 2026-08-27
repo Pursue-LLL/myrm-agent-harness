@@ -37,12 +37,47 @@ def test_format_plan_preview_product_copy():
         estimated_cost_usd=1.5,
         remaining_budget_usd=10.0,
         cost_status="configured_max_cost",
+        goal_brief="Deep research payment gateways",
     )
     preview = format_plan_preview(review)
+    assert "Goal: Deep research payment gateways" in preview
     assert "3 sub-agent task(s)" in preview
     assert f"with up to {DEFAULT_MAX_CONCURRENT_SPAWNS} at a time" in preview
     assert "Estimated cost: $1.50" in preview
     assert "(remaining budget: $10.00)" in preview
+
+
+def test_format_plan_preview_with_lint_warnings():
+    from myrm_agent_harness.agent.dynamic_workflow.linter import LintIssue, LintSeverity, WorkflowLintReport
+
+    lint_report = WorkflowLintReport(
+        is_valid=True,
+        issues=(
+            LintIssue(
+                severity=LintSeverity.WARNING,
+                issue_code="DEAD_OUTPUT",
+                message="Subagent output variable `res2` is assigned but never read.",
+                line=12,
+            ),
+        ),
+        spawn_calls_found=2,
+        llm_query_calls_found=0,
+        llm_query_batched_calls_found=0,
+        goal_brief="Audit APIs",
+        summary="Static lint passed with 1 warning(s).",
+    )
+    review = WorkflowPlanReview(
+        script_code="res2 = myrm_tools.spawn_subagent('t2')",
+        spawn_count=2,
+        estimated_cost_usd=1.0,
+        remaining_budget_usd=5.0,
+        cost_status="estimated",
+        lint_report=lint_report,
+        goal_brief="Audit APIs",
+    )
+    preview = format_plan_preview(review)
+    assert "⚠️ Static Verification Warnings:" in preview
+    assert "[DEAD_OUTPUT] Subagent output variable `res2` is assigned but never read." in preview
 
 
 def test_strip_script_markdown():

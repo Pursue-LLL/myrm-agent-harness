@@ -135,10 +135,22 @@ class ChatLiteLLMSyncMixin:
                 else:
                     logger.error(f" Empty choices after {max_attempts} attempts.")
             except Exception as e:
+                from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
+                    is_gateway_param_rejection,
+                    sanitize_gateway_params_on_400,
+                )
                 from myrm_agent_harness.toolkits.llms.errors.classifier import (
                     is_context_overflow,
                     parse_available_output_tokens_from_error,
                 )
+
+                if is_gateway_param_rejection(e) and attempt < max_attempts - 1:
+                    stripped = sanitize_gateway_params_on_400(params, e)
+                    if stripped:
+                        logger.warning(
+                            f" Gateway rejected params {stripped}, retrying without them (attempt {attempt + 1})"
+                        )
+                        continue
 
                 if is_context_overflow(e):
                     available = parse_available_output_tokens_from_error(e)
@@ -185,8 +197,10 @@ class ChatLiteLLMSyncMixin:
         role = delta.get("role")
         content = delta.get("content") or ""
 
-        # Some models (e.g. GLM) put the answer in reasoning_content instead of content
-        reasoning_content = delta.get("reasoning_content") or ""
+        # Non-standard OpenAI gateway fallback: reasoning_content, reasoning, thinking, thoughts, etc.
+        from myrm_agent_harness.toolkits.llms.adapters.streaming import extract_reasoning_payload
+
+        reasoning_content = extract_reasoning_payload(delta)
         additional_kwargs: dict[str, str] = {}
         if reasoning_content:
             additional_kwargs["reasoning_content"] = reasoning_content

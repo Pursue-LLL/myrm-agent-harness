@@ -403,6 +403,7 @@ class SecurityConfig:
     plan_confirm_enabled: bool = False
     command_denylist: tuple[str, ...] = ()
     injection_policy: Literal["log_only", "fail_closed"] = "log_only"
+    dangerous_intent_policy: Literal["log_only", "fail_closed", "hitl"] = "hitl"
     yolo_mode_enabled: bool = False
     yolo_mode_enabled_at: float | None = None
     yolo_mode_timeout: int | None = None

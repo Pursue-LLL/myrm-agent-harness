@@ -333,11 +333,12 @@ def convert_dict_to_message(
         additional_kwargs: dict[str, Any] = {}
         tool_calls: list[ToolCall] = []
 
-        # The streaming path (_process_chunk) preserves reasoning_content into
-        # additional_kwargs; keep the non-streaming path in parity, otherwise
-        # reasoning-model answers (empty content) are lost during conversion.
-        if _dict.get("reasoning_content"):
-            additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
+        # Non-streaming path reasoning fallback: reasoning_content, reasoning, thinking, thoughts, etc.
+        from myrm_agent_harness.toolkits.llms.adapters.streaming import extract_reasoning_payload
+
+        reasoning_val = extract_reasoning_payload(_dict)
+        if reasoning_val:
+            additional_kwargs["reasoning_content"] = reasoning_val
 
         if _dict.get("function_call"):
             additional_kwargs["function_call"] = dict(_dict["function_call"])

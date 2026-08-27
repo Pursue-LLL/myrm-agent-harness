@@ -111,3 +111,7 @@ class SandboxProvider(Protocol):
         ``wrap_command()`` + ``create_subprocess_exec()``.
         """
         return None
+
+    def cleanup(self) -> None:
+        """Release OS-level sandbox resources, temporary handles, and security ACLs."""
+        ...

@@ -160,6 +160,52 @@ def parse_tool_calls_from_reasoning(
     return parsed_tool_calls, final_cg_chunk
 
 
+# Candidate keys for reasoning/thinking fields in OpenAI-compatible payloads
+_REASONING_FIELD_CANDIDATES: tuple[str, ...] = (
+    "reasoning_content",
+    "reasoning",
+    "thinking",
+    "thoughts",
+    "reasoning_text",
+)
+
+
+def extract_reasoning_payload(obj: Any) -> str:
+    """Extract reasoning/thinking text from a delta dict, message dict, or object.
+
+    Handles non-standard OpenAI-compatible gateways (Ollama, SiliconFlow, OneAPI,
+    vLLM, etc.) that return reasoning in different fields.
+    """
+    if obj is None:
+        return ""
+
+    if isinstance(obj, dict):
+        for key in _REASONING_FIELD_CANDIDATES:
+            val = obj.get(key)
+            if isinstance(val, str) and val:
+                return val
+            if isinstance(val, list):
+                # Anthropic / custom array thinking blocks
+                parts: list[str] = []
+                for item in val:
+                    if isinstance(item, str):
+                        parts.append(item)
+                    elif isinstance(item, dict):
+                        text = item.get("text") or item.get("thinking") or item.get("content")
+                        if isinstance(text, str) and text:
+                            parts.append(text)
+                if parts:
+                    return "".join(parts)
+        return ""
+
+    # Object attribute access
+    for key in _REASONING_FIELD_CANDIDATES:
+        val = getattr(obj, key, None)
+        if isinstance(val, str) and val:
+            return val
+    return ""
+
+
 def normalize_usage(usage: Any) -> dict[str, Any]:
     """Normalize a usage object to a standard dict format."""
     if isinstance(usage, dict):
