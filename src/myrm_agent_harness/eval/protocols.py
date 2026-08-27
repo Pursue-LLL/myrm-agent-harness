@@ -328,6 +328,7 @@ class EvalResult:
     turn_results: list[EvalTurnResult] = field(default_factory=list)
     total_ms: float = 0.0
     manifest: EvalManifest | None = None
+    variance_metrics: object | None = None
 
     @property
     def total_cases(self) -> int:
@@ -410,6 +411,11 @@ class EvalResult:
             result["avg_pass_rate"] = self.avg_pass_rate
         if self.manifest is not None:
             result["manifest"] = self.manifest.to_dict()
+        if self.variance_metrics is not None:
+            if hasattr(self.variance_metrics, "to_dict"):
+                result["variance_metrics"] = self.variance_metrics.to_dict()
+            else:
+                result["variance_metrics"] = self.variance_metrics
 
         from .trajectory_analysis import aggregate_failure_modes
 

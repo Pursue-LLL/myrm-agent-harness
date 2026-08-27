@@ -81,6 +81,12 @@ from .protocols import (
     SkillABReportData,
     StateAssertion,
 )
+from .fleet import (
+    FleetEvalResult,
+    FleetEvalRunner,
+    FleetVarianceMetrics,
+    calculate_fleet_variance,
+)
 from .reporters import JsonlReporter, MarkdownReporter
 from .runner import EvalRunner
 from .trajectory_analysis import (
@@ -120,6 +126,9 @@ __all__ = [
     "EvalRunner",
     "EvalTimings",
     "EvalTurnResult",
+    "FleetEvalResult",
+    "FleetEvalRunner",
+    "FleetVarianceMetrics",
     "JsonlReporter",
     "JudgeConfig",
     "MarkdownReporter",
@@ -141,6 +150,7 @@ __all__ = [
     "analyze_turn_failure_mode",
     "audit_episode_trajectory_for_contamination",
     "build_skill_eval_cases",
+    "calculate_fleet_variance",
     "calculate_trajectory_determinism",
     "canonicalize_tool_name",
     "collapse_retrieval_hits",
