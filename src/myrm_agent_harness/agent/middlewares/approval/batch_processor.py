@@ -181,6 +181,7 @@ async def evaluate_tool_batch(
         return auto_approved, auto_denied, pending_approval
 
     from myrm_agent_harness.core.security.device_policy import evaluate_batch_risk
+    from myrm_agent_harness.core.security.remote_ops_ledger import derive_recovery_hint
 
     batch_assessment = evaluate_batch_risk(
         tool_calls,
@@ -791,6 +792,11 @@ async def evaluate_tool_batch(
                     "reasons": list(batch_assessment.reasons),
                     "impacted_targets": list(batch_assessment.impacted_targets[:10]),
                 }
+
+        recovery_hint = derive_recovery_hint(tool_name, tool_input)
+        if recovery_hint:
+            extra_ctx = extra_ctx or {}
+            extra_ctx["recovery_hint"] = recovery_hint.recovery_command or recovery_hint.description
 
         pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
 

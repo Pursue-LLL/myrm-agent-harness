@@ -16,6 +16,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | tool_registry/ | Core | Tool metadata registry domain — permission mapping, canonical params, safety metadata, canonical tool group mapping (TOOL_GROUP_MAP/TOOL_TO_GROUP for skill conditional activation) + module-load safety coverage gate. See `tool_registry/_ARCH.md`. | ✅ |
 | types.py | Core | Foundation security type hierarchy — SecurityConfig, PathPolicy, enums. | ✅ |
 | device_policy.py | Core | Device security policy SSOT & dual-insurance batch risk assessment (`DeviceSecurityPolicy`, `BatchRiskAssessment`, `evaluate_batch_risk`). | ✅ |
+| remote_ops_ledger.py | Core | Remote operations audit ledger and symmetric action recovery (`RemoteOpsActionRecord`, `ActionRecoveryHint`, `derive_recovery_hint`). | ✅ |
 | missing_semantics.py | Core | Standardized missing semantics contract matrix (`MissingSemanticsPolicy`: `FAIL_CLOSED`, `FAIL_FAST`, `FALLBACK`), dynamic contract registry (`register_missing_semantics_contract`), structured diagnostic exporter (`to_diagnostic_dict`), and `@enforce_missing_semantics` gate decorator. | ✅ |
 | credential_vault.py | Core | In-memory credential vault — label→password/TOTP resolution for browser/desktop injection (secrets never in LLM context). | ✅ |
 

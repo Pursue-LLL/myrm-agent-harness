@@ -232,6 +232,8 @@ def build_interrupt_payload(
             review_config["requiresDualInsurance"] = True
         if extra_ctx and extra_ctx.get("batch_impact_summary"):
             review_config["batchImpactSummary"] = extra_ctx.get("batch_impact_summary")
+        if extra_ctx and extra_ctx.get("recovery_hint"):
+            review_config["recoveryHint"] = extra_ctx.get("recovery_hint")
         if domains:
             review_config["domainApproval"] = True
 

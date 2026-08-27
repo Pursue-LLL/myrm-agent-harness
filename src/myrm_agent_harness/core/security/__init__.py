@@ -15,6 +15,12 @@ from myrm_agent_harness.core.security.device_policy import (
     DeviceSecurityPolicy,
     evaluate_batch_risk,
 )
+from myrm_agent_harness.core.security.remote_ops_ledger import (
+    ActionRecoveryHint,
+    RemoteOpsActionRecord,
+    compute_action_fingerprint,
+    derive_recovery_hint,
+)
 from myrm_agent_harness.core.security.missing_semantics import (
     MissingDependencyFailClosedError,
     MissingDependencyFailFastError,
@@ -33,6 +39,7 @@ from myrm_agent_harness.core.security.missing_semantics import (
 )
 
 __all__ = [
+    "ActionRecoveryHint",
     "BatchRiskAssessment",
     "DeviceSecurityPolicy",
     "MissingDependencyFailClosedError",
@@ -42,7 +49,10 @@ __all__ = [
     "MissingSemanticsDecision",
     "MissingSemanticsError",
     "MissingSemanticsPolicy",
+    "RemoteOpsActionRecord",
     "SemanticsCategory",
+    "compute_action_fingerprint",
+    "derive_recovery_hint",
     "enforce_missing_semantics",
     "evaluate_batch_risk",
     "evaluate_missing_capability",

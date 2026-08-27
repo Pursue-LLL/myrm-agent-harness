@@ -89,6 +89,8 @@ class SecurityDecision:
     tainted: bool = False
     timestamp: float = field(default_factory=time.time)
     tool_call_id: str | None = None
+    device_id: str | None = None
+    recovery_hint: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         result: dict[str, object] = {
@@ -100,6 +102,10 @@ class SecurityDecision:
         }
         if self.tool_call_id:
             result["tool_call_id"] = self.tool_call_id
+        if self.device_id:
+            result["device_id"] = self.device_id
+        if self.recovery_hint:
+            result["recovery_hint"] = self.recovery_hint
         return result
 
 
@@ -113,6 +119,8 @@ def record_decision(
     *,
     tainted: bool = False,
     tool_call_id: str | None = None,
+    device_id: str | None = None,
+    recovery_hint: str | None = None,
 ) -> None:
     """Append a security decision to the current session's audit log.
 
@@ -132,6 +140,8 @@ def record_decision(
             reason=reason,
             tainted=tainted,
             tool_call_id=tool_call_id,
+            device_id=device_id,
+            recovery_hint=recovery_hint,
         )
     )
 
