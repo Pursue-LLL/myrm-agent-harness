@@ -147,7 +147,9 @@ def _resolve_physical_path(raw_path: str, max_depth: int = 32) -> str:
         depth += 1
 
     if depth >= max_depth:
-        raise ValueError(f"Path nesting exceeds maximum resolution depth limit of {max_depth}")
+        raise ValueError(
+            f"Path nesting exceeds maximum resolution depth limit of {max_depth}"
+        )
 
     resolved_parent = os.path.realpath(curr) if os.path.exists(curr) else curr
     for tail in reversed(parts):
@@ -165,44 +167,78 @@ def _is_path_enclosed_in_boundary(target_path: str, boundary_path: str) -> bool:
         b_cmp = _normalize_case_for_os(b_real)
 
         # Enclosure check
-        if t_cmp == b_cmp or t_cmp.startswith(b_cmp + os.sep) or (b_cmp.endswith(os.sep) and t_cmp.startswith(b_cmp)):
+        if (
+            t_cmp == b_cmp
+            or t_cmp.startswith(b_cmp + os.sep)
+            or (b_cmp.endswith(os.sep) and t_cmp.startswith(b_cmp))
+        ):
             return True
         return False
     except Exception:
         return False
 
 
-def _validate_in_sandbox_target_path(target_path: str) -> tuple[bool, MountViolationType | None, str]:
+def _validate_in_sandbox_target_path(
+    target_path: str,
+) -> tuple[bool, MountViolationType | None, str]:
     """Validate sandbox internal destination path against injection and system overwrite."""
     if not target_path:
         return True, None, ""
 
     if "\0" in target_path:
-        return False, MountViolationType.NULL_BYTE, f"Null byte detected in target path: {target_path!r}"
+        return (
+            False,
+            MountViolationType.NULL_BYTE,
+            f"Null byte detected in target path: {target_path!r}",
+        )
 
     trimmed = target_path.strip()
     if not trimmed:
         return False, MountViolationType.EMPTY_PATH, "Target path cannot be empty"
 
     if _is_unc_path(trimmed):
-        return False, MountViolationType.PATH_TRAVERSAL, f"UNC network paths prohibited for target: {trimmed}"
+        return (
+            False,
+            MountViolationType.PATH_TRAVERSAL,
+            f"UNC network paths prohibited for target: {trimmed}",
+        )
 
     # Detect relative traversal escape in raw and normalized target
     if ".." in trimmed:
         parts = trimmed.replace("\\", "/").split("/")
         if ".." in parts:
-            return False, MountViolationType.PATH_TRAVERSAL, f"Path traversal in target path: {trimmed}"
+            return (
+                False,
+                MountViolationType.PATH_TRAVERSAL,
+                f"Path traversal in target path: {trimmed}",
+            )
 
     normalized_target = os.path.normpath(trimmed)
-    if normalized_target == ".." or normalized_target.startswith(f"..{os.sep}") or normalized_target.startswith("../"):
-        return False, MountViolationType.PATH_TRAVERSAL, f"Path traversal in target path: {trimmed}"
+    if (
+        normalized_target == ".."
+        or normalized_target.startswith(f"..{os.sep}")
+        or normalized_target.startswith("../")
+    ):
+        return (
+            False,
+            MountViolationType.PATH_TRAVERSAL,
+            f"Path traversal in target path: {trimmed}",
+        )
 
     # Target path must not clobber critical system roots inside the container/sandbox
     target_lower = normalized_target.lower()
     for prohibited in _PROHIBITED_CONTAINER_TARGETS:
         prohibited_norm = os.path.normpath(prohibited).lower()
-        if target_lower == prohibited_norm or target_lower.startswith(prohibited_norm + os.sep) or target_lower.startswith(prohibited_norm + "/"):
-            return False, MountViolationType.DANGEROUS_PATH, f"Mount target attempts to overwrite critical container root '{prohibited}': {trimmed}"
+        if (
+            target_lower == prohibited_norm
+            or target_lower.startswith(prohibited_norm + os.sep)
+            or target_lower.startswith(prohibited_norm + "/")
+        ):
+            return (
+                False,
+                MountViolationType.DANGEROUS_PATH,
+                f"Mount target attempts to overwrite critical container root '{prohibited}': {trimmed}",
+            )
 
     return True, None, ""
 
@@ -292,7 +328,11 @@ def validate_mount_spec(
         if not enclosed:
             # Check if this is a symlink escape
             is_symlink = os.path.islink(os.path.expanduser(trimmed))
-            violation = MountViolationType.SYMLINK_ESCAPE if is_symlink else MountViolationType.UNAUTHORIZED_BOUNDARY
+            violation = (
+                MountViolationType.SYMLINK_ESCAPE
+                if is_symlink
+                else MountViolationType.UNAUTHORIZED_BOUNDARY
+            )
             return MountValidationResult(
                 is_valid=False,
                 violation_type=violation,
@@ -302,7 +342,9 @@ def validate_mount_spec(
     # 6. Validate in-sandbox target path if specified
     raw_target = spec.target_path.strip() if spec.target_path else ""
     if raw_target:
-        is_target_valid, target_violation, target_err = _validate_in_sandbox_target_path(raw_target)
+        is_target_valid, target_violation, target_err = (
+            _validate_in_sandbox_target_path(raw_target)
+        )
         if not is_target_valid:
             return MountValidationResult(
                 is_valid=False,

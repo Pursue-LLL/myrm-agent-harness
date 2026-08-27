@@ -134,3 +134,57 @@ class TestGateway400Downgrade:
         assert stripped == ["parallel_tool_calls"]
         assert "parallel_tool_calls" not in params
         assert params["allowed_openai_params"] == ["model"]
+
+    def test_detect_max_completion_tokens_rejection(self) -> None:
+        exc = Exception("BadRequestError: 400 Unknown field: max_completion_tokens")
+        assert is_gateway_param_rejection(exc) is True
+
+    def test_detect_temperature_rejection(self) -> None:
+        exc = Exception("BadRequestError: 400 Unsupported value: 'temperature' is not supported for this model")
+        assert is_gateway_param_rejection(exc) is True
+
+    def test_detect_response_format_rejection(self) -> None:
+        exc = Exception("BadRequestError: 400 Unsupported parameter: response_format")
+        assert is_gateway_param_rejection(exc) is True
+
+    def test_sanitize_params_maps_max_completion_tokens_to_max_tokens(self) -> None:
+        params = {
+            "model": "deepseek-r1",
+            "max_completion_tokens": 4096,
+            "allowed_openai_params": ["model", "max_completion_tokens"],
+        }
+        exc = Exception("400 unknown field max_completion_tokens")
+        stripped = sanitize_gateway_params_on_400(params, exc)
+
+        assert stripped == ["max_completion_tokens"]
+        assert "max_completion_tokens" not in params
+        assert params["max_tokens"] == 4096
+        assert "max_tokens" in params["allowed_openai_params"]
+        assert "max_completion_tokens" not in params["allowed_openai_params"]
+
+    def test_sanitize_params_strips_temperature_on_unsupported(self) -> None:
+        params = {
+            "model": "o1-preview",
+            "temperature": 0.7,
+            "allowed_openai_params": ["model", "temperature"],
+        }
+        exc = Exception("400 'temperature' does not support 0.7 for this model")
+        stripped = sanitize_gateway_params_on_400(params, exc)
+
+        assert stripped == ["temperature"]
+        assert "temperature" not in params
+        assert params["allowed_openai_params"] == ["model"]
+
+    def test_sanitize_params_strips_response_format(self) -> None:
+        params = {
+            "model": "local-model",
+            "response_format": {"type": "json_object"},
+            "allowed_openai_params": ["model", "response_format"],
+        }
+        exc = Exception("400 unsupported parameter response_format")
+        stripped = sanitize_gateway_params_on_400(params, exc)
+
+        assert stripped == ["response_format"]
+        assert "response_format" not in params
+        assert params["allowed_openai_params"] == ["model"]
+

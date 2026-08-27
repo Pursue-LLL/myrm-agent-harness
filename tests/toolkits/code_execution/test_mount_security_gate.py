@@ -65,7 +65,14 @@ class TestMountValidationRules:
         assert result.violation_type == MountViolationType.NULL_BYTE
 
     def test_blocked_device_paths(self) -> None:
-        devices = ["CON", "NUL", "COM1", "\\\\.\\PhysicalDrive0", "/dev/sda", "dev/urandom"]
+        devices = [
+            "CON",
+            "NUL",
+            "COM1",
+            "\\\\.\\PhysicalDrive0",
+            "/dev/sda",
+            "dev/urandom",
+        ]
         for dev in devices:
             spec = MountSpec(source_path=dev)
             result = validate_mount_spec(spec)
@@ -106,14 +113,20 @@ class TestMountValidationRules:
             assert result.sanitized_spec.source_path == os.path.normpath(sub)
 
     def test_boundary_enclosure_failure(self) -> None:
-        with tempfile.TemporaryDirectory() as boundary_dir, tempfile.TemporaryDirectory() as outside_dir:
+        with (
+            tempfile.TemporaryDirectory() as boundary_dir,
+            tempfile.TemporaryDirectory() as outside_dir,
+        ):
             spec = MountSpec(source_path=outside_dir)
             result = validate_mount_spec(spec, allowed_boundaries=(boundary_dir,))
             assert result.is_valid is False
             assert result.violation_type == MountViolationType.UNAUTHORIZED_BOUNDARY
 
     def test_symlink_escape_detection(self) -> None:
-        with tempfile.TemporaryDirectory() as ws, tempfile.TemporaryDirectory() as outside:
+        with (
+            tempfile.TemporaryDirectory() as ws,
+            tempfile.TemporaryDirectory() as outside,
+        ):
             secret_file = os.path.join(outside, "secret.txt")
             with open(secret_file, "w") as f:
                 f.write("secret")
@@ -142,9 +155,11 @@ class TestMountValidationRules:
             assert result.sanitized_spec is not None
 
     def test_boundary_enclosure_exception_handling(self) -> None:
-        from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate import _is_path_enclosed_in_boundary
-        assert _is_path_enclosed_in_boundary("\0invalid", "/tmp") is False
+        from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate import (
+            _is_path_enclosed_in_boundary,
+        )
 
+        assert _is_path_enclosed_in_boundary("\0invalid", "/tmp") is False
 
     def test_unc_path_rejection(self) -> None:
         unc_paths = [
@@ -199,8 +214,12 @@ class TestMountValidationRules:
             os.makedirs(sub2, exist_ok=True)
 
             mounts = [
-                MountSpec(source_path=sub1, target_path="/workspace/data", mode=MountMode.RW),
-                MountSpec(source_path=sub2, target_path="/workspace/data", mode=MountMode.RO),  # collision
+                MountSpec(
+                    source_path=sub1, target_path="/workspace/data", mode=MountMode.RW
+                ),
+                MountSpec(
+                    source_path=sub2, target_path="/workspace/data", mode=MountMode.RO
+                ),  # collision
             ]
 
             sanitized = validate_and_sanitize_mounts(mounts)
@@ -210,7 +229,10 @@ class TestMountValidationRules:
     def test_resolution_depth_limit(self) -> None:
         deep_path = "/tmp" + "/a" * 40
         with pytest.raises(ValueError, match="depth limit"):
-            from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate import _resolve_physical_path
+            from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate import (
+                _resolve_physical_path,
+            )
+
             _resolve_physical_path(deep_path, max_depth=10)
 
 
@@ -243,7 +265,9 @@ class TestBatchMountSanitizationAndPolicyBridge:
 
             access_roots = (
                 AccessRoot(path=extra_valid, writable=True, source="test"),
-                AccessRoot(path="/etc/passwd", writable=True, source="malicious"),  # rejected
+                AccessRoot(
+                    path="/etc/passwd", writable=True, source="malicious"
+                ),  # rejected
             )
 
             policy = build_sandbox_policy_from_path_policy(
