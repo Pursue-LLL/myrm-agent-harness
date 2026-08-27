@@ -29,7 +29,9 @@ from typing import Any
 class ActionRecoveryHint:
     """Symmetric recovery action clue for quick incident mitigation (MTTR reduction)."""
 
-    recovery_type: str  # e.g., "shell_command", "file_restore", "service_restart", "manual_check"
+    recovery_type: (
+        str  # e.g., "shell_command", "file_restore", "service_restart", "manual_check"
+    )
     recovery_command: str | None = None
     target_path: str | None = None
     description: str = ""
@@ -98,7 +100,9 @@ _SERVICE_START_RE = re.compile(
     r"\b(?:systemctl\s+(?:start|enable)|service\s+([a-zA-Z0-9_\-\.]+)\s+(?:start|enable))\s*([a-zA-Z0-9_\-\.]*)",
     re.IGNORECASE,
 )
-_PKILL_RE = re.compile(r"\b(?:pkill|killall)\s+(?:-[a-zA-Z0-9]+\s+)?([a-zA-Z0-9_\-\.]+)", re.IGNORECASE)
+_PKILL_RE = re.compile(
+    r"\b(?:pkill|killall)\s+(?:-[a-zA-Z0-9]+\s+)?([a-zA-Z0-9_\-\.]+)", re.IGNORECASE
+)
 
 
 def derive_recovery_hint(
@@ -113,7 +117,9 @@ def derive_recovery_hint(
         return ActionRecoveryHint(
             recovery_type="file_restore",
             target_path=target_path,
-            recovery_command=f"cp -p '{backup_path}' '{target_path}'" if target_path else None,
+            recovery_command=(
+                f"cp -p '{backup_path}' '{target_path}'" if target_path else None
+            ),
             description=f"Restore original file from backup snapshot: {backup_path}",
             is_automated=True,
         )

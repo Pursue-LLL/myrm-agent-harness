@@ -85,7 +85,10 @@ def test_destructive_batch_triggers_dual_insurance():
 
 def test_restricted_path_access_escalation():
     tool_calls = [
-        {"name": "file_write", "args": {"path": "/workspace/.env", "content": "SECRET=1"}},
+        {
+            "name": "file_write",
+            "args": {"path": "/workspace/.env", "content": "SECRET=1"},
+        },
     ]
     assessment = evaluate_batch_risk(tool_calls)
     assert assessment.is_high_risk is True
@@ -102,7 +105,9 @@ def test_intra_tool_compound_shell_command_risk():
         }
     ]
     assessment = evaluate_batch_risk(tool_calls)
-    assert assessment.is_batch is True  # Compound command with multiple high-risk verbs counted as batch
+    assert (
+        assessment.is_batch is True
+    )  # Compound command with multiple high-risk verbs counted as batch
     assert assessment.is_high_risk is True
     assert assessment.requires_dual_insurance is True
     assert assessment.allow_always_blocked is True

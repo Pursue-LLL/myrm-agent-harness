@@ -32,11 +32,12 @@ MemorySearchCorpus = Literal["memory", "wiki", "sessions", "web", "all"]
 
 @dataclass(frozen=True, slots=True)
 class MemorySearchPolicy:
-    """Runtime ACL for memory_search_tool corpus selection."""
+    """Runtime ACL for memory_search_tool corpus selection and memory write bounds."""
 
     allow_wiki: bool = False
     allow_sessions: bool = False
     allow_web: bool = False
+    allow_shared_write: bool = True
 
 
 @dataclass(frozen=True, slots=True)

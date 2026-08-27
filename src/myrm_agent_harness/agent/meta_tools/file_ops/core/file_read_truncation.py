@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import re
 
+from .file_read_outline import extract_truncated_outline
+
 # Matches the ``{LINE_NUMBER_WIDTH}|`` gutter emitted by ResultFormatter,
 # e.g. ``     12|def foo()``. Used to derive the next_offset continuation line.
 _GUTTER_LINE_RE = re.compile(r"^\s*(\d+)\|")
@@ -136,6 +138,14 @@ def truncate_file_output(
         f"({total_mb:.2f}MB, {total_lines:,} lines). "
         f"{', '.join(hint_parts)}.]"
     )
+
+    outline = extract_truncated_outline(
+        output=output,
+        path_str=path_str,
+        next_offset=next_offset,
+    )
+    if outline:
+        hint = f"{hint}\n{outline}"
 
     metadata: dict[str, object] = {
         "type": "file",

@@ -25,6 +25,7 @@ Validators module.
 
 ## Tests
 
+- `tests/agent/meta_tools/file_ops/validators/test_delta_syntax_validator.py`
 - `tests/agent/meta_tools/file_ops/validators/test_markdown_vault_write_guard.py`
 - `tests/agent/meta_tools/file_ops/validators/test_office_bash_audit.py`
 - `tests/agent/meta_tools/file_ops/validators/test_office_write_guard.py`

@@ -341,7 +341,7 @@ _GUIDELINES = """
 - **confidence**: 0.9=explicit, 0.7=implied, 0.5=inferred
 - **importance**: how useful/significant
 - Avoid sensitive data (passwords, financials)
-- **Never store**: raw tool output/logs, cron heartbeats, pure acknowledgments ("OK", "Done"), verbatim code blocks, transient system errors, transient emotional/psychological states (e.g., "anxious today", "feeling depressed") unless explicitly stated as a chronic condition"""
+- **Never store**: raw tool output/logs, cron heartbeats, pure acknowledgments ("OK", "Done"), verbatim code blocks, transient system errors, transient emotional/psychological states (e.g., "anxious today", "feeling depressed") unless explicitly stated as a chronic condition, transient conversation styles, group chat slang, emojis, or temporary formatting habits (conversational styles are ephemeral and channel-specific; do not persist them as profile or semantic memories)"""
 
 _OUTPUT_FORMAT = """
 ## Output

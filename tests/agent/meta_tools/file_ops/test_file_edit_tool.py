@@ -93,6 +93,7 @@ async def test_file_edit_tool_permission_denied() -> None:
         ("text not found in file", "not found"),
         ("old_str appears 3 times", "multiple times"),
         ("Edits 1 and 2 overlap", "overlap"),
+        ("New syntax errors introduced in a.py: SyntaxError: invalid syntax", "syntax validation failed"),
         ("invalid parameter", "Invalid edit parameters"),
     ],
 )

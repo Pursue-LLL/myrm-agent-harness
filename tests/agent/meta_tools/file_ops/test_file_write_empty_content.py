@@ -119,6 +119,7 @@ async def test_file_write_tool_value_error() -> None:
         ),
         patch(
             "myrm_agent_harness.agent.meta_tools.file_ops.file_write_tool.FileOperationService",
+            return_value=MagicMock(),
         ) as mock_service_cls,
         pytest.raises(ToolError) as exc_info,
     ):
@@ -129,6 +130,32 @@ async def test_file_write_tool_value_error() -> None:
         )
 
     assert "Invalid parameter" in str(exc_info.value.user_hint)
+
+
+@pytest.mark.asyncio
+async def test_file_write_tool_syntax_error_hint() -> None:
+    tool = create_file_write_tool()
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_write_tool.ensure_executor",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_write_tool.FileOperationService",
+            return_value=MagicMock(),
+        ) as mock_service_cls,
+        pytest.raises(ToolError) as exc_info,
+    ):
+        mock_service_cls.return_value.execute = AsyncMock(
+            side_effect=ValueError("Syntax validation failed for test.py: SyntaxError: invalid syntax")
+        )
+        await tool.ainvoke(
+            {"path": "test.py", "content": "def foo("},
+            config=_DUMMY_CONFIG,
+        )
+
+    assert "syntax validation failed" in str(exc_info.value.user_hint).lower()
 
 
 @pytest.mark.asyncio

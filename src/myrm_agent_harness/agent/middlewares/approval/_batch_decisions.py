@@ -22,7 +22,9 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolCall, ToolMessa
 
 from myrm_agent_harness.agent.security.approval_flow import DEFAULT_USER_ID
 from myrm_agent_harness.agent.security.audit import record_decision
-from myrm_agent_harness.agent.security.command_allowlist_pattern import extract_shell_command
+from myrm_agent_harness.agent.security.command_allowlist_pattern import (
+    extract_shell_command,
+)
 from myrm_agent_harness.agent.security.engine import extract_url_domains
 from myrm_agent_harness.agent.security.types import SecurityConfig
 from myrm_agent_harness.core.security.redact import redact_for_display
@@ -97,7 +99,9 @@ async def _try_add_to_allowlist(
     user_id = get_approval_user_id() or DEFAULT_USER_ID
     agent_id = get_agent_id() or None
     tool_args = tool_call.get("args", {})
-    shell_command = extract_shell_command(tool_args if isinstance(tool_args, dict) else None)
+    shell_command = extract_shell_command(
+        tool_args if isinstance(tool_args, dict) else None
+    )
     await add_to_allowlist_if_needed(
         allow_always,
         user_id,
@@ -210,7 +214,9 @@ def build_interrupt_payload(
             allow_always_writes_blocked,
         )
 
-        map_blocks_allow_always = allow_always_writes_blocked(get_managed_approval_policy())
+        map_blocks_allow_always = allow_always_writes_blocked(
+            get_managed_approval_policy()
+        )
         if is_smart_denied:
             review_config: dict[str, object] = {
                 "allowedDecisions": ["approve", "reject"],
@@ -247,7 +253,10 @@ def build_interrupt_payload(
         [req["action"] for req in action_requests],
     )
 
-    has_handover = any(perm_type == "browser_human_handover" for _, _, perm_type, _, _ in pending_approval)
+    has_handover = any(
+        perm_type == "browser_human_handover"
+        for _, _, perm_type, _, _ in pending_approval
+    )
     display_mode = "handover" if has_handover else "approval"
 
     effective_timeout = approval_timeout_seconds or _DEFAULT_APPROVAL_TIMEOUT_SECONDS
@@ -302,7 +311,9 @@ async def apply_approval_decisions(
     decision_idx = 0
 
     for idx, tool_call in enumerate(last_ai_msg.tool_calls):
-        denied = next(((d_idx, tc, msg) for d_idx, tc, msg in auto_denied if d_idx == idx), None)
+        denied = next(
+            ((d_idx, tc, msg) for d_idx, tc, msg in auto_denied if d_idx == idx), None
+        )
         if denied:
             _, _, error_msg = denied
             artificial_tool_messages.append(
@@ -319,17 +330,27 @@ async def apply_approval_decisions(
             decision = decisions[decision_idx]
             decision_idx += 1
 
-            _, _, permission_type, reason, extra_ctx = pending_approval[decision_idx - 1]
+            _, _, permission_type, reason, extra_ctx = pending_approval[
+                decision_idx - 1
+            ]
             tool_name = tool_call.get("name", "unknown")
             tool_call_id = tool_call.get("id", "")
-            allowlist_tool_name = extra_ctx.get("ptc_tool_name_full", tool_name) if extra_ctx else tool_name
+            allowlist_tool_name = (
+                extra_ctx.get("ptc_tool_name_full", tool_name)
+                if extra_ctx
+                else tool_name
+            )
 
             decision_type = decision.get("type", "reject")
             extensions = decision.get("extensions", {})
             allow_always = extensions.get("allowAlways", False)
             allow_domain = extensions.get("allowDomain", False)
             grant_directory = extensions.get("grantDirectory", False)
-            guidance_text = decision.get("guidance", "").strip() if isinstance(decision.get("guidance"), str) else ""
+            guidance_text = (
+                decision.get("guidance", "").strip()
+                if isinstance(decision.get("guidance"), str)
+                else ""
+            )
 
             logger.info(
                 "[APPROVAL] Tool %s decision: type=%s, allow_always=%s, allow_domain=%s, grant_directory=%s",
@@ -366,8 +387,12 @@ async def apply_approval_decisions(
                     ).strip()
                     if raw_path:
                         workspace_root = get_workspace_root() or None
-                        policy = config.path_policy if config else _default_path_policy()
-                        grant_path = resolve_grant_directory_path(raw_path, workspace_root)
+                        policy = (
+                            config.path_policy if config else _default_path_policy()
+                        )
+                        grant_path = resolve_grant_directory_path(
+                            raw_path, workspace_root
+                        )
                         if grant_path:
                             requires_write = permission_type in (
                                 "file_write",
@@ -402,7 +427,9 @@ async def apply_approval_decisions(
                             "[DOMAIN_HITL] User approved domain(s) %s for session",
                             domains,
                         )
-                        record_decision(tool_name, "DOMAIN_APPROVED", f"domains: {domains}")
+                        record_decision(
+                            tool_name, "DOMAIN_APPROVED", f"domains: {domains}"
+                        )
 
                 await _try_add_to_allowlist(
                     tool_call,
@@ -422,8 +449,14 @@ async def apply_approval_decisions(
                 edit_applied = False
                 if edited_args is not None:
                     raw_original_args = tool_call.get("args", {})
-                    original_args = dict(raw_original_args) if isinstance(raw_original_args, dict) else {}
-                    normalized_edited_args = dict(edited_args) if isinstance(edited_args, dict) else {}
+                    original_args = (
+                        dict(raw_original_args)
+                        if isinstance(raw_original_args, dict)
+                        else {}
+                    )
+                    normalized_edited_args = (
+                        dict(edited_args) if isinstance(edited_args, dict) else {}
+                    )
                     edit_block_reason = _edited_shell_edit_block_reason(
                         tool_name,
                         permission_type,
@@ -435,7 +468,9 @@ async def apply_approval_decisions(
                             "[APPROVAL] Tool %s: edited shell command blocked",
                             tool_name,
                         )
-                        record_decision(tool_name, "USER_EDIT_REJECTED", edit_block_reason)
+                        record_decision(
+                            tool_name, "USER_EDIT_REJECTED", edit_block_reason
+                        )
                         hint = record_denial(tool_name)
                         artificial_tool_messages.append(
                             ToolMessage(
@@ -446,7 +481,9 @@ async def apply_approval_decisions(
                             )
                         )
                     else:
-                        logger.warning("[APPROVAL] Tool %s: user edited args", tool_name)
+                        logger.warning(
+                            "[APPROVAL] Tool %s: user edited args", tool_name
+                        )
                         record_decision(tool_name, "USER_EDITED", reason)
                         revised_tool_calls.append(
                             ToolCall(
@@ -475,7 +512,9 @@ async def apply_approval_decisions(
 
             else:
                 feedback = decision.get("feedback", "User rejected this action.")
-                logger.warning("[SECURITY] Tool %s REJECTED by user: %s", tool_name, feedback)
+                logger.warning(
+                    "[SECURITY] Tool %s REJECTED by user: %s", tool_name, feedback
+                )
                 record_decision(tool_name, "USER_REJECTED", feedback)
                 hint = record_denial(tool_name)
                 artificial_tool_messages.append(
@@ -488,7 +527,11 @@ async def apply_approval_decisions(
                 )
 
             if guidance_text:
-                logger.info("[APPROVAL] Tool %s: user provided guidance: %s", tool_name, guidance_text[:100])
+                logger.info(
+                    "[APPROVAL] Tool %s: user provided guidance: %s",
+                    tool_name,
+                    guidance_text[:100],
+                )
                 guidance_messages.append(
                     HumanMessage(
                         content=f"[User Guidance during approval of {tool_name}]: {guidance_text}",

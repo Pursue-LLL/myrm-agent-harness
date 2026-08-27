@@ -82,6 +82,21 @@ def test_yaml_valid():
     DeltaSyntaxValidator.validate("test.yaml", post_content, pre_content=None)
 
 
+def test_yaml_valid_multidoc():
+    post_content = "apiVersion: v1\nkind: Pod\nmetadata:\n  name: pod1\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: svc1\n"
+    DeltaSyntaxValidator.validate("test.yaml", post_content, pre_content=None)
+
+
+def test_template_content_is_skipped():
+    # Python file containing Jinja2 template tags should skip validation instead of raising SyntaxError
+    post_content = "def render():\n    return {{ user_data | tojson }}\n"
+    DeltaSyntaxValidator.validate("template.py", post_content, pre_content=None)
+
+    # YAML with Jinja2 loop
+    yaml_content = "items:\n{% for i in range(5) %}\n  - item_{{ i }}\n{% endfor %}\n"
+    DeltaSyntaxValidator.validate("template.yaml", yaml_content, pre_content=None)
+
+
 def test_yaml_invalid():
     pre_content = "key: value\n"
     post_content = "key: value\nlist: [unclosed\n"
@@ -155,7 +170,7 @@ def test_yaml_linter_generic_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     def _boom(_content: str) -> None:
         raise ValueError("bad yaml")
 
-    monkeypatch.setattr(yaml, "safe_load", _boom)
+    monkeypatch.setattr(yaml, "safe_load_all", _boom)
     ok, err = mod._lint_yaml_inproc("key: value\n")
     assert ok is False
     assert "ValueError" in err

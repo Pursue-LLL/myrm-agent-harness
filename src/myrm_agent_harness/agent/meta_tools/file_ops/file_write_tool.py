@@ -174,10 +174,15 @@ def create_file_write_tool(skills: list[SkillMetadata] | None = None) -> BaseToo
                 user_hint="Permission denied. You cannot write to this path.",
             ) from e
         except ValueError as e:
-            # 参数错误（如路径格式错误）
+            # 参数错误（如路径格式错误）或语法校验错误
+            error_str = str(e).lower()
+            if "syntax" in error_str:
+                hint = f"Syntax validation failed. Please fix the syntax error in your content: {e}"
+            else:
+                hint = "Invalid parameter. Please check the file path and content."
             raise ToolError(
                 message=str(e),
-                user_hint="Invalid parameter. Please check the file path and content.",
+                user_hint=hint,
             ) from e
         except Exception as e:
             # 未预期的错误

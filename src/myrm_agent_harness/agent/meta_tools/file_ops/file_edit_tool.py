@@ -159,6 +159,8 @@ def create_file_edit_tool(skills: list[SkillMetadata] | None = None) -> BaseTool
                 hint = "An old_str matches multiple times. Add surrounding context to make it unique."
             elif "overlap" in error_str:
                 hint = "Edits overlap in the file. Merge into one edit or reorder so regions are disjoint."
+            elif "syntax" in error_str:
+                hint = f"Syntax validation failed. Please fix the syntax error in your edit: {e}"
             else:
                 hint = "Invalid edit parameters. Check path and edits array."
 

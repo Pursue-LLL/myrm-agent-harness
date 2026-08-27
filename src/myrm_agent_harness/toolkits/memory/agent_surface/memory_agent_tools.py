@@ -331,11 +331,15 @@ def create_memory_tools(
             record_wiki_memory_save_rejection()
             return wiki_memory_save_rejection_message()
 
+        effective_write_target = write_target
+        if not policy.allow_shared_write and write_target == "shared":
+            effective_write_target = "bound"
+
         try:
             if category == "knowledge":
                 if not manager.has_vector:
                     return "Knowledge memory is not enabled."
-                if session and not pending and write_target == "bound":
+                if session and not pending and effective_write_target == "bound":
                     mem = session.add_knowledge(
                         content, importance=importance, tags=parsed_tags
                     )
@@ -348,20 +352,20 @@ def create_memory_tools(
                     content,
                     importance=importance,
                     tags=parsed_tags,
-                    write_target=write_target,
+                    write_target=effective_write_target,
                 )
                 return f"Knowledge {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 
             if category == "event":
                 if not manager.has_vector:
                     return "Event memory is not enabled."
-                if session and not pending and write_target == "bound":
+                if session and not pending and effective_write_target == "bound":
                     mem = session.add_event(content, event_type="agent_observation")
                     if mem is None:
                         return "Event already exists in session (duplicate detected)"
                     return f"Event buffered (ID: {mem.id})"
                 mem = await manager.add_event(
-                    content, event_type="agent_observation", write_target=write_target
+                    content, event_type="agent_observation", write_target=effective_write_target
                 )
                 return f"Event {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 

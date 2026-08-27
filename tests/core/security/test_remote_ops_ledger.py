@@ -7,7 +7,12 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.core.security.audit import SecurityDecision, record_decision, get_audit_entries, reset_audit_log
+from myrm_agent_harness.core.security.audit import (
+    SecurityDecision,
+    record_decision,
+    get_audit_entries,
+    reset_audit_log,
+)
 from myrm_agent_harness.core.security.remote_ops_ledger import (
     ActionRecoveryHint,
     RemoteOpsActionRecord,
@@ -19,10 +24,10 @@ from myrm_agent_harness.core.security.remote_ops_ledger import (
 def test_compute_action_fingerprint_deterministic():
     args_1 = {"command": "systemctl stop nginx", "timeout": 30}
     args_2 = {"timeout": 30, "command": "systemctl stop nginx"}
-    
+
     fp_1 = compute_action_fingerprint("shell_exec", args_1)
     fp_2 = compute_action_fingerprint("shell_exec", args_2)
-    
+
     assert fp_1 == fp_2
     assert len(fp_1) == 16
 
@@ -57,10 +62,15 @@ def test_derive_recovery_hint_process_kill():
 
 def test_derive_recovery_hint_file_backup():
     args = {"path": "/workspace/config.json"}
-    hint = derive_recovery_hint("file_edit", args, backup_path="/tmp/backup_config.json")
+    hint = derive_recovery_hint(
+        "file_edit", args, backup_path="/tmp/backup_config.json"
+    )
     assert hint is not None
     assert hint.recovery_type == "file_restore"
-    assert hint.recovery_command == "cp -p '/tmp/backup_config.json' '/workspace/config.json'"
+    assert (
+        hint.recovery_command
+        == "cp -p '/tmp/backup_config.json' '/workspace/config.json'"
+    )
     assert hint.is_automated is True
 
 

@@ -31,6 +31,11 @@ def _strip_line_col(err_str: str) -> str:
     return s.strip()
 
 
+def _is_template_content(content: str) -> bool:
+    """Check if content appears to contain template tags (e.g. Jinja2, Django, Helm)."""
+    return "{{" in content or "{%" in content
+
+
 def _lint_json_inproc(content: str) -> tuple[bool, str]:
     try:
         json.loads(content)
@@ -47,7 +52,7 @@ def _lint_yaml_inproc(content: str) -> tuple[bool, str]:
     except ImportError:
         return True, "__SKIP__"
     try:
-        yaml.safe_load(content)
+        list(yaml.safe_load_all(content))
         return True, ""
     except yaml.YAMLError as e:
         return False, f"YAMLError: {e}"
@@ -118,6 +123,10 @@ class DeltaSyntaxValidator:
         post_ok, post_err = linter(post_content)
         if post_ok or post_err == "__SKIP__":
             return  # 没错误，或者由于依赖缺失无法校验
+
+        # 包含模板标签（如 Jinja2/Django/Helm 变量 {{ var }} 或 {% if %}）时安全跳过以防误杀
+        if _is_template_content(post_content):
+            return
 
         # 2. 如果没提供旧代码，所有的错误都是致命错误
         if pre_content is None:
