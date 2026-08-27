@@ -37,6 +37,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 | types.py | Core | Foundation layer of the security type hierarchy. All other security modules import from here. Includes SecurityConfig factory methods (readonly/workspace/full_access/remote_exposed) and PathPolicy with workspace_label. | ✅ |
 | managed_approval_policy.py | Core | Org floor MAP model + env/process loader (empty = local noop). | ✅ |
 | managed_policy_gates.py | Core | Pure gate helpers: honor allowlist, global/per-model YOLO, effective auto_mode. | ✅ |
+| batch_risk.py | Core | Batch risk evaluation and dual insurance policy check for approval queues. Pure deterministic functions. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
