@@ -131,7 +131,23 @@ class TestGetFileIntegrityGuard:
     """Module-level factory function tests."""
 
     def test_returns_none_for_no_executor(self) -> None:
-        assert get_file_integrity_guard(None) is None
+        from myrm_agent_harness.toolkits.code_execution.executors.base import reset_executor, set_executor
+        token = set_executor(None)
+        try:
+            assert get_file_integrity_guard(None) is None
+        finally:
+            reset_executor(token)
+
+    def test_returns_guard_from_contextvar_when_none(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.executors.base import reset_executor, set_executor
+        executor = MagicMock()
+        token = set_executor(executor)
+        try:
+            guard = get_file_integrity_guard(None)
+            assert guard is not None
+            assert isinstance(guard, FileIntegrityGuard)
+        finally:
+            reset_executor(token)
 
     def test_returns_guard_for_executor(self) -> None:
         executor = MagicMock()

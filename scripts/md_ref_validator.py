@@ -80,7 +80,7 @@ _MD_REF_SKIP_FILES = frozenset(
         "src/myrm_agent_harness/eval/_ARCH.md",
     }
 )
-PRUNE_DIR_NAMES = frozenset({"__pycache__", "node_modules", ".git", ".venv", ".mypy_cache", ".myrm"})
+PRUNE_DIR_NAMES = frozenset({"__pycache__", "node_modules", ".git", ".venv", ".mypy_cache", ".myrm", "external_reference_project"})
 
 
 @dataclass(frozen=True)

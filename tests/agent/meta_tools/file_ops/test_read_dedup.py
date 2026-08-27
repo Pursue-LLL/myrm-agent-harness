@@ -129,6 +129,24 @@ def test_get_guard_isolation_per_executor():
     assert g1 is not g2
 
 
+def test_get_guard_none_executor():
+    """None executor falls back to contextvar or returns None."""
+    from myrm_agent_harness.toolkits.code_execution.executors.base import reset_executor, set_executor
+    token = set_executor(None)
+    try:
+        assert get_read_dedup_guard(None) is None
+    finally:
+        reset_executor(token)
+
+    e = _FakeExecutor()
+    token = set_executor(e)  # type: ignore[arg-type]
+    try:
+        guard = get_read_dedup_guard(None)
+        assert guard is not None
+    finally:
+        reset_executor(token)
+
+
 def test_get_guard_same_executor_cached():
     """Same executor returns the same cached guard."""
     e = _FakeExecutor()
