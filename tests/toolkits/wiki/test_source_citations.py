@@ -194,6 +194,7 @@ def test_format_evidence_cards_context() -> None:
             snippet="Exponential backoff retry is applied up to 5 times.",
             evidence_path="raw/billing.md",
             line_range="L40-L48",
+            claim_text="Exponential backoff retry policy",
             claim_status="verified",
             claim_confidence=0.95,
         ),
@@ -206,6 +207,14 @@ def test_format_evidence_cards_context() -> None:
             claim_status="stale",
             claim_confidence=0.70,
         ),
+        SourceSnippet(
+            article_path="wiki/assets/order_topology.png",
+            article_name="order_topology",
+            snippet="Order service microservices architecture diagram.",
+            section="Image",
+            hit_kind="asset",
+            asset_filename="order_topology.png",
+        ),
     ]
 
     formatted = format_evidence_cards_context(base_answer, snippets)
@@ -213,8 +222,12 @@ def test_format_evidence_cards_context() -> None:
     assert "## Recent vault context" in formatted
     assert "## Evidence Snippets & Line Anchors" in formatted
     assert "--- [Evidence Card: source: raw/billing.md#L40-L48 | status: verified | confidence: 0.95] ---" in formatted
-    assert "Exponential backoff retry is applied up to 5 times." in formatted
+    assert "Claim: Exponential backoff retry policy" in formatted
+    assert "Evidence: Exponential backoff retry is applied up to 5 times." in formatted
     assert "--- [Evidence Card: source: raw/legacy_billing.md#L12-L16 | status: stale | confidence: 0.70] ---" in formatted
+    assert "--- [Evidence Card: source: wiki/assets/order_topology.png | asset: order_topology.png | section: Image] ---" in formatted
+    assert "Caption: Order service microservices architecture diagram." in formatted
     assert "[Evidence-Card Answer Contract]" in formatted
     assert "disagree -> show both" in formatted
+
 

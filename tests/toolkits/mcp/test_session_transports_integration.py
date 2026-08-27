@@ -87,7 +87,7 @@ async def _start_http_server() -> tuple[object, str]:
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
 
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error", ws="none")
     runner = uvicorn.Server(config)
     serve_task = asyncio.create_task(runner.serve(sockets=[sock]))
     for _ in range(200):

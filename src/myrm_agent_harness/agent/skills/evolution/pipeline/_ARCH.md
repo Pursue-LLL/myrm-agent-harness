@@ -15,7 +15,7 @@ Agent Skills Evolution Pipeline module.
 | structured_extractor.py | Core | Provides SkillCaptureResult (with form routing: skill/cron_job/skip), StructuredExtractor. Raw JSON fallback extracts answer via `extract_answer_text` (兼容 reasoning 模型 content 空回退) and parses via `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas). | ✅ |
 | trace_analyzer.py | Core | Trace Analyzer for Skill Evolution. Provides progressive disclosure analysis. Includes `_extract_takeover_evidence()` to surface human takeover demonstrations as supplementary context for LLM-driven fixes. | ✅ |
 | evidence_aggregator.py | Core | Aggregates execution analyses by skill into SkillEvidenceGroup objects for evidence-driven evolution. | ✅ |
-| variant_generator.py | Core | Variant Generator with modular prompt assembly (editing principles, hard constraints, conservative editing, failure attribution, preference embedding) and trap injection. Supports FIX/DERIVED content variants, preference-driven DERIVED variants, and OPTIMIZE_DESCRIPTION description-only variants. | ✅ |
+| variant_generator.py | Core | Variant Generator with modular prompt assembly (editing principles, hard constraints, conservative editing, failure attribution, preference embedding, gene bank prior injection) and trap injection. Supports FIX/DERIVED content variants, preference-driven DERIVED variants, and OPTIMIZE_DESCRIPTION description-only variants. | ✅ |
 
 ## Key Dependencies
 

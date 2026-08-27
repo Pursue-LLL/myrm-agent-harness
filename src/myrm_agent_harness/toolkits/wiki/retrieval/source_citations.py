@@ -237,11 +237,19 @@ def format_evidence_cards_context(
         if snip.claim_confidence > 0.0 and snip.claim_confidence != 0.5:
             header_parts.append(f"confidence: {snip.claim_confidence:.2f}")
 
+        if snip.hit_kind == "asset" and snip.asset_filename:
+            header_parts.append(f"asset: {snip.asset_filename}")
         if snip.section:
             header_parts.append(f"section: {snip.section}")
 
         header = " | ".join(header_parts)
-        text_body = (snip.snippet or snip.claim_text or "").strip()
+        if snip.hit_kind == "asset" and snip.snippet:
+            text_body = f"Caption: {snip.snippet.strip()}"
+        elif snip.claim_text and snip.snippet and snip.snippet.strip() != snip.claim_text.strip():
+            text_body = f"Claim: {snip.claim_text.strip()}\nEvidence: {snip.snippet.strip()}"
+        else:
+            text_body = (snip.snippet or snip.claim_text or "").strip()
+
         if header:
             card_sections.append(f"--- [Evidence Card: {header}] ---\n{text_body}")
         else:
