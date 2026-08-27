@@ -10,6 +10,11 @@
 Core security exports. Foundational security primitives used across all layers.
 """
 
+from myrm_agent_harness.core.security.device_policy import (
+    BatchRiskAssessment,
+    DeviceSecurityPolicy,
+    evaluate_batch_risk,
+)
 from myrm_agent_harness.core.security.missing_semantics import (
     MissingDependencyFailClosedError,
     MissingDependencyFailFastError,
@@ -28,6 +33,8 @@ from myrm_agent_harness.core.security.missing_semantics import (
 )
 
 __all__ = [
+    "BatchRiskAssessment",
+    "DeviceSecurityPolicy",
     "MissingDependencyFailClosedError",
     "MissingDependencyFailFastError",
     "MissingSemanticsBlockedError",
@@ -37,6 +44,7 @@ __all__ = [
     "MissingSemanticsPolicy",
     "SemanticsCategory",
     "enforce_missing_semantics",
+    "evaluate_batch_risk",
     "evaluate_missing_capability",
     "get_missing_semantics_matrix",
     "get_registered_contract",

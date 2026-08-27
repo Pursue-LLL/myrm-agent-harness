@@ -180,6 +180,13 @@ async def evaluate_tool_batch(
                 auto_approved.append((idx, tool_call))
         return auto_approved, auto_denied, pending_approval
 
+    from myrm_agent_harness.core.security.device_policy import evaluate_batch_risk
+
+    batch_assessment = evaluate_batch_risk(
+        tool_calls,
+        permission_resolver=resolve_permission_type,
+    )
+
     for idx, tool_call in enumerate(tool_calls):
         tool_name = tool_call.get("name", "unknown")
         tool_input: dict[str, object] = tool_call.get("args", {})

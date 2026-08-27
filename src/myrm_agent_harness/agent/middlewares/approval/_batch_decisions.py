@@ -60,7 +60,12 @@ def _should_block_allow_always(
 
     if allow_always_writes_blocked(get_managed_approval_policy()):
         return True
-    if extra_ctx and (extra_ctx.get("high_risk") or extra_ctx.get("smart_denied")):
+    if extra_ctx and (
+        extra_ctx.get("high_risk")
+        or extra_ctx.get("smart_denied")
+        or extra_ctx.get("hide_allow_always")
+        or extra_ctx.get("requires_dual_insurance")
+    ):
         return True
     return _integration_mutation_blocks_allow_always(tool_call)
 
@@ -221,6 +226,12 @@ def build_interrupt_payload(
             }
             if is_high_risk or map_blocks_allow_always:
                 review_config["hideAllowAlways"] = True
+        if extra_ctx and extra_ctx.get("hide_allow_always"):
+            review_config["hideAllowAlways"] = True
+        if extra_ctx and extra_ctx.get("requires_dual_insurance"):
+            review_config["requiresDualInsurance"] = True
+        if extra_ctx and extra_ctx.get("batch_impact_summary"):
+            review_config["batchImpactSummary"] = extra_ctx.get("batch_impact_summary")
         if domains:
             review_config["domainApproval"] = True
 
