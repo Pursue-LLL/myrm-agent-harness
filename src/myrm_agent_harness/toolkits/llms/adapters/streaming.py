@@ -48,7 +48,10 @@ def _is_complete_json_fragment(text: str) -> bool:
     if not isinstance(text, str):
         return False
     stripped = text.strip()
-    if not ((stripped.startswith("{") and stripped.endswith("}")) or (stripped.startswith("[") and stripped.endswith("]"))):
+    if not (
+        (stripped.startswith("{") and stripped.endswith("}"))
+        or (stripped.startswith("[") and stripped.endswith("]"))
+    ):
         return False
     try:
         json.loads(stripped)
@@ -145,7 +148,9 @@ def build_tool_call_chunks(
     return tool_call_chunks
 
 
-def aggregate_tool_call_chunk(tc_chunk: Any, aggregated_tool_calls: list[dict[str, Any]]) -> None:
+def aggregate_tool_call_chunk(
+    tc_chunk: Any, aggregated_tool_calls: list[dict[str, Any]]
+) -> None:
     """Incrementally merge a tool_call chunk into the aggregated list.
 
     Guards against malformed streaming chunks from OpenAI-compatible backends
@@ -159,7 +164,9 @@ def aggregate_tool_call_chunk(tc_chunk: Any, aggregated_tool_calls: list[dict[st
     tc_id = safe_get(tc_chunk, "id")
 
     while len(aggregated_tool_calls) <= tc_index:
-        aggregated_tool_calls.append({"function": {"name": "", "arguments": ""}, "id": ""})
+        aggregated_tool_calls.append(
+            {"function": {"name": "", "arguments": ""}, "id": ""}
+        )
 
     if isinstance(tc_name, str) and tc_name:
         aggregated_tool_calls[tc_index]["function"]["name"] = tc_name
@@ -167,7 +174,9 @@ def aggregate_tool_call_chunk(tc_chunk: Any, aggregated_tool_calls: list[dict[st
         if isinstance(tc_args, str):
             aggregated_tool_calls[tc_index]["function"]["arguments"] += tc_args
         elif isinstance(tc_args, dict):
-            aggregated_tool_calls[tc_index]["function"]["arguments"] += json.dumps(tc_args, ensure_ascii=False)
+            aggregated_tool_calls[tc_index]["function"]["arguments"] += json.dumps(
+                tc_args, ensure_ascii=False
+            )
         else:
             logger.warning("Unexpected tool_call args type: %s", type(tc_args).__name__)
     if isinstance(tc_id, str) and tc_id:
@@ -187,7 +196,9 @@ def parse_tool_calls_from_reasoning(
     if not aggregated_reasoning or aggregated_tool_calls:
         return None, None
 
-    from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import parse_tool_calls
+    from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import (
+        parse_tool_calls,
+    )
 
     reasoning_text = "".join(aggregated_reasoning)
     parsed_tool_calls = parse_tool_calls({"reasoning_content": reasoning_text})
@@ -196,7 +207,9 @@ def parse_tool_calls_from_reasoning(
         return None, None
 
     mode_str = "Async" if is_async else "Sync"
-    logger.warning(f" Parsed {len(parsed_tool_calls)} tool calls from reasoning_content ({mode_str} streaming mode)")
+    logger.warning(
+        f" Parsed {len(parsed_tool_calls)} tool calls from reasoning_content ({mode_str} streaming mode)"
+    )
 
     tool_call_chunks: list[ToolCallChunk] = []
     for idx, tc in enumerate(parsed_tool_calls):
