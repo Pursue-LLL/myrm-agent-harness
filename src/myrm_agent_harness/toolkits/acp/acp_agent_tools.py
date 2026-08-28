@@ -17,7 +17,6 @@ or CLI interface via the unified RuntimePool.
 - DelegateUsage: Token usage statistics from an external agent delegation.
 - DelegateMeta: Metadata collected during an external agent delegation turn.
 - create_invoke_acp_agent_tool: Create the invoke_acp_agent tool.
-- create_delegate_to_agent_tool: Backward-compatibility alias for create_invoke_acp_agent_tool.
 
 [POS]
 Delegate tasks to external ACP-compatible agents.
@@ -212,20 +211,6 @@ context and capabilities.
         return f"[error] Delegation to '{agent_name}' failed after {_MAX_RETRIES + 1} attempts: {last_error}"
 
     return invoke_acp_agent_func
-
-
-def create_delegate_to_agent_tool(
-    pool: RuntimePool,
-    *,
-    cwd: str | None = None,
-    session_scope: str | None = None,
-) -> BaseTool:
-    """Backward-compatible alias for create_invoke_acp_agent_tool."""
-    return create_invoke_acp_agent_tool(
-        pool,
-        cwd=cwd,
-        session_scope=session_scope,
-    )
 
 
 def _as_int(value: object) -> int:

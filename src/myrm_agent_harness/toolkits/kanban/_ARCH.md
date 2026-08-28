@@ -117,14 +117,15 @@ Protocol-first architecture with strict framework-business separation.
       `task.result`, and keeps the task RUNNING until the dispatcher's CompletionVerifier
       passes. Frontend shows `status.verifying` when intent is set. Optional `metadata`
       JSON stores structured handoff at `task.metadata["handoff"]`.
-    - `orchestrator` (5 tools): kanban_add_task, kanban_list_tasks (board list or
+    - `orchestrator` (6 tools): kanban_add_task, kanban_list_tasks (board list or
       single-task read via `task_id`; optional `include_stats`; board list defaults to 50 rows,
       max 200, with `truncated` metadata), kanban_unblock (returns ``dependencies_met``;
       ``waiting_on_dependencies`` when parents remain open), kanban_cancel_task (archives
       READY/BACKLOG/BLOCKED/FAILED tasks; for RUNNING tasks also cancels the worker
       execution via dispatcher; IN_REVIEW tasks are rejected — the approval gate only
       resolves via approve/reject), kanban_retry_task (resets a FAILED task to READY with
-      cleared failure counters; optionally updates description for better worker guidance).
+      cleared failure counters; optionally updates description for better worker guidance),
+      kanban_revise_plan (atomically revises the board DAG plan).
     Board/task field edits and delete use server REST/GUI only — not LLM tools.
 
 12. **Dispatcher-only status guard**: Agents cannot move tasks to RUNNING — only the
@@ -333,6 +334,6 @@ Protocol-first architecture with strict framework-business separation.
 | `diagnostics.py` | Task diagnostic framework — DTOs, DiagnosticRule Protocol, DiagnosticEngine |
 | `kanban_agent_tools.py` | Facade — `create_kanban_tools` factory, shared helpers (`_parse_until`, `get_worker_lifecycle_guidance`), routes to worker/orchestrator sub-modules |
 | `_worker_tools.py` | Worker-scoped LLM tools (6 tools: show/complete/block/heartbeat/comment/attach) with ownership enforcement |
-| `_orchestrator_tools.py` | Orchestrator-scoped LLM tools (5 tools: add_task/list_tasks/unblock/cancel_task/retry_task) for task lifecycle management |
+| `_orchestrator_tools.py` | Orchestrator-scoped LLM tools (6 tools: add_task/list_tasks/unblock/cancel_task/retry_task/revise_plan) for task lifecycle management |
 | `context_builder.py` | Worker context assembly helper for TaskRunner implementors — includes parent result + handoff metadata propagation + `build_multimodal_query()` for assembling TaskAttachment objects into LLM-compatible multimodal content blocks |
 | `__init__.py` | Public API re-exports |

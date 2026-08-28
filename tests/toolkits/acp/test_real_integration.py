@@ -21,7 +21,7 @@ import sys
 import pytest
 
 from myrm_agent_harness.toolkits.acp.acp_agent_tools import (
-    create_delegate_to_agent_tool,
+    create_invoke_acp_agent_tool,
 )
 from myrm_agent_harness.toolkits.acp.core.backend_detector import BackendDetector
 from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import CliRuntime
@@ -487,11 +487,11 @@ class TestRuntimePoolReal:
             await pool.close_all()
 
 
-# ── delegate_to_agent tool ──────────────────────────────────────────────
+# ── invoke_acp_agent_tool tool ──────────────────────────────────────────────
 
 
 class TestDelegateToolReal:
-    """End-to-end tests for the delegate_to_agent LangChain tool."""
+    """End-to-end tests for the invoke_acp_agent_tool LangChain tool."""
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(not _HAS_CLAUDE, reason="claude CLI not installed")
@@ -509,7 +509,7 @@ class TestDelegateToolReal:
             ),
         )
 
-        tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
+        tool_func = create_invoke_acp_agent_tool(pool, cwd=os.getcwd())
         try:
             result = await tool_func.ainvoke({"agent_name": "claude", "task": SIMPLE_PROMPT, "mode": "oneshot"})
             assert isinstance(result, str)
@@ -535,7 +535,7 @@ class TestDelegateToolReal:
             ),
         )
 
-        tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
+        tool_func = create_invoke_acp_agent_tool(pool, cwd=os.getcwd())
         try:
             result = await tool_func.ainvoke({"agent_name": "gemini", "task": SIMPLE_PROMPT, "mode": "oneshot"})
             assert isinstance(result, str)
@@ -561,7 +561,7 @@ class TestDelegateToolReal:
             ),
         )
 
-        tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
+        tool_func = create_invoke_acp_agent_tool(pool, cwd=os.getcwd())
         try:
             result = await tool_func.ainvoke({"agent_name": "codex", "task": SIMPLE_PROMPT, "mode": "oneshot"})
             assert isinstance(result, str)
@@ -574,7 +574,7 @@ class TestDelegateToolReal:
     @pytest.mark.asyncio
     async def test_delegate_to_unknown_agent(self) -> None:
         pool = RuntimePool(max_concurrent=2)
-        tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
+        tool_func = create_invoke_acp_agent_tool(pool, cwd=os.getcwd())
         result = await tool_func.ainvoke({"agent_name": "nonexistent", "task": "hello", "mode": "oneshot"})
         assert "Unknown backend" in result
 
@@ -585,7 +585,7 @@ class TestDelegateToolReal:
             "dummy",
             RuntimeConfig(backend_type="cli", command="echo"),
         )
-        tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
+        tool_func = create_invoke_acp_agent_tool(pool, cwd=os.getcwd())
         result = await tool_func.ainvoke({"agent_name": "dummy", "task": "hello", "mode": "bad_mode"})
         assert "[error]" in result
         assert "Invalid mode" in result
@@ -597,7 +597,7 @@ class TestDelegateToolReal:
             "dummy",
             RuntimeConfig(backend_type="cli", command="echo"),
         )
-        tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
+        tool_func = create_invoke_acp_agent_tool(pool, cwd=os.getcwd())
         huge_task = "x" * (3 * 1024 * 1024)
         result = await tool_func.ainvoke({"agent_name": "dummy", "task": huge_task, "mode": "oneshot"})
         assert "[error]" in result

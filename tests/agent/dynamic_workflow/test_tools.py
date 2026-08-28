@@ -3,6 +3,8 @@
 import asyncio
 import os
 import tempfile
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -43,6 +45,7 @@ def temp_store():
 @pytest.fixture
 def mock_parent_agent():
     agent = MagicMock()
+    agent.context = SimpleNamespace(workspace_dir=None)
     agent._cached_tools = []
     agent.user_tools = []
     agent._spawn_child = AsyncMock()
@@ -115,6 +118,27 @@ async def test_spawn_tool_cache_hit(temp_store, mock_parent_agent):
 
     assert result == {"cached": True}
     mock_parent_agent._spawn_child.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_spawn_tool_magicmock_workspace_dir_writes_no_journal(
+    temp_store, mock_parent_agent, monkeypatch, tmp_path
+):
+    """Regression: MagicMock workspace_dir must not create MagicMock/ dirs on disk."""
+    monkeypatch.chdir(tmp_path)
+    mock_parent_agent.context = SimpleNamespace(workspace_dir=MagicMock())
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "ok"}
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_journal_guard",
+        store=temp_store,
+    )
+
+    await tool._arun("task_1", "generalPurpose", "audit task")
+
+    assert not (tmp_path / "MagicMock").exists()
 
 
 @pytest.mark.asyncio

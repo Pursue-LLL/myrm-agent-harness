@@ -47,16 +47,19 @@ _MARKET_OFF_LINE_EN = (
 )
 
 _MARKET_INSTALLED_LINE_ZH = "本工具**不用于**从外部市场安装新技能 — 如需安装新技能请使用 `skill_market_tool`。"
-_MARKET_OFF_LINE_ZH = "本工具**不用于**从外部市场安装新技能。"
+_MARKET_OFF_LINE_ZH = (
+    "本工具**不用于**从外部市场安装新技能。"
+    "如需安装新技能请前往设置 → 技能库发现，或在 Agent 配置中开启技能市场。"
+)
 
 
 def _build_tool_description(*, market_tool_mounted: bool, locale: str | None = None) -> str:
     if is_chinese(locale):
         market_line = _MARKET_INSTALLED_LINE_ZH if market_tool_mounted else _MARKET_OFF_LINE_ZH
-        return f"""在当前 Agent 已绑定的技能库（绑定技能 + MCP PTC 技能）中搜索缺失的能力。
+        return f"""在当前 Agent 已绑定的技能库中搜索所需的专业能力与流程规范（包含领域技能与扩展集成）。
 {market_line}
 
-重要：在因缺少能力而拒绝用户请求前，必须先在此搜索。切勿在未检查是否存在技能前宣称无法完成某项任务（如绘图、视频生成、GitHub、Jira 等）。
+重要：在因缺少能力而拒绝用户请求前，必须先在此搜索。切勿在未检查是否存在可用技能前宣称无法完成某项任务（如绘图、视频生成、GitHub、Jira 等）。
 
 **查询方式**：
 - 支持任意自然语言查询。
@@ -70,7 +73,7 @@ def _build_tool_description(*, market_tool_mounted: bool, locale: str | None = N
 """
 
     market_line = _MARKET_INSTALLED_LINE_EN if market_tool_mounted else _MARKET_OFF_LINE_EN
-    return f"""Search for missing capabilities among skills already available to this agent (bound library + MCP PTC skills).
+    return f"""Search for missing capabilities among skills already available to this agent (bound library, domain skills, and extensions).
 {market_line}
 
 IMPORTANT: You MUST search here BEFORE declining any user request due to missing capability. Never tell the user you cannot do something without first checking if a skill exists (e.g., drawing, video generation, Github, Jira, etc.).

@@ -608,7 +608,7 @@ class TestAgentToolsErrors:
         worker_tools = create_kanban_tools(store, mode="worker", current_task_id="t1")
         assert len(worker_tools) == 6
         orch_tools = create_kanban_tools(store, mode="orchestrator")
-        assert len(orch_tools) == 5
+        assert len(orch_tools) == 6
 
 
 # ===========================================================================
@@ -1818,6 +1818,7 @@ class TestKanbanCommentTool:
             "kanban_unblock",
             "kanban_cancel_task",
             "kanban_retry_task",
+            "kanban_revise_plan",
         }
 
 

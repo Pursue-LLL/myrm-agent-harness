@@ -3,9 +3,10 @@
 [INPUT]
 - utils.db.sqlite::CACHE, harden_connection_sync (POS: Unified SQLite hardening profile)
 - dynamic_workflow.spawn_cache::SpawnCacheParams (POS: Cache fingerprint SSOT)
+- core.security.path_security::coerce_filesystem_path (POS: Runtime path coercion; rejects unittest.mock objects)
 
 [OUTPUT]
-- WorkflowEventStore: Persistent cache for sub-agent spawn results and orchestration scripts
+- WorkflowEventStore: Persistent cache for sub-agent spawn results, orchestration scripts, and workspace journal sidecar writes (path-guarded)
 
 [POS]
 Provides L2 persistent caching for the Dynamic Workflow Engine. When a PTC script
@@ -26,6 +27,7 @@ from myrm_agent_harness.agent.dynamic_workflow.spawn_cache import (
     SpawnCacheParams,
     spawn_cache_params_from_json,
 )
+from myrm_agent_harness.core.security.path_security import coerce_filesystem_path
 from myrm_agent_harness.utils.db.sqlite import CACHE, harden_connection_sync
 
 
@@ -254,7 +256,9 @@ class WorkflowEventStore:
     ) -> None:
         """Append a subagent execution event to workspace .workflow-journal.jsonl sidecar."""
         try:
-            path = Path(journal_path)
+            path = coerce_filesystem_path(journal_path)
+            if path is None:
+                return
             path.parent.mkdir(parents=True, exist_ok=True)
             entry = {
                 "workflow_id": workflow_id,

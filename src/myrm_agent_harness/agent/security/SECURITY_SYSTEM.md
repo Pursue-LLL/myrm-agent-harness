@@ -366,6 +366,9 @@ DANGEROUS_PATHS: frozenset[str] = _build_dangerous_paths()  # normalised at impo
 # includes: /etc, /sys, /proc, /dev, /root, /boot, /var/log,
 #           ~/.ssh, ~/.gnupg, ~/.aws, ~/.azure, ~/.config, ~/.docker, ~/.kube, etc.
 
+def coerce_filesystem_path(value: object) -> Path | None:
+    """Accept str | Path | os.PathLike; reject unittest.mock objects (MagicMock implements __fspath__)."""
+
 @dataclass(frozen=True, slots=True)
 class PathPolicy:
     forbidden_paths: frozenset[str] = DANGEROUS_PATHS  # from path_security
@@ -403,6 +406,7 @@ check_path_policy(raw_path, policy, workspace_root, require_write)
 7. **云卷部署边界** — `/persistent` 真实挂载时，grant 仅限卷内或 chat workspace；本地桌面允许主机路径（仍受 forbidden/dangerous 约束）
 8. **Directory HITL 900s 超时** — 与 clarify 对称，`{granted:false}` auto-resume，避免挂死
 9. **FE SSOT 刷新** — grant/revoke 后 `refreshSessionAccessRoots` 同步 `SessionAccessRootsBar`；path-ASK 带 optimistic fallback
+10. **Runtime path coercion** — `coerce_filesystem_path` 仅接受 `str | Path | os.PathLike`，拒绝 `unittest.mock` 对象（MagicMock 实现 `__fspath__`）；用于工作区 journal sidecar 等写盘边界
 
 ### 渠道行为
 
@@ -1259,7 +1263,7 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | `web_fetch_tool` | `net_fetch` |
 | `browser_navigate_tool` | `browser_navigate_tool` |
 | `browser_snapshot_tool` / `browser_extract_tool` | `browser_read` |
-| `delegate_to_agent_tool` | `delegate_agent` |
+| `invoke_acp_agent_tool` | `delegate_agent` |
 | `cron_manage_tool` | `cron_manage` |
 | `skill_manage_tool` | `skill_manage` |
 

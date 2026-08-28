@@ -4,6 +4,7 @@
 - base_agent::BaseAgent (POS: Parent agent with _spawn_child capability)
 - agent.sub_agents.orchestrator::run_with_verification (POS: Adversarial worker+verifier retry loop)
 - agent.sub_agents.spawn_prep (POS: Shared spawn prep SSOT with delegate path)
+- core.security.path_security::coerce_filesystem_path (POS: Runtime path coercion for workspace journal sidecar)
 - dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache)
 - dynamic_workflow.spawn_cache::SpawnCacheParams (POS: Cache fingerprint)
 - agent.skills.mcp.progress_payload::build_workflow_stage_event (POS: Shared notify field SSOT)
@@ -55,6 +56,7 @@ from myrm_agent_harness.agent.sub_agents.spawn_prep import (
     merge_candidate_from_spawn_dict,
     sanitize_spawn_result_for_store,
 )
+from myrm_agent_harness.core.security.path_security import coerce_filesystem_path
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 if TYPE_CHECKING:
@@ -487,9 +489,10 @@ class SpawnSubagentTool(BaseTool):
             # Sidecar journal mirror (best-effort workspace snapshot)
             ws_root = None
             if self.parent_agent and getattr(self.parent_agent, "context", None):
-                ws_root = getattr(self.parent_agent.context, "workspace_dir", None)
-            if ws_root:
-                journal_file = Path(ws_root) / ".myrm" / ".workflow-journal.jsonl"
+                raw_ws = getattr(self.parent_agent.context, "workspace_dir", None)
+                ws_root = coerce_filesystem_path(raw_ws)
+            if ws_root is not None:
+                journal_file = ws_root / ".myrm" / ".workflow-journal.jsonl"
                 self.store.append_journal_entry(
                     journal_file,
                     workflow_id=self.workflow_id,

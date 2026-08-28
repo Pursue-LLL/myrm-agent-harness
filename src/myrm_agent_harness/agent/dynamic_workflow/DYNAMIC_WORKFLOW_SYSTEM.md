@@ -53,7 +53,7 @@ Summarization LLM → 用户可读 Markdown
 | `prompts.py` | `ORCHESTRATOR_PROMPT` / `SUMMARIZATION_PROMPT` / `_MAX_STDOUT_FOR_SUMMARY` |
 | `preflight.py` | 静态 spawn + llm_query 分析；费用预估；`WorkflowPlanReview` / `WorkflowApprovalGate` |
 | `notify_stream.py` | PTC 执行期间并发 drain notify queue |
-| `store.py` | SQLite Event Sourcing；`identity_hash` 索引化跨 run/Fork 只读断点复用 + `SpawnCacheParams` 指纹 cache + 工作区 `.workflow-journal.jsonl` Sidecar 镜像 + orchestration script 持久化 |
+| `store.py` | SQLite Event Sourcing；`identity_hash` 索引化跨 run/Fork 只读断点复用 + `SpawnCacheParams` 指纹 cache + 工作区 `.workflow-journal.jsonl` Sidecar 镜像（`coerce_filesystem_path` 写盘前校验）+ orchestration script 持久化 |
 | `template_store.py` | 用户命名模板库 `workflow_templates`；save-from-run；pinned rerun 加载 |
 | `template_validation.py` | 模板脚本校验、占位符替换、trust_latch plan_confirm 跳过护栏 |
 | `paths.py` | `{harness_root}/.myrm/workflow_events.db` 路径 SSOT（与 background_jobs 同根） |
@@ -94,7 +94,7 @@ Summarization LLM → 用户可读 Markdown
 6. **Trust 层**：spawn ≥ 1 时 SSE `plan_confirm`（子任务数 + 并发上限 + 成本估算的产品化文案）+ PhaseWaiter；RunGuard 硬上限 50 spawn / 5 并发
 7. **Workspace 安全**：DW 非 readonly spawn 使用 `ISOLATED_COPY`；defer 时 child workspace 保留至 `batch_merge`；merge 后 sanitize 存 SQLite（`workspace_merge_status=merged`）；merge 经 `build_merge_snapshot_context` 登记 SnapshotStore（Revert 可用）并在摘要 append `_workspace_diff`；merge 失败时 SSE `workflow_execution: warning`、`WORKSPACE_MERGE_FAILED` 与 `completion_status: warning`，前端 `WorkspaceMergeWarning` 展示逐条错误
 8. **Spawn prep SSOT**：`agent/sub_agents/spawn_prep.py` 与 delegate 共用
-9. **Durable replay**：`SpawnCacheParams` 指纹命中复用 spawn 结果；`workspace_merge_status=merged` 跳过 re-spawn/re-merge；`pending` 行视为 incomplete 强制 re-spawn
+9. **Durable replay**：`SpawnCacheParams` 指纹命中复用 spawn 结果；`workspace_merge_status=merged` 跳过 re-spawn/re-merge；`pending` 行视为 incomplete 强制 re-spawn；工作区 `.workflow-journal.jsonl` sidecar 写盘前经 `coerce_filesystem_path` 校验（拒绝 unittest.mock 等非路径对象）
 
 ---
 

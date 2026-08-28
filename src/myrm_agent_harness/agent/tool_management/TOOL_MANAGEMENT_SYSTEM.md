@@ -8,7 +8,7 @@
 
 | 对外说法 | 含义 | 当前规模 |
 |----------|------|----------|
-| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **56**（Harness 50: CORE 8 + COMMON 4 + EXTENDED 38; External 6: server vendor） |
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **59**（Harness 53: CORE 8 + COMMON 4 + EXTENDED 41; External 6: server vendor） |
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
@@ -84,6 +84,15 @@ Server `_tool_layer_bootstrap.py` 将 server vendor 工具注册为 EXTERNAL 层
 
 **只有 LLM 工具（Action Tool）使用 CORE / COMMON / EXTENDED / EXTERNAL 四层。**
 
+### 四层工具架构定位 SSOT
+
+| 层级 | 定位与核心特征 | 默认开启状态 | 前端可关？ | 典型工具 |
+| :--- | :--- | :---: | :---: | :--- |
+| **Layer 1: CORE** | **核心基线层**：Agent 最底层基础系统能力，确保终极前缀缓存稳定 | **100% 开启** | ❌ 否（无开关） | `bash_*`, `file_*`, `glob/grep`, `web_fetch` |
+| **Layer 2: COMMON** | **通用标配层**：生产级 Agent 的通用标配能力（搜索+记忆） | **100% 默认开（Default-ON）** | ✅ 是（可按需关） | `web_search_tool` (Rank 0), `memory_*` 三件套 (Rank 10~12) |
+| **Layer 3: EXTENDED** | **可选扩展层**：专项高级能力（浏览器/桌面/看板/技能/Cron等） | **按需装配（默认不全开）** | ✅ 是（Profile控制） | `skill_select_tool`, `browser_*`, `kanban_*`, `todo_write` 等 |
+| **Layer 4: EXTERNAL** | **外部业务层**：第三方生态扩展（MCP/OpenAPI/媒体生成/通知通道） | **按需装配** | ✅ 是 | `channel_notify`, `image_tool`, 动态 MCP 服务 |
+
 PTC `spawn_subagent` 与 LLM `delegate_task_tool` 共用 `_spawn_child()` 下游，但调用者不同（Python 编排脚本 vs 主 Agent tool_call）。详见 [DYNAMIC_WORKFLOW_SYSTEM.md](../dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md)。
 
 `tool_catalog.py` 仅服务 LLM 工具（`user_capability`）。**Product ID 列**由 `TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` 派生。
@@ -119,7 +128,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `complete_goal_tool` | EXTENDED | user_capability | — | active Goal on chat |
 | `cron_manage_tool` | EXTENDED | user_capability | cron | user cron capability wired |
 | `delegate_task_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
-| `delegate_to_agent_tool` | EXTENDED | user_capability | external_cli | external ACP agent configured |
+| `invoke_acp_agent_tool` | EXTENDED | user_capability | external_cli | external ACP agent configured |
 | `desktop_interact_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_snapshot_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_vision_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
@@ -171,6 +180,11 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 1. 新 harness LLM Tool → `register_tool_layer()` + meta_tools 或 toolkits 实现 + `tool_catalog.py` load/role 条目；若属 togglable 能力族，同步 `TOOL_GROUP_MAP`（product ID 自动派生）
 2. 更新 token inventory（`python scripts/measure_turn1_token_inventory.py` + 同步 `DEFAULT_AGENT_TOKEN_INVENTORY.md`）
 3. 运行 `python scripts/validate_tool_registry.py --generate-docs`
+
+**命名空间铁律（ACP vs 内部 Sub-Agent）**：
+- `invoke_acp_agent_tool` / `create_invoke_acp_agent_tool` = 外部 ACP/CLI Agent 委派（`toolkits/acp/`）
+- `delegate_task_tool` = Myrm 内部 Sub-Agent 委派（`meta_tools/spawn_subagent/`）
+- 禁止 `delegate_to_agent_*` 等遗留命名（CI：`validate_tool_registry.py` `_FORBIDDEN_LEGACY_ACP_TOOL_PATTERNS`）
 
 编排信号与 runtime hook 见 `agent/orchestration/`（不在下方 LLM Tool Catalog 表内）。
 

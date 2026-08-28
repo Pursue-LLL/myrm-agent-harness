@@ -10,10 +10,10 @@ Board/task field edits and delete use server REST/GUI only — not LLM tools.
 - .kanban_agent_tools::KANBAN_LIST_DEFAULT_LIMIT, KANBAN_LIST_MAX_LIMIT, find_task_by_idempotency_key (POS: Facade and shared helpers.)
 
 [OUTPUT]
-- build_orchestrator_tools: Factory that returns 5 orchestrator-scoped tools.
+- build_orchestrator_tools: Factory that returns 6 orchestrator-scoped tools.
 
 [POS]
-Orchestrator-scoped kanban LLM tools (5 tools) for task lifecycle management.
+Orchestrator-scoped kanban LLM tools (6 tools) for task lifecycle management.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ def build_orchestrator_tools(
     agent_id: str | None = None,
     source_chat_id: str | None = None,
 ) -> list[BaseTool]:
-    """Build orchestrator-scoped tools (5 tools)."""
+    """Build orchestrator-scoped tools (6 tools)."""
 
     @tool("kanban_add_task")
     async def kanban_add_task(
@@ -79,9 +79,9 @@ def build_orchestrator_tools(
             title: Task title (required).
             board_id: Target board (uses default if empty).
             description: Detailed task description.
-            priority: urgent/high/normal/low.
+            priority: Task priority: urgent, high, normal, or low (default: 'normal').
             parent_task_id: Parent task for hierarchy.
-            depends_on: Comma-separated task IDs this task depends on.
+            depends_on: Comma-separated task IDs (not titles) this task depends on (e.g. 'task-1,task-2'). Use kanban_list_tasks to inspect existing task IDs.
             max_retries: Max retry attempts on failure.
             max_runtime_seconds: Per-task timeout in seconds (0 = system default).
             assign_agent_id: Agent to assign this task to.
@@ -199,8 +199,13 @@ def build_orchestrator_tools(
     ) -> str:
         """List tasks on a board, or read a single task by ``task_id``.
 
-        Filters: status_filter, agent_id_filter. Set include_stats=true for per-status counts.
-        Default 50 tasks (max 200); ``truncated: true`` when capped.
+        Args:
+            board_id: Target board (uses default if empty).
+            status_filter: Optional filter by task status: backlog, ready, running, blocked, in_review, completed, failed, archived.
+            agent_id_filter: Optional filter by assigned agent ID.
+            task_id: Read a specific task with its dependency tree and metadata (bypasses list filters).
+            limit: Maximum tasks to return (default: 50, max: 200).
+            include_stats: Include board summary and grouped task counts per status.
         """
         resolved_task_id = task_id.strip()
         if resolved_task_id:
@@ -269,7 +274,12 @@ def build_orchestrator_tools(
         dependencies are still open, the task moves to BACKLOG and the response
         uses ``status: waiting_on_dependencies`` (check ``dependencies_met``).
 
-        For timed blocks, prefer dispatcher auto-unblock when ``scheduled_until`` is set.
+        Timed blocks automatically unblock when the time arrives; manual unblock
+        is typically for human-blocked tasks or overriding blocks.
+
+        Args:
+            task_id: ID of the blocked task to unblock (required).
+            reason: Explanation of why the task is being unblocked (optional).
         """
         if not task_id:
             return json.dumps({"error": "task_id is required"})

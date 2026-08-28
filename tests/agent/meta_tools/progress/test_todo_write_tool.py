@@ -62,6 +62,74 @@ async def test_todo_write_returns_error_on_invalid_status(tmp_path) -> None:
     )
     error_payload = json.loads(result)
     assert "error" in error_payload
+    assert "Valid statuses are" in error_payload["error"]
+
+
+@pytest.mark.asyncio
+async def test_todo_write_partial_update_inherits_content(tmp_path) -> None:
+    """When merge=True, updating status without content inherits previous content."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    tool = create_todo_write_tool(str(workspace))
+
+    # Initialize full list
+    await tool.ainvoke(
+        {
+            "todos": [
+                {"id": "1", "content": "Step one description", "status": "in_progress"},
+                {"id": "2", "content": "Step two description", "status": "pending"},
+            ],
+            "merge": False,
+        }
+    )
+
+    # Partial update with only status and id (no content provided)
+    result = await tool.ainvoke(
+        {
+            "todos": [
+                {"id": "1", "status": "completed"},
+                {"id": "2", "status": "in_progress"},
+            ],
+            "merge": True,
+        }
+    )
+    data = json.loads(result)
+    assert "error" not in data
+    assert data["summary"]["completed"] == 1
+    assert data["summary"]["in_progress"] == 1
+
+    # Verify existing content is preserved exactly
+    todos_by_id = {t["id"]: t for t in data["todos"]}
+    assert todos_by_id["1"]["content"] == "Step one description"
+    assert todos_by_id["1"]["status"] == "completed"
+    assert todos_by_id["2"]["content"] == "Step two description"
+    assert todos_by_id["2"]["status"] == "in_progress"
+
+
+@pytest.mark.asyncio
+async def test_todo_write_partial_update_rejects_new_item_without_content(tmp_path) -> None:
+    """When merge=True, a completely new item id still requires content."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    tool = create_todo_write_tool(str(workspace))
+
+    await tool.ainvoke(
+        {
+            "todos": [{"id": "1", "content": "Step one", "status": "pending"}],
+            "merge": False,
+        }
+    )
+
+    # Add new item id '2' without content -> should fail
+    result = await tool.ainvoke(
+        {
+            "todos": [{"id": "2", "status": "pending"}],
+            "merge": True,
+        }
+    )
+    data = json.loads(result)
+    assert "error" in data
+    assert "content is required for new item" in data["error"]
 
 
 @pytest.mark.asyncio

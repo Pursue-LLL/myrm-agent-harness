@@ -1,18 +1,15 @@
 """ContextVar-based request tracing context.
 
-Stores ``trace_id`` and ``session_id`` as context-local variables so that
-any code running in the same async task (or thread) can read the current
-trace identity without explicit parameter passing.
+[INPUT]
+- None (standard library contextvars & uuid)
+- myrm_agent_harness.infra.tracing.propagation (optional runtime OpenTelemetry span resolution)
 
-Usage::
+[OUTPUT]
+- TracingContext: accessor over contextvars for request-scoped trace_id and session_id
+- resolve_current_trace_id: hierarchical active trace resolution across OTel and ContextVar
 
-    TracingContext.set_trace_id("abc-123")
-    print(TracingContext.get_trace_id())  # "abc-123"
-
-    # Or use the token-based reset pattern
-    token = TracingContext.set_trace_id("def-456")
-    # ... do work ...
-    TracingContext.reset_trace_id(token)
+[POS]
+Low-level tracing context store and trace ID resolution helper for distributed observability.
 """
 
 from __future__ import annotations

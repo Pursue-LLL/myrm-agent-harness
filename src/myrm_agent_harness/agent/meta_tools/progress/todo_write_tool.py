@@ -56,16 +56,20 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
         merge: bool = False,
         goal: str | None = None,
     ) -> str:
-        """Create or update a structured task list for multi-step work.
+        """Create or update a structured task list to track multi-step execution progress.
 
-        Use for complex objectives (typically 3+ steps). Skip for trivial single-step tasks.
-        Maximum 20 items. Only one task may be in_progress at a time.
+        Use for complex objectives (3+ steps). Skip for trivial single-step tasks.
+        Constraints: Maximum 20 items. At most ONE task can be in_progress at any time.
 
         Args:
-            todos: List of items with ``id``, ``content``, and optional ``status``
-                (pending | in_progress | completed | cancelled).
-            merge: When True, update existing items by ``id``; when False, replace the list.
-            goal: Optional overall objective label shown in the progress UI root node.
+            todos: List of task items. Each item must be a dict with:
+                - id: Unique string identifier (e.g. "1", "2", "setup_db")
+                - content: Concrete, actionable step description
+                - status: One of "pending" | "in_progress" | "completed" | "cancelled"
+            merge: Mode flag.
+                - False (default): Initialize or overwrite the full task list.
+                - True: Incrementally update specified items by id (pass only changed items).
+            goal: Optional title summarizing the overall objective.
 
         Returns:
             JSON summary of the current todo list.
@@ -75,12 +79,11 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
 
         root = workspace_root.strip()
         try:
-            incoming = parse_todo_payload(todos)
+            incoming = parse_todo_payload(todos, allow_empty_content=merge)
+            current = read_todos_sync_from_workspace(root)
+            merged_items = merge_todo_items(current.todos if current else [], incoming, merge=merge)
         except ValueError as exc:
             return json.dumps({"error": str(exc)})
-
-        current = read_todos_sync_from_workspace(root)
-        merged_items = merge_todo_items(current.todos if current else [], incoming, merge=merge)
 
         if len(merged_items) > MAX_TODOS:
             return json.dumps(

@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -323,3 +324,22 @@ def test_store_append_journal_entry(tmp_path, temp_db_path):
     assert data["readonly"] is True
     assert data["success"] is True
     assert data["result"]["verdict"] == "approved"
+
+
+def test_store_append_journal_entry_rejects_magicmock_path(temp_db_path, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    store = WorkflowEventStore(temp_db_path)
+    params = _default_params(task_description="Review PR", readonly=True)
+    result_payload = {"success": True, "verdict": "approved"}
+
+    store.append_journal_entry(
+        MagicMock(),
+        workflow_id="wf_audit",
+        task_id="task_audit_1",
+        agent_type=params.agent_type,
+        task_description=params.task_description,
+        result=result_payload,
+        spawn_params=params,
+    )
+
+    assert not (tmp_path / "MagicMock").exists()

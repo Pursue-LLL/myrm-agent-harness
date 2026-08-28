@@ -48,7 +48,7 @@ _SKILL_SELECT_TOOL_DESCRIPTION_ZH = """选择已绑定的技能并加载其 SOP 
 已绑定技能目录位于本会话首条用户消息开头的 <bound_skills> 块中。
 规则：
 1. 选择 <bound_skills> 目录中列出的技能 → 阅读并严格遵循返回的 SOP 文档。
-2. 每个技能只需选择一次 — 在整个会话（即使 resume）中持续有效。切勿重复选择；对于 scripts/、references/、templates/ 或 assets/ 下的辅助文件，使用 skill_select_tool(file_path=...)，然后使用 bash_code_execute_tool 执行。
+2. 每个技能在当前会话只需选择一次 — 加载后的 SOP 在后续对话中持续有效。切勿重复加载技能；如需读取辅助脚本或参考文档，使用 skill_select_tool(file_path=...)（仅限 scripts/、references/、templates/、assets/ 目录），随后使用 bash_code_execute_tool 执行。
 3. 如有助于解决用户问题，可同时选择多个技能。
 4. available="false" 的技能无法加载 — 自动跳过。
 5. 切勿混淆工具（_tool 后缀，可直接调用）与技能（_skill 后缀，仅能通过本工具选择加载）。
@@ -59,7 +59,7 @@ _SKILL_SELECT_TOOL_DESCRIPTION_EN = """Select bound skills and load their SOP do
 The bound skill catalog is in the <bound_skills> block at the start of the first user message in this conversation.
 Rules:
 1. Select skills listed in that <bound_skills> catalog → read and follow the returned SOP.
-2. Select each skill only ONCE — it stays available for the entire conversation (even after resume). Do NOT re-select; use skill_select_tool(file_path=...) for auxiliary files under scripts/, references/, templates/, or assets/, then bash_code_execute_tool to run.
+2. Select each skill only ONCE per conversation — its SOP remains active for all subsequent turns. Do NOT re-select; use skill_select_tool(file_path=...) for auxiliary files under scripts/, references/, templates/, or assets/, then execute via bash_code_execute_tool.
 3. You may select multiple skills if they help solve the user's problem.
 4. Skills with available="false" cannot be loaded — skip them.
 5. Do NOT confuse tools (_tool suffix, callable) with skills (_skill suffix, select via this tool only).

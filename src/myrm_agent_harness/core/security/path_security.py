@@ -11,19 +11,12 @@ module, ensuring a single set of definitions and consistent checks.
 - DANGEROUS_PATHS: frozenset[str] — normalised dangerous root paths
 - BLOCKED_DEVICE_NAMES: frozenset[str] — Windows reserved device names
 - SENSITIVE_FILE_PATTERNS: tuple[str, ...] — glob patterns for sensitive files
+- coerce_filesystem_path(value) -> Path | None — runtime path coercion; rejects unittest.mock objects
 - is_dangerous_path(path) -> bool — unified check function
 - is_blocked_device_path(path) -> bool — pre-IO device path blocklist check
 - is_sensitive_file(path) -> bool — sensitive file check function
 - is_within_boundary(target, boundary) -> bool — boundary check immune to symlink escape
 - safe_join_path(base_dir, user_input) -> Path — secure path resolution against traversal
-
-[INPUT]
-- (none)
-
-[OUTPUT]
-- is_dangerous_path: Check if *path* falls under any dangerous root.
-- is_blocked_device_path: Check if *path* refers to a blocked character/block/Windows device.
-- is_sensitive_file: Check if *path* matches any sensitive file pattern.
 
 [POS]
 Path security — single source of truth for dangerous paths and sensitive files.
@@ -229,6 +222,39 @@ def safe_join_path(base_dir: str | Path, user_input: str | Path) -> Path:
         raise ValueError(f"Path traversal detected: {user_input} resolves outside base directory")
 
     return final_virtual_path
+
+
+# ---------------------------------------------------------------------------
+# Path coercion (runtime type guard)
+# ---------------------------------------------------------------------------
+
+
+def _is_unittest_mock(value: object) -> bool:
+    """True when *value* is a unittest.mock object (implements os.PathLike via __fspath__)."""
+    return getattr(type(value), "__module__", "") == "unittest.mock"
+
+
+def coerce_filesystem_path(value: object) -> Path | None:
+    """Coerce a runtime value to a filesystem path, or return None if invalid.
+
+    Only ``str``, ``Path``, and non-mock ``os.PathLike`` are accepted. Rejects
+    MagicMock and other mock objects that implement ``__fspath__`` but stringify
+    to garbage directories when passed to ``Path()``/``mkdir()``.
+    """
+    if value is None:
+        return None
+    if _is_unittest_mock(value):
+        return None
+    if isinstance(value, Path):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        return Path(stripped)
+    if isinstance(value, os.PathLike):
+        return Path(value)
+    return None
 
 
 # ---------------------------------------------------------------------------

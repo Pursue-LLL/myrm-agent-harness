@@ -71,21 +71,55 @@ def delete_todos_sync_from_workspace(workspace_root: str) -> None:
         path.unlink()
 
 
-def merge_todo_items(current: list[TodoItem], incoming: list[TodoItem], *, merge: bool) -> list[TodoItem]:
+def merge_todo_items(
+    current: list[TodoItem],
+    incoming: list[TodoItem],
+    *,
+    merge: bool,
+) -> list[TodoItem]:
+    """Merge incoming items with existing ones.
+
+    When merge=False, replaces the list with incoming items (which must each have valid content).
+    When merge=True, updates existing items by id (inheriting previous content/status if omitted)
+    or appends newly created items.
+    """
     if not merge:
+        for idx, item in enumerate(incoming):
+            if not item.content:
+                msg = f"todos[{idx}].content is required when initializing or replacing task list"
+                raise ValueError(msg)
         return incoming
 
     by_id = {item.id: item for item in current}
     order: list[str] = [item.id for item in current]
-    for item in incoming:
-        if item.id not in by_id:
+
+    for idx, item in enumerate(incoming):
+        if item.id in by_id:
+            old_item = by_id[item.id]
+            resolved_content = item.content if item.content else old_item.content
+            resolved_status = item.status
+            by_id[item.id] = TodoItem(id=item.id, content=resolved_content, status=resolved_status)
+        else:
+            if not item.content:
+                msg = f"todos[{idx}].content is required for new item with id '{item.id}'"
+                raise ValueError(msg)
             order.append(item.id)
-        by_id[item.id] = item
+            by_id[item.id] = item
+
     return [by_id[item_id] for item_id in order if item_id in by_id]
 
 
-def parse_todo_payload(raw_items: list[object]) -> list[TodoItem]:
+def parse_todo_payload(raw_items: list[object], *, allow_empty_content: bool = False) -> list[TodoItem]:
+    """Parse raw todo objects into validated TodoItem instances.
+
+    Args:
+        raw_items: Raw list of dictionaries from tool arguments.
+        allow_empty_content: When True (used in merge mode), content may be empty to allow
+            partial status-only updates for existing items.
+    """
     parsed: list[TodoItem] = []
+    valid_statuses_str = ", ".join(f"'{s.value}'" for s in TodoStatus)
+
     for index, raw in enumerate(raw_items):
         if not isinstance(raw, dict):
             msg = f"todos[{index}] must be an object"
@@ -95,14 +129,14 @@ def parse_todo_payload(raw_items: list[object]) -> list[TodoItem]:
         if not item_id:
             msg = f"todos[{index}].id is required"
             raise ValueError(msg)
-        if not content:
+        if not content and not allow_empty_content:
             msg = f"todos[{index}].content is required"
             raise ValueError(msg)
         status_raw = str(raw.get("status", TodoStatus.PENDING.value)).strip()
         try:
             status = TodoStatus(status_raw)
         except ValueError as exc:
-            msg = f"todos[{index}].status is invalid: {status_raw}"
+            msg = f"todos[{index}].status '{status_raw}' is invalid. Valid statuses are: [{valid_statuses_str}]"
             raise ValueError(msg) from exc
         parsed.append(TodoItem(id=item_id, content=content, status=status))
     return parsed

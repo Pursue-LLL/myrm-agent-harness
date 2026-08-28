@@ -80,6 +80,22 @@ async def test_complete_goal_tool_with_criteria_pass(mock_provider):
 
 
 @pytest.mark.asyncio
+async def test_complete_goal_tool_idempotent_when_already_completed(mock_provider):
+    from myrm_agent_harness.agent.goals.types import GoalStatus
+
+    mock_goal = AsyncMock(spec=Goal)
+    mock_goal.goal_id = "g-already-done"
+    mock_goal.status = GoalStatus.COMPLETED
+    mock_provider.get_active_goal.return_value = mock_goal
+
+    tools = create_goal_tools(mock_provider, "sess-1")
+    complete_tool = tools[0]
+
+    result = await complete_tool.ainvoke({})
+    assert "already completed" in result.lower()
+
+
+@pytest.mark.asyncio
 async def test_complete_goal_tool_with_criteria_fail(mock_provider):
     mock_goal = AsyncMock(spec=Goal)
     mock_goal.goal_id = "g-1"

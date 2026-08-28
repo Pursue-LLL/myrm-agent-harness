@@ -3,16 +3,36 @@
 from __future__ import annotations
 
 import os
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from myrm_agent_harness.agent.security.path_security import (
     BLOCKED_DEVICE_NAMES,
     DANGEROUS_PATHS,
     SENSITIVE_FILE_PATTERNS,
+    coerce_filesystem_path,
     is_blocked_device_path,
     is_dangerous_path,
     is_sensitive_file,
 )
+
+
+class TestCoerceFilesystemPath:
+    """Test coerce_filesystem_path() runtime type guard."""
+
+    def test_none_and_empty_string(self) -> None:
+        assert coerce_filesystem_path(None) is None
+        assert coerce_filesystem_path("") is None
+        assert coerce_filesystem_path("   ") is None
+
+    def test_str_and_path(self) -> None:
+        assert coerce_filesystem_path("/tmp/ws") == Path("/tmp/ws")
+        assert coerce_filesystem_path(Path("/tmp/ws")) == Path("/tmp/ws")
+
+    def test_rejects_magicmock_and_arbitrary_objects(self) -> None:
+        assert coerce_filesystem_path(MagicMock()) is None
+        assert coerce_filesystem_path(123) is None
+        assert coerce_filesystem_path(["/tmp/ws"]) is None
 
 
 class TestDangerousPaths:

@@ -788,7 +788,7 @@ def test_canonical_params_completed_for_management_tools() -> None:
         "name_filter",
     ]
     assert TOOL_CANONICAL_PARAMS["delegate_task_tool"] == ["mode", "agent_type"]
-    assert TOOL_CANONICAL_PARAMS["delegate_to_agent_tool"] == ["agent_name"]
+    assert TOOL_CANONICAL_PARAMS["invoke_acp_agent_tool"] == ["agent_name"]
     assert TOOL_CANONICAL_PARAMS["subagent_control_tool"] == ["action", "task_id"]
     assert TOOL_CANONICAL_PARAMS["skill_manage_tool"] == ["action", "name"]
     assert TOOL_CANONICAL_PARAMS["skill_market_tool"] == ["action", "skill_id"]

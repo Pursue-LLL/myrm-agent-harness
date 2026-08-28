@@ -5,6 +5,7 @@ Provides monitoring and health inspection capabilities:
 - Auth failure detection (observability/auth_detector)
 - Health diagnostics and benchmarks (observability/diagnostics)
 - Request tracing context and log correlation (observability/tracing)
+- Runtime invariant assertions and registry (observability/invariants)
 
 [INPUT]
 - Exception (POS: LLM call exceptions for auth detection)
@@ -14,19 +15,34 @@ Provides monitoring and health inspection capabilities:
 - Metrics utilities (from observability/metrics)
 - Diagnostics (from observability/diagnostics)
 - Tracing primitives (TracingContext, TracingLogFilter, JsonFormatter)
+- Invariant registry and types (from observability/invariants)
 
 [POS]
 Observability tools for Myrm Agent framework. Provides passive metric collection,
-active health probing, auth failure detection, and request tracing context.
+active health probing, auth failure detection, request tracing context, and runtime invariants.
 """
 
 from .auth_detector import detect_auth_failure, get_auth_error_hint
+from .invariants import (
+    InvariantError,
+    InvariantMode,
+    InvariantSeverity,
+    InvariantViolation,
+    RuntimeInvariantRegistry,
+    default_invariant_registry,
+)
 from .tracing import JsonFormatter, TracingContext, TracingLogFilter
 
 __all__ = [
+    "InvariantError",
+    "InvariantMode",
+    "InvariantSeverity",
+    "InvariantViolation",
     "JsonFormatter",
+    "RuntimeInvariantRegistry",
     "TracingContext",
     "TracingLogFilter",
+    "default_invariant_registry",
     "detect_auth_failure",
     "get_auth_error_hint",
 ]

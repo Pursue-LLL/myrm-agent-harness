@@ -1,4 +1,4 @@
-"""Tests for tools.py — delegate_to_agent tool and _run_turn_and_collect."""
+"""Tests for tools.py — invoke_acp_agent_tool tool and _run_turn_and_collect."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 from myrm_agent_harness.toolkits.acp.acp_agent_tools import (
     MAX_TASK_BYTES,
     _run_turn_and_collect,
-    create_delegate_to_agent_tool,
+    create_invoke_acp_agent_tool,
 )
 from myrm_agent_harness.toolkits.acp.types import (
     AcpError,
@@ -42,8 +42,8 @@ class TestStableDelegateSchema:
     def test_description_identical_regardless_of_pool_backends(self) -> None:
         pool_empty = _make_pool()
         pool_many = _make_pool({"claude": _cfg("Claude"), "codex": _cfg("Codex")})
-        desc_empty = create_delegate_to_agent_tool(pool_empty, cwd="/workspace").description
-        desc_many = create_delegate_to_agent_tool(pool_many, cwd="/workspace").description
+        desc_empty = create_invoke_acp_agent_tool(pool_empty, cwd="/workspace").description
+        desc_many = create_invoke_acp_agent_tool(pool_many, cwd="/workspace").description
         assert desc_empty == desc_many
         assert "Available agents" not in desc_empty
 
@@ -56,7 +56,7 @@ class TestStableDelegateSchema:
             yield  # type: ignore[misc]
 
         pool.run_turn = raise_key_error
-        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
+        tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
         result = await tool_func.ainvoke({"agent_name": "nope", "task": "test", "mode": "persistent"})
         assert "Unknown backend" in result
         assert "Available backends: claude, codex" in result
@@ -65,15 +65,15 @@ class TestStableDelegateSchema:
 class TestCreateDelegateTool:
     def test_returns_tool_function(self) -> None:
         pool = _make_pool({"claude": _cfg()})
-        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
-        assert tool_func.name in ("delegate_to_agent_tool", "invoke_acp_agent_tool")
+        tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
+        assert tool_func.name == "invoke_acp_agent_tool"
         assert "Available agents" not in tool_func.description
         assert "configured backend" in tool_func.description
 
     @pytest.mark.asyncio
     async def test_invalid_mode(self) -> None:
         pool = _make_pool({"claude": _cfg()})
-        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
+        tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
         result = await tool_func.ainvoke({"agent_name": "claude", "task": "test", "mode": "bad"})
         assert "[error]" in result
         assert "Invalid mode" in result
@@ -81,7 +81,7 @@ class TestCreateDelegateTool:
     @pytest.mark.asyncio
     async def test_task_too_large(self) -> None:
         pool = _make_pool({"claude": _cfg()})
-        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
+        tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
         huge_task = "x" * (MAX_TASK_BYTES + 100)
         result = await tool_func.ainvoke({"agent_name": "claude", "task": huge_task, "mode": "persistent"})
         assert "[error]" in result
@@ -96,7 +96,7 @@ class TestCreateDelegateTool:
             yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
 
         pool.run_turn = fake_run_turn
-        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
+        tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
         result = await tool_func.ainvoke({"agent_name": "claude", "task": "write tests", "mode": "persistent"})
         assert "response text" in result
         assert "[Delegation:" in result
@@ -111,7 +111,7 @@ class TestCreateDelegateTool:
 
         pool.run_turn = raise_key_error
         pool.get_config = MagicMock(return_value=None)
-        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
+        tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
         result = await tool_func.ainvoke({"agent_name": "nope", "task": "test", "mode": "persistent"})
         assert "Unknown backend" in result
 
@@ -124,7 +124,7 @@ class TestCreateDelegateTool:
             yield  # type: ignore[misc]
 
         pool.run_turn = raise_error
-        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
+        tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
         result = await tool_func.ainvoke({"agent_name": "claude", "task": "test", "mode": "persistent"})
         assert "[error]" in result
         assert "boom" in result
@@ -145,7 +145,7 @@ class TestCreateDelegateTool:
             yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
 
         pool.run_turn = fail_then_succeed
-        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
+        tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
         result = await tool_func.ainvoke({"agent_name": "claude", "task": "test", "mode": "persistent"})
         assert "ok" in result
         assert call_count == 2
@@ -161,7 +161,7 @@ class TestCreateDelegateTool:
             yield  # type: ignore[misc]
 
         pool.run_turn = always_fail
-        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
+        tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
         result = await tool_func.ainvoke({"agent_name": "claude", "task": "test", "mode": "persistent"})
         assert "[error]" in result
         assert "always transient" in result
@@ -420,7 +420,7 @@ class TestDelegateToolWithUsageEmit:
             yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
 
         pool.run_turn = fake_run_turn
-        tool_func = create_delegate_to_agent_tool(pool, cwd="/workspace")
+        tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
         with patch("myrm_agent_harness.toolkits.acp.acp_agent_tools.get_tool_progress_sink", return_value=sink):
             result = await tool_func.ainvoke({"agent_name": "claude", "task": "test", "mode": "persistent"})
         assert "tokens=" in result

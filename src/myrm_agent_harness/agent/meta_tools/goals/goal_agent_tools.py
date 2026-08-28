@@ -36,9 +36,11 @@ def create_goal_tools(goal_provider: GoalProvider, session_id: str) -> list[Base
     async def complete_goal() -> str:
         """Mark the active goal as fully complete.
 
-        Use ONLY when the objective has ACTUALLY been achieved and NO required work remains.
-        Do not call this merely because the budget is nearly exhausted or because you are
-        stopping work. The semantic judge may also mark completion automatically.
+        Use ONLY when the entire objective has ACTUALLY been achieved and all required deliverables are verified.
+        Preconditions before calling:
+        - All planned subtasks/todos must be marked as completed.
+        - All defined acceptance criteria must be satisfied.
+        Do NOT call this tool merely because budget/turns are running low or because you are blocked.
         """
         goal = await goal_provider.get_active_goal(session_id)
         if not goal:
@@ -46,6 +48,9 @@ def create_goal_tools(goal_provider: GoalProvider, session_id: str) -> list[Base
 
         try:
             from myrm_agent_harness.agent.goals.types import GoalStatus
+
+            if getattr(goal, "status", None) == GoalStatus.COMPLETED:
+                return f"Goal {goal.goal_id} is already completed."
 
             if getattr(goal, "acceptance_criteria", None):
                 from myrm_agent_harness.agent.goals.verification import (

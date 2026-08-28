@@ -1731,7 +1731,7 @@ class TestOutboundDelegationCheck:
         tool_calls = [
             ToolCall(
                 type="tool_call",
-                name="delegate_to_agent_tool",
+                name="invoke_acp_agent_tool",
                 args={"task": "summarize document", "agent_type": "research"},
                 id="c1",
             ),
@@ -1768,7 +1768,7 @@ class TestOutboundDelegationCheck:
         tool_calls = [
             ToolCall(
                 type="tool_call",
-                name="delegate_to_agent_tool",
+                name="invoke_acp_agent_tool",
                 args={"task": "delete all files", "agent_type": "general"},
                 id="c1",
             ),
@@ -1807,7 +1807,7 @@ class TestOutboundDelegationCheck:
         tool_calls = [
             ToolCall(
                 type="tool_call",
-                name="delegate_to_agent_tool",
+                name="invoke_acp_agent_tool",
                 args={"task": "deploy to production", "agent_type": "devops"},
                 id="c1",
             ),
@@ -1837,7 +1837,7 @@ class TestOutboundDelegationCheck:
         tool_calls = [
             ToolCall(
                 type="tool_call",
-                name="delegate_to_agent_tool",
+                name="invoke_acp_agent_tool",
                 args={"task": "anything", "agent_type": "any"},
                 id="c1",
             ),
@@ -1867,7 +1867,7 @@ class TestOutboundDelegationCheck:
         tool_calls = [
             ToolCall(
                 type="tool_call",
-                name="delegate_to_agent_tool",
+                name="invoke_acp_agent_tool",
                 args={"task": "anything", "agent_type": "any"},
                 id="c1",
             ),
@@ -1906,7 +1906,7 @@ class TestOutboundDelegationCheck:
         tool_calls = [
             ToolCall(
                 type="tool_call",
-                name="delegate_to_agent_tool",
+                name="invoke_acp_agent_tool",
                 args={"task": "anything", "agent_type": "any"},
                 id="c1",
             ),
@@ -1941,7 +1941,7 @@ class TestOutboundDelegationCheck:
         tool_calls = [
             ToolCall(
                 type="tool_call",
-                name="delegate_to_agent_tool",
+                name="invoke_acp_agent_tool",
                 args={"task": "summarize", "agent_type": "research"},
                 id="c1",
             ),

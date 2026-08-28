@@ -72,7 +72,11 @@ def build_worker_tools(
 
     @tool("kanban_show")
     async def kanban_show(task_id: str = "") -> str:
-        """Show your current task fields (title, description, status, result, errors, metadata)."""
+        """Show your current task fields (title, description, status, result, errors, metadata).
+
+        Args:
+            task_id: Defaults to your assigned task.
+        """
         resolved_id = task_id or current_task_id or ""
         if not resolved_id:
             return json.dumps({"error": "task_id is required"})
@@ -144,8 +148,8 @@ def build_worker_tools(
 
         Args:
             reason: Clear reason for the blockage (required).
-            until: Optional ISO-8601 datetime or duration (e.g. '30m', '2h', '2026-06-01T04:00:00Z')
-                for auto-unblock. When set, the dispatcher will automatically unblock the task
+            until: Optional ISO-8601 datetime or duration (e.g. '30m', '2h', '1d', '2026-06-01T04:00:00Z')
+                for auto-unblock. When set, the system automatically unblocks the task
                 when the time arrives. Omit for human-intervention blocks.
             task_id: Defaults to your assigned task.
         """
@@ -201,7 +205,12 @@ def build_worker_tools(
 
     @tool("kanban_heartbeat")
     async def kanban_heartbeat(note: str, task_id: str = "") -> str:
-        """Report progress on your running task. Use to show real-time status updates."""
+        """Report progress on your running task. Use to show real-time status updates.
+
+        Args:
+            note: 1-2 sentence concise status update of what is currently executing (required).
+            task_id: Defaults to your assigned task.
+        """
         if not note:
             return json.dumps({"error": "note is required"})
         resolved_id = task_id or current_task_id or ""

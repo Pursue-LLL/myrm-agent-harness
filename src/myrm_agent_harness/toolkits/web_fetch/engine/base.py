@@ -61,6 +61,12 @@ from ..extractors.weixin_extractor import (
 from ..extractors.weixin_extractor import (
     is_weixin_article_url,
 )
+from ..extractors.x_extractor import (
+    extract_x_post as extract_x_post,
+)
+from ..extractors.x_extractor import (
+    is_x_url,
+)
 from ..extractors.youtube_extractor import (
     extract_youtube_transcript as extract_youtube_transcript,
 )
@@ -100,6 +106,7 @@ __all__ = [
     "FetchEngine",
     "SuccessResult",
     "extract_weixin_article",
+    "extract_x_post",
     "extract_youtube_transcript",
 ]
 
@@ -324,6 +331,25 @@ class FetchEngine(
                         logger.info("Weixin article browser degradation succeeded: %s", url)
                     else:
                         logger.warning("Weixin article fetch failed after degradation: %s", url)
+            elif is_x_url(url):
+                async with asyncio.timeout(self._crawl_timeout):
+                    doc = await extract_x_post(
+                        url,
+                        proxy_pool=self._http_fetcher._proxy_pool,
+                    )
+                if doc is not None:
+                    fetch_result = None
+                    logger.info("Twitter/X post fast-path succeeded: %s", url)
+                else:
+                    logger.info("Twitter/X post fast-path missed, degrading to standard fetch: %s", url)
+                    async with asyncio.timeout(self._crawl_timeout):
+                        doc, fetch_result = await self._crawl_with_degradation(
+                            url,
+                            etag=etag,
+                            last_modified=last_modified,
+                            max_chars=max_chars,
+                            allow_escalation=allow_escalation,
+                        )
             else:
                 async with asyncio.timeout(self._crawl_timeout):
                     doc, fetch_result = await self._crawl_with_degradation(

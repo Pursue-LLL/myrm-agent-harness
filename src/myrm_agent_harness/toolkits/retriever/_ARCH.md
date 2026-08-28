@@ -29,6 +29,7 @@ Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 | `splitter/` | Document chunking strategies |
 | `sufficiency/` | RSG post-retrieval sufficiency guard — [sufficiency/_ARCH.md](sufficiency/_ARCH.md) |
 | `vector_search/` | In-memory / backend vector search helpers |
+| `ingest/` | Dual-Lane Ingest Pipeline with bounded backpressure — [ingest/_ARCH.md](ingest/_ARCH.md) |
 
 ## Key Dependencies
 

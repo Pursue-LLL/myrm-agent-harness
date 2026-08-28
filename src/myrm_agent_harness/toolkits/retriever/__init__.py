@@ -12,6 +12,22 @@ if TYPE_CHECKING:
     )
     from myrm_agent_harness.toolkits.retriever.hybrid_retriever import hybrid_retriever
     from myrm_agent_harness.toolkits.retriever.hybrid_search import HybridSearchCoordinator
+    from myrm_agent_harness.toolkits.retriever.ingest import (
+        BatchEmbedConsumer,
+        Chunk,
+        DirNode,
+        DirSummarizerFunc,
+        DirTreeBuilder,
+        DualLaneIngestPipeline,
+        EndOfTask,
+        IngestEvent,
+        IngestStats,
+        ObjectProducerFunc,
+        TaskEnvelope,
+        TaskStatus,
+        ancestor_dirs,
+        dir_depth,
+    )
     from myrm_agent_harness.toolkits.retriever.qdrant_retrieval import QdrantRetriever
     from myrm_agent_harness.toolkits.retriever.reranker import RerankerConfig, RerankerService, get_reranker_service
     from myrm_agent_harness.toolkits.retriever.splitter import TextChunker

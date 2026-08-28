@@ -497,7 +497,7 @@ class TestCodingYamlIntegration:
         config = loader.load_from_yaml(coding_yaml_path, expected_name="coding")
 
         assert config is not None
-        assert "delegate_to_agent_tool" in config.tools
+        assert "invoke_acp_agent_tool" in config.tools
 
     def test_coding_yaml_blocks_privileged_tools(self, coding_yaml_path):
         """Test that coding preset correctly blocks skill management tools."""
@@ -573,7 +573,7 @@ class TestDeepAuditYamlIntegration:
             "file_edit_tool",
             "skill_manage_tool",
             "skill_market_tool",
-            "delegate_to_agent_tool",
+            "invoke_acp_agent_tool",
         }
         assert write_tools.issubset(config.disallowed_tools)
 
@@ -583,7 +583,7 @@ class TestDeepAuditYamlIntegration:
 
         assert config is not None
         assert config.max_spawn_depth == 0
-        assert "delegate_to_agent_tool" in config.disallowed_tools
+        assert "invoke_acp_agent_tool" in config.disallowed_tools
 
     def test_deep_audit_config_values(self, deep_audit_yaml_path):
         from myrm_agent_harness.agent.sub_agents.types import MemoryIsolationPolicy, WorkspacePolicy

@@ -29,7 +29,7 @@ class TestToolPermissionMap:
         assert TOOL_PERMISSION_MAP["web_fetch_tool"] == "net_fetch"
 
     def test_agent_and_cron_tools_map_correctly(self):
-        assert TOOL_PERMISSION_MAP["delegate_to_agent_tool"] == "delegate_agent"
+        assert TOOL_PERMISSION_MAP["invoke_acp_agent_tool"] == "delegate_agent"
         assert TOOL_PERMISSION_MAP["cron_manage_tool"] == "cron_manage"
         assert TOOL_PERMISSION_MAP["skill_manage_tool"] == "skill_manage"
 
@@ -83,7 +83,7 @@ class TestResolvePermissionType:
         assert resolve_permission_type("skill_search_tool") == "skill_search_tool"
 
     def test_mapped_agent_tools_return_permission_type(self):
-        assert resolve_permission_type("delegate_to_agent_tool") == "delegate_agent"
+        assert resolve_permission_type("invoke_acp_agent_tool") == "delegate_agent"
         assert resolve_permission_type("cron_manage_tool") == "cron_manage"
         assert resolve_permission_type("skill_manage_tool") == "skill_manage"
 
@@ -225,8 +225,8 @@ class TestSafetyMetadata:
             assert meta.is_concurrent_safe is True, f"{tool} should be concurrent-safe"
             assert meta.is_read_only is False, f"{tool} should not be read-only"
 
-    def test_delegate_to_agent_not_concurrent(self):
-        meta = resolve_safety_metadata("delegate_to_agent_tool")
+    def test_invoke_acp_agent_tool_not_concurrent(self):
+        meta = resolve_safety_metadata("invoke_acp_agent_tool")
         assert meta.is_concurrent_safe is False
         assert meta.is_read_only is False
 

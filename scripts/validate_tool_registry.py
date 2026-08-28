@@ -65,7 +65,10 @@ _FORBIDDEN_BINDMODE_PATTERNS = (
     re.compile(r"\bToolBindMode\.DISCOVERABLE\b"),
     re.compile(r"\bDISCOVERABLE\s*="),
 )
-_FORBIDDEN_CATALOG_INVOKE_PATTERNS = (
+_FORBIDDEN_LEGACY_ACP_TOOL_PATTERNS = (
+    re.compile(r"\bdelegate_to_agent_tool\b"),
+    re.compile(r"\bcreate_delegate_to_agent_tool\b"),
+)
     re.compile(r"\bcapability_invoke_tool\b"),
     re.compile(r"\bsync_capability_invoke_tool\b"),
     re.compile(r"\bbind_economics\b"),
@@ -93,6 +96,11 @@ _FORBIDDEN_TERM_FILE_EXCLUDES = frozenset(
 def _scan_forbidden_bindmode_terms() -> list[tuple[Path, int, str]]:
     """Detect legacy deferred API names in agent tool-management code paths."""
     return _scan_forbidden_patterns(_FORBIDDEN_BINDMODE_PATTERNS)
+
+
+def _scan_forbidden_legacy_acp_tool_terms() -> list[tuple[Path, int, str]]:
+    """Detect removed delegate_to_agent_tool legacy naming."""
+    return _scan_forbidden_patterns(_FORBIDDEN_LEGACY_ACP_TOOL_PATTERNS)
 
 
 def _scan_forbidden_catalog_invoke_terms() -> list[tuple[Path, int, str]]:
@@ -142,7 +150,7 @@ _CANONICAL_REQUIRED_TOOLS: frozenset[str] = frozenset(
     {
         "cron_manage_tool",
         "delegate_task_tool",
-        "delegate_to_agent_tool",
+        "invoke_acp_agent_tool",
         "skill_manage_tool",
         "subagent_control_tool",
     }
@@ -671,6 +679,7 @@ def main() -> int:
     catalog_invoke_violations = (
         [] if args.incremental else _scan_forbidden_catalog_invoke_terms()
     )
+    legacy_acp_violations = [] if args.incremental else _scan_forbidden_legacy_acp_tool_terms()
     from myrm_agent_harness.agent.tool_management.tool_catalog import (
         validate_tool_catalog,
     )
@@ -692,6 +701,7 @@ def main() -> int:
         or metadata_ghosts
         or bindmode_violations
         or catalog_invoke_violations
+        or legacy_acp_violations
         or catalog_errors
         or parity_errors
         or governance_errors
@@ -752,6 +762,20 @@ def main() -> int:
             print(
                 "  Fix: MCP overflow must use Direct FC or MCP PTC only; "
                 "see FRAMEWORK_DESIGN_PRINCIPLES.md §7."
+            )
+        if legacy_acp_violations:
+            print(
+                f"FAIL - {len(legacy_acp_violations)} forbidden legacy ACP tool name(s):"
+            )
+            for path, line_no, line in legacy_acp_violations:
+                try:
+                    display = path.relative_to(_repo_root)
+                except ValueError:
+                    display = path
+                print(f"  - {display}:{line_no}: {line}")
+            print(
+                "  Fix: use invoke_acp_agent_tool / create_invoke_acp_agent_tool only; "
+                "delegate_to_agent_tool was removed."
             )
         if catalog_errors:
             print(f"FAIL - {len(catalog_errors)} tool catalog metadata issue(s):")

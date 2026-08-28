@@ -403,8 +403,8 @@ acp/
 三层架构将框架能力接入到实际产品：
 
 1. **配置层**：`UserConfig` 表 `config_key='externalAgents'`，JSON 格式 `{"agents": [{name, type, command, args, enabled, ...}]}`
-2. **注入层**：`GeneralAgent._setup_external_agents()` 从配置创建 `RuntimePool` + `delegate_to_agent_tool` 工具
-3. **执行层**：LLM 自主决定是否使用 `delegate_to_agent_tool` 委托任务给外部 Agent
+2. **注入层**：`GeneralAgent._setup_external_agents()` 从配置创建 `RuntimePool` + `invoke_acp_agent_tool` 工具
+3. **执行层**：LLM 自主决定是否使用 `invoke_acp_agent_tool` 委托任务给外部 Agent
 
 **增强功能**：
 - **本地模式自动发现**：本地部署时自动探测 claude/codex/gemini CLI
@@ -414,21 +414,21 @@ acp/
 - **容错处理**：外部 Agent 配置失败不影响主 Agent 功能
 - **前端名称唯一性校验**：保存时检测重复 Agent 名称，防止配置冲突
 - **命令可用性测试**（本地模式）：通过 `POST /channels/manage/external-agents/test` 检测命令是否存在并返回版本信息
-- **流式事件消费**：`delegate_to_agent_tool` 通过 `pool.run_turn()` 逐事件消费，实时日志输出工具调用和状态更新，返回结果包含 tool_calls 计数等元数据
-- **前端实时进度推送**：通过 ContextVar + `ToolProgressSink` 机制，`delegate_to_agent_tool` 在执行期间将外部 Agent 的工具调用和状态事件实时推送至前端 SSE 流（复用 `TASKS_STEPS` 事件类型，前端零改动）
+- **流式事件消费**：`invoke_acp_agent_tool` 通过 `pool.run_turn()` 逐事件消费，实时日志输出工具调用和状态更新，返回结果包含 tool_calls 计数等元数据
+- **前端实时进度推送**：通过 ContextVar + `ToolProgressSink` 机制，`invoke_acp_agent_tool` 在执行期间将外部 Agent 的工具调用和状态事件实时推送至前端 SSE 流（复用 `TASKS_STEPS` 事件类型，前端零改动）
 - **前端预设模板**：新增模式下提供 Claude Code / Codex CLI / Gemini CLI 一键填充，降低配置门槛
 - **委派取消传播**：CancellationToken → pool.cancel() → backend.cancel()，全链路级联终止
 - **Max Turns 双层安全护栏**：Layer 1 传递 CLI `--max-turns` 参数（Claude Code 原生优雅停止），Layer 2 在 delegate_tool 事件循环中统计 TOOL_START 计数并在超限时 pool.cancel()（所有后端通用兜底）
-- **稳定 Tool Schema**：`delegate_to_agent_tool` 使用固定 tool description（不含动态 agent 列表），保护 Turn1 Prompt Cache；`agent_name` 无效时错误响应列出 `available_backends`
+- **稳定 Tool Schema**：`invoke_acp_agent_tool` 使用固定 tool description（不含动态 agent 列表），保护 Turn1 Prompt Cache；`agent_name` 无效时错误响应列出 `available_backends`
 - **Deploy 门控（Server）**：`external_cli_deploy.is_external_cli_deploy_supported()` + profile `strip_deploy_incompatible_builtin_tools`；沙箱自动剔除 `external_cli`；BuiltinToolsPanel sandbox 硬禁用 toggle
 - **MCP 会话注入**：`RuntimePool.run_turn` → `AcpRuntime.new_session(mcp_servers=…)`（无 MCP 时 Server 不传参数（None）；`RuntimeConfig.mcp_servers` 为配置源；注入前经 `capabilities.supports_mcp` 能力守卫，跳过不支持的 backends 并记录 `pool_mcp_skipped`）
 - **Host 会话级 MCP 忽略诊断**：ACP Server 侧（`new_session` / `load_session` / `fork_session` / `resume_session`）若收到 host 传入的 `mcp_servers`，记录 `acp_host_mcp_ignored` WARNING —— Myrm 内部 agent 管线自行管理 MCP，host 提供的会话级 MCP 注入不被透传，显式告警避免静默丢失
 - **Spawn 误配提示**：`runtime/_spawn_hints.format_cli_spawn_failure_message` 在 bare CLI 进程失败时返回 adapter 配置指引
 - **跨平台进程组清理**：`CliRuntime` 创建进程组，cancel 时级联终止子进程，确保跨平台（Unix/Windows）无孤儿进程遗留
-- **委派取消传播**：通过 ContextVar 传递 `CancellationToken`，用户取消主 Agent 时 `delegate_to_agent_tool` 的事件消费循环检测取消信号，调用 `pool.cancel()` → `backend.cancel()` 级联终止外部进程，避免"幽灵进程"继续消耗资源
+- **委派取消传播**：通过 ContextVar 传递 `CancellationToken`，用户取消主 Agent 时 `invoke_acp_agent_tool` 的事件消费循环检测取消信号，调用 `pool.cancel()` → `backend.cancel()` 级联终止外部进程，避免"幽灵进程"继续消耗资源
 - **直连路由模式**：`force_delegate_agent` 参数允许前端绕过 LangChain Agent，直接将请求路由到指定外部 Agent，零 LLM 开销、零延迟的流式响应
 - **流式文本推送**：`_direct_delegate_stream` 将 RuntimeEvent 实时转换为前端 SSE 事件（MESSAGE / REASONING / TASKS_STEPS / TOKEN_USAGE / ERROR），实现外部 Agent 响应的逐字流式展示。连接前发送 connecting 状态，完成后发送 completed 状态，提供全生命周期进度反馈
-- **REASONING_DELTA 前端传递**：`delegate_to_agent_tool` 工具将外部 Agent 的思维链（REASONING_DELTA）通过 `ToolProgressSink` 实时推送至前端，用户可看到外部 Agent 的推理过程
+- **REASONING_DELTA 前端传递**：`invoke_acp_agent_tool` 工具将外部 Agent 的思维链（REASONING_DELTA）通过 `ToolProgressSink` 实时推送至前端，用户可看到外部 Agent 的推理过程
 - **CLI Session 复用**：`CliRuntime` 捕获 CLI 返回的 session_id，后续调用自动注入 `--resume` 参数，实现多轮对话上下文保持（支持 claude CLI）；**resume 失效自愈**——注入 `--resume` 后进程无输出崩溃（PROCESS_CRASHED）时自动丢弃失效 session_id，重试降级开新会话，避免拿着过期 id 二次失败
 - **Per-backend 并发串行化**：`RuntimePool.run_turn` 在全局 Semaphore 之外对同一 backend 增 per-backend `asyncio.Lock`，保证单后端实例（如 CliRuntime 的可变进程句柄）同时只跑一个 turn；`cancel()` 不取该锁（调用方在 turn 循环内取消，无死锁），不同 backend 仍可并行
 - **超时/异常进程清理**：`BaseRuntime.run_turn` 在超时或意外异常分支先 `cancel()` 再产出 ERROR 事件，终止可能仍存活的外部 CLI 进程，杜绝超时后孤儿进程在后台继续消耗资源

@@ -32,11 +32,11 @@ class ToolLayer(IntEnum):
 
     设计目标:最大化 Prompt Cache 命中率
 
-    层级说明:
-    - CORE: 核心工具,始终存在,不可关闭
-    - COMMON: 通用工具,默认存在,前端可控制开关
-    - EXTENDED: harness 可选能力,按需 Turn1 加载
-    - EXTERNAL: 框架外来源(server vendor / MCP direct / OpenAPI / 未登记动态工具)
+    层级说明与架构定位:
+    - CORE (Layer 1): 核心基线工具，100% 始终存在，无前端开关，不可关闭（保证终极前缀缓存）
+    - COMMON (Layer 2): 通用标配工具，默认全局开启（Default-ON），但支持前端/配置按需关闭（User-Togglable，如隐私无痕或离线搜索模式）
+    - EXTENDED (Layer 3): harness 可选扩展能力，按需装配（Profile 开关或特定意图触发），默认不全开
+    - EXTERNAL (Layer 4): 框架外扩展（server vendor / MCP direct / OpenAPI / 动态工具），永远位于末尾
     """
 
     CORE = 1
@@ -48,9 +48,9 @@ class ToolLayer(IntEnum):
 # 工具层级注册表
 #
 # 设计原则:
-# 1. 始终加载的工具放 CORE,永远在最前面,缓存稳定
-# 2. 默认开启但可关的工具放 COMMON,在中间
-# 3. harness 可选工具放 EXTENDED
+# 1. 始终加载的工具放 CORE,永远在最前面,保证绝对前缀缓存稳定
+# 2. 默认开启但支持用户关闭的标配工具放 COMMON（Default-ON, User-Togglable）,在中间; 组内 web_search 优先置顶
+# 3. harness 可选/重型能力工具放 EXTENDED
 # 4. 框架外工具(server vendor / MCP / OpenAPI)放 EXTERNAL,永远在最后
 #
 # 排序规则:按层级排序; COMMON 层内 web_search 优先于 memory 组，其余按名称字母序

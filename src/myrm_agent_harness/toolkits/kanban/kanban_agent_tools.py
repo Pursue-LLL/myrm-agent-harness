@@ -138,7 +138,7 @@ def create_kanban_tools(
 
     Modes:
         worker: 6 tools (show/complete/block/heartbeat/comment/attach).
-        orchestrator: 5 tools (add_task/list_tasks/unblock/cancel_task/retry_task).
+        orchestrator: 6 tools (add_task/list_tasks/unblock/cancel_task/retry_task/revise_plan).
 
     When mode='worker', tools auto-bind to ``current_task_id`` and enforce
     ownership — the agent cannot operate on other tasks (except comments,

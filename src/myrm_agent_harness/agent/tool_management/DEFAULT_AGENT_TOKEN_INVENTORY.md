@@ -41,11 +41,13 @@
 
 ---
 
-## 三、COMMON 工具层（注册 4 个；web_search + memory 三件套）
+## 三、COMMON 工具层（注册 4 个；通用标配层 · Default-ON, User-Togglable）
+
+**架构定位**：生产级 Agent 的通用标配工具，**默认开箱即用 100% 开启（Default-ON）**，但允许用户在前端设置中按需手动关闭（User-Togglable，如无痕对话 `incognito_mode` 关闭记忆，或纯离线环境关闭网络搜索）。
 
 默认 Turn1 bind：**web_search + memory×3**（`DEFAULT_ENABLED_BUILTIN_TOOLS` 含 memory；`todo_write` 与 `request_answer_user_tool` 默认不 bind，见各 opt-in 开关）。
 
-组内排序（`get_tool_registry_sort_key`）：**web_search → memory 块**。
+组内排序（`get_tool_registry_sort_key`）：**web_search (Rank 0) → memory 块 (Rank 10~12)**。
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
@@ -93,7 +95,7 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 | 28 | delegate_task_tool | TBD | `harness/agent/meta_tools/spawn_subagent/delegate_task_tool.py` | 统一委派（mode=single\|batch\|parallel） |
 | 29 | subagent_control_tool | TBD | `harness/agent/meta_tools/spawn_subagent/agent_manage_tool.py` | 运行时控制（action=list\|cancel\|steer） |
 | 30 | send_teammate_message_tool | 40 | `harness/agent/meta_tools/spawn_subagent/send_teammate_tool.py` | Orchestrator 子 Agent P2P 通信 |
-| 31 | delegate_to_agent_tool | 216 | `harness/toolkits/acp/acp_agent_tools.py` | ACP 协议 Agent 委托（有 ACP 配置时） |
+| 31 | invoke_acp_agent_tool | 216 | `harness/toolkits/acp/acp_agent_tools.py` | ACP 协议 Agent 委托（有 ACP 配置时） |
 
 ### 4.7 浏览器工具（启用浏览器时加载）
 
