@@ -18,8 +18,8 @@ Boundary: single-sandbox, single-process semantics; router persistence path is i
 web_fetch.fetchers.http_fetcher::HttpFetcher (POS: L1 HTTP fetcher with optional HTTP/3 retry)
 web_fetch.fetchers.browser_fetcher::BrowserFetcher (POS: L2 browser-based fetcher)
 web_fetch.fetchers.protocol::FetcherType, FetchResult (POS: Fetcher protocol types)
-web_fetch.antibot_detector::is_blocked (POS: Anti-bot detection)
-web_fetch.http3_probe::get_http3_retry_metrics (POS: QUIC egress probe and L1 retry metrics)
+web_fetch.processing.antibot_detector::is_blocked (POS: Anti-bot detection)
+web_fetch.probe.http3_probe::get_http3_retry_metrics (POS: QUIC egress probe and L1 retry metrics)
 web_fetch.router.adaptive_router::AdaptiveRouter (POS: Self-learning fetcher router)
 web_fetch.youtube_extractor::is_youtube_url, extract_youtube_transcript (POS: YouTube transcript fast-path extractor with oEmbed metadata)
 browser.pool.proxy::ProxyPool (POS: Proxy pool for browser fetchers)
@@ -76,8 +76,8 @@ from ..extractors.youtube_extractor import (
 from ..fetchers.browser_fetcher import BrowserFetcher
 from ..fetchers.http_fetcher import HttpFetcher
 from ..fetchers.stealth_fetcher import StealthFetcher
-from ..http3_probe import get_http3_retry_metrics
-from ..pipeline import ContentPipeline
+from ..probe.http3_probe import get_http3_retry_metrics
+from ..processing.pipeline import ContentPipeline
 from ..router.adaptive_router import AdaptiveRouter, RouterStats
 from .cache_mixin import FetchEngineCacheMixin
 from .escalation_mixin import FetchEngineEscalationMixin
@@ -212,7 +212,7 @@ class FetchEngine(
         """Crawl a single URL, return Document or None."""
         self._ensure_workers_started()
 
-        from ..url_normalizer import normalize_url
+        from ..processing.url_normalizer import normalize_url
 
         if not self._allow_private_networks:
             from myrm_agent_harness.core.security.guards.ssrf import (

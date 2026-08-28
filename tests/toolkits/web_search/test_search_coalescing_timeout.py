@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
-from myrm_agent_harness.toolkits.web_search import search_coalescing as sc
-from myrm_agent_harness.toolkits.web_search.search_coalescing import (
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.coalescing import search_coalescing as sc
+from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import (
     await_coalesced_search,
     reset_search_coalescing_state_for_tests,
 )

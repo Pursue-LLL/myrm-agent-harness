@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from myrm_agent_harness.toolkits.web_search.exceptions import SearchAPIError
-from myrm_agent_harness.toolkits.web_search.volcengine_doubao_search import (
+from myrm_agent_harness.toolkits.web_search.core.exceptions import SearchAPIError
+from myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search import (
     VolcengineDoubaoSearch,
 )
 
@@ -44,7 +44,7 @@ async def test_volcengine_search_parses_web_results() -> None:
     mock_http.__aexit__ = AsyncMock(return_value=None)
 
     with patch(
-        "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+        "myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search.create_httpx_client",
         return_value=mock_http,
     ):
         results = await client.search("test query", num_results=3)
@@ -78,7 +78,7 @@ async def test_volcengine_search_raises_on_api_error_code() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            "myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search.create_httpx_client",
             return_value=mock_http,
         ),
         pytest.raises(SearchAPIError, match="10406"),
@@ -99,7 +99,7 @@ async def test_volcengine_search_raises_on_http_429() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            "myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search.create_httpx_client",
             return_value=mock_http,
         ),
         pytest.raises(SearchAPIError, match="429"),
@@ -140,7 +140,7 @@ async def test_volcengine_search_timeout_raises() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            "myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search.create_httpx_client",
             return_value=mock_http,
         ),
         pytest.raises(SearchAPIError, match="timed out"),
@@ -158,7 +158,7 @@ async def test_volcengine_search_http_error_raises() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            "myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search.create_httpx_client",
             return_value=mock_http,
         ),
         pytest.raises(SearchAPIError, match="HTTP error"),
@@ -178,7 +178,7 @@ async def test_volcengine_search_http_500_raises() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            "myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search.create_httpx_client",
             return_value=mock_http,
         ),
         pytest.raises(SearchAPIError, match="HTTP 500"),
@@ -198,7 +198,7 @@ async def test_volcengine_search_invalid_json_raises() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+            "myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search.create_httpx_client",
             return_value=mock_http,
         ),
         pytest.raises(SearchAPIError, match="invalid JSON"),
@@ -222,7 +222,7 @@ async def test_volcengine_search_empty_or_malformed_results() -> None:
     mock_http.__aexit__ = AsyncMock(return_value=None)
 
     with patch(
-        "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+        "myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search.create_httpx_client",
         return_value=mock_http,
     ):
         assert await client.search("empty block", num_results=1) == []
@@ -234,7 +234,7 @@ async def test_volcengine_search_empty_or_malformed_results() -> None:
     mock_response2.request = httpx.Request("POST", "https://example.com")
     mock_http.post = AsyncMock(return_value=mock_response2)
     with patch(
-        "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+        "myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search.create_httpx_client",
         return_value=mock_http,
     ):
         results = await client.search("partial", num_results=1)
@@ -266,7 +266,7 @@ async def test_volcengine_search_summary_backfills_snippet() -> None:
     mock_http.__aexit__ = AsyncMock(return_value=None)
 
     with patch(
-        "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
+        "myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search.create_httpx_client",
         return_value=mock_http,
     ):
         results = await client.search("summary only", num_results=1)

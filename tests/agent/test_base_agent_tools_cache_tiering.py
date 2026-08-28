@@ -67,7 +67,7 @@ async def test_add_tools_sorting_when_cached_exists(mock_agent):
     t1 = DummyTool(name="bash_code_execute_tool")  # CORE
     mock_agent._cached_tools = [t1]
 
-    t2 = DummyTool(name="skill_select_tool")  # EXTENDED
+    t2 = DummyTool(name="skill_manage_tool")  # EXTENDED
     t3 = DummyTool(name="web_search_tool")  # COMMON
     t4 = DummyTool(name="file_read_tool")  # CORE
 
@@ -78,4 +78,4 @@ async def test_add_tools_sorting_when_cached_exists(mock_agent):
     assert mock_agent._cached_tools[0].name == "bash_code_execute_tool"
     assert mock_agent._cached_tools[1].name == "file_read_tool"
     assert mock_agent._cached_tools[2].name == "web_search_tool"
-    assert mock_agent._cached_tools[3].name == "skill_select_tool"
+    assert mock_agent._cached_tools[3].name == "skill_manage_tool"

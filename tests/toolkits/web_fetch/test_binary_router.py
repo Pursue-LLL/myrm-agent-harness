@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch.binary_router import (
+from myrm_agent_harness.toolkits.web_fetch.processing.binary_router import (
     _detect_extension_from_content_type,
     _detect_extension_from_disposition,
     _detect_extension_from_magic,

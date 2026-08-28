@@ -33,10 +33,10 @@ class ToolLayer(IntEnum):
     设计目标:最大化 Prompt Cache 命中率
 
     层级说明与架构定位:
-    - CORE (Layer 1): 核心基线工具，100% 始终存在，无前端开关，不可关闭（保证终极前缀缓存）
-    - COMMON (Layer 2): 通用标配工具，默认全局开启（Default-ON），但支持前端/配置按需关闭（User-Togglable，如隐私无痕或离线搜索模式）
-    - EXTENDED (Layer 3): harness 可选扩展能力，按需装配（Profile 开关或特定意图触发），默认不全开
-    - EXTERNAL (Layer 4): 框架外扩展（server vendor / MCP direct / OpenAPI / 动态工具），永远位于末尾
+    - CORE (Layer 1): 核心层基线工具，100% 始终存在，无前端开关，不可关闭（保证终极前缀缓存）
+    - COMMON (Layer 2): 高优层标配工具，默认全局开启/挂载（Default-ON），支持前端/配置按需关闭（User-Togglable，如搜索、记忆、技能选择）
+    - EXTENDED (Layer 3): 扩展层可选高级能力，按需装配（Profile 开关或特定意图触发），默认关闭不全开
+    - EXTERNAL (Layer 4): 外部业务层工具（非 harness 内置，server vendor / MCP direct / OpenAPI / 动态工具），永远位于末尾
     """
 
     CORE = 1
@@ -75,14 +75,16 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "glob_tool": ToolLayer.CORE,
     "grep_tool": ToolLayer.CORE,
     # ============================================================
-    # COMMON - 默认开启但用户可在 GUI 关闭（放中间；组内 web_search 优先于 memory）
+    # COMMON - 高优层：默认开启/挂载，支持前端/配置按需关闭（User-Togglable）
+    # 组内严格排序：搜索工具 (Rank 0) -> 记忆工具 (Rank 10~12) -> 技能选择工具 (Rank 20)
     # ============================================================
     "web_search_tool": ToolLayer.COMMON,
     "memory_search_tool": ToolLayer.COMMON,
     "memory_save_tool": ToolLayer.COMMON,
     "memory_manage_tool": ToolLayer.COMMON,
+    "skill_select_tool": ToolLayer.COMMON,
     # ============================================================
-    # EXTENDED - harness 可选能力(Turn1 按需); EXTERNAL 在其后, 见 get_tool_layer 默认 fallback
+    # EXTENDED - 扩展层：harness 可选高级能力(Turn1 按需); EXTERNAL 在其后, 见 get_tool_layer 默认 fallback
     # ============================================================
     # --- ACP（Agent Communication Protocol）---
     "invoke_acp_agent_tool": ToolLayer.EXTENDED,
@@ -128,7 +130,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "skill_search_tool": ToolLayer.EXTENDED,
     "skill_market_tool": ToolLayer.EXTENDED,
     "skill_manage_tool": ToolLayer.EXTENDED,
-    "skill_select_tool": ToolLayer.EXTENDED,
     # --- Sub-Agent 管理 ---
     "delegate_task_tool": ToolLayer.EXTENDED,
     "subagent_control_tool": ToolLayer.EXTENDED,
@@ -140,17 +141,17 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
 }
 
 
-# COMMON 层组内排序：web_search 优先置顶，记忆三件套紧随其后（组内仍按 rank 稳定排序）
+# COMMON 层组内排序：web_search 优先置顶，记忆三件套紧随其后，技能选择工具承接（组内按 rank 稳定排序）
 _COMMON_LAYER_SORT_RANK: dict[str, int] = {
     "web_search_tool": 0,
     "memory_manage_tool": 10,
     "memory_search_tool": 11,
     "memory_save_tool": 12,
+    "skill_select_tool": 20,
 }
 
-# EXTENDED: skill cluster first so toggling other EXTENDED tools preserves skill prefix cache.
+# EXTENDED: remaining skill tools cluster first so toggling other EXTENDED tools preserves skill prefix cache.
 _EXTENDED_LAYER_SORT_RANK: dict[str, int] = {
-    "skill_select_tool": 0,
     "skill_search_tool": 1,
     "skill_manage_tool": 2,
     "skill_market_tool": 3,

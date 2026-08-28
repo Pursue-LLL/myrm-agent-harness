@@ -2,8 +2,8 @@
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch.content_pruning import ContentPruningFilter
-from myrm_agent_harness.toolkits.web_fetch.markdown_generator import MarkdownGenerator, MarkdownResult
+from myrm_agent_harness.toolkits.web_fetch.processing.content_pruning import ContentPruningFilter
+from myrm_agent_harness.toolkits.web_fetch.processing.markdown_generator import MarkdownGenerator, MarkdownResult
 
 
 def test_markdown_generator_initialization():

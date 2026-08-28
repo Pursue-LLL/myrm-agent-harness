@@ -1,6 +1,6 @@
 """Tests for web fetch markdown sanitization."""
 
-from myrm_agent_harness.toolkits.web_fetch.content_sanitize import (
+from myrm_agent_harness.toolkits.web_fetch.processing.content_sanitize import (
     strip_base64_images_from_markdown,
 )
 

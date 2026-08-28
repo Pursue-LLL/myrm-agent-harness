@@ -43,6 +43,7 @@ class TestGetToolLayer:
             "memory_search_tool",
             "memory_save_tool",
             "memory_manage_tool",
+            "skill_select_tool",
         ]
         for tool in common_tools:
             assert get_tool_layer(tool) == ToolLayer.COMMON, f"{tool} should be COMMON"
@@ -51,7 +52,6 @@ class TestGetToolLayer:
         extended_tools = [
             "todo_write",
             "request_answer_user_tool",
-            "skill_select_tool",
             "skill_manage_tool",
             "browser_navigate_tool",
         ]
@@ -108,6 +108,7 @@ class TestCommonLayerSortKey:
 
         reg = ToolRegistry()
         for name in (
+            "skill_select_tool",
             "memory_manage_tool",
             "memory_search_tool",
             "memory_save_tool",
@@ -118,4 +119,5 @@ class TestCommonLayerSortKey:
         assert names.index("web_search_tool") < names.index("memory_manage_tool")
         assert names.index("web_search_tool") < names.index("memory_search_tool")
         assert names.index("web_search_tool") < names.index("memory_save_tool")
+        assert names.index("memory_save_tool") < names.index("skill_select_tool")
 

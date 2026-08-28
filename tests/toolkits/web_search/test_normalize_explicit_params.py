@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_search._explicit_params import (
+from myrm_agent_harness.toolkits.web_search.processing._explicit_params import (
     apply_tavily_site_constraint,
     normalize_explicit_params,
     tavily_time_range_to_days,

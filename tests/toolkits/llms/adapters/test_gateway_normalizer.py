@@ -75,7 +75,10 @@ class TestExtractReasoningPayload:
             ]
         }
         # Direct extraction on delta vs safe fallback
-        assert extract_reasoning_payload(chunk["choices"][0]["delta"]) == "analyzing request from nested choices"
+        assert (
+            extract_reasoning_payload(chunk["choices"][0]["delta"])
+            == "analyzing request from nested choices"
+        )
 
     def test_object_attribute_access(self) -> None:
         class FakeDelta:
@@ -93,11 +96,15 @@ class TestGateway400Downgrade:
     """Test 400 Bad Request error detection and parameter sanitization."""
 
     def test_detect_stream_options_rejection(self) -> None:
-        exc = Exception("BadRequestError: 400 Extra inputs are not permitted: stream_options")
+        exc = Exception(
+            "BadRequestError: 400 Extra inputs are not permitted: stream_options"
+        )
         assert is_gateway_param_rejection(exc) is True
 
     def test_detect_parallel_tool_calls_rejection(self) -> None:
-        exc = Exception("BadRequestError: 400 Unsupported parameter: parallel_tool_calls")
+        exc = Exception(
+            "BadRequestError: 400 Unsupported parameter: parallel_tool_calls"
+        )
         assert is_gateway_param_rejection(exc) is True
 
     def test_detect_reasoning_effort_rejection(self) -> None:
@@ -140,7 +147,9 @@ class TestGateway400Downgrade:
         assert is_gateway_param_rejection(exc) is True
 
     def test_detect_temperature_rejection(self) -> None:
-        exc = Exception("BadRequestError: 400 Unsupported value: 'temperature' is not supported for this model")
+        exc = Exception(
+            "BadRequestError: 400 Unsupported value: 'temperature' is not supported for this model"
+        )
         assert is_gateway_param_rejection(exc) is True
 
     def test_detect_response_format_rejection(self) -> None:
@@ -187,4 +196,3 @@ class TestGateway400Downgrade:
         assert stripped == ["response_format"]
         assert "response_format" not in params
         assert params["allowed_openai_params"] == ["model"]
-

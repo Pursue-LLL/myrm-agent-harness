@@ -12,8 +12,8 @@ from unittest.mock import patch
 import pytest
 from langchain_core.documents import Document
 
-from myrm_agent_harness.toolkits.web_search.exceptions import SearchAPIError
-from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+from myrm_agent_harness.toolkits.web_search.core.exceptions import SearchAPIError
+from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
     apply_domain_diversity_sort,
     combine_search_results_unified,
 )
@@ -235,7 +235,7 @@ def _search_doc(url: str, title: str = "T", content: str = "snippet") -> Documen
     )
 
 
-_MODULE = "myrm_agent_harness.toolkits.web_search.search_results_processor"
+_MODULE = "myrm_agent_harness.toolkits.web_search.processing.search_results_processor"
 
 
 class TestCombineSearchResultsUnified:

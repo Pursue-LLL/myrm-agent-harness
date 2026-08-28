@@ -9,20 +9,20 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.core.config.gateway import ToolGatewayConfig
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.exceptions import (
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     AllQueriesFailedError,
     ErrorContext,
     SearchAPIError,
     SearchConfigError,
 )
-from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
-from myrm_agent_harness.toolkits.web_search.search_coalescing import (
+from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
+from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import (
     bucket_search_limit,
     normalize_search_query,
     reset_search_coalescing_state_for_tests,
 )
-from myrm_agent_harness.toolkits.web_search.web_searcher import (
+from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
     SearchServiceConfig,
     WebSearcher,
 )

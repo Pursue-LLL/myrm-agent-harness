@@ -177,7 +177,7 @@ async def test_youtube_fail_does_not_pollute_fail_cache() -> None:
             result = await engine.crawl(youtube_url)
             assert result is not None
 
-        from myrm_agent_harness.toolkits.web_fetch.url_normalizer import normalize_url
+        from myrm_agent_harness.toolkits.web_fetch.processing.url_normalizer import normalize_url
 
         cache_key = normalize_url(youtube_url)
         assert not engine._fail_cache.contains(cache_key)
@@ -380,7 +380,7 @@ async def test_youtube_both_transcript_and_fallback_fail() -> None:
             result = await engine.crawl(youtube_url)
             assert result is None
 
-        from myrm_agent_harness.toolkits.web_fetch.url_normalizer import normalize_url
+        from myrm_agent_harness.toolkits.web_fetch.processing.url_normalizer import normalize_url
 
         cache_key = normalize_url(youtube_url)
         assert engine._fail_cache.contains(cache_key)

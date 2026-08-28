@@ -57,7 +57,7 @@ from myrm_agent_harness.utils.json_parsing import parse_llm_json_list
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.web_search.web_searcher import WebSearcher
+    from myrm_agent_harness.toolkits.web_search.providers.web_searcher import WebSearcher
     from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
 logger = get_agent_logger(__name__)

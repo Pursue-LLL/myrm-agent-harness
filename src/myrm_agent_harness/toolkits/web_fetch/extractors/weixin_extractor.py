@@ -187,7 +187,7 @@ def _collect_image_urls(content_div: Tag) -> list[str]:
 
 
 def _content_div_to_markdown(content_div: Tag) -> str:
-    from ..html_to_markdown import CustomHTML2Text
+    from ..processing.html_to_markdown import CustomHTML2Text
 
     _normalize_lazy_images(content_div)
     fragment = str(content_div)

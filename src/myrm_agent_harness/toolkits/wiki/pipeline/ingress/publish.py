@@ -19,8 +19,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from myrm_agent_harness.toolkits.web_fetch.content_pruning import ContentPruningFilter
-from myrm_agent_harness.toolkits.web_fetch.markdown_generator import MarkdownGenerator
+from myrm_agent_harness.toolkits.web_fetch.processing.content_pruning import ContentPruningFilter
+from myrm_agent_harness.toolkits.web_fetch.processing.markdown_generator import MarkdownGenerator
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import (
     RawConflictPolicy,

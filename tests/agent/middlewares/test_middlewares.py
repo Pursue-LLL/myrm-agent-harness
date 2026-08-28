@@ -17,7 +17,7 @@ from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
 from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
     tool_interceptor_middleware,
 )
-from myrm_agent_harness.toolkits.web_search.exceptions import (
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     AllQueriesFailedError,
     ErrorContext,
     SearchAPIError,

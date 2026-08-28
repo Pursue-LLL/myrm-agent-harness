@@ -5,11 +5,12 @@ Higher-level execution patterns built on top of SubagentManager.spawn_child.
 [INPUT]
 - agent.sub_agents.types::SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
 - agent.workspace_coordination.policy::apply_parallel_write_isolation (POS: Policy helpers for parallel subagent workspace safety.)
+- agent.workspace_coordination.merge.batch_merge::merge_batch_workspace_sync_backs (POS: Serial merge of deferred ISOLATED_COPY workspaces after parallel delegation)
 - toolkits.code_execution.executors.readonly_proxy::ReadonlyExecutorProxy (POS: Read-only executor proxy for Adversarial Sandbox Verifier.)
 - agent.skills.evolution.execution.executor_context::ExecutorContextManager (POS: Context manager for injecting executors into the current async context.)
 
 [OUTPUT]
-- execute_dag_plan: Execute a Plan using DAG concurrency with optional node-level fault tolerance (allow_failure).
+- execute_dag_plan: Execute a Plan using DAG concurrency with wave write isolation, 3-way merge convergence, and optional node-level fault tolerance (allow_failure).
 - run_chain: Execute subagents in chain: A -> B -> C, each receiving previous result.
 - run_alternatives: Spawn N subagents in parallel for the same task; return text results without merging isolated workspaces (discarded after completion).
 - run_council: Multi-expert council orchestration with cross-review rounds and chair synthesis.
@@ -123,6 +124,14 @@ async def execute_dag_plan(
 
             # Prepare context with previous results based on dependencies
             step_context = context.copy()
+            step_readonly = bool(getattr(step, "readonly", False))
+            step_context["readonly"] = step_readonly
+            # If DAG has multiple concurrent ready tasks, mark parallel write batch in context
+            if getattr(plan, "get_ready_steps", None):
+                ready_count = len([s for s in plan.get_ready_steps() if not getattr(s, "readonly", False)])
+                if ready_count > 1:
+                    step_context["_parallel_write_batch"] = True
+
             current_results = await reducer.get_state()
 
             dependencies = getattr(step, "dependencies", [])
@@ -174,11 +183,12 @@ async def execute_dag_plan(
                         )
 
                     if isinstance(result, dict):
+                        raw_inner_res = result.get("result")
                         result = SubAgentResult(
                             success=bool(result.get("success", False)),
                             task_id=f"dag-{step_id}",
                             agent_type="general",
-                            result=str(result.get("result", "")),
+                            result=raw_inner_res if isinstance(raw_inner_res, dict) else str(raw_inner_res or ""),
                             error=str(result.get("error", "")),
                             completed_at=time.time(),
                             status=(
@@ -271,6 +281,17 @@ async def execute_dag_plan(
                     if progress_sink:
                         progress_sink(step_id, "success", f"Completed: {desc}")
                     logger.info("[DAG] Completed step %s", step_id)
+
+                    # Trigger isolated workspace merge if step produced an isolated copy
+                    if isinstance(result.result, dict) and "_isolated_child_workspace" in result.result:
+                        from myrm_agent_harness.agent.workspace_coordination.merge.batch_merge import (
+                            merge_batch_workspace_sync_backs,
+                        )
+                        await merge_batch_workspace_sync_backs([{
+                            "success": True,
+                            "task_id": step_id,
+                            "result": result.result,
+                        }])
                 else:
                     if hasattr(plan, "add_error"):
                         plan.add_error(

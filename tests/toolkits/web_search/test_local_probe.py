@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from myrm_agent_harness.toolkits.web_search.local_probe import (
+from myrm_agent_harness.toolkits.web_search.probe.local_probe import (
     probe_local_search_services,
     probe_searxng_endpoints,
 )
@@ -34,7 +34,7 @@ async def _searxng_success_get(url: str, **_kwargs: object) -> MagicMock:
 @pytest.mark.asyncio
 async def test_probe_searxng_first_url_success() -> None:
     with patch(
-        "myrm_agent_harness.toolkits.web_search.local_probe.httpx.AsyncClient",
+        "myrm_agent_harness.toolkits.web_search.probe.local_probe.httpx.AsyncClient",
         return_value=_mock_client(_searxng_success_get),
     ):
         result = await probe_searxng_endpoints(("http://127.0.0.1:8081",))
@@ -59,7 +59,7 @@ async def test_probe_searxng_fallback_to_second_url() -> None:
         return response
 
     with patch(
-        "myrm_agent_harness.toolkits.web_search.local_probe.httpx.AsyncClient",
+        "myrm_agent_harness.toolkits.web_search.probe.local_probe.httpx.AsyncClient",
         return_value=_mock_client(mock_get),
     ):
         result = await probe_searxng_endpoints(urls)
@@ -77,7 +77,7 @@ async def test_probe_searxng_ping_ok_search_empty() -> None:
         return response
 
     with patch(
-        "myrm_agent_harness.toolkits.web_search.local_probe.httpx.AsyncClient",
+        "myrm_agent_harness.toolkits.web_search.probe.local_probe.httpx.AsyncClient",
         return_value=_mock_client(mock_get),
     ):
         result = await probe_searxng_endpoints(("http://127.0.0.1:8081",))
@@ -95,7 +95,7 @@ async def test_probe_searxng_ping_http_500() -> None:
         return response
 
     with patch(
-        "myrm_agent_harness.toolkits.web_search.local_probe.httpx.AsyncClient",
+        "myrm_agent_harness.toolkits.web_search.probe.local_probe.httpx.AsyncClient",
         return_value=_mock_client(mock_get),
     ):
         result = await probe_searxng_endpoints(("http://127.0.0.1:8081",))
@@ -116,7 +116,7 @@ async def test_probe_searxng_search_http_500() -> None:
         return response
 
     with patch(
-        "myrm_agent_harness.toolkits.web_search.local_probe.httpx.AsyncClient",
+        "myrm_agent_harness.toolkits.web_search.probe.local_probe.httpx.AsyncClient",
         return_value=_mock_client(mock_get),
     ):
         result = await probe_searxng_endpoints(("http://127.0.0.1:8081",))
@@ -139,7 +139,7 @@ async def test_probe_searxng_verify_connection_error() -> None:
         return response
 
     with patch(
-        "myrm_agent_harness.toolkits.web_search.local_probe.httpx.AsyncClient",
+        "myrm_agent_harness.toolkits.web_search.probe.local_probe.httpx.AsyncClient",
         return_value=_mock_client(mock_get),
     ):
         result = await probe_searxng_endpoints(("http://127.0.0.1:8081",))
@@ -151,7 +151,7 @@ async def test_probe_searxng_verify_connection_error() -> None:
 @pytest.mark.asyncio
 async def test_probe_searxng_all_fail() -> None:
     with patch(
-        "myrm_agent_harness.toolkits.web_search.local_probe.httpx.AsyncClient",
+        "myrm_agent_harness.toolkits.web_search.probe.local_probe.httpx.AsyncClient",
         return_value=_mock_client(OSError("connection refused")),
     ):
         result = await probe_searxng_endpoints(("http://127.0.0.1:8081",))
@@ -163,7 +163,7 @@ async def test_probe_searxng_all_fail() -> None:
 @pytest.mark.asyncio
 async def test_probe_local_search_services_delegates_to_searxng() -> None:
     with patch(
-        "myrm_agent_harness.toolkits.web_search.local_probe.probe_searxng_endpoints",
+        "myrm_agent_harness.toolkits.web_search.probe.local_probe.probe_searxng_endpoints",
         return_value=MagicMock(provider="searxng", available=True, base_url="http://127.0.0.1:8081"),
     ) as mock_probe:
         results = await probe_local_search_services()
@@ -176,7 +176,7 @@ async def test_probe_local_search_services_delegates_to_searxng() -> None:
 @pytest.mark.asyncio
 async def test_probe_local_search_services_searxng_exception() -> None:
     with patch(
-        "myrm_agent_harness.toolkits.web_search.local_probe.probe_searxng_endpoints",
+        "myrm_agent_harness.toolkits.web_search.probe.local_probe.probe_searxng_endpoints",
         side_effect=RuntimeError("searxng crash"),
     ):
         results = await probe_local_search_services()

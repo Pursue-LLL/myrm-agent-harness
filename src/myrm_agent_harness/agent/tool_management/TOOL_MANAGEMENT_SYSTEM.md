@@ -88,10 +88,10 @@ Server `_tool_layer_bootstrap.py` 将 server vendor 工具注册为 EXTERNAL 层
 
 | 层级 | 定位与核心特征 | 默认开启状态 | 前端可关？ | 典型工具 |
 | :--- | :--- | :---: | :---: | :--- |
-| **Layer 1: CORE** | **核心基线层**：Agent 最底层基础系统能力，确保终极前缀缓存稳定 | **100% 开启** | ❌ 否（无开关） | `bash_*`, `file_*`, `glob/grep`, `web_fetch` |
-| **Layer 2: COMMON** | **通用标配层**：生产级 Agent 的通用标配能力（搜索+记忆） | **100% 默认开（Default-ON）** | ✅ 是（可按需关） | `web_search_tool` (Rank 0), `memory_*` 三件套 (Rank 10~12) |
-| **Layer 3: EXTENDED** | **可选扩展层**：专项高级能力（浏览器/桌面/看板/技能/Cron等） | **按需装配（默认不全开）** | ✅ 是（Profile控制） | `skill_select_tool`, `browser_*`, `kanban_*`, `todo_write` 等 |
-| **Layer 4: EXTERNAL** | **外部业务层**：第三方生态扩展（MCP/OpenAPI/媒体生成/通知通道） | **按需装配** | ✅ 是 | `channel_notify`, `image_tool`, 动态 MCP 服务 |
+| **Layer 1: CORE** | **核心层**：Agent 最底层基础系统能力，确保终极前缀缓存稳定 | **100% 常驻开启** | ❌ 否（不可关闭） | `bash_*`, `file_*`, `glob/grep`, `web_fetch` |
+| **Layer 2: COMMON** | **高优层**：标配高优能力，默认全局挂载（Default-ON） | **默认挂载开启** | ✅ 是（可配置关闭） | `web_search_tool` (Rank 0), `memory_*` 三件套 (Rank 10~12), `skill_select_tool` (Rank 20) |
+| **Layer 3: EXTENDED** | **扩展层**：专项高级能力（浏览器/桌面/看板/技能市场/Cron等） | **默认关闭（按需装配）** | ✅ 是（Profile控制） | `browser_*`, `kanban_*`, `todo_write`, `skill_market_tool` 等 |
+| **Layer 4: EXTERNAL** | **外部业务层**：第三方生态扩展（MCP/OpenAPI/媒体生成/通知通道） | **框架外按需装配** | ✅ 是 | `channel_notify`, `image_tool`, 动态 MCP 服务 |
 
 PTC `spawn_subagent` 与 LLM `delegate_task_tool` 共用 `_spawn_child()` 下游，但调用者不同（Python 编排脚本 vs 主 Agent tool_call）。详见 [DYNAMIC_WORKFLOW_SYSTEM.md](../dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md)。
 

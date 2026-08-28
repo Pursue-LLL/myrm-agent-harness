@@ -28,6 +28,7 @@ Observability tools for Myrm Agent framework. Provides Prometheus metrics, auth 
 | diagnostics/ | Framework-level self-inspection — health probes, benchmark probes, and diagnostic protocol. |
 | tracing/ | ContextVar-based request tracing (trace_id / session_id) with logging.Filter and JSON formatter. |
 | invariants/ | Package-owned runtime invariant assertions and registry service (event pairing, lifecycle, data integrity). |
+| friction/ | Zero-LLM agent task friction point telemetry, aggregation, and Eval Lab co-evolution pipeline. |
 
 ## Key Dependencies
 

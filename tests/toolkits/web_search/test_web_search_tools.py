@@ -12,10 +12,10 @@ import pytest
 from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.retriever.reranker import RerankerConfig
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
-from myrm_agent_harness.toolkits.web_search.exceptions import SearchAPIError
-from myrm_agent_harness.toolkits.web_search.web_searcher import SearchServiceConfig
+from myrm_agent_harness.toolkits.web_search.core.exceptions import SearchAPIError
+from myrm_agent_harness.toolkits.web_search.providers.web_searcher import SearchServiceConfig
 
 
 @pytest.mark.asyncio
@@ -214,7 +214,7 @@ class TestWebSearcher:
 
     async def test_web_searcher_init(self) -> None:
         """测试 WebSearcher 初始化"""
-        from myrm_agent_harness.toolkits.web_search.web_searcher import WebSearcher
+        from myrm_agent_harness.toolkits.web_search.providers.web_searcher import WebSearcher
 
         config = SearchServiceConfig(search_service="perplexity", api_key="key")
         searcher = WebSearcher(config=config)
@@ -224,7 +224,7 @@ class TestWebSearcher:
 
     async def test_multi_query_parallel_search(self) -> None:
         """测试多查询并行搜索"""
-        from myrm_agent_harness.toolkits.web_search.web_searcher import WebSearcher
+        from myrm_agent_harness.toolkits.web_search.providers.web_searcher import WebSearcher
 
         config = SearchServiceConfig(search_service="perplexity", api_key="key")
         searcher = WebSearcher(config=config)
@@ -243,8 +243,8 @@ class TestWebSearcher:
 
     async def test_search_caching(self) -> None:
         """测试搜索缓存机制存在"""
-        from myrm_agent_harness.toolkits.web_search import search_coalescing as sc
-        from myrm_agent_harness.toolkits.web_search.web_searcher import WebSearcher
+        from myrm_agent_harness.toolkits.web_search.coalescing import search_coalescing as sc
+        from myrm_agent_harness.toolkits.web_search.providers.web_searcher import WebSearcher
 
         config = SearchServiceConfig(search_service="perplexity", api_key="key")
         WebSearcher(config=config)
@@ -260,7 +260,7 @@ class TestSearchResultsProcessor:
 
     async def test_search_results_to_documents(self) -> None:
         """测试 SearchResult 转 Document"""
-        from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+        from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
             search_results_to_documents,
         )
 
@@ -286,7 +286,7 @@ class TestSearchResultsProcessor:
 
     async def test_combine_search_results_unified(self) -> None:
         """测试搜索结果合并和去重"""
-        from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+        from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
             combine_search_results_unified,
         )
 
@@ -329,7 +329,7 @@ class TestSearchResultsProcessor:
 
     async def test_combine_with_exceptions(self) -> None:
         """测试包含异常的搜索结果处理"""
-        from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+        from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
             combine_search_results_unified,
         )
 
@@ -349,7 +349,7 @@ class TestSearchResultsProcessor:
 
     async def test_combine_all_zero_results_raises_with_context(self) -> None:
         """全零结果时 SearchAPIError 应携带统计 metadata"""
-        from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+        from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
             combine_search_results_unified,
         )
 
@@ -371,7 +371,7 @@ class TestLiteLLMSearch:
 
     async def test_litellm_search_init(self) -> None:
         """测试 LiteLLM 搜索初始化"""
-        from myrm_agent_harness.toolkits.web_search.litellm_search import LiteLLMSearch
+        from myrm_agent_harness.toolkits.web_search.providers.litellm_search import LiteLLMSearch
 
         engine = LiteLLMSearch(
             search_provider="perplexity",
@@ -383,7 +383,7 @@ class TestLiteLLMSearch:
 
     async def test_litellm_search_execution(self) -> None:
         """测试搜索执行（Mock 返回 SearchResult）"""
-        from myrm_agent_harness.toolkits.web_search.litellm_search import LiteLLMSearch
+        from myrm_agent_harness.toolkits.web_search.providers.litellm_search import LiteLLMSearch
 
         engine = LiteLLMSearch(search_provider="perplexity", api_key="test-key")
 
@@ -391,7 +391,7 @@ class TestLiteLLMSearch:
         [SearchResult(title="R1", link="https://e.com/1", snippet="S1")]
 
         with patch(
-            "myrm_agent_harness.toolkits.web_search.litellm_search.search",
+            "myrm_agent_harness.toolkits.web_search.providers.litellm_search.search",
             new_callable=AsyncMock,
             return_value={"results": [{"title": "R1", "link": "https://e.com/1", "snippet": "S1"}]},
         ):
@@ -403,7 +403,7 @@ class TestLiteLLMSearch:
 
     async def test_litellm_searxng_url_override(self) -> None:
         """测试 SearXNG 自定义 URL"""
-        from myrm_agent_harness.toolkits.web_search.litellm_search import LiteLLMSearch
+        from myrm_agent_harness.toolkits.web_search.providers.litellm_search import LiteLLMSearch
 
         engine = LiteLLMSearch(
             search_provider="searxng",
@@ -419,7 +419,7 @@ class TestCommonUtilities:
 
     async def test_search_result_model(self) -> None:
         """测试 SearchResult Pydantic 模型"""
-        from myrm_agent_harness.toolkits.web_search.common import SearchResult
+        from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 
         result = SearchResult(
             title="Test Title",
@@ -434,7 +434,7 @@ class TestCommonUtilities:
 
     async def test_search_result_dict_conversion(self) -> None:
         """测试 SearchResult 字典转换"""
-        from myrm_agent_harness.toolkits.web_search.common import SearchResult
+        from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 
         result = SearchResult(
             title="Title",

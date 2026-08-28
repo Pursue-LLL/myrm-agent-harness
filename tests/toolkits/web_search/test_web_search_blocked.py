@@ -8,7 +8,7 @@ from myrm_agent_harness.agent.errors import ToolErrorCategory
 from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import (
     create_web_search_tool,
 )
-from myrm_agent_harness.toolkits.web_search.web_searcher import SearchServiceConfig
+from myrm_agent_harness.toolkits.web_search.providers.web_searcher import SearchServiceConfig
 from myrm_agent_harness.utils.errors import ToolError
 
 

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.web_search.chain import _should_stop_chain
-from myrm_agent_harness.toolkits.web_search.error_handling import (
+from myrm_agent_harness.toolkits.web_search.providers.chain import _should_stop_chain
+from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     is_quota_or_rate_limit_error,
     is_retryable_search_error,
 )
-from myrm_agent_harness.toolkits.web_search.exceptions import (
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     ErrorContext,
     SearchAPIError,
 )

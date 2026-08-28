@@ -2,8 +2,8 @@
 
 [INPUT]
 - core.security.guards.ssrf::SSRFSecurityError (POS: SSRF shield for outbound HTTP)
-- toolkits.web_fetch.antibot_detector::is_blocked (POS: Anti-bot detection for crawl results)
-- toolkits.web_fetch.http3_probe::is_quic_egress_available (POS: QUIC egress probe and L1 retry metrics)
+- toolkits.web_fetch.processing.antibot_detector::is_blocked (POS: Anti-bot detection for crawl results)
+- toolkits.web_fetch.probe.http3_probe::is_quic_egress_available (POS: QUIC egress probe and L1 retry metrics)
 - toolkits.web_fetch.router.site_experience::get_global_site_experience_store (POS: Site experience store)
 - toolkits.browser.pool.proxy::ProxyPool (POS: Proxy rotation pool for FetchEngine)
 
@@ -30,10 +30,10 @@ from myrm_agent_harness.core.security.http.secure_fetch import (
     is_ssrf_shield_enabled,
     parse_allowed_internal_hosts,
 )
-from myrm_agent_harness.toolkits.web_fetch.antibot_detector import (
+from myrm_agent_harness.toolkits.web_fetch.processing.antibot_detector import (
     is_blocked as detect_antibot,
 )
-from myrm_agent_harness.toolkits.web_fetch.http3_probe import (
+from myrm_agent_harness.toolkits.web_fetch.probe.http3_probe import (
     is_quic_egress_available,
     record_http3_retry,
 )
@@ -341,7 +341,7 @@ class HttpFetcher:
         encoding = getattr(response, "encoding", None)
 
         if is_text:
-            from ..charset_detector import detect_and_decode_html
+            from ..probe.charset_detector import detect_and_decode_html
 
             html, _detected_enc = detect_and_decode_html(body, encoding)
             return FetchResult(

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.core.security.http.secure_fetch import SecureHttpTarget
-from myrm_agent_harness.toolkits.web_search.citation_resolver import (
+from myrm_agent_harness.toolkits.web_search.processing.citation_resolver import (
     _needs_citation_redirect_resolution,
     _normalize_source_url,
     enrich_sources_with_resolved_urls,
@@ -68,7 +68,7 @@ def test_normalize_source_url_noop_when_unchanged() -> None:
 @pytest.mark.asyncio
 async def test_resolve_citation_url_skips_network_for_direct_links() -> None:
     with patch(
-        "myrm_agent_harness.toolkits.web_search.citation_resolver.resolve_secure_http_target",
+        "myrm_agent_harness.toolkits.web_search.processing.citation_resolver.resolve_secure_http_target",
         side_effect=RuntimeError("should not be called"),
     ):
         result = await resolve_citation_url("https://docs.python.org/3/")
@@ -78,7 +78,7 @@ async def test_resolve_citation_url_skips_network_for_direct_links() -> None:
 @pytest.mark.asyncio
 async def test_resolve_citation_url_returns_original_on_failure() -> None:
     with patch(
-        "myrm_agent_harness.toolkits.web_search.citation_resolver.resolve_secure_http_target",
+        "myrm_agent_harness.toolkits.web_search.processing.citation_resolver.resolve_secure_http_target",
         side_effect=RuntimeError("network"),
     ):
         result = await resolve_citation_url(
@@ -96,7 +96,7 @@ async def test_resolve_citation_url_follows_redirect_chain() -> None:
         method="HEAD",
     )
     with patch(
-        "myrm_agent_harness.toolkits.web_search.citation_resolver.resolve_secure_http_target",
+        "myrm_agent_harness.toolkits.web_search.processing.citation_resolver.resolve_secure_http_target",
         new=AsyncMock(return_value=target),
     ):
         result = await resolve_citation_url("https://www.google.com/url?q=https://docs.python.org/3/")
@@ -113,7 +113,7 @@ async def test_enrich_sources_normalizes_url_for_frontend() -> None:
     )
     wrapper = "https://www.google.com/url?q=https://real.example/article"
     with patch(
-        "myrm_agent_harness.toolkits.web_search.citation_resolver.resolve_secure_http_target",
+        "myrm_agent_harness.toolkits.web_search.processing.citation_resolver.resolve_secure_http_target",
         new=AsyncMock(return_value=target),
     ) as mock_resolve:
         enriched = await enrich_sources_with_resolved_urls(
@@ -129,7 +129,7 @@ async def test_enrich_sources_normalizes_url_for_frontend() -> None:
 async def test_enrich_sources_skips_head_for_direct_urls() -> None:
     direct = "https://docs.python.org/3/whatsnew/3.13.html"
     with patch(
-        "myrm_agent_harness.toolkits.web_search.citation_resolver.resolve_secure_http_target",
+        "myrm_agent_harness.toolkits.web_search.processing.citation_resolver.resolve_secure_http_target",
         new=AsyncMock(),
     ) as mock_resolve:
         enriched = await enrich_sources_with_resolved_urls(
@@ -151,7 +151,7 @@ async def test_enrich_sources_dedup_ready_same_final_url() -> None:
     wrap_a = "https://www.google.com/url?q=https://real.example/article&sa=1"
     wrap_b = "https://www.google.com/url?q=https://real.example/article&sa=2"
     with patch(
-        "myrm_agent_harness.toolkits.web_search.citation_resolver.resolve_secure_http_target",
+        "myrm_agent_harness.toolkits.web_search.processing.citation_resolver.resolve_secure_http_target",
         new=AsyncMock(return_value=target),
     ):
         enriched = await enrich_sources_with_resolved_urls(

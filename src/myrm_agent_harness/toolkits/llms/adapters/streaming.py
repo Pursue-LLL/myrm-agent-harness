@@ -1,6 +1,5 @@
 """Streaming response processing mixin
 
-
 [INPUT]
 - langchain_core.messages::AIMessageChunk, BaseMessageChunk, ToolCallChunk (POS: LangChain message chunk types)
 - langchain_core.outputs::ChatGenerationChunk (POS: LangChain generation chunk type)
@@ -26,6 +25,14 @@ from langchain_core.outputs import ChatGenerationChunk
 
 logger = logging.getLogger(__name__)
 
+_REASONING_FIELD_CANDIDATES: tuple[str, ...] = (
+    "reasoning_content",
+    "reasoning",
+    "thinking",
+    "thoughts",
+    "reasoning_text",
+)
+
 
 def safe_get(obj: Any, key: str, default: Any = None) -> Any:
     """Safely get a property from an object or dict."""
@@ -34,6 +41,40 @@ def safe_get(obj: Any, key: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(key, default)
     return getattr(obj, key, default)
+
+
+def _coerce_reasoning_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        parts: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                for key in ("thinking", "text", "content", "reasoning"):
+                    sub = item.get(key)
+                    if isinstance(sub, str):
+                        parts.append(sub)
+                        break
+        return "".join(parts)
+    return str(value)
+
+
+def extract_reasoning_payload(delta_or_msg: Any) -> str:
+    """Extract reasoning/thinking text from heterogeneous gateway delta payloads."""
+    if delta_or_msg is None:
+        return ""
+    for field in _REASONING_FIELD_CANDIDATES:
+        raw = safe_get(delta_or_msg, field)
+        if raw is None:
+            continue
+        text = _coerce_reasoning_value(raw)
+        if text:
+            return text
+    return ""
 
 
 def extract_chunk_metadata(chunk: Any) -> tuple[Any, str | None, str | None]:
@@ -90,18 +131,6 @@ def build_tool_call_chunks(
     return tool_call_chunks
 
 
-def _is_complete_json_fragment(raw: str) -> bool:
-    """True when a streamed tool args fragment is a fully parseable JSON value."""
-    stripped = raw.strip()
-    if not stripped or stripped[0] not in "{[":
-        return False
-    try:
-        json.loads(stripped)
-    except json.JSONDecodeError:
-        return False
-    return True
-
-
 def aggregate_tool_call_chunk(tc_chunk: Any, aggregated_tool_calls: list[dict[str, Any]]) -> None:
     """Incrementally merge a tool_call chunk into the aggregated list.
 
@@ -122,10 +151,7 @@ def aggregate_tool_call_chunk(tc_chunk: Any, aggregated_tool_calls: list[dict[st
         aggregated_tool_calls[tc_index]["function"]["name"] = tc_name
     if tc_args is not None:
         if isinstance(tc_args, str):
-            if _is_complete_json_fragment(tc_args):
-                aggregated_tool_calls[tc_index]["function"]["arguments"] = tc_args
-            else:
-                aggregated_tool_calls[tc_index]["function"]["arguments"] += tc_args
+            aggregated_tool_calls[tc_index]["function"]["arguments"] += tc_args
         elif isinstance(tc_args, dict):
             aggregated_tool_calls[tc_index]["function"]["arguments"] += json.dumps(tc_args, ensure_ascii=False)
         else:
@@ -175,58 +201,12 @@ def parse_tool_calls_from_reasoning(
     return parsed_tool_calls, final_cg_chunk
 
 
-# Candidate keys for reasoning/thinking fields in OpenAI-compatible payloads
-_REASONING_FIELD_CANDIDATES: tuple[str, ...] = (
-    "reasoning_content",
-    "reasoning",
-    "thinking",
-    "thoughts",
-    "reasoning_text",
-)
-
-
-def extract_reasoning_payload(obj: Any) -> str:
-    """Extract reasoning/thinking text from a delta dict, message dict, or object.
-
-    Handles non-standard OpenAI-compatible gateways (Ollama, SiliconFlow, OneAPI,
-    vLLM, etc.) that return reasoning in different fields.
-    """
-    if obj is None:
-        return ""
-
-    if isinstance(obj, dict):
-        for key in _REASONING_FIELD_CANDIDATES:
-            val = obj.get(key)
-            if isinstance(val, str) and val:
-                return val
-            if isinstance(val, list):
-                # Anthropic / custom array thinking blocks
-                parts: list[str] = []
-                for item in val:
-                    if isinstance(item, str):
-                        parts.append(item)
-                    elif isinstance(item, dict):
-                        text = item.get("text") or item.get("thinking") or item.get("content")
-                        if isinstance(text, str) and text:
-                            parts.append(text)
-                if parts:
-                    return "".join(parts)
-        return ""
-
-    # Object attribute access
-    for key in _REASONING_FIELD_CANDIDATES:
-        val = getattr(obj, key, None)
-        if isinstance(val, str) and val:
-            return val
-    return ""
-
-
 def normalize_usage(usage: Any) -> dict[str, Any]:
     """Normalize a usage object to a standard dict format."""
     if isinstance(usage, dict):
         return usage
     if hasattr(usage, "model_dump"):
-        return dict(usage.model_dump())
+        return usage.model_dump()
     return {
         "prompt_tokens": getattr(usage, "prompt_tokens", 0),
         "completion_tokens": getattr(usage, "completion_tokens", 0),

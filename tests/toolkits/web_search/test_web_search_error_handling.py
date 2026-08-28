@@ -7,16 +7,16 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.error_handling import (
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     build_search_error_context,
     is_retryable_search_error,
 )
-from myrm_agent_harness.toolkits.web_search.exceptions import (
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     AllQueriesFailedError,
     SearchAPIError,
 )
-from myrm_agent_harness.toolkits.web_search.web_searcher import (
+from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
     SearchServiceConfig,
     WebSearcher,
 )
@@ -353,7 +353,7 @@ class TestWebSearcherCacheLogLevel:
         with patch.object(searcher, "_get_search_service", return_value=mock_service):
             await searcher.search("test query", 5)
 
-        with patch("myrm_agent_harness.toolkits.web_search.search_coalescing.logger") as mock_logger:
+        with patch("myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing.logger") as mock_logger:
             result = await searcher.search("test query", 5)
 
             assert len(result) == 1
@@ -366,7 +366,7 @@ class TestProviderChain:
     """测试 priority provider chain 故障转移"""
 
     def setup_method(self):
-        from myrm_agent_harness.toolkits.web_search.search_coalescing import (
+        from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import (
             reset_search_coalescing_state_for_tests,
         )
 
@@ -383,7 +383,7 @@ class TestProviderChain:
 
     @pytest.mark.asyncio
     async def test_primary_quota_exceeded_chain_succeeds(self):
-        from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
+        from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
 
         cfg = self._chain_config(
             SearchServiceConfig(search_service="tavily", api_key="tvly-key"),
@@ -418,7 +418,7 @@ class TestProviderChain:
 
     @pytest.mark.asyncio
     async def test_primary_invalid_key_chain_succeeds(self):
-        from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
+        from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
 
         cfg = self._chain_config(
             SearchServiceConfig(search_service="tavily", api_key="invalid-key"),
@@ -469,7 +469,7 @@ class TestProviderChain:
 
     @pytest.mark.asyncio
     async def test_chain_all_fail_raises_error(self):
-        from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
+        from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
 
         cfg = self._chain_config(
             SearchServiceConfig(search_service="tavily", api_key="tvly-key"),
@@ -495,7 +495,7 @@ class TestProviderChain:
 
     @pytest.mark.asyncio
     async def test_retryable_error_does_not_advance_chain(self):
-        from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
+        from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
 
         cfg = self._chain_config(
             SearchServiceConfig(search_service="tavily", api_key="tvly-key", search_max_retries=2),
@@ -588,7 +588,7 @@ class TestProviderChain:
 
     @pytest.mark.asyncio
     async def test_metrics_snapshot_includes_chain_counters(self):
-        from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
+        from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
 
         metrics = WebSearchMetrics()
         metrics.record_chain_hop(from_provider="tavily", to_provider="perplexity")

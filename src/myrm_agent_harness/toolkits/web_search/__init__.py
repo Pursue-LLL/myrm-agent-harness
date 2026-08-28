@@ -2,10 +2,10 @@
 
 
 [INPUT]
-- common::SearchResult, Citation (POS: search result and citation data models)
-- exceptions::AllQueriesFailedError, SearchAPIError, etc. (POS: web search error hierarchy)
-- metrics::WebSearchMetrics, web_search_metrics (POS: search performance metrics)
-- search_results_processor::combine_search_results_unified, search_results_to_documents (POS: result processing utilities)
+- core.common::SearchResult, Citation (POS: search result and citation data models)
+- core.exceptions::AllQueriesFailedError, SearchAPIError, etc. (POS: web search error hierarchy)
+- core.metrics::WebSearchMetrics, web_search_metrics (POS: search performance metrics)
+- processing.search_results_processor::combine_search_results_unified, search_results_to_documents (POS: result processing utilities)
 
 [OUTPUT]
 - SearchResult, Citation, WebSearchTools, LiteLLMSearch, SearchServiceConfig: core search types and tools
@@ -20,18 +20,18 @@ metrics, and error hierarchy for unified import.
 
 from typing import TYPE_CHECKING
 
-from .common import Citation, SearchResult
-from .exceptions import AllQueriesFailedError, ErrorContext, SearchAPIError, SearchConfigError, WebSearchError
-from .metrics import WebSearchMetrics, web_search_metrics
-from .search_results_processor import (
+from .core.common import Citation, SearchResult
+from .core.exceptions import AllQueriesFailedError, ErrorContext, SearchAPIError, SearchConfigError, WebSearchError
+from .core.metrics import WebSearchMetrics, web_search_metrics
+from .processing.search_results_processor import (
     combine_search_results_unified,
     search_results_to_documents,
 )
 
 if TYPE_CHECKING:
     from .engine import WebSearchTools
-    from .litellm_search import LiteLLMSearch
-    from .web_searcher import SearchServiceConfig
+    from .providers.litellm_search import LiteLLMSearch
+    from .providers.web_searcher import SearchServiceConfig
 
 __all__ = [
     "AllQueriesFailedError",
@@ -62,12 +62,12 @@ def __getattr__(name: str):
     """Lazy load LiteLLMSearch, SearchServiceConfig, and WebSearchTools on first access."""
     if name in _LAZY_SYMBOLS:
         if name == "LiteLLMSearch":
-            from .litellm_search import LiteLLMSearch
+            from .providers.litellm_search import LiteLLMSearch
 
             globals()[name] = LiteLLMSearch
             return LiteLLMSearch
         elif name == "SearchServiceConfig":
-            from .web_searcher import SearchServiceConfig
+            from .providers.web_searcher import SearchServiceConfig
 
             globals()[name] = SearchServiceConfig
             return SearchServiceConfig

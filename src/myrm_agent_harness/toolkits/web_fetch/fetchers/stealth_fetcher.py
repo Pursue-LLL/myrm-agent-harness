@@ -58,7 +58,7 @@ class StealthFetcher:
                     kwargs["dns_over_https"] = True
                 async with asyncio.timeout(_STEALTH_TIMEOUT_S):
                     response = await StealthyFetcher.async_fetch(url, **kwargs)
-                from ..charset_detector import detect_and_decode_html
+                from ..probe.charset_detector import detect_and_decode_html
 
                 html, _ = detect_and_decode_html(response.body, response.encoding)
                 return FetchResult(

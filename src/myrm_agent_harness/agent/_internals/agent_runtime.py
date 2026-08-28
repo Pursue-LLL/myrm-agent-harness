@@ -526,7 +526,7 @@ async def run_agent_loop(
             emit_evicted_ref,
             persist_evicted_content,
         )
-        from myrm_agent_harness.toolkits.web_fetch.spill import (
+        from myrm_agent_harness.toolkits.web_fetch.processing.spill import (
             set_evicted_content_callbacks,
         )
 

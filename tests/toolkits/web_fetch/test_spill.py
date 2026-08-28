@@ -10,7 +10,7 @@ from myrm_agent_harness.agent.context_management.infra.evicted import (
     persist_evicted_content,
 )
 from myrm_agent_harness.core.context_vars import chat_id_var, workspace_root_var
-from myrm_agent_harness.toolkits.web_fetch.spill import (
+from myrm_agent_harness.toolkits.web_fetch.processing.spill import (
     DEFAULT_MODEL_PREVIEW_CHARS,
     emit_web_fetch_evicted_ref,
     maybe_spill_web_fetch_content,
@@ -84,7 +84,7 @@ async def test_spill_persist_failure_still_returns_preview(tmp_path, monkeypatch
 
 @pytest.mark.asyncio
 async def test_spill_without_callbacks_truncates_only() -> None:
-    from myrm_agent_harness.toolkits.web_fetch import spill as spill_mod
+    from myrm_agent_harness.toolkits.web_fetch.processing import spill as spill_mod
 
     spill_mod._evicted_callbacks_var.set(None)
 

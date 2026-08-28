@@ -1,4 +1,17 @@
-"""Local search service discovery probes (framework-level, business-agnostic)."""
+"""Local search service discovery probes (framework-level, business-agnostic).
+
+[INPUT]
+- infra.tls_compat::create_httpx_client (POS: TLS-compatible httpx client factory)
+- web_search.probe.constants::SEARXNG_PROBE_CANDIDATE_URLS (POS: canonical SearXNG probe URLs)
+
+[OUTPUT]
+- LocalSearchProbeResult: structured probe outcome for a search endpoint
+- probe_searxng_endpoints: ping and HTML-search verify for SearXNG URLs
+- probe_local_search_services: discover reachable local/self-hosted search backends
+
+[POS]
+HTTP probes for SearXNG and other self-hosted search endpoints during onboarding/setup.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +23,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
-from myrm_agent_harness.toolkits.web_search.constants import SEARXNG_PROBE_CANDIDATE_URLS
+from myrm_agent_harness.toolkits.web_search.probe.constants import SEARXNG_PROBE_CANDIDATE_URLS
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ langchain_core.tools::tool (POS: LangChain tool decorator)
 .retrieval.query::WikiQueryEngine (POS: Wiki query and enhancement engine)
 .core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 toolkits.web_fetch::web_fetch_tools (POS: Global FetchEngine singleton — YouTube/Bilibili subtitle extraction, multi-tier fallback)
-toolkits.web_fetch.markdown_generator::MarkdownGenerator (POS: HTML to Markdown converter, fallback path)
+toolkits.web_fetch.processing.markdown_generator::MarkdownGenerator (POS: HTML to Markdown converter, fallback path)
 core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP, fallback path)
 
 [OUTPUT]
@@ -617,7 +617,7 @@ async def _fetch_url_as_markdown(url: str) -> str:
         logger.debug("FetchEngine failed for %s, falling back to secure_get", url)
 
     from myrm_agent_harness.core.security.http.secure_fetch import secure_get
-    from myrm_agent_harness.toolkits.web_fetch.markdown_generator import (
+    from myrm_agent_harness.toolkits.web_fetch.processing.markdown_generator import (
         MarkdownGenerator,
     )
 

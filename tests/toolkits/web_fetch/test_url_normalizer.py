@@ -2,7 +2,7 @@
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch.url_normalizer import normalize_url
+from myrm_agent_harness.toolkits.web_fetch.processing.url_normalizer import normalize_url
 
 
 def test_remove_tracking_params():

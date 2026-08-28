@@ -3,7 +3,7 @@
 import pytest
 
 from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
-from myrm_agent_harness.toolkits.web_fetch.pipeline import ContentPipeline
+from myrm_agent_harness.toolkits.web_fetch.processing.pipeline import ContentPipeline
 
 
 def test_pipeline_initialization():

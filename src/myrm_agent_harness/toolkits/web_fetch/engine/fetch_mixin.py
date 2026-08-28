@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.documents import Document
 
-from ..antibot_detector import is_blocked as detect_antibot
+from ..processing.antibot_detector import is_blocked as detect_antibot
 from ..fetchers.protocols import FetcherType, FetchResult
 from .types import DEGRADABLE_4XX
 
@@ -103,7 +103,7 @@ class FetchEngineFetchMixin:
             return None, True, latency_ms, cpu_percent, memory_mb, None
 
         if fetch_result.raw_body is not None:
-            from ..binary_router import route_binary_content
+            from ..processing.binary_router import route_binary_content
 
             doc = await route_binary_content(fetch_result.raw_body, fetch_result.headers, url)
             return doc, False, latency_ms, cpu_percent, memory_mb, fetch_result

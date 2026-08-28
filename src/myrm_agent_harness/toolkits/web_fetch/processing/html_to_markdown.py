@@ -1,10 +1,13 @@
 """HTML to Markdown converter built on BeautifulSoup.
 
-Provides API-compatible replacement for the vendored html2text (GPLv3) module.
-Only depends on beautifulsoup4 (MIT) which is already a project dependency.
+[INPUT]
+- (none)
 
-The converter supports headings, paragraphs, links, images, emphasis,
-code blocks, lists, tables, blockquotes, and horizontal rules.
+[OUTPUT]
+- CustomHTML2Text: HTML-to-Markdown converter for fetched page content
+
+[POS]
+HTML to Markdown conversion utilities for the web fetch processing pipeline.
 """
 
 from __future__ import annotations

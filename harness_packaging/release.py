@@ -4,11 +4,24 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import shutil
 import subprocess
 import zipfile
 from pathlib import Path
 
 from harness_packaging.manifest import load_core_manifest, repo_root
+
+
+def resolve_uv_executable() -> str:
+    """Return uv binary path; fail closed when packaging tools are unavailable."""
+    found = shutil.which("uv")
+    if found is not None:
+        return found
+    candidate = Path.home() / ".local" / "bin" / "uv"
+    if candidate.is_file():
+        return str(candidate)
+    msg = "uv executable not found; install uv or add ~/.local/bin to PATH"
+    raise RuntimeError(msg)
 
 
 def manifest_source_paths() -> tuple[str, ...]:
@@ -90,7 +103,7 @@ def build_harness_source_wheel(dist_dir: Path) -> Path:
     dist_dir.mkdir(parents=True, exist_ok=True)
     root = repo_root()
     subprocess.run(
-        ["uv", "build", "--wheel", "--out-dir", str(dist_dir)],
+        [resolve_uv_executable(), "build", "--wheel", "--out-dir", str(dist_dir)],
         check=True,
         cwd=root,
     )

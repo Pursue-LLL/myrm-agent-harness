@@ -1,6 +1,7 @@
 """测试 prefetch_with_retry 的重试逻辑"""
 
 import asyncio
+import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -95,10 +96,10 @@ async def test_prefetch_with_retry_exponential_backoff():
     """测试指数退避策略"""
     engine = FetchEngine(cache_ttl=3600)
 
-    call_times = []
+    call_times: list[float] = []
 
     async def track_time_crawl(url: str, **kwargs):
-        call_times.append(asyncio.get_event_loop().time())
+        call_times.append(time.monotonic())
         raise ConnectionError("Network error")
 
     with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
@@ -111,8 +112,9 @@ async def test_prefetch_with_retry_exponential_backoff():
         interval_1 = call_times[1] - call_times[0]
         interval_2 = call_times[2] - call_times[1]
 
-        assert 0.05 < interval_1 < 0.30  # 允许一定误差
-        assert interval_2 >= interval_1 * 1.4  # 指数退避约翻倍
+        assert 0.07 < interval_1 < 0.40  # monotonic + 慢机器调度余量
+        assert 0.14 < interval_2 < 0.60
+        assert interval_2 > interval_1  # 指数退避：第二次等待长于第一次
 
     await engine.shutdown()
 

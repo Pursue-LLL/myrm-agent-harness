@@ -233,7 +233,9 @@ def responses_event_to_completion_chunk(event: dict[str, Any]) -> dict[str, Any]
                         "index": idx,
                         "id": tc["id"],
                         "type": "function",
-                        "function": tc["function"],
+                        # Arguments are streamed via function_call_arguments.delta;
+                        # re-emitting them on completed duplicates aggregator state.
+                        "function": {"name": str(tc["function"]["name"])},
                     }
                     for idx, tc in enumerate(tool_calls)
                 ]

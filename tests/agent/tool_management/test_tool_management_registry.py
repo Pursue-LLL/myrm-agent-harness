@@ -202,7 +202,8 @@ class TestToolLayerFunctions:
 
         assert get_tool_layer("file_read_tool") == ToolLayer.CORE
         assert get_tool_layer("web_search_tool") == ToolLayer.COMMON
-        assert get_tool_layer("skill_select_tool") == ToolLayer.EXTENDED
+        assert get_tool_layer("skill_select_tool") == ToolLayer.COMMON
+        assert get_tool_layer("skill_search_tool") == ToolLayer.EXTENDED
 
     def test_get_tool_layer_unregistered_defaults_external(self) -> None:
         from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_layer
@@ -249,7 +250,7 @@ class TestToolLayerFunctions:
         assert names[:2] == ["bash_code_execute_tool", "file_read_tool"]
         assert names[2] == "mcp_tool_a"
 
-    def test_memory_tools_sorted_before_web_search_in_common(self) -> None:
+    def test_web_search_sorted_before_memory_in_common(self) -> None:
         from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_layer
 
         for memory_tool in ("memory_manage_tool", "memory_search_tool", "memory_save_tool"):
@@ -268,9 +269,9 @@ class TestToolLayerFunctions:
         names = [tool.name for tool in reg.resolve()]
 
         assert names[:2] == ["bash_code_execute_tool", "file_read_tool"]
+        assert names[2] == "web_search_tool"
         memory_block = ["memory_manage_tool", "memory_search_tool", "memory_save_tool"]
-        assert names[2:5] == memory_block
-        assert names[5] == "web_search_tool"
+        assert names[3:6] == memory_block
 
     def test_extended_tools_append_after_common_prefix(self) -> None:
         reg = ToolRegistry()

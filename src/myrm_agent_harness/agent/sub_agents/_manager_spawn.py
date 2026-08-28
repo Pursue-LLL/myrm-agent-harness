@@ -2,13 +2,14 @@
 
 [INPUT]
 - types::SubagentConfig, SubAgentResult, SubAgentStatus
+- spawn_prep::apply_spawn_workspace_isolation, resolve_delegate_parallel_write_batch (POS: Shared spawn prep SSOT)
 - executor::SubagentExecutor (POS: Retry logic and actual agent execution)
 - streaming.types::AgentEventType (POS: SSE event types)
 - runtime.events.system_events::SubagentLifecycleData, to_json_object
 
 [OUTPUT]
 - SubagentSpawnMixin: Mixin providing _run_subagent, _run_subagent_inner,
-  _run_subagent_core, and spawn_child
+  _run_subagent_core, and spawn_child (SSOT workspace isolation enforcement)
 
 [POS]
 Spawn and execution lifecycle for SubagentManager.

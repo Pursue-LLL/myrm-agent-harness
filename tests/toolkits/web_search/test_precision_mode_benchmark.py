@@ -221,7 +221,7 @@ class TestPrecisionModePerformance:
 
             # 创建一个mock tools实例（直接使用类常量）
             from myrm_agent_harness.toolkits.retriever.reranker import RerankerConfig
-            from myrm_agent_harness.toolkits.web_search.web_searcher import SearchServiceConfig
+            from myrm_agent_harness.toolkits.web_search.providers.web_searcher import SearchServiceConfig
 
             with patch("myrm_agent_harness.toolkits.retriever.reranker.get_reranker_service") as mock_get:
                 mock_get.return_value = mock_reranker

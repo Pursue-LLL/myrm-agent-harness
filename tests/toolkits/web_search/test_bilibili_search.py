@@ -16,12 +16,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_search.bilibili_search import (
+from myrm_agent_harness.toolkits.web_search.providers.bilibili_search import (
     _format_play_count,
     _strip_html,
     search_bilibili,
 )
-from myrm_agent_harness.toolkits.web_search.intent_optimizer import (
+from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
     SearchIntent,
     SearchIntentResult,
     detect_search_intent,

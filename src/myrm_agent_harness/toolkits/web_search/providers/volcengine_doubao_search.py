@@ -5,7 +5,7 @@ Reference: bytedance/agentkit-samples skills/byted-web-search/scripts/web_search
 
 [INPUT]
 - infra.tls_compat::create_httpx_client (POS: TLS-compatible httpx client factory)
-- web_search.common::SearchResult (POS: Unified search result dataclass)
+- web_search.core.common::SearchResult (POS: Unified search result dataclass)
 
 [OUTPUT]
 - VolcengineDoubaoSearch: native search client for slug volcengine_doubao
@@ -23,11 +23,11 @@ from dataclasses import replace
 import httpx
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.error_handling import (
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     build_search_error_context,
 )
-from myrm_agent_harness.toolkits.web_search.exceptions import SearchAPIError
+from myrm_agent_harness.toolkits.web_search.core.exceptions import SearchAPIError
 
 logger = logging.getLogger(__name__)
 

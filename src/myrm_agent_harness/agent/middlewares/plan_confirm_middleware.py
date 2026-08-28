@@ -35,6 +35,7 @@ from langgraph.types import Command, interrupt
 logger = logging.getLogger(__name__)
 
 _plan_confirmed_var: ContextVar[bool] = ContextVar("plan_confirmed", default=False)
+_confirmed_goal_var: ContextVar[str | None] = ContextVar("confirmed_goal", default=None)
 
 MIN_ITEMS_FOR_CONFIRM = 3
 
@@ -42,6 +43,7 @@ MIN_ITEMS_FOR_CONFIRM = 3
 def reset_plan_confirm_state() -> None:
     """Reset plan confirmation state at session start."""
     _plan_confirmed_var.set(False)
+    _confirmed_goal_var.set(None)
 
 
 class PlanConfirmMiddleware(AgentMiddleware[Any, Any]):
@@ -51,7 +53,7 @@ class PlanConfirmMiddleware(AgentMiddleware[Any, Any]):
     1. Tool is ``todo_write``
     2. ``merge`` is ``False`` (new plan, not an update)
     3. Items count >= ``MIN_ITEMS_FOR_CONFIRM``
-    4. First plan in session (not yet confirmed/skipped)
+    4. First plan in session or major re-plan (goal changed)
     5. ``plan_confirm_enabled`` is ``True`` in session context
 
     On trigger, calls ``interrupt()`` with the plan payload. The user can:
@@ -79,9 +81,6 @@ class PlanConfirmMiddleware(AgentMiddleware[Any, Any]):
         if tool_name != "todo_write":
             return await handler(request)
 
-        if _plan_confirmed_var.get():
-            return await handler(request)
-
         if not _is_plan_confirm_enabled():
             return await handler(request)
 
@@ -98,6 +97,20 @@ class PlanConfirmMiddleware(AgentMiddleware[Any, Any]):
             _plan_confirmed_var.set(True)
             return await handler(request)
 
+        goal = args.get("goal")
+        current_goal_str = str(goal).strip() if goal is not None else None
+
+        # If already confirmed, check whether this is a major re-plan (new distinct goal)
+        if _plan_confirmed_var.get():
+            last_goal = _confirmed_goal_var.get()
+            is_replan = (
+                current_goal_str is not None
+                and bool(current_goal_str)
+                and current_goal_str != (last_goal or "").strip()
+            )
+            if not is_replan:
+                return await handler(request)
+
         plan_items = _extract_plan_summary(todos)
 
         resume_value = interrupt(
@@ -110,25 +123,24 @@ class PlanConfirmMiddleware(AgentMiddleware[Any, Any]):
             }
         )
 
+        _plan_confirmed_var.set(True)
+        _confirmed_goal_var.set(current_goal_str)
+
         if not isinstance(resume_value, dict):
-            _plan_confirmed_var.set(True)
             return await handler(request)
 
         action = resume_value.get("action", "confirm")
 
         if action == "skip":
-            _plan_confirmed_var.set(True)
             return await handler(request)
 
         if action == "edit":
             edited_todos = resume_value.get("edited_todos")
             if isinstance(edited_todos, list) and edited_todos:
                 request.tool_call["args"]["todos"] = edited_todos
-            _plan_confirmed_var.set(True)
             return await handler(request)
 
         # action == "confirm" (default)
-        _plan_confirmed_var.set(True)
         return await handler(request)
 
 

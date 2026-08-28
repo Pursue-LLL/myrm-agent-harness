@@ -7,7 +7,7 @@ Contains:
 - toolkits.retriever.embedding.factory::EmbeddingConfig
 - toolkits.retriever.reranker.factory::RerankerConfig
 - toolkits.retriever.sufficiency (POS: Retrieval Sufficiency Guard)
-- toolkits.web_fetch.spill::maybe_spill_web_fetch_content
+- toolkits.web_fetch.processing.spill::maybe_spill_web_fetch_content
 - toolkits.web_fetch._web_fetch_tool_description::resolve_web_fetch_tool_description
 - agent.errors.tool_error_category::ToolErrorCategory
 - utils.errors::ToolError
@@ -150,7 +150,7 @@ def create_web_fetch_tool(
             )
             evicted_ref = result.get("evicted_ref")
             if isinstance(evicted_ref, str) and evicted_ref:
-                from myrm_agent_harness.toolkits.web_fetch.spill import (
+                from myrm_agent_harness.toolkits.web_fetch.processing.spill import (
                     emit_web_fetch_evicted_ref,
                 )
 
@@ -239,7 +239,7 @@ async def _fetch_full_content(
 ) -> dict[str, str | dict[str, object] | None]:
     """Get webpage content with head/tail preview and optional sandbox spill."""
     from myrm_agent_harness.toolkits.web_fetch import FetchEngine, web_fetch_tools
-    from myrm_agent_harness.toolkits.web_fetch.spill import (
+    from myrm_agent_harness.toolkits.web_fetch.processing.spill import (
         DEFAULT_MODEL_PREVIEW_CHARS,
         maybe_spill_web_fetch_content,
     )
@@ -279,7 +279,7 @@ async def _fetch_full_content(
             user_hint="The pages may be empty, require authentication, or block automated access. Try different URLs.",
         )
 
-    from myrm_agent_harness.toolkits.web_fetch.content_sanitize import (
+    from myrm_agent_harness.toolkits.web_fetch.processing.content_sanitize import (
         strip_base64_images_from_markdown,
     )
 

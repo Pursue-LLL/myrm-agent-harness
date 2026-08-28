@@ -4,13 +4,13 @@ Manages search provider configuration, query execution with retry,
 result caching, single-flight coalescing, and conversion to LangChain Documents.
 
 [INPUT]
-web_search.common::SearchResult (POS: Unified search result dataclass)
-web_search.error_handling::build_search_error_context, is_retryable_search_error (POS: Search error classification)
-web_search.exceptions::AllQueriesFailedError, ErrorContext, SearchAPIError, SearchConfigError (POS: Search exception types)
-web_search.metrics::WebSearchMetrics, web_search_metrics (POS: Search telemetry)
-web_search.search_coalescing::await_coalesced_search, bucket_search_limit, build_search_cache_key (POS: Search cache coalescing)
-web_search.search_results_processor::search_results_to_documents (POS: Search-result to Document converter)
-web_search.litellm_search::LiteLLMSearch (POS: LiteLLM unified search client)
+web_search.core.common::SearchResult (POS: Unified search result dataclass)
+web_search.core.error_handling::build_search_error_context, is_retryable_search_error (POS: Search error classification)
+web_search.core.exceptions::AllQueriesFailedError, ErrorContext, SearchAPIError, SearchConfigError (POS: Search exception types)
+web_search.core.metrics::WebSearchMetrics, web_search_metrics (POS: Search telemetry)
+web_search.coalescing.search_coalescing::await_coalesced_search, bucket_search_limit, build_search_cache_key (POS: Search cache coalescing)
+web_search.processing.search_results_processor::search_results_to_documents (POS: Search-result to Document converter)
+web_search.providers.litellm_search::LiteLLMSearch (POS: LiteLLM unified search client)
 
 [OUTPUT]
 WebSearcher: Configurable multi-provider web search with LRU cache, single-flight coalescing, limit bucketing, retry, and Document output
@@ -32,28 +32,28 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from myrm_agent_harness.core.config.gateway import ToolGatewayConfig
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.error_handling import (
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     build_search_error_context,
     is_retryable_search_error,
 )
-from myrm_agent_harness.toolkits.web_search.exceptions import (
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     AllQueriesFailedError,
     ErrorContext,
     SearchAPIError,
     SearchConfigError,
 )
-from myrm_agent_harness.toolkits.web_search.metrics import (
+from myrm_agent_harness.toolkits.web_search.core.metrics import (
     WebSearchMetrics,
     web_search_metrics,
 )
-from myrm_agent_harness.toolkits.web_search.search_coalescing import (
+from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import (
     await_coalesced_search,
     bucket_search_limit,
     build_search_cache_key,
     reset_search_coalescing_state_for_tests,
 )
-from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
     search_results_to_documents,
 )
 
@@ -154,7 +154,7 @@ class WebSearcher:
 
         if self.config.search_service in NATIVE_SEARCH_SLUGS:
             if self.config.search_service == "volcengine_doubao":
-                from myrm_agent_harness.toolkits.web_search.volcengine_doubao_search import (
+                from myrm_agent_harness.toolkits.web_search.providers.volcengine_doubao_search import (
                     VolcengineDoubaoSearch,
                 )
 
@@ -177,7 +177,7 @@ class WebSearcher:
                 config_key="search_service",
             )
 
-        from myrm_agent_harness.toolkits.web_search.litellm_search import LiteLLMSearch
+        from myrm_agent_harness.toolkits.web_search.providers.litellm_search import LiteLLMSearch
 
         if self.config.search_service == "searxng":
             api_base = self.config.api_base
@@ -245,7 +245,7 @@ class WebSearcher:
             List of search results
         """
         if self.config.provider_chain:
-            from myrm_agent_harness.toolkits.web_search.chain import (
+            from myrm_agent_harness.toolkits.web_search.providers.chain import (
                 search_provider_chain,
             )
 

@@ -1,8 +1,8 @@
 """Priority-ordered search provider chain runner.
 
 [INPUT]
-- myrm_agent_harness.toolkits.web_search.web_searcher::WebSearcher (POS: Web search orchestrator)
-- myrm_agent_harness.toolkits.web_search.error_handling::is_quota_or_rate_limit_error, is_retryable_search_error
+- myrm_agent_harness.toolkits.web_search.providers.web_searcher::WebSearcher (POS: Web search orchestrator)
+- myrm_agent_harness.toolkits.web_search.core.error_handling::is_quota_or_rate_limit_error, is_retryable_search_error
 
 [OUTPUT]
 - search_provider_chain: async failover search across priority-ordered provider configs
@@ -17,19 +17,19 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.web_search.error_handling import (
+from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     is_quota_or_rate_limit_error,
     is_retryable_search_error,
 )
-from myrm_agent_harness.toolkits.web_search.exceptions import (
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     AllQueriesFailedError,
     SearchAPIError,
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.web_search.common import SearchResult
-    from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
-    from myrm_agent_harness.toolkits.web_search.web_searcher import (
+    from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+    from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
+    from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
         SearchServiceConfig,
     )
 
@@ -60,7 +60,7 @@ async def search_provider_chain(
     Returns:
         Tuple of (results, winning provider slug).
     """
-    from myrm_agent_harness.toolkits.web_search.web_searcher import WebSearcher
+    from myrm_agent_harness.toolkits.web_search.providers.web_searcher import WebSearcher
 
     if not chain:
         raise SearchAPIError("Search provider chain is empty")

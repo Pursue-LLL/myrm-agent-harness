@@ -47,7 +47,7 @@
 
 默认 Turn1 bind：**web_search + memory×3**（`DEFAULT_ENABLED_BUILTIN_TOOLS` 含 memory；`todo_write` 与 `request_answer_user_tool` 默认不 bind，见各 opt-in 开关）。
 
-组内排序（`get_tool_registry_sort_key`）：**web_search (Rank 0) → memory 块 (Rank 10~12)**。
+组内排序（`get_tool_registry_sort_key`）：**web_search (Rank 0) → memory 块 (Rank 10~12) → skill_select (Rank 20)**。
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
@@ -55,8 +55,9 @@
 | 13 | **memory_search_tool** | **143** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 统一检索（corpus ACL 与 policy 一致；默认仅 memory corpus） | enable_memory |
 | 14 | **memory_save_tool** | **659** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 写入长期记忆（EN core；wiki/approval 动态段；保留原有关键 guardrail 短语） | enable_memory |
 | 15 | **memory_manage_tool** | **315** | 同上 | 更新/删除/纠正/评分；correct→knowledge only（preserves history）；update→措辞微调；instruction→category=rule | enable_memory |
+| 16 | **skill_select_tool** | **188** | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 字节稳定静态 rules（tiktoken measured）；search 提示经 dynamic_hints 条件注入；bound catalog 在首条 HumanMessage `<bound_skills>` | skill_backend present |
 
-**COMMON Turn1 实测（默认 profile，`measure_turn1_token_inventory.py`）**：**2,118 tokens**（4 工具；memory×3 + web_search；English 描述；默认 memory_search 仅 memory corpus）
+**COMMON Turn1 实测（默认 profile）**：**2,306 tokens**（5 工具；web_search + memory×3 + skill_select；English 描述；默认 memory_search 仅 memory corpus）
 
 ---
 
@@ -74,7 +75,6 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 20 | skill_select_tool | 188 | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 字节稳定静态 rules（tiktoken measured）；search 提示经 dynamic_hints 条件注入；bound catalog 在首条 HumanMessage `<bound_skills>` |
 | 21 | skill_manage_tool | 251 | `harness/agent/meta_tools/skills/manage/skill_manage_tool.py` | 创建/修改/删除技能 |
 | 22 | skill_search_tool | 203 | `harness/agent/meta_tools/discover_capability/discover_capability_tool.py` | 统一能力发现；**条件绑定**（hidden_skill_count > 0；tiktoken measured woven desc） |
 | 23 | skill_market_tool | ~175 | `harness/agent/meta_tools/skills/market/skill_market_tool.py` | 从外部源安装/卸载技能；bound-library 提示经 dynamic_hints 条件注入 | Turn1 when market_backend present |

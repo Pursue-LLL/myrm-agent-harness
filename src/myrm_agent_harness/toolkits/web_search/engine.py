@@ -4,10 +4,10 @@
 [INPUT]
 - retriever.autocut::AutocutConfig (POS: score-discontinuity autocut configuration)
 - retriever_tools::RetrieverManager, RetrieverConfig (POS: retrieval tools providing BM25 / Reranker with index cache)
-- web_search.common::SearchResult (POS: search result type)
-- web_search._explicit_params::normalize_explicit_params, apply_tavily_site_constraint (POS: Agent explicit param normalizer)
-- web_search.search_results_processor::combine_search_results_unified, apply_domain_diversity_sort (POS: search result merger and domain diversity sorting)
-- web_search.web_searcher::WebSearcher, SearchServiceConfig, SearchServiceType (POS: web searcher supporting multiple engines)
+- web_search.core.common::SearchResult (POS: search result type)
+- web_search.processing._explicit_params::normalize_explicit_params, apply_tavily_site_constraint (POS: Agent explicit param normalizer)
+- web_search.processing.search_results_processor::combine_search_results_unified, apply_domain_diversity_sort (POS: search result merger and domain diversity sorting)
+- web_search.providers.web_searcher::WebSearcher, SearchServiceConfig, SearchServiceType (POS: web searcher supporting multiple engines)
 - utils.context_format::format_documents_with_metadata (POS: document formatting utility)
 - utils.text_utils::get_token_count (POS: token counting utility)
 
@@ -38,17 +38,17 @@ from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.retriever.autocut import AutocutConfig
 from myrm_agent_harness.toolkits.retriever.splitter.splitter import TextChunker
-from myrm_agent_harness.toolkits.web_search._explicit_params import (
+from myrm_agent_harness.toolkits.web_search.processing._explicit_params import (
     apply_tavily_site_constraint,
     normalize_explicit_params,
 )
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.metrics import web_search_metrics
-from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.metrics import web_search_metrics
+from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
     apply_domain_diversity_sort,
     combine_search_results_unified,
 )
-from myrm_agent_harness.toolkits.web_search.web_searcher import SearchServiceConfig, SearchServiceType, WebSearcher
+from myrm_agent_harness.toolkits.web_search.providers.web_searcher import SearchServiceConfig, SearchServiceType, WebSearcher
 from myrm_agent_harness.utils.context_format import format_documents_with_metadata
 from myrm_agent_harness.utils.text_utils import get_token_count
 
@@ -150,7 +150,7 @@ class WebSearchTools:
             (sources_metadata, formatted_context). May be empty when every result is filtered out
             by the hostname blocklist — callers treat that as "no usable results", not an error.
         """
-        from myrm_agent_harness.toolkits.web_search.intent_optimizer import (
+        from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
             SearchIntent,
             detect_search_intent,
             resolve_search_params,
@@ -188,8 +188,8 @@ class WebSearchTools:
 
         # Bilibili fast-path: when all queries target Bilibili, use native API
         if bilibili_queries and len(bilibili_queries) == len(questions):
-            from myrm_agent_harness.toolkits.web_search.bilibili_search import search_bilibili
-            from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+            from myrm_agent_harness.toolkits.web_search.providers.bilibili_search import search_bilibili
+            from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
                 search_results_to_documents,
             )
 

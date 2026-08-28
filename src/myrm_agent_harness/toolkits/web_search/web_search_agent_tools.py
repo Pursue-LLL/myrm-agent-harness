@@ -2,7 +2,7 @@
 
 
 [INPUT]
-- toolkits.web_search.web_searcher::SearchServiceConfig (POS: search service configuration)
+- toolkits.web_search.providers.web_searcher::SearchServiceConfig (POS: search service configuration)
 - toolkits.retriever.sufficiency (POS: Retrieval Sufficiency Guard for quality evaluation)
 - langchain.tools::tool (POS: LangChain tool decorator)
 - pydantic::BaseModel, Field, field_validator (POS: parameter validation)
@@ -141,7 +141,7 @@ def create_web_search_tool(
             blocked_hostnames=blocked_hostnames,
         )
 
-        from myrm_agent_harness.toolkits.web_search.citation_resolver import (
+        from myrm_agent_harness.toolkits.web_search.processing.citation_resolver import (
             enrich_sources_with_resolved_urls,
         )
 

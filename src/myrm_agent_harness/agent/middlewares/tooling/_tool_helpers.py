@@ -11,8 +11,8 @@
 - core.security.guards.privacy_tracker::get_privacy_policy (POS: Per-turn privacy state tracker. ContextVar-based privacy policy access.)
 - utils.errors::ToolError (POS: Framework-level tool errors)
 - toolkits.browser.exceptions::BrowserError (POS: Browser tool exceptions)
-- toolkits.web_search.exceptions::WebSearchError (POS: Web search exceptions)
-- toolkits.web_search.exceptions::SearchAPIError, SearchConfigError (POS: Structured config/auth search errors for terminal classification)
+- toolkits.web_search.core.exceptions::WebSearchError (POS: Web search exceptions)
+- toolkits.web_search.core.exceptions::SearchAPIError, SearchConfigError (POS: Structured config/auth search errors for terminal classification)
 
 [OUTPUT]
 - NON_RETRYABLE_ERRORS: Tuple of exception types that should not be retried
@@ -53,7 +53,7 @@ from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.agent.security.types import PIIAction, SensitivityLevel
 from myrm_agent_harness.core.security.guards.privacy_tracker import get_privacy_policy
 from myrm_agent_harness.toolkits.browser.exceptions import BrowserError
-from myrm_agent_harness.toolkits.web_search.exceptions import (
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     SearchAPIError,
     SearchConfigError,
     WebSearchError,

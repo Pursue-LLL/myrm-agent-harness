@@ -1,4 +1,14 @@
-"""Canonical URLs and presets for self-hosted SearXNG."""
+"""[INPUT]
+- (none)
+
+[OUTPUT]
+- SEARXNG_HOST_URL, SEARXNG_DOCKER_SERVICE_URL: canonical self-hosted SearXNG base URLs
+- SEARXNG_PROBE_CANDIDATE_URLS: ordered probe targets for local discovery
+- SEARXNG_REGION_PRESETS: region-specific SearXNG parameter presets
+
+[POS]
+Canonical SearXNG URLs and region presets for local/self-hosted search discovery.
+"""
 
 from __future__ import annotations
 

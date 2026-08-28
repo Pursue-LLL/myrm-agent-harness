@@ -2,7 +2,7 @@
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch.antibot_detector import is_blocked
+from myrm_agent_harness.toolkits.web_fetch.processing.antibot_detector import is_blocked
 
 # --- Tier 1: High-confidence WAF patterns ---
 

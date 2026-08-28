@@ -100,6 +100,7 @@ class DualLaneIngestPipeline:
         """Execute dual-lane ingestion over the provided list of object URIs."""
         start_time = time.monotonic()
         self._stats = IngestStats(total_objects=len(object_uris))
+        self._tree_builder = DirTreeBuilder()
 
         # Build initial directory DAG
         for uri in object_uris:

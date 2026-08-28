@@ -136,7 +136,7 @@ class TestTryFetchAndProcess:
                 headers={"content-type": "image/png"},
             )
             with patch(
-                "myrm_agent_harness.toolkits.web_fetch.binary_router.route_binary_content",
+                "myrm_agent_harness.toolkits.web_fetch.processing.binary_router.route_binary_content",
                 new=AsyncMock(return_value=_doc("binary")),
             ):
                 doc, degradable, _, _, _, result = await engine._try_fetch_and_process(

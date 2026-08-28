@@ -159,13 +159,13 @@ def test_skill_meta_tools_descriptions_locale_resolution() -> None:
 
 
 def test_answer_user_tool_locale_resolution() -> None:
-    assert "Call only when you can deliver" in resolve_answer_user_tool_description(None)
-    assert "仅在完成自我审查" in resolve_answer_user_tool_description("zh-CN")
+    assert "Call only when you can confidently deliver" in resolve_answer_user_tool_description(None)
+    assert "仅在当你可以自信地提供完美的满分答案时调用" in resolve_answer_user_tool_description("zh-CN")
 
     ans_en = create_answer_user_tool(locale="en")
-    assert "Call only when you can deliver" in ans_en.description
+    assert "Call only when you can confidently deliver" in ans_en.description
     ans_zh = create_answer_user_tool(locale="zh-CN")
-    assert "仅在完成自我审查" in ans_zh.description
+    assert "仅在当你可以自信地提供完美的满分答案时调用" in ans_zh.description
 
 
 def test_get_meta_tools_passes_locale() -> None:
@@ -186,7 +186,7 @@ def test_get_meta_tools_passes_locale() -> None:
     assert "Search file contents" in descriptions_en["grep_tool"]
     assert "Execute Shell commands" in descriptions_en["bash_code_execute_tool"]
     assert "Manage background bash processes" in descriptions_en["bash_process_tool"]
-    assert "Call only when you can deliver" in descriptions_en["request_answer_user_tool"]
+    assert "Call only when you can confidently deliver" in descriptions_en["request_answer_user_tool"]
 
     # ZH
     registry_zh = ToolRegistry()
@@ -205,7 +205,7 @@ def test_get_meta_tools_passes_locale() -> None:
     assert "搜索文件内容" in descriptions_zh["grep_tool"]
     assert "使用该工具执行准确的 Shell 命令" in descriptions_zh["bash_code_execute_tool"]
     assert "管理通过 bash_code_execute_tool" in descriptions_zh["bash_process_tool"]
-    assert "仅在完成自我审查" in descriptions_zh["request_answer_user_tool"]
+    assert "仅在当你可以自信地提供完美的满分答案时调用" in descriptions_zh["request_answer_user_tool"]
 
 
 def test_agent_runtime_spec_and_config_prompt_locale() -> None:

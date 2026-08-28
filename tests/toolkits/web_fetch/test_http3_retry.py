@@ -10,7 +10,7 @@ import pytest
 from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
 from myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher import HttpFetcher
 from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
-from myrm_agent_harness.toolkits.web_fetch.http3_probe import get_http3_retry_metrics, reset_http3_state_for_tests
+from myrm_agent_harness.toolkits.web_fetch.probe.http3_probe import get_http3_retry_metrics, reset_http3_state_for_tests
 from myrm_agent_harness.toolkits.web_fetch.router.site_experience import SiteExperienceStore
 
 
@@ -352,7 +352,7 @@ async def test_fetch_http3_passes_impersonate_none(
 
 @pytest.mark.asyncio
 async def test_http3_probe_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    from myrm_agent_harness.toolkits.web_fetch.http3_probe import is_http3_retry_enabled, is_quic_egress_available
+    from myrm_agent_harness.toolkits.web_fetch.probe.http3_probe import is_http3_retry_enabled, is_quic_egress_available
 
     monkeypatch.delenv("MYRM_HTTP3_RETRY", raising=False)
     assert is_http3_retry_enabled() is False
@@ -361,7 +361,7 @@ async def test_http3_probe_disabled_by_default(monkeypatch: pytest.MonkeyPatch) 
 
 @pytest.mark.asyncio
 async def test_http3_probe_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    from myrm_agent_harness.toolkits.web_fetch import http3_probe
+    from myrm_agent_harness.toolkits.web_fetch.probe import http3_probe
 
     monkeypatch.setenv("MYRM_HTTP3_RETRY", "1")
     http3_probe.reset_http3_state_for_tests()
@@ -736,7 +736,7 @@ async def test_session_vault_empty_entry_skips_cookies(install_fake_scrapling: A
 
 @pytest.mark.asyncio
 async def test_http3_probe_uses_cached_result(monkeypatch: pytest.MonkeyPatch) -> None:
-    from myrm_agent_harness.toolkits.web_fetch import http3_probe
+    from myrm_agent_harness.toolkits.web_fetch.probe import http3_probe
 
     monkeypatch.setenv("MYRM_HTTP3_RETRY", "1")
     http3_probe.reset_http3_state_for_tests()
@@ -752,7 +752,7 @@ async def test_http3_probe_uses_cached_result(monkeypatch: pytest.MonkeyPatch) -
 @pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_http3_probe_real_exception_path(install_fake_scrapling: AsyncMock) -> None:
-    from myrm_agent_harness.toolkits.web_fetch import http3_probe
+    from myrm_agent_harness.toolkits.web_fetch.probe import http3_probe
 
     install_fake_scrapling.side_effect = RuntimeError("quic blocked")
     assert await http3_probe._probe_quic_egress() is False
@@ -816,7 +816,7 @@ async def test_fetch_with_redirects_ssrf_rewrites_url(install_fake_scrapling: As
 
 
 def test_is_http3_retry_enabled_truthy_variants(monkeypatch: pytest.MonkeyPatch) -> None:
-    from myrm_agent_harness.toolkits.web_fetch.http3_probe import is_http3_retry_enabled
+    from myrm_agent_harness.toolkits.web_fetch.probe.http3_probe import is_http3_retry_enabled
 
     monkeypatch.setenv("MYRM_HTTP3_RETRY", "true")
     assert is_http3_retry_enabled() is True

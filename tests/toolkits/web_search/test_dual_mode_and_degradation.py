@@ -14,8 +14,8 @@ from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.retriever.reranker import RerankerConfig
 from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
-from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
-from myrm_agent_harness.toolkits.web_search.web_searcher import SearchServiceConfig
+from myrm_agent_harness.toolkits.web_search.core.metrics import WebSearchMetrics
+from myrm_agent_harness.toolkits.web_search.providers.web_searcher import SearchServiceConfig
 
 
 @pytest.mark.asyncio

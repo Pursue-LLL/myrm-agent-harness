@@ -26,7 +26,7 @@ from harness_packaging.integrity import (
 )
 from harness_packaging.manifest import load_core_manifest
 from harness_packaging.platforms import SUPPORTED_PLATFORMS, get_current_platform
-from harness_packaging.release import manifest_source_paths, strip_manifest_sources_from_wheel
+from harness_packaging.release import manifest_source_paths, resolve_uv_executable, strip_manifest_sources_from_wheel
 from harness_packaging.version import read_harness_version
 from myrm_agent_harness.runtime.install_guard._generated.core_ip_manifest import CORE_IP_IMPORTS
 
@@ -206,7 +206,7 @@ def test_release_wheel_is_uv_installable(tmp_path: Path) -> None:
     if not venv_python.exists():
         venv_python = venv / "Scripts" / "python.exe"
     result = subprocess.run(
-        ["uv", "pip", "install", "--python", str(venv_python), str(wheel_path)],
+        [resolve_uv_executable(), "pip", "install", "--python", str(venv_python), str(wheel_path)],
         capture_output=True,
         text=True,
     )

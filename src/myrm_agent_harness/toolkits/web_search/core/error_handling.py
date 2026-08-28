@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 
-from myrm_agent_harness.toolkits.web_search.exceptions import (
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     ErrorContext,
     SearchAPIError,
 )

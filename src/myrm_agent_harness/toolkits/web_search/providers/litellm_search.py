@@ -5,7 +5,7 @@ multiple search providers (Perplexity, Tavily, Exa, Google PSE, etc.).
 
 [INPUT]
 litellm::search (POS: LiteLLM unified search API)
-web_search.common::SearchResult (POS: Unified search result dataclass)
+web_search.core.common::SearchResult (POS: Unified search result dataclass)
 
 [OUTPUT]
 LiteLLMSearch: Async search client supporting multiple providers via LiteLLM
@@ -21,7 +21,7 @@ import logging
 
 from litellm import search
 
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,7 @@ from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     TERMINAL_CONFIG_OR_AUTH,
     classify_terminal_error,
 )
-from myrm_agent_harness.toolkits.web_search.exceptions import (
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     ErrorContext,
     SearchAPIError,
     SearchConfigError,

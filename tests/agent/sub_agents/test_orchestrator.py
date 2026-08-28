@@ -2144,7 +2144,92 @@ class TestRunAlternatives:
         assert "runtime error" in results[1].error
 
     @pytest.mark.asyncio
-    async def test_alternatives_discards_deferred_isolated_workspaces(self, tmp_path):
+    async def test_execute_dag_plan_wave_write_isolation_and_merge(self, tmp_path):
+        """DAG parallel wave with multiple write steps isolates workspaces and merges safely."""
+        from unittest.mock import AsyncMock
+
+        mgr = MagicMock()
+        parent_agent = MagicMock()
+        mgr._parent_agent = parent_agent
+
+        parent_ws = tmp_path / "workspace"
+        parent_ws.mkdir()
+        (parent_ws / "base.txt").write_text("initial", encoding="utf-8")
+
+        async def _spawn_child(**kwargs):
+            task_id = kwargs["task_id"]
+            agent_type = kwargs["agent_type"]
+            context = kwargs.get("context", {})
+            # Emulate child mutating its isolated workspace copy
+            child_dir = tmp_path / f"isolated_{task_id}"
+            child_dir.mkdir(exist_ok=True)
+            if "step_a" in task_id:
+                (child_dir / "file_a.txt").write_text("from_a", encoding="utf-8")
+            elif "step_b" in task_id:
+                (child_dir / "file_b.txt").write_text("from_b", encoding="utf-8")
+
+            return {
+                "success": True,
+                "task_id": task_id,
+                "agent_type": agent_type,
+                "result": {
+                    "output": f"done-{task_id}",
+                    "_isolated_child_workspace": str(child_dir),
+                    "_isolated_parent_workspace": str(parent_ws),
+                },
+            }
+
+        mgr.spawn_child = AsyncMock(side_effect=_spawn_child)
+
+        class MockStep:
+            def __init__(self, step_id, readonly=False):
+                self.step_id = step_id
+                self.description = f"Desc for {step_id}"
+                self.expected_output = f"Exp for {step_id}"
+                self.status = "pending"
+                self.dependencies = []
+                self.readonly = readonly
+
+        class MockPlan:
+            def __init__(self):
+                self.step_a = MockStep("step_a", readonly=False)
+                self.step_b = MockStep("step_b", readonly=False)
+                self.steps = [self.step_a, self.step_b]
+                self.completed = False
+
+            def get_ready_steps(self):
+                if self.completed:
+                    return []
+                return [s for s in self.steps if s.status == "pending"]
+
+            def mark_step_completed(self, step_id):
+                for s in self.steps:
+                    if s.step_id == step_id:
+                        s.status = "completed"
+                if all(s.status == "completed" for s in self.steps):
+                    self.completed = True
+
+            def add_error(self, err_type, msg, step_id):
+                pass
+
+        plan = MockPlan()
+
+        result = await execute_dag_plan(
+            plan=plan,
+            manager=mgr,
+            context={"workspace_path": str(parent_ws)},
+            tool_registry_getter=lambda: [],
+            max_concurrent=2,
+        )
+
+        assert result["success"] is True
+        assert "step_a" in result["results"]
+        assert "step_b" in result["results"]
+        # Verify both step results merged back into parent workspace
+        assert (parent_ws / "file_a.txt").exists()
+        assert (parent_ws / "file_a.txt").read_text(encoding="utf-8") == "from_a"
+        assert (parent_ws / "file_b.txt").exists()
+        assert (parent_ws / "file_b.txt").read_text(encoding="utf-8") == "from_b"
         mgr = MagicMock()
         mgr.children = {}
         mgr.child_results = {}

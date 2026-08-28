@@ -127,7 +127,7 @@ context and capabilities.
     async def invoke_acp_agent_func(
         agent_name: str,
         task: str,
-        mode: str = "persistent",
+        mode: Literal["persistent", "oneshot"] = "persistent",
     ) -> str:
         """Invoke an external ACP agent and return its response."""
         if mode not in ("persistent", "oneshot"):

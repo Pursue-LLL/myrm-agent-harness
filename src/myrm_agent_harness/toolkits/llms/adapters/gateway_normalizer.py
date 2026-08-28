@@ -26,15 +26,24 @@ logger = logging.getLogger(__name__)
 # Patterns matching parameter rejections in 400 Bad Request error messages
 _PARAM_REJECTION_PATTERNS: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] = (
     (
-        re.compile(r"stream_options|unknown field.*stream_options|unsupported.*stream_options", re.IGNORECASE),
+        re.compile(
+            r"stream_options|unknown field.*stream_options|unsupported.*stream_options",
+            re.IGNORECASE,
+        ),
         ("stream_options",),
     ),
     (
-        re.compile(r"parallel_tool_calls|unknown field.*parallel_tool_calls|unsupported.*parallel_tool_calls", re.IGNORECASE),
+        re.compile(
+            r"parallel_tool_calls|unknown field.*parallel_tool_calls|unsupported.*parallel_tool_calls",
+            re.IGNORECASE,
+        ),
         ("parallel_tool_calls",),
     ),
     (
-        re.compile(r"reasoning_effort|unknown field.*reasoning_effort|unsupported.*reasoning_effort", re.IGNORECASE),
+        re.compile(
+            r"reasoning_effort|unknown field.*reasoning_effort|unsupported.*reasoning_effort",
+            re.IGNORECASE,
+        ),
         ("reasoning_effort",),
     ),
     (
@@ -42,19 +51,31 @@ _PARAM_REJECTION_PATTERNS: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] =
         ("presence_penalty", "frequency_penalty"),
     ),
     (
-        re.compile(r"max_completion_tokens|unknown field.*max_completion_tokens|unsupported.*max_completion_tokens", re.IGNORECASE),
+        re.compile(
+            r"max_completion_tokens|unknown field.*max_completion_tokens|unsupported.*max_completion_tokens",
+            re.IGNORECASE,
+        ),
         ("max_completion_tokens",),
     ),
     (
-        re.compile(r"temperature.*(?:not supported|unsupported|does not support)|unsupported.*temperature", re.IGNORECASE),
+        re.compile(
+            r"temperature.*(?:not supported|unsupported|does not support)|unsupported.*temperature",
+            re.IGNORECASE,
+        ),
         ("temperature",),
     ),
     (
-        re.compile(r"response_format|unknown field.*response_format|unsupported.*response_format", re.IGNORECASE),
+        re.compile(
+            r"response_format|unknown field.*response_format|unsupported.*response_format",
+            re.IGNORECASE,
+        ),
         ("response_format",),
     ),
     (
-        re.compile(r"unknown field.*['\"]?user['\"]?|unsupported.*['\"]?user['\"]?", re.IGNORECASE),
+        re.compile(
+            r"unknown field.*['\"]?user['\"]?|unsupported.*['\"]?user['\"]?",
+            re.IGNORECASE,
+        ),
         ("user",),
     ),
 )
@@ -94,17 +115,26 @@ def sanitize_gateway_params_on_400(params: dict[str, Any], exc: Exception) -> li
     if "max_completion_tokens" in stripped and saved_max_completion_tokens is not None:
         if "max_tokens" not in params:
             params["max_tokens"] = saved_max_completion_tokens
-            if "allowed_openai_params" in params and isinstance(params["allowed_openai_params"], list):
+            if "allowed_openai_params" in params and isinstance(
+                params["allowed_openai_params"], list
+            ):
                 if "max_tokens" not in params["allowed_openai_params"]:
                     params["allowed_openai_params"].append("max_tokens")
 
     # Also remove from allowed_openai_params whitelist if present
-    if stripped and "allowed_openai_params" in params and isinstance(params["allowed_openai_params"], list):
+    if (
+        stripped
+        and "allowed_openai_params" in params
+        and isinstance(params["allowed_openai_params"], list)
+    ):
         params["allowed_openai_params"] = [
             p for p in params["allowed_openai_params"] if p not in stripped
         ]
 
     if stripped:
-        logger.warning(" Gateway 400 detected, automatically stripped rejected param(s): %s", stripped)
+        logger.warning(
+            " Gateway 400 detected, automatically stripped rejected param(s): %s",
+            stripped,
+        )
 
     return stripped

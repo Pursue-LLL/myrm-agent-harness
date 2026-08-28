@@ -178,10 +178,9 @@ myrm_agent_harness/toolkits/retriever/splitter/__init__.py
 myrm_agent_harness/toolkits/storage/__init__.py
 myrm_agent_harness/toolkits/vector/__init__.py
 myrm_agent_harness/toolkits/vector/qdrant/__init__.py
-myrm_agent_harness/toolkits/web_fetch/html_to_markdown.py
 myrm_agent_harness/toolkits/web_fetch/router/__init__.py
-myrm_agent_harness/toolkits/web_search/constants.py
-myrm_agent_harness/toolkits/web_search/local_probe.py
+myrm_agent_harness/toolkits/web_search/probe/constants.py
+myrm_agent_harness/toolkits/web_search/probe/local_probe.py
 myrm_agent_harness/utils/crypto/__init__.py
 myrm_agent_harness/utils/mime_types.py
 myrm_agent_harness/utils/tree_truncator.py

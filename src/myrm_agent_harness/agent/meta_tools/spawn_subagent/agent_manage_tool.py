@@ -31,41 +31,35 @@ def create_subagent_control_tool(parent_agent: BaseAgent) -> BaseTool:
     class SubagentControlInput(BaseModel):
         action: Literal["list", "cancel", "steer", "wait"] = Field(
             description=(
-                "Control action to perform on subagents. "
-                "'list' shows all subagents with status and results; 'wait' blocks "
-                "until the given subagent finishes (or times out); 'cancel' stops a "
-                "running subagent; 'steer' injects a corrective message. Use action=wait "
-                "to synchronously await a wait=false background subagent instead of "
-                "blind-polling action=list in a loop."
+                "Action to perform on subagents: "
+                "'list' (inspect status and results of all subagents), "
+                "'wait' (synchronously block until the target task_id finishes or times out), "
+                "'cancel' (stop a running subagent), "
+                "'steer' (inject a corrective message into a running subagent)."
             ),
         )
         task_id: str | None = Field(
             default=None,
-            description="Required for cancel/steer/wait: the subagent task_id from delegate_task_tool.",
+            description="Target subagent task_id from delegate_task_tool (required for 'wait', 'cancel', and 'steer').",
         )
         timeout_seconds: int | None = Field(
             default=None,
-            description="Optional for wait: seconds to block before returning still-running (1-120, default 30).",
+            description="Max seconds to block for 'wait' before returning still-running (1-120, default: 30).",
             ge=1,
             le=120,
         )
         message: str | None = Field(
             default=None,
-            description="Required for steer: corrective message injected at the next turn boundary.",
+            description="Corrective instruction text to inject at the next turn boundary (required for 'steer').",
             max_length=_MAX_STEER_MESSAGE_CHARS,
         )
 
     @tool(
         "subagent_control_tool",
         description=(
-            "Manage subagents at runtime. "
-            "action=list returns all subagents with status and results (use this to check on "
-            "wait=false background subagents — completed ones include their result summary); "
-            "action=wait blocks until the given subagent finishes, returning its result "
-            "(still-running is reported on timeout); "
-            "action=cancel stops a running subagent; "
-            "action=steer injects a corrective message into a running subagent. "
-            "Supported actions are exactly: list, cancel, steer, wait."
+            "Observe and control subagents at runtime. "
+            "Use action='wait' to synchronously await an async background subagent (avoids manual polling loops). "
+            "Use action='list' to check overall status, 'cancel' to stop execution, and 'steer' to correct direction."
         ),
         args_schema=SubagentControlInput,
     )

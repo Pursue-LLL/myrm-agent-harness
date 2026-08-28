@@ -58,10 +58,10 @@ LLM tools: **57** (Harness 51: CORE 8 + COMMON 4 + EXTENDED 39; External 6: serv
 
 ```python
 class ToolLayer(IntEnum):
-    CORE = 1      # 核心工具，始终存在，不可关闭
-    COMMON = 2    # 通用工具，默认存在，前端可控制开关
-    EXTENDED = 3  # harness 可选能力，按需 Turn1
-    EXTERNAL = 4  # 框架外：server vendor / MCP direct / OpenAPI / 未登记动态工具
+    CORE = 1      # 核心层：基线工具，始终存在，不可关闭（保证终极前缀缓存）
+    COMMON = 2    # 高优层：标配工具，默认全局挂载（Default-ON），用户可配置关闭（搜索/记忆/技能选择）
+    EXTENDED = 3  # 扩展层：harness 可选高级能力，默认关闭，按需挂载
+    EXTERNAL = 4  # 外部业务层：框架外集成（server vendor / MCP direct / OpenAPI / 动态工具）
 ```
 
 ### 2.2 分层设计目标
@@ -70,9 +70,9 @@ class ToolLayer(IntEnum):
 
 **层级说明**:
 
-#### 2.2.1 CORE 层 (Layer 1)
+#### 2.2.1 CORE 层 (Layer 1) - 核心层
 
-- **特征**: 通用 Agent 基线，Turn1 eager；前端无开关（Fast 模式由 converter 关闭 file/bash）
+- **特征**: 通用 Agent 基线，Turn1 eager；前端无开关，不可关闭（Fast 模式由 converter 关闭 file/bash）
 - **工具数量**: **8**（`tool_layers.py:64-71`）
 - **Token 消耗**: ~4,180 tokens（2026-07-03 实测 + bash_process ~120，见 `DEFAULT_AGENT_TOKEN_INVENTORY.md` §二）
 
@@ -82,24 +82,27 @@ class ToolLayer(IntEnum):
 
 **设计原则**: 仅包含 Agent 基线工具；详细 token 逐项见 `DEFAULT_AGENT_TOKEN_INVENTORY.md` §二。
 
-#### 2.2.2 COMMON 层 (Layer 2)
+#### 2.2.2 COMMON 层 (Layer 2) - 高优层
 
-- **特征**: 默认开启（product_id ∈ `DEFAULT_ENABLED_BUILTIN_TOOLS`），GUI 可关；组内 memory 优先于 web_search（`get_tool_registry_sort_key`）
-- **工具数量**: 注册 **4** 个（memory×3 + web_search）
-- **默认 Turn1 bind**: memory×3 + web_search（见 `DEFAULT_AGENT_TOKEN_INVENTORY.md` §三）
-- **CI 门禁**: `validate_layer_product_consistency()` — COMMON 层工具的 product_id 必须在默认开集合内（见 `tool_catalog.py`）
+- **特征**: 默认开启（Default-ON），GUI/配置可关（User-Togglable）；组内严格按稳定 Rank 排序：搜索工具 (Rank 0) -> 记忆工具组 (Rank 10~12) -> 技能选择工具 (Rank 20)
+- **工具数量**: 注册 **5** 个（`web_search_tool` + memory×3 + `skill_select_tool`）
+- **默认 Turn1 bind**: web_search + memory×3 + skill_select（见 `DEFAULT_AGENT_TOKEN_INVENTORY.md` §三）
+- **CI 门禁**: `validate_layer_product_consistency()` — 校验层级与默认开启策略的一致性
 
-| 工具名 | 加载条件 |
-|--------|----------|
-| memory_recall/save/manage_tool | enable_memory + `enabled_builtin_tools: memory`（默认开） |
-| web_search_tool | GUI 可关（默认开） |
+| 工具名 | 组内排序 | 加载条件 |
+|--------|---------|----------|
+| web_search_tool | Rank 0 | GUI 可关（默认开，`enabled_builtin_tools: web_search`） |
+| memory_manage_tool | Rank 10 | enable_memory + `enabled_builtin_tools: memory`（默认开） |
+| memory_search_tool | Rank 11 | enable_memory + `enabled_builtin_tools: memory`（默认开） |
+| memory_save_tool | Rank 12 | enable_memory + `enabled_builtin_tools: memory`（默认开） |
+| skill_select_tool | Rank 20 | skill_backend present（默认开） |
 
 **不在 COMMON 的 opt-in 工具**（如 `todo_write` / `planning`、`ask_question_tool` / `structured_clarify`）登记在 EXTENDED；后者虽默认开但因 HITL/cache 策略列入 `EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS`。
 
-#### 2.2.3 EXTENDED 层 (Layer 3)
-- **特征**: harness 可选能力，按需 Turn1 或 RUNTIME_ONLY 绑定
+#### 2.2.3 EXTENDED 层 (Layer 3) - 扩展层
+- **特征**: harness 可选能力，默认关闭，按需 Turn1 或 RUNTIME_ONLY 绑定
 - **缓存**: harness 三层末尾；变化不影响 CORE/COMMON 前缀
-- **工具数量**: 登记 **40** EXTENDED（harness 静态；见 TOOL_COUNT 块）
+- **工具数量**: 登记 **39** EXTENDED（harness 静态；见 TOOL_COUNT 块）
 - **Token 消耗**: 典型 ~2,246 tokens，满载 ~7,290+ tokens
 
 **子分类**:
@@ -107,9 +110,8 @@ class ToolLayer(IntEnum):
 | 子类 | 加载条件 | 典型工具 | Token 消耗 |
 |------|---------|---------|----------:|
 | 能力发现网关（**TURN1**，条件绑定） | `hidden_skill_count > 0` 且存在 model_invocable bound skills | skill_search_tool | 203（条件绑定；tiktoken measured woven desc） |
-| 记忆工具（COMMON） | 启用记忆系统 | memory_search_tool, memory_save_tool, memory_manage_tool | ~2,060（见 `DEFAULT_AGENT_TOKEN_INVENTORY.md` §三） |
+| 技能管理与市场 | 启用技能市场/管理 | skill_manage_tool, skill_market_tool | ~200 |
 | 会话搜索（opt-in） | `memoryEnableConversationSearch=true` 且非无痕 | `memory_search_tool`（corpus=sessions ACL；无额外 Turn1 schema） | 含于 memory×3 ~2,060 |
-| 技能工具（Turn1） | 有技能后端 | skill_select_tool, skill_manage_tool | ~343 |
 | 浏览器工具 | `enabled_builtin_tools: browser` | browser_navigate_tool, browser_snapshot_tool, ... (8个) | ~535 |
 | 定时任务工具 | cron 能力 wired；勾选 cron 时 Turn1 | cron_manage_tool | ~827 |
 | Wiki 工具 | `enabled_builtin_tools: wiki` | wiki_query_tool, wiki_ingest_tool (Turn1)；wiki_compile/maintain 仅 REST/admin | ~95 |
@@ -121,7 +123,7 @@ class ToolLayer(IntEnum):
 | 看板工具 | `enabled_builtin_tools: kanban` | orchestrator 3 + worker 6；board CRUD 走 REST/GUI | -
 | Server vendor 工具 | 见 EXTERNAL 层 | x_search/image/video/tts/artifact_publish/channel_notify 等 | 按凭证 |
 
-#### 2.2.4 EXTERNAL 层 (Layer 4)
+#### 2.2.4 EXTERNAL 层 (Layer 4) - 外部业务层
 
 - **特征**: 框架外集成 — server vendor、MCP direct、OpenAPI、未登记动态工具
 - **缓存**: 整段位于 harness 三层之后；MCP 增删不影响 CORE/COMMON/EXTENDED 前缀

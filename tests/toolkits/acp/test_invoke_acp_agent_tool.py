@@ -71,12 +71,14 @@ class TestCreateDelegateTool:
         assert "configured backend" in tool_func.description
 
     @pytest.mark.asyncio
-    async def test_invalid_mode(self) -> None:
+    async def test_invalid_mode_validation_error(self) -> None:
+        from pydantic import ValidationError
+
         pool = _make_pool({"claude": _cfg()})
         tool_func = create_invoke_acp_agent_tool(pool, cwd="/workspace")
-        result = await tool_func.ainvoke({"agent_name": "claude", "task": "test", "mode": "bad"})
-        assert "[error]" in result
-        assert "Invalid mode" in result
+        with pytest.raises(ValidationError) as exc_info:
+            await tool_func.ainvoke({"agent_name": "claude", "task": "test", "mode": "bad"})
+        assert "Input should be 'persistent' or 'oneshot'" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_task_too_large(self) -> None:

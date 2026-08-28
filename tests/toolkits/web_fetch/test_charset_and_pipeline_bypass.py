@@ -4,13 +4,13 @@ import json
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch.charset_detector import (
+from myrm_agent_harness.toolkits.web_fetch.probe.charset_detector import (
     _normalize_encoding_name,
     detect_and_decode_html,
     probe_meta_charset,
 )
 from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
-from myrm_agent_harness.toolkits.web_fetch.pipeline import ContentPipeline
+from myrm_agent_harness.toolkits.web_fetch.processing.pipeline import ContentPipeline
 
 
 def test_normalize_encoding_name():

@@ -2,16 +2,18 @@
 
 [INPUT]
 utils.lru_cache::LRUCache (POS: Generic TTL-based LRU cache)
-web_search.common::SearchResult (POS: Unified search result dataclass)
+web_search.core.common::SearchResult (POS: Unified search result dataclass)
 
 [OUTPUT]
 bucket_search_limit, normalize_search_query: cache-key normalization helpers
+has_cacheable_search_results: TTL eligibility guard for non-empty usable URLs
 await_coalesced_search: single-flight wrapper with timeout retry and leader cancellation
 reset_search_coalescing_state_for_tests: test-only module state reset
 
 [POS]
 Web search coalescing layer. Deduplicates concurrent identical searches, buckets result
-limits, cancels stuck leaders on coalesce timeout, and retains held locks under pressure.
+limits, cancels stuck leaders on coalesce timeout, retains held locks under pressure,
+and skips TTL persistence for empty or error-only provider payloads.
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ import logging
 import re
 from collections.abc import Awaitable, Callable
 
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.utils.lru_cache import LRUCache
 
 logger = logging.getLogger(__name__)
@@ -65,6 +67,11 @@ def build_search_cache_key(
     extra_suffix: str,
 ) -> str:
     return f"{search_service}:{normalize_search_query(query)}:{bucketed_limit}:{extra_suffix}"
+
+
+def has_cacheable_search_results(results: list[SearchResult]) -> bool:
+    """Return True when at least one non-error result carries a usable URL."""
+    return any(not result.is_error and result.link.strip() for result in results)
 
 
 def _coalesce_lock_for(cache_key: str) -> asyncio.Lock:
@@ -147,7 +154,8 @@ async def _run_coalesce_leader(
 ) -> None:
     try:
         results = await fetch()
-        _search_cache.set(cache_key, results)
+        if has_cacheable_search_results(results):
+            _search_cache.set(cache_key, results)
         if not future.done():
             future.set_result(results)
     except asyncio.CancelledError:

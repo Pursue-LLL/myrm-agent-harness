@@ -7,8 +7,8 @@ RAG traceability improvement.
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
     search_results_to_documents,
 )
 
@@ -65,7 +65,7 @@ class TestDescriptionNotTruncated:
         assert docs[0].metadata["description"] == snippet
 
     def test_citations_included_in_metadata(self) -> None:
-        from myrm_agent_harness.toolkits.web_search.common import Citation
+        from myrm_agent_harness.toolkits.web_search.core.common import Citation
 
         citations = [
             Citation(url="https://a.com/ref", title="Ref 1", start_index=0, end_index=10),
@@ -170,7 +170,7 @@ class TestCombineSearchResultsMetadataPreservation:
     def test_date_and_summary_survive_combine(self) -> None:
         from langchain_core.documents import Document
 
-        from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+        from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
             combine_search_results_unified,
         )
 
@@ -197,7 +197,7 @@ class TestCombineSearchResultsMetadataPreservation:
     def test_url_normalized_but_other_metadata_intact(self) -> None:
         from langchain_core.documents import Document
 
-        from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+        from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
             combine_search_results_unified,
         )
 

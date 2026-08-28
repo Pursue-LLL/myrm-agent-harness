@@ -62,12 +62,12 @@ _RENDER_UI_DOC = f"""Render an interactive declarative UI (forms, tables, cards,
 Use when user input requires multi-field forms, structured tables, or rich dashboard layouts.
 For simple single/multi-choice clarifying questions, prefer ask_question_tool instead.
 
-Allowed component types: {_ALLOWED_TYPES_LINE}
+Allowed types: {_ALLOWED_TYPES_LINE}
 
 Rules:
-- Flat adjacency list: 'components' is flat; 'children' holds child ID strings only (never nested objects).
-- 'root_ids' contains top-level container/card IDs only.
-- Every event in 'events' (e.g. {{"onClick": "act_id"}}) must reference an 'id' declared in 'actions'.
+- components: flat list; 'children' holds child ID strings only.
+- root_ids: top-level container/card IDs only.
+- Every event in 'events' (e.g. {{"onClick": "act_id"}}) must reference an id in 'actions'.
 - Action schema: {{"id": "str", "type": "submit|cancel|navigate|custom", "label": "str"}}.
 
 CRITICAL: For table/chart/tabs or 3+ components, file_read_tool `{A2UI_REFERENCE_REL_PATH}` for full props.
@@ -75,10 +75,10 @@ After rendering, use update_ui_data_tool to patch data fields without re-sending
 
 Args:
     title: UI title
-    components: Flat component list: [{{"id", "type", "props"?, "children"?, "bindings"?, "events"?}}]
-    root_ids: Top-level root component IDs
-    data: Initial key-value data model (bind via 'bindings', e.g. {{"value": "$.form.field"}})
-    actions: Triggerable actions: [{{"id", "type", "label", "payload"?}}]
+    components: Flat component list
+    root_ids: Top-level component IDs
+    data: Initial data model
+    actions: Triggerable actions
 
 Returns:
     Confirmation with surface_id upon success, or actionable validation error for self-correction.

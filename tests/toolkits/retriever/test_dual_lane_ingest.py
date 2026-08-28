@@ -211,3 +211,36 @@ async def test_dual_lane_ingest_fault_isolation() -> None:
     assert stats.succeeded_objects == 2
     assert stats.failed_objects == 1
     assert len(store.upserted_docs) == 2
+
+
+@pytest.mark.asyncio
+async def test_dual_lane_ingest_async_generator_producer_and_empty_list() -> None:
+    embedder = MockEmbedder()
+    store = MockVectorStore()
+
+    pipeline = DualLaneIngestPipeline(
+        embedder=embedder,
+        vector_store=store,
+        collection_name="test_async_gen_col",
+        max_queue_size=5,
+        batch_size=2,
+    )
+
+    # Test edge case 1: Empty object list
+    stats_empty = await pipeline.run(object_uris=[], object_producer=lambda uri: [])
+    assert stats_empty.total_objects == 0
+    assert stats_empty.total_chunks_produced == 0
+
+    # Test edge case 2: Async generator producer
+    async def async_gen_producer(uri: str):
+        for i in range(3):
+            yield Chunk(content=f"Async stream chunk {i} from {uri}", uri=uri, chunk_index=i)
+
+    stats_gen = await pipeline.run(
+        object_uris=["stream_file.log"],
+        object_producer=async_gen_producer,
+    )
+    assert stats_gen.total_objects == 1
+    assert stats_gen.succeeded_objects == 1
+    assert stats_gen.total_chunks_produced == 3
+    assert len(store.upserted_docs) == 3

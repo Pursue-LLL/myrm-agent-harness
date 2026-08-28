@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_search.intent_optimizer import (
+from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
     _CONFIDENCE_THRESHOLD,
     _SEARXNG_INTENT_PARAMS,
     _TAVILY_INTENT_PARAMS,
@@ -406,8 +406,8 @@ class TestIntentIntegrationWithWebSearcher:
         """Verify per_query_overrides are correctly distributed to individual searches."""
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.web_search.common import SearchResult
-        from myrm_agent_harness.toolkits.web_search.web_searcher import (
+        from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+        from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
             SearchServiceConfig,
             WebSearcher,
         )
@@ -444,8 +444,8 @@ class TestIntentIntegrationWithWebSearcher:
         """Verify override params override config.extra_params."""
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.web_search.common import SearchResult
-        from myrm_agent_harness.toolkits.web_search.web_searcher import (
+        from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+        from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
             SearchServiceConfig,
             WebSearcher,
         )
@@ -478,8 +478,8 @@ class TestIntentIntegrationWithWebSearcher:
         """Different overrides for same query must NOT hit cache."""
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.web_search.common import SearchResult
-        from myrm_agent_harness.toolkits.web_search.web_searcher import (
+        from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+        from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
             SearchServiceConfig,
             WebSearcher,
         )

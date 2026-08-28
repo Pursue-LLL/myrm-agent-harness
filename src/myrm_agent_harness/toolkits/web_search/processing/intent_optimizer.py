@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
-from myrm_agent_harness.toolkits.web_search.web_searcher import SearchServiceType
+from myrm_agent_harness.toolkits.web_search.providers.web_searcher import SearchServiceType
 
 
 class SearchIntent(Enum):

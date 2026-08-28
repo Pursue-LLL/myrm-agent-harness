@@ -31,6 +31,7 @@ CRON_MANAGE_TOOL_DESCRIPTION_EN = """Manage scheduled tasks, recurring automatio
 2. Shell Command Task: command + ONE schedule param. (Mutually exclusive with prompt).
 3. Plain Reminder (No LLM): reminder=true + prompt + at (e.g. at="2026-03-01T10:00:00").
 4. Blueprint Automation: blueprint + blueprint_values. (Pre-tuned prompt & schedule template).
+5. Event/Stream Task (Real-time Trigger): stream_url (or poll_url) + (prompt OR command) + optional schedule.
 
 ## Actions:
 - add: Create a task. Fill (prompt OR command OR blueprint) + ONE schedule parameter.
@@ -90,6 +91,7 @@ CRON_MANAGE_TOOL_DESCRIPTION_ZH = """管理定时任务、周期性自动化与�
 2. Shell 命令任务：command + 调度参数（与 prompt 互斥）。
 3. 纯提醒事项（无需 LLM）：reminder=true + prompt + at（如 at="2026-03-01T10:00:00"）。
 4. 蓝图自动化模板：blueprint + blueprint_values（自动填充调优后的提示词与调度规则）。
+5. 实时流/轮询事件任务（触发式自动化）：stream_url（或 poll_url）+（prompt 或 command）+ 可选兜底调度。
 
 ## 操作指令（Actions）：
 - add：创建新任务。需提供（prompt 或 command 或 blueprint）+ 恰好一个调度参数。

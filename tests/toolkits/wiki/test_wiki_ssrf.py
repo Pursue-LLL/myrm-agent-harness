@@ -149,7 +149,7 @@ async def test_fetch_url_fallback_empty_markdown() -> None:
             return_value=mock_response,
         ),
         patch(
-            "myrm_agent_harness.toolkits.web_fetch.markdown_generator.MarkdownGenerator",
+            "myrm_agent_harness.toolkits.web_fetch.processing.markdown_generator.MarkdownGenerator",
         ) as mock_gen_cls,
     ):
         mock_gen_cls.return_value.generate_markdown.return_value = mock_md_result

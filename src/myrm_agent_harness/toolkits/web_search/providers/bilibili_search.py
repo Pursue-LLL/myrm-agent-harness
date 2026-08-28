@@ -12,7 +12,7 @@ Scope limitation: This is one of only two platform-specific search fast-paths
 must use Skill/MCP — not toolkit built-ins.
 
 [INPUT]
-- web_search.common::SearchResult (POS: Unified search result dataclass)
+- web_search.core.common::SearchResult (POS: Unified search result dataclass)
 
 [OUTPUT]
 - search_bilibili: Async Bilibili keyword search returning SearchResult list or None
@@ -31,7 +31,7 @@ import re
 import urllib.parse
 import urllib.request
 
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 
 logger = logging.getLogger(__name__)
 

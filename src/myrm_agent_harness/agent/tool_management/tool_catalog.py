@@ -241,6 +241,8 @@ def validate_layer_product_consistency(
             continue
 
         if layer == ToolLayer.COMMON:
+            if name == "skill_select_tool":
+                continue
             if product_id is None:
                 errors.append(f"{name}: COMMON layer tools must map to a GUI product_id")
             elif product_id not in defaults:

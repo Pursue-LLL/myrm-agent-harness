@@ -42,19 +42,15 @@ Only when parallel gain, specialized expertise, or adversarial breadth applies.
 If none apply, execute directly.
 
 ## Modes & Required Parameters
-- single: One subagent [Requires: agent_type, objective; wait=false by default]
-- batch: Concurrent batch tasks via tasks[] [Requires: tasks; optional race/tournament; wait=true by default]
-- parallel: Swarm Fission yield-resume Map-Reduce [Requires: tasks; wait=true by default]
-- council: Multi-expert cross-review with chair synthesis [Requires: expert_agent_types (min 2), objective; wait=true by default]
-- alternatives: N parallel solutions for user comparison [Requires: expert_agent_types, objective; wait=true by default]
+- single: [Requires: agent_type, objective; wait=false by default]
+- batch: [Requires: tasks[]; optional race/tournament; wait=true by default]
+- parallel: [Requires: tasks[]; wait=true by default]
+- council: [Requires: expert_agent_types (min 2), objective; wait=true by default]
+- alternatives: [Requires: expert_agent_types, objective; wait=true by default]
 
 ## Council vs Alternatives
-- council: when you need cognitive diversity — multiple experts analyse the SAME question, \
-challenge each other's assumptions in cross-review, and a chair synthesises consensus. \
-Use for architectural decisions, security reviews, or any task where blind spots are dangerous.
-- alternatives: when you need solution diversity — N agents produce independent solutions \
-to the SAME task, and the user picks the best one. Use for creative tasks, UI designs, \
-or any task where "the best" is subjective.
+- council: Cognitive diversity — multiple experts analyze the SAME question, cross-review, and synthesize consensus (architectural decisions, security audits).
+- alternatives: Solution diversity — N agents produce independent candidate solutions for comparison (creative tasks, UI designs).
 
 ## Result retrieval
 Async results (wait=false) are NOT auto-injected. Use subagent_control_tool action=list.

@@ -4,8 +4,8 @@ Converts raw SearchResult objects into deduplicated, cleaned LangChain Documents
 with normalised URLs and content-hash-based deduplication.
 
 [INPUT]
-web_search.common::SearchResult (POS: Unified search result dataclass)
-web_search.exceptions::ErrorContext, SearchAPIError (POS: Search exception types)
+web_search.core.common::SearchResult (POS: Unified search result dataclass)
+web_search.core.exceptions::ErrorContext, SearchAPIError (POS: Search exception types)
 utils.document_utils::enhance_document_content (POS: Document content enhancement)
 utils.hash_utils::get_content_hash (POS: Content hashing for deduplication)
 utils.text_cleaner::clean_search_snippet (POS: Search snippet cleaning)
@@ -27,8 +27,8 @@ from collections import Counter
 
 from langchain_core.documents import Document
 
-from myrm_agent_harness.toolkits.web_search.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.exceptions import (
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.exceptions import (
     ErrorContext,
     SearchAPIError,
 )

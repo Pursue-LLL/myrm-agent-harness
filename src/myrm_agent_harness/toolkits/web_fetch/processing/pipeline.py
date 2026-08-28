@@ -5,9 +5,9 @@ regardless of whether HTML comes from curl_cffi, Patchright, or Scrapling,
 it passes through the same processing pipeline.
 
 [INPUT]
-web_fetch.content_pruning::ContentPruningFilter (POS: Boilerplate / noise pruning)
+web_fetch.processing.content_pruning::ContentPruningFilter (POS: Boilerplate / noise pruning)
 web_fetch.fetchers.protocol::FetcherType, FetchResult (POS: Fetcher protocol types)
-web_fetch.markdown_generator::MarkdownGenerator (POS: HTML-to-Markdown conversion)
+web_fetch.processing.markdown_generator::MarkdownGenerator (POS: HTML-to-Markdown conversion)
 utils.text_cleaner::clean_text (POS: Generic text cleaning utility)
 
 [OUTPUT]
@@ -30,7 +30,7 @@ from langchain_core.documents import Document
 from myrm_agent_harness.utils.text_cleaner import clean_text
 
 from .content_pruning import ContentPruningFilter
-from .fetchers.protocols import FetcherType, FetchResult
+from ..fetchers.protocols import FetcherType, FetchResult
 from .markdown_generator import MarkdownGenerator
 
 _TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
