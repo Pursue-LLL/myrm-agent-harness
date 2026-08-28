@@ -25,6 +25,8 @@ __all__ = [
     "AgentRuntimeConfig",
     "AgentRuntimeSpec",
     "AgentStreamEvent",
+    "AttributionVerdict",
+    "ChangePredictionManifest",
     "CompletionStatus",
     "ComplianceAuditEngine",
     "ComplianceReport",
@@ -43,6 +45,9 @@ __all__ = [
     "KanbanStore",
     "LLMConfig",
     "MCPAnnotations",
+    "ManifestAttributionResult",
+    "MetricAttributionDetail",
+    "MetricPrediction",
     "MissingDependencyFailClosedError",
     "MissingDependencyFailFastError",
     "MissingSemanticsBlockedError",
@@ -51,6 +56,7 @@ __all__ = [
     "MissingSemanticsError",
     "MissingSemanticsPolicy",
     "Origin",
+    "PredictionDirection",
     "PrivacyFailClosedLadder",
     "PrivacyFailClosedViolationError",
     "PrivacyLadderLevel",
@@ -80,12 +86,15 @@ __all__ = [
     "build_parent_delegatable_toolkit",
     "calculate_trajectory_determinism",
     "classify_connector_error",
+    "cleanup_orphan_processes",
     "compute_workflow_fingerprint",
     "create_skill_agent",
     "delete_subagent_checkpoint",
     "evaluate_five_contract_progress",
+    "evaluate_manifest_attribution",
     "evaluate_missing_capability",
     "evict_skill_safety_metadata",
+    "find_orphan_automation_processes",
     "generate_fix_suggestion",
     "get_distribution_mode",
     "get_ptc_safety_metadata",
@@ -178,6 +187,26 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.core.security.missing_semantics",
         "MissingDependencyFailFastError",
     ),
+    "AttributionVerdict": (
+        "myrm_agent_harness.eval.manifest_prediction",
+        "AttributionVerdict",
+    ),
+    "ChangePredictionManifest": (
+        "myrm_agent_harness.eval.manifest_prediction",
+        "ChangePredictionManifest",
+    ),
+    "ManifestAttributionResult": (
+        "myrm_agent_harness.eval.manifest_prediction",
+        "ManifestAttributionResult",
+    ),
+    "MetricAttributionDetail": (
+        "myrm_agent_harness.eval.manifest_prediction",
+        "MetricAttributionDetail",
+    ),
+    "MetricPrediction": (
+        "myrm_agent_harness.eval.manifest_prediction",
+        "MetricPrediction",
+    ),
     "MissingSemanticsBlockedError": (
         "myrm_agent_harness.core.security.missing_semantics",
         "MissingSemanticsBlockedError",
@@ -201,6 +230,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "Origin": (
         "myrm_agent_harness.core.security.http.redirect_guard",
         "Origin",
+    ),
+    "PredictionDirection": (
+        "myrm_agent_harness.eval.manifest_prediction",
+        "PredictionDirection",
     ),
     "PrivacyFailClosedLadder": (
         "myrm_agent_harness.core.security.guards.privacy_ladder",
@@ -304,6 +337,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.api.subagents",
         "build_parent_delegatable_toolkit",
     ),
+    "cleanup_orphan_processes": (
+        "myrm_agent_harness.toolkits.browser.doctor.orphans",
+        "cleanup_orphan_processes",
+    ),
+    "find_orphan_automation_processes": (
+        "myrm_agent_harness.toolkits.browser.doctor.orphans",
+        "find_orphan_automation_processes",
+    ),
     "calculate_trajectory_determinism": (
         "myrm_agent_harness.eval.assertions",
         "calculate_trajectory_determinism",
@@ -324,6 +365,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "evaluate_five_contract_progress": (
         "myrm_agent_harness.eval.contracts",
         "evaluate_five_contract_progress",
+    ),
+    "evaluate_manifest_attribution": (
+        "myrm_agent_harness.eval.manifest_prediction",
+        "evaluate_manifest_attribution",
     ),
     "evaluate_missing_capability": (
         "myrm_agent_harness.core.security.missing_semantics",
