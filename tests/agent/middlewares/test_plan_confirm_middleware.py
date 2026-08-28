@@ -280,3 +280,47 @@ def test_sync_wrap_passthrough(middleware):
 
     result = middleware.wrap_tool_call(request, lambda r: expected)
     assert result is expected
+
+
+@pytest.mark.asyncio
+async def test_replan_triggers_interrupt_when_goal_changes(middleware):
+    """When a plan was confirmed, but a new plan with a different goal is submitted, interrupt again."""
+    captured_payloads = []
+
+    def fake_interrupt(payload):
+        captured_payloads.append(dict(payload))
+        return {"action": "confirm"}
+
+    # Plan 1: Goal A
+    todos1 = _make_todos(MIN_ITEMS_FOR_CONFIRM)
+    request1 = _make_request(args={"merge": False, "todos": todos1, "goal": "Goal A"})
+
+    with (
+        patch(
+            "myrm_agent_harness.agent.middlewares.plan_confirm_middleware._is_plan_confirm_enabled",
+            return_value=True,
+        ),
+        patch(
+            "myrm_agent_harness.agent.middlewares.plan_confirm_middleware.interrupt",
+            side_effect=fake_interrupt,
+        ),
+    ):
+        result1 = await middleware.awrap_tool_call(request1, _passthrough_handler)
+        assert isinstance(result1, ToolMessage)
+        assert len(captured_payloads) == 1
+        assert captured_payloads[0]["goal"] == "Goal A"
+
+        # Plan 2: Same Goal A (should not interrupt)
+        request2 = _make_request(args={"merge": False, "todos": todos1, "goal": "Goal A"})
+        result2 = await middleware.awrap_tool_call(request2, _passthrough_handler)
+        assert isinstance(result2, ToolMessage)
+        assert len(captured_payloads) == 1
+
+        # Plan 3: Re-plan with Goal B (should interrupt again!)
+        todos3 = _make_todos(MIN_ITEMS_FOR_CONFIRM)
+        request3 = _make_request(args={"merge": False, "todos": todos3, "goal": "Goal B"})
+        result3 = await middleware.awrap_tool_call(request3, _passthrough_handler)
+        assert isinstance(result3, ToolMessage)
+        assert len(captured_payloads) == 2
+        assert captured_payloads[1]["goal"] == "Goal B"
+

@@ -126,3 +126,61 @@ async def test_workspace_root_from_runtime_context() -> None:
     await middleware.awrap_model_call(request, handler)
     assert get_todos.await_args.args[0] == "/tmp/ws"
     handler.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_idempotent_strip_on_repeated_calls() -> None:
+    store = TodoStore(goal="g", todos=[TodoItem(id="t1", content="step one")])
+    middleware = progress_middleware(AsyncMock(return_value=store))
+    initial_human_msg = HumanMessage(
+        content=(
+            "original query\n\n"
+            "[SYSTEM INSTRUCTION]\n"
+            "## Task progress (active todos)\n"
+            "**Goal:** old goal\n"
+            "> [pending] t0: old step\n"
+            "Current focus: `t0` — old step\n"
+            "Mark items completed with `todo_write(merge=true)` as you finish them."
+        )
+    )
+    request = ModelRequest(model=AsyncMock(), messages=[initial_human_msg])
+    handler = AsyncMock(return_value=ModelResponse(result=[]))
+    await middleware.awrap_model_call(request, handler)
+    passed_request = handler.await_args.args[0]
+    last_msg = passed_request.messages[-1]
+    assert isinstance(last_msg, HumanMessage)
+    # Ensure "original query" is present and only ONE "[SYSTEM INSTRUCTION]" block exists
+    assert last_msg.content.startswith("original query")
+    assert last_msg.content.count("[SYSTEM INSTRUCTION]") == 1
+    assert "t1" in last_msg.content
+    assert "t0" not in last_msg.content
+
+
+@pytest.mark.asyncio
+async def test_compact_focus_view_for_many_tasks() -> None:
+    store = TodoStore(
+        goal="Big refactor",
+        todos=[
+            TodoItem(id="t1", content="done 1", status=TodoStatus.COMPLETED),
+            TodoItem(id="t2", content="done 2", status=TodoStatus.COMPLETED),
+            TodoItem(id="t3", content="done 3", status=TodoStatus.COMPLETED),
+            TodoItem(id="t4", content="in progress 4", status=TodoStatus.IN_PROGRESS),
+            TodoItem(id="t5", content="pending 5", status=TodoStatus.PENDING),
+            TodoItem(id="t6", content="pending 6", status=TodoStatus.PENDING),
+            TodoItem(id="t7", content="pending 7", status=TodoStatus.PENDING),
+            TodoItem(id="t8", content="pending 8", status=TodoStatus.PENDING),
+        ],
+    )
+    middleware = progress_middleware(AsyncMock(return_value=store))
+    request = ModelRequest(model=AsyncMock(), messages=[HumanMessage(content="start")])
+    handler = AsyncMock(return_value=ModelResponse(result=[]))
+    await middleware.awrap_model_call(request, handler)
+    passed_request = handler.await_args.args[0]
+    last_msg = passed_request.messages[-1]
+    assert isinstance(last_msg, HumanMessage)
+    # Check compact summary
+    assert "[✓] 3 completed" in last_msg.content
+    assert "> [in_progress] t4: in progress 4" in last_msg.content
+    assert "Current focus: `t4` — in progress 4" in last_msg.content
+    assert "... and 1 more pending task(s)" in last_msg.content
+

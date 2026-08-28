@@ -449,3 +449,13 @@ def _sync_business_result(
         setattr(business_result, field_name, getattr(source, field_name))
     business_result.task_id = task_id
     business_result.internal = False
+
+
+__all__ = [
+    "VerificationSummary",
+    "VerificationVerdict",
+    "_parse_verdict",
+    "run_with_verification",
+    "verify_worker_output",
+]
+

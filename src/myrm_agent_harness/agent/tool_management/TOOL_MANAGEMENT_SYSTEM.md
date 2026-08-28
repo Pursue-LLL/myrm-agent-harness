@@ -100,14 +100,14 @@ PTC `spawn_subagent` 与 LLM `delegate_task_tool` 共用 `_spawn_child()` 下游
 <!-- TOOL_CATALOG_BEGIN -->
 ### LLM Tool Catalog (auto-generated)
 
-Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration signals, runtime hooks, and PTC runtime tools (`spawn_subagent`, `notify`, `llm_query`, `llm_query_batched`) are documented in §内部分类 above.
+Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration signals, runtime hooks, and PTC runtime tools (`spawn_subagent`, `notify`) are documented in §内部分类 above.
 
 | Tool | Layer | Role | Product ID | Load condition |
 |------|-------|------|------------|----------------|
 | `bash_code_execute_tool` | CORE | user_capability | — | Agent baseline file_ops+code_execute; Turn1 |
 | `bash_process_tool` | CORE | user_capability | — | Turn1 when shell enabled (CORE; co-mounted with bash_code_execute) |
 | `file_edit_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
-| `file_read_tool` | CORE | user_capability | — | Agent baseline file_ops; or UECD read-only when `FileAccessMode.SPILL_AND_UPLOADS` (WEB_FAST) |
+| `file_read_tool` | CORE | user_capability | — | Agent baseline file_ops; or UECD read-only when FileAccessMode.SPILL_AND_UPLOADS (WEB_FAST) |
 | `file_write_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `glob_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `grep_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
@@ -115,6 +115,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `memory_manage_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_search_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory; corpus=sessions when memoryEnableConversationSearch |
+| `skill_select_tool` | COMMON | user_capability | — | skill_backend present |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
 | `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn; HitlToolPolicy L1 subagent block |
 | `browser_ask_human_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
@@ -128,17 +129,20 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `complete_goal_tool` | EXTENDED | user_capability | — | active Goal on chat |
 | `cron_manage_tool` | EXTENDED | user_capability | cron | user cron capability wired |
 | `delegate_task_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
-| `invoke_acp_agent_tool` | EXTENDED | user_capability | external_cli | external ACP agent configured |
 | `desktop_interact_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_snapshot_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_vision_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
+| `invoke_acp_agent_tool` | EXTENDED | user_capability | external_cli | external ACP agent configured |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_attach` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_block` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
+| `kanban_cancel_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_comment` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_complete` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_heartbeat` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_list_tasks` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
+| `kanban_retry_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
+| `kanban_revise_plan` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_show` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_unblock` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `render_ui_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
@@ -147,7 +151,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `skill_manage_tool` | EXTENDED | user_capability | — | enabled_builtin_tools: skill_manage or /learn force_skill_manage (server Turn1) |
 | `skill_market_tool` | EXTENDED | user_capability | — | enabled_builtin_tools: skill_market (server ToolSetupMixin Turn1) |
 | `skill_search_tool` | EXTENDED | user_capability | — | Turn1 when searchable skills exist |
-| `skill_select_tool` | EXTENDED | user_capability | — | skill_backend present |
 | `subagent_control_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `todo_write` | EXTENDED | user_capability | planning | planning or existing workspace todos |
 | `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |

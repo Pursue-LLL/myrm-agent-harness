@@ -43,6 +43,20 @@ def safe_get(obj: Any, key: str, default: Any = None) -> Any:
     return getattr(obj, key, default)
 
 
+def _is_complete_json_fragment(text: str) -> bool:
+    """Check if a string is a complete, well-formed JSON object or array fragment."""
+    if not isinstance(text, str):
+        return False
+    stripped = text.strip()
+    if not ((stripped.startswith("{") and stripped.endswith("}")) or (stripped.startswith("[") and stripped.endswith("]"))):
+        return False
+    try:
+        json.loads(stripped)
+        return True
+    except Exception:
+        return False
+
+
 def _coerce_reasoning_value(value: Any) -> str:
     if value is None:
         return ""

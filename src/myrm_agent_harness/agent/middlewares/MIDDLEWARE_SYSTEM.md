@@ -65,8 +65,9 @@
 | `concurrency/` | `concurrency_limiter.py`（按 agent_type Semaphore）、`concurrency_router.py`（智能并发路由：host-serial MCP lane + canonical path + `build_tool_execution_stages`）、`safety_dispatcher.py`（safe→concurrent / unsafe→serial） |
 | `security/` | `security_boundary_middleware.py`（SECURITY_BOUNDARY_SYSTEM_RULES 注入）、`security_guardrail_middleware.py`（八层防御：circuit-breaker cognition / prompt guard / PII / leak / canary / history redact） |
 | `subagent_limit_middleware.py` | 单轮 delegate 上限 |
+| `plan_confirm_middleware.py` | 计划阶段人机协同确认与重大 Re-plan 拦截门禁 |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
-| `progress_middleware.py` | 活跃 todo 焦点注入（末位 HumanMessage） |
+| `progress_middleware.py` | 活跃 todo 紧凑焦点注入与幂等清洗（末位 HumanMessage） |
 | `goal_focus_middleware.py` | ACTIVE goal objective 注入（末位 HumanMessage；跳过 continuation/wrap-up 轮） |
 | `moa_advisor_middleware.py` | Agent 环 MoA 顾问叠加（`moa_overlay_active` + 渐进 SSE `moa_ref_done` + 瞬态 HumanMessage 尾注入 + `privacy_filter` display/full 分流） |
 | `replan_middleware.py` | 动态重规划循环 |
