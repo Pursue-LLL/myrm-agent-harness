@@ -34,6 +34,7 @@ Detailed design: [CONVERSATION_FORK_SYSTEM.md](CONVERSATION_FORK_SYSTEM.md)
 | events/ | Events submodule. |
 | maintenance/ | Global Adaptive Maintenance Scheduling. |
 | quota/ | Storage quota management and monitoring. |
+| install_guard/ | Dual-wheel install readiness — probe, platform key, verify CLI (see install_guard/_ARCH.md). |
 
 ## Key Dependencies
 

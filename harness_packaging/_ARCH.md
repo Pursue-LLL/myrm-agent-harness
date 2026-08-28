@@ -9,21 +9,21 @@ Build and release tooling for proprietary distribution: core IP manifest, platfo
 |------|------|-------------|
 | core_manifest.yaml | Core | Core IP directories + explicit modules (SSOT) |
 | manifest.py | Core | Manifest loader: explicit modules + directory expansion |
-| codegen.py | Core | Codegen `distribution/core_ip_manifest.py` + compiled-core version pins |
-| platforms.py | Core | Platform keys + PEP508 markers; build-time detection via `runtime_platform` |
-| runtime_platform.py | Core | Build-time platform key (no installed package required) |
+| codegen.py | Core | Codegen `runtime/install_guard/_generated/core_ip_manifest.py`, `platform.py` + compiled-core version pins |
+| platforms.py | Core | Platform keys + PEP508 markers; build-time detection via `platform_key` |
+| platform_key.py | Core | Platform key SSOT (codegen source for `runtime/install_guard/platform.py`) |
 | nuitka_compile.py | Core | Map manifest ``.py`` paths to Nuitka ``--module`` inputs |
 | pypi_index.py | Core | PyPI JSON probes (package exists, compiled-core extra) |
 | release.py | Core | Build source wheel, strip manifest `.py`, finalize strip+verify |
 | assemble.py | Core | Unified production wheel assembly (strip+verify release) + venv install + post-install verify |
-| integrity.py | Core | Manifest import paths; algorithm-zone drift gate; wheel artifact zip verify |
+| integrity.py | Core | Manifest import paths; algorithm-zone drift gate; wheel artifact zip verify (core wheel stamped `__platform_key__`) |
 | component_snapshots.py | Core | 4 大核心组件快照导出器与语义有界差分（Bounded Diff）引擎 |
 
 ## Scripts
 
 | Script | Role |
 |--------|------|
-| `scripts/sync_distribution_metadata.py` | Regenerate `distribution/core_ip_manifest.py` + pyproject compiled-core pins |
+| `scripts/sync_distribution_metadata.py` | Regenerate `runtime/install_guard` generated modules + pyproject compiled-core pins |
 | `scripts/update_component_snapshots.py` | 官方受控更新 4 大核心组件基线快照（Tool Surface / Middleware / Context / Defaults） |
 | `scripts/build_core.py` | Nuitka compile + platform core wheel + inline artifact verify |
 | `scripts/build_release_wheel.py` | Release wheel via `uv build` + strip manifest `.py` + inline verify |

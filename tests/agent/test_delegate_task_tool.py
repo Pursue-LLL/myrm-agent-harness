@@ -123,6 +123,15 @@ class TestCache:
         k2 = _cache_key("coder", "task A", None, session_id="s2")
         assert k1 != k2
 
+    def test_cache_key_differs_on_effective_readonly(self):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _cache_key,
+        )
+
+        k1 = _cache_key("coder", "task A", None, session_id="s1", effective_readonly=False)
+        k2 = _cache_key("coder", "task A", None, session_id="s1", effective_readonly=True)
+        assert k1 != k2
+
     def test_put_and_get(self):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
             _get_cached,
@@ -898,6 +907,62 @@ class TestDelegateTaskExecution:
         assert result["cached"] is True
         assert result["success"] is True
         parent._spawn_child.assert_not_awaited()
+        _result_cache.clear()
+
+    @pytest.mark.asyncio
+    async def test_readonly_profile_misses_writable_cache_entry(self):
+        from types import SimpleNamespace
+
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _cache_key,
+            _put_cache,
+            _result_cache,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            create_delegate_task_tool,
+        )
+        from myrm_agent_harness.agent.security.types import SecurityConfig
+        from myrm_agent_harness.agent.sub_agents.types import SubAgentResult
+
+        _result_cache.clear()
+
+        config = SubagentConfig(system_prompt="test")
+        catalog = AsyncMock()
+        catalog.resolve = AsyncMock(return_value=config)
+
+        parent = _make_mock_parent(
+            config=SimpleNamespace(security_config=SecurityConfig.readonly()),
+        )
+        parent._last_context = {"session_id": "s1"}
+        parent._subagent_manager = MagicMock()
+        parent._subagent_manager.current_depth = 0
+        parent._spawn_child = AsyncMock(
+            return_value=SubAgentResult(
+                success=True,
+                task_id="fresh",
+                agent_type="cached-agent",
+                result={"fresh": True},
+            )
+        )
+
+        stale_key = _cache_key(
+            "cached-agent",
+            "cached task",
+            None,
+            session_id="s1",
+            effective_readonly=False,
+        )
+        _put_cache(stale_key, {"cached_data": True})
+
+        tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
+        result = await tool_fn.coroutine(
+            agent_type="cached-agent",
+            objective="cached task",
+            wait=True,
+        )
+
+        assert result.get("cached") is not True
+        parent._spawn_child.assert_awaited_once()
         _result_cache.clear()
 
 

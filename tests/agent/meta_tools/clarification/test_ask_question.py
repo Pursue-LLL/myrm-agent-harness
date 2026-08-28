@@ -253,3 +253,25 @@ def test_ask_question_input_model_dump_contract() -> None:
     assert dumped["requires_confirmation"] is True
     assert dumped["context"] == "Irreversible delete"
     assert "clarification_type" not in dumped
+
+
+def test_ask_question_tool_locale_resolution() -> None:
+    """AskQuestionTool supports English and Chinese localized descriptions."""
+    from myrm_agent_harness.agent.meta_tools.clarification import (
+        ASK_QUESTION_TOOL_DESCRIPTION_EN,
+        ASK_QUESTION_TOOL_DESCRIPTION_ZH,
+        resolve_ask_question_tool_description,
+    )
+
+    async def mock_callback(form: AskQuestionInput) -> str:
+        return "ok"
+
+    tool_en = create_ask_question_tool(mock_callback, locale="en")
+    assert tool_en.description == ASK_QUESTION_TOOL_DESCRIPTION_EN
+
+    tool_zh = create_ask_question_tool(mock_callback, locale="zh-CN")
+    assert tool_zh.description == ASK_QUESTION_TOOL_DESCRIPTION_ZH
+
+    assert resolve_ask_question_tool_description("zh_CN") == ASK_QUESTION_TOOL_DESCRIPTION_ZH
+    assert resolve_ask_question_tool_description("en-US") == ASK_QUESTION_TOOL_DESCRIPTION_EN
+

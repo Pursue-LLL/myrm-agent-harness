@@ -353,22 +353,24 @@ class TestWebSearcherCacheLogLevel:
         with patch.object(searcher, "_get_search_service", return_value=mock_service):
             await searcher.search("test query", 5)
 
-        with patch("myrm_agent_harness.toolkits.web_search.web_searcher.logger") as mock_logger:
+        with patch("myrm_agent_harness.toolkits.web_search.search_coalescing.logger") as mock_logger:
             result = await searcher.search("test query", 5)
 
             assert len(result) == 1
             mock_logger.info.assert_called_once()
             call_args = mock_logger.info.call_args[0][0]
-            assert "cache hit" in call_args.lower()
+            assert "cache hit" in call_args.lower() or "Search cache hit" in call_args
 
 
 class TestProviderChain:
     """测试 priority provider chain 故障转移"""
 
     def setup_method(self):
-        from myrm_agent_harness.toolkits.web_search.web_searcher import _search_cache
+        from myrm_agent_harness.toolkits.web_search.search_coalescing import (
+            reset_search_coalescing_state_for_tests,
+        )
 
-        _search_cache.clear()
+        reset_search_coalescing_state_for_tests()
 
     def _chain_config(self, *hops: SearchServiceConfig) -> SearchServiceConfig:
         head = hops[0]

@@ -802,3 +802,9 @@ def test_canonical_params_completed_for_management_tools() -> None:
         "request_answer_user_tool",
     ):
         assert TOOL_CANONICAL_PARAMS[control_signal] == []
+
+
+def test_legacy_delegate_permission_scan_is_clean() -> None:
+    from scripts.validate_tool_registry import _scan_forbidden_legacy_delegate_permission_terms
+
+    assert _scan_forbidden_legacy_delegate_permission_terms() == []

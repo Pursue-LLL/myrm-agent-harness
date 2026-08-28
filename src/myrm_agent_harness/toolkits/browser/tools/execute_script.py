@@ -149,13 +149,13 @@ def create_execute_script_tool(session: BrowserSession):
     """Create browser_execute_script tool bound to session."""
 
     class ExecuteScriptInput(BaseModel):
-        """Execute a Python script for batch browser actions.
+        """Execute an async Python script for batch browser actions.
 
         Use this tool to perform multiple steps (e.g., filling a form, scraping a list, sequential clicks)
         in a single turn. Preferred over multiple single-step browser interactions when performing >= 3 sequential actions.
-        The script has access to `session` and `refs` (a dict mapping ref IDs to their metadata).
+        The script has access to `session` and `refs` (a dict mapping ref IDs to their role, name, nth metadata).
 
-        You can use `await session.interact(action, ref, text)` directly in the script!
+        You can use `await session.interact(action, ref, text)` directly in the script.
         Example:
         ```python
         await session.interact("fill", "e1", "John")
@@ -164,21 +164,20 @@ def create_execute_script_tool(session: BrowserSession):
         print("Form submitted successfully!")
         ```
 
-        You can also use raw Playwright via `page = session._tab_controller.get_active_page()`.
-        Use `print()` to output information; it will be returned as the tool result.
+        Use `print()` to output information; printed text will be returned as the tool execution result.
         """
 
         script: str = Field(
-            description="The async Python script to execute. Do not include `async def` wrapper, just the body."
+            description="The async Python script to execute. Do not include `async def` wrapper, just the code body."
         )
         verify_goal: str | None = Field(
             default=None,
-            description="Optional. A natural language description of what you expect to see after this script finishes (e.g., 'Success message is shown'). If provided, the tool will take screenshots before and after, and use a Vision LLM to verify if the goal was met, returning the visual feedback directly to you.",
+            description="Optional natural language description of expected visual outcome (e.g. 'Success message is shown'). Automatically verifies visual result and returns feedback.",
         )
 
     @tool("browser_execute_script_tool", args_schema=ExecuteScriptInput)
     async def browser_execute_script(script: str, verify_goal: str | None = None) -> str:
-        """Execute a Python script to perform batch browser actions."""
+        """Execute an async Python script to perform batch browser actions in a single turn."""
 
         # 1. Prepare the ARIA refs mapping
         refs_info = session.get_all_refs()

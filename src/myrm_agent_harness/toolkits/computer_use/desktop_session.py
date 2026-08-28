@@ -645,7 +645,11 @@ class DesktopSession(ComputerSession):
 
         self._refs.replace(refs, meta)
         som_index_map = build_som_index_map(refs)
-        shot = await self.take_screenshot()
+        try:
+            shot = await self.take_screenshot()
+        except Exception as exc:
+            logger.warning("[DESKTOP] Inspector screenshot capture failed: %s", exc)
+            shot = ActionResult(success=False, error=str(exc))
         screenshot_b64 = shot.screenshot_base64 if shot.success else ""
         screenshot_size = shot.screenshot_size if shot.success else (0, 0)
         element_refs = {

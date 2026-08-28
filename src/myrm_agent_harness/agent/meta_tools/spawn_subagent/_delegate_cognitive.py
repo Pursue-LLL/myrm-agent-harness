@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from dataclasses import replace as dc_replace
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.parallel.summary import (
@@ -39,8 +38,6 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubAgentResult,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
-
-_READONLY_BLOCKED_TOOLS = frozenset({"write_file", "execute_terminal_command", "bash_run_command", "git_commit"})
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
@@ -97,6 +94,8 @@ async def execute_cognitive_mode(
             task += f"\n\nAdditional Context Data:\n{context!s}"
 
     expert_configs: list[tuple[str, SubagentConfig]] = []
+    from myrm_agent_harness.agent.sub_agents.spawn_prep import apply_readonly_to_config
+
     for agent_type_id in expert_agent_types:
         if allowed_types is not None and agent_type_id not in allowed_types:
             return {
@@ -109,12 +108,7 @@ async def execute_cognitive_mode(
                 "success": False,
                 "error": f"Agent type '{agent_type_id}' not found in catalog.",
             }
-        if readonly:
-            config = dc_replace(
-                config,
-                disallowed_tools=config.disallowed_tools | _READONLY_BLOCKED_TOOLS,
-                system_prompt=config.system_prompt + "\n\n[READONLY MODE] You are in read-only mode.",
-            )
+        config = apply_readonly_to_config(config, readonly)
         expert_configs.append((agent_type_id, config))
 
     parent_manager = getattr(parent_agent, "_subagent_manager", None)

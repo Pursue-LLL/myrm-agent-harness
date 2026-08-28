@@ -29,7 +29,8 @@ _PERMISSION_LABELS: dict[str, tuple[str, str]] = {
     "mcp_invoke": ("MCP 工具调用", "MCP tool invocation"),
     "web_search_tool": ("网页搜索", "Web search"),
     "net_fetch": ("网络请求", "Network fetch"),
-    "delegate_agent": ("子智能体委派", "Sub-agent delegation"),
+    "spawn_subagent": ("内部子智能体", "Internal sub-agent"),
+    "invoke_external_agent": ("外部 CLI 智能体", "External CLI agent"),
 }
 
 _ACTION_LABELS: dict[str, tuple[str, str]] = {

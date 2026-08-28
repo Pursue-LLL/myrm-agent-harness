@@ -552,6 +552,7 @@ Step 6:    Transcript Classifier → 当 auto_mode_enabled 时，对所有 engin
 - `merge(*rulesets)` — 按顺序拼接，后面的优先级更高
 - `from_config(raw)` — 支持两种格式：简单 `{"shell_exec": "ask"}` 和嵌套 `{"file_read": {"*.env": "ask"}}`
 - `parse_security_config(raw)` — 解析完整配置（capabilities + permissions + timeout），用户规则合并到默认规则之后
+- `normalize_delegate_permissions(raw)` — 将存储中的 `delegate_agent` 权限键 fan-out 为 `spawn_subagent` + `invoke_external_agent`；在 `parse_security_config()`、server `ProfileManager` save/read API 路径调用
 - `disabled_permissions(permissions, ruleset, capabilities)` — 返回被无条件禁止的权限类型集合，用于在 LLM 调用前剥离不可用的工具
 
 ---
@@ -1263,7 +1264,9 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | `web_fetch_tool` | `net_fetch` |
 | `browser_navigate_tool` | `browser_navigate_tool` |
 | `browser_snapshot_tool` / `browser_extract_tool` | `browser_read` |
-| `invoke_acp_agent_tool` | `delegate_agent` |
+| `invoke_acp_agent_tool` | `invoke_external_agent` |
+| `delegate_task_tool` | `spawn_subagent` |
+| `subagent_control_tool` | `spawn_subagent` |
 | `cron_manage_tool` | `cron_manage` |
 | `skill_manage_tool` | `skill_manage` |
 
@@ -1605,7 +1608,7 @@ MemoryConfig(
 
 ### 检查点 1 — 出站检查（Outbound）
 
-当 `auto_mode_enabled` 且 `permission_type == "delegate_agent"` 时，即使 Permission Engine 返回 ALLOW（默认规则 `PermissionRule("delegate_agent", "*", PermissionAction.ALLOW)`），`batch_processor.py` 仍强制进行 Transcript Classifier 审查：
+当 `auto_mode_enabled` 且 `permission_type == "invoke_external_agent"` 时，即使 Permission Engine 返回 ALLOW（默认规则 `PermissionRule("invoke_external_agent", "*", PermissionAction.ALLOW)`），`batch_processor.py` 仍强制进行 Transcript Classifier 审查：
 
 - **DENY** → 自动拒绝委派，记录拒绝原因，返回引导消息
 - **UNCERTAIN** → 升级到 HITL 人工审批
@@ -1616,6 +1619,8 @@ MemoryConfig(
 ### 检查点 2 — 运行中检查（In-Run）
 
 子 agent 完全继承父 agent 的 `security_config`（`builder.py:security_config=parent_agent.config.security_config`），L1-L5 + L5.5 安全管道在子 agent 中同样运行。`set_is_subagent(True)` 标记防止审批死锁。子 agent 无法自行降低安全级别。
+
+Spawn 路径额外 floor：父 Profile 全局 `file_write=DENY` 时，`spawn_prep.coerce_spawn_readonly()` 强制子 agent readonly 沙箱（`READ_ONLY_SANDBOX` + 写工具 blocklist），避免 LLM 传 `readonly=false` 触发失败链。`delegate_task_tool` 60s 结果缓存 key 含 `effective_readonly`，与 DW `SpawnCacheParams.readonly` 对齐。
 
 ### 检查点 3 — 入站警告（Inbound）
 

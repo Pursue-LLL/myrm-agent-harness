@@ -222,7 +222,7 @@ def test_create_memory_tools_uses_description_ssot(memory_config, mock_vector_st
 
 
 def test_memory_search_description_omits_disabled_corpora() -> None:
-    policy = MemorySearchPolicy(allow_wiki=False, allow_sessions=False, allow_web=False)
+    policy = MemorySearchPolicy(allow_wiki=False, allow_sessions=False)
     desc = build_memory_search_tool_description(policy, locale="en")
     assert "- wiki:" not in desc
     assert "- sessions:" not in desc
@@ -237,21 +237,20 @@ def test_memory_search_description_omits_disabled_corpora() -> None:
 
 
 def test_memory_search_description_includes_enabled_corpora() -> None:
-    policy = MemorySearchPolicy(allow_wiki=True, allow_sessions=True, allow_web=True)
+    policy = MemorySearchPolicy(allow_wiki=True, allow_sessions=True)
     desc = build_memory_search_tool_description(policy, locale="en")
     assert "- wiki:" in desc
     assert "- sessions:" in desc
-    assert "- web:" in desc
+    assert "- web:" not in desc
 
 
 def test_memory_search_description_zh_includes_all_enabled_corpora() -> None:
-    policy = MemorySearchPolicy(allow_wiki=True, allow_sessions=True, allow_web=True)
+    policy = MemorySearchPolicy(allow_wiki=True, allow_sessions=True)
     desc = build_memory_search_tool_description(policy, locale="zh-CN")
-    assert "已抓取网页" in desc
-    assert "- web：" in desc
-    assert "corpus=web" in desc
     assert "Wiki 文档" in desc
     assert "历史会话" in desc
+    assert "- web：" not in desc
+    assert "corpus=web" not in desc
 
 
 def test_memory_tool_descriptions_support_zh_cn_locale() -> None:

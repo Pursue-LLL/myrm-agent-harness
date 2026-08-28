@@ -108,6 +108,11 @@
     "Adjust your privacy settings on the provider dashboard (e.g., OpenRouter Settings > Privacy)",
     "Try a different model or provider"
   ],
+  "opencode_training_policy_user_message": "OpenCode Go blocked this request because Muse Spark Contributor requires opt-in to training data sharing. Enable training consent in your OpenCode Go workspace or choose a non-contributor model.",
+  "opencode_training_policy_resolution_steps": [
+    "Open OpenCode Go workspace settings and enable training data consent for Contributor models",
+    "Or switch to muse-spark-1.2 (non-contributor) or another model such as deepseek-v4-flash"
+  ],
   "tls_certificate_user_message": "TLS certificate verification failed — likely caused by enterprise TLS inspection proxy",
   "tls_certificate_resolution_steps": [
     "Enable 'Enterprise Network Compatibility' in Settings → System → Advanced",

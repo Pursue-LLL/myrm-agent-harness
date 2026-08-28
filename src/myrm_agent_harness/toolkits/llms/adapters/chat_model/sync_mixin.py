@@ -42,6 +42,13 @@ from myrm_agent_harness.toolkits.llms.adapters.stream_aggregator import (
     XmlStreamBuffer,
     finalize_stream,
 )
+from myrm_agent_harness.toolkits.llms.adapters.wire.anthropic_params import (
+    apply_anthropic_messages_params,
+)
+from myrm_agent_harness.toolkits.llms.adapters.wire.invocation import (
+    invoke_responses_sync,
+    stream_responses_sync,
+)
 from myrm_agent_harness.toolkits.llms.adapters.streaming import (
     build_tool_call_chunks,
     normalize_usage,
@@ -106,8 +113,17 @@ class ChatLiteLLMSyncMixin:
         for attempt in range(max_attempts):
             try:
                 started = time.perf_counter()
-                response = self.client.completion(messages=message_dicts, **params)
-                response = self._convert_response_to_dict(response)
+                wire_protocol = getattr(self, "wire_protocol", "chat_completions")
+                if wire_protocol == "responses":
+                    response = invoke_responses_sync(self.client, message_dicts, params)
+                else:
+                    call_params = (
+                        apply_anthropic_messages_params(params)
+                        if wire_protocol == "anthropic_messages"
+                        else params
+                    )
+                    response = self.client.completion(messages=message_dicts, **call_params)
+                    response = self._convert_response_to_dict(response)
                 result = self._create_chat_result(response, available_tools, tool_schemas)
 
                 duration_ms = (time.perf_counter() - started) * 1000
@@ -201,9 +217,12 @@ class ChatLiteLLMSyncMixin:
         from myrm_agent_harness.toolkits.llms.adapters.streaming import extract_reasoning_payload
 
         reasoning_content = extract_reasoning_payload(delta)
-        additional_kwargs: dict[str, str] = {}
+        additional_kwargs: dict[str, Any] = {}
         if reasoning_content:
             additional_kwargs["reasoning_content"] = reasoning_content
+        replay_items = delta.get("responses_reasoning_items")
+        if isinstance(replay_items, list) and replay_items:
+            additional_kwargs["responses_reasoning_items"] = replay_items
 
         # Use keyword argument content= since BaseMessageChunk rejects positional args
         msg_chunk: BaseMessageChunk
@@ -364,7 +383,18 @@ class ChatLiteLLMSyncMixin:
                 xml_content_buffer = XmlStreamBuffer()
                 xml_reasoning_buffer = XmlStreamBuffer()
 
-                for chunk in self.client.completion(messages=message_dicts, **params):
+                wire_protocol = getattr(self, "wire_protocol", "chat_completions")
+                if wire_protocol == "responses":
+                    stream_source = stream_responses_sync(self.client, message_dicts, params)
+                else:
+                    call_params = (
+                        apply_anthropic_messages_params(params)
+                        if wire_protocol == "anthropic_messages"
+                        else params
+                    )
+                    stream_source = self.client.completion(messages=message_dicts, **call_params)
+
+                for chunk in stream_source:
                     chunk_dict = agg.ingest_raw_chunk(chunk)
                     if chunk_dict is None:
                         continue

@@ -4,10 +4,12 @@
 - harness_packaging.manifest::load_core_manifest (POS: YAML manifest loader)
 - harness_packaging.integrity::{manifest_import_names, manifest_source_relpaths} (POS: Import/path mapping)
 - harness_packaging.version::read_harness_version (POS: Harness version reader)
+- harness_packaging.platform_key (POS: Platform key SSOT for codegen)
 
 [OUTPUT]
-- sync_distribution_metadata(): Regenerate distribution/core_ip_manifest.py + pyproject compiled-core pins
+- sync_distribution_metadata(): Regenerate install_guard generated modules + pyproject compiled-core pins
 - write_core_ip_manifest(): Write runtime manifest module only
+- write_platform_key_module(): Sync platform.py from harness_packaging/platform_key.py
 
 [POS]
 Build-time codegen for distribution SSOT. Invoked by scripts/sync_distribution_metadata.py and CI freshness tests.
@@ -16,6 +18,7 @@ Build-time codegen for distribution SSOT. Invoked by scripts/sync_distribution_m
 from __future__ import annotations
 
 import re
+import textwrap
 from pathlib import Path
 
 from harness_packaging.integrity import manifest_import_names, manifest_source_relpaths
@@ -34,16 +37,43 @@ from __future__ import annotations
 
 '''
 
+_PLATFORM_GENERATED_HEADER = '''\
+"""Runtime platform key detection (generated — do not edit).
+
+Regenerate: uv run python scripts/sync_distribution_metadata.py
+Source SSOT: harness_packaging/platform_key.py
+"""
+
+'''
+
 _COMPILED_CORE_BEGIN = "# BEGIN compiled-core (generated — do not edit)"
 _COMPILED_CORE_END = "# END compiled-core"
 _COMPILED_CORE_MUSL_BEGIN = "# BEGIN compiled-core-musl (generated — do not edit)"
 _COMPILED_CORE_MUSL_END = "# END compiled-core-musl"
 
+_INSTALL_GUARD_REL = Path("runtime") / "install_guard"
+
+
+def install_guard_dir(root: Path | None = None) -> Path:
+    """Return ``src/myrm_agent_harness/runtime/install_guard``."""
+    project_root = root or repo_root()
+    return project_root / "src" / "myrm_agent_harness" / _INSTALL_GUARD_REL
+
 
 def generated_core_ip_manifest_path(root: Path | None = None) -> Path:
     """Return path to the generated runtime manifest module."""
+    return install_guard_dir(root) / "_generated" / "core_ip_manifest.py"
+
+
+def generated_platform_key_path(root: Path | None = None) -> Path:
+    """Return path to the generated runtime platform key module."""
+    return install_guard_dir(root) / "platform.py"
+
+
+def platform_key_ssot_path(root: Path | None = None) -> Path:
+    """Return path to the hand-written platform key SSOT."""
     project_root = root or repo_root()
-    return project_root / "src" / "myrm_agent_harness" / "distribution" / "core_ip_manifest.py"
+    return project_root / "harness_packaging" / "platform_key.py"
 
 
 def _render_tuple(name: str, values: tuple[str, ...]) -> str:
@@ -58,20 +88,44 @@ def render_core_ip_manifest_module(
     import_names: tuple[str, ...],
     source_relpaths: tuple[str, ...],
 ) -> str:
-    """Render Python source for ``distribution/core_ip_manifest.py``."""
+    """Render Python source for ``install_guard/_generated/core_ip_manifest.py``."""
     body = _render_tuple("CORE_IP_IMPORTS", import_names)
     body += _render_tuple("CORE_IP_SOURCE_RELPATHS", source_relpaths)
     return _GENERATED_HEADER + body
 
 
+def render_platform_key_module(ssot_source: str) -> str:
+    """Render ``install_guard/platform.py`` from ``harness_packaging/platform_key.py``."""
+    lines = ssot_source.splitlines()
+    body_start = 0
+    if lines and lines[0].startswith('"""'):
+        for idx, line in enumerate(lines[1:], start=1):
+            if line.endswith('"""') or line == '"""':
+                body_start = idx + 1
+                break
+    body = "\n".join(lines[body_start:]).lstrip("\n")
+    if not body.startswith("from __future__"):
+        body = f"from __future__ import annotations\n\n{body}"
+    return _PLATFORM_GENERATED_HEADER + textwrap.dedent(body)
+
+
 def write_core_ip_manifest(root: Path | None = None) -> Path:
-    """Write ``distribution/core_ip_manifest.py`` from the YAML manifest."""
-    project_root = root or repo_root()
-    path = generated_core_ip_manifest_path(project_root)
+    """Write ``install_guard/_generated/core_ip_manifest.py`` from the YAML manifest."""
+    path = generated_core_ip_manifest_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         render_core_ip_manifest_module(manifest_import_names(), manifest_source_relpaths()),
         encoding="utf-8",
     )
+    return path
+
+
+def write_platform_key_module(root: Path | None = None) -> Path:
+    """Sync ``install_guard/platform.py`` from ``harness_packaging/platform_key.py``."""
+    project_root = root or repo_root()
+    ssot = platform_key_ssot_path(project_root).read_text(encoding="utf-8")
+    path = generated_platform_key_path(project_root)
+    path.write_text(render_platform_key_module(ssot), encoding="utf-8")
     return path
 
 
@@ -141,10 +195,11 @@ def update_pyproject_compiled_core(root: Path | None = None) -> Path:
     return pyproject_path
 
 
-def sync_distribution_metadata(root: Path | None = None) -> tuple[Path, Path]:
-    """Regenerate runtime manifest and pyproject compiled-core pins."""
+def sync_distribution_metadata(root: Path | None = None) -> tuple[Path, Path, Path]:
+    """Regenerate runtime manifest, platform key, and pyproject compiled-core pins."""
     project_root = root or repo_root()
     load_core_manifest()
     manifest_path = write_core_ip_manifest(project_root)
+    platform_path = write_platform_key_module(project_root)
     pyproject_path = update_pyproject_compiled_core(project_root)
-    return manifest_path, pyproject_path
+    return manifest_path, platform_path, pyproject_path

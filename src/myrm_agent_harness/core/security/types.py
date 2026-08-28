@@ -140,7 +140,8 @@ DEFAULT_RULESET: PermissionRuleset = (
     PermissionRule("desktop_control", "*", PermissionAction.ASK),
     PermissionRule("skill_manage", "*", PermissionAction.ASK),
     PermissionRule("cron_manage", "*", PermissionAction.ASK),
-    PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),
+    PermissionRule("spawn_subagent", "*", PermissionAction.ALLOW),
+    PermissionRule("invoke_external_agent", "*", PermissionAction.ALLOW),
 )
 
 
@@ -438,7 +439,8 @@ class SecurityConfig:
             PermissionRule("skill_manage", "*", PermissionAction.DENY),
             PermissionRule("cron_manage", "*", PermissionAction.DENY),
             PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
-            PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),
+            PermissionRule("spawn_subagent", "*", PermissionAction.ALLOW),
+            PermissionRule("invoke_external_agent", "*", PermissionAction.DENY),
         )
         return cls(
             capabilities=frozenset({Capability("*", "*")}),
@@ -473,7 +475,8 @@ class SecurityConfig:
             PermissionRule("skill_manage", "*", PermissionAction.ASK),
             PermissionRule("cron_manage", "*", PermissionAction.ASK),
             PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
-            PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),
+            PermissionRule("spawn_subagent", "*", PermissionAction.ALLOW),
+            PermissionRule("invoke_external_agent", "*", PermissionAction.ASK),
         )
         return cls(
             capabilities=frozenset({Capability("*", "*")}),
@@ -512,7 +515,8 @@ class SecurityConfig:
             PermissionRule("skill_manage", "*", PermissionAction.DENY),
             PermissionRule("cron_manage", "*", PermissionAction.DENY),
             PermissionRule("mcp_invoke", "*", PermissionAction.ASK),
-            PermissionRule("delegate_agent", "*", PermissionAction.DENY),
+            PermissionRule("spawn_subagent", "*", PermissionAction.DENY),
+            PermissionRule("invoke_external_agent", "*", PermissionAction.DENY),
         )
         return cls(
             capabilities=frozenset({Capability("*", "*")}),

@@ -43,6 +43,9 @@ BUILTIN_PROVIDER_LITELLM_SEGMENT: dict[str, str] = {
     "bedrock": "bedrock",
     "cerebras": "cerebras",
     "xiaomi_mimo": "xiaomi_mimo",
+    "nvidia": "openai",
+    "ai302": "openai",
+    "opencode_go": "openai",
 }
 
 CUSTOM_COMPAT_TYPE_LITELLM_SEGMENT: dict[str, str] = {

@@ -81,6 +81,7 @@ def test_api_package_exports_match_all() -> None:
             "compute_workflow_fingerprint",
             "create_skill_agent",
             "delete_subagent_checkpoint",
+            "evaluate_five_contract_progress",
             "evaluate_missing_capability",
             "evict_skill_safety_metadata",
             "generate_fix_suggestion",
@@ -91,6 +92,7 @@ def test_api_package_exports_match_all() -> None:
             "is_compiled_distribution",
             "is_registered_action_tool",
             "redact_connector_url",
+            "redact_sensitive_text",
             "register_ptc_safety_metadata",
             "route_task",
             "route_task_specialty",
@@ -179,7 +181,7 @@ def test_create_skill_agent_is_async_factory() -> None:
 @pytest.mark.api
 def test_distribution_helpers_report_source_mode_in_dev() -> None:
     from myrm_agent_harness.api import get_distribution_mode, is_compiled_distribution
-    from myrm_agent_harness.distribution import DistributionMode
+    from myrm_agent_harness.runtime.install_guard import DistributionMode
 
     assert get_distribution_mode() is DistributionMode.SOURCE
     assert is_compiled_distribution() is False

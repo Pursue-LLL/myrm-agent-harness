@@ -86,11 +86,17 @@ class TestSecurityConfigReadonly:
         assert len(mcp_rules) == 1
         assert mcp_rules[0].action == PermissionAction.ASK
 
-    def test_readonly_allows_delegate_agent(self) -> None:
+    def test_readonly_allows_spawn_subagent(self) -> None:
         config = SecurityConfig.readonly()
-        da_rules = [r for r in config.ruleset if r.permission == "delegate_agent"]
-        assert len(da_rules) == 1
-        assert da_rules[0].action == PermissionAction.ALLOW
+        spawn_rules = [r for r in config.ruleset if r.permission == "spawn_subagent"]
+        assert len(spawn_rules) == 1
+        assert spawn_rules[0].action == PermissionAction.ALLOW
+
+    def test_readonly_denies_invoke_external_agent(self) -> None:
+        config = SecurityConfig.readonly()
+        external_rules = [r for r in config.ruleset if r.permission == "invoke_external_agent"]
+        assert len(external_rules) == 1
+        assert external_rules[0].action == PermissionAction.DENY
 
     def test_readonly_with_allowed_roots(self) -> None:
         config = SecurityConfig.readonly(allowed_roots=("/home/user",))
@@ -162,11 +168,17 @@ class TestSecurityConfigWorkspace:
         assert len(mcp_rules) == 1
         assert mcp_rules[0].action == PermissionAction.ASK
 
-    def test_workspace_allows_delegate_agent(self) -> None:
+    def test_workspace_allows_spawn_subagent(self) -> None:
         config = SecurityConfig.workspace(allowed_roots=("/tmp",))
-        da_rules = [r for r in config.ruleset if r.permission == "delegate_agent"]
-        assert len(da_rules) == 1
-        assert da_rules[0].action == PermissionAction.ALLOW
+        spawn_rules = [r for r in config.ruleset if r.permission == "spawn_subagent"]
+        assert len(spawn_rules) == 1
+        assert spawn_rules[0].action == PermissionAction.ALLOW
+
+    def test_workspace_asks_invoke_external_agent(self) -> None:
+        config = SecurityConfig.workspace(allowed_roots=("/tmp",))
+        external_rules = [r for r in config.ruleset if r.permission == "invoke_external_agent"]
+        assert len(external_rules) == 1
+        assert external_rules[0].action == PermissionAction.ASK
 
     def test_workspace_with_shell_action_deny(self) -> None:
         config = SecurityConfig.workspace(allowed_roots=("/tmp",), shell_action=PermissionAction.DENY)
@@ -231,12 +243,33 @@ class TestSecurityConfigRemoteExposed:
         assert len(rules) == 1
         assert rules[0].action == PermissionAction.ASK
 
-    def test_remote_exposed_denies_delegate_agent(self) -> None:
+    def test_remote_exposed_denies_delegation_permissions(self) -> None:
         config = SecurityConfig.remote_exposed()
-        rules = [r for r in config.ruleset if r.permission == "delegate_agent"]
-        assert len(rules) == 1
-        assert rules[0].action == PermissionAction.DENY
+        spawn_rules = [r for r in config.ruleset if r.permission == "spawn_subagent"]
+        external_rules = [r for r in config.ruleset if r.permission == "invoke_external_agent"]
+        assert len(spawn_rules) == 1
+        assert spawn_rules[0].action == PermissionAction.DENY
+        assert len(external_rules) == 1
+        assert external_rules[0].action == PermissionAction.DENY
 
+
+class TestNormalizeDelegatePermissions:
+    """Legacy delegate_agent fan-out in parse_security_config."""
+
+    def test_legacy_delegate_agent_fans_out(self) -> None:
+        from myrm_agent_harness.agent.security.config import parse_security_config
+
+        config = parse_security_config(
+            {
+                "permissions": {"delegate_agent": "allow", "shell_exec": "deny"},
+                "autoModeEnabled": False,
+            }
+        )
+        assert config is not None
+        actions = {r.permission: r.action for r in config.ruleset if r.pattern == "*"}
+        assert actions["spawn_subagent"] is PermissionAction.ALLOW
+        assert actions["invoke_external_agent"] is PermissionAction.ALLOW
+        assert "delegate_agent" not in actions
 
 class TestPathPolicyWorkspaceLabel:
     """Tests for PathPolicy.workspace_label field."""

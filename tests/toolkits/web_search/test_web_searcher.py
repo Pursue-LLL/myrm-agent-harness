@@ -3,6 +3,7 @@
 测试 WebSearcher 的核心搜索功能
 """
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -16,10 +17,22 @@ from myrm_agent_harness.toolkits.web_search.exceptions import (
     SearchConfigError,
 )
 from myrm_agent_harness.toolkits.web_search.metrics import WebSearchMetrics
+from myrm_agent_harness.toolkits.web_search.search_coalescing import (
+    bucket_search_limit,
+    normalize_search_query,
+    reset_search_coalescing_state_for_tests,
+)
 from myrm_agent_harness.toolkits.web_search.web_searcher import (
     SearchServiceConfig,
     WebSearcher,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_search_coalescing_state():
+    reset_search_coalescing_state_for_tests()
+    yield
+    reset_search_coalescing_state_for_tests()
 
 
 class TestSearchServiceConfig:
@@ -435,6 +448,121 @@ class TestWebSearcherCache:
 
         # 应该调用两次API
         assert mock_service.search.call_count == 2
+
+
+class TestSearchLimitBucketing:
+    """Limit bucketing helpers"""
+
+    def test_bucket_search_limit_rounds_up(self):
+        assert bucket_search_limit(1) == 10
+        assert bucket_search_limit(5) == 10
+        assert bucket_search_limit(10) == 10
+        assert bucket_search_limit(11) == 20
+        assert bucket_search_limit(100) == 100
+        assert bucket_search_limit(200) == 100
+
+    def test_normalize_search_query(self):
+        assert normalize_search_query("  Hello   World  ") == "hello world"
+
+
+class TestWebSearcherCoalescing:
+    """Single-flight coalescing and limit-bucket cache sharing"""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_same_query_single_api_call(self):
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        call_count = 0
+
+        async def slow_search(query: str, num_results: int, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            await asyncio.sleep(0.05)
+            return [
+                SearchResult(link=f"https://r{i}.com", title=f"R{i}", snippet=f"S{i}")
+                for i in range(num_results)
+            ]
+
+        mock_service = AsyncMock()
+        mock_service.search = slow_search
+        searcher._search_service = mock_service
+
+        unique_query = f"coalesce_query_{id(searcher)}"
+        results = await asyncio.gather(
+            searcher.search(unique_query, num_results=5),
+            searcher.search(unique_query, num_results=5),
+            searcher.search(unique_query, num_results=5),
+        )
+
+        assert call_count == 1
+        assert all(len(r) == 5 for r in results)
+
+    @pytest.mark.asyncio
+    async def test_limit_bucket_shares_cache_and_slices(self):
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        mock_results = [
+            SearchResult(link=f"https://r{i}.com", title=f"R{i}", snippet=f"S{i}")
+            for i in range(10)
+        ]
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(return_value=mock_results)
+        searcher._search_service = mock_service
+
+        unique_query = f"bucket_query_{id(searcher)}"
+        small = await searcher.search(unique_query, num_results=5)
+        large = await searcher.search(unique_query, num_results=8)
+
+        assert mock_service.search.call_count == 1
+        assert len(small) == 5
+        assert len(large) == 8
+        assert small[0].link == "https://r0.com"
+        assert large[7].link == "https://r7.com"
+
+    @pytest.mark.asyncio
+    async def test_query_normalization_shares_cache(self):
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key")
+        searcher = WebSearcher(config)
+
+        mock_results = [SearchResult(link="https://r0.com", title="R0", snippet="S0")]
+        mock_service = AsyncMock()
+        mock_service.search = AsyncMock(return_value=mock_results)
+        searcher._search_service = mock_service
+
+        base = f"norm_query_{id(searcher)}"
+        await searcher.search(f"  {base.upper()}  ", num_results=5)
+        await searcher.search(base, num_results=5)
+
+        assert mock_service.search.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_coalescing_propagates_leader_failure(self):
+        config = SearchServiceConfig(search_service="tavily", api_key="test_key", search_max_retries=0)
+        searcher = WebSearcher(config)
+
+        call_count = 0
+
+        async def failing_search(*_args, **_kwargs):
+            nonlocal call_count
+            call_count += 1
+            await asyncio.sleep(0.02)
+            raise RuntimeError("provider down")
+
+        mock_service = AsyncMock()
+        mock_service.search = failing_search
+        searcher._search_service = mock_service
+
+        unique_query = f"fail_coalesce_{id(searcher)}"
+        outcomes = await asyncio.gather(
+            searcher.search(unique_query, num_results=5),
+            searcher.search(unique_query, num_results=5),
+            return_exceptions=True,
+        )
+
+        assert call_count == 1
+        assert all(isinstance(o, SearchAPIError) for o in outcomes)
 
 
 class TestWebSearcherIntegration:

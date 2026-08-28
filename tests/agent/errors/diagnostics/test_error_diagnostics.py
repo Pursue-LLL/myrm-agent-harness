@@ -350,3 +350,20 @@ class TestGetRecoveryActions:
         actions = LLMErrorDiagnostic.get_recovery_actions("api_key", locale=None)
         assert len(actions) == 1
         assert actions[0]["id"] == "update_key"
+
+
+def test_diagnose_opencode_training_policy() -> None:
+    exc = Exception("DataPolicyError: trainingNotAllowed for muse-spark-1.2-contributor")
+    result = LLMErrorDiagnostic.diagnose(exc, locale="en")
+    assert result.error_type == "opencode_training_policy"
+    assert "training consent" in result.user_message.lower()
+    assert result.is_retryable is False
+
+
+def test_diagnose_responses_stream_error_training_policy() -> None:
+    from myrm_agent_harness.toolkits.llms.adapters.wire.normalizer import ResponsesStreamError
+
+    exc = ResponsesStreamError("training_not_allowed: Training not allowed for muse-spark-1.2-contributor")
+    result = LLMErrorDiagnostic.diagnose(exc, locale="en")
+    assert result.error_type == "opencode_training_policy"
+    assert result.is_retryable is False

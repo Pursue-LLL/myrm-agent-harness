@@ -17,6 +17,7 @@ cross-task data piping (inject referenced jobs' latest successful output), incre
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Cron toolkit entry point. Aggregates scheduling engine, CRUD manager, protocols, built-in | ✅ |
+| _cron_tool_description.py | Core | `cron_manage_tool` LLM-visible description SSOT (EN/ZH); isolated from engine imports for prompt audits. | ✅ |
 | cron_agent_tools.py | Core | Agent tool for scheduled task management. Blueprint catalog via `action=blueprints` (not Turn1 schema injection). Supports `default_delivery`, `reminder` jobs, cron-execution mutating guard, incremental monitoring, context chaining, active hours. **`required_capabilities` / `tools_allowed` CSV params** on add/update; `BlueprintFiller` 5-tuple includes caps + tools. | ✅ |
 | delivery.py | Core | Built-in webhook ResultDelivery for cron job results. | ✅ |
 | delivery_guard.py | Core | Exact-token `[SILENT]` detection for delivery filtering (`is_silent_output`). | ✅ |

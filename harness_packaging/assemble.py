@@ -8,7 +8,7 @@
 [OUTPUT]
 - assemble_production_wheels(): Build platform core wheel and stripped release wheel
 - install_production_wheels(): Install dual wheels into a consumer project venv
-- run_post_install_verify(): Run verify-harness-distribution after install
+- run_post_install_verify(): Run ``python -m myrm_agent_harness.runtime.install_guard.verify`` after install
 
 [POS]
 Production wheel assembly pipeline. Single entry for Docker, Tauri sidecar, and CI builds.
@@ -108,17 +108,9 @@ def install_production_wheels(
     return venv_python
 
 
-def _resolve_verify_command(venv_python: Path) -> Path:
-    """Return the ``verify-harness-distribution`` console script beside ``venv_python``."""
-    for name in ("verify-harness-distribution", "verify-harness-distribution.exe"):
-        candidate = venv_python.parent / name
-        if candidate.is_file():
-            return candidate
-    msg = f"verify-harness-distribution not found next to {venv_python}"
-    raise FileNotFoundError(msg)
-
-
 def run_post_install_verify(venv_python: Path) -> None:
-    """Run ``verify-harness-distribution`` after production wheel install."""
-    verify_cmd = _resolve_verify_command(venv_python)
-    subprocess.run([str(verify_cmd)], check=True)
+    """Run install_guard verify after production wheel install."""
+    subprocess.run(
+        [str(venv_python), "-m", "myrm_agent_harness.runtime.install_guard.verify"],
+        check=True,
+    )

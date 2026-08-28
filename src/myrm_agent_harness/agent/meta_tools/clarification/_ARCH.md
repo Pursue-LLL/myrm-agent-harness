@@ -8,8 +8,9 @@ Agent meta-tools for structured HITL clarification (`ask_question_tool`). Schema
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
+| `_ask_question_descriptions.py` | Core | Localized (EN/ZH) prompt descriptions SSOT for ask_question_tool | ✅ |
 | `ask_question.py` | Core | Pydantic schemas: AskQuestionInput, QuestionItem, OptionItem | ✅ |
-| `clarification_agent_tools.py` | Core | AskQuestionTool + create_ask_question_tool factory | ✅ |
+| `clarification_agent_tools.py` | Core | AskQuestionTool + create_ask_question_tool factory (with locale resolution) | ✅ |
 | `__init__.py` | Package | Public exports | ✅ |
 
 ## Key Dependencies

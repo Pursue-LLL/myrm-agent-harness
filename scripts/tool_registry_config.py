@@ -26,6 +26,7 @@ PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset(
         "llm_query",
         "llm_query_batched",
         "human_ask",
+        "steer_child",
     }
 )
 

@@ -33,13 +33,10 @@ def test_resolve_all_skips_disabled_corpora() -> None:
     assert reason is None
 
 
-def test_resolve_all_includes_web_when_enabled() -> None:
-    corpora, reason = resolve_search_corpora(
-        "all",
-        MemorySearchPolicy(allow_wiki=True, allow_sessions=True, allow_web=True),
-    )
-    assert corpora == ["memory", "wiki", "sessions", "web"]
-    assert reason is None
+def test_resolve_web_corpus_unknown() -> None:
+    corpora, reason = resolve_search_corpora("web", MemorySearchPolicy())  # type: ignore[arg-type]
+    assert corpora == []
+    assert reason == "Unknown corpus: web"
 
 
 def test_resolve_wiki_blocked_by_policy() -> None:

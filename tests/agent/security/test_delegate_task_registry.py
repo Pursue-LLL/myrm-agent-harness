@@ -43,11 +43,11 @@ class TestToolSafetyMetadata:
 class TestToolPermissionMap:
     def test_delegate_task_mapped(self):
         assert "delegate_task_tool" in TOOL_PERMISSION_MAP
-        assert TOOL_PERMISSION_MAP["delegate_task_tool"] == "delegate_agent"
+        assert TOOL_PERMISSION_MAP["delegate_task_tool"] == "spawn_subagent"
 
     def test_subagent_control_mapped(self):
         assert "subagent_control_tool" in TOOL_PERMISSION_MAP
-        assert TOOL_PERMISSION_MAP["subagent_control_tool"] == "delegate_agent"
+        assert TOOL_PERMISSION_MAP["subagent_control_tool"] == "spawn_subagent"
 
     def test_legacy_batch_delegate_not_mapped(self):
         assert "batch_delegate_tasks_tool" not in TOOL_PERMISSION_MAP

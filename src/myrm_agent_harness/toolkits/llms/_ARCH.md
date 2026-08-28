@@ -18,7 +18,7 @@ Toolkits Llms module.
 |-----------|-------------|
 | consensus/ | Multi-model consensus (MoA) inference — parallel reference queries + aggregator synthesis (arXiv:2406.04692). |
 | _media_shared/ | Shared across video/ and image/ modules. Keeps media-specific logic |
-| adapters/ | LLM layer: LangChain , messageconverts, handles, toolcallsparse, Schema normalize |
+| adapters/ | LLM layer: LangChain , messageconverts, handles, toolcallsparse, Schema normalize; **wire/** Responses API transport |
 | core/ | LLM core: LLM classes, strategy-aware manager, and credential pool. |
 | errors/ | LLM error processing layer: three-tier error classification, fault-tolerant calls, and standardized  |
 | fallback/ | Enhanced model fallback management. Contains ManagedLLM with Direct Preflight Guard (zero-cost local token overflow prevention), cooldown periods, candidate pools, and decision logging |

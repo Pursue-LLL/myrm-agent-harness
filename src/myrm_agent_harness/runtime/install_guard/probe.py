@@ -1,8 +1,8 @@
 """Distribution mode detection for source vs compiled core artifacts.
 
 [INPUT]
-- distribution.core_ip_manifest::CORE_IP_IMPORTS (POS: Generated core IP import path list)
-- distribution.runtime_platform::get_runtime_platform_key (POS: Runtime platform key SSOT)
+- install_guard._generated.core_ip_manifest::CORE_IP_IMPORTS (POS: Generated core IP import path list)
+- install_guard.platform::get_runtime_platform_key (POS: Runtime platform key)
 
 [OUTPUT]
 - DistributionMode, DistributionNotReadyError, assert_distribution_ready, get_distribution_mode, is_compiled_distribution
@@ -21,7 +21,7 @@ from importlib.metadata import version as pkg_version
 from importlib.util import find_spec
 from pathlib import Path
 
-from myrm_agent_harness.distribution.core_ip_manifest import (
+from myrm_agent_harness.runtime.install_guard._generated.core_ip_manifest import (
     CORE_IP_IMPORTS,
     CORE_IP_SOURCE_RELPATHS,
 )
@@ -122,13 +122,18 @@ def _assert_core_platform_key_match() -> None:
 
     import myrm_agent_harness_core
 
-    from myrm_agent_harness.distribution.runtime_platform import get_runtime_platform_key
-
-    installed_key = myrm_agent_harness_core.get_platform_key()
-    if installed_key == "unknown":
-        return
+    from myrm_agent_harness.runtime.install_guard.platform import get_runtime_platform_key
 
     expected_key = get_runtime_platform_key()
+    installed_key = myrm_agent_harness_core.get_platform_key()
+    if installed_key == "unknown":
+        msg = (
+            "Harness platform core wheel is not stamped with a platform key. "
+            f"Install myrm-agent-harness-core-{expected_key} from the same production build "
+            "as the release wheel (assemble_production / verify-harness-distribution)."
+        )
+        raise DistributionNotReadyError(msg)
+
     if installed_key != expected_key:
         msg = (
             "Harness platform core wheel mismatch: "

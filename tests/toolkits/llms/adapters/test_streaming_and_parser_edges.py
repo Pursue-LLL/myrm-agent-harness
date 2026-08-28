@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 
 from myrm_agent_harness.toolkits.llms.adapters.streaming import (
+    _is_complete_json_fragment,
     aggregate_tool_call_chunk,
     build_tool_call_chunks,
     normalize_usage,
@@ -34,6 +35,17 @@ class TestSafeGet:
 
         assert safe_get(_Obj(), "a") == 2
         assert safe_get(_Obj(), "b", 9) == 9
+
+
+class TestIsCompleteJsonFragment:
+    def test_complete_object(self) -> None:
+        assert _is_complete_json_fragment('{"a": 1}') is True
+
+    def test_partial_object(self) -> None:
+        assert _is_complete_json_fragment('{"a":') is False
+
+    def test_non_json_prefix(self) -> None:
+        assert _is_complete_json_fragment("not-json") is False
 
 
 class TestBuildToolCallChunks:

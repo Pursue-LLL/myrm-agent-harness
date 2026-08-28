@@ -18,7 +18,7 @@ on:
       - 'scripts/build_release_wheel.py'
       - 'scripts/assemble_production.py'
       - 'scripts/sync_distribution_metadata.py'
-      - 'src/myrm_agent_harness/distribution/verify.py'
+      - 'src/myrm_agent_harness/runtime/install_guard/verify.py'
       - 'scripts/check_package_root_layout.py'
       - 'scripts/check_file_line_limit.py'
       - 'scripts/check_fractal_docs.py'

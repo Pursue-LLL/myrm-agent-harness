@@ -7,12 +7,12 @@ Includes a ContextVar-based self-scheduling guard that blocks ``add``/``update``
 when called from within a cron job execution, preventing infinite task chains.
 
 [INPUT]
-- (none)
+- toolkits.cron._cron_tool_description::resolve_cron_tool_description (POS: cron_manage_tool 提示词 SSOT 与多语言描述解析)
 
 [OUTPUT]
-- enter_cron_execution_context: Mark the current async context as running inside a cron j...
+- enter_cron_execution_context: Mark the current async context as running inside a cron job execution.
 - exit_cron_execution_context: Restore the previous cron execution context.
-- create_cron_tools: Create cron_manage_tool with on-demand blueprints, default_delivery, reminder jobs.
+- create_cron_tools: Create cron_manage_tool with on-demand blueprints, default_delivery, reminder jobs, locale-aware descriptions.
 
 [POS]
 Agent tool for scheduled task management.
@@ -31,6 +31,9 @@ from typing import TYPE_CHECKING, Literal
 from langchain_core.tools import BaseTool, tool
 
 from myrm_agent_harness.infra.incremental.types import MonitorConfig
+from myrm_agent_harness.toolkits.cron._cron_tool_description import (
+    resolve_cron_tool_description,
+)
 from myrm_agent_harness.toolkits.cron.engine.name_generator import generate_job_name
 from myrm_agent_harness.toolkits.cron.engine.parser import describe_schedule
 from myrm_agent_harness.toolkits.cron.triggers import (
@@ -92,10 +95,11 @@ def create_cron_tools(
     blueprint_catalog_provider: BlueprintCatalogProvider | None = None,
     delivery_resolver: DeliveryResolver | None = None,
     default_delivery: DeliveryConfig | None = None,
+    description_locale: str | None = None,
 ) -> list[BaseTool]:
     """Create a single cron management tool bound to a user.
 
-    ``current_model`` is the LiteLLM model name of the calling Agent session,
+    ``current_model`` is the model name of the calling Agent session,
     used as default when the user doesn't specify a model for a new cron job.
 
     ``blueprint_catalog_provider`` returns blueprint catalog text for the
@@ -109,6 +113,8 @@ def create_cron_tools(
 
     ``delivery_resolver`` maps webhook URLs to ``DeliveryConfig``. When omitted,
     non-empty URLs use generic ``webhook`` delivery (no channel-specific heuristics).
+
+    ``description_locale`` selects the BCP-47 locale for LLM-facing tool description.
     """
 
     def _resolve_delivery(webhook_url: str) -> DeliveryConfig:
@@ -120,7 +126,9 @@ def create_cron_tools(
             return DeliveryConfig(channel="chat")
         return DeliveryConfig(channel="webhook", target=webhook_url)
 
-    @tool("cron_manage_tool")
+    tool_description = resolve_cron_tool_description(description_locale)
+
+    @tool("cron_manage_tool", description=tool_description)
     async def cron_manage(
         action: Literal["add", "list", "update", "remove", "run", "pause", "resume", "blueprints"],
         prompt: str = "",
@@ -159,115 +167,6 @@ def create_cron_tools(
         required_capabilities: str = "",
         tools_allowed: str = "",
     ) -> str:
-        """Manage scheduled tasks (create, list, update, delete, trigger, pause, resume).
-
-        Actions:
-          add    - Create a task. Fill (prompt OR command) + ONE schedule param.
-                   Use prompt for agent tasks, command for shell tasks.
-                   Set reminder=true for zero-LLM notification reminders (prompt only).
-                   Recurring schedules (cron_expr or every_minutes) require
-                   recurring_confirmed=true. For one-time reminders use "at".
-                   Minimum interval for every_minutes is 5 minutes.
-                   OR use blueprint + blueprint_values for template-based creation
-                   (automatically fills prompt, schedule, and name).
-          list   - Show all tasks. Use name_filter for fuzzy search (e.g. "backup").
-          update - Modify a task. Requires job_id.
-          remove - Delete a task. Requires job_id.
-          run    - Trigger a task now. Requires job_id.
-          pause  - Pause a task (preserves history). Requires job_id.
-          resume - Resume a paused task. Requires job_id.
-          blueprints - List available automation blueprint templates (on demand).
-
-        Schedule (for add/update — fill exactly ONE, unless using blueprint):
-          cron_expr     - Cron expression, e.g. "0 9 * * *" (daily 9am),
-                          "*/30 * * * *" (every 30min), "0 9 * * 1-5" (weekdays).
-          every_minutes - Recurring interval in minutes (minimum 5).
-          at            - ISO 8601 one-shot time, e.g. "2026-03-01T10:00:00".
-
-        Args:
-            action: Operation to perform.
-            prompt: What the agent should do when the task fires (agent task).
-            command: Shell command to execute when the task fires (shell task).
-                Mutually exclusive with prompt — provide exactly one.
-            model: LiteLLM model name, e.g. "openai/gpt-4o-mini". Leave empty
-                to use the user's default model at execution time.
-            cron_expr: Cron expression (implies cron schedule).
-            every_minutes: Interval in minutes (implies interval schedule).
-            at: ISO 8601 datetime (implies one-shot schedule).
-            tz: IANA timezone, e.g. "Asia/Shanghai" (only for cron).
-            job_id: Task ID (for update/remove/run/pause/resume).
-            name: Optional task name (auto-generated from prompt/command if omitted).
-            name_filter: Fuzzy search filter for list action (e.g. "backup" finds
-                all tasks containing "backup" in name).
-            webhook_url: If set, results are POSTed to this URL (Slack/Feishu
-                bot webhook). Otherwise results appear in chat.
-            failure_webhook_url: If set, failure alerts are POSTed to this URL
-                instead of the main delivery channel. Use for separate ops alerting.
-            recurring_confirmed: Required true for recurring schedules (cron_expr
-                or every_minutes). Prevents accidental creation of recurring tasks.
-            active_start: Start of active hours in HH:MM format, e.g. "09:00".
-                Task only runs within [active_start, active_end).
-            active_end: End of active hours in HH:MM format, e.g. "18:00".
-            active_tz: IANA timezone for active hours, e.g. "Asia/Shanghai".
-                Defaults to UTC if omitted.
-            max_fires: Max number of executions (0 = unlimited). For add/update.
-                E.g. max_fires=100 means the task auto-stops after 100 runs.
-            expires_after: Auto-expire duration or ISO 8601 datetime. For add/update.
-                Duration: "3d" (3 days), "2w" (2 weeks), "3m" (3 months).
-                Datetime: "2026-06-01T00:00:00".
-            context_from: Comma-separated job IDs whose latest successful output
-                will be injected into this task's prompt at execution time.
-                Use to chain tasks: task A collects data, task B analyzes it.
-                E.g. "abc123,def456". For add/update.
-            blueprint: Blueprint ID for template-based task creation (for add).
-                When set, the blueprint's tuned prompt template and schedule
-                logic are used. Slot values are provided via blueprint_values.
-                This ensures consistent quality between GUI and Agent creation.
-            blueprint_values: JSON object of slot values for the blueprint.
-                E.g. '{"time": "08:00", "weekdays": "weekdays"}'.
-                Only used when blueprint is set.
-            monitor_type: Incremental monitoring type. "set" (detect new items
-                in line-delimited output) or "hash". For add/update.
-                When set with monitor_enabled=true, the task only delivers
-                results when output changes (e.g. new prices, new articles).
-                Use "off" to disable monitoring on an existing task (update only).
-            monitor_enabled: Enable incremental monitoring. For add/update.
-                Use when the user wants to track changes and only be notified
-                on new content (e.g. "notify me only when the price changes").
-            session_mode: Session context mode for agent tasks. For add/update.
-                "" or "isolated" — each execution starts with a blank context
-                    (default, good for independent tasks).
-                "main" — reuses the bound chat session's history, so the task
-                    remembers previous results and can compare changes
-                    (good for monitoring/polling within a conversation).
-                "daily" — same-day executions share context; fresh each day
-                    (good for daily briefings that build up during the day).
-            stream_url: WebSocket or SSE endpoint URL for real-time event monitoring.
-                Enables outbound streaming from local/desktop networks (no public IP
-                needed). E.g. "wss://stream.binance.com:9443/ws/btcusdt@ticker".
-                When set, also provide a schedule param as fallback timing.
-            stream_protocol: Protocol for stream_url. "ws" (WebSocket) or "sse"
-                (Server-Sent Events). Defaults to "ws".
-            stream_filter_json_path: JSONPath expression to extract a value from each
-                stream message. E.g. "$.data.price". Optional.
-            stream_filter_regex: Regex to match against the extracted value (or raw
-                message if no json_path). Only matching events fire the task. Optional.
-            stream_headers: JSON object of custom HTTP headers for the stream
-                connection. E.g. '{"Authorization": "Bearer xxx"}'. Optional.
-            poll_url: URL to periodically fetch for change detection. Enables
-                polling trigger for services without streaming APIs.
-                E.g. "https://api.github.com/repos/user/repo/commits?sha=main".
-            poll_json_path: JSONPath to extract a sub-field from poll responses.
-                E.g. "$.0.sha" for the latest commit SHA. Optional.
-            poll_interval_seconds: Polling interval in seconds (minimum 60, default 300).
-                Only used when poll_url is set.
-            reminder: When true (add only), create a zero-LLM reminder that delivers
-                the prompt text directly. Mutually exclusive with command.
-            required_capabilities: Comma-separated capability IDs for agent tasks (add/update).
-                E.g. "web_search_tool,net_fetch". Leave empty to use channel defaults.
-            tools_allowed: Comma-separated builtin tool IDs to mount at execution (add/update).
-                E.g. "web_search,memory". Intersected with the bound agent profile at run time.
-        """
         effective_model = model.strip() or current_model
 
         if action in _CRON_EXECUTION_MUTATING_ACTIONS and _IN_CRON_EXECUTION.get():

@@ -12,6 +12,7 @@ from myrm_agent_harness.toolkits.llms.adapters.stream_aggregator import (
     StreamAggregator,
     StreamFinalization,
     XmlStreamBuffer,
+    attach_responses_reasoning_items_to_final_chunk,
     finalize_stream,
 )
 
@@ -740,3 +741,74 @@ class TestFinalizeStreamContentParsedToolCalls:
         assert agg.finish_reason == "tool_calls"
         msg = result.aggregated_response["choices"][0]["message"]
         assert "tool_calls" in msg
+
+
+class TestResponsesReasoningReplayStreamExport:
+    def test_attach_to_existing_final_tool_chunk(self) -> None:
+        reasoning_items = [{"type": "reasoning", "id": "rs_1", "encrypted_content": "blob"}]
+        source = ChatGenerationChunk(
+            message=AIMessageChunk(
+                content="",
+                tool_call_chunks=[],
+                additional_kwargs={},
+                chunk_position="last",
+            )
+        )
+        attached = attach_responses_reasoning_items_to_final_chunk(source, reasoning_items)
+        assert attached is not None
+        assert attached.message.additional_kwargs["responses_reasoning_items"] == reasoning_items
+
+    def test_finalize_stream_exports_reasoning_items_on_final_tool_chunk(self) -> None:
+        agg = StreamAggregator(AIMessageChunk)
+        agg.responses_reasoning_items = [
+            {"type": "reasoning", "id": "rs_1", "encrypted_content": "blob"},
+        ]
+        agg.tool_calls = [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "web_search", "arguments": "{}"},
+            }
+        ]
+        agg.finish_reason = "tool_calls"
+        record_fn = MagicMock()
+
+        with (
+            patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
+        ):
+            result = finalize_stream(
+                agg,
+                {"web_search": {}},
+                "openai/muse-spark-1.2-contributor",
+                is_async=True,
+                record_usage_fn=record_fn,
+            )
+
+        assert result.final_tool_chunk is not None
+        replay = result.final_tool_chunk.message.additional_kwargs.get("responses_reasoning_items")
+        assert replay == agg.responses_reasoning_items
+
+    def test_finalize_stream_exports_metadata_chunk_without_tool_calls(self) -> None:
+        agg = StreamAggregator(AIMessageChunk)
+        agg.responses_reasoning_items = [
+            {"type": "reasoning", "id": "rs_1", "encrypted_content": "blob"},
+        ]
+        agg.finish_reason = "stop"
+        record_fn = MagicMock()
+
+        with (
+            patch("myrm_agent_harness.toolkits.llms.utils.logger.log_llm_response"),
+            patch("myrm_agent_harness.utils.token_economics.tracker.record_finish_reason"),
+        ):
+            result = finalize_stream(
+                agg,
+                None,
+                "openai/muse-spark-1.2-contributor",
+                is_async=True,
+                record_usage_fn=record_fn,
+            )
+
+        assert result.final_tool_chunk is not None
+        replay = result.final_tool_chunk.message.additional_kwargs.get("responses_reasoning_items")
+        assert replay == agg.responses_reasoning_items

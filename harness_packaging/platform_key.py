@@ -1,4 +1,4 @@
-"""Runtime platform key detection for compiled core wheel selection.
+"""Platform key detection SSOT for build tooling and install_guard codegen.
 
 [INPUT]
 - stdlib ``platform`` / ``sys`` (OS and CPU)
@@ -7,8 +7,8 @@
 - get_runtime_platform_key(): Normalized platform key (e.g. ``linux-x64-musl``)
 
 [POS]
-Shipped in release wheels. Runtime SSOT for install validation; logic must match
-``harness_packaging.runtime_platform`` (guarded by architecture tests).
+Build-time SSOT for compiled core wheel platform keys. Shipped copy is codegen'd to
+``runtime/install_guard/platform.py`` (guarded by architecture tests).
 """
 
 from __future__ import annotations

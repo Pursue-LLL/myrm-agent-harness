@@ -90,6 +90,18 @@ def build_tool_call_chunks(
     return tool_call_chunks
 
 
+def _is_complete_json_fragment(raw: str) -> bool:
+    """True when a streamed tool args fragment is a fully parseable JSON value."""
+    stripped = raw.strip()
+    if not stripped or stripped[0] not in "{[":
+        return False
+    try:
+        json.loads(stripped)
+    except json.JSONDecodeError:
+        return False
+    return True
+
+
 def aggregate_tool_call_chunk(tc_chunk: Any, aggregated_tool_calls: list[dict[str, Any]]) -> None:
     """Incrementally merge a tool_call chunk into the aggregated list.
 
@@ -110,7 +122,10 @@ def aggregate_tool_call_chunk(tc_chunk: Any, aggregated_tool_calls: list[dict[st
         aggregated_tool_calls[tc_index]["function"]["name"] = tc_name
     if tc_args is not None:
         if isinstance(tc_args, str):
-            aggregated_tool_calls[tc_index]["function"]["arguments"] += tc_args
+            if _is_complete_json_fragment(tc_args):
+                aggregated_tool_calls[tc_index]["function"]["arguments"] = tc_args
+            else:
+                aggregated_tool_calls[tc_index]["function"]["arguments"] += tc_args
         elif isinstance(tc_args, dict):
             aggregated_tool_calls[tc_index]["function"]["arguments"] += json.dumps(tc_args, ensure_ascii=False)
         else:

@@ -98,7 +98,11 @@ from .pipeline.compiler import WikiCompiler
 from .pipeline.pending import WikiPendingEditsManager
 from .pipeline.queue import WikiIngestionQueue
 from .retrieval.query import SemanticSearchFn, WikiQueryEngine
-from .wiki_agent_tools import create_wiki_admin_tools, create_wiki_tools
+from .wiki_agent_tools import (
+    create_wiki_admin_tools,
+    create_wiki_agent_tools,
+    create_wiki_tools,
+)
 
 __all__ = [
     "CompileResult",
@@ -120,5 +124,6 @@ __all__ = [
     "WikiQueryMode",
     "WikiStructure",
     "create_wiki_admin_tools",
+    "create_wiki_agent_tools",
     "create_wiki_tools",
 ]

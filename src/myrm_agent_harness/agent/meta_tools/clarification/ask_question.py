@@ -31,11 +31,11 @@ class QuestionItem(BaseModel):
     prompt: str = Field(description="The question prompt to present to the user.")
     options: list[OptionItem] = Field(
         default_factory=list,
-        description="Available choices for this question. Leave empty for a purely open-ended question.",
+        description="Discrete choices for this question (minimum 2 recommended when applicable). Leave empty only for open-ended text input.",
     )
     allow_multiple: bool = Field(
         default=False,
-        description="If true, the user can select multiple options.",
+        description="Whether the user can select multiple options. Set to true for multi-select checklists.",
     )
 
 
@@ -46,8 +46,7 @@ class AskQuestionInput(BaseModel):
     requires_confirmation: bool = Field(
         default=False,
         description=(
-            "Set to true before irreversible or destructive actions so the WebUI shows a prominent "
-            "confirmation emphasis."
+            "Set to true before irreversible, destructive, or high-risk operations to request explicit user sign-off."
         ),
     )
     context: str | None = Field(
@@ -56,5 +55,5 @@ class AskQuestionInput(BaseModel):
     )
     questions: list[QuestionItem] = Field(
         min_length=1,
-        description="A list of one or more clarifying questions to ask the user.",
+        description="List of clarifying questions (minimum 1). Include all questions in this single call.",
     )

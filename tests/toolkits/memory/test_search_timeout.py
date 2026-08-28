@@ -230,26 +230,9 @@ class TestWikiSessionsCorpusTimeout:
         assert "timed out" in text.lower()
         assert "retry" in text.lower()
 
-    @pytest.mark.asyncio
-    async def test_web_corpus_hang_fails_open_with_notice(self) -> None:
-        from unittest.mock import AsyncMock
-
-        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
-            _search_web_corpus,
-        )
-        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
-            MemorySearchBackends,
-        )
-
-        backends = MemorySearchBackends(query_web_corpus=AsyncMock(side_effect=_hang_forever))
-        text = await _search_web_corpus(backends, "query", 5, timeout_seconds=0.05)
-
-        assert "timed out" in text.lower()
-        assert "retry" in text.lower()
-
 
 class TestMemorySearchToolCorpusBranches:
-    """memory_search_tool happy paths and boundary guards across wiki/sessions/web.
+    """memory_search_tool happy paths and boundary guards across wiki/sessions.
 
     Complements the timeout fail-open tests above by exercising the non-timeout
     branches: successful provider returns, empty-result notices, profile_key
@@ -351,26 +334,6 @@ class TestMemorySearchToolCorpusBranches:
         assert "A matching conversation hit." in text
 
     @pytest.mark.asyncio
-    async def test_web_corpus_empty_result_returns_notice(self, fast_timeout_config) -> None:
-        from unittest.mock import AsyncMock
-
-        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
-            MemorySearchBackends,
-            MemorySearchPolicy,
-        )
-
-        backends = MemorySearchBackends(query_web_corpus=AsyncMock(return_value="   "))
-        tool = self._build_tool(
-            self._manager(fast_timeout_config),
-            policy=MemorySearchPolicy(allow_web=True),
-            backends=backends,
-        )
-
-        text = await tool.ainvoke({"query": "q", "corpus": "web"})
-
-        assert "No matching web pages found in local corpus." in text
-
-    @pytest.mark.asyncio
     async def test_profile_key_rejected_for_non_memory_corpus(self, fast_timeout_config) -> None:
         tool = self._build_tool(self._manager(fast_timeout_config))
 
@@ -455,11 +418,10 @@ class TestMemorySearchToolCorpusBranches:
         backends = MemorySearchBackends(
             query_wiki=AsyncMock(return_value=QueryResult(question="q", answer="Wiki answer.", related_articles=[])),
             conversation_provider=provider,
-            query_web_corpus=AsyncMock(return_value="Web result."),
         )
         tool = self._build_tool(
             self._manager(fast_timeout_config),
-            policy=MemorySearchPolicy(allow_wiki=True, allow_sessions=True, allow_web=True),
+            policy=MemorySearchPolicy(allow_wiki=True, allow_sessions=True),
             backends=backends,
         )
 
@@ -468,7 +430,7 @@ class TestMemorySearchToolCorpusBranches:
         assert "## Memory" in text
         assert "## Wiki" in text
         assert "## Sessions" in text
-        assert "## Web" in text
+        assert "## Web" not in text
 
     @pytest.mark.asyncio
     async def test_all_corpora_partial_timeout_keeps_survivors(self, fast_timeout_config) -> None:
@@ -479,38 +441,37 @@ class TestMemorySearchToolCorpusBranches:
             MemorySearchPolicy,
         )
 
+        from myrm_agent_harness.toolkits.memory.conversation_search.types import (
+            ConversationSearchHit,
+            ConversationSearchResponse,
+        )
+
+        provider = AsyncMock()
+        provider.search.return_value = ConversationSearchResponse(
+            mode="search",
+            hits=[
+                ConversationSearchHit(
+                    conversation_id="conv-1",
+                    snippet="A conversation hit.",
+                    score=0.8,
+                )
+            ],
+        )
         backends = MemorySearchBackends(
             query_wiki=AsyncMock(side_effect=_hang_forever),
-            query_web_corpus=AsyncMock(return_value="Web result."),
+            conversation_provider=provider,
         )
         tool = self._build_tool(
             self._manager(fast_timeout_config),
-            policy=MemorySearchPolicy(allow_wiki=True, allow_web=True),
+            policy=MemorySearchPolicy(allow_wiki=True, allow_sessions=True),
             backends=backends,
         )
 
         text = await tool.ainvoke({"query": "q", "corpus": "all"})
 
         assert "Wiki search timed out" in text
-        assert "## Web" in text
-        assert "Web result." in text
-
-    @pytest.mark.asyncio
-    async def test_web_corpus_unavailable_when_backend_missing(self, fast_timeout_config) -> None:
-        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
-            MemorySearchBackends,
-            MemorySearchPolicy,
-        )
-
-        tool = self._build_tool(
-            self._manager(fast_timeout_config),
-            policy=MemorySearchPolicy(allow_web=True),
-            backends=MemorySearchBackends(),
-        )
-
-        text = await tool.ainvoke({"query": "q", "corpus": "web"})
-
-        assert "Web corpus search is not available." in text
+        assert "## Sessions" in text
+        assert "A conversation hit." in text
 
     @pytest.mark.asyncio
     async def test_wiki_corpus_no_timeout_when_disabled(self, fast_timeout_config) -> None:

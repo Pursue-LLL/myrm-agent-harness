@@ -136,80 +136,91 @@ async def run_parallel_task_requests(
                 await on_progress(index, "failed", err_res)
             return err_res
 
-    if race:
-        pending_tasks: set[asyncio.Task[dict[str, object]]] = {
-            asyncio.create_task(_run_task(task, index)) for index, task in enumerate(tasks)
-        }
-        winner_result: dict[str, object] | None = None
-        failed_results: list[object] = []
-        race_merge_summary: dict[str, object] = {}
-
-        while pending_tasks:
-            done, pending_tasks = await asyncio.wait(pending_tasks, return_when=asyncio.FIRST_COMPLETED)
-            for task in done:
-                try:
-                    res = task.result()
-                    if isinstance(res, dict) and res.get("success"):
-                        winner_result = res
-                        break
-                    failed_results.append(res)
-                except Exception as exc:
-                    logger.warning("A speculative execution task failed: %s", exc)
-                    failed_results.append({"success": False, "error": str(exc)})
-
-            if winner_result:
-                if not skip_merge:
-                    try:
-                        race_merge_summary = await _merge_race_winner_workspace(
-                            winner_result,
-                            parent_agent,
-                        )
-                    except Exception as exc:
-                        logger.error("Error merging race winner workspace: %s", exc)
-                        winner_result["race_merge_status"] = "error"
-                        winner_result["race_merge_error"] = str(exc)
-
-                for task in pending_tasks:
-                    task.cancel()
-                break
-
-        if winner_result:
-            return inject_capacity_signal(
-                {
-                    "success": True,
-                    "status": "completed",
-                    "race_winner": True,
-                    "result": winner_result,
-                    "budget_admission": (budget_admission.to_dict() if budget_admission else None),
-                    **race_merge_summary,
-                },
-                parent_agent,
-            )
-
-        normalized_failures = [
-            res if isinstance(res, dict) else {"success": False, "error": str(res)} for res in failed_results
-        ]
-        return inject_capacity_signal(
-            {
-                "success": False,
-                "status": "failed",
-                "error": "All speculative execution tasks failed.",
-                "failed_results": failed_results,
-                **batch_summary(normalized_failures),
-                "budget_admission": (budget_admission.to_dict() if budget_admission else None),
-            },
-            parent_agent,
-        )
-
     parallel_write_batch = sum(1 for task in tasks if not task.readonly) > 1
     if parallel_write_batch:
         parent_agent._parallel_write_batch_active = True
+
+    if race:
+        try:
+            pending_tasks: set[asyncio.Task[dict[str, object]]] = {
+                asyncio.create_task(_run_task(task, index)) for index, task in enumerate(tasks)
+            }
+            winner_result: dict[str, object] | None = None
+            failed_results: list[object] = []
+            race_merge_summary: dict[str, object] = {}
+
+            while pending_tasks:
+                done, pending_tasks = await asyncio.wait(pending_tasks, return_when=asyncio.FIRST_COMPLETED)
+                for task in done:
+                    try:
+                        res = task.result()
+                        if isinstance(res, dict) and res.get("success"):
+                            winner_result = res
+                            break
+                        failed_results.append(res)
+                    except Exception as exc:
+                        logger.warning("A speculative execution task failed: %s", exc)
+                        failed_results.append({"success": False, "error": str(exc)})
+
+                if winner_result:
+                    if not skip_merge:
+                        try:
+                            race_merge_summary = await _merge_race_winner_workspace(
+                                winner_result,
+                                parent_agent,
+                            )
+                        except Exception as exc:
+                            logger.error("Error merging race winner workspace: %s", exc)
+                            winner_result["race_merge_status"] = "error"
+                            winner_result["race_merge_error"] = str(exc)
+
+                    for task in pending_tasks:
+                        task.cancel()
+                    break
+
+            if winner_result:
+                return inject_capacity_signal(
+                    {
+                        "success": True,
+                        "status": "completed",
+                        "race_winner": True,
+                        "result": winner_result,
+                        "budget_admission": (budget_admission.to_dict() if budget_admission else None),
+                        **race_merge_summary,
+                    },
+                    parent_agent,
+                )
+
+            normalized_failures = [
+                res if isinstance(res, dict) else {"success": False, "error": str(res)} for res in failed_results
+            ]
+            return inject_capacity_signal(
+                {
+                    "success": False,
+                    "status": "failed",
+                    "error": "All speculative execution tasks failed.",
+                    "failed_results": failed_results,
+                    **batch_summary(normalized_failures),
+                    "budget_admission": (budget_admission.to_dict() if budget_admission else None),
+                },
+                parent_agent,
+            )
+        finally:
+            if parallel_write_batch:
+                try:
+                    delattr(parent_agent, "_parallel_write_batch_active")
+                except AttributeError:
+                    pass
+
     try:
         coros = [_run_task(task, index) for index, task in enumerate(tasks)]
         gathered = await asyncio.gather(*coros, return_exceptions=True)
     finally:
         if parallel_write_batch:
-            delattr(parent_agent, "_parallel_write_batch_active")
+            try:
+                delattr(parent_agent, "_parallel_write_batch_active")
+            except AttributeError:
+                pass
 
     final_results: list[dict[str, object]] = []
     for index, gathered_result in enumerate(gathered):

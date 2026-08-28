@@ -2,11 +2,13 @@
 
 [INPUT]
 - sub_agents.types::SubagentConfig, ControlScope, MemoryIsolationPolicy, WorkspacePolicy
+- agent.security.engine::disabled_permissions (POS: global permission deny probe for readonly floor)
 - workspace_coordination.policy::apply_parallel_write_isolation
 - workspace_coordination.merge.merge_metadata::strip_merge_transient_inner_keys (POS: merge metadata key SSOT)
 
 [OUTPUT]
-- prepare_subagent_config: readonly + LEAF + memory tool blocks
+- coerce_spawn_readonly: parent Security Profile file_write deny → readonly floor
+- apply_readonly_to_config: readonly sandbox policy + mutating tool blocks
 - build_spawn_child_context: workspace/session context fields
 - apply_spawn_workspace_isolation: parallel writer ISOLATED_COPY promotion
 - sanitize_spawn_result_for_store / spawn_result_for_store_after_merge: JSON-safe durable cache rows
@@ -68,6 +70,23 @@ class SpawnWorkspacePrep:
 
     config: SubagentConfig
     child_context: dict[str, object]
+
+
+def coerce_spawn_readonly(parent_agent: object, readonly: bool) -> bool:
+    """Force readonly when the parent Security Profile globally denies file_write."""
+    if readonly:
+        return True
+    agent_config = getattr(parent_agent, "config", None)
+    security_config = getattr(agent_config, "security_config", None)
+    if security_config is None:
+        return False
+    from myrm_agent_harness.agent.security.engine import disabled_permissions
+
+    return "file_write" in disabled_permissions(
+        ["file_write"],
+        security_config.ruleset,
+        security_config.capabilities,
+    )
 
 
 def apply_readonly_to_config(config: SubagentConfig, readonly: bool) -> SubagentConfig:

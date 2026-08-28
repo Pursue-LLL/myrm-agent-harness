@@ -100,20 +100,20 @@ def create_delegate_task_tool(
         )
         agent_type: str | None = Field(
             default=None,
-            description="(single) Type of subagent — must match an entry from Available_Team_Roster",
+            description="(single mode) Subagent type identifier from the Available agent types roster",
         )
         objective: str | None = Field(
             default=None,
-            description="(single/council/alternatives) Clear description of the core objective",
+            description="(single/council/alternatives mode) Clear description of the core objective",
         )
         context_files: list[str] = Field(
             default_factory=list,
-            description="(single/batch tasks) Relevant file paths or resources",
+            description="(single/batch mode) Optional relevant file paths or resources",
         )
         context: dict[str, object] | None = Field(default=None, description="Optional context data")
         wait: bool | None = Field(
             default=None,
-            description="Wait for results. Defaults: single=false, batch/council/alternatives=true.",
+            description="Wait for results. Defaults: single=false (async background), batch/parallel/council/alternatives=true (blocking).",
         )
         readonly: bool = Field(
             default=False,
@@ -143,38 +143,38 @@ def create_delegate_task_tool(
         )
         tasks: list[TaskRequest] | None = Field(
             default=None,
-            description="(batch/parallel) List of tasks to run concurrently",
+            description="(batch/parallel mode) List of tasks to run concurrently",
         )
         race: bool = Field(
             default=False,
-            description="(batch) Speculative execution: first successful result wins.",
+            description="(batch mode) Speculative execution: first successful result wins.",
         )
         tournament: bool = Field(
             default=False,
-            description="(batch) Tournament mode with LLM judge selecting the best result.",
+            description="(batch mode) Tournament mode with LLM judge selecting the best result.",
         )
         judge_criteria: str | None = Field(
             default=None,
-            description="(batch tournament) Criteria for the judge agent.",
+            description="(batch mode tournament) Criteria for the judge agent.",
         )
         max_concurrent: int | None = Field(
             default=None,
-            description="(batch) Max parallel workers (default: 3 for race, 1 otherwise).",
+            description="(batch mode) Max parallel workers (default: 3 for race, 1 otherwise).",
         )
         expert_agent_types: list[str] | None = Field(
             default=None,
             description=(
-                "(council/alternatives) Agent types to use as experts. "
+                "(council/alternatives mode) Agent types to use as experts. "
                 "Each type is resolved from the catalog. Min 2 for council."
             ),
         )
         cross_review_rounds: int = Field(
             default=1,
-            description="(council) Number of cross-review rounds between experts (1-3).",
+            description="(council mode) Number of cross-review rounds between experts (1-3).",
         )
         chair_agent_type: str | None = Field(
             default=None,
-            description="(council) Agent type for the synthesis chair. Defaults to first expert.",
+            description="(council mode) Agent type for the synthesis chair. Defaults to first expert.",
         )
 
     _delegate_tool_holder: dict[str, BaseTool] = {}
@@ -234,6 +234,9 @@ def create_delegate_task_tool(
             )
 
         if mode in ("council", "alternatives"):
+            from myrm_agent_harness.agent.sub_agents.spawn_prep import coerce_spawn_readonly
+
+            readonly = coerce_spawn_readonly(parent_agent, readonly)
             return await execute_cognitive_mode(
                 mode=mode,
                 parent_agent=parent_agent,
@@ -309,8 +312,19 @@ def create_delegate_task_tool(
         history_hashes.append(payload_hash)
         parent_ctx["subagent_payload_hashes"] = history_hashes
 
+        from myrm_agent_harness.agent.sub_agents.spawn_prep import coerce_spawn_readonly
+
+        effective_readonly = coerce_spawn_readonly(parent_agent, readonly)
+
         sid = str(parent_ctx.get("session_id", ""))
-        key = _cache_key(agent_type, task, context, session_id=sid, role=requested_role.value)
+        key = _cache_key(
+            agent_type,
+            task,
+            context,
+            session_id=sid,
+            role=requested_role.value,
+            effective_readonly=effective_readonly,
+        )
         cached = _get_cached(key)
         if cached is not None:
             return {
@@ -381,7 +395,7 @@ def create_delegate_task_tool(
             resolve_delegate_parallel_write_batch,
         )
 
-        config = apply_readonly_to_config(config, readonly)
+        config = apply_readonly_to_config(config, effective_readonly)
         config = enforce_spawn_policy_on_config(config)
 
         cancel_token = get_cancel_token()
@@ -394,7 +408,7 @@ def create_delegate_task_tool(
         workspace_prep = apply_spawn_workspace_isolation(
             config=config,
             child_context=child_context,
-            readonly=readonly,
+            readonly=effective_readonly,
             parallel_write_batch=resolve_delegate_parallel_write_batch(parent_agent),
         )
         config = workspace_prep.config

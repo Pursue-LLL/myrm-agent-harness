@@ -29,36 +29,13 @@ def create_snapshot_tool(session: BrowserSession):
     """Create browser_snapshot tool bound to session."""
 
     class SnapshotInput(BaseModel):
-        """Capture ARIA accessibility tree snapshot with token optimization.
+        """Capture ARIA accessibility tree snapshot with element references for interaction.
 
-        RECOMMENDED WORKFLOW (for unknown pages):
-        1. browser_inspect() first → get structure metadata (~100 tokens, 15ms)
-        2. Review recommendations → decide optimal params
-        3. browser_snapshot(optimized_params) → get targeted snapshot
-
-        DECISION TREE (choose optimal parameters):
-
-        1. Unknown page structure:
-           → browser_inspect() first to avoid 86% token waste
-
-        2. Large pages (>200 refs from inspect or previous snapshot):
-           → Use recommended selector from inspect
-           → OR scope='interactive' + compact=True
-
-        3. Target specific region (form, main content, article):
-           → selector='#login-form' OR selector='main' (use inspect to find actual selectors)
-           → Combine with scope='interactive' for precision
-
-        4. Small pages (<50 elements from inspect):
-           → Default params are optimal (skip optimization)
-
-        5. Need full page context:
-           → scope='content' (default), no selector
-
-        PARAMETER PRIORITY: selector > scope > max_tokens
-
-        NOTE: browser_inspect is optional. You can call browser_snapshot directly
-        if you already know the page structure or need full content.
+        WORKFLOW & BEST PRACTICES:
+        - Call this before interacting with page elements to obtain fresh ref IDs (e0, e1, etc.).
+        - For complex/large pages, specify 'selector' or scope='interactive' to keep output focused.
+        - When snapshot output contains [VISUAL_CONTENT_DETECTED] (canvas/rich-editors like Google Docs, Figma),
+          switch to coordinate mode in browser_interact_tool (x/y parameters).
         """
 
         scope: str = Field(
@@ -67,49 +44,44 @@ def create_snapshot_tool(session: BrowserSession):
             "'content-only' (headings/cells/articles/images/code blocks only), "
             "'content' (default: interactive + content elements for full context), "
             "'full' (all elements including structural). "
-            "Use 'interactive' for actions, 'content-only' for text extraction.",
+            "Use 'interactive' for action planning, 'content-only' for text extraction.",
         )
         compact: bool = Field(
             default=False,
-            description="Compact single-line format (saves ~30% tokens). "
-            "Recommended when metadata header shows >200 refs or >1000 tokens.",
+            description="Compact single-line format for element tree. "
+            "Recommended for large pages to keep context concise.",
         )
         selector: str = Field(
             default="",
-            description="CSS selector to scope snapshot to a page region (e.g. '.main-content', '#login-form'). "
-            "Empty = full page. Saves 50-90% tokens by limiting scope. "
-            "Automatically skips iframes when set. "
-            "Example: selector='#login-form' for login forms, selector='.main' for main content.",
+            description="CSS selector to scope snapshot to a specific page region (e.g. 'main', '#login-form', '.content'). "
+            "Empty string captures the full page. Automatically skips iframes when set.",
         )
         max_tokens: int = Field(
             default=0,
-            description="Truncate output to this token budget. 0 = unlimited. "
-            "Set 1500-2000 when metadata header shows >2000 tokens. "
-            "Note: Linear truncation may cut important content. Prefer scope/selector first.",
+            description="Truncate output to this token budget (0 = unlimited). "
+            "Set 1500-2000 for extremely long pages. Prefer using 'selector' or 'scope' first.",
         )
         diff: bool = Field(
             default=True,
-            description="Semantic diff since last snapshot (immune to ref renumbering). "
-            "First call returns full content. Auto-resets on navigation. "
-            "Set false to force full snapshot (e.g. after complex interactions).",
+            description="Semantic diff returning only elements changed since last snapshot. "
+            "First call returns full content. Automatically resets on navigation. "
+            "Set False to force a full snapshot (e.g. after major page transitions).",
         )
         cursor_interactive: bool = Field(
             default=True,
-            description="Detect clickable elements without ARIA roles "
-            "(cursor:pointer, onclick, tabindex). Adds ~50ms. "
-            "Disable if detection adds too many irrelevant elements.",
+            description="Detect clickable elements without explicit ARIA roles (cursor:pointer, onclick, tabindex). "
+            "Disable if detection includes too many non-essential elements.",
         )
         include_iframes: bool = Field(
             default=True,
             description="Include iframe content (auto-traverses all iframes). "
             "Iframe element refs use format f1_e0, f2_e1 (frame_index + ref_id). "
-            "Disable to skip iframes for faster snapshots. Auto-disabled when selector is set.",
+            "Disable to skip iframes for faster snapshots. Automatically disabled when selector is set.",
         )
         max_depth: int | None = Field(
             default=None,
-            description="Limit ARIA tree depth. None = unlimited (Fast Path), int = depth limit (Custom Path). "
-            "Use for deep pages: reduces traversal time by 80-85% (e.g. 800ms -> 120ms). "
-            "Example: max_depth=3 for large e-commerce pages, max_depth=2 for infinite scroll.",
+            description="Limit ARIA tree depth (e.g. max_depth=3 for deep e-commerce/feed pages). "
+            "None = unlimited depth.",
         )
 
     @tool("browser_snapshot_tool", args_schema=SnapshotInput)
@@ -125,11 +97,11 @@ def create_snapshot_tool(session: BrowserSession):
     ) -> str:
         """Get the ARIA accessibility tree of the current page (including iframes).
 
-        Output starts with a metadata header: [N refs | ~M tokens | title | url].
-        Use the ref count and token count to decide optimization parameters for next call.
-        Each interactive/content element gets a ref ID (e0, e1, …) usable with browser_interact.
+        Output starts with metadata header: [N refs | ~M tokens | title | url].
+        Each interactive/content element gets a unique ref ID (e0, e1, …) usable with browser_interact_tool.
         Iframe elements use format f1_e0, f2_e1 (frame_index + ref_id).
-        ALWAYS call this before interacting. Dialog alerts are shown at the top if any.
+        ALWAYS call this tool to inspect the page before using browser_interact_tool.
+        Pending dialog alerts and OS-level blocking warnings will appear at the top if present.
         """
         result = await session.snapshot(
             scope=scope,

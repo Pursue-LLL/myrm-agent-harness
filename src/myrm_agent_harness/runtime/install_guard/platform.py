@@ -1,13 +1,7 @@
-"""Build-time platform key detection (no installed myrm_agent_harness required).
+"""Runtime platform key detection (generated — do not edit).
 
-[INPUT]
-- stdlib ``platform`` / ``sys`` (OS and CPU)
-
-[OUTPUT]
-- get_runtime_platform_key(): Normalized platform key (e.g. ``linux-x64-musl``)
-
-[POS]
-Build-time platform key SSOT. Logic must match ``myrm_agent_harness.distribution.runtime_platform``.
+Regenerate: uv run python scripts/sync_distribution_metadata.py
+Source SSOT: harness_packaging/platform_key.py
 """
 
 from __future__ import annotations

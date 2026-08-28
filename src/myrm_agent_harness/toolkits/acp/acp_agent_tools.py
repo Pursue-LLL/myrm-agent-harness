@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import TYPE_CHECKING, NotRequired, TypedDict
+from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict
 from uuid import uuid4
 
 from langchain.tools import tool
@@ -94,27 +94,34 @@ to perform a coding task. The external agent runs as a separate process with its
 context and capabilities.
 
 ## Parameters
-- agent_name: Name of the external agent (must match a configured backend in Settings).
+- agent_name: Name of the external agent backend (e.g. 'claude', 'codex', 'gemini').
 - task: Clear, complete description of what the agent should do.
-  Include all necessary context — the external agent has NO access to your conversation.
-- mode: 'persistent' (default) reuses the session for follow-ups;
+  Include all necessary context (file paths, goals, requirements) — the external agent has NO access to your conversation.
+- mode: 'persistent' (default) reuses the session for follow-up turns;
   'oneshot' creates a fresh session each time.
 
 ## When to use
-- Complex coding tasks that benefit from a specialized agent's capabilities
+- Complex coding tasks that benefit from a specialized external agent's capabilities
 - Tasks requiring different tool sets or model capabilities
-- Parallel work delegation
+- Offloading heavy, multi-file code modifications or repo-level workflows
+
+## When NOT to use
+- Simple file reads, edits, searches, or terminal commands (use local built-in tools instead)
+- Internal multi-agent subtasks (use delegate_task_tool instead)
 
 ## Notes
 - The external agent runs independently — provide ALL context in the task.
 - Response is the agent's complete text output (tool calls are summarized).
-- If agent_name is unknown, the error lists currently configured backends.
+- If agent_name is unknown or not a configured backend, the error lists currently configured backends.
 """
 
     class InvokeACPAgentInput(BaseModel):
         agent_name: str = Field(description="Name of the external agent")
         task: str = Field(description="Complete task description with full context")
-        mode: str = Field(default="persistent", description="'persistent' or 'oneshot'")
+        mode: Literal["persistent", "oneshot"] = Field(
+            default="persistent",
+            description="'persistent' (default) to reuse session across turns, or 'oneshot' for a fresh session",
+        )
 
     @tool("invoke_acp_agent_tool", description=tool_description, args_schema=InvokeACPAgentInput)
     async def invoke_acp_agent_func(

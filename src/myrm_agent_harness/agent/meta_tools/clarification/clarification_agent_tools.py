@@ -2,10 +2,11 @@
 
 [INPUT]
 - clarification.ask_question::AskQuestionInput (POS: structured clarification form schema)
+- clarification._ask_question_descriptions::resolve_ask_question_tool_description (POS: localized prompt SSOT)
 
 [OUTPUT]
 - AskQuestionTool: LangChain tool for structured user clarification.
-- create_ask_question_tool: Factory binding a runtime HITL callback to AskQuestionTool.
+- create_ask_question_tool: Factory binding a runtime HITL callback and optional locale to AskQuestionTool.
 
 [POS]
 Agent meta-tool adapter for clarification forms. Runtime interrupt binding is injected by server.
@@ -20,6 +21,12 @@ from collections.abc import Awaitable, Callable
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field, PrivateAttr
 
+from myrm_agent_harness.agent.meta_tools.clarification._ask_question_descriptions import (
+    ASK_QUESTION_TOOL_DESCRIPTION,
+    ASK_QUESTION_TOOL_DESCRIPTION_EN,
+    ASK_QUESTION_TOOL_DESCRIPTION_ZH,
+    resolve_ask_question_tool_description,
+)
 from myrm_agent_harness.agent.meta_tools.clarification.ask_question import (
     AskQuestionInput,
 )
@@ -46,23 +53,20 @@ class AskQuestionTool(BaseTool):
 
     name: str = "ask_question_tool"
     tags: list[str] = Field(default_factory=lambda: ["interactive"])
-    description: str = (
-        "Ask the user one or more clarifying questions. Use this when the request is ambiguous, "
-        "or when you need to confirm intent, choose between options, or gather missing details "
-        "before proceeding. Set requires_confirmation=true before destructive or irreversible work. "
-        "You can provide predefined options with descriptions, or leave options "
-        "empty for open-ended questions.\n"
-        "CRITICAL: You can only call this tool ONCE per turn. If you have multiple questions, "
-        "put ALL of them in the `questions` list of a SINGLE tool call. Do NOT call this tool "
-        "multiple times in parallel or alongside other tools in the same turn."
-    )
+    description: str = ASK_QUESTION_TOOL_DESCRIPTION
     args_schema: type[BaseModel] = AskQuestionInput
 
     _callback: Callable[[AskQuestionInput], Awaitable[str]] = PrivateAttr()
 
-    def __init__(self, callback: Callable[[AskQuestionInput], Awaitable[str]]) -> None:
+    def __init__(
+        self,
+        callback: Callable[[AskQuestionInput], Awaitable[str]],
+        locale: str | None = None,
+    ) -> None:
         super().__init__()
         self._callback = callback
+        if locale:
+            self.description = resolve_ask_question_tool_description(locale)
 
     async def _arun(self, **kwargs: object) -> str:
         input_data = AskQuestionInput.model_validate(kwargs)
@@ -82,6 +86,7 @@ class AskQuestionTool(BaseTool):
 
 def create_ask_question_tool(
     callback: Callable[[AskQuestionInput], Awaitable[str]],
+    locale: str | None = None,
 ) -> AskQuestionTool:
     """Create an ask_question LangChain tool bound to a runtime HITL callback."""
-    return AskQuestionTool(callback=callback)
+    return AskQuestionTool(callback=callback, locale=locale)

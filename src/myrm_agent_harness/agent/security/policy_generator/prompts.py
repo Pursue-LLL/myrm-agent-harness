@@ -61,7 +61,8 @@ Available permission_types:
 - mcp_invoke: MCP tool invocation
 - web_search_tool: Web search
 - net_fetch: Network fetch requests
-- delegate_agent: Sub-agent delegation
+- spawn_subagent: Internal sub-agent spawn/control (delegate_task_tool, subagent_control_tool)
+- invoke_external_agent: External CLI/ACP agent invocation (invoke_acp_agent_tool)
 
 Available actions: "allow", "ask", "deny"
 

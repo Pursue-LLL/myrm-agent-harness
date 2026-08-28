@@ -28,7 +28,7 @@ from harness_packaging.manifest import load_core_manifest
 from harness_packaging.platforms import SUPPORTED_PLATFORMS, get_current_platform
 from harness_packaging.release import manifest_source_paths, strip_manifest_sources_from_wheel
 from harness_packaging.version import read_harness_version
-from myrm_agent_harness.distribution.core_ip_manifest import CORE_IP_IMPORTS
+from myrm_agent_harness.runtime.install_guard._generated.core_ip_manifest import CORE_IP_IMPORTS
 
 _MANIFEST_PATH = _REPO_ROOT / "harness_packaging" / "core_manifest.yaml"
 
@@ -239,7 +239,7 @@ def test_dual_wheel_compiled_mode_e2e(tmp_path: Path) -> None:
             str(venv_python),
             "-c",
             (
-                "from myrm_agent_harness.distribution.probe import ("
+                "from myrm_agent_harness.runtime.install_guard.probe import ("
                 "DistributionMode, assert_distribution_ready, get_distribution_mode"
                 "); "
                 "assert_distribution_ready(); "
@@ -254,20 +254,19 @@ def test_dual_wheel_compiled_mode_e2e(tmp_path: Path) -> None:
 
 @pytest.mark.architecture
 def test_verify_distribution_in_source_mode() -> None:
-    """verify-harness-distribution must pass on editable dev installs (all .py source)."""
+    """install_guard verify must pass on editable dev installs (all .py source)."""
     from importlib.metadata import entry_points
 
     script_names = {ep.name for ep in entry_points(group="console_scripts")}
     assert "verify-harness-distribution" in script_names
 
-    verify_cmd = _REPO_ROOT / ".venv" / "bin" / "verify-harness-distribution"
-    if not verify_cmd.exists():
-        verify_cmd = _REPO_ROOT / ".venv" / "Scripts" / "verify-harness-distribution.exe"
-    assert verify_cmd.is_file(), f"Console script missing: {verify_cmd}"
+    venv_python = _REPO_ROOT / ".venv" / "bin" / "python"
+    if not venv_python.is_file():
+        venv_python = _REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+    assert venv_python.is_file(), f"Harness venv python missing: {venv_python}"
 
-    subprocess.run([str(verify_cmd)], check=True, cwd=_REPO_ROOT)
     subprocess.run(
-        [sys.executable, "-m", "myrm_agent_harness.distribution.verify"],
+        [str(venv_python), "-m", "myrm_agent_harness.runtime.install_guard.verify"],
         check=True,
         cwd=_REPO_ROOT,
     )

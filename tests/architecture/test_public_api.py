@@ -35,7 +35,7 @@ def test_public_api_factory_reexport() -> None:
 @pytest.mark.architecture
 def test_distribution_mode_defaults_to_source() -> None:
     """Editable dev installs should report source distribution."""
-    from myrm_agent_harness.distribution.probe import (
+    from myrm_agent_harness.runtime.install_guard.probe import (
         DistributionMode,
         get_distribution_mode,
     )

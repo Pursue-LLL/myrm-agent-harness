@@ -183,6 +183,42 @@ class LLMErrorDiagnostic:
                 locale=locale,
             )
 
+        # 2b. OpenCode Go contributor training policy (muse-spark contributor)
+        from myrm_agent_harness.toolkits.llms.adapters.wire.normalizer import ResponsesStreamError
+
+        if isinstance(exc, ResponsesStreamError):
+            user_message = locale_manager.translate("opencode_training_policy", "user_message", locale)
+            resolution_steps = locale_manager.translate("opencode_training_policy", "resolution_steps", locale)
+            return DiagnosticResult(
+                error_type="opencode_training_policy",
+                user_message=user_message,
+                resolution_steps=resolution_steps,
+                is_retryable=False,
+                locale=locale,
+            )
+
+        training_policy_keywords = [
+            "trainingnotallowed",
+            "datapolicyerror",
+            "allowtraining",
+        ]
+        compact = full_text.replace(" ", "").replace("_", "")
+        if any(kw in compact for kw in training_policy_keywords) or (
+            "muse-spark" in full_text
+            and "contributor" in full_text
+            and "training" in full_text
+            and "not allowed" in full_text
+        ):
+            user_message = locale_manager.translate("opencode_training_policy", "user_message", locale)
+            resolution_steps = locale_manager.translate("opencode_training_policy", "resolution_steps", locale)
+            return DiagnosticResult(
+                error_type="opencode_training_policy",
+                user_message=user_message,
+                resolution_steps=resolution_steps,
+                is_retryable=False,
+                locale=locale,
+            )
+
         # 3. API key errors
         api_key_keywords = [
             "invalid api key",

@@ -12,15 +12,19 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _PACKAGE_ROOT = _REPO_ROOT / "src" / "myrm_agent_harness"
 _CHECK_SCRIPT = _REPO_ROOT / "scripts" / "check_package_root_layout.py"
 
-_DISTRIBUTION_SUBPACKAGE = _PACKAGE_ROOT / "distribution"
+_INSTALL_GUARD_SUBPACKAGE = _PACKAGE_ROOT / "runtime" / "install_guard"
 
 _REQUIRED_SUBPACKAGE_FILES = (
     "__init__.py",
     "_ARCH.md",
-    "core_ip_manifest.py",
     "probe.py",
-    "runtime_platform.py",
+    "platform.py",
     "verify.py",
+)
+
+_REQUIRED_GENERATED_FILES = (
+    "_generated/__init__.py",
+    "_generated/core_ip_manifest.py",
 )
 
 _FORBIDDEN_LEGACY_FLAT_FILES = (
@@ -44,11 +48,16 @@ def test_package_root_layout_gate() -> None:
 
 
 @pytest.mark.architecture
-def test_distribution_subpackage_layout() -> None:
-    assert _DISTRIBUTION_SUBPACKAGE.is_dir(), f"Missing {_DISTRIBUTION_SUBPACKAGE}. See distribution/_ARCH.md."
+def test_install_guard_subpackage_layout() -> None:
+    assert _INSTALL_GUARD_SUBPACKAGE.is_dir(), (
+        f"Missing {_INSTALL_GUARD_SUBPACKAGE}. See runtime/install_guard/_ARCH.md."
+    )
     for filename in _REQUIRED_SUBPACKAGE_FILES:
-        path = _DISTRIBUTION_SUBPACKAGE / filename
-        assert path.is_file(), f"Missing required distribution module file: {path}"
+        path = _INSTALL_GUARD_SUBPACKAGE / filename
+        assert path.is_file(), f"Missing required install_guard module file: {path}"
+    for rel_path in _REQUIRED_GENERATED_FILES:
+        path = _INSTALL_GUARD_SUBPACKAGE / rel_path
+        assert path.is_file(), f"Missing required install_guard generated file: {path}"
 
 
 @pytest.mark.architecture
@@ -56,21 +65,22 @@ def test_distribution_subpackage_layout() -> None:
 def test_distribution_legacy_flat_files_removed(legacy_filename: str) -> None:
     legacy_path = _PACKAGE_ROOT / legacy_filename
     assert not legacy_path.exists(), (
-        f"Legacy flat distribution file must not reappear: {legacy_path}. Use distribution/ subpackage instead."
+        f"Legacy flat distribution file must not reappear: {legacy_path}. "
+        "Use runtime/install_guard/ subpackage instead."
     )
 
 
 @pytest.mark.architecture
-def test_distribution_public_export() -> None:
-    from myrm_agent_harness.distribution import (
+def test_install_guard_public_export() -> None:
+    from myrm_agent_harness.runtime.install_guard import (
         DistributionMode,
         assert_distribution_ready,
         get_distribution_mode,
     )
-    from myrm_agent_harness.distribution.probe import (
+    from myrm_agent_harness.runtime.install_guard.probe import (
         DistributionMode as ModeFromProbe,
     )
-    from myrm_agent_harness.distribution.probe import (
+    from myrm_agent_harness.runtime.install_guard.probe import (
         assert_distribution_ready as ready_from_probe,
     )
 

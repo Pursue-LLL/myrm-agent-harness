@@ -107,7 +107,7 @@ async def create_skill_agent(
     library_skill_names: frozenset[str] | None = None,
 ) -> SkillAgent:
     """Create a SkillAgent instance (framework assembly entry)."""
-    from myrm_agent_harness.distribution.probe import assert_distribution_ready
+    from myrm_agent_harness.runtime.install_guard.probe import assert_distribution_ready
 
     resolved_file_access = file_access_mode
 

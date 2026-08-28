@@ -338,7 +338,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "generate_fix_suggestion",
     ),
     "get_distribution_mode": (
-        "myrm_agent_harness.distribution.probe",
+        "myrm_agent_harness.runtime.install_guard.probe",
         "get_distribution_mode",
     ),
     "get_ptc_safety_metadata": (
@@ -351,7 +351,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
     "get_workspace_root": ("myrm_agent_harness.api.hooks", "get_workspace_root"),
     "is_compiled_distribution": (
-        "myrm_agent_harness.distribution.probe",
+        "myrm_agent_harness.runtime.install_guard.probe",
         "is_compiled_distribution",
     ),
     "is_registered_action_tool": (

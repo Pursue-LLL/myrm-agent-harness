@@ -13,7 +13,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `boundary_engine.py` | 核心 | AST 静态/动态 import 检测引擎 | ✅ |
 | `build_core.py` | 核心 | compiled-core 构建 + wheel 后 inline artifact verify | ✅ |
 | `build_release_wheel.py` | 核心 | 发布 wheel 组装 + strip 后 inline artifact verify | ✅ |
-| `sync_distribution_metadata.py` | 核心 | 从 `core_manifest.yaml` 再生成 `distribution/core_ip_manifest.py` 与 compiled-core pin | ✅ |
+| `sync_distribution_metadata.py` | 核心 | 从 `core_manifest.yaml` 再生成 `runtime/install_guard` codegen 产物与 compiled-core pin | ✅ |
 | `check_package_root_layout.py` | Gate | 包根禁止平铺实现模块（仅允许 `__init__.py` / `client.py`）；回归 legacy 平铺文件名 | — |
 | `assemble_production.py` | 辅助 | 生产包组装 | ✅ |
 | `verify_release_tag.py` | 辅助 | tag 与 `project.version` 一致性校验 | ✅ |
@@ -24,7 +24,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `tool_registry_config.py` | 辅助 | Tool registry 扫描配置 | ✅ |
 | `tool_registry_engine.py` | 辅助 | Tool registry 扫描引擎 | ✅ |
 | `tool_registry_models.py` | 辅助 | Tool registry 数据模型 | ✅ |
-| `validate_tool_registry.py` | 辅助 | Tool registry CI 校验（注册一致性 + 治理覆盖门禁：遍历注册内置全集 / 权限类型矩阵 / EXPLICIT_MCP_FALLBACK 第三态 / DYNAMICALLY_RESOLVED_TOOL_NAMES SSOT 消费 / BUILTIN↔注册双向一致性 / RULESET_COVERAGE_WHITELIST 双向一致性（stale+orphan）/ EXTERNAL server-managed 标注 / safety / canonical 参数；`--json` 输出覆盖矩阵，矩阵含 `whitelist_orphan` 标注使 orphan 声明对审计报表可见） | ✅ |
+| `validate_tool_registry.py` | 辅助 | Tool registry CI 校验（注册一致性 + 治理覆盖门禁：遍历注册内置全集 / 权限类型矩阵 / EXPLICIT_MCP_FALLBACK 第三态 / DYNAMICALLY_RESOLVED_TOOL_NAMES SSOT 消费 / BUILTIN↔注册双向一致性 / RULESET_COVERAGE_WHITELIST 双向一致性（stale+orphan）/ EXTERNAL server-managed 标注 / safety / canonical 参数 / forbidden legacy terms（bindmode、catalog_invoke、delegate_to_agent_tool、profile seed 内 delegate_agent 权限键）；`--json` 输出覆盖矩阵，矩阵含 `whitelist_orphan` 标注使 orphan 声明对审计报表可见） | ✅ |
 | `validate_arch_inventory.py` | 辅助 | `_ARCH.md` 文件清单表格 vs 同级 `.py` 一致性校验（仅解析表格行）+ `--md-refs` 全仓反引号路径引用真实性校验（显式相对路径 / 跨仓 alias / harness 模块快捷三态解析，渐退剥离 symbol 后缀；`--root` 仓根或 server 仓等跨仓扫描仅跑 md-refs，不跑表格） | ✅ |
 | `md_ref_validator.py` | 辅助 | md 引用校验核心：`scan_md_refs` / `_extract_md_refs` / `_resolve_md_ref` / 渐退 symbol 剥离 / 源码根自动发现（harness `src/myrm_agent_harness`，server `app/`，跨仓快捷引用按被扫描仓识别）/ 白名单（`SKILL_SYSTEM.md` 竞品规划表、`eval/_ARCH.md` 候选决策表、`prebuilt_skills/` 运行时产物），被 `validate_arch_inventory.py` 复用 | ✅ |
 | `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + IOP 头 baseline 门禁（`fractal_header_baseline.txt`） | ✅ |

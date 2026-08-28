@@ -1,14 +1,14 @@
 """Memory search policy and optional server-provided backends.
 
-Framework-level ACL for ``memory_search_tool`` corpus routing. Server binds wiki,
-conversation, and web corpus providers; runtime cannot broaden corpora beyond policy flags.
+Framework-level ACL for ``memory_search_tool`` corpus routing. Server binds wiki
+and conversation providers; runtime cannot broaden corpora beyond policy flags.
 
 [INPUT]
 - toolkits.memory.types (POS: Memory type system)
 
 [OUTPUT]
-- MemorySearchPolicy: Runtime ACL flags for wiki/sessions/web corpora and shared memory write bounds.
-- MemorySearchBackends: Optional wiki/sessions/web providers plus wiki_structure for citation URI parity.
+- MemorySearchPolicy: Runtime ACL flags for wiki/sessions corpora and shared memory write bounds.
+- MemorySearchBackends: Optional wiki/sessions providers plus wiki_structure for citation URI parity.
 - resolve_search_corpora: Merge policy flags with requested corpus selection.
 
 [POS]
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
     from myrm_agent_harness.toolkits.wiki.core.types import QueryResult
 
-MemorySearchCorpus = Literal["memory", "wiki", "sessions", "web", "all"]
+MemorySearchCorpus = Literal["memory", "wiki", "sessions", "all"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +36,6 @@ class MemorySearchPolicy:
 
     allow_wiki: bool = False
     allow_sessions: bool = False
-    allow_web: bool = False
     allow_shared_write: bool = True
 
 
@@ -48,7 +47,6 @@ class MemorySearchBackends:
     wiki_agent_id: str | None = None
     wiki_structure: WikiStructure | None = None
     conversation_provider: ConversationSearchProtocol | None = None
-    query_web_corpus: Callable[[str, int], Awaitable[str]] | None = None
 
 
 def resolve_search_corpora(
@@ -69,20 +67,11 @@ def resolve_search_corpora(
                 "Conversation history search is disabled. Enable it in Memory settings.",
             )
         return (["sessions"], None)
-    if corpus == "web":
-        if not policy.allow_web:
-            return (
-                [],
-                "Web corpus is not enabled. Enable it in Memory settings.",
-            )
-        return (["web"], None)
     if corpus == "all":
         corpora: list[MemorySearchCorpus] = ["memory"]
         if policy.allow_wiki:
             corpora.append("wiki")
         if policy.allow_sessions:
             corpora.append("sessions")
-        if policy.allow_web:
-            corpora.append("web")
         return (corpora, None)
     return ([], f"Unknown corpus: {corpus}")

@@ -21,5 +21,14 @@ def write_minimal_release_wheel(path: Path) -> None:
 
 def write_minimal_core_wheel(path: Path) -> None:
     with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr(
+            "myrm_agent_harness_core/__init__.py",
+            (
+                '__version__ = "0.1.0"\n'
+                '__platform_key__: str = "linux-x64"\n'
+                "def get_platform_key() -> str:\n"
+                "    return __platform_key__\n"
+            ),
+        )
         for manifest_py in manifest_source_paths():
             zf.writestr(stub_compiled_artifact_path(manifest_py), b"")

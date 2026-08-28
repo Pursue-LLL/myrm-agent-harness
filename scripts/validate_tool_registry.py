@@ -35,6 +35,7 @@ from scripts.tool_registry_config import (  # noqa: E402
     HARNESS_SRC,
     SCAN_ROOTS,
     SERVER_ROOT,
+    SERVER_SRC,
 )
 from scripts.tool_registry_engine import (  # noqa: E402
     ScanReport,
@@ -69,6 +70,7 @@ _FORBIDDEN_LEGACY_ACP_TOOL_PATTERNS = (
     re.compile(r"\bdelegate_to_agent_tool\b"),
     re.compile(r"\bcreate_delegate_to_agent_tool\b"),
 )
+_FORBIDDEN_CATALOG_INVOKE_PATTERNS = (
     re.compile(r"\bcapability_invoke_tool\b"),
     re.compile(r"\bsync_capability_invoke_tool\b"),
     re.compile(r"\bbind_economics\b"),
@@ -79,6 +81,15 @@ _FORBIDDEN_LEGACY_ACP_TOOL_PATTERNS = (
     re.compile(r"\bshould_bind_capability_invoke\b"),
     re.compile(r"\bget_runtime_capability_catalog\b"),
     re.compile(r"\bbuild_runtime_catalog_overlay\b"),
+)
+_FORBIDDEN_LEGACY_DELEGATE_PERMISSION_PATTERNS = (
+    re.compile(r'"delegate_agent"\s*:'),
+    re.compile(r"'delegate_agent'\s*:"),
+)
+_FORBIDDEN_LEGACY_DELEGATE_PERMISSION_SCAN_PATHS = (
+    SERVER_SRC / "services" / "security" / "profile_manager.py",
+    SERVER_SRC / "services" / "agent" / "params" / "converter.py",
+    HARNESS_SRC / "core" / "security" / "types.py",
 )
 _FORBIDDEN_TERM_SCAN_ROOTS = (
     HARNESS_SRC / "agent",
@@ -101,6 +112,20 @@ def _scan_forbidden_bindmode_terms() -> list[tuple[Path, int, str]]:
 def _scan_forbidden_legacy_acp_tool_terms() -> list[tuple[Path, int, str]]:
     """Detect removed delegate_to_agent_tool legacy naming."""
     return _scan_forbidden_patterns(_FORBIDDEN_LEGACY_ACP_TOOL_PATTERNS)
+
+
+def _scan_forbidden_legacy_delegate_permission_terms() -> list[tuple[Path, int, str]]:
+    """Detect reintroduced delegate_agent permission keys in profile/security seeds."""
+    violations: list[tuple[Path, int, str]] = []
+    for path in _FORBIDDEN_LEGACY_DELEGATE_PERMISSION_SCAN_PATHS:
+        if not path.is_file():
+            continue
+        for line_no, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
+            if any(pat.search(line) for pat in _FORBIDDEN_LEGACY_DELEGATE_PERMISSION_PATTERNS):
+                violations.append((path, line_no, line.strip()))
+    return violations
 
 
 def _scan_forbidden_catalog_invoke_terms() -> list[tuple[Path, int, str]]:
@@ -680,6 +705,9 @@ def main() -> int:
         [] if args.incremental else _scan_forbidden_catalog_invoke_terms()
     )
     legacy_acp_violations = [] if args.incremental else _scan_forbidden_legacy_acp_tool_terms()
+    legacy_delegate_permission_violations = (
+        [] if args.incremental else _scan_forbidden_legacy_delegate_permission_terms()
+    )
     from myrm_agent_harness.agent.tool_management.tool_catalog import (
         validate_tool_catalog,
     )
@@ -702,6 +730,7 @@ def main() -> int:
         or bindmode_violations
         or catalog_invoke_violations
         or legacy_acp_violations
+        or legacy_delegate_permission_violations
         or catalog_errors
         or parity_errors
         or governance_errors
@@ -776,6 +805,21 @@ def main() -> int:
             print(
                 "  Fix: use invoke_acp_agent_tool / create_invoke_acp_agent_tool only; "
                 "delegate_to_agent_tool was removed."
+            )
+        if legacy_delegate_permission_violations:
+            print(
+                f"FAIL - {len(legacy_delegate_permission_violations)} forbidden "
+                "legacy delegate_agent permission key(s):"
+            )
+            for path, line_no, line in legacy_delegate_permission_violations:
+                try:
+                    display = path.relative_to(_repo_root)
+                except ValueError:
+                    display = path
+                print(f"  - {display}:{line_no}: {line}")
+            print(
+                "  Fix: use spawn_subagent and invoke_external_agent permission keys; "
+                "delegate_agent was removed."
             )
         if catalog_errors:
             print(f"FAIL - {len(catalog_errors)} tool catalog metadata issue(s):")

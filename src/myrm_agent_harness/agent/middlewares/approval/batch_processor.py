@@ -434,11 +434,11 @@ async def evaluate_tool_batch(
                             extra_ctx = extra_ctx or {}
                             extra_ctx["high_risk"] = True
             else:
-                # Auto Mode outbound check: delegate_agent actions that pass
+                # Auto Mode outbound check: external CLI actions that pass
                 # the deterministic engine as ALLOW still need Classifier review
                 # to prevent prompt-injection → malicious-delegation attacks.
                 if (
-                    permission_type == "delegate_agent"
+                    permission_type == "invoke_external_agent"
                     and auto_mode_enabled
                     and _batch_review._security_reviewer is not None
                     and is_threshold_breached() == ThresholdBreach.NONE

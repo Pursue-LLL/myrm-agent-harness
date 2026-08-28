@@ -129,7 +129,7 @@ class SkillBoundaryProvider(GuardrailProvider):
         permission_type = resolve_permission_type(request.tool_name, request.tool_input)
         if map_permission_to_skill_permission(permission_type) is None:
             # Types outside the skill permission model (e.g. ``mcp_invoke``,
-            # ``delegate_agent``) are governed by their own layers — keep the
+            # ``spawn_subagent`` / ``invoke_external_agent``) are governed by their own layers — keep the
             # gate open without consulting the permission checker.
             return GuardrailDecision(allow=True)
 

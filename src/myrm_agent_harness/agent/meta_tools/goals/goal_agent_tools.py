@@ -49,7 +49,7 @@ def create_goal_tools(goal_provider: GoalProvider, session_id: str) -> list[Base
         try:
             from myrm_agent_harness.agent.goals.types import GoalStatus
 
-            if getattr(goal, "status", None) == GoalStatus.COMPLETED:
+            if getattr(goal, "status", None) == GoalStatus.COMPLETE:
                 return f"Goal {goal.goal_id} is already completed."
 
             if getattr(goal, "acceptance_criteria", None):

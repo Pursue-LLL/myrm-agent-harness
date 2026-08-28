@@ -14,3 +14,7 @@ LangChain tool surface for the Goal engine. Domain logic lives in `agent/goals/`
 
 - `agent.goals.protocols::GoalProvider` (POS: Goal state access contract)
 - `agent.goals.types::GoalStatus` (POS: Goal status enum)
+
+## Tool Specifications
+
+- `complete_goal_tool`: Marks active goal as complete after verifying all acceptance criteria. Includes idempotency protection if the goal is already in `COMPLETE` status.

@@ -74,8 +74,12 @@ def _cache_key(
     context: dict[str, object] | None,
     session_id: str = "",
     role: str = DelegateRole.LEAF.value,
+    effective_readonly: bool = False,
 ) -> str:
-    raw = f"{session_id}::{agent_type}::{role}::{task}::{sorted((context or {}).items())}"
+    raw = (
+        f"{session_id}::{agent_type}::{role}::{int(effective_readonly)}::"
+        f"{task}::{sorted((context or {}).items())}"
+    )
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 

@@ -1,17 +1,17 @@
-"""Distribution subsystem — compiled core wheel probe, manifest, and install verification.
+"""Install guard — dual-wheel install readiness probe and post-install verification.
 
 [INPUT]
-- distribution.probe (POS: Source vs compiled distribution readiness)
-- distribution.core_ip_manifest (POS: Generated core IP import path list)
+- install_guard.probe (POS: Source vs compiled distribution readiness)
+- install_guard._generated.core_ip_manifest (POS: Generated core IP import path list)
 
 [OUTPUT]
 - DistributionMode, assert_distribution_ready, get_distribution_mode, is_compiled_distribution
 
 [POS]
-Domain subpackage for dual-wheel release packaging: manifest, probe, platform key, install verify.
+Runtime domain for proprietary dual-wheel packaging: manifest imports, install probe, platform key, verify CLI.
 """
 
-from myrm_agent_harness.distribution.probe import (
+from myrm_agent_harness.runtime.install_guard.probe import (
     DistributionMode,
     DistributionNotReadyError,
     assert_distribution_ready,

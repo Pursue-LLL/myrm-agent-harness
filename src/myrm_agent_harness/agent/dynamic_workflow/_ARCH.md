@@ -42,6 +42,7 @@ SpawnSubagentTool (tools.py)
   - Full tool registry inherited from parent
   - cancel_token checked before each spawn
   - readonly=True → READ_ONLY_SANDBOX; non-readonly → ISOLATED_COPY
+  - Parent Profile 全局 file_write=DENY → `coerce_spawn_readonly()` 自动 readonly floor
        ↓
 WorkflowEventStore (store.py) — L2 persistent cache (SpawnCacheParams fingerprint)
   - Matching params → cache hit

@@ -37,6 +37,7 @@ from myrm_agent_harness.toolkits.llms.core.credential_pool import (
 )
 from myrm_agent_harness.toolkits.llms.core.key_pool_llm import KeyPoolLLM
 from myrm_agent_harness.toolkits.llms.core.llm import ChatLiteLLM, create_litellm_model
+from myrm_agent_harness.core.config.wire import DEFAULT_WIRE_PROTOCOL
 from myrm_agent_harness.utils.lru_cache import LRUCache
 
 if TYPE_CHECKING:
@@ -130,7 +131,7 @@ class LLMManager:
     ) -> ChatLiteLLM:
         """Create or retrieve a single-key LLM instance."""
         api_key_hash = hashlib.blake2b(api_key.encode(), digest_size=8).hexdigest()
-        cache_data = f"{model}_{temperature}_{base_url or ''}_{api_key_hash}_{streaming}"
+        cache_data = f"{model}_{temperature}_{base_url or ''}_{api_key_hash}_{streaming}_{kwargs.get('wire_protocol', DEFAULT_WIRE_PROTOCOL)}"
         if kwargs:
             kwargs_str = "_".join(f"{k}:{v}" for k, v in sorted(kwargs.items()))
             cache_data += f"_{kwargs_str}"
@@ -168,7 +169,7 @@ class LLMManager:
         resolved_strategy = CredentialPoolStrategy.resolve(credential_pool_strategy)
         key_hashes = [hashlib.blake2b(k.encode(), digest_size=8).hexdigest() for k in normalized_keys]
         pool_hash = hashlib.blake2b("|".join(key_hashes).encode(), digest_size=8).hexdigest()
-        cache_data = f"pool_{model}_{temperature}_{base_url or ''}_{resolved_strategy.value}_{pool_hash}_{streaming}"
+        cache_data = f"pool_{model}_{temperature}_{base_url or ''}_{resolved_strategy.value}_{pool_hash}_{streaming}_{kwargs.get('wire_protocol', 'chat_completions')}"
         if kwargs:
             kwargs_str = "_".join(f"{k}:{v}" for k, v in sorted(kwargs.items()))
             cache_data += f"_{kwargs_str}"
@@ -232,6 +233,7 @@ class LLMManager:
             if credential_pool_strategy is not None
             else getattr(config, "credential_pool_strategy", None)
         )
+        wire_protocol = getattr(config, "wire_protocol", "chat_completions")
 
         return await cls.get_llm(
             model=config.model,  # type: ignore
@@ -240,6 +242,7 @@ class LLMManager:
             streaming=streaming,
             api_keys=effective_api_keys,
             credential_pool_strategy=effective_strategy,
+            wire_protocol=wire_protocol,
             **model_kwargs,
         )
 

@@ -1711,11 +1711,11 @@ class TestUncertainReasonInjection:
 
 
 class TestOutboundDelegationCheck:
-    """Tests for forced Classifier review of delegate_agent tools in Auto Mode."""
+    """Tests for forced Classifier review of invoke_external_agent tools in Auto Mode."""
 
     @pytest.mark.asyncio
     async def test_delegate_allow_with_classifier_allow(self):
-        """delegate_agent ALLOW + Classifier ALLOW → auto-approved."""
+        """invoke_external_agent ALLOW + Classifier ALLOW → auto-approved."""
 
         class AllowReviewer:
             async def review(self, command, **kwargs):
@@ -1724,7 +1724,7 @@ class TestOutboundDelegationCheck:
         register_security_reviewer(AllowReviewer())
 
         config = SecurityConfig(
-            ruleset=(PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),),
+            ruleset=(PermissionRule("invoke_external_agent", "*", PermissionAction.ALLOW),),
             auto_mode_enabled=True,
         )
 
@@ -1752,7 +1752,7 @@ class TestOutboundDelegationCheck:
 
     @pytest.mark.asyncio
     async def test_delegate_allow_with_classifier_deny(self):
-        """delegate_agent ALLOW + Classifier DENY → auto-denied."""
+        """invoke_external_agent ALLOW + Classifier DENY → auto-denied."""
 
         class DenyReviewer:
             async def review(self, command, **kwargs):
@@ -1761,7 +1761,7 @@ class TestOutboundDelegationCheck:
         register_security_reviewer(DenyReviewer())
 
         config = SecurityConfig(
-            ruleset=(PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),),
+            ruleset=(PermissionRule("invoke_external_agent", "*", PermissionAction.ALLOW),),
             auto_mode_enabled=True,
         )
 
@@ -1788,7 +1788,7 @@ class TestOutboundDelegationCheck:
 
     @pytest.mark.asyncio
     async def test_delegate_allow_with_classifier_uncertain(self):
-        """delegate_agent ALLOW + Classifier UNCERTAIN → pending approval."""
+        """invoke_external_agent ALLOW + Classifier UNCERTAIN → pending approval."""
 
         class UncertainReviewer:
             async def review(self, command, **kwargs):
@@ -1800,7 +1800,7 @@ class TestOutboundDelegationCheck:
         register_security_reviewer(UncertainReviewer())
 
         config = SecurityConfig(
-            ruleset=(PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),),
+            ruleset=(PermissionRule("invoke_external_agent", "*", PermissionAction.ALLOW),),
             auto_mode_enabled=True,
         )
 
@@ -1827,10 +1827,10 @@ class TestOutboundDelegationCheck:
 
     @pytest.mark.asyncio
     async def test_delegate_no_outbound_check_without_auto_mode(self):
-        """Without auto_mode_enabled, delegate_agent ALLOW → auto-approved (no classifier)."""
+        """Without auto_mode_enabled, invoke_external_agent ALLOW → auto-approved (no classifier)."""
 
         config = SecurityConfig(
-            ruleset=(PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),),
+            ruleset=(PermissionRule("invoke_external_agent", "*", PermissionAction.ALLOW),),
             auto_mode_enabled=False,
         )
 
@@ -1856,11 +1856,11 @@ class TestOutboundDelegationCheck:
 
     @pytest.mark.asyncio
     async def test_delegate_no_outbound_check_without_reviewer(self):
-        """With auto_mode but no reviewer, delegate_agent ALLOW → auto-approved."""
+        """With auto_mode but no reviewer, invoke_external_agent ALLOW → auto-approved."""
         register_security_reviewer(None)
 
         config = SecurityConfig(
-            ruleset=(PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),),
+            ruleset=(PermissionRule("invoke_external_agent", "*", PermissionAction.ALLOW),),
             auto_mode_enabled=True,
         )
 
@@ -1899,7 +1899,7 @@ class TestOutboundDelegationCheck:
         register_security_reviewer(ShouldNotBeCalledReviewer())
 
         config = SecurityConfig(
-            ruleset=(PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),),
+            ruleset=(PermissionRule("invoke_external_agent", "*", PermissionAction.ALLOW),),
             auto_mode_enabled=True,
         )
 
@@ -1934,7 +1934,7 @@ class TestOutboundDelegationCheck:
         register_security_reviewer(BrokenReviewer())
 
         config = SecurityConfig(
-            ruleset=(PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),),
+            ruleset=(PermissionRule("invoke_external_agent", "*", PermissionAction.ALLOW),),
             auto_mode_enabled=True,
         )
 
@@ -1959,17 +1959,17 @@ class TestOutboundDelegationCheck:
         assert len(approved) == 1
 
     @pytest.mark.asyncio
-    async def test_delegate_task_batch_mode_also_checked(self):
-        """delegate_task_tool mode=batch also triggers outbound check."""
+    async def test_spawn_subagent_batch_skips_outbound_check(self):
+        """delegate_task_tool maps to spawn_subagent — outbound classifier must not run."""
 
         class DenyReviewer:
             async def review(self, command, **kwargs):
-                return ReviewResult(decision=ReviewDecision.DENY, reason="batch delegation blocked")
+                raise AssertionError("Outbound reviewer must not run for spawn_subagent")
 
         register_security_reviewer(DenyReviewer())
 
         config = SecurityConfig(
-            ruleset=(PermissionRule("delegate_agent", "*", PermissionAction.ALLOW),),
+            ruleset=(PermissionRule("spawn_subagent", "*", PermissionAction.ALLOW),),
             auto_mode_enabled=True,
         )
 
@@ -1985,7 +1985,7 @@ class TestOutboundDelegationCheck:
             ),
         ]
 
-        _approved, denied, _pending = await evaluate_tool_batch(
+        approved, denied, pending = await evaluate_tool_batch(
             tool_calls,
             config,
             is_cron=False,
@@ -1994,7 +1994,9 @@ class TestOutboundDelegationCheck:
             args_hashes={},
         )
 
-        assert len(denied) == 1
+        assert len(approved) == 1
+        assert len(denied) == 0
+        assert len(pending) == 0
 
 
 # =========================================================================

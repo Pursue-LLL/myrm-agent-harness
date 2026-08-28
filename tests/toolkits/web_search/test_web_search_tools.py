@@ -243,18 +243,15 @@ class TestWebSearcher:
 
     async def test_search_caching(self) -> None:
         """测试搜索缓存机制存在"""
-        from myrm_agent_harness.toolkits.web_search.web_searcher import (
-            WebSearcher,
-            _search_cache,
-        )
+        from myrm_agent_harness.toolkits.web_search import search_coalescing as sc
+        from myrm_agent_harness.toolkits.web_search.web_searcher import WebSearcher
 
         config = SearchServiceConfig(search_service="perplexity", api_key="key")
         WebSearcher(config=config)
 
-        # 验证缓存对象存在
-        assert _search_cache is not None
-        assert _search_cache.maxsize == 200
-        assert _search_cache.ttl == 900
+        assert sc._search_cache is not None
+        assert sc._search_cache.maxsize == 200
+        assert sc._search_cache.ttl == 900
 
 
 @pytest.mark.asyncio

@@ -932,7 +932,6 @@ class TestSearchDescriptionConditionalization:
     @staticmethod
     def _get_search_tool(
         *,
-        allow_web: bool = False,
         allow_wiki: bool = False,
         allow_sessions: bool = False,
     ):
@@ -961,30 +960,22 @@ class TestSearchDescriptionConditionalization:
         tools = create_memory_tools(
             manager,
             search_policy=MemorySearchPolicy(
-                allow_web=allow_web,
                 allow_wiki=allow_wiki,
                 allow_sessions=allow_sessions,
             ),
         )
         return next(t for t in tools if t.name == "memory_search_tool")
 
-    def test_web_hidden_when_disabled(self):
-        tool = self._get_search_tool(allow_web=False)
+    def test_web_corpus_not_advertised(self):
+        tool = self._get_search_tool()
         desc = tool.description
         assert "corpus=web" not in desc
         assert "web corpus" not in desc
         assert "previously fetched web pages" not in desc
 
-    def test_web_visible_when_enabled(self):
-        tool = self._get_search_tool(allow_web=True)
-        desc = tool.description
-        assert "corpus=web" in desc or "web:" in desc
-        assert "web corpus" in desc or "web pages" in desc
-
     def test_all_corpus_always_present(self):
-        for allow_web in (True, False):
-            tool = self._get_search_tool(allow_web=allow_web)
-            assert "all:" in tool.description
+        tool = self._get_search_tool()
+        assert "all:" in tool.description
 
     def test_sessions_hidden_when_disabled(self):
         tool = self._get_search_tool(allow_sessions=False)
@@ -1020,22 +1011,17 @@ class TestSearchDescriptionConditionalization:
         assert "expand_conversation_id" in result
 
     @pytest.mark.asyncio
-    async def test_web_corpus_rejected_at_runtime_when_disabled(self):
-        """Even if Agent bypasses description and passes corpus=web, runtime rejects."""
-        tool = self._get_search_tool(allow_web=False)
-        result = await tool.ainvoke({"query": "test", "corpus": "web"})
-        assert "not enabled" in result.lower()
+    async def test_web_corpus_rejected_by_schema(self):
+        """web is not a valid memory_search_tool corpus value."""
+        import pydantic
 
-    @pytest.mark.asyncio
-    async def test_web_corpus_backend_none_returns_unavailable(self):
-        """When allow_web=True but no backend, graceful fallback."""
-        tool = self._get_search_tool(allow_web=True)
-        result = await tool.ainvoke({"query": "test", "corpus": "web"})
-        assert "not available" in result.lower()
+        tool = self._get_search_tool()
+        with pytest.raises(pydantic.ValidationError):
+            await tool.ainvoke({"query": "test", "corpus": "web"})
 
-    def test_description_no_stray_web_references_when_disabled(self):
-        """Exhaustive check: no 'web' substring at all when disabled."""
-        tool = self._get_search_tool(allow_web=False)
+    def test_description_no_stray_web_references(self):
+        """Exhaustive check: no 'web' substring in memory_search description."""
+        tool = self._get_search_tool()
         desc_lower = tool.description.lower()
         assert "web" not in desc_lower
 

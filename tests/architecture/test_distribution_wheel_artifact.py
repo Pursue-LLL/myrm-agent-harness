@@ -14,6 +14,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(_ARCH_DIR))
 
 from distribution_wheel_helpers import (
+    stub_compiled_artifact_path,
     write_minimal_core_wheel,
     write_minimal_release_wheel,
 )
@@ -173,3 +174,40 @@ def test_core_wheel_artifact_rejects_manifest_py_and_missing_compiled(tmp_path: 
     )
     assert any("Manifest .py source must not ship" in item for item in violations)
     assert any("Missing Nuitka .so/.pyd" in item for item in violations)
+
+
+@pytest.mark.architecture
+def test_core_wheel_artifact_rejects_unknown_platform_key(tmp_path: Path) -> None:
+    manifest_paths = manifest_source_paths()
+    wheel_path = tmp_path / "myrm_agent_harness_core_linux_x64-0.1.0-cp313-cp313-linux_x86_64.whl"
+    with zipfile.ZipFile(wheel_path, "w") as zf:
+        zf.writestr(
+            "myrm_agent_harness_core/__init__.py",
+            '__platform_key__: str = "unknown"\n',
+        )
+        for manifest_py in manifest_paths[:1]:
+            zf.writestr(stub_compiled_artifact_path(manifest_py), b"")
+
+    violations = distribution_wheel_artifact_violations(
+        wheel_path,
+        role=DistributionWheelRole.CORE,
+    )
+    assert any("platform key is still 'unknown'" in item for item in violations)
+
+    with pytest.raises(DistributionWheelArtifactError, match="platform key is still 'unknown'"):
+        verify_distribution_wheel_artifact(wheel_path, role=DistributionWheelRole.CORE)
+
+
+@pytest.mark.architecture
+def test_core_wheel_artifact_rejects_missing_core_package_init(tmp_path: Path) -> None:
+    manifest_paths = manifest_source_paths()
+    wheel_path = tmp_path / "myrm_agent_harness_core_linux_x64-0.1.0-cp313-cp313-linux_x86_64.whl"
+    with zipfile.ZipFile(wheel_path, "w") as zf:
+        for manifest_py in manifest_paths[:1]:
+            zf.writestr(stub_compiled_artifact_path(manifest_py), b"")
+
+    violations = distribution_wheel_artifact_violations(
+        wheel_path,
+        role=DistributionWheelRole.CORE,
+    )
+    assert any("missing myrm_agent_harness_core/__init__.py" in item for item in violations)

@@ -184,6 +184,20 @@ class TestConvertDictToMessage:
         assert isinstance(msg, AIMessage)
         assert "reasoning_content" not in msg.additional_kwargs
 
+    def test_responses_reasoning_items_round_trip(self) -> None:
+        reasoning_items = [{"type": "reasoning", "id": "rs_1", "encrypted_content": "blob"}]
+        msg = convert_dict_to_message(
+            {
+                "role": "assistant",
+                "content": "done",
+                "responses_reasoning_items": reasoning_items,
+            }
+        )
+        assert isinstance(msg, AIMessage)
+        assert msg.additional_kwargs["responses_reasoning_items"] == reasoning_items
+        restored = convert_message_to_dict(msg)
+        assert restored["responses_reasoning_items"] == reasoning_items
+
 
 class TestParseToolCallArgsHooks:
     def test_parse_tool_call_args_logs_when_unsafe(self) -> None:

@@ -35,14 +35,14 @@ class InteractStep(BaseModel):
         description="One of: click, dblclick, type, fill, fill_credential, press, hover, focus, "
         "select, scroll, scroll_to_bottom, upload_file, drag, check, uncheck",
     )
-    ref: str = Field(description="Element ref from browser_snapshot")
+    ref: str = Field(description="Element ref from browser_snapshot (e.g. 'e0', 'f1_e2')")
     text: str = Field(
         default="",
         description="Text/key/path as required by the action (drag uses 'x,y' target coordinates)",
     )
     verify_goal: str | None = Field(
         default=None,
-        description="Optional visual verification goal for this step",
+        description="Optional visual verification goal for this step (e.g. 'Dropdown opened', 'Form filled')",
     )
 
 
@@ -50,53 +50,63 @@ def _build_interact_input_model(*, labels_str: str) -> type[BaseModel]:
     class InteractInput(BaseModel):
         action: str = Field(
             default="",
-            description="Single action when steps is omitted. One of: click, dblclick, type (append keystrokes), "
-            "fill (clear then set value), fill_credential (securely fill password/totp), "
-            "press, hover, focus, select, scroll, scroll_to_bottom (smart infinite scroll with auto-detection), "
-            "upload_file, drag, check (idempotent checkbox on), uncheck (idempotent checkbox off)",
+            description="Single action when steps is omitted. One of: click, dblclick, "
+            "type (append keystrokes to element), "
+            "fill (clear element then set exact value), "
+            "fill_credential (securely fill password/totp from vault), "
+            "press (send key combo like 'Enter', 'Escape', 'Control+a'), "
+            "hover, focus, "
+            "select (select dropdown option by value), "
+            "scroll (scroll page/element by pixel delta, positive=down, negative=up), "
+            "scroll_to_bottom (smart infinite scroll until content stabilizes), "
+            "upload_file (upload file from local path), "
+            "drag (drag element to target coordinates), "
+            "check (idempotently check checkbox), "
+            "uncheck (idempotently uncheck checkbox)",
         )
         ref: str = Field(
             default="",
             description="Element ref from browser_snapshot (e.g. 'e0', 'e3', 'f1_e2' for iframe elements). "
-            "Required for ref-based mode. Omit when using coordinate mode (x/y).",
+            "Required for Ref mode. Do NOT provide when using Coordinate mode (x/y).",
         )
         text: str = Field(
             default="",
-            description="Text for type/fill, key combo for press (e.g. 'Enter', 'Control+a'), "
-            f"credential label for fill_credential (available labels: {labels_str}), "
-            "option value(s) for select (multi-select values separated by ';'), "
-            "signed scroll delta in pixels for scroll (positive=down, negative=up), "
-            "optional params for scroll_to_bottom (e.g. 'max_steps=20,delay_ms=300,stable_count=3'), "
-            "file path for upload_file, "
-            "drag target coordinates 'x,y' (comma-separated CSS pixels, e.g. '500,300'), "
-            "or omitted for click/dblclick/hover/focus/check/uncheck.",
+            description="Argument required by the selected action: "
+            "text for type/fill; "
+            "key combo for press (e.g. 'Enter', 'Control+a'); "
+            f"credential label for fill_credential (available labels: {labels_str}); "
+            "option value(s) for select (separate multiple with ';'); "
+            "pixel delta for scroll (e.g. '500' for down, '-300' for up); "
+            "optional parameters for scroll_to_bottom (e.g. 'max_steps=20,delay_ms=300'); "
+            "absolute file path for upload_file; "
+            "target 'x,y' CSS coordinates for drag (e.g. '500,300'); "
+            "leave empty for click/dblclick/hover/focus/check/uncheck.",
         )
         verify_goal: str | None = Field(
             default=None,
-            description="Optional. A natural language description of what you expect to see after this action (e.g., 'Flight list is visible', 'Error message disappeared'). If provided, the tool will take screenshots before and after, and use a Vision LLM to verify if the goal was met, returning the visual feedback directly to you.",
+            description="Optional natural language description of expected visual outcome (e.g. 'Results list visible', 'Modal closed'). Automatically verifies visual result and returns feedback.",
         )
         steps: list[InteractStep] | None = Field(
             default=None,
-            description="Optional declarative batch: run multiple interact steps in one call (same page, same snapshot refs). "
-            "When provided, omit top-level action/ref/text. Each step still runs Semantic Guard.",
+            description="Optional declarative batch: execute multiple interact steps sequentially in one tool call (using same page and snapshot refs). When provided, omit top-level action/ref/text.",
         )
         x: float | None = Field(
             default=None,
-            description="Viewport X coordinate (CSS pixels) for coordinate mode. "
-            "Use when snapshot shows [VISUAL_CONTENT_DETECTED] (canvas/rich-editor pages like Google Docs, Figma). "
-            "Identify coordinates from a screenshot. Mutually exclusive with ref.",
+            description="Viewport X coordinate (CSS pixels) for Coordinate mode. "
+            "Use when snapshot indicates [VISUAL_CONTENT_DETECTED] (canvas/rich-editor like Google Docs, Figma). "
+            "Must be provided together with y. Mutually exclusive with ref.",
         )
         y: float | None = Field(
             default=None,
-            description="Viewport Y coordinate (CSS pixels) for coordinate mode. Must be provided together with x.",
+            description="Viewport Y coordinate (CSS pixels) for Coordinate mode. Must be provided together with x.",
         )
         target_x: float | None = Field(
             default=None,
-            description="Drag endpoint X coordinate (CSS pixels). Required when action='drag' in coordinate mode.",
+            description="Drag endpoint X coordinate (CSS pixels). Required when action='drag' in Coordinate mode.",
         )
         target_y: float | None = Field(
             default=None,
-            description="Drag endpoint Y coordinate (CSS pixels). Required when action='drag' in coordinate mode.",
+            description="Drag endpoint Y coordinate (CSS pixels). Required when action='drag' in Coordinate mode.",
         )
 
     return InteractInput
@@ -140,15 +150,15 @@ def create_interact_tool(session: BrowserSession):
     ) -> str:
         """Perform an action on a page element identified by its ref ID or viewport coordinates.
 
-        Two modes (mutually exclusive):
-        1. Ref mode: browser_snapshot -> pick ref -> browser_interact(action, ref).
-        2. Coordinate mode: screenshot -> identify position -> browser_interact(action, x=..., y=...).
-           Use coordinate mode when snapshot shows [VISUAL_CONTENT_DETECTED] (canvas/rich-editor).
+        Supports two mutually exclusive interaction modes:
+        1. Ref mode: Call browser_snapshot_tool -> get element ref (e.g. 'e0', 'f1_e2') -> browser_interact(action=..., ref=...).
+        2. Coordinate mode: Use when snapshot indicates [VISUAL_CONTENT_DETECTED] (canvas/rich-editor) -> browser_interact(action=..., x=..., y=...).
 
-        Works across iframes (refs like 'f1_e2' target iframe elements).
-        Use steps[] to batch multiple ref-based actions without extra LLM rounds.
-        If click triggers a file download, it's auto-captured; use list_downloads to check.
-        Use verify_goal to automatically verify the visual result of your action.
+        Features:
+        - Works seamlessly across iframes (use refs like 'f1_e2').
+        - Use steps=[] to batch multiple sequential actions in a single turn without extra round-trips.
+        - File downloads triggered by click are automatically tracked.
+        - Set verify_goal to visually verify the action's outcome.
         """
         # Coordinate mode
         if x is not None and y is not None:

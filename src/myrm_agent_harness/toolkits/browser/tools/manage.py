@@ -33,51 +33,45 @@ def create_manage_tool(session: BrowserSession):
 
     class ManageInput(BaseModel):
         action: str = Field(
-            description="Action: close, evaluate, new_tab, switch_tab, list_tabs, close_tab, "
-            "back, forward, save_pdf, resize, emulate, wait_for_load, console_log, "
-            "network_log, network_detail, network_replay, web_vitals, "
-            "dialog_response, dialog_policy, "
-            "save_session, restore_session, list_sessions, delete_session, "
-            "trace_start, trace_stop, har_start, har_stop, recording_status, "
-            "save_site_experience, list_site_experience, delete_site_experience, "
-            "download_url, list_downloads, "
-            "run_site_tool, list_site_tools",
+            description="Management action to perform. Categories: "
+            "Tab management: 'new_tab', 'switch_tab', 'list_tabs', 'close_tab'; "
+            "History & Navigation: 'back', 'forward', 'wait_for_load'; "
+            "Page control: 'close', 'resize', 'emulate', 'evaluate', 'save_pdf'; "
+            "Logs & Diagnostics: 'console_log', 'network_log', 'network_detail', 'network_replay', 'web_vitals'; "
+            "Dialogs: 'dialog_response', 'dialog_policy'; "
+            "Session state: 'save_session', 'restore_session', 'list_sessions', 'delete_session'; "
+            "Recordings: 'trace_start', 'trace_stop', 'har_start', 'har_stop', 'recording_status'; "
+            "Downloads: 'download_url', 'list_downloads'; "
+            "Site memory & tools: 'save_site_experience', 'list_site_experience', 'delete_site_experience', 'run_site_tool', 'list_site_tools'.",
         )
         value: str = Field(
             default="",
-            description="Required for: JS expression (evaluate), tab_id (switch_tab/close_tab), "
-            "URL (new_tab/download_url), 'WIDTHxHEIGHT' (resize), "
-            "device name (emulate, e.g. 'iPhone 15 Pro', 'Pixel 8', "
-            "'iPhone 15 Pro landscape', or 'desktop'), "
-            "'accept'/'dismiss[:prompt]' (dialog_response), "
-            "'smart'/'auto_accept'/'auto_dismiss'/'wait_for_agent' (dialog_policy), "
-            "domain or 'domain:label' (save_session), domain (restore_session/delete_session), "
-            "request index number (network_detail/network_replay), "
-            "JSON for save_site_experience (e.g. "
-            '\'{"domain":"example.com","known_traps":["login wall"],"successful_flows":["direct URL"]}\'), '
-            "domain for delete_site_experience, "
-            "'skill_id:tool_name:{json_args}' for run_site_tool "
-            "(e.g. 'x-com:get_timeline_posts:{\"max_posts\":20}'). "
-            "Omit for: close, list_tabs, list_sessions, list_site_experience, list_downloads, "
-            "list_site_tools, back, forward, save_pdf, "
-            "wait_for_load, console_log, network_log, web_vitals, "
-            "trace_start, trace_stop, har_start, har_stop, "
-            "recording_status.",
+            description="Argument required for specific actions: "
+            "JS expression for 'evaluate'; "
+            "tab ID for 'switch_tab'/'close_tab'; "
+            "URL for 'new_tab'/'download_url'; "
+            "'WIDTHxHEIGHT' for 'resize' (e.g. '1920x1080'); "
+            "device name for 'emulate' (e.g. 'iPhone 15 Pro', 'Pixel 8', 'iPhone 15 Pro landscape', 'desktop'); "
+            "'accept' or 'dismiss[:prompt_text]' for 'dialog_response'; "
+            "'smart'/'auto_accept'/'auto_dismiss'/'wait_for_agent' for 'dialog_policy'; "
+            "domain name for 'save_session'/'restore_session'/'delete_session'; "
+            "integer request index for 'network_detail'/'network_replay'; "
+            "JSON string for 'save_site_experience' (e.g. '{\"domain\":\"example.com\",\"known_traps\":[\"login wall\"]}'); "
+            "domain for 'delete_site_experience'; "
+            "'skill_id:tool_name:{json_args}' for 'run_site_tool' (e.g. 'x-com:get_timeline_posts:{\"max_posts\":20}'); "
+            "leave empty for actions without arguments.",
         )
 
     @tool("browser_manage_tool", args_schema=ManageInput)
     async def browser_manage(action: str, value: str = "") -> str:
-        """Manage the browser session: tabs, navigation history, JS execution, debugging, and more.
+        """Manage the browser session: tabs, history, dialogs, emulation, storage, diagnostics, and domain tools.
 
-        Tab management: new_tab, switch_tab, list_tabs, close_tab.
-        History: back, forward. Evaluation: evaluate. Output: save_pdf, console_log.
-        Control: close, resize, emulate, wait_for_load. Dialogs: dialog_response.
-        Sessions: save_session, restore_session, list_sessions, delete_session.
-        Recording: trace_start, trace_stop, har_start, har_stop, recording_status.
-        Diagnostics: web_vitals (page performance metrics with ratings and fixes).
-        Human-in-the-loop: use browser_ask_human_tool for 2FA, CAPTCHA, or payment gates.
-        Site experience: save_site_experience, list_site_experience, delete_site_experience.
-        Downloads: download_url (download file from URL), list_downloads (show download history).
+        Capabilities:
+        - Tab management: new_tab, switch_tab, list_tabs, close_tab.
+        - History & Control: back, forward, wait_for_load, resize, emulate, close.
+        - Execution & Inspection: evaluate (runs JS in page context), console_log, network_log, web_vitals, save_pdf.
+        - State & Downloads: save_session, restore_session, download_url, list_downloads.
+        - Human takeover: For 2FA/MFA, CAPTCHAs, or payments, use browser_ask_human_tool instead.
         """
         match action:
             case "close":

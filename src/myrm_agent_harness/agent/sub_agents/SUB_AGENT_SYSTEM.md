@@ -101,6 +101,7 @@ Layer 3: child ⊆ parent 交集约束
 
 Layer 4: Fine-grained Sandboxing (readonly)
          → 支持通过 readonly 参数在运行时过滤文件写/命令执行等具有副作用的工具，实现细粒度安全沙箱。
+         → 当父 Security Profile 全局 `file_write=DENY` 时，`spawn_prep.coerce_spawn_readonly()` 自动抬升 readonly（delegate + DW 共用 SSOT）。`delegate_task_tool` 60s 结果缓存 fingerprint 含 `effective_readonly`。
 ```
 
 ### 1.1 安全策略（SubagentConfig 声明式）

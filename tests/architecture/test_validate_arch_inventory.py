@@ -42,7 +42,6 @@ _TOP_DIRS = frozenset(
         "api",
         "backends",
         "core",
-        "distribution",
         "eval",
         "infra",
         "observability",

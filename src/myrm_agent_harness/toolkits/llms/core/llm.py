@@ -28,6 +28,7 @@ import logging
 from typing import Any
 from urllib.parse import urlparse
 
+from myrm_agent_harness.core.config.wire import DEFAULT_WIRE_PROTOCOL, WireProtocol
 from myrm_agent_harness.infra.tls_compat import build_httpx_verify, tls_strict_disabled
 
 # Side-effect import: registers custom providers into litellm.custom_provider_map
@@ -139,6 +140,7 @@ def create_litellm_model(
     streaming: bool = False,
     native_tools: set[str] | None = None,
     web_search_options: dict[str, Any] | None = None,
+    wire_protocol: WireProtocol = DEFAULT_WIRE_PROTOCOL,
     **kwargs: Any,
 ) -> "ChatLiteLLM":
     """Unified factory for creating ChatLiteLLM instances across all providers.
@@ -159,7 +161,7 @@ def create_litellm_model(
     Returns:
         Configured ChatLiteLLM instance.
     """
-    llm_kwargs: dict[str, Any] = {"model": model, **kwargs}
+    llm_kwargs: dict[str, Any] = {"model": model, "wire_protocol": wire_protocol, **kwargs}
     if temperature is not None:
         llm_kwargs["temperature"] = temperature
 

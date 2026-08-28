@@ -182,8 +182,8 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 3. 运行 `python scripts/validate_tool_registry.py --generate-docs`
 
 **命名空间铁律（ACP vs 内部 Sub-Agent）**：
-- `invoke_acp_agent_tool` / `create_invoke_acp_agent_tool` = 外部 ACP/CLI Agent 委派（`toolkits/acp/`）
-- `delegate_task_tool` = Myrm 内部 Sub-Agent 委派（`meta_tools/spawn_subagent/`）
+- `invoke_acp_agent_tool` / `create_invoke_acp_agent_tool` = 外部 ACP/CLI Agent 委派（`toolkits/acp/`）→ permission `invoke_external_agent`
+- `delegate_task_tool` / `subagent_control_tool` = Myrm 内部 Sub-Agent 委派（`meta_tools/spawn_subagent/`）→ permission `spawn_subagent`
 - 禁止 `delegate_to_agent_*` 等遗留命名（CI：`validate_tool_registry.py` `_FORBIDDEN_LEGACY_ACP_TOOL_PATTERNS`）
 
 编排信号与 runtime hook 见 `agent/orchestration/`（不在下方 LLM Tool Catalog 表内）。

@@ -171,6 +171,9 @@ class DistributionWheelArtifactError(ValueError):
 
 _FORBIDDEN_DEBUG_SUFFIXES: tuple[str, ...] = (".map", ".c.src")
 
+_CORE_PACKAGE_INIT_RELPATH = "myrm_agent_harness_core/__init__.py"
+_UNKNOWN_PLATFORM_KEY_MARKER = '__platform_key__: str = "unknown"'
+
 
 def _manifest_compiled_prefix(manifest_py: str) -> str:
     """Return the wheel entry prefix for a manifest module's Nuitka artifact."""
@@ -208,6 +211,30 @@ def _has_compiled_artifact(entries: tuple[str, ...], manifest_py: str) -> bool:
         name.startswith(prefix) and (name.endswith(".so") or name.endswith(".pyd"))
         for name in entries
     )
+
+
+def _read_wheel_entry_text(wheel_path: Path, entry_name: str) -> str | None:
+    with zipfile.ZipFile(wheel_path, "r") as zf:
+        try:
+            return zf.read(entry_name).decode("utf-8")
+        except KeyError:
+            return None
+
+
+def _core_wheel_platform_key_violations(wheel_path: Path) -> tuple[str, ...]:
+    """Fail closed when a core wheel ships without a stamped platform key."""
+    init_text = _read_wheel_entry_text(wheel_path, _CORE_PACKAGE_INIT_RELPATH)
+    if init_text is None:
+        return (
+            f"Core wheel missing {_CORE_PACKAGE_INIT_RELPATH} "
+            "(expected stamped myrm_agent_harness_core package metadata).",
+        )
+    if _UNKNOWN_PLATFORM_KEY_MARKER in init_text:
+        return (
+            "Core wheel platform key is still 'unknown'; "
+            "rebuild with scripts/build_core.py / assemble_production.",
+        )
+    return ()
 
 
 def distribution_wheel_artifact_violations(
@@ -248,6 +275,9 @@ def distribution_wheel_artifact_violations(
             preview = ", ".join(missing_compiled[:3])
             suffix = f" (+{len(missing_compiled) - 3} more)" if len(missing_compiled) > 3 else ""
             violations.append(f"Missing Nuitka .so/.pyd for manifest modules: {preview}{suffix}")
+
+        for platform_violation in _core_wheel_platform_key_violations(wheel_path):
+            violations.append(platform_violation)
 
     return tuple(violations)
 

@@ -22,6 +22,8 @@ SSOT: `{workspace_root}/.myrm/progress/todos.json`
 
 - **MAX_TODOS = 20**: Rejects writes that would exceed 20 items (returns error with guidance to merge or simplify).
 - **Single in_progress**: When multiple items are set to `in_progress`, only the last one is kept; others are auto-corrected to `pending` with a `note` field in the response.
+- **Partial Update Support**: In `merge=True` mode, `content` is optional for existing items, allowing status-only updates while preserving existing descriptions. New items require `content`.
+- **Self-Healing Error Diagnostics**: Invalid status values return the complete list of valid enum values to facilitate agent self-correction.
 
 ## Bind conditions
 

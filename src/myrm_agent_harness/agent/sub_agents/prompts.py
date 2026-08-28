@@ -41,12 +41,12 @@ DELEGATION_TOOL_GUIDANCE = """\
 Only when parallel gain, specialized expertise, or adversarial breadth applies.
 If none apply, execute directly.
 
-## Modes
-- single: one subagent (agent_type + objective)
-- batch: concurrent tasks via tasks[]; optional race/tournament
-- parallel: Swarm Fission yield-resume for heavy Map-Reduce workloads
-- council: multi-expert cross-review with chair synthesis (expert_agent_types + objective)
-- alternatives: N parallel solutions for user comparison (expert_agent_types + objective)
+## Modes & Required Parameters
+- single: One subagent [Requires: agent_type, objective; wait=false by default]
+- batch: Concurrent batch tasks via tasks[] [Requires: tasks; optional race/tournament; wait=true by default]
+- parallel: Swarm Fission yield-resume Map-Reduce [Requires: tasks; wait=true by default]
+- council: Multi-expert cross-review with chair synthesis [Requires: expert_agent_types (min 2), objective; wait=true by default]
+- alternatives: N parallel solutions for user comparison [Requires: expert_agent_types, objective; wait=true by default]
 
 ## Council vs Alternatives
 - council: when you need cognitive diversity — multiple experts analyse the SAME question, \

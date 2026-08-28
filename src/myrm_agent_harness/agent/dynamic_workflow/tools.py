@@ -51,6 +51,7 @@ from myrm_agent_harness.agent.sub_agents.spawn_prep import (
     apply_readonly_to_config,
     apply_spawn_workspace_isolation,
     build_child_context_from_parent_agent,
+    coerce_spawn_readonly,
     enforce_spawn_policy_on_config,
     memory_isolation_scope,
     merge_candidate_from_spawn_dict,
@@ -252,6 +253,8 @@ class SpawnSubagentTool(BaseTool):
                 "result": None,
                 "error": "Workflow cancelled by user.",
             }
+
+        readonly = coerce_spawn_readonly(self.parent_agent, readonly)
 
         cache_params = SpawnCacheParams(
             agent_type=agent_type,

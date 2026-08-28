@@ -1748,3 +1748,19 @@ class TestCronPlatformV2:
         jobs = await manager.list_jobs(USER_ID)
         assert jobs[0].delivery.channel == "telegram"
         assert jobs[0].delivery.target == "chat-99"
+
+    def test_cron_manage_tool_description_locale_support(self, manager: CronManager) -> None:
+        from myrm_agent_harness.toolkits.cron._cron_tool_description import (
+            CRON_MANAGE_TOOL_DESCRIPTION_EN,
+            CRON_MANAGE_TOOL_DESCRIPTION_ZH,
+        )
+
+        tools_en = create_cron_tools(manager, USER_ID, description_locale="en-US")
+        assert tools_en[0].description == CRON_MANAGE_TOOL_DESCRIPTION_EN
+        assert "Manage scheduled tasks" in (tools_en[0].description or "")
+        assert "LiteLLM" not in (tools_en[0].description or "")
+
+        tools_zh = create_cron_tools(manager, USER_ID, description_locale="zh-CN")
+        assert tools_zh[0].description == CRON_MANAGE_TOOL_DESCRIPTION_ZH
+        assert "管理定时任务" in (tools_zh[0].description or "")
+

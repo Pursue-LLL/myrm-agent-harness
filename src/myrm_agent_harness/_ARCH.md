@@ -24,8 +24,6 @@ Full cross-layer map: [ARCHITECTURE.md](../../ARCHITECTURE.md) §跨层概念映
 | __init__.py | Core | Package entry — lazy re-exports via api/ | — |
 | api/ | Core | Public API surface for external consumers (factory, Protocol, DTO) |
 | client.py | SDK facade | AgentClient fluent API; convenience layer, not PyPI-stable contract (see api/) |
-| distribution/ | Core | Dual-wheel probe, manifest codegen target, install verify CLI (see distribution/_ARCH.md) |
-
 | Submodule | Description |
 |-----------|-------------|
 | agent/ | Agent core module — runtime, context management, skill system. External consumers use api/ instead. |
@@ -34,7 +32,7 @@ Full cross-layer map: [ARCHITECTURE.md](../../ARCHITECTURE.md) §跨层概念映
 | eval/ | Eval Framework — Agent behavior quality evaluation (Protocol-based; not a toolkit). See [eval/_ARCH.md](eval/_ARCH.md). |
 | infra/ | Infrastructure layer — file locks, message delivery, OpenTelemetry tracing (`infra/tracing/`), state monitoring. |
 | observability/ | Cross-cutting metrics, health diagnostics, ContextVar log tracing. See [observability/_ARCH.md](observability/_ARCH.md). |
-| runtime/ | Agent runtime infrastructure for single-instance execution. |
+| runtime/ | Agent runtime infrastructure for single-instance execution. Includes `install_guard/` for dual-wheel install readiness. |
 | toolkits/ | Generic, framework-agnostic toolkit collection (like lodash). MUST NOT depend on agent/. |
 | utils/ | Utility library — error handling, logging, text processing, token tracking, URL tools. |
 

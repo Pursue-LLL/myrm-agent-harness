@@ -17,6 +17,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, Field, field_validator
 
+from myrm_agent_harness.core.config.wire import DEFAULT_WIRE_PROTOCOL, WireProtocol
+
 
 @dataclass(frozen=True)
 class CustomModelDef:
@@ -77,6 +79,10 @@ class LLMConfig(BaseModel):
     custom_model_def: CustomModelDef | None = Field(
         default=None,
         description="Custom model definition for self-hosted endpoints (Ollama/LM Studio/vLLM)",
+    )
+    wire_protocol: WireProtocol = Field(
+        default=DEFAULT_WIRE_PROTOCOL,
+        description="HTTP wire transport: chat_completions, responses, or anthropic_messages",
     )
 
     model_config = {

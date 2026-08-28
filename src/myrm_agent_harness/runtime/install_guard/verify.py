@@ -1,8 +1,8 @@
 """Post-install harness distribution verification for Docker, CI, and Tauri.
 
 [INPUT]
-- distribution.core_ip_manifest::CORE_IP_IMPORTS (POS: Core IP import path list)
-- distribution.probe::assert_distribution_ready (POS: Distribution readiness probe)
+- install_guard._generated.core_ip_manifest::CORE_IP_IMPORTS (POS: Core IP import path list)
+- install_guard.probe::assert_distribution_ready (POS: Distribution readiness probe)
 - myrm_agent_harness.api::create_skill_agent (POS: Stable public agent factory)
 
 [OUTPUT]
@@ -23,7 +23,7 @@ import sys
 
 def verify_manifest_imports() -> None:
     """Import every core IP module listed in the installed manifest."""
-    from myrm_agent_harness.distribution.core_ip_manifest import CORE_IP_IMPORTS
+    from myrm_agent_harness.runtime.install_guard._generated.core_ip_manifest import CORE_IP_IMPORTS
 
     for import_name in CORE_IP_IMPORTS:
         importlib.import_module(import_name)
@@ -31,7 +31,7 @@ def verify_manifest_imports() -> None:
 
 def verify_distribution_ready() -> None:
     """Fail closed when release wheel is installed without platform core wheel."""
-    from myrm_agent_harness.distribution.probe import assert_distribution_ready
+    from myrm_agent_harness.runtime.install_guard.probe import assert_distribution_ready
 
     assert_distribution_ready()
 

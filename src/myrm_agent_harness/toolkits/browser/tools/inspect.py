@@ -27,22 +27,11 @@ def create_inspect_tool(session: BrowserSession):
     """Create browser_inspect tool bound to session."""
 
     class InspectInput(BaseModel):
-        """Quick page structure analysis (lightweight metadata only).
+        """Analyze page structure and get recommended CSS selectors before taking snapshots.
 
-        WHEN TO USE:
-        - First time visiting unknown page → inspect first to understand structure
-        - Before snapshot large pages → inspect to get optimal selector recommendations
-        - Quick exploration → inspect is 100x faster than full snapshot (15ms vs 1500ms)
-
-        WORKFLOW:
-        1. browser_inspect() → get page structure + recommendations (~100 tokens)
-        2. Review metadata → decide optimal params
-        3. browser_snapshot(optimized_params) → get targeted ARIA tree
-
-        BENEFITS:
-        - 100% information efficiency (pure metadata, no unused ARIA tree)
-        - 90% accurate selector recommendations (detects actual page structure)
-        - 99% cost reduction for first call (8000 tokens → 100 tokens)
+        USAGE:
+        - Call on complex or large pages to inspect structure without fetching full ARIA trees.
+        - Provides recommended CSS selectors (e.g. 'main', '#content') to use in browser_snapshot_tool.
         """
 
         pass  # No parameters needed
@@ -53,12 +42,10 @@ def create_inspect_tool(session: BrowserSession):
 
         Returns structured metadata:
         - Total interactive elements count
-        - Main regions (semantic tags like <main>, <article>, <form>)
-        - Recommended selector for browser_snapshot
-        - Estimated token savings
+        - Key semantic regions (<main>, <article>, <form>, etc.)
+        - Recommended CSS selector for scoped browser_snapshot_tool calls
 
-        Use this BEFORE browser_snapshot to make informed decisions about
-        which parameters to use. Much faster and cheaper than full snapshot.
+        Use this on unknown or large pages before browser_snapshot_tool to select the optimal 'selector'.
         """
         return mark_untrusted(await session.inspect())
 

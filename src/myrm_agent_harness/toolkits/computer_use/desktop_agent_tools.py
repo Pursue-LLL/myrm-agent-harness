@@ -54,7 +54,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         )
         include_screenshot: bool = Field(
             default=False,
-            description="Include a screenshot image block alongside the AX tree.",
+            description="Set to true only when visual layout, icons, canvas areas, or colors must be inspected alongside the AX tree.",
         )
 
     @tool("desktop_snapshot_tool", args_schema=SnapshotInput)
@@ -63,10 +63,10 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         app_name: str = "",
         include_screenshot: bool = False,
     ) -> str | list[object]:
-        """Capture the desktop accessibility tree with @dref element IDs.
+        """Capture the active desktop accessibility (AX) tree with @dref element IDs.
 
-        Required workflow: call this tool first, then call desktop_interact_tool(ref=@dref, action=...) to act on elements.
-        The snapshot header includes app/window metadata. Use desktop_vision_tool only when the AX tree is empty.
+        Required workflow: Always call desktop_snapshot_tool first to obtain current @dref element references, then call desktop_interact_tool(ref=@dref, action=...) to act on elements.
+        Use scope='foreground' (default) for active window, or scope='target' with app_name to inspect background apps. Use desktop_vision_tool only when the AX tree is empty or semantic interact fails.
         """
         result = await session.desktop_snapshot(
             scope=scope,
@@ -99,17 +99,19 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         return result
 
     class InteractInput(BaseModel):
-        ref: str = Field(description="Element @dref from desktop_snapshot (e.g. 'd3').")
+        ref: str = Field(
+            description="Element @dref obtained from the latest desktop_snapshot_tool call (e.g. 'd3'). Do not guess refs.",
+        )
         action: DesktopInteractAction = Field(
-            description="One of: click, dblclick, fill, set_value, type, fill_credential, press, hover, focus, scroll.",
+            description="Action to perform: 'click', 'dblclick', 'set_value' (atomic text replace, recommended for text inputs), 'fill' (focus and fill), 'type' (keyboard keystroke simulation), 'fill_credential' (inject vault credential), 'press' (special keys like Return/Escape), 'hover', 'focus', 'scroll'.",
         )
         text: str = Field(
             default="",
-            description=f"Text for fill/set_value/type actions, or credential label for fill_credential (available labels: {labels_str}). Append '-totp' to label for TOTP token.",
+            description=f"Text for set_value/fill/type, key name for press (e.g. 'Return'), or credential label for fill_credential (available: {labels_str}; append '-totp' for TOTP token).",
         )
         modifiers: list[ModifierKey] | None = Field(
             default=None,
-            description="Optional modifier keys for click-based actions.",
+            description="Optional modifier keys for click-based actions (e.g. ['shift'], ['ctrl']).",
         )
 
     @tool("desktop_interact_tool", args_schema=InteractInput)
@@ -119,9 +121,9 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         text: str = "",
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
-        """Perform an action on a desktop element identified by @dref from desktop_snapshot_tool.
+        """Perform a semantic action on a desktop element identified by @dref from desktop_snapshot_tool.
 
-        Always call desktop_snapshot_tool first to obtain @drefs, then call this tool with the ref.
+        Always call desktop_snapshot_tool first to obtain current @drefs, then call this tool with the valid ref.
         """
         return await session.desktop_interact(
             ref=ref,
@@ -132,21 +134,33 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
 
     class VisionInput(BaseModel):
         action: DesktopVisionAction = Field(
-            description="Explicit visual fallback action using screenshot coordinates. Can also be type_credential.",
+            description="Visual action: 'screenshot'/'capture' (grab screen image), 'left_click', 'right_click', 'double_click', 'triple_click', 'type' (type text), 'key' (press key/hotkey), 'scroll', 'drag', 'mouse_move', 'wait'.",
         )
         coordinate: list[int] | None = Field(
             default=None,
-            description="[x, y] in screenshot image space.",
+            description="[x, y] in screenshot image space for click/move actions.",
         )
         text: str | None = Field(
             default=None,
-            description=f"Text for type/key actions, or credential label for type_credential (available labels: {labels_str}).",
+            description="Text to type for 'type' action, or key combination (e.g. 'Return', 'ctrl+c') for 'key' action.",
         )
-        scroll_direction: ScrollDirection | None = Field(default=None)
-        scroll_amount: int = Field(default=3)
-        start_coordinate: list[int] | None = Field(default=None)
-        duration: float = Field(default=2.0)
-        modifiers: list[ModifierKey] | None = Field(default=None)
+        scroll_direction: ScrollDirection | None = Field(
+            default=None,
+            description="Scroll direction ('up', 'down', 'left', 'right') for 'scroll' action.",
+        )
+        scroll_amount: int = Field(default=3, description="Number of scroll steps/units.")
+        start_coordinate: list[int] | None = Field(
+            default=None,
+            description="[x, y] start coordinate for 'drag' action.",
+        )
+        duration: float = Field(
+            default=2.0,
+            description="Duration in seconds for smooth actions like drag or wait.",
+        )
+        modifiers: list[ModifierKey] | None = Field(
+            default=None,
+            description="Optional modifier keys (e.g. ['shift'], ['ctrl']).",
+        )
 
     @tool("desktop_vision_tool", args_schema=VisionInput)
     async def desktop_vision(
@@ -159,7 +173,10 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         duration: float = 2.0,
         modifiers: list[ModifierKey] | None = None,
     ) -> str | list[object]:
-        """Explicit screenshot/coordinate fallback for canvas or AX-empty UI."""
+        """Explicit screenshot/coordinate fallback for canvas areas, games, or windows with empty AX trees.
+
+        Workflow: 1) Call action='screenshot' (or 'capture') to get current screen image and coordinates; 2) Call with coordinate action ('left_click', 'type', etc.) using [x, y] in screenshot image space.
+        """
         if action in ("capture", "screenshot"):
             return await session.desktop_vision_capture()
         return await session.desktop_vision_action(

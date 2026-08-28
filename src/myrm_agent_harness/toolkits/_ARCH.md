@@ -87,7 +87,7 @@ Deep provider adapters (e.g. `llms/**/google_provider.py`) are excluded.
 
 | Category | Toolkits | Role |
 |----------|----------|------|
-| **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `vector/`, `retriever/`, `web_corpus/` | Runtime primitives: sandbox, LLM, persistence, MCP |
+| **Core** | `code_execution/`, `storage/`, `llms/`, `memory/`, `mcp/`, `vector/`, `retriever/` | Runtime primitives: sandbox, LLM, persistence, MCP |
 | **Workspace** | `browser/`, `computer_use/`, `filesystem_suggest/`, `context_bundle/`, `file_parsers/`, `wiki/` | Files, browser, desktop, @-mention path suggest |
 | **Integration** | `a2a/`, `acp/`, `openapi_bridge/`, `web_fetch/`, `web_search/` | External APIs, agent protocols |
 | **Collaboration & Media** | `kanban/`, `tasks/`, `cron/` | Job-like systems — see matrix below; `tasks/` = chat-bound async media queue ([TASK_QUEUE_SYSTEM.md](tasks/TASK_QUEUE_SYSTEM.md)) |
@@ -181,7 +181,6 @@ Does your code need to import anything from agent/?
 | tasks/ | Async job queue — models, SQLite store, executor protocol. See [TASK_QUEUE_SYSTEM.md](tasks/TASK_QUEUE_SYSTEM.md). |
 | vector/ | Vector Store — unified async vector storage and retrieval. |
 | vnc/ | VNC visual desktop streaming — x11vnc + websockify + human takeover coordination. |
-| web_corpus/ | Persistent cross-session web page index — SQLite FTS5 metadata + file-system content; LRU aging; consumed via `memory_search_tool(corpus='web')`. |
 | web_fetch/ | Web content crawling — layered engine with HTTP/Browser/Stealth fallback; `[web]` extra for scrapling + YouTube transcripts. |
 | web_search/ | Web search — multi-engine search tools with result aggregation. |
 | wiki/ | Self-evolving knowledge base — LLM-powered wiki article generation, management, and proactive knowledge-gap analysis. |

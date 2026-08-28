@@ -274,6 +274,26 @@ class SubagentSpawnMixin:
         trace_id = parent_trace or uuid.uuid4().hex[:16]
         parent_task_id = str(context.get("task_id", "")) if context else ""
 
+        # SSOT: ensure workspace isolation is evaluated if not already processed
+        from myrm_agent_harness.agent.sub_agents.spawn_prep import (
+            apply_spawn_workspace_isolation,
+            resolve_delegate_parallel_write_batch,
+        )
+
+        parallel_write_active = (
+            bool(context.get("_parallel_write_batch", False))
+            or resolve_delegate_parallel_write_batch(self._parent_agent)
+        )
+        is_readonly = bool(context.get("readonly", False))
+        spawn_prep = apply_spawn_workspace_isolation(
+            config=config,
+            child_context=context,
+            readonly=is_readonly,
+            parallel_write_batch=parallel_write_active,
+        )
+        effective_config = spawn_prep.config
+        effective_context = spawn_prep.child_context
+
         steering_token = SteeringToken()
         self._children_steering[task_id] = steering_token
 
@@ -287,8 +307,8 @@ class SubagentSpawnMixin:
                 task_id=task_id,
                 agent_type=agent_type,
                 task_description=task_description,
-                config=config,
-                context=context,
+                config=effective_config,
+                context=effective_context,
                 tool_registry_getter=tool_registry_getter,
                 trace_id=trace_id,
                 steering_token=steering_token,
@@ -301,10 +321,10 @@ class SubagentSpawnMixin:
         self._children[task_id] = task
         self._children_types[task_id] = agent_type
         self._children_descriptions[task_id] = task_description
-        self._children_configs[task_id] = config
+        self._children_configs[task_id] = effective_config
         self._children_internal[task_id] = internal
         self._children_detached[task_id] = not wait
-        self._children_observability[task_id] = self._build_observability_metadata(config)  # type: ignore[attr-defined]
+        self._children_observability[task_id] = self._build_observability_metadata(effective_config)  # type: ignore[attr-defined]
         task.add_done_callback(lambda t: self._cleanup_child(task_id, t))  # type: ignore[attr-defined]
 
         session_id = str(context.get("session_id", "")) if context else ""

@@ -45,6 +45,13 @@ from myrm_agent_harness.toolkits.llms.adapters.stream_aggregator import (
     XmlStreamBuffer,
     finalize_stream,
 )
+from myrm_agent_harness.toolkits.llms.adapters.wire.anthropic_params import (
+    apply_anthropic_messages_params,
+)
+from myrm_agent_harness.toolkits.llms.adapters.wire.invocation import (
+    invoke_responses_async,
+    stream_responses_async,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -199,8 +206,17 @@ class ChatLiteLLMAsyncMixin:
                     span.set_attribute("llm.model_name", model_name)
                     span.set_attribute("llm.request.attempt", attempt + 1)
 
-                    response = await self.client.acreate(messages=message_dicts, **params)
-                    response = self._convert_response_to_dict(response)
+                    wire_protocol = getattr(self, "wire_protocol", "chat_completions")
+                    if wire_protocol == "responses":
+                        response = await invoke_responses_async(self.client, message_dicts, params)
+                    else:
+                        call_params = (
+                            apply_anthropic_messages_params(params)
+                            if wire_protocol == "anthropic_messages"
+                            else params
+                        )
+                        response = await self.client.acreate(messages=message_dicts, **call_params)
+                        response = self._convert_response_to_dict(response)
 
                     if usage := response.get("usage"):
                         span.set_attribute("llm.token_count.prompt", usage.get("prompt_tokens", 0))
@@ -329,7 +345,16 @@ class ChatLiteLLMAsyncMixin:
             try:
                 with tracer.start_as_current_span("llm.stream_connect") as llm_span:
                     llm_span.set_attribute("llm.model_name", model_name)
-                    stream = await self.client.acreate(messages=message_dicts, **params)
+                    wire_protocol = getattr(self, "wire_protocol", "chat_completions")
+                    if wire_protocol == "responses":
+                        stream = stream_responses_async(self.client, message_dicts, params)
+                    else:
+                        call_params = (
+                            apply_anthropic_messages_params(params)
+                            if wire_protocol == "anthropic_messages"
+                            else params
+                        )
+                        stream = await self.client.acreate(messages=message_dicts, **call_params)
 
                 agg = StreamAggregator(AIMessageChunk)
                 xml_content_buffer = XmlStreamBuffer()

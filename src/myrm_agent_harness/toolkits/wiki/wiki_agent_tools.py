@@ -31,6 +31,7 @@ from typing import Annotated
 
 from langchain_core.tools import tool
 
+from myrm_agent_harness.utils.locale import is_chinese
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .core.frontmatter_contract import WikiProvenance
@@ -58,6 +59,79 @@ _BINARY_DOC_EXTENSIONS = frozenset(
 )
 _LARGE_DOC_CHUNK_THRESHOLD = 80_000
 
+# ---------------------------------------------------------------------------
+# Wiki Tools Multilingual Descriptions (EN / ZH)
+# ---------------------------------------------------------------------------
+
+WIKI_INGEST_DESCRIPTION_EN = """Ingest documents into the Wiki knowledge base (supports Web URLs, local files like PDF/Word/Excel/Markdown, or raw text).
+
+Use this when users want to add reference materials or documents to their knowledge base.
+If folder_path is provided, the document is categorized under that subdirectory.
+Supported inputs:
+- Web URLs: fetched and converted to markdown
+- Local file paths: text/markdown or parsed binary documents (PDF, DOCX, XLSX, PPTX)
+- Raw text: saved as a markdown document
+Automatically parsed and queued for knowledge compilation.
+"""
+
+WIKI_INGEST_DESCRIPTION_ZH = """将文档录入 Wiki 知识库（支持网页 URL、本地 PDF/Word/Excel/Markdown 等文件或纯文本内容）。
+
+适用场景：用户希望向个人/团队知识库添加参考资料或文档。
+若提供 folder_path，文档将归类至该逻辑子目录下。
+支持输入类型：
+- 网页 URL：抓取并转换为 Markdown
+- 本地文件路径：文本/Markdown 或自动解析的二进制文档（PDF、DOCX、XLSX、PPTX）
+- 纯文本内容：直接保存为 Markdown 文档
+自动解析并加入知识库编译索引队列。
+"""
+
+WIKI_QUERY_DESCRIPTION_EN = """Query the Wiki knowledge base.
+
+Searches relevant wiki articles and returns grounded context with source citations.
+Search here first when answering questions about project concepts, domain knowledge, team notes, or compiled research.
+"""
+
+WIKI_QUERY_DESCRIPTION_ZH = """检索 Wiki 知识库。
+
+搜索相关 Wiki 概念词条与文档，返回带有来源引用的可信上下文。
+在回答有关项目概念、领域知识、团队笔记或沉淀研究的问题时优先在此搜索。
+"""
+
+WIKI_APPLY_DESCRIPTION_EN = """Apply a narrow, structured mutation to a wiki concept page.
+
+Protects managed sections (Compiled Truth, Timeline, claims frontmatter).
+Do not use whole-page rewrites; pick the smallest op that fits:
+- create_note: Create a new structured note (requires concept_name and body; optional tags/aliases/sources)
+- patch_compiled_truth: Update the core facts section (requires concept_name and compiled_truth)
+- append_timeline: Append a milestone bullet (requires concept_name and timeline_entry)
+- update_metadata: Update frontmatter tags, aliases, or source citations (requires concept_name and tags/aliases/sources)
+"""
+
+WIKI_APPLY_DESCRIPTION_ZH = """对 Wiki 概念页面应用结构化更新。
+
+保护受管区域（核心事实 Compiled Truth、时间线 Timeline、元数据 frontmatter）。
+请勿全量重写整个页面，按需选择最轻量的操作：
+- create_note: 创建新结构化笔记（需 concept_name 与 body；可选 tags/aliases/sources）
+- patch_compiled_truth: 局部修正核心事实段落（需 concept_name 与 compiled_truth）
+- append_timeline: 追加里程碑时间线条目（需 concept_name 与 timeline_entry）
+- update_metadata: 更新标签、别名或引用来源（需 concept_name 与 tags/aliases/sources）
+"""
+
+
+def resolve_wiki_ingest_description(locale: str | None = None) -> str:
+    """Resolve localized description for wiki_ingest_tool."""
+    return WIKI_INGEST_DESCRIPTION_ZH if is_chinese(locale) else WIKI_INGEST_DESCRIPTION_EN
+
+
+def resolve_wiki_query_description(locale: str | None = None) -> str:
+    """Resolve localized description for wiki_query_tool."""
+    return WIKI_QUERY_DESCRIPTION_ZH if is_chinese(locale) else WIKI_QUERY_DESCRIPTION_EN
+
+
+def resolve_wiki_apply_description(locale: str | None = None) -> str:
+    """Resolve localized description for wiki_apply_tool."""
+    return WIKI_APPLY_DESCRIPTION_ZH if is_chinese(locale) else WIKI_APPLY_DESCRIPTION_EN
+
 
 def create_wiki_tools(
     compiler: WikiCompiler,
@@ -66,9 +140,10 @@ def create_wiki_tools(
     structure: WikiStructure,
     *,
     wiki_scope_id: str | None = None,
+    locale: str | None = None,
 ) -> list:
     """
-    Create agent-facing wiki tools (ingest + query only).
+    Create agent-facing wiki tools (ingest + query + apply).
 
     Compile/maintain are Settings/REST operations and are not exposed to the LLM.
     """
@@ -77,6 +152,7 @@ def create_wiki_tools(
         query_engine,
         structure,
         wiki_scope_id=wiki_scope_id,
+        locale=locale,
     )
 
 
@@ -86,29 +162,19 @@ def create_wiki_agent_tools(
     structure: WikiStructure,
     *,
     wiki_scope_id: str | None = None,
+    locale: str | None = None,
 ) -> list:
     """Create LangChain tools exposed to the agent at Turn1."""
 
-    @tool("wiki_ingest_tool")
+    @tool("wiki_ingest_tool", description=resolve_wiki_ingest_description(locale))
     async def wiki_ingest(
-        source: Annotated[str, "URL or file path to ingest"],
-        filename: Annotated[str, "Optional custom filename"] = "",
+        source: Annotated[str, "URL or file path to ingest (supports Web URLs, local documents like PDF/Word/Excel/Markdown, or raw text)"],
+        filename: Annotated[str, "Optional custom filename for the ingested document"] = "",
         folder_path: Annotated[
             str,
             "Optional logical folder path to categorize this document (e.g., 'Research/AI')",
         ] = "",
     ) -> str:
-        """
-        Ingest a document into the wiki raw/ directory.
-
-        Supports:
-        - Web URLs (will download and convert to markdown)
-        - Local file paths (will copy to raw/)
-        - Plain text or markdown content
-
-        Use this when users want to add documents to their knowledge base.
-        If a folder_path is provided, the document will be placed in that subdirectory.
-        """
         logger.info(f"Ingesting: {source[:100]}")
 
         try:
@@ -252,16 +318,10 @@ def create_wiki_agent_tools(
             logger.error(f"Failed to ingest {source}: {e}")
             return "Failed to ingest document"
 
-    @tool("wiki_query_tool")
+    @tool("wiki_query_tool", description=resolve_wiki_query_description(locale))
     async def wiki_query(
-        question: Annotated[str, "Question to ask the wiki"],
+        question: Annotated[str, "Question to ask the wiki knowledge base (e.g. concept definitions, architecture patterns, team facts)"],
     ) -> dict | str:
-        """
-        Query the wiki knowledge base.
-
-        Searches relevant wiki articles and returns the context.
-        Use this when users ask questions about topics in their knowledge base.
-        """
         logger.info(f"Querying wiki: {question[:100]}")
 
         try:
@@ -314,35 +374,29 @@ def create_wiki_agent_tools(
             logger.error(f"Query failed: {e}")
             return "Query failed"
 
-    @tool("wiki_apply_tool")
+    @tool("wiki_apply_tool", description=resolve_wiki_apply_description(locale))
     async def wiki_apply(
         op: Annotated[
             str,
-            "Operation: update_metadata, patch_compiled_truth, append_timeline, or create_note",
+            "Operation: 'create_note' (new note with body), 'patch_compiled_truth' (update core facts with compiled_truth), 'append_timeline' (add event with timeline_entry), or 'update_metadata' (tags/aliases)",
         ],
-        concept_name: Annotated[str, "Concept path, e.g. 'research/react-hooks'"],
-        compiled_truth: Annotated[str, "New Compiled Truth section body"] = "",
-        timeline_entry: Annotated[str, "Timeline bullet to append"] = "",
-        body: Annotated[str, "Body content for create_note"] = "",
+        concept_name: Annotated[str, "Concept path, e.g. 'research/react-hooks' or 'team/onboarding'"],
+        compiled_truth: Annotated[str, "For patch_compiled_truth: New Compiled Truth section content"] = "",
+        timeline_entry: Annotated[str, "For append_timeline: Milestone or event bullet to append"] = "",
+        body: Annotated[str, "For create_note: Main note content"] = "",
         tags: Annotated[
-            str, "Comma-separated tags for update_metadata/create_note"
+            str, "Comma-separated tags for update_metadata or create_note (e.g. 'frontend,react')"
         ] = "",
         aliases: Annotated[
-            str, "Comma-separated aliases for update_metadata/create_note"
+            str, "Comma-separated aliases for update_metadata or create_note (e.g. 'Hooks,React Hooks')"
         ] = "",
         sources: Annotated[
-            str, "Comma-separated source refs for update_metadata/create_note"
+            str, "Comma-separated source references for update_metadata or create_note"
         ] = "",
         clear_confidence: Annotated[
-            bool, "Clear frontmatter confidence on update_metadata"
+            bool, "For update_metadata: Reset frontmatter confidence score"
         ] = False,
     ) -> str:
-        """
-        Apply a narrow, structured mutation to a wiki concept page.
-
-        Protects managed sections (Compiled Truth, Timeline, claims frontmatter).
-        Do not use whole-page rewrites; pick the smallest op that fits.
-        """
         try:
             apply_op = WikiApplyOp(op.strip().lower())
         except ValueError:

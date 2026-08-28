@@ -70,7 +70,8 @@ class TestProfileFactories:
         actions = {r.permission: r.action for r in cfg.ruleset}
         assert actions["shell_exec"] is PermissionAction.DENY
         assert actions["desktop_control"] is PermissionAction.DENY
-        assert actions["delegate_agent"] is PermissionAction.DENY
+        assert actions["spawn_subagent"] is PermissionAction.DENY
+        assert actions["invoke_external_agent"] is PermissionAction.DENY
         assert cfg.capabilities == frozenset({Capability("*", "*")})
 
     def test_default_config_uses_dangerous_paths_factory(self) -> None:

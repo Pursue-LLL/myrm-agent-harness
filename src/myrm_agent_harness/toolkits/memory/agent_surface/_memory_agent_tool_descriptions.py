@@ -272,8 +272,6 @@ def _build_memory_search_en(policy: MemorySearchPolicy) -> str:
         scope_fragments.append("wiki")
     if policy.allow_sessions:
         scope_fragments.append("prior conversations")
-    if policy.allow_web:
-        scope_fragments.append("web corpus")
 
     corpus_lines = [
         "- memory (default): durable facts, preferences, profile, learned rules",
@@ -282,8 +280,6 @@ def _build_memory_search_en(policy: MemorySearchPolicy) -> str:
         corpus_lines.append("- sessions: prior chat snippets and summaries")
     if policy.allow_wiki:
         corpus_lines.append("- wiki: agent wiki vault content")
-    if policy.allow_web:
-        corpus_lines.append("- web: previously fetched/searched web pages")
     corpus_lines.append("- all: search every corpus enabled for this agent")
 
     tip_lines = [
@@ -301,16 +297,10 @@ def _build_memory_search_en(policy: MemorySearchPolicy) -> str:
             "- When a sessions hit includes message_id and the user needs verbatim detail, "
             "call again with corpus=sessions, expand_conversation_id, and expand_message_id"
         )
-    if policy.allow_web:
-        tip_lines.append(
-            "- Use corpus=web to re-query pages you've already searched or fetched"
-        )
 
     context_parts = ["personal context", "preferences"]
     if policy.allow_wiki:
         context_parts.append("wiki docs")
-    if policy.allow_web:
-        context_parts.append("previously fetched web pages")
     if policy.allow_sessions:
         context_parts.append("earlier chat evidence")
 
@@ -330,8 +320,6 @@ def _build_memory_search_zh(policy: MemorySearchPolicy) -> str:
         scope_fragments.append("Wiki")
     if policy.allow_sessions:
         scope_fragments.append("历史会话")
-    if policy.allow_web:
-        scope_fragments.append("已抓取网页")
 
     corpus_lines = [
         "- memory（默认）：持久事实、偏好、profile、已学规则",
@@ -340,8 +328,6 @@ def _build_memory_search_zh(policy: MemorySearchPolicy) -> str:
         corpus_lines.append("- sessions：历史聊天片段与摘要")
     if policy.allow_wiki:
         corpus_lines.append("- wiki：Agent Wiki vault")
-    if policy.allow_web:
-        corpus_lines.append("- web：已抓取/搜索过的网页")
     corpus_lines.append("- all：搜索当前 Agent 启用的全部 corpus")
 
     tip_lines = [
@@ -356,14 +342,10 @@ def _build_memory_search_zh(policy: MemorySearchPolicy) -> str:
         tip_lines.append(
             "- sessions 结果含 message_id 且用户要原文细节时，用 corpus=sessions 并传 expand_conversation_id 与 expand_message_id 再查"
         )
-    if policy.allow_web:
-        tip_lines.append("- corpus=web 可重查已搜索/抓取过的页面")
 
     context_parts = ["个人上下文", "偏好"]
     if policy.allow_wiki:
         context_parts.append("Wiki 文档")
-    if policy.allow_web:
-        context_parts.append("已抓取网页")
     if policy.allow_sessions:
         context_parts.append("早期聊天证据")
 

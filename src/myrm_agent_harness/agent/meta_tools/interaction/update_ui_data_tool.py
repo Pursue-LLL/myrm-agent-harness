@@ -38,17 +38,17 @@ def _dispatch_ui_data_update_event(update: UIDataUpdate) -> None:
         logger.warning("Failed to dispatch ui_update data_update event: %s", exc)
 
 
-_UPDATE_UI_DATA_DOC = """Push incremental updates to an existing interactive UI data model.
+_UPDATE_UI_DATA_DOC = """Push incremental data updates to an active interactive UI without re-rendering the layout.
 
-Use after render_ui_tool when only data fields change (status text, table rows, progress values).
-Do not rebuild the full component graph — send top-level key patches; nested plain objects merge recursively.
+Use after a prior render_ui_tool call when only data fields change (e.g. status updates, table rows, progress values).
+Do not re-send the full component graph — provide top-level data key patches (nested plain objects deep-merge; arrays and primitives replace target keys).
 
 Args:
-    surface_id: Target surface_id from the prior render_ui_tool UIArtifact
-    updates: Top-level data model patches (nested dict values deep-merge into artifact.data)
+    surface_id: The surface_id returned from the prior render_ui_tool execution.
+    updates: Key-value dictionary of data model patches (nested dict values deep-merge into active surface data).
 
 Returns:
-    Confirmation or a fail-closed error when registry/context is unavailable.
+    Confirmation message upon success, or fail-closed error if the surface context is invalid.
 """
 
 

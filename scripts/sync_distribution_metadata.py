@@ -5,7 +5,7 @@
 - harness_packaging.codegen::sync_distribution_metadata (POS: Distribution metadata codegen)
 
 [OUTPUT]
-- main(): Regenerate distribution/core_ip_manifest.py and compiled-core pins in pyproject.toml
+- main(): Regenerate install_guard generated modules and compiled-core pins in pyproject.toml
 
 [POS]
 Keeps runtime manifest and pyproject optional-deps aligned with core_manifest.yaml SSOT.
@@ -24,9 +24,10 @@ from harness_packaging.integrity import manifest_import_names  # noqa: E402
 
 
 def main() -> None:
-    manifest_path, pyproject_path = sync_distribution_metadata(_REPO_ROOT)
+    manifest_path, platform_path, pyproject_path = sync_distribution_metadata(_REPO_ROOT)
     count = len(manifest_import_names())
     print(f"Generated {manifest_path.relative_to(_REPO_ROOT)} ({count} core IP modules)")
+    print(f"Generated {platform_path.relative_to(_REPO_ROOT)}")
     print(f"Updated {pyproject_path.relative_to(_REPO_ROOT)} compiled-core version pins")
 
 

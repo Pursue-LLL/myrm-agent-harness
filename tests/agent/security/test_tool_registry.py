@@ -29,7 +29,9 @@ class TestToolPermissionMap:
         assert TOOL_PERMISSION_MAP["web_fetch_tool"] == "net_fetch"
 
     def test_agent_and_cron_tools_map_correctly(self):
-        assert TOOL_PERMISSION_MAP["invoke_acp_agent_tool"] == "delegate_agent"
+        assert TOOL_PERMISSION_MAP["invoke_acp_agent_tool"] == "invoke_external_agent"
+        assert TOOL_PERMISSION_MAP["delegate_task_tool"] == "spawn_subagent"
+        assert TOOL_PERMISSION_MAP["subagent_control_tool"] == "spawn_subagent"
         assert TOOL_PERMISSION_MAP["cron_manage_tool"] == "cron_manage"
         assert TOOL_PERMISSION_MAP["skill_manage_tool"] == "skill_manage"
 
@@ -83,7 +85,7 @@ class TestResolvePermissionType:
         assert resolve_permission_type("skill_search_tool") == "skill_search_tool"
 
     def test_mapped_agent_tools_return_permission_type(self):
-        assert resolve_permission_type("invoke_acp_agent_tool") == "delegate_agent"
+        assert resolve_permission_type("invoke_acp_agent_tool") == "invoke_external_agent"
         assert resolve_permission_type("cron_manage_tool") == "cron_manage"
         assert resolve_permission_type("skill_manage_tool") == "skill_manage"
 

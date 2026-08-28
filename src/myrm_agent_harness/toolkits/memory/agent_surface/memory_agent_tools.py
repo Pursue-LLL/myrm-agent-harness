@@ -43,7 +43,6 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting i
     parse_time_bound as _parse_time_bound,
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
-    _run_with_timeout,
     search_memory_corpus,
     search_sessions_corpus,
     search_wiki_corpus,
@@ -64,25 +63,6 @@ from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.types import MemoryType, RuleSource
 
 logger = logging.getLogger(__name__)
-
-
-async def _search_web_corpus(
-    backends: MemorySearchBackends,
-    query: str,
-    limit: int,
-    *,
-    timeout_seconds: float | None,
-) -> str:
-    if backends.query_web_corpus is None:
-        return "Web corpus search is not available."
-    result = await _run_with_timeout(
-        backends.query_web_corpus(query, limit),
-        timeout_seconds,
-        corpus="Web",
-    )
-    if result is None:
-        return "Web corpus search timed out. Try a more specific query or retry."
-    return result.strip() or "No matching web pages found in local corpus."
 
 
 CATEGORY_TO_TYPE: dict[str, MemoryType] = {
@@ -115,7 +95,7 @@ def create_memory_tools(
             CONTEXT: no tools (context injection only, for API/headless).
             TOOLS: all tools exposed (no context injection handled here).
         search_policy: Runtime ACL for memory_search_tool corpus selection.
-        search_backends: Optional wiki/sessions/web providers bound by server.
+        search_backends: Optional wiki/sessions providers bound by server.
         description_locale: BCP-47 locale for LLM-facing tool descriptions (default English).
     """
     if recall_mode == RecallMode.CONTEXT:
@@ -277,14 +257,6 @@ def create_memory_tools(
                     timeout_seconds=timeout_seconds,
                 )
                 sections.append(f"## Sessions\n{session_text}")
-            elif target == "web":
-                web_text = await _search_web_corpus(
-                    backends,
-                    query,
-                    recall_limit,
-                    timeout_seconds=timeout_seconds,
-                )
-                sections.append(f"## Web\n{web_text}")
 
         if len(sections) == 1 and corpus != "all":
             single = sections[0]
@@ -292,7 +264,6 @@ def create_memory_tools(
                 "memory": "## Memory\n",
                 "wiki": "## Wiki\n",
                 "sessions": "## Sessions\n",
-                "web": "## Web\n",
             }
             prefix = _prefix_map.get(corpus, "")
             if prefix and single.startswith(prefix):

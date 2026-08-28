@@ -51,22 +51,21 @@ def create_takeover_tool(session: BrowserSession):
 
     class TakeoverInput(BaseModel):
         reason: str = Field(
-            description="Clear explanation of WHY you need the user's help and WHAT they should do in the browser. Be specific (e.g., 'Please enter the SMS verification code sent to your phone', 'Please complete the payment on the payment page')."
+            description="Clear explanation of WHY you need user takeover and WHAT the user should perform in the browser (e.g. 'Please enter the SMS verification code sent to your phone', 'Please complete payment authentication on the opened checkout page')."
         )
 
     @tool("browser_ask_human_tool", args_schema=TakeoverInput)
     async def browser_ask_human(reason: str) -> str:
-        """Request the user to take over the browser and perform an action you cannot do autonomously.
+        """Request the user to temporarily take over the browser and perform an action you cannot complete autonomously.
 
-        Use this when you encounter:
-        - 2FA/MFA verification requiring user's phone or authenticator
-        - Payment gateways that require user credentials
-        - Proprietary CAPTCHAs that automated solvers cannot handle
-        - Digital signature pads or handwriting input
-        - Any interactive element that requires human judgment or credentials
+        Use this when encountering:
+        - 2FA/MFA verification requiring user's phone, SMS, or authenticator app
+        - Payment gateways requiring secure user credentials/passwords
+        - Proprietary CAPTCHAs that automated solvers cannot solve
+        - Digital handwriting/signature pads
+        - Any interactive step requiring human authority or credentials
 
-        Managed sandbox sessions open the VNC panel; local Chrome (CDP/extension)
-        shows an in-chat banner. Execution pauses until the user signals completion.
+        Execution automatically pauses until the user completes the action in the browser.
         """
         from langgraph.types import interrupt
 

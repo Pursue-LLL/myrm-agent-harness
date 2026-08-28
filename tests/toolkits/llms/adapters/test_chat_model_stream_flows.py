@@ -433,6 +433,60 @@ class TestAsyncAgenerateStreaming:
         assert any("ok" in str(c.message.content) for c in collected)
 
 
+class TestResponsesWireAgenerateStreaming:
+    @pytest.mark.asyncio
+    async def test_agenerate_streaming_exports_responses_reasoning_items(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Responses wire + streaming _agenerate must preserve reasoning blobs for Turn2 replay."""
+        import myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin as async_mod
+        from myrm_agent_harness.toolkits.llms.adapters.wire.normalizer import (
+            responses_event_to_completion_chunk,
+        )
+
+        reasoning_items = [
+            {"type": "reasoning", "id": "rs_1", "encrypted_content": "enc_blob"},
+        ]
+        completed = responses_event_to_completion_chunk(
+            {
+                "type": "response.completed",
+                "response": {
+                    "output": [
+                        *reasoning_items,
+                        {
+                            "type": "function_call",
+                            "call_id": "call_1",
+                            "name": "web_search",
+                            "arguments": "{}",
+                        },
+                    ],
+                },
+            }
+        )
+        assert completed is not None
+        stream_chunks = [
+            completed,
+            {"choices": [], "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}},
+        ]
+
+        async def _mock_stream_responses_async(client: Any, message_dicts: Any, params: Any) -> AsyncIterator[dict[str, Any]]:
+            for chunk in stream_chunks:
+                yield chunk
+
+        monkeypatch.setattr(async_mod, "stream_responses_async", _mock_stream_responses_async)
+
+        model = ChatLiteLLM(
+            model="openai/muse-spark-1.2-contributor",
+            wire_protocol="responses",
+        )
+        model.streaming = True
+        model.client = MagicMock()
+
+        result: ChatResult = await model._agenerate([HumanMessage(content="hi")])
+
+        assert result.generations
+        replay = result.generations[0].message.additional_kwargs.get("responses_reasoning_items")
+        assert replay == reasoning_items
+
+
 class TestContextOverflowFastFail:
     def test_sync_context_overflow_fast_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         model = ChatLiteLLM(model="openai/test-model")

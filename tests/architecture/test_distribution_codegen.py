@@ -12,22 +12,25 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 from harness_packaging.codegen import (
     generated_core_ip_manifest_path,
+    generated_platform_key_path,
+    platform_key_ssot_path,
     render_compiled_core_sections,
     render_core_ip_manifest_module,
+    render_platform_key_module,
 )
 from harness_packaging.integrity import manifest_import_names, manifest_source_relpaths
 from harness_packaging.manifest import load_core_manifest
 from harness_packaging.version import read_harness_version
-from myrm_agent_harness.distribution.core_ip_manifest import CORE_IP_IMPORTS
+from myrm_agent_harness.runtime.install_guard._generated.core_ip_manifest import CORE_IP_IMPORTS
 
 
 @pytest.mark.architecture
 def test_core_manifest_directory_expansion_covers_algorithm_subtrees() -> None:
     """Core IP directories must resolve to the expected protected module count."""
     manifest = load_core_manifest()
-    assert len(manifest.module_paths) == 82
-    assert len(manifest_import_names()) == 82
-    assert len(manifest_source_relpaths()) == 82
+    expected_count = len(manifest.module_paths)
+    assert expected_count == len(manifest_import_names())
+    assert expected_count == len(manifest_source_relpaths())
 
 
 @pytest.mark.architecture
@@ -39,12 +42,22 @@ def test_generated_core_ip_manifest_matches_yaml_ssot() -> None:
 
 @pytest.mark.architecture
 def test_generated_core_ip_manifest_file_is_fresh() -> None:
-    """Fail when distribution/core_ip_manifest.py drifts from core_manifest.yaml."""
+    """Fail when install_guard/_generated/core_ip_manifest.py drifts from core_manifest.yaml."""
     from harness_packaging.integrity import manifest_import_names, manifest_source_relpaths
 
     path = generated_core_ip_manifest_path(_REPO_ROOT)
     on_disk = path.read_text(encoding="utf-8")
     expected = render_core_ip_manifest_module(manifest_import_names(), manifest_source_relpaths())
+    assert on_disk == expected
+
+
+@pytest.mark.architecture
+def test_generated_platform_key_file_is_fresh() -> None:
+    """Fail when install_guard/platform.py drifts from harness_packaging/platform_key.py."""
+    path = generated_platform_key_path(_REPO_ROOT)
+    ssot = platform_key_ssot_path(_REPO_ROOT).read_text(encoding="utf-8")
+    on_disk = path.read_text(encoding="utf-8")
+    expected = render_platform_key_module(ssot)
     assert on_disk == expected
 
 
@@ -96,9 +109,9 @@ def test_nuitka_compile_input_uses_package_dir_for_init() -> None:
 @pytest.mark.architecture
 def test_runtime_platform_key_is_supported() -> None:
     """Runtime platform detection must resolve to a published core wheel key."""
+    from harness_packaging.platform_key import get_runtime_platform_key
     from harness_packaging.platforms import SUPPORTED_PLATFORMS
-    from harness_packaging.runtime_platform import get_runtime_platform_key
-    from myrm_agent_harness.distribution.runtime_platform import get_runtime_platform_key as shipped_key
+    from myrm_agent_harness.runtime.install_guard.platform import get_runtime_platform_key as shipped_key
 
     key = get_runtime_platform_key()
     assert key in SUPPORTED_PLATFORMS

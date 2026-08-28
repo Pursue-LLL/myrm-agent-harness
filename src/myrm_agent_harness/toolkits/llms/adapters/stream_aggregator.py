@@ -11,6 +11,7 @@
 - StreamAggregator: Mutable accumulator for stream chunks (content, tool calls, reasoning, timing)
 - XmlStreamBuffer: State machine buffer for intercepting DSML tags across streaming chunks.
 - finalize_stream(): Build aggregated response, record usage, yield final tool chunk
+- attach_responses_reasoning_items_to_final_chunk(): Export Responses wire reasoning blobs on final stream chunk
 
 [POS]
 Stream data aggregation module. Eliminates duplication between sync _stream and async
@@ -154,6 +155,7 @@ class StreamAggregator:
         "last_model",
         "last_usage",
         "reasoning",
+        "responses_reasoning_items",
         "stream_start",
         "tool_call_id_map",
         "tool_calls",
@@ -163,6 +165,7 @@ class StreamAggregator:
         self.content: list[str] = []
         self.tool_calls: list[dict[str, Any]] = []
         self.reasoning: list[str] = []
+        self.responses_reasoning_items: list[dict[str, Any]] = []
         self.tool_call_id_map: dict[str, str] = {}
         self.last_model: str = ""
         self.finish_reason: str = ""
@@ -211,6 +214,9 @@ class StreamAggregator:
         additional_kwargs = getattr(cg_chunk.message, "additional_kwargs", {})
         if additional_kwargs.get("reasoning_content"):
             self.reasoning.append(str(additional_kwargs["reasoning_content"]))
+        replay_items = additional_kwargs.get("responses_reasoning_items")
+        if isinstance(replay_items, list) and replay_items:
+            self.responses_reasoning_items = list(replay_items)
 
     @property
     def is_empty(self) -> bool:
@@ -239,6 +245,37 @@ class StreamFinalization:
     ) -> None:
         self.final_tool_chunk = final_tool_chunk
         self.aggregated_response = aggregated_response
+
+
+def attach_responses_reasoning_items_to_final_chunk(
+    final_tool_chunk: ChatGenerationChunk | None,
+    reasoning_items: list[dict[str, Any]],
+) -> ChatGenerationChunk | None:
+    """Ensure Responses wire reasoning blobs reach agenerate_from_stream merged AIMessage."""
+    if not reasoning_items:
+        return final_tool_chunk
+
+    from langchain_core.messages import AIMessageChunk
+
+    if final_tool_chunk is not None and isinstance(final_tool_chunk.message, AIMessageChunk):
+        msg = final_tool_chunk.message
+        additional_kwargs = dict(msg.additional_kwargs or {})
+        additional_kwargs["responses_reasoning_items"] = reasoning_items
+        chunk_kwargs: dict[str, Any] = {
+            "content": msg.content or "",
+            "tool_call_chunks": list(msg.tool_call_chunks or []),
+            "additional_kwargs": additional_kwargs,
+        }
+        if msg.chunk_position is not None:
+            chunk_kwargs["chunk_position"] = msg.chunk_position
+        return ChatGenerationChunk(message=AIMessageChunk(**chunk_kwargs))
+
+    return ChatGenerationChunk(
+        message=AIMessageChunk(
+            content="",
+            additional_kwargs={"responses_reasoning_items": reasoning_items},
+        )
+    )
 
 
 def finalize_stream(
@@ -290,6 +327,9 @@ def finalize_stream(
 
     if agg.reasoning:
         aggregated_message["reasoning_content"] = "".join(agg.reasoning)
+
+    if agg.responses_reasoning_items:
+        aggregated_message["responses_reasoning_items"] = agg.responses_reasoning_items
 
     parsed_tool_calls, _ = parse_tool_calls_from_reasoning(agg.reasoning, valid_tool_calls, is_async=is_async)
 
@@ -354,6 +394,10 @@ def finalize_stream(
         )
 
         record_finish_reason(agg.finish_reason)
+
+    reasoning_items = aggregated_message.get("responses_reasoning_items")
+    if isinstance(reasoning_items, list) and reasoning_items:
+        final_tool_chunk = attach_responses_reasoning_items_to_final_chunk(final_tool_chunk, reasoning_items)
 
     return StreamFinalization(
         final_tool_chunk=final_tool_chunk,

@@ -29,19 +29,18 @@ def create_extract_tool(session: BrowserSession):
     class ExtractInput(BaseModel):
         mode: str = Field(
             default="text",
-            description="'text' for readable page text (precise, low-cost), "
-            "'screenshot' for JPEG visual capture (layout verification only, ~850 tokens), "
-            "'media' for all high-value image/video/audio direct URLs (one call replaces complex JS), "
-            "'diff_fast' for quick visual change detection (~2ms, perceptual hash similarity), "
-            "'diff_accurate' for detailed visual analysis (~100ms, pixel-level mismatch + diff image). "
-            "Prefer 'text' for reading content; use 'media' for extracting image/video/audio links; "
-            "use 'screenshot' for visual layout; "
-            "use 'diff_fast' after actions to verify visual changes; use 'diff_accurate' for debugging.",
+            description="'text' for readable page text content and tables, "
+            "'screenshot' for base64 JPEG visual capture (layout and appearance verification), "
+            "'media' for extracted high-value image/video/audio direct URLs, "
+            "'diff_fast' for fast visual change detection against a baseline screenshot, "
+            "'diff_accurate' for detailed pixel-level visual difference analysis. "
+            "Prefer 'text' for reading content; use 'media' for media links; "
+            "use 'screenshot' for visual verification; use 'diff_fast'/'diff_accurate' to verify UI transitions.",
         )
         scale: float = Field(
             default=1.0,
             description="Device scale factor for screenshot resolution (only for 'screenshot' mode). "
-            "1.0 = standard (1280x720, ~850 tokens), 2.0 = Retina/HiDPI (2560x1440, ~3400 tokens). "
+            "1.0 = standard (1280x720), 2.0 = High DPI (2560x1440). "
             "Use 2.0 only when fine visual details (small text, icons) need verification.",
         )
         baseline: str = Field(
@@ -67,7 +66,7 @@ def create_extract_tool(session: BrowserSession):
         include_aa: bool = Field(
             default=True,
             description="Enable anti-aliasing detection for 'diff_accurate' mode. "
-            "When True, anti-aliased pixels are marked separately (yellow) and not counted. Default: True.",
+            "When True, anti-aliased pixels are marked separately and not counted. Default: True.",
         )
         resume_cursor: int = Field(
             default=0,
@@ -82,19 +81,18 @@ def create_extract_tool(session: BrowserSession):
         selector: str = Field(
             default="",
             description="CSS selector to precisely target elements (for 'text' and 'media' modes). "
-            "Use this to strip out noise (like ads, headers) and extract only the relevant content. Example: '.article-content' or 'main'.",
+            "Use this to strip out noise (like ads, headers) and extract only relevant content (e.g. '.article-content' or 'main').",
         )
         extraction_schema: str = Field(
             default="",
             description="JSON Schema string defining desired structured output (only for 'text' mode). "
-            "When provided, the tool uses an LLM to extract data matching this schema from the page text, "
-            "returning validated JSON instead of raw text. This keeps your context window clean. "
+            "When provided, extracts structured data conforming to this schema and returns validated JSON. "
             'Example: \'{"type":"object","properties":{"title":{"type":"string"},"price":{"type":"string"}}}\'',
         )
         already_collected: str = Field(
             default="",
-            description="JSON array of previously collected items to avoid duplicates (only with 'schema'). "
-            "When paginating/scrolling through results, pass prior items here so the extractor skips them. "
+            description="JSON array of previously collected items to avoid duplicates (only with 'extraction_schema'). "
+            "When paginating or scrolling through results, pass prior items here so the extractor skips them. "
             'Example: \'[{"title":"Item A","price":"$10"}]\'',
         )
 
@@ -115,13 +113,14 @@ def create_extract_tool(session: BrowserSession):
     ) -> str:
         """Extract content from the current page.
 
-        mode='text': returns all visible text — use for reading content, tables, data.
-        mode='screenshot': returns base64 JPEG (1280x720, q=50) — use only for visual verification.
-        mode='media': returns all high-value image/video/audio URLs with metadata.
-        mode='diff_fast': quick visual change detection (~2ms, perceptual hash similarity).
-        mode='diff_accurate': detailed visual analysis (~100ms, pixel-level mismatch + diff image).
+        Modes:
+        - mode='text': returns visible page text — use for reading articles, tables, text data.
+        - mode='screenshot': returns base64 JPEG image — use for visual layout verification.
+        - mode='media': returns high-value image/video/audio URLs with metadata.
+        - mode='diff_fast': fast visual change detection against a baseline screenshot.
+        - mode='diff_accurate': detailed visual difference analysis with mismatch percentage.
 
-        When 'schema' is provided with mode='text', returns structured JSON instead of raw text.
+        When 'extraction_schema' is provided in mode='text', returns structured JSON directly.
         """
         if mode == "screenshot":
             return await session.extract_screenshot(scale=scale)

@@ -8,6 +8,7 @@ CapabilitySet, and PathPolicy objects.
 
 [OUTPUT]
 - from_config(): deserialise permission rules from config dict
+- normalize_delegate_permissions(): fan-out legacy delegate_agent permission key
 - parse_security_config(): full SecurityConfig from JSON
 
 [POS]
@@ -30,6 +31,25 @@ from myrm_agent_harness.agent.security.types import (
     _default_dangerous_paths,
 )
 from myrm_agent_harness.utils.coercion import parse_float, parse_int
+
+_LEGACY_DELEGATE_PERMISSION = "delegate_agent"
+_SPAWN_SUBAGENT_PERMISSION = "spawn_subagent"
+_INVOKE_EXTERNAL_AGENT_PERMISSION = "invoke_external_agent"
+
+
+def normalize_delegate_permissions(
+    raw: dict[str, str | dict[str, str]],
+) -> dict[str, str | dict[str, str]]:
+    """Fan-out legacy ``delegate_agent`` into spawn vs external CLI permission keys."""
+    if _LEGACY_DELEGATE_PERMISSION not in raw:
+        return raw
+    normalized = dict(raw)
+    legacy = normalized.pop(_LEGACY_DELEGATE_PERMISSION)
+    if _SPAWN_SUBAGENT_PERMISSION not in normalized:
+        normalized[_SPAWN_SUBAGENT_PERMISSION] = legacy
+    if _INVOKE_EXTERNAL_AGENT_PERMISSION not in normalized:
+        normalized[_INVOKE_EXTERNAL_AGENT_PERMISSION] = legacy
+    return normalized
 
 
 def from_config(raw: dict[str, str | dict[str, str]]) -> PermissionRuleset:
@@ -145,7 +165,11 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
     ruleset: PermissionRuleset = DEFAULT_RULESET
     permissions_raw = raw.get("permissions")
     if isinstance(permissions_raw, dict):
-        user_ruleset = from_config(permissions_raw)
+        typed_permissions: dict[str, str | dict[str, str]] = {}
+        for key, value in permissions_raw.items():
+            if isinstance(key, str) and (isinstance(value, str) or isinstance(value, dict)):
+                typed_permissions[key] = value
+        user_ruleset = from_config(normalize_delegate_permissions(typed_permissions))
         ruleset = merge(DEFAULT_RULESET, user_ruleset)
 
     path_policy = PathPolicy()

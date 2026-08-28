@@ -11,7 +11,7 @@ directory sidecars, bottom-up incremental DAG refresh, and LLM-driven wikilink e
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Wiki toolkit entry point | ✅ |
-| wiki_agent_tools.py | Core | LangChain tool integration: **ingest/query/apply** agent tools; URL ingest via `pipeline/ingress/publish_url_markdown_ingress`; admin compile/maintain via REST. Auto-compile on ingest, knowledge compounding on query, FetchEngine URL/binary ingest. | ✅ |
+| wiki_agent_tools.py | Core | LangChain tool integration: **ingest/query/apply** agent tools (bilingual schema & prompt optimization); URL ingest via `pipeline/ingress/publish_url_markdown_ingress`; admin compile/maintain via REST. Auto-compile on ingest, knowledge compounding on query, FetchEngine URL/binary ingest. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

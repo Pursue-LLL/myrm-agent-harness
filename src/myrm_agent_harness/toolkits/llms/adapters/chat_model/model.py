@@ -69,6 +69,7 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_core.utils.pydantic import is_basemodel_subclass
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
+from myrm_agent_harness.core.config.wire import DEFAULT_WIRE_PROTOCOL, WireProtocol
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin import (
     ChatLiteLLMAsyncMixin,
 )
@@ -167,6 +168,10 @@ class ChatLiteLLM(
         description="Max seconds between consecutive stream chunks. "
         "Detects mid-stream stalls caused by proxy buffering or provider GC.",
     )
+    wire_protocol: WireProtocol = Field(
+        default=DEFAULT_WIRE_PROTOCOL,
+        description="HTTP wire transport: chat_completions, responses, or anthropic_messages",
+    )
 
     # Private attribute for metrics (Pydantic v2 PrivateAttr)
     _retry_metrics: EmptyRetryMetrics = PrivateAttr(default_factory=EmptyRetryMetrics)
@@ -175,6 +180,9 @@ class ChatLiteLLM(
     def retry_metrics(self) -> EmptyRetryMetrics:
         """Get retry metrics for observability."""
         return self._retry_metrics
+
+    def uses_responses_wire(self) -> bool:
+        return self.wire_protocol == "responses"
 
     @property
     def base_url(self) -> str | None:

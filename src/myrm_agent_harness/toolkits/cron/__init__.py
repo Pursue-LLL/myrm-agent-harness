@@ -42,6 +42,13 @@ implementations, triggers, situation report aggregator, and data models for the 
 cron framework.
 """
 
+from myrm_agent_harness.toolkits.cron._cron_tool_description import (
+    CRON_MANAGE_TOOL_DESCRIPTION,
+    CRON_MANAGE_TOOL_DESCRIPTION_EN,
+    CRON_MANAGE_TOOL_DESCRIPTION_ZH,
+    DEFAULT_CRON_TOOL_DESCRIPTION_LOCALE,
+    resolve_cron_tool_description,
+)
 from myrm_agent_harness.toolkits.cron.delivery import WebhookDelivery
 from myrm_agent_harness.toolkits.cron.engine.connector_health import (
     ConnectorErrorCategory,
@@ -163,5 +170,6 @@ __all__ = [
     "generate_webhook_secret",
     "get_heartbeat_status",
     "redact_connector_url",
+    "resolve_cron_tool_description",
     "trigger_config_to_dict",
 ]

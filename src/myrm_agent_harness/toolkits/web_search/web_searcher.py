@@ -1,24 +1,24 @@
 """WebSearcher — Multi-provider web search orchestrator.
 
 Manages search provider configuration, query execution with retry,
-result caching, and conversion to LangChain Documents.
+result caching, single-flight coalescing, and conversion to LangChain Documents.
 
 [INPUT]
 web_search.common::SearchResult (POS: Unified search result dataclass)
 web_search.error_handling::build_search_error_context, is_retryable_search_error (POS: Search error classification)
 web_search.exceptions::AllQueriesFailedError, ErrorContext, SearchAPIError, SearchConfigError (POS: Search exception types)
 web_search.metrics::WebSearchMetrics, web_search_metrics (POS: Search telemetry)
+web_search.search_coalescing::await_coalesced_search, bucket_search_limit, build_search_cache_key (POS: Search cache coalescing)
 web_search.search_results_processor::search_results_to_documents (POS: Search-result to Document converter)
 web_search.litellm_search::LiteLLMSearch (POS: LiteLLM unified search client)
-utils.lru_cache::LRUCache (POS: Generic TTL-based LRU cache)
 
 [OUTPUT]
-WebSearcher: Configurable multi-provider web search with caching, retry, and Document output
+WebSearcher: Configurable multi-provider web search with LRU cache, single-flight coalescing, limit bucketing, retry, and Document output
 SearchServiceType: Literal type alias enumerating supported search providers
 
 [POS]
 Web search orchestrator. Provides a unified interface for querying multiple search
-providers (Perplexity, Tavily, Exa, etc.) with caching, retry, and error handling.
+providers (Perplexity, Tavily, Exa, etc.) with caching, coalescing, retry, and error handling.
 
 """
 
@@ -47,15 +47,18 @@ from myrm_agent_harness.toolkits.web_search.metrics import (
     WebSearchMetrics,
     web_search_metrics,
 )
+from myrm_agent_harness.toolkits.web_search.search_coalescing import (
+    await_coalesced_search,
+    bucket_search_limit,
+    build_search_cache_key,
+    reset_search_coalescing_state_for_tests,
+)
 from myrm_agent_harness.toolkits.web_search.search_results_processor import (
     search_results_to_documents,
 )
-from myrm_agent_harness.utils.lru_cache import LRUCache
 
 if TYPE_CHECKING:
     pass
-
-_search_cache: LRUCache[list[SearchResult]] = LRUCache(maxsize=200, ttl=900, id="web_search_api_cache")
 
 SearchServiceType = str
 
@@ -268,17 +271,33 @@ class WebSearcher:
                 extra_params["safesearch"] = "0"
 
         extra_suffix = json.dumps(extra_params, sort_keys=True, default=str) if extra_params else ""
-        cache_key = f"{self.config.search_service}:{query}:{num_results}:{extra_suffix}"
+        bucketed_limit = bucket_search_limit(num_results)
+        cache_key = build_search_cache_key(
+            self.config.search_service,
+            query,
+            bucketed_limit,
+            extra_suffix,
+        )
 
-        cached_result = _search_cache.get(cache_key)
-        if cached_result is not None:
-            logger.info(f"Search cache hit: {query}")
-            return cached_result
+        async def fetch() -> list[SearchResult]:
+            return await self._search_provider_with_retry(query, bucketed_limit, extra_params)
 
+        return await await_coalesced_search(
+            cache_key,
+            bucketed_limit,
+            num_results,
+            fetch,
+            log_label=query,
+        )
+
+    async def _search_provider_with_retry(
+        self,
+        query: str,
+        num_results: int,
+        extra_params: dict[str, object],
+    ) -> list[SearchResult]:
         provider = self.config.search_service
         max_attempts = self.config.search_max_retries + 1
-
-        # Track if we are currently bypassing the gateway due to a fallback
         bypass_gateway = False
 
         for attempt in range(max_attempts):
@@ -290,15 +309,13 @@ class WebSearcher:
                 else:
                     results = await search_service.search(query, num_results)
             except Exception as exc:
-                # Gateway Flexible Fallback Logic
                 if (
                     not bypass_gateway
                     and self.config.gateway_config
                     and self.config.gateway_config.use_gateway
-                    and self.config.api_key  # Must have a local API key to fallback to
+                    and self.config.api_key
                 ):
                     error_msg = self._extract_key_error(exc).lower()
-                    # Fallback on gateway errors (502, 503, 504) or insufficient funds (402)
                     if (
                         "502" in error_msg
                         or "503" in error_msg
@@ -308,7 +325,8 @@ class WebSearcher:
                         or "timeout" in error_msg
                     ):
                         logger.warning(
-                            f"Gateway search failed ({error_msg}), falling back to direct provider API (BYOK)"
+                            "Gateway search failed (%s), falling back to direct provider API (BYOK)",
+                            error_msg,
                         )
                         try:
                             from myrm_agent_harness.utils.event_utils import (
@@ -327,7 +345,6 @@ class WebSearcher:
                         except Exception:
                             pass
                         bypass_gateway = True
-                        # Immediately retry this attempt with direct connection
                         continue
 
                 if not is_retryable_search_error(exc) or attempt >= max_attempts - 1:
@@ -351,8 +368,18 @@ class WebSearcher:
                 continue
 
             self._metrics.record_success()
-            _search_cache.set(cache_key, results)
             return results
+
+        msg = f"Search request failed after {max_attempts} attempts"
+        raise SearchAPIError(
+            msg,
+            context=build_search_error_context(
+                RuntimeError(msg),
+                query=query,
+                provider=provider,
+                attempt_index=max(0, max_attempts - 1),
+            ),
+        )
 
     async def search_and_process(
         self,

@@ -16,6 +16,8 @@ LLM core: LLM classes, manager, and credential pool.
 | reasoning_timeout.py | Core | Reasoning model timeout floor detection. Provides model-specific minimum timeout values (e.g. o3=600s) for reasoning models with extended thinking phases, preventing premature request_timeout cuts. | ✅ |
 | thinking_headroom.py | Core | Thinking model max_tokens headroom adjustment. Proactively raises max_tokens to a safe floor for thinking-capable models (Claude, DeepSeek R1, OpenAI o-series, Gemini 2.5+): effort-based floor when reasoning_effort is set, conservative default floor otherwise (all thinking models default to thinking-on). Prevents truncation caused by thinking tokens consuming the output budget. | ✅ |
 
+Wire protocol selection is configured via `LLMConfig.wire_protocol` / `ChatLiteLLM.wire_protocol` and implemented in `adapters/wire/` (see [adapters/wire/_ARCH.md](../adapters/wire/_ARCH.md)).
+
 ## Key Dependencies
 
 - `utils`
