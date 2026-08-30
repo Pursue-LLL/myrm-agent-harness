@@ -16,7 +16,9 @@ from __future__ import annotations
 
 from myrm_agent_harness.observability.invariants.core_pack import (
     check_agent_state_transition,
+    check_sequence_continuity,
     check_session_event_pairing,
+    check_step_enclosure,
     check_todo_structure_integrity,
     install_core_invariants,
 )
@@ -40,7 +42,9 @@ __all__ = [
     "InvariantViolation",
     "RuntimeInvariantRegistry",
     "check_agent_state_transition",
+    "check_sequence_continuity",
     "check_session_event_pairing",
+    "check_step_enclosure",
     "check_todo_structure_integrity",
     "default_invariant_registry",
     "install_core_invariants",

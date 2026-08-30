@@ -233,10 +233,6 @@ myrm_tools.notify("Finalizing workflow", step_index=2, total_steps=2, category="
 print(json.dumps({"check": check, "decision": user_choice}, indent=2, ensure_ascii=False))
 ```
 
-myrm_tools.notify("Finalizing workflow", step_index=2, total_steps=2, category="summary")
-print(json.dumps({"check": check, "decision": user_choice}, indent=2, ensure_ascii=False))
-```
-
 Write ONLY the Python script. Do not include markdown formatting or explanations. \
 The script will be executed in a secure sandbox."""
 

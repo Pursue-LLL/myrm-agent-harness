@@ -228,6 +228,48 @@ def parse_tool_calls_from_reasoning(
     return parsed_tool_calls, final_cg_chunk
 
 
+_REASONING_FIELD_CANDIDATES: tuple[str, ...] = (
+    "reasoning_content",
+    "thinking",
+    "reasoning",
+    "thoughts",
+    "reasoning_text",
+)
+
+
+def extract_reasoning_payload(obj: Any) -> str:
+    """Extract reasoning / thinking text from a delta dict or chunk object.
+
+    Tries known reasoning field names in priority order and handles both
+    string values and array-of-block structures.
+    """
+    if obj is None:
+        return ""
+
+    for field in _REASONING_FIELD_CANDIDATES:
+        val = safe_get(obj, field)
+        if val is None:
+            continue
+
+        if isinstance(val, str):
+            if val:
+                return val
+        elif isinstance(val, list):
+            parts: list[str] = []
+            for item in val:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    # Check for { "thinking": "..." } or { "text": "..." }
+                    t = item.get("thinking") or item.get("text")
+                    if isinstance(t, str):
+                        parts.append(t)
+            if parts:
+                return "".join(parts)
+
+    return ""
+
+
 def normalize_usage(usage: Any) -> dict[str, Any]:
     """Normalize a usage object to a standard dict format."""
     if isinstance(usage, dict):

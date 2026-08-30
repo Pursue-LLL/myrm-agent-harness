@@ -1002,7 +1002,11 @@ async def test_spawn_adversarial_no_manager_falls_back_to_spawn(
 
 
 @pytest.mark.asyncio
-async def test_spawn_parallel_writers_use_isolated_copy(mock_parent_agent):
+async def test_spawn_parallel_writers_use_isolated_copy(mock_parent_agent, monkeypatch):
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.workspace_coordination.git_worktree.create_subagent_worktree",
+        lambda _ws: None,
+    )
     mock_parent_agent._spawn_child = AsyncMock(
         return_value={"success": True, "result": "ok"}
     )
@@ -1200,4 +1204,3 @@ async def test_steer_child_tool_success_and_fallback(mock_parent_agent):
     res3 = await tool_no_attr._arun(task_id="child_any", message="msg")
     assert res3["success"] is False
     assert "does not support steer_child" in res3["error"]
-

@@ -80,6 +80,10 @@ def coerce_spawn_readonly(parent_agent: object, readonly: bool) -> bool:
     security_config = getattr(agent_config, "security_config", None)
     if security_config is None:
         return False
+    from myrm_agent_harness.core.security.types import SecurityConfig
+
+    if not isinstance(security_config, SecurityConfig):
+        return False
     from myrm_agent_harness.agent.security.engine import disabled_permissions
 
     return "file_write" in disabled_permissions(
