@@ -37,7 +37,7 @@ class MCPMetadataExtractor:
     # MCP 数据标记的正则模式：__MCP_DATA__{json}__END__
     _MCP_DATA_PATTERN = re.compile(r"__MCP_DATA__(.+?)__END__\n?")
 
-    def extract_metadata(self, stdout: str) -> tuple[str, dict[str, Any]]:
+    def extract_metadata(self, stdout: str) -> tuple[str, dict[str, object]]:
         """从输出中提取 MCP 调用标记，返回清洁输出和元数据
 
          处理流程：
@@ -118,7 +118,7 @@ class MCPMetadataExtractor:
 
         return skill_calls
 
-    def _build_metadata(self, skill_calls: SkillCallsDict) -> dict[str, Any]:
+    def _build_metadata(self, skill_calls: SkillCallsDict) -> dict[str, object]:
         """构建 MCP 元数据（遵循 metadata.sources 标准约定）
 
         Args:

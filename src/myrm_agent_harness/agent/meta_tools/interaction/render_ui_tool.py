@@ -65,20 +65,30 @@ For simple single/multi-choice clarifying questions, prefer ask_question_tool in
 Allowed types: {_ALLOWED_TYPES_LINE}
 
 Rules:
-- components: flat list; 'children' holds child ID strings only.
-- root_ids: top-level container/card IDs only.
-- Every event in 'events' (e.g. {{"onClick": "act_id"}}) must reference an id in 'actions'.
-- Action schema: {{"id": "str", "type": "submit|cancel|navigate|custom", "label": "str"}}.
+1. components: Flat list of components. 'children' must hold child ID strings only (NEVER nest component objects inside children).
+2. root_ids: List of top-level container/card component IDs only.
+3. bindings: Use JSONPath syntax to bind component values to data fields (e.g. {{"value": "$.form.username"}}).
+4. events & actions: Every event (e.g. {{"onClick": "act_submit"}}) MUST reference a matching id in 'actions'.
+   Action schema: {{"id": "str", "type": "submit|cancel|navigate|custom", "label": "str"}}.
 
-CRITICAL: For table/chart/tabs or 3+ components, file_read_tool `{A2UI_REFERENCE_REL_PATH}` for full props.
-After rendering, use update_ui_data_tool to patch data fields without re-sending the component graph.
+Minimal Example Structure:
+  components=[
+    {{"id": "card_1", "type": "card", "children": ["txt_1", "btn_1"]}},
+    {{"id": "txt_1", "type": "text", "props": {{"text": "Hello"}}}},
+    {{"id": "btn_1", "type": "button", "props": {{"label": "OK"}}, "events": {{"onClick": "act_1"}}}}
+  ],
+  root_ids=["card_1"],
+  actions=[{{"id": "act_1", "type": "submit", "label": "OK"}}]
+
+CRITICAL: For complex components (table, chart, tabs, form inputs) or 3+ components, use file_read_tool on `{A2UI_REFERENCE_REL_PATH}` for full props and examples.
+After rendering, use update_ui_data_tool to patch data fields dynamically without re-sending the component graph.
 
 Args:
-    title: UI title
+    title: UI title displayed in chat
     components: Flat component list
     root_ids: Top-level component IDs
-    data: Initial data model
-    actions: Triggerable actions
+    data: Initial data model dictionary
+    actions: Triggerable action buttons
 
 Returns:
     Confirmation with surface_id upon success, or actionable validation error for self-correction.
