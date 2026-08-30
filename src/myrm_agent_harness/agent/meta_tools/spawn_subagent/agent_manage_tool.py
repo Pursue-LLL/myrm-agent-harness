@@ -12,7 +12,7 @@ Subagent runtime observability and control exposed as a single LLM tool surface.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field

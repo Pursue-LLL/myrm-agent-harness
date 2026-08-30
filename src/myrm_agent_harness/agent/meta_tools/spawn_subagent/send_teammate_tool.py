@@ -14,7 +14,7 @@ LLM-callable send path for teammate mailbox. Emits GUI SSE on successful accept.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from langchain.tools import tool
@@ -57,7 +57,7 @@ def create_send_teammate_message_tool(parent_agent: BaseAgent) -> BaseTool:
         ),
         args_schema=SendTeammateInput,
     )
-    async def send_teammate_message_func(target_task_id: str, body: str) -> dict[str, Any]:
+    async def send_teammate_message_func(target_task_id: str, body: str) -> dict[str, object]:
         from_task_id = get_subagent_task_id()
         if not from_task_id:
             return {

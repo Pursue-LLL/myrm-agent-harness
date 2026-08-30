@@ -109,3 +109,35 @@ async def test_usable_search_results_remain_ttl_cached() -> None:
     assert len(results) == 1
     assert results[0].link == "https://cached.com"
     assert sc._search_cache.get(cache_key) is not None
+
+
+@pytest.mark.asyncio
+async def test_error_only_search_results_are_not_ttl_cached() -> None:
+    call_count = 0
+
+    async def fetch() -> list[SearchResult]:
+        nonlocal call_count
+        call_count += 1
+        return [
+            SearchResult(
+                link="https://err.com",
+                title="Err",
+                snippet="provider failed",
+                is_error=True,
+            )
+        ]
+
+    cache_key = "test:error-not-cached:10:"
+
+    first = await await_coalesced_search(
+        cache_key, 10, 5, fetch, log_label="error-first"
+    )
+    second = await await_coalesced_search(
+        cache_key, 10, 5, fetch, log_label="error-second"
+    )
+
+    assert len(first) == 1
+    assert first[0].is_error is True
+    assert len(second) == 1
+    assert call_count == 2
+    assert sc._search_cache.get(cache_key) is None

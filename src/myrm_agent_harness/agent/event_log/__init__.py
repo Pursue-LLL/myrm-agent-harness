@@ -75,4 +75,8 @@ __all__ = [
     "ToolUsageStats",
     "TraceMetadata",
     "TraceOutcome",
+    "assert_log_integrity",
+    "install_log_integrity_invariants",
+    "verify_sequence_continuity",
+    "verify_session_enclosure",
 ]

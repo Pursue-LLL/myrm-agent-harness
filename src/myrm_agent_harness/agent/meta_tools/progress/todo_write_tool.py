@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 from langchain_core.tools import BaseTool, tool
 
@@ -52,7 +51,7 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
 
     @tool
     def todo_write(
-        todos: list[dict[str, Any]],
+        todos: list[dict[str, object]],
         merge: bool = False,
         goal: str | None = None,
     ) -> str:
