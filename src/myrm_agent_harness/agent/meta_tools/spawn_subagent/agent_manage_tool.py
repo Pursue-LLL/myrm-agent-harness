@@ -68,7 +68,7 @@ def create_subagent_control_tool(parent_agent: BaseAgent) -> BaseTool:
         task_id: str | None = None,
         timeout_seconds: int | None = None,
         message: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         if action == "list":
             children = parent_agent.list_children()
             return {
