@@ -24,7 +24,7 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Callable
-from typing import TYPE_CHECKING, Any, Awaitable
+from typing import TYPE_CHECKING, Awaitable
 
 from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
