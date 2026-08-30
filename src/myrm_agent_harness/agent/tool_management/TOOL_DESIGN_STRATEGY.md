@@ -100,9 +100,9 @@ class ToolLayer(IntEnum):
 **不在 COMMON 的 opt-in 工具**（如 `todo_write` / `planning`、`ask_question_tool` / `structured_clarify`）登记在 EXTENDED；后者虽默认开但因 HITL/cache 策略列入 `EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS`。
 
 #### 2.2.3 EXTENDED 层 (Layer 3) - 扩展层
-- **特征**: harness 可选能力，默认关闭，按需 Turn1 或 RUNTIME_ONLY 绑定
+- **特征**: harness 可选能力，默认关闭，按需 Turn1 或 RUNTIME_ONLY 绑定；组内统一按字母序稳定排序
 - **缓存**: harness 三层末尾；变化不影响 CORE/COMMON 前缀
-- **工具数量**: 登记 **39** EXTENDED（harness 静态；见 TOOL_COUNT 块）
+- **工具数量**: 登记 **40** EXTENDED（harness 静态；见 TOOL_COUNT 块）
 - **Token 消耗**: 典型 ~2,246 tokens，满载 ~7,290+ tokens
 
 **子分类**:

@@ -34,7 +34,7 @@ import os
 import tempfile
 from collections.abc import Callable, Coroutine
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from langchain_core.messages.content import ContentBlock, create_image_block, create_text_block
 
