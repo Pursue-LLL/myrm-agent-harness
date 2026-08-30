@@ -27,6 +27,12 @@ Complements Checkpointer with full event history. Optional — omitting
 """
 
 from .analytics import EventLogAnalytics
+from .integrity_gate import (
+    assert_log_integrity,
+    install_log_integrity_invariants,
+    verify_sequence_continuity,
+    verify_session_enclosure,
+)
 from .logger import EventLogger
 from .protocols import EventLogBackend
 from .trace_types import ExecutionTrace, ToolCallRecord, TraceMetadata, TraceOutcome

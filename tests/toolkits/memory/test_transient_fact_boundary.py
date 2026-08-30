@@ -92,7 +92,7 @@ class TestTransientFactBoundary:
             SemanticMemory(content="Order #9981 is out for delivery today"),
             EpisodicMemory(content="顺丰快递 SF12345 正在派送中"),
             ProfileEntry(key="preferred_courier", value="SF Express"),
-            ProceduralMemory(trigger="shopping", action="Ask for invoice"),
+            ProceduralMemory(content="Ask for invoice", trigger="shopping", action="Ask for invoice"),
         ]
 
         kept, dropped = filter_transient_business_memories(memories)

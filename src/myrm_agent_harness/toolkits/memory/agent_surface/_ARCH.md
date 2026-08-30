@@ -21,6 +21,7 @@ Parent index: [../_ARCH.md](../_ARCH.md). System design: [../MEMORY_SYSTEM.md](.
 | `memory_citations.py` | Core | Citation/source bridge for SSE cited_memory_refs. | ✅ |
 | `mcp_server.py` | Core | MCP adapter (recall/list/store/manage). | ✅ |
 | `wiki_memory_boundary.py` | Core | Wiki vs memory write boundary heuristics. | ✅ |
+| `transient_fact_boundary.py` | Core | Transient business state memory write boundary heuristics. | ✅ |
 
 ## Key Dependencies
 

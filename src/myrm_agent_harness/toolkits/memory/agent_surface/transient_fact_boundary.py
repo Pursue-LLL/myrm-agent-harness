@@ -32,25 +32,25 @@ logger = logging.getLogger(__name__)
 # Precompiled bilingual patterns for high-precision transient business facts detection
 _LOGISTICS_ORDER_PATTERNS = (
     re.compile(
-        r"(?:(?:order|package|delivery|parcel|tracking|shipment|courier)\s*(?:#|no\.?|id|number)?\s*[\w-]*).*"
+        r"(?:(?:order|package|delivery|parcel|tracking|shipment|courier)\b.*)"
         r"(?:out for delivery|in transit|shipped|dispatched|sorting hub|customs clearance|awaiting pickup|delivered to locker)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?:(?:快递|包裹|订单|运单|物流|快件)[\s#号:：]*[\w-]*).*"
+        r"(?:(?:快递|包裹|订单|运单|物流|快件).*)"
         r"(?:正在派送|已出库|运输中|分拨中心|派件中|已揽收|到达|自提柜|已发货|配送中|分拣中)",
     ),
 )
 
 _FINANCIAL_BALANCE_PATTERNS = (
     re.compile(
-        r"(?:(?:current|available|live|wallet|account|card)\s+(?:balance|credit|limit|funds)).*"
-        r"(?:is|are|of|remaining|amounting to)\s*[\$¥€£]\s*\d+",
+        r"(?:(?:current|available|live|wallet|account|credit|card)\s+(?:balance|credit|limit|funds)).*"
+        r"(?:is|are|of|remaining|amounting to|:)?\s*[\$¥€£]?\s*\d+",
         re.IGNORECASE,
     ),
     re.compile(
         r"(?:(?:当前|账户|钱包|信用卡|可用|活期|实时)(?:余额|额度|资金|可用金)).*"
-        r"(?:为|是|剩余|共计|：|:)\s*[¥\$]?\s*\d+",
+        r"(?:为|是|剩余|共计|：|:|\s)\s*[¥\$]?\s*\d+",
     ),
 )
 
@@ -61,19 +61,20 @@ _AUTH_OTP_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?:(?:短信|登录|动态|安全|身份)?验证码|动态码|授权码|一次性密码)[\s:：为是]*[a-zA-Z0-9]{4,8}\b",
+        r"(?:(?:(?:短信|登录|动态|安全|身份|一次性)?(?:验证码|动态码|授权码|密码|口令)))[\s:：为是]*[a-zA-Z0-9]{4,8}\b",
     ),
 )
 
 _EPHEMERAL_LINK_QUEUE_PATTERNS = (
     re.compile(
-        r"(?:presigned[-_]?url|temp(?:orary)?[-_]?link|download[-_]?token|auth[-_]?token|queue[-_]?position|queue[-_]?number).*"
-        r"(?:expires in|valid for|\b\d+\s*(?:mins?|seconds?|hours?)\b)",
+        r"(?:presigned[\s_-]?url|temp(?:orary)?[\s_-]?(?:link|url|download)|download[\s_-]?(?:token|link)|auth[\s_-]?token|queue[\s_-]?(?:position|number|status)).*"
+        r"(?:expires in|valid for|\b\d+\s*(?:mins?|minutes?|seconds?|hours?)\b)",
         re.IGNORECASE,
     ),
     re.compile(
-        r"(?:临时(?:链接|下载地址|访问令牌)|签名(?:url|链接)|排队(?:序号|位置|进度)).*"
-        r"(?:有效(?:期|时间)|过期|还剩|当前第)",
+        r"(?:临时(?:链接|下载地址|访问令牌)|签名\s*(?:url|链接|地址)|排队(?:序号|位置|进度)).*"
+        r"(?:有效(?:期|时间)|过期|还剩|当前第|\d+\s*(?:秒|分|小时))",
+        re.IGNORECASE,
     ),
 )
 

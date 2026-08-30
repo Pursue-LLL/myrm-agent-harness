@@ -26,6 +26,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | memory_citations.py      | Facade   | Stable import path → ``agent_surface/memory_citations.py``. | — |
 | mcp_server.py            | Facade   | Stable import path → ``agent_surface/mcp_server.py``. | — |
 | wiki_memory_boundary.py  | Facade   | Stable import path → ``agent_surface/wiki_memory_boundary.py``. | — |
+| transient_fact_boundary.py | Facade | Stable import path → ``agent_surface/transient_fact_boundary.py``. | — |
 | _assistant_retrieval.py  | Internal | Two-Pass Assistant Retrieval for assistant-reference queries (MemPalace enhancement).                         | ✅    |
 | adaptive.py              | Core     | Adaptive dual-channel selection logic. Analyzes query characteristics (token count,                           | ✅    |
 | backup.py                | Core     | Provides BackupMetadata, BackupResult, RestoreResult.                                                         | ✅    |
