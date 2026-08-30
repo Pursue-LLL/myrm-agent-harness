@@ -50,7 +50,7 @@ _FALLBACK_MAX_CHARS = 100_000
 RAG_PAGE_THRESHOLD = 20
 RAG_MAX_PAGES_LIMIT = 2000
 
-LargeDocIngestCallback = Callable[[str, str, str], Coroutine[Any, Any, None]]
+LargeDocIngestCallback = Callable[[str, str, str], Coroutine[object, object, None]]
 
 _ingest_callback: LargeDocIngestCallback | None = None
 
@@ -111,7 +111,7 @@ async def _schedule_rag_ingest(
     raw_bytes: bytes,
     result: PDFExtractResult,  # noqa: F821
     cfg_cls: type,
-    extract_fn: Callable[..., Coroutine[Any, Any, Any]],
+    extract_fn: Callable[..., Coroutine[object, object, object]],
 ) -> None:
     """Extract full text (if truncated) and schedule background wiki ingest.
 

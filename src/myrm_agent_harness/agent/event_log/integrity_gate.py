@@ -144,8 +144,13 @@ def verify_sequence_continuity(events: Sequence[object]) -> list[InvariantViolat
             except (ValueError, TypeError):
                 pass
 
-        # 2. Sequence continuity check (if seq / index exists)
-        raw_seq = evt_dict.get("seq") or evt_dict.get("sequence_number")
+        # 2. Sequence continuity check (if seq / sequence exists)
+        raw_seq = evt_dict.get("seq")
+        if raw_seq is None:
+            raw_seq = evt_dict.get("sequence")
+        if raw_seq is None:
+            raw_seq = evt_dict.get("sequence_number")
+
         if raw_seq is not None:
             try:
                 seq = int(raw_seq)

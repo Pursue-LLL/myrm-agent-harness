@@ -3,7 +3,7 @@
 
 Validates that every `@tool` / `BaseTool` subclass / middleware-renamed tool
 is registered in the harness `_TOOL_LAYERS` (or in the server bootstrap),
-enforces layer-product consistency (COMMON = default-on product IDs),
+enforces layer-product consistency (HIGH_FREQUENCY = default-on product IDs),
 detects orphan tool factories, and regenerates documentation count blocks.
 
 Usage:
@@ -187,7 +187,7 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
 
     Fail-closed rules (mirrors the runtime ``resolve_permission_type`` fallback):
 
-    1. Every registered harness built-in tool (``_TOOL_LAYERS`` CORE/COMMON/
+    1. Every registered harness built-in tool (``_TOOL_LAYERS`` CORE/HIGH_FREQUENCY/
        EXTENDED) must be covered by an explicit ``TOOL_PERMISSION_MAP`` entry,
        a dynamic resolver branch (membership in
        ``DYNAMICALLY_RESOLVED_TOOL_NAMES``, the SSOT for
@@ -233,7 +233,7 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
     builtin_registered = {
         name
         for name, layer in registered.items()
-        if layer in ("CORE", "COMMON", "EXTENDED")
+        if layer in ("CORE", "HIGH_FREQUENCY", "EXTENDED")
     }
     external_registered = {
         name for name, layer in registered.items() if layer == "EXTERNAL"
@@ -286,7 +286,7 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
     if unregistered_builtins:
         errors.append(
             "BUILTIN_TOOL_NAMES tool(s) not registered in _TOOL_LAYERS "
-            "(CORE/COMMON/EXTENDED) — governance declarations lose their anchor "
+            "(CORE/HIGH_FREQUENCY/EXTENDED) — governance declarations lose their anchor "
             "(upward-blindness drift): "
             + ", ".join(unregistered_builtins)
         )
@@ -421,7 +421,7 @@ def _format_report(
         f"Tool declarations found (deduplicated by name): {len(report.declared_names)}",
         f"Registered in _TOOL_LAYERS (harness static + server bootstrap): {len(report.registered_names)}",
         "",
-        f"Layer breakdown (registered): CORE={layer_counts['CORE']} COMMON={layer_counts['COMMON']} "
+        f"Layer breakdown (registered): CORE={layer_counts['CORE']} HIGH_FREQUENCY={layer_counts['HIGH_FREQUENCY']} "
         f"EXTENDED={layer_counts['EXTENDED']} EXTERNAL={layer_counts['EXTERNAL']}",
         "",
     ]
@@ -519,7 +519,7 @@ def _layer_counts(report: ScanReport) -> dict[str, int]:
     counts = Counter(load_registered_layers().values())
     return {
         "CORE": counts.get("CORE", 0),
-        "COMMON": counts.get("COMMON", 0),
+        "HIGH_FREQUENCY": counts.get("HIGH_FREQUENCY", 0),
         "EXTENDED": counts.get("EXTENDED", 0),
         "EXTERNAL": counts.get("EXTERNAL", 0),
     }
@@ -535,11 +535,11 @@ def _build_doc_block(report: ScanReport) -> str:
     from scripts.tool_registry_config import PTC_RUNTIME_TOOL_NAMES
 
     ptc_names = ", ".join(f"`{n}`" for n in sorted(PTC_RUNTIME_TOOL_NAMES))
-    harness_total = counts["CORE"] + counts["COMMON"] + counts["EXTENDED"]
+    harness_total = counts["CORE"] + counts["HIGH_FREQUENCY"] + counts["EXTENDED"]
     return (
         f"{_BLOCK_BEGIN}\n"
         f"LLM tools: **{action_total}** "
-        f"(Harness {harness_total}: CORE {counts['CORE']} + COMMON {counts['COMMON']} + "
+        f"(Harness {harness_total}: CORE {counts['CORE']} + HIGH_FREQUENCY {counts['HIGH_FREQUENCY']} + "
         f"EXTENDED {counts['EXTENDED']}; External {counts['EXTERNAL']}: server vendor). "
         f"Orchestration signals: **{len(ORCHESTRATION_SIGNAL_NAMES)}**. "
         f"Runtime hooks: **{len(RUNTIME_HOOK_NAMES)}**. "

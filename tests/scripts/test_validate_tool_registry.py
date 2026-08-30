@@ -41,13 +41,13 @@ def test_build_doc_block_emits_canonical_markers_and_breakdown(
     monkeypatch.setattr(
         cli,
         "_layer_counts",
-        lambda _report: {"CORE": 2, "COMMON": 6, "EXTENDED": 71, "EXTERNAL": 0},
+        lambda _report: {"CORE": 2, "HIGH_FREQUENCY": 6, "EXTENDED": 71, "EXTERNAL": 0},
     )
     block = _build_doc_block(ScanReport())
     assert block.startswith(_BLOCK_BEGIN)
     assert block.endswith(_BLOCK_END)
     assert "**79**" in block
-    assert "CORE 2 + COMMON 6 + EXTENDED 71" in block
+    assert "CORE 2 + HIGH_FREQUENCY 6 + EXTENDED 71" in block
     assert "PTC runtime tools: **" in block
     assert "`spawn_subagent`" in block
 
@@ -104,7 +104,7 @@ def test_filter_report_to_files_preserves_global_registry() -> None:
 def test_format_report_pass_path(monkeypatch: pytest.MonkeyPatch) -> None:
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0})
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 1, "HIGH_FREQUENCY": 1, "EXTENDED": 1, "EXTERNAL": 0})
     report = ScanReport(declarations=[_decl("foo")], registered_names={"foo"})
     out = _format_report(report)
     assert "PASS - tool registry consistent" in out
@@ -115,7 +115,7 @@ def test_format_report_reports_missing_with_owner_metadata(
 ) -> None:
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0})
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "HIGH_FREQUENCY": 0, "EXTENDED": 0, "EXTERNAL": 0})
     src_file = _repo_root / "scripts" / "tool_registry_models.py"
     report = ScanReport(
         declarations=[ToolDeclaration(name="never_registered", kind="decorator", file=src_file, line=10)],
@@ -132,7 +132,7 @@ def test_format_report_incremental_suppresses_ghost_and_orphan(
     misleading false positives — they must be silently suppressed."""
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0})
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "HIGH_FREQUENCY": 0, "EXTENDED": 0, "EXTERNAL": 0})
     report = ScanReport(
         declarations=[_decl("foo")],
         registered_names={"foo", "ghost_tool"},
@@ -152,7 +152,7 @@ def test_format_report_reports_ghosts_and_orphans_and_duplicates(
     """Full mode emits the FAIL block for every category that has findings."""
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0})
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "HIGH_FREQUENCY": 0, "EXTENDED": 0, "EXTERNAL": 0})
     src_a = _repo_root / "scripts" / "tool_registry_engine.py"
     src_b = _repo_root / "scripts" / "tool_registry_models.py"
     report = ScanReport(
@@ -184,7 +184,7 @@ def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str], **scan_kwargs: o
         return fake_report  # type: ignore[return-value]
 
     monkeypatch.setattr(cli, "scan", _fake_scan)
-    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0})
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 1, "HIGH_FREQUENCY": 1, "EXTENDED": 1, "EXTERNAL": 0})
     # main() compares real TOOL_* maps against the stubbed scan report; isolate metadata.
     monkeypatch.setattr(
         cli,
@@ -201,7 +201,7 @@ def _run_main(monkeypatch: pytest.MonkeyPatch, argv: list[str], **scan_kwargs: o
 def test_main_incremental_runs_layer_product_gate(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Incremental pre-commit must still fail on invalid COMMON layer assignments."""
+    """Incremental pre-commit must still fail on invalid HIGH_FREQUENCY layer assignments."""
     import scripts.validate_tool_registry as cli
     from myrm_agent_harness.agent.tool_management.tool_layers import (
         _TOOL_LAYERS,
@@ -209,7 +209,7 @@ def test_main_incremental_runs_layer_product_gate(
     )
 
     bad_layers = dict(_TOOL_LAYERS)
-    bad_layers["todo_write"] = ToolLayer.COMMON
+    bad_layers["todo_write"] = ToolLayer.HIGH_FREQUENCY
 
     monkeypatch.setattr(cli, "load_registered_layers", lambda: bad_layers)
     rc, out, _ = _run_main(
@@ -220,7 +220,7 @@ def test_main_incremental_runs_layer_product_gate(
     )
     assert rc == 1
     assert "todo_write" in out
-    assert "tool catalog metadata" in out.lower() or "COMMON" in out
+    assert "tool catalog metadata" in out.lower() or "HIGH_FREQUENCY" in out
 
 
 def test_main_full_pass(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -250,7 +250,7 @@ def test_main_json_emits_mode_and_layer_counts(
     assert payload["mode"] == "full"
     assert payload["layer_counts"] == {
         "CORE": 1,
-        "COMMON": 1,
+        "HIGH_FREQUENCY": 1,
         "EXTENDED": 1,
         "EXTERNAL": 0,
     }
@@ -293,9 +293,9 @@ def test_layer_counts_aggregates_registered_layers() -> None:
 
     counts = cli._layer_counts(ScanReport())
     assert counts["CORE"] >= 7
-    assert counts["COMMON"] >= 4
+    assert counts["HIGH_FREQUENCY"] >= 4
     assert counts["EXTENDED"] >= 40
-    assert sum(counts.values()) == counts["CORE"] + counts["COMMON"] + counts["EXTENDED"] + counts["EXTERNAL"]
+    assert sum(counts.values()) == counts["CORE"] + counts["HIGH_FREQUENCY"] + counts["EXTENDED"] + counts["EXTERNAL"]
 
 
 def test_load_registry_metadata_keys_includes_todo_write() -> None:
@@ -316,7 +316,7 @@ def test_check_default_enabled_product_parity_passes() -> None:
 def test_format_report_metadata_ghosts(monkeypatch: pytest.MonkeyPatch) -> None:
     import scripts.validate_tool_registry as cli
 
-    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0})
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 0, "HIGH_FREQUENCY": 0, "EXTENDED": 0, "EXTERNAL": 0})
     report = ScanReport(declarations=[_decl("foo")], registered_names={"foo"})
     out = _format_report(report, metadata_ghosts={"dead_meta_key"})
     assert "dead_meta_key" in out
@@ -341,7 +341,7 @@ def test_main_incremental_filters_to_changed_files(
     monkeypatch.setattr(cli, "scan", lambda: full)
     monkeypatch.setattr(cli, "get_changed_python_files", lambda _roots: [src_a])
     monkeypatch.setattr(cli, "load_registered_layers", lambda: dict(_TOOL_LAYERS))
-    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0})
+    monkeypatch.setattr(cli, "_layer_counts", lambda _r: {"CORE": 1, "HIGH_FREQUENCY": 1, "EXTENDED": 1, "EXTERNAL": 0})
     # The governance gate compares string layer names against the real
     # `load_registered_layers()` contract; the stubbed `_TOOL_LAYERS` above holds
     # `ToolLayer` enum values, so isolate governance here — this test only
@@ -365,7 +365,7 @@ def test_main_prints_catalog_and_parity_errors(
     )
 
     bad_layers = dict(_TOOL_LAYERS)
-    bad_layers["todo_write"] = ToolLayer.COMMON
+    bad_layers["todo_write"] = ToolLayer.HIGH_FREQUENCY
     monkeypatch.setattr(cli, "load_registered_layers", lambda: bad_layers)
     monkeypatch.setattr(cli, "_check_default_enabled_product_parity", lambda: ["parity drift"])
     rc, out, _ = _run_main(

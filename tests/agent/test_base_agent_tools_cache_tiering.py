@@ -49,7 +49,7 @@ async def test_add_tools_sorting_when_cached_is_none(mock_agent):
     """Test that add_tools sorts tools correctly when _cached_tools is None."""
     t1 = DummyTool(name="skill_manage_tool")  # EXTENDED
     t2 = DummyTool(name="bash_code_execute_tool")  # CORE
-    t3 = DummyTool(name="web_search_tool")  # COMMON
+    t3 = DummyTool(name="web_search_tool")  # HIGH_FREQUENCY
 
     # Mock create_agent to prevent errors from LangGraph compilation
     with patch("myrm_agent_harness.agent.base_agent.create_agent"):
@@ -68,7 +68,7 @@ async def test_add_tools_sorting_when_cached_exists(mock_agent):
     mock_agent._cached_tools = [t1]
 
     t2 = DummyTool(name="skill_manage_tool")  # EXTENDED
-    t3 = DummyTool(name="web_search_tool")  # COMMON
+    t3 = DummyTool(name="web_search_tool")  # HIGH_FREQUENCY
     t4 = DummyTool(name="file_read_tool")  # CORE
 
     with patch("myrm_agent_harness.agent.base_agent.create_agent"):

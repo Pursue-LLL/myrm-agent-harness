@@ -9,12 +9,12 @@ class TestToolLayer:
 
     def test_layer_values(self) -> None:
         assert ToolLayer.CORE == 1
-        assert ToolLayer.COMMON == 2
+        assert ToolLayer.HIGH_FREQUENCY == 2
         assert ToolLayer.EXTENDED == 3
         assert ToolLayer.EXTERNAL == 4
 
     def test_layer_ordering(self) -> None:
-        assert ToolLayer.CORE < ToolLayer.COMMON < ToolLayer.EXTENDED < ToolLayer.EXTERNAL
+        assert ToolLayer.CORE < ToolLayer.HIGH_FREQUENCY < ToolLayer.EXTENDED < ToolLayer.EXTERNAL
 
 
 class TestToolLayerRegistry:

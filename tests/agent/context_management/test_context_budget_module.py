@@ -263,3 +263,46 @@ class TestResolveContextBudgetMetadata:
         request.tools = []
         metadata = resolve_context_budget_metadata(request)
         assert metadata["last_provider_prompt_tokens"] == 42_000
+
+
+class TestResolveContextBudgetBreakdownFineGrained:
+    @pytest.mark.asyncio
+    async def test_fine_grained_breakdown_with_merged_context(self) -> None:
+        from myrm_agent_harness.agent._internals.run_lifecycle import (
+            resolve_context_budget_breakdown,
+        )
+
+        class MockTool:
+            def __init__(self, name: str, description: str):
+                self.name = name
+                self.description = description
+
+        tools = [
+            MockTool("mcp__fetch_data", "Fetch data from MCP server"),
+            MockTool("skill_code_analysis", "Analyze repository source code"),
+            MockTool("file_read", "Read file contents"),
+        ]
+
+        merged_ctx = {
+            "system_prompt": "You are a helpful AI coding assistant with deep knowledge.",
+            "memory_context": "User prefers concise responses and dark theme UI.",
+            "workspace_rules": "Rule 1: Always write tests before deployment.",
+        }
+
+        result = await resolve_context_budget_breakdown(
+            checkpointer=None,
+            thread_id="test_thread_123",
+            cached_tools=tools,
+            provider_prompt_tokens=5000,
+            merged_context=merged_ctx,
+        )
+
+        assert result["bound_tools_overhead_tokens"] > 0
+        assert result["mcp_tools_tokens"] > 0
+        assert result["skills_tools_tokens"] > 0
+        assert result["builtin_tools_tokens"] > 0
+        assert result["system_prompt_tokens"] > 0
+        assert result["memory_tokens"] > 0
+        assert result["workspace_rules_tokens"] > 0
+        assert result["other_tokens"] >= 0
+

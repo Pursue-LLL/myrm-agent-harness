@@ -12,12 +12,12 @@ from myrm_agent_harness.agent.tool_management.tool_layers import (
 class TestToolLayer:
     def test_layer_ordering(self):
         assert (
-            ToolLayer.CORE < ToolLayer.COMMON < ToolLayer.EXTENDED < ToolLayer.EXTERNAL
+            ToolLayer.CORE < ToolLayer.HIGH_FREQUENCY < ToolLayer.EXTENDED < ToolLayer.EXTERNAL
         )
 
     def test_layer_values(self):
         assert ToolLayer.CORE == 1
-        assert ToolLayer.COMMON == 2
+        assert ToolLayer.HIGH_FREQUENCY == 2
         assert ToolLayer.EXTENDED == 3
         assert ToolLayer.EXTERNAL == 4
 
@@ -46,7 +46,7 @@ class TestGetToolLayer:
             "skill_select_tool",
         ]
         for tool in common_tools:
-            assert get_tool_layer(tool) == ToolLayer.COMMON, f"{tool} should be COMMON"
+            assert get_tool_layer(tool) == ToolLayer.HIGH_FREQUENCY, f"{tool} should be HIGH_FREQUENCY"
 
     def test_extended_tools_return_extended(self):
         extended_tools = [
@@ -83,8 +83,8 @@ class TestGetToolLayer:
 
 class TestRegisterToolLayer:
     def test_register_new_tool(self):
-        register_tool_layer("test_custom_tool_xyz", ToolLayer.COMMON)
-        assert get_tool_layer("test_custom_tool_xyz") == ToolLayer.COMMON
+        register_tool_layer("test_custom_tool_xyz", ToolLayer.HIGH_FREQUENCY)
+        assert get_tool_layer("test_custom_tool_xyz") == ToolLayer.HIGH_FREQUENCY
         del _TOOL_LAYERS["test_custom_tool_xyz"]
 
     def test_override_existing_tool(self):

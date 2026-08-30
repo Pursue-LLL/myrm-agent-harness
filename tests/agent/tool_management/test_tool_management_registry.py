@@ -122,7 +122,7 @@ class TestToolRegistryResolve:
         reg = ToolRegistry()
         reg.register(_make_tool("z_tool"), source=ToolSource.META, layer=ToolLayer.EXTENDED)
         reg.register(_make_tool("a_tool"), source=ToolSource.META, layer=ToolLayer.CORE)
-        reg.register(_make_tool("m_tool"), source=ToolSource.META, layer=ToolLayer.COMMON)
+        reg.register(_make_tool("m_tool"), source=ToolSource.META, layer=ToolLayer.HIGH_FREQUENCY)
         resolved = reg.resolve()
         names = [t.name for t in resolved]
         assert names == ["a_tool", "m_tool", "z_tool"]
@@ -201,8 +201,8 @@ class TestToolLayerFunctions:
         from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_layer
 
         assert get_tool_layer("file_read_tool") == ToolLayer.CORE
-        assert get_tool_layer("web_search_tool") == ToolLayer.COMMON
-        assert get_tool_layer("skill_select_tool") == ToolLayer.COMMON
+        assert get_tool_layer("web_search_tool") == ToolLayer.HIGH_FREQUENCY
+        assert get_tool_layer("skill_select_tool") == ToolLayer.HIGH_FREQUENCY
         assert get_tool_layer("skill_search_tool") == ToolLayer.EXTENDED
 
     def test_get_tool_layer_unregistered_defaults_external(self) -> None:
@@ -218,9 +218,9 @@ class TestToolLayerFunctions:
         )
 
         key = "_test_custom_tool"
-        register_tool_layer(key, ToolLayer.COMMON)
+        register_tool_layer(key, ToolLayer.HIGH_FREQUENCY)
         try:
-            assert get_tool_layer(key) == ToolLayer.COMMON
+            assert get_tool_layer(key) == ToolLayer.HIGH_FREQUENCY
         finally:
             _TOOL_LAYERS.pop(key, None)
 
@@ -254,7 +254,7 @@ class TestToolLayerFunctions:
         from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_layer
 
         for memory_tool in ("memory_manage_tool", "memory_search_tool", "memory_save_tool"):
-            assert get_tool_layer(memory_tool) == ToolLayer.COMMON
+            assert get_tool_layer(memory_tool) == ToolLayer.HIGH_FREQUENCY
 
         reg = ToolRegistry()
         for name in (
@@ -276,8 +276,8 @@ class TestToolLayerFunctions:
     def test_extended_tools_append_after_common_prefix(self) -> None:
         reg = ToolRegistry()
         reg.register(_make_tool("file_read_tool"), source=ToolSource.META, layer=ToolLayer.CORE)
-        reg.register(_make_tool("web_search_tool"), source=ToolSource.USER, layer=ToolLayer.COMMON)
-        reg.register(_make_tool("memory_search_tool"), source=ToolSource.USER, layer=ToolLayer.COMMON)
+        reg.register(_make_tool("web_search_tool"), source=ToolSource.USER, layer=ToolLayer.HIGH_FREQUENCY)
+        reg.register(_make_tool("memory_search_tool"), source=ToolSource.USER, layer=ToolLayer.HIGH_FREQUENCY)
         common_prefix = [tool.name for tool in reg.resolve()]
 
         with_extended = ToolRegistry()

@@ -7,15 +7,15 @@
 (none — pure enum + dict, no external deps)
 
 [OUTPUT]
-- ToolLayer: 工具层级枚举(CORE=1, COMMON=2, EXTENDED=3, EXTERNAL=4)
+- ToolLayer: 工具层级枚举(CORE=1, HIGH_FREQUENCY=2, EXTENDED=3, EXTERNAL=4)
 - register_tool_layer(): 注册工具到指定层级
 - get_tool_layer(): 获取工具的层级
 - get_tool_registry_sort_key(): Cache-friendly sort key for ToolRegistry
-- tool_layer_snapshot_label(): GUI-facing layer slug (core/common/extended/external)
+- tool_layer_snapshot_label(): GUI-facing layer slug (core/high_frequency/extended/external)
 - is_registered_action_tool(): 判断工具名是否在 Action Tool SSOT 中
 
 [POS]
-Tool layer priority registry. Defines CORE/COMMON/EXTENDED/EXTERNAL four-tier tool priorities used by ToolRegistry for ordering.
+Tool layer priority registry. Defines CORE/HIGH_FREQUENCY/EXTENDED/EXTERNAL four-tier tool priorities used by ToolRegistry for ordering.
 
 Tool loading dual-track (SSOT):
 - General track (Web non-fast, Channel/IM, Cron/Kanban): CORE tools always Turn1 eager via tool_mount.resolve_agent_mount → get_meta_tools(enable_shell_tools=True).
@@ -34,13 +34,13 @@ class ToolLayer(IntEnum):
 
     层级说明与架构定位:
     - CORE (Layer 1): 核心层基线工具，100% 始终存在，无前端开关，不可关闭（保证终极前缀缓存）
-    - COMMON (Layer 2): 高优层标配工具，默认全局开启/挂载（Default-ON），支持前端/配置按需关闭（User-Togglable，如搜索、记忆、技能选择）
+    - HIGH_FREQUENCY (Layer 2): 高优层标配工具，默认全局开启/挂载（Default-ON），支持前端/配置按需关闭（User-Togglable，如搜索、记忆、技能选择）
     - EXTENDED (Layer 3): 扩展层可选高级能力，按需装配（Profile 开关或特定意图触发），默认关闭不全开
     - EXTERNAL (Layer 4): 外部业务层工具（非 harness 内置，server vendor / MCP direct / OpenAPI / 动态工具），永远位于末尾
     """
 
     CORE = 1
-    COMMON = 2
+    HIGH_FREQUENCY = 2
     EXTENDED = 3
     EXTERNAL = 4
 
@@ -49,11 +49,11 @@ class ToolLayer(IntEnum):
 #
 # 设计原则:
 # 1. 始终加载的工具放 CORE,永远在最前面,保证绝对前缀缓存稳定
-# 2. 默认开启但支持用户关闭的标配工具放 COMMON（Default-ON, User-Togglable）,在中间; 组内 web_search 优先置顶
+# 2. 默认开启但支持用户关闭的标配工具放 HIGH_FREQUENCY（Default-ON, User-Togglable）,在中间; 组内 web_search 优先置顶
 # 3. harness 可选/重型能力工具放 EXTENDED
 # 4. 框架外工具(server vendor / MCP / OpenAPI)放 EXTERNAL,永远在最后
 #
-# 排序规则:按层级排序; COMMON 层内 web_search 优先于 memory 组，其余按名称字母序
+# 排序规则:按层级排序; HIGH_FREQUENCY 层内 web_search 优先于 memory 组，其余按名称字母序
 # 缓存原理:Prompt Cache 是前缀匹配,CORE 工具放最前面可保证永远被缓存
 #
 # 工具名称必须与 @tool() 装饰器中声明的名称完全一致
@@ -75,14 +75,14 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "glob_tool": ToolLayer.CORE,
     "grep_tool": ToolLayer.CORE,
     # ============================================================
-    # COMMON - 高优层：默认开启/挂载，支持前端/配置按需关闭（User-Togglable）
+    # HIGH_FREQUENCY - 高优层：默认开启/挂载，支持前端/配置按需关闭（User-Togglable）
     # 组内严格排序：搜索工具 (Rank 0) -> 记忆工具 (Rank 10~12) -> 技能选择工具 (Rank 20)
     # ============================================================
-    "web_search_tool": ToolLayer.COMMON,
-    "memory_search_tool": ToolLayer.COMMON,
-    "memory_save_tool": ToolLayer.COMMON,
-    "memory_manage_tool": ToolLayer.COMMON,
-    "skill_select_tool": ToolLayer.COMMON,
+    "web_search_tool": ToolLayer.HIGH_FREQUENCY,
+    "memory_search_tool": ToolLayer.HIGH_FREQUENCY,
+    "memory_save_tool": ToolLayer.HIGH_FREQUENCY,
+    "memory_manage_tool": ToolLayer.HIGH_FREQUENCY,
+    "skill_select_tool": ToolLayer.HIGH_FREQUENCY,
     # ============================================================
     # EXTENDED - 扩展层：harness 可选高级能力(Turn1 按需); EXTERNAL 在其后, 见 get_tool_layer 默认 fallback
     # ============================================================
@@ -125,7 +125,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "kanban_cancel_task": ToolLayer.EXTENDED,
     "kanban_retry_task": ToolLayer.EXTENDED,
     "kanban_revise_plan": ToolLayer.EXTENDED,
-    # --- 记忆工具（search/save/manage → COMMON；sessions/wiki 通过 corpus ACL）---
+    # --- 记忆工具（search/save/manage → HIGH_FREQUENCY；sessions/wiki 通过 corpus ACL）---
     # --- 技能工具 ---
     "skill_search_tool": ToolLayer.EXTENDED,
     "skill_market_tool": ToolLayer.EXTENDED,
@@ -141,8 +141,8 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
 }
 
 
-# COMMON 层组内排序：web_search 优先置顶，记忆三件套紧随其后，技能选择工具承接（组内按 rank 稳定排序）
-_COMMON_LAYER_SORT_RANK: dict[str, int] = {
+# HIGH_FREQUENCY 层组内排序：web_search 优先置顶，记忆三件套紧随其后，技能选择工具承接（组内按 rank 稳定排序）
+_HIGH_FREQUENCY_LAYER_SORT_RANK: dict[str, int] = {
     "web_search_tool": 0,
     "memory_manage_tool": 10,
     "memory_search_tool": 11,
@@ -153,7 +153,7 @@ _COMMON_LAYER_SORT_RANK: dict[str, int] = {
 
 _LAYER_SNAPSHOT_LABELS: dict[ToolLayer, str] = {
     ToolLayer.CORE: "core",
-    ToolLayer.COMMON: "common",
+    ToolLayer.HIGH_FREQUENCY: "high_frequency",
     ToolLayer.EXTENDED: "extended",
     ToolLayer.EXTERNAL: "external",
 }
@@ -169,11 +169,11 @@ def get_tool_registry_sort_key(
 ) -> tuple[int, int, str]:
     """Cache-friendly registry sort key: layer → group rank → name.
 
-    COMMON 层按 _COMMON_LAYER_SORT_RANK 排序以固化高优 Golden Prefix;
+    高频层按 _HIGH_FREQUENCY_LAYER_SORT_RANK 排序以固化高优 Golden Prefix;
     CORE、EXTENDED、EXTERNAL 层统一按字母序 (group_rank=0) 稳定排序.
     """
-    if layer == ToolLayer.COMMON:
-        group_rank = _COMMON_LAYER_SORT_RANK.get(tool_name, 50)
+    if layer == ToolLayer.HIGH_FREQUENCY:
+        group_rank = _HIGH_FREQUENCY_LAYER_SORT_RANK.get(tool_name, 50)
         return (int(layer), group_rank, tool_name)
     return (int(layer), 0, tool_name)
 
@@ -182,7 +182,7 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
     """获取工具层级
 
     [核心架构约束]: 保护大模型 Prompt Prefix Cache
-    harness SSOT 工具使用 CORE/COMMON/EXTENDED; 框架外工具(MCP direct / OpenAPI /
+    harness SSOT 工具使用 CORE/HIGH_FREQUENCY/EXTENDED; 框架外工具(MCP direct / OpenAPI /
     server vendor / 一切未登记名)使用 EXTERNAL, 排序上永远位于 harness 三层之后.
 
     Args:
