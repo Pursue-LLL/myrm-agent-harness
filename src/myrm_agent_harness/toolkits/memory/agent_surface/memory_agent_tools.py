@@ -53,6 +53,11 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy impor
     MemorySearchPolicy,
     resolve_search_corpora,
 )
+from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
+    looks_like_transient_business_fact,
+    record_transient_fact_rejection,
+    transient_fact_save_rejection_message,
+)
 from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     looks_like_wiki_document,
     record_wiki_memory_save_rejection,
@@ -301,6 +306,13 @@ def create_memory_tools(
         ):
             record_wiki_memory_save_rejection()
             return wiki_memory_save_rejection_message()
+
+        if (
+            category in ("knowledge", "event")
+            and looks_like_transient_business_fact(content)
+        ):
+            record_transient_fact_rejection()
+            return transient_fact_save_rejection_message()
 
         effective_write_target = write_target
         if not policy.allow_shared_write and write_target == "shared":

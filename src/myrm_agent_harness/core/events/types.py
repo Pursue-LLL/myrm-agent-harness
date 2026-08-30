@@ -166,8 +166,8 @@ class ContextBudgetSnapshot:
     health_status mirrors ContextHealthStatus from context_management but avoids
     coupling to the full ContextBudget infrastructure.
 
-    Optional breakdown fields (messages / tool schemas / remainder) help the GUI
-    explain why the context ring is high without changing token decision logic.
+    Optional breakdown fields (messages / tool schemas / system / memory / rules / MCP / skills)
+    help the GUI explain why the context ring is high according to the AgentLens 6-bucket model.
     """
 
     current_tokens: int
@@ -178,6 +178,13 @@ class ContextBudgetSnapshot:
     bound_tools_overhead_tokens: int | None = None
     other_tokens: int | None = None
     turn_count: int | None = None
+    # AgentLens 6-category breakdown (SSOT)
+    system_prompt_tokens: int | None = None
+    memory_tokens: int | None = None
+    workspace_rules_tokens: int | None = None
+    mcp_tools_tokens: int | None = None
+    skills_tools_tokens: int | None = None
+    builtin_tools_tokens: int | None = None
 
     def to_dict(self) -> dict[str, int | float | str]:
         payload: dict[str, int | float | str] = {
@@ -194,6 +201,18 @@ class ContextBudgetSnapshot:
             payload["other_tokens"] = self.other_tokens
         if self.turn_count is not None:
             payload["turn_count"] = self.turn_count
+        if self.system_prompt_tokens is not None:
+            payload["system_prompt_tokens"] = self.system_prompt_tokens
+        if self.memory_tokens is not None:
+            payload["memory_tokens"] = self.memory_tokens
+        if self.workspace_rules_tokens is not None:
+            payload["workspace_rules_tokens"] = self.workspace_rules_tokens
+        if self.mcp_tools_tokens is not None:
+            payload["mcp_tools_tokens"] = self.mcp_tools_tokens
+        if self.skills_tools_tokens is not None:
+            payload["skills_tools_tokens"] = self.skills_tools_tokens
+        if self.builtin_tools_tokens is not None:
+            payload["builtin_tools_tokens"] = self.builtin_tools_tokens
         return payload
 
 

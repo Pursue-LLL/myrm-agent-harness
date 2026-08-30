@@ -937,6 +937,7 @@ async def run_agent_loop(
                     thread_id=thread_id,
                     cached_tools=agent_state._cached_tools,
                     provider_prompt_tokens=provider_prompt_tokens,
+                    merged_context=merged_context,
                 )
             ),
         )

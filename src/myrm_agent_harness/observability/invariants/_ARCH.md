@@ -11,7 +11,7 @@ Package-owned runtime invariant assertions and registry service. Validates cross
 | `__init__.py` | Package | Re-exports RuntimeInvariantRegistry, InvariantViolation, InvariantError, and core checks. | ✅ |
 | `types.py` | Core | Foundation type system: InvariantSeverity (ERROR, WARN), InvariantViolation, InvariantCheckerProtocol. | ✅ |
 | `registry.py` | Core | RuntimeInvariantRegistry service with mode switching (STRICT, WARN, DISABLED) and regex filtering. | ✅ |
-| `core_pack.py` | Core | Standard core invariant companion checks (event pairing, lifecycle state transitions, Todo structure). | ✅ |
+| `core_pack.py` | Core | Standard core invariant companion checks (event pairing, lifecycle state transitions, Todo structure, Step enclosure, Sequence continuity). | ✅ |
 
 ## Key Dependencies
 

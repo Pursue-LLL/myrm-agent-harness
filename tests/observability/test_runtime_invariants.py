@@ -9,7 +9,9 @@ from myrm_agent_harness.observability.invariants import (
     InvariantViolation,
     RuntimeInvariantRegistry,
     check_agent_state_transition,
+    check_sequence_continuity,
     check_session_event_pairing,
+    check_step_enclosure,
     check_todo_structure_integrity,
     install_core_invariants,
 )
@@ -121,6 +123,82 @@ def test_todo_structure_integrity_invariant():
     assert any("missing or empty id" in msg for msg in messages)
 
 
+def test_step_enclosure_invariant():
+    """Test step/turn bracket enclosure verification."""
+    # Valid enclosed sequence
+    valid_events = [
+        {"event_type": "task_step_start", "step_id": "s1"},
+        {"event_type": "tool_start", "tool_call_id": "c1"},
+        {"event_type": "tool_end", "tool_call_id": "c1"},
+        {"event_type": "assistant_message", "content": "Done"},
+        {"event_type": "task_step_end", "step_id": "s1"},
+    ]
+    assert check_step_enclosure(valid_events) == []
+
+    # Orphan payload outside step bracket
+    orphan_payload = [
+        {"event_type": "user_message", "content": "Hello outside"},
+    ]
+    violations = check_step_enclosure(orphan_payload)
+    assert len(violations) == 1
+    assert "outside an active step/turn enclosure" in violations[0].message
+
+    # Orphan closing bracket
+    orphan_close = [
+        {"event_type": "task_step_end", "step_id": "s_ghost"},
+    ]
+    violations = check_step_enclosure(orphan_close)
+    assert len(violations) == 1
+    assert "without matching start step/turn bracket" in violations[0].message
+
+    # Unclosed step bracket
+    unclosed_step = [
+        {"event_type": "step_start", "step_id": "s_open"},
+        {"event_type": "thought", "content": "Thinking..."},
+    ]
+    violations = check_step_enclosure(unclosed_step)
+    assert len(violations) == 1
+    assert "never received closing bracket" in violations[0].message
+
+
+def test_sequence_continuity_invariant():
+    """Test monotonic sequence numbers and gap-free detection."""
+    # Valid consecutive sequence
+    valid_seq = [
+        {"seq": 1, "event_type": "step_start"},
+        {"seq": 2, "event_type": "thought"},
+        {"seq": 3, "event_type": "step_end"},
+    ]
+    assert check_sequence_continuity(valid_seq) == []
+
+    # Sequence gap detected (1 -> 3, missing 2)
+    gap_seq = [
+        {"seq": 1, "event_type": "step_start"},
+        {"seq": 3, "event_type": "step_end"},
+    ]
+    violations = check_sequence_continuity(gap_seq)
+    assert len(violations) == 1
+    assert "Sequence gap detected" in violations[0].message
+    assert violations[0].details["gap_size"] == 1
+
+    # Non-monotonic sequence (2 -> 1)
+    non_mono_seq = [
+        {"seq": 2, "event_type": "step_start"},
+        {"seq": 1, "event_type": "thought"},
+    ]
+    violations = check_sequence_continuity(non_mono_seq)
+    assert len(violations) == 1
+    assert "Non-monotonic sequence number" in violations[0].message
+
+    # Non-integer sequence
+    bad_type_seq = [
+        {"seq": "invalid_number", "event_type": "step_start"},
+    ]
+    violations = check_sequence_continuity(bad_type_seq)
+    assert len(violations) == 1
+    assert "Non-integer sequence number" in violations[0].message
+
+
 def test_install_core_invariants_and_check_all():
     """Test full integration with install_core_invariants and check_all."""
     registry = RuntimeInvariantRegistry(mode=InvariantMode.WARN)
@@ -129,4 +207,4 @@ def test_install_core_invariants_and_check_all():
     assert "session.events" in registry.registered_packages
     assert "agent.lifecycle" in registry.registered_packages
     assert "toolkits.todo" in registry.registered_packages
-    assert registry.total_checkers_count == 3
+    assert registry.total_checkers_count == 5

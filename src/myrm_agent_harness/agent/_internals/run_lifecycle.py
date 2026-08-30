@@ -464,6 +464,12 @@ def compute_context_budget_snapshot(
     bound_tools_overhead_tokens: int | None = None,
     other_tokens: int | None = None,
     turn_count: int | None = None,
+    system_prompt_tokens: int | None = None,
+    memory_tokens: int | None = None,
+    workspace_rules_tokens: int | None = None,
+    mcp_tools_tokens: int | None = None,
+    skills_tools_tokens: int | None = None,
+    builtin_tools_tokens: int | None = None,
 ) -> ContextBudgetSnapshot | None:
     """Compute a lightweight context budget snapshot from token tracker stats.
 
@@ -505,6 +511,12 @@ def compute_context_budget_snapshot(
         bound_tools_overhead_tokens=bound_tools_overhead_tokens,
         other_tokens=other_tokens,
         turn_count=turn_count,
+        system_prompt_tokens=system_prompt_tokens,
+        memory_tokens=memory_tokens,
+        workspace_rules_tokens=workspace_rules_tokens,
+        mcp_tools_tokens=mcp_tools_tokens,
+        skills_tools_tokens=skills_tools_tokens,
+        builtin_tools_tokens=builtin_tools_tokens,
     )
 
 
@@ -514,9 +526,11 @@ async def resolve_context_budget_breakdown(
     thread_id: str,
     cached_tools: object | None,
     provider_prompt_tokens: int,
+    merged_context: dict[str, object] | None = None,
 ) -> dict[str, int]:
-    """Resolve GUI breakdown: messages est., tool schema est., system/other remainder.
+    """Resolve GUI breakdown: messages est., tool schema est., system/other remainder,
 
+    along with fine-grained AgentLens 6-category breakdown (System / Memory / Rules / MCP / Skills).
     Also returns ``turn_count`` = number of human messages in the checkpoint, so
     the preflight can reuse the same dynamic-threshold input as compress_processor.
     """
@@ -524,9 +538,12 @@ async def resolve_context_budget_breakdown(
 
     from langchain_core.messages import BaseMessage
 
+    from myrm_agent_harness.utils.text_utils import get_token_count
     from myrm_agent_harness.utils.token_estimation import (
+        _tool_description_text,
         estimate_messages_tokens,
         estimate_request_tools_tokens,
+        SCHEMA_WRAPPER_TOKENS_PER_TOOL,
     )
 
     messages_tokens = 0
@@ -553,18 +570,62 @@ async def resolve_context_budget_breakdown(
                 exc_info=True,
             )
 
+    builtin_tokens = 0
+    mcp_tokens = 0
+    skills_tokens = 0
+
     if isinstance(cached_tools, Sequence) and cached_tools:
         tools_tokens = estimate_request_tools_tokens(cached_tools)
+        for t in cached_tools:
+            name = getattr(t, "name", "")
+            if not name and isinstance(t, dict):
+                fn = t.get("function")
+                name = fn.get("name", "") if isinstance(fn, dict) else t.get("name", "")
+            name_str = str(name)
+            desc_tokens = get_token_count(_tool_description_text(t)) + SCHEMA_WRAPPER_TOKENS_PER_TOOL
+            if name_str.startswith("mcp__") or "mcp" in name_str.lower():
+                mcp_tokens += desc_tokens
+            elif name_str.startswith("skill_") or "skill" in name_str.lower():
+                skills_tokens += desc_tokens
+            else:
+                builtin_tokens += desc_tokens
 
     if not has_messages and tools_tokens <= 0:
         return {}
 
     other_tokens = max(0, provider_prompt_tokens - messages_tokens - tools_tokens)
+
+    # Estimate fine-grained other sub-buckets from merged_context
+    system_prompt_tokens = 0
+    memory_tokens = 0
+    workspace_rules_tokens = 0
+
+    if merged_context:
+        sp = merged_context.get("system_prompt")
+        if isinstance(sp, str) and sp:
+            system_prompt_tokens = get_token_count(sp)
+        mem = merged_context.get("memory_context") or merged_context.get("retrieved_memory")
+        if isinstance(mem, str) and mem:
+            memory_tokens = get_token_count(mem)
+        rules = merged_context.get("workspace_rules") or merged_context.get("project_rules")
+        if isinstance(rules, str) and rules:
+            workspace_rules_tokens = get_token_count(rules)
+
     result: dict[str, int] = {
         "messages_estimated_tokens": messages_tokens,
         "bound_tools_overhead_tokens": tools_tokens,
         "other_tokens": other_tokens,
+        "builtin_tools_tokens": builtin_tokens,
+        "mcp_tools_tokens": mcp_tokens,
+        "skills_tools_tokens": skills_tokens,
     }
+    if system_prompt_tokens > 0:
+        result["system_prompt_tokens"] = system_prompt_tokens
+    if memory_tokens > 0:
+        result["memory_tokens"] = memory_tokens
+    if workspace_rules_tokens > 0:
+        result["workspace_rules_tokens"] = workspace_rules_tokens
+
     # 仅在 checkpoint 真实可读时返回轮数，避免读取失败时前端误用 0 覆盖本地统计
     if has_messages:
         result["turn_count"] = turn_count

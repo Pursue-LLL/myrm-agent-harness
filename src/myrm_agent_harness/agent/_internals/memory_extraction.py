@@ -245,6 +245,15 @@ async def persist_extracted_memories(
     else:
         dropped = 0
 
+    if batch:
+        from myrm_agent_harness.toolkits.memory.transient_fact_boundary import (
+            filter_transient_business_memories,
+        )
+
+        filtered_transient_batch, dropped_transient = filter_transient_business_memories(batch)
+        batch = filtered_transient_batch
+        dropped += dropped_transient
+
     stored = await memory_manager.store_batch(batch) if batch else []
     return len(stored) + len(concrete) - len(batch) - dropped
 

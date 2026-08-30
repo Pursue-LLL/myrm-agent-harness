@@ -347,7 +347,8 @@ _GUIDELINES = """
 - **confidence**: 0.9=explicit, 0.7=implied, 0.5=inferred
 - **importance**: how useful/significant
 - Avoid sensitive data (passwords, financials)
-- **Never store**: raw tool output/logs, cron heartbeats, pure acknowledgments ("OK", "Done"), verbatim code blocks, transient system errors, transient emotional/psychological states (e.g., "anxious today", "feeling depressed") unless explicitly stated as a chronic condition, transient conversation styles, group chat slang, emojis, or temporary formatting habits (conversational styles are ephemeral and channel-specific; do not persist them as profile or semantic memories)"""
+- **Never store**: raw tool output/logs, cron heartbeats, pure acknowledgments ("OK", "Done"), verbatim code blocks, transient system errors, transient emotional/psychological states (e.g., "anxious today", "feeling depressed") unless explicitly stated as a chronic condition, transient conversation styles, group chat slang, emojis, or temporary formatting habits (conversational styles are ephemeral and channel-specific; do not persist them as profile or semantic memories)
+- **Never store transient business states**: real-time order status, package/logistics delivery tracking ("package is out for delivery", "in transit at hub"), live account/wallet balances ("current balance is $50"), dynamic OTP/verification codes, temporary download/presigned links, or live queue numbers. Real-time operational states must always be queried via live integration tools or kept in session memory, NEVER persisted into long-term L3 memory. (Durable user preferences such as "prefers SF Express for delivery" or "favorite store" ARE valid profile/semantic memories and should still be extracted)."""
 
 _OUTPUT_FORMAT = """
 ## Output
