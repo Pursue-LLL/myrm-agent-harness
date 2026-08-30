@@ -15,10 +15,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import Any
 
 
-def _coerce_edit_item(raw: Any) -> dict[str, str]:
+def _coerce_edit_item(raw: object) -> dict[str, str]:
     if isinstance(raw, Mapping):
         old = raw.get("old_str")
         if old is None:
@@ -32,7 +31,7 @@ def _coerce_edit_item(raw: Any) -> dict[str, str]:
     raise ValueError("Each edit must be an object with old_str and new_str")
 
 
-def normalize_edits_payload(data: Mapping[str, Any]) -> list[dict[str, str]]:
+def normalize_edits_payload(data: Mapping[str, object]) -> list[dict[str, str]]:
     """Return normalized edits list from raw tool args (supports legacy flat fields)."""
     if "edits" in data and data["edits"] is not None:
         edits_raw = data["edits"]

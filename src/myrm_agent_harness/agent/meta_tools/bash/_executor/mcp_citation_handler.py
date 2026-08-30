@@ -16,7 +16,6 @@ MCP Metadata Extractor
 import json
 import logging
 import re
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
