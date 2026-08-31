@@ -241,3 +241,42 @@ class TestApprovalWorkflow:
 
         assert count == 3
         mock_relational_store.batch_mark_pending.assert_called_once_with(["p1", "p2", "p3"], "rejected")
+
+    @pytest.mark.asyncio
+    async def test_store_batch_force_pending_without_approval_flag(
+        self, mock_relational_store, memory_config
+    ):
+        """Inferred writes must queue pending even when approval_required=False."""
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            relational=mock_relational_store,
+            approval_required=False,
+        )
+
+        memory = SemanticMemory(content="Inferred fact from auto-extraction")
+        stored = await manager.store_batch([memory], _force_pending=True)
+
+        assert len(stored) == 1
+        assert stored[0].metadata.get("write_intent") == "inferred"
+        mock_relational_store.submit_pending.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_add_knowledge_bypasses_approval_gate(
+        self, mock_vector_store, mock_relational_store, mock_embedding, memory_config
+    ):
+        """Explicit memory_save_tool path writes directly."""
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            relational=mock_relational_store,
+            embedding=mock_embedding,
+            approval_required=True,
+        )
+
+        result = await manager.add_knowledge("User asked me to remember this")
+
+        assert isinstance(result, SemanticMemory)
+        mock_relational_store.submit_pending.assert_not_called()
+        mock_vector_store.upsert.assert_called()

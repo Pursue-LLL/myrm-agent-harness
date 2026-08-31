@@ -29,6 +29,10 @@ Observability tools for Myrm Agent framework. Provides Prometheus metrics, auth 
 | tracing/ | ContextVar-based request tracing (trace_id / session_id) with logging.Filter and JSON formatter. |
 | invariants/ | Package-owned runtime invariant assertions and registry service (event pairing, lifecycle, data integrity). |
 | friction/ | Zero-LLM agent task friction point telemetry, aggregation, and Eval Lab co-evolution pipeline. |
+| economics/ | Token economics telemetry, prompt cache reuse auditing, and single-step cost regression detection. |
+| latency/ | Agent turn chain latency decomposition, waterfall visualization models, and wall-clock bottleneck identification. |
+| digest/ | Team weekly digest and knowledge compounding newsletter engine (activity aggregation, skill health, Markdown rendering). |
+| security_audit/ | Auto-approval trigger diagnostics, quota usage decoupling (Primary vs Reviewer), and allowlist recommendation engine. |
 
 ## Key Dependencies
 

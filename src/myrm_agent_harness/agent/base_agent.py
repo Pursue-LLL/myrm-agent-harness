@@ -84,6 +84,7 @@ class BaseAgent(BaseAgentModesMixin):
         config: AgentRuntimeConfig | None = None,
         on_artifacts_ready: ArtifactReadyHandler | None = None,
         fallback_llm: BaseChatModel | None = None,
+        fallback_llms: list[BaseChatModel] | None = None,
         safety_fallback_llm: BaseChatModel | None = None,
         escalation_target_llm: BaseChatModel | None = None,
         checkpointer: BaseCheckpointSaver | None = None,
@@ -91,7 +92,12 @@ class BaseAgent(BaseAgentModesMixin):
         model_resolver: object | None = None,
     ) -> None:
         self.llm = llm
-        self.fallback_llm = fallback_llm
+        self.fallback_llms: list[BaseChatModel] = (
+            list(fallback_llms)
+            if fallback_llms is not None
+            else ([fallback_llm] if fallback_llm is not None else [])
+        )
+        self.fallback_llm = self.fallback_llms[0] if self.fallback_llms else fallback_llm
         self.safety_fallback_llm = safety_fallback_llm
         self.escalation_target_llm = escalation_target_llm
         self.executor = executor

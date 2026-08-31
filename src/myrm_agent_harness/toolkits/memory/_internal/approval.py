@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from myrm_agent_harness.toolkits.memory.types import (
     AnyMemory,
+    ConversationMemory,
     EpisodicMemory,
     MemoryType,
     PendingRecord,
@@ -48,4 +49,6 @@ def pending_to_memory(record: PendingRecord) -> AnyMemory:
         return EpisodicMemory(**data)
     if mt == MemoryType.PROCEDURAL:
         return ProceduralMemory(**data)
+    if mt == MemoryType.CONVERSATION:
+        return ConversationMemory(**data)
     raise ValueError(f"Cannot reconstruct memory from type: {mt}")

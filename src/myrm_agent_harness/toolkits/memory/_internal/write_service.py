@@ -4,14 +4,16 @@
 [INPUT]
 - memory._internal.storage::{store_*} (POS: internal vector storage operations)
 - memory._internal.memory_scanner::scan_and_clean_memory (POS: content safety scanner)
+- memory.transient_fact_boundary::filter_transient_business_memories (POS: L3 write gate for transient business facts)
 - memory.strategies.deduplicator::Deduplicator (POS: three-layer dedup: hash→vector→LLM)
 
 [OUTPUT]
-- MemoryWriteService: Write-side orchestrator (scan, approval routing, batch dedup, persistence)
+- MemoryWriter: Write-side orchestrator (scan, transient business fact L3 write gate, approval routing, explicit/inferred write gates, batch dedup, persistence)
 
 [POS]
-Write-side orchestration for memory persistence. Handles memory scanning, approval routing,
-batch deduplication, and persistence. Not part of the public API.
+Write-side orchestration for memory persistence. Handles memory scanning, transient business fact filtering at the L3 write gate, approval routing,
+explicit bypass vs inferred force-pending gates, batch deduplication, and persistence.
+Not part of the public API.
 """
 
 from __future__ import annotations
@@ -119,7 +121,20 @@ class MemoryWriter:
         self._deduplicate_semantic_batch = deduplicate_semantic_batch_func
         self._deduplicate_episodic_batch = deduplicate_episodic_batch_func
 
-    async def store(self, memory: AnyMemory, *, bypass_approval: bool = False) -> AnyMemory:
+    def _routes_to_pending(self, *, bypass_approval: bool, force_pending: bool) -> bool:
+        if bypass_approval:
+            return False
+        if force_pending:
+            return True
+        return self._approval_required
+
+    async def store(
+        self,
+        memory: AnyMemory,
+        *,
+        bypass_approval: bool = False,
+        force_pending: bool = False,
+    ) -> AnyMemory:
         self._validate_supported_memory(memory)
         self._attach_current_trace_id(memory)
         bound_memory = self._bind_scope(memory)
@@ -130,7 +145,12 @@ class MemoryWriter:
         if isinstance(bound_memory, ProceduralMemory):
             self._enforce_agent_self_priority_ceiling(bound_memory)
 
-        if self._approval_required and not bypass_approval:
+        if force_pending:
+            bound_memory.metadata["write_intent"] = "inferred"
+
+        bound_memory = self._require_transient_fact_allowed(bound_memory)
+
+        if self._routes_to_pending(bypass_approval=bypass_approval, force_pending=force_pending):
             pending_id = await self._submit_pending(bound_memory)
             if not pending_id:
                 raise MemoryError("Duplicate pending memory (already awaiting approval)")
@@ -145,7 +165,13 @@ class MemoryWriter:
             return await self._store_procedural(bound_memory)
         raise ValueError(f"Unknown memory type: {type(bound_memory).__name__}")
 
-    async def store_batch(self, memories: Sequence[AnyMemory], *, bypass_approval: bool = False) -> list[AnyMemory]:
+    async def store_batch(
+        self,
+        memories: Sequence[AnyMemory],
+        *,
+        bypass_approval: bool = False,
+        force_pending: bool = False,
+    ) -> list[AnyMemory]:
         if not memories:
             return []
 
@@ -162,8 +188,14 @@ class MemoryWriter:
         for mem in safe_memories:
             if isinstance(mem, ProceduralMemory):
                 self._enforce_agent_self_priority_ceiling(mem)
+            if force_pending:
+                mem.metadata["write_intent"] = "inferred"
 
-        if self._approval_required and not bypass_approval:
+        safe_memories = self._filter_transient_business_batch(safe_memories)
+        if not safe_memories:
+            return []
+
+        if self._routes_to_pending(bypass_approval=bypass_approval, force_pending=force_pending):
             results: list[AnyMemory] = []
             for memory in safe_memories:
                 pending_id = await self._submit_pending(memory)
@@ -245,6 +277,29 @@ class MemoryWriter:
             source=source,
             scope=self._scope.model_copy(deep=True),
         )
+
+    def _filter_transient_business_batch(self, memories: Sequence[AnyMemory]) -> list[AnyMemory]:
+        from myrm_agent_harness.toolkits.memory.transient_fact_boundary import (
+            filter_transient_business_memories,
+        )
+
+        filtered, dropped = filter_transient_business_memories(list(memories))
+        if dropped:
+            logger.info(
+                "Transient business fact write gate dropped %d memories before persist",
+                dropped,
+            )
+        return filtered
+
+    def _require_transient_fact_allowed(self, memory: AnyMemory) -> AnyMemory:
+        filtered = self._filter_transient_business_batch([memory])
+        if not filtered:
+            from myrm_agent_harness.toolkits.memory.transient_fact_boundary import (
+                transient_fact_save_rejection_message,
+            )
+
+            raise MemoryError(transient_fact_save_rejection_message())
+        return filtered[0]
 
     def _scan_batch(self, memories: Sequence[AnyMemory]) -> list[AnyMemory]:
         if not self._config.security_scan_enabled:

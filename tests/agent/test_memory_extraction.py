@@ -344,6 +344,40 @@ class TestPersistExtractedMemories:
                 deep_scan_llm_func=None,
             )
             assert mock_memory.content == "User has diabetes"
+            mock_manager.store_batch.assert_awaited_once()
+            _, kwargs = mock_manager.store_batch.await_args
+            assert kwargs.get("_force_pending") is True
+
+    @pytest.mark.asyncio
+    async def test_verbatim_auto_extract_does_not_force_pending(self) -> None:
+        mock_manager = MagicMock()
+        mock_manager.user_id = "user1"
+        mock_manager.store_batch = AsyncMock(return_value=[])
+        mock_manager.last_cited_memory_ids = []
+        mock_llm = AsyncMock()
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.memory.strategies.extractor.extract_memories_from_conversation",
+                new_callable=AsyncMock,
+                return_value=MagicMock(memories=[], extraction_time_ms=0.0),
+            ),
+            patch(
+                "myrm_agent_harness.agent._internals.memory_extraction.create_conversation_memories",
+                return_value=[MagicMock()],
+            ),
+        ):
+            await auto_extract_memories(
+                query="Tell me about Python's history and design philosophy in detail",
+                chat_history=None,
+                memory_manager=mock_manager,
+                llm=mock_llm,
+                assistant_reply="A" * 200,
+            )
+
+        mock_manager.store_batch.assert_awaited()
+        _, kwargs = mock_manager.store_batch.await_args
+        assert kwargs.get("_force_pending") is not True
 
 
 class TestApplyDeepPIIScan:

@@ -26,7 +26,7 @@ Internal implementation details — not part of the public API.
 | storage_conversation.py | Core | Conversation memory storage with dual-embedding (Qdrant named vectors). | ✅ |
 | storage_converters.py | Core | Document ↔ Schema converters and shared metadata helpers (scope, lifecycle, filter). | ✅ |
 | storage_search.py | Core | Search operations: vector similarity, BM25 keyword, profile/procedural text, dual-channel conversation search with RRF fusion. | ✅ |
-| write_service.py | Core | Write-side orchestration for memory persistence. Handles memory scanning, approval routing, batch dedup, and the write-scope fence (`_validate_write_scope`) that rejects namespaces outside the writer's grant. | ✅ |
+| write_service.py | Core | Write-side orchestration for memory persistence. Handles memory scanning, transient business fact L3 write gate, approval routing, batch dedup, and the write-scope fence (`_validate_write_scope`) that rejects namespaces outside the writer's grant. | ✅ |
 
 ## Key Dependencies
 

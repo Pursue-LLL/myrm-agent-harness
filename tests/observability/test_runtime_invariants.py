@@ -205,6 +205,7 @@ def test_install_core_invariants_and_check_all():
     install_core_invariants(registry)
 
     assert "session.events" in registry.registered_packages
+    assert "event_log.integrity" in registry.registered_packages
     assert "agent.lifecycle" in registry.registered_packages
     assert "toolkits.todo" in registry.registered_packages
     assert registry.total_checkers_count == 5

@@ -12,16 +12,16 @@
 
 [POS]
 Zero-LLM deterministic integrity gate protecting event log replay and multi-turn context reconstruction.
+Single source of truth for step/turn enclosure and sequence continuity checks.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Mapping, Sequence
+from typing import Mapping, Sequence
 
 from myrm_agent_harness.observability.invariants.registry import (
     InvariantError,
-    InvariantMode,
     RuntimeInvariantRegistry,
     default_invariant_registry,
 )
@@ -32,105 +32,137 @@ from myrm_agent_harness.observability.invariants.types import (
 
 logger = logging.getLogger(__name__)
 
-# Events that are legal top-level lifecycle demarcators or system checkpoints
-_TOP_LEVEL_LEGAL_TYPES = frozenset(
+_PACKAGE = "event_log.integrity"
+
+_STEP_OPEN_TYPES = frozenset({"task_step_start", "step_start", "turn_start", "session_start"})
+_STEP_CLOSE_TYPES = frozenset({"task_step_end", "step_end", "turn_end", "session_end"})
+_ENCLOSED_REQUIRED_TYPES = frozenset(
     {
-        "session_start",
-        "session_end",
-        "checkpoint",
-        "state_snapshot",
-        "diagnostic",
-        "turn_start",
-        "step_start",
+        "tool_start",
+        "tool_call",
+        "tool_end",
+        "tool_result",
+        "tool_failure",
+        "thought",
+        "thinking",
+        "model_output",
+        "llm_call",
         "user_message",
+        "assistant_message",
     }
 )
 
 
-def verify_session_enclosure(events: Sequence[object]) -> list[InvariantViolation]:
-    """Verify that execution events (tool calls, intermediate messages) are enclosed within legal turn/step brackets.
+def _event_to_mapping(raw_evt: object) -> Mapping[str, object] | None:
+    if isinstance(raw_evt, Mapping):
+        return raw_evt
+    if hasattr(raw_evt, "model_dump"):
+        return raw_evt.model_dump()
+    if hasattr(raw_evt, "__dict__"):
+        return raw_evt.__dict__
+    return None
 
-    Orphan assistant/tool messages occurring outside an active turn/step bracket are reported.
-    """
+
+def _event_type(evt_dict: Mapping[str, object]) -> str | None:
+    raw = evt_dict.get("event_type") or evt_dict.get("type") or evt_dict.get("kind")
+    return str(raw) if isinstance(raw, str) else (str(raw) if raw is not None else None)
+
+
+def verify_session_enclosure(events: Sequence[object]) -> list[InvariantViolation]:
+    """Verify events are strictly enclosed within Step/Turn brackets."""
     if not isinstance(events, Sequence) or isinstance(events, (str, bytes)):
         return []
 
     violations: list[InvariantViolation] = []
-    in_active_step = False
-    current_step_id: str | None = None
+    active_steps: list[dict[str, object]] = []
 
     for idx, raw_evt in enumerate(events):
-        evt_dict: Mapping[str, object]
-        if isinstance(raw_evt, Mapping):
-            evt_dict = raw_evt
-        elif hasattr(raw_evt, "model_dump"):
-            evt_dict = raw_evt.model_dump()
-        elif hasattr(raw_evt, "__dict__"):
-            evt_dict = raw_evt.__dict__
-        else:
+        evt_dict = _event_to_mapping(raw_evt)
+        if evt_dict is None:
             continue
 
-        evt_type = str(
-            evt_dict.get("event_type")
-            or evt_dict.get("type")
-            or evt_dict.get("kind")
-            or ""
-        )
-        step_id = str(evt_dict.get("step_id") or evt_dict.get("step_key") or "")
+        event_type = _event_type(evt_dict)
+        if not event_type:
+            continue
 
-        if evt_type in ("step_start", "turn_start", "task_step_start"):
-            in_active_step = True
-            current_step_id = step_id or f"step_{idx}"
-        elif evt_type in ("step_end", "turn_end", "task_step_end", "session_end"):
-            in_active_step = False
-            current_step_id = None
-        elif evt_type in ("tool_start", "tool_call", "tool_result", "tool_end", "tool_failure"):
-            if not in_active_step:
+        if event_type in _STEP_OPEN_TYPES:
+            active_steps.append(
+                {
+                    "index": idx,
+                    "event_type": event_type,
+                    "step_id": evt_dict.get("step_id") or evt_dict.get("turn_id") or evt_dict.get("id"),
+                }
+            )
+        elif event_type in _STEP_CLOSE_TYPES:
+            if active_steps:
+                active_steps.pop()
+            else:
                 violations.append(
                     InvariantViolation(
-                        package_name="event_log.integrity",
+                        package_name=_PACKAGE,
                         invariant_name="session_enclosure",
                         message=(
-                            f"Orphan tool event '{evt_type}' detected at index {idx} "
-                            "without an active enclosing step/turn bracket."
+                            f"Orphan closing bracket '{event_type}' encountered at index {idx} "
+                            "without matching start step/turn bracket."
                         ),
                         severity=InvariantSeverity.ERROR,
-                        details={"index": idx, "event_type": evt_type, "event": dict(evt_dict)},
+                        details={"index": idx, "event_type": event_type},
                     )
                 )
+        elif event_type in _ENCLOSED_REQUIRED_TYPES:
+            if not active_steps:
+                violations.append(
+                    InvariantViolation(
+                        package_name=_PACKAGE,
+                        invariant_name="session_enclosure",
+                        message=(
+                            f"Payload event '{event_type}' at index {idx} occurs outside an active step/turn enclosure."
+                        ),
+                        severity=InvariantSeverity.ERROR,
+                        details={"index": idx, "event_type": event_type},
+                    )
+                )
+
+    for unclosed in active_steps:
+        violations.append(
+            InvariantViolation(
+                package_name=_PACKAGE,
+                invariant_name="session_enclosure",
+                message=(
+                    f"Unclosed step bracket '{unclosed.get('event_type')}' started at index {unclosed.get('index')} "
+                    "never received closing bracket."
+                ),
+                severity=InvariantSeverity.WARN,
+                details=unclosed,
+            )
+        )
 
     return violations
 
 
 def verify_sequence_continuity(events: Sequence[object]) -> list[InvariantViolation]:
-    """Verify timestamps and sequence indexes are monotonically non-decreasing without corruption gaps."""
+    """Verify sequence numbers are monotonic gap-free and timestamps non-regressing."""
     if not isinstance(events, Sequence) or isinstance(events, (str, bytes)):
         return []
 
     violations: list[InvariantViolation] = []
     last_timestamp: float = -1.0
-    last_seq: int = -1
+    last_seq: int | None = None
+    last_idx: int | None = None
 
     for idx, raw_evt in enumerate(events):
-        evt_dict: Mapping[str, object]
-        if isinstance(raw_evt, Mapping):
-            evt_dict = raw_evt
-        elif hasattr(raw_evt, "model_dump"):
-            evt_dict = raw_evt.model_dump()
-        elif hasattr(raw_evt, "__dict__"):
-            evt_dict = raw_evt.__dict__
-        else:
+        evt_dict = _event_to_mapping(raw_evt)
+        if evt_dict is None:
             continue
 
-        # 1. Monotonic timestamp check
-        raw_ts = evt_dict.get("timestamp") or evt_dict.get("created_at") or evt_dict.get("time")
+        raw_ts = evt_dict.get("timestamp") or evt_dict.get("created_at") or evt_dict.get("time") or evt_dict.get("ts")
         if raw_ts is not None:
             try:
                 ts = float(raw_ts)
-                if last_timestamp >= 0.0 and ts < (last_timestamp - 1.0):  # 1s tolerance for minor clock skew
+                if last_timestamp >= 0.0 and ts < (last_timestamp - 1.0):
                     violations.append(
                         InvariantViolation(
-                            package_name="event_log.integrity",
+                            package_name=_PACKAGE,
                             invariant_name="sequence_continuity",
                             message=(
                                 f"Timestamp regression detected at event index {idx}: "
@@ -144,32 +176,62 @@ def verify_sequence_continuity(events: Sequence[object]) -> list[InvariantViolat
             except (ValueError, TypeError):
                 pass
 
-        # 2. Sequence continuity check (if seq / sequence exists)
-        raw_seq = evt_dict.get("seq")
-        if raw_seq is None:
-            raw_seq = evt_dict.get("sequence")
+        raw_seq = evt_dict.get("seq") if "seq" in evt_dict else evt_dict.get("sequence")
         if raw_seq is None:
             raw_seq = evt_dict.get("sequence_number")
+        if raw_seq is None:
+            continue
 
-        if raw_seq is not None:
-            try:
-                seq = int(raw_seq)
-                if last_seq >= 0 and seq != (last_seq + 1):
-                    violations.append(
-                        InvariantViolation(
-                            package_name="event_log.integrity",
-                            invariant_name="sequence_continuity",
-                            message=(
-                                f"Sequence gap/jump detected at event index {idx}: "
-                                f"expected {last_seq + 1}, got {seq}"
-                            ),
-                            severity=InvariantSeverity.ERROR,
-                            details={"index": idx, "expected_seq": last_seq + 1, "actual_seq": seq},
-                        )
+        try:
+            seq = int(raw_seq)  # type: ignore[arg-type]
+        except (ValueError, TypeError):
+            violations.append(
+                InvariantViolation(
+                    package_name=_PACKAGE,
+                    invariant_name="sequence_continuity",
+                    message=f"Non-integer sequence number '{raw_seq}' at event index {idx}.",
+                    severity=InvariantSeverity.ERROR,
+                    details={"index": idx, "raw_seq": raw_seq},
+                )
+            )
+            continue
+
+        if last_seq is not None:
+            if seq <= last_seq:
+                violations.append(
+                    InvariantViolation(
+                        package_name=_PACKAGE,
+                        invariant_name="sequence_continuity",
+                        message=(
+                            f"Non-monotonic sequence number at index {idx}: current seq={seq} <= previous seq={last_seq} "
+                            f"(at index {last_idx})."
+                        ),
+                        severity=InvariantSeverity.ERROR,
+                        details={"index": idx, "seq": seq, "previous_seq": last_seq, "previous_index": last_idx},
                     )
-                last_seq = seq
-            except (ValueError, TypeError):
-                pass
+                )
+            elif seq > last_seq + 1:
+                violations.append(
+                    InvariantViolation(
+                        package_name=_PACKAGE,
+                        invariant_name="sequence_continuity",
+                        message=(
+                            f"Sequence gap detected at index {idx}: jumped from seq={last_seq} (at index {last_idx}) "
+                            f"to seq={seq} (gap of {seq - last_seq - 1} missing events)."
+                        ),
+                        severity=InvariantSeverity.ERROR,
+                        details={
+                            "index": idx,
+                            "seq": seq,
+                            "previous_seq": last_seq,
+                            "gap_size": seq - last_seq - 1,
+                            "previous_index": last_idx,
+                        },
+                    )
+                )
+
+        last_seq = seq
+        last_idx = idx
 
     return violations
 
@@ -179,15 +241,7 @@ def assert_log_integrity(
     *,
     strict: bool = False,
 ) -> list[InvariantViolation]:
-    """Execute full log enclosure and sequence continuity assertions on an event log stream.
-
-    Args:
-        events: The sequence of StructuredEvent or event mapping objects.
-        strict: If True, immediately raises InvariantError on the first ERROR violation.
-
-    Returns:
-        List of all detected InvariantViolations.
-    """
+    """Execute full log enclosure and sequence continuity assertions on an event log stream."""
     violations: list[InvariantViolation] = []
     violations.extend(verify_session_enclosure(events))
     violations.extend(verify_sequence_continuity(events))
@@ -203,5 +257,5 @@ def assert_log_integrity(
 def install_log_integrity_invariants(registry: RuntimeInvariantRegistry | None = None) -> None:
     """Register session enclosure and sequence continuity checks into the runtime invariant registry."""
     target_registry = registry or default_invariant_registry
-    target_registry.register("event_log.integrity", "session_enclosure", verify_session_enclosure)
-    target_registry.register("event_log.integrity", "sequence_continuity", verify_sequence_continuity)
+    target_registry.register(_PACKAGE, "session_enclosure", verify_session_enclosure)
+    target_registry.register(_PACKAGE, "sequence_continuity", verify_sequence_continuity)

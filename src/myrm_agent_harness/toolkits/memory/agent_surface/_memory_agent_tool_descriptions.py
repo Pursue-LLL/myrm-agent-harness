@@ -114,6 +114,7 @@ MEMORY_SAVE_CORE_EN = """Store a new memory for the user. Memory persists across
 - An existing recalled memory fact is wrong → use memory_manage_tool with action=correct (do not save a duplicate)
 - Task progress, session outcomes, or completed-work logs → use memory_search_tool with corpus=sessions
 - Temporary state: PR numbers, commit SHAs, current file paths, WIP items
+- Real-time business states: order/logistics tracking, live account balances, OTP/verification codes, temporary download or queue links — query live integrations instead
 - Information that will be stale within a week
 - Step-by-step procedures or workflows (not suitable for memory)
 - Raw data dumps, code snippets, or lengthy text
@@ -191,6 +192,7 @@ MEMORY_SAVE_CORE_ZH = """为用户存储新记忆。记忆跨会话持久化并�
 - 已召回的记忆事实有误 → 使用 memory_manage_tool，action=correct（不要重复 save）
 - 任务进度、会话结果、已完成工作日志 → 使用 memory_search_tool，corpus=sessions
 - 临时状态：PR 号、commit SHA、当前文件路径、进行中的事项
+- 实时业务状态：订单/物流进度、账户实时余额、验证码/OTP、临时下载或排队链接 — 应查 live 集成工具，不要写入记忆
 - 一周内会过时的信息
 - 分步流程或工作流（不适合记忆）
 - 原始数据转储、代码片段或冗长文本

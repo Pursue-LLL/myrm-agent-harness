@@ -14,6 +14,11 @@ from .fault_side import (
     classify_llm_fault_side,
     classify_tool_fault_side,
 )
+from .operator_error_sanitizer import (
+    OperatorErrorCode,
+    OperatorErrorSanitizer,
+    SanitizedOperatorError,
+)
 from myrm_agent_harness.utils.errors import ToolErrorCategory
 from .tool_execution_error import ExecutionPhase, ToolExecutionError
 
@@ -24,6 +29,9 @@ __all__ = [
     "ExecutionPhase",
     "FaultSide",
     "LLMErrorDiagnostic",
+    "OperatorErrorCode",
+    "OperatorErrorSanitizer",
+    "SanitizedOperatorError",
     "ToolErrorCategory",
     "ToolExecutionError",
     "classify_diagnostic_fault_side",

@@ -192,6 +192,14 @@ class MemoryManagerMutationsMixin:
                 "previous_content": existing.content,
             }
             updated.content = content
+            if isinstance(updated, (SemanticMemory, EpisodicMemory)):
+                from myrm_agent_harness.toolkits.memory.transient_fact_boundary import (
+                    looks_like_transient_business_fact,
+                    transient_fact_save_rejection_message,
+                )
+
+                if looks_like_transient_business_fact(content):
+                    raise MemoryError(transient_fact_save_rejection_message())
         if importance is not None and isinstance(updated, (SemanticMemory, EpisodicMemory, ConversationMemory)):
             updated.importance = importance
         if tags is not None and isinstance(updated, SemanticMemory):

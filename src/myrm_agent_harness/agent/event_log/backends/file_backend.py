@@ -22,10 +22,14 @@ import logging
 import time
 from pathlib import Path
 
+from myrm_agent_harness.observability.invariants.bootstrap import ensure_runtime_invariants_installed
+from myrm_agent_harness.observability.invariants.config import get_invariant_mode
+from myrm_agent_harness.observability.invariants.registry import InvariantMode
 from myrm_agent_harness.observability.metrics.event_log_metrics import (
     event_log_jsonl_line_downgraded_total,
 )
 
+from ..integrity_gate import assert_log_integrity
 from ..types import EventFilter, EventPayload, StructuredEvent
 
 logger = logging.getLogger(__name__)
@@ -173,6 +177,12 @@ class FileEventLogBackend:
 
                     if event_filter and event_filter.limit and len(events) >= event_filter.limit:
                         break
+
+        mode = get_invariant_mode()
+        if mode is not InvariantMode.DISABLED and events:
+            ensure_runtime_invariants_installed()
+            strict = mode is InvariantMode.STRICT
+            assert_log_integrity(events, strict=strict)
 
         return events
 

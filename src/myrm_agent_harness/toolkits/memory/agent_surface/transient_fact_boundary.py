@@ -101,8 +101,8 @@ def transient_fact_save_rejection_message() -> str:
     """Rejection message for transient business state memory payloads."""
     return (
         "Rejected: content represents a real-time transient business state (such as order status, logistics, "
-        "live balances, OTP/verification codes, or temporary queue links). Real-time business data must be queried "
-        "via live tools/APIs or stored in session memory (MemorySession), never persisted into long-term L3 memory. "
+        "live balances, OTP/verification codes, or temporary queue links). Query live tools/APIs for current status; "
+        "use memory_search_tool with corpus=sessions for past conversation context. Never persist into long-term memory. "
         "Memory is strictly for durable facts, user preferences, and stable behavioral rules."
     )
 

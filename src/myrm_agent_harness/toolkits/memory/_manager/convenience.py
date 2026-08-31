@@ -15,9 +15,20 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
 class MemoryManagerConvenienceMixin:
     # ── Convenience: Profile ──
 
-    async def set_profile_attribute(self, key: str, value: str) -> str | None:
+    async def set_profile_attribute(
+        self,
+        key: str,
+        value: str,
+        *,
+        _force_pending: bool = False,
+    ) -> str | None:
         """Set a profile attribute. Returns pending_id if approval is required, else None."""
-        return await self._governance.set_profile_attribute(key, value, approval_required=self.approval_required)
+        approval_required = True if _force_pending else self.approval_required
+        return await self._governance.set_profile_attribute(
+            key,
+            value,
+            approval_required=approval_required,
+        )
 
     async def set_system_profile_attribute(self, key: str, value: str) -> None:
         """Set a profile attribute from system-level automation (bypasses user approval).
@@ -71,7 +82,7 @@ class MemoryManagerConvenienceMixin:
             source_chat_id=source_chat_id,
             write_target=write_target,
         )
-        result = await self.store(memory)
+        result = await self.store(memory, _bypass_approval=True)
         return result if isinstance(result, SemanticMemory) else memory
 
     # ── Convenience: Events (Episodic) ──
@@ -94,7 +105,7 @@ class MemoryManagerConvenienceMixin:
             source_message_id=source_message_id,
             write_target=write_target,
         )
-        result = await self.store(memory)
+        result = await self.store(memory, _bypass_approval=True)
         return result if isinstance(result, EpisodicMemory) else memory
 
     # ── Convenience: Rules (Procedural) ──
@@ -115,5 +126,5 @@ class MemoryManagerConvenienceMixin:
             trigger_keywords=trigger_keywords,
             source=source,
         )
-        result = await self.store(memory)
+        result = await self.store(memory, _bypass_approval=True)
         return result if isinstance(result, ProceduralMemory) else memory

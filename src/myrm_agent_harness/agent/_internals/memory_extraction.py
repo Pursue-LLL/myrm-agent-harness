@@ -21,12 +21,12 @@ Memory auto-extraction utilities. Implements dual-track extraction strategy:
 
 **Dual-track extraction (MemPalace verbatim storage strategy):**
 1. **Verbatim Track** (enable_verbatim=True, default): Raw exchange pairs stored
-   as ConversationMemory (NO LLM processing, lossless preservation). Uses
-   exchange-pair chunking: [(User Q1 + AI A1), (User Q2 + AI A2), ...].
-   Dual-embedding (raw + summary vectors) enables adaptive dual-channel retrieval.
-
-2. **Compressed Track**: LLM-extracted SemanticMemory/EpisodicMemory for context
-   compression and efficiency.
+   as ConversationMemory (NO LLM processing, lossless preservation). Writes go
+   directly to the conversation index — not the inferred-memory pending queue.
+2. **Compressed Track**: LLM-extracted SemanticMemory/EpisodicMemory. Writes
+   default to the pending queue (``force_pending=True``) for GUI review unless
+   the caller opts out (API compat). Explicit ``memory_save_tool`` writes bypass
+   pending via ``_bypass_approval=True``.
 
 **Deep PII protection** (when PrivacyPolicy.deep_scan=True):
 After extraction, non-structured PII (medical conditions, political views, etc.)
@@ -208,14 +208,20 @@ async def persist_extracted_memories(
     *,
     deep_scan_llm_func: Callable[[str, str], Awaitable[str]] | None = None,
     wiki_boundary_enabled: bool = False,
+    force_pending: bool = True,
 ) -> int:
     """Persist extracted memories to MemoryManager.
+
+    Inferred auto-extraction writes route to the pending queue by default
+    (``force_pending=True``) so GUI users can review before L3 commit.
+    Explicit tool/API writes should call with ``force_pending=False`` and
+    use ``_bypass_approval=True`` on the manager instead.
 
     When *deep_scan_llm_func* is provided, non-structured PII in memory
     content is detected via LLM and pseudonymized before storage.
 
     Returns:
-        Number of memories stored
+        Number of memories stored or queued for approval
     """
     from myrm_agent_harness.toolkits.memory.strategies.extractor import MemoryExtractor
     from myrm_agent_harness.toolkits.memory.types import ProfileEntry
@@ -228,7 +234,11 @@ async def persist_extracted_memories(
     batch: list[AnyMemory] = []
     for mem in concrete:
         if isinstance(mem, ProfileEntry):
-            await memory_manager.set_profile_attribute(mem.key, str(mem.value))
+            await memory_manager.set_profile_attribute(
+                mem.key,
+                str(mem.value),
+                _force_pending=force_pending,
+            )
         else:
             batch.append(mem)
 
@@ -254,7 +264,11 @@ async def persist_extracted_memories(
         batch = filtered_transient_batch
         dropped += dropped_transient
 
-    stored = await memory_manager.store_batch(batch) if batch else []
+    stored = (
+        await memory_manager.store_batch(batch, _force_pending=force_pending)
+        if batch
+        else []
+    )
     return len(stored) + len(concrete) - len(batch) - dropped
 
 

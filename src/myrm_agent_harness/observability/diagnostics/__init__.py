@@ -19,6 +19,13 @@ import myrm_agent_harness.observability.diagnostics.supply_chain  # noqa: F401  
 import myrm_agent_harness.observability.diagnostics.system_resources  # noqa: F401  # side-effect: registers system resource probe
 
 from .manager import register_diagnostic, register_protocol, run_all_diagnostics
+from .migration_reporter import (
+    MigrationDiagnosticReport,
+    MigrationFailureDetail,
+    MigrationPhase,
+    MigrationProgressEvent,
+    MigrationProgressReporter,
+)
 from .performance import register_benchmark, run_all_benchmarks
 from .protocols import DiagnosticProtocol, HealthReport, HealthStatus
 
@@ -26,6 +33,11 @@ __all__ = [
     "DiagnosticProtocol",
     "HealthReport",
     "HealthStatus",
+    "MigrationDiagnosticReport",
+    "MigrationFailureDetail",
+    "MigrationPhase",
+    "MigrationProgressEvent",
+    "MigrationProgressReporter",
     "register_benchmark",
     "register_diagnostic",
     "register_protocol",

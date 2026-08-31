@@ -819,6 +819,7 @@ async def run_agent_loop(
             agent_state.safety_fallback_llm,
             agent_state._rebuild_agent_with_llm,
             agent_state._failover_used,
+            fallback_llms=getattr(agent_state, "fallback_llms", None),
         )
 
         set_tool_progress_sink(create_queue_sink(output_queue, message_id))

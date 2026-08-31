@@ -127,3 +127,89 @@ async def test_update_memory_poison_blocked(
     ):
         await manager.update_memory("mem-update-1", content=_POISON)
     mock_vector_store.upsert.assert_not_awaited()
+
+
+_TRANSIENT_LOGISTICS = "Your order #9981 is out for delivery with courier"
+_TRANSIENT_PREFERENCE = "User prefers SF Express for fast courier delivery"
+
+
+@pytest.mark.asyncio
+async def test_transient_business_store_blocked(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store
+) -> None:
+    from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError
+
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    with pytest.raises(MemoryError, match="real-time transient business state"):
+        await manager.store(SemanticMemory(content=_TRANSIENT_LOGISTICS))
+    assert mock_vector_store.upsert.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_transient_business_store_batch_skipped(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store
+) -> None:
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    results = await manager.store_batch(
+        [
+            SemanticMemory(content=_CLEAN),
+            SemanticMemory(content=_TRANSIENT_LOGISTICS),
+        ]
+    )
+    assert [m.content for m in results] == [_CLEAN]
+
+
+@pytest.mark.asyncio
+async def test_durable_courier_preference_store_allowed(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store
+) -> None:
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    stored = await manager.store(SemanticMemory(content=_TRANSIENT_PREFERENCE))
+    assert stored.content == _TRANSIENT_PREFERENCE
+    assert mock_vector_store.upsert.await_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_add_knowledge_transient_blocked_via_writer(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store
+) -> None:
+    from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError
+
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    with pytest.raises(MemoryError, match="real-time transient business state"):
+        await manager.add_knowledge(_TRANSIENT_LOGISTICS)
+    assert mock_vector_store.upsert.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_update_memory_transient_content_blocked(
+    memory_config, mock_vector_store, mock_embedding, mock_relational_store
+) -> None:
+    from datetime import UTC, datetime
+
+    from myrm_agent_harness.toolkits.memory._internal.storage import MemoryError
+    from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
+
+    manager = _make_manager(memory_config, mock_vector_store, mock_embedding, mock_relational_store)
+    mock_vector_store.get.return_value = [
+        VectorDocument(
+            id="mem-update-transient",
+            content=_CLEAN,
+            vector=[0.1] * 768,
+            metadata={
+                "memory_type": "semantic",
+                "importance": 0.5,
+                "confidence": 1.0,
+                "source_chat_id": "",
+                "preference_type": "",
+                "preference_strength": 0.0,
+                "correction_of": "",
+                "access_count": 0,
+            },
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+    ]
+    with pytest.raises(MemoryError, match="real-time transient business state"):
+        await manager.update_memory("mem-update-transient", content=_TRANSIENT_LOGISTICS)
+    mock_vector_store.upsert.assert_not_awaited()

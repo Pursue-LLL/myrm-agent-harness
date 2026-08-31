@@ -24,9 +24,17 @@ _pending_tasks: set[asyncio.Task[object]] = set()
 
 class MemoryManagerRetrievalWriteMixin:
     async def store(
-        self, memory: AnyMemory, *, _bypass_approval: bool = False
+        self,
+        memory: AnyMemory,
+        *,
+        _bypass_approval: bool = False,
+        _force_pending: bool = False,
     ) -> AnyMemory:
-        result = await self._writer.store(memory, bypass_approval=_bypass_approval)
+        result = await self._writer.store(
+            memory,
+            bypass_approval=_bypass_approval,
+            force_pending=_force_pending,
+        )
         self._stores_since_consolidation += 1
         trigger = self._config.consolidation.message_count_trigger
         if trigger > 0 and self._stores_since_consolidation >= trigger:
@@ -36,10 +44,16 @@ class MemoryManagerRetrievalWriteMixin:
         return result
 
     async def store_batch(
-        self, memories: Sequence[AnyMemory], *, _bypass_approval: bool = False
+        self,
+        memories: Sequence[AnyMemory],
+        *,
+        _bypass_approval: bool = False,
+        _force_pending: bool = False,
     ) -> list[AnyMemory]:
         result = await self._writer.store_batch(
-            memories, bypass_approval=_bypass_approval
+            memories,
+            bypass_approval=_bypass_approval,
+            force_pending=_force_pending,
         )
         self._stores_since_consolidation += len(memories)
         trigger = self._config.consolidation.message_count_trigger

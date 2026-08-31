@@ -667,6 +667,7 @@ LLM 驱动的事实过期审查。与遗忘策略互补：遗忘靠数值衰减�
 - **No-Op Default (严格精度门控)**：彻底颠覆传统的高召回倾向，向大模型施加极其严厉的 `Strict Precision` 惩罚指令。默认返回空数组 `[]`，仅在存在高杠杆价值知识、明确用户约束时才允许提取。从源头阻断日常闲聊产生的碎片垃圾入库，保护长期上下文纯净度。
 - **主体归属隔离 (Attribution)**：严格区分用户本人与第三方（家人、朋友、同事等），禁止将第三方的特征、疾病或偏好归因于用户本人。
 - **瞬态情绪过滤 (Transient State Filter)**：过滤掉短暂的情绪和心理状态（如“今天很焦虑”、“感觉很抑郁”），除非明确说明是慢性疾病，防止 AI 永久存储瞬态情绪。
+- **业务瞬态事实 L3 写入总闸 (Business Transient Fact Write Gate)**：`transient_fact_boundary.py` 提供双语 regex 启发式；`MemoryWriter.store/store_batch` 与 `MemoryManager.update_memory` 在持久化前统一过滤 Semantic/Episodic 中的实时业务态（物流进度、账户余额、OTP、临时链接等），`memory_save_tool` 与 auto-extract 路径同样拦截；Profile/Procedural/ConversationMemory 豁免。
 - **Per-Fact TTL**：提取时 LLM 为每条记忆预估有效期 `expected_valid_days`（瞬态 30-90d、项目 90-180d、习惯 180-365d、永久 null），供遗忘策略和 staleness review 使用
 - **动态提示词**：根据 `ExtractionConfig` 动态生成，仅包含启用的记忆类型
 - **Token 优化**：337 tokens（全类型）→ 229 tokens（最小配置），节省 32%

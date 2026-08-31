@@ -7,6 +7,7 @@ Provides monitoring and health inspection capabilities:
 - Request tracing context and log correlation (observability/tracing)
 - Runtime invariant assertions and registry (observability/invariants)
 - Task friction telemetry and Eval Lab co-evolution (observability/friction)
+- Skill compounding health evaluation (observability/digest)
 
 [INPUT]
 - Exception (POS: LLM call exceptions for auth detection)
@@ -18,6 +19,7 @@ Provides monitoring and health inspection capabilities:
 - Tracing primitives (TracingContext, TracingLogFilter, JsonFormatter)
 - Invariant registry and types (from observability/invariants)
 - Task friction telemetry (FrictionCategory, TaskFrictionEvent, FrictionAggregator)
+- Skill health evaluation (SkillHealthEvaluator, SkillCompoundingMetrics)
 
 [POS]
 Observability tools for Myrm Agent framework. Provides passive metric collection,
@@ -25,6 +27,12 @@ active health probing, auth failure detection, request tracing context, runtime 
 """
 
 from .auth_detector import detect_auth_failure, get_auth_error_hint
+from .digest import (
+    SkillCompoundingMetrics,
+    SkillHealthEvaluator,
+    SkillHealthScore,
+    SkillHealthStatus,
+)
 from .friction import (
     FrictionAggregator,
     FrictionCategory,
@@ -54,6 +62,10 @@ __all__ = [
     "InvariantViolation",
     "JsonFormatter",
     "RuntimeInvariantRegistry",
+    "SkillCompoundingMetrics",
+    "SkillHealthEvaluator",
+    "SkillHealthScore",
+    "SkillHealthStatus",
     "TaskFrictionEvent",
     "TracingContext",
     "TracingLogFilter",

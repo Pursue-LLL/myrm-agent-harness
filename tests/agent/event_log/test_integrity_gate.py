@@ -35,9 +35,9 @@ def test_verify_session_enclosure_valid_and_orphan():
         {"event_type": "tool_end", "tool_name": "bash"},
     ]
     violations = verify_session_enclosure(orphan_events)
-    assert len(violations) == 2  # Both tool_start and tool_end are outside brackets
+    assert len(violations) == 2
     assert all(v.severity == InvariantSeverity.ERROR for v in violations)
-    assert any("Orphan tool event 'tool_start'" in v.message for v in violations)
+    assert any("tool_start" in v.message for v in violations)
 
 
 def test_verify_sequence_continuity_monotonic_and_gaps():
@@ -58,7 +58,7 @@ def test_verify_sequence_continuity_monotonic_and_gaps():
     violations = verify_sequence_continuity(gap_seq)
     assert len(violations) == 1
     assert violations[0].severity == InvariantSeverity.ERROR
-    assert "Sequence gap/jump detected" in violations[0].message
+    assert "Sequence gap detected" in violations[0].message
 
     # 3. Timestamp regression
     regress_seq = [

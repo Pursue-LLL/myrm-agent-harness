@@ -111,4 +111,30 @@ class TestTransientFactBoundary:
 
         msg = transient_fact_save_rejection_message()
         assert "Rejected: content represents a real-time transient business state" in msg
-        assert "MemorySession" in msg
+        assert "corpus=sessions" in msg
+        assert "MemorySession" not in msg
+
+    @pytest.mark.asyncio
+    async def test_memory_agent_tools_rejection_e2e(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
+
+        manager = MagicMock()
+        manager.has_vector = True
+        manager.approval_required = False
+        manager.active_session = None
+        manager.add_knowledge = AsyncMock()
+
+        tools = create_memory_tools(manager)
+        memory_save = next(t for t in tools if getattr(t, "name", "") == "memory_save_tool")
+
+        # 1. Transient knowledge rejected
+        res = await memory_save.ainvoke({"content": "Your package SF10086 is out for delivery", "category": "knowledge"})
+        assert "Rejected: content represents a real-time transient business state" in res
+        manager.add_knowledge.assert_not_called()
+
+        # 2. Durable preference accepted
+        manager.set_profile_attribute = AsyncMock()
+        res_pref = await memory_save.ainvoke({"content": "User prefers SF Express", "category": "preference", "preference_key": "courier"})
+        assert "Preference 'courier'" in res_pref
+

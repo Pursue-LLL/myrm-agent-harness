@@ -8,18 +8,22 @@
 - check_session_event_pairing: Asserts tool_start and tool_end/failure pairs in event stream
 - check_agent_state_transition: Asserts valid state transitions according to lifecycle DAG
 - check_todo_structure_integrity: Asserts Todo list items have unique IDs, valid status, and proper parent linkage
-- check_step_enclosure: Asserts events strictly enclosed within Step/Turn brackets
-- check_sequence_continuity: Asserts sequence numbers are strictly monotonic and gap-free
+- check_step_enclosure / check_sequence_continuity: Re-exported from event_log.integrity_gate (SSOT)
 - install_core_invariants: Installs standard companion checks into the target registry
 
 [POS]
-Production-grade default runtime invariant checks protecting event pairing, status flow, task state, step enclosure, and log continuity.
+Production-grade default runtime invariant checks protecting event pairing, status flow, task state, and log integrity.
 """
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from typing import Mapping, Sequence
 
+from myrm_agent_harness.agent.event_log.integrity_gate import (
+    install_log_integrity_invariants,
+    verify_sequence_continuity as check_sequence_continuity,
+    verify_session_enclosure as check_step_enclosure,
+)
 from myrm_agent_harness.observability.invariants.registry import (
     RuntimeInvariantRegistry,
     default_invariant_registry,
@@ -243,188 +247,10 @@ def check_todo_structure_integrity(context: object) -> list[InvariantViolation]:
     return violations
 
 
-# ---------------------------------------------------------------------------
-# 4. Step Enclosure Invariant (Synthetic Log Anti-Silent-Corruption)
-# ---------------------------------------------------------------------------
-
-_STEP_OPEN_TYPES = frozenset({"task_step_start", "step_start", "turn_start", "session_start"})
-_STEP_CLOSE_TYPES = frozenset({"task_step_end", "step_end", "turn_end", "session_end"})
-_ENCLOSED_REQUIRED_TYPES = frozenset(
-    {
-        "tool_start",
-        "tool_call",
-        "tool_end",
-        "tool_result",
-        "tool_failure",
-        "thought",
-        "thinking",
-        "model_output",
-        "llm_call",
-        "user_message",
-        "assistant_message",
-    }
-)
-
-
-def check_step_enclosure(context: object) -> list[InvariantViolation]:
-    """Verify events are strictly enclosed within Step/Turn brackets.
-
-    Orphan payload events outside a step or unclosed step brackets are flagged as violations.
-    Context expectation: Sequence of mapping objects (or objects with event_type/type/kind).
-    """
-    if not isinstance(context, Sequence) or isinstance(context, (str, bytes)):
-        return []
-
-    violations: list[InvariantViolation] = []
-    active_steps: list[dict[str, object]] = []
-
-    for idx, raw_event in enumerate(context):
-        if not isinstance(raw_event, Mapping):
-            continue
-
-        event_type = raw_event.get("event_type") or raw_event.get("type") or raw_event.get("kind")
-        if not isinstance(event_type, str):
-            continue
-
-        if event_type in _STEP_OPEN_TYPES:
-            active_steps.append(
-                {
-                    "index": idx,
-                    "event_type": event_type,
-                    "step_id": raw_event.get("step_id") or raw_event.get("turn_id") or raw_event.get("id"),
-                }
-            )
-        elif event_type in _STEP_CLOSE_TYPES:
-            if active_steps:
-                active_steps.pop()
-            else:
-                violations.append(
-                    InvariantViolation(
-                        package_name="session.events",
-                        invariant_name="step_enclosure",
-                        message=(
-                            f"Orphan closing bracket '{event_type}' encountered at index {idx} "
-                            "without matching start step/turn bracket."
-                        ),
-                        severity=InvariantSeverity.ERROR,
-                        details={"index": idx, "event_type": event_type},
-                    )
-                )
-        elif event_type in _ENCLOSED_REQUIRED_TYPES:
-            if not active_steps:
-                violations.append(
-                    InvariantViolation(
-                        package_name="session.events",
-                        invariant_name="step_enclosure",
-                        message=(
-                            f"Payload event '{event_type}' at index {idx} occurs outside an active step/turn enclosure."
-                        ),
-                        severity=InvariantSeverity.ERROR,
-                        details={"index": idx, "event_type": event_type},
-                    )
-                )
-
-    for unclosed in active_steps:
-        violations.append(
-            InvariantViolation(
-                package_name="session.events",
-                invariant_name="step_enclosure",
-                message=(
-                    f"Unclosed step bracket '{unclosed.get('event_type')}' started at index {unclosed.get('index')} "
-                    "never received closing bracket."
-                ),
-                severity=InvariantSeverity.WARN,
-                details=unclosed,
-            )
-        )
-
-    return violations
-
-
-# ---------------------------------------------------------------------------
-# 5. Sequence Continuity Invariant (Monotonic & Gap-Free Audit)
-# ---------------------------------------------------------------------------
-
-
-def check_sequence_continuity(context: object) -> list[InvariantViolation]:
-    """Verify event sequence numbers are strictly monotonically increasing without gaps.
-
-    Context expectation: Sequence of mapping objects (or objects with seq/sequence).
-    """
-    if not isinstance(context, Sequence) or isinstance(context, (str, bytes)):
-        return []
-
-    violations: list[InvariantViolation] = []
-    last_seq: int | None = None
-    last_idx: int | None = None
-
-    for idx, raw_event in enumerate(context):
-        if not isinstance(raw_event, Mapping):
-            continue
-
-        raw_seq = raw_event.get("seq") if "seq" in raw_event else raw_event.get("sequence")
-        if raw_seq is None:
-            continue
-
-        try:
-            seq = int(raw_seq)  # type: ignore[arg-type]
-        except (ValueError, TypeError):
-            violations.append(
-                InvariantViolation(
-                    package_name="session.events",
-                    invariant_name="sequence_continuity",
-                    message=f"Non-integer sequence number '{raw_seq}' at event index {idx}.",
-                    severity=InvariantSeverity.ERROR,
-                    details={"index": idx, "raw_seq": raw_seq},
-                )
-            )
-            continue
-
-        if last_seq is not None:
-            if seq <= last_seq:
-                violations.append(
-                    InvariantViolation(
-                        package_name="session.events",
-                        invariant_name="sequence_continuity",
-                        message=(
-                            f"Non-monotonic sequence number at index {idx}: current seq={seq} <= previous seq={last_seq} "
-                            f"(at index {last_idx})."
-                        ),
-                        severity=InvariantSeverity.ERROR,
-                        details={"index": idx, "seq": seq, "previous_seq": last_seq, "previous_index": last_idx},
-                    )
-                )
-            elif seq > last_seq + 1:
-                violations.append(
-                    InvariantViolation(
-                        package_name="session.events",
-                        invariant_name="sequence_continuity",
-                        message=(
-                            f"Sequence gap detected at index {idx}: jumped from seq={last_seq} (at index {last_idx}) "
-                            f"to seq={seq} (gap of {seq - last_seq - 1} missing events)."
-                        ),
-                        severity=InvariantSeverity.ERROR,
-                        details={
-                            "index": idx,
-                            "seq": seq,
-                            "previous_seq": last_seq,
-                            "gap_size": seq - last_seq - 1,
-                            "previous_index": last_idx,
-                        },
-                    )
-                )
-
-        last_seq = seq
-        last_idx = idx
-
-    return violations
-
-
 def install_core_invariants(registry: RuntimeInvariantRegistry | None = None) -> None:
     """Install standard companion runtime invariant checks into the given registry."""
     target_registry = registry or default_invariant_registry
     target_registry.register("session.events", "session_event_pairing", check_session_event_pairing)
-    target_registry.register("session.events", "step_enclosure", check_step_enclosure)
-    target_registry.register("session.events", "sequence_continuity", check_sequence_continuity)
     target_registry.register("agent.lifecycle", "agent_state_transition", check_agent_state_transition)
     target_registry.register("toolkits.todo", "todo_structure_integrity", check_todo_structure_integrity)
+    install_log_integrity_invariants(target_registry)

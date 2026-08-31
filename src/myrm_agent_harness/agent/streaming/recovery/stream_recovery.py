@@ -259,10 +259,6 @@ class StreamRecoveryMixin(
                 await self._emit_failover_unconfigured_hint(error_kind)
             return False
 
-        if error_kind == ErrorKind.RATE_LIMIT:
-            logger.warning(" Rate limit: deferring to transient retry (failover skipped)")
-            return False
-
         if error_kind == ErrorKind.OVERLOADED:
             self._consecutive_overloaded += 1
             if self._consecutive_overloaded < _MAX_CONSECUTIVE_OVERLOADED_BEFORE_FAILOVER:

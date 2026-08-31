@@ -15,6 +15,7 @@ Framework-level self-inspection and health-check protocol. Supports structured i
 | supply_chain.py | Core | Runtime dependency and supply chain security probe `check_supply_chain_health` (installed package scanning against offline advisories and OSV.dev). | ✅ |
 | benchmark_probes.py | Core | Provides performance benchmark probes for LLM, Embedding, and Search. | ✅ |
 | protocols.py | Core | Provides HealthReport (with measured/expected/cause fields), DiagnosticProtocol, redact_health_report. | ✅ |
+| migration_reporter.py | Core | Migration progress tracking protocol, progress events, and malformed record diagnostic reporter. | ✅ |
 
 ## Key Dependencies
 

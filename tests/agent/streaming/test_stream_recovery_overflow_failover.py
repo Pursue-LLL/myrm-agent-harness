@@ -697,16 +697,17 @@ async def test_emit_recovery_event(ctx):
 
 
 @pytest.mark.asyncio
-async def test_rate_limit_never_failovers(ctx):
-    """RATE_LIMIT always defers to transient retry, even with fallback available."""
+async def test_rate_limit_cascades_when_fallback_available(ctx):
+    """RATE_LIMIT cascades to fallback after KeyPool exhausts (aligned with Vision chain)."""
     fallback_llm = MagicMock()
     fallback_llm.model_name = "gpt-4o-mini"
+    rebuild_fn = MagicMock()
 
     executor = StreamExecutor(
         ctx=ctx,
         fallback_llm=fallback_llm,
         safety_fallback_llm=None,
-        rebuild_agent_fn=MagicMock(),
+        rebuild_agent_fn=rebuild_fn,
     )
     executor._compactor = FakeCompactor()
 
@@ -718,8 +719,9 @@ async def test_rate_limit_never_failovers(ctx):
     ):
         result = await executor._handle_failover(RuntimeError("429"))
 
-    assert result is False
-    assert executor.failover_used is False
+    assert result is True
+    rebuild_fn.assert_called_once_with(fallback_llm)
+    assert executor._fallback_index == 1
 
 
 @pytest.mark.asyncio
