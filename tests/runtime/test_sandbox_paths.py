@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.runtime.execution_paths import (
+from myrm_agent_harness.runtime.paths.execution_paths import (
     ARTIFACTS_ROOT,
     CONTEXT_ROOT,
     CONTEXT_SUBDIRS,
@@ -97,7 +97,7 @@ def test_get_workspace_relative_path_other() -> None:
 
 
 def test_ensure_context_dir_exists(tmp_path) -> None:
-    import myrm_agent_harness.runtime.execution_paths as sp
+    import myrm_agent_harness.runtime.paths.execution_paths as sp
 
     original = sp.CONTEXT_ROOT
     sp.CONTEXT_ROOT = str(tmp_path / ".context")
@@ -112,7 +112,7 @@ def test_ensure_context_dir_exists(tmp_path) -> None:
 
 
 def test_ensure_context_dir_exists_with_subdir(tmp_path) -> None:
-    import myrm_agent_harness.runtime.execution_paths as sp
+    import myrm_agent_harness.runtime.paths.execution_paths as sp
 
     original = sp.CONTEXT_ROOT
     sp.CONTEXT_ROOT = str(tmp_path / ".context")
@@ -174,7 +174,7 @@ def test_is_context_path() -> None:
 
 @pytest.mark.asyncio
 async def test_track_context_file_access_non_context_path() -> None:
-    from myrm_agent_harness.runtime.execution_paths import track_context_file_access_if_needed
+    from myrm_agent_harness.runtime.paths.execution_paths import track_context_file_access_if_needed
 
     await track_context_file_access_if_needed("/tmp/not_context.txt")
 
@@ -183,13 +183,13 @@ async def test_track_context_file_access_non_context_path() -> None:
 async def test_track_context_file_access_no_session() -> None:
     from unittest.mock import patch
 
-    from myrm_agent_harness.runtime.execution_paths import track_context_file_access_if_needed
+    from myrm_agent_harness.runtime.paths.execution_paths import track_context_file_access_if_needed
 
     with patch(
-        "myrm_agent_harness.runtime.execution_paths._cached_get_current_chat_id",
+        "myrm_agent_harness.runtime.paths.execution_paths._cached_get_current_chat_id",
         return_value=None,
     ):
-        import myrm_agent_harness.runtime.execution_paths as sp
+        import myrm_agent_harness.runtime.paths.execution_paths as sp
 
         sp._cached_get_current_chat_id = lambda: None
         await track_context_file_access_if_needed("/persistent/.context/chat_abc/file.txt")

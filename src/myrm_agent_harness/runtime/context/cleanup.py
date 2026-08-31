@@ -27,9 +27,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .file_access_tracker import FileAccessTracker
 
-from .. import execution_paths
-from ..checkpoint_protocol import CheckpointerProtocol
-from ..execution_paths import CONTEXT_SUBDIRS
+from myrm_agent_harness.runtime.artifacts.checkpoint_protocol import CheckpointerProtocol
+from myrm_agent_harness.runtime.paths.execution_paths import CONTEXT_ROOT, CONTEXT_SUBDIRS
 from .session.session_activity import load_session_activity, load_session_activity_async
 
 _CLEANABLE_SUBDIRS = list(CONTEXT_SUBDIRS.values())
@@ -78,7 +77,7 @@ async def cleanup_context_files_async(
         42
 
     """
-    if not Path(execution_paths.CONTEXT_ROOT).exists():
+    if not Path(CONTEXT_ROOT).exists():
         return 0
 
     # Import metrics functions once (avoid repeated imports)
@@ -128,7 +127,7 @@ async def cleanup_context_files_async(
 
     # Phase 2: Collect all session directories
     phase_start = asyncio.get_running_loop().time()
-    session_dirs = [d for d in Path(execution_paths.CONTEXT_ROOT).iterdir() if d.is_dir() and d.name != "system"]
+    session_dirs = [d for d in Path(CONTEXT_ROOT).iterdir() if d.is_dir() and d.name != "system"]
     total_sessions = len(session_dirs)
     if metrics_available:
         record_cleanup_phase_duration("file_scanning", asyncio.get_running_loop().time() - phase_start)
@@ -313,7 +312,7 @@ def cleanup_context_files_local(
         42
 
     """
-    if not Path(execution_paths.CONTEXT_ROOT).exists():
+    if not Path(CONTEXT_ROOT).exists():
         return 0
 
     now = datetime.now(UTC)
@@ -331,7 +330,7 @@ def cleanup_context_files_local(
     except Exception as exc:
         logger.debug(f"Failed to load session activity: {exc}")
 
-    for session_dir in Path(execution_paths.CONTEXT_ROOT).iterdir():
+    for session_dir in Path(CONTEXT_ROOT).iterdir():
         if not session_dir.is_dir() or session_dir.name == "system":
             continue
 

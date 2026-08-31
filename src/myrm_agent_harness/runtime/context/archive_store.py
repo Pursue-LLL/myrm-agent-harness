@@ -1,7 +1,7 @@
 """Content-addressed context archive storage.
 
 [INPUT]
-- runtime.execution_paths::* (POS: stable context archive paths)
+- runtime.paths.execution_paths::* (POS: stable context archive paths)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: sandbox file operations)
 
 [OUTPUT]
@@ -30,7 +30,7 @@ from myrm_agent_harness.runtime.context.restore_map_contract import (
     build_restore_map_json,
     restore_map_payload_is_valid,
 )
-from myrm_agent_harness.runtime.execution_paths import (
+from myrm_agent_harness.runtime.paths.execution_paths import (
     get_content_addressed_compacted_metadata_path,
     get_content_addressed_compacted_output_path,
     get_content_addressed_compacted_restore_map_path,

@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from ...checkpoint_protocol import CheckpointerProtocol
+from myrm_agent_harness.runtime.artifacts.checkpoint_protocol import CheckpointerProtocol
 
 logger = logging.getLogger(__name__)
 

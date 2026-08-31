@@ -7,12 +7,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.runtime.doctor import (
+from myrm_agent_harness.runtime.diagnostics.doctor import (
     Doctor,
     _get_module_version,
     run_global_doctor,
 )
-from myrm_agent_harness.runtime.doctor_cli import format_styled_report
+from myrm_agent_harness.runtime.diagnostics.doctor_cli import format_styled_report
 from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, DoctorCheckResult, DoctorReport
 
 
@@ -42,7 +42,7 @@ class TestCoreDependenciesCheck:
 
     @pytest.mark.asyncio
     async def test_missing_dependency(self):
-        with patch("myrm_agent_harness.runtime.doctor._cached_find_spec", return_value=None):
+        with patch("myrm_agent_harness.runtime.diagnostics.doctor._cached_find_spec", return_value=None):
             result = await Doctor()._check_core_deps()
             assert result.status == CheckStatus.ERROR
             assert result.fix == "uv sync"

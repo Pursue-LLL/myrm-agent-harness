@@ -9,32 +9,22 @@ Layer cheatsheet: [ARCHITECTURE.md](../../../ARCHITECTURE.md) §Harness 五层�
 
 Detailed design: [CONVERSATION_FORK_SYSTEM.md](CONVERSATION_FORK_SYSTEM.md)
 
-## File & Submodule Index
+## Subpackages
 
-| File | Role | Description | I/O/P |
-|------|------|-------------|-------|
-| __init__.py | Package | Agent runtime infrastructure for single-instance execution. | — |
-| artifact_judge.py | Core | Artifact identification system. | ✅ |
-| checkpoint_protocol.py | Core | CheckpointerProtocol for type-safe checkpointer thread store access. | ✅ |
-| compliance.py | Core | Runtime Capability Eviction & Procurement Compliance Self-Audit Engine (Six-Question Checklist). | ✅ |
-| compression.py | Core | Generic file compression utilities for storage optimization. | ✅ |
-| doctor.py | Core | Concurrent diagnostic engine. Async-parallel model with lightweight HTTP probe, deploy mode awareness, and structured diagnostics. | ✅ |
-| doctor_cli.py | Core | CLI Formatter for Myrm Doctor. | ✅ |
-| execution_paths.py | Core | Unified execution path constants and utilities, including content-addressed context archive metadata, restore-map sidecar paths, and archive sidecar path candidate normalization. | ✅ |
-| fork_types.py | Config | Defines data structures for conversation forking feature. Used by business layer | ✅ |
-| memory_pressure.py | Core | Global memory pressure coordination. Framework provides the monitor and hooks; | ✅ |
-| resource_monitor.py | Core | High-fidelity resource monitor with history sampling, adaptive heap profiling, and production-visible [MEMORY] INFO logging. | ✅ |
-| startup.py | Core | Optional toolkit for monitoring application startup performance. | ✅ |
-| lazy_deps.py | Core | Allowlisted venv-scoped lazy install for optional platform extras (Matrix, Discord, Feishu, WeChat SILK). | ✅ |
-
-| Submodule | Description |
-|-----------|-------------|
-| checkpointing/ | Checkpointer factory — creation, configuration, and cleanup for SQLite/Memory backends. |
-| context/ | Context lifecycle management — cleanup, config, metrics, access tracking, reading, scoped offload, atomic archive storage, and restore-map sidecars. |
-| events/ | Events submodule. |
-| maintenance/ | Global Adaptive Maintenance Scheduling. |
-| quota/ | Storage quota management and monitoring. |
-| install_guard/ | Dual-wheel install readiness — probe, platform key, verify CLI (see install_guard/_ARCH.md). |
+| Submodule | Description | Doc |
+| --- | --- | --- |
+| `context/` | Context lifecycle — cleanup, offload, archive, session | [context/_ARCH.md](context/_ARCH.md) |
+| `checkpointing/` | Checkpointer factory | [checkpointing/_ARCH.md](checkpointing/_ARCH.md) |
+| `events/` | Runtime event bus | [events/_ARCH.md](events/_ARCH.md) |
+| `maintenance/` | Global adaptive maintenance scheduling | [maintenance/_ARCH.md](maintenance/_ARCH.md) |
+| `quota/` | Storage quota management | [quota/_ARCH.md](quota/_ARCH.md) |
+| `install_guard/` | Dual-wheel install readiness | [install_guard/_ARCH.md](install_guard/_ARCH.md) |
+| `diagnostics/` | Doctor + compliance self-audit | [diagnostics/_ARCH.md](diagnostics/_ARCH.md) |
+| `survival/` | Memory pressure, resource monitor, startup timing | [survival/_ARCH.md](survival/_ARCH.md) |
+| `paths/` | Execution path SSOT + compression | [paths/_ARCH.md](paths/_ARCH.md) |
+| `artifacts/` | Artifact judge + checkpoint protocol | [artifacts/_ARCH.md](artifacts/_ARCH.md) |
+| `fork/` | Conversation fork types | [fork/_ARCH.md](fork/_ARCH.md) |
+| `deps/` | Lazy optional dependency install | [deps/_ARCH.md](deps/_ARCH.md) |
 
 ## Key Dependencies
 

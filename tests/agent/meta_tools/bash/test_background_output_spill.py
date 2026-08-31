@@ -21,7 +21,7 @@ def spill_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[str,
         return str(evicted_dir)
 
     monkeypatch.setattr(
-        "myrm_agent_harness.runtime.execution_paths.ensure_context_dir_exists",
+        "myrm_agent_harness.runtime.paths.execution_paths.ensure_context_dir_exists",
         _ensure_context_dir_exists,
     )
     return session_id, evicted_dir

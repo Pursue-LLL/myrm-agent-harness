@@ -62,12 +62,17 @@ def scan_package_root(package_root: Path) -> RootViolation | None:
 
 
 def scan_tree(root: Path) -> list[RootViolation]:
-    """Check only the immediate package root (rule 5.1), not nested subpackages."""
+    """Check the package root and designated inner package roots (e.g. runtime/)."""
     violations: list[RootViolation] = []
     if not root.is_dir():
         return violations
     if _is_package_root(root):
         hit = scan_package_root(root)
+        if hit is not None:
+            violations.append(hit)
+    runtime_root = root / "runtime"
+    if runtime_root.is_dir() and _is_package_root(runtime_root):
+        hit = scan_package_root(runtime_root)
         if hit is not None:
             violations.append(hit)
     return violations

@@ -1,7 +1,7 @@
 """Session-scoped pinned context files for cross-compaction retention.
 
 [INPUT]
-- runtime.execution_paths::PERSISTENT_ROOT (POS: persistent volume root)
+- runtime.paths.execution_paths::PERSISTENT_ROOT (POS: persistent volume root)
 
 [OUTPUT]
 - read_pinned_files / write_pinned_files / add_pinned_file / remove_pinned_file
@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from myrm_agent_harness.runtime.execution_paths import PERSISTENT_ROOT
+from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT
 
 _MAX_PINNED_FILES = 8
 _PIN_FILENAME = "pinned_context_files.json"

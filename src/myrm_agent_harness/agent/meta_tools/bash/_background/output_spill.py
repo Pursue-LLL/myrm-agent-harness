@@ -1,7 +1,7 @@
 """Incremental vault spill for long-running background bash stdout/stderr.
 
 [INPUT]
-- runtime.execution_paths::ensure_context_dir_exists (POS: session-scoped context dirs)
+- runtime.paths.execution_paths::ensure_context_dir_exists (POS: session-scoped context dirs)
 
 [OUTPUT]
 - BackgroundOutputSpillWriter: Append-only log writer; exposes evicted API basename via vault_log_ref
@@ -61,7 +61,7 @@ class BackgroundOutputSpillWriter:
     def _ensure_paths(self) -> None:
         if self._filename is not None:
             return
-        from myrm_agent_harness.runtime.execution_paths import ensure_context_dir_exists
+        from myrm_agent_harness.runtime.paths.execution_paths import ensure_context_dir_exists
 
         file_id = uuid4().hex[:8]
         filename = f"{_EVICTED_BASENAME_PREFIX}{file_id}{_EVICTED_BASENAME_SUFFIX}"

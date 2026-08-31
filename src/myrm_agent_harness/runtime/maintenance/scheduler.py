@@ -11,7 +11,7 @@ Design principles:
 - Memory-pressure-aware: Subscribes to MemoryPressureMonitor for coordinated response
 
 [INPUT]
-- runtime.memory_pressure::PressureEvent, PressureLevel, PressureSubscriber (POS: Global memory pressure coordination. Framework provides the monitor and hooks; business layer registers subscribers to decide degradation strategies. Follows the framework's three responsibilities: resource management, performance optimization, self-protection.)
+- runtime.survival.memory_pressure::PressureEvent, PressureLevel, PressureSubscriber (POS: Global memory pressure coordination. Framework provides the monitor and hooks; business layer registers subscribers to decide degradation strategies. Follows the framework's three responsibilities: resource management, performance optimization, self-protection.)
 
 [OUTPUT]
 - GlobalAdaptiveScheduler: Adaptive scheduler that throttles maintenance based on sy...
@@ -30,7 +30,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-from myrm_agent_harness.runtime.memory_pressure import (
+from myrm_agent_harness.runtime.survival.memory_pressure import (
     PressureEvent,
     PressureLevel,
     PressureSubscriber,
@@ -262,7 +262,7 @@ def init_maintenance_scheduler(
     if _scheduler is None:
         _scheduler = GlobalAdaptiveScheduler(sensor, ticket_ttl_seconds=ticket_ttl_seconds)
 
-        from myrm_agent_harness.runtime.memory_pressure import get_memory_pressure_monitor
+        from myrm_agent_harness.runtime.survival.memory_pressure import get_memory_pressure_monitor
 
         monitor = get_memory_pressure_monitor()
         if monitor is not None:

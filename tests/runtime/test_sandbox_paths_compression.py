@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.runtime.execution_paths import get_compacted_output_path
+from myrm_agent_harness.runtime.paths.execution_paths import get_compacted_output_path
 
 
 class TestSandboxPathsCompression:

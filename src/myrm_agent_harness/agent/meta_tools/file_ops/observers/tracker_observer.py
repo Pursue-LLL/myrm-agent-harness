@@ -45,7 +45,7 @@ class TrackerObserver(FileOperationObserver):
         Records file access for context files to support lifecycle management.
         """
         try:
-            from myrm_agent_harness.runtime.execution_paths import track_context_file_access_if_needed
+            from myrm_agent_harness.runtime.paths.execution_paths import track_context_file_access_if_needed
 
             await track_context_file_access_if_needed(path)
         except Exception:

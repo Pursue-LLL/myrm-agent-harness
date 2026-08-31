@@ -47,6 +47,41 @@ def test_package_root_layout_gate() -> None:
     assert result.returncode == 0, result.stderr or result.stdout
 
 
+_RUNTIME_ROOT = _PACKAGE_ROOT / "runtime"
+
+_RUNTIME_SUBPACKAGES = (
+    "diagnostics",
+    "survival",
+    "paths",
+    "artifacts",
+    "fork",
+    "deps",
+)
+
+
+@pytest.mark.architecture
+def test_runtime_root_has_no_flat_implementation_modules() -> None:
+    """runtime/ root must only host __init__.py (domain modules live in subpackages)."""
+    forbidden = sorted(
+        p.name
+        for p in _RUNTIME_ROOT.iterdir()
+        if p.is_file() and p.suffix == ".py" and p.name != "__init__.py"
+    )
+    assert not forbidden, (
+        f"runtime/ root must not flat-spread modules: {forbidden}. "
+        "Move into diagnostics/, survival/, paths/, artifacts/, fork/, or deps/."
+    )
+
+
+@pytest.mark.architecture
+def test_runtime_domain_subpackages_exist() -> None:
+    for name in _RUNTIME_SUBPACKAGES:
+        sub = _RUNTIME_ROOT / name
+        assert sub.is_dir(), f"Missing runtime subpackage: {sub}"
+        assert (sub / "__init__.py").is_file(), f"Missing {sub}/__init__.py"
+        assert (sub / "_ARCH.md").is_file(), f"Missing {sub}/_ARCH.md"
+
+
 @pytest.mark.architecture
 def test_install_guard_subpackage_layout() -> None:
     assert _INSTALL_GUARD_SUBPACKAGE.is_dir(), (

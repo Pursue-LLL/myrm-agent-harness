@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from myrm_agent_harness.runtime.startup import StartupMetrics, StartupTimer
+from myrm_agent_harness.runtime.survival.startup import StartupMetrics, StartupTimer
 
 
 class TestStartupMetrics:

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.runtime.memory_pressure import (
+from myrm_agent_harness.runtime.survival.memory_pressure import (
     MemoryPressureMonitor,
     PressureConfig,
     PressureEvent,
@@ -105,14 +105,14 @@ class TestPressureEvent:
 
 class TestCgroupMemoryReading:
     def test_cgroup_not_available(self):
-        with patch("myrm_agent_harness.runtime.memory_pressure._CGROUP_MEMORY_CURRENT") as mock_current:
+        with patch("myrm_agent_harness.runtime.survival.memory_pressure._CGROUP_MEMORY_CURRENT") as mock_current:
             mock_current.read_text.side_effect = FileNotFoundError
             assert _read_cgroup_memory_percent() is None
 
     def test_cgroup_max_is_max_string(self):
         with (
-            patch("myrm_agent_harness.runtime.memory_pressure._CGROUP_MEMORY_CURRENT") as mock_current,
-            patch("myrm_agent_harness.runtime.memory_pressure._CGROUP_MEMORY_MAX") as mock_max,
+            patch("myrm_agent_harness.runtime.survival.memory_pressure._CGROUP_MEMORY_CURRENT") as mock_current,
+            patch("myrm_agent_harness.runtime.survival.memory_pressure._CGROUP_MEMORY_MAX") as mock_max,
         ):
             mock_current.read_text.return_value = "1000000"
             mock_max.read_text.return_value = "max"
@@ -302,8 +302,8 @@ class TestMonitorProperties:
 
     def test_memory_source_detection(self):
         with (
-            patch("myrm_agent_harness.runtime.memory_pressure._CGROUP_MEMORY_CURRENT") as mock_current,
-            patch("myrm_agent_harness.runtime.memory_pressure._CGROUP_MEMORY_MAX") as mock_max,
+            patch("myrm_agent_harness.runtime.survival.memory_pressure._CGROUP_MEMORY_CURRENT") as mock_current,
+            patch("myrm_agent_harness.runtime.survival.memory_pressure._CGROUP_MEMORY_MAX") as mock_max,
         ):
             mock_current.exists.return_value = False
             mock_max.exists.return_value = False
@@ -362,7 +362,7 @@ class TestMonitorLifecycle:
 class TestEmergencyGC:
     @pytest.mark.asyncio()
     async def test_gc_runs_on_emergency(self):
-        with patch("myrm_agent_harness.runtime.memory_pressure.gc.collect", return_value=42) as mock_gc:
+        with patch("myrm_agent_harness.runtime.survival.memory_pressure.gc.collect", return_value=42) as mock_gc:
             monitor = MemoryPressureMonitor()
             await monitor._emergency_gc()
             mock_gc.assert_called_once()
@@ -370,7 +370,7 @@ class TestEmergencyGC:
 
 class TestModuleSingleton:
     def test_init_and_get(self):
-        import myrm_agent_harness.runtime.memory_pressure as mp
+        import myrm_agent_harness.runtime.survival.memory_pressure as mp
 
         mp._monitor = None
         monitor = init_memory_pressure_monitor()
@@ -379,7 +379,7 @@ class TestModuleSingleton:
         mp._monitor = None
 
     def test_double_init_returns_same(self):
-        import myrm_agent_harness.runtime.memory_pressure as mp
+        import myrm_agent_harness.runtime.survival.memory_pressure as mp
 
         mp._monitor = None
         m1 = init_memory_pressure_monitor()
@@ -388,7 +388,7 @@ class TestModuleSingleton:
         mp._monitor = None
 
     def test_get_before_init(self):
-        import myrm_agent_harness.runtime.memory_pressure as mp
+        import myrm_agent_harness.runtime.survival.memory_pressure as mp
 
         mp._monitor = None
         assert get_memory_pressure_monitor() is None
@@ -398,14 +398,14 @@ class TestReadMemoryPercent:
     def test_psutil_fallback(self):
         monitor = MemoryPressureMonitor()
         monitor._use_cgroup = False
-        with patch("myrm_agent_harness.runtime.memory_pressure._read_psutil_memory_percent", return_value=65.0):
+        with patch("myrm_agent_harness.runtime.survival.memory_pressure._read_psutil_memory_percent", return_value=65.0):
             assert monitor._read_memory_percent() == 65.0
 
     def test_cgroup_preferred(self):
         monitor = MemoryPressureMonitor()
         monitor._use_cgroup = True
         with patch(
-            "myrm_agent_harness.runtime.memory_pressure._read_cgroup_memory_percent",
+            "myrm_agent_harness.runtime.survival.memory_pressure._read_cgroup_memory_percent",
             return_value=72.5,
         ):
             assert monitor._read_memory_percent() == 72.5
@@ -415,11 +415,11 @@ class TestReadMemoryPercent:
         monitor._use_cgroup = True
         with (
             patch(
-                "myrm_agent_harness.runtime.memory_pressure._read_cgroup_memory_percent",
+                "myrm_agent_harness.runtime.survival.memory_pressure._read_cgroup_memory_percent",
                 return_value=None,
             ),
             patch(
-                "myrm_agent_harness.runtime.memory_pressure._read_psutil_memory_percent",
+                "myrm_agent_harness.runtime.survival.memory_pressure._read_psutil_memory_percent",
                 return_value=55.0,
             ),
         ):

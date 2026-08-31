@@ -1,7 +1,7 @@
 """Context snapshot branch manifest for GUI restore flows.
 
 [INPUT]
-- runtime.execution_paths::PERSISTENT_ROOT (POS: persistent volume root)
+- runtime.paths.execution_paths::PERSISTENT_ROOT (POS: persistent volume root)
 
 [OUTPUT]
 - list_context_branches / append_context_branch / get_context_branch / ContextBranchRecord
@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from myrm_agent_harness.runtime.execution_paths import PERSISTENT_ROOT
+from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT
 
 _BRANCH_FILENAME = "branches.json"
 _MAX_BRANCHES = 20

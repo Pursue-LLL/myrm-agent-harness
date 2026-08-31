@@ -52,7 +52,7 @@ async def read_context_file_async(file_path: str | Path) -> str:
 
     try:
         # Track file access for lifecycle management
-        from myrm_agent_harness.runtime.execution_paths import (
+        from myrm_agent_harness.runtime.paths.execution_paths import (
             track_context_file_access_if_needed,
         )
 

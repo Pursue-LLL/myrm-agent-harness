@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from myrm_agent_harness.agent.context_management.tracking.archive_restore import build_archive_restore_guidance
-from myrm_agent_harness.runtime.execution_paths import get_context_archive_sidecar_path_candidates
+from myrm_agent_harness.runtime.paths.execution_paths import get_context_archive_sidecar_path_candidates
 
 
 def test_context_archive_sidecar_candidates_cover_tool_path_forms() -> None:

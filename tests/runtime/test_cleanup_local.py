@@ -25,13 +25,13 @@ def _create_old_file(path: Path, age_seconds: float = 100) -> None:
 
 
 def test_cleanup_local_no_context_root(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", "/nonexistent")
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", "/nonexistent")
     result = cleanup_context_files_local()
     assert result == 0
 
 
 def test_cleanup_local_removes_old_files(context_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_abc" / "compacted"
     session_dir.mkdir(parents=True)
@@ -45,7 +45,7 @@ def test_cleanup_local_removes_old_files(context_root: Path, monkeypatch: pytest
 
 
 def test_cleanup_local_keeps_recent_files(context_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_abc" / "compacted"
     session_dir.mkdir(parents=True)
@@ -59,7 +59,7 @@ def test_cleanup_local_keeps_recent_files(context_root: Path, monkeypatch: pytes
 
 
 def test_cleanup_local_skips_system_dir(context_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     system_dir = context_root / "system" / "compacted"
     system_dir.mkdir(parents=True)
@@ -72,7 +72,7 @@ def test_cleanup_local_skips_system_dir(context_root: Path, monkeypatch: pytest.
 
 
 def test_cleanup_local_scratchpad_files(context_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_abc" / "scratchpad"
     session_dir.mkdir(parents=True)
@@ -86,7 +86,7 @@ def test_cleanup_local_scratchpad_files(context_root: Path, monkeypatch: pytest.
 
 def test_cleanup_local_mtime_fallback_protection(context_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """File within max_age_days but beyond file_access_days is kept by fallback."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_abc" / "compacted"
     session_dir.mkdir(parents=True)

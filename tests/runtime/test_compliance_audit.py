@@ -6,7 +6,7 @@ from myrm_agent_harness.core.security.tool_registry.registry import (
     evict_skill_safety_metadata,
     register_ptc_safety_metadata,
 )
-from myrm_agent_harness.runtime.compliance import (
+from myrm_agent_harness.runtime.diagnostics.compliance import (
     ComplianceAuditEngine,
     ComplianceStatus,
 )

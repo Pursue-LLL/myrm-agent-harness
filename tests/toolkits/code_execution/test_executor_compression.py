@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.runtime.compression import compress_content
+from myrm_agent_harness.runtime.paths.compression import compress_content
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
 from myrm_agent_harness.toolkits.code_execution.executors.local.executor import LocalExecutor
 

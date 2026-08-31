@@ -6,7 +6,7 @@ import gzip
 
 import pytest
 
-from myrm_agent_harness.runtime.compression import (
+from myrm_agent_harness.runtime.paths.compression import (
     compress_content,
     decompress_content,
     estimate_compression_ratio,

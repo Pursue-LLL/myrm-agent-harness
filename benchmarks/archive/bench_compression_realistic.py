@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 
-from myrm_agent_harness.runtime.compression import compress_content
+from myrm_agent_harness.runtime.paths.compression import compress_content
 
 
 def generate_realistic_html(size_kb: int) -> str:

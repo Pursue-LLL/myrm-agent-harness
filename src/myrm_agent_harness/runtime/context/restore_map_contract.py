@@ -3,7 +3,7 @@
 [INPUT]
 - json, re, time (POS: standard parsing and payload generation)
 - pathlib::Path (POS: sidecar file lookup)
-- runtime.execution_paths::get_context_archive_sidecar_path_candidates
+- runtime.paths.execution_paths::get_context_archive_sidecar_path_candidates
 
 [OUTPUT]
 - build_restore_map_json: Build a schema-versioned restore-map payload.
@@ -33,7 +33,7 @@ from myrm_agent_harness.runtime.context.restore_map_structures import (
     build_restore_content_features,
     build_restore_range_hints,
 )
-from myrm_agent_harness.runtime.execution_paths import get_context_archive_sidecar_path_candidates
+from myrm_agent_harness.runtime.paths.execution_paths import get_context_archive_sidecar_path_candidates
 
 RESTORE_MAP_SCHEMA_VERSION = 2
 SUPPORTED_RESTORE_MAP_SCHEMA_VERSIONS = frozenset({1, RESTORE_MAP_SCHEMA_VERSION})

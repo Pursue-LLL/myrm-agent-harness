@@ -426,7 +426,7 @@ class TestCleanupSessionContextFilesEdgeCases:
         executor = StubExecutor()
 
         def selective_isdir(path: str) -> bool:
-            from myrm_agent_harness.runtime.execution_paths import CONTEXT_ROOT
+            from myrm_agent_harness.runtime.paths.execution_paths import CONTEXT_ROOT
 
             return path == CONTEXT_ROOT
 

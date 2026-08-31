@@ -1,4 +1,4 @@
-"""Tests for myrm_agent_harness.runtime.artifact_judge.ArtifactJudge."""
+"""Tests for myrm_agent_harness.runtime.artifacts.artifact_judge.ArtifactJudge."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.runtime.artifact_judge import ArtifactJudge
+from myrm_agent_harness.runtime.artifacts.artifact_judge import ArtifactJudge
 
 
 @pytest.fixture
@@ -71,8 +71,8 @@ def test_should_persist_user_feedback_priority(judge: ArtifactJudge, tmp_path: P
     assert reason == "User feedback"
 
 
-@patch("myrm_agent_harness.runtime.execution_paths.is_context_path")
-@patch("myrm_agent_harness.runtime.execution_paths.is_persistent_path")
+@patch("myrm_agent_harness.runtime.paths.execution_paths.is_context_path")
+@patch("myrm_agent_harness.runtime.paths.execution_paths.is_persistent_path")
 def test_should_persist_persistent_context_paths(
     mock_persistent: MagicMock,
     mock_context: MagicMock,
@@ -89,8 +89,8 @@ def test_should_persist_persistent_context_paths(
     assert "Context file" in reason
 
 
-@patch("myrm_agent_harness.runtime.execution_paths.is_context_path")
-@patch("myrm_agent_harness.runtime.execution_paths.is_persistent_path")
+@patch("myrm_agent_harness.runtime.paths.execution_paths.is_context_path")
+@patch("myrm_agent_harness.runtime.paths.execution_paths.is_persistent_path")
 def test_should_persist_persistent_not_context_falls_through(
     mock_persistent: MagicMock,
     mock_context: MagicMock,

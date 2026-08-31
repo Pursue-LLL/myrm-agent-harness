@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from myrm_agent_harness.runtime.compression import (
+from myrm_agent_harness.runtime.paths.compression import (
     ASYNC_COMPRESSION_THRESHOLD,
     compress_content,
     compress_content_async,
@@ -149,7 +149,7 @@ class TestAsyncCompression:
         await compress_content_async(content)
 
         # Verify the executor was created and is not shutdown
-        from myrm_agent_harness.runtime.compression import _compression_executor
+        from myrm_agent_harness.runtime.paths.compression import _compression_executor
 
         assert _compression_executor is not None
         assert not _compression_executor._shutdown

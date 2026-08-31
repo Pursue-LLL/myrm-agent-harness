@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from myrm_agent_harness.runtime.compression import compress_content, decompress_content
+from myrm_agent_harness.runtime.paths.compression import compress_content, decompress_content
 
 
 class TestCompressionBenchmark:

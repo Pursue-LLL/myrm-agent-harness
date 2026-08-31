@@ -39,7 +39,7 @@ async def test_cleanup_with_recent_access(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test cleanup respects recently accessed files."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_abc" / "compacted"
     session_dir.mkdir(parents=True)
@@ -72,7 +72,7 @@ async def test_cleanup_respects_priority_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test cleanup respects rule priority (session > access > mtime)."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_abc" / "compacted"
     session_dir.mkdir(parents=True)
@@ -105,7 +105,7 @@ async def test_cleanup_empty_directories(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test cleanup removes empty directories."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_abc" / "compacted"
     session_dir.mkdir(parents=True)
@@ -132,7 +132,7 @@ async def test_cleanup_orphan_tracking_records(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test cleanup removes orphan tracking records."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_abc" / "compacted"
     session_dir.mkdir(parents=True)
@@ -161,7 +161,7 @@ async def test_cleanup_batch_processing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test cleanup processes sessions in batches."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     for i in range(250):
         session_dir = context_root / f"chat_{i}" / "compacted"
@@ -188,7 +188,7 @@ async def test_cleanup_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test cleanup respects timeout."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     for i in range(10):
         session_dir = context_root / f"chat_{i}" / "compacted"
@@ -240,7 +240,7 @@ def _create_old_file(path: Path, age_seconds: float = 100) -> None:
 @pytest.mark.asyncio
 async def test_cleanup_async_no_context_root(monkeypatch: pytest.MonkeyPatch) -> None:
     """Async cleanup returns 0 when context root doesn't exist."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", "/nonexistent")
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", "/nonexistent")
     result = await cleanup_context_files_async(checkpointer=None, access_tracker=AsyncMock())
     assert result == 0
 
@@ -252,7 +252,7 @@ async def test_cleanup_async_with_metrics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Async cleanup records metrics when available."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_metrics" / "compacted"
     session_dir.mkdir(parents=True)
@@ -276,7 +276,7 @@ async def test_cleanup_async_with_active_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Async cleanup keeps files for active sessions."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_active" / "compacted"
     session_dir.mkdir(parents=True)
@@ -308,7 +308,7 @@ async def test_cleanup_async_mtime_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Async cleanup uses mtime fallback when file is recent."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_mtime" / "compacted"
     session_dir.mkdir(parents=True)
@@ -332,7 +332,7 @@ async def test_cleanup_async_auto_get_tracker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Async cleanup auto-gets tracker when not provided."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_auto" / "compacted"
     session_dir.mkdir(parents=True)
@@ -366,7 +366,7 @@ async def test_cleanup_async_tracker_get_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Async cleanup handles tracker acquisition failure."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_fail" / "compacted"
     session_dir.mkdir(parents=True)
@@ -396,7 +396,7 @@ async def test_cleanup_async_session_loading_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Async cleanup handles session loading failure gracefully."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_err" / "compacted"
     session_dir.mkdir(parents=True)
@@ -426,7 +426,7 @@ async def test_cleanup_async_skips_non_file_entries(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Async cleanup skips directories inside subdirs."""
-    monkeypatch.setattr("myrm_agent_harness.runtime.execution_paths.CONTEXT_ROOT", str(context_root))
+    monkeypatch.setattr("myrm_agent_harness.runtime.paths.execution_paths.CONTEXT_ROOT", str(context_root))
 
     session_dir = context_root / "chat_nested" / "compacted"
     session_dir.mkdir(parents=True)

@@ -3,7 +3,7 @@
 [INPUT]
 - runtime.context.cleanup::cleanup_context_files_async (POS: Context file cleanup with session-aware strategy.)
 - runtime.context.instance_metrics::record_cleanup (POS: Context operation metrics for monitoring and observability.)
-- runtime.execution_paths::* (POS: stable context archive paths)
+- runtime.paths.execution_paths::* (POS: stable context archive paths)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 
 [OUTPUT]
@@ -26,7 +26,7 @@ from myrm_agent_harness.runtime.context.cleanup import (
     cleanup_context_files_local,
 )
 from myrm_agent_harness.runtime.context.instance_metrics import record_cleanup
-from myrm_agent_harness.runtime.execution_paths import (
+from myrm_agent_harness.runtime.paths.execution_paths import (
     CONTEXT_ROOT,
     _sanitize_path_segment,
     get_context_session_dir,
@@ -34,7 +34,7 @@ from myrm_agent_harness.runtime.execution_paths import (
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.runtime.checkpoint_protocol import CheckpointerProtocol
+    from myrm_agent_harness.runtime.artifacts.checkpoint_protocol import CheckpointerProtocol
     from myrm_agent_harness.runtime.context.file_access_tracker import FileAccessTracker
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 

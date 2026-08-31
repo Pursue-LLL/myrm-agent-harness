@@ -28,7 +28,7 @@ from myrm_agent_harness.runtime.maintenance.protocols import (
 )
 from myrm_agent_harness.runtime.maintenance.scheduler import GlobalAdaptiveScheduler
 from myrm_agent_harness.runtime.maintenance.sensors import DeviceLoadSensor, SaaSLoadSensor
-from myrm_agent_harness.runtime.memory_pressure import PressureEvent, PressureLevel
+from myrm_agent_harness.runtime.survival.memory_pressure import PressureEvent, PressureLevel
 from myrm_agent_harness.runtime.quota.manager import SimpleStorageQuotaManager
 
 
@@ -306,7 +306,7 @@ class TestSingletonFunctions:
         try:
             sched_mod._scheduler = None
             sensor = FakeLoadSensor(SystemLoadLevel.NORMAL)
-            with patch("myrm_agent_harness.runtime.memory_pressure.get_memory_pressure_monitor", return_value=None):
+            with patch("myrm_agent_harness.runtime.survival.memory_pressure.get_memory_pressure_monitor", return_value=None):
                 s = sched_mod.init_maintenance_scheduler(sensor)
             assert isinstance(s, GlobalAdaptiveScheduler)
             assert sched_mod.get_maintenance_scheduler() is s
@@ -318,7 +318,7 @@ class TestSingletonFunctions:
 
     def test_init_subscribes_to_monitor(self) -> None:
         import myrm_agent_harness.runtime.maintenance.scheduler as sched_mod
-        from myrm_agent_harness.runtime.memory_pressure import MemoryPressureMonitor
+        from myrm_agent_harness.runtime.survival.memory_pressure import MemoryPressureMonitor
 
         original = sched_mod._scheduler
         try:
@@ -326,7 +326,7 @@ class TestSingletonFunctions:
             sensor = FakeLoadSensor(SystemLoadLevel.IDLE)
             mock_monitor = MemoryPressureMonitor()
             with patch(
-                "myrm_agent_harness.runtime.memory_pressure.get_memory_pressure_monitor", return_value=mock_monitor
+                "myrm_agent_harness.runtime.survival.memory_pressure.get_memory_pressure_monitor", return_value=mock_monitor
             ):
                 s = sched_mod.init_maintenance_scheduler(sensor)
             assert s in mock_monitor._subscribers

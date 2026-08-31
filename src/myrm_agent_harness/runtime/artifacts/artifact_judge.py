@@ -119,7 +119,7 @@ class ArtifactJudge:
         Returns:
             Tuple of (should_persist, reason)
         """
-        from myrm_agent_harness.runtime.execution_paths import is_context_path, is_persistent_path
+        from myrm_agent_harness.runtime.paths.execution_paths import is_context_path, is_persistent_path
 
         # Check if file is in persistent volume
         # Context files are always persistent

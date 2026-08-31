@@ -38,7 +38,7 @@ Compression strategy:
 - agent.context_management.infra.schemas::ContextCompressOffloadCallback, (POS: Planner Schema Definitions)
 - runtime.quota.errors::QuotaExceededError (POS: Storage quota related errors.)
 - runtime.quota.protocol::StorageQuotaChecker (POS: Storage quota checking protocol.)
-- runtime.checkpoint_protocol::CheckpointerProtocol (POS: Protocol definition for checkpointer objects.)
+- runtime.artifacts.checkpoint_protocol::CheckpointerProtocol (POS: Protocol definition for checkpointer objects.)
 - runtime.context.cleanup_ops::* (POS: Runtime context cleanup operations. Owns session directory cleanup and orphan cleanup entrypoints.)
 - runtime.context.file_access_tracker::get_file_access_tracker (POS: Context archive access tracking)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
@@ -67,7 +67,7 @@ from myrm_agent_harness.agent.context_management.infra.schemas import (
     ContextOffloadResult,
     ContextSnapshotCallback,
 )
-from myrm_agent_harness.runtime.compression import (
+from myrm_agent_harness.runtime.paths.compression import (
     compress_content_async,
     get_adaptive_compression_level,
     should_compress,
@@ -86,7 +86,7 @@ from myrm_agent_harness.runtime.context.instance_metrics import (
     record_offload_failure,
     record_offload_success,
 )
-from myrm_agent_harness.runtime.execution_paths import (
+from myrm_agent_harness.runtime.paths.execution_paths import (
     _sanitize_path_segment,
     ensure_context_dir_exists,
     get_snapshot_path,

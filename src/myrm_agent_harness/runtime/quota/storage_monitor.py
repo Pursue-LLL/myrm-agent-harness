@@ -46,7 +46,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..execution_paths import CONTEXT_ROOT
+from myrm_agent_harness.runtime.paths.execution_paths import CONTEXT_ROOT
 
 logger = logging.getLogger(__name__)
 

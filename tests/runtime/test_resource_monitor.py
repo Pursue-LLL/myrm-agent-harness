@@ -1,4 +1,4 @@
-"""Tests for myrm_agent_harness.runtime.resource_monitor."""
+"""Tests for myrm_agent_harness.runtime.survival.resource_monitor."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import myrm_agent_harness.runtime.resource_monitor as resource_monitor
-from myrm_agent_harness.runtime.resource_monitor import (
+import myrm_agent_harness.runtime.survival.resource_monitor as resource_monitor
+from myrm_agent_harness.runtime.survival.resource_monitor import (
     ResourceMetrics,
     ResourceMonitor,
     get_resource_monitor,
@@ -259,7 +259,7 @@ async def test_monitor_loop_publishes_event() -> None:
     with (
         patch.object(resource_monitor, "psutil", mock_psutil),
         patch(
-            "myrm_agent_harness.runtime.resource_monitor.get_event_bus",
+            "myrm_agent_harness.runtime.survival.resource_monitor.get_event_bus",
             return_value=mock_bus,
             create=True,
         ),
@@ -284,7 +284,7 @@ async def test_info_logging_baseline_and_shutdown(caplog: pytest.LogCaptureFixtu
         )
         import logging
 
-        with caplog.at_level(logging.INFO, logger="myrm_agent_harness.runtime.resource_monitor"):
+        with caplog.at_level(logging.INFO, logger="myrm_agent_harness.runtime.survival.resource_monitor"):
             await mon.start()
             await asyncio.sleep(0.03)
             await mon.stop()
@@ -307,7 +307,7 @@ async def test_info_logging_periodic(caplog: pytest.LogCaptureFixture) -> None:
         )
         import logging
 
-        with caplog.at_level(logging.INFO, logger="myrm_agent_harness.runtime.resource_monitor"):
+        with caplog.at_level(logging.INFO, logger="myrm_agent_harness.runtime.survival.resource_monitor"):
             await mon.start()
             await asyncio.sleep(0.08)
             await mon.stop()

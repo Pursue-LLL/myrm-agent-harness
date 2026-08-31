@@ -39,7 +39,7 @@ from myrm_agent_harness.runtime.context import (
     set_context_metrics,
 )
 from myrm_agent_harness.runtime.events import BaseEvent, EventBus, IdleTaskProgressEvent, get_event_bus
-from myrm_agent_harness.runtime.execution_paths import (
+from myrm_agent_harness.runtime.paths.execution_paths import (
     ARTIFACTS_ROOT,
     CONTEXT_ROOT,
     MEMORIES_ROOT,
@@ -49,7 +49,7 @@ from myrm_agent_harness.runtime.execution_paths import (
     get_context_session_dir,
     get_workspace_relative_path,
 )
-from myrm_agent_harness.runtime.fork_types import ForkInfo
+from myrm_agent_harness.runtime.fork.fork_types import ForkInfo
 from myrm_agent_harness.runtime.maintenance import (
     AgentHealthScore,
     CapacityDenial,
@@ -64,7 +64,7 @@ from myrm_agent_harness.runtime.maintenance import (
     get_maintenance_scheduler,
     init_maintenance_scheduler,
 )
-from myrm_agent_harness.runtime.memory_pressure import (
+from myrm_agent_harness.runtime.survival.memory_pressure import (
     MemoryPressureMonitor,
     PressureConfig,
     PressureEvent,
@@ -78,7 +78,7 @@ from myrm_agent_harness.runtime.quota import (
     SimpleStorageQuotaManager,
     StorageQuotaChecker,
 )
-from myrm_agent_harness.runtime.resource_monitor import ResourceMonitor
+from myrm_agent_harness.runtime.survival.resource_monitor import ResourceMonitor
 
 __all__ = [
     "ARTIFACTS_ROOT",

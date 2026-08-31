@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from myrm_agent_harness.runtime.compression import (
+from myrm_agent_harness.runtime.paths.compression import (
     compress_content_async,
     decompress_content,
     get_adaptive_compression_level,

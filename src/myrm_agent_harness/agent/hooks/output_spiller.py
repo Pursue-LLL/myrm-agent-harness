@@ -10,7 +10,7 @@ Storage: <PERSISTENT_ROOT>/.hook_outputs/<session_id>/<uuid>.txt
 
 [INPUT]
 - utils.text_utils::get_token_count (POS: Token counting)
-- runtime.execution_paths::PERSISTENT_ROOT (POS: Storage root)
+- runtime.paths.execution_paths::PERSISTENT_ROOT (POS: Storage root)
 
 [OUTPUT]
 - HookOutputSpiller: spill oversized hook text to disk
@@ -26,7 +26,7 @@ import logging
 import uuid
 from pathlib import Path
 
-from myrm_agent_harness.runtime.execution_paths import PERSISTENT_ROOT
+from myrm_agent_harness.runtime.paths.execution_paths import PERSISTENT_ROOT
 from myrm_agent_harness.utils.text_utils import get_token_count
 
 logger = logging.getLogger(__name__)

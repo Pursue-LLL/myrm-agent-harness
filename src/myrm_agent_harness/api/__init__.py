@@ -130,19 +130,19 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "AgentStreamEvent": ("myrm_agent_harness.api.types", "AgentStreamEvent"),
     "CompletionStatus": ("myrm_agent_harness.api.types", "CompletionStatus"),
     "ComplianceAuditEngine": (
-        "myrm_agent_harness.runtime.compliance",
+        "myrm_agent_harness.runtime.diagnostics.compliance",
         "ComplianceAuditEngine",
     ),
     "ComplianceReport": (
-        "myrm_agent_harness.runtime.compliance",
+        "myrm_agent_harness.runtime.diagnostics.compliance",
         "ComplianceReport",
     ),
     "ComplianceStatus": (
-        "myrm_agent_harness.runtime.compliance",
+        "myrm_agent_harness.runtime.diagnostics.compliance",
         "ComplianceStatus",
     ),
     "ComplianceViolation": (
-        "myrm_agent_harness.runtime.compliance",
+        "myrm_agent_harness.runtime.diagnostics.compliance",
         "ComplianceViolation",
     ),
     "ConfigIncompleteError": ("myrm_agent_harness.api.config", "ConfigIncompleteError"),
@@ -158,7 +158,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.toolkits.computer_use.recording",
         "DesktopRecordedEvent",
     ),
-    "Doctor": ("myrm_agent_harness.runtime.doctor", "Doctor"),
+    "Doctor": ("myrm_agent_harness.runtime.diagnostics.doctor", "Doctor"),
     "HookEvent": ("myrm_agent_harness.api.protocols", "HookEvent"),
     "HookRegistryProtocol": (
         "myrm_agent_harness.api.protocols",

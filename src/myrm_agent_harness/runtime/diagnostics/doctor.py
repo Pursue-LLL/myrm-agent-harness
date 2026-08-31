@@ -250,7 +250,7 @@ class Doctor:
     async def _check_compliance_state(self) -> DoctorCheckResult:
         """Verify zero-darkline capability eviction compliance state."""
         try:
-            from myrm_agent_harness.runtime.compliance import (
+            from myrm_agent_harness.runtime.diagnostics.compliance import (
                 ComplianceAuditEngine,
                 ComplianceStatus,
             )
@@ -299,7 +299,7 @@ class Doctor:
 
 
 def format_global_report(report: DoctorReport) -> str:
-    from myrm_agent_harness.runtime.doctor_cli import format_styled_report
+    from myrm_agent_harness.runtime.diagnostics.doctor_cli import format_styled_report
 
     return format_styled_report(report)
 
@@ -313,7 +313,7 @@ async def run_global_doctor(**kwargs) -> DoctorReport:
 
 async def _async_main():
     rep = await Doctor().run(include_llm_test="--test-llm" in sys.argv)
-    from myrm_agent_harness.runtime.doctor_cli import format_styled_report
+    from myrm_agent_harness.runtime.diagnostics.doctor_cli import format_styled_report
 
     print(format_styled_report(rep))
     return 0 if rep.overall_healthy else 1
