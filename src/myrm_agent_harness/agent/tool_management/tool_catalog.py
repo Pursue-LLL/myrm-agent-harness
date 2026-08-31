@@ -1,7 +1,7 @@
 """LLM Action Tool catalog metadata — load condition and derived product ID.
 
 [INPUT]
-- .tool_layers::ToolLayer (POS: CORE/HIGH_FREQUENCY/EXTENDED/EXTERNAL priority)
+- .tool_layers::ToolLayer (POS: CORE/HIGH_PRIORITY/EXTENDED/EXTERNAL priority)
 - .env_dependency::get_tool_env_dependencies, probe_tool_env_health (POS: Tool runtime environment requirements)
 - core.security.tool_registry::TOOL_TO_GROUP (POS: harness tool group SSOT)
 - meta_tools.discover_capability.capability_gap::BUILTIN_TOOL_ID_TO_GROUP (POS: GUI togglable product ID → group)
@@ -12,7 +12,7 @@
 - get_tool_env_profile(): get declared environment dependencies
 - probe_tool_runtime_health(): probe whether tool dependencies are satisfied
 - validate_tool_catalog(): consistency checks for Action Tool names in _TOOL_LAYERS
-- validate_layer_product_consistency(): HIGH_FREQUENCY/CORE layer vs product default-on SSOT
+- validate_layer_product_consistency(): HIGH_PRIORITY/CORE layer vs product default-on SSOT
 - build_tool_catalog_rows(): sorted rows for doc generation
 
 [POS]
@@ -90,7 +90,7 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
 
 _DEFAULT_LOAD_BY_LAYER: dict[ToolLayer, str] = {
     ToolLayer.CORE: "Agent baseline; Turn1 eager",
-    ToolLayer.HIGH_FREQUENCY: "Profile togglable; Turn1 when enabled (default-on product IDs only)",
+    ToolLayer.HIGH_PRIORITY: "Profile togglable; Turn1 when enabled (default-on product IDs only)",
     ToolLayer.EXTENDED: "Opt-in Turn1; see product switch",
     ToolLayer.EXTERNAL: "Server vendor / MCP direct / OpenAPI / unregistered dynamic tools",
 }
@@ -240,14 +240,14 @@ def validate_layer_product_consistency(
                 errors.append(f"{name}: must stay EXTENDED (default-on HITL / prompt-cache tail policy)")
             continue
 
-        if layer == ToolLayer.HIGH_FREQUENCY:
+        if layer == ToolLayer.HIGH_PRIORITY:
             if name == "skill_select_tool":
                 continue
             if product_id is None:
-                errors.append(f"{name}: HIGH_FREQUENCY layer tools must map to a GUI product_id")
+                errors.append(f"{name}: HIGH_PRIORITY layer tools must map to a GUI product_id")
             elif product_id not in defaults:
                 errors.append(
-                    f"{name}: HIGH_FREQUENCY layer requires default-on product_id "
+                    f"{name}: HIGH_PRIORITY layer requires default-on product_id "
                     f"(got {product_id!r}; defaults={sorted(defaults)})"
                 )
             continue
@@ -255,7 +255,7 @@ def validate_layer_product_consistency(
         if layer == ToolLayer.EXTENDED and product_id is not None and product_id in defaults:
             errors.append(
                 f"{name}: product_id {product_id!r} is default-on but tool is EXTENDED; "
-                "move to HIGH_FREQUENCY or add to EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS with rationale"
+                "move to HIGH_PRIORITY or add to EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS with rationale"
             )
 
     return errors
