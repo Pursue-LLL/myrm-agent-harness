@@ -78,8 +78,6 @@ __all__ = [
     "SemanticsCategory",
     "SkillAgent",
     "SkillBackend",
-    "SkillCompoundingMetrics",
-    "SkillHealthEvaluator",
     "SkillRescanResult",
     "SynthesizedSkillDraft",
     "TaskSpecialty",
@@ -315,14 +313,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     ),
     "SkillAgent": ("myrm_agent_harness.api.factory", "SkillAgent"),
     "SkillBackend": ("myrm_agent_harness.api.protocols", "SkillBackend"),
-    "SkillCompoundingMetrics": (
-        "myrm_agent_harness.observability.digest",
-        "SkillCompoundingMetrics",
-    ),
-    "SkillHealthEvaluator": (
-        "myrm_agent_harness.observability.digest",
-        "SkillHealthEvaluator",
-    ),
     "SkillRescanResult": (
         "myrm_agent_harness.backends.skills.scanning.rescan_engine",
         "SkillRescanResult",
