@@ -41,6 +41,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 
 | Submodule | Description |
 |-----------|-------------|
+| workspace_trust/ | Folder bind trust + side-channel gate. See [workspace_trust/_ARCH.md](workspace_trust/_ARCH.md). |
 | detection/ | Detection submodule. |
 | guards/ | Session-level security guards integrated into tool_interceptor_middleware. |
 | message_filtering/ | Message filtering framework for AI safety and compliance. |

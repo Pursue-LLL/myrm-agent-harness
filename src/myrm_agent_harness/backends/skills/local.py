@@ -263,6 +263,7 @@ def scan_workspace_skills(
     max_depth: int = 3,
     trust: SkillTrust = SkillTrust.INSTALLED,
     use_snapshot: bool = True,
+    disclosure_only: bool = False,
 ) -> list[SkillMetadata]:
     """Recursively scan a workspace directory for SKILL.md files.
 
@@ -274,12 +275,28 @@ def scan_workspace_skills(
         max_depth: Maximum recursion depth (default 3)
         trust: Trust level for discovered skills (default INSTALLED)
         use_snapshot: If True, attempts to load from O(1) SQLite snapshot first
+        disclosure_only: If True, skip runtime trust gate (FolderGate manifest counting only)
 
     Returns:
         List of SkillMetadata for each valid skill found
     """
     root = Path(workspace_root).resolve()
     if not root.is_dir():
+        return []
+
+    from myrm_agent_harness.agent.security.workspace_trust.context import (
+        get_workspace_trust_level,
+    )
+    from myrm_agent_harness.agent.security.workspace_trust.gate import (
+        blocks_workspace_side_channels,
+    )
+
+    trust_level = get_workspace_trust_level()
+    if not disclosure_only and blocks_workspace_side_channels(trust_level):
+        logger.info(
+            "Workspace trust gate: skipping workspace skills scan (%s)",
+            trust_level.value if trust_level is not None else "RESTRICTED",
+        )
         return []
 
     if use_snapshot:

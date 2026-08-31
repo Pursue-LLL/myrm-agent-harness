@@ -218,6 +218,28 @@ class ExecutorStdioTransport:
         cwd = getattr(self.parameters, "cwd", None)
         work_dir = str(cwd) if cwd else "/workspace"
 
+        plugin_root = None
+        extra_params = getattr(self.parameters, "env", None)
+        if isinstance(extra_params, dict):
+            plugin_root = extra_params.get("PLUGIN_ROOT")
+        launch_extra = getattr(self, "_launch_extra_params", None)
+        if isinstance(launch_extra, dict):
+            plugin_root = plugin_root or launch_extra.get("plugin_root")
+
+        from myrm_agent_harness.agent.security.workspace_trust.context import (
+            get_workspace_trust_level,
+        )
+        from myrm_agent_harness.agent.security.workspace_trust.gate import (
+            assert_mcp_spawn_allowed,
+        )
+
+        assert_mcp_spawn_allowed(
+            workspace_root=self.executor.workspace_path,
+            cwd=work_dir,
+            plugin_root=str(plugin_root) if plugin_root else None,
+            trust_level=get_workspace_trust_level(),
+        )
+
         # Prepare execution context
         context = ExecutionContext(
             code=self.parameters.command,

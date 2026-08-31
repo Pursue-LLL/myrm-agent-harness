@@ -296,6 +296,26 @@ async def evaluate_tool_batch(
             )
 
             shell_command = extract_shell_command(tool_input)
+
+            if action == PermissionAction.ASK and shell_command and permission_type == "shell_exec":
+                from myrm_agent_harness.agent.security.workspace_trust.context import (
+                    get_repo_command_prefixes,
+                    get_workspace_trust_level,
+                )
+                from myrm_agent_harness.agent.security.workspace_trust.gate import (
+                    matches_repo_command_prefix,
+                )
+                from myrm_agent_harness.agent.security.workspace_trust.types import (
+                    WorkspaceTrustLevel,
+                )
+
+                if get_workspace_trust_level() == WorkspaceTrustLevel.TRUSTED:
+                    prefixes = get_repo_command_prefixes()
+                    if matches_repo_command_prefix(shell_command, prefixes):
+                        action = PermissionAction.ALLOW
+                        reason = "Repo-declared command prefix auto-approve"
+                        record_decision(tool_name, "REPO_PREFIX_AUTO_APPROVE", reason)
+
             allowlist_would_match = allowlist.check(
                 user_id,
                 permission_type,

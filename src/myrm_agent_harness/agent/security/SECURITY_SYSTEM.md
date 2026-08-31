@@ -422,6 +422,52 @@ Permission Engine 层的 PathPolicy 是主要检查点。Code Execution Validato
 
 ---
 
+## 三-C、Workspace Trust L2 — Side-Channel Execution Gate
+
+**位置**：`agent/security/workspace_trust/`（harness）· `app/services/security/workspace_trust_store.py` + `/security/workspace-trust/*`（server）· Settings + FolderGate UI（frontend）
+
+**设计动机**：绑定项目工作区后，仓库内的 **skills / workspace rules / 本地 MCP spawn** 属于「旁路执行面」——不经过 Permission Engine 的常规工具审批链即可触发本机进程或注入 prompt。VS Code/Cursor Workspace Trust、Claude Code `hasTrustDialogAccepted`、Codex `projects.trust_level` 均采用 **FolderGate + 默认 Restricted** 模式。Myrm 对齐该语义：**未知或未决策 workspace 一律 RESTRICTED（fail-closed）**。
+
+### 信任级别
+
+| 级别 | 旁路行为 |
+|------|----------|
+| `TRUSTED` | 启用 workspace skills、rules 注入、工作区内 MCP spawn；`.myrm/config.toml` 声明的 repo command prefix 可参与 allowlist 自动放行 |
+| `RESTRICTED` / `REVOKED` / 未知 | 禁用上述旁路；MCP spawn 抛出 `WorkspaceTrustBlockedError`；repo prefix 匹配不参与自动 ALLOW |
+| 默认 | 未 bind 或未在 registry 决策 → **RESTRICTED**（`provider.resolve_workspace_trust_level`） |
+
+### 执行注入点（harness）
+
+1. **Run 生命周期**：`run_lifecycle.apply_workspace_trust_for_root()` 在 agent run 开始时注入 `ContextVar` trust level + repo command prefixes。
+2. **Skills**：`backends/skills/local.py` — RESTRICTED 时跳过 workspace skill 加载。
+3. **Rules**：`workspace_rules/middleware.py` — RESTRICTED 时跳过 rules 注入。
+4. **MCP spawn**：`toolkits/mcp/transport.py` — `assert_mcp_spawn_allowed()`；cwd/plugin_root 落在 workspace 内且未 trust → `WorkspaceTrustBlockedError(reason=mcp_spawn_blocked)`。
+5. **Repo command prefix 自动放行**：`middlewares/approval/batch_processor.py` — 仅 TRUSTED 且 **非复合 shell 命令**（`;` / `&&` 等经 `is_compound_shell_command` 拦截）可 prefix 匹配 auto-ALLOW。
+
+### 持久化与 API（server）
+
+- **Store**：UserConfig 持久化 `WorkspaceTrustEntry`（canonical path、level、decided_at、manifest_hash）。
+- **REST**：
+  - `POST /security/workspace-trust/manifest` — FolderGate 披露（skill/rule 计数、repo prefix、`.myrm` 配置）
+  - `POST /security/workspace-trust/decide` — 持久化 TRUSTED / RESTRICTED
+  - `GET /security/workspace-trust` — Settings 列表
+  - `DELETE /security/workspace-trust?path=` — revoke / remove
+- **Startup**：`init_workspace_trust_store()` 向 harness 注入 `WorkspaceTrustLookup`。
+
+### 前端 FolderGate
+
+`ProjectWorkspaceMount` 在 `updateProject` 绑定前调用 manifest → 用户选择 Trust / Restrict → decide → 再绑定路径。Settings → Security Policy → **Trusted Folders** 可列表查看与撤销。
+
+### 与 Permission Engine 的边界
+
+Workspace Trust **不替代** Capability Fence / Permission Engine / Path Policy。它仅 gate **仓库本地旁路**（skills、rules、repo-local MCP、repo-declared command prefix shortcut）。Shell、文件读写、网络等仍走 Layer 1–4 常规链。
+
+### 刻意不在 Phase 1 的范围
+
+OAuth connector gate、cron 独立 gate、CLI trust、第二套 permission engine — 均不在本模块 scope。
+
+---
+
 ## 四、Layer 3 — Permission Engine（权限规则引擎）
 
 **位置**：`engine.py`
@@ -1285,7 +1331,7 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 
 以下内置工具不在 `TOOL_PERMISSION_MAP` 中，`resolve_permission_type()` 回退为工具名本身，命中 `DEFAULT_RULESET` 的 `("*", "*", ALLOW)` 基线。为满足 fail-closed 治理，每个此类工具必须在 `AUTO_APPROVED_BUILTIN_TOOLS`（`core/security/tool_registry/registry.py`）中显式声明放行理由（`AUTO_APPROVE_REASONS` 之一）。声明是审计元数据，不改变运行时权限解析。
 
-`scripts/validate_tool_registry.py` 的治理门禁强制校验，遍历源为**注册的内置工具全集**（`_TOOL_LAYERS` 的 CORE/COMMON/EXTENDED 层，而非静态 `BUILTIN_TOOL_NAMES` 白名单）：新增内置工具若未映射、未动态解析（其名字不在 `DYNAMICALLY_RESOLVED_TOOL_NAMES`——该集合是 `resolve_permission_type()` 子动作分支的**单一事实源**，SSOT 位于 `registry.py`，门禁仅消费引用、不得自建副本，防止名单漂移导致删除分支后静默回退 ALLOW）、未声明、未显式声明为 `EXPLICIT_MCP_FALLBACK_TOOLS`（或声明了非内置工具、理由非法），CI 直接失败——杜绝「静默绕过治理」。同时执行 **BUILTIN↔注册双向一致性**：`BUILTIN_TOOL_NAMES` 必须 ⊆ 注册内置全集（防声明失去锚点），且不得与 `EXPLICIT_MCP_FALLBACK_TOOLS` 重叠（加入 BUILTIN 会把运行时基线翻转为 ALLOW，与刻意保留 ASK 兜底矛盾）。EXTERNAL 层工具为 server 供应商工具，由 server 层治理，门禁仅标注为 `server_managed`，不强制声明。覆盖矩阵可通过 `--json` 输出。safety 模块加载 gate（`core/security/tool_registry/safety.py`）的检查口径与门禁一致（`BUILTIN_TOOL_NAMES ∪ EXPLICIT_MCP_FALLBACK_TOOLS`），确保新增 EXPLICIT 兜底工具不会缺少 `TOOL_SAFETY_METADATA` 声明。权限类型级白名单同样受**双向一致性**约束（见下文「权限类型级治理白名单」）：`RULESET_COVERAGE_WHITELIST` 声明若已被 `DEFAULT_RULESET` 覆盖（stale）或无任何 `TOOL_PERMISSION_MAP` 引用（orphan），CI 失败，防止治理报表自相矛盾（测量衰减）。
+`scripts/validate_tool_registry.py` 的治理门禁强制校验，遍历源为**注册的内置工具全集**（`_TOOL_LAYERS` 的 CORE/HIGH_PRIORITY/EXTENDED 层，而非静态 `BUILTIN_TOOL_NAMES` 白名单）：新增内置工具若未映射、未动态解析（其名字不在 `DYNAMICALLY_RESOLVED_TOOL_NAMES`——该集合是 `resolve_permission_type()` 子动作分支的**单一事实源**，SSOT 位于 `registry.py`，门禁仅消费引用、不得自建副本，防止名单漂移导致删除分支后静默回退 ALLOW）、未声明、未显式声明为 `EXPLICIT_MCP_FALLBACK_TOOLS`（或声明了非内置工具、理由非法），CI 直接失败——杜绝「静默绕过治理」。同时执行 **BUILTIN↔注册双向一致性**：`BUILTIN_TOOL_NAMES` 必须 ⊆ 注册内置全集（防声明失去锚点），且不得与 `EXPLICIT_MCP_FALLBACK_TOOLS` 重叠（加入 BUILTIN 会把运行时基线翻转为 ALLOW，与刻意保留 ASK 兜底矛盾）。EXTERNAL 层工具为 server 供应商工具，由 server 层治理，门禁仅标注为 `server_managed`，不强制声明。覆盖矩阵可通过 `--json` 输出。safety 模块加载 gate（`core/security/tool_registry/safety.py`）的检查口径与门禁一致（`BUILTIN_TOOL_NAMES ∪ EXPLICIT_MCP_FALLBACK_TOOLS`），确保新增 EXPLICIT 兜底工具不会缺少 `TOOL_SAFETY_METADATA` 声明。权限类型级白名单同样受**双向一致性**约束（见下文「权限类型级治理白名单」）：`RULESET_COVERAGE_WHITELIST` 声明若已被 `DEFAULT_RULESET` 覆盖（stale）或无任何 `TOOL_PERMISSION_MAP` 引用（orphan），CI 失败，防止治理报表自相矛盾（测量衰减）。
 
 | 理由 | 含义 |
 |------|------|

@@ -5,10 +5,10 @@
 - auditor::AutoApprovalAuditor
 
 [OUTPUT]
-- Public exports for auto-approval trigger categorization, dual-track quota breakdown, and Top-Offenders attribution
+- Public exports for auto-approval trigger classification, dual-track quota attribution, and allowlist recommendations
 
 [POS]
-Package entry point providing zero-LLM root-cause attribution and dual-track cost transparency for auto-approvals.
+Package entry point providing four-category approval root cause analysis, main-vs-reviewer usage decoupling, and bounded Top-Offenders telemetry.
 """
 
 from __future__ import annotations

@@ -258,6 +258,13 @@ async def setup_workspace(
         set_workspace_root(workspace_path)
         _init_pseudonym_store(workspace_path)
 
+        from myrm_agent_harness.agent.security.workspace_trust.runtime import (
+            apply_workspace_trust_for_root,
+        )
+
+        trust_level = apply_workspace_trust_for_root(workspace_path)
+        logger.debug("Workspace trust applied: %s for %s", trust_level.value, workspace_path)
+
         from myrm_agent_harness.agent.workspace_rules.tracker import (
             init_subdirectory_tracker,
         )
@@ -344,6 +351,12 @@ def cleanup_run(
 
         pop_run_message_id(get_approval_session())
         set_workspace_root("")
+
+        from myrm_agent_harness.agent.security.workspace_trust.runtime import (
+            clear_workspace_trust_runtime,
+        )
+
+        clear_workspace_trust_runtime()
         set_event_logger(None)
         from myrm_agent_harness.agent.middlewares._session_context import (
             set_goal_provider,

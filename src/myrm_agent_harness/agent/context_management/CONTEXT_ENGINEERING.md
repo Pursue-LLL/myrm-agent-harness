@@ -607,7 +607,7 @@ LLM provider 将请求体序列化为 prompt 时，各部分的**确定性顺序
 - 修改 tools 定义（增删/改 schema/排序）→ 从变化点起 **Tools 段及之后全部重算**，**含 System Prompt**（Tools 在 System 上游，System 不能独立于 Tools 变化而命中）
 - 修改 system prompt → Tools 前缀不变时可命中；System 从变化 token 起重算，之后全部失效
 - 修改 messages → Tools + System 前缀均可保留（仅 Messages 尾部新增）
-- **ToolLayer 收益**：EXTENDED 尾部变化时，**CORE+COMMON 的 Tools 前缀**仍可命中；System 仍须重算
+- **ToolLayer 收益**：EXTENDED 尾部变化时，**CORE+HIGH_PRIORITY 的 Tools 前缀**仍可命中；System 仍须重算
 - **Skill attenuation**：信任衰减通过 `tool_choice.allowed_tools`（OpenAI 模式）收窄当轮可调用工具，**不** mutate `request.tools`；`tool_choice` 变化不破坏 Tools/System 前缀（Anthropic 表：`tool_choice` 变化 → Tools ✅ System ✅）。非 OpenAI 或 provider 不支持 `allowed_tools` 时，执行层 `check_trust_attenuation` 仍拦截越权调用；`ChatLiteLLM.bind_tools` 透传 dict 型 `tool_choice`
 - **动态内容（如时间戳）应放在 messages 中**，而非 system prompt 或 tools 中
 
@@ -742,7 +742,7 @@ Logits Masking（解码阶段）:
 
 将工具按稳定性分层排序，稳定的放前面，动态的放后面：
 
-1. **保护核心前缀稳定性**：通过分层排序（CORE > COMMON > EXTENDED），修改靠后的工具只会破坏其后方的缓存，靠前的核心工具缓存仍然有效。
+1. **保护核心前缀稳定性**：通过分层排序（CORE > HIGH_PRIORITY > EXTENDED），修改靠后的工具只会破坏其后方的缓存，靠前的核心工具缓存仍然有效。
 
 2. **确定性的变动溢出区**：对于不可避免的动态变动（如按需加载的技能），将其排在最后，确保前方核心前缀能命中缓存。
 
@@ -751,30 +751,30 @@ Logits Masking（解码阶段）:
 | 层级 | 稳定性 | 变化频率 | 缓存价值 | 工具示例 |
 |------|--------|---------|---------|---------|
 | **CORE** | 极高 | 几乎不变 | 最高 | `web_fetch_tool`, `bash_code_execute_tool`, `file_*`, `glob_tool`, `grep_tool` |
-| **COMMON** | 高 | 很少变 | 高 | `memory_*`, `web_search_tool` |
-| **EXTENDED** | 中 | 偶尔变 | 中 | `todo_write`, `skill_select_tool`, `request_answer_user_tool`, 浏览器/MCP 动态工具 |
+| **HIGH_PRIORITY** | 高 | 很少变 | 高 | `web_search_tool`, `memory_*`, `skill_select_tool` |
+| **EXTENDED** | 中 | 偶尔变 | 中 | `todo_write`, `request_answer_user_tool`, 浏览器/MCP 动态工具 |
 
 #### 分层结构示例
 
-API 序列化顺序为 `Tools → System → Messages`（Tools 段内按 CORE → COMMON → EXTENDED 排序）：
+API 序列化顺序为 `Tools → System → Messages`（Tools 段内按 CORE → HIGH_PRIORITY → EXTENDED 排序）：
 
 ```text
-[Layer 1: CORE 工具定义]    ← web_fetch + file/bash + glob/grep
-[Layer 2: COMMON 工具定义]  ← memory×3 + web_search
-[Layer 3: EXTENDED 工具]    ← todo_write / skill / browser / MCP / request_answer 等
-[System Prompt 链]          ← 冻结的 system + user_instructions + memory stable
-[对话历史]                  ← 增量增长
+[Layer 1: CORE 工具定义]          ← web_fetch + file/bash + glob/grep
+[Layer 2: HIGH_PRIORITY 工具定义]  ← web_search + memory×3 + skill_select
+[Layer 3: EXTENDED 工具]          ← todo_write / browser / MCP / request_answer 等
+[System Prompt 链]                ← 冻结的 system + user_instructions + memory stable
+[对话历史]                        ← 增量增长
 ```
 
 #### 效果
 
 ```text
-第 1 轮: [CORE: web_fetch,bash,file_*,glob,grep][COMMON: memory_*,web_search][EXTENDED: skill_select][System…][History 1]
-第 2 轮: [CORE: web_fetch,bash,file_*,glob,grep][COMMON: memory_*,web_search][EXTENDED: +browser…][System…][History 1-2]
-         |<─────────────── Tools 前缀中 CORE+COMMON 仍可缓存 ───────────────>|
+第 1 轮: [CORE: web_fetch,bash,file_*,glob,grep][HIGH_PRIORITY: web_search,memory_*,skill_select][EXTENDED: 无][System…][History 1]
+第 2 轮: [CORE: web_fetch,bash,file_*,glob,grep][HIGH_PRIORITY: web_search,memory_*,skill_select][EXTENDED: +browser…][System…][History 1-2]
+         |<─────────────── Tools 前缀中 CORE+HIGH_PRIORITY 仍可缓存 ───────────────>|
 ```
 
-虽然 EXTENDED 工具变了，CORE + COMMON 的 Tools 前缀段仍然命中缓存；System 链因排在 Tools 之后，需随 Tools 变化重算。System 链与 Messages 独立在其后。
+虽然 EXTENDED 工具变了，CORE + HIGH_PRIORITY 的 Tools 前缀段仍然命中缓存；System 链因排在 Tools 之后，需随 Tools 变化重算。System 链与 Messages 独立在其后。
 
 ### 4.4 避免 Prompt 顺序陷阱
 
@@ -1179,7 +1179,7 @@ messages = [
 | **时间信息放末尾** | 动态时间放在 HumanMessage 末尾，不放 System Prompt |
 | **System Prompt 稳定** | 静态核心 + 动态信息注入到 HumanMessage |
 | **工具名称规范化** | 使用一致前缀（`browser_*`、`file_*`）便于分组控制 |
-| **工具定义分层** | CORE > COMMON > EXTENDED，稳定的放前面 |
+| **工具定义分层** | CORE > HIGH_PRIORITY > EXTENDED，稳定的放前面 |
 | **批量清理策略** | 积累-爆发模式，减少缓存破坏频率 |
 | **显式缓存标记** | 在关键位置设置 `cache_control` 断点（Anthropic/阿里云） |
 

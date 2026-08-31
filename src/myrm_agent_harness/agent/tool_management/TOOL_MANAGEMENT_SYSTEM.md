@@ -8,7 +8,7 @@
 
 | 对外说法 | 含义 | 当前规模 |
 |----------|------|----------|
-| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **59**（Harness 53: CORE 8 + COMMON 4 + EXTENDED 41; External 6: server vendor） |
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **59**（Harness 53: CORE 8 + HIGH_PRIORITY 5 + EXTENDED 40; External 6: server vendor） |
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
@@ -21,7 +21,7 @@
 ## 设计目标
 
 1. **减少动作空间**：工具越少 → 决策越准（见 ASCS 指标）
-2. **四层分级**：CORE / COMMON / EXTENDED / EXTERNAL — profile 可开关 COMMON/EXTENDED；EXTERNAL 为框架外集成
+2. **四层分级**：CORE / HIGH_PRIORITY / EXTENDED / EXTERNAL — profile 可开关 HIGH_PRIORITY/EXTENDED；EXTERNAL 为框架外集成
 3. **统一注册**：替代 BaseAgent 内 scattered dedup/sort
 4. **框架 vs 业务边界**：harness 只放通用原语；SaaS 集成走 skill/MCP/server
 
@@ -82,14 +82,14 @@ Server `_tool_layer_bootstrap.py` 将 server vendor 工具注册为 EXTERNAL 层
 | **DW PTC Runtime Tool** | DW PTC 沙箱内 `myrm_tools.spawn_subagent` / `myrm_tools.notify` / `myrm_tools.llm_query` / `myrm_tools.llm_query_batched`；零 Turn1 bind | `agent/dynamic_workflow/tools.py` · `agent/dynamic_workflow/llm_query_tool.py` · `scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES` |
 | **非 LLM 实现** | 引擎、Skill 文档、REST 等普通代码 | `toolkits/`、`app/services/` 等 |
 
-**只有 LLM 工具（Action Tool）使用 CORE / COMMON / EXTENDED / EXTERNAL 四层。**
+**只有 LLM 工具（Action Tool）使用 CORE / HIGH_PRIORITY / EXTENDED / EXTERNAL 四层。**
 
 ### 四层工具架构定位 SSOT
 
 | 层级 | 定位与核心特征 | 默认开启状态 | 前端可关？ | 典型工具 |
 | :--- | :--- | :---: | :---: | :--- |
 | **Layer 1: CORE** | **核心层**：Agent 最底层基础系统能力，确保终极前缀缓存稳定 | **100% 常驻开启** | ❌ 否（不可关闭） | `bash_*`, `file_*`, `glob/grep`, `web_fetch` |
-| **Layer 2: COMMON** | **高优层**：标配高优能力，默认全局挂载（Default-ON） | **默认挂载开启** | ✅ 是（可配置关闭） | `web_search_tool` (Rank 0), `memory_*` 三件套 (Rank 10~12), `skill_select_tool` (Rank 20) |
+| **Layer 2: HIGH_PRIORITY** | **高优层**：标配高优能力，默认全局挂载（Default-ON） | **默认挂载开启** | ✅ 是（可配置关闭） | `web_search_tool` (Rank 0), `memory_*` 三件套 (Rank 10~12), `skill_select_tool` (Rank 20) |
 | **Layer 3: EXTENDED** | **扩展层**：专项高级能力（浏览器/桌面/看板/技能市场/Cron等） | **默认关闭（按需装配）** | ✅ 是（Profile控制） | `browser_*`, `kanban_*`, `todo_write`, `skill_market_tool` 等 |
 | **Layer 4: EXTERNAL** | **外部业务层**：第三方生态扩展（MCP/OpenAPI/媒体生成/通知通道） | **框架外按需装配** | ✅ 是 | `channel_notify`, `image_tool`, 动态 MCP 服务 |
 
@@ -112,11 +112,11 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `glob_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `grep_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `web_fetch_tool` | CORE | user_capability | — | Agent baseline; Turn1 when enable_web_fetch (Fast mode may omit file/bash only) |
-| `memory_manage_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
-| `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
-| `memory_search_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory; corpus=sessions when memoryEnableConversationSearch |
-| `skill_select_tool` | COMMON | user_capability | — | skill_backend present |
-| `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
+| `memory_manage_tool` | HIGH_PRIORITY | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
+| `memory_save_tool` | HIGH_PRIORITY | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
+| `memory_search_tool` | HIGH_PRIORITY | user_capability | memory | enable_memory + enabled_builtin_tools: memory; corpus=sessions when memoryEnableConversationSearch |
+| `skill_select_tool` | HIGH_PRIORITY | user_capability | — | skill_backend present |
+| `web_search_tool` | HIGH_PRIORITY | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
 | `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn; HitlToolPolicy L1 subagent block |
 | `browser_ask_human_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_execute_script_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
@@ -174,7 +174,7 @@ python scripts/validate_tool_registry.py          # 注册一致性 + layer-prod
 python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + LLM Tool Catalog 块
 ```
 
-全量扫描额外执行 `validate_layer_product_consistency()`（COMMON 层仅允许 default-on product_id）并与 server `DEFAULT_ENABLED_BUILTIN_TOOLS` 做 parity 校验。**incremental/pre-commit 模式同样执行 layer-product 静态门禁**（见 `.pre-commit-config.yaml`）。
+全量扫描额外执行 `validate_layer_product_consistency()`（HIGH_PRIORITY 层仅允许 default-on product_id）并与 server `DEFAULT_ENABLED_BUILTIN_TOOLS` 做 parity 校验。**incremental/pre-commit 模式同样执行 layer-product 静态门禁**（见 `.pre-commit-config.yaml`）。
 
 ---
 

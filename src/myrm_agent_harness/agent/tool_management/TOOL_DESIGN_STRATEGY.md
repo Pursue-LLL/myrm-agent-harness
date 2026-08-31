@@ -20,11 +20,11 @@ LLM tools: **59** (Harness 53: CORE 8 + COMMON 5 + EXTENDED 40; External 6: serv
 大语言模型在面对工具选择时，与人类面对选择困难症类似：
 - 工具越多 → 动作空间越大 → 决策难度指数增长
 - 工具越少 → 选项精简 → 准确率提升（零幻觉调用）
-- CI 架构硬门禁保护：通过 `TestPromptTokenBudgetGate` 严格锁定 Turn-1 默认工具集（CORE+COMMON 13个工具）总预算上限 $\le 6,500$ tokens，Full 模式系统提示词 $\le 2,000$ tokens，Lean 模式 $\le 1,200$ tokens 且压缩比 $\le 0.70$。
+- CI 架构硬门禁保护：通过 `TestPromptTokenBudgetGate` 严格锁定 Turn-1 默认工具集（CORE+HIGH_PRIORITY 13个工具）总预算上限 $\le 6,500$ tokens，Full 模式系统提示词 $\le 2,000$ tokens，Lean 模式 $\le 1,200$ tokens 且压缩比 $\le 0.70$。
 
 ### 1.2 框架能力 vs 业务扩展（边界红线）
 
-**术语**：对外 **「工具」= LLM 工具**（`ToolRegistry` 中的 `BaseTool`，CORE/COMMON/EXTENDED/EXTERNAL）。`toolkits/` 能力包、中间件、Skill 文档、编排状态机等**非 LLM 能力**禁止称作工具。见 `tool_catalog.py` · `TOOL_MANAGEMENT_SYSTEM.md`。
+**术语**：对外 **「工具」= LLM 工具**（`ToolRegistry` 中的 `BaseTool`，CORE/HIGH_PRIORITY/EXTENDED/EXTERNAL）。`toolkits/` 能力包、中间件、Skill 文档、编排状态机等**非 LLM 能力**禁止称作工具。见 `tool_catalog.py` · `TOOL_MANAGEMENT_SYSTEM.md`。
 
 **Harness 是 Agent 框架，不是业务集成大杂烩。** 混淆层级会导致 toolkits 膨胀、定位模糊、维护成本失控。
 
@@ -58,10 +58,10 @@ LLM tools: **59** (Harness 53: CORE 8 + COMMON 5 + EXTENDED 40; External 6: serv
 
 ```python
 class ToolLayer(IntEnum):
-    CORE = 1      # 核心层：基线工具，始终存在，不可关闭（保证终极前缀缓存）
-    COMMON = 2    # 高优层：标配工具，默认全局挂载（Default-ON），用户可配置关闭（搜索/记忆/技能选择）
-    EXTENDED = 3  # 扩展层：harness 可选高级能力，默认关闭，按需挂载
-    EXTERNAL = 4  # 外部业务层：框架外集成（server vendor / MCP direct / OpenAPI / 动态工具）
+    CORE = 1           # 核心层：基线工具，始终存在，不可关闭（保证终极前缀缓存）
+    HIGH_PRIORITY = 2  # 高优层：标配工具，默认全局挂载（Default-ON），用户可配置关闭（搜索/记忆/技能选择）
+    EXTENDED = 3       # 扩展层：harness 可选高级能力，默认关闭，按需挂载
+    EXTERNAL = 4       # 外部业务层：框架外集成（server vendor / MCP direct / OpenAPI / 动态工具）
 ```
 
 ### 2.2 分层设计目标
@@ -82,7 +82,7 @@ class ToolLayer(IntEnum):
 
 **设计原则**: 仅包含 Agent 基线工具；详细 token 逐项见 `DEFAULT_AGENT_TOKEN_INVENTORY.md` §二。
 
-#### 2.2.2 COMMON 层 (Layer 2) - 高优层
+#### 2.2.2 HIGH_PRIORITY 层 (Layer 2) - 高优层
 
 - **特征**: 默认开启（Default-ON），GUI/配置可关（User-Togglable）；组内严格按稳定 Rank 排序：搜索工具 (Rank 0) -> 记忆工具组 (Rank 10~12) -> 技能选择工具 (Rank 20)
 - **工具数量**: 注册 **5** 个（`web_search_tool` + memory×3 + `skill_select_tool`）
@@ -97,11 +97,11 @@ class ToolLayer(IntEnum):
 | memory_save_tool | Rank 12 | enable_memory + `enabled_builtin_tools: memory`（默认开） |
 | skill_select_tool | Rank 20 | skill_backend present（默认开） |
 
-**不在 COMMON 的 opt-in 工具**（如 `todo_write` / `planning`、`ask_question_tool` / `structured_clarify`）登记在 EXTENDED；后者虽默认开但因 HITL/cache 策略列入 `EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS`。
+**不在 HIGH_PRIORITY 的 opt-in 工具**（如 `todo_write` / `planning`、`ask_question_tool` / `structured_clarify`）登记在 EXTENDED；后者虽默认开但因 HITL/cache 策略列入 `EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS`。
 
 #### 2.2.3 EXTENDED 层 (Layer 3) - 扩展层
 - **特征**: harness 可选能力，默认关闭，按需 Turn1 或 RUNTIME_ONLY 绑定；组内统一按字母序稳定排序
-- **缓存**: harness 三层末尾；变化不影响 CORE/COMMON 前缀
+- **缓存**: harness 三层末尾；变化不影响 CORE/HIGH_PRIORITY 前缀
 - **工具数量**: 登记 **40** EXTENDED（harness 静态；见 TOOL_COUNT 块）
 - **Token 消耗**: 典型 ~2,246 tokens，满载 ~7,290+ tokens
 
@@ -126,7 +126,7 @@ class ToolLayer(IntEnum):
 #### 2.2.4 EXTERNAL 层 (Layer 4) - 外部业务层
 
 - **特征**: 框架外集成 — server vendor、MCP direct、OpenAPI、未登记动态工具
-- **缓存**: 整段位于 harness 三层之后；MCP 增删不影响 CORE/COMMON/EXTENDED 前缀
+- **缓存**: 整段位于 harness 三层之后；MCP 增删不影响 CORE/HIGH_PRIORITY/EXTENDED 前缀
 - **工具数量**: 登记 **6** EXTERNAL（server bootstrap；见 TOOL_COUNT 块）
 - **默认**: 未在 `_TOOL_LAYERS` 登记的工具名默认 EXTERNAL + WARNING
 
@@ -138,7 +138,7 @@ class ToolLayer(IntEnum):
 
 证据来源: [tool_layers.py](tool_layers.py) · [registry.py](registry.py)
 
-**排序算法**: CORE → COMMON → EXTENDED → EXTERNAL；COMMON 组内 memory 优先；同层按名称字母序
+**排序算法**: CORE → HIGH_PRIORITY → EXTENDED → EXTERNAL；HIGH_PRIORITY 组内搜索优先，记忆紧随其后，技能选择承接；同层按名称字母序
 
 **缓存原理**: Prompt Cache 是前缀匹配，CORE 工具放最前面可保证 harness 前缀稳定
 
@@ -161,7 +161,7 @@ class ToolLayer(IntEnum):
 | 层 | 准入条件 | 反例（CI 失败） |
 |----|----------|----------------|
 | **CORE** | Agent baseline，无 GUI 开关，固定 7 工具 | 把 `browser_*` 登记进 CORE |
-| **COMMON** | product_id ∈ `DEFAULT_ENABLED_BUILTIN_TOOLS` 且非 HITL 重工具 | `todo_write`（product=`planning`，opt-in） |
+| **HIGH_PRIORITY** | product_id ∈ `DEFAULT_ENABLED_BUILTIN_TOOLS` 且非 HITL 重工具 | `todo_write`（product=`planning`，opt-in） |
 | **EXTENDED** | opt-in / 多工具簇 / HITL / harness 可选能力 | 把 `web_search_tool` 登记进 EXTENDED 且 product 默认开 |
 | **EXTERNAL** | server vendor / MCP / OpenAPI / 未登记动态工具 | 把 harness 静态工具登记进 EXTERNAL |
 
@@ -322,7 +322,7 @@ const staleCoreSkills = useMemo(() => {
 | 场景 | 工具数量 | Token 消耗 | 说明 |
 |------|--------:|----------:|------|
 | 最小场景 | 1 个 | ~3,259 | 仅 CORE 工具（`web_fetch_tool`） |
-| 典型场景 | 18 个 | ~12,704 | CORE + COMMON + 典型 EXTENDED |
+| 典型场景 | 18 个 | ~12,704 | CORE + HIGH_PRIORITY + 典型 EXTENDED |
 | 满载场景 | ~89 个 | ~22,411+ | 所有功能全开 |
 
 ### 6.2 Token 消耗构成
@@ -331,7 +331,7 @@ const staleCoreSkills = useMemo(() => {
 |------|------:|---------|
 | System Prompt 层 | ~2,607 | 跨用户共享缓存 |
 | CORE 工具层 | ~255 | 始终缓存 |
-| COMMON 工具层 | ~4,457 | 默认缓存 |
+| HIGH_PRIORITY 工具层 | ~4,457 | 默认缓存 |
 | EXTENDED 工具层 | ~2,483 | 按需变化 |
 | 工具 JSON schema | ~1,170 | - |
 | 动态注入 | ~1,200 | 同用户会话内稳定 |
@@ -347,7 +347,7 @@ const staleCoreSkills = useMemo(() => {
 | 工具类型 | 数量 | Token | 层级 |
 |---------|-----:|------:|------|
 | CORE 工具 | 1 | ~255 | CORE |
-| COMMON 工具 | 7 | ~4,457 | COMMON |
+| HIGH_PRIORITY 工具 | 7 | ~4,457 | HIGH_PRIORITY |
 | 辅助工具 | 5 | ~1,133 | EXTENDED |
 | **总计** | **13** | **~5,845** | - |
 
@@ -439,7 +439,7 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 | 实时准确度预测 | ✅ 实时雷达图 + 三色警告 | ❌ 无可视化 |
 | 智能管家提醒 | ✅ 自动检测闲置技能 + 一键净化 | ❌ 手动管理 |
 | 核心/外围技能分层 | ✅ 按需加载，认知负载减半 | ❌ 全部常驻或全部按需 |
-| 工具层级体系 | ✅ CORE/COMMON/EXTENDED/EXTERNAL 四层 | ❌ 扁平结构 |
+| 工具层级体系 | ✅ CORE/HIGH_PRIORITY/EXTENDED/EXTERNAL 四层 | ❌ 扁平结构 |
 | Prompt Cache 优化 | ✅ 工具分层排序保证 harness 前缀稳定 | ❌ 无优化 |
 | MCP 工具路由 | ✅ Direct FC + MCP PTC + 三级 `/mcp/*.md` 渐进披露 | ❌ Turn1 全量 bind 或单一 router/proxy tool |
 | Prompt Cache 优化 | ✅ 工具分层排序保证 harness 前缀稳定 | ❌ 无优化 |
@@ -505,7 +505,7 @@ SSOT：`FRAMEWORK_DESIGN_PRINCIPLES.md` §7 · `TOOL_DESIGN_STRATEGY.md` §2.5 �
 
 | 文档 | 路径 | 说明 |
 |------|------|------|
-| 工具层级定义 | [tool_layers.py](tool_layers.py) | CORE/COMMON/EXTENDED/EXTERNAL 四层架构 |
+| 工具层级定义 | [tool_layers.py](tool_layers.py) | CORE/HIGH_PRIORITY/EXTENDED/EXTERNAL 四层架构 |
 | 动作空间计算 | [action_space.py](action_space.py) | ASCS 计算引擎 |
 | Token 清单 | [DEFAULT_AGENT_TOKEN_INVENTORY.md](DEFAULT_AGENT_TOKEN_INVENTORY.md) | 完整 Token 预算明细 |
 | 前端准确度雷达 | `myrm-agent-frontend/.../AgentConfigEditDialog.tsx` | 实时准确度预测 UI |

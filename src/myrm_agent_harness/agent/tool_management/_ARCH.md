@@ -29,7 +29,7 @@ LLM tools: **59** (Harness 53: CORE 8 + COMMON 5 + EXTENDED 40; External 6: serv
 | lifecycle_protocol.py | Core | LifecycleAwareTool protocol for tools needing init/cleanup. | ✅ |
 | registry.py | Core | Replaces the scattered ``_deduplicate_tools()`` + ``sort_tools()`` calls in BaseAgent. ``ToolBindMode``: TURN1 (LLM Action Tools) + RUNTIME_ONLY (internal hooks, not LLM tools). | ✅ |
 | action_space.py | Core | ActionSpaceProfiler: 动作空间量化引擎，计算工具 Schema 复杂度 (ASCS)。 | ✅ |
-| tool_layers.py | Core | Tool layer priority registry + **Tool loading dual-track SSOT** (CORE/COMMON/EXTENDED/EXTERNAL). COMMON layer sorts with stable rank (search -> memory -> skill_select); EXTENDED layer sorts alphabetically. CORE: web_fetch/bash/file_*/glob/grep — General Agent baseline, no GUI toggle. | ✅ |
+| tool_layers.py | Core | Tool layer priority registry + **Tool loading dual-track SSOT** (CORE/HIGH_PRIORITY/EXTENDED/EXTERNAL). HIGH_PRIORITY layer sorts with stable rank (search -> memory -> skill_select); EXTENDED layer sorts alphabetically. CORE: web_fetch/bash/file_*/glob/grep — General Agent baseline, no GUI toggle. | ✅ |
 | tool_catalog.py | Core | Action Tool catalog: load conditions; layer-product CI gate (`validate_layer_product_consistency`); `product_id` derived from `TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP`. | ✅ |
 | env_dependency.py | Core | Action Tool 宿主/沙箱环境依赖规格清单（`TOOL_ENV_DEPENDENCY_REGISTRY`）与双向相关性探针/自检矩阵引擎。 | ✅ |
 | types.py | Config | Core types for the tool management subsystem. ``ToolSnapshot.builtin_tool_id`` maps GUI togglable products. | ✅ |

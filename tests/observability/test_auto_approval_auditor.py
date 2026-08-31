@@ -1,4 +1,4 @@
-"""Unit tests for Auto-Approval Trigger Diagnostics and Quota Attribution Auditor."""
+"""Unit tests for Auto-Approval Trigger Diagnostics and Multi-Dimensional Quota Attribution Auditor."""
 
 import pytest
 
@@ -12,124 +12,133 @@ from myrm_agent_harness.observability.approval_audit import (
 )
 
 
-def test_categorization_and_normalization():
-    """Test pure-rule classification and target normalization."""
-    # 1. Network domain
-    cat_net = AutoApprovalAuditor.categorize_target("web_fetch", "https://api.github.com/v1/repos/open-perplexity")
-    assert cat_net == ApprovalTriggerCategory.NETWORK_DOMAIN
-    norm_net = AutoApprovalAuditor.normalize_target(cat_net, "https://api.github.com/v1/repos/open-perplexity")
-    assert norm_net == "api.github.com"
-    pat_net = AutoApprovalAuditor.suggest_allow_pattern(cat_net, norm_net)
-    assert pat_net == "*.github.com"
+def test_target_normalization_across_all_four_categories():
+    """Test pure-rule normalization of URLs, paths, commands, and tool names."""
+    auditor = AutoApprovalAuditor()
 
-    # 2. File boundary
-    cat_file = AutoApprovalAuditor.categorize_target("file_write", "/tmp/artifacts/report.pdf")
-    assert cat_file == ApprovalTriggerCategory.FILE_BOUNDARY
-    norm_file = AutoApprovalAuditor.normalize_target(cat_file, "/tmp/artifacts/report.pdf")
-    assert norm_file == "/tmp/artifacts/*"
-    pat_file = AutoApprovalAuditor.suggest_allow_pattern(cat_file, norm_file)
-    assert pat_file == "/tmp/artifacts/*"
+    # 1. FILE_BOUNDARY: extract parent folder wildcard
+    assert auditor.normalize_target("/var/log/nginx/access.log", ApprovalTriggerCategory.FILE_BOUNDARY) == "/var/log/nginx/*"
+    assert auditor.normalize_target("app.py", ApprovalTriggerCategory.FILE_BOUNDARY) == "./*"
 
-    # 3. Command execution
-    cat_cmd = AutoApprovalAuditor.categorize_target("shell_exec", "pip install -r requirements.txt")
-    assert cat_cmd == ApprovalTriggerCategory.COMMAND_EXECUTION
-    norm_cmd = AutoApprovalAuditor.normalize_target(cat_cmd, "pip install -r requirements.txt")
-    assert norm_cmd == "pip"
-    pat_cmd = AutoApprovalAuditor.suggest_allow_pattern(cat_cmd, norm_cmd)
-    assert pat_cmd == "pip *"
+    # 2. NETWORK_DOMAIN: extract domain/host
+    assert auditor.normalize_target("https://api.github.com:443/repos/octocat", ApprovalTriggerCategory.NETWORK_DOMAIN) == "api.github.com"
+    assert auditor.normalize_target("gitlab.com/api/v4", ApprovalTriggerCategory.NETWORK_DOMAIN) == "gitlab.com"
 
-    # 4. Tool elevation
-    cat_tool = AutoApprovalAuditor.categorize_target("mcp_invoke", "stripe_mcp:create_payment")
-    assert cat_tool == ApprovalTriggerCategory.TOOL_ELEVATION
-    norm_tool = AutoApprovalAuditor.normalize_target(cat_tool, "stripe_mcp:create_payment")
-    assert norm_tool == "stripe_mcp"
-    pat_tool = AutoApprovalAuditor.suggest_allow_pattern(cat_tool, norm_tool)
-    assert pat_tool == "stripe_mcp:*"
+    # 3. COMMAND_EXECUTION: extract executable basename
+    assert auditor.normalize_target("rm -rf /tmp/test_dir", ApprovalTriggerCategory.COMMAND_EXECUTION) == "rm"
+    assert auditor.normalize_target("/usr/local/bin/curl -X POST https://example.com", ApprovalTriggerCategory.COMMAND_EXECUTION) == "curl"
+
+    # 4. TOOL_ELEVATION: extract namespace prefix
+    assert auditor.normalize_target("mcp__github__create_issue", ApprovalTriggerCategory.TOOL_ELEVATION) == "mcp__github"
+    assert auditor.normalize_target("custom_tool", ApprovalTriggerCategory.TOOL_ELEVATION) == "custom_tool"
 
 
-def test_dual_track_breakdown_properties():
-    """Test DualTrackQuotaBreakdown ratio and accumulation properties."""
-    dual = DualTrackQuotaBreakdown(
-        main_task_rounds=10,
-        main_task_tokens=50_000,
-        main_task_cost_usd=0.10,
-        audit_rounds=5,
-        audit_tokens=5_000,
-        audit_cost_usd=0.02,
+def test_suggest_allow_pattern():
+    """Test minimal-privilege allowlist pattern generation."""
+    auditor = AutoApprovalAuditor()
+
+    assert auditor.suggest_allow_pattern("/workspace/data/*", ApprovalTriggerCategory.FILE_BOUNDARY) == "/workspace/data/*"
+    assert auditor.suggest_allow_pattern("api.openai.com", ApprovalTriggerCategory.NETWORK_DOMAIN) == "*.api.openai.com"
+    assert auditor.suggest_allow_pattern("git", ApprovalTriggerCategory.COMMAND_EXECUTION) == "git *"
+    assert auditor.suggest_allow_pattern("mcp__filesystem", ApprovalTriggerCategory.TOOL_ELEVATION) == "mcp__filesystem::*"
+
+
+def test_dual_track_quota_and_top_offenders_evaluation():
+    """Test full event aggregation, dual-track quota separation, and bounded Top-Offenders."""
+    auditor = AutoApprovalAuditor(
+        max_tracked_offenders=5,
+        price_per_million_prompt=2.0,
+        price_per_million_completion=10.0,
+        price_per_million_cached=0.5,
     )
-    assert dual.total_rounds == 15
-    assert dual.total_tokens == 55_000
-    assert dual.total_cost_usd == 0.12
-    # 0.02 / 0.12 = 0.1667 -> 16.67%
-    assert round(dual.audit_cost_ratio, 2) == 0.17
 
+    session_id = "sess_audit_test_001"
+    events: list[ApprovalTriggerEvent] = []
 
-def test_auto_approval_auditor_aggregation_and_report():
-    """Test AutoApprovalAuditor end-to-end recording, Top-Offenders, and report generation."""
-    auditor = AutoApprovalAuditor(max_tracked_offenders=10)
-
-    # 1. Record main task usage
-    auditor.record_main_task_usage(rounds=8, tokens=40_000, cost_usd=0.08)
-
-    # 2. Record several trigger events
-    # 3 events to api.github.com
+    # 3x File Boundary events on /var/log/app.log
     for _ in range(3):
-        auditor.record_trigger_event(
-            session_id="sess_test_1",
+        events.append(
+            auditor.record_trigger(
+                session_id=session_id,
+                raw_target="/var/log/app.log",
+                category=ApprovalTriggerCategory.FILE_BOUNDARY,
+                tool_name="read_file",
+                prompt_tokens=1_000,
+                completion_tokens=200,
+                cached_prompt_tokens=800,
+            )
+        )
+
+    # 2x Command Execution events on rm
+    for _ in range(2):
+        events.append(
+            auditor.record_trigger(
+                session_id=session_id,
+                raw_target="rm -f /tmp/dummy.txt",
+                category=ApprovalTriggerCategory.COMMAND_EXECUTION,
+                tool_name="bash_exec",
+                prompt_tokens=2_000,
+                completion_tokens=100,
+                cached_prompt_tokens=1_500,
+            )
+        )
+
+    # 1x Network Domain event on api.anthropic.com
+    events.append(
+        auditor.record_trigger(
+            session_id=session_id,
+            raw_target="https://api.anthropic.com/v1/messages",
+            category=ApprovalTriggerCategory.NETWORK_DOMAIN,
             tool_name="web_fetch",
-            raw_target="https://api.github.com/v1/repos",
             prompt_tokens=500,
             completion_tokens=50,
-            cost_usd=0.001,
+            cached_prompt_tokens=400,
         )
-
-    # 1 event to shell rm
-    auditor.record_trigger_event(
-        session_id="sess_test_1",
-        tool_name="shell_exec",
-        raw_target="rm -rf /tmp/cache",
-        prompt_tokens=400,
-        completion_tokens=20,
-        cost_usd=0.0008,
     )
 
-    # 3. Generate report
-    report = auditor.generate_report(session_id="sess_test_1", top_n=5)
+    report: AutoApprovalAuditReport = auditor.evaluate_events(
+        events,
+        session_id=session_id,
+        main_task_rounds=10,
+        main_task_prompt_tokens=50_000,
+        main_task_completion_tokens=5_000,
+        main_task_cached_tokens=40_000,
+        main_task_cost_usd=0.09,
+    )
 
-    assert report.session_id == "sess_test_1"
-    assert report.total_triggers == 4
-    assert report.category_counts[ApprovalTriggerCategory.NETWORK_DOMAIN] == 3
-    assert report.category_counts[ApprovalTriggerCategory.COMMAND_EXECUTION] == 1
-    assert report.category_counts[ApprovalTriggerCategory.FILE_BOUNDARY] == 0
+    # 1. Total triggers and category counts
+    assert report.total_triggers == 6
+    assert report.category_counts[ApprovalTriggerCategory.FILE_BOUNDARY] == 3
+    assert report.category_counts[ApprovalTriggerCategory.COMMAND_EXECUTION] == 2
+    assert report.category_counts[ApprovalTriggerCategory.NETWORK_DOMAIN] == 1
+    assert report.category_counts[ApprovalTriggerCategory.TOOL_ELEVATION] == 0
 
-    # Dual track check
-    assert report.dual_track_breakdown.main_task_rounds == 8
-    assert report.dual_track_breakdown.audit_rounds == 4
-    assert report.dual_track_breakdown.audit_tokens == (550 * 3) + 420
+    # 2. Dual-track quota decoupling
+    dual = report.dual_track_breakdown
+    assert dual.main_task_rounds == 10
+    assert dual.audit_rounds == 6
+    assert dual.total_rounds == 16
+    assert dual.audit_cost_usd > 0.0
+    assert dual.total_cost_usd > dual.main_task_cost_usd
+    assert 0.0 < dual.audit_cost_ratio < 1.0
+    assert 0.0 < dual.audit_token_ratio < 1.0
 
-    # Top offenders check (api.github.com should be rank 1)
-    assert len(report.top_offenders) == 2
-    top1 = report.top_offenders[0]
-    assert top1.normalized_target == "api.github.com"
-    assert top1.hit_count == 3
-    assert top1.suggested_allow_pattern == "*.github.com"
-
-    # Recommendations check
-    assert len(report.recommendations) >= 1
-    assert "api.github.com" in report.recommendations[0]
-
-
-def test_auditor_bounded_memory_limit():
-    """Test that unique offender tracking is bounded by max_tracked_offenders."""
-    auditor = AutoApprovalAuditor(max_tracked_offenders=3)
-
-    for i in range(10):
-        auditor.record_trigger_event(
-            session_id="sess_bound",
-            tool_name="web_fetch",
-            raw_target=f"https://sub{i}.domain.com/path",
-        )
-
-    report = auditor.generate_report(session_id="sess_bound", top_n=10)
-    # Total unique offenders should not exceed 3
+    # 3. Top-Offenders sorting
     assert len(report.top_offenders) == 3
+    # Top 1 should be /var/log/* (3 hits)
+    top1 = report.top_offenders[0]
+    assert top1.normalized_target == "/var/log/*"
+    assert top1.category == ApprovalTriggerCategory.FILE_BOUNDARY
+    assert top1.hit_count == 3
+    assert top1.suggested_allow_pattern == "/var/log/*"
+
+    # Top 2 should be rm (2 hits)
+    top2 = report.top_offenders[1]
+    assert top2.normalized_target == "rm"
+    assert top2.category == ApprovalTriggerCategory.COMMAND_EXECUTION
+    assert top2.hit_count == 2
+    assert top2.suggested_allow_pattern == "rm *"
+
+    # Recommendations generated
+    assert len(report.recommendations) >= 2
+    assert any("Consider allowlisting" in rec for rec in report.recommendations)

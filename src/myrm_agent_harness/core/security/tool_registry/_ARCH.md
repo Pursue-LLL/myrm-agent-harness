@@ -29,7 +29,7 @@ These declarations are audit metadata consumed by
 permission resolution. Adding a built-in tool that silently bypasses governance
 fails the CI gate.
 
-The gate iterates the **registered built-in universe** (CORE/COMMON/EXTENDED
+The gate iterates the **registered built-in universe** (CORE/HIGH_PRIORITY/EXTENDED
 layers of `_TOOL_LAYERS` + server bootstrap), not the static
 `BUILTIN_TOOL_NAMES` whitelist. A registered tool is covered when it has a
 permission mapping, a dynamic resolver branch (its name must be in

@@ -71,18 +71,18 @@ LLM API 的序列化顺序为 `Tools → System Prompt → Messages`。前缀匹
 
 ```python
 class ToolLayer(IntEnum):
-    CORE = 1       # 始终存在，不可关闭
-    COMMON = 2     # 默认存在，前端可控制开关
-    EXTENDED = 3   # harness 可选能力，按需 Turn1
-    EXTERNAL = 4   # 框架外(server vendor / MCP direct / OpenAPI)
+    CORE = 1           # 始终存在，不可关闭
+    HIGH_PRIORITY = 2  # 默认存在，前端可控制开关
+    EXTENDED = 3       # harness 可选能力，按需 Turn1
+    EXTERNAL = 4       # 框架外(server vendor / MCP direct / OpenAPI)
 ```
 
 具体的工具层级注册：
 
 | 层级 | 工具 | 常驻理由 |
 |------|------|---------|
-| **CORE** | web_fetch + file×3 + bash + glob/grep | 7 登记 | 通用 Agent 基线 | 不依赖搜索 API |
-| **COMMON** | memory×3 + web_search | 4 登记 | 默认 bind memory×3 + web_search | memory 组内优先排序 |
+| **CORE** | web_fetch + file×3 + bash + glob/grep | 8 登记 | 通用 Agent 基线 | 不依赖搜索 API |
+| **HIGH_PRIORITY** | web_search + memory×3 + skill_select | 5 登记 | 默认 bind web_search + memory×3 + skill_select | 组内搜索优先，记忆紧随，技能选择承接 |
 | **EXTENDED** | 40 登记（仅 harness 可选能力） | 按需 Turn1（profile 开关） | todo_write / browser / wiki 等 |
 | **EXTERNAL** | 6 登记（server vendor）+ 未登记 MCP/OpenAPI 动态工具 | Turn1 when mounted | x_search / MCP direct / OpenAPI |
 
@@ -97,17 +97,17 @@ sorted_entries = sorted(
 )
 ```
 
-排序规则：先按层级（CORE → COMMON → EXTENDED → EXTERNAL）；COMMON 层内按工具组优先级（memory → web_search → 其余），同组内按名称字母序；EXTENDED 层按名称字母序；EXTERNAL 层按名称字母序（整段位于 harness 三层之后）。
+排序规则：先按层级（CORE → HIGH_PRIORITY → EXTENDED → EXTERNAL）；HIGH_PRIORITY 层内按工具组优先级（web_search → memory → skill_select），同组内按名称字母序；EXTENDED 层按名称字母序；EXTERNAL 层按名称字母序（整段位于 harness 三层之后）。
 
 **缓存效果**（API 顺序：`Tools → System → Messages`）：
 
 ```
-第 1 轮: [CORE][COMMON][EXT: skill_select][System A][Messages…]
-第 2 轮: [CORE][COMMON][EXT: skill_select+browser][System A][Messages…]
-          |← CORE+COMMON Tools 仍命中 →| |browser 新算| |System A 重算|
+第 1 轮: [CORE][HIGH_PRIORITY: web_search,memory,skill_select][EXTENDED: 无][System A][Messages…]
+第 2 轮: [CORE][HIGH_PRIORITY: web_search,memory,skill_select][EXTENDED: +browser…][System A][Messages…]
+          |← CORE+HIGH_PRIORITY Tools 仍命中 →| |browser 新算| |System A 重算|
 ```
 
-**Tools 变化对 System 的影响**：Tools 位于 System **之前**，前缀为一条连续 token 链。EXTENDED 尾部增删/改 schema 时，变化点之后的 **System Prompt 无法复用旧 KV cache**（必须重算），即使 System 文本本身未改。ToolLayer 的价值是保护 **Tools 段内部**不变的前缀（CORE+COMMON），而非让 System 在 Tools 变化时仍命中。
+**Tools 变化对 System 的影响**：Tools 位于 System **之前**，前缀为一条连续 token 链。EXTENDED 尾部增删/改 schema 时，变化点之后的 **System Prompt 无法复用旧 KV cache**（必须重算），即使 System 文本本身未改。ToolLayer 的价值是保护 **Tools 段内部**不变的前缀（CORE+HIGH_PRIORITY），而非让 System 在 Tools 变化时仍命中。
 
 仅当 **Tools 段字节级完全一致** 且 System 链未变时，Tools + System 前缀才可同时命中；仅 Messages 追加时最常见。
 

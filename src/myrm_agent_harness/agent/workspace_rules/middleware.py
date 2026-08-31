@@ -127,6 +127,20 @@ class WorkspaceRulesMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         if not workspace_root:
             return await handler(request)
 
+        from myrm_agent_harness.agent.security.workspace_trust.context import (
+            get_workspace_trust_level,
+        )
+        from myrm_agent_harness.agent.security.workspace_trust.gate import (
+            blocks_workspace_side_channels,
+        )
+
+        if blocks_workspace_side_channels(get_workspace_trust_level()):
+            logger.info(
+                "Workspace trust gate: skipping workspace rules injection for %s",
+                workspace_root,
+            )
+            return await handler(request)
+
         from myrm_agent_harness.agent.workspace_rules.scanner import (
             scan_workspace_rules,
         )
