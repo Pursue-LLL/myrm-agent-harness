@@ -486,6 +486,34 @@ class TestSanitizeEnv:
         result = sanitize_env(env, EnvInheritPolicy.ALL)
         assert result == env
 
+    def test_ptc_orchestration_allows_pythonpath_and_socket(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.security.validator import (
+            EnvInheritPolicy,
+            sanitize_env,
+        )
+
+        stub_dir = "/tmp/myrm_ptc_stubs_abc"
+        env = {
+            "PATH": "/usr/bin",
+            "_MYRM_PTC_SOCKET": "/tmp/myrm_ptc.sock",
+            "_MYRM_PTC_TIMEOUT": "60",
+            "PYTHONPATH": f"{stub_dir}:/other",
+        }
+        result = sanitize_env(env, EnvInheritPolicy.ALL)
+        assert result["PYTHONPATH"] == f"{stub_dir}:/other"
+        assert result["_MYRM_PTC_SOCKET"] == "/tmp/myrm_ptc.sock"
+        assert result["_MYRM_PTC_TIMEOUT"] == "60"
+
+    def test_pythonpath_still_blocked_without_ptc_markers(self) -> None:
+        from myrm_agent_harness.toolkits.code_execution.security.validator import (
+            EnvInheritPolicy,
+            sanitize_env,
+        )
+
+        env = {"PATH": "/usr/bin", "PYTHONPATH": "/tmp/evil"}
+        result = sanitize_env(env, EnvInheritPolicy.ALL)
+        assert "PYTHONPATH" not in result
+
 
 class TestMcpVirtualPathBlock:
     def test_ls_mcp_blocked_with_guidance(self, tmp_path: Path) -> None:

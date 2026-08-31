@@ -534,6 +534,20 @@ def _matches_wildcard(key: str) -> bool:
     return any(w in upper for w in DANGEROUS_ENV_WILDCARDS)
 
 
+_PTC_ORCHESTRATION_ENV_KEYS: frozenset[str] = frozenset(
+    {
+        "_MYRM_PTC_SOCKET",
+        "_MYRM_PTC_PORT",
+        "_MYRM_PTC_TIMEOUT",
+    }
+)
+
+
+def _is_ptc_orchestration_env(env: dict[str, str]) -> bool:
+    """True when env carries Dynamic Workflow PTC RPC bridge markers."""
+    return "_MYRM_PTC_SOCKET" in env or "_MYRM_PTC_PORT" in env
+
+
 def sanitize_env(
     env: dict[str, str],
     inherit_policy: EnvInheritPolicy = EnvInheritPolicy.ALL,
@@ -557,6 +571,7 @@ def sanitize_env(
 
     filtered: dict[str, str] = {}
     blocked: list[str] = []
+    ptc_orchestration = _is_ptc_orchestration_env(env)
 
     for key, value in env.items():
         if inherit_policy == EnvInheritPolicy.CORE:
@@ -566,7 +581,14 @@ def sanitize_env(
             filtered[key] = value
             continue
 
+        if key in _PTC_ORCHESTRATION_ENV_KEYS:
+            filtered[key] = value
+            continue
+
         if key in DANGEROUS_ENV_VARS or key.startswith(DANGEROUS_ENV_PREFIXES):
+            if key == "PYTHONPATH" and ptc_orchestration:
+                filtered[key] = value
+                continue
             blocked.append(key)
             continue
         if _matches_wildcard(key):

@@ -7,15 +7,15 @@
 (none — pure enum + dict, no external deps)
 
 [OUTPUT]
-- ToolLayer: 工具层级枚举(CORE=1, HIGH_FREQUENCY=2, EXTENDED=3, EXTERNAL=4)
+- ToolLayer: 工具层级枚举(CORE=1, HIGH_PRIORITY=2, EXTENDED=3, EXTERNAL=4)
 - register_tool_layer(): 注册工具到指定层级
 - get_tool_layer(): 获取工具的层级
 - get_tool_registry_sort_key(): Cache-friendly sort key for ToolRegistry
-- tool_layer_snapshot_label(): GUI-facing layer slug (core/high_frequency/extended/external)
+- tool_layer_snapshot_label(): GUI-facing layer slug (core/high_priority/extended/external)
 - is_registered_action_tool(): 判断工具名是否在 Action Tool SSOT 中
 
 [POS]
-Tool layer priority registry. Defines CORE/HIGH_FREQUENCY/EXTENDED/EXTERNAL four-tier tool priorities used by ToolRegistry for ordering.
+Tool layer priority registry. Defines CORE/HIGH_PRIORITY/EXTENDED/EXTERNAL four-tier tool priorities used by ToolRegistry for ordering.
 
 Tool loading dual-track (SSOT):
 - General track (Web non-fast, Channel/IM, Cron/Kanban): CORE tools always Turn1 eager via tool_mount.resolve_agent_mount → get_meta_tools(enable_shell_tools=True).

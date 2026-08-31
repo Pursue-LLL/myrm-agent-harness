@@ -551,6 +551,11 @@ async def run_dynamic_workflow_stream(
         ):
             yield notify_event
         result = await inject_task
+        if result is not None and not result.success:
+            workflow_failed = True
+            workflow_error = (
+                result.error or result.stderr or "Dynamic Workflow PTC execution failed"
+            )
 
     except Exception as e:
         workflow_failed = True

@@ -19,11 +19,6 @@ from __future__ import annotations
 
 from typing import Mapping, Sequence
 
-from myrm_agent_harness.agent.event_log.integrity_gate import (
-    install_log_integrity_invariants,
-    verify_sequence_continuity as check_sequence_continuity,
-    verify_session_enclosure as check_step_enclosure,
-)
 from myrm_agent_harness.observability.invariants.registry import (
     RuntimeInvariantRegistry,
     default_invariant_registry,
@@ -247,8 +242,24 @@ def check_todo_structure_integrity(context: object) -> list[InvariantViolation]:
     return violations
 
 
+def check_step_enclosure(context: object) -> list[InvariantViolation]:
+    """Verify events are enclosed within valid step boundaries (SSOT: event_log.integrity_gate)."""
+    from myrm_agent_harness.agent.event_log.integrity_gate import verify_session_enclosure
+
+    return verify_session_enclosure(context)
+
+
+def check_sequence_continuity(context: object) -> list[InvariantViolation]:
+    """Verify monotonic timestamps and sequence continuity (SSOT: event_log.integrity_gate)."""
+    from myrm_agent_harness.agent.event_log.integrity_gate import verify_sequence_continuity
+
+    return verify_sequence_continuity(context)
+
+
 def install_core_invariants(registry: RuntimeInvariantRegistry | None = None) -> None:
     """Install standard companion runtime invariant checks into the given registry."""
+    from myrm_agent_harness.agent.event_log.integrity_gate import install_log_integrity_invariants
+
     target_registry = registry or default_invariant_registry
     target_registry.register("session.events", "session_event_pairing", check_session_event_pairing)
     target_registry.register("agent.lifecycle", "agent_state_transition", check_agent_state_transition)
