@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from myrm_agent_harness.core.hooks import HookRegistryProtocol
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
@@ -77,11 +77,11 @@ class ReadOnlyMemoryView(MemoryManager):
     # ── Read operations (delegated) ──────────────────────────────────
 
     async def search(
-        self, query: str, *, memory_types: list[MemoryType] | None = None, limit: int = 10, **kwargs: Any
+        self, query: str, *, memory_types: list[MemoryType] | None = None, limit: int = 10, **kwargs: object
     ) -> list[MemorySearchResult]:
         return await self._parent.search(query, memory_types=memory_types, limit=limit, **kwargs)
 
-    async def get_context(self, **kwargs: Any) -> dict[str, object]:
+    async def get_context(self, **kwargs: object) -> dict[str, object]:
         return await self._parent.get_context(**kwargs)
 
     async def get_learned_context(self) -> dict[str, list[dict[str, str]]]:
@@ -90,7 +90,7 @@ class ReadOnlyMemoryView(MemoryManager):
     async def get_memory(self, memory_id: str) -> AnyMemory | None:
         return await self._parent.get_memory(memory_id)
 
-    def begin_session(self, chat_id: str, hook_registry: HookRegistryProtocol | None = None) -> Any:
+    def begin_session(self, chat_id: str, hook_registry: HookRegistryProtocol | None = None) -> object:
         return self._parent.begin_session(chat_id, hook_registry=hook_registry)
 
     async def end_session(self) -> list[AnyMemory]:
@@ -271,7 +271,7 @@ class ReadOnlyMemoryView(MemoryManager):
     async def get_profile_attribute(self, key: str) -> str | None:
         return await self._parent.get_profile_attribute(key) if hasattr(self._parent, "get_profile_attribute") else None
 
-    async def list_pending(self, *, limit: int = 50) -> list[Any]:
+    async def list_pending(self, *, limit: int = 50) -> list[object]:
         return []
 
     async def count_pending(self) -> int:
@@ -284,10 +284,10 @@ class ReadOnlyMemoryView(MemoryManager):
             memory_type, limit=limit, offset=offset, include_archived=include_archived
         )
 
-    async def count_memories(self, memory_type: MemoryType, **kwargs: Any) -> int:
+    async def count_memories(self, memory_type: MemoryType, **kwargs: object) -> int:
         return await self._parent.count_memories(memory_type, **kwargs)
 
-    async def list_backups(self, strategy: MemoryBackupStrategy) -> list[Any]:
+    async def list_backups(self, strategy: MemoryBackupStrategy) -> list[object]:
         return await strategy.list_backups()
 
     async def export_all(self) -> dict[str, list[dict[str, object]]]:
@@ -461,7 +461,7 @@ class EphemeralMemoryManager(MemoryManager):
             return self._ephemeral_store[memory_id]
         return await self._parent.get_memory(memory_id)
 
-    def begin_session(self, chat_id: str, hook_registry: HookRegistryProtocol | None = None) -> Any:
+    def begin_session(self, chat_id: str, hook_registry: HookRegistryProtocol | None = None) -> object:
         return self._parent.begin_session(chat_id, hook_registry=hook_registry)
 
     async def end_session(self) -> list[AnyMemory]:

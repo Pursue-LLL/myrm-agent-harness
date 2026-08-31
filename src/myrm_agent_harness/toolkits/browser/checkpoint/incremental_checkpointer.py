@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from langgraph.checkpoint.base import BaseCheckpointSaver, Checkpoint, CheckpointTuple
 from langgraph.checkpoint.base import CheckpointMetadata as LGMetadata
@@ -280,7 +280,7 @@ class IncrementalSessionCheckpointer(BaseCheckpointSaver):
         self,
         config: RunnableConfig | None,
         *,
-        filter: dict[str, Any] | None = None,
+        filter: dict[str, object] | None = None,
         before: RunnableConfig | None = None,
         limit: int | None = None,
     ) -> AsyncIterator[CheckpointTuple]:
@@ -291,7 +291,7 @@ class IncrementalSessionCheckpointer(BaseCheckpointSaver):
     async def aput_writes(
         self,
         config: RunnableConfig,
-        writes: Sequence[tuple[str, Any]],
+        writes: Sequence[tuple[str, object]],
         task_id: str,
         task_path: str = "",
     ) -> None:

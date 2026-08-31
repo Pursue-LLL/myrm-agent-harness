@@ -233,7 +233,7 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
     builtin_registered = {
         name
         for name, layer in registered.items()
-        if layer in ("CORE", "HIGH_FREQUENCY", "EXTENDED")
+        if layer in ("CORE", "HIGH_PRIORITY", "EXTENDED")
     }
     external_registered = {
         name for name, layer in registered.items() if layer == "EXTERNAL"
@@ -286,7 +286,7 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
     if unregistered_builtins:
         errors.append(
             "BUILTIN_TOOL_NAMES tool(s) not registered in _TOOL_LAYERS "
-            "(CORE/HIGH_FREQUENCY/EXTENDED) — governance declarations lose their anchor "
+            "(CORE/HIGH_PRIORITY/EXTENDED) — governance declarations lose their anchor "
             "(upward-blindness drift): "
             + ", ".join(unregistered_builtins)
         )
@@ -421,7 +421,7 @@ def _format_report(
         f"Tool declarations found (deduplicated by name): {len(report.declared_names)}",
         f"Registered in _TOOL_LAYERS (harness static + server bootstrap): {len(report.registered_names)}",
         "",
-        f"Layer breakdown (registered): CORE={layer_counts['CORE']} HIGH_FREQUENCY={layer_counts['HIGH_FREQUENCY']} "
+        f"Layer breakdown (registered): CORE={layer_counts['CORE']} HIGH_PRIORITY={layer_counts['HIGH_PRIORITY']} "
         f"EXTENDED={layer_counts['EXTENDED']} EXTERNAL={layer_counts['EXTERNAL']}",
         "",
     ]
@@ -519,7 +519,7 @@ def _layer_counts(report: ScanReport) -> dict[str, int]:
     counts = Counter(load_registered_layers().values())
     return {
         "CORE": counts.get("CORE", 0),
-        "HIGH_FREQUENCY": counts.get("HIGH_FREQUENCY", 0),
+        "HIGH_PRIORITY": counts.get("HIGH_PRIORITY", 0),
         "EXTENDED": counts.get("EXTENDED", 0),
         "EXTERNAL": counts.get("EXTERNAL", 0),
     }
@@ -535,11 +535,11 @@ def _build_doc_block(report: ScanReport) -> str:
     from scripts.tool_registry_config import PTC_RUNTIME_TOOL_NAMES
 
     ptc_names = ", ".join(f"`{n}`" for n in sorted(PTC_RUNTIME_TOOL_NAMES))
-    harness_total = counts["CORE"] + counts["HIGH_FREQUENCY"] + counts["EXTENDED"]
+    harness_total = counts["CORE"] + counts["HIGH_PRIORITY"] + counts["EXTENDED"]
     return (
         f"{_BLOCK_BEGIN}\n"
         f"LLM tools: **{action_total}** "
-        f"(Harness {harness_total}: CORE {counts['CORE']} + HIGH_FREQUENCY {counts['HIGH_FREQUENCY']} + "
+        f"(Harness {harness_total}: CORE {counts['CORE']} + HIGH_PRIORITY {counts['HIGH_PRIORITY']} + "
         f"EXTENDED {counts['EXTENDED']}; External {counts['EXTERNAL']}: server vendor). "
         f"Orchestration signals: **{len(ORCHESTRATION_SIGNAL_NAMES)}**. "
         f"Runtime hooks: **{len(RUNTIME_HOOK_NAMES)}**. "

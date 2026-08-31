@@ -33,7 +33,6 @@ import logging
 import os
 import shutil
 import sys
-from typing import Any
 
 if sys.platform == "win32":
     import ctypes
@@ -157,7 +156,7 @@ class AppContainerProvider:
         self._acl_fingerprint: str | None = None
         self._oem_encoding = "utf-8"
         self._acl_paths: list[tuple[str, str]] = []
-        self._job_handle: Any = None
+        self._job_handle: object = None
 
     @property
     def name(self) -> str:
