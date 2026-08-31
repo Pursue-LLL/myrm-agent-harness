@@ -3,7 +3,7 @@
 
 Validates that every `@tool` / `BaseTool` subclass / middleware-renamed tool
 is registered in the harness `_TOOL_LAYERS` (or in the server bootstrap),
-enforces layer-product consistency (HIGH_FREQUENCY = default-on product IDs),
+enforces layer-product consistency (HIGH_PRIORITY = default-on product IDs),
 detects orphan tool factories, and regenerates documentation count blocks.
 
 Usage:
@@ -187,7 +187,7 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
 
     Fail-closed rules (mirrors the runtime ``resolve_permission_type`` fallback):
 
-    1. Every registered harness built-in tool (``_TOOL_LAYERS`` CORE/HIGH_FREQUENCY/
+    1. Every registered harness built-in tool (``_TOOL_LAYERS`` CORE/HIGH_PRIORITY/
        EXTENDED) must be covered by an explicit ``TOOL_PERMISSION_MAP`` entry,
        a dynamic resolver branch (membership in
        ``DYNAMICALLY_RESOLVED_TOOL_NAMES``, the SSOT for

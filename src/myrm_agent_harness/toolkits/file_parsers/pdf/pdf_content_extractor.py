@@ -25,7 +25,7 @@ import logging
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from myrm_agent_harness.toolkits.file_parsers.base import PDFTable
 from myrm_agent_harness.toolkits.file_parsers.image_filter import ImageAblationFilter
@@ -64,7 +64,7 @@ class PDFExtractResult:
     parsed_pages: int = 0
     strategy: Literal["text", "image", "hybrid", ""] = ""
     tables: list[PDFTable] = field(default_factory=list)
-    image_trace: dict[str, Any] = field(default_factory=dict)
+    image_trace: dict[str, object] = field(default_factory=dict)
 
 
 def _extract_text_sync(

@@ -2,7 +2,7 @@
 """Measure detailed tool schema token contributions (tiktoken planning SSOT).
 
 Inspects both Tool Description and Tool JSON Schema parameters (args_schema)
-for registered tools across CORE, HIGH_FREQUENCY, and EXTENDED layers.
+for registered tools across CORE, HIGH_PRIORITY, and EXTENDED layers.
 
 Usage:
     python scripts/measure_tool_schema_tokens.py

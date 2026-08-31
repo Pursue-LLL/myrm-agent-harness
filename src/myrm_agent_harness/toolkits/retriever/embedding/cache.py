@@ -24,7 +24,6 @@ import sqlite3
 import threading
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -325,7 +324,7 @@ class EmbeddingCache:
             self._hits_since_persist = 0
         logger.info("EmbeddingCache memory cleared")
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> dict[str, object]:
         """Get cache statistics.
 
         Returns:

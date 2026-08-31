@@ -13,7 +13,7 @@
 - format_crawl_results(): 格式化抓取结果为上下文字符串
 - TruncationStats: 截断统计信息（原始tokens、最终tokens、截断数、保留率）
 - DocumentCollection: 文档集合的中间状态（URL映射、header、内容、元数据）
-- wrap_with_external_sources_tag(): 安全边界包装（UNTRUSTED_DATA）
+- wrap_with_external_sources_tag(): 安全边界包装（UNTRUSTED_DATA）+ 持久 cite reminder
 - wrap_with_tool_output_tag(): 安全边界包装（TOOL_OUTPUT）
 
 [POS]
@@ -527,11 +527,17 @@ def format_documents_with_metadata(
     return collection.sources_metadata, formatted_text, truncation_stats
 
 
+_EXTERNAL_SOURCE_CITATION_REMINDER = (
+    "\n\nWhen you use facts from the content above in your reply, "
+    "add numbered source markers matching the source indices shown in this result."
+)
+
+
 def wrap_with_external_sources_tag(context: str, *, source: str = "external") -> str:
     """将上下文包装在安全边界标记中（UNTRUSTED_DATA）
 
     用于包裹外部数据源（web_search、web_fetch、browser、wiki、MCP远程数据），
-    触发引用规则，模型需要添加引用标记【1】【2】。
+    触发引用规则；具体引用格式由业务层 prompt/middleware 定义。
 
     安全：5 层防护（Unicode folding + invisible chars + pattern detection + random boundary + security notice）。
     """
@@ -539,7 +545,8 @@ def wrap_with_external_sources_tag(context: str, *, source: str = "external") ->
         wrap_untrusted,
     )
 
-    return wrap_untrusted(context, source=source)
+    wrapped = wrap_untrusted(context, source=source)
+    return wrapped + _EXTERNAL_SOURCE_CITATION_REMINDER
 
 
 def wrap_with_tool_output_tag(content: str) -> str:

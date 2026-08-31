@@ -478,6 +478,7 @@ class TestWrappers:
         content = "内容"
         wrapped = wrap_with_external_sources_tag(content, source="web_search")
         assert content in wrapped
+        assert "numbered source markers" in wrapped
 
     def test_wrap_tool_output(self):
         """测试工具输出包装"""

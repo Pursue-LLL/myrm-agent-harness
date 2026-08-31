@@ -5,7 +5,7 @@
 [INPUT]
 - langchain_core.tools::BaseTool (POS: LangChain tool instances)
 - .types::ToolEntry (POS: tool entry with bind mode and source)
-- .tool_layers::ToolLayer (POS: CORE HIGH_FREQUENCY EXTENDED EXTERNAL cache ordering)
+- .tool_layers::ToolLayer (POS: CORE HIGH_PRIORITY EXTENDED EXTERNAL cache ordering)
 
 [OUTPUT]
 - ToolRegistry: register / register_runtime_hook → resolve / snapshot pipeline
@@ -193,8 +193,8 @@ class ToolRegistry:
         Dedup rule: on name collision the entry with the **highest source
         priority** wins (META > USER > MIDDLEWARE).
 
-        Sort rule: first by ``ToolLayer`` (CORE → HIGH_FREQUENCY → EXTENDED → EXTERNAL),
-        then HIGH_FREQUENCY group priority, then alphabetically within each tier.
+        Sort rule: first by ``ToolLayer`` (CORE → HIGH_PRIORITY → EXTENDED → EXTERNAL),
+        then HIGH_PRIORITY group priority, then alphabetically within each tier.
 
         Only returns Turn1-bound tools (``bind_mode == TURN1``).
         """

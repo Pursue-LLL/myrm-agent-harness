@@ -2,7 +2,7 @@
 """Measure default GeneralAgent Turn-1 bind_tools token cost (tiktoken planning SSOT).
 
 Builds the harness-side default product profile:
-  web_search + web_fetch + file_ops (5) + bash + bash_process + memory (3, HIGH_FREQUENCY)
+  web_search + web_fetch + file_ops (5) + bash + bash_process + memory (3, HIGH_PRIORITY)
   + skill_select (when demo skill present)
   (conversation_search opt-in via server; excluded from default Turn1)
   (TSM v1: no request_answer_user_tool, no todo_write; skill_manage opt-in via server)
@@ -174,7 +174,7 @@ def _print_table(report: dict[str, object]) -> None:
     print("-" * 54)
     layer_totals = report["layer_totals"]
     assert isinstance(layer_totals, dict)
-    for layer in ("CORE", "HIGH_FREQUENCY", "EXTENDED", "EXTERNAL"):
+    for layer in ("CORE", "HIGH_PRIORITY", "EXTENDED", "EXTERNAL"):
         if layer in layer_totals:
             print(f"{layer + ' subtotal':<42} {layer_totals[layer]:>8}")
     print(f"{'Description subtotal':<42} {report['description_tokens']:>8}")

@@ -32,7 +32,7 @@ Observability tools for Myrm Agent framework. Provides Prometheus metrics, auth 
 | economics/ | Token economics telemetry, prompt cache reuse auditing, and single-step cost regression detection. |
 | latency/ | Agent turn chain latency decomposition, waterfall visualization models, and wall-clock bottleneck identification. |
 | digest/ | Team weekly digest and knowledge compounding newsletter engine (activity aggregation, skill health, Markdown rendering). |
-| security_audit/ | Auto-approval trigger diagnostics, quota usage decoupling (Primary vs Reviewer), and allowlist recommendation engine. |
+| approval_audit/ | Auto-approval trigger diagnostics, quota usage decoupling (Main vs Reviewer), bounded Top-Offenders aggregation, and 1-click allowlist recommendations. |
 
 ## Key Dependencies
 

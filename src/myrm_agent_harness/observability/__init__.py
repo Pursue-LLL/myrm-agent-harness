@@ -8,6 +8,7 @@ Provides monitoring and health inspection capabilities:
 - Runtime invariant assertions and registry (observability/invariants)
 - Task friction telemetry and Eval Lab co-evolution (observability/friction)
 - Skill compounding health evaluation (observability/digest)
+- Auto-approval trigger diagnostics and dual-track attribution (observability/approval_audit)
 
 [INPUT]
 - Exception (POS: LLM call exceptions for auth detection)
@@ -20,12 +21,21 @@ Provides monitoring and health inspection capabilities:
 - Invariant registry and types (from observability/invariants)
 - Task friction telemetry (FrictionCategory, TaskFrictionEvent, FrictionAggregator)
 - Skill health evaluation (SkillHealthEvaluator, SkillCompoundingMetrics)
+- Auto-approval auditing (AutoApprovalAuditor, ApprovalTriggerCategory, AutoApprovalAuditReport)
 
 [POS]
 Observability tools for Myrm Agent framework. Provides passive metric collection,
-active health probing, auth failure detection, request tracing context, runtime invariants, and friction telemetry.
+active health probing, auth failure detection, request tracing context, runtime invariants, friction telemetry, and approval audit.
 """
 
+from .approval_audit import (
+    ApprovalTriggerCategory,
+    ApprovalTriggerEvent,
+    AutoApprovalAuditReport,
+    AutoApprovalAuditor,
+    DualTrackQuotaBreakdown,
+    TopOffenderItem,
+)
 from .auth_detector import detect_auth_failure, get_auth_error_hint
 from .digest import (
     SkillCompoundingMetrics,
@@ -52,6 +62,11 @@ from .invariants import (
 from .tracing import JsonFormatter, TracingContext, TracingLogFilter
 
 __all__ = [
+    "ApprovalTriggerCategory",
+    "ApprovalTriggerEvent",
+    "AutoApprovalAuditReport",
+    "AutoApprovalAuditor",
+    "DualTrackQuotaBreakdown",
     "FrictionAggregator",
     "FrictionCategory",
     "FrictionExtractor",
@@ -67,6 +82,7 @@ __all__ = [
     "SkillHealthScore",
     "SkillHealthStatus",
     "TaskFrictionEvent",
+    "TopOffenderItem",
     "TracingContext",
     "TracingLogFilter",
     "default_invariant_registry",

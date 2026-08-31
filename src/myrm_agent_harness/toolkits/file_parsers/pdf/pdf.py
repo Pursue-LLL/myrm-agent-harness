@@ -20,7 +20,7 @@ import logging
 import typing
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from myrm_agent_harness.toolkits.file_parsers.base import FileParser, PDFParseResult, PDFTable
 
@@ -116,8 +116,8 @@ class PDFPlumberParser(FileParser):
         with pdfplumber.open(file_path) as pdf:
             page_count = len(pdf.pages)
 
-            bookmarks: list[dict[str, Any]] = []
-            bookmarks_by_page: dict[int, list[dict[str, Any]]] = defaultdict(list)
+            bookmarks: list[dict[str, object]] = []
+            bookmarks_by_page: dict[int, list[dict[str, object]]] = defaultdict(list)
 
             if self._should_extract_bookmarks and self._heading_detection in ("bookmarks", "auto"):
                 bookmarks = self._extract_bookmarks(pdf)
@@ -431,7 +431,7 @@ class PDFPlumberParser(FileParser):
 
         return summary.strip()
 
-    def _extract_bookmarks(self, pdf: pdfplumber.PDF) -> list[dict[str, Any]]:
+    def _extract_bookmarks(self, pdf: pdfplumber.PDF) -> list[dict[str, object]]:
         """Extract bookmark structure from PDF outlines.
 
         Returns list of bookmarks with nested hierarchy resolved to flat list:
@@ -451,7 +451,7 @@ class PDFPlumberParser(FileParser):
 
             page_ref_map = self._build_page_number_map(pdf)
 
-            bookmarks: list[dict[str, Any]] = []
+            bookmarks: list[dict[str, object]] = []
             for level, title, dest, _action, _se in outlines:
                 if not title or not title.strip():
                     continue
@@ -497,7 +497,7 @@ class PDFPlumberParser(FileParser):
 
     def _resolve_bookmark_page(
         self,
-        page_ref: Any,
+        page_ref: object,
         page_ref_map: dict[int, int],
         total_pages: int,
     ) -> int | None:

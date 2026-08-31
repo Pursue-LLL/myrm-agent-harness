@@ -13,7 +13,6 @@ Proxy and network error detection utilities.
 """
 
 import re
-from typing import Any
 
 # Common proxy and network error patterns
 PROXY_ERROR_PATTERNS = [
@@ -38,7 +37,7 @@ PROXY_ERROR_PATTERNS = [
 _PROXY_ERROR_REGEX = re.compile("|".join(PROXY_ERROR_PATTERNS), re.IGNORECASE)
 
 
-def is_proxy_error(error: Exception | str | Any) -> bool:
+def is_proxy_error(error: Exception | str | object) -> bool:
     """Detect if an exception or error message is related to proxy/network failure.
 
     Args:

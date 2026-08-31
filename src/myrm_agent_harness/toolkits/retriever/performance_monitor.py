@@ -14,7 +14,6 @@ Provides PerformanceMonitor, get_performance_monitor.
 import logging
 import time
 from contextlib import asynccontextmanager
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,7 @@ class PerformanceMonitor:
             self.metrics[operation_name] = duration
             logger.info("%s completed in %.4fs", operation_name, duration)
 
-    def get_performance_summary(self) -> dict[str, Any]:
+    def get_performance_summary(self) -> dict[str, object]:
         """Return a performance summary dict."""
         total_time = sum(self.metrics.values())
         return {

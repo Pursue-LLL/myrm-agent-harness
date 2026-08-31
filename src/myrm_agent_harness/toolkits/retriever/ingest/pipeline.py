@@ -24,7 +24,7 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Callable
-from typing import TYPE_CHECKING, Awaitable
+from typing import TYPE_CHECKING, Awaitable, Literal
 
 from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
@@ -77,7 +77,14 @@ class DualLaneIngestPipeline:
 
     def _emit_event(
         self,
-        event_type: Any,
+        event_type: Literal[
+            "object_start",
+            "object_success",
+            "object_failed",
+            "dir_summarized",
+            "embed_batch_flushed",
+            "pipeline_completed",
+        ],
         uri: str | None = None,
         message: str = "",
     ) -> None:
