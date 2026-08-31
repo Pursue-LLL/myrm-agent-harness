@@ -12,12 +12,12 @@ from myrm_agent_harness.agent.tool_management.tool_layers import (
 class TestToolLayer:
     def test_layer_ordering(self):
         assert (
-            ToolLayer.CORE < ToolLayer.HIGH_FREQUENCY < ToolLayer.EXTENDED < ToolLayer.EXTERNAL
+            ToolLayer.CORE < ToolLayer.HIGH_PRIORITY < ToolLayer.EXTENDED < ToolLayer.EXTERNAL
         )
 
     def test_layer_values(self):
         assert ToolLayer.CORE == 1
-        assert ToolLayer.HIGH_FREQUENCY == 2
+        assert ToolLayer.HIGH_PRIORITY == 2
         assert ToolLayer.EXTENDED == 3
         assert ToolLayer.EXTERNAL == 4
 
@@ -37,16 +37,16 @@ class TestGetToolLayer:
         for tool in core_tools:
             assert get_tool_layer(tool) == ToolLayer.CORE, f"{tool} should be CORE"
 
-    def test_common_tools_return_common(self):
-        common_tools = [
+    def test_high_priority_tools_return_high_priority(self):
+        high_priority_tools = [
             "web_search_tool",
             "memory_search_tool",
             "memory_save_tool",
             "memory_manage_tool",
             "skill_select_tool",
         ]
-        for tool in common_tools:
-            assert get_tool_layer(tool) == ToolLayer.HIGH_FREQUENCY, f"{tool} should be HIGH_FREQUENCY"
+        for tool in high_priority_tools:
+            assert get_tool_layer(tool) == ToolLayer.HIGH_PRIORITY, f"{tool} should be HIGH_PRIORITY"
 
     def test_extended_tools_return_extended(self):
         extended_tools = [
@@ -83,8 +83,8 @@ class TestGetToolLayer:
 
 class TestRegisterToolLayer:
     def test_register_new_tool(self):
-        register_tool_layer("test_custom_tool_xyz", ToolLayer.HIGH_FREQUENCY)
-        assert get_tool_layer("test_custom_tool_xyz") == ToolLayer.HIGH_FREQUENCY
+        register_tool_layer("test_custom_tool_xyz", ToolLayer.HIGH_PRIORITY)
+        assert get_tool_layer("test_custom_tool_xyz") == ToolLayer.HIGH_PRIORITY
         del _TOOL_LAYERS["test_custom_tool_xyz"]
 
     def test_override_existing_tool(self):

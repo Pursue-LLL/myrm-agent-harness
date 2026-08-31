@@ -40,9 +40,9 @@ def test_print_table_renders_layer_subtotals(
         "tool_count": 2,
         "per_tool": [
             {"name": "alpha_tool", "layer": "CORE", "tokens": 10},
-            {"name": "beta_tool", "layer": "HIGH_FREQUENCY", "tokens": 5},
+            {"name": "beta_tool", "layer": "HIGH_PRIORITY", "tokens": 5},
         ],
-        "layer_totals": {"CORE": 10, "HIGH_FREQUENCY": 5},
+        "layer_totals": {"CORE": 10, "HIGH_PRIORITY": 5},
         "description_tokens": 15,
         "schema_wrapper_tokens": 130,
         "tools_subtotal": 145,
@@ -176,6 +176,6 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
     )
     layer_totals = report["layer_totals"]
     assert layer_totals["CORE"] == 3207
-    assert layer_totals["HIGH_FREQUENCY"] == 2118
+    assert layer_totals["HIGH_PRIORITY"] == 2118
     assert layer_totals["EXTENDED"] == 188
     assert report["tools_subtotal"] == 6358

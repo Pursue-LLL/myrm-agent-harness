@@ -125,6 +125,11 @@ def setup_tracing(
     logger.info("Tracing initialized: service=%s, sample_rate=%.1f", service_name, sample_rate)
 
 
+def is_tracing_initialized() -> bool:
+    """Return True when ``setup_tracing()`` has configured a real TracerProvider."""
+    return _initialized
+
+
 def get_tracer(name: str) -> trace.Tracer:
     """Get a tracer instance.
 

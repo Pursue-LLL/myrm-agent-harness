@@ -147,6 +147,11 @@ def setup_metrics(
     _initialized = True
 
 
+def is_metrics_initialized() -> bool:
+    """Return True when ``setup_metrics()`` has configured a real MeterProvider."""
+    return _initialized
+
+
 def get_meter_provider() -> MeterProvider | None:
     """Get the global MeterProvider instance.
 

@@ -21,7 +21,6 @@ truncated tool calls when providers safety-terminate mid-generation.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +55,7 @@ _USER_FACING_MESSAGE = (
 
 
 def suppress_tool_calls_for_safety(
-    aggregated_message: dict[str, Any],
+    aggregated_message: dict[str, object],
     finish_reason: str,
 ) -> int:
     """Strip tool_calls from aggregated message and append safety explanation.

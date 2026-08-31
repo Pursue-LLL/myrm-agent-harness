@@ -24,7 +24,7 @@ import json
 import logging
 import re
 import time
-from typing import Any
+from typing import Mapping
 
 import httpx
 
@@ -90,7 +90,7 @@ class OpenAPIExecutor:
         *,
         path_params: dict[str, str] | None = None,
         query_params: dict[str, str] | None = None,
-        body: dict[str, Any] | list[Any] | str | None = None,
+        body: dict[str, object] | list[object] | str | None = None,
         headers: dict[str, str] | None = None,
     ) -> str:
         """Execute an HTTP request against the OpenAPI endpoint.

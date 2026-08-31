@@ -20,7 +20,6 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ class NativeCompactionItem:
     compact_threshold: int = 200_000
     model: str = ""
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "type": "compaction",
             "id": self.item_id,
@@ -87,7 +86,7 @@ def is_eligible_native_compaction_route(
 def build_responses_compaction_params(
     compact_threshold: int = 200_000,
     store: bool = False,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Build kwargs for Responses API with server-side compaction enabled.
 
     Args:
@@ -106,7 +105,7 @@ def build_responses_compaction_params(
 
 
 def parse_compaction_from_response(
-    response_dict: dict[str, Any],
+    response_dict: dict[str, object],
 ) -> NativeCompactionItem | None:
     """Extract native compaction item from a completed response or chunk dict."""
     if not response_dict:

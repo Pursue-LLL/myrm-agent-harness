@@ -17,7 +17,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
@@ -122,7 +121,7 @@ class AsyncTTSEngine:
             persisted_url=persisted_url,
         )
 
-    def _build_request(self, text: str, bypass_gateway: bool) -> tuple[str, dict[str, str], dict[str, Any]]:
+    def _build_request(self, text: str, bypass_gateway: bool) -> tuple[str, dict[str, str], dict[str, object]]:
         provider = self.config.provider
 
         if not bypass_gateway and self.config.gateway_config and self.config.gateway_config.use_gateway:

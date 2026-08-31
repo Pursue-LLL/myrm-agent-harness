@@ -389,8 +389,8 @@ class AppContainerProcess:
         pid: int,
         stdin: asyncio.StreamWriter,
         stdout: asyncio.StreamReader,
-        kernel32: Any,
-        job_handle: Any = None,
+        kernel32: object,
+        job_handle: object = None,
     ) -> None:
         self._handle = handle
         self.pid = pid

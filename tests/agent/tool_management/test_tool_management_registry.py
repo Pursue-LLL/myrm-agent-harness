@@ -122,7 +122,7 @@ class TestToolRegistryResolve:
         reg = ToolRegistry()
         reg.register(_make_tool("z_tool"), source=ToolSource.META, layer=ToolLayer.EXTENDED)
         reg.register(_make_tool("a_tool"), source=ToolSource.META, layer=ToolLayer.CORE)
-        reg.register(_make_tool("m_tool"), source=ToolSource.META, layer=ToolLayer.HIGH_FREQUENCY)
+        reg.register(_make_tool("m_tool"), source=ToolSource.META, layer=ToolLayer.HIGH_PRIORITY)
         resolved = reg.resolve()
         names = [t.name for t in resolved]
         assert names == ["a_tool", "m_tool", "z_tool"]
@@ -201,8 +201,8 @@ class TestToolLayerFunctions:
         from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_layer
 
         assert get_tool_layer("file_read_tool") == ToolLayer.CORE
-        assert get_tool_layer("web_search_tool") == ToolLayer.HIGH_FREQUENCY
-        assert get_tool_layer("skill_select_tool") == ToolLayer.HIGH_FREQUENCY
+        assert get_tool_layer("web_search_tool") == ToolLayer.HIGH_PRIORITY
+        assert get_tool_layer("skill_select_tool") == ToolLayer.HIGH_PRIORITY
         assert get_tool_layer("skill_search_tool") == ToolLayer.EXTENDED
 
     def test_get_tool_layer_unregistered_defaults_external(self) -> None:
@@ -218,9 +218,9 @@ class TestToolLayerFunctions:
         )
 
         key = "_test_custom_tool"
-        register_tool_layer(key, ToolLayer.HIGH_FREQUENCY)
+        register_tool_layer(key, ToolLayer.HIGH_PRIORITY)
         try:
-            assert get_tool_layer(key) == ToolLayer.HIGH_FREQUENCY
+            assert get_tool_layer(key) == ToolLayer.HIGH_PRIORITY
         finally:
             _TOOL_LAYERS.pop(key, None)
 
@@ -250,11 +250,11 @@ class TestToolLayerFunctions:
         assert names[:2] == ["bash_code_execute_tool", "file_read_tool"]
         assert names[2] == "mcp_tool_a"
 
-    def test_web_search_sorted_before_memory_in_common(self) -> None:
+    def test_web_search_sorted_before_memory_in_high_priority(self) -> None:
         from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_layer
 
         for memory_tool in ("memory_manage_tool", "memory_search_tool", "memory_save_tool"):
-            assert get_tool_layer(memory_tool) == ToolLayer.HIGH_FREQUENCY
+            assert get_tool_layer(memory_tool) == ToolLayer.HIGH_PRIORITY
 
         reg = ToolRegistry()
         for name in (
@@ -273,12 +273,12 @@ class TestToolLayerFunctions:
         memory_block = ["memory_manage_tool", "memory_search_tool", "memory_save_tool"]
         assert names[3:6] == memory_block
 
-    def test_extended_tools_append_after_common_prefix(self) -> None:
+    def test_extended_tools_append_after_high_priority_prefix(self) -> None:
         reg = ToolRegistry()
         reg.register(_make_tool("file_read_tool"), source=ToolSource.META, layer=ToolLayer.CORE)
-        reg.register(_make_tool("web_search_tool"), source=ToolSource.USER, layer=ToolLayer.HIGH_FREQUENCY)
-        reg.register(_make_tool("memory_search_tool"), source=ToolSource.USER, layer=ToolLayer.HIGH_FREQUENCY)
-        common_prefix = [tool.name for tool in reg.resolve()]
+        reg.register(_make_tool("web_search_tool"), source=ToolSource.USER, layer=ToolLayer.HIGH_PRIORITY)
+        reg.register(_make_tool("memory_search_tool"), source=ToolSource.USER, layer=ToolLayer.HIGH_PRIORITY)
+        high_priority_prefix = [tool.name for tool in reg.resolve()]
 
         with_extended = ToolRegistry()
         for name in (
@@ -291,8 +291,8 @@ class TestToolLayerFunctions:
             with_extended.register(_make_tool(name), source=ToolSource.USER, layer=layer)
         names = [tool.name for tool in with_extended.resolve()]
 
-        assert names[: len(common_prefix)] == common_prefix
-        assert names[len(common_prefix) :] == ["skill_search_tool"]
+        assert names[: len(high_priority_prefix)] == high_priority_prefix
+        assert names[len(high_priority_prefix) :] == ["skill_search_tool"]
 
 
 class TestToolRegistryBindMode:

@@ -201,3 +201,10 @@ class TestJsonFormatter:
         formatter = JsonFormatter()
         data = json.loads(formatter.format(record))
         assert "sk-proj-abc123def456ghi789jkl012" not in data["message"]
+
+
+class TestTracingInitializationPosture:
+    def test_is_tracing_initialized_false_before_setup(self) -> None:
+        from myrm_agent_harness.infra.tracing.tracer import is_tracing_initialized
+
+        assert is_tracing_initialized() is False

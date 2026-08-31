@@ -17,8 +17,6 @@ Converts text to structured data using pyyaml standard library.
 from __future__ import annotations
 
 import logging
-from typing import Any
-
 from .aria_types import AriaNode
 
 logger = logging.getLogger(__name__)
@@ -67,7 +65,7 @@ def parse_aria_yaml(aria_tree: str) -> list[AriaNode]:
     return _parse_yaml_nodes(data, indent=0)
 
 
-def _parse_yaml_nodes(data: list[Any] | dict[str, Any] | str | None, indent: int = 0) -> list[AriaNode]:
+def _parse_yaml_nodes(data: list[object] | dict[str, object] | str | None, indent: int = 0) -> list[AriaNode]:
     """Recursively parse YAML data structure into AriaNode tree.
 
     YAML structure variants:

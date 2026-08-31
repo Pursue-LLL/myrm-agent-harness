@@ -16,6 +16,7 @@ Framework-level self-inspection and health-check protocol. Supports structured i
 | benchmark_probes.py | Core | Provides performance benchmark probes for LLM, Embedding, and Search. | ✅ |
 | protocols.py | Core | Provides HealthReport (with measured/expected/cause fields), DiagnosticProtocol, redact_health_report. | ✅ |
 | migration_reporter.py | Core | Migration progress tracking protocol, progress events, and malformed record diagnostic reporter. | ✅ |
+| gateway_health.py | Core | Gateway runtime vitals probe (event loop lag, process RSS, asyncio task count), zero-payload redacted health DTO, and OTLP posture detection. Registered into `/health/doctor`. | ✅ |
 
 ## Key Dependencies
 

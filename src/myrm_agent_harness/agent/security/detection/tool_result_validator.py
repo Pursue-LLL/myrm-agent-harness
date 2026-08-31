@@ -142,14 +142,16 @@ def validate_tool_result(content: str, tool_name: str) -> ValidationResult:
             severity="warning",
         )
 
-    # 4. Check Prompt Injection patterns (error level)
+    # 4. Check Prompt Injection patterns
+    # Search snippets are already UNTRUSTED_DATA-wrapped; hard-fail blocks sources/citations.
     for pattern in INJECTION_PATTERNS:
         if pattern.lower() in content_lower:
+            severity = "warning" if tool_name in SEARCH_TOOLS else "error"
             logger.warning(f"Detected potential prompt injection in {tool_name}: {pattern}")
             return ValidationResult(
                 is_valid=False,
                 reason=f"Content contains suspicious prompt injection pattern: {pattern}",
-                severity="error",
+                severity=severity,
             )
 
     return ValidationResult(is_valid=True)

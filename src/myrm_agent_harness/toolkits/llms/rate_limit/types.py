@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass
@@ -40,7 +39,7 @@ class RateLimitBucket:
         elapsed = time.time() - self.updated_at
         return max(0.0, self.reset_seconds - elapsed)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "limit": self.limit,
             "remaining": self.remaining,
@@ -90,7 +89,7 @@ class RateLimitState:
             return False
         return not (self.tph and self.tph.remaining < tokens and self.tph.remaining_seconds_now > 0)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "provider": self.provider,
             "model": self.model,

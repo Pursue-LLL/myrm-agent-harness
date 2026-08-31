@@ -1339,3 +1339,55 @@ async def test_engine_wires_human_ask_tool_to_ptc(
     assert human_tool.ask_gate_callable is mock_ask_gate
     end = next(c for c in chunks if c.get("type") == "message_end")
     assert end["completion_status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_inject_ptc_failure_yields_error_completion(
+    tmp_path, monkeypatch, mock_parent_agent
+) -> None:
+    """inject_ptc success=False must surface workflow_execution error, not success."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+    from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        return ExecutionResult(
+            success=False,
+            error="PYTHONPATH blocked in sandbox",
+            stderr="inject failed",
+        )
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="fail_chat",
+            message_id="fail_msg",
+        )
+    ]
+
+    exec_chunks = [
+        c for c in chunks if c.get("step_key") == "workflow_execution"
+    ]
+    assert exec_chunks[0]["status"] == "in_progress"
+    error_chunk = next(c for c in exec_chunks if c.get("status") == "error")
+    assert "PYTHONPATH blocked" in error_chunk["data"]["message"]
+
+    end = next(c for c in chunks if c.get("type") == "message_end")
+    assert end["completion_status"] == "error"

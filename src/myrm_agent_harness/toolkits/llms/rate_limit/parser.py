@@ -21,7 +21,7 @@ from .types import RateLimitBucket, RateLimitState
 _OPENAI_RESET_RE = re.compile(r"(?:(\d+)h)?(?:(\d+)m(?!s))?(?:(\d+(?:\.\d+)?)s)?(?:(\d+)ms)?")
 
 
-def _parse_reset_time(val: Any) -> float | None:
+def _parse_reset_time(val: object) -> float | None:
     """Parse reset time into relative seconds.
 
     Handles:
@@ -70,7 +70,7 @@ def _parse_reset_time(val: Any) -> float | None:
     return None
 
 
-def _parse_int(val: Any) -> int | None:
+def _parse_int(val: object) -> int | None:
     try:
         if val is None:
             return None

@@ -12,7 +12,7 @@ Detailed design: [TRACE_STORAGE_SYSTEM.md](TRACE_STORAGE_SYSTEM.md)
 | __init__.py | Package | Distributed tracing and metrics collection. Integrates OpenTelemetry for call chain tracing, perform | ✅ |
 | propagation.py | Core | Trace context propagation. Maintains complete trace chains across service calls. | ✅ |
 | sampling.py | Core | Intelligent sampling strategy. 100% for errors, 100% for slow requests, 100% for critical paths, 10% | ✅ |
-| tracer.py | Core | Tracer utilities. Provides OpenTelemetry span creation and tracing decorators. | ✅ |
+| tracer.py | Core | Tracer utilities. Provides OpenTelemetry span creation, tracing decorators, and `is_tracing_initialized()` posture probe. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

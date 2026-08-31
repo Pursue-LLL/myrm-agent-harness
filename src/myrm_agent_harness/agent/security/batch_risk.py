@@ -6,9 +6,48 @@ Zero I/O, zero external dependencies, trivially testable.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Sequence
+
+
+_DESTRUCTIVE_COMMAND_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\brm\s+-[a-zA-Z]*[rfRF][a-zA-Z]*\b"),
+    re.compile(r"\b(mkfs|fdisk|parted|dd\s+if=)\b"),
+    re.compile(r"\b(DROP\s+DATABASE|DROP\s+TABLE|TRUNCATE\s+TABLE)\b", re.IGNORECASE),
+    re.compile(r"\b(chmod\s+-R\s+777|chown\s+-R)\b"),
+    re.compile(r"\b(shutdown|reboot|init\s+0|halt)\b"),
+    re.compile(r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:"),
+)
+
+
+def _extract_command_strings(payload: dict[str, object]) -> list[str]:
+    """Extract potential executable command strings from various payload locations."""
+    cmds: list[str] = []
+    for key in ("command", "cmd", "script", "query", "sql"):
+        val = payload.get(key)
+        if isinstance(val, str):
+            cmds.append(val)
+
+    args = payload.get("args")
+    if isinstance(args, dict):
+        for key in ("command", "cmd", "script", "query", "sql"):
+            val = args.get(key)
+            if isinstance(val, str):
+                cmds.append(val)
+
+    tool_calls = payload.get("tool_calls")
+    if isinstance(tool_calls, list):
+        for tc in tool_calls:
+            if isinstance(tc, dict):
+                tc_args = tc.get("args") or tc.get("arguments")
+                if isinstance(tc_args, dict):
+                    for key in ("command", "cmd", "script", "query", "sql"):
+                        val = tc_args.get(key)
+                        if isinstance(val, str):
+                            cmds.append(val)
+    return cmds
 
 
 class BatchItemRiskLevel(StrEnum):
@@ -84,6 +123,17 @@ def _classify_single_item(item: BatchApprovalItem) -> tuple[BatchItemRiskLevel, 
     tool = item.tool_name.lower()
     if any(k in tool for k in ("danger", "destroy", "drop_db", "wipe")):
         return BatchItemRiskLevel.HIGH, f"High-risk tool name: {item.tool_name}"
+
+    # Deep command inspection in payload
+    cmd_strings = _extract_command_strings(item.payload)
+    for cmd in cmd_strings:
+        for pattern in _DESTRUCTIVE_COMMAND_PATTERNS:
+            match = pattern.search(cmd)
+            if match:
+                return (
+                    BatchItemRiskLevel.HIGH,
+                    f"Destructive command pattern detected in payload: {match.group(0)}",
+                )
 
     return BatchItemRiskLevel.SAFE, "Standard safe / approved action"
 

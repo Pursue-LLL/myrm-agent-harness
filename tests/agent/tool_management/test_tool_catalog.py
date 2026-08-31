@@ -39,14 +39,14 @@ def test_product_id_mapping() -> None:
 
 
 def test_load_condition_override() -> None:
-    condition = get_tool_load_condition("web_search_tool", layer=ToolLayer.HIGH_FREQUENCY)
+    condition = get_tool_load_condition("web_search_tool", layer=ToolLayer.HIGH_PRIORITY)
     assert "web_search" in condition
 
 
 def test_build_tool_catalog_row() -> None:
-    row = build_tool_catalog_row("web_search_tool", layer=ToolLayer.HIGH_FREQUENCY)
+    row = build_tool_catalog_row("web_search_tool", layer=ToolLayer.HIGH_PRIORITY)
     assert row.role is ToolCatalogRole.USER_CAPABILITY
-    assert row.layer is ToolLayer.HIGH_FREQUENCY
+    assert row.layer is ToolLayer.HIGH_PRIORITY
 
 
 def test_load_condition_uses_product_id_fallback() -> None:
@@ -59,11 +59,11 @@ def test_validate_rejects_underscore_action_tool_names() -> None:
     assert any("_ghost_tool" in err for err in errors)
 
 
-def test_validate_layer_product_rejects_opt_in_tool_in_common() -> None:
+def test_validate_layer_product_rejects_opt_in_tool_in_high_priority() -> None:
     registered = dict(_TOOL_LAYERS)
-    registered["todo_write"] = ToolLayer.HIGH_FREQUENCY
+    registered["todo_write"] = ToolLayer.HIGH_PRIORITY
     errors = validate_layer_product_consistency(registered)
-    assert any("todo_write" in err and "HIGH_FREQUENCY" in err for err in errors)
+    assert any("todo_write" in err and "HIGH_PRIORITY" in err for err in errors)
 
 
 def test_validate_layer_product_accepts_current_registry() -> None:
@@ -73,7 +73,7 @@ def test_validate_layer_product_accepts_current_registry() -> None:
 
 def test_validate_layer_product_requires_ask_question_extended() -> None:
     registered = dict(_TOOL_LAYERS)
-    registered["ask_question_tool"] = ToolLayer.HIGH_FREQUENCY
+    registered["ask_question_tool"] = ToolLayer.HIGH_PRIORITY
     errors = validate_layer_product_consistency(registered)
     assert any("ask_question_tool" in err for err in errors)
 
@@ -85,8 +85,8 @@ def test_validate_layer_product_rejects_unexpected_core_tool() -> None:
     assert any("unexpected tools" in err and "not_a_core_tool" in err for err in errors)
 
 
-def test_validate_layer_product_common_requires_product_id() -> None:
-    errors = validate_layer_product_consistency({"orphan_common_tool": ToolLayer.HIGH_FREQUENCY})
+def test_validate_layer_product_high_priority_requires_product_id() -> None:
+    errors = validate_layer_product_consistency({"orphan_high_priority_tool": ToolLayer.HIGH_PRIORITY})
     assert any("must map to a GUI product_id" in err for err in errors)
 
 
@@ -118,7 +118,7 @@ def test_load_condition_default_by_layer() -> None:
 def test_build_tool_catalog_rows_sorts_and_coerces_str_layer() -> None:
     rows = build_tool_catalog_rows(
         {
-            "web_search_tool": "HIGH_FREQUENCY",
+            "web_search_tool": "HIGH_PRIORITY",
             "bash_code_execute_tool": ToolLayer.CORE,
         }
     )
@@ -128,7 +128,7 @@ def test_build_tool_catalog_rows_sorts_and_coerces_str_layer() -> None:
 
 
 def test_format_tool_catalog_markdown_renders_table() -> None:
-    row = build_tool_catalog_row("web_search_tool", layer=ToolLayer.HIGH_FREQUENCY)
+    row = build_tool_catalog_row("web_search_tool", layer=ToolLayer.HIGH_PRIORITY)
     table = format_tool_catalog_markdown([row])
     assert "| Tool | Layer | Role | Product ID | Load condition |" in table
     assert "`web_search_tool`" in table

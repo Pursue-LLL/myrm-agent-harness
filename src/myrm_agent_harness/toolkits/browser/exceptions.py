@@ -41,7 +41,7 @@ Exception hierarchy definition. RefNotFoundError provides structured diagnostic 
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 from urllib.parse import urlparse
 
 from myrm_agent_harness.core.security.redact import (
@@ -67,9 +67,9 @@ class BrowserError(Exception):
         self,
         message: str,
         *,
-        context: dict[str, Any] | None = None,
+        context: dict[str, object] | None = None,
         cause: Exception | None = None,
-        diagnostic_info: dict[str, Any] | None = None,
+        diagnostic_info: dict[str, object] | None = None,
         recovery_suggestions: list[str] | None = None,
         error_code: str | None = None,
     ) -> None:
@@ -165,7 +165,7 @@ class BrowserNavigationError(BrowserSessionError):
         url: str | None = None,
         status_code: int | None = None,
         error_text: str | None = None,
-        context: dict[str, Any] | None = None,
+        context: dict[str, object] | None = None,
         cause: Exception | None = None,
     ) -> None:
         """Initialize navigation error with intelligent diagnostics.
@@ -346,7 +346,7 @@ class RefNotFoundError(BrowserToolError):
         context_refs: list[dict[str, str]],
         *,
         last_snapshot_url: str | None = None,
-        context: dict[str, Any] | None = None,
+        context: dict[str, object] | None = None,
     ) -> None:
         """Initialize RefNotFoundError with structured context and intelligent suggestions.
 

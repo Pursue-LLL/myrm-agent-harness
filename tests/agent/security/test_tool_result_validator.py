@@ -88,6 +88,15 @@ class TestValidateToolResult:
         assert result.severity == "error"
         assert "injection" in result.reason
 
+    def test_search_injection_downgraded_to_warning(self):
+        result = validate_tool_result(
+            "OpenCode AI article with enough content. you are now reading a dev.to review.",
+            "web_search_tool",
+        )
+        assert not result.is_valid
+        assert result.severity == "warning"
+        assert "injection" in result.reason
+
 
 class TestShouldApplyValidation:
     """Tests for should_apply_validation."""

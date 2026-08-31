@@ -26,7 +26,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, ClassVar
+from typing import ClassVar
 
 from langchain_core.tools import BaseTool
 
@@ -132,7 +132,7 @@ def _create_tool_for_endpoint(
         # Separate path params from body/query params
         p_params: dict[str, str] = {}
         q_params: dict[str, str] = {}
-        body: dict[str, Any] | list[Any] | str | None = None
+        body: dict[str, object] | list[object] | str | None = None
 
         for key, value in coerced_kwargs.items():
             if key in path_keys:
@@ -222,7 +222,7 @@ def _build_description(endpoint: ParsedEndpoint) -> str:
     return " ".join(parts)
 
 
-def _serialize_query_value(value: Any) -> str:
+def _serialize_query_value(value: object) -> str:
     """Serialize a query parameter value for the URL query string.
 
     Objects/arrays encode as compact JSON (``str()`` would emit invalid
@@ -243,7 +243,7 @@ def _extract_path_params(path: str) -> set[str]:
 def _build_param_schema(
     endpoint: ParsedEndpoint,
     path_params: set[str],
-) -> dict[str, Any] | None:
+) -> dict[str, object] | None:
     """Build a JSON Schema for the tool's parameters.
 
     Prefers the schema extracted from the spec (path/query/body); falls back
@@ -252,7 +252,7 @@ def _build_param_schema(
     if endpoint.param_schema:
         return endpoint.param_schema
 
-    properties: dict[str, Any] = {}
+    properties: dict[str, object] = {}
     required: list[str] = []
 
     for param_name in sorted(path_params):
@@ -265,7 +265,7 @@ def _build_param_schema(
     if not properties:
         return None
 
-    schema: dict[str, Any] = {
+    schema: dict[str, object] = {
         "type": "object",
         "properties": properties,
     }

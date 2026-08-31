@@ -34,7 +34,6 @@ import os
 import re
 import shutil
 from contextlib import AsyncExitStack, suppress
-from typing import Any
 
 from myrm_agent_harness.toolkits.computer_use.backends.protocols import ComputerBackend
 from myrm_agent_harness.toolkits.computer_use.types import (
@@ -72,7 +71,7 @@ class _McpSession:
     """Manages a persistent MCP stdio session to cua-driver."""
 
     def __init__(self) -> None:
-        self._session: Any = None
+        self._session: object = None
         self._exit_stack: AsyncExitStack | None = None
         self._started = False
         self._lock = asyncio.Lock()
@@ -111,7 +110,7 @@ class _McpSession:
             self._session = None
             self._started = False
 
-    async def call_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+    async def call_tool(self, name: str, args: dict[str, object]) -> dict[str, object]:
         """Call a cua-driver MCP tool.  Auto-reconnects once on transport errors."""
         if not self._started:
             raise RuntimeError("cua-driver session not started")
@@ -125,7 +124,7 @@ class _McpSession:
                 await self._reconnect()
             return await self._do_call(name, args)
 
-    async def _do_call(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+    async def _do_call(self, name: str, args: dict[str, object]) -> dict[str, object]:
         result = await self._session.call_tool(name, args)
         return _extract_result(result)
 
@@ -147,7 +146,7 @@ class _McpSession:
         } or isinstance(exc, (BrokenPipeError, EOFError))
 
 
-def _extract_result(mcp_result: Any) -> dict[str, Any]:
+def _extract_result(mcp_result: object) -> dict[str, object]:
     """Flatten an MCP CallToolResult into a plain dict.
 
     Reads both snake_case (MCP SDK 2.x native field names) and camelCase
@@ -169,7 +168,7 @@ def _extract_result(mcp_result: Any) -> dict[str, Any]:
             b64 = getattr(part, "data", None)
             if b64:
                 images.append(b64)
-    data: Any = "\n".join(text_chunks) if text_chunks else None
+    data: object = "\n".join(text_chunks) if text_chunks else None
     return {
         "data": data,
         "images": images,
