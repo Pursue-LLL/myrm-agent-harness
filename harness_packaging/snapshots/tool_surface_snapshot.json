@@ -40,22 +40,27 @@
     "name": "web_fetch_tool"
   },
   {
-    "layer": "COMMON",
+    "layer": "HIGH_PRIORITY",
     "layer_value": 2,
     "name": "memory_manage_tool"
   },
   {
-    "layer": "COMMON",
+    "layer": "HIGH_PRIORITY",
     "layer_value": 2,
     "name": "memory_save_tool"
   },
   {
-    "layer": "COMMON",
+    "layer": "HIGH_PRIORITY",
     "layer_value": 2,
     "name": "memory_search_tool"
   },
   {
-    "layer": "COMMON",
+    "layer": "HIGH_PRIORITY",
+    "layer_value": 2,
+    "name": "skill_select_tool"
+  },
+  {
+    "layer": "HIGH_PRIORITY",
     "layer_value": 2,
     "name": "web_search_tool"
   },
@@ -228,11 +233,6 @@
     "layer": "EXTENDED",
     "layer_value": 3,
     "name": "skill_search_tool"
-  },
-  {
-    "layer": "EXTENDED",
-    "layer_value": 3,
-    "name": "skill_select_tool"
   },
   {
     "layer": "EXTENDED",

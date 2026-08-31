@@ -34,14 +34,13 @@ class ToolLayer(IntEnum):
 
     层级说明与架构定位:
     - CORE (Layer 1): 核心层基线工具，100% 始终存在，无前端开关，不可关闭（保证终极前缀缓存）
-    - HIGH_PRIORITY / HIGH_FREQUENCY (Layer 2): 高优层标配工具，默认全局开启/挂载（Default-ON），支持前端/配置按需关闭（User-Togglable，如搜索、记忆、技能选择）
+    - HIGH_PRIORITY (Layer 2): 高优层标配工具，默认全局开启/挂载（Default-ON），支持前端/配置按需关闭（User-Togglable，如搜索、记忆、技能选择）
     - EXTENDED (Layer 3): 扩展层可选高级能力，按需装配（Profile 开关或特定意图触发），默认关闭不全开
     - EXTERNAL (Layer 4): 外部业务层工具（非 harness 内置，server vendor / MCP direct / OpenAPI / 动态工具），永远位于末尾
     """
 
     CORE = 1
     HIGH_PRIORITY = 2
-    HIGH_FREQUENCY = 2
     EXTENDED = 3
     EXTERNAL = 4
 

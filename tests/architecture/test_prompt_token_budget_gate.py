@@ -4,7 +4,7 @@ Validates that:
 1. Full System Prompt does NOT exceed absolute ceiling (≤2000 tokens) to prevent prompt bloat.
 2. Lean System Prompt does NOT exceed absolute ceiling (≤1200 tokens).
 3. Lean System Prompt achieves at least 35% compression ratio relative to Full mode (anti-proportional bloat).
-4. Turn-1 default tool profile token overhead (CORE + HIGH_FREQUENCY descriptions + schema wrappers) does NOT exceed ceiling (≤6500 tokens).
+4. Turn-1 default tool profile token overhead (CORE + HIGH_PRIORITY descriptions + schema wrappers) does NOT exceed ceiling (≤6500 tokens).
 5. SystemMessage content hash is immutable across multiple resolutions (prompt cache safety).
 """
 

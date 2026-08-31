@@ -84,7 +84,7 @@ def test_compute_bounded_diff_detects_layer_and_config_mismatch() -> None:
     }
     mock_curr = {
         "tool_surface": [
-            {"name": "mock_tool", "layer": "HIGH_FREQUENCY", "layer_value": 20},
+            {"name": "mock_tool", "layer": "HIGH_PRIORITY", "layer_value": 20},
             {"name": "new_tool", "layer": "CORE", "layer_value": 10},
         ],
         "middleware_stack": [
