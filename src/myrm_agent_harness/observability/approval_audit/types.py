@@ -1,17 +1,17 @@
-"""Auto-Approval Trigger Diagnostics and Multi-Dimensional Quota Attribution Type Definitions.
+"""Auto-Approval Trigger Diagnostics and Dual-Track Quota Attribution Types.
 
 [INPUT]
-- None (Standard library dataclasses, enum, datetime, typing, uuid)
+- None (Standard library dataclasses, enum, datetime, typing)
 
 [OUTPUT]
-- ApprovalTriggerCategory: Standardized 4-category classification for approval interceptions
-- ApprovalTriggerEvent: Immutable event record representing a single auto-review trigger
-- TopOffenderItem: Aggregated high-frequency violation target with suggested allowlist rule
-- DualTrackQuotaBreakdown: Decoupled accounting for Main Task vs Security Review Agent
-- AutoApprovalAuditReport: Comprehensive session or fleet diagnostic report
+- ApprovalTriggerCategory: Standard 4-category classification enum
+- ApprovalTriggerEvent: Immutable trigger occurrence record
+- TopOffenderItem: Aggregated high-frequency boundary offender with suggested allowlist rule
+- DualTrackQuotaBreakdown: Disaggregated usage metrics (main task vs audit agent)
+- AutoApprovalAuditReport: Structured session/global diagnostic summary
 
 [POS]
-Type definitions and data contracts for auto-approval root cause attribution, dual-track quota decoupling, and bounded Top-Offenders analysis.
+Harness-level type definitions and data contracts for auto-approval trigger root-cause attribution and dual-track cost transparency.
 """
 
 from __future__ import annotations
@@ -20,34 +20,33 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Mapping
+from typing import Mapping, Sequence
 
 
 class ApprovalTriggerCategory(StrEnum):
-    """Four canonical trigger categories for auto-review and approval interception."""
+    """Standard four-category root causes for auto-approval triggers."""
 
-    FILE_BOUNDARY = "FILE_BOUNDARY"          # Out-of-workspace or sensitive file writes/reads
-    NETWORK_DOMAIN = "NETWORK_DOMAIN"        # External domain access / web request outside allowlist
-    COMMAND_EXECUTION = "COMMAND_EXECUTION"  # Shell script, compiler, or high-risk command execution
-    TOOL_ELEVATION = "TOOL_ELEVATION"        # MCP or privileged tool permission escalation
-    UNKNOWN = "UNKNOWN"                      # Unclassified generic permission interception
+    FILE_BOUNDARY = "FILE_BOUNDARY"  # File write outside authorized workspace
+    NETWORK_DOMAIN = "NETWORK_DOMAIN"  # Network/HTTP fetch to non-allowlisted domain
+    COMMAND_EXECUTION = "COMMAND_EXECUTION"  # Shell/CLI execution requiring permission
+    TOOL_ELEVATION = "TOOL_ELEVATION"  # High-risk MCP or destructive tool call
+    UNKNOWN = "UNKNOWN"  # Fallback uncategorized trigger
 
 
 @dataclass(frozen=True, slots=True)
 class ApprovalTriggerEvent:
-    """Immutable record capturing a single auto-approval trigger event.
+    """Immutable event capturing an auto-approval / guardrail trigger occurrence.
 
     Attributes:
-        session_id: Session identifier.
-        category: Root cause category.
-        raw_target: Raw path, URL, command line, or tool name intercepted.
-        normalized_target: Normalized entity (e.g. host domain, directory prefix, command basename).
-        tool_name: Name of tool invoking the protected operation.
         trigger_id: Unique event identifier.
-        prompt_tokens: Prompt tokens consumed by the auto-review verification step.
-        completion_tokens: Completion tokens produced by the auto-review agent.
-        cached_prompt_tokens: Prompt tokens served from cache during review.
-        cost_usd: Financial cost in USD incurred by the verification.
+        session_id: Session where the trigger occurred.
+        category: ApprovalTriggerCategory classification.
+        raw_target: Raw parameter string (e.g. full path, url, shell command).
+        normalized_target: Sanitized and clustered target (e.g. directory, domain, command base).
+        tool_name: Name of tool being guarded.
+        prompt_tokens: Prompt tokens used by the guard/review agent (if any).
+        completion_tokens: Output tokens used by the guard/review agent.
+        cost_usd: Estimated financial cost incurred by the review step.
         occurred_at: Event timestamp.
     """
 
@@ -59,27 +58,26 @@ class ApprovalTriggerEvent:
     trigger_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     prompt_tokens: int = 0
     completion_tokens: int = 0
-    cached_prompt_tokens: int = 0
     cost_usd: float = 0.0
     occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def total_tokens(self) -> int:
-        """Total tokens consumed by this review step."""
+        """Total tokens consumed by this review event."""
         return self.prompt_tokens + self.completion_tokens
 
 
 @dataclass(frozen=True, slots=True)
 class TopOffenderItem:
-    """Aggregated record of a high-frequency permission violation target.
+    """Aggregated top-frequency boundary violator with actionable allowlist hint.
 
     Attributes:
-        normalized_target: Clustered target (e.g. 'api.github.com', '/workspace/build/*').
+        normalized_target: Clustered target identifier (domain, dir prefix, command).
         category: Trigger category.
         hit_count: Number of times this target triggered auto-approval.
-        total_tokens: Total tokens consumed across all reviews of this target.
-        estimated_cost_usd: Total USD cost incurred by reviews on this target.
-        suggested_allow_pattern: Actionable minimal-privilege allowlist pattern recommendation.
+        total_tokens: Cumulative tokens consumed by auditing this target.
+        estimated_cost_usd: Cumulative financial cost in USD.
+        suggested_allow_pattern: Machine-readable glob/prefix pattern for 1-click allowlisting.
     """
 
     normalized_target: str
@@ -92,86 +90,45 @@ class TopOffenderItem:
 
 @dataclass(frozen=True, slots=True)
 class DualTrackQuotaBreakdown:
-    """Decoupled usage and financial accounting between Main Task and Security Reviewer.
-
-    Attributes:
-        main_task_rounds: LLM turn count executed for the primary user task.
-        main_task_prompt_tokens: Input tokens for the primary task.
-        main_task_completion_tokens: Output tokens for the primary task.
-        main_task_cached_tokens: Cached prompt tokens for the primary task.
-        main_task_cost_usd: Estimated financial cost in USD for the primary task.
-        audit_rounds: Verification invocations triggered by auto-review / security guard.
-        audit_prompt_tokens: Input tokens consumed by security reviewers.
-        audit_completion_tokens: Output tokens generated by security reviewers.
-        audit_cached_tokens: Cached prompt tokens for security reviewers.
-        audit_cost_usd: Financial cost in USD incurred by security reviewers.
-    """
+    """Disaggregated multi-dimensional usage metrics comparing main task vs safety audit."""
 
     main_task_rounds: int = 0
-    main_task_prompt_tokens: int = 0
-    main_task_completion_tokens: int = 0
-    main_task_cached_tokens: int = 0
+    main_task_tokens: int = 0
     main_task_cost_usd: float = 0.0
-
     audit_rounds: int = 0
-    audit_prompt_tokens: int = 0
-    audit_completion_tokens: int = 0
-    audit_cached_tokens: int = 0
+    audit_tokens: int = 0
     audit_cost_usd: float = 0.0
 
     @property
     def total_rounds(self) -> int:
-        """Total execution rounds across primary task and security audit."""
+        """Total execution rounds across main model and audit agents."""
         return self.main_task_rounds + self.audit_rounds
 
     @property
     def total_tokens(self) -> int:
-        """Total tokens consumed across all tracks."""
-        return (
-            self.main_task_prompt_tokens
-            + self.main_task_completion_tokens
-            + self.audit_prompt_tokens
-            + self.audit_completion_tokens
-        )
+        """Total token consumption across main model and audit agents."""
+        return self.main_task_tokens + self.audit_tokens
 
     @property
     def total_cost_usd(self) -> float:
-        """Total financial cost in USD across all tracks."""
+        """Total financial cost in USD."""
         return round(self.main_task_cost_usd + self.audit_cost_usd, 6)
 
     @property
     def audit_cost_ratio(self) -> float:
-        """Ratio of security review cost to total cost (0.0 to 1.0)."""
+        """Percentage of total cost spent on safety auditing (0.0 to 1.0)."""
         if self.total_cost_usd <= 0.0:
             return 0.0
         return min(1.0, round(self.audit_cost_usd / self.total_cost_usd, 4))
 
-    @property
-    def audit_token_ratio(self) -> float:
-        """Ratio of security review tokens to total tokens (0.0 to 1.0)."""
-        tot = self.total_tokens
-        if tot <= 0:
-            return 0.0
-        audit_tot = self.audit_prompt_tokens + self.audit_completion_tokens
-        return min(1.0, round(audit_tot / tot, 4))
-
 
 @dataclass(frozen=True, slots=True)
 class AutoApprovalAuditReport:
-    """Comprehensive diagnostic report summarizing approval root causes and quota attribution.
-
-    Attributes:
-        session_id: Session identifier.
-        total_triggers: Total approval triggers intercepted.
-        category_counts: Breakdown of triggers by category.
-        dual_track_breakdown: Main vs Reviewer decoupled usage and cost.
-        top_offenders: Bounded list of highest-frequency violation targets.
-        recommendations: Actionable remediation hints (e.g. 1-click allowlist recommendations).
-    """
+    """Comprehensive auto-approval diagnostic report with actionable recommendations."""
 
     session_id: str
     total_triggers: int
-    category_counts: Mapping[ApprovalTriggerCategory, int]
+    category_counts: Mapping[str, int]
     dual_track_breakdown: DualTrackQuotaBreakdown
-    top_offenders: list[TopOffenderItem] = field(default_factory=list)
-    recommendations: list[str] = field(default_factory=list)
+    top_offenders: Sequence[TopOffenderItem]
+    recommendations: Sequence[str]

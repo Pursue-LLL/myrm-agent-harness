@@ -15,7 +15,7 @@ Proposal Builder for Skill Evolution.
 
 import difflib
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
@@ -23,9 +23,61 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionType,
     SkillRecord,
 )
+from myrm_agent_harness.eval.manifest_prediction import (
+    ChangePredictionManifest,
+    MetricPrediction,
+    PredictionDirection,
+)
+from myrm_agent_harness.agent.skills.evolution.core.eval_regression import (
+    evaluate_content_assertions,
+)
 from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 
 logger = logging.getLogger(__name__)
+
+
+def build_change_manifest(
+    *,
+    eval_cases: list[dict[str, Any]] | None,
+    skill_name: str,
+    skill_id: str,
+    evolution_type: str,
+    reasoning: str,
+    original_content: str,
+    proposed_content: str,
+) -> dict[str, Any] | None:
+    """Build a falsifiable change prediction manifest for an evolution proposal.
+
+    Baseline and target pass rates are computed deterministically by the
+    zero-LLM static-assertion engine against the skill's bound eval_cases
+    (proposal-updated cases take precedence). Returns None when the skill has
+    no usable eval_cases or the evolution type carries no code content
+    (e.g. OPTIMIZE_DESCRIPTION) so static code assertions would be meaningless.
+    """
+    if evolution_type == EvolutionType.OPTIMIZE_DESCRIPTION.value:
+        return None
+    if not eval_cases:
+        return None
+
+    baseline_pass_rate = evaluate_content_assertions(eval_cases, original_content)
+    target_pass_rate = evaluate_content_assertions(eval_cases, proposed_content)
+
+    manifest = ChangePredictionManifest(
+        manifest_id=f"manifest-{skill_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        target_component=f"skills/{skill_name}",
+        rationale=reasoning or "Self-evolution enhancement",
+        predictions=[
+            MetricPrediction(
+                metric_name="pass_rate",
+                direction=PredictionDirection.INCREASE,
+                baseline_value=baseline_pass_rate,
+                target_value=max(target_pass_rate, baseline_pass_rate),
+                tolerance=0.05,
+            ),
+        ],
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    return manifest.to_dict()
 
 
 class ProposalBuilder:
@@ -84,9 +136,24 @@ class ProposalBuilder:
             edit_summary=edit_summary,
             updated_eval_cases=updated_eval_cases,
             created_at=datetime.now(),
+            change_manifest=build_change_manifest(
+                eval_cases=(
+                    updated_eval_cases
+                    if updated_eval_cases is not None
+                    else skill.eval_cases
+                ),
+                skill_name=skill.name,
+                skill_id=skill.skill_id,
+                evolution_type=evolution_type.value,
+                reasoning=reasoning,
+                original_content=original,
+                proposed_content=content,
+            ),
         )
 
-        logger.info("Built EvolutionProposal for skill %s (Score: %.2f)", skill.name, score)
+        logger.info(
+            "Built EvolutionProposal for skill %s (Score: %.2f)", skill.name, score
+        )
         return proposal
 
     @staticmethod

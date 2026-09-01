@@ -60,6 +60,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.agent.event_log.logger import EventLogger
     from myrm_agent_harness.agent.goals.protocols import GoalProvider
     from myrm_agent_harness.agent.goals.types import Goal, GoalExecutionSummary
+    from myrm_agent_harness.toolkits.memory.manager import MemoryManager
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
     from myrm_agent_harness.utils.runtime.steering import SteeringToken
     from myrm_agent_harness.utils.token_economics.tracker import TokenTracker
@@ -105,6 +106,7 @@ class StreamContext:
     escalation_target_llm: BaseChatModel | None = None
     llm: BaseChatModel | None = None
     token_tracker: TokenTracker | None = None
+    memory_manager: MemoryManager | None = None
 
 
 class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
@@ -460,6 +462,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     )
                     continue
 
+                await self._flush_turn_memory()
                 break
 
         except Exception as e:
@@ -472,6 +475,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
 
             reset_ephemeral_max_output_tokens()
 
+            await self._flush_turn_memory()
             await self._check_and_emit_trace_slice(force_flush=True)
 
             await fire_hook(
@@ -522,6 +526,17 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     )
             await self._compactor.flush()
             await self._compactor.put(STREAM_DONE)
+
+    async def _flush_turn_memory(self) -> None:
+        """Flush active memory session at turn boundary if buffer has pending items."""
+        mm = self._ctx.memory_manager
+        if mm is not None:
+            session = getattr(mm, "active_session", None)
+            if session is not None and getattr(session, "buffer_size", 0) > 0:
+                try:
+                    await session.flush()
+                except Exception as e:
+                    logger.warning("Turn boundary memory flush failed: %s", e)
 
     async def _emit_fatal_error(self, exc: Exception) -> None:
         """Build standardized error event with diagnostics and raise MyrmLLMError."""

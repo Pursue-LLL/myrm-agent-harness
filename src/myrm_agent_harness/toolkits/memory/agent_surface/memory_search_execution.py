@@ -47,6 +47,9 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting i
     parse_time_bound as _parse_time_bound,
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import MemorySearchBackends
+from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
+    pack_tool_result_with_sources,
+)
 from myrm_agent_harness.toolkits.memory.conversation_search.format_output import (
     format_conversation_search_response,
 )
@@ -245,10 +248,9 @@ async def search_wiki_corpus(
     query: str,
     *,
     timeout_seconds: float | None = None,
-) -> str:
+) -> str | dict[str, object]:
     if backends.query_wiki is None:
         return "Wiki search is not available."
-    from myrm_agent_harness.toolkits.memory.agent_surface.memory_citations import emit_sources
     from myrm_agent_harness.toolkits.wiki.retrieval.source_citations import (
         build_wiki_query_sources,
     )
@@ -261,14 +263,12 @@ async def search_wiki_corpus(
     if result is None:
         return "Wiki search timed out. Try a more specific query or retry."
     sources = build_wiki_query_sources(result, structure=backends.wiki_structure)
-    if sources:
-        indexed_sources: list[dict[str, object]] = []
-        for index, source in enumerate(sources, start=1):
-            entry = {**source, "index": index}
-            if backends.wiki_agent_id:
-                entry["agent_id"] = backends.wiki_agent_id
-            indexed_sources.append(entry)
-        await emit_sources(indexed_sources)
+    wiki_sources: list[dict[str, object]] = []
+    for source in sources:
+        entry = dict(source)
+        if backends.wiki_agent_id:
+            entry["agent_id"] = backends.wiki_agent_id
+        wiki_sources.append(entry)
     body = (result.answer or "").strip() or "No relevant wiki content found."
     if body != "No relevant wiki content found.":
         from myrm_agent_harness.utils.context_format import (
@@ -276,7 +276,7 @@ async def search_wiki_corpus(
         )
 
         body = wrap_with_external_sources_tag(body, source="LLM-Wiki")
-    return body
+    return pack_tool_result_with_sources(body, wiki_sources)
 
 
 async def search_sessions_corpus(
@@ -290,7 +290,7 @@ async def search_sessions_corpus(
     expand_message_id: str | None = None,
     expand_window: int = 5,
     timeout_seconds: float | None = None,
-) -> str:
+) -> str | dict[str, object]:
     provider = backends.conversation_provider
     if provider is None:
         return "Conversation history search is not available."

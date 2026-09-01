@@ -5,7 +5,7 @@
 - utils.errors::ToolError (POS: Storage quota related errors.)
 
 [OUTPUT]
-- create_navigate_tool: Create browser_navigate tool bound to session.
+- create_navigate_tool: Create browser_navigate tool bound to session; successful navigate returns `{content, metadata:{sources:[{url,title,source_key}]}}` for SourceTracker.
 
 [POS]
 browser_navigate tool for URL navigation.
@@ -37,7 +37,7 @@ def create_navigate_tool(session: BrowserSession):
     from myrm_agent_harness.utils.tool_dynamic_hints import with_dynamic_hints
 
     @tool("browser_navigate_tool", args_schema=NavigateInput)
-    async def browser_navigate(url: str, verify_goal: str | None = None) -> str:
+    async def browser_navigate(url: str, verify_goal: str | None = None) -> str | dict[str, object]:
         """Open a URL in the browser. Returns page title, final URL, and status code.
 
         After navigation, call browser_snapshot_tool to inspect the page structure and get element refs before interacting.
@@ -60,7 +60,20 @@ def create_navigate_tool(session: BrowserSession):
                 user_hint="The URL contains sensitive data (API keys, file paths, or credentials). Remove sensitive data from the URL.",
             )
 
-        return mark_untrusted(await session.navigate(url, verify_goal=verify_goal))
+        raw_result = await session.navigate(url, verify_goal=verify_goal)
+        content = mark_untrusted(raw_result)
+        page = session.get_active_page()
+        page_url = page.url
+        page_title = await page.title()
+        sources: list[dict[str, object]] = [
+            {
+                "type": "web_fetch",
+                "url": page_url,
+                "title": page_title or page_url,
+                "source_key": f"browser:{page_url}",
+            }
+        ]
+        return {"content": content, "metadata": {"sources": sources}}
 
     return with_dynamic_hints(
         browser_navigate,

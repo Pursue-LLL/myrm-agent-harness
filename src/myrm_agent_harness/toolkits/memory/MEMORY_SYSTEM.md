@@ -7,7 +7,7 @@
 构建一个 **Protocol-first** 的可插拔 AI Agent 记忆系统：
 
 - **运行时读写**：Agent 通过工具动态存储和检索记忆
-- **可解释引用**：`memory_search_tool` 在返回结果时同步发出 cited memory IDs、轻量 citation refs 与业务无关 retrieval trace；无结果检索也会发出 trace，业务层可展示“为什么没召回”。历史会话 corpus 的 `sources`（`conversation_history` 类型）由 `memory_search_tool(corpus=sessions)` 经 `conversation_search/format_output.py` 发出，业务层可持久化并在聊天 UI 展示证据来源
+- **可解释引用**：`memory_search_tool` 在返回结果时同步发出 cited memory IDs、轻量 citation refs 与业务无关 retrieval trace；无结果检索也会发出 trace，业务层可展示“为什么没召回”。历史会话与 Wiki corpus 的 `sources` 写入 tool 返回 `metadata.sources`，由 harness `SourceTracker` 统一编号并经 SSE 送达业务层持久化与 Evidence Sheet 展示
 - **个性化体验**：基于用户画像和历史交互提供定制化服务
 - **跨会话上下文**：记忆在不同对话间持久化
 - **跨渠道持久化**：记忆携带确定性 `scope`（`agent_id/channel_id/conversation_id/task_id`），默认支持跨渠道召回并保留来源

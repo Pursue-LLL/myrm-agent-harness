@@ -432,23 +432,10 @@ class DeepResearchPhasesMixin:
                 estimated_output,
             )
 
-        # Citation audit + CITATION_MAP event
         if self._result.report and all_sources:  # type: ignore[attr-defined]
             try:
                 audit_result = audit_citations(self._result.report, len(all_sources))  # type: ignore[attr-defined]
                 self._result.citation_audit = audit_result  # type: ignore[attr-defined]
-                yield self._make_event(  # type: ignore[attr-defined]
-                    AgentEventType.CITATION_MAP,
-                    message_id,
-                    data={
-                        "sources": all_sources,
-                        "audit": {
-                            "total_markers": audit_result.total_markers,
-                            "valid": audit_result.valid,
-                            "unresolved": audit_result.unresolved,
-                        },
-                    },
-                )
                 logger.info(
                     "[deep-research] Citation audit: %d total, %d valid, %d unresolved",
                     audit_result.total_markers,

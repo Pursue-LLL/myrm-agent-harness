@@ -33,7 +33,9 @@ class EvolutionType(StrEnum):
     DERIVED = "derived"  # Optimize/enhance based on user feedback
     CAPTURED = "captured"  # Capture repeated user commands as new skills
     SLICE_EXTRACTION = "slice_extraction"  # Extract from execution trace slice
-    OPTIMIZE_DESCRIPTION = "optimize_description"  # Refine description for better matching
+    OPTIMIZE_DESCRIPTION = (
+        "optimize_description"  # Refine description for better matching
+    )
 
 
 class EvolutionLayer(StrEnum):
@@ -77,7 +79,9 @@ class GeneCellKey:
                 )
             except ValueError:
                 pass
-        return cls(layer=EvolutionLayer.PROMPT, pathology=FailurePathology.UNHANDLED_EXCEPTION)
+        return cls(
+            layer=EvolutionLayer.PROMPT, pathology=FailurePathology.UNHANDLED_EXCEPTION
+        )
 
 
 @dataclass
@@ -109,7 +113,12 @@ class GeneEliteRecord:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> GeneEliteRecord:
-        key_str = str(data.get("cell_key", f"{data.get('layer', 'prompt')}:{data.get('pathology', 'unhandled_exception')}"))
+        key_str = str(
+            data.get(
+                "cell_key",
+                f"{data.get('layer', 'prompt')}:{data.get('pathology', 'unhandled_exception')}",
+            )
+        )
         proof_data = data.get("verification_proof")
         return cls(
             cell_key=GeneCellKey.from_key_str(key_str),
@@ -142,7 +151,9 @@ class VerificationProof:
     is_verified: bool = False
     hollow_detected: bool = False
     success_streak: int = 0
-    blast_radius: dict[str, int] = field(default_factory=lambda: {"files": 0, "lines": 0})
+    blast_radius: dict[str, int] = field(
+        default_factory=lambda: {"files": 0, "lines": 0}
+    )
     verification_summary: str = ""
     command_results: list[dict[str, Any]] = field(default_factory=list)
     environment: EnvironmentFingerprint | None = None
@@ -366,7 +377,11 @@ class SkillLineage:
             version=data.get("version", 1),
             parent_id=data.get("parent_id"),
             change_summary=data.get("change_summary", ""),
-            created_at=(datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.now()),
+            created_at=(
+                datetime.fromisoformat(data["created_at"])
+                if data.get("created_at")
+                else datetime.now()
+            ),
             created_by=data.get("created_by", ""),
         )
 
@@ -434,8 +449,16 @@ class SkillRecord:
                 "applied_count": self.metrics.applied_count,
                 "completed_count": self.metrics.completed_count,
                 "success_count": self.metrics.success_count,
-                "last_success_at": (self.metrics.last_success_at.isoformat() if self.metrics.last_success_at else None),
-                "last_failure_at": (self.metrics.last_failure_at.isoformat() if self.metrics.last_failure_at else None),
+                "last_success_at": (
+                    self.metrics.last_success_at.isoformat()
+                    if self.metrics.last_success_at
+                    else None
+                ),
+                "last_failure_at": (
+                    self.metrics.last_failure_at.isoformat()
+                    if self.metrics.last_failure_at
+                    else None
+                ),
                 "consecutive_failures": self.metrics.consecutive_failures,
                 "user_correction_count": self.metrics.user_correction_count,
             },
@@ -457,10 +480,14 @@ class SkillRecord:
             completed_count=metrics_data.get("completed_count", 0),
             success_count=metrics_data.get("success_count", 0),
             last_success_at=(
-                datetime.fromisoformat(metrics_data["last_success_at"]) if metrics_data.get("last_success_at") else None
+                datetime.fromisoformat(metrics_data["last_success_at"])
+                if metrics_data.get("last_success_at")
+                else None
             ),
             last_failure_at=(
-                datetime.fromisoformat(metrics_data["last_failure_at"]) if metrics_data.get("last_failure_at") else None
+                datetime.fromisoformat(metrics_data["last_failure_at"])
+                if metrics_data.get("last_failure_at")
+                else None
             ),
             consecutive_failures=metrics_data.get("consecutive_failures", 0),
             user_correction_count=metrics_data.get("user_correction_count", 0),
@@ -474,7 +501,11 @@ class SkillRecord:
             path=data["path"],
             lineage=SkillLineage.from_dict(data["lineage"]),
             metrics=metrics,
-            environment=(EnvironmentFingerprint.from_dict(data["environment"]) if data.get("environment") else None),
+            environment=(
+                EnvironmentFingerprint.from_dict(data["environment"])
+                if data.get("environment")
+                else None
+            ),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
             is_active=data.get("is_active", True),
@@ -491,7 +522,9 @@ class EvolutionRequest:
 
     evolution_type: EvolutionType
     skill_id: str | None = None  # For FIX/DERIVED, None for CAPTURED
-    reason: str = ""  # Error message for FIX, user feedback for DERIVED, pattern for CAPTURED
+    reason: str = (
+        ""  # Error message for FIX, user feedback for DERIVED, pattern for CAPTURED
+    )
     user_feedback: str = ""  # Optional user feedback for DERIVED
     repeated_commands: list[str] = field(default_factory=list)  # For CAPTURED
     session_id: str = ""  # For SLICE_EXTRACTION
@@ -533,7 +566,9 @@ class EvolutionProposal:
     is_general: bool = False
     environment: EnvironmentFingerprint | None = None
     agent_id: str | None = None
-    edit_summary: dict[str, Any] | None = None  # {preserved_sections, changed_sections, notes}
+    edit_summary: dict[str, Any] | None = (
+        None  # {preserved_sections, changed_sections, notes}
+    )
     updated_eval_cases: list[dict[str, Any]] | None = None
     recommended_form: str = "skill"  # "skill" | "cron_job" | "skip"
     form_metadata: dict[str, Any] | None = None  # {schedule_hint, form_reasoning}
@@ -541,6 +576,10 @@ class EvolutionProposal:
     target_layer: EvolutionLayer = EvolutionLayer.PROMPT
     target_pathology: FailurePathology = FailurePathology.UNHANDLED_EXCEPTION
     created_at: datetime = field(default_factory=datetime.now)
+    # Falsifiable prediction contract (dict form of ChangePredictionManifest) built at
+    # proposal finalization; None when the skill has no bound eval_cases or the
+    # evolution type has no code content (e.g. OPTIMIZE_DESCRIPTION).
+    change_manifest: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -560,10 +599,13 @@ class EvolutionProposal:
             "updated_eval_cases": self.updated_eval_cases,
             "recommended_form": self.recommended_form,
             "form_metadata": self.form_metadata,
-            "verification_proof": self.verification_proof.to_dict() if self.verification_proof else None,
+            "verification_proof": (
+                self.verification_proof.to_dict() if self.verification_proof else None
+            ),
             "target_layer": self.target_layer.value,
             "target_pathology": self.target_pathology.value,
             "created_at": self.created_at.isoformat(),
+            "change_manifest": self.change_manifest,
         }
 
 
@@ -631,7 +673,9 @@ class SkillEvidenceGroup:
             return 0.0
         return len(self.success_cases) / self.total_evidence
 
-    def has_sufficient_evidence(self, min_total: int = 3, min_failures: int = 1) -> bool:
+    def has_sufficient_evidence(
+        self, min_total: int = 3, min_failures: int = 1
+    ) -> bool:
         """Check if there is enough evidence to justify evolution.
 
         Also considers 30-day trend: if trend shows persistent failures
@@ -640,4 +684,7 @@ class SkillEvidenceGroup:
         if self.total_evidence >= min_total and len(self.failure_cases) >= min_failures:
             return True
         # Trend fallback: slow-degrading skills (e.g. 1 fail/week)
-        return bool(self.trend_failure_count >= min_total and self.trend_failure_count >= min_failures)
+        return bool(
+            self.trend_failure_count >= min_total
+            and self.trend_failure_count >= min_failures
+        )

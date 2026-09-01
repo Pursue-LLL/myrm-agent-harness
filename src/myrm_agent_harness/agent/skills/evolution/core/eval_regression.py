@@ -5,6 +5,7 @@
 
 [OUTPUT]
 - filter_variants_by_regression: Non-blocking regression gate that applies score penalties.
+- evaluate_content_assertions: Public static-assertion pass-rate evaluator for arbitrary skill content.
 
 [POS]
 Non-blocking regression gate for the skill evolution pipeline. Runs bound
@@ -16,16 +17,14 @@ auto-generated EvalCases.
 from __future__ import annotations
 
 import ast
-import asyncio
 import logging
 import re
 from typing import Any
 
 from .types import SkillRecord
 
-__all__ = ["filter_variants_by_regression"]
+__all__ = ["evaluate_content_assertions", "filter_variants_by_regression"]
 
-_REGRESSION_TIMEOUT_S = 5.0
 _HARD_FAIL_THRESHOLD = 1.0
 _PENALTY_PER_FAILED_CASE = 0.15
 
@@ -51,7 +50,9 @@ async def filter_variants_by_regression(
     surviving: list[str] = []
 
     for variant in variants:
-        penalty = await _compute_regression_penalty(skill, variant, logger)
+        pass_rate = evaluate_content_assertions(skill.eval_cases, variant)
+        failed = len(skill.eval_cases) - round(pass_rate * len(skill.eval_cases))
+        penalty = min(failed * _PENALTY_PER_FAILED_CASE, _HARD_FAIL_THRESHOLD)
         penalties[variant] = penalty
         if penalty < _HARD_FAIL_THRESHOLD:
             surviving.append(variant)
@@ -64,39 +65,30 @@ async def filter_variants_by_regression(
     return surviving, penalties
 
 
-async def _compute_regression_penalty(
-    skill: SkillRecord,
-    variant_code: str,
-    logger: logging.Logger,
+def evaluate_content_assertions(
+    eval_cases: list[dict[str, Any]],
+    content: str,
 ) -> float:
-    """Compute penalty for a single variant based on EvalCase assertions."""
-    cases = skill.eval_cases
-    if not cases:
-        return 0.0
+    """Evaluate the static-assertion pass rate of skill content against bound EvalCases.
 
-    total = len(cases)
-    failed = 0
+    Deterministic, zero-LLM, zero-network: regex/AST checks only, mirroring the
+    regression gate's assertion semantics. Used both by the evolution pipeline
+    (variant gating) and the change-manifest prediction/attribution loop.
 
-    for case_dict in cases:
-        try:
-            passed = await asyncio.wait_for(
-                _run_single_case(case_dict, variant_code),
-                timeout=_REGRESSION_TIMEOUT_S,
-            )
-            if not passed:
-                failed += 1
-        except TimeoutError:
-            logger.debug("EvalCase timed out for skill '%s', treating as pass", skill.name)
-        except Exception:
-            logger.debug("EvalCase error for skill '%s', treating as pass", skill.name, exc_info=True)
+    Returns the fraction of cases whose assertions all pass; returns 1.0 when
+    there are no eval_cases (caller decides whether that means "no data").
+    """
+    if not eval_cases:
+        return 1.0
 
-    if total == 0:
-        return 0.0
-
-    return min(failed * _PENALTY_PER_FAILED_CASE, _HARD_FAIL_THRESHOLD)
+    total = len(eval_cases)
+    failed = sum(
+        1 for case_dict in eval_cases if not _run_single_case(case_dict, content)
+    )
+    return (total - failed) / total
 
 
-async def _run_single_case(case_dict: dict[str, Any], variant_code: str) -> bool:
+def _run_single_case(case_dict: dict[str, Any], variant_code: str) -> bool:
     """Run assertions from a single EvalCase dict against the variant code.
 
     Supported assertion types (lightweight, no agent execution):
@@ -161,12 +153,16 @@ def _check_imports(code: str, module_name: str) -> bool:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name == module_name or alias.name.startswith(f"{module_name}."):
+                if alias.name == module_name or alias.name.startswith(
+                    f"{module_name}."
+                ):
                     return True
         elif (
             isinstance(node, ast.ImportFrom)
             and node.module
-            and (node.module == module_name or node.module.startswith(f"{module_name}."))
+            and (
+                node.module == module_name or node.module.startswith(f"{module_name}.")
+            )
         ):
             return True
     return False

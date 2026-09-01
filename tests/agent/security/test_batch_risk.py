@@ -62,23 +62,35 @@ def test_classify_batch_approval_risk_mixed_smart_denied():
     assert report.high_risk_items[0].risk_reason == "Dangerous command detected"
 
 
-def test_classify_batch_approval_risk_payload_review_configs():
+def test_classify_batch_approval_risk_deep_command_inspection():
     items = [
         BatchApprovalItem(
-            item_id="appr-cfg",
-            action_type="subagent_approval",
-            tool_name="subagent",
-            payload={"reviewConfigs": [{"smartDenied": True}]},
+            item_id="appr-rm-rf",
+            action_type="shell_exec",
+            tool_name="bash",  # Normal generic tool name
+            payload={"command": "rm -rf /var/log/*"},
         ),
         BatchApprovalItem(
-            item_id="appr-destructive-act",
-            action_type="delete_file",
-            tool_name="file_deleter",
+            item_id="appr-nested-drop",
+            action_type="db_query",
+            tool_name="sql_runner",
+            payload={
+                "tool_calls": [{"name": "sql", "args": {"query": "DROP TABLE users;"}}]
+            },
+        ),
+        BatchApprovalItem(
+            item_id="appr-safe-ls",
+            action_type="shell_exec",
+            tool_name="bash",
+            payload={"command": "ls -la /tmp"},
         ),
     ]
 
     report = classify_batch_approval_risk(items)
     assert report.has_high_risk
-    assert report.total_count == 2
+    assert report.total_count == 3
     assert report.high_risk_count == 2
-    assert report.safe_count == 0
+    assert report.safe_count == 1
+    assert report.safe_item_ids == ("appr-safe-ls",)
+    assert "rm -rf" in report.high_risk_items[0].risk_reason
+    assert "DROP TABLE" in report.high_risk_items[1].risk_reason

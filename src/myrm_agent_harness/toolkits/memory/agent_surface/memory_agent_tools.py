@@ -47,6 +47,10 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution im
     search_sessions_corpus,
     search_wiki_corpus,
 )
+from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
+    pack_tool_result_with_sources,
+    unpack_corpus_tool_result,
+)
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
     MemorySearchBackends,
     MemorySearchCorpus,
@@ -199,7 +203,7 @@ def create_memory_tools(
         until: str | None = None,
         expand_conversation_id: str | None = None,
         expand_message_id: str | None = None,
-    ) -> str:
+    ) -> str | dict[str, object]:
         """Search long-term memory."""
         if profile_key:
             if corpus not in ("memory", "all"):
@@ -223,6 +227,7 @@ def create_memory_tools(
         parsed_until = _parse_time_bound(until)
         recall_limit = normalize_recall_limit(limit)
         sections: list[str] = []
+        aggregated_sources: list[dict[str, object]] = []
 
         retrieval_timeout = getattr(
             getattr(manager, "_config", None), "retrieval", None
@@ -242,16 +247,18 @@ def create_memory_tools(
                 )
                 sections.append(f"## Memory\n{memory_text}")
             elif target == "wiki":
-                wiki_text = await search_wiki_corpus(
+                wiki_result = await search_wiki_corpus(
                     backends,
                     query,
                     timeout_seconds=timeout_seconds,
                 )
+                wiki_text, wiki_sources = unpack_corpus_tool_result(wiki_result)
+                aggregated_sources.extend(wiki_sources)
                 sections.append(f"## Wiki\n{wiki_text}")
             elif target == "sessions":
                 if expand_message_id and not expand_conversation_id:
                     return "expand_message_id requires expand_conversation_id when corpus=sessions."
-                session_text = await search_sessions_corpus(
+                session_result = await search_sessions_corpus(
                     backends,
                     query=query,
                     limit=recall_limit,
@@ -261,6 +268,8 @@ def create_memory_tools(
                     expand_message_id=expand_message_id,
                     timeout_seconds=timeout_seconds,
                 )
+                session_text, session_sources = unpack_corpus_tool_result(session_result)
+                aggregated_sources.extend(session_sources)
                 sections.append(f"## Sessions\n{session_text}")
 
         if len(sections) == 1 and corpus != "all":
@@ -272,8 +281,12 @@ def create_memory_tools(
             }
             prefix = _prefix_map.get(corpus, "")
             if prefix and single.startswith(prefix):
-                return single[len(prefix) :]
-        return "\n\n".join(sections)
+                content = single[len(prefix) :]
+            else:
+                content = single
+        else:
+            content = "\n\n".join(sections)
+        return pack_tool_result_with_sources(content, aggregated_sources)
 
     tools.append(memory_search)
 

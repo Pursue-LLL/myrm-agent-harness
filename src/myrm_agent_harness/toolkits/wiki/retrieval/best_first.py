@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..core.claims_contract import WikiClaim, parse_claims_from_content, resolve_evidence_snapshot_status
+from ..core.fact_trust_contract import DEFAULT_FACT_TRUST_POLICY, FactStatus, FactTrustPolicy, resolve_fact_status
 from .tokenizer import extract_query_terms
 
 if TYPE_CHECKING:
@@ -124,6 +125,7 @@ def _claim_overlap_for_concept(
     concept_name: str,
     query_terms: frozenset[str],
     cache: dict[str, float],
+    trust_policy: FactTrustPolicy = DEFAULT_FACT_TRUST_POLICY,
 ) -> float:
     if concept_name in cache:
         return cache[concept_name]
@@ -137,6 +139,8 @@ def _claim_overlap_for_concept(
         cache[concept_name] = 0.0
         return 0.0
     overlap = score_claim_overlap(content, query_terms, structure=structure)
+    status = resolve_fact_status(content, file_path=path)
+    overlap *= trust_policy.get_multiplier(status)
     cache[concept_name] = overlap
     return overlap
 

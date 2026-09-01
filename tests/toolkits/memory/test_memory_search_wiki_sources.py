@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
+from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
+    unpack_corpus_tool_result,
+)
 from myrm_agent_harness.toolkits.memory.memory_search_execution import search_wiki_corpus
 from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchBackends
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -14,7 +17,7 @@ from myrm_agent_harness.toolkits.wiki.core.types import QueryResult, SourceSnipp
 
 
 @pytest.mark.asyncio
-async def test_search_wiki_corpus_returns_answer_and_emits_asset_sources() -> None:
+async def test_search_wiki_corpus_returns_metadata_sources_for_assets() -> None:
     result = QueryResult(
         question="diagram",
         answer="Found an architecture diagram.",
@@ -37,22 +40,17 @@ async def test_search_wiki_corpus_returns_answer_and_emits_asset_sources() -> No
         wiki_agent_id="agent-scope-1",
     )
 
-    with patch(
-        "myrm_agent_harness.toolkits.memory.agent_surface.memory_citations.emit_sources",
-        new=AsyncMock(),
-    ) as emit_mock:
-        body = await search_wiki_corpus(backends, "diagram")
+    packed = await search_wiki_corpus(backends, "diagram")
+    content, sources = unpack_corpus_tool_result(packed)
 
-    assert "Found an architecture diagram." in body
-    assert "UNTRUSTED_DATA" in body
-    emit_mock.assert_awaited_once()
-    emitted = emit_mock.await_args.args[0]
-    assert len(emitted) == 1
-    assert emitted[0]["index"] == 1
-    assert emitted[0]["hit_kind"] == "asset"
-    assert emitted[0]["asset_filename"] == "abc123_diagram.png"
-    assert emitted[0]["type"] == "knowledge"
-    assert emitted[0]["agent_id"] == "agent-scope-1"
+    assert "Found an architecture diagram." in content
+    assert "UNTRUSTED_DATA" in content
+    assert len(sources) == 1
+    assert sources[0]["hit_kind"] == "asset"
+    assert sources[0]["asset_filename"] == "abc123_diagram.png"
+    assert sources[0]["type"] == "knowledge"
+    assert sources[0]["agent_id"] == "agent-scope-1"
+    assert "index" not in sources[0]
 
 
 @pytest.mark.asyncio
@@ -66,12 +64,9 @@ async def test_search_wiki_corpus_wraps_answer_with_untrusted_tag() -> None:
     )
     backends = MemorySearchBackends(query_wiki=AsyncMock(return_value=result))
 
-    with patch(
-        "myrm_agent_harness.toolkits.memory.agent_surface.memory_citations.emit_sources",
-        new=AsyncMock(),
-    ):
-        body = await search_wiki_corpus(backends, "diagram")
+    body = await search_wiki_corpus(backends, "diagram")
 
+    assert isinstance(body, str)
     assert "UNTRUSTED_DATA" in body
     assert "Found an architecture diagram." in body
 
@@ -87,18 +82,13 @@ async def test_search_wiki_corpus_empty_answer_fallback() -> None:
     )
     backends = MemorySearchBackends(query_wiki=AsyncMock(return_value=result))
 
-    with patch(
-        "myrm_agent_harness.toolkits.memory.agent_surface.memory_citations.emit_sources",
-        new=AsyncMock(),
-    ) as emit_mock:
-        body = await search_wiki_corpus(backends, "missing")
+    body = await search_wiki_corpus(backends, "missing")
 
     assert body == "No relevant wiki content found."
-    emit_mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_search_wiki_corpus_emits_resource_uri_with_wiki_structure(tmp_path) -> None:
+async def test_search_wiki_corpus_metadata_includes_resource_uri_with_wiki_structure(tmp_path) -> None:
     structure = WikiStructure(tmp_path)
     structure.ensure_structure()
     raw_file = structure.raw_dir / "notes.md"
@@ -127,11 +117,7 @@ async def test_search_wiki_corpus_emits_resource_uri_with_wiki_structure(tmp_pat
         wiki_structure=structure,
     )
 
-    with patch(
-        "myrm_agent_harness.toolkits.memory.agent_surface.memory_citations.emit_sources",
-        new=AsyncMock(),
-    ) as emit_mock:
-        await search_wiki_corpus(backends, "notes")
+    packed = await search_wiki_corpus(backends, "notes")
+    _, sources = unpack_corpus_tool_result(packed)
 
-    emitted = emit_mock.await_args.args[0]
-    assert emitted[0]["resource_uri"] == f"raw/notes.md@sha256:{live_sha}"
+    assert sources[0]["resource_uri"] == f"raw/notes.md@sha256:{live_sha}"

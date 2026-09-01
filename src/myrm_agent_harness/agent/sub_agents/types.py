@@ -83,11 +83,17 @@ class DelegationCapabilityManifest:
                 "steer_subagent_tool",
             }
         )
+        persistent_side_effect_tools = frozenset(
+            {
+                "cron_manage_tool",
+            }
+        )
         hitl_tools = HITL_TOOL_POLICY.subagent_blocked
         return cls(
             leaf_blocked_tools=frozenset(orchestrator_child_tools)
             | privileged_skill_tools
             | legacy_delegation_tools
+            | persistent_side_effect_tools
             | hitl_tools,
             orchestrator_child_tools=orchestrator_child_tools,
             privileged_skill_tools=privileged_skill_tools,

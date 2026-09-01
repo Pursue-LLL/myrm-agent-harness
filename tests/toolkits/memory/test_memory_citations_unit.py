@@ -1,6 +1,6 @@
 """Unit tests for memory_citations module.
 
-Covers cited_memory_ref, _bounded_text, and emit_sources.
+Covers cited_memory_ref, _bounded_text, and emit_cited_memory_ids.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ from myrm_agent_harness.toolkits.memory.memory_citations import (
     MAX_CITATION_CONTENT_CHARS,
     cited_memory_ref,
     emit_cited_memory_ids,
-    emit_sources,
 )
 from myrm_agent_harness.toolkits.memory.types import MemoryType
 
@@ -119,45 +118,6 @@ class TestBoundedText:
         assert "Stored key" in str(ref["content"])
 
 
-class TestEmitSources:
-    """Tests for emit_sources function."""
-
-    @pytest.mark.asyncio
-    async def test_empty_sources_noop(self) -> None:
-        await emit_sources([])
-
-    @pytest.mark.asyncio
-    async def test_emit_calls_sink(self) -> None:
-        mock_sink = AsyncMock()
-        mock_sink.emit = AsyncMock()
-
-        with (
-            patch(
-                "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
-                return_value=mock_sink,
-            ),
-            patch(
-                "myrm_agent_harness.core.events.types.AgentEventType",
-            ) as mock_event_type,
-        ):
-            mock_event_type.SOURCES.value = "sources"
-            sources = [{"url": "https://a.com", "title": "A"}]
-            await emit_sources(sources)
-
-            mock_sink.emit.assert_called_once()
-            call_args = mock_sink.emit.call_args[0][0]
-            assert call_args["type"] == "sources"
-            assert call_args["data"] == sources
-
-    @pytest.mark.asyncio
-    async def test_emit_handles_no_sink(self) -> None:
-        with patch(
-            "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
-            return_value=None,
-        ):
-            await emit_sources([{"url": "https://a.com"}])
-
-
 class TestEmitCitedMemoryIds:
     """Tests for emit_cited_memory_ids function."""
 
@@ -211,24 +171,3 @@ class TestEmitCitedMemoryIds:
         ):
             mock_event_type.TOOL_END.value = "tool_end"
             await emit_cited_memory_ids(["mem-1"])
-
-
-class TestEmitSourcesErrors:
-    """Tests for emit_sources error handling."""
-
-    @pytest.mark.asyncio
-    async def test_emit_handles_sink_error(self) -> None:
-        mock_sink = AsyncMock()
-        mock_sink.emit = AsyncMock(side_effect=RuntimeError("sink down"))
-
-        with (
-            patch(
-                "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
-                return_value=mock_sink,
-            ),
-            patch(
-                "myrm_agent_harness.core.events.types.AgentEventType",
-            ) as mock_event_type,
-        ):
-            mock_event_type.SOURCES.value = "sources"
-            await emit_sources([{"url": "https://a.com"}])

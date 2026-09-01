@@ -133,10 +133,11 @@ class SteeringToken:
         重置 _active、_steering_applied、_redirect_requested 和 _activated_messages，
         但保留队列中的消息。
         """
-        self._active = False
-        self._steering_applied = False
-        self._redirect_requested = False
-        self._activated_messages.clear()
+        with self._lock:
+            self._active = False
+            self._steering_applied = False
+            self._redirect_requested = False
+            self._activated_messages.clear()
 
 
 # ==================== ContextVar 隔离 ====================

@@ -57,6 +57,23 @@ class PluginSkill:
 
 
 @dataclass(frozen=True)
+class PluginAgent:
+    """One agent profile discovered from ``agents/<name>.md`` or ``agents/<name>/AGENT.md``."""
+
+    name: str  # agent display name
+    description: str = ""
+    system_prompt: str = ""
+    max_iterations: int | None = None
+    skill_names: tuple[str, ...] = ()
+    tool_names: tuple[str, ...] = ()
+    mcp_names: tuple[str, ...] = ()
+    subagent_names: tuple[str, ...] = ()
+    is_subagent: bool = False
+    is_entry_agent: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class PluginMcpServer:
     """One MCP server entry parsed from mcp.json (§7.2.1).
 

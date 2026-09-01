@@ -20,12 +20,12 @@ token counting, content formatting, and configuration utilities.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
+from myrm_agent_harness.agent.streaming.citation_audit import CitationAuditResult, audit_citation_markers
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 from myrm_agent_harness.toolkits.llms.utils.model_utils import get_model_context_limit as get_model_context_limit
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -35,14 +35,7 @@ from .prompts import RESEARCH_AGENT_PROMPT
 
 logger = get_agent_logger(__name__)
 
-
-@dataclass(frozen=True, slots=True)
-class CitationAuditResult:
-    """Result of post-report citation verification (zero LLM cost)."""
-
-    total_markers: int = 0
-    valid: int = 0
-    unresolved: int = 0
+audit_citations = audit_citation_markers
 
 
 @dataclass
@@ -171,7 +164,6 @@ def extract_tool_calls(response: AIMessage) -> list[dict[str, object]]:
 # Citation helpers
 # ---------------------------------------------------------------------------
 
-_CITATION_MARKER_RE = re.compile(r"\u3010(\d+)\u3011")
 _SOURCE_SNIPPET_BUDGET = 200
 
 
@@ -208,24 +200,3 @@ def format_numbered_sources(sources: list[dict[str, object]], char_budget: int =
         used += cost
 
     return "\n\n".join(parts)
-
-
-def audit_citations(report: str, source_count: int) -> CitationAuditResult:
-    """Lightweight post-report citation audit (zero LLM cost).
-
-    Extracts all 【N】 markers and verifies N is within [1, source_count].
-    """
-    markers = _CITATION_MARKER_RE.findall(report)
-    if not markers:
-        return CitationAuditResult()
-
-    valid = 0
-    unresolved = 0
-    for num_str in markers:
-        n = int(num_str)
-        if 1 <= n <= source_count:
-            valid += 1
-        else:
-            unresolved += 1
-
-    return CitationAuditResult(total_markers=len(markers), valid=valid, unresolved=unresolved)

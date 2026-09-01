@@ -1,14 +1,14 @@
-"""Auto-Approval Trigger Diagnostics and Multi-Dimensional Quota Attribution Subsystem.
+"""Auto-Approval Trigger Diagnostics and Dual-Track Quota Attribution Subsystem.
 
 [INPUT]
 - types::(ApprovalTriggerCategory, ApprovalTriggerEvent, AutoApprovalAuditReport, DualTrackQuotaBreakdown, TopOffenderItem)
 - auditor::AutoApprovalAuditor
 
 [OUTPUT]
-- Public exports for auto-approval trigger classification, dual-track quota attribution, and allowlist recommendations
+- Public exports for auto-approval root cause attribution, Top-Offenders ranking, and dual-track cost transparency
 
 [POS]
-Package entry point providing four-category approval root cause analysis, main-vs-reviewer usage decoupling, and bounded Top-Offenders telemetry.
+Package entry point providing zero-LLM trigger diagnostics and disaggregated quota audit reports.
 """
 
 from __future__ import annotations

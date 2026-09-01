@@ -19,6 +19,7 @@ Detailed design: [STREAMING_SYSTEM.md](STREAMING_SYSTEM.md)
 | reasoning_scrubber.py | Core | 流式清洗器。处理非标准模型泄漏在普通 content 流中的思考过程标签，将其跨 Chunk 无损转化为独立事件。导出 THINKING_TAG_NAMES 供渲染层 strip_thinking_tags 复用。 | ✅ |
 | repetition_scrubber.py | Core | 流式死循环熔断器。实时监测 Token/N-Gram 滑窗死循环复读，支持 Markdown 代码块语法感知自适应门限，毫秒级触发 cancellation 熔断止损。 | ✅ |
 | source_tracker.py | Core | Source reference forwarding; dedup by `source_key` / url / content hash; global citation index. | ✅ |
+| citation_audit.py | Core | Zero-LLM audit of fullwidth 【N】 markers against source count (server persistence + DR). | ✅ |
 | run_digest.py | Core | RunDigest DTO + `build_run_digest` pure reducer from progress-step dicts (Co-Pilot Run Observer). | ✅ |
 | step_builder.py | Core | Agent step data builder. Constructs frontend display data from tool names and arguments with per-too | ✅ |
 | stream_buffer.py | Core | SSE reconnect replay buffer: in-memory sliding window + GlobalStreamRegistry for Last-Event-ID resume (no disk persistence). | ✅ |

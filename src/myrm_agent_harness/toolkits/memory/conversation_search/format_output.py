@@ -5,7 +5,7 @@
 - toolkits.memory.agent_surface.memory_recall_formatting (POS: Recall redact → sanitize/preamble helpers)
 
 [OUTPUT]
-- format_conversation_search_response: Render hits and emit conversation_history sources.
+- format_conversation_search_response: Render hits with conversation_history sources in tool metadata.
 
 [POS]
 Agent-facing formatter for memory_search conversation corpus results.
@@ -22,7 +22,9 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     ConversationSearchHit,
     ConversationSearchResponse,
 )
-from myrm_agent_harness.toolkits.memory.memory_citations import emit_sources
+from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
+    pack_tool_result_with_sources,
+)
 from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
     finalize_recall_tool_output,
     recall_preamble_overhead_chars,
@@ -32,14 +34,14 @@ from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
 
 async def format_conversation_search_response(
     response: ConversationSearchResponse,
-) -> str:
-    """Format provider response and emit conversation_history sources."""
+) -> dict[str, object]:
+    """Format provider response with conversation_history sources in metadata."""
     if not response.hits:
         if response.mode == "recent":
-            return "No previous conversations found."
+            return pack_tool_result_with_sources("No previous conversations found.", [])
         if response.rejected_reason:
-            return response.rejected_reason
-        return "No matching conversations found."
+            return pack_tool_result_with_sources(response.rejected_reason, [])
+        return pack_tool_result_with_sources("No matching conversations found.", [])
 
     max_output_chars = MAX_TOOL_OUTPUT_CHARS - recall_preamble_overhead_chars()
     lines = [
@@ -61,13 +63,13 @@ async def format_conversation_search_response(
             break
         lines.append(block)
         output_chars += block_cost
-        sources.append(source_ref(len(sources) + 1, hit))
+        sources.append(source_ref(hit))
 
     if truncated:
         lines.append("[conversation_search_budget] Results were truncated. Refine the query for more detail.")
 
-    await emit_sources(sources)
-    return finalize_recall_tool_output("\n\n".join(lines))
+    body = finalize_recall_tool_output("\n\n".join(lines))
+    return pack_tool_result_with_sources(body, sources)
 
 
 def format_conversation_hit(index: int, hit: ConversationSearchHit) -> str:
@@ -89,7 +91,7 @@ def format_conversation_hit(index: int, hit: ConversationSearchHit) -> str:
     return "\n".join(parts)
 
 
-def source_ref(index: int, hit: ConversationSearchHit) -> dict[str, object]:
+def source_ref(hit: ConversationSearchHit) -> dict[str, object]:
     if hit.source_ref is not None:
         ref = hit.source_ref.model_dump(mode="json", exclude_none=True)
     else:
@@ -104,7 +106,6 @@ def source_ref(index: int, hit: ConversationSearchHit) -> dict[str, object]:
             "created_at": hit.created_at.isoformat() if hit.created_at else None,
             "updated_at": hit.updated_at.isoformat() if hit.updated_at else None,
         }
-    ref["index"] = index
     ref["source_key"] = f"conversation:{hit.conversation_id}:{hit.message_id or ''}"
     return {key: value for key, value in ref.items() if value is not None}
 

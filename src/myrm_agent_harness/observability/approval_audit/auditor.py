@@ -1,4 +1,4 @@
-"""Auto-Approval Root Cause Attribution and Quota Decoupling Auditor.
+"""Auto-Approval Trigger Root-Cause Auditor and Dual-Track Usage Disaggregator.
 
 [INPUT]
 - myrm_agent_harness.observability.approval_audit.types::(
@@ -7,20 +7,18 @@
     AutoApprovalAuditReport,
     DualTrackQuotaBreakdown,
     TopOffenderItem,
-  ) (POS: 自动审批审计类型定义)
+  ) (POS: 审批归因与双轨解耦契约)
 
 [OUTPUT]
-- AutoApprovalAuditor: Pure-rule normalization, bounded Top-Offenders clustering, and dual-track quota auditor
+- AutoApprovalAuditor: Pure-rule normalization, bounded top-offender aggregation, and audit report generator
 
 [POS]
-Production-grade audit engine aggregating security review triggers, decoupling primary task costs from verification overhead, and deriving actionable allowlist rules.
+Harness-level zero-LLM telemetry engine providing deterministic 4-category trigger attribution and dual-track cost transparency.
 """
 
 from __future__ import annotations
 
-import logging
 import os
-import shlex
 from collections import defaultdict
 from typing import Sequence
 from urllib.parse import urlsplit
@@ -33,11 +31,9 @@ from myrm_agent_harness.observability.approval_audit.types import (
     TopOffenderItem,
 )
 
-logger = logging.getLogger(__name__)
-
 
 class AutoApprovalAuditor:
-    """Zero-LLM auditor analyzing auto-approval trigger causes and decoupling audit costs."""
+    """Pure-rule auditor categorizing triggers, tracking top violators, and disaggregating quota."""
 
     def __init__(
         self,
@@ -45,215 +41,221 @@ class AutoApprovalAuditor:
         max_tracked_offenders: int = 100,
         price_per_million_prompt: float = 2.5,
         price_per_million_completion: float = 10.0,
-        price_per_million_cached: float = 0.5,
     ) -> None:
+        """Initialize auditor parameters.
+
+        Args:
+            max_tracked_offenders: Maximum number of unique offenders to retain in memory.
+            price_per_million_prompt: Estimated cost per 1M prompt tokens (default USD 2.5).
+            price_per_million_completion: Estimated cost per 1M completion tokens (default USD 10.0).
+        """
         self._max_tracked_offenders = max_tracked_offenders
         self._price_prompt = price_per_million_prompt
         self._price_completion = price_per_million_completion
-        self._price_cached = price_per_million_cached
 
-    def estimate_cost(self, prompt_tokens: int, completion_tokens: int, cached_prompt_tokens: int = 0) -> float:
-        """Estimate USD financial cost for a single LLM verification step."""
-        uncached_prompt = max(0, prompt_tokens - cached_prompt_tokens)
-        cached_cost = (cached_prompt_tokens / 1_000_000.0) * self._price_cached
-        uncached_cost = (uncached_prompt / 1_000_000.0) * self._price_prompt
-        comp_cost = (completion_tokens / 1_000_000.0) * self._price_completion
-        return round(cached_cost + uncached_cost + comp_cost, 6)
-
-    def normalize_target(self, raw_target: str, category: ApprovalTriggerCategory) -> str:
-        """Normalize raw intercepted target string into a clean, clusterable entity."""
-        target = raw_target.strip()
-        if not target:
-            return "<empty_target>"
-
-        if category == ApprovalTriggerCategory.FILE_BOUNDARY:
-            # Normalize to directory prefix wildcard (e.g. '/var/log/app.log' -> '/var/log/*')
-            try:
-                norm = os.path.normpath(target)
-                parent = os.path.dirname(norm)
-                if parent == "" or parent == ".":
-                    return "./*"
-                if parent == "/":
-                    return "/*"
-                return f"{parent}/*"
-            except Exception:
-                return f"{target[:32]}/*"
-
-        elif category == ApprovalTriggerCategory.NETWORK_DOMAIN:
-            # Extract hostname/domain from URL
-            try:
-                # Handle URLs without scheme (e.g. 'api.github.com/v1')
-                parse_target = target if "://" in target else f"https://{target}"
-                parsed = urlsplit(parse_target)
-                host = parsed.netloc.split(":")[0] if parsed.netloc else parsed.path.split("/")[0]
-                return host.lower() if host else target[:64].lower()
-            except Exception:
-                return target[:64].lower()
-
-        elif category == ApprovalTriggerCategory.COMMAND_EXECUTION:
-            # Extract executable basename (e.g. 'rm -rf /tmp/foo' -> 'rm', '/usr/bin/git push' -> 'git')
-            try:
-                parts = shlex.split(target)
-                if parts:
-                    exe = os.path.basename(parts[0])
-                    return exe.lower()
-                return target.split()[0].lower() if target.split() else target[:32].lower()
-            except Exception:
-                return target.split()[0].lower() if target.split() else target[:32].lower()
-
-        elif category == ApprovalTriggerCategory.TOOL_ELEVATION:
-            # Extract tool namespace prefix if available (e.g. 'mcp__github__create_issue' -> 'mcp__github')
-            if "__" in target:
-                parts = target.split("__")
-                return f"{parts[0]}__{parts[1]}"
-            return target[:48]
-
-        # UNKNOWN or fallback
-        return target[:64]
-
-    def suggest_allow_pattern(self, normalized_target: str, category: ApprovalTriggerCategory) -> str:
-        """Derive an actionable minimal-privilege allowlist pattern for this normalized target."""
-        if category == ApprovalTriggerCategory.FILE_BOUNDARY:
-            return normalized_target  # already ends with /*
-
-        elif category == ApprovalTriggerCategory.NETWORK_DOMAIN:
-            if "." in normalized_target and not normalized_target.startswith("*."):
-                return f"*.{normalized_target}"
-            return normalized_target
-
-        elif category == ApprovalTriggerCategory.COMMAND_EXECUTION:
-            return f"{normalized_target} *"
-
-        elif category == ApprovalTriggerCategory.TOOL_ELEVATION:
-            return f"{normalized_target}::*"
-
-        return f"allow:{normalized_target}"
-
-    def record_trigger(
-        self,
-        *,
-        session_id: str,
+    @staticmethod
+    def classify_and_normalize(
         raw_target: str,
-        category: ApprovalTriggerCategory,
-        tool_name: str,
-        prompt_tokens: int = 0,
-        completion_tokens: int = 0,
-        cached_prompt_tokens: int = 0,
-        cost_usd: float | None = None,
-    ) -> ApprovalTriggerEvent:
-        """Create and return a normalized immutable ApprovalTriggerEvent."""
-        norm_target = self.normalize_target(raw_target, category)
-        calc_cost = (
-            self.estimate_cost(prompt_tokens, completion_tokens, cached_prompt_tokens)
-            if cost_usd is None
-            else cost_usd
+        tool_name: str = "",
+    ) -> tuple[ApprovalTriggerCategory, str, str]:
+        """Classify trigger root cause and normalize target to a clusterable string.
+
+        Returns:
+            (category, normalized_target, suggested_allow_pattern)
+        """
+        target = raw_target.strip()
+        tool_lower = tool_name.lower()
+
+        # 1. Network / URL detection
+        if (
+            target.startswith(("http://", "https://", "ws://", "wss://"))
+            or "fetch" in tool_lower
+            or "curl" in tool_lower
+        ):
+            try:
+                parsed = urlsplit(target if "://" in target else f"https://{target}")
+                domain = parsed.hostname or target.split("/")[0]
+                return (
+                    ApprovalTriggerCategory.NETWORK_DOMAIN,
+                    domain,
+                    f"*.{domain}" if not domain.startswith("*.") else domain,
+                )
+            except Exception:
+                pass
+
+        # 2. File Boundary detection (absolute or relative file paths)
+        if (
+            target.startswith(("/", "~", "./", "../"))
+            or "\\" in target
+            or "file" in tool_lower
+            or "write" in tool_lower
+        ):
+            # Extract parent directory prefix
+            norm_path = os.path.normpath(target)
+            parent_dir = os.path.dirname(norm_path) or norm_path
+            suggested_pattern = (
+                f"{parent_dir}/*" if not parent_dir.endswith("/*") else parent_dir
+            )
+            return (
+                ApprovalTriggerCategory.FILE_BOUNDARY,
+                parent_dir,
+                suggested_pattern,
+            )
+
+        # 3. Shell / Command execution
+        if (
+            "bash" in tool_lower
+            or "shell" in tool_lower
+            or "exec" in tool_lower
+            or any(
+                target.startswith(cmd)
+                for cmd in (
+                    "git ",
+                    "npm ",
+                    "pytest ",
+                    "rm ",
+                    "docker ",
+                    "python ",
+                    "sh ",
+                )
+            )
+        ):
+            cmd_base = target.split()[0] if target else "command"
+            return (
+                ApprovalTriggerCategory.COMMAND_EXECUTION,
+                cmd_base,
+                f"{cmd_base} *",
+            )
+
+        # 4. Tool elevation / High-risk tool calls
+        if (
+            "mcp" in tool_lower
+            or "admin" in tool_lower
+            or "eval" in tool_lower
+            or "delete" in tool_lower
+        ):
+            return (
+                ApprovalTriggerCategory.TOOL_ELEVATION,
+                tool_name or "mcp_tool",
+                f"{tool_name}:*",
+            )
+
+        # Fallback unknown
+        safe_preview = (target[:32] + "...") if len(target) > 32 else target
+        return (
+            ApprovalTriggerCategory.UNKNOWN,
+            safe_preview or "unknown_target",
+            f"{safe_preview}:*",
         )
 
-        return ApprovalTriggerEvent(
-            session_id=session_id,
-            category=category,
-            raw_target=raw_target,
-            normalized_target=norm_target,
-            tool_name=tool_name,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            cached_prompt_tokens=cached_prompt_tokens,
-            cost_usd=calc_cost,
-        )
+    def estimate_event_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
+        """Calculate estimated financial cost in USD for a review step."""
+        p_cost = (max(0, prompt_tokens) / 1_000_000.0) * self._price_prompt
+        c_cost = (max(0, completion_tokens) / 1_000_000.0) * self._price_completion
+        return round(p_cost + c_cost, 6)
 
-    def evaluate_events(
+    def generate_report(
         self,
         events: Sequence[ApprovalTriggerEvent],
         *,
         session_id: str,
         main_task_rounds: int = 0,
-        main_task_prompt_tokens: int = 0,
-        main_task_completion_tokens: int = 0,
-        main_task_cached_tokens: int = 0,
+        main_task_tokens: int = 0,
         main_task_cost_usd: float = 0.0,
     ) -> AutoApprovalAuditReport:
-        """Aggregate approval events, compute dual-track quota metrics, and generate diagnostic report."""
-        category_counts: dict[ApprovalTriggerCategory, int] = defaultdict(int)
-        for cat in ApprovalTriggerCategory:
-            category_counts[cat] = 0
+        """Aggregate approval events and generate a diagnostic report with dual-track attribution."""
+        if not events:
+            return AutoApprovalAuditReport(
+                session_id=session_id,
+                total_triggers=0,
+                category_counts={},
+                dual_track_breakdown=DualTrackQuotaBreakdown(
+                    main_task_rounds=main_task_rounds,
+                    main_task_tokens=main_task_tokens,
+                    main_task_cost_usd=round(main_task_cost_usd, 6),
+                ),
+                top_offenders=[],
+                recommendations=["No auto-approval triggers observed in this session."],
+            )
 
-        audit_prompt = 0
-        audit_comp = 0
-        audit_cached = 0
-        audit_cost = 0.0
+        category_counts: dict[str, int] = defaultdict(int)
+        offender_hits: dict[str, int] = defaultdict(int)
+        offender_tokens: dict[str, int] = defaultdict(int)
+        offender_costs: dict[str, float] = defaultdict(float)
+        offender_categories: dict[str, ApprovalTriggerCategory] = {}
+        offender_patterns: dict[str, str] = {}
 
-        # Target aggregation buckets: (category, total_tokens, total_cost, hit_count)
-        target_hits: dict[str, list[object]] = {}
+        total_audit_tokens = 0
+        total_audit_cost = 0.0
 
-        for evt in events:
-            category_counts[evt.category] += 1
-            audit_prompt += evt.prompt_tokens
-            audit_comp += evt.completion_tokens
-            audit_cached += evt.cached_prompt_tokens
-            audit_cost += evt.cost_usd
+        for ev in events:
+            cat_str = str(ev.category)
+            category_counts[cat_str] += 1
 
-            key = evt.normalized_target
-            if key not in target_hits:
-                # [category, total_tokens, total_cost, hit_count]
-                target_hits[key] = [evt.category, evt.total_tokens, evt.cost_usd, 1]
-            else:
-                entry = target_hits[key]
-                entry[1] = int(entry[1]) + evt.total_tokens
-                entry[2] = float(entry[2]) + evt.cost_usd
-                entry[3] = int(entry[3]) + 1
+            t_tokens = ev.total_tokens
+            ev_cost = (
+                ev.cost_usd
+                if ev.cost_usd > 0.0
+                else self.estimate_event_cost(ev.prompt_tokens, ev.completion_tokens)
+            )
+
+            total_audit_tokens += t_tokens
+            total_audit_cost += ev_cost
+
+            # Group by normalized target with bounded eviction
+            norm_key = ev.normalized_target
+            if (
+                len(offender_hits) < self._max_tracked_offenders
+                or norm_key in offender_hits
+            ):
+                offender_hits[norm_key] += 1
+                offender_tokens[norm_key] += t_tokens
+                offender_costs[norm_key] = round(offender_costs[norm_key] + ev_cost, 6)
+                offender_categories[norm_key] = ev.category
+                if norm_key not in offender_patterns:
+                    _, _, pattern = self.classify_and_normalize(
+                        ev.raw_target, ev.tool_name
+                    )
+                    offender_patterns[norm_key] = pattern
+
+        # Build sorted Top-Offenders list
+        sorted_keys = sorted(
+            offender_hits.keys(), key=lambda k: offender_hits[k], reverse=True
+        )[:10]
+        top_offenders: list[TopOffenderItem] = [
+            TopOffenderItem(
+                normalized_target=k,
+                category=offender_categories[k],
+                hit_count=offender_hits[k],
+                total_tokens=offender_tokens[k],
+                estimated_cost_usd=round(offender_costs[k], 6),
+                suggested_allow_pattern=offender_patterns.get(k, f"{k}*"),
+            )
+            for k in sorted_keys
+        ]
 
         dual_track = DualTrackQuotaBreakdown(
             main_task_rounds=main_task_rounds,
-            main_task_prompt_tokens=main_task_prompt_tokens,
-            main_task_completion_tokens=main_task_completion_tokens,
-            main_task_cached_tokens=main_task_cached_tokens,
+            main_task_tokens=main_task_tokens,
             main_task_cost_usd=round(main_task_cost_usd, 6),
             audit_rounds=len(events),
-            audit_prompt_tokens=audit_prompt,
-            audit_completion_tokens=audit_comp,
-            audit_cached_tokens=audit_cached,
-            audit_cost_usd=round(audit_cost, 6),
+            audit_tokens=total_audit_tokens,
+            audit_cost_usd=round(total_audit_cost, 6),
         )
 
-        # Build bounded Top-Offenders list sorted by hit_count descending
-        sorted_targets = sorted(
-            target_hits.items(),
-            key=lambda item: int(item[1][3]),
-            reverse=True,
-        )[: self._max_tracked_offenders]
-
-        top_offenders: list[TopOffenderItem] = []
-        for norm_target, (cat_obj, tot_tokens, tot_cost, hit_count) in sorted_targets:
-            cat = ApprovalTriggerCategory(cat_obj)
-            top_offenders.append(
-                TopOffenderItem(
-                    normalized_target=norm_target,
-                    category=cat,
-                    hit_count=int(hit_count),
-                    total_tokens=int(tot_tokens),
-                    estimated_cost_usd=round(float(tot_cost), 6),
-                    suggested_allow_pattern=self.suggest_allow_pattern(norm_target, cat),
-                )
+        recommendations: list[str] = []
+        if dual_track.audit_cost_ratio >= 0.30:
+            recommendations.append(
+                f"Safety audits accounted for {dual_track.audit_cost_ratio:.1%} of total session cost. "
+                "Consider allowlisting recurring safe directories or domains."
             )
 
-        # Generate actionable diagnostic recommendations
-        recommendations: list[str] = []
-        if len(events) == 0:
-            recommendations.append("Zero approval triggers recorded. Security boundary operating smoothly.")
-        else:
-            if dual_track.audit_cost_ratio >= 0.05 or dual_track.audit_token_ratio >= 0.05:
-                recommendations.append(
-                    f"Auto-review cost represents {dual_track.audit_cost_ratio:.1%} of total session spend. "
-                    "Consider allowlisting frequent benign targets to reduce verification overhead."
-                )
-
-            high_frequency = [o for o in top_offenders if o.hit_count >= 2]
-            if high_frequency:
-                top_patterns = ", ".join(f"'{o.suggested_allow_pattern}'" for o in high_frequency[:3])
-                recommendations.append(
-                    f"Top repeat offender patterns ({top_patterns}) triggered multiple reviews. "
-                    "Add these patterns to your project allowlist for 1-click bypass."
-                )
+        if top_offenders:
+            top = top_offenders[0]
+            recommendations.append(
+                f"Top offender '{top.normalized_target}' triggered {top.hit_count} approvals. "
+                f"Suggested allowlist pattern: `{top.suggested_allow_pattern}`."
+            )
 
         return AutoApprovalAuditReport(
             session_id=session_id,

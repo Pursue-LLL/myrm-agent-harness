@@ -74,7 +74,9 @@ async def test_code_not_contains_pass():
         eval_cases=[
             {
                 "message": "safe deploy",
-                "sandbox_assertions": [{"type": "code_not_contains", "target": "rm -rf /"}],
+                "sandbox_assertions": [
+                    {"type": "code_not_contains", "target": "rm -rf /"}
+                ],
             }
         ]
     )
@@ -160,13 +162,42 @@ async def test_all_fail_hard_filter():
     """If ALL eval cases fail, penalty reaches hard threshold and variant is filtered."""
     skill = _make_skill(
         eval_cases=[
-            {"message": "a", "sandbox_assertions": [{"type": "code_contains", "target": "MUST_HAVE_THIS"}]},
-            {"message": "b", "sandbox_assertions": [{"type": "code_contains", "target": "AND_THIS_TOO"}]},
-            {"message": "c", "sandbox_assertions": [{"type": "code_contains", "target": "AND_ALSO_THIS"}]},
-            {"message": "d", "sandbox_assertions": [{"type": "code_contains", "target": "PLUS_THIS"}]},
-            {"message": "e", "sandbox_assertions": [{"type": "code_contains", "target": "ONE_MORE"}]},
-            {"message": "f", "sandbox_assertions": [{"type": "code_contains", "target": "LAST_ONE"}]},
-            {"message": "g", "sandbox_assertions": [{"type": "code_contains", "target": "FINAL"}]},
+            {
+                "message": "a",
+                "sandbox_assertions": [
+                    {"type": "code_contains", "target": "MUST_HAVE_THIS"}
+                ],
+            },
+            {
+                "message": "b",
+                "sandbox_assertions": [
+                    {"type": "code_contains", "target": "AND_THIS_TOO"}
+                ],
+            },
+            {
+                "message": "c",
+                "sandbox_assertions": [
+                    {"type": "code_contains", "target": "AND_ALSO_THIS"}
+                ],
+            },
+            {
+                "message": "d",
+                "sandbox_assertions": [
+                    {"type": "code_contains", "target": "PLUS_THIS"}
+                ],
+            },
+            {
+                "message": "e",
+                "sandbox_assertions": [{"type": "code_contains", "target": "ONE_MORE"}],
+            },
+            {
+                "message": "f",
+                "sandbox_assertions": [{"type": "code_contains", "target": "LAST_ONE"}],
+            },
+            {
+                "message": "g",
+                "sandbox_assertions": [{"type": "code_contains", "target": "FINAL"}],
+            },
         ]
     )
     variants = ["nothing matches"]
@@ -206,10 +237,9 @@ async def test_no_assertions_fallback_to_expected_tools():
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_run_single_case_empty_assertions():
+def test_run_single_case_empty_assertions():
     """Case with no assertions and no expected_tools always passes."""
-    result = await _run_single_case({"message": "test"}, "any code")
+    result = _run_single_case({"message": "test"}, "any code")
     assert result is True
 
 
@@ -276,8 +306,12 @@ def test_build_skill_eval_cases_with_patterns():
         forbidden_patterns=["eval("],
     )
     assertions = cases[0]["sandbox_assertions"]
-    assert any(a["type"] == "code_contains" and a["target"] == "json" for a in assertions)
-    assert any(a["type"] == "code_not_contains" and a["target"] == "eval(" for a in assertions)
+    assert any(
+        a["type"] == "code_contains" and a["target"] == "json" for a in assertions
+    )
+    assert any(
+        a["type"] == "code_not_contains" and a["target"] == "eval(" for a in assertions
+    )
     assert cases[0]["message"] == "parse data"
 
 
@@ -373,7 +407,10 @@ async def test_many_eval_cases_performance():
     """100 eval_cases should complete quickly without hanging."""
     import time
 
-    cases = [{"sandbox_assertions": [{"type": "code_contains", "target": f"pattern_{i}"}]} for i in range(100)]
+    cases = [
+        {"sandbox_assertions": [{"type": "code_contains", "target": f"pattern_{i}"}]}
+        for i in range(100)
+    ]
     skill = _make_skill(eval_cases=cases)
     start = time.monotonic()
     _surviving, penalties = await filter_variants_by_regression(
@@ -403,10 +440,9 @@ async def test_unknown_assertion_type_passes():
     assert penalties["any code"] == 0.0
 
 
-@pytest.mark.asyncio
-async def test_regex_match_invalid_pattern():
-    """Invalid regex pattern should not crash, treated as pass."""
-    result = await _run_single_case(
+def test_regex_match_invalid_pattern():
+    """Invalid regex pattern must not crash; the case fails (returns False)."""
+    result = _run_single_case(
         {"sandbox_assertions": [{"type": "regex_match", "target": "[invalid("}]},
         "any code",
     )

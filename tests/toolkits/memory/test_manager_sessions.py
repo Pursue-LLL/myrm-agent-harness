@@ -58,6 +58,35 @@ class TestSessionManagement:
         assert manager.active_session != session1
 
     @pytest.mark.asyncio
+    async def test_begin_session_safely_drains_previous_session(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        """Test that begin_session drains and persists dirty buffer from previous session."""
+        mock_vector_store.upsert.return_value = ["mem-1"]
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            approval_required=False,
+        )
+
+        session1 = manager.begin_session("chat-1")
+        session1.add_knowledge("Critical knowledge that must not be lost")
+        assert session1.buffer_size == 1
+
+        session2 = manager.begin_session("chat-2")
+        assert manager.active_session == session2
+
+        # Yield control to let the spawned background drain task run
+        import asyncio
+        await asyncio.sleep(0.05)
+
+        assert session1.buffer_size == 0
+        assert mock_vector_store.upsert.called
+
+    @pytest.mark.asyncio
     async def test_end_session_returns_empty_when_no_session(
         self, mock_vector_store, mock_embedding, memory_config
     ):

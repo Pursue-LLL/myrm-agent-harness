@@ -270,6 +270,76 @@ async def test_spawn_tool_dict_result(mock_parent_agent):
     assert result == {"success": True, "result": "dict-path"}
 
 
+@pytest.mark.asyncio
+async def test_spawn_tool_subagent_result_to_dict_passthrough(mock_parent_agent):
+    """SubAgentResult serializes via to_dict(): handover_state and verification
+    reach the script's dict contract, matching the delegate path."""
+    from myrm_agent_harness.agent.sub_agents.types import (
+        AgentHandoverState,
+        SubAgentResult,
+        SubAgentStatus,
+        VerificationSummary,
+    )
+
+    mock_parent_agent._spawn_child.return_value = SubAgentResult(
+        success=True,
+        task_id="task_hs",
+        agent_type="generalPurpose",
+        result="stage1 done",
+        completed_at=1000.0,
+        handover_state=AgentHandoverState(
+            task_completed=["refactor pay module"],
+            pending_todos=["update docs"],
+            risks_or_notes=["legacy endpoint deprecated"],
+            relevant_files=["src/pay/core.py"],
+        ),
+        verification=VerificationSummary(
+            passed=True,
+            rounds=1,
+            max_rounds=2,
+            confidence="HIGH",
+            summary="tests pass",
+            findings=({"severity": "LOW", "description": "naming"},),
+        ),
+    )
+
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_ssot",
+        store=None,
+    )
+
+    result = await tool._arun("task_ssot", "generalPurpose", "do stage1")
+
+    assert result["success"] is True
+    assert result["handover_state"] == {
+        "task_completed": ["refactor pay module"],
+        "pending_todos": ["update docs"],
+        "risks_or_notes": ["legacy endpoint deprecated"],
+        "relevant_files": ["src/pay/core.py"],
+    }
+    assert result["verification"]["passed"] is True
+    assert result["verification"]["confidence"] == "HIGH"
+    assert result["verification"]["findings"] == [
+        {"severity": "LOW", "description": "naming"}
+    ]
+
+    mock_parent_agent._spawn_child.assert_called_once()
+
+
+def test_leaf_blocked_tools_include_cron_manage():
+    """cron_manage_tool creates persistent cross-session jobs — leaf/orchestrator
+    children must never inherit it (L1 blocklist)."""
+    from myrm_agent_harness.agent.sub_agents.types import (
+        DELEGATION_CAPABILITY_MANIFEST,
+        _SUBAGENT_DEFAULT_BLACKLIST,
+    )
+
+    assert "cron_manage_tool" in DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
+    assert "cron_manage_tool" in _SUBAGENT_DEFAULT_BLACKLIST
+
+
 def test_spawn_tool_sync_raises(mock_parent_agent):
     """Sync _run must raise — tool is async-only."""
     tool = SpawnSubagentTool(

@@ -213,17 +213,19 @@ async def test_sessions_search_sanitizes_poison_and_adds_preamble() -> None:
         truncated=False,
     )
 
-    with patch(
-        "myrm_agent_harness.toolkits.memory.conversation_search.format_output.emit_sources",
-        AsyncMock(),
-    ):
-        result = await format_conversation_search_response(response)
+    result = await format_conversation_search_response(response)
+    assert isinstance(result, dict)
+    content = str(result.get("content", ""))
+    metadata = result.get("metadata")
+    sources = metadata.get("sources") if isinstance(metadata, dict) else []
 
-    assert result.startswith(RECALL_TOOL_UNTRUSTED_PREAMBLE)
-    assert poison not in result
-    assert "<<<UNTRUSTED_DATA" not in result
-    assert "<tool_call>" not in result
-    assert "deploy now" in result
+    assert content.startswith(RECALL_TOOL_UNTRUSTED_PREAMBLE)
+    assert poison not in content
+    assert "<<<UNTRUSTED_DATA" not in content
+    assert "<tool_call>" not in content
+    assert "deploy now" in content
+    assert len(sources) == 1
+    assert sources[0]["type"] == "conversation_history"
 
 
 _CREDENTIAL_SNIPPET = "Deploy failed; key was sk-proj-abcdefghij1234567890 in env"
@@ -270,12 +272,9 @@ async def test_sessions_search_redacts_credentials_and_adds_preamble() -> None:
         truncated=False,
     )
 
-    with patch(
-        "myrm_agent_harness.toolkits.memory.conversation_search.format_output.emit_sources",
-        AsyncMock(),
-    ):
-        result = await format_conversation_search_response(response)
+    result = await format_conversation_search_response(response)
+    content = result["content"] if isinstance(result, dict) else result
 
-    assert result.startswith(RECALL_TOOL_UNTRUSTED_PREAMBLE)
-    assert "sk-proj-abcdefghij1234567890" not in result
-    assert "Deploy failed" in result
+    assert content.startswith(RECALL_TOOL_UNTRUSTED_PREAMBLE)
+    assert "sk-proj-abcdefghij1234567890" not in content
+    assert "Deploy failed" in content

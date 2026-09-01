@@ -65,7 +65,16 @@ class MemoryManagerGovernanceSessionMixin:
         from myrm_agent_harness.toolkits.memory.tool_capture import ToolMemoryCaptureHook
 
         if self._active_session is not None:
-            self._active_session.discard()
+            if self._active_session.buffer_size > 0:
+                old_session = self._active_session
+                try:
+                    loop = asyncio.get_running_loop()
+                    task = loop.create_task(old_session.flush())
+                    task.add_done_callback(_log_background_task_failure)
+                except RuntimeError:
+                    old_session.discard()
+            else:
+                self._active_session.discard()
         self._last_cited_memory_ids = []
 
         hook = ToolMemoryCaptureHook()

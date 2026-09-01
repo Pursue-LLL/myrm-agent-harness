@@ -9,7 +9,7 @@
 [OUTPUT]
 - cited_memory_ref: Build a UI-safe citation reference from a recalled memory.
 - emit_cited_memory_ids: Emit memory citation and retrieval trace metadata for frontend stream consumers.
-- emit_sources: Emit standard source metadata for frontend stream consumers.
+- emit_cited_memory_ids: Emit memory citation and retrieval trace metadata for frontend stream consumers.
 
 [POS]
 Memory citation bridge. Converts recalled memory objects and retrieval traces into lightweight SSE metadata without coupling the
@@ -80,24 +80,6 @@ async def emit_cited_memory_ids(
         await sink.emit(payload)
     except Exception as exc:
         logger.debug("Failed to emit cited_memory_ids: %s", exc)
-
-
-async def emit_sources(sources: list[dict[str, object]]) -> None:
-    """Push standard source metadata to the SSE output queue for frontend consumption."""
-    if not sources:
-        return
-    try:
-        from myrm_agent_harness.core.events.types import AgentEventType
-        from myrm_agent_harness.utils.runtime.progress_sink import (
-            get_tool_progress_sink,
-        )
-
-        sink = get_tool_progress_sink()
-        if sink is None:
-            return
-        await sink.emit({"type": AgentEventType.SOURCES.value, "data": sources})
-    except Exception as exc:
-        logger.debug("Failed to emit sources: %s", exc)
 
 
 def _copy_optional_str(target: dict[str, object], key: str, value: object) -> None:

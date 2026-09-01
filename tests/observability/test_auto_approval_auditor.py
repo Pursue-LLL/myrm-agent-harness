@@ -17,30 +17,86 @@ def test_target_normalization_across_all_four_categories():
     auditor = AutoApprovalAuditor()
 
     # 1. FILE_BOUNDARY: extract parent folder wildcard
-    assert auditor.normalize_target("/var/log/nginx/access.log", ApprovalTriggerCategory.FILE_BOUNDARY) == "/var/log/nginx/*"
-    assert auditor.normalize_target("app.py", ApprovalTriggerCategory.FILE_BOUNDARY) == "./*"
+    assert (
+        auditor.normalize_target(
+            "/var/log/nginx/access.log", ApprovalTriggerCategory.FILE_BOUNDARY
+        )
+        == "/var/log/nginx/*"
+    )
+    assert (
+        auditor.normalize_target("app.py", ApprovalTriggerCategory.FILE_BOUNDARY)
+        == "./*"
+    )
 
     # 2. NETWORK_DOMAIN: extract domain/host
-    assert auditor.normalize_target("https://api.github.com:443/repos/octocat", ApprovalTriggerCategory.NETWORK_DOMAIN) == "api.github.com"
-    assert auditor.normalize_target("gitlab.com/api/v4", ApprovalTriggerCategory.NETWORK_DOMAIN) == "gitlab.com"
+    assert (
+        auditor.normalize_target(
+            "https://api.github.com:443/repos/octocat",
+            ApprovalTriggerCategory.NETWORK_DOMAIN,
+        )
+        == "api.github.com"
+    )
+    assert (
+        auditor.normalize_target(
+            "gitlab.com/api/v4", ApprovalTriggerCategory.NETWORK_DOMAIN
+        )
+        == "gitlab.com"
+    )
 
     # 3. COMMAND_EXECUTION: extract executable basename
-    assert auditor.normalize_target("rm -rf /tmp/test_dir", ApprovalTriggerCategory.COMMAND_EXECUTION) == "rm"
-    assert auditor.normalize_target("/usr/local/bin/curl -X POST https://example.com", ApprovalTriggerCategory.COMMAND_EXECUTION) == "curl"
+    assert (
+        auditor.normalize_target(
+            "rm -rf /tmp/test_dir", ApprovalTriggerCategory.COMMAND_EXECUTION
+        )
+        == "rm"
+    )
+    assert (
+        auditor.normalize_target(
+            "/usr/local/bin/curl -X POST https://example.com",
+            ApprovalTriggerCategory.COMMAND_EXECUTION,
+        )
+        == "curl"
+    )
 
     # 4. TOOL_ELEVATION: extract namespace prefix
-    assert auditor.normalize_target("mcp__github__create_issue", ApprovalTriggerCategory.TOOL_ELEVATION) == "mcp__github"
-    assert auditor.normalize_target("custom_tool", ApprovalTriggerCategory.TOOL_ELEVATION) == "custom_tool"
+    assert (
+        auditor.normalize_target(
+            "mcp__github__create_issue", ApprovalTriggerCategory.TOOL_ELEVATION
+        )
+        == "mcp__github"
+    )
+    assert (
+        auditor.normalize_target("custom_tool", ApprovalTriggerCategory.TOOL_ELEVATION)
+        == "custom_tool"
+    )
 
 
 def test_suggest_allow_pattern():
     """Test minimal-privilege allowlist pattern generation."""
     auditor = AutoApprovalAuditor()
 
-    assert auditor.suggest_allow_pattern("/workspace/data/*", ApprovalTriggerCategory.FILE_BOUNDARY) == "/workspace/data/*"
-    assert auditor.suggest_allow_pattern("api.openai.com", ApprovalTriggerCategory.NETWORK_DOMAIN) == "*.api.openai.com"
-    assert auditor.suggest_allow_pattern("git", ApprovalTriggerCategory.COMMAND_EXECUTION) == "git *"
-    assert auditor.suggest_allow_pattern("mcp__filesystem", ApprovalTriggerCategory.TOOL_ELEVATION) == "mcp__filesystem::*"
+    assert (
+        auditor.suggest_allow_pattern(
+            "/workspace/data/*", ApprovalTriggerCategory.FILE_BOUNDARY
+        )
+        == "/workspace/data/*"
+    )
+    assert (
+        auditor.suggest_allow_pattern(
+            "api.openai.com", ApprovalTriggerCategory.NETWORK_DOMAIN
+        )
+        == "*.api.openai.com"
+    )
+    assert (
+        auditor.suggest_allow_pattern("git", ApprovalTriggerCategory.COMMAND_EXECUTION)
+        == "git *"
+    )
+    assert (
+        auditor.suggest_allow_pattern(
+            "mcp__filesystem", ApprovalTriggerCategory.TOOL_ELEVATION
+        )
+        == "mcp__filesystem::*"
+    )
 
 
 def test_dual_track_quota_and_top_offenders_evaluation():

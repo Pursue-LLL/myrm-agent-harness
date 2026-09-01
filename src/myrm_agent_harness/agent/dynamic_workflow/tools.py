@@ -8,7 +8,7 @@
 - dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache)
 - dynamic_workflow.spawn_cache::SpawnCacheParams (POS: Cache fingerprint)
 - agent.skills.mcp.progress_payload::build_workflow_stage_event (POS: Shared notify field SSOT)
-- sub_agents.types::SubagentCatalog, SubagentConfig, WorkspacePolicy (POS: Agent configuration and workspace isolation)
+- sub_agents.types::SubagentCatalog, SubagentConfig, WorkspacePolicy, SubAgentResult (POS: Agent configuration, workspace isolation, and structured spawn result SSOT)
 - utils.runtime.cancellation::CancellationToken
 
 [OUTPUT]
@@ -57,12 +57,12 @@ from myrm_agent_harness.agent.sub_agents.spawn_prep import (
     merge_candidate_from_spawn_dict,
     sanitize_spawn_result_for_store,
 )
+from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubagentCatalog
 from myrm_agent_harness.core.security.path_security import coerce_filesystem_path
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
-    from myrm_agent_harness.agent.sub_agents.types import SubagentCatalog
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +134,9 @@ def _normalize_spawn_result(
 ) -> dict[str, object]:
     if isinstance(result, dict):
         return result
+
+    if isinstance(result, SubAgentResult):
+        return result.to_dict()
 
     status_val = getattr(result, "status", None)
     return {
@@ -791,4 +794,3 @@ class SteerChildTool(BaseTool):
 
     async def _arun(self, task_id: str, message: str) -> dict[str, object]:
         return self._run(task_id=task_id, message=message)
-

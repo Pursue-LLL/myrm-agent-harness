@@ -23,7 +23,11 @@ It contains six functions:
 
 1. `myrm_tools.spawn_subagent(task_id: str, agent_type: str, task_description: str, readonly: bool = False, verification_mode: str = "none", verifier_agent_type: str | None = None, max_verification_rounds: int = 2) -> dict`
    Spawns a sub-agent that has access to tools (web search, file operations, code execution, etc.).
-   Blocks until the sub-agent completes. Returns dict with keys: success, task_id, agent_type, result, error, status.
+   Blocks until the sub-agent completes. Returns dict with keys: success, task_id, agent_type, result, error, status,
+   and when available: handover_state ({task_completed, pending_todos, risks_or_notes, relevant_files} — the sub-agent's
+   structured handoff for downstream stages) and verification ({passed, rounds, max_rounds, confidence, summary, findings}
+   — the adversarial verification outcome, present when verification_mode is enabled).
+   Prefer handover_state.relevant_files and result over re-reading files when a downstream stage builds on an earlier stage.
    verification_mode options:
    - "none" (default): Fast, direct sub-agent execution without verification.
    - "adversarial": Standard worker + verifier retry loop (result includes [Verification: PASS/FAIL]).
