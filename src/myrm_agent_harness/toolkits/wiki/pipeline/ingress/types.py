@@ -16,7 +16,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.types import (
+        RawConflictPolicy,
+        RawGateCaller,
+    )
 
 
 class ClipMode(StrEnum):
@@ -52,6 +58,9 @@ class UrlMarkdownIngressRequest:
     folder_path: str = ""
     relative_path: str = ""
     localize_public_assets: bool = True
+    conflict_policy: RawConflictPolicy | None = None
+    supersede_reason: str = ""
+    caller: RawGateCaller = "agent"
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,3 +79,5 @@ class ClipIngressResult:
     security_blocked: bool
     assets_localized: Literal["full", "partial", "remote"] = "remote"
     asset_stats: IngressAssetStats = field(default_factory=IngressAssetStats)
+    superseded: bool = False
+    security_redacted: bool = False

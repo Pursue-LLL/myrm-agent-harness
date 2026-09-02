@@ -240,17 +240,44 @@ def _auto_vault_or_truncate(
 
 
 def _parse_handover_state(raw_result: str, task_id: str) -> AgentHandoverState | None:
-    """Extract ``<handover>...</handover>`` JSON block from raw subagent output."""
-    match = re.search(r"<handover>(.*?)</handover>", raw_result, re.DOTALL | re.IGNORECASE)
-    if not match:
+    """Extract ``<handover>...</handover>`` JSON block from raw subagent output with robust repair."""
+    if not raw_result or not isinstance(raw_result, str):
         return None
 
-    try:
-        data = parse_llm_json_object(match.group(1))
-        if data is None:
-            logger.warning("[subagent:%s] Failed to parse handover state", task_id)
-            return None
-        return AgentHandoverState.from_dict(data)
-    except Exception as e:
-        logger.warning("[subagent:%s] Failed to parse handover state: %s", task_id, e)
-        return None
+    # Priority 1: Explicit <handover>...</handover> tag (or trailing unclosed tag)
+    match = re.search(
+        r"<handover>(?:(.*?)</handover>|(.*?)$)",
+        raw_result,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if match:
+        block = match.group(1) if match.group(1) is not None else match.group(2)
+        if block and block.strip():
+            try:
+                data = parse_llm_json_object(block)
+                if isinstance(data, dict):
+                    return AgentHandoverState.from_dict(data)
+            except Exception as e:
+                logger.warning("[subagent:%s] Failed to parse matched handover block: %s", task_id, e)
+
+    # Priority 2: Fallback to finding JSON object with schema key markers
+    for key in ("summary", "task_completed", "findings", "context_artifacts"):
+        try:
+            data = parse_llm_json_object(raw_result, require_key=key)
+            if isinstance(data, dict):
+                if any(
+                    k in data
+                    for k in (
+                        "summary",
+                        "task_completed",
+                        "findings",
+                        "pending_todos",
+                        "relevant_files",
+                        "artifact_refs",
+                    )
+                ):
+                    return AgentHandoverState.from_dict(data)
+        except Exception:
+            continue
+
+    return None

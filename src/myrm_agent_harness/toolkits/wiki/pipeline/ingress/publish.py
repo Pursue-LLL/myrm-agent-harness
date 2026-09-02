@@ -200,6 +200,8 @@ async def publish_clip_ingress(
         security_blocked=result.security_blocked,
         assets_localized=localized,
         asset_stats=asset_stats,
+        superseded=result.superseded,
+        security_redacted=result.security_redacted,
     )
 
 
@@ -247,15 +249,21 @@ async def publish_url_markdown_ingress(
         + body
     )
 
+    conflict_policy = (
+        request.conflict_policy
+        if request.conflict_policy is not None
+        else RawConflictPolicy.FAIL
+    )
     try:
         result = await publish_raw(
             structure,
             RawPublishRequest(
                 relative_path=rel_path,
                 content=content,
-                conflict_policy=RawConflictPolicy.FAIL,
+                conflict_policy=conflict_policy,
+                supersede_reason=request.supersede_reason,
             ),
-            caller="agent",
+            caller=request.caller,
         )
     except RawGateError as exc:
         if exc.code == "raw_conflict":
@@ -288,4 +296,6 @@ async def publish_url_markdown_ingress(
         security_blocked=result.security_blocked,
         assets_localized=localized,
         asset_stats=asset_stats,
+        superseded=result.superseded,
+        security_redacted=result.security_redacted,
     )

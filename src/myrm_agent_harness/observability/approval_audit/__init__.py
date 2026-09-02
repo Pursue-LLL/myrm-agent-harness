@@ -1,17 +1,16 @@
-"""Auto-Approval Trigger Diagnostics and Dual-Track Quota Attribution Subsystem.
+"""Auto-approval root cause diagnostics and multi-dimensional quota attribution.
 
 [INPUT]
-- types::(ApprovalTriggerCategory, ApprovalTriggerEvent, AutoApprovalAuditReport, DualTrackQuotaBreakdown, TopOffenderItem)
+- types::(ApprovalTriggerCategory, ApprovalTriggerEvent, TopOffenderItem, DualTrackQuotaBreakdown, AutoApprovalAuditReport)
 - auditor::AutoApprovalAuditor
 
 [OUTPUT]
-- Public exports for auto-approval root cause attribution, Top-Offenders ranking, and dual-track cost transparency
+- AutoApprovalAuditor and approval audit types for server-side security diagnostics and dashboard
 
 [POS]
-Package entry point providing zero-LLM trigger diagnostics and disaggregated quota audit reports.
+Harness-level pure-rule auto-approval trigger classification, target normalization,
+top offenders ranking, and dual-track quota attribution.
 """
-
-from __future__ import annotations
 
 from myrm_agent_harness.observability.approval_audit.auditor import AutoApprovalAuditor
 from myrm_agent_harness.observability.approval_audit.types import (

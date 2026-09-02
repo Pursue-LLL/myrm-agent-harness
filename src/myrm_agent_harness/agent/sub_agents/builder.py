@@ -45,6 +45,11 @@ _HANDOVER_PROTOCOL_PROMPT = (
     "Format your handover state exactly like this XML block:\n"
     "<handover>\n"
     "{\n"
+    '  "summary": "Concise high-level summary of findings or actions taken",\n'
+    '  "findings": [{"finding": "core discovery", "evidence": "supporting data or file:line", "confidence": "high|medium|low"}],\n'
+    '  "citations": ["list of source URLs or docs referenced"],\n'
+    '  "artifact_refs": ["vault://... or file paths generated"],\n'
+    '  "context_artifacts": ["prerequisite files/artifacts required by downstream agents"],\n'
     '  "task_completed": ["list of completed items"],\n'
     '  "pending_todos": ["list of items left for the next agent"],\n'
     '  "risks_or_notes": ["any risks, warnings, or pitfalls"],\n'

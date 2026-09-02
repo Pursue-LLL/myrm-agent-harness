@@ -1,17 +1,17 @@
 # observability/approval_audit/
 
 ## Overview
-Auto-approval trigger root-cause attribution, Top-Offenders clustering, and dual-track quota disaggregation. Categorizes safety approval interventions into 4 standard categories (file boundary, network, shell command, tool elevation) and provides disaggregated cost reports.
+Auto-approval trigger diagnostics and multi-dimensional quota attribution engine. Categorizes security approval triggers into four root-cause buckets (FILE_BOUNDARY, NETWORK_DOMAIN, COMMAND_EXECUTION, TOOL_ELEVATION), ranks top-offender targets with suggested allowlist patterns, and decouples primary model costs from auxiliary auto-review agent costs.
 
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Re-exports AutoApprovalAuditor, ApprovalTriggerCategory, and audit report contracts. | ✅ |
-| `types.py` | Core | Foundation type contracts: ApprovalTriggerCategory, ApprovalTriggerEvent, DualTrackQuotaBreakdown, TopOffenderItem, AutoApprovalAuditReport. | ✅ |
-| `auditor.py` | Core | AutoApprovalAuditor providing pure-rule normalization, bounded top-offender clustering, and disaggregated report generation. | ✅ |
+| `__init__.py` | Package | Re-exports AutoApprovalAuditor and approval audit types. | ✅ |
+| `types.py` | Core | Foundation type contracts: ApprovalTriggerCategory, ApprovalTriggerEvent, TopOffenderItem, DualTrackQuotaBreakdown, AutoApprovalAuditReport. | ✅ |
+| `auditor.py` | Core | AutoApprovalAuditor implementing target normalization, allowlist recommendation, offender clustering, and dual-track quota attribution. | ✅ |
 
 ## Key Dependencies
 
-- `observability/economics` (complementary token cost concepts)
-- `agent/security` (upstream source of approval events)
+- `core/security/audit.py` (SecurityDecision log integration)
+- `observability/metrics` (security metric integration)

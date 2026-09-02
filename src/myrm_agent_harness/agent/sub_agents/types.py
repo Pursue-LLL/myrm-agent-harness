@@ -19,6 +19,7 @@ Self-update note: when this file changes, update its INPUT/OUTPUT/POS comments.
 - DelegationCapabilityManifest: Single source of subagent delegation tool capability policy.
 - WorkspacePolicy: Workspace policy enum.
 - SubAgentResult: Structured subagent execution result.
+- HandoffFinding: Structured finding with supporting evidence and confidence level.
 - AgentHandoverState: Structured subagent handover state.
 - ProgressCalculator: Custom progress calculator protocol.
 - ModelResolver: Model name resolver protocol.
@@ -325,19 +326,53 @@ class SubAgentResult:
 
 
 @dataclass(frozen=True, slots=True)
+class HandoffFinding:
+    """Structured finding with supporting evidence and confidence level."""
+
+    finding: str
+    evidence: str = ""
+    confidence: str = "high"
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "finding": self.finding,
+            "evidence": self.evidence,
+            "confidence": self.confidence,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> HandoffFinding:
+        return cls(
+            finding=str(data.get("finding", "")),
+            evidence=str(data.get("evidence", "")),
+            confidence=str(data.get("confidence", "high")),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class AgentHandoverState:
     """Structured handover state from a completed subagent to its caller/successors.
 
     Prevents token explosion by passing this concise state instead of raw transcripts.
     """
 
+    summary: str = ""
+    findings: list[HandoffFinding] = field(default_factory=list)
+    citations: list[str] = field(default_factory=list)
+    artifact_refs: list[str] = field(default_factory=list)
+    context_artifacts: list[str] = field(default_factory=list)
     task_completed: list[str] = field(default_factory=list)
     pending_todos: list[str] = field(default_factory=list)
     risks_or_notes: list[str] = field(default_factory=list)
     relevant_files: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, list[str]]:
+    def to_dict(self) -> dict[str, object]:
         return {
+            "summary": self.summary,
+            "findings": [f.to_dict() for f in self.findings],
+            "citations": self.citations,
+            "artifact_refs": self.artifact_refs,
+            "context_artifacts": self.context_artifacts,
             "task_completed": self.task_completed,
             "pending_todos": self.pending_todos,
             "risks_or_notes": self.risks_or_notes,
@@ -350,9 +385,26 @@ class AgentHandoverState:
             value = data.get(key)
             if not isinstance(value, list):
                 return []
-            return [item for item in value if isinstance(item, str)]
+            return [str(item) for item in value if item is not None and str(item).strip()]
+
+        findings_raw = data.get("findings")
+        findings: list[HandoffFinding] = []
+        if isinstance(findings_raw, list):
+            for item in findings_raw:
+                if isinstance(item, dict):
+                    findings.append(HandoffFinding.from_dict(item))
+                elif isinstance(item, str) and item.strip():
+                    findings.append(HandoffFinding(finding=item.strip()))
+
+        summary_val = data.get("summary")
+        summary_str = str(summary_val).strip() if summary_val is not None else ""
 
         return cls(
+            summary=summary_str,
+            findings=findings,
+            citations=string_list("citations"),
+            artifact_refs=string_list("artifact_refs"),
+            context_artifacts=string_list("context_artifacts"),
             task_completed=string_list("task_completed"),
             pending_todos=string_list("pending_todos"),
             risks_or_notes=string_list("risks_or_notes"),
