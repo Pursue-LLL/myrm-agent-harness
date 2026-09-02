@@ -6,6 +6,7 @@ and Pending memories. Zero external dependencies beyond aiosqlite.
 
 from myrm_agent_harness.toolkits.memory.relational.base import RelationalStore
 from myrm_agent_harness.toolkits.memory.relational.exceptions import (
+    CorruptedMemoryIndexError,
     RelationalConnectionError,
     RelationalNotFoundError,
     RelationalQueryError,
@@ -14,6 +15,7 @@ from myrm_agent_harness.toolkits.memory.relational.exceptions import (
 from myrm_agent_harness.toolkits.memory.relational.sqlite_store import SQLiteRelationalStore
 
 __all__ = [
+    "CorruptedMemoryIndexError",
     "RelationalConnectionError",
     "RelationalNotFoundError",
     "RelationalQueryError",

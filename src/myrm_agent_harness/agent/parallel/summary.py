@@ -25,7 +25,7 @@ def inject_capacity_signal(result: dict[str, object], parent_agent: BaseAgent) -
 
 
 def batch_summary(results: list[dict[str, object]]) -> dict[str, object]:
-    """Aggregate per-task results into a resume-friendly batch summary."""
+    """Aggregate per-task results into a resume-friendly batch summary with structured handover aggregation."""
     completed_count = sum(1 for item in results if item.get("success") is True)
     failed_count = len(results) - completed_count
     all_success = failed_count == 0
@@ -40,7 +40,26 @@ def batch_summary(results: list[dict[str, object]]) -> dict[str, object]:
         for item in results
         if item.get("success") is not True
     ]
-    return {
+    handoff_states: list[dict[str, object]] = []
+    all_artifact_refs: list[str] = []
+    all_findings: list[dict[str, str]] = []
+
+    for item in results:
+        ho = item.get("handover_state")
+        if isinstance(ho, dict):
+            handoff_states.append(ho)
+            refs = ho.get("artifact_refs")
+            if isinstance(refs, list):
+                for r in refs:
+                    if isinstance(r, str) and r not in all_artifact_refs:
+                        all_artifact_refs.append(r)
+            f_list = ho.get("findings")
+            if isinstance(f_list, list):
+                for f in f_list:
+                    if isinstance(f, dict):
+                        all_findings.append({k: str(v) for k, v in f.items()})
+
+    summary: dict[str, object] = {
         "success": all_success,
         "status": status,
         "total_count": len(results),
@@ -50,3 +69,11 @@ def batch_summary(results: list[dict[str, object]]) -> dict[str, object]:
         "all_success": all_success,
         "partial_success": completed_count > 0 and failed_count > 0,
     }
+    if handoff_states:
+        summary["handoff_states"] = handoff_states
+    if all_artifact_refs:
+        summary["all_artifact_refs"] = all_artifact_refs
+    if all_findings:
+        summary["all_findings"] = all_findings
+
+    return summary

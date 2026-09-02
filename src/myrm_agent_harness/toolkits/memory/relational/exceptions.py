@@ -28,3 +28,21 @@ class RelationalQueryError(RelationalStoreError):
 
 class RelationalNotFoundError(RelationalStoreError):
     """Requested record not found."""
+
+
+class CorruptedMemoryIndexError(RelationalStoreError):
+    """Raised when memory relational store or search index is physically corrupted / malformed."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        db_path: str = "",
+        index_type: str = "sqlite_relational",
+        repair_suggestion: str = "",
+    ) -> None:
+        super().__init__(message)
+        self.db_path = db_path
+        self.index_type = index_type
+        self.repair_suggestion = repair_suggestion
+

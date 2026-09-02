@@ -31,6 +31,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     MemoryNotFoundError,
     MemoryTaintedError,
 )
+from myrm_agent_harness.toolkits.memory.relational.exceptions import CorruptedMemoryIndexError
 from myrm_agent_harness.toolkits.memory._manager.storage import MemoryManagerStorageMixin
 
 
@@ -49,4 +50,10 @@ class MemoryManager(
     """Orchestrates all memory operations. Bound to a single user via ``user_id``."""
 
 
-__all__ = ["MemoryError", "MemoryManager", "MemoryNotFoundError", "MemoryTaintedError"]
+__all__ = [
+    "CorruptedMemoryIndexError",
+    "MemoryError",
+    "MemoryManager",
+    "MemoryNotFoundError",
+    "MemoryTaintedError",
+]

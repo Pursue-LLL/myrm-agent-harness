@@ -351,7 +351,7 @@ class SubagentExecutorAttemptMixin:
         handover_state = _parse_handover_state(raw_result, task_id)
         if handover_state is not None:
             raw_result = re.sub(
-                r"<handover>.*?</handover>",
+                r"<handover>.*?(?:</handover>|$)",
                 "",
                 raw_result,
                 count=1,
