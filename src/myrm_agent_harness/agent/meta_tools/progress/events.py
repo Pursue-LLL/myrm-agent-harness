@@ -31,6 +31,8 @@ def _ui_status(status: TodoStatus) -> str:
         return "success"
     if status == TodoStatus.CANCELLED:
         return "skipped"
+    if status == TodoStatus.BLOCKED:
+        return "blocked"
     return "pending"
 
 

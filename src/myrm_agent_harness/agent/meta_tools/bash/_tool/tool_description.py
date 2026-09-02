@@ -27,17 +27,16 @@ from myrm_agent_harness.utils.locale import is_chinese
 
 DEFAULT_BASH_TOOL_DESCRIPTION_LOCALE: Final[str] = "en"
 
-TOOL_DESCRIPTION_ZH: Final[str] = (
-    """
+TOOL_DESCRIPTION_ZH: Final[str] = """
 使用该工具执行准确的 Shell 命令或 Python 代码来高效精准地解决用户问题。严禁任何假设和猜测!
 
 ## 能力
 
 1. **Shell 命令**:执行 shell 命令(mv/cp/rm、包管理、构建测试、git、curl 等)。
 2. **执行脚本**:运行已存在的脚本文件(python script.py / bash script.sh)。
-3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入**。
+3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入**（支持原生多行代码，无需压缩或转义）。
    - 预装三方库:pandas, numpy, scipy, matplotlib, seaborn;Python 标准库(json, datetime, re 等)均可用。
-   - **不要**使用 `python -c "..."` / `python3 -c "..."` 包装器 — shell 转义易破坏引号与多行字符串。直接传 Python 源码作为 command 即可。
+   - **不要**使用 `python -c "..."` / `python3 -c "..."` 包装器 — shell 转义易破坏引号与多行字符串。直接传原生 Python 源码作为 command 即可。
 4. **组合执行提效(管道思想)**: 单次调用内串联多步 — ① Python 源码(gather/串行/控制流,含技能批量); ② Shell 用 `&&`/`|` 串联,或执行已有脚本(见 #2)。返回值具体才可接管道,否则先 `[OBSERVATION]` — 细则见「编写原则」。
 
 ## 优先使用专用工具
@@ -63,7 +62,7 @@ bash_code_execute_tool 适用于:系统/运行时操作(mv/cp/rm、包管理、�
 
 #### 返回值具体 → 合并到一次代码执行(无依赖用 gather 并行,有依赖串行)
 
-以查票工具为例：若已知 `fetch_date()` 与 `fetch_codes()` 的具体返回值,且 `fetch_date()` 与 `fetch_codes()` 没有依赖关系,但 `query_tickets(date, from_station, to_station)` 依赖于前两个工具的返回值,则先并行执行 `fetch_date()` 与 `fetch_codes()`,再串行执行 `query_tickets(...)`:
+以查票工具为例:若已知 `fetch_date()` 与 `fetch_codes()` 的具体返回值,且 `fetch_date()` 与 `fetch_codes()` 没有依赖关系,但 `query_tickets(date, from_station, to_station)` 依赖于前两个工具的返回值,则先并行执行 `fetch_date()` 与 `fetch_codes()`,再串行执行 `query_tickets(...)`:
 
 ```python
 import asyncio
@@ -95,7 +94,7 @@ asyncio.run(main())
 - 依赖关系和返回值结构清晰明确时，将多次操作合并进一次 Python 源码,用 while/if/try 控制流完成循环/条件/异常,避免多次往返调用。
 - 只输出所需数据:大数据(CSV/JSON/日志)用 Python 分析,只给摘要。
 - 超大输出 eviction 截断时,按返回路径用 ``file_read_tool`` 读 ``.context/.../evicted/``。
-- 命令失败时,先读 stdout/stderr/错误提示定位根因再修复,勿盲目重试同一命令。
+- 命令失败时,先读 stdout/stderr/错误提示定位根因再修复,勿盲目重试同一命令（严禁在未调整参数或逻辑时连续重复执行同一失败操作）。
 
 ### 异步写法
 
@@ -119,7 +118,7 @@ asyncio.run(main())
 ## 输出格式(仅允许以下两种)
 
 - `print(f"[OBSERVATION] {变量}")` — 观察未知返回值结构。
-- `print(f"[RESULT] {结果}")` — 输出最终结果。
+- `print(f"[RESULT] {结果}")` — 输出最终结果（仅输出下游决策所需的关键字段或摘要，禁止 dump 超大无用原始对象）。
 
 ## 后台长任务(可选)
 
@@ -135,17 +134,15 @@ asyncio.run(main())
 
 后台脚本若 `echo 'MYRM_PROGRESS {"percent": 42, "message": "Compiling"}'`(或 `{"current": 3, "total": 10}`),自动显示进度条,无需 LLM 参与。检查点用 `MYRM_CHECKPOINT {"message": "..."}`。三方工具的自然输出(如 `Building 42%`、`3/10 tests`、`Compiling main.rs`)也会被启发式识别。
 """.strip()
-)
 
-TOOL_DESCRIPTION_EN: Final[str] = (
-    """
+TOOL_DESCRIPTION_EN: Final[str] = """
 Execute Shell commands or Python code to solve problems accurately and efficiently. Do NOT make assumptions or guesses!
 
 ## Capabilities
 
 1. **Shell commands**: Execute shell commands (mv/cp/rm, package management, build & test, git, curl, etc.).
 2. **Execute scripts**: Run existing script files (`python script.py` / `bash script.sh`).
-3. **Execute Python code**: **Pass Python source code directly as `command`**.
+3. **Execute Python code**: **Pass Python source code directly as `command`** (supports raw multi-line scripts without escaping or compression).
    - Pre-installed libraries: pandas, numpy, scipy, matplotlib, seaborn; Python standard library (json, datetime, re, etc.) are available.
    - **Do NOT** wrap with `python -c "..."` — shell escaping can break quotes and multi-line strings. Pass raw Python code directly as `command`.
 4. **Combined execution (pipelining)**: Chain multiple steps in a single call:
@@ -197,7 +194,7 @@ asyncio.run(main())
 - When dependencies and return structures are clear, combine multiple steps into one Python script with while/if/try control flow to avoid multiple tool roundtrips.
 - Output only necessary data: analyze large data (CSV/JSON/logs) in Python and print only summaries.
 - When large output is evicted/truncated, read the returned path under `.context/.../evicted/` using `file_read_tool`.
-- When a command fails, read stdout/stderr and error messages to identify the root cause before fixing. Do not blindly retry the same failed command.
+- When a command fails, read stdout/stderr and error messages to identify the root cause before fixing. Do not blindly retry the same failed command (never repeat identical failed operations without adjusting arguments or logic).
 
 ### Async Patterns
 Skill/async invocations must be awaited. Use `async def main(): ...` + `asyncio.run(main())` entrypoint.
@@ -216,7 +213,7 @@ Prefer `/workspace/...` (default working directory) in commands and Python code.
 
 ## Output Format (Only two allowed)
 - `print(f"[OBSERVATION] {variable}")` — Inspect unknown return value structures.
-- `print(f"[RESULT] {result}")` — Output final results.
+- `print(f"[RESULT] {result}")` — Output final results (print only essential fields/summaries for downstream decisions; avoid dumping giant raw objects).
 
 ## Background Tasks (Optional)
 For dev servers, watchers, or long-running jobs, pass `run_in_background=true` to return `{pid, status}` immediately without blocking. Max 5 concurrent jobs per session.
@@ -227,7 +224,6 @@ When output/wait returns `waiting_for_input=true`, check `input_wait_hint` and r
 ### Progress Reporting
 Background scripts can emit `echo 'MYRM_PROGRESS {"percent": 42, "message": "Compiling"}'` (or `{"current": 3, "total": 10}`) to automatically update UI progress bars without LLM turns. Use `MYRM_CHECKPOINT {"message": "..."}` for checkpoints.
 """.strip()
-)
 
 # Backward-compatible alias for existing imports expecting Chinese constant
 TOOL_DESCRIPTION: Final[str] = TOOL_DESCRIPTION_ZH

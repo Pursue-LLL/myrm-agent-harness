@@ -280,6 +280,28 @@ async def test_todo_write_merge_creates_duplicate_in_progress(tmp_path) -> None:
     assert ip_items[0]["id"] == "y"
 
 
+@pytest.mark.asyncio
+async def test_todo_write_blocked_status(tmp_path) -> None:
+    """Test setting and updating blocked status."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    tool = create_todo_write_tool(str(workspace))
+
+    result = await tool.ainvoke(
+        {
+            "todos": [
+                {"id": "1", "content": "Fetch external API", "status": "blocked"},
+                {"id": "2", "content": "Local db migration", "status": "in_progress"},
+            ],
+            "merge": False,
+        }
+    )
+    data = json.loads(result)
+    assert data["summary"]["blocked"] == 1
+    assert data["summary"]["in_progress"] == 1
+    assert data["todos"][0]["status"] == "blocked"
+
+
 # ---------------------------------------------------------------------------
 # Unit tests for _enforce_single_in_progress helper
 # ---------------------------------------------------------------------------

@@ -64,7 +64,7 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
             todos: List of task items. Each item must be a dict with:
                 - id: Unique string identifier (e.g. "1", "2", "setup_db")
                 - content: Concrete, actionable step description
-                - status: One of "pending" | "in_progress" | "completed" | "cancelled"
+                - status: One of "pending" | "in_progress" | "completed" | "cancelled" | "blocked"
             merge: Mode flag.
                 - False (default): Initialize or overwrite the full task list.
                 - True: Incrementally update specified items by id (pass only changed items).
@@ -105,6 +105,7 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
         in_progress = sum(1 for item in store.todos if item.status == TodoStatus.IN_PROGRESS)
         completed = sum(1 for item in store.todos if item.status == TodoStatus.COMPLETED)
         cancelled = sum(1 for item in store.todos if item.status == TodoStatus.CANCELLED)
+        blocked = sum(1 for item in store.todos if item.status == TodoStatus.BLOCKED)
 
         summary: dict[str, object] = {
             "total": len(store.todos),
@@ -112,6 +113,7 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
             "in_progress": in_progress,
             "completed": completed,
             "cancelled": cancelled,
+            "blocked": blocked,
         }
         if corrected_count > 0:
             summary["note"] = (

@@ -27,6 +27,7 @@ class TodoStatus(StrEnum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    BLOCKED = "blocked"
 
 
 class TodoItem(BaseModel):
@@ -70,4 +71,6 @@ def _todo_status_to_plan_status(status: TodoStatus) -> str:
         return "completed"
     if status == TodoStatus.CANCELLED:
         return "skipped"
+    if status == TodoStatus.BLOCKED:
+        return "blocked"
     return "pending"

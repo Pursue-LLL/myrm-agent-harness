@@ -117,7 +117,7 @@ class TestTransientFactBoundary:
     @pytest.mark.asyncio
     async def test_memory_agent_tools_rejection_e2e(self) -> None:
         from unittest.mock import AsyncMock, MagicMock
-        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
+        from myrm_agent_harness.toolkits.memory.memory_agent_tools import create_memory_tools
 
         manager = MagicMock()
         manager.has_vector = True

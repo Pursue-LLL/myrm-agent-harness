@@ -51,7 +51,8 @@ class MetricPrediction:
     direction: PredictionDirection
     baseline_value: float
     target_value: float
-    tolerance: float = 0.02  # Epsilon margin for statistical significance
+    tolerance: float = 0.02  # Absolute epsilon margin
+    relative_tolerance: float | None = None  # Optional relative ratio margin (e.g. 0.05 for 5%)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -60,6 +61,7 @@ class MetricPrediction:
             "baseline_value": round(self.baseline_value, 4),
             "target_value": round(self.target_value, 4),
             "tolerance": round(self.tolerance, 4),
+            "relative_tolerance": round(self.relative_tolerance, 4) if self.relative_tolerance is not None else None,
         }
 
 
@@ -149,14 +151,19 @@ def evaluate_manifest_attribution(
     for p in manifest.predictions:
         actual = actual_metrics.get(p.metric_name, p.baseline_value)
         delta = actual - p.baseline_value
+        tol = (
+            abs(p.target_value) * p.relative_tolerance
+            if p.relative_tolerance is not None
+            else p.tolerance
+        )
         verdict = AttributionVerdict.INCONCLUSIVE
         explanation = ""
 
         if p.direction == PredictionDirection.INCREASE:
-            if actual >= (p.target_value - p.tolerance):
+            if actual >= (p.target_value - tol):
                 verdict = AttributionVerdict.CONFIRMED
                 explanation = f"Met or exceeded target (+{delta:.2f})"
-            elif actual < (p.baseline_value - p.tolerance):
+            elif actual < (p.baseline_value - tol):
                 verdict = AttributionVerdict.REGRESSION
                 explanation = f"Regressed below baseline ({delta:.2f})"
                 has_regression = True
@@ -168,10 +175,10 @@ def evaluate_manifest_attribution(
                 all_confirmed = False
 
         elif p.direction == PredictionDirection.DECREASE:
-            if actual <= (p.target_value + p.tolerance):
+            if actual <= (p.target_value + tol):
                 verdict = AttributionVerdict.CONFIRMED
                 explanation = f"Decreased as predicted ({delta:.2f})"
-            elif actual > (p.baseline_value + p.tolerance):
+            elif actual > (p.baseline_value + tol):
                 verdict = AttributionVerdict.REGRESSION
                 explanation = f"Increased worse than baseline (+{delta:.2f})"
                 has_regression = True
@@ -183,7 +190,7 @@ def evaluate_manifest_attribution(
                 all_confirmed = False
 
         elif p.direction == PredictionDirection.PRESERVE_MIN:
-            if actual >= (p.target_value - p.tolerance):
+            if actual >= (p.target_value - tol):
                 verdict = AttributionVerdict.CONFIRMED
                 explanation = f"Preserved baseline threshold ({actual:.2f} >= {p.target_value:.2f})"
             else:
@@ -195,7 +202,7 @@ def evaluate_manifest_attribution(
                 all_confirmed = False
 
         else:  # NEUTRAL
-            if abs(delta) <= p.tolerance:
+            if abs(delta) <= tol:
                 verdict = AttributionVerdict.CONFIRMED
                 explanation = (
                     f"Remained within stable noise bounds (|Δ|={abs(delta):.2f})"

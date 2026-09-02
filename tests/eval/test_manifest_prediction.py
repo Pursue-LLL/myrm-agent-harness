@@ -179,3 +179,29 @@ def test_evaluate_manifest_attribution_preserve_min() -> None:
     res2 = evaluate_manifest_attribution(manifest, actual_metrics={"accuracy": 0.85})
     assert res2.overall_verdict == AttributionVerdict.REGRESSION
     assert res2.recommended_action == "rollback"
+
+
+def test_evaluate_manifest_attribution_relative_tolerance() -> None:
+    manifest = ChangePredictionManifest(
+        manifest_id="pred_rel_tol",
+        target_component="skills/high_latency_tool",
+        rationale="Latency reduction with 10% relative tolerance margin",
+        predictions=[
+            MetricPrediction(
+                metric_name="latency_ms",
+                direction=PredictionDirection.DECREASE,
+                baseline_value=1000.0,
+                target_value=500.0,
+                relative_tolerance=0.10,  # 500 * 0.10 = 50ms tolerance -> up to 550ms
+            )
+        ],
+    )
+    # 540ms <= 550ms -> confirmed
+    res = evaluate_manifest_attribution(manifest, actual_metrics={"latency_ms": 540.0})
+    assert res.overall_verdict == AttributionVerdict.CONFIRMED
+    assert res.metric_attributions[0].verdict == AttributionVerdict.CONFIRMED
+
+    # 580ms > 550ms -> refuted (insufficient decrease)
+    res2 = evaluate_manifest_attribution(manifest, actual_metrics={"latency_ms": 580.0})
+    assert res2.overall_verdict == AttributionVerdict.REFUTED
+

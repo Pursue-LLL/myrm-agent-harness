@@ -78,6 +78,7 @@ def test_failure_root_cause_guidance_documented() -> None:
     assert "stderr" in TOOL_DESCRIPTION
     assert "盲目重试" in TOOL_DESCRIPTION
     assert "定位根因" in TOOL_DESCRIPTION
+    assert "严禁在未调整参数或逻辑时连续重复执行" in TOOL_DESCRIPTION
 
 
 def test_optimization_strategy_merge_control_flow_documented() -> None:
@@ -86,6 +87,7 @@ def test_optimization_strategy_merge_control_flow_documented() -> None:
     assert "while/if/try" in TOOL_DESCRIPTION
     assert "避免多次往返调用" in TOOL_DESCRIPTION
     assert "替代多次工具调用" not in TOOL_DESCRIPTION
+    assert "无需压缩或转义" in TOOL_DESCRIPTION
 
 
 def test_optimization_strategy_output_summary_documented() -> None:

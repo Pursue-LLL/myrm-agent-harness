@@ -21,8 +21,8 @@ from typing import Any, Mapping
 _SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     # Authorization header Bearer token
     (re.compile(r"(?i)(bearer\s+)([a-zA-Z0-9_\-\.]{8,})"), r"\1"),
-    # Generic API Keys / Tokens: api_key, token, password, secret, private_key
-    (re.compile(r"(?i)(api[_-]?key|token|password|secret|passwd|access[_-]?key|auth[_-]?key)\s*[:=]\s*['\"]?([a-zA-Z0-9_\-\.]{6,})['\"]?"), r"\1"),
+    # Generic API Keys / Tokens: api_key, token, password, secret, private_key with = / : / whitespace
+    (re.compile(r"(?i)(api[_-]?key|token|password|secret|passwd|access[_-]?key|auth[_-]?key)\s*[:=\s]\s*['\"]?([a-zA-Z0-9_\-\.]{6,})['\"]?"), r"\1"),
     # OpenAI / Anthropic / GitHub token prefixes
     (re.compile(r"\b(sk-[a-zA-Z0-9_\-]{16,}|ghp_[a-zA-Z0-9]{20,}|gho_[a-zA-Z0-9]{20,}|xoxb-[a-zA-Z0-9_\-]{16,})\b"), ""),
 ]

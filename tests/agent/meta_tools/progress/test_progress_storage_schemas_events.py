@@ -124,12 +124,13 @@ def test_to_plan_compat_maps_all_statuses() -> None:
             TodoItem(id="2", content="b", status=TodoStatus.COMPLETED),
             TodoItem(id="3", content="c", status=TodoStatus.CANCELLED),
             TodoItem(id="4", content="d", status=TodoStatus.PENDING),
+            TodoItem(id="5", content="e", status=TodoStatus.BLOCKED),
         ],
     )
     plan = store.to_plan_compat()
     assert plan["goal"] == "Task progress"
     statuses = [step["status"] for step in plan["steps"]]  # type: ignore[index]
-    assert statuses == ["in_progress", "completed", "skipped", "pending"]
+    assert statuses == ["in_progress", "completed", "skipped", "pending", "blocked"]
 
 
 @pytest.mark.asyncio
@@ -177,16 +178,17 @@ def test_emit_todo_progress_events_dispatches_root_and_steps() -> None:
         todos=[
             TodoItem(id="1", content="step one", status=TodoStatus.COMPLETED),
             TodoItem(id="2", content="step two", status=TodoStatus.CANCELLED),
+            TodoItem(id="3", content="step three", status=TodoStatus.BLOCKED),
         ],
     )
     with patch("myrm_agent_harness.agent.meta_tools.progress.events.dispatch_custom_event") as mock_dispatch:
         emit_todo_progress_events(store)
-    assert mock_dispatch.call_count == 3
+    assert mock_dispatch.call_count == 4
     root_call = mock_dispatch.call_args_list[0].args
     assert root_call[0] == "tasks_steps"
     assert root_call[1]["step_key"] == "progress_root"
     step_statuses = [call.args[1]["status"] for call in mock_dispatch.call_args_list[1:]]
-    assert step_statuses == ["success", "skipped"]
+    assert step_statuses == ["success", "skipped", "blocked"]
 
 
 def test_emit_todo_progress_events_swallows_dispatch_errors() -> None:
