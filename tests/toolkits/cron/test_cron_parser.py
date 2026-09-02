@@ -114,12 +114,31 @@ class TestParseNaturalInterval:
     def test_pure_digits(self) -> None:
         assert parse_natural_interval("15") == 900_000
 
+    def test_chinese_intervals(self) -> None:
+        assert parse_natural_interval("10分钟") == 600_000
+        assert parse_natural_interval("2小时") == 7_200_000
+        assert parse_natural_interval("半小时") == 1_800_000
+        assert parse_natural_interval("1个半小时") == 5_400_000
+        assert parse_natural_interval("每天") == 86_400_000
+        assert parse_natural_interval("每隔15分钟") == 900_000
+        assert parse_natural_interval("每2小时") == 7_200_000
+
 
 class TestParseLoopCommandInput:
     def test_prefix_interval(self) -> None:
         ms, prompt = parse_loop_command_input("/loop 5m 检查构建状态")
         assert ms == 300_000
         assert prompt == "检查构建状态"
+
+    def test_prefix_chinese_interval(self) -> None:
+        ms, prompt = parse_loop_command_input("/loop 10分钟 检查PR列表")
+        assert ms == 600_000
+        assert prompt == "检查PR列表"
+
+    def test_prefix_chinese_phrase(self) -> None:
+        ms, prompt = parse_loop_command_input("/loop 每隔半小时 监控服务健康")
+        assert ms == 1_800_000
+        assert prompt == "监控服务健康"
 
     def test_prefix_every(self) -> None:
         ms, prompt = parse_loop_command_input("/loop every 20m review pr")
@@ -130,6 +149,16 @@ class TestParseLoopCommandInput:
         ms, prompt = parse_loop_command_input("/loop check deploy every 2 hours")
         assert ms == 7_200_000
         assert prompt == "check deploy"
+
+    def test_suffix_chinese_interval(self) -> None:
+        ms, prompt = parse_loop_command_input("/loop 抓取竞品数据 每隔2小时")
+        assert ms == 7_200_000
+        assert prompt == "抓取竞品数据"
+
+    def test_suffix_plain_interval(self) -> None:
+        ms, prompt = parse_loop_command_input("/loop 检查构建 10分钟")
+        assert ms == 600_000
+        assert prompt == "检查构建"
 
     def test_default_interval(self) -> None:
         ms, prompt = parse_loop_command_input("/loop 帮我盯竞品动态")

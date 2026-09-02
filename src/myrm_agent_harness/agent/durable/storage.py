@@ -169,121 +169,130 @@ class SqliteDurableStorage(DurableStorageProtocol):
         return conn
 
     def _init_db(self) -> None:
-        with self._get_connection() as conn:
-            conn.executescript("""
-            CREATE TABLE IF NOT EXISTS durable_trees (
-                session_id TEXT NOT NULL,
-                entry_id TEXT NOT NULL,
-                parent_id TEXT,
-                entry_type TEXT NOT NULL,
-                content TEXT NOT NULL,
-                metadata TEXT NOT NULL,
-                sequence INTEGER NOT NULL,
-                created_at_ms INTEGER NOT NULL,
-                checksum_sha256 TEXT,
-                PRIMARY KEY (session_id, entry_id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_tree_seq ON durable_trees(session_id, sequence);
+        conn = self._get_connection()
+        try:
+            with conn:
+                conn.executescript("""
+                CREATE TABLE IF NOT EXISTS durable_trees (
+                    session_id TEXT NOT NULL,
+                    entry_id TEXT NOT NULL,
+                    parent_id TEXT,
+                    entry_type TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    metadata TEXT NOT NULL,
+                    sequence INTEGER NOT NULL,
+                    created_at_ms INTEGER NOT NULL,
+                    checksum_sha256 TEXT,
+                    PRIMARY KEY (session_id, entry_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_tree_seq ON durable_trees(session_id, sequence);
 
-            CREATE TABLE IF NOT EXISTS durable_lanes (
-                session_id TEXT NOT NULL,
-                lane_id TEXT NOT NULL,
-                current_leaf_id TEXT,
-                status TEXT NOT NULL,
-                attempt_count INTEGER NOT NULL DEFAULT 0,
-                parent_lane_id TEXT,
-                created_at_ms INTEGER NOT NULL,
-                updated_at_ms INTEGER NOT NULL,
-                PRIMARY KEY (session_id, lane_id)
-            );
+                CREATE TABLE IF NOT EXISTS durable_lanes (
+                    session_id TEXT NOT NULL,
+                    lane_id TEXT NOT NULL,
+                    current_leaf_id TEXT,
+                    status TEXT NOT NULL,
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    parent_lane_id TEXT,
+                    created_at_ms INTEGER NOT NULL,
+                    updated_at_ms INTEGER NOT NULL,
+                    PRIMARY KEY (session_id, lane_id)
+                );
 
-            CREATE TABLE IF NOT EXISTS durable_intents (
-                session_id TEXT NOT NULL,
-                intent_id TEXT NOT NULL,
-                lane_id TEXT NOT NULL,
-                effect_type TEXT NOT NULL,
-                source_leaf_id TEXT,
-                provisioned_result_id TEXT NOT NULL,
-                payload TEXT NOT NULL,
-                status TEXT NOT NULL,
-                created_at_ms INTEGER NOT NULL,
-                completed_at_ms INTEGER,
-                error_message TEXT,
-                PRIMARY KEY (session_id, intent_id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_intent_status ON durable_intents(session_id, status);
+                CREATE TABLE IF NOT EXISTS durable_intents (
+                    session_id TEXT NOT NULL,
+                    intent_id TEXT NOT NULL,
+                    lane_id TEXT NOT NULL,
+                    effect_type TEXT NOT NULL,
+                    source_leaf_id TEXT,
+                    provisioned_result_id TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at_ms INTEGER NOT NULL,
+                    completed_at_ms INTEGER,
+                    error_message TEXT,
+                    PRIMARY KEY (session_id, intent_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_intent_status ON durable_intents(session_id, status);
 
-            CREATE TABLE IF NOT EXISTS durable_op_logs (
-                session_id TEXT NOT NULL,
-                op_id TEXT NOT NULL,
-                lane_id TEXT NOT NULL,
-                op_type TEXT NOT NULL,
-                payload TEXT NOT NULL,
-                sequence INTEGER NOT NULL,
-                created_at_ms INTEGER NOT NULL,
-                PRIMARY KEY (session_id, op_id)
-            );
+                CREATE TABLE IF NOT EXISTS durable_op_logs (
+                    session_id TEXT NOT NULL,
+                    op_id TEXT NOT NULL,
+                    lane_id TEXT NOT NULL,
+                    op_type TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    sequence INTEGER NOT NULL,
+                    created_at_ms INTEGER NOT NULL,
+                    PRIMARY KEY (session_id, op_id)
+                );
 
-            CREATE TABLE IF NOT EXISTS durable_facts (
-                session_id TEXT NOT NULL,
-                fact_key TEXT NOT NULL,
-                fact_value TEXT NOT NULL,
-                updated_at_ms INTEGER NOT NULL,
-                PRIMARY KEY (session_id, fact_key)
-            );
+                CREATE TABLE IF NOT EXISTS durable_facts (
+                    session_id TEXT NOT NULL,
+                    fact_key TEXT NOT NULL,
+                    fact_value TEXT NOT NULL,
+                    updated_at_ms INTEGER NOT NULL,
+                    PRIMARY KEY (session_id, fact_key)
+                );
 
-            CREATE TABLE IF NOT EXISTS durable_usages (
-                session_id TEXT NOT NULL,
-                usage_id TEXT NOT NULL,
-                lane_id TEXT NOT NULL,
-                model_name TEXT NOT NULL,
-                prompt_tokens INTEGER NOT NULL,
-                completion_tokens INTEGER NOT NULL,
-                total_tokens INTEGER NOT NULL,
-                cached_tokens INTEGER NOT NULL,
-                estimated_cost_usd REAL NOT NULL,
-                created_at_ms INTEGER NOT NULL,
-                PRIMARY KEY (session_id, usage_id)
-            );
-            """)
+                CREATE TABLE IF NOT EXISTS durable_usages (
+                    session_id TEXT NOT NULL,
+                    usage_id TEXT NOT NULL,
+                    lane_id TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    prompt_tokens INTEGER NOT NULL,
+                    completion_tokens INTEGER NOT NULL,
+                    total_tokens INTEGER NOT NULL,
+                    cached_tokens INTEGER NOT NULL,
+                    estimated_cost_usd REAL NOT NULL,
+                    created_at_ms INTEGER NOT NULL,
+                    PRIMARY KEY (session_id, usage_id)
+                );
+                """)
+        finally:
+            conn.close()
 
     async def append_tree_entry(self, entry: TreeEntry) -> None:
         async with self._lock:
-            with self._get_connection() as conn:
-                row = conn.execute(
-                    "SELECT checksum_sha256 FROM durable_trees WHERE session_id = ? AND entry_id = ?",
-                    (entry.session_id, entry.parent_id),
-                ).fetchone()
-                parent_checksum = row["checksum_sha256"] if row else None
-                seq_row = conn.execute(
-                    "SELECT COALESCE(MAX(sequence), 0) + 1 AS next_seq FROM durable_trees WHERE session_id = ?",
-                    (entry.session_id,),
-                ).fetchone()
-                entry.sequence = int(seq_row["next_seq"]) if seq_row else 1
-                entry.checksum_sha256 = _compute_entry_checksum(parent_checksum, entry.entry_type, entry.content)
+            conn = self._get_connection()
+            try:
+                with conn:
+                    row = conn.execute(
+                        "SELECT checksum_sha256 FROM durable_trees WHERE session_id = ? AND entry_id = ?",
+                        (entry.session_id, entry.parent_id),
+                    ).fetchone()
+                    parent_checksum = row["checksum_sha256"] if row else None
+                    seq_row = conn.execute(
+                        "SELECT COALESCE(MAX(sequence), 0) + 1 AS next_seq FROM durable_trees WHERE session_id = ?",
+                        (entry.session_id,),
+                    ).fetchone()
+                    entry.sequence = int(seq_row["next_seq"]) if seq_row else 1
+                    entry.checksum_sha256 = _compute_entry_checksum(parent_checksum, entry.entry_type, entry.content)
 
-                conn.execute(
-                    """
-                    INSERT INTO durable_trees (
-                        session_id, entry_id, parent_id, entry_type, content, metadata, sequence, created_at_ms, checksum_sha256
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        entry.session_id,
-                        entry.entry_id,
-                        entry.parent_id,
-                        entry.entry_type,
-                        json.dumps(entry.content, ensure_ascii=False) if isinstance(entry.content, dict) else str(entry.content),
-                        json.dumps(entry.metadata, ensure_ascii=False),
-                        entry.sequence,
-                        entry.created_at_ms,
-                        entry.checksum_sha256,
-                    ),
-                )
+                    conn.execute(
+                        """
+                        INSERT INTO durable_trees (
+                            session_id, entry_id, parent_id, entry_type, content, metadata, sequence, created_at_ms, checksum_sha256
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            entry.session_id,
+                            entry.entry_id,
+                            entry.parent_id,
+                            entry.entry_type,
+                            json.dumps(entry.content, ensure_ascii=False) if isinstance(entry.content, dict) else str(entry.content),
+                            json.dumps(entry.metadata, ensure_ascii=False),
+                            entry.sequence,
+                            entry.created_at_ms,
+                            entry.checksum_sha256,
+                        ),
+                    )
+            finally:
+                conn.close()
 
     async def get_tree_entry(self, session_id: str, entry_id: str) -> TreeEntry | None:
         async with self._lock:
-            with self._get_connection() as conn:
+            conn = self._get_connection()
+            try:
                 row = conn.execute(
                     "SELECT * FROM durable_trees WHERE session_id = ? AND entry_id = ?",
                     (session_id, entry_id),
@@ -291,6 +300,8 @@ class SqliteDurableStorage(DurableStorageProtocol):
                 if not row:
                     return None
                 return self._row_to_tree_entry(row)
+            finally:
+                conn.close()
 
     def _row_to_tree_entry(self, row: sqlite3.Row) -> TreeEntry:
         raw_content = row["content"]
@@ -312,7 +323,8 @@ class SqliteDurableStorage(DurableStorageProtocol):
 
     async def get_tree_history(self, session_id: str, leaf_id: str | None = None) -> list[TreeEntry]:
         async with self._lock:
-            with self._get_connection() as conn:
+            conn = self._get_connection()
+            try:
                 if not leaf_id:
                     rows = conn.execute(
                         "SELECT * FROM durable_trees WHERE session_id = ? ORDER BY sequence ASC",
@@ -336,128 +348,147 @@ class SqliteDurableStorage(DurableStorageProtocol):
                     curr_id = node.parent_id
                 chain.reverse()
                 return chain
+            finally:
+                conn.close()
 
     async def get_or_create_lane(self, session_id: str, lane_id: str, parent_lane_id: str | None = None) -> LaneState:
         async with self._lock:
-            with self._get_connection() as conn:
-                row = conn.execute(
-                    "SELECT * FROM durable_lanes WHERE session_id = ? AND lane_id = ?",
-                    (session_id, lane_id),
-                ).fetchone()
-                if row:
-                    return LaneState(
-                        lane_id=row["lane_id"],
-                        session_id=row["session_id"],
-                        current_leaf_id=row["current_leaf_id"],
-                        status=row["status"],
-                        attempt_count=row["attempt_count"],
-                        parent_lane_id=row["parent_lane_id"],
-                        created_at_ms=row["created_at_ms"],
-                        updated_at_ms=row["updated_at_ms"],
+            conn = self._get_connection()
+            try:
+                with conn:
+                    row = conn.execute(
+                        "SELECT * FROM durable_lanes WHERE session_id = ? AND lane_id = ?",
+                        (session_id, lane_id),
+                    ).fetchone()
+                    if row:
+                        return LaneState(
+                            lane_id=row["lane_id"],
+                            session_id=row["session_id"],
+                            current_leaf_id=row["current_leaf_id"],
+                            status=row["status"],
+                            attempt_count=row["attempt_count"],
+                            parent_lane_id=row["parent_lane_id"],
+                            created_at_ms=row["created_at_ms"],
+                            updated_at_ms=row["updated_at_ms"],
+                        )
+                    now = int(time.time() * 1000)
+                    lane = LaneState(
+                        lane_id=lane_id,
+                        session_id=session_id,
+                        current_leaf_id=None,
+                        parent_lane_id=parent_lane_id,
+                        created_at_ms=now,
+                        updated_at_ms=now,
                     )
-                now = int(time.time() * 1000)
-                lane = LaneState(
-                    lane_id=lane_id,
-                    session_id=session_id,
-                    current_leaf_id=None,
-                    parent_lane_id=parent_lane_id,
-                    created_at_ms=now,
-                    updated_at_ms=now,
-                )
-                conn.execute(
-                    """
-                    INSERT INTO durable_lanes (
-                        session_id, lane_id, current_leaf_id, status, attempt_count, parent_lane_id, created_at_ms, updated_at_ms
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        lane.session_id,
-                        lane.lane_id,
-                        lane.current_leaf_id,
-                        lane.status,
-                        lane.attempt_count,
-                        lane.parent_lane_id,
-                        lane.created_at_ms,
-                        lane.updated_at_ms,
-                    ),
-                )
-                return lane
+                    conn.execute(
+                        """
+                        INSERT INTO durable_lanes (
+                            session_id, lane_id, current_leaf_id, status, attempt_count, parent_lane_id, created_at_ms, updated_at_ms
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            lane.session_id,
+                            lane.lane_id,
+                            lane.current_leaf_id,
+                            lane.status,
+                            lane.attempt_count,
+                            lane.parent_lane_id,
+                            lane.created_at_ms,
+                            lane.updated_at_ms,
+                        ),
+                    )
+                    return lane
+            finally:
+                conn.close()
 
     async def update_lane_state(self, lane: LaneState) -> None:
         async with self._lock:
             lane.updated_at_ms = int(time.time() * 1000)
-            with self._get_connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO durable_lanes (
-                        session_id, lane_id, current_leaf_id, status, attempt_count, parent_lane_id, created_at_ms, updated_at_ms
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(session_id, lane_id) DO UPDATE SET
-                        current_leaf_id=excluded.current_leaf_id,
-                        status=excluded.status,
-                        attempt_count=excluded.attempt_count,
-                        updated_at_ms=excluded.updated_at_ms
-                    """,
-                    (
-                        lane.session_id,
-                        lane.lane_id,
-                        lane.current_leaf_id,
-                        lane.status,
-                        lane.attempt_count,
-                        lane.parent_lane_id,
-                        lane.created_at_ms,
-                        lane.updated_at_ms,
-                    ),
-                )
+            conn = self._get_connection()
+            try:
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT INTO durable_lanes (
+                            session_id, lane_id, current_leaf_id, status, attempt_count, parent_lane_id, created_at_ms, updated_at_ms
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(session_id, lane_id) DO UPDATE SET
+                            current_leaf_id=excluded.current_leaf_id,
+                            status=excluded.status,
+                            attempt_count=excluded.attempt_count,
+                            updated_at_ms=excluded.updated_at_ms
+                        """,
+                        (
+                            lane.session_id,
+                            lane.lane_id,
+                            lane.current_leaf_id,
+                            lane.status,
+                            lane.attempt_count,
+                            lane.parent_lane_id,
+                            lane.created_at_ms,
+                            lane.updated_at_ms,
+                        ),
+                    )
+            finally:
+                conn.close()
 
     async def append_intent(self, intent: IntentRecord) -> None:
         async with self._lock:
-            with self._get_connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO durable_intents (
-                        session_id, intent_id, lane_id, effect_type, source_leaf_id, provisioned_result_id,
-                        payload, status, created_at_ms, completed_at_ms, error_message
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        intent.session_id,
-                        intent.intent_id,
-                        intent.lane_id,
-                        intent.effect_type.value,
-                        intent.source_leaf_id,
-                        intent.provisioned_result_id,
-                        json.dumps(intent.payload, ensure_ascii=False),
-                        intent.status.value,
-                        intent.created_at_ms,
-                        intent.completed_at_ms,
-                        intent.error_message,
-                    ),
-                )
+            conn = self._get_connection()
+            try:
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT INTO durable_intents (
+                            session_id, intent_id, lane_id, effect_type, source_leaf_id, provisioned_result_id,
+                            payload, status, created_at_ms, completed_at_ms, error_message
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            intent.session_id,
+                            intent.intent_id,
+                            intent.lane_id,
+                            intent.effect_type.value,
+                            intent.source_leaf_id,
+                            intent.provisioned_result_id,
+                            json.dumps(intent.payload, ensure_ascii=False),
+                            intent.status.value,
+                            intent.created_at_ms,
+                            intent.completed_at_ms,
+                            intent.error_message,
+                        ),
+                    )
+            finally:
+                conn.close()
 
     async def update_intent(self, intent: IntentRecord) -> None:
         async with self._lock:
-            with self._get_connection() as conn:
-                conn.execute(
-                    """
-                    UPDATE durable_intents SET
-                        status = ?,
-                        completed_at_ms = ?,
-                        error_message = ?
-                    WHERE session_id = ? AND intent_id = ?
-                    """,
-                    (
-                        intent.status.value,
-                        intent.completed_at_ms,
-                        intent.error_message,
-                        intent.session_id,
-                        intent.intent_id,
-                    ),
-                )
+            conn = self._get_connection()
+            try:
+                with conn:
+                    conn.execute(
+                        """
+                        UPDATE durable_intents SET
+                            status = ?,
+                            completed_at_ms = ?,
+                            error_message = ?
+                        WHERE session_id = ? AND intent_id = ?
+                        """,
+                        (
+                            intent.status.value,
+                            intent.completed_at_ms,
+                            intent.error_message,
+                            intent.session_id,
+                            intent.intent_id,
+                        ),
+                    )
+            finally:
+                conn.close()
 
     async def get_intent(self, session_id: str, intent_id: str) -> IntentRecord | None:
         async with self._lock:
-            with self._get_connection() as conn:
+            conn = self._get_connection()
+            try:
                 row = conn.execute(
                     "SELECT * FROM durable_intents WHERE session_id = ? AND intent_id = ?",
                     (session_id, intent_id),
@@ -465,6 +496,8 @@ class SqliteDurableStorage(DurableStorageProtocol):
                 if not row:
                     return None
                 return self._row_to_intent(row)
+            finally:
+                conn.close()
 
     def _row_to_intent(self, row: sqlite3.Row) -> IntentRecord:
         return IntentRecord(
@@ -483,7 +516,8 @@ class SqliteDurableStorage(DurableStorageProtocol):
 
     async def get_pending_intents(self, session_id: str, lane_id: str | None = None) -> list[IntentRecord]:
         async with self._lock:
-            with self._get_connection() as conn:
+            conn = self._get_connection()
+            try:
                 if lane_id:
                     rows = conn.execute(
                         "SELECT * FROM durable_intents WHERE session_id = ? AND lane_id = ? AND status = ?",
@@ -495,35 +529,42 @@ class SqliteDurableStorage(DurableStorageProtocol):
                         (session_id, IntentStatus.PENDING.value),
                     ).fetchall()
                 return [self._row_to_intent(r) for r in rows]
+            finally:
+                conn.close()
 
     async def append_operation_log(self, op: OperationLogEntry) -> None:
         async with self._lock:
-            with self._get_connection() as conn:
-                seq_row = conn.execute(
-                    "SELECT COALESCE(MAX(sequence), 0) + 1 AS next_seq FROM durable_op_logs WHERE session_id = ?",
-                    (op.session_id,),
-                ).fetchone()
-                op.sequence = int(seq_row["next_seq"]) if seq_row else 1
-                conn.execute(
-                    """
-                    INSERT INTO durable_op_logs (
-                        session_id, op_id, lane_id, op_type, payload, sequence, created_at_ms
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        op.session_id,
-                        op.op_id,
-                        op.lane_id,
-                        op.op_type,
-                        json.dumps(op.payload, ensure_ascii=False),
-                        op.sequence,
-                        op.created_at_ms,
-                    ),
-                )
+            conn = self._get_connection()
+            try:
+                with conn:
+                    seq_row = conn.execute(
+                        "SELECT COALESCE(MAX(sequence), 0) + 1 AS next_seq FROM durable_op_logs WHERE session_id = ?",
+                        (op.session_id,),
+                    ).fetchone()
+                    op.sequence = int(seq_row["next_seq"]) if seq_row else 1
+                    conn.execute(
+                        """
+                        INSERT INTO durable_op_logs (
+                            session_id, op_id, lane_id, op_type, payload, sequence, created_at_ms
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            op.session_id,
+                            op.op_id,
+                            op.lane_id,
+                            op.op_type,
+                            json.dumps(op.payload, ensure_ascii=False),
+                            op.sequence,
+                            op.created_at_ms,
+                        ),
+                    )
+            finally:
+                conn.close()
 
     async def get_operation_logs(self, session_id: str, lane_id: str | None = None) -> list[OperationLogEntry]:
         async with self._lock:
-            with self._get_connection() as conn:
+            conn = self._get_connection()
+            try:
                 if lane_id:
                     rows = conn.execute(
                         "SELECT * FROM durable_op_logs WHERE session_id = ? AND lane_id = ? ORDER BY sequence ASC",
@@ -546,24 +587,31 @@ class SqliteDurableStorage(DurableStorageProtocol):
                     )
                     for r in rows
                 ]
+            finally:
+                conn.close()
 
     async def set_global_fact(self, session_id: str, key: str, value: Any) -> None:
         async with self._lock:
-            with self._get_connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO durable_facts (session_id, fact_key, fact_value, updated_at_ms)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(session_id, fact_key) DO UPDATE SET
-                        fact_value=excluded.fact_value,
-                        updated_at_ms=excluded.updated_at_ms
-                    """,
-                    (session_id, key, json.dumps(value, ensure_ascii=False), int(time.time() * 1000)),
-                )
+            conn = self._get_connection()
+            try:
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT INTO durable_facts (session_id, fact_key, fact_value, updated_at_ms)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(session_id, fact_key) DO UPDATE SET
+                            fact_value=excluded.fact_value,
+                            updated_at_ms=excluded.updated_at_ms
+                        """,
+                        (session_id, key, json.dumps(value, ensure_ascii=False), int(time.time() * 1000)),
+                    )
+            finally:
+                conn.close()
 
     async def get_global_fact(self, session_id: str, key: str) -> Any | None:
         async with self._lock:
-            with self._get_connection() as conn:
+            conn = self._get_connection()
+            try:
                 row = conn.execute(
                     "SELECT fact_value FROM durable_facts WHERE session_id = ? AND fact_key = ?",
                     (session_id, key),
@@ -571,34 +619,41 @@ class SqliteDurableStorage(DurableStorageProtocol):
                 if not row:
                     return None
                 return json.loads(row["fact_value"])
+            finally:
+                conn.close()
 
     async def append_usage(self, usage: UsageRecord) -> None:
         async with self._lock:
-            with self._get_connection() as conn:
-                conn.execute(
-                    """
-                    INSERT INTO durable_usages (
-                        session_id, usage_id, lane_id, model_name, prompt_tokens, completion_tokens,
-                        total_tokens, cached_tokens, estimated_cost_usd, created_at_ms
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        usage.session_id,
-                        usage.usage_id,
-                        usage.lane_id,
-                        usage.model_name,
-                        usage.prompt_tokens,
-                        usage.completion_tokens,
-                        usage.total_tokens,
-                        usage.cached_tokens,
-                        usage.estimated_cost_usd,
-                        usage.created_at_ms,
-                    ),
-                )
+            conn = self._get_connection()
+            try:
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT INTO durable_usages (
+                            session_id, usage_id, lane_id, model_name, prompt_tokens, completion_tokens,
+                            total_tokens, cached_tokens, estimated_cost_usd, created_at_ms
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            usage.session_id,
+                            usage.usage_id,
+                            usage.lane_id,
+                            usage.model_name,
+                            usage.prompt_tokens,
+                            usage.completion_tokens,
+                            usage.total_tokens,
+                            usage.cached_tokens,
+                            usage.estimated_cost_usd,
+                            usage.created_at_ms,
+                        ),
+                    )
+            finally:
+                conn.close()
 
     async def get_total_usage(self, session_id: str) -> list[UsageRecord]:
         async with self._lock:
-            with self._get_connection() as conn:
+            conn = self._get_connection()
+            try:
                 rows = conn.execute(
                     "SELECT * FROM durable_usages WHERE session_id = ? ORDER BY created_at_ms ASC",
                     (session_id,),
@@ -618,3 +673,5 @@ class SqliteDurableStorage(DurableStorageProtocol):
                     )
                     for r in rows
                 ]
+            finally:
+                conn.close()

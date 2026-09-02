@@ -55,6 +55,34 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.hooks.graceful_shutdown",
         "get_shutdown_manager",
     ),
+    "DurableAgentRuntime": (
+        "myrm_agent_harness.agent.durable",
+        "DurableAgentRuntime",
+    ),
+    "InMemoryDurableStorage": (
+        "myrm_agent_harness.agent.durable",
+        "InMemoryDurableStorage",
+    ),
+    "SqliteDurableStorage": (
+        "myrm_agent_harness.agent.durable",
+        "SqliteDurableStorage",
+    ),
+    "IntentExecutionEngine": (
+        "myrm_agent_harness.agent.durable",
+        "IntentExecutionEngine",
+    ),
+    "LaneMutationLine": (
+        "myrm_agent_harness.agent.durable",
+        "LaneMutationLine",
+    ),
+    "ReplaySafetyAuditor": (
+        "myrm_agent_harness.agent.durable",
+        "ReplaySafetyAuditor",
+    ),
+    "ManualDriveEffectsGate": (
+        "myrm_agent_harness.agent.durable",
+        "ManualDriveEffectsGate",
+    ),
 }
 
 __all__ = [
@@ -64,14 +92,21 @@ __all__ = [
     "AgentRuntimeConfig",
     "BaseAgent",
     "CompletionStatus",
+    "DurableAgentRuntime",
     "EventLogBackend",
     "FileEventLogBackend",
     "GracefulShutdownManager",
     "HookEvent",
     "HookExecutor",
     "HookRegistry",
+    "InMemoryDurableStorage",
+    "IntentExecutionEngine",
     "LLMConfig",
+    "LaneMutationLine",
+    "ManualDriveEffectsGate",
+    "ReplaySafetyAuditor",
     "SkillAgent",
+    "SqliteDurableStorage",
     "SubAgentResult",
     "SubAgentStatus",
     "SubagentConfig",

@@ -277,5 +277,16 @@ class MemoryManagerListingMaintenanceMixin:
         except Exception as e:
             logger.warning("Preference strength writeback failed (non-fatal): %s", e)
 
+    async def check_integrity(self) -> tuple[bool, str]:
+        """Check physical storage and index integrity across configured backends.
+
+        Returns:
+            tuple[bool, str]: (is_intact, message)
+        """
+        if self._relational is not None and hasattr(self._relational, "check_integrity"):
+            return await self._relational.check_integrity()
+        return True, "ok"
+
+
     async def delete_profile(self, key_or_id: str) -> bool:
         return await self._rel().delete_profile(key_or_id, namespaces=self._namespaces)

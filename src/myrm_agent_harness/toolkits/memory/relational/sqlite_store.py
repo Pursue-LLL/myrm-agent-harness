@@ -493,6 +493,7 @@ class SQLiteRelationalStore(RelationalStore):
     async def delete_profile(
         self, key: str, *, namespaces: list[str] | None = None
     ) -> bool:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         scope_sql, scope_params = self._scope_filter_sql(namespaces)
         try:
@@ -686,6 +687,7 @@ class SQLiteRelationalStore(RelationalStore):
     async def update_rule(
         self, rule_id: str, rule: ProceduralMemory
     ) -> ProceduralMemory:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         try:
@@ -738,6 +740,7 @@ class SQLiteRelationalStore(RelationalStore):
             raise RelationalQueryError(f"update_rule failed: {e}") from e
 
     async def delete_rule(self, rule_id: str) -> bool:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         try:
             cursor = await conn.execute(
@@ -749,6 +752,7 @@ class SQLiteRelationalStore(RelationalStore):
             raise RelationalQueryError(f"delete_rule failed: {e}") from e
 
     async def delete_all(self) -> int:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         try:
             c1 = await conn.execute("DELETE FROM profiles", ())
@@ -847,6 +851,7 @@ class SQLiteRelationalStore(RelationalStore):
     async def batch_mark_pending(self, pending_ids: list[str], status: str) -> int:
         if not pending_ids:
             return 0
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         try:
@@ -861,6 +866,7 @@ class SQLiteRelationalStore(RelationalStore):
             raise RelationalQueryError(f"batch_mark_pending failed: {e}") from e
 
     async def delete_pending_by_source_chat_id(self, source_chat_id: str) -> int:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         try:
             cursor = await conn.execute(
