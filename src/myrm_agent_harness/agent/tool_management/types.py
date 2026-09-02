@@ -6,6 +6,7 @@
 
 [OUTPUT]
 - ToolSource: enum of tool origins (META, USER, MIDDLEWARE)
+- ReplaySafety: enum of tool replay safety during crash recovery (SAFE, NEVER)
 - ToolEntry: dataclass wrapping a tool with source metadata
 - ToolSnapshot: lightweight tool info for runtime availability view; ``builtin_tool_id`` maps GUI togglable products when applicable.
 
