@@ -162,9 +162,19 @@ class SQLiteRelationalStore(RelationalStore):
                 f"SQLite store {self._db_path} integrity check query failed: {e}"
             ) from e
 
-    async def _ensure_integrity_before_write(self) -> None:
-        """Fail fast before write operations if database is corrupted."""
-        await self.assert_store_integrity()
+    def _handle_query_error(self, op: str, e: Exception) -> None:
+        if isinstance(e, (CorruptedMemoryIndexError, RelationalStoreError)):
+            raise e
+        err_str = str(e).lower()
+        if any(k in err_str for k in ("malformed", "corrupt", "not a database", "disk i/o")):
+            self._connection = None
+            raise CorruptedMemoryIndexError(
+                f"SQLite store {self._db_path} corrupted during {op}: {e}",
+                db_path=str(self._db_path),
+                index_type="sqlite_relational",
+                repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
+            ) from e
+        raise RelationalQueryError(f"{op} failed: {e}") from e
 
     async def _table_exists(self, table_name: str) -> bool:
         assert self._connection is not None
