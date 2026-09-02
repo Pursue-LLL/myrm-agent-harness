@@ -587,10 +587,14 @@ async def test_corrupted_memory_index_fail_fast(tmp_path: Path, monkeypatch: pyt
     assert ok is False
     assert "tree cell 17 out of order" in detail
 
-    # 2. assert_store_integrity must Fail-Fast with CorruptedMemoryIndexError
+    # 2. assert_store_integrity and writes must Fail-Fast with CorruptedMemoryIndexError
     with pytest.raises(CorruptedMemoryIndexError) as exc_info:
         await store.assert_store_integrity()
     assert "failed quick_check" in str(exc_info.value)
     assert exc_info.value.index_type == "sqlite_relational"
+
+    with pytest.raises(CorruptedMemoryIndexError) as exc_write:
+        await store.set_profile("should_fail", "corrupt_data")
+    assert "failed quick_check" in str(exc_write.value)
 
     await store.close()

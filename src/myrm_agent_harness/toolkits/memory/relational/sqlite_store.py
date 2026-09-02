@@ -38,6 +38,7 @@ from myrm_agent_harness.toolkits.memory.relational.exceptions import (
     RelationalConnectionError,
     RelationalNotFoundError,
     RelationalQueryError,
+    RelationalStoreError,
 )
 from myrm_agent_harness.toolkits.memory.types import (
     MemoryScope,
@@ -461,9 +462,14 @@ class SQLiteRelationalStore(RelationalStore):
         except Exception as e:
             raise RelationalQueryError(f"get_profile_snapshot failed: {e}") from e
 
+    async def _ensure_integrity_before_write(self) -> None:
+        """Fail fast before write operations if database is corrupted."""
+        await self.assert_store_integrity()
+
     async def set_profile(
         self, key: str, value: str, *, scope: MemoryScope | None = None
     ) -> None:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         (
@@ -506,11 +512,12 @@ class SQLiteRelationalStore(RelationalStore):
             )
             await conn.commit()
         except Exception as e:
-            raise RelationalQueryError(f"set_profile failed: {e}") from e
+            self._handle_query_error("set_profile", e)
 
     async def delete_profile(
         self, key: str, *, namespaces: list[str] | None = None
     ) -> bool:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         scope_sql, scope_params = self._scope_filter_sql(namespaces)
         try:
@@ -521,7 +528,8 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            raise RelationalQueryError(f"delete_profile failed: {e}") from e
+            self._handle_query_error("delete_profile", e)
+            return False
 
     async def list_profiles(
         self, *, limit: int = 1000, offset: int = 0, namespaces: list[str] | None = None
@@ -560,6 +568,7 @@ class SQLiteRelationalStore(RelationalStore):
     # ── Procedural rules ─────────────────────────────────────────────
 
     async def create_rule(self, rule: ProceduralMemory) -> ProceduralMemory:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         rule_id = rule.id or str(uuid4())
         now = now_iso()
@@ -614,7 +623,8 @@ class SQLiteRelationalStore(RelationalStore):
             rule.id = rule_id
             return rule
         except Exception as e:
-            raise RelationalQueryError(f"create_rule failed: {e}") from e
+            self._handle_query_error("create_rule", e)
+            return rule
 
     async def get_rule(
         self, rule_id: str, *, namespaces: list[str] | None = None
@@ -629,7 +639,8 @@ class SQLiteRelationalStore(RelationalStore):
                 row = await cursor.fetchone()
             return row_to_procedural(row) if row else None
         except Exception as e:
-            raise RelationalQueryError(f"get_rule failed: {e}") from e
+            self._handle_query_error("get_rule", e)
+            return None
 
     async def search_rules(
         self, query: str, *, limit: int = 10, namespaces: list[str] | None = None
@@ -703,6 +714,7 @@ class SQLiteRelationalStore(RelationalStore):
     async def update_rule(
         self, rule_id: str, rule: ProceduralMemory
     ) -> ProceduralMemory:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         try:
@@ -752,9 +764,11 @@ class SQLiteRelationalStore(RelationalStore):
         except RelationalNotFoundError:
             raise
         except Exception as e:
-            raise RelationalQueryError(f"update_rule failed: {e}") from e
+            self._handle_query_error("update_rule", e)
+            return rule
 
     async def delete_rule(self, rule_id: str) -> bool:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         try:
             cursor = await conn.execute(
@@ -763,9 +777,11 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            raise RelationalQueryError(f"delete_rule failed: {e}") from e
+            self._handle_query_error("delete_rule", e)
+            return False
 
     async def delete_all(self) -> int:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         try:
             c1 = await conn.execute("DELETE FROM profiles", ())
@@ -774,11 +790,13 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return (c1.rowcount or 0) + (c2.rowcount or 0) + (c3.rowcount or 0)
         except Exception as e:
-            raise RelationalQueryError(f"delete_all failed: {e}") from e
+            self._handle_query_error("delete_all", e)
+            return 0
 
     # ── Pending (approval queue) ─────────────────────────────────────
 
     async def submit_pending(self, record: PendingRecord) -> str:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         try:
@@ -800,7 +818,8 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return record.id
         except Exception as e:
-            raise RelationalQueryError(f"submit_pending failed: {e}") from e
+            self._handle_query_error("submit_pending", e)
+            return record.id
 
     async def get_pending(self, pending_id: str) -> PendingRecord | None:
         conn = await self._get_connection()
@@ -811,7 +830,8 @@ class SQLiteRelationalStore(RelationalStore):
                 row = await cursor.fetchone()
             return row_to_pending(row) if row else None
         except Exception as e:
-            raise RelationalQueryError(f"get_pending failed: {e}") from e
+            self._handle_query_error("get_pending", e)
+            return None
 
     async def pending_exists(self, memory_type: str, content: str) -> bool:
         conn = await self._get_connection()
@@ -822,9 +842,11 @@ class SQLiteRelationalStore(RelationalStore):
             ) as cursor:
                 return await cursor.fetchone() is not None
         except Exception as e:
-            raise RelationalQueryError(f"pending_exists failed: {e}") from e
+            self._handle_query_error("pending_exists", e)
+            return False
 
     async def mark_pending(self, pending_id: str, status: str) -> None:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         try:
@@ -834,7 +856,7 @@ class SQLiteRelationalStore(RelationalStore):
             )
             await conn.commit()
         except Exception as e:
-            raise RelationalQueryError(f"mark_pending failed: {e}") from e
+            self._handle_query_error("mark_pending", e)
 
     async def list_pending(self, *, limit: int = 50) -> list[PendingRecord]:
         conn = await self._get_connection()
@@ -862,6 +884,7 @@ class SQLiteRelationalStore(RelationalStore):
     async def batch_mark_pending(self, pending_ids: list[str], status: str) -> int:
         if not pending_ids:
             return 0
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         try:
@@ -873,9 +896,11 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return cursor.rowcount or 0
         except Exception as e:
-            raise RelationalQueryError(f"batch_mark_pending failed: {e}") from e
+            self._handle_query_error("batch_mark_pending", e)
+            return 0
 
     async def delete_pending_by_source_chat_id(self, source_chat_id: str) -> int:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         try:
             cursor = await conn.execute(
@@ -885,9 +910,8 @@ class SQLiteRelationalStore(RelationalStore):
             await conn.commit()
             return cursor.rowcount or 0
         except Exception as e:
-            raise RelationalQueryError(
-                f"delete_pending_by_source_chat_id failed: {e}"
-            ) from e
+            self._handle_query_error("delete_pending_by_source_chat_id", e)
+            return 0
 
     async def count_pending_by_source_chat_id(self, source_chat_id: str) -> int:
         conn = await self._get_connection()
@@ -907,29 +931,11 @@ class SQLiteRelationalStore(RelationalStore):
 
     async def check_integrity(self) -> tuple[bool, str]:
         """Check the physical and index integrity of the relational SQLite database."""
-        conn = await self._get_connection()
-        try:
-            async with conn.execute("PRAGMA quick_check(1)") as cursor:
-                rows = await cursor.fetchall()
-            if rows and len(rows) == 1 and str(rows[0][0]).lower() == "ok":
-                return True, "ok"
-            return False, f"quick_check failed: {rows}"
-        except Exception as e:
-            return False, f"integrity probe error: {e}"
-
-    # ── Diagnostics & Integrity ──────────────────────────────────────
-
-    async def check_integrity(self) -> tuple[bool, str]:
-        """Check physical and index integrity of the SQLite database.
-
-        Returns:
-            tuple[bool, str]: (is_intact, message)
-        """
         if self._closed:
             return False, "Store has been closed"
         try:
             conn = await self._get_connection()
-            async with conn.execute("PRAGMA quick_check") as cursor:
+            async with conn.execute("PRAGMA quick_check(1)") as cursor:
                 rows = await cursor.fetchall()
             if rows and len(rows) == 1 and str(rows[0][0]).lower() == "ok":
                 return True, "ok"

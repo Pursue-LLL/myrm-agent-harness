@@ -18,9 +18,12 @@ from myrm_agent_harness.core.artifacts.constants import (
     is_text_content,
 )
 from myrm_agent_harness.core.artifacts.manifest import (
+    CATEGORY_DIRECTORY_MAPPING,
     DeliverableCategory,
     DeliverableItem,
     DeliverableManifest,
+    DeliverableStatus,
+    infer_item_category,
 )
 from myrm_agent_harness.core.artifacts.paths import (
     ARTIFACT_VAULT_DIR_NAME,
@@ -37,9 +40,12 @@ __all__ = [
     "WORKSPACE_AGENT_DIR_NAME",
     "ArtifactMappings",
     "ArtifactType",
+    "CATEGORY_DIRECTORY_MAPPING",
     "DeliverableCategory",
     "DeliverableItem",
     "DeliverableManifest",
+    "DeliverableStatus",
+    "infer_item_category",
     "get_all_mappings",
     "infer_artifact_type_from_extension",
     "infer_artifact_type_from_mime",
