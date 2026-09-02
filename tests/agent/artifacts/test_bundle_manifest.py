@@ -17,18 +17,18 @@ def test_deliverable_item_serialization():
         relative_path="02_copywriting_and_content/xhs_copy.md",
         category=DeliverableCategory.COPYWRITING,
         platform="xiaohongshu",
-        content_type="text/markdown",
+        mime_type="text/markdown",
         size_bytes=1024,
         sha256_hash="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         status=DeliverableStatus.READY_FOR_DISTRIBUTION,
         description="小红书痛点版文案",
     )
-    d = item.to_dict()
+    d = item.model_dump()
     assert d["category"] == "copywriting"
     assert d["status"] == "ready_for_distribution"
     assert d["platform"] == "xiaohongshu"
 
-    recovered = DeliverableItem.from_dict(d)
+    recovered = DeliverableItem.model_validate(d)
     assert recovered.id == "art-123"
     assert recovered.category == DeliverableCategory.COPYWRITING
     assert recovered.status == DeliverableStatus.READY_FOR_DISTRIBUTION
@@ -48,15 +48,16 @@ def test_deliverable_manifest_roundtrip():
         category=DeliverableCategory.VISUAL,
     )
     manifest = DeliverableManifest(
+        bundle_id="bundle-001",
         title="AI 产品发布宣发全案",
         description="包含公众号长文、小红书图文与配图",
         agent_id="agent-copywriter",
         goal_id="goal-456",
         items=[item1, item2],
     )
-    d = manifest.to_dict()
+    d = manifest.model_dump()
     assert len(d["items"]) == 2
-    json_str = json.dumps(d)
+    json_str = manifest.model_dump_json()
     assert "AI 产品发布宣发全案" in json_str
 
     parsed = DeliverableManifest.from_dict(json.loads(json_str))

@@ -13,18 +13,20 @@ from myrm_agent_harness.agent.artifacts.vault import ArtifactVault
 def test_deliverable_manifest_contract():
     item1 = DeliverableItem(
         id="item-1",
-        relative_path="articles/wechat.md",
+        filename="wechat.md",
+        relative_path="02_copywriting_and_content/wechat.md",
         title="微信公众号发布长文",
-        category=DeliverableCategory.ARTICLE,
+        category=DeliverableCategory.COPYWRITING,
         vault_uri="vault://uuid-1",
         size_bytes=1024,
         mime_type="text/markdown",
     )
     item2 = DeliverableItem(
         id="item-2",
-        relative_path="sheets/schedule.xlsx",
+        filename="schedule.xlsx",
+        relative_path="06_schedule_and_plans/schedule.xlsx",
         title="7天发布排期表",
-        category=DeliverableCategory.DATA_SHEET,
+        category=DeliverableCategory.SCHEDULE,
         vault_uri="vault://uuid-2",
         size_bytes=2048,
         mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -40,8 +42,8 @@ def test_deliverable_manifest_contract():
     assert manifest.total_count == 2
     assert manifest.total_size_bytes == 3072
     summary = manifest.category_summary()
-    assert summary["article"] == 1
-    assert summary["data_sheet"] == 1
+    assert summary["copywriting"] == 1
+    assert summary["schedule"] == 1
 
 
 def test_artifact_vault_manifest_persistence(tmp_path):

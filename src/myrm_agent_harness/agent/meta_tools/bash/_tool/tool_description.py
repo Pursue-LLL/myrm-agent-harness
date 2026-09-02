@@ -27,7 +27,8 @@ from myrm_agent_harness.utils.locale import is_chinese
 
 DEFAULT_BASH_TOOL_DESCRIPTION_LOCALE: Final[str] = "en"
 
-TOOL_DESCRIPTION_ZH: Final[str] = """
+TOOL_DESCRIPTION_ZH: Final[str] = (
+    """
 使用该工具执行准确的 Shell 命令或 Python 代码来高效精准地解决用户问题。严禁任何假设和猜测!
 
 ## 能力
@@ -62,7 +63,7 @@ bash_code_execute_tool 适用于:系统/运行时操作(mv/cp/rm、包管理、�
 
 #### 返回值具体 → 合并到一次代码执行(无依赖用 gather 并行,有依赖串行)
 
-以查票工具为例:若已知 `fetch_date()` 与 `fetch_codes()` 的具体返回值,且 `fetch_date()` 与 `fetch_codes()` 没有依赖关系,但 `query_tickets(date, from_station, to_station)` 依赖于前两个工具的返回值,则先并行执行 `fetch_date()` 与 `fetch_codes()`,再串行执行 `query_tickets(...)`:
+以查票工具为例：若已知 `fetch_date()` 与 `fetch_codes()` 的具体返回值,且 `fetch_date()` 与 `fetch_codes()` 没有依赖关系,但 `query_tickets(date, from_station, to_station)` 依赖于前两个工具的返回值,则先并行执行 `fetch_date()` 与 `fetch_codes()`,再串行执行 `query_tickets(...)`:
 
 ```python
 import asyncio
@@ -134,8 +135,10 @@ asyncio.run(main())
 
 后台脚本若 `echo 'MYRM_PROGRESS {"percent": 42, "message": "Compiling"}'`(或 `{"current": 3, "total": 10}`),自动显示进度条,无需 LLM 参与。检查点用 `MYRM_CHECKPOINT {"message": "..."}`。三方工具的自然输出(如 `Building 42%`、`3/10 tests`、`Compiling main.rs`)也会被启发式识别。
 """.strip()
+)
 
-TOOL_DESCRIPTION_EN: Final[str] = """
+TOOL_DESCRIPTION_EN: Final[str] = (
+    """
 Execute Shell commands or Python code to solve problems accurately and efficiently. Do NOT make assumptions or guesses!
 
 ## Capabilities
@@ -224,6 +227,7 @@ When output/wait returns `waiting_for_input=true`, check `input_wait_hint` and r
 ### Progress Reporting
 Background scripts can emit `echo 'MYRM_PROGRESS {"percent": 42, "message": "Compiling"}'` (or `{"current": 3, "total": 10}`) to automatically update UI progress bars without LLM turns. Use `MYRM_CHECKPOINT {"message": "..."}` for checkpoints.
 """.strip()
+)
 
 # Backward-compatible alias for existing imports expecting Chinese constant
 TOOL_DESCRIPTION: Final[str] = TOOL_DESCRIPTION_ZH

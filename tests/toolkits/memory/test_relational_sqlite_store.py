@@ -11,7 +11,9 @@ from myrm_agent_harness.toolkits.memory.protocols.relational import (
 )
 from myrm_agent_harness.toolkits.memory.relational import SQLiteRelationalStore
 from myrm_agent_harness.toolkits.memory.relational.exceptions import (
+    CorruptedMemoryIndexError,
     RelationalNotFoundError,
+    RelationalQueryError,
 )
 from myrm_agent_harness.toolkits.memory.types import (
     MemoryScope,
@@ -551,3 +553,48 @@ async def test_query_error_branches_raise(
     ):
         with pytest.raises(RelationalQueryError):
             await call()
+
+
+@pytest.mark.asyncio
+async def test_corrupted_memory_index_fail_fast(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db_file = tmp_path / "corrupted_test.db"
+    store = SQLiteRelationalStore(str(db_file))
+    await store.set_profile("init_key", "init_val")
+
+    # Mock quick_check returning corruption
+    class _CorruptCursor:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return False
+
+        async def fetchall(self):
+            return [("tree cell 17 out of order",)]
+
+    conn = await store._get_connection()
+    orig_execute = conn.execute
+
+    def _corrupt_execute(sql, *args, **kwargs):
+        if "PRAGMA quick_check" in str(sql):
+            return _CorruptCursor()
+        return orig_execute(sql, *args, **kwargs)
+
+    monkeypatch.setattr(conn, "execute", _corrupt_execute)
+
+    # 1. Direct integrity check returns False
+    ok, detail = await store.check_integrity()
+    assert ok is False
+    assert "tree cell 17 out of order" in detail
+
+    # 2. Write operations and assert_store_integrity must Fail-Fast with CorruptedMemoryIndexError
+    with pytest.raises(CorruptedMemoryIndexError) as exc_info:
+        await store.assert_store_integrity()
+    assert "failed quick_check" in str(exc_info.value)
+    assert exc_info.value.index_type == "sqlite_relational"
+
+    with pytest.raises(CorruptedMemoryIndexError) as exc_info_write:
+        await store.set_profile("should_fail", "corrupt_data")
+    assert "failed quick_check" in str(exc_info_write.value)
+
+    await store.close()

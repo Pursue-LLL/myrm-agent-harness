@@ -36,6 +36,16 @@ from .approval_audit import (
     DualTrackQuotaBreakdown,
     TopOffenderItem,
 )
+from .audit_trail import (
+    AuditSummaryStats,
+    AuditTrailEntry,
+    ComplianceOutcome,
+    ComplianceReport,
+    ComplianceTrailExporter,
+    DualTrackAuditCollector,
+    PriorAuditState,
+    RuleTriggerHit,
+)
 from .auth_detector import detect_auth_failure, get_auth_error_hint
 from .digest import (
     SkillCompoundingMetrics,
@@ -74,8 +84,14 @@ from .tracing import JsonFormatter, TracingContext, TracingLogFilter
 __all__ = [
     "ApprovalTriggerCategory",
     "ApprovalTriggerEvent",
+    "AuditSummaryStats",
+    "AuditTrailEntry",
     "AutoApprovalAuditReport",
     "AutoApprovalAuditor",
+    "ComplianceOutcome",
+    "ComplianceReport",
+    "ComplianceTrailExporter",
+    "DualTrackAuditCollector",
     "DualTrackQuotaBreakdown",
     "FrictionAggregator",
     "FrictionCategory",
@@ -86,6 +102,8 @@ __all__ = [
     "InvariantSeverity",
     "InvariantViolation",
     "JsonFormatter",
+    "PriorAuditState",
+    "RuleTriggerHit",
     "RuntimeInvariantRegistry",
     "SkillCompoundingMetrics",
     "SkillHealthEvaluator",
