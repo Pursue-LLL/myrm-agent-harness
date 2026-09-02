@@ -124,6 +124,28 @@ class DualTrackQuotaBreakdown:
         return self.audit_agent_prompt_tokens + self.audit_agent_completion_tokens
 
     @property
+    def audit_rounds(self) -> int:
+        return self.audit_agent_rounds
+
+    @property
+    def audit_prompt_tokens(self) -> int:
+        return self.audit_agent_prompt_tokens
+
+    @property
+    def audit_completion_tokens(self) -> int:
+        return self.audit_agent_completion_tokens
+
+    @property
+    def audit_cost_usd(self) -> float:
+        return self.audit_agent_cost_usd
+
+    @property
+    def audit_token_ratio(self) -> float:
+        if self.total_tokens <= 0:
+            return 0.0
+        return min(1.0, round(self.audit_agent_total_tokens / self.total_tokens, 4))
+
+    @property
     def total_rounds(self) -> int:
         return self.main_task_rounds + self.audit_agent_rounds
 

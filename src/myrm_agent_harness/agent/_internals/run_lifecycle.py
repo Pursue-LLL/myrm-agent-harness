@@ -539,7 +539,7 @@ async def resolve_context_budget_breakdown(
     thread_id: str,
     cached_tools: object | None,
     provider_prompt_tokens: int,
-    merged_context: dict[str, object] | None = None,
+    merged_context: dict[str, object] | str | None = None,
 ) -> dict[str, int]:
     """Resolve GUI breakdown: messages est., tool schema est., system/other remainder,
 
@@ -613,7 +613,7 @@ async def resolve_context_budget_breakdown(
     memory_tokens = 0
     workspace_rules_tokens = 0
 
-    if merged_context:
+    if isinstance(merged_context, dict):
         sp = merged_context.get("system_prompt")
         if isinstance(sp, str) and sp:
             system_prompt_tokens = get_token_count(sp)
@@ -623,6 +623,18 @@ async def resolve_context_budget_breakdown(
         rules = merged_context.get("workspace_rules") or merged_context.get("project_rules")
         if isinstance(rules, str) and rules:
             workspace_rules_tokens = get_token_count(rules)
+    elif isinstance(merged_context, str) and merged_context:
+        import re
+
+        sp_match = re.search(r"<system_prompt>([\s\S]*?)</system_prompt>", merged_context)
+        if sp_match:
+            system_prompt_tokens = get_token_count(sp_match.group(1))
+        mem_match = re.search(r"<memory_context>([\s\S]*?)</memory_context>", merged_context)
+        if mem_match:
+            memory_tokens = get_token_count(mem_match.group(1))
+        rules_match = re.search(r"<workspace_rules>([\s\S]*?)</workspace_rules>", merged_context)
+        if rules_match:
+            workspace_rules_tokens = get_token_count(rules_match.group(1))
 
     result: dict[str, int] = {
         "messages_estimated_tokens": messages_tokens,

@@ -194,6 +194,28 @@ class TestContextBudgetSnapshot:
         d = snap.to_dict()
         assert d["turn_count"] == 12
 
+    def test_to_dict_with_fine_grained_breakdown(self) -> None:
+        snap = ContextBudgetSnapshot(
+            current_tokens=5000,
+            max_context_tokens=128000,
+            usage_percent=3.90625,
+            health_status="healthy",
+            system_prompt_tokens=1000,
+            memory_tokens=500,
+            workspace_rules_tokens=300,
+            mcp_tools_tokens=800,
+            skills_tools_tokens=400,
+            builtin_tools_tokens=200,
+        )
+        d = snap.to_dict()
+        assert d["system_prompt_tokens"] == 1000
+        assert d["memory_tokens"] == 500
+        assert d["workspace_rules_tokens"] == 300
+        assert d["mcp_tools_tokens"] == 800
+        assert d["skills_tools_tokens"] == 400
+        assert d["builtin_tools_tokens"] == 200
+
+
 
 class TestApprovalInterceptedEventData:
     def test_creation(self) -> None:

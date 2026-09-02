@@ -259,3 +259,25 @@ class TestContextBudgetSnapshot:
         )
         d = snap.to_dict()
         assert "turn_count" not in d
+
+    def test_to_dict_with_fine_grained_breakdown(self):
+        snap = ContextBudgetSnapshot(
+            current_tokens=50000,
+            max_context_tokens=128000,
+            usage_percent=39.1,
+            health_status="healthy",
+            system_prompt_tokens=4000,
+            memory_tokens=2000,
+            workspace_rules_tokens=1500,
+            mcp_tools_tokens=3000,
+            skills_tools_tokens=2500,
+            builtin_tools_tokens=1200,
+        )
+        d = snap.to_dict()
+        assert d["system_prompt_tokens"] == 4000
+        assert d["memory_tokens"] == 2000
+        assert d["workspace_rules_tokens"] == 1500
+        assert d["mcp_tools_tokens"] == 3000
+        assert d["skills_tools_tokens"] == 2500
+        assert d["builtin_tools_tokens"] == 1200
+

@@ -1,4 +1,4 @@
-"""Unit tests for citation_resolver redirect resolution."""
+"""Unit tests for citation_resolver redirect resolution and tracking parameter stripping."""
 
 from __future__ import annotations
 
@@ -12,7 +12,25 @@ from myrm_agent_harness.toolkits.web_search.processing.citation_resolver import 
     _normalize_source_url,
     enrich_sources_with_resolved_urls,
     resolve_citation_url,
+    strip_tracking_parameters,
 )
+
+
+def test_strip_tracking_parameters() -> None:
+    assert (
+        strip_tracking_parameters("https://example.com/article?utm_source=twitter&utm_medium=social&page=2")
+        == "https://example.com/article?page=2"
+    )
+    assert (
+        strip_tracking_parameters("https://example.com/doc?spm=123.456&id=99")
+        == "https://example.com/doc?id=99"
+    )
+    assert (
+        strip_tracking_parameters("https://example.com/post?fbclid=xyz&gclid=abc")
+        == "https://example.com/post"
+    )
+    assert strip_tracking_parameters("https://example.com/clean") == "https://example.com/clean"
+    assert strip_tracking_parameters("") == ""
 
 
 def test_needs_citation_redirect_resolution_detects_known_wrappers() -> None:
@@ -71,7 +89,7 @@ async def test_resolve_citation_url_skips_network_for_direct_links() -> None:
         "myrm_agent_harness.toolkits.web_search.processing.citation_resolver.resolve_secure_http_target",
         side_effect=RuntimeError("should not be called"),
     ):
-        result = await resolve_citation_url("https://docs.python.org/3/")
+        result = await resolve_citation_url("https://docs.python.org/3/?utm_source=test")
     assert result == "https://docs.python.org/3/"
 
 
@@ -90,8 +108,8 @@ async def test_resolve_citation_url_returns_original_on_failure() -> None:
 @pytest.mark.asyncio
 async def test_resolve_citation_url_follows_redirect_chain() -> None:
     target = SecureHttpTarget(
-        logical_url="https://docs.python.org/3/",
-        request_url="https://docs.python.org/3/",
+        logical_url="https://docs.python.org/3/?utm_source=google",
+        request_url="https://docs.python.org/3/?utm_source=google",
         headers={},
         method="HEAD",
     )
@@ -106,8 +124,8 @@ async def test_resolve_citation_url_follows_redirect_chain() -> None:
 @pytest.mark.asyncio
 async def test_enrich_sources_normalizes_url_for_frontend() -> None:
     target = SecureHttpTarget(
-        logical_url="https://real.example/article",
-        request_url="https://real.example/article",
+        logical_url="https://real.example/article?utm_medium=banner",
+        request_url="https://real.example/article?utm_medium=banner",
         headers={},
         method="HEAD",
     )
@@ -127,7 +145,7 @@ async def test_enrich_sources_normalizes_url_for_frontend() -> None:
 
 @pytest.mark.asyncio
 async def test_enrich_sources_skips_head_for_direct_urls() -> None:
-    direct = "https://docs.python.org/3/whatsnew/3.13.html"
+    direct = "https://docs.python.org/3/whatsnew/3.13.html?utm_source=direct"
     with patch(
         "myrm_agent_harness.toolkits.web_search.processing.citation_resolver.resolve_secure_http_target",
         new=AsyncMock(),
@@ -136,29 +154,5 @@ async def test_enrich_sources_skips_head_for_direct_urls() -> None:
             [{"url": direct, "title": "Docs"}],
         )
     mock_resolve.assert_not_awaited()
-    assert enriched[0]["url"] == direct
-    assert "redirect_url" not in enriched[0]
-
-
-@pytest.mark.asyncio
-async def test_enrich_sources_dedup_ready_same_final_url() -> None:
-    target = SecureHttpTarget(
-        logical_url="https://real.example/article",
-        request_url="https://real.example/article",
-        headers={},
-        method="HEAD",
-    )
-    wrap_a = "https://www.google.com/url?q=https://real.example/article&sa=1"
-    wrap_b = "https://www.google.com/url?q=https://real.example/article&sa=2"
-    with patch(
-        "myrm_agent_harness.toolkits.web_search.processing.citation_resolver.resolve_secure_http_target",
-        new=AsyncMock(return_value=target),
-    ):
-        enriched = await enrich_sources_with_resolved_urls(
-            [
-                {"url": wrap_a, "title": "A"},
-                {"url": wrap_b, "title": "B"},
-            ],
-        )
-    assert enriched[0]["url"] == "https://real.example/article"
-    assert enriched[1]["url"] == "https://real.example/article"
+    assert enriched[0]["url"] == "https://docs.python.org/3/whatsnew/3.13.html"
+    assert enriched[0]["redirect_url"] == direct

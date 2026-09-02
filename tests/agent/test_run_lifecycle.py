@@ -717,6 +717,54 @@ class TestResolveContextBudgetBreakdown:
         assert result["other_tokens"] > 0
         assert "turn_count" not in result
 
+    @pytest.mark.asyncio
+    async def test_fine_grained_breakdown_with_merged_context_and_tool_categories(self) -> None:
+        from langchain_core.messages import HumanMessage
+
+        messages = [HumanMessage(content="test prompt")]
+        checkpoint = MagicMock()
+        checkpoint.channel_values = {"messages": messages}
+        checkpointer = AsyncMock()
+        checkpointer.aget = AsyncMock(return_value=checkpoint)
+
+        mcp_tool = MagicMock()
+        mcp_tool.name = "mcp__github__create_issue"
+        mcp_tool.description = "create issue"
+
+        skill_tool = MagicMock()
+        skill_tool.name = "skill__analysis__execute"
+        skill_tool.description = "execute skill"
+
+        builtin_tool = MagicMock()
+        builtin_tool.name = "web_search"
+        builtin_tool.description = "search web"
+
+        merged_context = (
+            "<system_prompt>You are an expert assistant.</system_prompt>\n"
+            "<memory_context>User prefers TypeScript.</memory_context>\n"
+            "<workspace_rules>Follow strict lint rules.</workspace_rules>"
+        )
+
+        result = await resolve_context_budget_breakdown(
+            checkpointer=checkpointer,
+            thread_id="thread-fine-grained",
+            cached_tools=[mcp_tool, skill_tool, builtin_tool],
+            provider_prompt_tokens=80_000,
+            merged_context=merged_context,
+        )
+
+        assert result["system_prompt_tokens"] > 0
+        assert result["memory_tokens"] > 0
+        assert result["workspace_rules_tokens"] > 0
+        assert result["mcp_tools_tokens"] > 0
+        assert result["skills_tools_tokens"] > 0
+        assert result["builtin_tools_tokens"] > 0
+        assert result["bound_tools_overhead_tokens"] == (
+            result["mcp_tools_tokens"] + result["skills_tools_tokens"] + result["builtin_tools_tokens"]
+        )
+        assert result["messages_estimated_tokens"] > 0
+
+
 
 async def _async_gen(items: list[object]):
     for item in items:

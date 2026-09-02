@@ -1,14 +1,16 @@
-"""Resolve citation redirect URLs to final destinations (SSRF-safe).
+"""Resolve citation redirect URLs to final destinations (SSRF-safe) and clean tracking parameters.
 
 Follows provider redirect chains (e.g. Google url?q=...) via HEAD requests
-using the shared secure_fetch redirect guard.
+using the shared secure_fetch redirect guard, strips marketing tracking parameters,
+and provides canonical URL normalization.
 
 [INPUT]
 - core.security.http.secure_fetch::resolve_secure_http_target (POS: SSRF-safe redirect resolution)
 
 [OUTPUT]
+- strip_tracking_parameters: remove common marketing/analytics query parameters
 - resolve_citation_url: single URL resolution with fallback to original
-- enrich_sources_with_resolved_urls: batch resolve redirect chains and normalize sources
+- enrich_sources_with_resolved_urls: batch resolve redirect chains, strip tracking, and deduplicate sources
   (`url` = final destination, `redirect_url` = original when different)
 """
 
@@ -18,7 +20,7 @@ import asyncio
 import logging
 import re
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import httpx
 
@@ -36,6 +38,58 @@ _MAX_CONCURRENT_RESOLUTIONS = 5
 _GOOGLE_URL_PATH = re.compile(r"^/url/?$", re.IGNORECASE)
 _DUCKDUCKGO_L_PATH = re.compile(r"^/l/?", re.IGNORECASE)
 _BING_CK_PATH = re.compile(r"^/ck/", re.IGNORECASE)
+
+_KNOWN_TRACKING_KEYS: frozenset[str] = frozenset({
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_term",
+    "utm_content",
+    "utm_id",
+    "utm_name",
+    "spm",
+    "spm_id_from",
+    "from_source",
+    "ref",
+    "ref_src",
+    "ref_url",
+    "fbclid",
+    "gclid",
+    "gbraid",
+    "wbraid",
+    "msclkid",
+    "twclid",
+    "igshid",
+    "dclid",
+    "_hsenc",
+    "_hsmi",
+    "mc_cid",
+    "mc_eid",
+    "yclid",
+    "mkt_tok",
+})
+
+
+def strip_tracking_parameters(url: str) -> str:
+    """Strip common marketing tracking query parameters while preserving meaningful query params."""
+    if not url or not url.startswith(("http://", "https://")):
+        return url
+    try:
+        parsed = urlparse(url)
+        if not parsed.query:
+            return url
+        query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+        filtered_pairs = [
+            (k, v)
+            for k, v in query_pairs
+            if k.lower() not in _KNOWN_TRACKING_KEYS and not k.lower().startswith("utm_")
+        ]
+        if len(filtered_pairs) == len(query_pairs):
+            return url
+        new_query = urlencode(filtered_pairs)
+        return urlunparse(parsed._replace(query=new_query))
+    except Exception:
+        return url
 
 
 def _needs_citation_redirect_resolution(url: str) -> bool:
@@ -58,11 +112,11 @@ def _needs_citation_redirect_resolution(url: str) -> bool:
 
 
 async def resolve_citation_url(url: str) -> str:
-    """Resolve a citation redirect URL; return the original URL on failure or when not a wrapper."""
+    """Resolve a citation redirect URL and clean tracking parameters."""
     if not url or not url.startswith(("http://", "https://")):
         return url
     if not _needs_citation_redirect_resolution(url):
-        return url
+        return strip_tracking_parameters(url)
     try:
         timeout = httpx.Timeout(_REDIRECT_TIMEOUT_SECONDS)
         async with create_httpx_client(timeout=timeout, follow_redirects=False) as client:
@@ -73,10 +127,11 @@ async def resolve_citation_url(url: str) -> str:
                 max_redirects=5,
             )
             resolved = target.logical_url.strip()
-            return resolved or url
+            final_url = resolved or url
+            return strip_tracking_parameters(final_url)
     except Exception as exc:
         logger.debug("Citation redirect resolution failed for %s: %s", url, exc)
-        return url
+        return strip_tracking_parameters(url)
 
 
 def _normalize_source_url(source: dict[str, Any], raw_url: str, resolved: str) -> dict[str, Any]:
@@ -94,11 +149,7 @@ def _normalize_source_url(source: dict[str, Any], raw_url: str, resolved: str) -
 async def enrich_sources_with_resolved_urls(
     sources: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Resolve redirect chains and normalize each source for downstream SSE/UI.
-
-    Sets ``url`` to the final clickable destination. When resolution changes the
-    URL, the original value is stored in ``redirect_url`` for dedup audit trails.
-    """
+    """Resolve redirect chains, strip tracking query parameters, and normalize each source."""
     if not sources:
         return sources
 
@@ -112,4 +163,5 @@ async def enrich_sources_with_resolved_urls(
             resolved = await resolve_citation_url(raw_url)
         return _normalize_source_url(source, raw_url, resolved)
 
-    return list(await asyncio.gather(*(_resolve_one(item) for item in sources)))
+    resolved_sources = list(await asyncio.gather(*(_resolve_one(item) for item in sources)))
+    return resolved_sources
