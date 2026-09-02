@@ -60,7 +60,7 @@
 | `spawn_subagent/` | delegate/control/teammate (mode=batch|parallel on delegate) | `delegate_task_tool`, `subagent_control_tool` |
 | `skills/` | select/manage/discovery 技能工具 | `create_skill_*_tool` 系列（见各子目录） |
 | `goals/` | Goal 引擎 LLM 工具面（域逻辑在 `agent/goals/`） | `create_goal_tools` |
-| `progress/` | 主 Agent 多步 todo 进度（workspace SSOT + SSE） | `create_todo_write_tool` |
+| `progress/` | 主 Agent 多步 todo 进度（workspace SSOT + SSE，支持 blocked 状态与自愈） | `create_todo_write_tool` |
 | `clarification/` | 结构化 HITL 澄清；`requires_confirmation` 驱动危险强调 UI；`ClarificationGuardMiddleware` 强制单轮单次 | `ask_question_tool` |
 | `interaction/` | UI artifact 渲染与增量 data 更新 | `render_ui_tool`, `update_ui_data_tool` |
 | `discover_capability/` | 统一能力发现网关 | `skill_search_tool` |

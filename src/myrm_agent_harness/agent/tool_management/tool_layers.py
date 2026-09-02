@@ -8,6 +8,7 @@
 
 [OUTPUT]
 - ToolLayer: 工具层级枚举(CORE=1, HIGH_PRIORITY=2, EXTENDED=3, EXTERNAL=4)
+- get_tool_replay_safety(): 获取工具崩溃恢复回放安全性分类 (SAFE / NEVER)
 - register_tool_layer(): 注册工具到指定层级
 - get_tool_layer(): 获取工具的层级
 - get_tool_registry_sort_key(): Cache-friendly sort key for ToolRegistry

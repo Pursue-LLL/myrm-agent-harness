@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 _MAX_CLIP_ASSETS = 20
 _MAX_ASSET_BYTES = 5 * 1024 * 1024
+_MAX_MEDIA_ASSET_BYTES = 500 * 1024 * 1024
 _MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
 
 _CONTENT_TYPE_EXT: dict[str, str] = {
@@ -40,6 +41,14 @@ _CONTENT_TYPE_EXT: dict[str, str] = {
     "image/gif": ".gif",
     "image/webp": ".webp",
     "image/svg+xml": ".svg",
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "video/quicktime": ".mov",
+    "audio/mpeg": ".mp3",
+    "audio/mp3": ".mp3",
+    "audio/wav": ".wav",
+    "audio/webm": ".webm",
+    "audio/ogg": ".ogg",
 }
 
 
@@ -56,6 +65,10 @@ def _extension_for(content_type: str, data: bytes) -> str:
         return ".jpg"
     if data[:6] in (b"GIF87a", b"GIF89a"):
         return ".gif"
+    if data[:4] == b"\x1a\x45\xdf\xa3":
+        return ".webm"
+    if len(data) >= 8 and data[4:8] in (b"ftyp", b"moov", b"mdat"):
+        return ".mp4"
     return ".bin"
 
 
@@ -70,8 +83,9 @@ def store_asset_bytes(
     *,
     data: bytes,
     content_type: str,
+    max_bytes: int = _MAX_ASSET_BYTES,
 ) -> str | None:
-    if not data or len(data) > _MAX_ASSET_BYTES:
+    if not data or len(data) > max_bytes:
         return None
     structure.ensure_structure()
     digest = hashlib.sha256(data).hexdigest()
@@ -81,6 +95,21 @@ def store_asset_bytes(
     if not dest.exists():
         dest.write_bytes(data)
     return filename
+
+
+def store_media_asset_bytes(
+    structure: WikiStructure,
+    *,
+    data: bytes,
+    content_type: str,
+) -> str | None:
+    """Store larger media files (video/audio up to 500MB) with content hash deduplication."""
+    return store_asset_bytes(
+        structure,
+        data=data,
+        content_type=content_type,
+        max_bytes=_MAX_MEDIA_ASSET_BYTES,
+    )
 
 
 def store_clip_assets(

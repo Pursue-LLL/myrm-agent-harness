@@ -81,3 +81,41 @@ class ClipIngressResult:
     asset_stats: IngressAssetStats = field(default_factory=IngressAssetStats)
     superseded: bool = False
     security_redacted: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class MediaTranscriptSegment:
+    """Timestamped speech segment transcribed from media."""
+
+    start_seconds: float
+    end_seconds: float
+    text: str
+    speaker: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MediaKeyframe:
+    """Key visual slide or scene snapshot extracted from video."""
+
+    timestamp_seconds: float
+    image_bytes: bytes
+    ocr_text: str = ""
+    mime_type: str = "image/jpeg"
+    description: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class MediaIngressRequest:
+    """Input request for ingesting video/audio media into wiki."""
+
+    title: str
+    media_filename: str
+    media_bytes: bytes | None = None
+    source_url: str = ""
+    duration_seconds: float = 0.0
+    segments: tuple[MediaTranscriptSegment, ...] = ()
+    keyframes: tuple[MediaKeyframe, ...] = ()
+    folder_path: str = "videos"
+    agent_id: str | None = None
+    caller: RawGateCaller = "agent"
+

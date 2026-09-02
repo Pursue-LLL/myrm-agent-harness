@@ -6,6 +6,7 @@
 
 [OUTPUT]
 - SteeringToken: Steering 令牌类，允许外部在 Agent 运行时注入消息
+- SteeringStorageProtocol: 转向消息外部持久化监听协议
 - get_steering_token(): 获取当前请求的 SteeringToken
 - set_steering_token(): 设置当前请求的 SteeringToken
 
