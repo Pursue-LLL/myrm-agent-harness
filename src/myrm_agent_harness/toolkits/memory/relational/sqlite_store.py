@@ -93,11 +93,43 @@ class SQLiteRelationalStore(RelationalStore):
                         self._connection = await aiosqlite.connect(str(self._db_path))
                         await self._init_connection_settings()
                         await self._init_tables()
+                        # Fast quick_check on connection establishment
+                        async with self._connection.execute("PRAGMA quick_check(1)") as cursor:
+                            rows = await cursor.fetchall()
+                        if not rows or len(rows) != 1 or str(rows[0][0]).lower() != "ok":
+                            await self._connection.close()
+                            self._connection = None
+                            raise CorruptedMemoryIndexError(
+                                f"SQLite store {self._db_path} failed initial quick_check: {rows}",
+                                db_path=str(self._db_path),
+                                index_type="sqlite_relational",
+                                repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
+                            )
+                    except CorruptedMemoryIndexError:
+                        self._connection = None
+                        raise
                     except Exception as e:
+                        err_str = str(e).lower()
+                        if any(k in err_str for k in ("malformed", "corrupt", "not a database", "disk i/o error")):
+                            self._connection = None
+                            raise CorruptedMemoryIndexError(
+                                f"Corrupted SQLite store {self._db_path}: {e}",
+                                db_path=str(self._db_path),
+                                index_type="sqlite_relational",
+                                repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
+                            ) from e
                         raise RelationalConnectionError(
                             f"Failed to connect: {e}"
                         ) from e
         return self._connection
+
+    async def _init_connection_settings(self) -> None:
+        if self._connection is None:
+            return
+        from myrm_agent_harness.utils.db.sqlite import DURABLE, harden_connection_async
+
+        await harden_connection_async(self._connection, DURABLE, db_path=self._db_path)
+        await self._connection.commit()
 
     async def assert_store_integrity(self) -> None:
         """Fast pre-command integrity check using PRAGMA quick_check(1).
@@ -406,9 +438,14 @@ class SQLiteRelationalStore(RelationalStore):
         except Exception as e:
             raise RelationalQueryError(f"get_profile_snapshot failed: {e}") from e
 
+    async def _ensure_integrity_before_write(self) -> None:
+        """Fail fast before write operations if database is corrupted."""
+        await self.assert_store_integrity()
+
     async def set_profile(
         self, key: str, value: str, *, scope: MemoryScope | None = None
     ) -> None:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         (
@@ -505,6 +542,7 @@ class SQLiteRelationalStore(RelationalStore):
     # ── Procedural rules ─────────────────────────────────────────────
 
     async def create_rule(self, rule: ProceduralMemory) -> ProceduralMemory:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         rule_id = rule.id or str(uuid4())
         now = now_iso()
@@ -724,6 +762,7 @@ class SQLiteRelationalStore(RelationalStore):
     # ── Pending (approval queue) ─────────────────────────────────────
 
     async def submit_pending(self, record: PendingRecord) -> str:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         try:
@@ -770,6 +809,7 @@ class SQLiteRelationalStore(RelationalStore):
             raise RelationalQueryError(f"pending_exists failed: {e}") from e
 
     async def mark_pending(self, pending_id: str, status: str) -> None:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         try:
@@ -847,6 +887,41 @@ class SQLiteRelationalStore(RelationalStore):
             raise RelationalQueryError(
                 f"count_pending_by_source_chat_id failed: {e}"
             ) from e
+
+    # ── Diagnostics & Integrity ──────────────────────────────────────
+
+    async def check_integrity(self) -> tuple[bool, str]:
+        """Check the physical and index integrity of the relational SQLite database."""
+        conn = await self._get_connection()
+        try:
+            async with conn.execute("PRAGMA quick_check(1)") as cursor:
+                rows = await cursor.fetchall()
+            if rows and len(rows) == 1 and str(rows[0][0]).lower() == "ok":
+                return True, "ok"
+            return False, f"quick_check failed: {rows}"
+        except Exception as e:
+            return False, f"integrity probe error: {e}"
+
+    # ── Diagnostics & Integrity ──────────────────────────────────────
+
+    async def check_integrity(self) -> tuple[bool, str]:
+        """Check physical and index integrity of the SQLite database.
+
+        Returns:
+            tuple[bool, str]: (is_intact, message)
+        """
+        if self._closed:
+            return False, "Store has been closed"
+        try:
+            conn = await self._get_connection()
+            async with conn.execute("PRAGMA quick_check") as cursor:
+                rows = await cursor.fetchall()
+            if rows and len(rows) == 1 and str(rows[0][0]).lower() == "ok":
+                return True, "ok"
+            err_msg = "; ".join(str(r[0]) for r in rows)
+            return False, f"Integrity check failed: {err_msg}"
+        except Exception as e:
+            return False, f"Integrity check query error: {e}"
 
     # ── Lifecycle ────────────────────────────────────────────────────
 

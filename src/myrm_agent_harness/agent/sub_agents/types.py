@@ -385,7 +385,7 @@ class AgentHandoverState:
             value = data.get(key)
             if not isinstance(value, list):
                 return []
-            return [str(item) for item in value if item is not None and str(item).strip()]
+            return [item for item in value if isinstance(item, str) and item.strip()]
 
         findings_raw = data.get("findings")
         findings: list[HandoffFinding] = []

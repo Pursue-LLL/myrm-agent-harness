@@ -5,8 +5,8 @@ myrm_agent_harness.toolkits.memory.types (POS: protocol-first memory primitives)
 
 [OUTPUT]
 MemoryArchivePayload, MemoryImportDryRunResult, MemoryReliabilityProbeResult,
-MemoryRecallBenchmarkCase, MemoryRecallBenchmarkSummary: generic reliability DTOs
-that product layers can persist or render.
+MemoryRecallBenchmarkCase, MemoryRecallBenchmarkSummary, create_corrupted_index_probe_result:
+generic reliability DTOs that product layers can persist or render.
 
 [POS]
 Framework memory reliability kit. Contains no server, UI, SaaS, or business
@@ -417,3 +417,35 @@ def _percentile(values: list[float], p: float) -> float:
     if c >= len(sorted_vals):
         return sorted_vals[-1]
     return sorted_vals[f] + (k - f) * (sorted_vals[c] - sorted_vals[f])
+
+
+def create_corrupted_index_probe_result(
+    db_path: str,
+    error_message: str,
+    *,
+    index_type: str = "sqlite_relational",
+    repair_suggestion: str = "",
+) -> MemoryReliabilityProbeResult:
+    """Create a standardized probe result when an index corruption is detected."""
+    plan_id = f"repair_corrupt_{index_type}"
+    repair_plan = MemoryRepairPlan(
+        id=plan_id,
+        label=f"Restore/Rebuild {index_type} index",
+        risk_level="confirmation_required",
+        dry_run_result=f"Database file: {db_path}",
+        expected_effect="Rebuilds corrupted index pages or restores from latest healthy backup snapshot.",
+        requires_confirmation=True,
+        executable=True,
+    )
+    return MemoryReliabilityProbeResult(
+        id=f"corruption_probe_{index_type}",
+        category="index",
+        label=f"Index Integrity ({index_type})",
+        status="critical",
+        evidence=f"Corrupted index detected at {db_path}: {error_message}",
+        impact="Write operations blocked to prevent cascading storage corruption.",
+        next_action=repair_suggestion or "Trigger snapshot restoration or reindex.",
+        safe_to_retry=False,
+        repair_plans=[repair_plan],
+    )
+

@@ -321,6 +321,42 @@ def create_context_pipeline_middleware(
                 except Exception as exc:
                     logger.debug("budget_pressure_fn failed (non-blocking): %s", exc)
 
+            if downshift_governor is not None and chat_id:
+                current_wu = float(merged_ctx.get("work_units_consumed") or 0.0)
+                actual_max = max_context_tokens or 128000
+                triggered, downshift_state = downshift_governor.check_and_apply_downshift(
+                    session_id=chat_id,
+                    current_tokens=total_tokens,
+                    max_context_tokens=actual_max,
+                    current_wu=current_wu,
+                    turn_index=turn_count,
+                    current_model_name=model_name_str,
+                    session_notes=_notes_manager.notes if _notes_manager else None,
+                )
+                if triggered:
+                    if on_downshift is not None:
+                        try:
+                            cb_res = on_downshift(downshift_state)
+                            if asyncio.iscoroutine(cb_res):
+                                await cb_res
+                        except Exception as cb_exc:
+                            logger.warning("[Downshift] on_downshift callback failed: %s", cb_exc)
+
+                    from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+                    try:
+                        await dispatch_custom_event(
+                            "agent_status",
+                            {
+                                "step_key": "model_downshifted",
+                                "message": f"Model downshifted to {downshift_state.current_tier.value.upper()}",
+                                "reason": downshift_state.downshift_reason,
+                                "tier": downshift_state.current_tier.value,
+                            },
+                            config=getattr(request, "config", None),
+                        )
+                    except Exception as e:
+                        logger.debug("Failed to dispatch model downshift status event: %s", e)
+
             context = ProcessorContext(
                 messages=messages,
                 user_query="",
