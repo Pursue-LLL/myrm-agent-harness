@@ -1,7 +1,7 @@
 """Tests for MemoryManager session management and store operations."""
 
 from dataclasses import replace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -76,15 +76,21 @@ class TestSessionManagement:
         session1.add_knowledge("Critical knowledge that must not be lost")
         assert session1.buffer_size == 1
 
-        session2 = manager.begin_session("chat-2")
-        assert manager.active_session == session2
+        # Patch manager.store_batch to spy on drain
+        with patch.object(
+            manager, "store_batch", wraps=manager.store_batch
+        ) as spy_store:
+            session2 = manager.begin_session("chat-2")
+            assert manager.active_session == session2
 
-        # Yield control to let the spawned background drain task run
-        import asyncio
-        await asyncio.sleep(0.05)
+            # Yield control to let the spawned background drain task run
+            import asyncio
 
-        assert session1.buffer_size == 0
-        assert mock_vector_store.upsert.called
+            for _ in range(10):
+                await asyncio.sleep(0.01)
+
+            assert session1.buffer_size == 0
+            assert spy_store.called
 
     @pytest.mark.asyncio
     async def test_end_session_returns_empty_when_no_session(

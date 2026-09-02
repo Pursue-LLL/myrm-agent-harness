@@ -27,9 +27,11 @@ from myrm_agent_harness.agent.tool_management.tool_layers import (
     ToolLayer,
     get_tool_layer,
     get_tool_registry_sort_key,
+    get_tool_replay_safety,
     tool_layer_snapshot_label,
 )
 from myrm_agent_harness.agent.tool_management.types import (
+    ReplaySafety,
     ToolBindMode,
     ToolEntry,
     ToolSnapshot,
@@ -94,6 +96,7 @@ class ToolRegistry:
         provider: str | None = None,
         allowed_domains: list[str] | None = None,
         bind_mode: ToolBindMode = ToolBindMode.TURN1,
+        replay_safety: ReplaySafety | None = None,
     ) -> None:
         """Add a tool to the registry.
 
@@ -115,10 +118,23 @@ class ToolRegistry:
             ``TURN1``: bound on first model turn.
             ``RUNTIME_ONLY``: internal hooks (e.g. ``_completion_check``);
             excluded from Turn1; executable when middleware injects tool_calls.
+        replay_safety:
+            ReplaySafety classification (SAFE / NEVER). Defaults to lookup in
+            SSOT _TOOL_REPLAY_SAFETY, falling back to NEVER.
         """
         resolved_layer = layer if layer is not None else get_tool_layer(tool.name)
+        resolved_safety = (
+            replay_safety
+            if replay_safety is not None
+            else get_tool_replay_safety(tool.name)
+        )
 
-        if tool.name not in _TOOL_LAYERS and layer is None and provider is None and not is_runtime_hook(tool.name):
+        if (
+            tool.name not in _TOOL_LAYERS
+            and layer is None
+            and provider is None
+            and not is_runtime_hook(tool.name)
+        ):
             logger.warning(
                 "Tool '%s' (source=%s) not in harness _TOOL_LAYERS registry, "
                 "defaulting to EXTERNAL. Register harness tools in tool_layers.py "
@@ -135,6 +151,7 @@ class ToolRegistry:
                 provider=provider,
                 allowed_domains=allowed_domains,
                 bind_mode=bind_mode,
+                replay_safety=resolved_safety,
             )
         )
 
@@ -176,7 +193,9 @@ class ToolRegistry:
         for entry in self._entries:
             name = entry.tool.name
             existing = best.get(name)
-            if existing is None or source_priority(entry.source) < source_priority(existing.source):
+            if existing is None or source_priority(entry.source) < source_priority(
+                existing.source
+            ):
                 best[name] = entry
 
         return sorted(
@@ -220,11 +239,17 @@ class ToolRegistry:
         for tool in resolved_tools:
             modifier = getattr(tool, "dynamic_schema_modifier", None)
             # Check if callable and not a MagicMock (to prevent test breakage)
-            if modifier is not None and callable(modifier) and not type(modifier).__name__.endswith("Mock"):
+            if (
+                modifier is not None
+                and callable(modifier)
+                and not type(modifier).__name__.endswith("Mock")
+            ):
                 try:
                     tool = modifier(resolved_names)
                 except Exception as ex:
-                    logger.warning("Tool %s dynamic_schema_modifier failed: %s", tool.name, ex)
+                    logger.warning(
+                        "Tool %s dynamic_schema_modifier failed: %s", tool.name, ex
+                    )
             final_tools.append(tool)
 
         return final_tools
@@ -252,9 +277,12 @@ class ToolRegistry:
                     description=desc,
                     source=entry.source.value,
                     provider=entry.provider,
-                    layer=tool_layer_snapshot_label(entry.layer or get_tool_layer(tool.name)),
+                    layer=tool_layer_snapshot_label(
+                        entry.layer or get_tool_layer(tool.name)
+                    ),
                     parameters_schema=params,
                     bind_mode=entry.bind_mode.value,
+                    replay_safety=entry.replay_safety.value,
                     builtin_tool_id=get_tool_product_id(tool.name),
                 )
             )

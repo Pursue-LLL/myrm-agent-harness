@@ -56,6 +56,16 @@ from .registry import (
 # Types
 from .types import ArtifactInfo, infer_artifact_type, infer_language
 
+# Bundle Manifest
+from .bundle_manifest import (
+    CATEGORY_DIRECTORY_MAPPING,
+    DeliverableCategory,
+    DeliverableItem,
+    DeliverableManifest,
+    DeliverableStatus,
+    infer_item_category,
+)
+
 # UI Artifacts
 from .ui_artifact import UIArtifact, UIDataUpdate
 

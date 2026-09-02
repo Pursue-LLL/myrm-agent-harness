@@ -9,6 +9,7 @@ from myrm_agent_harness.toolkits.memory.conversation_search.tool import (
 )
 from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     CONVERSATION_SEARCH_TOOL_NAME,
+    ConversationIndexCoverage,
     ConversationSearchHit,
     ConversationSearchRequest,
     ConversationSearchResponse,
@@ -16,6 +17,7 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
 
 __all__ = [
     "CONVERSATION_SEARCH_TOOL_NAME",
+    "ConversationIndexCoverage",
     "ConversationSearchHit",
     "ConversationSearchInput",
     "ConversationSearchRequest",

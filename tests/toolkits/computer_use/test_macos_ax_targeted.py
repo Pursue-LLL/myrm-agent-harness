@@ -88,6 +88,10 @@ class TestBuildAxSnapshotScript:
         assert "appPid" in script
         assert "unix id of targetApp" in script
 
+    def test_target_app_unminimizes_window(self) -> None:
+        script = _build_ax_snapshot_script(target_app="Finder")
+        assert 'value of attribute "AXMinimized" of window 1 of targetApp' in script
+
 
 class TestBuildAxInvokeScript:
     def test_default_uses_frontmost(self) -> None:

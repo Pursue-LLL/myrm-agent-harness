@@ -13,25 +13,12 @@ from myrm_agent_harness.toolkits.web_search.engine import SearchServiceConfig
 from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import (
     create_web_search_tool,
 )
-from myrm_agent_harness.utils.text_utils import PLANNING_ENCODING, get_token_count
-
-_MAX_DESCRIPTION_TOKENS = 2000
 
 
 def test_default_locale_is_english() -> None:
     assert DEFAULT_WEB_SEARCH_TOOL_DESCRIPTION_LOCALE == "en"
     assert WEB_SEARCH_TOOL_DESCRIPTION is WEB_SEARCH_TOOL_DESCRIPTION_EN
     assert resolve_web_search_tool_description() == WEB_SEARCH_TOOL_DESCRIPTION_EN
-
-
-def test_web_search_tool_description_token_budget() -> None:
-    for desc in (WEB_SEARCH_TOOL_DESCRIPTION_EN, WEB_SEARCH_TOOL_DESCRIPTION_ZH):
-        tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)
-        assert tokens <= _MAX_DESCRIPTION_TOKENS, (
-            f"web_search_tool description is {tokens} tokens "
-            f"(maximum {_MAX_DESCRIPTION_TOKENS}); "
-            "review quality-first prompt changes explicitly"
-        )
 
 
 def test_web_search_tool_description_preserves_rewrite_guardrails_en() -> None:

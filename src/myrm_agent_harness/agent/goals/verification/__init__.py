@@ -22,11 +22,15 @@ from myrm_agent_harness.agent.goals.verification.base import (
 from myrm_agent_harness.agent.goals.verification.gatekeeper import (
     VerificationGatekeeper,
 )
+from myrm_agent_harness.agent.goals.verification.security import (
+    SecurityScanCriterion,
+)
 
 __all__ = [
     "AggregatedVerificationResult",
     "ReviewComment",
     "ReviewSeverity",
+    "SecurityScanCriterion",
     "VerificationGatekeeper",
     "VerificationResult",
 ]

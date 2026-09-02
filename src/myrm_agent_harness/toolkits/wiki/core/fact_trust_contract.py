@@ -78,7 +78,9 @@ def infer_fact_status_from_path(file_path: str | Path) -> FactStatus:
     return FactStatus.PUBLISHED_TRUTH
 
 
-def resolve_fact_status(content: str, *, file_path: str | Path | None = None) -> FactStatus:
+def resolve_fact_status(
+    content: str, *, file_path: str | Path | None = None
+) -> FactStatus:
     """
     Resolve fact status with Frontmatter having top priority over directory path.
 

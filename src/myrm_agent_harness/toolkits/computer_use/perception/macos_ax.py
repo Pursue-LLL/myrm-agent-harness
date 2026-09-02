@@ -7,14 +7,14 @@
 - perception.overlay_roles::normalize_desktop_role (POS: cross-platform role normalization)
 
 [OUTPUT]
-- capture_ax_snapshot: AX tree capture with targeted app support and foreground fallback
+- capture_ax_snapshot: AX tree capture with targeted app support, auto-unminimize and foreground fallback
 - invoke_ax_element: AX element invocation with targeted app support
 - inspect_foreground: frontmost app metadata and native API routing hints
 - refs_for_view_update: DRef list for WebUI desktop inspector overlay
 
 [POS]
 macOS AX backend. Captures accessibility trees and invokes elements via AppleScript.
-Supports targeted capture by app name (bypasses frontmost) with auto-fallback.
+Supports targeted capture by app name (auto-restores minimized windows, bypasses frontmost) with auto-fallback.
 """
 
 from __future__ import annotations
@@ -147,6 +147,12 @@ end escapeText
 
 tell application "System Events"
     {app_selector}
+    try
+        if value of attribute "AXMinimized" of window 1 of targetApp is true then
+            set value of attribute "AXMinimized" of window 1 of targetApp to false
+            delay 0.05
+        end if
+    end try
     set appName to name of targetApp
     set bundleId to ""
     try
@@ -400,6 +406,12 @@ on run argv
 
     tell application "System Events"
         {app_selector}
+        try
+            if value of attribute "AXMinimized" of window 1 of targetApp is true then
+                set value of attribute "AXMinimized" of window 1 of targetApp to false
+                delay 0.05
+            end if
+        end try
         set uiElements to entire contents of window 1 of targetApp
         set elem to item elemIndex of uiElements
         if actionName is "fill" then

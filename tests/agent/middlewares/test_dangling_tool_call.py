@@ -5,7 +5,7 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware import (
-    _INTERRUPTED_CONTENT,
+    _INTERRUPTED_MUTATION_CONTENT,
     _build_patched_messages,
 )
 
@@ -14,7 +14,9 @@ class TestBuildPatchedMessages:
     def test_no_dangling_returns_none(self) -> None:
         messages = [
             HumanMessage(content="hi"),
-            AIMessage(content="", tool_calls=[{"id": "tc1", "name": "tool", "args": {}}]),
+            AIMessage(
+                content="", tool_calls=[{"id": "tc1", "name": "tool", "args": {}}]
+            ),
             ToolMessage(content="result", tool_call_id="tc1"),
         ]
         assert _build_patched_messages(messages) is None
@@ -29,7 +31,12 @@ class TestBuildPatchedMessages:
     def test_patches_dangling_tool_call(self) -> None:
         messages = [
             HumanMessage(content="hi"),
-            AIMessage(content="", tool_calls=[{"id": "tc1", "name": "bash_code_execute_tool", "args": {}}]),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "tc1", "name": "bash_code_execute_tool", "args": {}}
+                ],
+            ),
         ]
         patched = _build_patched_messages(messages)
         assert patched is not None
@@ -37,7 +44,7 @@ class TestBuildPatchedMessages:
         synthetic = patched[2]
         assert isinstance(synthetic, ToolMessage)
         assert synthetic.tool_call_id == "tc1"
-        assert synthetic.content == _INTERRUPTED_CONTENT
+        assert synthetic.content == _INTERRUPTED_MUTATION_CONTENT
 
     def test_patches_multiple_dangling(self) -> None:
         messages = [
@@ -69,7 +76,11 @@ class TestBuildPatchedMessages:
         ]
         patched = _build_patched_messages(messages)
         assert patched is not None
-        synthetic_msgs = [m for m in patched if isinstance(m, ToolMessage) and m.content == _INTERRUPTED_CONTENT]
+        synthetic_msgs = [
+            m
+            for m in patched
+            if isinstance(m, ToolMessage) and m.content == _INTERRUPTED_MUTATION_CONTENT
+        ]
         assert len(synthetic_msgs) == 1
         assert synthetic_msgs[0].tool_call_id == "tc2"
 

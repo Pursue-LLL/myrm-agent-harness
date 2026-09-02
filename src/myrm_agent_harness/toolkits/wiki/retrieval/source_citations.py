@@ -99,7 +99,11 @@ def wiki_source_entry(
     if snip.evidence_snapshot_status:
         entry["snapshot_status"] = snip.evidence_snapshot_status
     if snip.article_path:
-        from ..core.fact_trust_contract import infer_fact_status_from_path, resolve_fact_status
+        from ..core.fact_trust_contract import (
+            infer_fact_status_from_path,
+            resolve_fact_status,
+        )
+
         entry["fact_status"] = infer_fact_status_from_path(snip.article_path).value
     uri = _evidence_resource_uri_for_snippet(snip, structure=structure)
     if uri:
@@ -164,7 +168,8 @@ def build_wiki_query_sources(
         ordered_keys.append(path_key)
 
     has_snippet_sources = any(
-        sources_by_key[k].get("snippet") or sources_by_key[k].get("claim_id") for k in ordered_keys
+        sources_by_key[k].get("snippet") or sources_by_key[k].get("claim_id")
+        for k in ordered_keys
     )
     return [
         sources_by_key[key]
@@ -224,7 +229,9 @@ def format_evidence_cards_context(
                 try:
                     p = Path(norm_path)
                     if p.is_absolute():
-                        norm_path = str(p.relative_to(structure.vault_dir)).replace("\\", "/")
+                        norm_path = str(p.relative_to(structure.vault_dir)).replace(
+                            "\\", "/"
+                        )
                 except (ValueError, Exception):
                     pass
             if snip.line_range:
@@ -248,8 +255,14 @@ def format_evidence_cards_context(
         header = " | ".join(header_parts)
         if snip.hit_kind == "asset" and snip.snippet:
             text_body = f"Caption: {snip.snippet.strip()}"
-        elif snip.claim_text and snip.snippet and snip.snippet.strip() != snip.claim_text.strip():
-            text_body = f"Claim: {snip.claim_text.strip()}\nEvidence: {snip.snippet.strip()}"
+        elif (
+            snip.claim_text
+            and snip.snippet
+            and snip.snippet.strip() != snip.claim_text.strip()
+        ):
+            text_body = (
+                f"Claim: {snip.claim_text.strip()}\nEvidence: {snip.snippet.strip()}"
+            )
         else:
             text_body = (snip.snippet or snip.claim_text or "").strip()
 
@@ -264,8 +277,9 @@ def format_evidence_cards_context(
         parts.append(trimmed_base)
 
     if card_sections:
-        parts.append("## Evidence Snippets & Line Anchors\n" + "\n\n".join(card_sections))
+        parts.append(
+            "## Evidence Snippets & Line Anchors\n" + "\n\n".join(card_sections)
+        )
 
     parts.append(_EVIDENCE_CARD_INSTRUCTION)
     return "\n\n".join(parts)
-

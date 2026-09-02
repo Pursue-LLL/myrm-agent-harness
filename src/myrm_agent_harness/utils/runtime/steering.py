@@ -15,13 +15,29 @@ Steering token mechanism. Allows external message injection during Agent runtime
 """
 
 import threading
+from collections.abc import Callable
 from contextvars import ContextVar
+from typing import Protocol
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
 
-STEERING_SKIP_MESSAGE = "Skipped: user sent a new message, remaining tool calls cancelled."
+STEERING_SKIP_MESSAGE = (
+    "Skipped: user sent a new message, remaining tool calls cancelled."
+)
+
+
+class SteeringStorageProtocol(Protocol):
+    """Protocol for external persistence of steering messages (e.g. database backing)."""
+
+    def on_steering_enqueued(self, message: str, redirect: bool) -> None:
+        """Called when a steering message is enqueued."""
+        ...
+
+    def on_steering_consumed(self, messages: list[str]) -> None:
+        """Called when steering messages are consumed by the runtime."""
+        ...
 
 
 class SteeringToken:
@@ -36,13 +52,23 @@ class SteeringToken:
     线程安全：steer() 可从任意线程调用（如 HTTP POST 端点）。
     """
 
-    def __init__(self) -> None:
-        self._queue: list[str] = []
+    def __init__(
+        self,
+        storage_listener: SteeringStorageProtocol | None = None,
+        initial_messages: list[str] | None = None,
+    ) -> None:
+        self._queue: list[str] = list(initial_messages or [])
         self._activated_messages: list[str] = []
         self._active: bool = False
         self._steering_applied: bool = False
         self._redirect_requested: bool = False
+        self._storage_listener = storage_listener
         self._lock = threading.Lock()
+
+    def set_storage_listener(self, listener: SteeringStorageProtocol | None) -> None:
+        """Set or update the external persistence listener."""
+        with self._lock:
+            self._storage_listener = listener
 
     def steer(self, message: str) -> None:
         """注入 steering 消息（外部 API，线程安全）
@@ -50,8 +76,15 @@ class SteeringToken:
         Args:
             message: 用户的新消息
         """
+        listener: SteeringStorageProtocol | None = None
         with self._lock:
             self._queue.append(message)
+            listener = self._storage_listener
+        if listener is not None:
+            try:
+                listener.on_steering_enqueued(message, redirect=False)
+            except Exception as e:
+                logger.warning(f"Failed to notify steering storage listener: {e}")
         logger.warning(f"Steering message queued: {message[:80]}...")
 
     def redirect(self, message: str) -> None:
@@ -64,9 +97,16 @@ class SteeringToken:
         Args:
             message: 用户的新消息
         """
+        listener: SteeringStorageProtocol | None = None
         with self._lock:
             self._queue.append(message)
             self._redirect_requested = True
+            listener = self._storage_listener
+        if listener is not None:
+            try:
+                listener.on_steering_enqueued(message, redirect=True)
+            except Exception as e:
+                logger.warning(f"Failed to notify steering storage listener: {e}")
         logger.warning(f"Redirect requested: {message[:80]}...")
 
     @property
@@ -121,10 +161,19 @@ class SteeringToken:
         Returns:
             所有 steering 消息列表
         """
+        listener: SteeringStorageProtocol | None = None
         with self._lock:
             msgs = self._activated_messages + self._queue
             self._activated_messages.clear()
             self._queue.clear()
+            listener = self._storage_listener
+        if listener is not None and msgs:
+            try:
+                listener.on_steering_consumed(msgs)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to notify steering storage listener on consumption: {e}"
+                )
         return msgs
 
     def reset_turn(self) -> None:
@@ -142,7 +191,9 @@ class SteeringToken:
 
 # ==================== ContextVar 隔离 ====================
 
-_steering_token_var: ContextVar[SteeringToken | None] = ContextVar("steering_token", default=None)
+_steering_token_var: ContextVar[SteeringToken | None] = ContextVar(
+    "steering_token", default=None
+)
 
 
 def get_steering_token() -> SteeringToken | None:

@@ -47,7 +47,9 @@ class PluginSkill:
     name: str  # immediate child directory name that contains SKILL.md
     description: str  # parsed from SKILL.md frontmatter description (may be empty)
     content: str  # SKILL.md pure content (frontmatter stripped)
-    files: dict[str, bytes] = field(default_factory=dict)  # all files under the skill dir (relative paths)
+    files: dict[str, bytes] = field(
+        default_factory=dict
+    )  # all files under the skill dir (relative paths)
     metadata: dict[str, Any] = field(default_factory=dict)  # skill frontmatter metadata
 
     @property
@@ -130,6 +132,8 @@ class PluginParseResult:
     meta: AgentPluginManifestMeta | None = None
     skills: list[PluginSkill] = field(default_factory=list)
     servers: list[PluginMcpServer] = field(default_factory=list)
+    agents: list[PluginAgent] = field(default_factory=list)
+    workspace_files: dict[str, bytes] = field(default_factory=dict)
     diagnostics: list[PluginDiagnostic] = field(default_factory=list)
     schemas: list[str] = field(default_factory=list)  # recognized $schema URIs
     files: dict[str, bytes] = field(default_factory=dict)  # non-skill bundled files

@@ -4,6 +4,7 @@
 - .base::BaseCriterion, VerificationResult, AggregatedVerificationResult (POS: Base classes)
 - .shell::ShellCriterion (POS: Shell command verifier)
 - .semantic::SemanticCriterion (POS: LLM-based verifier)
+- .security::SecurityScanCriterion (POS: Security vulnerability and PoC verifier)
 
 [OUTPUT]
 - VerificationGatekeeper: Orchestrator that parses rules and evaluates them.
@@ -23,6 +24,7 @@ from myrm_agent_harness.agent.goals.verification.base import (
     BaseCriterion,
     VerificationResult,
 )
+from myrm_agent_harness.agent.goals.verification.security import SecurityScanCriterion
 from myrm_agent_harness.agent.goals.verification.semantic import SemanticCriterion
 from myrm_agent_harness.agent.goals.verification.shell import ShellCriterion
 
@@ -34,6 +36,8 @@ logger = logging.getLogger(__name__)
 CRITERION_REGISTRY = {
     "shell": ShellCriterion,
     "semantic": SemanticCriterion,
+    "security": SecurityScanCriterion,
+    "security_scan": SecurityScanCriterion,
 }
 
 
@@ -48,9 +52,13 @@ class VerificationGatekeeper:
                 cls = CRITERION_REGISTRY[crit_type]
                 self.criteria.append(cls.from_dict(config))
             else:
-                logger.warning("Unknown acceptance criterion type %r — skipped", crit_type)
+                logger.warning(
+                    "Unknown acceptance criterion type %r — skipped", crit_type
+                )
 
-    async def verify_all(self, goal_provider: GoalProvider | None = None) -> AggregatedVerificationResult:
+    async def verify_all(
+        self, goal_provider: GoalProvider | None = None
+    ) -> AggregatedVerificationResult:
         """Run all criteria sequentially and return per-criterion results."""
         if not self.criteria:
             return AggregatedVerificationResult(passed=True)

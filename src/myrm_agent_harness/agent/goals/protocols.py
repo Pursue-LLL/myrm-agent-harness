@@ -146,6 +146,17 @@ class GoalProvider(Protocol):
         """Evaluate a semantic criterion using an LLM judge."""
         ...
 
+    async def evaluate_security_scan(
+        self,
+        scan_mode: str = "diff",
+        target_paths: list[str] | None = None,
+        fail_on_severity: str = "high",
+        poc_command: str | None = None,
+        cwe_allowlist: list[str] | None = None,
+    ) -> VerificationResult:
+        """Evaluate security vulnerabilities and PoC validation for goal acceptance."""
+        ...
+
     async def stash_goal(
         self,
         session_id: str,
@@ -191,7 +202,9 @@ class GoalProvider(Protocol):
         """
         ...
 
-    async def record_judge_parse_result(self, goal_id: str, *, parse_failed: bool) -> Goal:
+    async def record_judge_parse_result(
+        self, goal_id: str, *, parse_failed: bool
+    ) -> Goal:
         """Update the consecutive judge parse failure counter.
 
         If parse_failed=True, increments the counter. Otherwise resets to 0.
@@ -206,7 +219,9 @@ class GoalProvider(Protocol):
         """Set or replace the constraints list for a goal."""
         ...
 
-    async def update_protected_paths(self, goal_id: str, protected_paths: list[str]) -> Goal:
+    async def update_protected_paths(
+        self, goal_id: str, protected_paths: list[str]
+    ) -> Goal:
         """Set or replace the protected_paths (glob patterns) for a goal."""
         ...
 
@@ -214,7 +229,9 @@ class GoalProvider(Protocol):
         """Update the objective text of a goal (runtime hot-edit)."""
         ...
 
-    async def record_acceptance_results(self, goal_id: str, results: list[dict[str, object]]) -> Goal:
+    async def record_acceptance_results(
+        self, goal_id: str, results: list[dict[str, object]]
+    ) -> Goal:
         """Persist per-criterion acceptance verification results.
 
         Writes to metadata['acceptance_results'] (latest snapshot) and

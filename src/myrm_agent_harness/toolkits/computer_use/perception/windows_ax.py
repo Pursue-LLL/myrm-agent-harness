@@ -1,4 +1,19 @@
-"""Windows UI Automation snapshot and invoke."""
+"""Windows UI Automation snapshot and invoke.
+
+[INPUT]
+- dref.types::SnapshotScope, SnapshotMeta, ElementRef, BBox (POS: @dref accessibility element model)
+- dref.errors::AXPermissionRequiredError, AXTreeEmptyError (POS: accessibility error hierarchy)
+- types::ActionResult (POS: platform action execution result container)
+
+[OUTPUT]
+- WindowsAxSnapshot: Windows accessibility snapshot container with metadata and refs
+- capture_ax_snapshot: Windows UI Automation tree capture with targeted window resolution and auto-restore
+- invoke_ax_element: Element action execution via UIA pattern invocation or SendKeys
+- inspect_foreground: Frontmost window inspection with COM/PowerShell native routing hints
+
+[POS]
+Windows platform accessibility perception and element invocation via UI Automation.
+"""
 
 from __future__ import annotations
 
@@ -159,6 +174,54 @@ def _locate_window(app_name: str) -> object | None:
     return None
 
 
+def _ensure_window_active_for_target(control: object) -> None:
+    """Ensure target window is restored from minimized/suspended state for AX operations.
+
+    Restores minimized windows to normal/maximized visual state and allows brief rendering
+    settle time so UWP/XAML and Win32 UI elements are fully instantiated before tree traversal.
+    """
+    try:
+        import time
+        import uiautomation as auto
+
+        is_minimized = False
+        try:
+            pattern = control.GetWindowPattern()  # type: ignore[attr-defined]
+            if (
+                pattern
+                and getattr(pattern, "WindowVisualState", None)
+                == auto.WindowVisualState.Minimized
+            ):
+                is_minimized = True
+                pattern.SetWindowVisualState(auto.WindowVisualState.Normal)
+        except Exception:
+            pass
+
+        if not is_minimized:
+            try:
+                rect = getattr(control, "BoundingRectangle", None)
+                if rect and (
+                    rect.width() <= 0
+                    or rect.height() <= 0
+                    or rect.left < -10000
+                    or rect.top < -10000
+                ):
+                    is_minimized = True
+                    try:
+                        pattern = control.GetWindowPattern()  # type: ignore[attr-defined]
+                        if pattern:
+                            pattern.SetWindowVisualState(auto.WindowVisualState.Normal)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        if is_minimized:
+            time.sleep(0.05)
+    except Exception:
+        pass
+
+
 def capture_ax_snapshot(
     scope: SnapshotScope, app_name: str | None = None
 ) -> WindowsAxSnapshot:
@@ -173,6 +236,7 @@ def capture_ax_snapshot(
         control = _locate_window(app_name)
         if control is None:
             raise AXTreeEmptyError(f"target window not found for app '{app_name}'")
+        _ensure_window_active_for_target(control)
     else:
         control = auto.GetForegroundControl()
         if control is None:
@@ -216,6 +280,7 @@ def invoke_ax_element(
             return ActionResult(
                 success=False, error=f"target window not found for app '{app_name}'"
             )
+        _ensure_window_active_for_target(control)
     else:
         control = auto.GetForegroundControl()
         if control is None:

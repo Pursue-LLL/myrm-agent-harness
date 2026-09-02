@@ -26,6 +26,8 @@ Tool loading dual-track (SSOT):
 
 from enum import IntEnum
 
+from myrm_agent_harness.agent.tool_management.types import ReplaySafety
+
 
 class ToolLayer(IntEnum):
     """工具层级定义 - 数值越小越靠前
@@ -197,6 +199,35 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 def is_registered_action_tool(tool_name: str) -> bool:
     """Return True when *tool_name* is registered in the Action Tool SSOT."""
     return tool_name in _TOOL_LAYERS
+
+
+# ============================================================
+# ReplaySafety SSOT 注册表
+# SAFE: 幂等/纯只读工具，崩溃恢复时允许透明安全重放补全结果
+# 默认/未声明: ReplaySafety.NEVER（安全第一原则）
+# ============================================================
+_TOOL_REPLAY_SAFETY: dict[str, ReplaySafety] = {
+    # 只读文件与搜索工具
+    "file_read_tool": ReplaySafety.SAFE,
+    "grep_tool": ReplaySafety.SAFE,
+    "glob_tool": ReplaySafety.SAFE,
+    "web_search_tool": ReplaySafety.SAFE,
+    "web_fetch_tool": ReplaySafety.SAFE,
+    "memory_search_tool": ReplaySafety.SAFE,
+    "wiki_query_tool": ReplaySafety.SAFE,
+    "skill_search_tool": ReplaySafety.SAFE,
+    "browser_inspect_tool": ReplaySafety.SAFE,
+    "browser_snapshot_tool": ReplaySafety.SAFE,
+    "desktop_snapshot_tool": ReplaySafety.SAFE,
+    "desktop_vision_tool": ReplaySafety.SAFE,
+    "kanban_show": ReplaySafety.SAFE,
+    "kanban_list_tasks": ReplaySafety.SAFE,
+}
+
+
+def get_tool_replay_safety(tool_name: str) -> ReplaySafety:
+    """获取工具的重放安全等级（未登记工具一律默认为 NEVER）"""
+    return _TOOL_REPLAY_SAFETY.get(tool_name, ReplaySafety.NEVER)
 
 
 def register_tool_layer(tool_name: str, layer: ToolLayer) -> None:

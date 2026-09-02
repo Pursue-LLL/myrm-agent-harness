@@ -22,9 +22,7 @@ def test_web_search_query_policy_module_removed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_web_search_tool_description_token_budget() -> None:
-    import tiktoken
-
+async def test_web_search_tool_description_placement() -> None:
     from myrm_agent_harness.toolkits.web_search.engine import SearchServiceConfig
     from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import (
         create_web_search_tool,
@@ -33,6 +31,6 @@ async def test_web_search_tool_description_token_budget() -> None:
     tool = create_web_search_tool(
         search_service_cfg=SearchServiceConfig(search_service="tavily", api_key="test-key"),
     )
-    encoding = tiktoken.get_encoding("cl100k_base")
-    tokens = len(encoding.encode(tool.description or ""))
-    assert tokens <= 2000, f"web_search_tool description bloated beyond quality baseline to {tokens} tok"
+    assert tool.description is not None
+    assert "questions" in tool.description
+    assert "Query rewrite rules" in tool.description

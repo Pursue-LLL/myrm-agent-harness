@@ -12,8 +12,8 @@ Platform AX/UIA/AT-SPI snapshot capture, tree rendering, incremental diff, eleme
 | ax_diff.py | Core | Incremental AX tree diff: `compute_ref_diff` compares two snapshots via (role, name) identity matching + bbox proximity, produces `RefDiff` with 4-layer full-view fallback (first snapshot / app change / high change ratio / low identity confidence) | ✅ |
 | overlay_roles.py | Core | Cross-platform overlay role SSOT for SOM + Inspector | ✅ |
 | renderer.py | Core | AX tree text rendering: `render_snapshot_tree` (full) + `render_diff_tree` (incremental diff with +/~/- markers); optional `[N]` SOM line prefixes | ✅ |
-| macos_ax.py | Platform | macOS Accessibility API snapshot + invoke + native API routing hints; targeted capture by app name (exact name with contains fallback, bypasses frontmost; not found falls back to foreground with `scope` reflecting `foreground`); `refs_for_view_update` fills `nth` from SOM map | ✅ |
-| windows_ax.py | Platform | Windows UI Automation snapshot + invoke + COM/PowerShell routing hints; targeted capture by process name via shared `_locate_window` (capture and invoke reuse it for index consistency) | ✅ |
+| macos_ax.py | Platform | macOS Accessibility API snapshot + invoke + native API routing hints; targeted capture by app name (exact name with contains fallback, auto-restores minimized windows, bypasses frontmost; not found falls back to foreground with `scope` reflecting `foreground`); `refs_for_view_update` fills `nth` from SOM map | ✅ |
+| windows_ax.py | Platform | Windows UI Automation snapshot + invoke + COM/PowerShell routing hints; targeted capture by process name via shared `_locate_window` with auto-restore of minimized windows and rendering settle wait (capture and invoke reuse it for index consistency) | ✅ |
 | linux_ax.py | Platform | Linux AT-SPI snapshot + invoke (pyatspi doAction/EditableText/grabFocus) + D-Bus routing hints; targeted capture scoped to a matching application (shared by capture and invoke) | ✅ |
 
 ## Dependencies

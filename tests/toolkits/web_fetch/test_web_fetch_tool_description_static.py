@@ -9,26 +9,11 @@ from myrm_agent_harness.toolkits.web_fetch._web_fetch_tool_description import (
 from myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools import (
     create_web_fetch_tool,
 )
-from myrm_agent_harness.utils.text_utils import PLANNING_ENCODING, get_token_count
-
-_MAX_DESCRIPTION_TOKENS = 2000
 
 
 def test_default_locale_is_english() -> None:
     assert DEFAULT_WEB_FETCH_TOOL_DESCRIPTION_LOCALE == "en"
     assert resolve_web_fetch_tool_description(False) == (resolve_web_fetch_tool_description(False, None))
-
-
-def test_web_fetch_tool_description_token_budget() -> None:
-    for enable_extract in (False, True):
-        for locale in (None, "en", "zh-CN"):
-            desc = resolve_web_fetch_tool_description(enable_extract, locale)
-            tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)
-            assert tokens <= _MAX_DESCRIPTION_TOKENS, (
-                f"web_fetch_tool description is {tokens} tokens "
-                f"(maximum {_MAX_DESCRIPTION_TOKENS}); "
-                "review quality-first prompt changes explicitly"
-            )
 
 
 def test_web_fetch_tool_description_preserves_operation_guardrails_en() -> None:

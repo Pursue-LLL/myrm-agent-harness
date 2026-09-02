@@ -19,6 +19,7 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     MAX_SNIPPET_CHARS,
     MAX_SUMMARY_CHARS,
     MAX_TOOL_OUTPUT_CHARS,
+    ConversationIndexCoverage,
     ConversationSearchHit,
     ConversationSearchResponse,
 )
@@ -32,25 +33,52 @@ from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
 )
 
 
+def _format_coverage_notice(coverage: ConversationIndexCoverage | None) -> str | None:
+    """Render honest notice when index coverage is partial or degraded."""
+    if coverage is None:
+        return None
+    if coverage.indexing_degraded:
+        return "[Notice: Conversation index is currently rebuilding or degraded; coverage may be partial]"
+    if coverage.total_conversations > 0 and (
+        coverage.coverage_ratio < 0.95 or coverage.unindexed_recent_count > 0
+    ):
+        return (
+            f"[Notice: Conversation search covered {coverage.indexed_conversations}/"
+            f"{coverage.total_conversations} sessions ({coverage.coverage_ratio:.1%}); "
+            f"{coverage.unindexed_recent_count} sessions pending index]"
+        )
+    return None
+
+
 async def format_conversation_search_response(
     response: ConversationSearchResponse,
 ) -> dict[str, object]:
     """Format provider response with conversation_history sources in metadata."""
+    notice = _format_coverage_notice(response.coverage)
+
     if not response.hits:
         if response.mode == "recent":
-            return pack_tool_result_with_sources("No previous conversations found.", [])
+            msg = f"{notice}\nNo previous conversations found." if notice else "No previous conversations found."
+            return pack_tool_result_with_sources(msg, [])
         if response.rejected_reason:
-            return pack_tool_result_with_sources(response.rejected_reason, [])
-        return pack_tool_result_with_sources("No matching conversations found.", [])
+            msg = f"{notice}\n{response.rejected_reason}" if notice else response.rejected_reason
+            return pack_tool_result_with_sources(msg, [])
+        msg = (
+            f"{notice}\nNo matching conversations found in indexed history."
+            if notice
+            else "No matching conversations found."
+        )
+        return pack_tool_result_with_sources(msg, [])
 
     max_output_chars = MAX_TOOL_OUTPUT_CHARS - recall_preamble_overhead_chars()
-    lines = [
-        (
-            "Recent conversations:"
-            if response.mode == "recent"
-            else f"Conversation search results for: {response.query or ''}"
-        )
-    ]
+    lines: list[str] = []
+    if notice:
+        lines.append(notice)
+    lines.append(
+        "Recent conversations:"
+        if response.mode == "recent"
+        else f"Conversation search results for: {response.query or ''}"
+    )
     output_chars = sum(len(line) + 1 for line in lines)
     sources: list[dict[str, object]] = []
     truncated = response.truncated

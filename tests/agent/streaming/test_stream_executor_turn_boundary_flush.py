@@ -45,10 +45,13 @@ def stream_ctx(mock_memory_manager):
 
 
 @pytest.mark.asyncio
-async def test_stream_executor_flushes_memory_at_turn_boundary(stream_ctx, mock_memory_manager):
+async def test_stream_executor_flushes_memory_at_turn_boundary(
+    stream_ctx, mock_memory_manager
+):
     """Verify that StreamExecutor flushes active memory session at turn completion."""
+
     async def fake_astream(*args, **kwargs):
-        yield {"messages": [AIMessage(content="I will remember that.")]}
+        yield ("messages", (AIMessage(content="I will remember that."), {"tags": []}))
 
     stream_ctx.agent.astream = fake_astream
 
@@ -65,11 +68,14 @@ async def test_stream_executor_flushes_memory_at_turn_boundary(stream_ctx, mock_
 
 
 @pytest.mark.asyncio
-async def test_stream_executor_flushes_memory_on_exception_finally(stream_ctx, mock_memory_manager):
+async def test_stream_executor_flushes_memory_on_exception_finally(
+    stream_ctx, mock_memory_manager
+):
     """Verify that StreamExecutor flushes memory even if an exception occurs during execution."""
+
     async def fake_failing_astream(*args, **kwargs):
         raise RuntimeError("Unexpected LLM stream failure")
-        yield  # make it an async generator
+        yield ("messages", (AIMessage(content="fail"), {}))
 
     stream_ctx.agent.astream = fake_failing_astream
 
@@ -89,12 +95,14 @@ async def test_stream_executor_flushes_memory_on_exception_finally(stream_ctx, m
 
 
 @pytest.mark.asyncio
-async def test_stream_executor_skips_flush_when_buffer_empty(stream_ctx, mock_memory_manager):
+async def test_stream_executor_skips_flush_when_buffer_empty(
+    stream_ctx, mock_memory_manager
+):
     """Verify that StreamExecutor skips flush if buffer is empty (0 I/O overhead)."""
     mock_memory_manager.active_session.buffer_size = 0
 
     async def fake_astream(*args, **kwargs):
-        yield {"messages": [AIMessage(content="Hello!")]}
+        yield ("messages", (AIMessage(content="Hello!"), {"tags": []}))
 
     stream_ctx.agent.astream = fake_astream
 

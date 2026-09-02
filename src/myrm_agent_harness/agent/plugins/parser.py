@@ -35,11 +35,13 @@ from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract
 from . import manifest, mcp_config
 from .manifest import decode_manifest_json, parse_manifest
 from .mcp_config import decode_mcp_json, parse_mcp_servers
-from .models import PluginDiagnosticLevel, PluginParseResult, PluginSkill
+from .models import PluginAgent, PluginDiagnosticLevel, PluginParseResult, PluginSkill
 
 logger = logging.getLogger(__name__)
 
-_EXCLUDED_SEGMENTS = frozenset({".git", ".venv", "__pycache__", "node_modules", ".DS_Store", "__MACOSX"})
+_EXCLUDED_SEGMENTS = frozenset(
+    {".git", ".venv", "__pycache__", "node_modules", ".DS_Store", "__MACOSX"}
+)
 
 
 def _is_excluded_file(path: str) -> bool:
@@ -97,7 +99,9 @@ class AgentPluginParser:
             return result
 
         result.meta = meta
-        result.schemas.append("https://agent-plugins.org/schemas/1.0.0/plugin.schema.json")
+        result.schemas.append(
+            "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+        )
 
         # Retain every non-skill file (plugin.json / mcp.json / bundled stdio
         # scripts) so the business layer can persist them to the plugin root
@@ -114,15 +118,25 @@ class AgentPluginParser:
         # MCP discovery (§6.1, §7.2): invalid mcp.json disables MCP only.
         self._discover_mcp(all_files, result)
 
+        # Agent profiles discovery (WorkBuddy & community multi-agent layout).
+        self._discover_agents(all_files, result, raw_manifest)
+
+        # Prebuilt workspace template assets discovery.
+        self._discover_workspace_files(all_files, result)
+
         return result
 
-    def _load_plugin_manifest(self, all_files: dict[str, bytes]) -> dict[str, Any] | None:
+    def _load_plugin_manifest(
+        self, all_files: dict[str, bytes]
+    ) -> dict[str, Any] | None:
         raw = all_files.get("plugin.json")
         if raw is None:
             return None
         return decode_manifest_json(raw)
 
-    def _discover_skills(self, all_files: dict[str, bytes], result: PluginParseResult) -> None:
+    def _discover_skills(
+        self, all_files: dict[str, bytes], result: PluginParseResult
+    ) -> None:
         # Non-recursive: only immediate children of skills/ containing SKILL.md (§7.1).
         skill_names: set[str] = set()
         for path in all_files:
@@ -148,7 +162,9 @@ class AgentPluginParser:
                     PluginDiagnosticLevel.WARNING,
                 )
 
-    def _build_skill(self, name: str, all_files: dict[str, bytes]) -> PluginSkill | None:
+    def _build_skill(
+        self, name: str, all_files: dict[str, bytes]
+    ) -> PluginSkill | None:
         prefix = f"skills/{name}/"
         skill_files: dict[str, bytes] = {}
         for path, content in all_files.items():
@@ -168,14 +184,18 @@ class AgentPluginParser:
             metadata=metadata,
         )
 
-    def _discover_mcp(self, all_files: dict[str, bytes], result: PluginParseResult) -> None:
+    def _discover_mcp(
+        self, all_files: dict[str, bytes], result: PluginParseResult
+    ) -> None:
         if "mcp.json" not in all_files:
             return  # missing fixed location is not an error (§6.2)
 
         try:
             raw = decode_mcp_json(all_files["mcp.json"])
             if raw is None:
-                result.add_diagnostic("mcp", "mcp_missing", "mcp.json is not a JSON object")
+                result.add_diagnostic(
+                    "mcp", "mcp_missing", "mcp.json is not a JSON object"
+                )
                 return
             plugin_schema = result.schemas[0] if result.schemas else None
             mcp_config.validate_mcp_top_level(raw, plugin_schema=plugin_schema)
@@ -198,6 +218,141 @@ class AgentPluginParser:
                         f"MCP server '{name}' is skipped",
                         PluginDiagnosticLevel.WARNING,
                     )
+
+    def _discover_agents(
+        self,
+        all_files: dict[str, bytes],
+        result: PluginParseResult,
+        manifest_meta: dict[str, Any] | None,
+    ) -> None:
+        """Discover agents from `agents/*.md` or `agents/<name>/AGENT.md`."""
+        agent_paths: dict[str, bytes] = {}
+        for path, content in all_files.items():
+            if path.startswith("agents/") and path.endswith(".md"):
+                agent_paths[path] = content
+
+        if not agent_paths:
+            return
+
+        entry_agent_hint: str | None = None
+        if isinstance(manifest_meta, dict):
+            raw_entry = manifest_meta.get("entry_agent") or manifest_meta.get(
+                "main_agent"
+            )
+            if isinstance(raw_entry, str) and raw_entry.strip():
+                entry_agent_hint = raw_entry.strip().lower()
+
+        parsed_agents: list[PluginAgent] = []
+        for path in sorted(agent_paths):
+            content = agent_paths[path]
+            text = content.decode("utf-8", errors="replace")
+            metadata, description, prompt = _parse_skill_frontmatter(text)
+
+            # Derive agent name
+            rel_name = path[len("agents/") :]
+            if rel_name.endswith("/AGENT.md"):
+                agent_name = rel_name.removesuffix("/AGENT.md")
+            elif rel_name.endswith(".md"):
+                agent_name = rel_name.removesuffix(".md")
+            else:
+                continue
+
+            display_name = str(metadata.get("name") or agent_name)
+            max_iters = metadata.get("max_iterations") or metadata.get("max_iters")
+            parsed_iters = (
+                int(max_iters)
+                if isinstance(max_iters, (int, str)) and str(max_iters).isdigit()
+                else None
+            )
+
+            # Subagents / Skills / Tools dependencies from metadata
+            raw_skills = metadata.get("skills") or metadata.get("skill_names") or ()
+            skill_tuple = (
+                tuple(str(s) for s in raw_skills)
+                if isinstance(raw_skills, (list, tuple))
+                else ()
+            )
+
+            raw_tools = metadata.get("tools") or metadata.get("tool_names") or ()
+            tool_tuple = (
+                tuple(str(t) for t in raw_tools)
+                if isinstance(raw_tools, (list, tuple))
+                else ()
+            )
+
+            raw_mcps = metadata.get("mcps") or metadata.get("mcp_names") or ()
+            mcp_tuple = (
+                tuple(str(m) for m in raw_mcps)
+                if isinstance(raw_mcps, (list, tuple))
+                else ()
+            )
+
+            raw_subagents = (
+                metadata.get("subagents") or metadata.get("subagent_names") or ()
+            )
+            subagent_tuple = (
+                tuple(str(sa) for sa in raw_subagents)
+                if isinstance(raw_subagents, (list, tuple))
+                else ()
+            )
+
+            is_sub = bool(metadata.get("is_subagent", False))
+            is_entry = False
+            if entry_agent_hint:
+                is_entry = (agent_name.lower() == entry_agent_hint) or (
+                    display_name.lower() == entry_agent_hint
+                )
+
+            parsed_agents.append(
+                PluginAgent(
+                    name=display_name,
+                    description=description or str(metadata.get("description", "")),
+                    system_prompt=prompt,
+                    max_iterations=parsed_iters,
+                    skill_names=skill_tuple,
+                    tool_names=tool_tuple,
+                    mcp_names=mcp_tuple,
+                    subagent_names=subagent_tuple,
+                    is_subagent=is_sub,
+                    is_entry_agent=is_entry,
+                    metadata=metadata,
+                )
+            )
+
+        # If no explicit entry agent was marked and we have multiple agents, mark the first or root one as entry
+        if parsed_agents and not any(a.is_entry_agent for a in parsed_agents):
+            first = parsed_agents[0]
+            parsed_agents[0] = PluginAgent(
+                name=first.name,
+                description=first.description,
+                system_prompt=first.system_prompt,
+                max_iterations=first.max_iterations,
+                skill_names=first.skill_names,
+                tool_names=first.tool_names,
+                mcp_names=first.mcp_names,
+                subagent_names=first.subagent_names,
+                is_subagent=False,
+                is_entry_agent=True,
+                metadata=first.metadata,
+            )
+
+        result.agents.extend(parsed_agents)
+
+    def _discover_workspace_files(
+        self,
+        all_files: dict[str, bytes],
+        result: PluginParseResult,
+    ) -> None:
+        """Discover bundled workspace template files under `workspace/` or `template_files/`."""
+        for path, content in all_files.items():
+            if path.startswith("workspace/"):
+                rel_path = path[len("workspace/") :]
+                if rel_path:
+                    result.workspace_files[rel_path] = content
+            elif path.startswith("template_files/"):
+                rel_path = path[len("template_files/") :]
+                if rel_path:
+                    result.workspace_files[rel_path] = content
 
 
 def _parse_skill_frontmatter(text: str) -> tuple[dict[str, Any], str, str]:

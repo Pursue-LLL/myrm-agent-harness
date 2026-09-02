@@ -70,7 +70,13 @@ class ArtifactVault:
 
         return safe_join_path(self.meta_dir, f"{obj_id}.json")
 
-    def put(self, content: str | bytes, filename: str, content_type: str | None = None, description: str = "") -> str:
+    def put(
+        self,
+        content: str | bytes,
+        filename: str,
+        content_type: str | None = None,
+        description: str = "",
+    ) -> str:
         """存入一个对象, 返回 vault:// 指针"""
         import fcntl
         import hashlib
@@ -122,11 +128,21 @@ class ArtifactVault:
             json.dumps(meta.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-        logger.info("Vault 存入大文件: %s (%d bytes) -> %s%s", filename, size_bytes, VAULT_PREFIX, obj_id)
+        logger.info(
+            "Vault 存入大文件: %s (%d bytes) -> %s%s",
+            filename,
+            size_bytes,
+            VAULT_PREFIX,
+            obj_id,
+        )
         return f"{VAULT_PREFIX}{obj_id}"
 
     def put_file(
-        self, file_path: str | Path, filename: str, content_type: str | None = None, description: str = ""
+        self,
+        file_path: str | Path,
+        filename: str,
+        content_type: str | None = None,
+        description: str = "",
     ) -> str:
         """从本地文件路径存入一个大文件对象, 返回 vault:// 指针.
 
@@ -177,13 +193,21 @@ class ArtifactVault:
             json.dumps(meta.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-        logger.info("Vault 从文件存入大对象: %s (%d bytes) -> %s%s", filename, size_bytes, VAULT_PREFIX, obj_id)
+        logger.info(
+            "Vault 从文件存入大对象: %s (%d bytes) -> %s%s",
+            filename,
+            size_bytes,
+            VAULT_PREFIX,
+            obj_id,
+        )
         return f"{VAULT_PREFIX}{obj_id}"
 
     def get(self, uri: str) -> bytes:
         """从 vault:// 指针读取内容"""
         if not uri.startswith(VAULT_PREFIX):
-            raise ValueError(f"Invalid Vault URI: {uri}. Must start with {VAULT_PREFIX}")
+            raise ValueError(
+                f"Invalid Vault URI: {uri}. Must start with {VAULT_PREFIX}"
+            )
 
         obj_id = uri[len(VAULT_PREFIX) :]
         obj_path = self.get_object_path(obj_id)
@@ -218,3 +242,28 @@ class ArtifactVault:
         # 按创建时间降序
         objects.sort(key=lambda x: x.created_at, reverse=True)
         return objects
+
+    def save_manifest(self, manifest_data: dict[str, object]) -> Path:
+        """持久化交付包 Manifest (manifest.json) 到 Vault 的 bundles 目录"""
+        from myrm_agent_harness.agent.security.path_security import safe_join_path
+
+        bundles_dir = self.vault_dir / "bundles"
+        bundles_dir.mkdir(parents=True, exist_ok=True)
+
+        bundle_id = str(manifest_data.get("bundle_id", "default"))
+        manifest_path = safe_join_path(bundles_dir, f"{bundle_id}.json")
+        manifest_path.write_text(
+            json.dumps(manifest_data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        return manifest_path
+
+    def get_manifest(self, bundle_id: str) -> dict[str, object] | None:
+        """从 Vault 的 bundles 目录读取指定 bundle_id 的 manifest 数据"""
+        from myrm_agent_harness.agent.security.path_security import safe_join_path
+
+        bundles_dir = self.vault_dir / "bundles"
+        manifest_path = safe_join_path(bundles_dir, f"{bundle_id}.json")
+        if not manifest_path.exists() or not manifest_path.is_file():
+            return None
+
+        return json.loads(manifest_path.read_text(encoding="utf-8"))

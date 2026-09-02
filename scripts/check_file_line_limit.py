@@ -31,7 +31,8 @@ _PRUNE = frozenset({"__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache"
 
 
 def _count_lines(path: Path) -> int:
-    return sum(1 for _ in path.open("rb"))
+    with path.open("rb") as f:
+        return sum(1 for _ in f)
 
 
 def _load_baseline(path: Path) -> dict[str, int]:

@@ -569,6 +569,72 @@ class TestInvokeEdges:
         assert "COM failure" in (result.error or "")
 
 
+class TestEnsureWindowActiveForTarget:
+    """_ensure_window_active_for_target auto-restore and settle logic."""
+
+    def test_minimized_window_restores_to_normal(self) -> None:
+        window = _make_window("Mail - Inbox", 100)
+        pattern = MagicMock()
+        auto = MagicMock()
+        auto.WindowVisualState.Minimized = 2
+        auto.WindowVisualState.Normal = 0
+        pattern.WindowVisualState = auto.WindowVisualState.Minimized
+        window.GetWindowPattern.return_value = pattern
+
+        with _module_with_auto(auto) as module:
+            with patch("time.sleep") as mock_sleep:
+                module._ensure_window_active_for_target(window)
+                pattern.SetWindowVisualState.assert_called_once_with(
+                    auto.WindowVisualState.Normal
+                )
+                mock_sleep.assert_called_once_with(0.05)
+
+    def test_negative_coordinate_bounding_box_triggers_restore(self) -> None:
+        window = _make_window("Calculator", 200)
+        pattern = MagicMock()
+        pattern.WindowVisualState = 0  # not minimized according to pattern
+        window.GetWindowPattern.return_value = pattern
+        rect = MagicMock()
+        rect.width.return_value = 0
+        rect.height.return_value = 0
+        rect.left = -32000
+        rect.top = -32000
+        window.BoundingRectangle = rect
+
+        auto = MagicMock()
+        auto.WindowVisualState.Minimized = 2
+        auto.WindowVisualState.Normal = 0
+
+        with _module_with_auto(auto) as module:
+            with patch("time.sleep") as mock_sleep:
+                module._ensure_window_active_for_target(window)
+                pattern.SetWindowVisualState.assert_called_once_with(
+                    auto.WindowVisualState.Normal
+                )
+                mock_sleep.assert_called_once_with(0.05)
+
+    def test_normal_window_no_restore_needed(self) -> None:
+        window = _make_window("Browser", 300)
+        pattern = MagicMock()
+        auto = MagicMock()
+        auto.WindowVisualState.Minimized = 2
+        auto.WindowVisualState.Normal = 0
+        pattern.WindowVisualState = auto.WindowVisualState.Normal
+        window.GetWindowPattern.return_value = pattern
+        rect = MagicMock()
+        rect.width.return_value = 800
+        rect.height.return_value = 600
+        rect.left = 100
+        rect.top = 100
+        window.BoundingRectangle = rect
+
+        with _module_with_auto(auto) as module:
+            with patch("time.sleep") as mock_sleep:
+                module._ensure_window_active_for_target(window)
+                pattern.SetWindowVisualState.assert_not_called()
+                mock_sleep.assert_not_called()
+
+
 class TestWindowsInspectForeground:
     """windows_ax.inspect_foreground branches."""
 

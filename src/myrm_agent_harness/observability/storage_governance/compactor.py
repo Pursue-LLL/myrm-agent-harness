@@ -99,7 +99,10 @@ class StateStorageCompactor:
                         file_path = Path(root) / f
                         if f.endswith(".tmp") or f.startswith("orphan_"):
                             try:
-                                if now - file_path.stat().st_mtime > max_orphan_age_seconds:
+                                if (
+                                    now - file_path.stat().st_mtime
+                                    > max_orphan_age_seconds
+                                ):
                                     file_path.unlink(missing_ok=True)
                                     purged_count += 1
                             except OSError:

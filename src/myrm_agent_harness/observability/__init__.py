@@ -59,6 +59,16 @@ from .invariants import (
     RuntimeInvariantRegistry,
     default_invariant_registry,
 )
+from .storage_governance import (
+    CompactionResult,
+    StateSnapshotManager,
+    StateSnapshotMetadata,
+    StateStorageCompactor,
+    StorageCategory,
+    StorageCategoryBreakdown,
+    StorageGovernanceInspector,
+    StorageGovernanceReport,
+)
 from .tracing import JsonFormatter, TracingContext, TracingLogFilter
 
 __all__ = [
@@ -81,6 +91,13 @@ __all__ = [
     "SkillHealthEvaluator",
     "SkillHealthScore",
     "SkillHealthStatus",
+    "StateSnapshotManager",
+    "StateSnapshotMetadata",
+    "StateStorageCompactor",
+    "StorageCategory",
+    "StorageCategoryBreakdown",
+    "StorageGovernanceInspector",
+    "StorageGovernanceReport",
     "TaskFrictionEvent",
     "TopOffenderItem",
     "TracingContext",

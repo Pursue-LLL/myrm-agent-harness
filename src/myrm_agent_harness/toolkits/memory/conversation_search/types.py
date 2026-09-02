@@ -103,6 +103,18 @@ class ConversationSearchHit(BaseModel):
     source_ref: ConversationSourceRef | None = None
 
 
+class ConversationIndexCoverage(BaseModel):
+    """Index coverage and backfill metrics for the underlying conversation store."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    total_conversations: int = Field(default=0, ge=0, description="Total conversations in canonical store")
+    indexed_conversations: int = Field(default=0, ge=0, description="Conversations indexed in FTS/vector index")
+    coverage_ratio: float = Field(default=1.0, ge=0.0, le=1.0, description="Fraction of indexed conversations")
+    unindexed_recent_count: int = Field(default=0, ge=0, description="Count of unindexed/backfilling conversations")
+    indexing_degraded: bool = Field(default=False, description="True if index is rebuilding or degraded")
+
+
 class ConversationSearchResponse(BaseModel):
     """Conversation search response returned by providers."""
 
@@ -113,3 +125,4 @@ class ConversationSearchResponse(BaseModel):
     truncated: bool = False
     query: str = ""
     rejected_reason: str | None = None
+    coverage: ConversationIndexCoverage | None = Field(default=None, description="Index coverage report if available")

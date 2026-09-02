@@ -58,10 +58,12 @@ def _get_sqlite_table_stats(db_path: Path) -> dict[str, int]:
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = [row[0] for row in cursor.fetchall() if not row[0].startswith("sqlite_")]
+            tables = [
+                row[0] for row in cursor.fetchall() if not row[0].startswith("sqlite_")
+            ]
             for table in tables:
                 try:
-                    cursor.execute(f"SELECT COUNT(*) FROM \"{table}\";")
+                    cursor.execute(f'SELECT COUNT(*) FROM "{table}";')
                     count_row = cursor.fetchone()
                     if count_row:
                         details[table] = count_row[0]
@@ -80,7 +82,9 @@ class StorageGovernanceInspector:
     def __init__(self, data_dir: Path | str) -> None:
         self._data_dir = Path(data_dir)
 
-    def inspect(self, snapshots: list[StateSnapshotMetadata] | None = None) -> StorageGovernanceReport:
+    def inspect(
+        self, snapshots: list[StateSnapshotMetadata] | None = None
+    ) -> StorageGovernanceReport:
         """Generate a full storage governance report for the target data directory."""
         data_dir = self._data_dir
         if not data_dir.exists():
@@ -91,7 +95,9 @@ class StorageGovernanceInspector:
             disk_total = disk.total
             disk_free = disk.free
             disk_used = disk.used
-            disk_used_pct = round((disk_used / disk_total) * 100, 2) if disk_total > 0 else 0.0
+            disk_used_pct = (
+                round((disk_used / disk_total) * 100, 2) if disk_total > 0 else 0.0
+            )
         except OSError:
             disk_total = 0
             disk_free = 0
@@ -198,7 +204,11 @@ class StorageGovernanceInspector:
         # Compute percentage for each category
         updated_categories: list[StorageCategoryBreakdown] = []
         for cat in categories:
-            pct = round((cat.bytes / total_storage) * 100, 1) if total_storage > 0 else 0.0
+            pct = (
+                round((cat.bytes / total_storage) * 100, 1)
+                if total_storage > 0
+                else 0.0
+            )
             updated_categories.append(
                 StorageCategoryBreakdown(
                     category=cat.category,
@@ -214,15 +224,25 @@ class StorageGovernanceInspector:
         recommended_actions: list[str] = []
         wal_size = sqlite_details.get("data.db-wal", 0)
         if wal_size > 50 * 1024 * 1024:  # > 50 MB WAL
-            recommended_actions.append("WAL log is over 50MB. Run safe compaction to truncate and flush pages.")
+            recommended_actions.append(
+                "WAL log is over 50MB. Run safe compaction to truncate and flush pages."
+            )
         if cp_bytes > 500 * 1024 * 1024:  # > 500 MB checkpoints
-            recommended_actions.append("Checkpoint storage exceeds 500MB. Prune completed task checkpoints.")
+            recommended_actions.append(
+                "Checkpoint storage exceeds 500MB. Prune completed task checkpoints."
+            )
         if logs_bytes > 300 * 1024 * 1024:  # > 300 MB logs
-            recommended_actions.append("Event logs exceed 300MB. Archive historical trace logs.")
+            recommended_actions.append(
+                "Event logs exceed 300MB. Archive historical trace logs."
+            )
         if not snapshots and total_storage > 100 * 1024 * 1024:
-            recommended_actions.append("No state snapshot found. Create a baseline snapshot before agent tuning.")
+            recommended_actions.append(
+                "No state snapshot found. Create a baseline snapshot before agent tuning."
+            )
 
-        is_healthy = disk_used_pct < 85.0 and total_storage < 2 * 1024 * 1024 * 1024  # < 2GB
+        is_healthy = (
+            disk_used_pct < 85.0 and total_storage < 2 * 1024 * 1024 * 1024
+        )  # < 2GB
 
         return StorageGovernanceReport(
             total_storage_bytes=total_storage,

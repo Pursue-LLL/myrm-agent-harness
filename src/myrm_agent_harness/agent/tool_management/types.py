@@ -54,6 +54,19 @@ class ToolBindMode(StrEnum):
     RUNTIME_ONLY = "runtime_only"
 
 
+class ReplaySafety(StrEnum):
+    """Replay safety classification for crash recovery and replay arbitration.
+
+    SAFE: Idempotent or read-only tool (e.g. read_file, grep, glob, web_search).
+          Safe to replay transparently upon crash recovery without side-effects.
+    NEVER: Non-idempotent or mutation tool (e.g. bash, write_file, edit_file).
+           Must never be transparently replayed; emits interrupted status upon recovery.
+    """
+
+    SAFE = "safe"
+    NEVER = "never"
+
+
 _SOURCE_PRIORITY: dict[ToolSource, int] = {
     ToolSource.META: 0,
     ToolSource.USER: 1,
@@ -76,6 +89,7 @@ class ToolEntry:
     provider: str | None = field(default=None)
     allowed_domains: list[str] | None = field(default=None)
     bind_mode: ToolBindMode = field(default=ToolBindMode.TURN1)
+    replay_safety: ReplaySafety = field(default=ReplaySafety.NEVER)
 
 
 @dataclass(slots=True, frozen=True)
@@ -90,5 +104,6 @@ class ToolSnapshot:
     layer: str
     parameters_schema: dict[str, object] | None
     bind_mode: str = field(default=ToolBindMode.TURN1.value)
+    replay_safety: str = field(default=ReplaySafety.NEVER.value)
     # GUI togglable product id from get_tool_product_id(); null for baseline/MCP/skill tools.
     builtin_tool_id: str | None = field(default=None)

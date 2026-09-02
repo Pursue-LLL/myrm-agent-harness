@@ -36,17 +36,42 @@ from json import JSONDecodeError, loads
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
 from langchain_core.messages import BaseMessage, ToolMessage
 
+from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_replay_safety
+from myrm_agent_harness.agent.tool_management.types import ReplaySafety
+
 logger = logging.getLogger(__name__)
 
-_INTERRUPTED_CONTENT = (
-    "[Tool call was interrupted and did not return a result. "
-    "Action was cancelled by user; do not retry the exact same failing action. "
+_INTERRUPTED_MUTATION_CONTENT = (
+    "[Tool call was interrupted before completion. "
+    "Action has external side-effects; cancelled by safety policy to prevent duplicate side effects. "
     "Please adapt your plan to user instructions.]"
+)
+_INTERRUPTED_SAFE_CONTENT = (
+    "[Tool execution was interrupted during recovery. "
+    "Read-only action safely completed without side effects.]"
 )
 _INVALID_ARGS_CONTENT = (
     "[Tool call could not be executed because its arguments were invalid.]"
 )
 _MAX_ERROR_DETAIL_LEN = 500
+
+
+def _synthetic_content(
+    is_invalid: bool,
+    tool_name: str = "unknown",
+    error: str | None = None,
+) -> tuple[str, str]:
+    """Generate appropriate synthetic ToolMessage content and status."""
+    if is_invalid:
+        if error:
+            truncated = error[:_MAX_ERROR_DETAIL_LEN]
+            return f"{_INVALID_ARGS_CONTENT[:-1]}: {truncated}]", "error"
+        return _INVALID_ARGS_CONTENT, "error"
+
+    safety = get_tool_replay_safety(tool_name)
+    if safety == ReplaySafety.SAFE:
+        return _INTERRUPTED_SAFE_CONTENT, "success"
+    return _INTERRUPTED_MUTATION_CONTENT, "error"
 
 
 def _sanitize_tool_name(name: object) -> str:
@@ -263,16 +288,6 @@ def _extract_tool_calls(msg: BaseMessage) -> list[tuple[str, str, bool]]:
     return results
 
 
-def _synthetic_content(is_invalid: bool, error: str | None = None) -> str:
-    """Generate appropriate synthetic ToolMessage content."""
-    if not is_invalid:
-        return _INTERRUPTED_CONTENT
-    if error:
-        truncated = error[:_MAX_ERROR_DETAIL_LEN]
-        return f"{_INVALID_ARGS_CONTENT[:-1]}: {truncated}]"
-    return _INVALID_ARGS_CONTENT
-
-
 def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | None:
     """Scan messages and insert synthetic ToolMessages for dangling tool_calls.
 
@@ -327,12 +342,15 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
             consumed_so_far[tc_id] = consumed_so_far.get(tc_id, 0) + 1
             if consumed_so_far[tc_id] > tool_count.get(tc_id, 0):
                 error = invalid_errors.get(tc_id) if is_invalid else None
+                content, status = _synthetic_content(
+                    is_invalid, tool_name=tool_name, error=error
+                )
                 patched.append(
                     ToolMessage(
-                        content=_synthetic_content(is_invalid, error),
+                        content=content,
                         tool_call_id=tc_id,
                         name=tool_name,
-                        status="error",
+                        status=status,
                     )
                 )
                 patched_names.append(tool_name)

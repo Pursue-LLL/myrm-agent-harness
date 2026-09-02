@@ -33,6 +33,7 @@ Observability tools for Myrm Agent framework. Provides Prometheus metrics, auth 
 | latency/ | Agent turn chain latency decomposition, waterfall visualization models, and wall-clock bottleneck identification. |
 | digest/ | Team weekly digest and knowledge compounding newsletter engine (activity aggregation, skill health, Markdown rendering). |
 | approval_audit/ | Auto-approval trigger diagnostics, quota usage decoupling (Main vs Reviewer), bounded Top-Offenders aggregation, and 1-click allowlist recommendations. |
+| storage_governance/ | Agent persistent state storage governance, space inspection, safe non-blocking compaction, and snapshot-based rollback. |
 
 ## Key Dependencies
 

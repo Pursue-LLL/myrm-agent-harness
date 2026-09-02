@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.memory._manager.helpers import _infer_preference_category
+from myrm_agent_harness.toolkits.memory._manager.helpers import (
+    _infer_preference_category,
+)
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AnyMemory,
     ConsolidationConfig,
@@ -50,7 +52,9 @@ class MemoryManagerGovernanceSessionMixin:
 
     async def batch_approve(self, pending_ids: list[str]) -> tuple[int, list[str]]:
         """Returns (success_count, failed_ids)."""
-        return await self._governance.batch_approve(pending_ids, approve_func=self.approve)
+        return await self._governance.batch_approve(
+            pending_ids, approve_func=self.approve
+        )
 
     async def batch_reject(self, pending_ids: list[str]) -> int:
         return await self._governance.batch_reject(pending_ids)
@@ -60,9 +64,14 @@ class MemoryManagerGovernanceSessionMixin:
         chat_id: str,
         hook_registry: HookRegistryProtocol | None = None,
     ) -> MemorySession:
-        from myrm_agent_harness.core.hooks.types import CallableHookDefinition, HookEvent
+        from myrm_agent_harness.core.hooks.types import (
+            CallableHookDefinition,
+            HookEvent,
+        )
         from myrm_agent_harness.toolkits.memory.session import MemorySession
-        from myrm_agent_harness.toolkits.memory.tool_capture import ToolMemoryCaptureHook
+        from myrm_agent_harness.toolkits.memory.tool_capture import (
+            ToolMemoryCaptureHook,
+        )
 
         if self._active_session is not None:
             if self._active_session.buffer_size > 0:
@@ -80,24 +89,35 @@ class MemoryManagerGovernanceSessionMixin:
         hook = ToolMemoryCaptureHook()
         if hook_registry is not None:
             if not any(
-                isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_post_tool_failure"
+                isinstance(h, CallableHookDefinition)
+                and h.fn.__name__ == "on_post_tool_failure"
                 for h in hook_registry._hooks.get(HookEvent.POST_TOOL_USE_FAILURE, [])
             ):
                 hook_registry.register(
-                    HookEvent.POST_TOOL_USE_FAILURE, CallableHookDefinition(fn=hook.on_post_tool_failure)
+                    HookEvent.POST_TOOL_USE_FAILURE,
+                    CallableHookDefinition(fn=hook.on_post_tool_failure),
                 )
             if not any(
-                isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_post_tool_use"
+                isinstance(h, CallableHookDefinition)
+                and h.fn.__name__ == "on_post_tool_use"
                 for h in hook_registry._hooks.get(HookEvent.POST_TOOL_USE, [])
             ):
-                hook_registry.register(HookEvent.POST_TOOL_USE, CallableHookDefinition(fn=hook.on_post_tool_use))
+                hook_registry.register(
+                    HookEvent.POST_TOOL_USE,
+                    CallableHookDefinition(fn=hook.on_post_tool_use),
+                )
             if not any(
-                isinstance(h, CallableHookDefinition) and h.fn.__name__ == "on_user_turn"
+                isinstance(h, CallableHookDefinition)
+                and h.fn.__name__ == "on_user_turn"
                 for h in hook_registry._hooks.get(HookEvent.USER_TURN, [])
             ):
-                hook_registry.register(HookEvent.USER_TURN, CallableHookDefinition(fn=hook.on_user_turn))
+                hook_registry.register(
+                    HookEvent.USER_TURN, CallableHookDefinition(fn=hook.on_user_turn)
+                )
 
-        self._active_session = MemorySession(manager=self, chat_id=chat_id, tool_capture_hook=hook)
+        self._active_session = MemorySession(
+            manager=self, chat_id=chat_id, tool_capture_hook=hook
+        )
         return self._active_session
 
     async def end_session(self) -> list[AnyMemory]:
@@ -109,14 +129,22 @@ class MemoryManagerGovernanceSessionMixin:
         self._session_count += 1
         if self._preference_strategy is not None:
             try:
-                existing_active = {f.key for f in await self._preference_strategy.get_active_preferences()}
+                existing_active = {
+                    f.key
+                    for f in await self._preference_strategy.get_active_preferences()
+                }
                 promoted = await self._preference_strategy.micro_rebuild()
                 if promoted:
-                    logger.info("Preference micro-rebuild: %d promoted to Active", promoted)
+                    logger.info(
+                        "Preference micro-rebuild: %d promoted to Active", promoted
+                    )
                     await self._promote_core_preferences_to_profile(existing_active)
             except Exception as e:
                 logger.warning("Preference micro-rebuild failed (non-fatal): %s", e)
-        if self._session_count % self._config.forgetting_interval == 0 and self._vector is not None:
+        if (
+            self._session_count % self._config.forgetting_interval == 0
+            and self._vector is not None
+        ):
             task = asyncio.create_task(self._guarded_forgetting())
             task.add_done_callback(_log_background_task_failure)
         self._maybe_consolidate()
@@ -140,7 +168,9 @@ class MemoryManagerGovernanceSessionMixin:
             return
         try:
             llm_func = self._build_recurrence_llm_func()
-            result = await self._recurrence_detector.check_recurrence(summary, llm_func=llm_func)
+            result = await self._recurrence_detector.check_recurrence(
+                summary, llm_func=llm_func
+            )
 
             if not result.triggered or not result.consolidated_content:
                 return
@@ -167,7 +197,10 @@ class MemoryManagerGovernanceSessionMixin:
         async def _call(system_prompt: str, user_prompt: str) -> str:
             from langchain_core.messages import HumanMessage, SystemMessage
 
-            messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt),
+            ]
             response = await self._consolidation_llm.ainvoke(messages)  # type: ignore[union-attr]
             # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
             return extract_answer_text(response)
@@ -191,7 +224,9 @@ class MemoryManagerGovernanceSessionMixin:
 
     _CORE_PROFILE_KEYS = frozenset({"reply_style", "cognitive_depth", "proactivity"})
 
-    async def _promote_core_preferences_to_profile(self, existing_active_keys: set[str]) -> None:
+    async def _promote_core_preferences_to_profile(
+        self, existing_active_keys: set[str]
+    ) -> None:
         """Write newly Active core preferences to Profile for 0-latency personalization."""
         if self._preference_strategy is None:
             return
@@ -205,7 +240,9 @@ class MemoryManagerGovernanceSessionMixin:
                 await self.set_system_profile_attribute(facet.key, facet.value)
                 logger.info("Profile promoted: %s = %s", facet.key, facet.value[:50])
             except Exception as e:
-                logger.warning("Profile promotion failed for %s (non-fatal): %s", facet.key, e)
+                logger.warning(
+                    "Profile promotion failed for %s (non-fatal): %s", facet.key, e
+                )
 
     async def _submit_preference_candidate(self, memory: AnyMemory) -> None:
         """Submit a SemanticMemory with preference_type as a PreferenceCandidate."""

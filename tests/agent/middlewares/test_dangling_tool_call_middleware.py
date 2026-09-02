@@ -5,7 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware import (
-    _INTERRUPTED_CONTENT,
+    _INTERRUPTED_MUTATION_CONTENT,
+    _INTERRUPTED_SAFE_CONTENT,
     _MAX_ERROR_DETAIL_LEN,
     _build_patched_messages,
     _extract_tool_calls,
@@ -28,7 +29,12 @@ class TestBuildPatchedMessages:
         """AIMessage with tool_calls + matching ToolMessages → no patching."""
         messages = [
             HumanMessage(content="search for cats"),
-            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "web_search", "args": {"q": "cats"}}]),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "tc_1", "name": "web_search", "args": {"q": "cats"}}
+                ],
+            ),
             ToolMessage(content="Found cats", tool_call_id="tc_1", name="web_search"),
             AIMessage(content="Here are the results."),
         ]
@@ -38,7 +44,12 @@ class TestBuildPatchedMessages:
         """One AIMessage with a dangling tool_call → one synthetic ToolMessage inserted."""
         messages = [
             HumanMessage(content="search for cats"),
-            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "web_search", "args": {"q": "cats"}}]),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "tc_1", "name": "web_search_tool", "args": {"q": "cats"}}
+                ],
+            ),
         ]
         patched = _build_patched_messages(messages)
         assert patched is not None
@@ -47,8 +58,34 @@ class TestBuildPatchedMessages:
         synthetic = patched[2]
         assert isinstance(synthetic, ToolMessage)
         assert synthetic.tool_call_id == "tc_1"
-        assert synthetic.name == "web_search"
-        assert synthetic.content == _INTERRUPTED_CONTENT
+        assert synthetic.name == "web_search_tool"
+        assert synthetic.content == _INTERRUPTED_SAFE_CONTENT
+        assert synthetic.status == "success"
+
+    def test_single_dangling_mutation_tool_call(self):
+        """Mutation tool (bash/write) gets error status and mutation content."""
+        messages = [
+            HumanMessage(content="run command"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "tc_mut_1",
+                        "name": "bash_code_execute_tool",
+                        "args": {"command": "rm -rf /tmp/test"},
+                    }
+                ],
+            ),
+        ]
+        patched = _build_patched_messages(messages)
+        assert patched is not None
+        assert len(patched) == 3
+
+        synthetic = patched[2]
+        assert isinstance(synthetic, ToolMessage)
+        assert synthetic.tool_call_id == "tc_mut_1"
+        assert synthetic.name == "bash_code_execute_tool"
+        assert synthetic.content == _INTERRUPTED_MUTATION_CONTENT
         assert synthetic.status == "error"
 
     def test_multiple_dangling_in_same_ai_message(self):
@@ -86,7 +123,9 @@ class TestBuildPatchedMessages:
                     {"id": "tc_2", "name": "file_read", "args": {"path": "/tmp"}},
                 ],
             ),
-            ToolMessage(content="search result", tool_call_id="tc_1", name="web_search"),
+            ToolMessage(
+                content="search result", tool_call_id="tc_1", name="web_search"
+            ),
         ]
         patched = _build_patched_messages(messages)
         assert patched is not None
@@ -106,9 +145,13 @@ class TestBuildPatchedMessages:
         """Multiple interrupted turns in history → all dangling calls patched."""
         messages = [
             HumanMessage(content="first"),
-            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "tool_a", "args": {}}]),
+            AIMessage(
+                content="", tool_calls=[{"id": "tc_1", "name": "tool_a", "args": {}}]
+            ),
             HumanMessage(content="second"),
-            AIMessage(content="", tool_calls=[{"id": "tc_2", "name": "tool_b", "args": {}}]),
+            AIMessage(
+                content="", tool_calls=[{"id": "tc_2", "name": "tool_b", "args": {}}]
+            ),
         ]
         patched = _build_patched_messages(messages)
         assert patched is not None
@@ -125,7 +168,9 @@ class TestBuildPatchedMessages:
         messages = [
             HumanMessage(content="hello"),
             AIMessage(content="world"),
-            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]),
+            AIMessage(
+                content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]
+            ),
         ]
         patched = _build_patched_messages(messages)
         assert patched is not None
@@ -180,7 +225,9 @@ class TestBuildPatchedMessages:
         """Running on already-patched messages produces no new patches."""
         messages = [
             HumanMessage(content="search"),
-            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]),
+            AIMessage(
+                content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]
+            ),
         ]
         first_patch = _build_patched_messages(messages)
         assert first_patch is not None
@@ -193,7 +240,9 @@ class TestBuildPatchedMessages:
         not at the end of the list."""
         messages = [
             HumanMessage(content="first"),
-            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "tool_a", "args": {}}]),
+            AIMessage(
+                content="", tool_calls=[{"id": "tc_1", "name": "tool_a", "args": {}}]
+            ),
             HumanMessage(content="second"),
             AIMessage(content="response"),
         ]
@@ -293,7 +342,9 @@ class TestInvalidToolCalls:
             HumanMessage(content="do stuff"),
             AIMessage(
                 content="",
-                tool_calls=[{"id": "tc_valid", "name": "search", "args": {"q": "test"}}],
+                tool_calls=[
+                    {"id": "tc_valid", "name": "search", "args": {"q": "test"}}
+                ],
                 invalid_tool_calls=[
                     {
                         "name": "write_file",
@@ -337,7 +388,7 @@ class TestInvalidToolCalls:
         assert isinstance(synthetic, ToolMessage)
         assert synthetic.tool_call_id == "raw_call_1"
         assert synthetic.name == "terminal"
-        assert synthetic.content == _INTERRUPTED_CONTENT
+        assert synthetic.content == _INTERRUPTED_MUTATION_CONTENT
 
     def test_additional_kwargs_not_used_when_standard_fields_populated(self):
         """additional_kwargs.tool_calls is NOT used when msg.tool_calls is populated."""
@@ -348,7 +399,11 @@ class TestInvalidToolCalls:
                 tool_calls=[{"id": "tc_standard", "name": "search", "args": {}}],
                 additional_kwargs={
                     "tool_calls": [
-                        {"id": "raw_ignored", "type": "function", "function": {"name": "x", "arguments": "{}"}}
+                        {
+                            "id": "raw_ignored",
+                            "type": "function",
+                            "function": {"name": "x", "arguments": "{}"},
+                        }
                     ]
                 },
             ),
@@ -364,7 +419,9 @@ class TestInvalidToolCalls:
             AIMessage(
                 content="",
                 tool_calls=[],
-                invalid_tool_calls=[{"name": "fn", "args": "bad", "id": "tc_answered", "error": "err"}],
+                invalid_tool_calls=[
+                    {"name": "fn", "args": "bad", "id": "tc_answered", "error": "err"}
+                ],
             ),
             ToolMessage(content="handled", tool_call_id="tc_answered", name="fn"),
         ]
@@ -381,14 +438,23 @@ class TestExtractToolCalls:
         assert result == [("a", "fn", False)]
 
     def test_invalid_tool_calls(self):
-        msg = AIMessage(content="", invalid_tool_calls=[{"id": "b", "name": "bad_fn", "args": "x", "error": "e"}])
+        msg = AIMessage(
+            content="",
+            invalid_tool_calls=[
+                {"id": "b", "name": "bad_fn", "args": "x", "error": "e"}
+            ],
+        )
         result = _extract_tool_calls(msg)
         assert result == [("b", "bad_fn", True)]
 
     def test_additional_kwargs_fallback(self):
         msg = AIMessage(
             content="",
-            additional_kwargs={"tool_calls": [{"id": "c", "function": {"name": "raw_fn", "arguments": "{}"}}]},
+            additional_kwargs={
+                "tool_calls": [
+                    {"id": "c", "function": {"name": "raw_fn", "arguments": "{}"}}
+                ]
+            },
         )
         result = _extract_tool_calls(msg)
         assert result == [("c", "raw_fn", False)]
@@ -412,7 +478,9 @@ class TestDanglingToolCallMiddlewareAsync:
         """Middleware patches dangling calls and forwards to handler."""
         messages = [
             HumanMessage(content="go"),
-            AIMessage(content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]),
+            AIMessage(
+                content="", tool_calls=[{"id": "tc_1", "name": "search", "args": {}}]
+            ),
         ]
         sentinel = MagicMock()
         handler = AsyncMock(return_value=sentinel)

@@ -17,4 +17,5 @@ knowledge direction, compile/query configs, and recursive file system operations
 | claims_contract.py | Contract | OC-compatible structured `claims` parse/validate/merge; compile-time evidence `contentSha256` pin; read-time snapshot+excerpt with process LRU raw bytes cache (mtime invalidation); portable `last_compile_raw_hashes` + `raw_supersede`; `format_resource_uri` / `build_evidence_resource_uri` | ✅ |
 | section_contract.py | Contract | Managed block SSOT: extract/replace/append + `parse_editor_sections` for GUI | ✅ |
 | canonical_registry.py | Contract | `canonical_id` / alias index, page lease hash, write-time dedup helpers | ✅ |
+| fact_trust_contract.py | Contract | FactStatus + FactTrustLevel + FactTrustPolicy; resolve_fact_status with frontmatter override and directory path inference | ✅ |
 | refactor.py | Core | LinkRefactorEngine — update relative markdown links when wiki files move or rename | ✅ |

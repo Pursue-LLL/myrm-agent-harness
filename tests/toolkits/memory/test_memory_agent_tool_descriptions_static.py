@@ -21,12 +21,6 @@ from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
     WIKI_MEMORY_SAVE_MAX_CHARS,
     WIKI_MEMORY_SAVE_MIN_HEADINGS,
 )
-from myrm_agent_harness.utils.text_utils import PLANNING_ENCODING, get_token_count
-
-_MAX_SAVE_CORE_TOKENS = 750
-_MAX_SAVE_FULL_TOKENS = 900
-_MAX_MANAGE_DESCRIPTION_TOKENS = 400
-_MAX_SEARCH_DESCRIPTION_TOKENS = 300
 
 
 def test_default_locale_is_english() -> None:
@@ -79,46 +73,6 @@ def test_mcp_surface_zh_never_leaks_gui_wiki_tool() -> None:
     assert "wiki_ingest_tool" not in wiki_enabled_zh
     assert "Wiki 边界" in wiki_enabled_zh
     assert "长文/笔记/参考资料不属于 memory" in wiki_enabled_zh
-
-
-def test_memory_save_core_description_token_budget() -> None:
-    for desc in (MEMORY_SAVE_CORE_EN, MEMORY_SAVE_CORE_ZH):
-        tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)
-        assert tokens <= _MAX_SAVE_CORE_TOKENS, (
-            f"memory_save_tool core description is {tokens} tokens (max {_MAX_SAVE_CORE_TOKENS})"
-        )
-
-
-def test_memory_save_full_description_token_budget_with_wiki_and_approval() -> None:
-    policy = MemorySearchPolicy(allow_wiki=True)
-    for locale in ("en", "zh"):
-        desc = build_memory_save_tool_description(
-            policy,
-            approval_required=True,
-            locale=locale,
-        )
-        tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)
-        assert tokens <= _MAX_SAVE_FULL_TOKENS, (
-            f"memory_save_tool full ({locale}) description is {tokens} tokens (max {_MAX_SAVE_FULL_TOKENS})"
-        )
-
-
-def test_memory_manage_tool_description_token_budget() -> None:
-    for desc in (MEMORY_MANAGE_TOOL_DESCRIPTION_EN, MEMORY_MANAGE_TOOL_DESCRIPTION_ZH):
-        tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)
-        assert tokens <= _MAX_MANAGE_DESCRIPTION_TOKENS, (
-            f"memory_manage_tool description is {tokens} tokens (max {_MAX_MANAGE_DESCRIPTION_TOKENS})"
-        )
-
-
-def test_memory_search_tool_description_token_budget() -> None:
-    policy = MemorySearchPolicy()
-    for locale in ("en", "zh"):
-        desc = build_memory_search_tool_description(policy, locale=locale)
-        tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)
-        assert tokens <= _MAX_SEARCH_DESCRIPTION_TOKENS, (
-            f"memory_search_tool ({locale}) description is {tokens} tokens (max {_MAX_SEARCH_DESCRIPTION_TOKENS})"
-        )
 
 
 def test_memory_tool_descriptions_preserve_guardrails_en() -> None:

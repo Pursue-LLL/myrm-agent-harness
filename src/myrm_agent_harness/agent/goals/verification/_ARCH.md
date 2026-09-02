@@ -12,6 +12,7 @@
 | gatekeeper.py | 核心 | `VerificationGatekeeper` 验证协调器，顺序执行准则，返回逐条结果含计时 | ✅ |
 | shell.py | 核心 | `ShellCriterion` 实现，在沙箱内运行终端命令判定通过与否 | ✅ |
 | semantic.py | 核心 | `SemanticCriterion` 实现，将判断任务委托给 Server 层的 GoalProvider | ✅ |
+| security.py | 核心 | `SecurityScanCriterion` 实现，在沙箱隔离环境内执行 Agentic 代码安全扫描与 PoC 实证拦截 | ✅ |
 
 ## 数据流
 1. `VerificationGatekeeper.verify_all()` → `AggregatedVerificationResult`（含逐条 `VerificationResult`）
