@@ -48,6 +48,9 @@ SCHEMA_ONLY_TOOL_NAMES: frozenset[str] = frozenset(
         "think",
         "request_answer_user_tool",
         "skill_search_tool",
+        "memory_manage_tool",
+        "memory_save_tool",
+        "memory_search_tool",
     }
 )
 

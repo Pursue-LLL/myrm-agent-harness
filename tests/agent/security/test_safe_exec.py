@@ -197,8 +197,17 @@ class TestKillProcessTreeSafety:
         mock_proc = MagicMock(spec=asyncio.subprocess.Process)
         mock_proc.pid = 88888
 
-        with patch(
-            "myrm_agent_harness.utils.os_compat.os.getpgid",
-            side_effect=ProcessLookupError,
-        ):
+        with patch("myrm_agent_harness.utils.os_compat.os.getpgid", side_effect=ProcessLookupError):
             _kill_process_tree(mock_proc)
+
+    def test_credential_env_overrides_xai(self) -> None:
+        from myrm_agent_harness.core.security.safe_exec import credential_env_overrides
+
+        creds = (
+            EphemeralUserCredential(issuer="xai", token="test-key-123", scope="https://custom.x.ai/v1"),
+            EphemeralUserCredential(issuer="google_workspace", token="goog-token-abc"),
+        )
+        env = credential_env_overrides(creds)
+        assert env["XAI_API_KEY"] == "test-key-123"
+        assert env["XAI_BASE_URL"] == "https://custom.x.ai/v1"
+        assert env["GOOGLE_WORKSPACE_TOKEN"] == "goog-token-abc"

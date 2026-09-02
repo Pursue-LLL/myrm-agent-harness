@@ -162,7 +162,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `image_tool` | EXTERNAL | user_capability | image_generation | enabled_builtin_tools: image_generation |
 | `tts_generate` | EXTERNAL | user_capability | tts | enabled_builtin_tools: tts |
 | `video_tool` | EXTERNAL | user_capability | video_generation | enabled_builtin_tools: video_generation |
-| `x_search_tool` | EXTERNAL | user_capability | — | x-live-search prebuilt skill bound |
 <!-- TOOL_CATALOG_END -->
 
 ---

@@ -61,7 +61,7 @@ class ToolLayer(IntEnum):
 #
 # 工具名称必须与 @tool() 装饰器中声明的名称完全一致
 #
-# 架构边界:此处仅登记 harness 框架自有工具。业务层 vendor 集成 tool（如 x_search_tool）
+# 架构边界:此处仅登记 harness 框架自有工具。业务层 vendor 集成 tool
 # 在 myrm-agent-server `_tool_layer_bootstrap.py` 登记为 EXTERNAL; MCP/OpenAPI 运行时未登记名默认 EXTERNAL。
 _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================

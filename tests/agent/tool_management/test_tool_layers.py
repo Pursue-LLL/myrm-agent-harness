@@ -94,7 +94,7 @@ class TestRegisterToolLayer:
         register_tool_layer("web_search_tool", original)
 
 
-class TestCommonLayerSortKey:
+class TestHighPriorityLayerSortKey:
     def test_web_search_before_memory_block(self) -> None:
         from langchain_core.tools import StructuredTool
 

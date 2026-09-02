@@ -94,6 +94,10 @@ def credential_env_overrides(
             overrides["GITHUB_TOKEN"] = cred.token
         elif cred.issuer == "google_workspace":
             overrides["GOOGLE_WORKSPACE_TOKEN"] = cred.token
+        elif cred.issuer == "xai":
+            overrides["XAI_API_KEY"] = cred.token
+            if cred.scope:
+                overrides["XAI_BASE_URL"] = cred.scope
         else:
             overrides[f"{cred.issuer.upper()}_TOKEN"] = cred.token
     return overrides
