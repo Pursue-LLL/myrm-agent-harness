@@ -165,6 +165,11 @@ class TestParseLoopCommandInput:
         assert ms == 600_000
         assert prompt == "帮我盯竞品动态"
 
+    def test_multiline_prompt(self) -> None:
+        ms, prompt = parse_loop_command_input("/loop 15m 检查构建状态:\n1. unit test\n2. e2e test")
+        assert ms == 900_000
+        assert "unit test" in prompt
+
     def test_empty(self) -> None:
         ms, prompt = parse_loop_command_input("/loop")
         assert ms == 600_000

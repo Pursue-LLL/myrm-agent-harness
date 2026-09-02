@@ -201,7 +201,7 @@ def parse_loop_command_input(raw_input: str) -> tuple[int, str]:
     special_prefix_match = re.match(
         r"^(?:every\s+|each\s+|每隔?\s*)?(半小时|半个小时|半个钟头|1个半小时|一个半小时|每天|每日)\s+(.+)$",
         args,
-        re.IGNORECASE,
+        re.IGNORECASE | re.DOTALL,
     )
     if special_prefix_match:
         interval_str = special_prefix_match.group(1)
@@ -218,7 +218,7 @@ def parse_loop_command_input(raw_input: str) -> tuple[int, str]:
     prefix_match = re.match(
         rf"^(?:every\s+|each\s+|每隔?\s*)?(\d+\s*{unit_regex})\s+(.+)$",
         args,
-        re.IGNORECASE,
+        re.IGNORECASE | re.DOTALL,
     )
     if prefix_match:
         interval_str = prefix_match.group(1)
@@ -226,7 +226,7 @@ def parse_loop_command_input(raw_input: str) -> tuple[int, str]:
         return (parse_natural_interval(interval_str), prompt)
 
     # 3. Try prefix pure digits: e.g. "10 check something"
-    prefix_digit_match = re.match(r"^(\d+)\s+(.+)$", args)
+    prefix_digit_match = re.match(r"^(\d+)\s+(.+)$", args, re.DOTALL)
     if prefix_digit_match:
         val = int(prefix_digit_match.group(1))
         # If val is reasonable interval (1-1440 minutes), treat as interval
