@@ -11,6 +11,7 @@ Stable public import path for the memory toolkit façade.
 """
 
 from myrm_agent_harness.toolkits.memory._manager import (
+    CorruptedMemoryIndexError,
     MemoryError,
     MemoryManager,
     MemoryNotFoundError,
@@ -18,6 +19,7 @@ from myrm_agent_harness.toolkits.memory._manager import (
 )
 
 __all__ = [
+    "CorruptedMemoryIndexError",
     "MemoryError",
     "MemoryManager",
     "MemoryNotFoundError",

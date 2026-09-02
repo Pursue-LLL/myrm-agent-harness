@@ -58,6 +58,14 @@ from myrm_agent_harness.agent.context_management.archive_checkpoint.summary_serv
 from myrm_agent_harness.agent.context_management.context import (
     extract_context_from_request,
 )
+from myrm_agent_harness.agent.context_management.downshift import (
+    DownshiftCallback,
+    DownshiftConfig,
+    DownshiftGovernor,
+    DownshiftState,
+    HandoffMemo,
+    ModelTier,
+)
 from myrm_agent_harness.agent.context_management.infra.cache_break_detector import (
     get_cache_break_detector,
 )
@@ -135,6 +143,8 @@ def create_context_pipeline_middleware(
     enable_active_tool_prune: bool = True,
     active_prune_threshold_tokens: int = 2048,
     file_content_reader: FileContentReader | None = None,
+    downshift_governor: DownshiftGovernor | None = None,
+    on_downshift: DownshiftCallback | None = None,
 ) -> AgentMiddleware:
     """Create the context pipeline middleware.
 

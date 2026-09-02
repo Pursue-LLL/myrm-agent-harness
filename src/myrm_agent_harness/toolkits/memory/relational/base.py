@@ -146,6 +146,17 @@ class RelationalStore(ABC):
     @abstractmethod
     async def count_pending_by_source_chat_id(self, source_chat_id: str) -> int: ...
 
+    # ── Diagnostics & Integrity ──────────────────────────────────────
+
+    @abstractmethod
+    async def check_integrity(self) -> tuple[bool, str]:
+        """Check the physical and index integrity of the relational store.
+
+        Returns:
+            tuple[bool, str]: (is_intact, detail_message)
+        """
+        ...
+
     # ── Lifecycle ────────────────────────────────────────────────────
 
     @abstractmethod

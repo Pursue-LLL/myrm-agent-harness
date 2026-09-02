@@ -34,6 +34,7 @@ from myrm_agent_harness.toolkits.memory.relational._converters import (
 )
 from myrm_agent_harness.toolkits.memory.relational.base import RelationalStore
 from myrm_agent_harness.toolkits.memory.relational.exceptions import (
+    CorruptedMemoryIndexError,
     RelationalConnectionError,
     RelationalNotFoundError,
     RelationalQueryError,
@@ -98,13 +99,31 @@ class SQLiteRelationalStore(RelationalStore):
                         ) from e
         return self._connection
 
-    async def _init_connection_settings(self) -> None:
-        if self._connection is None:
-            return
-        from myrm_agent_harness.utils.db.sqlite import DURABLE, harden_connection_async
+    async def assert_store_integrity(self) -> None:
+        """Fast pre-command integrity check using PRAGMA quick_check(1).
 
-        await harden_connection_async(self._connection, DURABLE, db_path=self._db_path)
-        await self._connection.commit()
+        Fails fast if the SQLite database is corrupted, preventing partial/corrupt writes.
+        """
+        conn = await self._get_connection()
+        try:
+            async with conn.execute("PRAGMA quick_check(1)") as cursor:
+                rows = await cursor.fetchall()
+            if not rows or len(rows) != 1 or str(rows[0][0]).lower() != "ok":
+                raise CorruptedMemoryIndexError(
+                    f"SQLite store {self._db_path} failed quick_check: {rows}",
+                    db_path=str(self._db_path),
+                    index_type="sqlite_relational",
+                    repair_suggestion="Restore from sqlite_backup snapshot or reset memory store.",
+                )
+        except CorruptedMemoryIndexError:
+            raise
+        except Exception as e:
+            raise CorruptedMemoryIndexError(
+                f"SQLite store {self._db_path} integrity check query error: {e}",
+                db_path=str(self._db_path),
+                index_type="sqlite_relational",
+                repair_suggestion="Check file permissions or restore database from backup.",
+            ) from e
 
     async def _table_exists(self, table_name: str) -> bool:
         assert self._connection is not None
