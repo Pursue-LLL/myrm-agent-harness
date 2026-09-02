@@ -162,6 +162,10 @@ class SQLiteRelationalStore(RelationalStore):
                 f"SQLite store {self._db_path} integrity check query failed: {e}"
             ) from e
 
+    async def _ensure_integrity_before_write(self) -> None:
+        """Fail fast before write operations if database is corrupted."""
+        await self.assert_store_integrity()
+
     async def _table_exists(self, table_name: str) -> bool:
         assert self._connection is not None
         async with self._connection.execute(
@@ -446,6 +450,7 @@ class SQLiteRelationalStore(RelationalStore):
     async def set_profile(
         self, key: str, value: str, *, scope: MemoryScope | None = None
     ) -> None:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         now = now_iso()
         (
@@ -493,6 +498,7 @@ class SQLiteRelationalStore(RelationalStore):
     async def delete_profile(
         self, key: str, *, namespaces: list[str] | None = None
     ) -> bool:
+        await self._ensure_integrity_before_write()
         conn = await self._get_connection()
         scope_sql, scope_params = self._scope_filter_sql(namespaces)
         try:
