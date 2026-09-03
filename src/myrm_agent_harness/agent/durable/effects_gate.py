@@ -15,10 +15,8 @@ Effects boundary enabling mechanical step-by-step crash injection and resume val
 
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 from myrm_agent_harness.agent.durable.protocols import EffectsBoundaryProtocol
 from myrm_agent_harness.agent.durable.types import IntentRecord

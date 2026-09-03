@@ -285,6 +285,7 @@ class TestCleanupSessionPrivacy:
     async def test_auto_extract_short_circuits_when_l3_extraction_disabled(self) -> None:
         """当 memory_policy.allow_l3_extraction=False 时，必须短路阻断后台 LLM 抽取任务。"""
         import asyncio
+
         from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy
 
         mm = MagicMock()

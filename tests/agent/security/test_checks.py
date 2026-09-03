@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 from myrm_agent_harness.agent.security.checks import check_path_policy
 from myrm_agent_harness.agent.security.types import (
     AccessRoot,

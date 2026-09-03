@@ -67,11 +67,6 @@ from myrm_agent_harness.agent.context_management.infra.schemas import (
     ContextOffloadResult,
     ContextSnapshotCallback,
 )
-from myrm_agent_harness.runtime.paths.compression import (
-    compress_content_async,
-    get_adaptive_compression_level,
-    should_compress,
-)
 from myrm_agent_harness.runtime.context.archive_store import (
     find_content_addressed_archive,
     store_content_addressed_archive,
@@ -85,6 +80,11 @@ from myrm_agent_harness.runtime.context.instance_metrics import (
     record_compression,
     record_offload_failure,
     record_offload_success,
+)
+from myrm_agent_harness.runtime.paths.compression import (
+    compress_content_async,
+    get_adaptive_compression_level,
+    should_compress,
 )
 from myrm_agent_harness.runtime.paths.execution_paths import (
     _sanitize_path_segment,

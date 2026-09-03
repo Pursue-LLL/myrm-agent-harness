@@ -28,6 +28,7 @@ async def test_chatlitellm_responses_stream() -> None:
         pytest.skip("OpenCode Go key not configured")
 
     from langchain_core.messages import HumanMessage
+
     from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
 
     llm = create_litellm_model(

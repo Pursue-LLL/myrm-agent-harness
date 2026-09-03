@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any, Callable, Coroutine
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 from myrm_agent_harness.agent.durable.protocols import (
     DurableStorageProtocol,

@@ -29,7 +29,6 @@ from myrm_agent_harness.core.security.guards.ssrf import (
     async_pin_url,
 )
 from myrm_agent_harness.core.security.http.redirect_guard import (
-    InsecureRedirectSecurityError,
     strip_sensitive_headers_on_redirect,
 )
 from myrm_agent_harness.infra.tls_compat import create_httpx_client

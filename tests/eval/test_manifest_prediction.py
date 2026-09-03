@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.eval.manifest_prediction import (
     AttributionVerdict,
     ChangePredictionManifest,
+    ManifestAttributionResult,
     MetricAttributionDetail,
     MetricPrediction,
-    ManifestAttributionResult,
     PredictionDirection,
     evaluate_manifest_attribution,
 )

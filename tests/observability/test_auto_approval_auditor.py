@@ -1,14 +1,11 @@
 """Unit tests for Auto-Approval Trigger Diagnostics and Multi-Dimensional Quota Attribution Auditor."""
 
-import pytest
 
 from myrm_agent_harness.observability.approval_audit import (
     ApprovalTriggerCategory,
     ApprovalTriggerEvent,
-    AutoApprovalAuditReport,
     AutoApprovalAuditor,
-    DualTrackQuotaBreakdown,
-    TopOffenderItem,
+    AutoApprovalAuditReport,
 )
 
 

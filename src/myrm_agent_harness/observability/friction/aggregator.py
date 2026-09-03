@@ -12,8 +12,8 @@ Statistical aggregation engine computing friction distribution, top offending to
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
-from typing import Sequence
+from collections import Counter
+from collections.abc import Sequence
 
 from myrm_agent_harness.observability.friction.types import (
     FrictionSummary,

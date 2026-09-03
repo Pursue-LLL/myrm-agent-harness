@@ -47,7 +47,6 @@ from .progress_timeout import (
 from .summary_builder import (
     TailExtractionResult,
     create_summary_message,
-    extract_recent_messages,
     extract_recent_messages_with_split_context,
 )
 from .summary_parser import (

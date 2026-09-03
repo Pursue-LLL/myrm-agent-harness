@@ -440,7 +440,6 @@ class TestMemorySearchToolCorpusBranches:
             MemorySearchBackends,
             MemorySearchPolicy,
         )
-
         from myrm_agent_harness.toolkits.memory.conversation_search.types import (
             ConversationSearchHit,
             ConversationSearchResponse,

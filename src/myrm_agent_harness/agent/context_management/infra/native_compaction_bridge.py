@@ -157,7 +157,7 @@ class NativeCompactionCoordinator:
             try:
                 # Trigger memory pre-compaction recall so durable memories are safe
                 if hasattr(pre_compact_hook, "recall_and_persist"):
-                    cb = getattr(pre_compact_hook, "recall_and_persist")
+                    cb = pre_compact_hook.recall_and_persist
                     res = cb(session_id=session_id)
                     import inspect
 

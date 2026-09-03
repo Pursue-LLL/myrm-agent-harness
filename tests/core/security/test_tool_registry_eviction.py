@@ -1,6 +1,7 @@
 """Tests for dynamic tool registry eviction & thread safety."""
 
 import threading
+
 from myrm_agent_harness.core.security.tool_registry.registry import (
     MCPAnnotations,
     SafetyMetadata,

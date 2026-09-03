@@ -29,7 +29,6 @@ from ..core.claims_contract import (
 )
 from ..core.fact_trust_contract import (
     DEFAULT_FACT_TRUST_POLICY,
-    FactStatus,
     FactTrustPolicy,
     resolve_fact_status,
 )

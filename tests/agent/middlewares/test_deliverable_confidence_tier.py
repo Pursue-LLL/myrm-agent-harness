@@ -1,20 +1,17 @@
 """Unit tests for DeliverableConfidenceTier SSOT and resolve_deliverable_tier."""
 
-import pytest
+from myrm_agent_harness.agent.goals.verification.base import (
+    AggregatedVerificationResult,
+    VerificationResult,
+)
 from myrm_agent_harness.agent.middlewares.completion.deliverable_confidence_tier import (
     DeliverableConfidenceTier,
-    DeliverableTierEvidence,
-    DeliverableTierMetadata,
     resolve_deliverable_tier,
 )
 from myrm_agent_harness.agent.security.guards.loop_guard import (
     CallRecord,
     SuccessLevel,
     VerificationCategory,
-)
-from myrm_agent_harness.agent.goals.verification.base import (
-    AggregatedVerificationResult,
-    VerificationResult,
 )
 
 

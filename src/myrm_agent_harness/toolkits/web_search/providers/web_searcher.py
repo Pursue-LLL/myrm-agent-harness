@@ -32,6 +32,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from myrm_agent_harness.core.config.gateway import ToolGatewayConfig
+from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import (
+    await_coalesced_search,
+    bucket_search_limit,
+    build_search_cache_key,
+)
 from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     build_search_error_context,
@@ -46,12 +51,6 @@ from myrm_agent_harness.toolkits.web_search.core.exceptions import (
 from myrm_agent_harness.toolkits.web_search.core.metrics import (
     WebSearchMetrics,
     web_search_metrics,
-)
-from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import (
-    await_coalesced_search,
-    bucket_search_limit,
-    build_search_cache_key,
-    reset_search_coalescing_state_for_tests,
 )
 from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
     search_results_to_documents,

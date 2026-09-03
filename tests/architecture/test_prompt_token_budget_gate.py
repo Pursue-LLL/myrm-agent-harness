@@ -76,10 +76,11 @@ class TestPromptTokenBudgetGate:
 
     def test_harness_rules_byte_and_hash_stability(self) -> None:
         """Assert that harness system rules are immutable string constants preserving KV cache."""
+        from langchain_core.messages import SystemMessage
+
         from myrm_agent_harness.agent.context_management.infra.cache_break_detector import (
             _compute_system_prompt_hash,
         )
-        from langchain_core.messages import SystemMessage
 
         msg1 = [
             SystemMessage(content=AGENT_CORE_RULES),

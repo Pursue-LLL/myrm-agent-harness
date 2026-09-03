@@ -182,6 +182,7 @@ def _ensure_window_active_for_target(control: object) -> None:
     """
     try:
         import time
+
         import uiautomation as auto
 
         is_minimized = False

@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import importlib.util
 import sys
-from pathlib import Path
 from importlib.metadata import PackageNotFoundError
+from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from myrm_agent_harness.runtime.install_guard.platform import get_runtime_platform_key
 from myrm_agent_harness.runtime.install_guard.probe import (
     DistributionMode,
     DistributionNotReadyError,
@@ -18,7 +18,6 @@ from myrm_agent_harness.runtime.install_guard.probe import (
     get_distribution_mode,
     is_compiled_distribution,
 )
-from myrm_agent_harness.runtime.install_guard.platform import get_runtime_platform_key
 from myrm_agent_harness.runtime.install_guard.verify import (
     run_verification,
     verify_core_runtime_imports,
@@ -371,12 +370,11 @@ def test_verify_matplotlib_cjk_without_matplotlib_installed(tmp_path: Path) -> N
         "matplotlib.pyplot": mock_plt,
         "matplotlib.font_manager": mock_font_manager,
     }
-    with patch.dict(sys.modules, module_stubs):
-        with patch("pathlib.Path") as path_cls:
-            path_cls.return_value.glob.return_value = iter([font_file])
-            from myrm_agent_harness.runtime.install_guard.verify import verify_matplotlib_cjk
+    with patch.dict(sys.modules, module_stubs), patch("pathlib.Path") as path_cls:
+        path_cls.return_value.glob.return_value = iter([font_file])
+        from myrm_agent_harness.runtime.install_guard.verify import verify_matplotlib_cjk
 
-            verify_matplotlib_cjk()
+        verify_matplotlib_cjk()
 
     mock_matplotlib.use.assert_called_once_with("Agg")
     mock_fig.savefig.assert_called_once_with("/tmp/_mpl_verify.png")

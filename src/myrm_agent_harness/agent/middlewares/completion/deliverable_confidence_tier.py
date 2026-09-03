@@ -27,7 +27,6 @@ from myrm_agent_harness.agent.security.guards.loop_guard import (
     CallRecord,
     SuccessLevel,
     ToolGroup,
-    VerificationCategory,
     get_tool_group,
 )
 

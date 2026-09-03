@@ -22,7 +22,6 @@ from myrm_agent_harness.core.security.guards.ssrf import (
     clear_dynamic_blocked_hostnames,
     register_blocked_hostnames,
     resolve_and_check,
-    unregister_blocked_hostnames,
     validate_url_for_ssrf,
 )
 from myrm_agent_harness.toolkits.browser.domain_filter import DomainAllowlist

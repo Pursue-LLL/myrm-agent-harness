@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.goals.verification.base import (
-    ReviewComment,
     ReviewSeverity,
     VerificationResult,
 )

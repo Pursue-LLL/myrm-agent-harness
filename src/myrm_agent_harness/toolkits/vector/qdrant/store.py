@@ -489,7 +489,7 @@ class QdrantVectorStore(VectorStore):
             return
 
         if hasattr(self._client, "close"):
-            close_method = getattr(self._client, "close")
+            close_method = self._client.close
             if asyncio.iscoroutinefunction(close_method):
                 await close_method()
             else:
@@ -506,7 +506,7 @@ class QdrantVectorStore(VectorStore):
         skips EMBEDDED clients because they are shared per path.
         """
         if hasattr(self._client, "close"):
-            close_method = getattr(self._client, "close")
+            close_method = self._client.close
             if asyncio.iscoroutinefunction(close_method):
                 await close_method()
             else:

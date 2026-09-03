@@ -8,7 +8,6 @@ from myrm_agent_harness.core.security.missing_semantics import (
     MissingDependencyFailClosedError,
     MissingDependencyFailFastError,
     MissingSemanticsContract,
-    MissingSemanticsError,
     MissingSemanticsPolicy,
     enforce_missing_semantics,
     get_registered_contract,

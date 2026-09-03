@@ -1,11 +1,9 @@
 """Unit tests for Operator Error Sanitizer and internal cause separation."""
 
-import pytest
 
 from myrm_agent_harness.agent.errors import (
     OperatorErrorCode,
     OperatorErrorSanitizer,
-    SanitizedOperatorError,
 )
 
 

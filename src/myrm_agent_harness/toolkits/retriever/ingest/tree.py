@@ -19,10 +19,6 @@ Job Lane DAG coordination engine for toolkits.retriever.ingest.
 
 from __future__ import annotations
 
-import posixpath
-from collections.abc import Callable
-from typing import Awaitable
-
 from myrm_agent_harness.toolkits.retriever.ingest.types import DirNode
 
 

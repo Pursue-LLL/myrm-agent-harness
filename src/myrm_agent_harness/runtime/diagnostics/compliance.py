@@ -14,10 +14,9 @@ Zero-dependency, thread-safe, pure diagnostic and compliance assertion engine.
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -186,7 +185,7 @@ class ComplianceAuditEngine:
         return ComplianceReport(
             status=status,
             compliance_score=score,
-            checked_at=datetime.now(timezone.utc).isoformat(),
+            checked_at=datetime.now(UTC).isoformat(),
             questions=questions,
             violations=violations,
             remediation_hints=hints,

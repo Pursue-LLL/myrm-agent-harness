@@ -14,6 +14,8 @@ from pathlib import Path
 
 import aiosqlite
 import pytest
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from myrm_agent_harness.utils.db.migration_engine import (
     MigrationStatement,
     StatefulMigrationEngine,
@@ -30,7 +32,6 @@ from myrm_agent_harness.utils.db.sqlite import (
     validate_schema_gate_async,
     validate_schema_gate_sync,
 )
-from sqlalchemy.ext.asyncio import create_async_engine
 
 
 def test_sqlite_schema_gate_sync_live_lifecycle(tmp_path: Path) -> None:

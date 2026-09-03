@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.language_models import BaseChatModel
 
+from myrm_agent_harness.core.config.wire import DEFAULT_WIRE_PROTOCOL
 from myrm_agent_harness.toolkits.llms.core.credential_pool import (
     CredentialPool,
     CredentialPoolStrategy,
@@ -37,7 +38,6 @@ from myrm_agent_harness.toolkits.llms.core.credential_pool import (
 )
 from myrm_agent_harness.toolkits.llms.core.key_pool_llm import KeyPoolLLM
 from myrm_agent_harness.toolkits.llms.core.llm import ChatLiteLLM, create_litellm_model
-from myrm_agent_harness.core.config.wire import DEFAULT_WIRE_PROTOCOL
 from myrm_agent_harness.utils.lru_cache import LRUCache
 
 if TYPE_CHECKING:

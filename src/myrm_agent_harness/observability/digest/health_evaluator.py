@@ -12,7 +12,7 @@ Harness-level skill compounding analytics evaluating adoption, error convergence
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from myrm_agent_harness.observability.digest.types import (
     SkillCompoundingMetrics,
@@ -33,7 +33,7 @@ class SkillHealthEvaluator:
         stale_days_threshold: int = 30,
     ) -> SkillHealthScore:
         """Compute composite health score and classify skill status."""
-        now = reference_time or datetime.now(timezone.utc)
+        now = reference_time or datetime.now(UTC)
 
         # 1. Handle dormant / stale skills (0 invocations or inactive > 30 days)
         if metrics.invocations <= 0:

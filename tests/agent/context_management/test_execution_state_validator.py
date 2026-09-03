@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
@@ -17,7 +16,6 @@ from myrm_agent_harness.agent.context_management.strategies.summary.summary_audi
 )
 from myrm_agent_harness.agent.context_management.tracking.artifact_tracker import (
     ArtifactAction,
-    ArtifactTracker,
     clear_artifact_tracker,
     create_artifact_tracker,
 )

@@ -119,7 +119,8 @@ async def test_overflow_retries_exhausted(ctx):
 @pytest.mark.asyncio
 async def test_overflow_stage1_structured_summary_success(ctx):
     """Tier 1 (retries=0): calls generate_structured_summary when llm is present."""
-    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.messages import HumanMessage
+
     from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
 
     ctx.llm = MagicMock()

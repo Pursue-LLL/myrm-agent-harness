@@ -8,7 +8,6 @@ from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_handlers import
     build_multimodal_result as _build_multimodal_result,
 )
 
-
 _DUMMY_CONFIG = RunnableConfig()
 _TINY_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="

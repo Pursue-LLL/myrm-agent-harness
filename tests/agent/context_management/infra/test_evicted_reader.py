@@ -7,8 +7,6 @@ from pathlib import Path
 from myrm_agent_harness.agent.context_management.infra.evicted import (
     MAX_STORED_CHARS,
     cap_content_for_storage,
-)
-from myrm_agent_harness.agent.context_management.infra.evicted import (
     count_lines_in_text,
     probe_storage_cap_from_tail,
     read_evicted_file_meta,

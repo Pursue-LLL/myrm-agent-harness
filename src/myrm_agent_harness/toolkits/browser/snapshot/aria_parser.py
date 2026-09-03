@@ -17,6 +17,7 @@ Converts text to structured data using pyyaml standard library.
 from __future__ import annotations
 
 import logging
+
 from .aria_types import AriaNode
 
 logger = logging.getLogger(__name__)

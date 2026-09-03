@@ -15,7 +15,6 @@ private ``backends.skills._*`` modules.
 
 from __future__ import annotations
 
-from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult
 from myrm_agent_harness.backends.skills._runtime import (
     build_skill_metadata,
     compute_content_hash,
@@ -25,6 +24,7 @@ from myrm_agent_harness.backends.skills._utils import (
     parse_skill_frontmatter,
     update_frontmatter_evolution_lock,
 )
+from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult
 
 __all__ = [
     "SkillInstallResult",

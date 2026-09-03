@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 from myrm_agent_harness.runtime.artifacts.checkpoint_protocol import CheckpointerProtocol
 from myrm_agent_harness.runtime.paths.execution_paths import CONTEXT_ROOT, CONTEXT_SUBDIRS
+
 from .session.session_activity import load_session_activity, load_session_activity_async
 
 _CLEANABLE_SUBDIRS = list(CONTEXT_SUBDIRS.values())

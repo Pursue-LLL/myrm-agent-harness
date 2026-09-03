@@ -24,7 +24,6 @@ from myrm_agent_harness.agent.context_management.downshift import (
     DownshiftGovernor,
     DownshiftState,
     DownshiftTriggerMode,
-    HandoffMemo,
     ModelTier,
 )
 from myrm_agent_harness.agent.context_management.pipeline import ContextPipeline, ProcessorContext

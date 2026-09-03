@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
 from myrm_agent_harness.backends.skills.scanning.dependency_extractor import DeclaredDependency
 from myrm_agent_harness.backends.skills.scanning.osv_scanner import (
     parse_osv_severity,
@@ -226,7 +227,6 @@ async def test_query_osv_batch_batching_and_ranges() -> None:
 
 
 def test_vuln_cache_default_singleton() -> None:
-    from myrm_agent_harness.backends.skills.scanning.vuln_cache import get_vuln_cache
     c = get_vuln_cache()
     assert c is not None
     assert isinstance(c, VulnScanCache)

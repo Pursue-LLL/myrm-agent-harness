@@ -8,6 +8,7 @@ Tests:
 """
 
 import pytest
+
 from myrm_agent_harness.core.security.guards.privacy_ladder import (
     PrivacyFailClosedLadder,
     PrivacyFailClosedViolationError,

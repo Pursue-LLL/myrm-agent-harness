@@ -77,14 +77,6 @@ from myrm_agent_harness.agent.streaming.step_builder import build_step_data
 from myrm_agent_harness.core.security.detection.pseudonym_store import (
     get_pseudonym_store as build_pseudonym_store,
 )
-from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate import (
-    MountMode,
-    MountSpec,
-    MountValidationResult,
-    MountViolationType,
-    validate_and_sanitize_mounts,
-    validate_mount_spec,
-)
 from myrm_agent_harness.core.security.guards.privacy_tracker import (
     get_privacy_policy,
     set_privacy_policy,
@@ -92,6 +84,14 @@ from myrm_agent_harness.core.security.guards.privacy_tracker import (
 from myrm_agent_harness.core.security.persistence.content_scan import (
     get_pii_pseudonymizer,
     set_pii_pseudonymizer,
+)
+from myrm_agent_harness.toolkits.code_execution.sandbox.mount_security_gate import (
+    MountMode,
+    MountSpec,
+    MountValidationResult,
+    MountViolationType,
+    validate_and_sanitize_mounts,
+    validate_mount_spec,
 )
 from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
     BackgroundJobFinishHandler,
@@ -150,6 +150,10 @@ __all__ = [
     "BackgroundJobFinishResult",
     "BackgroundJobRecord",
     "BackgroundProcessInfo",
+    "MountMode",
+    "MountSpec",
+    "MountValidationResult",
+    "MountViolationType",
     "auto_extract_memories",
     "build_evicted_basename",
     "build_pseudonym_store",
@@ -177,12 +181,6 @@ __all__ = [
     "persist_extracted_memories",
     "persist_terminal_state",
     "persist_vault_log_ref",
-    "MountMode",
-    "MountSpec",
-    "MountValidationResult",
-    "MountViolationType",
-    "validate_and_sanitize_mounts",
-    "validate_mount_spec",
     "read_evicted_line_range",
     "restore_memory_pseudonymizer",
     "set_approval_user_id",
@@ -193,4 +191,6 @@ __all__ = [
     "set_security_config",
     "set_task_intent",
     "set_workspace_root",
+    "validate_and_sanitize_mounts",
+    "validate_mount_spec",
 ]

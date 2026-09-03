@@ -18,7 +18,6 @@ from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 
 from myrm_agent_harness.agent.durable.types import (
-    GlobalFactRecord,
     IntentRecord,
     LaneState,
     OperationLogEntry,

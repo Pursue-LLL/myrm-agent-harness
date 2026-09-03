@@ -20,9 +20,6 @@ from myrm_agent_harness.agent.context_management.strategies.summary.summary_buil
     TailExtractionResult,
     extract_recent_messages_with_split_context,
 )
-from myrm_agent_harness.agent.context_management.strategies.summary.summary_prompts import (
-    SPLIT_TURN_PROMPT_SUFFIX,
-)
 
 
 def test_split_turn_detection_and_extraction() -> None:

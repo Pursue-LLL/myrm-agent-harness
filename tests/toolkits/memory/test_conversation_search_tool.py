@@ -4,7 +4,6 @@ import pytest
 from pydantic import ValidationError
 
 from myrm_agent_harness.toolkits.memory.conversation_search import (
-    CONVERSATION_SEARCH_TOOL_NAME,
     ConversationIndexCoverage,
     ConversationSearchHit,
     ConversationSearchInput,
@@ -12,7 +11,6 @@ from myrm_agent_harness.toolkits.memory.conversation_search import (
     ConversationSearchResponse,
     create_conversation_search_tool,
 )
-from myrm_agent_harness.utils.runtime.progress_sink import set_tool_progress_sink
 
 
 class FakeConversationSearchProvider:

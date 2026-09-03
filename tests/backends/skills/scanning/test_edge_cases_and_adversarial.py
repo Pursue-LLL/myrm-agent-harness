@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from myrm_agent_harness.backends.skills.scanning.dependency_extractor import (
     DeclaredDependency,
-    extract_dependencies_from_files,
     extract_dependencies_from_package_json,
     extract_dependencies_from_pyproject_toml,
     extract_dependencies_from_requirements_txt,
@@ -20,16 +19,11 @@ from myrm_agent_harness.backends.skills.scanning.osv_scanner import (
     query_osv_batch,
 )
 from myrm_agent_harness.backends.skills.scanning.rescan_engine import (
-    AdvisoryAckRegistry,
     InstalledSkillRescanEngine,
 )
 from myrm_agent_harness.backends.skills.scanning.scanner import (
-    ScanFinding,
     ScanSeverity,
     SkillTrustRecommendation,
-)
-from myrm_agent_harness.backends.skills.scanning.security_advisories import (
-    match_known_advisories,
 )
 from myrm_agent_harness.backends.skills.scanning.vuln_cache import VulnScanCache
 

@@ -1,5 +1,7 @@
 from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_truncation import (
     _last_gutter_line_number,
+)
+from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_truncation import (
     truncate_file_output as _truncate_file_output,
 )
 from myrm_agent_harness.agent.meta_tools.file_ops.core.result_formatter import clamp_line

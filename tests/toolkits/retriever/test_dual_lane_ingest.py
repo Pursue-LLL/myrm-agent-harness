@@ -11,13 +11,9 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
-from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
 from myrm_agent_harness.toolkits.retriever.ingest.consumer import BatchEmbedConsumer
 from myrm_agent_harness.toolkits.retriever.ingest.pipeline import DualLaneIngestPipeline
 from myrm_agent_harness.toolkits.retriever.ingest.tree import (
@@ -27,10 +23,8 @@ from myrm_agent_harness.toolkits.retriever.ingest.tree import (
 )
 from myrm_agent_harness.toolkits.retriever.ingest.types import (
     Chunk,
-    EndOfTask,
     IngestStats,
     TaskEnvelope,
-    TaskStatus,
 )
 from myrm_agent_harness.toolkits.vector.base import FilterDict, SearchResult, VectorDocument
 

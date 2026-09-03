@@ -20,9 +20,8 @@ vendor heterogeneity (>= 2 distinct providers) to eliminate single-vendor bias a
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Sequence
-
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 # Normalization map for known provider wrappers/proxies to root vendor
 _PROVIDER_ROOT_VENDOR_MAP: dict[str, str] = {

@@ -19,7 +19,6 @@ Pure domain logic, strictly fail-closed, zero coupling to cloud/multi-tenant pla
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from enum import StrEnum
 from fnmatch import fnmatch

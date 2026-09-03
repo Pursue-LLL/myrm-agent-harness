@@ -17,7 +17,6 @@ from myrm_agent_harness.toolkits.memory.relational.exceptions import (
 )
 from myrm_agent_harness.toolkits.memory.types import (
     MemoryScope,
-    MemoryStatus,
     MemoryType,
     PendingRecord,
     ProceduralMemory,
@@ -491,9 +490,6 @@ async def test_query_error_branches_raise(
     store: SQLiteRelationalStore, monkeypatch
 ) -> None:
     """DB failures surface as RelationalQueryError across CRUD methods."""
-    from myrm_agent_harness.toolkits.memory.relational.exceptions import (
-        RelationalQueryError,
-    )
 
     class _ExplodingCursor:
         async def __aenter__(self):

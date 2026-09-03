@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.eval.assertions import (
     collapse_retrieval_hits,
     evaluate_retrieval_assertions,
@@ -16,7 +14,7 @@ from myrm_agent_harness.eval.protocols import RetrievalAssertion
 def test_normalize_retrieval_text() -> None:
     raw = "  # Header [Link] `code_snippet` *bold*   and   text!  "
     normalized = normalize_retrieval_text(raw)
-    assert "header link code snippet bold and text!" == normalized
+    assert normalized == "header link code snippet bold and text!"
 
 
 def test_split_header_and_body_yaml() -> None:

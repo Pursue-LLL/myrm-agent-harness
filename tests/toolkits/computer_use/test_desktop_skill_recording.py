@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import time
-
 from myrm_agent_harness.toolkits.computer_use.recording import (
     DesktopRecordedEvent,
     RecordedActionType,
     cluster_and_debounce_events,
     detect_tool_lifting_candidates,
     extract_parameter_slots,
-    render_skill_markdown,
     synthesize_desktop_skill_draft,
 )
 

@@ -79,11 +79,10 @@ def test_transaction_rollback_on_exception(tmp_path: Path):
     source_dir.mkdir()
     (source_dir / "new.txt").write_text("new content", encoding="utf-8")
 
-    with pytest.raises(RuntimeError):
-        with SkillInstallTransaction() as tx:
-            tx.stage_replace(source_dir, target_dir)
-            assert (target_dir / "new.txt").exists()
-            raise RuntimeError("Simulation error during install")
+    with pytest.raises(RuntimeError), SkillInstallTransaction() as tx:
+        tx.stage_replace(source_dir, target_dir)
+        assert (target_dir / "new.txt").exists()
+        raise RuntimeError("Simulation error during install")
 
     # Target should be rolled back to original content
     assert target_dir.exists()

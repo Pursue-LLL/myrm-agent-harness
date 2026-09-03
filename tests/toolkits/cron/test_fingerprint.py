@@ -1,6 +1,5 @@
 """Unit tests for workflow fingerprinting in cron engine."""
 
-import pytest
 from myrm_agent_harness.toolkits.cron.engine.fingerprint import (
     canonicalize_text,
     compute_workflow_fingerprint,

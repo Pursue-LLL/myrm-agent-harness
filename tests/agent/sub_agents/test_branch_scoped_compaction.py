@@ -15,7 +15,6 @@ from myrm_agent_harness.agent.context_management.tracking.artifact_tracker impor
     create_artifact_tracker,
 )
 from myrm_agent_harness.agent.sub_agents.branch_scoped_compaction import (
-    collect_subagent_branch_trackers,
     collect_subagent_task_ids_for_session,
     merge_subagent_branch_artifacts,
     merge_subagent_handovers_into_summary,

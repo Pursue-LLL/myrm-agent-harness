@@ -1,13 +1,11 @@
 """Unit tests for DeliverableManifest and DeliverableBundle contracts in Harness."""
 
-import time
-import pytest
+from myrm_agent_harness.agent.artifacts.vault import ArtifactVault
 from myrm_agent_harness.core.artifacts.manifest import (
     DeliverableCategory,
     DeliverableItem,
     DeliverableManifest,
 )
-from myrm_agent_harness.agent.artifacts.vault import ArtifactVault
 
 
 def test_deliverable_manifest_contract():

@@ -23,8 +23,6 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from myrm_agent_harness.agent.meta_tools.clarification._ask_question_descriptions import (
     ASK_QUESTION_TOOL_DESCRIPTION,
-    ASK_QUESTION_TOOL_DESCRIPTION_EN,
-    ASK_QUESTION_TOOL_DESCRIPTION_ZH,
     resolve_ask_question_tool_description,
 )
 from myrm_agent_harness.agent.meta_tools.clarification.ask_question import (

@@ -43,12 +43,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.messages import ToolMessage
 
+from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
+    _check_circuit_breaker,
+)
 from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     TERMINAL_CONFIG_OR_AUTH,
     classify_terminal_error,
-)
-from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
-    _check_circuit_breaker,
 )
 from myrm_agent_harness.agent.security.terminal_error_registry import (
     TerminalErrorRegistry,
@@ -323,8 +323,9 @@ def test_god_mode_file_injection_survives_reset_and_blocks(
 
 def _make_request(tool_name: str, call_id: str):
     """Build a a minimal ToolCallRequest for the real middleware entry."""
-    from langgraph.prebuilt.tool_node import ToolCallRequest
     from unittest.mock import MagicMock
+
+    from langgraph.prebuilt.tool_node import ToolCallRequest
 
     return ToolCallRequest(
         tool_call={"name": tool_name, "id": call_id, "args": {}},

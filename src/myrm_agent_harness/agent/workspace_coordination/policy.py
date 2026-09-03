@@ -5,10 +5,6 @@ from __future__ import annotations
 from dataclasses import replace
 
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, WorkspacePolicy
-from myrm_agent_harness.agent.workspace_coordination.git_worktree import (
-    build_worktree_context_note,
-    create_subagent_worktree,
-)
 
 
 def count_parallel_writers(tasks: object) -> int:

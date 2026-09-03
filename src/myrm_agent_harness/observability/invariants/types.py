@@ -14,10 +14,11 @@ Type contracts and protocols for framework-level runtime invariant assertion sys
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Callable, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 class InvariantSeverity(str, Enum):
@@ -47,7 +48,7 @@ class InvariantViolation:
     code: str = "INVARIANT"
     severity: InvariantSeverity = InvariantSeverity.ERROR
     details: dict[str, object] = field(default_factory=dict)
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @runtime_checkable

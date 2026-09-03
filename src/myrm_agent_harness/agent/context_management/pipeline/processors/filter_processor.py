@@ -28,6 +28,7 @@ from langchain_core.messages import ToolMessage
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
+from ...infra.evicted import persist_large_tool_output
 from ...infra.retention_helpers import (
     build_tool_call_group_by_id,
     extract_failed_tool_call_ids,
@@ -45,7 +46,6 @@ from ...infra.schemas import (
     ContextConfig,
     ToolProtectionConfig,
 )
-from ...infra.evicted import persist_large_tool_output
 from ...infra.tool_result_trimming import trim_tool_result_content
 from ...strategies.filter import (
     create_filtered_result,

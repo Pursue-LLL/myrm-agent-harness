@@ -5,10 +5,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.agent.context_management.infra.evicted import (
-    sanitize_evicted_source,
-)
-from myrm_agent_harness.agent.context_management.infra.evicted import (
     persist_large_tool_output,
+    sanitize_evicted_source,
 )
 
 _MOCK_PERSIST = "myrm_agent_harness.agent.context_management.infra.evicted.persister.persist_evicted_content"

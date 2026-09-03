@@ -42,16 +42,16 @@ from myrm_agent_harness.toolkits.llms.adapters.stream_aggregator import (
     XmlStreamBuffer,
     finalize_stream,
 )
+from myrm_agent_harness.toolkits.llms.adapters.streaming import (
+    build_tool_call_chunks,
+    normalize_usage,
+)
 from myrm_agent_harness.toolkits.llms.adapters.wire.anthropic_params import (
     apply_anthropic_messages_params,
 )
 from myrm_agent_harness.toolkits.llms.adapters.wire.invocation import (
     invoke_responses_sync,
     stream_responses_sync,
-)
-from myrm_agent_harness.toolkits.llms.adapters.streaming import (
-    build_tool_call_chunks,
-    normalize_usage,
 )
 
 logger = logging.getLogger(__name__)

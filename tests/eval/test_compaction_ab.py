@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.eval.compaction_ab import CompactionABEvaluator, CompactionABResult
+from myrm_agent_harness.eval.compaction_ab import CompactionABEvaluator
 from myrm_agent_harness.eval.compaction_assertions import (
     canonicalize_tool_name,
     evaluate_compaction_assertions,
@@ -12,7 +12,6 @@ from myrm_agent_harness.eval.compaction_assertions import (
 from myrm_agent_harness.eval.protocols import (
     AgentResponse,
     CompactionAssertion,
-    CompactionFidelityScore,
     EvalCase,
 )
 from myrm_agent_harness.eval.runner import EvalRunner

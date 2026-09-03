@@ -31,8 +31,8 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     MemoryNotFoundError,
     MemoryTaintedError,
 )
-from myrm_agent_harness.toolkits.memory.relational.exceptions import CorruptedMemoryIndexError
 from myrm_agent_harness.toolkits.memory._manager.storage import MemoryManagerStorageMixin
+from myrm_agent_harness.toolkits.memory.relational.exceptions import CorruptedMemoryIndexError
 
 
 class MemoryManager(

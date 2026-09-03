@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Sequence
+from collections.abc import Sequence
 
 from myrm_agent_harness.backends.skills.scanning.dependency_extractor import DeclaredDependency
 from myrm_agent_harness.backends.skills.scanning.scanner import ScanSeverity

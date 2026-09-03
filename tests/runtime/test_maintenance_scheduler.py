@@ -28,8 +28,8 @@ from myrm_agent_harness.runtime.maintenance.protocols import (
 )
 from myrm_agent_harness.runtime.maintenance.scheduler import GlobalAdaptiveScheduler
 from myrm_agent_harness.runtime.maintenance.sensors import DeviceLoadSensor, SaaSLoadSensor
-from myrm_agent_harness.runtime.survival.memory_pressure import PressureEvent, PressureLevel
 from myrm_agent_harness.runtime.quota.manager import SimpleStorageQuotaManager
+from myrm_agent_harness.runtime.survival.memory_pressure import PressureEvent, PressureLevel
 
 
 class FakeLoadSensor(LoadSensor):

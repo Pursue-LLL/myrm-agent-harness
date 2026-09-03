@@ -9,7 +9,6 @@ from myrm_agent_harness.eval import (
     EvalResult,
     EvalTurnResult,
     FailureMode,
-    aggregate_failure_modes,
     analyze_turn_failure_mode,
 )
 

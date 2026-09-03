@@ -15,7 +15,6 @@ import pytest
 from myrm_agent_harness.core.config.llm import LLMConfig
 from myrm_agent_harness.toolkits.llms.routing.specialty_router import (
     LONG_DOC_CHAR_THRESHOLD,
-    SpecialtyRoutingResult,
     TaskSpecialty,
     _build_fallback_chain,
     _normalize_specialty_query,

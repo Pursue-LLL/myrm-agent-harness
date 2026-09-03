@@ -14,7 +14,7 @@ Zero-LLM extraction engine that maps execution anomalies and tool failures to st
 from __future__ import annotations
 
 import json
-from typing import Any, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 from myrm_agent_harness.observability.friction.types import (
     FrictionCategory,

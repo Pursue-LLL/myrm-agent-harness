@@ -25,7 +25,6 @@ from myrm_agent_harness.agent.tool_management.env_dependency import (
     RequirementLevel,
     correlate_tool_surface_env_health,
     export_env_dependency_inventory,
-    get_tool_env_dependencies,
     get_tools_requiring_dependency,
     probe_dependency_satisfaction,
     probe_tool_env_health,

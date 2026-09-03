@@ -16,7 +16,6 @@ Steering token mechanism. Allows external message injection during Agent runtime
 """
 
 import threading
-from collections.abc import Callable
 from contextvars import ContextVar
 from typing import Protocol
 

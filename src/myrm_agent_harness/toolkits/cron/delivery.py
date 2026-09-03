@@ -31,7 +31,6 @@ import httpx
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 from myrm_agent_harness.toolkits.cron.engine.connector_health import (
     classify_connector_error,
-    redact_connector_url,
 )
 from myrm_agent_harness.toolkits.cron.types import CronJob, JobResult
 

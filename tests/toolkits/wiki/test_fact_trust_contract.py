@@ -1,6 +1,5 @@
 """Unit tests for FactStatus and FactTrustPolicy contract."""
 
-from pathlib import Path
 
 from myrm_agent_harness.toolkits.wiki.core.fact_trust_contract import (
     FactStatus,

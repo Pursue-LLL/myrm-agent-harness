@@ -9,8 +9,6 @@ from myrm_agent_harness.backends.skills.forgetting_strategy import (
     DefaultForgettingStrategy,
     ForgettingConfig,
     ForgettingReason,
-    SkillDoctorFinding,
-    SkillHealthDiagnosis,
     evaluate_skill_health_findings,
 )
 from myrm_agent_harness.backends.skills.types import (

@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 
 from langchain_core.documents import Document
 
-from ..processing.antibot_detector import is_blocked as detect_antibot
 from ..fetchers.protocols import FetcherType, FetchResult
+from ..processing.antibot_detector import is_blocked as detect_antibot
 from .types import DEGRADABLE_4XX
 
 if TYPE_CHECKING:

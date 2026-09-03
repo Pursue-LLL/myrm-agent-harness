@@ -15,6 +15,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
+    pack_tool_result_with_sources,
+)
 from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     MAX_SNIPPET_CHARS,
     MAX_SUMMARY_CHARS,
@@ -22,9 +25,6 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     ConversationIndexCoverage,
     ConversationSearchHit,
     ConversationSearchResponse,
-)
-from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
-    pack_tool_result_with_sources,
 )
 from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
     finalize_recall_tool_output,

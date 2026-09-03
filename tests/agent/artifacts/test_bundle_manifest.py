@@ -1,6 +1,5 @@
 """Tests for DeliverableManifest schema and category inference."""
 
-import json
 from myrm_agent_harness.agent.artifacts.bundle_manifest import (
     DeliverableCategory,
     DeliverableItem,

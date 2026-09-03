@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
-from langchain_core.documents import Document
+
 import pytest
+from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.ingress.types import (
@@ -21,7 +22,6 @@ from myrm_agent_harness.toolkits.wiki.pipeline.ingress.video_ingress import (
     publish_media_ingress,
     publish_video_url_ingress,
 )
-from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import RawConflictPolicy
 
 
 @pytest.fixture

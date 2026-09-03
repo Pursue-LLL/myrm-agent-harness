@@ -35,7 +35,6 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from enum import StrEnum
-from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
 from langchain_core.tools import BaseTool
@@ -57,7 +56,7 @@ from myrm_agent_harness.agent.sub_agents.spawn_prep import (
     merge_candidate_from_spawn_dict,
     sanitize_spawn_result_for_store,
 )
-from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubagentCatalog
+from myrm_agent_harness.agent.sub_agents.types import SubagentCatalog, SubAgentResult
 from myrm_agent_harness.core.security.path_security import coerce_filesystem_path
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
@@ -702,7 +701,7 @@ class HumanAskTool(BaseTool):
                     default_action,
                 )
                 answer = default_action or (opts[0] if opts else "continue")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             timed_out = True
             answer = default_action
             error_msg = f"User response timed out after {timeout_sec}s; applied default: '{default_action}'"

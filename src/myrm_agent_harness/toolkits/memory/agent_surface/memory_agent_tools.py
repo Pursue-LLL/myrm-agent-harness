@@ -47,15 +47,15 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution im
     search_sessions_corpus,
     search_wiki_corpus,
 )
-from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
-    pack_tool_result_with_sources,
-    unpack_corpus_tool_result,
-)
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
     MemorySearchBackends,
     MemorySearchCorpus,
     MemorySearchPolicy,
     resolve_search_corpora,
+)
+from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
+    pack_tool_result_with_sources,
+    unpack_corpus_tool_result,
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
     looks_like_transient_business_fact,

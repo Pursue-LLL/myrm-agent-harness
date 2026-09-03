@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generator
 
 import pytest
 
@@ -13,7 +13,7 @@ from myrm_agent_harness.infra.sqlite_salvage import SQLiteRowidSalvageEngine
 
 
 @contextmanager
-def open_db(path: Path | str) -> Generator[sqlite3.Connection, None, None]:
+def open_db(path: Path | str) -> Generator[sqlite3.Connection]:
     """Helper context manager that commits and always closes the connection."""
     conn = sqlite3.connect(str(path))
     try:
@@ -78,9 +78,8 @@ def test_salvage_corrupted_btree_page(tmp_path: Path, salvage_engine: SQLiteRowi
     src_db.write_bytes(file_bytes)
 
     # Verify that standard SQLite access throws DatabaseError
-    with pytest.raises(sqlite3.DatabaseError):
-        with open_db(src_db) as conn:
-            conn.execute("SELECT * FROM messages;").fetchall()
+    with pytest.raises(sqlite3.DatabaseError), open_db(src_db) as conn:
+        conn.execute("SELECT * FROM messages;").fetchall()
 
     # Run the salvage engine
     result = salvage_engine.salvage_database(src_db, dst_db)

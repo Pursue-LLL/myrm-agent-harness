@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from myrm_agent_harness.eval.protocols import EvalCase, StateAssertion
 from myrm_agent_harness.observability.friction.types import (
-    FrictionCategory,
     TaskFrictionEvent,
 )
 

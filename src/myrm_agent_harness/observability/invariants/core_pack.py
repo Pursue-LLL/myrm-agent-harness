@@ -17,7 +17,7 @@ Production-grade default runtime invariant checks protecting event pairing, stat
 
 from __future__ import annotations
 
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 from myrm_agent_harness.observability.invariants.registry import (
     RuntimeInvariantRegistry,

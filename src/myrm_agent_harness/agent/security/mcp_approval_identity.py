@@ -19,9 +19,8 @@ permission hijacking on hosted MCP tools.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import logging
-from typing import Any
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 

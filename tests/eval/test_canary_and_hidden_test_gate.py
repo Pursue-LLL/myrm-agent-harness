@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import pytest
+
 from myrm_agent_harness.eval import (
     CANARY_GUID,
     AgentResponse,
-    EvalCanaryGate,
     EvalCase,
     EvalRunner,
     PostEpisodeAssertion,

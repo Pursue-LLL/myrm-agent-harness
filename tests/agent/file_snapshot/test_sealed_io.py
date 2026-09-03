@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 from myrm_agent_harness.agent.file_snapshot.sealed_io import (
     CURRENT_ENVELOPE_VERSION,
     SealedEnvelope,

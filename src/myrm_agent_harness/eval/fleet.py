@@ -18,7 +18,6 @@ single-run flakiness in LLM benchmark reporting, while supporting seamless job r
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import math
 import time

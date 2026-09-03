@@ -29,8 +29,6 @@ from typing import Any
 
 from myrm_agent_harness.agent.plugins.exporter import (
     AgentPluginPacker,
-    PluginPackageResult,
-    canonical_plugin_name,
 )
 from myrm_agent_harness.agent.skills.market.sanitizer import SKILL_MD_FILE
 from myrm_agent_harness.backends.skills.protocols import SkillBackend

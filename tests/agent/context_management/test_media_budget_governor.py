@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import io
-from typing import Any
 
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage

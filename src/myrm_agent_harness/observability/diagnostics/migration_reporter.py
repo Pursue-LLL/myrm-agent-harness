@@ -17,10 +17,10 @@ Harness-level migration diagnostic and progress observability protocol ensuring 
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Callable, Sequence
 
 
 class MigrationPhase(str, Enum):
@@ -75,7 +75,7 @@ class MigrationProgressEvent:
     total_items: int | None = None
     elapsed_ms: float = 0.0
     status_message: str = ""
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def percent_complete(self) -> float | None:

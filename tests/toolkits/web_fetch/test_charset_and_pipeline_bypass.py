@@ -2,14 +2,12 @@
 
 import json
 
-import pytest
-
+from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
 from myrm_agent_harness.toolkits.web_fetch.probe.charset_detector import (
     _normalize_encoding_name,
     detect_and_decode_html,
     probe_meta_charset,
 )
-from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
 from myrm_agent_harness.toolkits.web_fetch.processing.pipeline import ContentPipeline
 
 
@@ -68,7 +66,7 @@ def test_meta_invalid_encoding_fallback():
 
 
 def test_header_invalid_encoding_fallback():
-    html_valid = "<html><head><title>Fallback</title></head><body>Hello</body></html>".encode("utf-8")
+    html_valid = b"<html><head><title>Fallback</title></head><body>Hello</body></html>"
     text, enc = detect_and_decode_html(html_valid, header_encoding="invalid_fake_xyz")
     assert enc == "utf-8"
     assert "Fallback" in text
@@ -102,7 +100,7 @@ def test_big5_detection():
 
 
 def test_utf8_fallback_clean():
-    html_utf8 = "<html><head><title>Modern Page</title></head><body>Hello world!</body></html>".encode("utf-8")
+    html_utf8 = b"<html><head><title>Modern Page</title></head><body>Hello world!</body></html>"
     text, enc = detect_and_decode_html(html_utf8)
     assert enc == "utf-8"
     assert "Modern Page" in text

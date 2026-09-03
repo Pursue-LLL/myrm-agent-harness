@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from myrm_agent_harness.backends.skills.scanning.dependency_extractor import (
     extract_dependencies_from_bun_lock,
     extract_dependencies_from_files,
@@ -100,11 +101,11 @@ def test_extract_dependencies_from_package_lock_json_v3() -> None:
 
 
 def test_extract_dependencies_from_files_lockfiles() -> None:
-    uv_content = """
+    uv_content = b"""
 [[package]]
 name = "pydantic"
 version = "2.9.2"
-""".encode("utf-8")
+"""
 
     files = {
         "workspace/uv.lock": uv_content,

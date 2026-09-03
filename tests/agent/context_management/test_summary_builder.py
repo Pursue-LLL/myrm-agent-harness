@@ -439,7 +439,6 @@ class TestExtractProtectedHead:
         """Only stale summaries after system: head keeps system and stops (no fake first turn)."""
         from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
             create_summary_message,
-            extract_protected_head,
         )
 
         messages = [

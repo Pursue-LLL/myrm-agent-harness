@@ -18,8 +18,7 @@ import csv
 import io
 import json
 import uuid
-from datetime import datetime, timezone
-from typing import Sequence
+from datetime import UTC, datetime
 
 from myrm_agent_harness.observability.audit_trail.collector import DualTrackAuditCollector
 from myrm_agent_harness.observability.audit_trail.redactor import compute_redaction_fingerprint
@@ -42,12 +41,12 @@ class ComplianceTrailExporter:
         entries = collector.list_entries(session_id=session_id, agent_id=agent_id, limit=5000)
         summary = collector.get_summary_stats(session_id=session_id, agent_id=agent_id)
 
-        raw_str = f"{len(entries)}:{summary.compliance_rate}:{datetime.now(timezone.utc).isoformat()}"
+        raw_str = f"{len(entries)}:{summary.compliance_rate}:{datetime.now(UTC).isoformat()}"
         fp = compute_redaction_fingerprint(raw_str)
 
         return ComplianceReport(
             report_id=f"rep_{uuid.uuid4().hex[:12]}",
-            generated_at=datetime.now(timezone.utc).isoformat(),
+            generated_at=datetime.now(UTC).isoformat(),
             time_window_hours=time_window_hours,
             summary=summary,
             entries=entries,
@@ -150,8 +149,8 @@ class ComplianceTrailExporter:
     def export_markdown(cls, report: ComplianceReport) -> str:
         """Export compliance dossier as structured Markdown."""
         lines: list[str] = [
-            f"# Enterprise Compliance & Audit Trail Dossier",
-            f"",
+            "# Enterprise Compliance & Audit Trail Dossier",
+            "",
             f"- **Report ID**: `{report.report_id}`",
             f"- **Generated At**: `{report.generated_at}`",
             f"- **Verification Seal**: `{report.export_redaction_fingerprint}`",
@@ -159,11 +158,11 @@ class ComplianceTrailExporter:
             f"- **Total Action Events**: `{report.summary.total_entries}`",
             f"- **Permitted / Refused / Failed**: `{report.summary.permitted_count}` / `{report.summary.refused_count}` / `{report.summary.failed_count}`",
             f"- **Human Take-The-Wheel Interceptions**: `{report.summary.human_take_the_wheel_count}`",
-            f"",
-            f"## Security Policy & Rule Interceptions",
-            f"",
-            f"| Rule Name | Total Hits | Refused | Permitted | Failed | Refusal Rate |",
-            f"|-----------|------------|---------|-----------|--------|--------------|",
+            "",
+            "## Security Policy & Rule Interceptions",
+            "",
+            "| Rule Name | Total Hits | Refused | Permitted | Failed | Refusal Rate |",
+            "|-----------|------------|---------|-----------|--------|--------------|",
         ]
 
         for r in report.summary.top_rules_triggered:
@@ -172,11 +171,11 @@ class ComplianceTrailExporter:
             )
 
         lines.extend([
-            f"",
-            f"## Recent Audit Trail Log Entries (Redacted & Sealed)",
-            f"",
-            f"| Time | Session | Tool | State | Outcome | Rule | TTW | Latency | Summary |",
-            f"|------|---------|------|-------|---------|------|-----|---------|---------|",
+            "",
+            "## Recent Audit Trail Log Entries (Redacted & Sealed)",
+            "",
+            "| Time | Session | Tool | State | Outcome | Rule | TTW | Latency | Summary |",
+            "|------|---------|------|-------|---------|------|-----|---------|---------|",
         ])
 
         for e in report.entries[:50]:

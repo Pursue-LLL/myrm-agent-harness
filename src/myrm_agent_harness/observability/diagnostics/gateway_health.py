@@ -24,9 +24,9 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Sequence
 
 try:
     import psutil

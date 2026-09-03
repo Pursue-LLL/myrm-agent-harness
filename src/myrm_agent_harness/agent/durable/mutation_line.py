@@ -20,10 +20,10 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 from myrm_agent_harness.agent.durable.protocols import DurableStorageProtocol
-from myrm_agent_harness.agent.durable.types import LaneState, OperationLogEntry
+from myrm_agent_harness.agent.durable.types import OperationLogEntry
 
 
 class MutationAction(str, Enum):

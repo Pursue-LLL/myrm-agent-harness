@@ -561,12 +561,12 @@ async def _probe_registry(package: str, url: str, cache_key: str) -> tuple[str, 
         loop = asyncio.get_running_loop()
         request = urllib.request.Request(
             url, headers={"User-Agent": "myrm-slopcheck"}, method="HEAD"
-        )  # noqa: S310
+        )
         response = await loop.run_in_executor(
             None,
             lambda: urllib.request.urlopen(
                 request, timeout=_PROBE_TIMEOUT_S
-            ),  # noqa: S310
+            ),
         )
         exists = response.status == 200
     except urllib.error.HTTPError as exc:

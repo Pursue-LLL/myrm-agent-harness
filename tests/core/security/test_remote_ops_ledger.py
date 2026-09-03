@@ -5,12 +5,9 @@ Validates fingerprinting, recovery clue derivation, and audit record integrity.
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.core.security.audit import (
-    SecurityDecision,
-    record_decision,
     get_audit_entries,
+    record_decision,
     reset_audit_log,
 )
 from myrm_agent_harness.core.security.remote_ops_ledger import (

@@ -23,7 +23,6 @@ import logging
 import re
 import urllib.request
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse
 
 from langchain_core.documents import Document
 
@@ -129,7 +128,7 @@ def _format_tweet_document(tweet: dict, original_url: str) -> Document:
     media = tweet.get("media", {})
     photos = media.get("photos", []) if isinstance(media, dict) else []
     videos = media.get("videos", []) if isinstance(media, dict) else []
-    
+
     media_urls: list[str] = []
     for p in photos:
         if isinstance(p, dict) and p.get("url"):
@@ -175,7 +174,7 @@ def _format_oembed_document(oembed: dict, original_url: str) -> Document:
     author_name = oembed.get("author_name", "")
     author_url = oembed.get("author_url", "")
     raw_html = oembed.get("html", "")
-    
+
     # Strip HTML tags simply
     text_content = re.sub(r"<[^>]+>", " ", raw_html).strip()
     text_content = re.sub(r"\s+", " ", text_content)

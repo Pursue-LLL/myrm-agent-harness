@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from myrm_agent_harness.backends.skills.scanning.rescan_engine import (
     AdvisoryAckRegistry,
     InstalledSkillRescanEngine,
@@ -14,7 +15,6 @@ from myrm_agent_harness.backends.skills.scanning.scanner import (
     ScanSeverity,
     SkillTrustRecommendation,
 )
-from myrm_agent_harness.backends.skills.scanning.security_advisories import AdvisoryFinding
 
 
 def test_advisory_ack_registry(tmp_path: Path) -> None:

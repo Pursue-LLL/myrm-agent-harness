@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
-    SkillLineage,
     EvolutionType,
+    SkillLineage,
     SkillRecord,
 )
 from myrm_agent_harness.agent.skills.evolution.execution.hollow_detector import (
@@ -14,9 +14,6 @@ from myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator impor
     SandboxValidator,
 )
 from myrm_agent_harness.toolkits.code_execution.executors.base import ExecutionResult
-from myrm_agent_harness.toolkits.code_execution.executors.test_executor import (
-    TestExecutionResult,
-)
 
 
 def _create_mock_skill(content: str, verification_steps=None) -> SkillRecord:

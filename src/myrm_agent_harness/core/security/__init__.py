@@ -15,12 +15,6 @@ from myrm_agent_harness.core.security.device_policy import (
     DeviceSecurityPolicy,
     evaluate_batch_risk,
 )
-from myrm_agent_harness.core.security.remote_ops_ledger import (
-    ActionRecoveryHint,
-    RemoteOpsActionRecord,
-    compute_action_fingerprint,
-    derive_recovery_hint,
-)
 from myrm_agent_harness.core.security.missing_semantics import (
     MissingDependencyFailClosedError,
     MissingDependencyFailFastError,
@@ -36,6 +30,12 @@ from myrm_agent_harness.core.security.missing_semantics import (
     get_registered_contract,
     list_registered_contracts,
     register_missing_semantics_contract,
+)
+from myrm_agent_harness.core.security.remote_ops_ledger import (
+    ActionRecoveryHint,
+    RemoteOpsActionRecord,
+    compute_action_fingerprint,
+    derive_recovery_hint,
 )
 
 __all__ = [

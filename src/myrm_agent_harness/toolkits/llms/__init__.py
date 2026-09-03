@@ -91,7 +91,7 @@ def __getattr__(name: str):
         if attr_name == "llm_manager":
             from myrm_agent_harness.toolkits.llms import (
                 config,
-            )  # noqa: F401  # side-effect: ensure config loaded
+            )  # side-effect: ensure config loaded
 
         value = getattr(module, attr_name)
         globals()[name] = value

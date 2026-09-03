@@ -15,9 +15,12 @@ Proposal Builder for Skill Evolution.
 
 import difflib
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
+from myrm_agent_harness.agent.skills.evolution.core.eval_regression import (
+    evaluate_content_assertions,
+)
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionProposal,
     EvolutionType,
@@ -27,9 +30,6 @@ from myrm_agent_harness.eval.manifest_prediction import (
     ChangePredictionManifest,
     MetricPrediction,
     PredictionDirection,
-)
-from myrm_agent_harness.agent.skills.evolution.core.eval_regression import (
-    evaluate_content_assertions,
 )
 from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 
@@ -63,7 +63,7 @@ def build_change_manifest(
     target_pass_rate = evaluate_content_assertions(eval_cases, proposed_content)
 
     manifest = ChangePredictionManifest(
-        manifest_id=f"manifest-{skill_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+        manifest_id=f"manifest-{skill_id}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}",
         target_component=f"skills/{skill_name}",
         rationale=reasoning or "Self-evolution enhancement",
         predictions=[
@@ -75,7 +75,7 @@ def build_change_manifest(
                 tolerance=0.05,
             ),
         ],
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
     )
     return manifest.to_dict()
 

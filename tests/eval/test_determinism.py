@@ -1,6 +1,5 @@
 """Unit tests for Workflow Replay and Determinism metrics."""
 
-import pytest
 from myrm_agent_harness.eval.assertions import calculate_trajectory_determinism
 
 

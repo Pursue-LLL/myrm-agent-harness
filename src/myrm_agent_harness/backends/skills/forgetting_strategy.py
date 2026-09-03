@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Literal, Protocol
+from typing import Protocol
 
 from myrm_agent_harness.backends.skills.types import (
     SkillLifecycleStatus,

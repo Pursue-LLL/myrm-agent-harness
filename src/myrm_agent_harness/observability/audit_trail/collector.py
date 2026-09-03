@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import collections
 import threading
-from datetime import datetime, timezone
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 
 from myrm_agent_harness.observability.audit_trail.redactor import sanitize_sensitive_data
 from myrm_agent_harness.observability.audit_trail.types import (
@@ -117,7 +117,7 @@ class DualTrackAuditCollector:
                 outcome=outcome,
                 is_human_take_the_wheel=existing.is_human_take_the_wheel,
                 created_at=existing.created_at,
-                completed_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(UTC),
                 latency_ms=round(max(0.0, latency_ms), 2),
                 output_length=max(0, output_length),
                 error_message=str(sanitized_err) if sanitized_err else None,
@@ -164,7 +164,7 @@ class DualTrackAuditCollector:
                 outcome=ComplianceOutcome.REFUSED,
                 is_human_take_the_wheel=existing.is_human_take_the_wheel,
                 created_at=existing.created_at,
-                completed_at=datetime.now(timezone.utc),
+                completed_at=datetime.now(UTC),
                 latency_ms=0.0,
                 output_length=0,
                 error_message=str(sanitized_reason),

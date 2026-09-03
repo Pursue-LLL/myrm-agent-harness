@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.parallel.summary import batch_summary
+from myrm_agent_harness.agent.parallel.summary import batch_summary, inject_capacity_signal
 from myrm_agent_harness.agent.sub_agents.builder import _HANDOVER_PROTOCOL_PROMPT
 from myrm_agent_harness.agent.sub_agents.executor_helpers import _parse_handover_state
+from myrm_agent_harness.agent.sub_agents.handover import AgentHandoverState, HandoffFinding
 from myrm_agent_harness.agent.sub_agents.notifications import format_notification
 from myrm_agent_harness.agent.sub_agents.types import (
     DELEGATION_CAPABILITY_MANIFEST,
-    AgentHandoverState,
     DelegationCapabilityManifest,
-    HandoffFinding,
     SubAgentResult,
     SubAgentStatus,
 )
@@ -285,4 +284,67 @@ def test_format_notification_fallback_without_summary() -> None:
     assert "Result:\n42" in notif
     assert "Summary:" not in notif
     assert "Completed:\n - compute 6 * 7" in notif
+
+
+def test_inject_capacity_signal_success_and_exception() -> None:
+    from unittest.mock import MagicMock
+
+    parent = MagicMock()
+    snap = MagicMock()
+    snap.active_children = 2
+    snap.max_children = 5
+    snap.remaining_slots = 3
+    snap.spawned_descendants = 4
+    snap.max_descendants = 10
+    snap.remaining_descendants = 6
+    parent._subagent_manager.get_capacity_snapshot.return_value = snap
+
+    res = inject_capacity_signal({"success": True}, parent)
+    assert "system_state" in res
+    assert res["system_state"] == {
+        "active_subagents": "2/5",
+        "remaining_slots": 3,
+        "descendants_spawned": "4/10",
+        "remaining_descendants": 6,
+    }
+
+    # Exception path fallback
+    broken_parent = MagicMock()
+    broken_parent._subagent_manager.get_capacity_snapshot.side_effect = RuntimeError("unavailable")
+    fallback_res = inject_capacity_signal({"success": True}, broken_parent)
+    assert "system_state" not in fallback_res
+
+
+def test_batch_summary_status_branches_and_failure_reasons() -> None:
+    # All failure
+    all_failed = [
+        {"success": False, "error": "ConnectionRefused"},
+        {"success": False, "reason": "ResourceExhausted"},
+        {"success": False},  # triggers "unknown_failure" fallback
+    ]
+    summary_failed = batch_summary(all_failed)
+    assert summary_failed["success"] is False
+    assert summary_failed["status"] == "failed"
+    assert summary_failed["completed_count"] == 0
+    assert summary_failed["failed_count"] == 3
+    assert summary_failed["failure_reasons"] == ["ConnectionRefused", "ResourceExhausted", "unknown_failure"]
+    assert summary_failed["partial_success"] is False
+
+    # All success without handover
+    all_success = [
+        {"success": True, "result": "ok 1"},
+        {"success": True, "result": "ok 2"},
+    ]
+    summary_success = batch_summary(all_success)
+    assert summary_success["success"] is True
+    assert summary_success["status"] == "completed"
+    assert summary_success["completed_count"] == 2
+    assert summary_success["failed_count"] == 0
+    assert summary_success["partial_success"] is False
+    assert "handoff_states" not in summary_success
+    assert "all_artifact_refs" not in summary_success
+    assert "all_citations" not in summary_success
+    assert "all_findings" not in summary_success
+
+
 

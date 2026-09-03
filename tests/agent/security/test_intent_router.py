@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
+from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.agent.middlewares._session_context import (
     set_security_config,
@@ -12,11 +12,9 @@ from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware
 )
 from myrm_agent_harness.agent.security.detection.intent_router import (
     DangerousIntent,
-    IntentSafetyResult,
     scan_dangerous_intent,
 )
 from myrm_agent_harness.agent.security.types import SecurityConfig
-from langchain_core.messages import HumanMessage
 
 
 class TestMassDestruction:

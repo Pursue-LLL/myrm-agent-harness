@@ -865,13 +865,12 @@ class TestDelegateTaskExecution:
         graph_interrupt = GraphInterrupt(
             (Interrupt(value={"action_type": "subagent_approval"}),)
         )
-        with patch("langgraph.types.interrupt", side_effect=graph_interrupt):
-            with pytest.raises(GraphInterrupt):
-                await tool_fn.coroutine(
-                    agent_type="test_bash",
-                    objective="run command",
-                    wait=True,
-                )
+        with patch("langgraph.types.interrupt", side_effect=graph_interrupt), pytest.raises(GraphInterrupt):
+            await tool_fn.coroutine(
+                agent_type="test_bash",
+                objective="run command",
+                wait=True,
+            )
 
         _result_cache.clear()
 
@@ -1002,6 +1001,84 @@ class TestBatchDelegateExecution:
 
         assert result["success"] is True
         assert len(result["results"]) == 2
+        _result_cache.clear()
+
+    @pytest.mark.asyncio
+    async def test_batch_aggregates_structured_handoff_citations_and_lineage(self):
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _result_cache,
+        )
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            TaskRequest,
+            create_delegate_task_tool,
+        )
+
+        _result_cache.clear()
+
+        config = SubagentConfig(system_prompt="test")
+        catalog = AsyncMock()
+        catalog.resolve = AsyncMock(return_value=config)
+
+        parent = _make_mock_parent()
+        parent._last_context = {}
+
+        async def _mock_spawn(agent_type=None, objective=None, **kwargs):
+            if agent_type == "analyst_a":
+                return {
+                    "success": True,
+                    "result": "Analyst A done",
+                    "task_id": "task_a",
+                    "agent_type": "analyst_a",
+                    "handover_state": {
+                        "summary": "Summary A",
+                        "findings": [{"finding": "Finding A", "evidence": "doc_a.md:1", "confidence": "high"}],
+                        "citations": ["https://example.com/source_a", "https://example.com/shared"],
+                        "artifact_refs": ["vault://a.md"],
+                    },
+                }
+            return {
+                "success": True,
+                "result": "Analyst B done",
+                "task_id": "task_b",
+                "agent_type": "analyst_b",
+                "handover_state": {
+                    "summary": "Summary B",
+                    "findings": [{"finding": "Finding B", "evidence": "doc_b.md:2", "confidence": "medium"}],
+                    "citations": ["https://example.com/shared", "https://example.com/source_b"],
+                    "artifact_refs": ["vault://b.md"],
+                },
+            }
+
+        parent._spawn_child = AsyncMock(side_effect=_mock_spawn)
+
+        delegate = create_delegate_task_tool(parent, lambda: [], catalog)
+        batch = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
+
+        tasks = [
+            TaskRequest(agent_type="analyst_a", objective="audit security"),
+            TaskRequest(agent_type="analyst_b", objective="audit compliance"),
+        ]
+        result = await batch.coroutine(tasks=tasks, wait=True)
+
+        assert result["success"] is True
+        assert len(result["results"]) == 2
+        assert "handoff_states" in result
+        assert len(result["handoff_states"]) == 2
+        assert result["all_artifact_refs"] == ["vault://a.md", "vault://b.md"]
+        assert result["all_citations"] == [
+            "https://example.com/source_a",
+            "https://example.com/shared",
+            "https://example.com/source_b",
+        ]
+        findings = result["all_findings"]
+        assert isinstance(findings, list)
+        assert len(findings) == 2
+        assert findings[0]["source_task_id"] == "task_a"
+        assert findings[0]["agent_type"] == "analyst_a"
+        assert findings[1]["source_task_id"] == "task_b"
+        assert findings[1]["agent_type"] == "analyst_b"
         _result_cache.clear()
 
     @pytest.mark.asyncio

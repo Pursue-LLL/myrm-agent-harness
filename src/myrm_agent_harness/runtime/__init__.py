@@ -39,16 +39,6 @@ from myrm_agent_harness.runtime.context import (
     set_context_metrics,
 )
 from myrm_agent_harness.runtime.events import BaseEvent, EventBus, IdleTaskProgressEvent, get_event_bus
-from myrm_agent_harness.runtime.paths.execution_paths import (
-    ARTIFACTS_ROOT,
-    CONTEXT_ROOT,
-    MEMORIES_ROOT,
-    PERSISTENT_ROOT,
-    ensure_context_dir_exists,
-    get_compacted_output_path,
-    get_context_session_dir,
-    get_workspace_relative_path,
-)
 from myrm_agent_harness.runtime.fork.fork_types import ForkInfo
 from myrm_agent_harness.runtime.maintenance import (
     AgentHealthScore,
@@ -64,6 +54,21 @@ from myrm_agent_harness.runtime.maintenance import (
     get_maintenance_scheduler,
     init_maintenance_scheduler,
 )
+from myrm_agent_harness.runtime.paths.execution_paths import (
+    ARTIFACTS_ROOT,
+    CONTEXT_ROOT,
+    MEMORIES_ROOT,
+    PERSISTENT_ROOT,
+    ensure_context_dir_exists,
+    get_compacted_output_path,
+    get_context_session_dir,
+    get_workspace_relative_path,
+)
+from myrm_agent_harness.runtime.quota import (
+    QuotaExceededError,
+    SimpleStorageQuotaManager,
+    StorageQuotaChecker,
+)
 from myrm_agent_harness.runtime.survival.memory_pressure import (
     MemoryPressureMonitor,
     PressureConfig,
@@ -72,11 +77,6 @@ from myrm_agent_harness.runtime.survival.memory_pressure import (
     PressureSubscriber,
     get_memory_pressure_monitor,
     init_memory_pressure_monitor,
-)
-from myrm_agent_harness.runtime.quota import (
-    QuotaExceededError,
-    SimpleStorageQuotaManager,
-    StorageQuotaChecker,
 )
 from myrm_agent_harness.runtime.survival.resource_monitor import ResourceMonitor
 

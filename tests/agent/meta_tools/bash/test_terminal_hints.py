@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.agent.meta_tools.bash._tool.formatting import format_result
 from myrm_agent_harness.agent.meta_tools.bash._tool.terminal_hints import (
     annotate_failure,

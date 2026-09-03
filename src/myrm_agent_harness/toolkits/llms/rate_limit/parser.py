@@ -14,7 +14,6 @@ import re
 import time
 from collections.abc import Mapping
 from email.utils import parsedate_to_datetime
-from typing import Any
 
 from .types import RateLimitBucket, RateLimitState
 

@@ -20,7 +20,7 @@ the 7-dimension weighted quality rubric without requiring additional LLM calls.
 from __future__ import annotations
 
 import enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:

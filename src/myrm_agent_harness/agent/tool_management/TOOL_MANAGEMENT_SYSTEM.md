@@ -8,7 +8,7 @@
 
 | 对外说法 | 含义 | 当前规模 |
 |----------|------|----------|
-| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **59**（Harness 53: CORE 8 + HIGH_PRIORITY 5 + EXTENDED 40; External 6: server vendor） |
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **58**（Harness 53: CORE 8 + HIGH_PRIORITY 5 + EXTENDED 40; External 5: server vendor） |
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
@@ -32,7 +32,7 @@
 ```
 SkillAgent / Server factory
         ↓
-tool_layers.py — CORE/COMMON/EXTENDED/EXTERNAL SSOT
+tool_layers.py — CORE/HIGH_PRIORITY/EXTENDED/EXTERNAL SSOT
         ↓
 registry.py — dedup + sort + ToolBindMode (TURN1 LLM tools; RUNTIME_ONLY internal hooks)
         ↓

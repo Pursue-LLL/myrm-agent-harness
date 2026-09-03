@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from myrm_agent_harness.agent.config.file_io import FileIOConfig
 from myrm_agent_harness.agent.meta_tools import get_meta_tools
 from myrm_agent_harness.agent.meta_tools.answer_user_tool import (
     create_answer_user_tool,
@@ -51,10 +52,8 @@ from myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool import 
     build_skill_select_static_description,
     create_select_skill_tool,
 )
-from myrm_agent_harness.agent.config.file_io import FileIOConfig
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 from myrm_agent_harness.agent.types import AgentRuntimeConfig, AgentRuntimeSpec
-from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 
 def test_file_ops_descriptions_locale_resolution() -> None:

@@ -1073,8 +1073,6 @@ class TestAgentPluginMarketDiscoveryAndInstall:
 
     @pytest.mark.asyncio
     async def test_agent_plugin_install_unpacks_multiple_skills(self, tmp_path) -> None:
-        import io
-        import zipfile
         from myrm_agent_harness.agent.plugins.exporter import AgentPluginPacker
 
         # Build an Agent Plugin with 2 skills
@@ -1139,7 +1137,6 @@ class TestAgentPluginMarketDiscoveryAndInstall:
 
     @pytest.mark.asyncio
     async def test_agent_plugin_preview_and_install_declared_mcp_servers(self, tmp_path) -> None:
-        import json
         from myrm_agent_harness.agent.plugins.exporter import AgentPluginPacker
 
         packer = AgentPluginPacker()

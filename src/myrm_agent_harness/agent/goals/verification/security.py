@@ -80,7 +80,7 @@ class SecurityScanCriterion(BaseCriterion):
         # 1. If GoalProvider implements evaluate_security_scan, delegate to it
         if goal_provider and hasattr(goal_provider, "evaluate_security_scan"):
             try:
-                evaluator = getattr(goal_provider, "evaluate_security_scan")
+                evaluator = goal_provider.evaluate_security_scan
                 res = await asyncio.wait_for(
                     evaluator(
                         scan_mode=self.scan_mode,
@@ -94,7 +94,7 @@ class SecurityScanCriterion(BaseCriterion):
                 if isinstance(res, VerificationResult):
                     res.criterion_label = self.label
                     return res
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return VerificationResult(
                     passed=False,
                     criterion_label=self.label,
@@ -135,7 +135,7 @@ class SecurityScanCriterion(BaseCriterion):
                     )
                     safe_logs = _truncate_evidence(raw_logs)
                     comment = ReviewComment(
-                        message=f"PoC attack payload executed successfully against codebase. Vulnerability confirmed.",
+                        message="PoC attack payload executed successfully against codebase. Vulnerability confirmed.",
                         severity=ReviewSeverity.CRITICAL,
                         fix_suggestion="Apply input sanitization or parameter binding to block exploit payload.",
                     )

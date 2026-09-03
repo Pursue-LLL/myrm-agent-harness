@@ -38,17 +38,21 @@ from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.retriever.autocut import AutocutConfig
 from myrm_agent_harness.toolkits.retriever.splitter.splitter import TextChunker
+from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
+from myrm_agent_harness.toolkits.web_search.core.metrics import web_search_metrics
 from myrm_agent_harness.toolkits.web_search.processing._explicit_params import (
     apply_tavily_site_constraint,
     normalize_explicit_params,
 )
-from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
-from myrm_agent_harness.toolkits.web_search.core.metrics import web_search_metrics
 from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
     apply_domain_diversity_sort,
     combine_search_results_unified,
 )
-from myrm_agent_harness.toolkits.web_search.providers.web_searcher import SearchServiceConfig, SearchServiceType, WebSearcher
+from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
+    SearchServiceConfig,
+    SearchServiceType,
+    WebSearcher,
+)
 from myrm_agent_harness.utils.context_format import format_documents_with_metadata
 from myrm_agent_harness.utils.text_utils import get_token_count
 
@@ -188,10 +192,10 @@ class WebSearchTools:
 
         # Bilibili fast-path: when all queries target Bilibili, use native API
         if bilibili_queries and len(bilibili_queries) == len(questions):
-            from myrm_agent_harness.toolkits.web_search.providers.bilibili_search import search_bilibili
             from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
                 search_results_to_documents,
             )
+            from myrm_agent_harness.toolkits.web_search.providers.bilibili_search import search_bilibili
 
             all_bili_results = []
             for q in bilibili_queries:

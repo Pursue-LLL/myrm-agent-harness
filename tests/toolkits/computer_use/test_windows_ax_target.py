@@ -581,13 +581,12 @@ class TestEnsureWindowActiveForTarget:
         pattern.WindowVisualState = auto.WindowVisualState.Minimized
         window.GetWindowPattern.return_value = pattern
 
-        with _module_with_auto(auto) as module:
-            with patch("time.sleep") as mock_sleep:
-                module._ensure_window_active_for_target(window)
-                pattern.SetWindowVisualState.assert_called_once_with(
-                    auto.WindowVisualState.Normal
-                )
-                mock_sleep.assert_called_once_with(0.05)
+        with _module_with_auto(auto) as module, patch("time.sleep") as mock_sleep:
+            module._ensure_window_active_for_target(window)
+            pattern.SetWindowVisualState.assert_called_once_with(
+                auto.WindowVisualState.Normal
+            )
+            mock_sleep.assert_called_once_with(0.05)
 
     def test_negative_coordinate_bounding_box_triggers_restore(self) -> None:
         window = _make_window("Calculator", 200)
@@ -605,13 +604,12 @@ class TestEnsureWindowActiveForTarget:
         auto.WindowVisualState.Minimized = 2
         auto.WindowVisualState.Normal = 0
 
-        with _module_with_auto(auto) as module:
-            with patch("time.sleep") as mock_sleep:
-                module._ensure_window_active_for_target(window)
-                pattern.SetWindowVisualState.assert_called_once_with(
-                    auto.WindowVisualState.Normal
-                )
-                mock_sleep.assert_called_once_with(0.05)
+        with _module_with_auto(auto) as module, patch("time.sleep") as mock_sleep:
+            module._ensure_window_active_for_target(window)
+            pattern.SetWindowVisualState.assert_called_once_with(
+                auto.WindowVisualState.Normal
+            )
+            mock_sleep.assert_called_once_with(0.05)
 
     def test_normal_window_no_restore_needed(self) -> None:
         window = _make_window("Browser", 300)
@@ -628,11 +626,10 @@ class TestEnsureWindowActiveForTarget:
         rect.top = 100
         window.BoundingRectangle = rect
 
-        with _module_with_auto(auto) as module:
-            with patch("time.sleep") as mock_sleep:
-                module._ensure_window_active_for_target(window)
-                pattern.SetWindowVisualState.assert_not_called()
-                mock_sleep.assert_not_called()
+        with _module_with_auto(auto) as module, patch("time.sleep") as mock_sleep:
+            module._ensure_window_active_for_target(window)
+            pattern.SetWindowVisualState.assert_not_called()
+            mock_sleep.assert_not_called()
 
 
 class TestWindowsInspectForeground:

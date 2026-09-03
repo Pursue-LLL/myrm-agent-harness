@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
-    _CachedResult,
     _cache_key,
+    _CachedResult,
     _get_cached,
     _put_cache,
     _result_cache,
@@ -79,7 +79,6 @@ def test_normalize_role_invalid_falls_back_to_leaf() -> None:
 
 @pytest.mark.asyncio
 async def test_admit_race_budget_coerces_invalid_budget_status_string() -> None:
-    from unittest.mock import AsyncMock, MagicMock
 
     from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
         _admit_race_budget,

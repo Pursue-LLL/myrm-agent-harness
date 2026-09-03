@@ -1,6 +1,5 @@
 """Unit tests for Task Friction Telemetry Pipeline (AgentTaskFrictionTelemetryPipeline)."""
 
-import pytest
 
 from myrm_agent_harness.observability.friction import (
     FrictionAggregator,

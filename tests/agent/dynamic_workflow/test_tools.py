@@ -3,7 +3,6 @@
 import asyncio
 import os
 import tempfile
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -277,7 +276,6 @@ async def test_spawn_tool_subagent_result_to_dict_passthrough(mock_parent_agent)
     from myrm_agent_harness.agent.sub_agents.types import (
         AgentHandoverState,
         SubAgentResult,
-        SubAgentStatus,
         VerificationSummary,
     )
 
@@ -332,8 +330,8 @@ def test_leaf_blocked_tools_include_cron_manage():
     """cron_manage_tool creates persistent cross-session jobs — leaf/orchestrator
     children must never inherit it (L1 blocklist)."""
     from myrm_agent_harness.agent.sub_agents.types import (
-        DELEGATION_CAPABILITY_MANIFEST,
         _SUBAGENT_DEFAULT_BLACKLIST,
+        DELEGATION_CAPABILITY_MANIFEST,
     )
 
     assert "cron_manage_tool" in DELEGATION_CAPABILITY_MANIFEST.leaf_blocked_tools
@@ -1142,7 +1140,7 @@ async def test_human_ask_tool_timeout_fallback():
     queue = asyncio.Queue()
 
     async def _timing_out_gate(q, opts, timeout, default):
-        raise asyncio.TimeoutError()
+        raise TimeoutError()
 
     tool = HumanAskTool(
         event_queue=queue,

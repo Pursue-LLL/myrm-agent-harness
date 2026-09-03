@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+
 import pytest
 
+from myrm_agent_harness.toolkits.kanban._orchestrator_tools import (
+    build_orchestrator_tools,
+)
 from myrm_agent_harness.toolkits.kanban.protocols import (
-    PlanRevisionOutcome,
     PlanRevisionSpec,
     TaskRevisionItem,
 )
@@ -17,9 +20,6 @@ from myrm_agent_harness.toolkits.kanban.types import (
     TaskEventKind,
     TaskPriority,
     TaskStatus,
-)
-from myrm_agent_harness.toolkits.kanban._orchestrator_tools import (
-    build_orchestrator_tools,
 )
 
 

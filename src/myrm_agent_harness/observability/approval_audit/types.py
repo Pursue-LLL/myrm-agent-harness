@@ -18,10 +18,10 @@ top-offenders ranking, and multi-dimensional quota attribution.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Mapping
 
 
 class ApprovalTriggerCategory(StrEnum):
@@ -62,7 +62,7 @@ class ApprovalTriggerEvent:
     cost_usd: float = 0.0
     is_audit_agent: bool = False
     trigger_id: str = field(default_factory=lambda: uuid.uuid4().hex)
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def total_tokens(self) -> int:

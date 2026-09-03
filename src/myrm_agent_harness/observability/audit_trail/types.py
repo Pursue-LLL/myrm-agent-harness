@@ -19,10 +19,10 @@ and zero-leakage compliance observability.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Mapping, Sequence
 
 
 class PriorAuditState(StrEnum):
@@ -75,7 +75,7 @@ class AuditTrailEntry:
     state: PriorAuditState = PriorAuditState.INTENT_LOGGED
     outcome: ComplianceOutcome = ComplianceOutcome.PERMITTED
     is_human_take_the_wheel: bool = False
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
     latency_ms: float = 0.0
     output_length: int = 0

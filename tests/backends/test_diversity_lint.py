@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.backends.profiles.diversity_lint import (
     ModelSelectionSlot,
-    ProviderDiversityResult,
     extract_root_vendor,
     validate_provider_diversity,
 )

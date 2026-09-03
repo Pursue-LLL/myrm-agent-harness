@@ -76,7 +76,6 @@ from myrm_agent_harness.agent.meta_tools.bash._tool.multimodal import (
     maybe_build_image_blocks,
 )
 from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
-    TOOL_DESCRIPTION,
     resolve_bash_code_execute_tool_description,
 )
 

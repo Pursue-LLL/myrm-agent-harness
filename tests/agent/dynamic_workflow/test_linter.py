@@ -1,9 +1,7 @@
 """Tests for Dynamic Workflow AST linter and false-edge dataflow detector."""
 
-import pytest
 
 from myrm_agent_harness.agent.dynamic_workflow.linter import (
-    LintSeverity,
     lint_workflow_script,
 )
 

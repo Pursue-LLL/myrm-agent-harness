@@ -18,7 +18,7 @@ import logging
 import shutil
 import sqlite3
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .types import StateSnapshotMetadata
@@ -90,7 +90,7 @@ class StateSnapshotManager:
             snapshot_id=snapshot_id,
             label=label or "Manual Snapshot",
             size_bytes=total_size,
-            created_at=datetime.now(timezone.utc).isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             checksum=checksum,
             file_count=file_count,
         )

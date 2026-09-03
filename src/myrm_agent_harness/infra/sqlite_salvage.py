@@ -19,6 +19,7 @@ engine. Used by server-level lifecycle and disaster recovery operations.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import logging
 import os
@@ -28,7 +29,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
 
 logger = logging.getLogger(__name__)
 
@@ -223,10 +224,8 @@ class SQLiteRowidSalvageEngine:
 
         try:
             # Passive checkpoint on working copy to fold unharmed WAL frames
-            try:
+            with contextlib.suppress(sqlite3.Error):
                 source_conn.execute("PRAGMA wal_checkpoint(PASSIVE);")
-            except sqlite3.Error:
-                pass
 
             # Extract user table definitions
             tables, virtual_tables = self._extract_schemas(source_conn)
@@ -586,7 +585,5 @@ class SQLiteRowidSalvageEngine:
         for suffix in ("-wal", "-shm"):
             companion = db_path.with_name(f"{db_path.name}{suffix}")
             if companion.exists():
-                try:
+                with contextlib.suppress(OSError):
                     companion.unlink()
-                except OSError:
-                    pass

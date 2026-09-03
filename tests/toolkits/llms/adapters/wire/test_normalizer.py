@@ -4,12 +4,12 @@ import pytest
 
 from myrm_agent_harness.toolkits.llms.adapters.wire.normalizer import (
     ResponsesStreamError,
+    _error_message_from_payload,
     assert_responses_payload_not_failed,
     extract_responses_reasoning_items,
     extract_responses_stream_error,
     responses_dict_to_chat_completion,
     responses_event_to_completion_chunk,
-    _error_message_from_payload,
 )
 
 

@@ -22,7 +22,6 @@ Harness-level domain models and taxonomy for automation connector health diagnos
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum

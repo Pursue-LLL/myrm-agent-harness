@@ -6,6 +6,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from myrm_agent_harness.toolkits.web_fetch.extractors.x_extractor import (
     _format_oembed_document,
     _format_tweet_document,

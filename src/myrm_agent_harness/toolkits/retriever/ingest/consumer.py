@@ -23,7 +23,6 @@ import asyncio
 import hashlib
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol

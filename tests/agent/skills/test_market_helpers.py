@@ -123,9 +123,8 @@ class TestFetchLobehubAsSkill:
         with patch(
             "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
             new=AsyncMock(return_value=resp),
-        ):
-            with pytest.raises(ValueError, match="fetch failed: HTTP 404"):
-                asyncio.run(fetch_lobehub_as_skill(self._detail()))
+        ), pytest.raises(ValueError, match="fetch failed: HTTP 404"):
+            asyncio.run(fetch_lobehub_as_skill(self._detail()))
 
     def test_content_too_large_raises(self) -> None:
         from myrm_agent_harness.core.security.http.secure_fetch import (
@@ -135,9 +134,8 @@ class TestFetchLobehubAsSkill:
         with patch(
             "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
             new=AsyncMock(side_effect=ContentTooLargeError("too big")),
-        ):
-            with pytest.raises(ValueError, match="too large"):
-                asyncio.run(fetch_lobehub_as_skill(self._detail()))
+        ), pytest.raises(ValueError, match="too large"):
+            asyncio.run(fetch_lobehub_as_skill(self._detail()))
 
     def test_invalid_json_root_raises(self) -> None:
         resp = MagicMock()
@@ -146,9 +144,8 @@ class TestFetchLobehubAsSkill:
         with patch(
             "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
             new=AsyncMock(return_value=resp),
-        ):
-            with pytest.raises(ValueError, match="not a valid JSON object"):
-                asyncio.run(fetch_lobehub_as_skill(self._detail()))
+        ), pytest.raises(ValueError, match="not a valid JSON object"):
+            asyncio.run(fetch_lobehub_as_skill(self._detail()))
 
     def test_meta_not_dict_falls_back_to_root(self) -> None:
         resp = MagicMock()

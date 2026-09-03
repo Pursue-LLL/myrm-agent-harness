@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 
 
@@ -60,7 +60,7 @@ class TaskFrictionEvent:
     input_payload: str | None = None
     output_payload: str | None = None
     retry_count: int = 0
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, object] = field(default_factory=dict)
 
 

@@ -53,7 +53,7 @@ def compute_files_digest(
                 size_bytes=size_bytes,
             )
         )
-        hasher.update(f"{rel_path}:{file_sha}\n".encode("utf-8"))
+        hasher.update(f"{rel_path}:{file_sha}\n".encode())
 
     return tuple(digests), hasher.hexdigest()
 
@@ -73,7 +73,7 @@ def build_skill_receipt(
 ) -> SkillInstallReceipt:
     """Build an immutable SkillInstallReceipt instance from installed file contents."""
     file_digests, manifest_hash = compute_files_digest(files)
-    receipt_id = f"rcpt_{hashlib.sha256(f'{skill_id}:{manifest_hash}'.encode('utf-8')).hexdigest()[:16]}"
+    receipt_id = f"rcpt_{hashlib.sha256(f'{skill_id}:{manifest_hash}'.encode()).hexdigest()[:16]}"
 
     return SkillInstallReceipt(
         receipt_id=receipt_id,

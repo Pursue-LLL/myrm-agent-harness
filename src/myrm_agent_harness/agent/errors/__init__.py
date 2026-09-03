@@ -5,6 +5,8 @@ diagnostic information including execution phase, command context,
 and intelligently truncated output previews.
 """
 
+from myrm_agent_harness.utils.errors import ToolErrorCategory
+
 from .agent_errors import AgentBusyError
 from .diagnostics import DiagnosticResult, ErrorContext, LLMErrorDiagnostic
 from .fault_side import (
@@ -19,7 +21,6 @@ from .operator_error_sanitizer import (
     OperatorErrorSanitizer,
     SanitizedOperatorError,
 )
-from myrm_agent_harness.utils.errors import ToolErrorCategory
 from .tool_execution_error import ExecutionPhase, ToolExecutionError
 
 __all__ = [

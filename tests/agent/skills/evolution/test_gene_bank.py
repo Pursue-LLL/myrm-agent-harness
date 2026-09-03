@@ -1,6 +1,5 @@
 """Unit tests for MAP-Elites Gene Bank Archive in Harness Evolution."""
 
-from datetime import datetime
 
 from myrm_agent_harness.agent.skills.evolution.core.gene_bank import GeneBankArchive
 from myrm_agent_harness.agent.skills.evolution.core.types import (
@@ -155,7 +154,7 @@ def test_variant_generator_prompt_integration_with_gene_bank_priors():
         lineage=SkillLineage(evolution_type=EvolutionType.FIX),
     )
     # Attach priors dynamically as attribute
-    setattr(skill, "gene_bank_priors", priors)
+    skill.gene_bank_priors = priors
 
     prompt = generator._build_variant_prompt(skill, "param error", "trace")
     assert "Diverse Multi-Layer Defensive Exemplars (MAP-Elites Prior)" in prompt

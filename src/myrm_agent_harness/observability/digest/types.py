@@ -17,10 +17,10 @@ Type definitions and data models for team weekly newsletter and knowledge compou
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Mapping, Sequence
 
 
 class SkillHealthStatus(StrEnum):
@@ -131,4 +131,4 @@ class TeamWeeklyDigest:
     member_rankings: Sequence[MemberActivitySummary] = field(default_factory=list)
     top_friction_modules: Sequence[str] = field(default_factory=list)
     digest_id: str = field(default_factory=lambda: uuid.uuid4().hex)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))

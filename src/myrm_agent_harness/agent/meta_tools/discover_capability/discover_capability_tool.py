@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
+
     from myrm_agent_harness.toolkits.memory.protocols.cache import (
         EmbeddingCacheProtocol,
     )

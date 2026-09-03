@@ -10,7 +10,6 @@ import pytest
 
 from myrm_agent_harness.utils.db.sqlite import (
     DEFAULT,
-    SchemaGateError,
     SchemaShapeMismatchError,
     SchemaVersionTooNewError,
     SchemaVersionTooOldError,

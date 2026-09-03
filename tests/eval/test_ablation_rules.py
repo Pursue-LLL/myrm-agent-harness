@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.eval.ablation_rules import (
     AblationRecommendation,
     ComponentTier,

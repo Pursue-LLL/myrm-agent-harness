@@ -25,8 +25,8 @@ from .types import (
 __all__ = [
     "CompactionResult",
     "StateSnapshotManager",
-    "StateStorageCompactor",
     "StateSnapshotMetadata",
+    "StateStorageCompactor",
     "StorageCategory",
     "StorageCategoryBreakdown",
     "StorageGovernanceInspector",

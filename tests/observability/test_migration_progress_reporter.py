@@ -1,10 +1,7 @@
 """Unit tests for Migration Progress and Diagnostic Reporter."""
 
-import pytest
 
 from myrm_agent_harness.observability.diagnostics import (
-    MigrationDiagnosticReport,
-    MigrationFailureDetail,
     MigrationPhase,
     MigrationProgressEvent,
     MigrationProgressReporter,

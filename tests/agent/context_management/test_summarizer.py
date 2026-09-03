@@ -12,9 +12,6 @@ from myrm_agent_harness.agent.context_management.infra.schemas import (
     ContextConfig,
     StructuredSummary,
 )
-from myrm_agent_harness.agent.context_management.strategies.summary.summary_parser import (
-    is_summary_message,
-)
 from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
     _build_budget_hint,
     _build_summary_invocation_messages,
@@ -23,6 +20,9 @@ from myrm_agent_harness.agent.context_management.strategies.summary.summarizer i
     _redact_summary_fields,
     generate_structured_summary,
     should_summarize,
+)
+from myrm_agent_harness.agent.context_management.strategies.summary.summary_parser import (
+    is_summary_message,
 )
 
 

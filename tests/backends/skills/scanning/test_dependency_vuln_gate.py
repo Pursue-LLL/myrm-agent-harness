@@ -5,10 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
-from myrm_agent_harness.backends.skills.scanning.dependency_extractor import DeclaredDependency
-from myrm_agent_harness.backends.skills.scanning.scanner import ScanSeverity
 from scripts.ci.check_workspace_dependency_vulns import (
     VulnFindingItem,
     evaluate_gate_results,
@@ -16,6 +12,8 @@ from scripts.ci.check_workspace_dependency_vulns import (
     format_report_markdown,
     load_ignored_advisories,
 )
+
+from myrm_agent_harness.backends.skills.scanning.scanner import ScanSeverity
 
 
 def test_load_ignored_advisories(tmp_path: Path) -> None:

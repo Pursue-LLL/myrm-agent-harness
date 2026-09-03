@@ -13,9 +13,8 @@ Type system for observability storage governance subsystem.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
 
 
 class StorageCategory(str, Enum):
@@ -50,7 +49,7 @@ class StateSnapshotMetadata:
     label: str
     size_bytes: int
     created_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
     checksum: str = ""
     agent_count: int = 0
@@ -84,5 +83,5 @@ class StorageGovernanceReport:
     recommended_actions: list[str] = field(default_factory=list)
     is_growth_healthy: bool = True
     generated_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )

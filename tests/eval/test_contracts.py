@@ -1,11 +1,9 @@
 """Tests for 5-Contract Delivery Lifecycle State Machine."""
 
-import pytest
 from myrm_agent_harness.eval import (
     ContractStatus,
     DeliveryContractPhase,
     FiveContractStateSnapshot,
-    PhaseContractRecord,
     build_initial_five_contract_state,
     evaluate_five_contract_progress,
 )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from myrm_agent_harness.eval import (
     AgentExecutor,
     AgentResponse,
@@ -11,7 +12,6 @@ from myrm_agent_harness.eval import (
     EvalTurnResult,
     FleetEvalResult,
     FleetEvalRunner,
-    FleetVarianceMetrics,
     MultiTurnEvalCase,
     calculate_fleet_variance,
 )

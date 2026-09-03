@@ -24,11 +24,11 @@ from myrm_agent_harness.toolkits.web_search.probe.local_probe import (
 )
 
 __all__ = [
-    "LocalSearchProbeResult",
     "SEARXNG_DOCKER_SERVICE_URL",
     "SEARXNG_HOST_URL",
     "SEARXNG_PROBE_CANDIDATE_URLS",
     "SEARXNG_REGION_PRESETS",
+    "LocalSearchProbeResult",
     "probe_local_search_services",
     "probe_searxng_endpoints",
 ]

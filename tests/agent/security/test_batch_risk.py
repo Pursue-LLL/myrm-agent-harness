@@ -3,8 +3,6 @@
 from myrm_agent_harness.agent.security.batch_risk import (
     BatchApprovalItem,
     BatchItemRiskLevel,
-    BatchRiskItemDetail,
-    BatchRiskReport,
     classify_batch_approval_risk,
 )
 

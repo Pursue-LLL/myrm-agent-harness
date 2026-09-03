@@ -472,7 +472,7 @@ class TestNavigatorPostNavigationSoftFailures:
         navigator = Navigator(mock_page)
 
         class FailingDismisser:
-            async def dismiss(self, page) -> None:  # noqa: ANN001
+            async def dismiss(self, page) -> None:
                 raise RuntimeError("dismiss failed")
 
         navigator._consent_dismisser = FailingDismisser()

@@ -7,11 +7,11 @@ from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 from myrm_agent_harness.toolkits.llms.adapters.wire.normalizer import (
+    ResponsesStreamError,
     assert_responses_payload_not_failed,
     extract_responses_stream_error,
     responses_dict_to_chat_completion,
     responses_event_to_completion_chunk,
-    ResponsesStreamError,
 )
 from myrm_agent_harness.toolkits.llms.adapters.wire.params import build_responses_kwargs
 

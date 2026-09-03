@@ -15,8 +15,8 @@ RESPONSES_WIRE: WireProtocol = "responses"
 ANTHROPIC_MESSAGES_WIRE: WireProtocol = "anthropic_messages"
 
 __all__ = [
-    "WireProtocol",
+    "ANTHROPIC_MESSAGES_WIRE",
     "DEFAULT_WIRE_PROTOCOL",
     "RESPONSES_WIRE",
-    "ANTHROPIC_MESSAGES_WIRE",
+    "WireProtocol",
 ]

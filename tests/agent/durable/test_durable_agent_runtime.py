@@ -12,9 +12,9 @@ Covers:
 
 from __future__ import annotations
 
-import asyncio
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
 import pytest
 
 from myrm_agent_harness.agent.durable import (
@@ -27,7 +27,6 @@ from myrm_agent_harness.agent.durable import (
     LaneMutationLine,
     ManualDriveEffectsGate,
     MutationAction,
-    ReplaySafetyAuditor,
     SimulatedCrashError,
     SqliteDurableStorage,
     TreeEntry,

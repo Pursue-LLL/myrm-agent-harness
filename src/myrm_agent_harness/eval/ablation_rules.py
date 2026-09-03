@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass, field
-from typing import Any
 
 from .trajectory_analysis import FailureMode
 
@@ -46,7 +45,7 @@ class AblationRecommendation:
     affected_case_count: int = 0
     evidence_modes: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "component": self.component.value,
             "priority": self.priority,

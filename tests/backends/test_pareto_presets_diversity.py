@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import glob
 import os
+
 import yaml
-import pytest
 
 from myrm_agent_harness.backends.profiles.diversity_lint import (
     ModelSelectionSlot,
@@ -23,7 +23,7 @@ def test_pareto_presets_yaml_provider_diversity() -> None:
 
     pareto_found = 0
     for file_path in yaml_files:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
             if not data or not data.get("is_pareto_preset"):
                 continue

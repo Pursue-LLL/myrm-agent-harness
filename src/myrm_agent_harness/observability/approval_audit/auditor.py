@@ -22,7 +22,7 @@ import os
 import re
 import shlex
 from collections import defaultdict
-from typing import Sequence
+from collections.abc import Sequence
 from urllib.parse import urlsplit
 
 from myrm_agent_harness.observability.approval_audit.types import (

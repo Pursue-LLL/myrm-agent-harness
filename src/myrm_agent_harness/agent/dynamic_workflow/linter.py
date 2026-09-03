@@ -16,7 +16,7 @@ Detects syntax errors, unbounded loops, uncaught spawn exceptions, and dataflow 
 from __future__ import annotations
 
 import ast
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import ClassVar
 
@@ -113,9 +113,7 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
         self._loop_depth += 1
         # Check for while True / while 1 unbounded loop
         is_constant_truthy = False
-        if isinstance(node.test, ast.Constant) and bool(node.test.value):
-            is_constant_truthy = True
-        elif isinstance(node.test, ast.NameConstant) and node.test.value is True:  # type: ignore[attr-defined]
+        if (isinstance(node.test, ast.Constant) and bool(node.test.value)) or (isinstance(node.test, ast.NameConstant) and node.test.value is True):
             is_constant_truthy = True
 
         if is_constant_truthy:
@@ -192,9 +190,7 @@ class _WorkflowASTVisitor(ast.NodeVisitor):
             self.steer_child_count += 1
 
         # Check ThreadPoolExecutor max_workers
-        if isinstance(func, ast.Name) and func.id == "ThreadPoolExecutor":
-            self._check_thread_pool_workers(node)
-        elif isinstance(func, ast.Attribute) and func.attr == "ThreadPoolExecutor":
+        if (isinstance(func, ast.Name) and func.id == "ThreadPoolExecutor") or (isinstance(func, ast.Attribute) and func.attr == "ThreadPoolExecutor"):
             self._check_thread_pool_workers(node)
 
         self.generic_visit(node)

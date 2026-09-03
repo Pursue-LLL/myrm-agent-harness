@@ -38,12 +38,12 @@ from .registry import (
     _check_safety_coverage,
     _sanitize_url_for_taint,
     compute_canonical_args_hash,
+    evict_skill_safety_metadata,
     get_ptc_safety_metadata,
     register_ptc_safety_metadata,
     resolve_permission_type,
     resolve_safety_metadata,
     unregister_ptc_safety_metadata,
-    evict_skill_safety_metadata,
 )
 from .safety import check_safety_coverage
 
@@ -69,10 +69,10 @@ __all__ = [
     "_sanitize_url_for_taint",
     "check_safety_coverage",
     "compute_canonical_args_hash",
+    "evict_skill_safety_metadata",
     "get_ptc_safety_metadata",
     "register_ptc_safety_metadata",
     "resolve_permission_type",
     "resolve_safety_metadata",
     "unregister_ptc_safety_metadata",
-    "evict_skill_safety_metadata",
 ]

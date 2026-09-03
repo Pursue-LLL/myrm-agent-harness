@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import get_os_hint
 from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
-    DEFAULT_BASH_TOOL_DESCRIPTION_LOCALE,
     TOOL_DESCRIPTION,
     TOOL_DESCRIPTION_EN,
     TOOL_DESCRIPTION_ZH,
-    resolve_bash_code_execute_tool_description,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     create_bash_code_execute_tool,

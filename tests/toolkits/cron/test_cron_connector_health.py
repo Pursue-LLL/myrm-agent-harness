@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.toolkits.cron.engine.connector_health import (
     ConnectorErrorCategory,
     ConnectorFailureDetail,

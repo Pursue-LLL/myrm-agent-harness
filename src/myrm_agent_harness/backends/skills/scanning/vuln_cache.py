@@ -20,9 +20,9 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import asdict, dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 from myrm_agent_harness.backends.skills.scanning.scanner import ScanSeverity
 from myrm_agent_harness.backends.skills.scanning.security_advisories import AdvisoryFinding

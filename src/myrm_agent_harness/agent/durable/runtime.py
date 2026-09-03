@@ -20,18 +20,17 @@ from __future__ import annotations
 
 import time
 import uuid
-from dataclasses import dataclass, field
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 from myrm_agent_harness.agent.durable.effects_gate import (
-    DriveMode,
     ManualDriveEffectsGate,
 )
 from myrm_agent_harness.agent.durable.intent_engine import IntentExecutionEngine
 from myrm_agent_harness.agent.durable.mutation_line import (
     LaneMutationLine,
-    MutationAction,
 )
 from myrm_agent_harness.agent.durable.protocols import DurableStorageProtocol
 from myrm_agent_harness.agent.durable.replay_auditor import ReplaySafetyAuditor
@@ -41,11 +40,8 @@ from myrm_agent_harness.agent.durable.storage import (
 )
 from myrm_agent_harness.agent.durable.types import (
     EffectType,
-    GlobalFactRecord,
-    IntentRecord,
     IntentStatus,
     LaneState,
-    OperationLogEntry,
     TreeEntry,
     UsageRecord,
 )

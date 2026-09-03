@@ -31,8 +31,8 @@ active health probing, auth failure detection, request tracing context, runtime 
 from .approval_audit import (
     ApprovalTriggerCategory,
     ApprovalTriggerEvent,
-    AutoApprovalAuditReport,
     AutoApprovalAuditor,
+    AutoApprovalAuditReport,
     DualTrackQuotaBreakdown,
     TopOffenderItem,
 )

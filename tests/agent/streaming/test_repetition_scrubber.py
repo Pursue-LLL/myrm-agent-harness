@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.agent.streaming.repetition_scrubber import StreamRepetitionScrubber
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 

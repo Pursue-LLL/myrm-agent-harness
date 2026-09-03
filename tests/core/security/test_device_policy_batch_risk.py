@@ -6,10 +6,7 @@ read-only fast-pass batches, and allowlist block escalation.
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.core.security.device_policy import (
-    BatchRiskAssessment,
     DeviceSecurityPolicy,
     evaluate_batch_risk,
 )

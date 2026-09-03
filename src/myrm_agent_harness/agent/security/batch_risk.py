@@ -7,10 +7,9 @@ Zero I/O, zero external dependencies, trivially testable.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Sequence
-
 
 _DESTRUCTIVE_COMMAND_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\brm\s+-[a-zA-Z]*[rfRF][a-zA-Z]*\b"),

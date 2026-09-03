@@ -16,9 +16,6 @@ Canonical tool error categories for structured error classification.
 
 from __future__ import annotations
 
-from enum import StrEnum
-
-
 from myrm_agent_harness.utils.errors import ToolErrorCategory
 
 __all__ = ["ToolErrorCategory"]

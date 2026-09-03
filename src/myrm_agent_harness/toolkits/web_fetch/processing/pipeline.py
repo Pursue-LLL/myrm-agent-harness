@@ -29,8 +29,8 @@ from langchain_core.documents import Document
 
 from myrm_agent_harness.utils.text_cleaner import clean_text
 
-from .content_pruning import ContentPruningFilter
 from ..fetchers.protocols import FetcherType, FetchResult
+from .content_pruning import ContentPruningFilter
 from .markdown_generator import MarkdownGenerator
 
 _TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)

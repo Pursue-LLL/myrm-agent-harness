@@ -46,6 +46,7 @@ async def test_registry_output_includes_spill_log_ref_on_dropped(
     spill_session: tuple[str, Path],
 ) -> None:
     from collections import deque
+
     from myrm_agent_harness.agent.meta_tools.bash._background.consume import BackgroundRegistryEntry
     from myrm_agent_harness.agent.meta_tools.bash._background.registry import get_background_registry
     from myrm_agent_harness.agent.meta_tools.bash._background.types import BackgroundProcessInfo

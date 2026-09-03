@@ -8,7 +8,6 @@ from myrm_agent_harness.agent.event_log.integrity_gate import (
     verify_sequence_continuity,
     verify_session_enclosure,
 )
-from myrm_agent_harness.agent.event_log.types import StructuredEvent
 from myrm_agent_harness.observability.invariants import (
     InvariantError,
     InvariantMode,

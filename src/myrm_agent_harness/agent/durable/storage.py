@@ -25,7 +25,6 @@ from typing import Any
 from myrm_agent_harness.agent.durable.protocols import DurableStorageProtocol
 from myrm_agent_harness.agent.durable.types import (
     EffectType,
-    GlobalFactRecord,
     IntentRecord,
     IntentStatus,
     LaneState,

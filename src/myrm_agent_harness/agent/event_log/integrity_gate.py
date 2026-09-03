@@ -18,7 +18,7 @@ Single source of truth for step/turn enclosure and sequence continuity checks.
 from __future__ import annotations
 
 import logging
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 from myrm_agent_harness.observability.invariants.registry import (
     InvariantError,

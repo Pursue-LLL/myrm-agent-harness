@@ -1172,6 +1172,7 @@ class TestMemorySaveSessionBuffer:
         self, mock_vector_store, mock_embedding, memory_config
     ):
         from unittest.mock import MagicMock
+
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
         from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchPolicy
 

@@ -30,12 +30,12 @@ from myrm_agent_harness.core.security.http.secure_fetch import (
     is_ssrf_shield_enabled,
     parse_allowed_internal_hosts,
 )
-from myrm_agent_harness.toolkits.web_fetch.processing.antibot_detector import (
-    is_blocked as detect_antibot,
-)
 from myrm_agent_harness.toolkits.web_fetch.probe.http3_probe import (
     is_quic_egress_available,
     record_http3_retry,
+)
+from myrm_agent_harness.toolkits.web_fetch.processing.antibot_detector import (
+    is_blocked as detect_antibot,
 )
 from myrm_agent_harness.toolkits.web_fetch.router.site_experience import (
     get_global_site_experience_store,

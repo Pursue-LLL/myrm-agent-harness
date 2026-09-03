@@ -1,5 +1,6 @@
 """Unit tests for memory trace correlation and resolution (SessionCommitTraceIdExpose)."""
 
+from datetime import UTC
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,14 +8,15 @@ import pytest
 from myrm_agent_harness.observability.tracing import TracingContext, resolve_current_trace_id
 from myrm_agent_harness.toolkits.memory._internal.write_service import MemoryWriter
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-from myrm_agent_harness.toolkits.memory.observability import MemoryOperationEvent, MemoryOperationKind, MemoryOperationStatus
-from myrm_agent_harness.toolkits.memory.session import MemorySession
+from myrm_agent_harness.toolkits.memory.observability import (
+    MemoryOperationEvent,
+    MemoryOperationKind,
+    MemoryOperationStatus,
+)
 from myrm_agent_harness.toolkits.memory.types import (
-    BaseMemory,
     MemoryScope,
     MemorySearchResult,
     MemoryType,
-    ProceduralMemory,
     SemanticMemory,
 )
 
@@ -110,13 +112,13 @@ def test_memory_search_result_exposes_trace_id():
 
 def test_memory_operation_event_trace_id_contract():
     """Test MemoryOperationEvent supports trace_id."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     event = MemoryOperationEvent(
         id="evt_1",
         kind=MemoryOperationKind.WRITE,
         status=MemoryOperationStatus.SUCCESS,
-        occurred_at=datetime.now(timezone.utc),
+        occurred_at=datetime.now(UTC),
         memory_id="mem_1",
         trace_id="evt_trace_5566",
     )

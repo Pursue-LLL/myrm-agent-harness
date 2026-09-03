@@ -101,7 +101,6 @@ def wiki_source_entry(
     if snip.article_path:
         from ..core.fact_trust_contract import (
             infer_fact_status_from_path,
-            resolve_fact_status,
         )
 
         entry["fact_status"] = infer_fact_status_from_path(snip.article_path).value

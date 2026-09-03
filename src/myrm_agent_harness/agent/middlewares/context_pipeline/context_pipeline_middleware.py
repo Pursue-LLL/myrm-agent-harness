@@ -60,11 +60,7 @@ from myrm_agent_harness.agent.context_management.context import (
 )
 from myrm_agent_harness.agent.context_management.downshift import (
     DownshiftCallback,
-    DownshiftConfig,
     DownshiftGovernor,
-    DownshiftState,
-    HandoffMemo,
-    ModelTier,
 )
 from myrm_agent_harness.agent.context_management.infra.cache_break_detector import (
     get_cache_break_detector,

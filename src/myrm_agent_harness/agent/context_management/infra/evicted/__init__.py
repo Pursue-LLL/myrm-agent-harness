@@ -12,8 +12,8 @@ Domain subpackage for `.context/{chat_id}/evicted/` delivery (infra layer).
 
 from myrm_agent_harness.agent.context_management.infra.evicted.content import (
     EVICTED_BASENAME_PATTERN,
-    MAX_STORED_CHARS,
     MAX_PREVIEW_STDOUT_CHARS,
+    MAX_STORED_CHARS,
     EvictedPersistResult,
     EvictedRefPayload,
     build_delivery_footer,

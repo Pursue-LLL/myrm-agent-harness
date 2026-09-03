@@ -1,6 +1,7 @@
 """Unit tests for transient business fact memory boundary heuristics."""
 
 import pytest
+
 from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
     filter_transient_business_memories,
     get_transient_fact_rejection_count,
@@ -117,6 +118,7 @@ class TestTransientFactBoundary:
     @pytest.mark.asyncio
     async def test_memory_agent_tools_rejection_e2e(self) -> None:
         from unittest.mock import AsyncMock, MagicMock
+
         from myrm_agent_harness.toolkits.memory.memory_agent_tools import create_memory_tools
 
         manager = MagicMock()

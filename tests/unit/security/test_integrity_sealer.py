@@ -11,11 +11,8 @@ Harness core security integrity unit test suite.
 """
 
 import json
-from pathlib import Path
 
-import pytest
 from myrm_agent_harness.core.security.integrity.seal import (
-    SEAL_FILENAME,
     SEAL_MAGIC_HEADER,
     IntegritySealer,
     IntegrityStatus,

@@ -3,7 +3,6 @@
 from pathlib import Path
 
 from myrm_agent_harness.backends.skills.scanning.dependency_extractor import (
-    DeclaredDependency,
     extract_dependencies_from_files,
     extract_dependencies_from_package_json,
     extract_dependencies_from_pyproject_toml,

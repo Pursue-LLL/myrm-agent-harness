@@ -10,14 +10,11 @@ Tests:
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
     is_gateway_param_rejection,
     sanitize_gateway_params_on_400,
 )
 from myrm_agent_harness.toolkits.llms.adapters.streaming import (
-    _REASONING_FIELD_CANDIDATES,
     extract_reasoning_payload,
 )
 
