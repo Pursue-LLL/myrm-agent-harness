@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import Any
+from typing import TypedDict
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import httpx
@@ -33,6 +33,19 @@ logger = logging.getLogger(__name__)
 
 _REDIRECT_TIMEOUT_SECONDS = 5.0
 _MAX_CONCURRENT_RESOLUTIONS = 5
+
+
+class SearchSourcePayload(TypedDict, total=False):
+    """Normalized search source representation used for citation resolution."""
+
+    url: str
+    link: str
+    redirect_url: str
+    title: str
+    snippet: str
+    index: int
+    score: float
+
 
 # Provider citation wrappers that require SSRF-safe HEAD resolution.
 _GOOGLE_URL_PATH = re.compile(r"^/url/?$", re.IGNORECASE)
@@ -134,11 +147,15 @@ async def resolve_citation_url(url: str) -> str:
         return strip_tracking_parameters(url)
 
 
-def _normalize_source_url(source: dict[str, Any], raw_url: str, resolved: str) -> dict[str, Any]:
+def _normalize_source_url(
+    source: SearchSourcePayload,
+    raw_url: str,
+    resolved: str,
+) -> SearchSourcePayload:
     """Apply resolved destination as canonical `url`; preserve original in `redirect_url`."""
     if resolved == raw_url:
         return source
-    enriched = dict(source)
+    enriched: SearchSourcePayload = dict(source)  # type: ignore[assignment]
     enriched["redirect_url"] = raw_url
     enriched["url"] = resolved
     if "link" in enriched:
@@ -147,15 +164,15 @@ def _normalize_source_url(source: dict[str, Any], raw_url: str, resolved: str) -
 
 
 async def enrich_sources_with_resolved_urls(
-    sources: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+    sources: list[SearchSourcePayload],
+) -> list[SearchSourcePayload]:
     """Resolve redirect chains, strip tracking query parameters, and normalize each source."""
     if not sources:
         return sources
 
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT_RESOLUTIONS)
 
-    async def _resolve_one(source: dict[str, Any]) -> dict[str, Any]:
+    async def _resolve_one(source: SearchSourcePayload) -> SearchSourcePayload:
         raw_url = source.get("link") or source.get("url")
         if not isinstance(raw_url, str) or not raw_url:
             return source

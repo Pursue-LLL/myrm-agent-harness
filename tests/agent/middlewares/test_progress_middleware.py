@@ -206,3 +206,62 @@ async def test_blocked_task_focus_skip_and_warning() -> None:
     assert "[BLOCKED TASKS DETECTED]" in last_msg.content
 
 
+@pytest.mark.asyncio
+async def test_compact_summary_with_cancelled_items() -> None:
+    store = TodoStore(
+        goal="Big refactor with cancelled",
+        todos=[
+            TodoItem(id="t1", content="done 1", status=TodoStatus.COMPLETED),
+            TodoItem(id="t2", content="cancel 2", status=TodoStatus.CANCELLED),
+            TodoItem(id="t3", content="cancel 3", status=TodoStatus.CANCELLED),
+            TodoItem(id="t4", content="in progress 4", status=TodoStatus.IN_PROGRESS),
+            TodoItem(id="t5", content="pending 5", status=TodoStatus.PENDING),
+        ],
+    )
+    middleware = progress_middleware(AsyncMock(return_value=store))
+    request = ModelRequest(model=AsyncMock(), messages=[HumanMessage(content="start")])
+    handler = AsyncMock(return_value=ModelResponse(result=[]))
+    await middleware.awrap_model_call(request, handler)
+    passed_request = handler.await_args.args[0]
+    last_msg = passed_request.messages[-1]
+    assert isinstance(last_msg, HumanMessage)
+    assert "[✓] 1 completed, 2 cancelled" in last_msg.content
+
+
+@pytest.mark.asyncio
+async def test_list_content_with_previous_progress_stripped() -> None:
+    store = TodoStore(
+        goal="Strip check",
+        todos=[TodoItem(id="t1", content="step one", status=TodoStatus.PENDING)],
+    )
+    middleware = progress_middleware(AsyncMock(return_value=store))
+    old_content = (
+        "[SYSTEM INSTRUCTION]\n"
+        "## Task progress (active todos)\n"
+        "**Goal:** old goal\n"
+        "> [pending] t0: old step\n"
+    )
+    request = ModelRequest(
+        model=AsyncMock(),
+        messages=[
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": f"User query text\n\n{old_content}"},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}},
+                ]
+            )
+        ],
+    )
+    handler = AsyncMock(return_value=ModelResponse(result=[]))
+    await middleware.awrap_model_call(request, handler)
+    passed_request = handler.await_args.args[0]
+    last_msg = passed_request.messages[-1]
+    assert isinstance(last_msg.content, list)
+    text_parts = [p for p in last_msg.content if p.get("type") == "text"]
+    assert len(text_parts) == 2
+    assert text_parts[0]["text"] == "User query text"
+    assert "t1" in text_parts[1]["text"]
+    assert "t0" not in text_parts[0]["text"]
+
+
+

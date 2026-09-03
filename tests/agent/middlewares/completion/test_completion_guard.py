@@ -2258,3 +2258,80 @@ class TestHasExternalEvidence:
             success_level=None,
         )
         assert has_external_evidence([record]) is False
+
+
+class TestCompletionGuardTodoChecklist:
+    """Test completion_guard_checklist todo items integration and blocked guidance."""
+
+    def test_build_checklist_with_blocked_and_actionable_todos(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.agent.meta_tools.progress.schemas import (
+            TodoItem,
+            TodoStatus,
+            TodoStore,
+        )
+        from myrm_agent_harness.agent.meta_tools.progress.storage import (
+            write_todos_sync_to_workspace,
+        )
+
+        store = TodoStore(
+            goal="Test todo checklist",
+            todos=[
+                TodoItem(id="t1", content="fetch remote resource", status=TodoStatus.BLOCKED),
+                TodoItem(id="t2", content="implement core logic", status=TodoStatus.IN_PROGRESS),
+                TodoItem(id="t3", content="done item", status=TodoStatus.COMPLETED),
+            ],
+        )
+        write_todos_sync_to_workspace(str(tmp_path), store)
+
+        records = [
+            CallRecord(
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/tmp/test.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
+            )
+        ]
+        checklist, has_critical = build_checklist(records, workspace_root=str(tmp_path))
+        assert has_critical is True
+        assert "CRITICAL: You have incomplete todos in your task list!" in checklist
+        assert "Todo t1: fetch remote resource (Status: blocked)" in checklist
+        assert "Todo t2: implement core logic (Status: in_progress)" in checklist
+        assert "You MUST complete actionable todos and call `todo_write(merge=true)` before finishing." in checklist
+        assert "For blocked todos that cannot be completed due to external constraints, mark them as 'cancelled'" in checklist
+
+    def test_build_checklist_with_only_blocked_todos(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.agent.meta_tools.progress.schemas import (
+            TodoItem,
+            TodoStatus,
+            TodoStore,
+        )
+        from myrm_agent_harness.agent.meta_tools.progress.storage import (
+            write_todos_sync_to_workspace,
+        )
+
+        store = TodoStore(
+            goal="Test blocked-only checklist",
+            todos=[
+                TodoItem(id="t1", content="external service down", status=TodoStatus.BLOCKED),
+                TodoItem(id="t2", content="done item", status=TodoStatus.COMPLETED),
+            ],
+        )
+        write_todos_sync_to_workspace(str(tmp_path), store)
+
+        records = [
+            CallRecord(
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/tmp/test.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
+            )
+        ]
+        checklist, has_critical = build_checklist(records, workspace_root=str(tmp_path))
+        assert has_critical is True
+        assert "CRITICAL: You have incomplete todos in your task list!" in checklist
+        assert "Todo t1: external service down (Status: blocked)" in checklist
+        # Should NOT prompt to complete actionable todos since there are none
+        assert "You MUST complete actionable todos" not in checklist
+        # Should prompt to mark blocked as cancelled
+        assert "For blocked todos that cannot be completed due to external constraints, mark them as 'cancelled'" in checklist
+

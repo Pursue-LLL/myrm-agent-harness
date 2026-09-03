@@ -89,18 +89,27 @@ def test_parse_todo_payload_valid() -> None:
     assert items[0].status == TodoStatus.IN_PROGRESS
 
 
-    @pytest.mark.parametrize(
-        ("payload", "match"),
-        [
-            ([1], "must be an object"),
-            ([{"content": "x"}], "id is required"),
-            ([{"id": "1"}], "content is required"),
-            ([{"id": "1", "content": "x", "status": "bogus"}], "is invalid"),
-        ],
-    )
-    def test_parse_todo_payload_validation_errors(payload: list[object], match: str) -> None:
-        with pytest.raises(ValueError, match=match):
-            parse_todo_payload(payload)
+@pytest.mark.parametrize(
+    ("payload", "match"),
+    [
+        ([1], "must be an object"),
+        ([{"content": "x"}], "id is required"),
+        ([{"id": "1"}], "content is required"),
+        ([{"id": "1", "content": "x", "status": "bogus"}], "is invalid"),
+    ],
+)
+def test_parse_todo_payload_validation_errors(payload: list[object], match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        parse_todo_payload(payload)
+
+
+def test_merge_todo_items_validation_errors() -> None:
+    with pytest.raises(ValueError, match="content is required when initializing"):
+        merge_todo_items([], [TodoItem(id="1", content="")], merge=False)
+
+    with pytest.raises(ValueError, match="content is required for new item"):
+        merge_todo_items([], [TodoItem(id="new_id", content="")], merge=True)
+
 
 
 def test_incomplete_todos_excludes_completed_and_cancelled() -> None:
