@@ -465,3 +465,10 @@ def test_salvage_execute_failure_recovery(tmp_path: Path, salvage_engine: SQLite
     res_dst_fail = salvage_engine.salvage_database(mock_src, test_dst)
     # Target directory cannot be unlinked like a file on some OS, handles gracefully
     assert res_dst_fail is not None
+
+    with open_db(mock_src) as conn:
+        conn.execute("CREATE TABLE chats (id TEXT PRIMARY KEY, title TEXT);")
+        conn.execute("CREATE TABLE messages (id INT PRIMARY KEY, chat_id TEXT, created_at TEXT);")
+        conn.execute("INSERT INTO messages VALUES (1, 'orphan_x', '2026-09-03 10:00:00');")
+        cnt = salvage_engine._reconstruct_orphans(conn)
+        assert cnt == 1
