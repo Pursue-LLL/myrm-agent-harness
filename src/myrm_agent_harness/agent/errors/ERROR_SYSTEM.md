@@ -122,7 +122,7 @@ BrowserError
 
 ### 3. WebSearchError（搜索异常树）
 
-- **位置**：`toolkits/web_search/exceptions.py`
+- **位置**：`toolkits/web_search/core/exceptions.py`
 - **继承**：`Exception`（独立异常树，通过 `format_for_llm()` 协议与中间件对接）
 - **子类层次**：
 
@@ -492,7 +492,7 @@ get_locale_manager().register_translations(
 |------|------|
 | `utils/errors.py` | ToolError 定义、format_error_message、ModelOutputValidator |
 | `toolkits/browser/exceptions.py` | BrowserError 异常树（含智能诊断） |
-| `toolkits/web_search/exceptions.py` | WebSearchError 异常树（含 retryable 信息） |
+| `toolkits/web_search/core/exceptions.py` | WebSearchError 异常树（含 retryable 信息） |
 | `agent/middlewares/tooling/_tool_helpers.py` | 工具异常格式化（`format_tool_error`：format_for_llm 协议 + 脱敏兜底） |
 | `agent/streaming/event_handlers.py` | 错误事件转换（ToolMessage → SSE 事件） |
 | `toolkits/code_execution/executors/common/error_handler.py` | Sandbox 错误处理装饰器 |

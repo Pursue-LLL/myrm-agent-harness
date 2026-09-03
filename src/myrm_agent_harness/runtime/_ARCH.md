@@ -9,6 +9,12 @@ Layer cheatsheet: [ARCHITECTURE.md](../../../ARCHITECTURE.md) §Harness 五层�
 
 Detailed design: [CONVERSATION_FORK_SYSTEM.md](CONVERSATION_FORK_SYSTEM.md)
 
+## File & Submodule Index
+
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Single Agent instance survival layer exports. | ✅ |
+
 ## Subpackages
 
 | Submodule | Description | Doc |

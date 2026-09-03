@@ -69,6 +69,16 @@ from .decontam import (
     HUGGINGFACE_QUERY_MARKERS,
     normalize_answer,
 )
+from .failure_clustering import (
+    AddressabilityVerdict,
+    FailureSignature,
+    ProfilePatchProposal,
+    SignatureCluster,
+    cluster_failure_signatures,
+    extract_query_intent,
+    is_weak_model_tier,
+    sanitize_failure_fingerprint,
+)
 from .fleet import (
     FleetEvalResult,
     FleetEvalRunner,
@@ -127,6 +137,7 @@ __all__ = [
     "HUGGINGFACE_QUERY_MARKERS",
     "WEIGHTS_RUBRIC_7D",
     "AblationRecommendation",
+    "AddressabilityVerdict",
     "AgentExecutor",
     "AgentResponse",
     "AttributionVerdict",
@@ -153,6 +164,7 @@ __all__ = [
     "EvalTimings",
     "EvalTurnResult",
     "FailureMode",
+    "FailureSignature",
     "FiveContractStateSnapshot",
     "FleetEvalResult",
     "FleetEvalRunner",

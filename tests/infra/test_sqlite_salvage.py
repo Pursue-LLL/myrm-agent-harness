@@ -231,3 +231,41 @@ def test_salvage_nonexistent_database(tmp_path: Path, salvage_engine: SQLiteRowi
     result = salvage_engine.salvage_database(non_existent, dst_db)
     assert result.success is False
     assert "does not exist" in (result.error or "")
+
+    # Test inspection on non-existent database
+    inspection = salvage_engine.inspect_database(non_existent)
+    assert inspection["exists"] is False
+    assert inspection["readable"] is False
+
+
+def test_salvage_direct_mode_and_cleanup(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+    src_db = tmp_path / "direct_src.db"
+    dst_db = tmp_path / "direct_dst.db"
+
+    with open_db(src_db) as conn:
+        conn.execute("CREATE TABLE config (k TEXT PRIMARY KEY, v TEXT);")
+        conn.execute("INSERT INTO config VALUES ('theme', 'dark');")
+
+    # Run with isolate_sandbox=False to exercise direct execution branch
+    result = salvage_engine.salvage_database(src_db, dst_db, isolate_sandbox=False)
+    assert result.success is True
+    assert result.total_recovered_rows == 1
+
+    # Overwrite existing destination with companion wal
+    (tmp_path / "direct_dst.db-wal").write_bytes(b"dummy_wal")
+    result2 = salvage_engine.salvage_database(src_db, dst_db, isolate_sandbox=True)
+    assert result2.success is True
+    assert result2.total_recovered_rows == 1
+
+
+def test_salvage_empty_table_and_bounds_fallback(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+    src_db = tmp_path / "empty.db"
+    dst_db = tmp_path / "empty_out.db"
+
+    with open_db(src_db) as conn:
+        conn.execute("CREATE TABLE empty_tbl (id INTEGER PRIMARY KEY, note TEXT);")
+
+    result = salvage_engine.salvage_database(src_db, dst_db)
+    assert result.success is True
+    assert result.table_stats["empty_tbl"].status == "empty"
+    assert result.total_recovered_rows == 0
