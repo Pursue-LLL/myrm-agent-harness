@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 import time
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 import pytest
@@ -473,16 +473,12 @@ def test_salvage_without_rowid_cursor_error_and_bounds_edge(
         mock_views = {
             "invalid_view": "CREATE VIEW bad_view AS SELECT * FROM ghost_table;"
         }
-        for idx_name, idx_sql in mock_idx_views.items():
-            try:
+        for _idx_name, idx_sql in mock_idx_views.items():
+            with suppress(sqlite3.Error):
                 d.execute(idx_sql)
-            except sqlite3.Error:
-                pass
-        for view_name, view_sql in mock_views.items():
-            try:
+        for _view_name, view_sql in mock_views.items():
+            with suppress(sqlite3.Error):
                 d.execute(view_sql)
-            except sqlite3.Error:
-                pass
 
         # Test _probe_rowid_bounds single bounds fallback
         min_f, max_f = salvage_engine._probe_rowid_bounds(d, "non_existent")
@@ -562,7 +558,7 @@ def test_salvage_fts_error_handling(
         # Add virtual table with broken module to trigger warning in recreate virtual table
         conn.execute("CREATE TABLE v_mock (x INT);")
         # Add bad index DDL into sqlite_master if possible, or test extract_schemas
-        t, vt, idxs, views = salvage_engine._extract_schemas(conn)
+        t, _vt, _idxs, _views = salvage_engine._extract_schemas(conn)
         assert "t" in t
 
     # Execute salvage with direct calls into _extract_schemas

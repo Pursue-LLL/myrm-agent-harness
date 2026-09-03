@@ -18,7 +18,6 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
-from typing import Mapping
 
 from .types import (
     FleetQuotaItem,

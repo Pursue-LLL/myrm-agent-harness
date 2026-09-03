@@ -2,13 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.eval.failure_clustering import (
     AddressabilityVerdict,
-    FailureSignature,
-    ProfilePatchProposal,
-    SignatureCluster,
     cluster_failure_signatures,
     extract_query_intent,
     is_weak_model_tier,

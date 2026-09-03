@@ -99,7 +99,6 @@ def analyze_turn_failure_mode(turn: EvalTurnResult) -> TrajectoryFailureAnalysis
     error_str = str(turn.error or "").lower()
     details_str = str(turn.assertion_details or "").lower()
     resp = turn.response
-    tool_calls = resp.tool_call_details if resp else []
     limit_reached = resp.limit_reached if resp else None
     blocked_count = resp.blocked_count if resp else 0
     contamination = turn.contamination_audit or {}

@@ -762,7 +762,12 @@ class MemoryMCPServer:
         """Access the underlying MCPServer instance for advanced configuration."""
         return self._mcp
 
-    def get_streamable_http_app(self, stateless: bool | None = None) -> Starlette:
+    def get_streamable_http_app(
+        self,
+        stateless: bool | None = None,
+        streamable_http_path: str | None = None,
+        transport_security: object | None = None,
+    ) -> Starlette:
         """Get a Starlette/ASGI app for Streamable HTTP transport.
 
         The stateless mode can be configured via ``stateless_http`` at init or
@@ -775,7 +780,15 @@ class MemoryMCPServer:
             app.mount("/mcp", mcp_server.get_streamable_http_app())
         """
         stateless_http = self._stateless_http if stateless is None else stateless
-        return self._mcp.streamable_http_app(stateless_http=stateless_http)
+        kwargs: dict[str, object] = {
+            "stateless_http": stateless_http,
+            "json_response": True,
+        }
+        if streamable_http_path is not None:
+            kwargs["streamable_http_path"] = streamable_http_path
+        if transport_security is not None:
+            kwargs["transport_security"] = transport_security
+        return self._mcp.streamable_http_app(**kwargs)
 
 
 def create_memory_mcp_server(

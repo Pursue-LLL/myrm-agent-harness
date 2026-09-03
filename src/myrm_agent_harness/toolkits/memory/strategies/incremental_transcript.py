@@ -15,12 +15,11 @@ Provides byte-level watermark tracking, line-truncation protection, and robust t
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import BinaryIO, TextIO
+from typing import BinaryIO
 
 logger = logging.getLogger(__name__)
 

@@ -287,3 +287,56 @@ def test_build_tool_execution_stages_allows_parallel_greps_without_path():
     ]
     assert build_tool_execution_stages(calls) == [[0, 1, 2]]
 
+
+def test_build_tool_execution_stages_isolates_file_read_with_string_paths():
+    # When file_read_tool passes paths as a single string, it must still be isolated from writes
+    calls = [
+        {"name": "file_read_tool", "args": {"paths": "src/a.ts"}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts", "file_text": "data"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0], [1]]
+
+
+def test_build_tool_execution_stages_isolates_file_read_with_path_alias():
+    # When file_read_tool passes 'path' instead of 'paths', it must resolve scope correctly
+    calls = [
+        {"name": "file_read_tool", "args": {"path": "src/a.ts"}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts", "file_text": "data"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0], [1]]
+
+
+def test_build_tool_execution_stages_isolates_file_read_with_line_range():
+    # When file_read_tool passes 'file.py:1-50', strip line range and resolve base path
+    calls = [
+        {"name": "file_read_tool", "args": {"paths": ["src/a.ts:1-50"]}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts", "file_text": "data"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0], [1]]
+
+
+def test_build_tool_execution_stages_isolates_file_read_with_files_alias_list():
+    # When file_read_tool passes 'files' list
+    calls = [
+        {"name": "file_read_tool", "args": {"files": ["src/a.ts"]}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts", "file_text": "data"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0], [1]]
+
+
+def test_build_tool_execution_stages_isolates_file_read_with_json_encoded_paths():
+    # JSON-encoded array in paths or alias
+    calls = [
+        {"name": "file_read_tool", "args": {"paths": '["src/a.ts"]'}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts", "file_text": "data"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0], [1]]
+
+    calls_alias_json = [
+        {"name": "file_read_tool", "args": {"target": '["src/a.ts"]'}},
+        {"name": "file_write_tool", "args": {"path": "src/a.ts", "file_text": "data"}},
+    ]
+    assert build_tool_execution_stages(calls_alias_json) == [[0], [1]]
+
+
+

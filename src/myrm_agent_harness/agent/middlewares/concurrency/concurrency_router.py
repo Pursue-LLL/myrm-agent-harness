@@ -198,17 +198,72 @@ def _paths_overlap(left: Path, right: Path) -> bool:
     return left_parts[:common_len] == right_parts[:common_len]
 
 
+def _clean_path_scope_target(raw_target: str) -> str:
+    """Strip line range syntax (e.g. 'file.py:1-50' -> 'file.py') and whitespace."""
+    target = raw_target.strip()
+    if not target:
+        return ""
+    if ":" in target and not target.startswith("vault://"):
+        head, _sep, tail = target.partition(":")
+        if any(ch.isdigit() for ch in tail):
+            return head.strip()
+    return target
+
+
+def _extract_file_read_scope_paths(function_args: dict[str, Any]) -> tuple[Path, ...]:
+    """Extract path reservations for file_read_tool from diverse aliases and payload types."""
+    import json
+
+    raw_candidates: list[str] = []
+
+    # 1. Primary field: paths (list, JSON string, or single string)
+    raw_paths = function_args.get("paths")
+    if isinstance(raw_paths, str) and raw_paths.strip():
+        try:
+            parsed = json.loads(raw_paths)
+            if isinstance(parsed, list):
+                raw_candidates.extend(str(p) for p in parsed if isinstance(p, str))
+            else:
+                raw_candidates.append(raw_paths)
+        except (json.JSONDecodeError, ValueError):
+            raw_candidates.append(raw_paths)
+    elif isinstance(raw_paths, list):
+        raw_candidates.extend(str(p) for p in raw_paths if isinstance(p, str))
+
+    # 2. Supported aliases (mirrors FileReadInput.normalize_input_aliases)
+    if not raw_candidates:
+        alias_keys = ("filePath", "file_path", "path", "file", "files", "filename", "target", "path_list")
+        for key in alias_keys:
+            val = function_args.get(key)
+            if val is None:
+                continue
+            if isinstance(val, list):
+                raw_candidates.extend(str(p) for p in val if isinstance(p, str))
+                break
+            if isinstance(val, str) and val.strip():
+                try:
+                    parsed = json.loads(val)
+                    if isinstance(parsed, list):
+                        raw_candidates.extend(str(p) for p in parsed if isinstance(p, str))
+                    else:
+                        raw_candidates.append(val)
+                except (json.JSONDecodeError, ValueError):
+                    raw_candidates.append(val)
+                break
+
+    cleaned_paths = [_clean_path_scope_target(p) for p in raw_candidates]
+    return _normalize_scope_paths([p for p in cleaned_paths if p])
+
+
 def _extract_parallel_scope_paths(tool_name: str, function_args: dict[str, Any]) -> tuple[Path, ...]:
     """Return normalized path reservations for path-scoped tools."""
     if tool_name not in _PATH_SCOPED_TOOLS:
         return tuple()
 
     if tool_name == "file_read_tool":
-        raw_paths = function_args.get("paths")
-        if isinstance(raw_paths, list):
-            paths = _normalize_scope_paths([p for p in raw_paths if isinstance(p, str) and p.strip()])
-            if paths:
-                return paths
+        paths = _extract_file_read_scope_paths(function_args)
+        if paths:
+            return paths
 
     if tool_name == "glob_tool":
         raw_pattern = function_args.get("pattern")

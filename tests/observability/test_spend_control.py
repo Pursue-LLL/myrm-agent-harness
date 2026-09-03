@@ -1,12 +1,9 @@
 """Unit tests for Four-Tier Progressive Spend Control and Soft Quota Intervention Engine."""
 
-import pytest
 from myrm_agent_harness.observability.spend_control import (
-    FleetQuotaItem,
     FourTierSpendControlEngine,
     InterventionAction,
     SpendControlConfig,
-    SpendInterventionDecision,
     SpendInterventionTier,
 )
 

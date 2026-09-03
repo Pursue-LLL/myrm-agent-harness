@@ -24,12 +24,12 @@ import enum
 import hashlib
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
 from .trajectory_analysis import FailureMode, analyze_turn_failure_mode
 
 if TYPE_CHECKING:
-    from .protocols import EvalResult, EvalTurnResult
+    from .protocols import EvalResult
 
 
 class AddressabilityVerdict(enum.StrEnum):
@@ -160,6 +160,7 @@ class SignatureCluster:
     sample_messages: list[str] = field(default_factory=list)
     remediation_hint: str = ""
     patch_proposal: ProfilePatchProposal | None = None
+    impact_percentage: float = 0.0
 
     @property
     def case_count(self) -> int:
@@ -174,6 +175,7 @@ class SignatureCluster:
             "failure_mode": self.signature.failure_mode.value,
             "verdict": self.verdict.value,
             "case_count": self.case_count,
+            "impact_percentage": self.impact_percentage,
             "affected_case_indices": list(self.affected_case_indices),
             "sample_messages": list(self.sample_messages),
             "remediation_hint": self.remediation_hint,
@@ -324,10 +326,14 @@ def cluster_failure_signatures(
         if analysis is None:
             continue
 
-        # 1. Sanitize raw error string
-        raw_err = (
-            turn.error or turn.assertion_details or analysis.evidence_snippet or ""
-        )
+        # 1. Sanitize raw error string with multi-source entropy fusion
+        err_type = str(turn.error or "").strip()
+        details = str(turn.assertion_details or analysis.evidence_snippet or "").strip()
+        if err_type and details and err_type not in details:
+            raw_err = f"{err_type}: {details}"
+        else:
+            raw_err = details or err_type or "unknown_error"
+
         clean_ci = sanitize_failure_fingerprint(str(raw_err))
 
         # 2. Extract query intent
@@ -358,6 +364,11 @@ def cluster_failure_signatures(
         c.affected_case_indices.append(idx)
         if len(c.sample_messages) < 3 and case_msg:
             c.sample_messages.append(case_msg[:120])
+
+    # Total cases denominator for Pareto expected gain percentage
+    total_cases = eval_result.total_cases or len(eval_result.turn_results) or 1
+    for cluster in clusters_by_key.values():
+        cluster.impact_percentage = round((cluster.case_count / total_cases) * 100, 1)
 
     # Sort clusters by impact count descending
     sorted_clusters = sorted(
