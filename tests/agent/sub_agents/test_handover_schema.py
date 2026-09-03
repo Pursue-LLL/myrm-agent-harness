@@ -169,19 +169,23 @@ def test_batch_summary_aggregates_structured_handoff() -> None:
         {
             "success": True,
             "task_id": "sub_1",
+            "agent_type": "security_scanner",
             "handover_state": {
                 "summary": "Worker 1 done",
                 "findings": [{"finding": "Finding 1", "evidence": "file1.py:1", "confidence": "high"}],
                 "artifact_refs": ["vault://ref1.md"],
+                "citations": ["https://example.com/cwe-89", "https://example.com/shared"],
             },
         },
         {
             "success": True,
             "task_id": "sub_2",
+            "agent_type": "linter",
             "handover_state": {
                 "summary": "Worker 2 done",
                 "findings": [{"finding": "Finding 2", "evidence": "file2.py:2", "confidence": "medium"}],
                 "artifact_refs": ["vault://ref2.md"],
+                "citations": ["https://example.com/shared", "https://example.com/pep8"],
             },
         },
         {
@@ -202,9 +206,18 @@ def test_batch_summary_aggregates_structured_handoff() -> None:
     assert isinstance(handoff_states, list)
     assert len(handoff_states) == 2
     assert summary["all_artifact_refs"] == ["vault://ref1.md", "vault://ref2.md"]
+    assert summary["all_citations"] == [
+        "https://example.com/cwe-89",
+        "https://example.com/shared",
+        "https://example.com/pep8",
+    ]
     all_findings = summary["all_findings"]
     assert isinstance(all_findings, list)
     assert len(all_findings) == 2
+    assert all_findings[0]["source_task_id"] == "sub_1"
+    assert all_findings[0]["agent_type"] == "security_scanner"
+    assert all_findings[1]["source_task_id"] == "sub_2"
+    assert all_findings[1]["agent_type"] == "linter"
 
 
 def test_handoff_finding_confidence_normalization() -> None:
@@ -239,6 +252,7 @@ def test_format_notification_prioritizes_handover_summary_and_findings() -> None
                 ),
             ],
             artifact_refs=["vault://reports/audit_2026.md"],
+            citations=["https://cwe.mitre.org/data/definitions/89.html"],
             task_completed=["Static AST scan", "Taint analysis"],
             risks_or_notes=["Needs immediate patch before release"],
         ),
@@ -249,6 +263,7 @@ def test_format_notification_prioritizes_handover_summary_and_findings() -> None
     assert "Summary:\nFound 1 SQL injection vulnerability in user login path." in notif
     assert "Result:" not in notif
     assert "Key Findings:\n - [HIGH] Unsanitized input in query (evidence: auth/login.py:42)" in notif
+    assert "Citations:\n - https://cwe.mitre.org/data/definitions/89.html" in notif
     assert "Artifacts:\n - vault://reports/audit_2026.md" in notif
     assert "Completed:\n - Static AST scan\n - Taint analysis" in notif
     assert "Risks:\n - Needs immediate patch before release" in notif
