@@ -21,6 +21,7 @@ to variant proposers, preventing Goodhart's law and shortcut overfitting.
 from __future__ import annotations
 
 import enum
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TypeVar
 
@@ -77,7 +78,7 @@ def is_test_case_spec(item: object) -> bool:
 
 
 def filter_search_cases_for_proposer(
-    cases: list[dict[str, object] | EvalCase],
+    cases: Sequence[dict[str, object] | EvalCase],
 ) -> list[dict[str, object] | EvalCase]:
     """Physically filter out held-out test cases before exposing to proposer LLM.
 

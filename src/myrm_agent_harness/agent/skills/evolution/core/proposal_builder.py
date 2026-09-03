@@ -26,6 +26,10 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionType,
     SkillRecord,
 )
+from myrm_agent_harness.eval.leakage_guard import (
+    evaluate_pareto_generalization,
+    is_test_case_spec,
+)
 from myrm_agent_harness.eval.manifest_prediction import (
     ChangePredictionManifest,
     MetricPrediction,
@@ -62,22 +66,55 @@ def build_change_manifest(
     baseline_pass_rate = evaluate_content_assertions(eval_cases, original_content)
     target_pass_rate = evaluate_content_assertions(eval_cases, proposed_content)
 
+    search_cases = [c for c in eval_cases if not is_test_case_spec(c)]
+    test_cases = [c for c in eval_cases if is_test_case_spec(c)]
+
+    predictions = [
+        MetricPrediction(
+            metric_name="pass_rate",
+            direction=PredictionDirection.INCREASE,
+            baseline_value=baseline_pass_rate,
+            target_value=max(target_pass_rate, baseline_pass_rate),
+            tolerance=0.05,
+        ),
+    ]
+
+    base_search_rate = evaluate_content_assertions(search_cases, original_content) if search_cases else baseline_pass_rate
+    target_search_rate = evaluate_content_assertions(search_cases, proposed_content) if search_cases else target_pass_rate
+
+    base_test_rate = evaluate_content_assertions(test_cases, original_content) if test_cases else None
+    target_test_rate = evaluate_content_assertions(test_cases, proposed_content) if test_cases else None
+
+    if test_cases and base_test_rate is not None and target_test_rate is not None:
+        predictions.append(
+            MetricPrediction(
+                metric_name="test_pass_rate",
+                direction=PredictionDirection.INCREASE,
+                baseline_value=base_test_rate,
+                target_value=max(target_test_rate, base_test_rate),
+                tolerance=0.05,
+            )
+        )
+
+    pareto_verdict = evaluate_pareto_generalization(
+        baseline_search_rate=base_search_rate,
+        target_search_rate=target_search_rate,
+        baseline_test_rate=base_test_rate,
+        target_test_rate=target_test_rate,
+    )
+
     manifest = ChangePredictionManifest(
         manifest_id=f"manifest-{skill_id}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}",
         target_component=f"skills/{skill_name}",
         rationale=reasoning or "Self-evolution enhancement",
-        predictions=[
-            MetricPrediction(
-                metric_name="pass_rate",
-                direction=PredictionDirection.INCREASE,
-                baseline_value=baseline_pass_rate,
-                target_value=max(target_pass_rate, baseline_pass_rate),
-                tolerance=0.05,
-            ),
-        ],
+        predictions=predictions,
         created_at=datetime.now(UTC).isoformat(),
     )
-    return manifest.to_dict()
+    manifest_dict = manifest.to_dict()
+    manifest_dict["pareto_generalization_verdict"] = pareto_verdict.value
+    manifest_dict["search_pass_rate"] = target_search_rate
+    manifest_dict["test_pass_rate"] = target_test_rate
+    return manifest_dict
 
 
 class ProposalBuilder:

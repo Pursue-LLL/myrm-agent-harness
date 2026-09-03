@@ -85,14 +85,14 @@ class CodeTypeDetector:
                 return CodeDetectionResult(
                     code_type=CodeType.PYTHON,
                     extracted_code=extracted,
-                    is_async=self._contains_await(extracted),
+                    is_async=self._contains_async(extracted),
                     detection_reason="python -c command (extracted)",
                 )
             raw_code = self._raw_extract_python_c(command)
             return CodeDetectionResult(
                 code_type=CodeType.PYTHON,
                 extracted_code=raw_code,
-                is_async=self._contains_await(raw_code),
+                is_async=self._contains_async(raw_code),
                 detection_reason="python -c command (raw fallback after quote extraction failed)",
             )
 
@@ -101,16 +101,16 @@ class CodeTypeDetector:
             return CodeDetectionResult(
                 code_type=CodeType.PYTHON,
                 extracted_code=embedded,
-                is_async=self._contains_await(embedded),
+                is_async=self._contains_async(embedded),
                 detection_reason="embedded python extracted from bash wrapper",
             )
 
-        if self._contains_await(command):
+        if self._contains_async(command):
             return CodeDetectionResult(
                 code_type=CodeType.PYTHON,
                 extracted_code=command,
                 is_async=True,
-                detection_reason="contains await keyword",
+                detection_reason="contains async keyword (await/async for/async with)",
             )
 
         python_pattern = self._detect_python_pattern(command)
@@ -129,8 +129,11 @@ class CodeTypeDetector:
             detection_reason="default to bash",
         )
 
+    def _contains_async(self, command: str) -> bool:
+        return bool(re.search(r"\b(await|async\s+for|async\s+with)\b", command))
+
     def _contains_await(self, command: str) -> bool:
-        return bool(re.search(r"\bawait\b", command))
+        return self._contains_async(command)
 
     def _is_python_command(self, command: str) -> bool:
         return bool(re.search(r"python3?\s+-c", command))

@@ -22,7 +22,6 @@ BaseExecutor, and PTC verifier.
 
 from __future__ import annotations
 
-import ast
 import re
 
 
