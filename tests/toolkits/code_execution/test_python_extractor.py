@@ -139,6 +139,24 @@ class TestValidatePythonSyntax:
         code = "res = await fetch_data()\nprint(res)"
         assert validate_python_syntax(code) is None
 
+    def test_top_level_async_for_allowed(self):
+        code = "async for item in gen():\n    print(item)"
+        assert validate_python_syntax(code) is None
+
+    def test_top_level_async_with_allowed(self):
+        code = "async with manager() as val:\n    print(val)"
+        assert validate_python_syntax(code) is None
+
+    def test_top_level_await_with_future_annotations_allowed(self):
+        code = "from __future__ import annotations\n\nres = await fetch_data()\nprint(res)"
+        assert validate_python_syntax(code) is None
+
+    def test_top_level_return_outside_function_still_fails(self):
+        code = "return 42"
+        error = validate_python_syntax(code)
+        assert error is not None
+        assert "SyntaxError" in error
+
     def test_top_level_await_with_actual_syntax_error_still_fails(self):
         code = "res = await fetch_data(\nprint(res)"
         error = validate_python_syntax(code)

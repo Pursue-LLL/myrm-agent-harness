@@ -53,6 +53,12 @@ class TestPrepareExecutionPythonRouting:
         assert use_python is True
         assert "await" in prepared
 
+    def test_top_level_async_for_with_future_annotations_passes_preflight(self, bash_executor: BashExecutor) -> None:
+        code = "from __future__ import annotations\nasync for row in async_iter():\n    print(row)"
+        use_python, prepared, _ = bash_executor._prepare_execution(code)
+        assert use_python is True
+        assert "async for" in prepared
+
     def test_mcp_timeout_floor_applied(self, bash_executor: BashExecutor) -> None:
         from myrm_agent_harness.agent.meta_tools.bash._executor.constants import MCP_MIN_TIMEOUT
 

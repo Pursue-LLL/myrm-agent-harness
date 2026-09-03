@@ -96,23 +96,44 @@ def extract_cat_py_paths_from_pipe_feeders(command: str) -> list[str]:
     return list(dict.fromkeys(paths))
 
 
+def _wrap_top_level_async_code(code: str) -> str:
+    """Wrap code with an async function while keeping file-level headers at the top."""
+    import textwrap
+
+    header_lines: list[str] = []
+    body_lines: list[str] = []
+    in_header = True
+    for line in code.splitlines():
+        stripped = line.strip()
+        if in_header:
+            if not stripped or stripped.startswith("#") or stripped.startswith("from __future__ import"):
+                header_lines.append(line)
+                continue
+            in_header = False
+        body_lines.append(line)
+
+    header_part = "\n".join(header_lines)
+    body_part = textwrap.indent("\n".join(body_lines), "    ")
+    return f"{header_part}\nasync def __syntax_check__():\n{body_part}\n"
+
+
 def validate_python_syntax(code: str) -> str | None:
     """Return ``None`` if *code* is valid Python, otherwise a human-readable error.
 
-    Supports top-level await syntax (used in interactive execution and Jupyter-style
-    PTC scripts), falling back to wrapped async function AST check if top-level await is detected.
+    Supports top-level await, async for, and async with syntax (used in interactive execution
+    and Jupyter-style PTC scripts), falling back to wrapped async function AST check if top-level
+    async constructs are detected.
     """
     try:
         ast.parse(code)
         return None
     except SyntaxError as exc:
-        # If the syntax error is caused by top-level await ('await' outside function),
-        # re-validate wrapped in an async function to allow valid top-level await code.
+        # If the syntax error is caused by top-level async constructs ('await', 'async for', 'async with' outside function),
+        # re-validate wrapped in an async function to allow valid top-level async code while preserving __future__ headers.
         msg = str(exc.msg).lower()
-        if "await" in msg and ("outside" in msg or "function" in msg):
+        if ("outside" in msg or "function" in msg) and any(kw in msg for kw in ("await", "async for", "async with")):
             try:
-                import textwrap
-                wrapped = f"async def __syntax_check__():\n{textwrap.indent(code, '    ')}"
+                wrapped = _wrap_top_level_async_code(code)
                 ast.parse(wrapped)
                 return None
             except SyntaxError:
