@@ -472,3 +472,13 @@ def test_salvage_execute_failure_recovery(tmp_path: Path, salvage_engine: SQLite
         conn.execute("INSERT INTO messages VALUES (1, 'orphan_x', '2026-09-03 10:00:00');")
         cnt = salvage_engine._reconstruct_orphans(conn)
         assert cnt == 1
+
+        # Test _probe_rowid_bounds partial bounds
+        conn.execute("CREATE TABLE b_test (val TEXT);")
+        conn.execute("INSERT INTO b_test (rowid, val) VALUES (5, 'five');")
+        min_x, max_x = salvage_engine._probe_rowid_bounds(conn, "b_test")
+        assert min_x == 5 and max_x == 5
+
+        # Test _get_column_names
+        cols = salvage_engine._get_column_names(conn, "chats")
+        assert "id" in cols and "title" in cols
