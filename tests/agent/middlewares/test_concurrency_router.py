@@ -258,3 +258,32 @@ def test_build_tool_execution_stages_allows_overlapping_reads():
         {"name": "file_write_tool", "args": {"path": "src/a.ts"}},
     ]
     assert build_tool_execution_stages(calls) == [[0, 1], [2]]
+
+
+def test_build_tool_execution_stages_splits_grep_without_path_and_write():
+    # When grep_tool omits path, it defaults to CWD scope and must not run concurrently with writes
+    calls = [
+        {"name": "grep_tool", "args": {"pattern": "def hello"}},
+        {"name": "file_write_tool", "args": {"path": "test.py", "file_text": "hello"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0], [1]]
+
+
+def test_build_tool_execution_stages_splits_glob_without_pattern_and_write():
+    # When glob_tool omits pattern, it defaults to CWD scope and must not run concurrently with writes
+    calls = [
+        {"name": "glob_tool", "args": {}},
+        {"name": "file_write_tool", "args": {"path": "test.py", "file_text": "hello"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0], [1]]
+
+
+def test_build_tool_execution_stages_allows_parallel_greps_without_path():
+    # Multiple read-only tools omitting path/pattern should safely run in parallel
+    calls = [
+        {"name": "grep_tool", "args": {"pattern": "def hello"}},
+        {"name": "glob_tool", "args": {}},
+        {"name": "file_read_tool", "args": {"path": "test.py"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0, 1, 2]]
+

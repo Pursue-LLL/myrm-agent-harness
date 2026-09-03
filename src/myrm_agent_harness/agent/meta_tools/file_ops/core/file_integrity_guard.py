@@ -121,10 +121,16 @@ class FileIntegrityGuard:
         current = content_hash(disk_content)
         if current == expected:
             return None
+
+        preview = (
+            disk_content
+            if len(disk_content) <= 2000
+            else disk_content[:2000] + "\n... [truncated]"
+        )
         return (
-            f"File '{norm}' has changed on disk since your last read. "
-            "Re-read the file with file_read_tool before editing. "
-            "Your edit was blocked to prevent writing against stale content."
+            f"File '{norm}' has changed on disk since your last read (content hash mismatch).\n"
+            f"Current disk content snippet:\n```\n{preview}\n```\n"
+            "Rebase your edits directly on this current content without calling file_read_tool."
         )
 
     def clear_agent(self, agent_id: str) -> None:

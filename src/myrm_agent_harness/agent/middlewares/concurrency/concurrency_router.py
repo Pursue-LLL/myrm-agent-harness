@@ -215,9 +215,14 @@ def _extract_parallel_scope_paths(tool_name: str, function_args: dict[str, Any])
         if isinstance(raw_pattern, str) and raw_pattern.strip():
             scope = _extract_glob_scope_path(raw_pattern)
             return (scope,) if scope is not None else tuple()
+        return (_canonicalize_scope_path(Path.cwd()),)
 
     raw_path = function_args.get("path") or function_args.get("file_path") or function_args.get("file")
-    if not isinstance(raw_path, str):
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        if tool_name == "grep_tool":
+            # grep_tool defaults to searching current working directory ('.') when path is omitted.
+            # Mirroring hermes-agent search_files default root reservation to prevent write race conditions.
+            return (_canonicalize_scope_path(Path.cwd()),)
         return tuple()
 
     scope = _normalize_scope_path(raw_path)

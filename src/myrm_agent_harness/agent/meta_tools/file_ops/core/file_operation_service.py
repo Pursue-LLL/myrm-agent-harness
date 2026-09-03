@@ -668,5 +668,12 @@ class FileOperationService:
             if version_rejection is not None:
                 raise ToolError(
                     message=version_rejection,
-                    user_hint="Re-read the file with file_read_tool — disk content changed since your last read.",
+                    user_hint="Directly adjust and rebase your edits on the current disk content provided above without calling file_read_tool.",
+                    error_code="FILE_VERSION_MISMATCH",
+                    diagnostic_info={"error_category": "version_conflict", "path": path},
+                    recovery_suggestions=[
+                        "Inspect the current disk content snippet in the error message",
+                        "Update the old_str in your edits array to match the actual lines on disk",
+                        "Call file_edit_tool again directly (do not call file_read_tool)",
+                    ],
                 )

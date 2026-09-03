@@ -25,6 +25,17 @@ class TestFileIntegrityGuard:
         rejection = guard.require_version_match("/a/b.py", "modified")
         assert rejection is not None
         assert "has changed on disk since your last read" in rejection
+        assert "modified" in rejection
+        assert "Rebase your edits directly on this current content without calling file_read_tool" in rejection
+
+    def test_rejection_payload_truncates_large_disk_content(self) -> None:
+        guard = FileIntegrityGuard()
+        guard.record_read("/a/b.py", "hello")
+        large_content = "x" * 2500
+        rejection = guard.require_version_match("/a/b.py", large_content)
+        assert rejection is not None
+        assert "... [truncated]" in rejection
+        assert len(rejection) < 2500
 
     def test_no_rejection_for_unread_file(self) -> None:
         guard = FileIntegrityGuard()
