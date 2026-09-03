@@ -43,6 +43,16 @@ from pathlib import Path
 from .protocols import EvalCase, EvalCaseSplit, MultiTurnEvalCase
 
 
+def _parse_split(raw_val: object) -> EvalCaseSplit:
+    """Parse split tag with backward compatibility fallback to SEARCH."""
+    s = str(raw_val or "search").strip().lower()
+    if s in ("test", "test_set"):
+        return EvalCaseSplit.TEST
+    if s in ("hard", "hard_subset", "hardsubset"):
+        return EvalCaseSplit.HARDSUBSET
+    return EvalCaseSplit.SEARCH
+
+
 def load_cases(path: str | Path) -> list[EvalCase]:
     """Load single-turn eval cases from a JSON file."""
     data = _read_json(path)
@@ -58,6 +68,7 @@ def load_multi_turn_cases(path: str | Path) -> list[MultiTurnEvalCase]:
             kwargs: dict[str, object] = {
                 "turns": [_parse_case(t) for t in item["turns"]],
                 "metadata": item.get("metadata", {}),
+                "split": _parse_split(item.get("split")),
             }
             if "on_turn_fail" in item:
                 otf = item["on_turn_fail"]
@@ -223,4 +234,5 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
         canary_protected=bool(item.get("canary_protected", False)),
         canary_token=str(item.get("canary_token", "")),
         metadata={str(k): str(v) for k, v in (item.get("metadata") or {}).items()},
+        split=_parse_split(item.get("split")),
     )
