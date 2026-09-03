@@ -199,10 +199,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.core.artifacts.fact_check",
         "FactCheckSheet",
     ),
-    "ResolutionStatus": (
-        "myrm_agent_harness.core.artifacts.fact_check",
-        "ResolutionStatus",
-    ),
     "FleetQuotaItem": (
         "myrm_agent_harness.observability.spend_control",
         "FleetQuotaItem",
