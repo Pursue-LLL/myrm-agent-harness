@@ -196,9 +196,13 @@ class VariantGenerator:
 
         prompt = self._build_evidence_prompt(skill, evidence, constraints)
         prompt = self._sanitize_and_audit_prompt(prompt, skill)
-        variants = await self._generate_concurrent(prompt, num_variants, "evidence_variant")
+        variants = await self._generate_concurrent(
+            prompt, num_variants, "evidence_variant"
+        )
         if not variants:
-            logger.warning("All evidence variant generations failed. Returning original.")
+            logger.warning(
+                "All evidence variant generations failed. Returning original."
+            )
             return [skill.content]
         return variants
 
@@ -228,13 +232,17 @@ class VariantGenerator:
     # Shared concurrent generation
     # ------------------------------------------------------------------
 
-    async def _generate_concurrent(self, prompt: str, num_variants: int, label: str) -> list[str]:
+    async def _generate_concurrent(
+        self, prompt: str, num_variants: int, label: str
+    ) -> list[str]:
         """Run parallel LLM calls and filter empty results."""
 
         async def _generate_one(index: int) -> str:
             try:
                 msg = [
-                    HumanMessage(content=f"{prompt}\n\nProduce variant #{index} with a distinct approach if possible.")
+                    HumanMessage(
+                        content=f"{prompt}\n\nProduce variant #{index} with a distinct approach if possible."
+                    )
                 ]
                 resp = await self._llm.ainvoke(msg)  # type: ignore[union-attr]
                 # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
@@ -243,7 +251,9 @@ class VariantGenerator:
                 logger.error("Failed to generate %s %d: %s", label, index, e)
                 return ""
 
-        variants = await asyncio.gather(*[_generate_one(i) for i in range(num_variants)])
+        variants = await asyncio.gather(
+            *[_generate_one(i) for i in range(num_variants)]
+        )
         valid = [v for v in variants if v.strip()]
         if not valid:
             logger.warning("All %s generations failed. Returning empty.", label)
@@ -255,10 +265,14 @@ class VariantGenerator:
     # Prompt builders
     # ------------------------------------------------------------------
 
-    def _build_variant_prompt(self, skill: SkillRecord, feedback: str, trajectory: str, constraints: str = "") -> str:
+    def _build_variant_prompt(
+        self, skill: SkillRecord, feedback: str, trajectory: str, constraints: str = ""
+    ) -> str:
         """Build prompt for FIX/DERIVED evolution with modular assembly."""
         is_preference = feedback.startswith("[PREFERENCE]")
-        clean_feedback = feedback.removeprefix("[PREFERENCE]").strip() if is_preference else feedback
+        clean_feedback = (
+            feedback.removeprefix("[PREFERENCE]").strip() if is_preference else feedback
+        )
 
         sections = [
             "You are an expert AI agent skill optimizer.",
@@ -291,9 +305,13 @@ class VariantGenerator:
             sections.append(eval_section)
 
         if constraints:
-            sections.append(f"\n## Historical Constraints (MUST obey or rejection is guaranteed)\n{constraints}")
+            sections.append(
+                f"\n## Historical Constraints (MUST obey or rejection is guaranteed)\n{constraints}"
+            )
 
-        gene_bank_section = self._build_gene_bank_prior_section(getattr(skill, "gene_bank_priors", []))
+        gene_bank_section = self._build_gene_bank_prior_section(
+            getattr(skill, "gene_bank_priors", [])
+        )
         if gene_bank_section:
             sections.append(gene_bank_section)
 
@@ -320,20 +338,25 @@ class VariantGenerator:
             filtered_success = [
                 c
                 for c in evidence.success_cases
-                if not is_test_case_spec(getattr(c, "metadata", None) or getattr(c, "split", None))
+                if not is_test_case_spec(
+                    getattr(c, "metadata", None) or getattr(c, "split", None)
+                )
             ]
             cases = filtered_success[:5]
             lines = [f"- Task: {c.task_context or 'N/A'}" for c in cases]
             sections.append(
                 f"## WORKING SCENARIOS ({len(filtered_success)} total)\n"
-                "These work correctly. Your fix MUST NOT break them:\n" + "\n".join(lines)
+                "These work correctly. Your fix MUST NOT break them:\n"
+                + "\n".join(lines)
             )
 
         if evidence.failure_cases:
             filtered_failures = [
                 c
                 for c in evidence.failure_cases
-                if not is_test_case_spec(getattr(c, "metadata", None) or getattr(c, "split", None))
+                if not is_test_case_spec(
+                    getattr(c, "metadata", None) or getattr(c, "split", None)
+                )
             ]
             cases = filtered_failures[:5]
             lines = []
@@ -341,7 +364,8 @@ class VariantGenerator:
                 err = c.error_message[:150] if c.error_message else "N/A"
                 lines.append(f"- Task: {c.task_context or 'N/A'} | Error: {err}")
             sections.append(
-                f"## FAILING SCENARIOS ({len(filtered_failures)} total)\nThese need fixing:\n" + "\n".join(lines)
+                f"## FAILING SCENARIOS ({len(filtered_failures)} total)\nThese need fixing:\n"
+                + "\n".join(lines)
             )
 
         if evidence.common_error_patterns:
@@ -368,7 +392,9 @@ class VariantGenerator:
         if constraints:
             sections.append(f"\n## Historical Constraints (MUST obey)\n{constraints}")
 
-        gene_bank_section = self._build_gene_bank_prior_section(getattr(skill, "gene_bank_priors", []))
+        gene_bank_section = self._build_gene_bank_prior_section(
+            getattr(skill, "gene_bank_priors", [])
+        )
         if gene_bank_section:
             sections.append(gene_bank_section)
 
@@ -377,7 +403,9 @@ class VariantGenerator:
 
         return "\n\n".join(sections)
 
-    def _build_description_prompt(self, skill: SkillRecord, evidence: SkillEvidenceGroup | None = None) -> str:
+    def _build_description_prompt(
+        self, skill: SkillRecord, evidence: SkillEvidenceGroup | None = None
+    ) -> str:
         """Build prompt for description-only optimization."""
         sections = [_DESCRIPTION_SYSTEM]
         sections.append(f"Skill Name: {skill.name}")
@@ -390,7 +418,10 @@ class VariantGenerator:
                 sections.append("Scenarios where this skill works: " + "; ".join(tasks))
             if evidence.failure_cases:
                 tasks = [c.task_context or "N/A" for c in evidence.failure_cases[:3]]
-                sections.append("Scenarios where this skill was wrongly matched: " + "; ".join(tasks))
+                sections.append(
+                    "Scenarios where this skill was wrongly matched: "
+                    + "; ".join(tasks)
+                )
 
         return "\n\n".join(sections)
 
@@ -418,12 +449,18 @@ class VariantGenerator:
         return prompt
 
     @staticmethod
-    def _build_gene_bank_prior_section(diverse_elites: Sequence[GeneEliteRecord]) -> str:
+    def _build_gene_bank_prior_section(
+        diverse_elites: Sequence[GeneEliteRecord],
+    ) -> str:
         """Inject MAP-Elites diverse exemplars across layers to prevent evolution collapse."""
         if not diverse_elites:
             return ""
-        lines: list[str] = ["## Diverse Multi-Layer Defensive Exemplars (MAP-Elites Prior)"]
-        lines.append("Consider solutions across different layers (Prompt, Tool Code, Runtime Config) to avoid over-fitting to prompt-only tweaks:")
+        lines: list[str] = [
+            "## Diverse Multi-Layer Defensive Exemplars (MAP-Elites Prior)"
+        ]
+        lines.append(
+            "Consider solutions across different layers (Prompt, Tool Code, Runtime Config) to avoid over-fitting to prompt-only tweaks:"
+        )
         for elite in diverse_elites:
             layer_val = getattr(elite, "cell_key", None)
             layer_name = layer_val.layer.value if layer_val else "unknown"
@@ -456,7 +493,10 @@ class VariantGenerator:
         traps = skill.get_high_severity_traps(max_count=3)
         if not traps:
             return ""
-        lines = [f"- [{t.get('severity', 'medium').upper()}] {t.get('description', '')}" for t in traps]
+        lines = [
+            f"- [{t.get('severity', 'medium').upper()}] {t.get('description', '')}"
+            for t in traps
+        ]
         return "## Known Traps (avoid these pitfalls)\n" + "\n".join(lines)
 
     @staticmethod
