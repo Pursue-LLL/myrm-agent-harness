@@ -23,7 +23,10 @@ from myrm_agent_harness.agent.sub_agents.dag_plan import (
     Plan,
     PlanStep,
 )
-from myrm_agent_harness.agent.sub_agents.orchestrator import execute_dag_plan
+from myrm_agent_harness.agent.sub_agents.orchestrator import (
+    _extract_graph_patch_data,
+    execute_dag_plan,
+)
 from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubAgentStatus
 
 
@@ -242,3 +245,146 @@ async def test_execute_dag_plan_applies_graph_patch_in_flight() -> None:
     ]
     assert len(applied_events) == 1
     assert "Graph patch applied v2" in applied_events[0][2]
+
+
+def test_extract_graph_patch_data_direct_and_llm_text() -> None:
+    # 1. Payload dict
+    r1 = SubAgentResult(
+        success=True,
+        task_id="t1",
+        agent_type="general",
+        payload={"graph_patch": {"base_revision": 1, "remove_steps": ["s2"]}},
+    )
+    p1 = _extract_graph_patch_data(r1)
+    assert p1 == {"base_revision": 1, "remove_steps": ["s2"]}
+
+    # 2. Result dict
+    r2 = SubAgentResult(
+        success=True,
+        task_id="t2",
+        agent_type="general",
+        result={"graph_patch": {"base_revision": 2, "remove_steps": ["s3"]}},
+    )
+    p2 = _extract_graph_patch_data(r2)
+    assert p2 == {"base_revision": 2, "remove_steps": ["s3"]}
+
+    # 3. LLM string output with <graph_patch>...</graph_patch>
+    llm_output_tag = (
+        "Investigation complete. Step 2 is obsolete, adding step 3.\n"
+        "<graph_patch>\n"
+        '{"base_revision": 1, "add_steps": [{"step_id": "s3", "description": "Verify DB"}]}\n'
+        "</graph_patch>\n"
+        "Proceeding with next actions."
+    )
+    r3 = SubAgentResult(
+        success=True,
+        task_id="t3",
+        agent_type="general",
+        result=llm_output_tag,
+    )
+    p3 = _extract_graph_patch_data(r3)
+    assert p3 is not None
+    assert p3["base_revision"] == 1
+    assert len(p3["add_steps"]) == 1
+    assert p3["add_steps"][0]["step_id"] == "s3"
+
+    # 4. LLM string output with markdown fence json
+    llm_output_json = (
+        "Here is the patch:\n"
+        "```json\n"
+        '{"graph_patch": {"base_revision": 1, "remove_steps": ["s_old"]}}\n'
+        "```"
+    )
+    r4 = SubAgentResult(
+        success=True,
+        task_id="t4",
+        agent_type="general",
+        result=llm_output_json,
+    )
+    p4 = _extract_graph_patch_data(r4)
+    assert p4 == {"base_revision": 1, "remove_steps": ["s_old"]}
+
+    # 5. Non-matching string returns None
+    r5 = SubAgentResult(
+        success=True,
+        task_id="t5",
+        agent_type="general",
+        result="Just normal text without any patch.",
+    )
+    assert _extract_graph_patch_data(r5) is None
+
+
+@pytest.mark.asyncio
+async def test_execute_dag_plan_applies_llm_text_graph_patch_and_injects_revision() -> None:
+    """Verifies that execute_dag_plan parses LLM <graph_patch> text and injects dag_plan_revision."""
+    plan = Plan(
+        goal="Dynamic test with LLM text",
+        steps=[PlanStep(step_id="step_a", description="Step A", status="pending")],
+        revision=1,
+    )
+
+    manager = MagicMock()
+    captured_contexts: list[dict[str, object]] = []
+
+    llm_reply_with_patch = (
+        "Task completed.\n"
+        "<graph_patch>\n"
+        "{\n"
+        '  "base_revision": 1,\n'
+        '  "add_steps": [\n'
+        '    {"step_id": "step_b", "description": "Step B dynamically added", "dependencies": ["step_a"]}\n'
+        "  ]\n"
+        "}\n"
+        "</graph_patch>"
+    )
+
+    async def mock_spawn_child(*args, **kwargs):
+        task_id = kwargs.get("task_id", "")
+        captured_contexts.append(kwargs.get("context", {}))
+        if "step_a" in task_id:
+            return SubAgentResult(
+                success=True,
+                task_id=task_id,
+                agent_type="general",
+                result=llm_reply_with_patch,
+                status=SubAgentStatus.COMPLETED,
+            )
+        return SubAgentResult(
+            success=True,
+            task_id=task_id,
+            agent_type="general",
+            result="Step B completed normally",
+            status=SubAgentStatus.COMPLETED,
+        )
+
+    manager.spawn_child = AsyncMock(side_effect=mock_spawn_child)
+    manager._parent_agent = MagicMock()
+
+    events_captured: list[tuple[str, str, str]] = []
+
+    def progress_sink(step_id: str, status: str, message: str) -> None:
+        events_captured.append((step_id, status, message))
+
+    result = await execute_dag_plan(
+        plan=plan,
+        manager=manager,
+        context={"custom_key": "val"},
+        tool_registry_getter=lambda: [],
+        progress_sink=progress_sink,
+    )
+
+    assert result["success"] is True
+    assert plan.revision == 2
+    assert len(plan.steps) == 2
+    assert plan.steps[0].status == "completed"
+    assert plan.steps[1].status == "completed"
+    assert plan.steps[1].step_id == "step_b"
+
+    # Verify context injection
+    assert len(captured_contexts) >= 1
+    assert captured_contexts[0].get("dag_plan_revision") == 1
+
+    applied_events = [e for e in events_captured if e[1] == "graph_patch_applied"]
+    assert len(applied_events) == 1
+    assert "Graph patch applied v2" in applied_events[0][2]
+

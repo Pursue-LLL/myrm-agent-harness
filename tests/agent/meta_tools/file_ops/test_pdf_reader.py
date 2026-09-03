@@ -608,3 +608,48 @@ class TestNonBlockingCreateTask:
         await task
         assert "ingest_done" in events
         unregister_large_doc_ingest_callback()
+
+    @pytest.mark.asyncio
+    async def test_full_pipeline_real_pdf_physical_slicing_integration(self, tmp_path) -> None:
+        """Integration test with real PDF pipeline: physical slicing limits parsed pages without false string split."""
+        from myrm_agent_harness.toolkits.file_parsers.base import PDFParseResult
+
+        executor = AsyncMock()
+        executor.read_file_bytes = AsyncMock(return_value=b"dummy_bytes")
+
+        ingest_called = []
+
+        async def mock_ingest(filename: str, full_text: str, doc_hash: str) -> None:
+            ingest_called.append((filename, doc_hash))
+
+        register_large_doc_ingest_callback(mock_ingest)
+        try:
+            fake_extract_result = PDFParseResult(
+                text="[Page 1]\nReal content line 1\n\n[Page 2]\nReal content line 2",
+                tables=[],
+                metadata={"page_count": 25, "parsed_pages": 20},
+            )
+            # Use real PDFExtractResult structure
+            from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import PDFExtractResult
+
+            real_result = PDFExtractResult(
+                text=fake_extract_result.text,
+                page_count=25,
+                parsed_pages=20,
+                strategy="text",
+            )
+            with patch(
+                "myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor.extract_pdf_content",
+                new_callable=AsyncMock,
+                return_value=real_result,
+            ):
+                result = await read_pdf_as_content_blocks("/tmp/integration_25p.pdf", executor, supports_vision=False)
+                assert isinstance(result, str)
+                assert "[RAG Auto-Index]" in result
+                assert "25 pages" in result
+                assert "Only the first 20 pages" in result
+                await asyncio.sleep(0.1)
+        finally:
+            unregister_large_doc_ingest_callback()
+
+

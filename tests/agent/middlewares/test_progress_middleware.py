@@ -184,3 +184,25 @@ async def test_compact_focus_view_for_many_tasks() -> None:
     assert "Current focus: `t4` — in progress 4" in last_msg.content
     assert "... and 1 more pending task(s)" in last_msg.content
 
+
+@pytest.mark.asyncio
+async def test_blocked_task_focus_skip_and_warning() -> None:
+    store = TodoStore(
+        goal="Handle payments",
+        todos=[
+            TodoItem(id="t1", content="fetch api key", status=TodoStatus.BLOCKED),
+            TodoItem(id="t2", content="create local db", status=TodoStatus.PENDING),
+        ],
+    )
+    middleware = progress_middleware(AsyncMock(return_value=store))
+    request = ModelRequest(model=AsyncMock(), messages=[HumanMessage(content="start")])
+    handler = AsyncMock(return_value=ModelResponse(result=[]))
+    await middleware.awrap_model_call(request, handler)
+    passed_request = handler.await_args.args[0]
+    last_msg = passed_request.messages[-1]
+    assert isinstance(last_msg, HumanMessage)
+    # Check that focus skipped blocked t1 and targeted pending t2
+    assert "Current focus: `t2` — create local db" in last_msg.content
+    assert "[BLOCKED TASKS DETECTED]" in last_msg.content
+
+

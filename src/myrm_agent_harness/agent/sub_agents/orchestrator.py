@@ -8,6 +8,7 @@ Higher-level execution patterns built on top of SubagentManager.spawn_child.
 - agent.workspace_coordination.merge.batch_merge::merge_batch_workspace_sync_backs (POS: Serial merge of deferred ISOLATED_COPY workspaces after parallel delegation)
 - toolkits.code_execution.executors.readonly_proxy::ReadonlyExecutorProxy (POS: Read-only executor proxy for Adversarial Sandbox Verifier.)
 - agent.skills.evolution.execution.executor_context::ExecutorContextManager (POS: Context manager for injecting executors into the current async context.)
+- utils.json_parsing::parse_llm_json_object (POS: Tolerant JSON extraction from LLM text output for mid-run graph patches.)
 
 [OUTPUT]
 - execute_dag_plan: Execute a Plan using DAG concurrency with wave write isolation, 3-way merge convergence, and optional node-level fault tolerance (allow_failure).
@@ -25,6 +26,7 @@ Subagent composition patterns — chain, batch, alternatives, and verified orche
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 import uuid
 from collections.abc import Callable
@@ -39,6 +41,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
     SubAgentStatus,
     WorkspacePolicy,
 )
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from ._orchestrator_council import run_council
@@ -54,6 +57,54 @@ if TYPE_CHECKING:
     from .manager import SubagentManager, SubagentTask
 
 logger = get_agent_logger(__name__)
+
+
+def _extract_graph_patch_data(result: object) -> dict[str, object] | None:
+    """Extract GraphPatch payload from SubAgentResult, supporting dict payloads and LLM text."""
+    if result is None:
+        return None
+
+    # 1. Direct dict in payload (programmatic caller)
+    payload = getattr(result, "payload", None)
+    if isinstance(payload, dict) and "graph_patch" in payload:
+        patch = payload["graph_patch"]
+        if isinstance(patch, dict):
+            return patch
+
+    # 2. Direct dict in result
+    res_val = getattr(result, "result", None)
+    if isinstance(res_val, dict) and "graph_patch" in res_val:
+        patch = res_val["graph_patch"]
+        if isinstance(patch, dict):
+            return patch
+
+    # 3. LLM string output containing <graph_patch>...</graph_patch> or embedded JSON
+    if isinstance(res_val, str) and ("<graph_patch>" in res_val or "graph_patch" in res_val):
+        match = re.search(
+            r"<graph_patch>(?:(.*?)</graph_patch>|(.*?)$)",
+            res_val,
+            re.DOTALL | re.IGNORECASE,
+        )
+        if match:
+            block = match.group(1) if match.group(1) is not None else match.group(2)
+            if block and block.strip():
+                try:
+                    data = parse_llm_json_object(block)
+                    if isinstance(data, dict):
+                        if "graph_patch" in data and isinstance(data["graph_patch"], dict):
+                            return data["graph_patch"]
+                        return data
+                except Exception as e:
+                    logger.warning("[DAG] Failed to parse <graph_patch> block: %s", e)
+
+        try:
+            data = parse_llm_json_object(res_val, require_key="graph_patch")
+            if isinstance(data, dict) and isinstance(data.get("graph_patch"), dict):
+                return data["graph_patch"]
+        except Exception as e:
+            logger.warning("[DAG] Failed to parse embedded graph_patch JSON: %s", e)
+
+    return None
 
 
 async def execute_dag_plan(
@@ -142,9 +193,20 @@ async def execute_dag_plan(
                     filtered_results[dep_id] = current_results[dep_id].result
 
             step_context["dag_previous_results"] = filtered_results
+            plan_rev = getattr(plan, "revision", 1)
+            step_context["dag_plan_revision"] = plan_rev
 
             config = SubagentConfig(
-                system_prompt="You are a DAG step executor.", max_retries=2
+                system_prompt=(
+                    "You are a DAG step executor. Complete the assigned task according to the instructions.\n"
+                    "If your findings require dynamically modifying downstream steps (e.g. pruning obsolete steps or adding new ones), "
+                    "you may optionally include a `<graph_patch>` JSON block in your reply:\n"
+                    "<graph_patch>\n"
+                    '{"base_revision": <current_revision>, "add_steps": [{"step_id": "...", "description": "...", "dependencies": ["..."]}], '
+                    '"remove_steps": ["..."], "modify_dependencies": {"<step_id>": ["..."]}}\n'
+                    "</graph_patch>"
+                ),
+                max_retries=2,
             )
 
             # Node-level retry mechanism
@@ -173,7 +235,11 @@ async def execute_dag_plan(
                         result = await manager.spawn_child(
                             task_id=f"dag-{step_id}",
                             agent_type=step_agent_type,
-                            task_description=f"Execute step: {desc}\nExpected output: {expected}",
+                            task_description=(
+                                f"Execute step: {desc}\n"
+                                f"Expected output: {expected}\n"
+                                f"Current plan revision: {plan_rev}"
+                            ),
                             config=config,
                             context=step_context,
                             tool_registry_getter=tool_registry_getter,
@@ -320,11 +386,7 @@ async def execute_dag_plan(
                         logger.error("[DAG] Failed step %s: %s", step_id, result.error)
 
             # Check if step produced a runtime GraphPatch
-            patch_data = None
-            if isinstance(getattr(result, "payload", None), dict) and "graph_patch" in result.payload:
-                patch_data = result.payload["graph_patch"]
-            elif isinstance(getattr(result, "result", None), dict) and "graph_patch" in result.result:
-                patch_data = result.result["graph_patch"]
+            patch_data = _extract_graph_patch_data(result)
 
             if isinstance(patch_data, dict) and hasattr(plan, "apply_graph_patch"):
                 from myrm_agent_harness.agent.sub_agents.dag_plan import GraphPatch
