@@ -114,7 +114,7 @@ def filter_trajectories_for_proposer(
 
 def audit_proposer_prompt_for_leakage(
     prompt_text: str,
-    test_cases: list[dict[str, object] | EvalCase],
+    test_cases: Sequence[dict[str, object] | EvalCase],
     min_match_len: int = 16,
 ) -> LeakageAuditResult:
     """Audit a generated prompt to ensure no distinctive test-set spans leak through."""

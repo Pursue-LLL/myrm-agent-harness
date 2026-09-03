@@ -20,15 +20,18 @@ are assembled per EvolutionType for precision and maintainability.
 Variant Generator for Skill Evolution.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
-from typing import Any
+from collections.abc import Sequence
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.agent.skills.evolution.core.types import (
+    GeneEliteRecord,
     SkillEvidenceGroup,
     SkillRecord,
 )
@@ -37,6 +40,7 @@ from myrm_agent_harness.eval.leakage_guard import (
     filter_search_cases_for_proposer,
     is_test_case_spec,
 )
+from myrm_agent_harness.eval.protocols import EvalCase
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 logger = logging.getLogger(__name__)
@@ -397,7 +401,7 @@ class VariantGenerator:
     @staticmethod
     def _sanitize_and_audit_prompt(prompt: str, skill: SkillRecord) -> str:
         """Audit and sanitize proposer prompt to prevent held-out test contamination."""
-        test_cases: list[dict[str, object]] = [
+        test_cases: list[dict[str, object] | EvalCase] = [
             c for c in getattr(skill, "eval_cases", []) if is_test_case_spec(c)
         ]
         if not test_cases:
@@ -414,7 +418,7 @@ class VariantGenerator:
         return prompt
 
     @staticmethod
-    def _build_gene_bank_prior_section(diverse_elites: list[Any]) -> str:
+    def _build_gene_bank_prior_section(diverse_elites: Sequence[GeneEliteRecord]) -> str:
         """Inject MAP-Elites diverse exemplars across layers to prevent evolution collapse."""
         if not diverse_elites:
             return ""
