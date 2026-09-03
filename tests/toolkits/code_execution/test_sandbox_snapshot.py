@@ -122,3 +122,83 @@ def test_git_branch_probing() -> None:
 
             xml = format_bootstrap_snapshot_xml(snapshot)
             assert "Git: feature/sandbox-eval, dirty" in xml
+
+
+def test_is_git_repo_property() -> None:
+    snapshot_git = SandboxBootstrapSnapshot(
+        working_dir="/test",
+        top_level_entries=(),
+        total_entries_count=0,
+        git_branch="main",
+    )
+    assert snapshot_git.is_git_repo is True
+
+    snapshot_non_git = SandboxBootstrapSnapshot(
+        working_dir="/test",
+        top_level_entries=(),
+        total_entries_count=0,
+        git_branch=None,
+    )
+    assert snapshot_non_git.is_git_repo is False
+
+
+def test_run_quick_command_failure_and_timeout() -> None:
+    from myrm_agent_harness.toolkits.code_execution.sandbox_snapshot import _run_quick_command
+    import subprocess
+
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd=["sleep"], timeout=1.0)):
+        rc, out = _run_quick_command(["sleep", "10"], timeout=1.0)
+        assert rc == -1
+        assert out == ""
+
+
+def test_package_manager_lockfiles_and_fallbacks() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        # Test bun lockfile
+        (root / "bun.lockb").write_text("bun")
+        with patch("shutil.which", side_effect=lambda bin_name: "/usr/bin/" + bin_name if bin_name in ("bun", "npm") else None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.recommended_package_manager == "bun"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        # Test yarn lockfile
+        (root / "yarn.lock").write_text("yarn")
+        with patch("shutil.which", side_effect=lambda bin_name: "/usr/bin/" + bin_name if bin_name in ("yarn", "npm") else None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.recommended_package_manager == "yarn"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        # Test package-lock.json
+        (root / "package-lock.json").write_text("{}")
+        with patch("shutil.which", side_effect=lambda bin_name: "/usr/bin/" + bin_name if bin_name in ("npm",) else None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.recommended_package_manager == "npm"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        # Test pyproject.toml fallback when no lockfile exists
+        (root / "pyproject.toml").write_text("[project]")
+        with patch("shutil.which", side_effect=lambda bin_name: "/usr/bin/" + bin_name if bin_name in ("uv", "pip") else None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.recommended_package_manager == "uv"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        # Test Cargo.toml fallback
+        (root / "Cargo.toml").write_text("[package]")
+        with patch("shutil.which", side_effect=lambda bin_name: "/usr/bin/" + bin_name if bin_name in ("cargo",) else None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.recommended_package_manager == "cargo"
+
+
+def test_scandir_os_error_handling() -> None:
+    from myrm_agent_harness.toolkits.code_execution.sandbox_snapshot import _scan_top_level_entries
+
+    with patch("os.scandir", side_effect=PermissionError("Access denied")):
+        entries, count = _scan_top_level_entries(Path("/protected"), max_entries=20)
+        assert entries == ()
+        assert count == 0
+
