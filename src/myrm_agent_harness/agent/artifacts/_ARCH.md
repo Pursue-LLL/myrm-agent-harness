@@ -17,4 +17,5 @@ Artifacts system — artifact lifecycle management.
 | ui_artifact.py | Core | Provides UIComponentType, UIComponent, UIAction. | ✅ |
 | ui_registry.py | Core | Provides UIRegistry, get_ui_registry, register_ui_artifact, register_ui_data_update. | ✅ |
 | bundle_manifest.py | Core | Provides DeliverableManifest, DeliverableItem, DeliverableCategory, DeliverableStatus for bundle packaging. | ✅ |
+| reconciler.py | Core | Physical disk artifact reconciliation and verification engine; extracts and verifies existing file paths from tool outputs and registers them into ArtifactRegistry. | ✅ |
 | vault.py | Core | Shared Artifact Vault — `vault://` store under `{workspace}/.agent/vault`; consumed by subagent auto-vault, file_read_tool, artifact listener, Kanban content_ref | ✅ |
