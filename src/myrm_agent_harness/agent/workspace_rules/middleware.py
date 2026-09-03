@@ -42,6 +42,7 @@ from langchain_core.messages import SystemMessage
 logger = logging.getLogger(__name__)
 
 WORKSPACE_CONTEXT_MARKER = "<workspace_context"
+SANDBOX_SNAPSHOT_MARKER = "<sandbox_environment_snapshot"
 
 
 def _has_workspace_context(messages: Sequence[object]) -> bool:
@@ -49,7 +50,9 @@ def _has_workspace_context(messages: Sequence[object]) -> bool:
     for msg in messages[:8]:
         if isinstance(msg, SystemMessage):
             content = msg.content
-            if isinstance(content, str) and WORKSPACE_CONTEXT_MARKER in content:
+            if isinstance(content, str) and (
+                WORKSPACE_CONTEXT_MARKER in content or SANDBOX_SNAPSHOT_MARKER in content
+            ):
                 return True
     return False
 
@@ -146,11 +149,28 @@ class WorkspaceRulesMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         )
 
         rules = scan_workspace_rules(workspace_root)
-        if not rules:
+        
+        # Build combined workspace context: rules files (if any) + sandbox bootstrap snapshot
+        content_parts: list[str] = []
+        if rules:
+            content_parts.append(_format_rules_content(rules))
+
+        try:
+            from myrm_agent_harness.toolkits.code_execution.sandbox_snapshot import (
+                format_bootstrap_snapshot_xml,
+                generate_sandbox_bootstrap_snapshot,
+            )
+
+            snapshot = generate_sandbox_bootstrap_snapshot(workspace_root)
+            content_parts.append(format_bootstrap_snapshot_xml(snapshot))
+        except Exception:
+            logger.debug("Failed to generate sandbox bootstrap snapshot", exc_info=True)
+
+        if not content_parts:
             return await handler(request)
 
-        content = _format_rules_content(rules)
-        rules_msg = SystemMessage(content=content)
+        combined_content = "\n\n".join(content_parts)
+        rules_msg = SystemMessage(content=combined_content)
 
         new_messages = list(request.messages)
         insert_idx = _find_workspace_insert_idx(new_messages)
@@ -159,9 +179,9 @@ class WorkspaceRulesMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         request = request.override(messages=new_messages)
 
         logger.info(
-            "Injected workspace rules (%d files, %d chars) at position %d",
+            "Injected workspace context (%d rule files, %d chars, with sandbox snapshot) at position %d",
             len(rules),
-            len(content),
+            len(combined_content),
             insert_idx,
         )
 

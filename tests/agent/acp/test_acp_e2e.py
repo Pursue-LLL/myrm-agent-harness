@@ -47,12 +47,25 @@ class _E2EAcpClient(Client):
 @pytest.mark.asyncio
 async def test_acp_uds_live_llm_e2e() -> None:
     """Run real ACP turn using LLM credentials loaded from test environment."""
+    from dotenv import load_dotenv
+
+    server_test_env = (
+        Path(__file__).resolve().parents[4]
+        / "myrm-agent"
+        / "myrm-agent-server"
+        / ".env.test"
+    )
+    if server_test_env.exists():
+        load_dotenv(server_test_env)
+
     api_key = os.getenv("BASIC_API_KEY")
     base_url = os.getenv("BASIC_BASE_URL")
     model = os.getenv("BASIC_MODEL")
 
     if not api_key or not model:
         pytest.skip("LLM credentials not found in environment for live E2E")
+
+    from myrm_agent_harness.core.config.llm import LLMConfig
 
     llm_config = LLMConfig(
         model=model,
@@ -102,6 +115,7 @@ async def test_acp_uds_live_llm_e2e() -> None:
                         name="host_echo",
                         command="echo",
                         args=["PONG"],
+                        env=[],
                     )
                 ]
                 sess_res: NewSessionResponse = await client_conn.new_session(
@@ -118,6 +132,9 @@ async def test_acp_uds_live_llm_e2e() -> None:
                     session_id=session_id,
                 )
                 assert prompt_res.stop_reason in ("end_turn", "max_tokens")
+                assert len(client_impl.updates) > 0
+
+                # 4. Check that LLM or agent responded
                 assert len(client_impl.updates) > 0
 
             finally:

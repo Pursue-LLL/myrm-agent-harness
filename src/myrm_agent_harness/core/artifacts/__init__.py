@@ -17,6 +17,13 @@ from myrm_agent_harness.core.artifacts.constants import (
     is_active_content,
     is_text_content,
 )
+from myrm_agent_harness.core.artifacts.fact_check import (
+    ConflictSeverity,
+    FactCheckItem,
+    FactCheckSheet,
+    ResolutionStatus,
+    SourceClaim,
+)
 from myrm_agent_harness.core.artifacts.manifest import (
     CATEGORY_DIRECTORY_MAPPING,
     DeliverableCategory,
@@ -41,10 +48,15 @@ __all__ = [
     "WORKSPACE_AGENT_DIR_NAME",
     "ArtifactMappings",
     "ArtifactType",
+    "ConflictSeverity",
     "DeliverableCategory",
     "DeliverableItem",
     "DeliverableManifest",
     "DeliverableStatus",
+    "FactCheckItem",
+    "FactCheckSheet",
+    "ResolutionStatus",
+    "SourceClaim",
     "get_all_mappings",
     "infer_artifact_type_from_extension",
     "infer_artifact_type_from_mime",

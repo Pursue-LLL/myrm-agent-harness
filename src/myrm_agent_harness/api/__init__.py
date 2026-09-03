@@ -37,11 +37,14 @@ __all__ = [
     "ComplianceTrailExporter",
     "ComplianceViolation",
     "ConfigIncompleteError",
+    "ConflictSeverity",
     "ConnectorErrorCategory",
     "ConnectorHealthStatus",
     "DesktopRecordedEvent",
     "Doctor",
     "DualTrackAuditCollector",
+    "FactCheckItem",
+    "FactCheckSheet",
     "FileChecksum",
     "FleetQuotaItem",
     "FourTierSpendControlEngine",
@@ -80,6 +83,7 @@ __all__ = [
     "PrivacyLadderViolationType",
     "PrivacyScanVerdict",
     "PrivacyScope",
+    "ResolutionStatus",
     "SafetyMetadata",
     "SealManifest",
     "SemanticsCategory",
@@ -166,6 +170,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "ComplianceViolation",
     ),
     "ConfigIncompleteError": ("myrm_agent_harness.api.config", "ConfigIncompleteError"),
+    "ConflictSeverity": (
+        "myrm_agent_harness.core.artifacts.fact_check",
+        "ConflictSeverity",
+    ),
     "ConnectorErrorCategory": (
         "myrm_agent_harness.toolkits.cron.engine.connector_health",
         "ConnectorErrorCategory",
@@ -182,6 +190,18 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "DualTrackAuditCollector": (
         "myrm_agent_harness.observability.audit_trail",
         "DualTrackAuditCollector",
+    ),
+    "FactCheckItem": (
+        "myrm_agent_harness.core.artifacts.fact_check",
+        "FactCheckItem",
+    ),
+    "FactCheckSheet": (
+        "myrm_agent_harness.core.artifacts.fact_check",
+        "FactCheckSheet",
+    ),
+    "ResolutionStatus": (
+        "myrm_agent_harness.core.artifacts.fact_check",
+        "ResolutionStatus",
     ),
     "FleetQuotaItem": (
         "myrm_agent_harness.observability.spend_control",
@@ -326,6 +346,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "PrivacyScope": (
         "myrm_agent_harness.core.security.guards.privacy_ladder",
         "PrivacyScope",
+    ),
+    "ResolutionStatus": (
+        "myrm_agent_harness.core.artifacts.fact_check",
+        "ResolutionStatus",
     ),
     "FileChecksum": (
         "myrm_agent_harness.core.security.integrity.seal",

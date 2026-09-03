@@ -53,6 +53,11 @@ from myrm_agent_harness.toolkits.code_execution.executors import (
     set_executor,
 )
 from myrm_agent_harness.toolkits.code_execution.factory import create_executor
+from myrm_agent_harness.toolkits.code_execution.sandbox_snapshot import (
+    SandboxBootstrapSnapshot,
+    format_bootstrap_snapshot_xml,
+    generate_sandbox_bootstrap_snapshot,
+)
 from myrm_agent_harness.toolkits.code_execution.workspace import (
     Workspace,
     WorkspaceService,
@@ -88,4 +93,8 @@ __all__ = [
     "get_executor",
     "require_executor",
     "set_executor",
+    # Sandbox Bootstrap Snapshot
+    "SandboxBootstrapSnapshot",
+    "generate_sandbox_bootstrap_snapshot",
+    "format_bootstrap_snapshot_xml",
 ]
