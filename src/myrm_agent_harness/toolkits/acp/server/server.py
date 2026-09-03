@@ -8,6 +8,7 @@ the AgentBridge.
 [INPUT]
 - acp::Client, run_agent (POS: ACP official SDK)
 - myrm_agent_harness.toolkits.acp.server.bridge::AgentBridge, AgentFactory (POS: ACP session-to-agent mapping layer)
+- myrm_agent_harness.toolkits.acp.server.mcp_converter::convert_acp_mcp_servers (POS: ACP MCP schema conversion layer)
 
 [OUTPUT]
 - MyrmAcpServer: ACP server implementation providing the acp.Agent Protocol interface
@@ -46,6 +47,7 @@ from acp.schema import (
 )
 
 from myrm_agent_harness.toolkits.acp.server.bridge import AgentBridge, AgentFactory
+from myrm_agent_harness.toolkits.acp.server.mcp_converter import convert_acp_mcp_servers
 
 if TYPE_CHECKING:
     from acp.schema import (
@@ -65,18 +67,14 @@ _ContentBlock = (
 )
 
 
-def _warn_host_mcp_ignored(method: str, mcp_servers: Sized | None) -> None:
-    """Log when a host supplies session-level MCP servers that Myrm does not bind.
-
-    Myrm manages MCP servers through its own agent pipeline; host-provided
-    session-level MCP servers are intentionally ignored. Logging keeps this
-    deliberate behavior observable instead of silently dropping the host's input.
-    """
-    if mcp_servers:
-        logger.warning(
-            "acp_host_mcp_ignored method=%s count=%d reason=myrm_manages_mcp",
+def _log_host_mcp_binding(method: str, converted_count: int, raw_count: int) -> None:
+    """Log host-supplied session-level MCP servers dynamically bound into the agent pipeline."""
+    if raw_count > 0:
+        logger.info(
+            "acp_host_mcp_bound method=%s raw_count=%d bound_count=%d",
             method,
-            len(mcp_servers),
+            raw_count,
+            converted_count,
         )
 
 
@@ -120,8 +118,9 @@ class MyrmAcpServer:
         mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: object,
     ) -> NewSessionResponse:
-        _warn_host_mcp_ignored("new_session", mcp_servers)
-        session_id = await self._bridge.create_session(cwd)
+        converted_mcp = convert_acp_mcp_servers(mcp_servers)
+        _log_host_mcp_binding("new_session", len(converted_mcp), len(mcp_servers or []))
+        session_id = await self._bridge.create_session(cwd, mcp_servers=converted_mcp)
         return NewSessionResponse(session_id=session_id)
 
     async def load_session(
@@ -131,7 +130,8 @@ class MyrmAcpServer:
         mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: object,
     ) -> LoadSessionResponse | None:
-        _warn_host_mcp_ignored("load_session", mcp_servers)
+        converted_mcp = convert_acp_mcp_servers(mcp_servers)
+        _log_host_mcp_binding("load_session", len(converted_mcp), len(mcp_servers or []))
         if self._bridge.has_session(session_id):
             return LoadSessionResponse()
         return None
@@ -197,8 +197,9 @@ class MyrmAcpServer:
         mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: object,
     ) -> ForkSessionResponse:
-        _warn_host_mcp_ignored("fork_session", mcp_servers)
-        new_session_id = await self._bridge.create_session(cwd)
+        converted_mcp = convert_acp_mcp_servers(mcp_servers)
+        _log_host_mcp_binding("fork_session", len(converted_mcp), len(mcp_servers or []))
+        new_session_id = await self._bridge.create_session(cwd, mcp_servers=converted_mcp)
         return ForkSessionResponse(session_id=new_session_id)
 
     async def resume_session(
@@ -208,9 +209,10 @@ class MyrmAcpServer:
         mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: object,
     ) -> ResumeSessionResponse:
-        _warn_host_mcp_ignored("resume_session", mcp_servers)
+        converted_mcp = convert_acp_mcp_servers(mcp_servers)
+        _log_host_mcp_binding("resume_session", len(converted_mcp), len(mcp_servers or []))
         if not self._bridge.has_session(session_id):
-            await self._bridge.create_session(cwd)
+            await self._bridge.create_session(cwd, mcp_servers=converted_mcp)
         return ResumeSessionResponse()
 
     async def ext_method(self, method: str, params: dict[str, object]) -> dict[str, object]:
@@ -229,11 +231,18 @@ def _extract_text(prompt_blocks: list[_ContentBlock]) -> str:
     return "\n".join(parts)
 
 
-async def run_server(agent_factory: AgentFactory) -> None:
-    """Start the ACP server over stdin/stdout.
+async def run_server(
+    agent_factory: AgentFactory,
+    input_stream: object | None = None,
+    output_stream: object | None = None,
+) -> None:
+    """Start the ACP server over stdin/stdout or provided custom streams (e.g. UDS).
 
     This is the main entry point for IDE integration.
     The IDE starts this process and communicates via ACP JSON-RPC.
     """
     server = MyrmAcpServer(agent_factory)
-    await run_agent(server)  # type: ignore[arg-type]
+    if input_stream is not None or output_stream is not None:
+        await run_agent(server, input_stream=input_stream, output_stream=output_stream)  # type: ignore[arg-type]
+    else:
+        await run_agent(server)  # type: ignore[arg-type]

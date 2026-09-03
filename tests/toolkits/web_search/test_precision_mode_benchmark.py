@@ -59,7 +59,6 @@ class TestChunkSizeComparison:
     """对比不同chunk_size的性能"""
 
     @pytest.mark.asyncio
-    @pytest.mark.benchmark
     async def test_chunk_size_200_vs_400_vs_600(self, mock_long_documents):
         """对比chunk_size=200/400/600的分块效果
 
@@ -217,7 +216,6 @@ class TestPrecisionModePerformance:
     """测试精准模式的性能开销"""
 
     @pytest.mark.asyncio
-    @pytest.mark.benchmark
     async def test_precision_mode_performance_breakdown(self, mock_long_documents, mock_reranker):
         """量化精准模式各阶段的性能开销
 
@@ -285,7 +283,6 @@ class TestPrecisionModePerformance:
                 assert total_time_ms < 5000, "Mock测试应该在5秒内完成"
 
 
-@pytest.mark.benchmark
 def test_configuration_rationale():
     """验证当前配置参数的合理性
 

@@ -23,6 +23,8 @@ SSOT: `{workspace_root}/.myrm/progress/todos.json`
 - **MAX_TODOS = 20**: Rejects writes that would exceed 20 items (returns error with guidance to merge or simplify).
 - **Single in_progress**: When multiple items are set to `in_progress`, only the last one is kept; others are auto-corrected to `pending` with a `note` field in the response.
 - **Blocked State Support**: Supports `pending`, `in_progress`, `completed`, `cancelled`, and `blocked` statuses. When an item is marked `blocked`, it releases `in_progress` concurrency to allow dynamic replanning or unblocking.
+- **Smart Focus Scheduling**: `ProgressMiddleware` automatically bypasses `blocked` items and prioritizes actionable `in_progress` or `pending` tasks as `Current focus`, appending non-blocking replanning guidance.
+- **Precision Completion Diagnostics**: `CompletionGuard` distinguishes actionable from blocked items, offering targeted guidance to cancel permanently unfulfillable items via `todo_write(merge=true)`.
 - **Partial Update Support**: In `merge=True` mode, `content` is optional for existing items, allowing status-only updates while preserving existing descriptions. New items require `content`.
 - **Self-Healing Error Diagnostics**: Invalid status values return the complete list of valid enum values to facilitate agent self-correction.
 

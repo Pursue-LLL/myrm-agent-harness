@@ -8,6 +8,7 @@ via the event_translator.
 [INPUT]
 - acp::Client, session_notification, update_agent_message_text (POS: ACP official SDK)
 - myrm_agent_harness.toolkits.acp.server.event_translator::translate_agent_event (POS: AgentEvent → ACP notification translation layer)
+- myrm_agent_harness.toolkits.mcp.config::MCPConfig (POS: MCP server configuration)
 - myrm_agent_harness.utils.runtime.cancellation::CancellationToken (POS: cancellation token abstraction)
 
 [OUTPUT]
@@ -40,6 +41,7 @@ _StopReason = Literal["end_turn", "max_tokens", "max_turn_requests", "refusal", 
 if TYPE_CHECKING:
     from acp import Client
 
+    from myrm_agent_harness.toolkits.mcp.config import MCPConfig
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 logger = logging.getLogger(__name__)
@@ -74,6 +76,7 @@ class AgentFactory(Protocol):
         self,
         session_id: str,
         cwd: str,
+        mcp_servers: list[MCPConfig] | None = None,
     ) -> AgentProtocol:
         """Create a configured agent instance for the given session."""
         ...
@@ -101,12 +104,25 @@ class AgentBridge:
         self._factory = agent_factory
         self._sessions: dict[str, _SessionState] = {}
 
-    async def create_session(self, cwd: str) -> str:
+    async def create_session(
+        self,
+        cwd: str,
+        mcp_servers: list[MCPConfig] | None = None,
+    ) -> str:
         """Create a new ACP session with a fresh agent instance."""
         session_id = uuid4().hex
-        agent = await self._factory.create_agent(session_id, cwd)
+        try:
+            agent = await self._factory.create_agent(session_id, cwd, mcp_servers=mcp_servers)
+        except TypeError:
+            # Fallback for factories that only accept (session_id, cwd)
+            agent = await self._factory.create_agent(session_id, cwd)
         self._sessions[session_id] = _SessionState(session_id, agent, cwd)
-        logger.info("acp_session_created session_id=%s cwd=%s", session_id, cwd)
+        logger.info(
+            "acp_session_created session_id=%s cwd=%s mcp_count=%d",
+            session_id,
+            cwd,
+            len(mcp_servers or []),
+        )
         return session_id
 
     async def prompt(

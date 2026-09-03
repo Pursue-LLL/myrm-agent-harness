@@ -7,9 +7,10 @@ Standalone ACP server entry and default agent factory. Protocol server/runtime i
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Re-exports DefaultAgentFactory | ✅ |
+| __init__.py | Package | Re-exports DefaultAgentFactory and SkillAgentFactory | ✅ |
 | default_factory.py | Core | DefaultAgentFactory — creates BaseAgent per ACP session | ✅ |
-| __main__.py | CLI | Module entry for standalone ACP server | ✅ |
+| skill_factory.py | Core | SkillAgentFactory — creates full-featured SkillAgent with dynamic MCP per ACP session | ✅ |
+| __main__.py | CLI | Module entry for standalone ACP server (stdio / UDS socket) | ✅ |
 
 ## Division vs toolkits/acp/
 

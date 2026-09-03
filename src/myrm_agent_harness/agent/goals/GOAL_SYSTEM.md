@@ -88,6 +88,7 @@ Goal System 负责管理长期任务（Long-running Tasks）的生命周期、�
 - 主 Agent 通过 `todo_write` 创建/合并/完成 todo 项（支持 `pending` / `in_progress` / `completed` / `cancelled` / `blocked` 状态）。
 - 工具返回简短摘要作为 `ToolMessage`；内部 emit `tasks_steps`（`todo_step_*` / `progress_root`）供 Server SSE 转发。
 - 当任务标记为 `blocked` 时，释放 `in_progress` 单并发占用，支持动态自愈重规划。
+- `ProgressMiddleware` 智能跳过 `blocked` 项并聚焦可执行任务；`CompletionGuard` 精准引导模型裁剪不可解的阻塞任务，避免盲目重试。
 
 ### 7. GoalControlPlane (前端全局控制面)
 - xl+ 视口：Chat 右侧持久化 todo 侧栏；移动端依赖聊天气泡内 ProgressSteps。

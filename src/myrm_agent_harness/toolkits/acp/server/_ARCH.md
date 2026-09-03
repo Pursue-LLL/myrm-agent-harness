@@ -9,6 +9,7 @@ ACP Server — bridges IDE clients to the agent system via ACP protocol.
 |------|------|-------------|-------|
 | __init__.py | Package | ACP Server — bridges IDE clients to the agent system via ACP protocol. | ✅ |
 | bridge.py | Core | ACP Session lifecycle management layer. Handles session-to-agent instance mapping, prompt forwarding | ✅ |
+| mcp_converter.py | Adapter | ACP MCP Schema → Myrm MCPConfig conversion layer | ✅ |
 | event_translator.py | Core | AgentEvent → ACP SessionNotification translation. | ✅ |
 | server.py | Core | ACP protocol layer. Implements the ACP JSON-RPC protocol spec, translating IDE client requests | ✅ |
 

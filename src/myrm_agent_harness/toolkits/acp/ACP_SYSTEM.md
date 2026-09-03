@@ -329,8 +329,9 @@ acp/
 │   └── login_session.py    # CliLoginSession：驱动 <cli> login，流式 AuthEvent
 ├── server/                 # ACP Server 方向（IDE → Agent）
 │   ├── __init__.py
-│   ├── server.py           # ACP Server（acp.Agent）
-│   ├── bridge.py           # Session ↔ 宿主 Agent
+│   ├── server.py           # ACP Server（acp.Agent，支持动态绑定宿主 MCP 工具）
+│   ├── bridge.py           # Session ↔ 宿主 Agent（会话生命周期与多工厂适配）
+│   ├── mcp_converter.py    # ACP MCP Schema → Myrm MCPConfig 协议适配层
 │   └── event_translator.py # AgentEvent → SessionNotification
 ├── runtime/                # Runtime 方向（Agent → 外部 Agent）
 │   ├── __init__.py

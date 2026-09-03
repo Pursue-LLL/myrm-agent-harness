@@ -20,11 +20,18 @@ __all__ = [
     "AgentBridge",
     "AgentFactory",
     "MyrmAcpServer",
+    "convert_acp_mcp_servers",
     "run_server",
 ]
 
 
 def __getattr__(name: str) -> object:
+    if name == "convert_acp_mcp_servers":
+        from .mcp_converter import convert_acp_mcp_servers
+
+        globals()[name] = convert_acp_mcp_servers
+        return convert_acp_mcp_servers
+
     if name == "MyrmAcpServer":
         from .server import MyrmAcpServer
 
