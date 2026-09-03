@@ -1,4 +1,16 @@
-"""Public batch summary helpers for parallel subagent execution."""
+"""Public batch summary helpers for parallel subagent execution.
+
+[INPUT]
+- results: list[dict[str, object]] from parallel task executions
+- parent_agent: BaseAgent for capacity snapshot
+
+[OUTPUT]
+- batch_summary: dict containing status, handoff_states, all_artifact_refs, all_citations, all_findings with evidence lineage
+- inject_capacity_signal: dict updated with active subagents and remaining slot metrics
+
+[POS]
+Parallel execution subsystem summary and capacity aggregation layer.
+"""
 
 from __future__ import annotations
 

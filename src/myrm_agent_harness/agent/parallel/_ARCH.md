@@ -13,7 +13,7 @@ Detailed design: see [sub_agents/SUB_AGENT_SYSTEM.md](../sub_agents/SUB_AGENT_SY
 | `__init__.py` | Package | Re-exports parallel runner and fission entrypoints. | — |
 | `config.py` | Config | Default/cap for swarm fission concurrency. | — |
 | `schemas.py` | Types | `ParallelTaskResults` resume contract. | — |
-| `summary.py` | Core | Public `batch_summary` / `inject_capacity_signal`. | — |
+| `summary.py` | Core | Public `batch_summary` (with handover, evidence lineage and citation aggregation) / `inject_capacity_signal`. | — |
 | `resume_compact.py` | Utility | Vault/truncate oversized resume payloads. | — |
 | `runner.py` | Core | `run_parallel_task_requests` — concurrent `_delegate.coroutine`; batch + race merge pass `build_merge_snapshot_context` for Revert. | — |
 | `fission.py` | Core | `execute_swarm_fission` — parse interrupt payload `tasks[]`, resume dict. | — |
