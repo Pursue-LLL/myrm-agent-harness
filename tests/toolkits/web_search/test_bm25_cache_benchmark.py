@@ -139,3 +139,27 @@ class TestBM25CacheBenchmark:
         assert cached_time < first_time, "缓存后应该更快"
         assert len(results1) == len(results2), "结果数量应一致"
         assert retriever_manager.bm25_cache_stats.hits >= 1, "应该至少有1次命中"
+
+    def test_cache_key_anti_collision(self, retriever_manager):
+        """验证同 URL 切片、不同内容及乱序情况下的缓存 Key 防碰撞与保序性"""
+        url = "https://example.com/long-article"
+        # 场景 1：同一 URL 的不同切片，Key 必须不同
+        chunk_0 = Document(page_content="Introduction to AI part 1", metadata={"url": url, "chunk_index": 0})
+        chunk_1 = Document(page_content="Advanced concepts part 2", metadata={"url": url, "chunk_index": 1})
+        chunk_2 = Document(page_content="Conclusion and summary part 3", metadata={"url": url, "chunk_index": 2})
+
+        key_full = retriever_manager._compute_bm25_cache_key([chunk_0, chunk_1, chunk_2])
+        key_subset = retriever_manager._compute_bm25_cache_key([chunk_0, chunk_1])
+        key_single = retriever_manager._compute_bm25_cache_key([chunk_0])
+
+        assert key_full != key_subset, "切片数量不同时缓存 Key 必须不同"
+        assert key_full != key_single, "全量切片与单切片缓存 Key 必须不同"
+
+        # 场景 2：切片内容发生改变，Key 必须不同
+        chunk_0_edited = Document(page_content="Edited content part 1", metadata={"url": url, "chunk_index": 0})
+        key_edited = retriever_manager._compute_bm25_cache_key([chunk_0_edited, chunk_1, chunk_2])
+        assert key_full != key_edited, "切片内容修改后缓存 Key 必须更新"
+
+        # 场景 3：完全相同的切片列表以不同顺序传入，Key 必须保持一致（顺序无关性）
+        key_reordered = retriever_manager._compute_bm25_cache_key([chunk_2, chunk_0, chunk_1])
+        assert key_full == key_reordered, "相同切片集合不同顺序传入应命中相同缓存 Key"

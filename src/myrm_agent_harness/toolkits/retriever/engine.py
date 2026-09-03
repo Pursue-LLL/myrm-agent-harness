@@ -147,15 +147,24 @@ class RetrieverManager:
         Returns:
             Cache key (hash string)
         """
-        if all(doc.metadata.get("url") for doc in documents):
-            url_set = frozenset(doc.metadata["url"] for doc in documents)
-            return get_content_hash(str(sorted(url_set)), strategy="builtin", use_cache=False)
-
         sample_size = self.config.content_hash_sample_size
+        if all(doc.metadata.get("url") for doc in documents):
+            doc_signatures = frozenset(
+                (
+                    doc.metadata["url"],
+                    doc.metadata.get("chunk_index", -1),
+                    get_content_hash(doc.page_content[:sample_size], strategy="builtin", use_cache=False),
+                )
+                for doc in documents
+            )
+            key_raw = f"url_docs:{len(documents)}:{sorted(doc_signatures)}"
+            return get_content_hash(key_raw, strategy="builtin", use_cache=False)
+
         hash_set = frozenset(
             get_content_hash(doc.page_content[:sample_size], strategy="builtin", use_cache=False) for doc in documents
         )
-        return get_content_hash(str(sorted(hash_set)), strategy="builtin", use_cache=False)
+        key_raw = f"content_docs:{len(documents)}:{sorted(hash_set)}"
+        return get_content_hash(key_raw, strategy="builtin", use_cache=False)
 
     def _touch_bm25_cache_hit(self, cache_key: str, doc_count: int) -> BM25Retriever:
         """Update LRU and hit stats while holding `_cache_lock`, then return cached instance."""

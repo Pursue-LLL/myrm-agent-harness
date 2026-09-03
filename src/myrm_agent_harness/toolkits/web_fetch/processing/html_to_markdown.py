@@ -142,9 +142,12 @@ class HTML2Markdown:
     exposing the same ``handle()`` / ``update_params()`` API used by callers.
     """
 
+    MAX_CONVERSION_DEPTH: ClassVar[int] = 128
+
     def __init__(self, baseurl: str = "", **kwargs: object) -> None:
         self._baseurl = baseurl
         self._opts = ConvertOptions()
+        self._current_depth: int = 0
         if kwargs:
             self.update_params(**kwargs)
 
@@ -159,6 +162,7 @@ class HTML2Markdown:
         if not html_str:
             return ""
 
+        self._current_depth = 0
         soup = BeautifulSoup(html_str, "html.parser")
 
         for tag in soup.find_all(["script", "style", "head"]):
@@ -183,22 +187,30 @@ class HTML2Markdown:
             text = re.sub(r"[ \t]+", " ", text)
             return text
 
-        tag_name = node.name
-        if tag_name is None:
+        if self._current_depth >= self.MAX_CONVERSION_DEPTH:
+            text = node.get_text(separator=" ", strip=True)
+            return f" {html.unescape(text)} " if text else ""
+
+        self._current_depth += 1
+        try:
+            tag_name = node.name
+            if tag_name is None:
+                return self._convert_children(node)
+
+            if tag_name in self._opts.preserve_tags:
+                return str(node)
+
+            handler = _TAG_HANDLERS.get(tag_name)
+            if handler:
+                return handler(self, node)
+
+            if tag_name in _BLOCK_TAGS:
+                inner = self._convert_children(node)
+                return f"\n\n{inner.strip()}\n\n" if inner.strip() else ""
+
             return self._convert_children(node)
-
-        if tag_name in self._opts.preserve_tags:
-            return str(node)
-
-        handler = _TAG_HANDLERS.get(tag_name)
-        if handler:
-            return handler(self, node)
-
-        if tag_name in _BLOCK_TAGS:
-            inner = self._convert_children(node)
-            return f"\n\n{inner.strip()}\n\n" if inner.strip() else ""
-
-        return self._convert_children(node)
+        finally:
+            self._current_depth -= 1
 
     def _convert_children(self, node: Tag) -> str:
         parts: list[str] = []
