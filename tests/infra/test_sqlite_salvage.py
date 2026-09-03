@@ -280,21 +280,39 @@ def test_salvage_empty_table_and_bounds_fallback(tmp_path: Path, salvage_engine:
     assert "error" in str(corrupt_insp["quick_check"])
 
 
-def test_salvage_without_rowid_with_corruption(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
-    src_db = tmp_path / "without_rowid_corrupt.db"
-    dst_db = tmp_path / "without_rowid_corrupt_out.db"
+def test_salvage_table_error_branches(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+    src_db = tmp_path / "bad_schema_src.db"
+    dst_db = tmp_path / "bad_schema_dst.db"
 
     with open_db(src_db) as conn:
-        conn.execute("CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT) WITHOUT ROWID;")
-        for i in range(1, 101):
-            conn.execute("INSERT INTO kv VALUES (?, ?);", (f"k_{i}", f"v_{i}" * 50))
+        conn.execute("CREATE TABLE t1 (id INTEGER PRIMARY KEY, x TEXT);")
+        conn.execute("INSERT INTO t1 VALUES (1, 'val');")
+        conn.execute("CREATE TABLE t_empty (dummy TEXT);")
 
-    # Corrupt sector
-    content = bytearray(src_db.read_bytes())
-    if len(content) > 4096:
-        content[4096 + 50 : 4096 + 200] = b"\x00\xff" * 75
-        src_db.write_bytes(content)
+    # Manually create conflicting table in dest
+    with open_db(dst_db) as conn:
+        conn.execute("CREATE TABLE t_empty (dummy TEXT);")
+
+    # Directly test _salvage_table with non-existent table in dest
+    with open_db(src_db) as s_conn, open_db(dst_db) as d_conn:
+        st = salvage_engine._salvage_table(s_conn, d_conn, "non_existent_tbl")
+        assert st.status == "failed"
+        assert "No columns found" in (st.error or "")
+
+        # Test table with empty data
+        st2 = salvage_engine._salvage_table(s_conn, d_conn, "t_empty")
+        assert st2.status in ("empty", "ok")
+
+
+def test_salvage_partial_bounds_and_recovery(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+    src_db = tmp_path / "bounds.db"
+    dst_db = tmp_path / "bounds_out.db"
+
+    with open_db(src_db) as conn:
+        conn.execute("CREATE TABLE single_row (id INTEGER PRIMARY KEY, val TEXT);")
+        conn.execute("INSERT INTO single_row VALUES (42, 'meaning');")
 
     res = salvage_engine.salvage_database(src_db, dst_db)
     assert res.success is True
-    assert res.table_stats["kv"].status in ("partial", "failed", "ok")
+    assert res.total_recovered_rows == 1
+    assert res.table_stats["single_row"].status == "ok"
