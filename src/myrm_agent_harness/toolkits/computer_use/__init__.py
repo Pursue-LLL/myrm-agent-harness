@@ -11,6 +11,13 @@ from myrm_agent_harness.toolkits.computer_use.desktop_session import (
     DesktopSession,
     create_desktop_session,
 )
+from myrm_agent_harness.toolkits.computer_use.mcp_server import (
+    DesktopMCPServer,
+    get_request_desktop_session,
+    register_desktop_mcp_tools,
+    reset_request_desktop_session,
+    set_request_desktop_session,
+)
 from myrm_agent_harness.toolkits.computer_use.session import (
     ComputerSession,
     create_computer_session,
@@ -18,8 +25,13 @@ from myrm_agent_harness.toolkits.computer_use.session import (
 
 __all__ = [
     "ComputerSession",
+    "DesktopMCPServer",
     "DesktopSession",
     "create_computer_session",
     "create_desktop_session",
     "create_desktop_tools",
+    "get_request_desktop_session",
+    "register_desktop_mcp_tools",
+    "reset_request_desktop_session",
+    "set_request_desktop_session",
 ]

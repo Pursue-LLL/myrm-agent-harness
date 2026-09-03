@@ -680,6 +680,7 @@ class TestEdgeCases:
             "total_tokens",
             "total_cost",
             "failure_analysis",
+            "ablation_recommendations",
             "turns",
         }
         assert required_keys == set(d.keys())

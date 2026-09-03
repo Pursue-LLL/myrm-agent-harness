@@ -9,6 +9,11 @@ Public API:
 - Loader: load_cases, load_multi_turn_cases
 """
 
+from .ablation_rules import (
+    AblationRecommendation,
+    ComponentTier,
+    derive_ablation_recommendations,
+)
 from .assertions import (
     CollapsedHit,
     ToolAssertion,
@@ -51,12 +56,35 @@ from .contamination import (
     scrub_canary_from_query,
     verify_workspace_clean_of_hidden_tests,
 )
+from .contracts import (
+    ContractStatus,
+    DeliveryContractPhase,
+    FiveContractStateSnapshot,
+    PhaseContractRecord,
+    build_initial_five_contract_state,
+    evaluate_five_contract_progress,
+)
 from .decontam import (
     HUGGINGFACE_DOMAINS,
     HUGGINGFACE_QUERY_MARKERS,
     normalize_answer,
 )
+from .fleet import (
+    FleetEvalResult,
+    FleetEvalRunner,
+    FleetVarianceMetrics,
+    calculate_fleet_variance,
+)
 from .loader import load_cases, load_multi_turn_cases
+from .manifest_prediction import (
+    AttributionVerdict,
+    ChangePredictionManifest,
+    ManifestAttributionResult,
+    MetricAttributionDetail,
+    MetricPrediction,
+    PredictionDirection,
+    evaluate_manifest_attribution,
+)
 from .matrix import MatrixCellResult, MatrixResult, MatrixRunner
 from .protocols import (
     AgentExecutor,
@@ -81,29 +109,6 @@ from .protocols import (
     SkillABReportData,
     StateAssertion,
 )
-from .contracts import (
-    ContractStatus,
-    DeliveryContractPhase,
-    FiveContractStateSnapshot,
-    PhaseContractRecord,
-    build_initial_five_contract_state,
-    evaluate_five_contract_progress,
-)
-from .manifest_prediction import (
-    AttributionVerdict,
-    ChangePredictionManifest,
-    ManifestAttributionResult,
-    MetricAttributionDetail,
-    MetricPrediction,
-    PredictionDirection,
-    evaluate_manifest_attribution,
-)
-from .fleet import (
-    FleetEvalResult,
-    FleetEvalRunner,
-    FleetVarianceMetrics,
-    calculate_fleet_variance,
-)
 from .reporters import JsonlReporter, MarkdownReporter
 from .runner import EvalRunner
 from .trajectory_analysis import (
@@ -118,11 +123,10 @@ __all__ = [
     "CANARY_GUID",
     "CANARY_PREAMBLE",
     "DEFAULT_HIDDEN_TEST_PATTERNS",
-    "FailureMode",
     "HUGGINGFACE_DOMAINS",
     "HUGGINGFACE_QUERY_MARKERS",
-    "TrajectoryFailureAnalysis",
     "WEIGHTS_RUBRIC_7D",
+    "AblationRecommendation",
     "AgentExecutor",
     "AgentResponse",
     "AttributionVerdict",
@@ -134,6 +138,7 @@ __all__ = [
     "CompactionABResult",
     "CompactionAssertion",
     "CompactionFidelityScore",
+    "ComponentTier",
     "ContaminationAuditResult",
     "ContaminationViolation",
     "ContaminationViolationType",
@@ -147,6 +152,7 @@ __all__ = [
     "EvalRunner",
     "EvalTimings",
     "EvalTurnResult",
+    "FailureMode",
     "FiveContractStateSnapshot",
     "FleetEvalResult",
     "FleetEvalRunner",
@@ -173,6 +179,7 @@ __all__ = [
     "SkillABReportData",
     "StateAssertion",
     "ToolAssertion",
+    "TrajectoryFailureAnalysis",
     "aggregate_failure_modes",
     "analyze_turn_failure_mode",
     "audit_episode_trajectory_for_contamination",
@@ -182,6 +189,7 @@ __all__ = [
     "calculate_trajectory_determinism",
     "canonicalize_tool_name",
     "collapse_retrieval_hits",
+    "derive_ablation_recommendations",
     "embed_canary_header",
     "evaluate_compaction_assertions",
     "evaluate_five_contract_progress",

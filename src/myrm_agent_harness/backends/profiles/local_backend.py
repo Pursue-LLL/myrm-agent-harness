@@ -136,6 +136,8 @@ def _serialize_memory_policy(policy: AgentMemoryPolicy | None) -> dict[str, obje
     if read_scopes is not None:
         payload["read_scopes"] = [scope.value for scope in read_scopes]
     payload["write_policy"] = policy.write_policy.value
+    payload["allow_l3_extraction"] = policy.allow_l3_extraction
+    payload["auto_cleanup"] = policy.auto_cleanup
     return payload
 
 
@@ -161,6 +163,12 @@ def _deserialize_memory_policy(raw: object) -> AgentMemoryPolicy | None:
         else MemoryWritePolicy.INHERIT
     )
 
+    allow_l3_raw = raw.get("allow_l3_extraction")
+    allow_l3_extraction = allow_l3_raw if isinstance(allow_l3_raw, bool) else True
+
+    auto_cleanup_raw = raw.get("auto_cleanup")
+    auto_cleanup = auto_cleanup_raw if isinstance(auto_cleanup_raw, bool) else False
+
     return AgentMemoryPolicy(
         agent_id=str(raw.get("agent_id")) if isinstance(raw.get("agent_id"), str) else None,
         channel_id=str(raw.get("channel_id")) if isinstance(raw.get("channel_id"), str) else None,
@@ -168,6 +176,8 @@ def _deserialize_memory_policy(raw: object) -> AgentMemoryPolicy | None:
         task_id=str(raw.get("task_id")) if isinstance(raw.get("task_id"), str) else None,
         read_scopes=read_scopes,
         write_policy=write_policy,
+        allow_l3_extraction=allow_l3_extraction,
+        auto_cleanup=auto_cleanup,
     )
 
 

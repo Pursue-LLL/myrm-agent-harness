@@ -131,6 +131,8 @@ class AgentMemoryPolicy:
 
     - ``INHERIT`` preserves existing behavior: write with the full derived scope chain.
     - Explicit write levels narrow writes to a single namespace, e.g. task-only.
+    - ``allow_l3_extraction`` controls whether background LLM extraction is allowed.
+    - ``auto_cleanup`` controls whether ephemeral session/task state is cleaned up upon task end.
     """
 
     agent_id: str | None = None
@@ -139,6 +141,65 @@ class AgentMemoryPolicy:
     task_id: str | None = None
     read_scopes: tuple[MemoryScopeLevel, ...] | None = None
     write_policy: MemoryWritePolicy = MemoryWritePolicy.INHERIT
+    allow_l3_extraction: bool = True
+    auto_cleanup: bool = False
+
+    @classmethod
+    def preset_l2_flow(
+        cls,
+        *,
+        agent_id: str | None = None,
+        task_id: str | None = None,
+        auto_cleanup: bool = True,
+    ) -> AgentMemoryPolicy:
+        """L2-only flow agent preset (forms, tickets, workflow execution).
+
+        Restricts writes to task scope, disables L3 long-term auto-extraction,
+        allows reading global knowledge and local task scope.
+        """
+        return cls(
+            agent_id=agent_id,
+            task_id=task_id,
+            read_scopes=(MemoryScopeLevel.GLOBAL, MemoryScopeLevel.TASK),
+            write_policy=MemoryWritePolicy.TASK,
+            allow_l3_extraction=False,
+            auto_cleanup=auto_cleanup,
+        )
+
+    @classmethod
+    def preset_faq_retrieval(
+        cls,
+        *,
+        agent_id: str | None = None,
+        auto_cleanup: bool = True,
+    ) -> AgentMemoryPolicy:
+        """FAQ / realtime search agent preset (news, weather, documentation).
+
+        Restricts writes to conversation scope, disables L3 long-term auto-extraction,
+        reads global knowledge and active conversation.
+        """
+        return cls(
+            agent_id=agent_id,
+            read_scopes=(MemoryScopeLevel.GLOBAL, MemoryScopeLevel.CONVERSATION),
+            write_policy=MemoryWritePolicy.CONVERSATION,
+            allow_l3_extraction=False,
+            auto_cleanup=auto_cleanup,
+        )
+
+    @classmethod
+    def preset_standard(
+        cls,
+        *,
+        agent_id: str | None = None,
+    ) -> AgentMemoryPolicy:
+        """Standard assistant preset with full multi-tier long-term memory."""
+        return cls(
+            agent_id=agent_id,
+            read_scopes=None,
+            write_policy=MemoryWritePolicy.INHERIT,
+            allow_l3_extraction=True,
+            auto_cleanup=False,
+        )
 
 
 @dataclass(frozen=True, slots=True)

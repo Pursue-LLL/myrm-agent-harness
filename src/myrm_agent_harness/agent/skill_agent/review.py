@@ -351,32 +351,39 @@ class SkillAgentReviewMixin:
                     logger.warning("Memory session flush failed: %s", e)
 
                 if getattr(self, "_enable_memory_auto_extraction", False):
-                    from myrm_agent_harness.agent._internals.memory_extraction import (
-                        auto_extract_memories,
-                    )
-                    from myrm_agent_harness.agent.middlewares._session_context import (
-                        get_privacy_policy,
-                    )
-
-                    privacy = get_privacy_policy()
-                    llm: BaseChatModel = self.llm
-                    extraction_llm: BaseChatModel | None = getattr(self, "_extraction_llm", None)
-                    wiki_boundary_enabled = bool(getattr(self, "_wiki_base_dir", None))
-                    task = asyncio.create_task(
-                        auto_extract_memories(
-                            query,
-                            chat_history,
-                            memory_manager,
-                            llm,
-                            extraction_llm=extraction_llm,
-                            source_chat_id=session_chat_id,
-                            assistant_reply="".join(assistant_chunks),
-                            deep_scan=privacy.deep_scan,
-                            wiki_boundary_enabled=wiki_boundary_enabled,
-                            lifecycle_observer=getattr(self, "_extraction_lifecycle_observer", None),
+                    policy = getattr(memory_manager, "policy", None)
+                    allow_extraction = getattr(policy, "allow_l3_extraction", True) if policy is not None else True
+                    if not allow_extraction:
+                        logger.info(
+                            "Memory auto-extraction short-circuited by AgentMemoryPolicy(allow_l3_extraction=False)"
                         )
-                    )
-                    track_background_task(task)
+                    else:
+                        from myrm_agent_harness.agent._internals.memory_extraction import (
+                            auto_extract_memories,
+                        )
+                        from myrm_agent_harness.agent.middlewares._session_context import (
+                            get_privacy_policy,
+                        )
+
+                        privacy = get_privacy_policy()
+                        llm: BaseChatModel = self.llm
+                        extraction_llm: BaseChatModel | None = getattr(self, "_extraction_llm", None)
+                        wiki_boundary_enabled = bool(getattr(self, "_wiki_base_dir", None))
+                        task = asyncio.create_task(
+                            auto_extract_memories(
+                                query,
+                                chat_history,
+                                memory_manager,
+                                llm,
+                                extraction_llm=extraction_llm,
+                                source_chat_id=session_chat_id,
+                                assistant_reply="".join(assistant_chunks),
+                                deep_scan=privacy.deep_scan,
+                                wiki_boundary_enabled=wiki_boundary_enabled,
+                                lifecycle_observer=getattr(self, "_extraction_lifecycle_observer", None),
+                            )
+                        )
+                        track_background_task(task)
 
                 recurrence_summary = self._build_recurrence_summary(query, assistant_chunks)
                 if recurrence_summary:

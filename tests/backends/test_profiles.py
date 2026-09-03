@@ -228,3 +228,19 @@ class TestLocalProfileBackend:
         fetched = backend.get_profile("test-agent")
         assert fetched is not None
         assert fetched.built_in is True
+
+    def test_memory_policy_serialization_roundtrip(self, backend: LocalProfileBackend) -> None:
+        """验证 AgentMemoryPolicy 新增的 allow_l3_extraction 与 auto_cleanup 字段序列化完整回环。"""
+        from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy
+
+        flow_policy = AgentMemoryPolicy.preset_l2_flow(agent_id="test-agent", task_id="task-123")
+        profile = _make_profile(memory_policy=flow_policy)
+        backend.create_profile(profile)
+
+        fetched = backend.get_profile("test-agent")
+        assert fetched is not None
+        assert fetched.memory_policy is not None
+        assert fetched.memory_policy.allow_l3_extraction is False
+        assert fetched.memory_policy.auto_cleanup is True
+        assert fetched.memory_policy.task_id == "task-123"
+

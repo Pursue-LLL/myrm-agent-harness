@@ -7,7 +7,8 @@ pydantic::BaseModel (POS: validation and serialization layer)
 ConversationSearchRequest: typed provider request.
     ConversationSourceRef: UI-safe source reference for one recalled conversation.
     ConversationSearchHit: one conversation-level recall result.
-ConversationSearchResponse: provider response envelope.
+    ConversationIndexCoverage: index coverage and backfill metrics DTO.
+    ConversationSearchResponse: provider response envelope.
 
 [POS]
 Conversation recall type definitions. Provides storage-agnostic DTOs for exact snippets, precomputed summaries,

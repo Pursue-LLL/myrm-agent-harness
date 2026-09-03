@@ -329,6 +329,7 @@ class EvalResult:
     total_ms: float = 0.0
     manifest: EvalManifest | None = None
     variance_metrics: object | None = None
+    ablation_recommendations: list[dict[str, Any]] | None = None
 
     @property
     def total_cases(self) -> int:
@@ -412,15 +413,25 @@ class EvalResult:
         if self.manifest is not None:
             result["manifest"] = self.manifest.to_dict()
         if self.variance_metrics is not None:
-            if hasattr(self.variance_metrics, "to_dict"):
-                result["variance_metrics"] = self.variance_metrics.to_dict()
+            to_dict_fn = getattr(self.variance_metrics, "to_dict", None)
+            if callable(to_dict_fn):
+                result["variance_metrics"] = to_dict_fn()
             else:
                 result["variance_metrics"] = self.variance_metrics
 
+        from .ablation_rules import derive_ablation_recommendations
         from .trajectory_analysis import aggregate_failure_modes
 
         failure_analysis = aggregate_failure_modes(self)
         result["failure_analysis"] = failure_analysis
+
+        failure_dist = (
+            failure_analysis.get("failure_distribution", {})
+            if isinstance(failure_analysis, dict)
+            else {}
+        )
+        recs = derive_ablation_recommendations(failure_dist)
+        result["ablation_recommendations"] = [r.to_dict() for r in recs]
 
         result["turns"] = [
             {

@@ -19,6 +19,9 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .ablation_rules import derive_ablation_recommendations
+from .trajectory_analysis import aggregate_failure_modes
+
 if TYPE_CHECKING:
     from .protocols import EvalResult
 
@@ -148,6 +151,16 @@ class JsonlReporter:
                 summary["avg_pass_rate"] = result.avg_pass_rate
             if result.manifest is not None:
                 summary["manifest"] = result.manifest.to_dict()
+            if result.fail_count > 0 or result.error_count > 0:
+                failure_agg = aggregate_failure_modes(result)
+                if failure_agg["total_failures"] > 0:
+                    summary["failure_analysis"] = failure_agg
+                    recs = derive_ablation_recommendations(
+                        failure_agg["failure_distribution"]
+                    )
+                    summary["ablation_recommendations"] = [
+                        r.to_dict() for r in recs
+                    ]
             f.write(json.dumps(summary, ensure_ascii=False) + "\n")
             for line in turn_lines:
                 f.write(line + "\n")
@@ -207,6 +220,25 @@ class MarkdownReporter:
                     f"- **Created**: `{m.created_at}`",
                 ]
             )
+
+        if result.fail_count > 0 or result.error_count > 0:
+            failure_agg = aggregate_failure_modes(result)
+            if failure_agg["total_failures"] > 0:
+                recs = derive_ablation_recommendations(
+                    failure_agg["failure_distribution"]
+                )
+                if recs:
+                    lines.extend(
+                        [
+                            "",
+                            "## Component Ablation & Harness Edit Recommendations",
+                            "",
+                        ]
+                    )
+                    for rec in recs:
+                        lines.append(
+                            f"- **[{rec.component.upper()} · Tier {rec.priority}]** {rec.title}: {rec.reason} (Affects {rec.affected_case_count} cases)"
+                        )
 
         lines.extend(
             [

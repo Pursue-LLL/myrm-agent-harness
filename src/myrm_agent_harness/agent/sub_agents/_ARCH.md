@@ -15,6 +15,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | builder.py | Core | Subagent construction helpers — tool filtering via DelegationCapabilityManifest + delegation_policy, model resolution, token merge. | ✅ |
 | checkpointer.py | Core | Shared in-memory checkpointer singleton (`get_subagent_checkpointer`, `delete_subagent_checkpoint`) for subagent HITL approval thread isolation. | ✅ |
 | delegation_policy.py | Core | Server-extensible L1 leaf blocklist (`register_leaf_blocked_tools`). | ✅ |
+| handover.py | Core | Structured subagent handover state (`AgentHandoverState`) and evidence (`HandoffFinding`) types with case-insensitive confidence normalization. | ✅ |
 | hitl_tool_policy.py | Core | Import-safe HITL tool policy SSOT (`HitlToolPolicy`, `HITL_TOOL_POLICY`) used by `types.py` for leaf blocking. | ✅ |
 | config_loader.py | Config | External config loader. YAML validation (Pydantic + Action Tool SSOT + regex tool names). | ✅ |
 | event_forwarder.py | Core | Subagent event forwarder. Translates subagent events into progress and log events. Includes staleness detection (`is_stale`, `_check_and_emit_stale`) with configurable thresholds and in-tool multiplier. `internal=True` silences all emissions (internal verification nodes stay off user-facing surfaces). | ✅ |

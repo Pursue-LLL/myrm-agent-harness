@@ -18,6 +18,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | session.py | Core | ComputerSession orchestrator (coordinate I/O, app + foreground gates, operation-scoped foreground waiver) | ✅ |
 | desktop_session.py | Core | DesktopSession: AX snapshot, @dref registry, action lock serialization, self-healing remedy hints, shared approval revalidation, DESKTOP_VIEW_UPDATE, export_inspector_snapshot | ✅ |
 | desktop_agent_tools.py | Core | 3 LangChain tools: snapshot / interact / vision | ✅ |
+| mcp_server.py | Surface | MCP server adapter exposing desktop tools (DesktopMCPServer, register_desktop_mcp_tools) to external agents | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

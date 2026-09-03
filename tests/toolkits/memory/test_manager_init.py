@@ -185,3 +185,36 @@ class TestMemoryManagerInitialization:
         """无 vector store 时报告持久化（无降级信号，不误报内存模式）。"""
         manager = MemoryManager(memory_config, user_id="test_user", embedding=mock_embedding)
         assert manager.vector_is_persistent is True
+
+    def test_memory_policy_presets_factory(self, mock_vector_store, mock_embedding, memory_config):
+        """验证 AgentMemoryPolicy 强类型工厂预设及其属性。"""
+        # 1. Flow agent (L2-only, task scope)
+        flow_policy = AgentMemoryPolicy.preset_l2_flow(agent_id="ticket-bot", task_id="task-999")
+        assert flow_policy.write_policy == MemoryWritePolicy.TASK
+        assert flow_policy.task_id == "task-999"
+        assert flow_policy.allow_l3_extraction is False
+        assert flow_policy.auto_cleanup is True
+        assert flow_policy.read_scopes == (MemoryScopeLevel.GLOBAL, MemoryScopeLevel.TASK)
+
+        flow_manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            memory_policy=flow_policy,
+        )
+        assert flow_manager.scope.primary_namespace == "task:task-999"
+
+        # 2. FAQ / Search agent
+        faq_policy = AgentMemoryPolicy.preset_faq_retrieval(agent_id="search-bot")
+        assert faq_policy.write_policy == MemoryWritePolicy.CONVERSATION
+        assert faq_policy.allow_l3_extraction is False
+        assert faq_policy.auto_cleanup is True
+        assert faq_policy.read_scopes == (MemoryScopeLevel.GLOBAL, MemoryScopeLevel.CONVERSATION)
+
+        # 3. Standard assistant
+        std_policy = AgentMemoryPolicy.preset_standard(agent_id="general-bot")
+        assert std_policy.write_policy == MemoryWritePolicy.INHERIT
+        assert std_policy.allow_l3_extraction is True
+        assert std_policy.auto_cleanup is False
+

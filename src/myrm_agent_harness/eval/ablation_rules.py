@@ -170,7 +170,16 @@ def derive_ablation_recommendations(
             continue
         mapping = _FAILURE_TO_ABLATION_MAP.get(mode_str)
         if not mapping:
-            continue
+            # Fallback for unmapped failure modes to prevent measurement decay
+            mapping = (
+                ComponentTier.MIDDLEWARE,
+                2,
+                "enable_error_recovery_middleware",
+                "Unhandled Failure Signature",
+                f"Observed unmapped failure signature ({mode_str}). Enable error recovery middleware.",
+                "capabilities",
+                "delivery_assurance",
+            )
 
         tier, priority, action_key, title, reason, target_tab, target_key = mapping
 

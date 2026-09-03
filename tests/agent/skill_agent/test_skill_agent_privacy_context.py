@@ -280,3 +280,35 @@ class TestCleanupSessionPrivacy:
         assert observed[1] is True  # deep_scan resolved from rebuilt policy
         # Context torn down after cleanup session
         assert get_pii_pseudonymizer() is None
+
+    @pytest.mark.asyncio
+    async def test_auto_extract_short_circuits_when_l3_extraction_disabled(self) -> None:
+        """当 memory_policy.allow_l3_extraction=False 时，必须短路阻断后台 LLM 抽取任务。"""
+        import asyncio
+        from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy
+
+        mm = MagicMock()
+        mm.active_session = None
+        mm.end_session = AsyncMock(return_value=[])
+        mm.check_session_recurrence = AsyncMock()
+        mm.policy = AgentMemoryPolicy.preset_l2_flow(task_id="t1")  # allow_l3_extraction=False
+        agent = _make_agent()
+        agent.memory_manager = mm
+        agent._enable_memory_auto_extraction = True
+        agent.llm = MagicMock()
+
+        extract_called = False
+
+        async def fake_auto_extract(*args: object, **kwargs: object) -> None:
+            nonlocal extract_called
+            extract_called = True
+
+        with patch(
+            "myrm_agent_harness.agent._internals.memory_extraction.auto_extract_memories",
+            side_effect=fake_auto_extract,
+        ):
+            await agent._cleanup_session("query", None, ["reply"])
+
+        await asyncio.sleep(0.05)
+        assert extract_called is False
+

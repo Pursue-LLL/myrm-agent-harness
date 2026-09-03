@@ -59,12 +59,18 @@ def test_agent_handover_state_extended_fields_roundtrip() -> None:
 
     data = state.to_dict()
     assert data["summary"] == "Completed performance benchmarking on database engines."
-    assert len(data["findings"]) == 1
-    assert data["findings"][0]["finding"] == "Engine Qdrant achieved 4.2ms latency"
+    findings = data["findings"]
+    assert isinstance(findings, list)
+    assert len(findings) == 1
+    first_finding = findings[0]
+    assert isinstance(first_finding, dict)
+    assert first_finding["finding"] == "Engine Qdrant achieved 4.2ms latency"
     assert data["citations"] == ["https://qdrant.tech/docs/benchmarks/"]
     assert data["artifact_refs"] == ["vault://benchmarks/qdrant_report.md"]
     assert data["context_artifacts"] == ["vault://schemas/dataset_v1.json"]
-    assert len(data["task_completed"]) == 2
+    task_completed = data["task_completed"]
+    assert isinstance(task_completed, list)
+    assert len(task_completed) == 2
 
     restored = AgentHandoverState.from_dict(data)
     assert restored.summary == state.summary
@@ -192,9 +198,13 @@ def test_batch_summary_aggregates_structured_handoff() -> None:
     assert summary["completed_count"] == 2
     assert summary["failed_count"] == 1
     assert "handoff_states" in summary
-    assert len(summary["handoff_states"]) == 2
+    handoff_states = summary["handoff_states"]
+    assert isinstance(handoff_states, list)
+    assert len(handoff_states) == 2
     assert summary["all_artifact_refs"] == ["vault://ref1.md", "vault://ref2.md"]
-    assert len(summary["all_findings"]) == 2
+    all_findings = summary["all_findings"]
+    assert isinstance(all_findings, list)
+    assert len(all_findings) == 2
 
 
 def test_handoff_finding_confidence_normalization() -> None:
