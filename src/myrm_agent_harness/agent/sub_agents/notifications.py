@@ -47,8 +47,11 @@ def format_notification(result: SubAgentResult) -> str:
     parts = [f"[Subagent '{result.agent_type}' (task_id={result.task_id}) {status_text}]"]
     if result.duration_seconds:
         parts[0] += f" ({result.duration_seconds:.1f}s)"
-    if result.success and result.result:
-        parts.append(f"Result:\n{result.result}")
+    if result.success:
+        if result.handover_state and result.handover_state.summary:
+            parts.append(f"Summary:\n{result.handover_state.summary}")
+        elif result.result:
+            parts.append(f"Result:\n{result.result}")
     elif result.error:
         from myrm_agent_harness.agent.sub_agents.executor import _compact_error_message
 
@@ -56,6 +59,16 @@ def format_notification(result: SubAgentResult) -> str:
     if result.handover_state:
         ho = result.handover_state
         ho_lines: list[str] = []
+        if ho.findings:
+            f_lines: list[str] = []
+            for f in ho.findings:
+                line = f" - [{f.confidence.upper()}] {f.finding}"
+                if f.evidence:
+                    line += f" (evidence: {f.evidence})"
+                f_lines.append(line)
+            ho_lines.append("Key Findings:\n" + "\n".join(f_lines))
+        if ho.artifact_refs:
+            ho_lines.append("Artifacts:\n" + "\n".join(f" - {x}" for x in ho.artifact_refs))
         if ho.task_completed:
             ho_lines.append("Completed:\n" + "\n".join(f" - {x}" for x in ho.task_completed))
         if ho.pending_todos:

@@ -5,11 +5,14 @@ from __future__ import annotations
 from myrm_agent_harness.agent.parallel.summary import batch_summary
 from myrm_agent_harness.agent.sub_agents.builder import _HANDOVER_PROTOCOL_PROMPT
 from myrm_agent_harness.agent.sub_agents.executor_helpers import _parse_handover_state
+from myrm_agent_harness.agent.sub_agents.notifications import format_notification
 from myrm_agent_harness.agent.sub_agents.types import (
     DELEGATION_CAPABILITY_MANIFEST,
     AgentHandoverState,
     DelegationCapabilityManifest,
     HandoffFinding,
+    SubAgentResult,
+    SubAgentStatus,
 )
 
 
@@ -192,3 +195,69 @@ def test_batch_summary_aggregates_structured_handoff() -> None:
     assert len(summary["handoff_states"]) == 2
     assert summary["all_artifact_refs"] == ["vault://ref1.md", "vault://ref2.md"]
     assert len(summary["all_findings"]) == 2
+
+
+def test_handoff_finding_confidence_normalization() -> None:
+    f1 = HandoffFinding.from_dict({"finding": "A", "confidence": "HIGH"})
+    assert f1.confidence == "high"
+
+    f2 = HandoffFinding.from_dict({"finding": "B", "confidence": " Medium "})
+    assert f2.confidence == "medium"
+
+    f3 = HandoffFinding.from_dict({"finding": "C", "confidence": "low"})
+    assert f3.confidence == "low"
+
+    f4 = HandoffFinding.from_dict({"finding": "D", "confidence": "invalid_value"})
+    assert f4.confidence == "high"
+
+
+def test_format_notification_prioritizes_handover_summary_and_findings() -> None:
+    result = SubAgentResult(
+        success=True,
+        task_id="task_audit_1",
+        agent_type="security_reviewer",
+        result="Long verbose transcript with 50 tool logs and 3000 chars of debug output...",
+        duration_seconds=3.2,
+        status=SubAgentStatus.COMPLETED,
+        handover_state=AgentHandoverState(
+            summary="Found 1 SQL injection vulnerability in user login path.",
+            findings=[
+                HandoffFinding(
+                    finding="Unsanitized input in query",
+                    evidence="auth/login.py:42",
+                    confidence="high",
+                ),
+            ],
+            artifact_refs=["vault://reports/audit_2026.md"],
+            task_completed=["Static AST scan", "Taint analysis"],
+            risks_or_notes=["Needs immediate patch before release"],
+        ),
+    )
+
+    notif = format_notification(result)
+    assert "[Subagent 'security_reviewer' (task_id=task_audit_1) completed successfully] (3.2s)" in notif
+    assert "Summary:\nFound 1 SQL injection vulnerability in user login path." in notif
+    assert "Result:" not in notif
+    assert "Key Findings:\n - [HIGH] Unsanitized input in query (evidence: auth/login.py:42)" in notif
+    assert "Artifacts:\n - vault://reports/audit_2026.md" in notif
+    assert "Completed:\n - Static AST scan\n - Taint analysis" in notif
+    assert "Risks:\n - Needs immediate patch before release" in notif
+
+
+def test_format_notification_fallback_without_summary() -> None:
+    result = SubAgentResult(
+        success=True,
+        task_id="task_calc_1",
+        agent_type="calculator",
+        result="42",
+        status=SubAgentStatus.COMPLETED,
+        handover_state=AgentHandoverState(
+            task_completed=["compute 6 * 7"],
+        ),
+    )
+
+    notif = format_notification(result)
+    assert "Result:\n42" in notif
+    assert "Summary:" not in notif
+    assert "Completed:\n - compute 6 * 7" in notif
+
