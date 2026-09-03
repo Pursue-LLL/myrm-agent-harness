@@ -72,11 +72,94 @@ async def test_desktop_tools_execution_with_session() -> None:
     mock_session.desktop_snapshot = AsyncMock(return_value="Window tree AX")
     mock_session.desktop_interact = AsyncMock(return_value="Clicked button")
     mock_session.desktop_vision_capture = AsyncMock(return_value="Screenshot captured")
+    mock_session.desktop_vision_action = AsyncMock(return_value="Left clicked")
 
     server = DesktopMCPServer(session=mock_session)
 
-    # Resolve internal tool functions from the server's MCPServer
     tool_map = {tool.name: tool for tool in server.mcp._tool_manager.list_tools()}
     assert "desktop_snapshot_tool" in tool_map
     assert "desktop_interact_tool" in tool_map
     assert "desktop_vision_tool" in tool_map
+
+    # Test invoking snapshot tool
+    snapshot_res = await server.mcp.call_tool("desktop_snapshot_tool", {"scope": "foreground"})
+    assert len(snapshot_res.content) == 1
+    assert snapshot_res.content[0].type == "text"
+    assert getattr(snapshot_res.content[0], "text", None) == "Window tree AX"
+    mock_session.desktop_snapshot.assert_awaited_once_with(scope="foreground", app_name=None, include_screenshot=False)
+
+    # Test invoking interact tool
+    interact_res = await server.mcp.call_tool("desktop_interact_tool", {"ref": "@d1", "action": "click"})
+    assert len(interact_res.content) == 1
+    assert getattr(interact_res.content[0], "text", None) == "Clicked button"
+    mock_session.desktop_interact.assert_awaited_once_with(ref="@d1", action="click", text="", modifiers=None)
+
+    # Test invoking vision tool (capture)
+    vision_cap_res = await server.mcp.call_tool("desktop_vision_tool", {"action": "capture"})
+    assert len(vision_cap_res.content) == 1
+    assert getattr(vision_cap_res.content[0], "text", None) == "Screenshot captured"
+    mock_session.desktop_vision_capture.assert_awaited_once()
+
+    # Test invoking vision tool (action)
+    vision_act_res = await server.mcp.call_tool("desktop_vision_tool", {"action": "left_click", "coordinate": [100, 200]})
+    assert len(vision_act_res.content) == 1
+    assert getattr(vision_act_res.content[0], "text", None) == "Left clicked"
+    mock_session.desktop_vision_action.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_desktop_tools_execution_without_session() -> None:
+    """Test calling desktop tools when no session is bound returns descriptive error."""
+    server = DesktopMCPServer(session=None)
+
+    snapshot_res = await server.mcp.call_tool("desktop_snapshot_tool", {})
+    assert len(snapshot_res.content) == 1
+    assert "Error: Desktop control session is unavailable" in getattr(snapshot_res.content[0], "text", "")
+
+    interact_res = await server.mcp.call_tool("desktop_interact_tool", {"ref": "@d1", "action": "click"})
+    assert len(interact_res.content) == 1
+    assert "Error: Desktop control session is unavailable" in getattr(interact_res.content[0], "text", "")
+
+    vision_res = await server.mcp.call_tool("desktop_vision_tool", {"action": "capture"})
+    assert len(vision_res.content) == 1
+    assert "Error: Desktop control session is unavailable" in getattr(vision_res.content[0], "text", "")
+
+
+def test_convert_to_mcp_content_object_fallbacks() -> None:
+    """Test _convert_to_mcp_content fallback branches."""
+    class TextObj:
+        text = "obj text"
+
+    class ImgObj:
+        screenshot_base64 = "img_b64"
+        mime_type = "image/webp"
+
+    class UnknownObj:
+        def __str__(self) -> str:
+            return "unknown str"
+
+    items = [TextObj(), ImgObj(), UnknownObj(), {"type": "other", "raw": 123}]
+    res = _convert_to_mcp_content(items)
+    assert len(res) == 4
+    assert res[0].type == "text"
+    assert getattr(res[0], "text", None) == "obj text"
+    assert res[1].type == "image"
+    assert getattr(res[1], "data", None) == "img_b64"
+    assert res[2].type == "text"
+    assert getattr(res[2], "text", None) == "unknown str"
+    assert res[3].type == "text"
+
+
+def test_session_resolver_callable() -> None:
+    """Test session_resolver callback parameter of DesktopMCPServer."""
+    mock_session = MagicMock()
+    server = DesktopMCPServer(session_resolver=lambda: mock_session)
+    assert server._resolve_session() is mock_session
+
+    # Test bound context var precedence
+    token = set_request_desktop_session(mock_session)
+    try:
+        server_default = DesktopMCPServer(session=None)
+        assert server_default._resolve_session() is mock_session
+    finally:
+        reset_request_desktop_session(token)

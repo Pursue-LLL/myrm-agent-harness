@@ -190,6 +190,40 @@ def test_salvage_fts_virtual_table(tmp_path: Path, salvage_engine: SQLiteRowidSa
         assert res[0][0] == 1
 
 
+def test_salvage_secondary_indexes_and_views(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+    src_db = tmp_path / "indexes_views.db"
+    dst_db = tmp_path / "recovered.db"
+
+    with open_db(src_db) as conn:
+        conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, category TEXT, score REAL);")
+        conn.execute("CREATE INDEX idx_items_category ON items(category);")
+        conn.execute("CREATE INDEX idx_items_score ON items(score DESC);")
+        conn.execute("CREATE VIEW v_top_items AS SELECT id, category FROM items WHERE score > 80.0;")
+        for i in range(1, 101):
+            conn.execute("INSERT INTO items VALUES (?, ?, ?);", (i, f"cat_{i % 5}", float(i)))
+
+    result = salvage_engine.salvage_database(src_db, dst_db)
+    assert result.success is True
+    assert "idx_items_category" in result.indexes_rebuilt
+    assert "idx_items_score" in result.indexes_rebuilt
+    assert "v_top_items" in result.views_rebuilt
+
+    with open_db(dst_db) as conn:
+        # Verify indexes exist and are valid
+        indexes = [row[1] for row in conn.execute("PRAGMA index_list('items');").fetchall()]
+        assert "idx_items_category" in indexes
+        assert "idx_items_score" in indexes
+
+        # Verify EXPLAIN QUERY PLAN uses index
+        plan = conn.execute("EXPLAIN QUERY PLAN SELECT * FROM items WHERE category = 'cat_1';").fetchall()
+        plan_str = " ".join(str(p) for p in plan)
+        assert "USING INDEX idx_items_category" in plan_str
+
+        # Verify view is queryable
+        view_count = conn.execute("SELECT count(*) FROM v_top_items;").fetchone()[0]
+        assert view_count == 20  # items 81 to 100
+
+
 def test_salvage_nonexistent_database(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
     non_existent = tmp_path / "ghost.db"
     dst_db = tmp_path / "out.db"

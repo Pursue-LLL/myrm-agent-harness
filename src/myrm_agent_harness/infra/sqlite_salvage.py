@@ -81,6 +81,8 @@ class SalvageResult:
     elapsed_ms: float
     source_sha256: str
     recovered_sha256: str
+    indexes_rebuilt: list[str] = field(default_factory=list)
+    views_rebuilt: list[str] = field(default_factory=list)
     error: str | None = None
 
 
@@ -230,9 +232,11 @@ class SQLiteRowidSalvageEngine:
             with contextlib.suppress(sqlite3.Error):
                 source_conn.execute("PRAGMA wal_checkpoint(PASSIVE);")
 
-            # Extract user table definitions
-            tables, virtual_tables = self._extract_schemas(source_conn)
+            # Extract user schema definitions (tables, virtual tables, secondary indexes, views)
+            tables, virtual_tables, indexes, views = self._extract_schemas(source_conn)
             fts_tables.extend(virtual_tables.keys())
+            indexes_rebuilt: list[str] = []
+            views_rebuilt: list[str] = []
 
             # Open destination connection
             dest_conn = sqlite3.connect(str(output_path))
@@ -240,7 +244,7 @@ class SQLiteRowidSalvageEngine:
                 dest_conn.execute("PRAGMA foreign_keys = OFF;")
                 dest_conn.execute("PRAGMA journal_mode = WAL;")
 
-                # Recreate schemas
+                # Recreate base table schemas
                 for tbl, ddl in tables.items():
                     if ddl:
                         try:
@@ -259,7 +263,7 @@ class SQLiteRowidSalvageEngine:
                                 "Failed to recreate virtual table %s: %s", vtbl, exc
                             )
 
-                # Salvage records table by table
+                # Salvage records table by table (heap write before indexes)
                 for table_name, ddl in tables.items():
                     stats = self._salvage_table(source_conn, dest_conn, table_name, ddl)
                     table_stats[table_name] = stats
@@ -280,6 +284,26 @@ class SQLiteRowidSalvageEngine:
                     except sqlite3.Error as fts_exc:
                         logger.warning("FTS rebuild failed for %s: %s", vtbl, fts_exc)
 
+                # Recreate secondary indexes deferred after heap population
+                for idx_name, idx_sql in indexes.items():
+                    try:
+                        dest_conn.execute(idx_sql)
+                        indexes_rebuilt.append(idx_name)
+                    except sqlite3.Error as exc:
+                        logger.warning("Failed to recreate index %s: %s", idx_name, exc)
+
+                # Recreate views
+                for view_name, view_sql in views.items():
+                    try:
+                        dest_conn.execute(view_sql)
+                        views_rebuilt.append(view_name)
+                    except sqlite3.Error as exc:
+                        logger.warning("Failed to recreate view %s: %s", view_name, exc)
+
+                # Warm up query planner statistics
+                with contextlib.suppress(sqlite3.Error):
+                    dest_conn.execute("PRAGMA optimize;")
+
                 dest_conn.commit()
                 dest_conn.execute("PRAGMA foreign_keys = ON;")
             finally:
@@ -294,6 +318,8 @@ class SQLiteRowidSalvageEngine:
                 table_stats=table_stats,
                 orphans_reconstructed=orphans_reconstructed,
                 fts_rebuilt=fts_tables,
+                indexes_rebuilt=indexes_rebuilt,
+                views_rebuilt=views_rebuilt,
                 elapsed_ms=(time.monotonic() - start_time) * 1000,
                 source_sha256=src_sha256,
                 recovered_sha256=dst_sha256,
@@ -318,26 +344,38 @@ class SQLiteRowidSalvageEngine:
 
     def _extract_schemas(
         self, conn: sqlite3.Connection
-    ) -> tuple[dict[str, str], dict[str, str]]:
-        """Extracts standard tables and virtual FTS tables, skipping internal shadow tables."""
+    ) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
+        """Extracts standard tables, virtual tables, secondary indexes, and views."""
         tables: dict[str, str] = {}
         virtual_tables: dict[str, str] = {}
+        indexes: dict[str, str] = {}
+        views: dict[str, str] = {}
         try:
             cursor = conn.execute(
-                "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';"
+                "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%';"
             )
             for row in cursor.fetchall():
-                name: str = row[0]
-                sql: str | None = row[1]
+                obj_type: str = str(row[0]).lower()
+                name: str = str(row[1])
+                sql: str | None = row[2]
+
                 if any(name.endswith(suffix) for suffix in _FTS_SHADOW_SUFFIXES):
                     continue
-                if sql and "VIRTUAL" in sql.upper():
-                    virtual_tables[name] = sql
-                elif sql:
-                    tables[name] = sql
+
+                if obj_type == "table":
+                    if sql and "VIRTUAL" in sql.upper():
+                        virtual_tables[name] = sql
+                    elif sql:
+                        tables[name] = sql
+                elif obj_type == "index":
+                    # Only user-defined secondary indexes with valid SQL (skip autoindexes)
+                    if sql and not name.startswith("sqlite_autoindex_"):
+                        indexes[name] = sql
+                elif obj_type == "view" and sql:
+                    views[name] = sql
         except sqlite3.Error as exc:
             logger.warning("Error reading sqlite_master: %s", exc)
-        return tables, virtual_tables
+        return tables, virtual_tables, indexes, views
 
     def _salvage_table(
         self,
