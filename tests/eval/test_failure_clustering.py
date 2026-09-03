@@ -146,3 +146,40 @@ def test_cluster_failure_signatures_model_limit():
     assert c.patch_proposal is not None
     assert c.patch_proposal.path == "/model_routing/complex_reasoning_model"
     assert c.patch_proposal.value == "deepseek-r1"
+
+
+def test_cluster_failure_signatures_flake_and_fallback():
+    manifest = EvalManifest(
+        model_provider="openai",
+        model_id="deepseek-v3",
+        harness_version="1.0.0",
+        tool_policy=(),
+        task_set_id="test_timeout",
+        task_set_hash="hash",
+        prompt_fingerprint="fp",
+        budget_max_tokens=1000,
+        timeout_seconds=30,
+        created_at="now",
+    )
+    # Flake timeout with rate limit
+    flake_turn = EvalTurnResult(
+        case=EvalCase(message="Fetch weather data", expected_tools=()),
+        response=AgentResponse(answer=""),
+        assertion_passed=False,
+        assertion_details="Timeout: rate limit exceeded 503 Service Unavailable",
+    )
+    # Context overflow
+    overflow_turn = EvalTurnResult(
+        case=EvalCase(message="Read huge repo code", expected_tools=()),
+        response=AgentResponse(answer=""),
+        assertion_passed=False,
+        assertion_details="maximum context token length exceeded",
+    )
+    eval_res = EvalResult(turn_results=[flake_turn, overflow_turn], manifest=manifest)
+    clusters = cluster_failure_signatures(eval_res)
+
+    assert len(clusters) == 2
+    verdicts = {c.verdict for c in clusters}
+    assert AddressabilityVerdict.FLAKE in verdicts
+    assert AddressabilityVerdict.ADDRESSABLE in verdicts
+

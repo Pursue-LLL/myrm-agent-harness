@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import pytest
 
@@ -43,6 +44,9 @@ class MockExecutor:
     async def create_session(self) -> str:
         self._session_counter += 1
         return f"session-{self._session_counter}"
+
+    def get_sandbox_executor(self, session_id: str | None = None) -> Any:
+        return None
 
 
 class TestEvalRunnerSingleTurn:
@@ -141,6 +145,9 @@ class TestEvalRunnerSingleTurn:
             async def create_session(self) -> str:
                 self._counter += 1
                 return f"s-{self._counter}"
+
+            def get_sandbox_executor(self, session_id: str | None = None) -> Any:
+                return None
 
         runner = EvalRunner(SlowExecutor(), max_concurrency=5)
         cases = [
@@ -338,6 +345,9 @@ class TestEdgeCases:
 
             async def create_session(self) -> str:
                 raise ConnectionError("DB unavailable")
+
+            def get_sandbox_executor(self, session_id: str | None = None) -> Any:
+                return None
 
         runner = EvalRunner(FailSessionExecutor())
         result = await runner.run([EvalCase(message="test", expected_tools=["t"])])
@@ -681,11 +691,14 @@ class TestEdgeCases:
             "total_cost",
             "failure_analysis",
             "ablation_recommendations",
+            "signature_clusters",
             "turns",
         }
         assert required_keys == set(d.keys())
 
-        turn = d["turns"][0]
+        turns = d["turns"]
+        assert isinstance(turns, list)
+        turn = turns[0]
         turn_keys = {
             "message",
             "expected_tools",
@@ -744,6 +757,9 @@ class TestEdgeCases:
         class CountingExecutor:
             async def create_session(self) -> str:
                 return "s"
+
+            def get_sandbox_executor(self, session_id: str | None = None) -> Any:
+                return None
 
             async def execute(
                 self, message: str, *, session_id: str | None = None
@@ -829,7 +845,7 @@ async def test_sandbox_and_state_assertions_execute(tmp_path, monkeypatch) -> No
 
     class SandboxCapableExecutor(MockExecutor):
         def get_sandbox_executor(
-            self, *, session_id: str | None = None
+            self, session_id: str | None = None
         ) -> LocalExecutor:
             return sandbox
 

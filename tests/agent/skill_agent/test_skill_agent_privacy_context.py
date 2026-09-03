@@ -312,4 +312,38 @@ class TestCleanupSessionPrivacy:
 
         await asyncio.sleep(0.05)
         assert extract_called is False
+        mm.check_session_recurrence.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_auto_extract_and_recurrence_run_when_l3_extraction_enabled(self) -> None:
+        """当 memory_policy.allow_l3_extraction=True 时，正常派发抽取与复发检测。"""
+        import asyncio
+
+        from myrm_agent_harness.toolkits.memory.config import AgentMemoryPolicy
+
+        mm = MagicMock()
+        mm.active_session = None
+        mm.end_session = AsyncMock(return_value=[])
+        mm.check_session_recurrence = AsyncMock()
+        mm.policy = AgentMemoryPolicy.preset_standard(agent_id="std1")  # allow_l3_extraction=True
+        agent = _make_agent()
+        agent.memory_manager = mm
+        agent._enable_memory_auto_extraction = True
+        agent.llm = MagicMock()
+
+        extract_called = False
+
+        async def fake_auto_extract(*args: object, **kwargs: object) -> None:
+            nonlocal extract_called
+            extract_called = True
+
+        with patch(
+            "myrm_agent_harness.agent._internals.memory_extraction.auto_extract_memories",
+            side_effect=fake_auto_extract,
+        ):
+            await agent._cleanup_session("query", None, ["reply"])
+
+        await asyncio.sleep(0.05)
+        assert extract_called is True
+        mm.check_session_recurrence.assert_called_once_with("query")
 

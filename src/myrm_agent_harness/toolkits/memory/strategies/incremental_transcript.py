@@ -129,7 +129,10 @@ class IncrementalTranscriptParser:
             if isinstance(session_id, str) and not chunk.session_id:
                 chunk.session_id = session_id
 
-            entry_type = str(entry.get("type", "")).lower()
+            entry_type = str(entry.get("type") or entry.get("role") or "").lower()
+            if not entry_type and isinstance(entry.get("message"), dict):
+                entry_type = str(entry["message"].get("role", "")).lower()
+
             if entry_type == "summary":
                 summary_text = entry.get("summary") or entry.get("content")
                 if isinstance(summary_text, str) and not chunk.session_title:
@@ -221,7 +224,15 @@ class IncrementalTranscriptParser:
     @staticmethod
     def _extract_text(entry: dict[str, object]) -> str:
         """Extract plain text message content from various JSONL schemas."""
-        content = entry.get("content") or entry.get("message")
+        msg = entry.get("message")
+        if isinstance(msg, dict):
+            content = msg.get("content") or msg.get("text")
+        else:
+            content = entry.get("content") or entry.get("message") or entry.get("text")
+
+        if isinstance(content, dict):
+            content = content.get("text") or content.get("content")
+
         if isinstance(content, str):
             return content.strip()
 
@@ -231,7 +242,7 @@ class IncrementalTranscriptParser:
                 if isinstance(item, str):
                     parts.append(item)
                 elif isinstance(item, dict):
-                    text_val = item.get("text")
+                    text_val = item.get("text") or item.get("content")
                     if isinstance(text_val, str):
                         parts.append(text_val)
             return "\n".join(parts).strip()
@@ -242,7 +253,9 @@ class IncrementalTranscriptParser:
     def _extract_tool_names(entry: dict[str, object]) -> list[str]:
         """Extract tool invocations from assistant message blocks."""
         tools: list[str] = []
-        content = entry.get("content")
+        msg = entry.get("message")
+        content = msg.get("content") if isinstance(msg, dict) else entry.get("content")
+
         if isinstance(content, list):
             for item in content:
                 if isinstance(item, dict) and item.get("type") in {

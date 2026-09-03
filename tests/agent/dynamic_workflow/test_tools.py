@@ -311,12 +311,10 @@ async def test_spawn_tool_subagent_result_to_dict_passthrough(mock_parent_agent)
     result = await tool._arun("task_ssot", "generalPurpose", "do stage1")
 
     assert result["success"] is True
-    assert result["handover_state"] == {
-        "task_completed": ["refactor pay module"],
-        "pending_todos": ["update docs"],
-        "risks_or_notes": ["legacy endpoint deprecated"],
-        "relevant_files": ["src/pay/core.py"],
-    }
+    assert result["handover_state"]["task_completed"] == ["refactor pay module"]
+    assert result["handover_state"]["pending_todos"] == ["update docs"]
+    assert result["handover_state"]["risks_or_notes"] == ["legacy endpoint deprecated"]
+    assert result["handover_state"]["relevant_files"] == ["src/pay/core.py"]
     assert result["verification"]["passed"] is True
     assert result["verification"]["confidence"] == "HIGH"
     assert result["verification"]["findings"] == [

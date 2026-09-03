@@ -45,6 +45,7 @@ _RE_HEX_ADDRESS = re.compile(r"0x[0-9a-fA-F]{4,16}")
 _RE_UUID = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 )
+_RE_PYTHON_STACK_LOC = re.compile(r'File\s+"[^"]+",\s+line\s+\d+', re.IGNORECASE)
 _RE_TEMP_PATH = re.compile(r"(/[\w.-]+)*/(tmp|temp|var/folders)/[\w.-/]+")
 _RE_LINE_NUM = re.compile(r"\bline\s+\d+\b", re.IGNORECASE)
 _RE_WHITESPACE = re.compile(r"\s+")
@@ -61,6 +62,7 @@ def sanitize_failure_fingerprint(raw_text: str) -> str:
 
     text = _RE_HEX_ADDRESS.sub("<HEX_ADDR>", raw_text)
     text = _RE_UUID.sub("<UUID>", text)
+    text = _RE_PYTHON_STACK_LOC.sub('File "<LOC>"', text)
     text = _RE_TEMP_PATH.sub("<TEMP_PATH>", text)
     text = _RE_LINE_NUM.sub("line <N>", text)
     text = _RE_WHITESPACE.sub(" ", text).strip()
@@ -234,7 +236,7 @@ def _derive_patch_and_verdict(
 
     # 5. Execution Timeout
     if sig.failure_mode == FailureMode.EXECUTION_TIMEOUT:
-        if "rate limit" in ci_lower or "503" in ci_lower or "connection" in ci_lower:
+        if any(term in ci_lower for term in ("rate limit", "503", "connection", "connect")):
             return (
                 AddressabilityVerdict.FLAKE,
                 "Transient network failure or upstream provider rate limit. Retry test without edits.",
@@ -311,12 +313,12 @@ def cluster_failure_signatures(
             failure_mode=analysis.failure_mode,
         )
 
-        cluster_key = sig.fingerprint_hash
+        cluster_key = f"{sig.failure_mode.value}|{sig.ci}|{sig.qi}|{sig.mi}"
 
         if cluster_key not in clusters_by_key:
             verdict, hint, patch = _derive_patch_and_verdict(sig)
             clusters_by_key[cluster_key] = SignatureCluster(
-                cluster_id=cluster_key,
+                cluster_id=sig.fingerprint_hash,
                 signature=sig,
                 verdict=verdict,
                 remediation_hint=hint,

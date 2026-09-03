@@ -350,9 +350,9 @@ class SkillAgentReviewMixin:
                 except Exception as e:
                     logger.warning("Memory session flush failed: %s", e)
 
+                policy = getattr(memory_manager, "policy", None)
+                allow_extraction = getattr(policy, "allow_l3_extraction", True) if policy is not None else True
                 if getattr(self, "_enable_memory_auto_extraction", False):
-                    policy = getattr(memory_manager, "policy", None)
-                    allow_extraction = getattr(policy, "allow_l3_extraction", True) if policy is not None else True
                     if not allow_extraction:
                         logger.info(
                             "Memory auto-extraction short-circuited by AgentMemoryPolicy(allow_l3_extraction=False)"
@@ -385,10 +385,11 @@ class SkillAgentReviewMixin:
                         )
                         track_background_task(task)
 
-                recurrence_summary = self._build_recurrence_summary(query, assistant_chunks)
-                if recurrence_summary:
-                    recurrence_task = asyncio.create_task(memory_manager.check_session_recurrence(recurrence_summary))
-                    track_background_task(recurrence_task)
+                if allow_extraction:
+                    recurrence_summary = self._build_recurrence_summary(query, assistant_chunks)
+                    if recurrence_summary:
+                        recurrence_task = asyncio.create_task(memory_manager.check_session_recurrence(recurrence_summary))
+                        track_background_task(recurrence_task)
             finally:
                 teardown_privacy_context(privacy_restored)
 
