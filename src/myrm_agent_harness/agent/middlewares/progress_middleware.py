@@ -47,6 +47,12 @@ def _build_progress_injection(store: TodoStore, incomplete: list[TodoItem]) -> s
 
     completed_count = sum(1 for item in store.todos if item.status == TodoStatus.COMPLETED)
     cancelled_count = sum(1 for item in store.todos if item.status == TodoStatus.CANCELLED)
+    blocked_count = sum(1 for item in store.todos if item.status == TodoStatus.BLOCKED)
+
+    # Determine focused item: prefer currently in_progress item, then first pending item, fallback to first incomplete
+    active_in_progress = next((item for item in incomplete if item.status == TodoStatus.IN_PROGRESS), None)
+    active_pending = next((item for item in incomplete if item.status == TodoStatus.PENDING), None)
+    focus_item = active_in_progress or active_pending or (incomplete[0] if incomplete else None)
 
     # If there are completed/cancelled items and list is long (> 4 items), summarize completed
     if len(store.todos) > 4 and (completed_count > 0 or cancelled_count > 0):
@@ -60,7 +66,7 @@ def _build_progress_injection(store: TodoStore, incomplete: list[TodoItem]) -> s
         # Show incomplete items (up to 4 items)
         max_visible_incomplete = 4
         for item in incomplete[:max_visible_incomplete]:
-            marker = ">" if item.id == incomplete[0].id else "-"
+            marker = ">" if focus_item and item.id == focus_item.id else "-"
             lines.append(f"{marker} [{item.status.value}] {item.id}: {item.content}")
 
         if len(incomplete) > max_visible_incomplete:
@@ -69,16 +75,23 @@ def _build_progress_injection(store: TodoStore, incomplete: list[TodoItem]) -> s
     else:
         # Full list for short plans (<= 4 items)
         for item in store.todos:
-            marker = ">" if item.id == incomplete[0].id else "-"
+            marker = ">" if focus_item and item.id == focus_item.id else "-"
             lines.append(f"{marker} [{item.status.value}] {item.id}: {item.content}")
 
-    lines.extend(
-        [
-            "",
-            f"Current focus: `{incomplete[0].id}` — {incomplete[0].content}",
-            "Mark items completed with `todo_write(merge=true)` as you finish them.",
-        ]
-    )
+    if focus_item:
+        lines.extend(
+            [
+                "",
+                f"Current focus: `{focus_item.id}` — {focus_item.content}",
+                "Mark items completed with `todo_write(merge=true)` as you finish them.",
+            ]
+        )
+
+    if blocked_count > 0:
+        lines.append(
+            "[BLOCKED TASKS DETECTED] Focus on unblocked tasks first, or use `todo_write(merge=true)` to replan/cancel unexecutable steps."
+        )
+
     return "\n".join(lines)
 
 

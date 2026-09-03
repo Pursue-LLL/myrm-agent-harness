@@ -25,7 +25,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TypeVar
 
-from .protocols import EvalCase, EvalCaseSplit
+from .protocols import EvalCase
 
 T = TypeVar("T")
 
@@ -142,7 +142,7 @@ def audit_proposer_prompt_for_leakage(
     return LeakageAuditResult(has_leakage=False)
 
 
-def partition_dataset_split(
+def partition_dataset_split[T](
     cases: list[T],
     search_ratio: float = 0.7,
     min_holdout_threshold: int = 4,
@@ -178,17 +178,19 @@ def evaluate_pareto_generalization(
     search_delta = target_search_rate - baseline_search_rate
     test_delta = target_test_rate - baseline_test_rate
 
-    # Severe collapse in held-out test set
-    if test_delta < -0.15:
-        return ParetoGeneralizationVerdict.GENERALIZATION_COLLAPSE
-
     # Overfitting: search improves, but test drops beyond tolerance
     if search_delta > tolerance and test_delta < -tolerance:
+        if test_delta < -0.15:
+            return ParetoGeneralizationVerdict.GENERALIZATION_COLLAPSE
         return ParetoGeneralizationVerdict.OVERFITTING
 
     # Dual regression
     if search_delta < -tolerance and test_delta < -tolerance:
         return ParetoGeneralizationVerdict.REGRESSION
+
+    # Severe collapse in held-out test set
+    if test_delta < -0.15:
+        return ParetoGeneralizationVerdict.GENERALIZATION_COLLAPSE
 
     # Pareto optimal: non-negative across both, positive on at least one
     if search_delta >= -tolerance and test_delta >= -tolerance:

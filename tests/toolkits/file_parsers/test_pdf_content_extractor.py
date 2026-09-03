@@ -884,3 +884,20 @@ class TestPdfOcrFallback:
             assert mock_ocr.await_args.kwargs["lang"] == "japan"
         finally:
             pdf_path.unlink(missing_ok=True)
+
+    def test_extract_text_sync_physical_slicing_and_collision_immunity(self):
+        """Verify that _extract_text_sync forwards max_pages to PDFPlumberParser and handles [Page N] safely."""
+        from myrm_agent_harness.toolkits.file_parsers.base import PDFParseResult
+
+        with patch("myrm_agent_harness.toolkits.file_parsers.pdf.pdf.PDFPlumberParser.parse_sync") as mock_parse:
+            mock_parse.return_value = PDFParseResult(
+                text="[Page 1]\nContent referencing [Page 21] in normal text.\n[Page 2]\nFollowup text.",
+                tables=[],
+                metadata={"page_count": 50, "parsed_pages": 2},
+            )
+            text, page_count, parsed_pages, tables = _extract_text_sync("dummy.pdf", max_pages=2)
+
+            assert page_count == 50
+            assert parsed_pages == 2
+            assert "[Page 21]" in text
+            assert "[Page 2]\nFollowup text." in text

@@ -378,3 +378,32 @@ class TestSupportedExtensions:
         """Parser declares .pdf support."""
         parser = PDFPlumberParser()
         assert ".pdf" in parser.supported_extensions
+
+
+class TestMaxPagesPhysicalSlicing:
+    """Test max_pages parameter in PDFPlumberParser for physical page slicing."""
+
+    def test_max_pages_slices_physical_pages(self, tmp_path):
+        """Only pages up to max_pages are processed, total pages remain preserved in metadata."""
+        parser = PDFPlumberParser(max_pages=2, extract_tables=False, extract_bookmarks=False)
+        test_pdf = tmp_path / "large_test.pdf"
+        test_pdf.write_text("dummy")
+
+        pages = [
+            _make_mock_page(f"Content page {i}", page_obj_id=100 + i)
+            for i in range(1, 11)  # 10 pages total
+        ]
+        mock_pdf = _make_mock_pdf(pages)
+
+        with patch("pdfplumber.open") as mock_open:
+            mock_open.return_value.__enter__ = Mock(return_value=mock_pdf)
+            mock_open.return_value.__exit__ = Mock(return_value=False)
+            result = parser.parse_sync(str(test_pdf))
+
+        assert result.metadata["page_count"] == 10
+        assert result.metadata["parsed_pages"] == 2
+        assert "Content page 1" in result.text
+        assert "Content page 2" in result.text
+        assert "Content page 3" not in result.text
+        pages[2].extract_text.assert_not_called()
+

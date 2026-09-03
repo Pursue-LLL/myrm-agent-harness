@@ -186,3 +186,52 @@ def test_session_resolver_callable() -> None:
         assert server_default._resolve_session() is mock_session
     finally:
         reset_request_desktop_session(token)
+
+
+@pytest.mark.asyncio
+async def test_desktop_tools_execution_with_session() -> None:
+    """Test calling all desktop tools when session is present passes arguments accurately."""
+    mock_session = MagicMock()
+    mock_session.desktop_snapshot = AsyncMock(return_value="Snapshot result")
+    mock_session.desktop_interact = AsyncMock(return_value="Interact result")
+    mock_session.desktop_vision_capture = AsyncMock(return_value="Capture result")
+    mock_session.desktop_vision_action = AsyncMock(return_value="Action result")
+
+    server = DesktopMCPServer(session=mock_session)
+
+    # 1. Snapshot tool
+    res_snap = await server.mcp.call_tool("desktop_snapshot_tool", {"scope": "target", "app_name": "Finder"})
+    assert getattr(res_snap.content[0], "text", None) == "Snapshot result"
+    mock_session.desktop_snapshot.assert_awaited_once_with(scope="target", app_name="Finder", include_screenshot=False)
+
+    # 2. Interact tool (ModifierKey literal allows 'ctrl', 'shift', 'alt', 'meta')
+    res_int = await server.mcp.call_tool(
+        "desktop_interact_tool",
+        {"ref": "@dref_button", "action": "click", "text": "Submit", "modifiers": ["meta"]},
+    )
+    assert getattr(res_int.content[0], "text", None) == "Interact result"
+    mock_session.desktop_interact.assert_awaited_once_with(
+        ref="@dref_button", action="click", text="Submit", modifiers=["meta"]
+    )
+
+    # 3. Vision capture tool
+    res_vis_cap = await server.mcp.call_tool("desktop_vision_tool", {"action": "capture"})
+    assert getattr(res_vis_cap.content[0], "text", None) == "Capture result"
+    mock_session.desktop_vision_capture.assert_awaited_once()
+
+    # 4. Vision action tool (e.g., left_click)
+    res_vis_act = await server.mcp.call_tool(
+        "desktop_vision_tool",
+        {"action": "left_click", "coordinate": [200, 300], "duration": 1.5},
+    )
+    assert getattr(res_vis_act.content[0], "text", None) == "Action result"
+    mock_session.desktop_vision_action.assert_awaited_once_with(
+        action="left_click",
+        coordinate=[200, 300],
+        text=None,
+        scroll_direction=None,
+        scroll_amount=3,
+        start_coordinate=None,
+        duration=1.5,
+        modifiers=None,
+    )

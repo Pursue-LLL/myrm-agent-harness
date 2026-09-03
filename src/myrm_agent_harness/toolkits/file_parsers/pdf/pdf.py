@@ -55,6 +55,7 @@ class PDFPlumberParser(FileParser):
         parallel: bool = False,
         max_workers: int = 4,
         heading_detection: Literal["bookmarks", "font", "auto"] = "auto",
+        max_pages: int | None = None,
     ):
         self._extract_tables = extract_tables
         self._should_extract_bookmarks = extract_bookmarks
@@ -62,6 +63,7 @@ class PDFPlumberParser(FileParser):
         self._parallel = parallel
         self._max_workers = max_workers
         self._heading_detection = heading_detection
+        self._max_pages = max_pages
         self._table_settings = table_settings or {
             "vertical_strategy": "lines",
             "horizontal_strategy": "lines",
@@ -140,10 +142,13 @@ class PDFPlumberParser(FileParser):
                     if bm["page_num"] is not None:
                         bookmarks_by_page[bm["page_num"]].append(bm)
 
-            if self._parallel and page_count > 10:
-                page_results = self._parse_parallel(pdf)
+            pages_to_process = pdf.pages[: self._max_pages] if self._max_pages is not None else pdf.pages
+            process_count = len(pages_to_process)
+
+            if self._parallel and process_count > 10:
+                page_results = self._parse_parallel(pages_to_process)
             else:
-                page_results = self._parse_sequential(pdf)
+                page_results = self._parse_sequential(pages_to_process)
 
             for page_num, (text, tables, error) in enumerate(page_results, start=1):
                 page_content_parts: list[str] = []
@@ -176,6 +181,7 @@ class PDFPlumberParser(FileParser):
 
             metadata: dict[str, str | int] = {
                 "page_count": page_count,
+                "parsed_pages": process_count,
                 "table_count": len(all_tables),
                 "failed_pages": len(failed_pages),
                 "parser": "pdfplumber",
@@ -192,10 +198,10 @@ class PDFPlumberParser(FileParser):
 
     def _parse_sequential(
         self,
-        pdf: pdfplumber.PDF,
+        pages: list[pdfplumber.page.Page],
     ) -> typing.Iterator[tuple[str, list[PDFTable], str | None]]:
         """Sequential parsing (page by page) with streaming output"""
-        for page in pdf.pages:
+        for page in pages:
             try:
                 text = page.extract_text() or ""
                 tables: list[PDFTable] = []
@@ -210,13 +216,13 @@ class PDFPlumberParser(FileParser):
 
     def _parse_parallel(
         self,
-        pdf: pdfplumber.PDF,
+        pages: list[pdfplumber.page.Page],
     ) -> typing.Iterator[tuple[str, list[PDFTable], str | None]]:
         """Parallel parsing (multi-threaded) with streaming ordered output"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
-            future_to_idx = {executor.submit(self._parse_single_page, page): idx for idx, page in enumerate(pdf.pages)}
+            future_to_idx = {executor.submit(self._parse_single_page, page): idx for idx, page in enumerate(pages)}
 
             next_expected_idx = 0
             buffer: dict[int, tuple[str, list[PDFTable], str | None]] = {}

@@ -76,22 +76,28 @@ def _extract_text_sync(
     """
     from .pdf import PDFPlumberParser
 
-    parser = PDFPlumberParser(extract_tables=True, parallel=True, table_format=table_format)
+    parser = PDFPlumberParser(
+        extract_tables=True,
+        parallel=True,
+        table_format=table_format,
+        max_pages=max_pages,
+    )
     result = parser.parse_sync(file_path)
     page_count: int = int(result.metadata.get("page_count", 0))
+    parsed_pages: int = int(result.metadata.get("parsed_pages", min(page_count, max_pages)))
 
+    tables = [t for t in result.tables if t.page_number <= max_pages] if page_count > max_pages else result.tables
+    text = result.text
+
+    # Safety fallback: if custom mock or external parser didn't physically slice pages,
+    # ensure text does not exceed max_pages while avoiding substring collisions
     if page_count > max_pages:
-        lines = result.text.split("\n")
-        trimmed: list[str] = []
-        page_marker = f"[Page {max_pages + 1}]"
-        for line in lines:
-            if line.strip().startswith(page_marker):
-                break
-            trimmed.append(line)
-        trimmed_tables = [t for t in result.tables if t.page_number <= max_pages]
-        return "\n".join(trimmed), page_count, max_pages, trimmed_tables
+        page_marker = f"\n[Page {max_pages + 1}]\n"
+        idx = text.find(page_marker)
+        if idx != -1:
+            text = text[:idx]
 
-    return result.text, page_count, page_count, result.tables
+    return text, page_count, parsed_pages, tables
 
 
 def _extract_embedded_images_sync(file_path: str, max_pages: int) -> list[PDFImageContent]:
