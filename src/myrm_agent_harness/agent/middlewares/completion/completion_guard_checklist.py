@@ -363,6 +363,9 @@ def build_checklist(records: list[CallRecord], workspace_root: str | None = None
             if store:
                 incomplete = store.incomplete_todos()
                 if incomplete:
+                    blocked_items = [item for item in incomplete if item.status.value == "blocked"]
+                    actionable_items = [item for item in incomplete if item.status.value != "blocked"]
+
                     if has_writes:
                         has_critical_errors = True
                         lines.append("  CRITICAL: You have incomplete todos in your task list!")
@@ -371,9 +374,14 @@ def build_checklist(records: list[CallRecord], workspace_root: str | None = None
                     for item in incomplete:
                         lines.append(f" - Todo {item.id}: {item.content} (Status: {item.status.value})")
                     if has_writes:
-                        lines.append(
-                            " You MUST complete these todos and call `todo_write(merge=true)` before finishing."
-                        )
+                        if actionable_items:
+                            lines.append(
+                                " You MUST complete actionable todos and call `todo_write(merge=true)` before finishing."
+                            )
+                        if blocked_items:
+                            lines.append(
+                                " For blocked todos that cannot be completed due to external constraints, mark them as 'cancelled' with `todo_write(merge=true)` and explain reasons to user."
+                            )
                     else:
                         lines.append(" Review if remaining todos are still needed for your answer.")
                     lines.append("")
