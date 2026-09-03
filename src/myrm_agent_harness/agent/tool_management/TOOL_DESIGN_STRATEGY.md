@@ -127,12 +127,12 @@ class ToolLayer(IntEnum):
 
 - **特征**: 框架外集成 — server vendor、MCP direct、OpenAPI、未登记动态工具
 - **缓存**: 整段位于 harness 三层之后；MCP 增删不影响 CORE/HIGH_PRIORITY/EXTENDED 前缀
-- **工具数量**: 登记 **6** EXTERNAL（server bootstrap；见 TOOL_COUNT 块）
+- **工具数量**: 登记 **5** EXTERNAL（server bootstrap；见 TOOL_COUNT 块）
 - **默认**: 未在 `_TOOL_LAYERS` 登记的工具名默认 EXTERNAL + WARNING
 
 | 工具名 | 加载条件 |
 |--------|----------|
-| x_search_tool, image_tool, video_tool, tts_generate, artifact_publish, channel_notify_tool | server `_tool_layer_bootstrap.py` + 对应 skill/凭证/notify 配置 |
+| image_tool, video_tool, tts_generate, artifact_publish, channel_notify_tool | server `_tool_layer_bootstrap.py` + 对应 skill/凭证/notify 配置 |
 
 ### 2.3 排序规则
 

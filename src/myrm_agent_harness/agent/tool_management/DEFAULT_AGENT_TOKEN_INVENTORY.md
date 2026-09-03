@@ -191,9 +191,13 @@ Token 明细（历史 tiktoken 计量保留）：
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
-| 88 | x_search_tool | 77 | `server/integrations/tools/x_live_search.py` | X/Twitter 实时搜索（xAI Live Search API） | Agent 绑定 `x-live-search` prebuilt skill 时 [Turn1] |
-| 89 | memory_search_tool | (in §三) | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | Unified corpus search; server binds wiki/sessions via `tool_setup._create_memory_tools` | enable_memory [Turn1] |
-| 90 | channel_notify_tool | 333 | `server/services/agent/outbound_notify/channel_notify_tool.py` | Agent 主动 IM 出站（白名单+频控+附件） | Agent 配置 `notify_targets` 时 [Turn1] |
+| 88 | channel_notify_tool | 333 | `server/services/agent/outbound_notify/channel_notify_tool.py` | Agent 主动 IM 出站（白名单+频控+附件） | Agent 配置 `notify_targets` 时 [Turn1] |
+| 89 | image_tool | ~150 | `server/services/integrations/tools/image_generation.py` | 图像生成工具（DALL-E / SD / Flux） | enabled_builtin_tools: image_generation |
+| 90 | video_tool | ~180 | `server/services/integrations/tools/video_generation.py` | 视频生成工具 | enabled_builtin_tools: video_generation |
+| 91 | tts_generate | ~120 | `server/services/integrations/tools/tts.py` | 语音合成工具 | enabled_builtin_tools: tts |
+| 92 | artifact_publish | ~140 | `server/services/hosting/agent_publish_tool.py` | 工件/网页在线打包与托管发布 | server 凭证就绪 |
+
+> 注：`x-live-search` 现已完全重构为 Prebuilt Skill + 沙箱标准脚本 PTC（Programmatic Tool Calling）范式，0 Action Tool 注册（Turn1 0 Token 开销，不污染 Action Space）。
 
 ### 4.25 PTC 桥接（非 LLM 工具，非 `_TOOL_LAYERS` 登记）
 

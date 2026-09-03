@@ -76,7 +76,6 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "subagent_control_tool": "SubagentManagementExtension + entitlements",
     "send_teammate_message_tool": "SubagentManagementExtension + entitlements",
     "complete_goal_tool": "active Goal on chat",
-    "x_search_tool": "x-live-search prebuilt skill bound",
     "channel_notify_tool": "Agent notify_targets configured",
     "cron_manage_tool": "user cron capability wired",
     "invoke_acp_agent_tool": "external ACP agent configured",
