@@ -184,6 +184,34 @@ class TestMergeAdjacentChunks:
 
         assert idx_3 < idx_4 < idx_5, "合并后的内容应该按原文档顺序排列"
 
+    def test_merge_preserves_global_relevance_across_urls(self):
+        """验证跨 URL 多文档切片合并时，全局相关度顺序严格保序，不发生倒置"""
+        # 输入切片按重排相关度降序排列：
+        # Rank 0: URL A chunk 0 (Top 1)
+        # Rank 1: URL B chunk 1 (Top 2)
+        # Rank 2: URL B chunk 2 (Top 3)
+        # Rank 3: URL A chunk 9 (Rank 4, 较弱相关度)
+        chunks = [
+            Document(page_content="URL A Top Content", metadata={"url": "https://a.com", "chunk_index": 0}),
+            Document(page_content="URL B Core Part 1", metadata={"url": "https://b.com", "chunk_index": 1}),
+            Document(page_content="URL B Core Part 2", metadata={"url": "https://b.com", "chunk_index": 2}),
+            Document(page_content="URL A Tail Content", metadata={"url": "https://a.com", "chunk_index": 9}),
+        ]
+
+        merged = _merge_adjacent_chunks(chunks, max_chunks_per_doc=2, enable_merge=True)
+
+        assert len(merged) == 3, "应该生成 3 个文档（URL A Top、URL B 合并段、URL A Tail）"
+        # 验证全局顺序：必须是 URL A Top (Rank 0) -> URL B 合并段 (Rank 1-2) -> URL A Tail (Rank 3)
+        assert merged[0].metadata["url"] == "https://a.com"
+        assert "URL A Top Content" in merged[0].page_content
+
+        assert merged[1].metadata["url"] == "https://b.com"
+        assert "URL B Core Part 1\n\nURL B Core Part 2" in merged[1].page_content
+        assert merged[1].metadata.get("merged_chunks_count") == 2
+
+        assert merged[2].metadata["url"] == "https://a.com"
+        assert "URL A Tail Content" in merged[2].page_content
+
 
 class TestPrecisionModePerformance:
     """测试精准模式的性能开销"""

@@ -325,7 +325,7 @@ def _merge_adjacent_chunks(
             doc_groups[url] = []
         doc_groups[url].append((rerank_order, chunk_index, chunk))
 
-    merged_docs = []
+    merged_docs: list[tuple[int, Document]] = []
 
     for group in doc_groups.values():
         # Sort by chunk_index (positional order in original document)
@@ -356,10 +356,11 @@ def _merge_adjacent_chunks(
 
         # Select top max_chunks_per_doc most relevant consecutive sequences
         for sequence in continuous_sequences[:max_chunks_per_doc]:
+            best_order = min(item[0] for item in sequence)
             if len(sequence) == 1:
                 # Single chunk, add directly
                 _, _, chunk = sequence[0]
-                merged_docs.append(chunk)
+                merged_docs.append((best_order, chunk))
             else:
                 # Multiple consecutive chunks, merge content (by chunk_index order)
                 sequence_sorted = sorted(sequence, key=lambda x: x[1])
@@ -371,13 +372,17 @@ def _merge_adjacent_chunks(
                 merged_metadata["merged_chunk_indices"] = [chunk_idx for _, chunk_idx, _ in sequence_sorted]
 
                 merged_doc = Document(page_content=merged_content, metadata=merged_metadata)
-                merged_docs.append(merged_doc)
+                merged_docs.append((best_order, merged_doc))
+
+    # Restore global relevance ordering across all documents
+    merged_docs.sort(key=lambda item: item[0])
+    final_merged_docs = [doc for _, doc in merged_docs]
 
     logger.info(
-        f"Chunk merge: {len(chunks)} chunks → {len(merged_docs)} merged documents "
-        f"(continuous sequences only, preserving semantic coherence)"
+        f"Chunk merge: {len(chunks)} chunks → {len(final_merged_docs)} merged documents "
+        f"(continuous sequences only, preserving semantic coherence and global relevance order)"
     )
-    return merged_docs
+    return final_merged_docs
 
 
 async def _chunk_document_async(
