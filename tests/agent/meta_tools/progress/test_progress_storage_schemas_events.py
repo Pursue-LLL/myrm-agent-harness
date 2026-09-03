@@ -207,3 +207,14 @@ def test_emit_todo_progress_events_swallows_dispatch_errors() -> None:
         side_effect=RuntimeError("sse down"),
     ):
         emit_todo_progress_events(store)
+
+
+def test_todo_status_to_plan_status_mapping() -> None:
+    from myrm_agent_harness.agent.meta_tools.progress.schemas import _todo_status_to_plan_status
+
+    assert _todo_status_to_plan_status(TodoStatus.BLOCKED) == "blocked"
+    assert _todo_status_to_plan_status(TodoStatus.IN_PROGRESS) == "in_progress"
+    assert _todo_status_to_plan_status(TodoStatus.COMPLETED) == "completed"
+    assert _todo_status_to_plan_status(TodoStatus.CANCELLED) == "skipped"
+    assert _todo_status_to_plan_status(TodoStatus.PENDING) == "pending"
+

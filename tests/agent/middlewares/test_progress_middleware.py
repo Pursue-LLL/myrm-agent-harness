@@ -264,4 +264,26 @@ async def test_list_content_with_previous_progress_stripped() -> None:
     assert "t0" not in text_parts[0]["text"]
 
 
+@pytest.mark.asyncio
+async def test_all_incomplete_blocked_triggers_special_instruction() -> None:
+    store = TodoStore(
+        goal="All blocked scenario",
+        todos=[
+            TodoItem(id="t1", content="done part", status=TodoStatus.COMPLETED),
+            TodoItem(id="t2", content="blocked part a", status=TodoStatus.BLOCKED),
+            TodoItem(id="t3", content="blocked part b", status=TodoStatus.BLOCKED),
+        ],
+    )
+    middleware = progress_middleware(AsyncMock(return_value=store))
+    request = ModelRequest(model=AsyncMock(), messages=[HumanMessage(content="what now?")])
+    handler = AsyncMock(return_value=ModelResponse(result=[]))
+    await middleware.awrap_model_call(request, handler)
+    passed_request = handler.await_args.args[0]
+    last_msg = passed_request.messages[-1]
+    assert isinstance(last_msg, HumanMessage)
+    assert "[ALL REMAINING TASKS BLOCKED]" in last_msg.content
+    assert "Call `todo_write(merge=true)` to mark unachievable tasks as 'cancelled'" in last_msg.content
+
+
+
 

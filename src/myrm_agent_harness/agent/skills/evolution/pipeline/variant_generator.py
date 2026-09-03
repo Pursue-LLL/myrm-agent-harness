@@ -32,7 +32,11 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     SkillEvidenceGroup,
     SkillRecord,
 )
-from myrm_agent_harness.eval.leakage_guard import filter_search_cases_for_proposer
+from myrm_agent_harness.eval.leakage_guard import (
+    audit_proposer_prompt_for_leakage,
+    filter_search_cases_for_proposer,
+    is_test_case_spec,
+)
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 logger = logging.getLogger(__name__)
@@ -159,6 +163,7 @@ class VariantGenerator:
             return [skill.content]
 
         prompt = self._build_variant_prompt(skill, feedback, trajectory, constraints)
+        prompt = self._sanitize_and_audit_prompt(prompt, skill)
         variants = await self._generate_concurrent(prompt, num_variants, "variant")
         if not variants:
             logger.warning("All variant generations failed. Returning original.")
@@ -186,6 +191,7 @@ class VariantGenerator:
             return [skill.content]
 
         prompt = self._build_evidence_prompt(skill, evidence, constraints)
+        prompt = self._sanitize_and_audit_prompt(prompt, skill)
         variants = await self._generate_concurrent(prompt, num_variants, "evidence_variant")
         if not variants:
             logger.warning("All evidence variant generations failed. Returning original.")
@@ -307,21 +313,31 @@ class VariantGenerator:
         ]
 
         if evidence.success_cases:
-            cases = evidence.success_cases[:5]
+            filtered_success = [
+                c
+                for c in evidence.success_cases
+                if not is_test_case_spec(getattr(c, "metadata", None) or getattr(c, "split", None))
+            ]
+            cases = filtered_success[:5]
             lines = [f"- Task: {c.task_context or 'N/A'}" for c in cases]
             sections.append(
-                f"## WORKING SCENARIOS ({len(evidence.success_cases)} total)\n"
+                f"## WORKING SCENARIOS ({len(filtered_success)} total)\n"
                 "These work correctly. Your fix MUST NOT break them:\n" + "\n".join(lines)
             )
 
         if evidence.failure_cases:
-            cases = evidence.failure_cases[:5]
+            filtered_failures = [
+                c
+                for c in evidence.failure_cases
+                if not is_test_case_spec(getattr(c, "metadata", None) or getattr(c, "split", None))
+            ]
+            cases = filtered_failures[:5]
             lines = []
             for c in cases:
                 err = c.error_message[:150] if c.error_message else "N/A"
                 lines.append(f"- Task: {c.task_context or 'N/A'} | Error: {err}")
             sections.append(
-                f"## FAILING SCENARIOS ({len(evidence.failure_cases)} total)\nThese need fixing:\n" + "\n".join(lines)
+                f"## FAILING SCENARIOS ({len(filtered_failures)} total)\nThese need fixing:\n" + "\n".join(lines)
             )
 
         if evidence.common_error_patterns:
@@ -377,6 +393,25 @@ class VariantGenerator:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _sanitize_and_audit_prompt(prompt: str, skill: SkillRecord) -> str:
+        """Audit and sanitize proposer prompt to prevent held-out test contamination."""
+        test_cases: list[dict[str, object]] = [
+            c for c in getattr(skill, "eval_cases", []) if is_test_case_spec(c)
+        ]
+        if not test_cases:
+            return prompt
+        audit = audit_proposer_prompt_for_leakage(prompt, test_cases)
+        if audit.has_leakage:
+            logger.warning(
+                "Held-out test leakage detected in variant prompt: %s. Sanitizing...",
+                audit.detected_snippets,
+            )
+            for snippet in audit.detected_snippets:
+                if snippet:
+                    prompt = prompt.replace(snippet, "[REDACTED_TEST_CASE]")
+        return prompt
 
     @staticmethod
     def _build_gene_bank_prior_section(diverse_elites: list[Any]) -> str:

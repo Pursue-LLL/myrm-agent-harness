@@ -49,10 +49,12 @@ def _build_progress_injection(store: TodoStore, incomplete: list[TodoItem]) -> s
     cancelled_count = sum(1 for item in store.todos if item.status == TodoStatus.CANCELLED)
     blocked_count = sum(1 for item in store.todos if item.status == TodoStatus.BLOCKED)
 
-    # Determine focused item: prefer currently in_progress item, then first pending item, fallback to first incomplete
+    # Determine focused item: prefer currently in_progress item, then first pending item,
+    # skip blocked items when executable items exist.
     active_in_progress = next((item for item in incomplete if item.status == TodoStatus.IN_PROGRESS), None)
     active_pending = next((item for item in incomplete if item.status == TodoStatus.PENDING), None)
     focus_item = active_in_progress or active_pending or (incomplete[0] if incomplete else None)
+    all_incomplete_blocked = bool(incomplete and all(item.status == TodoStatus.BLOCKED for item in incomplete))
 
     # If there are completed/cancelled items and list is long (> 4 items), summarize completed
     if len(store.todos) > 4 and (completed_count > 0 or cancelled_count > 0):
@@ -87,7 +89,13 @@ def _build_progress_injection(store: TodoStore, incomplete: list[TodoItem]) -> s
             ]
         )
 
-    if blocked_count > 0:
+    if all_incomplete_blocked:
+        lines.append(
+            "[ALL REMAINING TASKS BLOCKED] All uncompleted tasks are blocked by external dependencies. "
+            "You cannot proceed without resolution. Call `todo_write(merge=true)` to mark unachievable tasks as 'cancelled' "
+            "or update steps before finishing."
+        )
+    elif blocked_count > 0:
         lines.append(
             "[BLOCKED TASKS DETECTED] Focus on unblocked tasks first, or use `todo_write(merge=true)` to replan/cancel unexecutable steps."
         )

@@ -336,3 +336,17 @@ class TestEnforceSingleInProgress:
         assert items[0].status == TodoStatus.PENDING
         assert items[2].status == TodoStatus.PENDING
         assert items[3].status == TodoStatus.IN_PROGRESS
+
+    def test_enforce_preserves_blocked_items(self) -> None:
+        """Blocked items should never be converted to pending by single-in-progress enforcement."""
+        items = [
+            TodoItem(id="1", content="a", status=TodoStatus.IN_PROGRESS),
+            TodoItem(id="2", content="b", status=TodoStatus.BLOCKED),
+            TodoItem(id="3", content="c", status=TodoStatus.IN_PROGRESS),
+        ]
+        corrected = _enforce_single_in_progress(items)
+        assert corrected == 1
+        assert items[0].status == TodoStatus.PENDING
+        assert items[1].status == TodoStatus.BLOCKED  # Must stay blocked!
+        assert items[2].status == TodoStatus.IN_PROGRESS
+
