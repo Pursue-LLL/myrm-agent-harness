@@ -81,8 +81,9 @@ def test_salvage_corrupted_btree_page(tmp_path: Path, salvage_engine: SQLiteRowi
     with pytest.raises(sqlite3.DatabaseError), open_db(src_db) as conn:
         conn.execute("SELECT * FROM messages;").fetchall()
 
-    # Run the salvage engine
-    result = salvage_engine.salvage_database(src_db, dst_db)
+    # Run the salvage engine with chunk_size=20 to exercise bisection sub-intervals
+    bisect_engine = SQLiteRowidSalvageEngine(chunk_size=20)
+    result = bisect_engine.salvage_database(src_db, dst_db)
     assert result.success is True
     # Most records should be recovered (>80%) despite the corrupted page
     assert result.total_recovered_rows > 350
@@ -269,3 +270,31 @@ def test_salvage_empty_table_and_bounds_fallback(tmp_path: Path, salvage_engine:
     assert result.success is True
     assert result.table_stats["empty_tbl"].status == "empty"
     assert result.total_recovered_rows == 0
+
+    # Test corrupted inspection
+    corrupt_file = tmp_path / "corrupt_header.db"
+    corrupt_file.write_bytes(b"invalid sqlite header text")
+    corrupt_insp = salvage_engine.inspect_database(corrupt_file)
+    assert corrupt_insp["exists"] is True
+    assert corrupt_insp["readable"] is False
+    assert "error" in str(corrupt_insp["quick_check"])
+
+
+def test_salvage_without_rowid_with_corruption(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+    src_db = tmp_path / "without_rowid_corrupt.db"
+    dst_db = tmp_path / "without_rowid_corrupt_out.db"
+
+    with open_db(src_db) as conn:
+        conn.execute("CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT) WITHOUT ROWID;")
+        for i in range(1, 101):
+            conn.execute("INSERT INTO kv VALUES (?, ?);", (f"k_{i}", f"v_{i}" * 50))
+
+    # Corrupt sector
+    content = bytearray(src_db.read_bytes())
+    if len(content) > 4096:
+        content[4096 + 50 : 4096 + 200] = b"\x00\xff" * 75
+        src_db.write_bytes(content)
+
+    res = salvage_engine.salvage_database(src_db, dst_db)
+    assert res.success is True
+    assert res.table_stats["kv"].status in ("partial", "failed", "ok")

@@ -420,6 +420,7 @@ class EvalResult:
                 result["variance_metrics"] = self.variance_metrics
 
         from .ablation_rules import derive_ablation_recommendations
+        from .failure_clustering import cluster_failure_signatures
         from .trajectory_analysis import aggregate_failure_modes
 
         failure_analysis = aggregate_failure_modes(self)
@@ -432,6 +433,9 @@ class EvalResult:
         )
         recs = derive_ablation_recommendations(failure_dist)
         result["ablation_recommendations"] = [r.to_dict() for r in recs]
+
+        sig_clusters = cluster_failure_signatures(self)
+        result["signature_clusters"] = [c.to_dict() for c in sig_clusters]
 
         result["turns"] = [
             {
