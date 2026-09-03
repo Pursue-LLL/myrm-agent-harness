@@ -91,6 +91,8 @@ __all__ = [
     "SpendInterventionTier",
     "SynthesizedSkillDraft",
     "TaskSpecialty",
+    "TranscriptChunk",
+    "TranscriptTurn",
     "WorkflowIntentPlan",
     "WorkflowSkillCompiler",
     "build_parent_delegatable_toolkit",
@@ -374,6 +376,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "TaskSpecialty": (
         "myrm_agent_harness.toolkits.llms.routing.specialty_router",
         "TaskSpecialty",
+    ),
+    "TranscriptChunk": (
+        "myrm_agent_harness.toolkits.memory.strategies.incremental_transcript",
+        "TranscriptChunk",
     ),
     "TranscriptTurn": (
         "myrm_agent_harness.toolkits.memory.strategies.incremental_transcript",
