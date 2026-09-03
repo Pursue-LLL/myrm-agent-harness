@@ -128,8 +128,12 @@ class TestCache:
             _cache_key,
         )
 
-        k1 = _cache_key("coder", "task A", None, session_id="s1", effective_readonly=False)
-        k2 = _cache_key("coder", "task A", None, session_id="s1", effective_readonly=True)
+        k1 = _cache_key(
+            "coder", "task A", None, session_id="s1", effective_readonly=False
+        )
+        k2 = _cache_key(
+            "coder", "task A", None, session_id="s1", effective_readonly=True
+        )
         assert k1 != k2
 
     def test_put_and_get(self):
@@ -865,7 +869,10 @@ class TestDelegateTaskExecution:
         graph_interrupt = GraphInterrupt(
             (Interrupt(value={"action_type": "subagent_approval"}),)
         )
-        with patch("langgraph.types.interrupt", side_effect=graph_interrupt), pytest.raises(GraphInterrupt):
+        with (
+            patch("langgraph.types.interrupt", side_effect=graph_interrupt),
+            pytest.raises(GraphInterrupt),
+        ):
             await tool_fn.coroutine(
                 agent_type="test_bash",
                 objective="run command",
@@ -1031,8 +1038,17 @@ class TestBatchDelegateExecution:
                     "agent_type": "analyst_a",
                     "handover_state": {
                         "summary": "Summary A",
-                        "findings": [{"finding": "Finding A", "evidence": "doc_a.md:1", "confidence": "high"}],
-                        "citations": ["https://example.com/source_a", "https://example.com/shared"],
+                        "findings": [
+                            {
+                                "finding": "Finding A",
+                                "evidence": "doc_a.md:1",
+                                "confidence": "high",
+                            }
+                        ],
+                        "citations": [
+                            "https://example.com/source_a",
+                            "https://example.com/shared",
+                        ],
                         "artifact_refs": ["vault://a.md"],
                     },
                 }
@@ -1043,8 +1059,17 @@ class TestBatchDelegateExecution:
                 "agent_type": "analyst_b",
                 "handover_state": {
                     "summary": "Summary B",
-                    "findings": [{"finding": "Finding B", "evidence": "doc_b.md:2", "confidence": "medium"}],
-                    "citations": ["https://example.com/shared", "https://example.com/source_b"],
+                    "findings": [
+                        {
+                            "finding": "Finding B",
+                            "evidence": "doc_b.md:2",
+                            "confidence": "medium",
+                        }
+                    ],
+                    "citations": [
+                        "https://example.com/shared",
+                        "https://example.com/source_b",
+                    ],
                     "artifact_refs": ["vault://b.md"],
                 },
             }

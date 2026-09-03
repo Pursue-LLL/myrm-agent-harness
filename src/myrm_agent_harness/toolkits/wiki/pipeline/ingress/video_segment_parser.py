@@ -27,9 +27,7 @@ from myrm_agent_harness.toolkits.wiki.pipeline.ingress.types import (
 )
 
 _TITLE_CLEAN_RE = re.compile(r"[^\w\s-]", re.UNICODE)
-_TIMESTAMP_LINE_RE = re.compile(
-    r"^(?:\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?)\s*(.*)$"
-)
+_TIMESTAMP_LINE_RE = re.compile(r"^(?:\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?)\s*(.*)$")
 
 
 @dataclass(frozen=True, slots=True)

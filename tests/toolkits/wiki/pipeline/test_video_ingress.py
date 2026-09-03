@@ -45,9 +45,13 @@ def test_adaptive_merge_segments() -> None:
     segments = [
         MediaTranscriptSegment(start_seconds=0.0, end_seconds=3.0, text="Hello"),
         MediaTranscriptSegment(start_seconds=3.0, end_seconds=6.0, text="world"),
-        MediaTranscriptSegment(start_seconds=6.0, end_seconds=10.0, text="this is a test"),
+        MediaTranscriptSegment(
+            start_seconds=6.0, end_seconds=10.0, text="this is a test"
+        ),
     ]
-    merged = adaptive_merge_segments(segments, window_duration_seconds=30, window_max_chars=100)
+    merged = adaptive_merge_segments(
+        segments, window_duration_seconds=30, window_max_chars=100
+    )
     assert len(merged) == 1
     assert merged[0].start_seconds == 0.0
     assert merged[0].end_seconds == 10.0
@@ -56,10 +60,16 @@ def test_adaptive_merge_segments() -> None:
 
 def test_adaptive_merge_segments_speaker_boundary() -> None:
     segments = [
-        MediaTranscriptSegment(start_seconds=0.0, end_seconds=3.0, text="Hi Alice", speaker="Bob"),
-        MediaTranscriptSegment(start_seconds=3.0, end_seconds=6.0, text="Hi Bob", speaker="Alice"),
+        MediaTranscriptSegment(
+            start_seconds=0.0, end_seconds=3.0, text="Hi Alice", speaker="Bob"
+        ),
+        MediaTranscriptSegment(
+            start_seconds=3.0, end_seconds=6.0, text="Hi Bob", speaker="Alice"
+        ),
     ]
-    merged = adaptive_merge_segments(segments, window_duration_seconds=30, window_max_chars=100)
+    merged = adaptive_merge_segments(
+        segments, window_duration_seconds=30, window_max_chars=100
+    )
     assert len(merged) == 2
     assert merged[0].speaker == "Bob"
     assert merged[1].speaker == "Alice"
@@ -76,7 +86,9 @@ def test_parse_transcript_text_to_segments() -> None:
 
 
 @pytest.mark.asyncio
-async def test_publish_video_url_ingress_bilibili(temp_structure: WikiStructure) -> None:
+async def test_publish_video_url_ingress_bilibili(
+    temp_structure: WikiStructure,
+) -> None:
     fake_doc = Document(
         page_content="00:00 Welcome to Bilibili course\n00:30 System architecture explanation",
         metadata={
@@ -107,7 +119,7 @@ async def test_publish_video_url_ingress_bilibili(temp_structure: WikiStructure)
     content = raw_path.read_text(encoding="utf-8")
     assert "Clean Architecture Lecture" in content
     assert "TechGuru" in content
-    assert "content_type: \"video\"" in content
+    assert 'content_type: "video"' in content
     assert "### [00:00 - 00:30]" in content or "### [00:00 -" in content
 
 
@@ -144,15 +156,21 @@ async def test_publish_video_url_ingress_youtube(temp_structure: WikiStructure) 
 
 
 @pytest.mark.asyncio
-async def test_publish_media_ingress_with_keyframes(temp_structure: WikiStructure) -> None:
+async def test_publish_media_ingress_with_keyframes(
+    temp_structure: WikiStructure,
+) -> None:
     fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
     request = MediaIngressRequest(
         title="Local Presentation",
         media_filename="presentation.mp4",
         duration_seconds=120.0,
         segments=(
-            MediaTranscriptSegment(start_seconds=0.0, end_seconds=15.0, text="Intro slide"),
-            MediaTranscriptSegment(start_seconds=15.0, end_seconds=60.0, text="Architecture diagram"),
+            MediaTranscriptSegment(
+                start_seconds=0.0, end_seconds=15.0, text="Intro slide"
+            ),
+            MediaTranscriptSegment(
+                start_seconds=15.0, end_seconds=60.0, text="Architecture diagram"
+            ),
         ),
         keyframes=(
             MediaKeyframe(

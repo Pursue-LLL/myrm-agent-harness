@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.parallel.summary import batch_summary, inject_capacity_signal
+from myrm_agent_harness.agent.parallel.summary import (
+    batch_summary,
+    inject_capacity_signal,
+)
 from myrm_agent_harness.agent.sub_agents.builder import _HANDOVER_PROTOCOL_PROMPT
 from myrm_agent_harness.agent.sub_agents.executor_helpers import _parse_handover_state
-from myrm_agent_harness.agent.sub_agents.handover import AgentHandoverState, HandoffFinding
+from myrm_agent_harness.agent.sub_agents.handover import (
+    AgentHandoverState,
+    HandoffFinding,
+)
 from myrm_agent_harness.agent.sub_agents.notifications import format_notification
 from myrm_agent_harness.agent.sub_agents.types import (
     DELEGATION_CAPABILITY_MANIFEST,
@@ -112,7 +118,10 @@ End of execution.
     assert parsed.citations == ["https://oauth.net/2/"]
     assert parsed.artifact_refs == ["vault://auth_patch.diff"]
     assert parsed.context_artifacts == ["configs/auth_jwt.json"]
-    assert parsed.task_completed == ["Token generator implemented", "Expired token revocation added"]
+    assert parsed.task_completed == [
+        "Token generator implemented",
+        "Expired token revocation added",
+    ]
     assert parsed.pending_todos == ["Add unit tests for refresh endpoint"]
 
 
@@ -171,9 +180,18 @@ def test_batch_summary_aggregates_structured_handoff() -> None:
             "agent_type": "security_scanner",
             "handover_state": {
                 "summary": "Worker 1 done",
-                "findings": [{"finding": "Finding 1", "evidence": "file1.py:1", "confidence": "high"}],
+                "findings": [
+                    {
+                        "finding": "Finding 1",
+                        "evidence": "file1.py:1",
+                        "confidence": "high",
+                    }
+                ],
                 "artifact_refs": ["vault://ref1.md"],
-                "citations": ["https://example.com/cwe-89", "https://example.com/shared"],
+                "citations": [
+                    "https://example.com/cwe-89",
+                    "https://example.com/shared",
+                ],
             },
         },
         {
@@ -182,7 +200,13 @@ def test_batch_summary_aggregates_structured_handoff() -> None:
             "agent_type": "linter",
             "handover_state": {
                 "summary": "Worker 2 done",
-                "findings": [{"finding": "Finding 2", "evidence": "file2.py:2", "confidence": "medium"}],
+                "findings": [
+                    {
+                        "finding": "Finding 2",
+                        "evidence": "file2.py:2",
+                        "confidence": "medium",
+                    }
+                ],
                 "artifact_refs": ["vault://ref2.md"],
                 "citations": ["https://example.com/shared", "https://example.com/pep8"],
             },
@@ -258,10 +282,16 @@ def test_format_notification_prioritizes_handover_summary_and_findings() -> None
     )
 
     notif = format_notification(result)
-    assert "[Subagent 'security_reviewer' (task_id=task_audit_1) completed successfully] (3.2s)" in notif
+    assert (
+        "[Subagent 'security_reviewer' (task_id=task_audit_1) completed successfully] (3.2s)"
+        in notif
+    )
     assert "Summary:\nFound 1 SQL injection vulnerability in user login path." in notif
     assert "Result:" not in notif
-    assert "Key Findings:\n - [HIGH] Unsanitized input in query (evidence: auth/login.py:42)" in notif
+    assert (
+        "Key Findings:\n - [HIGH] Unsanitized input in query (evidence: auth/login.py:42)"
+        in notif
+    )
     assert "Citations:\n - https://cwe.mitre.org/data/definitions/89.html" in notif
     assert "Artifacts:\n - vault://reports/audit_2026.md" in notif
     assert "Completed:\n - Static AST scan\n - Taint analysis" in notif
@@ -310,7 +340,9 @@ def test_inject_capacity_signal_success_and_exception() -> None:
 
     # Exception path fallback
     broken_parent = MagicMock()
-    broken_parent._subagent_manager.get_capacity_snapshot.side_effect = RuntimeError("unavailable")
+    broken_parent._subagent_manager.get_capacity_snapshot.side_effect = RuntimeError(
+        "unavailable"
+    )
     fallback_res = inject_capacity_signal({"success": True}, broken_parent)
     assert "system_state" not in fallback_res
 
@@ -327,7 +359,11 @@ def test_batch_summary_status_branches_and_failure_reasons() -> None:
     assert summary_failed["status"] == "failed"
     assert summary_failed["completed_count"] == 0
     assert summary_failed["failed_count"] == 3
-    assert summary_failed["failure_reasons"] == ["ConnectionRefused", "ResourceExhausted", "unknown_failure"]
+    assert summary_failed["failure_reasons"] == [
+        "ConnectionRefused",
+        "ResourceExhausted",
+        "unknown_failure",
+    ]
     assert summary_failed["partial_success"] is False
 
     # All success without handover
@@ -345,6 +381,3 @@ def test_batch_summary_status_branches_and_failure_reasons() -> None:
     assert "all_artifact_refs" not in summary_success
     assert "all_citations" not in summary_success
     assert "all_findings" not in summary_success
-
-
-

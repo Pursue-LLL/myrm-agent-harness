@@ -49,7 +49,10 @@ def test_convert_to_mcp_content_dict_and_objects() -> None:
     assert getattr(result[0], "text", None) == "Snapshot text"
     assert result[1].type == "image"
     assert getattr(result[1], "data", None) == "base64data"
-    assert getattr(result[1], "mimeType", getattr(result[1], "mime_type", None)) == "image/png"
+    assert (
+        getattr(result[1], "mimeType", getattr(result[1], "mime_type", None))
+        == "image/png"
+    )
 
 
 def test_desktop_mcp_server_init() -> None:
