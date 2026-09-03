@@ -90,6 +90,7 @@ __all__ = [
     "SkillAgent",
     "SkillBackend",
     "SkillRescanResult",
+    "SourceClaim",
     "SpendControlConfig",
     "SpendInterventionDecision",
     "SpendInterventionTier",
@@ -389,6 +390,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.backends.skills.scanning.rescan_engine",
         "SkillRescanResult",
     ),
+    "SourceClaim": (
+        "myrm_agent_harness.core.artifacts.fact_check",
+        "SourceClaim",
+    ),
     "SynthesizedSkillDraft": (
         "myrm_agent_harness.toolkits.computer_use.recording",
         "SynthesizedSkillDraft",
@@ -504,6 +509,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "route_task_specialty",
     ),
     "set_workspace_root": ("myrm_agent_harness.api.hooks", "set_workspace_root"),
+    "SourceClaim": (
+        "myrm_agent_harness.core.artifacts.fact_check",
+        "SourceClaim",
+    ),
     "synthesize_desktop_skill_draft": (
         "myrm_agent_harness.toolkits.computer_use.recording",
         "synthesize_desktop_skill_draft",
