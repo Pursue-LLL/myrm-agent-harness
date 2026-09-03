@@ -844,9 +844,7 @@ async def test_sandbox_and_state_assertions_execute(tmp_path, monkeypatch) -> No
     sandbox.bind_workspace(str(tmp_path))
 
     class SandboxCapableExecutor(MockExecutor):
-        def get_sandbox_executor(
-            self, session_id: str | None = None
-        ) -> LocalExecutor:
+        def get_sandbox_executor(self, session_id: str | None = None) -> LocalExecutor:
             return sandbox
 
     runner = EvalRunner(

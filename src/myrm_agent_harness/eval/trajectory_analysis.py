@@ -127,7 +127,7 @@ def analyze_turn_failure_mode(turn: EvalTurnResult) -> TrajectoryFailureAnalysis
         )
 
     # 3. Execution Timeout
-    if "timeout" in error_str or "timed out" in details_str:
+    if "timeout" in error_str or "timeout" in details_str or "timed out" in details_str:
         return TrajectoryFailureAnalysis(
             failure_mode=FailureMode.EXECUTION_TIMEOUT,
             root_cause="Tool command or test suite execution timed out",

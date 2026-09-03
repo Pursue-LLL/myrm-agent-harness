@@ -82,26 +82,38 @@ async def test_desktop_tools_execution_with_session() -> None:
     assert "desktop_vision_tool" in tool_map
 
     # Test invoking snapshot tool
-    snapshot_res = await server.mcp.call_tool("desktop_snapshot_tool", {"scope": "foreground"})
+    snapshot_res = await server.mcp.call_tool(
+        "desktop_snapshot_tool", {"scope": "foreground"}
+    )
     assert len(snapshot_res.content) == 1
     assert snapshot_res.content[0].type == "text"
     assert getattr(snapshot_res.content[0], "text", None) == "Window tree AX"
-    mock_session.desktop_snapshot.assert_awaited_once_with(scope="foreground", app_name=None, include_screenshot=False)
+    mock_session.desktop_snapshot.assert_awaited_once_with(
+        scope="foreground", app_name=None, include_screenshot=False
+    )
 
     # Test invoking interact tool
-    interact_res = await server.mcp.call_tool("desktop_interact_tool", {"ref": "@d1", "action": "click"})
+    interact_res = await server.mcp.call_tool(
+        "desktop_interact_tool", {"ref": "@d1", "action": "click"}
+    )
     assert len(interact_res.content) == 1
     assert getattr(interact_res.content[0], "text", None) == "Clicked button"
-    mock_session.desktop_interact.assert_awaited_once_with(ref="@d1", action="click", text="", modifiers=None)
+    mock_session.desktop_interact.assert_awaited_once_with(
+        ref="@d1", action="click", text="", modifiers=None
+    )
 
     # Test invoking vision tool (capture)
-    vision_cap_res = await server.mcp.call_tool("desktop_vision_tool", {"action": "capture"})
+    vision_cap_res = await server.mcp.call_tool(
+        "desktop_vision_tool", {"action": "capture"}
+    )
     assert len(vision_cap_res.content) == 1
     assert getattr(vision_cap_res.content[0], "text", None) == "Screenshot captured"
     mock_session.desktop_vision_capture.assert_awaited_once()
 
     # Test invoking vision tool (action)
-    vision_act_res = await server.mcp.call_tool("desktop_vision_tool", {"action": "left_click", "coordinate": [100, 200]})
+    vision_act_res = await server.mcp.call_tool(
+        "desktop_vision_tool", {"action": "left_click", "coordinate": [100, 200]}
+    )
     assert len(vision_act_res.content) == 1
     assert getattr(vision_act_res.content[0], "text", None) == "Left clicked"
     mock_session.desktop_vision_action.assert_awaited_once()
@@ -114,19 +126,30 @@ async def test_desktop_tools_execution_without_session() -> None:
 
     snapshot_res = await server.mcp.call_tool("desktop_snapshot_tool", {})
     assert len(snapshot_res.content) == 1
-    assert "Error: Desktop control session is unavailable" in getattr(snapshot_res.content[0], "text", "")
+    assert "Error: Desktop control session is unavailable" in getattr(
+        snapshot_res.content[0], "text", ""
+    )
 
-    interact_res = await server.mcp.call_tool("desktop_interact_tool", {"ref": "@d1", "action": "click"})
+    interact_res = await server.mcp.call_tool(
+        "desktop_interact_tool", {"ref": "@d1", "action": "click"}
+    )
     assert len(interact_res.content) == 1
-    assert "Error: Desktop control session is unavailable" in getattr(interact_res.content[0], "text", "")
+    assert "Error: Desktop control session is unavailable" in getattr(
+        interact_res.content[0], "text", ""
+    )
 
-    vision_res = await server.mcp.call_tool("desktop_vision_tool", {"action": "capture"})
+    vision_res = await server.mcp.call_tool(
+        "desktop_vision_tool", {"action": "capture"}
+    )
     assert len(vision_res.content) == 1
-    assert "Error: Desktop control session is unavailable" in getattr(vision_res.content[0], "text", "")
+    assert "Error: Desktop control session is unavailable" in getattr(
+        vision_res.content[0], "text", ""
+    )
 
 
 def test_convert_to_mcp_content_object_fallbacks() -> None:
     """Test _convert_to_mcp_content fallback branches."""
+
     class TextObj:
         text = "obj text"
 

@@ -32,14 +32,21 @@ def salvage_engine() -> SQLiteRowidSalvageEngine:
     return SQLiteRowidSalvageEngine(chunk_size=50)
 
 
-def test_salvage_healthy_database(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_healthy_database(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "healthy.db"
     dst_db = tmp_path / "recovered.db"
 
     with open_db(src_db) as conn:
-        conn.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT);")
+        conn.execute(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT);"
+        )
         for i in range(1, 101):
-            conn.execute("INSERT INTO users VALUES (?, ?, ?);", (i, f"user_{i}", f"user_{i}@example.com"))
+            conn.execute(
+                "INSERT INTO users VALUES (?, ?, ?);",
+                (i, f"user_{i}", f"user_{i}@example.com"),
+            )
 
     inspection = salvage_engine.inspect_database(src_db)
     assert inspection["readable"] is True
@@ -58,7 +65,9 @@ def test_salvage_healthy_database(tmp_path: Path, salvage_engine: SQLiteRowidSal
         assert check == "ok"
 
 
-def test_salvage_corrupted_btree_page(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_corrupted_btree_page(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "corrupted.db"
     dst_db = tmp_path / "recovered.db"
 
@@ -71,7 +80,12 @@ def test_salvage_corrupted_btree_page(tmp_path: Path, salvage_engine: SQLiteRowi
         for i in range(1, 501):
             conn.execute(
                 "INSERT INTO messages VALUES (?, ?, ?, ?);",
-                (i, f"chat_{i % 10}", f"Message content payload for item {i}" * 10, "2026-09-03 10:00:00"),
+                (
+                    i,
+                    f"chat_{i % 10}",
+                    f"Message content payload for item {i}" * 10,
+                    "2026-09-03 10:00:00",
+                ),
             )
 
     # Corrupt a single 4KB page in the middle of the database file
@@ -102,7 +116,9 @@ def test_salvage_corrupted_btree_page(tmp_path: Path, salvage_engine: SQLiteRowi
         assert rec_count == result.total_recovered_rows
 
 
-def test_salvage_without_rowid_table(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_without_rowid_table(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "without_rowid.db"
     dst_db = tmp_path / "recovered.db"
 
@@ -123,7 +139,9 @@ def test_salvage_without_rowid_table(tmp_path: Path, salvage_engine: SQLiteRowid
         assert count == 50
 
 
-def test_salvage_orphan_session_reconstruction(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_orphan_session_reconstruction(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "relational.db"
     dst_db = tmp_path / "recovered.db"
 
@@ -154,11 +172,19 @@ def test_salvage_orphan_session_reconstruction(tmp_path: Path, salvage_engine: S
             """
         )
         # 1 normal chat
-        conn.execute("INSERT INTO chats (id, title) VALUES ('chat-parent-1', 'Parent 1');")
-        conn.execute("INSERT INTO messages (id, chat_id, content, created_at) VALUES (1, 'chat-parent-1', 'msg 1', '2026-09-03 10:00:00');")
+        conn.execute(
+            "INSERT INTO chats (id, title) VALUES ('chat-parent-1', 'Parent 1');"
+        )
+        conn.execute(
+            "INSERT INTO messages (id, chat_id, content, created_at) VALUES (1, 'chat-parent-1', 'msg 1', '2026-09-03 10:00:00');"
+        )
         # 2 orphaned messages whose chat parent is missing (e.g. destroyed in corrupted page)
-        conn.execute("INSERT INTO messages (id, chat_id, content, created_at) VALUES (2, 'chat-orphan-99', 'orphan msg A', '2026-09-03 10:05:00');")
-        conn.execute("INSERT INTO messages (id, chat_id, content, created_at) VALUES (3, 'chat-orphan-99', 'orphan msg B', '2026-09-03 10:06:00');")
+        conn.execute(
+            "INSERT INTO messages (id, chat_id, content, created_at) VALUES (2, 'chat-orphan-99', 'orphan msg A', '2026-09-03 10:05:00');"
+        )
+        conn.execute(
+            "INSERT INTO messages (id, chat_id, content, created_at) VALUES (3, 'chat-orphan-99', 'orphan msg B', '2026-09-03 10:06:00');"
+        )
 
     result = salvage_engine.salvage_database(src_db, dst_db)
     assert result.success is True
@@ -169,18 +195,24 @@ def test_salvage_orphan_session_reconstruction(tmp_path: Path, salvage_engine: S
         fk_check = conn.execute("PRAGMA foreign_key_check;").fetchall()
         assert len(fk_check) == 0, f"Foreign key violations found: {fk_check}"
 
-        stub_chat = conn.execute("SELECT id, title FROM chats WHERE id = 'chat-orphan-99';").fetchone()
+        stub_chat = conn.execute(
+            "SELECT id, title FROM chats WHERE id = 'chat-orphan-99';"
+        ).fetchone()
         assert stub_chat is not None
         assert "Recovered Session" in stub_chat[1]
 
 
-def test_salvage_fts_virtual_table(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_fts_virtual_table(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "fts.db"
     dst_db = tmp_path / "recovered.db"
 
     with open_db(src_db) as conn:
         conn.execute("CREATE TABLE docs (id INTEGER PRIMARY KEY, body TEXT);")
-        conn.execute("CREATE VIRTUAL TABLE docs_fts USING fts5(body, content='docs', content_rowid='id');")
+        conn.execute(
+            "CREATE VIRTUAL TABLE docs_fts USING fts5(body, content='docs', content_rowid='id');"
+        )
         conn.execute("INSERT INTO docs VALUES (1, 'Hello world sqlite salvage');")
         conn.execute("INSERT INTO docs VALUES (2, 'Agent harness durability');")
         conn.execute("INSERT INTO docs_fts(docs_fts) VALUES('rebuild');")
@@ -190,22 +222,32 @@ def test_salvage_fts_virtual_table(tmp_path: Path, salvage_engine: SQLiteRowidSa
     assert "docs_fts" in result.fts_rebuilt
 
     with open_db(dst_db) as conn:
-        res = conn.execute("SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'salvage';").fetchall()
+        res = conn.execute(
+            "SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'salvage';"
+        ).fetchall()
         assert len(res) == 1
         assert res[0][0] == 1
 
 
-def test_salvage_secondary_indexes_and_views(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_secondary_indexes_and_views(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "indexes_views.db"
     dst_db = tmp_path / "recovered.db"
 
     with open_db(src_db) as conn:
-        conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, category TEXT, score REAL);")
+        conn.execute(
+            "CREATE TABLE items (id INTEGER PRIMARY KEY, category TEXT, score REAL);"
+        )
         conn.execute("CREATE INDEX idx_items_category ON items(category);")
         conn.execute("CREATE INDEX idx_items_score ON items(score DESC);")
-        conn.execute("CREATE VIEW v_top_items AS SELECT id, category FROM items WHERE score > 80.0;")
+        conn.execute(
+            "CREATE VIEW v_top_items AS SELECT id, category FROM items WHERE score > 80.0;"
+        )
         for i in range(1, 101):
-            conn.execute("INSERT INTO items VALUES (?, ?, ?);", (i, f"cat_{i % 5}", float(i)))
+            conn.execute(
+                "INSERT INTO items VALUES (?, ?, ?);", (i, f"cat_{i % 5}", float(i))
+            )
 
     result = salvage_engine.salvage_database(src_db, dst_db)
     assert result.success is True
@@ -215,12 +257,16 @@ def test_salvage_secondary_indexes_and_views(tmp_path: Path, salvage_engine: SQL
 
     with open_db(dst_db) as conn:
         # Verify indexes exist and are valid
-        indexes = [row[1] for row in conn.execute("PRAGMA index_list('items');").fetchall()]
+        indexes = [
+            row[1] for row in conn.execute("PRAGMA index_list('items');").fetchall()
+        ]
         assert "idx_items_category" in indexes
         assert "idx_items_score" in indexes
 
         # Verify EXPLAIN QUERY PLAN uses index
-        plan = conn.execute("EXPLAIN QUERY PLAN SELECT * FROM items WHERE category = 'cat_1';").fetchall()
+        plan = conn.execute(
+            "EXPLAIN QUERY PLAN SELECT * FROM items WHERE category = 'cat_1';"
+        ).fetchall()
         plan_str = " ".join(str(p) for p in plan)
         assert "USING INDEX idx_items_category" in plan_str
 
@@ -229,7 +275,9 @@ def test_salvage_secondary_indexes_and_views(tmp_path: Path, salvage_engine: SQL
         assert view_count == 20  # items 81 to 100
 
 
-def test_salvage_nonexistent_database(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_nonexistent_database(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     non_existent = tmp_path / "ghost.db"
     dst_db = tmp_path / "out.db"
 
@@ -243,7 +291,9 @@ def test_salvage_nonexistent_database(tmp_path: Path, salvage_engine: SQLiteRowi
     assert inspection["readable"] is False
 
 
-def test_salvage_direct_mode_and_cleanup(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_direct_mode_and_cleanup(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "direct_src.db"
     dst_db = tmp_path / "direct_dst.db"
 
@@ -263,7 +313,9 @@ def test_salvage_direct_mode_and_cleanup(tmp_path: Path, salvage_engine: SQLiteR
     assert result2.total_recovered_rows == 1
 
 
-def test_salvage_empty_table_and_bounds_fallback(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_empty_table_and_bounds_fallback(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "empty.db"
     dst_db = tmp_path / "empty_out.db"
 
@@ -284,7 +336,9 @@ def test_salvage_empty_table_and_bounds_fallback(tmp_path: Path, salvage_engine:
     assert "error" in str(corrupt_insp["quick_check"])
 
 
-def test_salvage_table_error_branches(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_table_error_branches(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "bad_schema_src.db"
     dst_db = tmp_path / "bad_schema_dst.db"
 
@@ -308,7 +362,9 @@ def test_salvage_table_error_branches(tmp_path: Path, salvage_engine: SQLiteRowi
         assert st2.status in ("empty", "ok")
 
 
-def test_salvage_partial_bounds_and_recovery(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_partial_bounds_and_recovery(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "bounds.db"
     dst_db = tmp_path / "bounds_out.db"
 
@@ -374,7 +430,9 @@ def test_salvage_partial_bounds_and_recovery(tmp_path: Path, salvage_engine: SQL
         assert st_single.recovered_rows == 1
 
 
-def test_salvage_without_rowid_cursor_error_and_bounds_edge(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_without_rowid_cursor_error_and_bounds_edge(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     src_db = tmp_path / "edge_src.db"
     dst_db = tmp_path / "edge_dst.db"
 
@@ -412,7 +470,9 @@ def test_salvage_without_rowid_cursor_error_and_bounds_edge(tmp_path: Path, salv
 
         # Test index/view recreation error fallback branch
         mock_idx_views = {"invalid_index": "CREATE INDEX bad_syntax on unknown_table;"}
-        mock_views = {"invalid_view": "CREATE VIEW bad_view AS SELECT * FROM ghost_table;"}
+        mock_views = {
+            "invalid_view": "CREATE VIEW bad_view AS SELECT * FROM ghost_table;"
+        }
         for idx_name, idx_sql in mock_idx_views.items():
             try:
                 d.execute(idx_sql)
@@ -429,7 +489,9 @@ def test_salvage_without_rowid_cursor_error_and_bounds_edge(tmp_path: Path, salv
         assert min_f is None and max_f is None
 
 
-def test_salvage_execute_failure_recovery(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+def test_salvage_execute_failure_recovery(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     # Test _execute_salvage when source cannot be opened as SQLite db
     bad_file = tmp_path / "not_a_dir"
     bad_file.mkdir()
@@ -468,8 +530,12 @@ def test_salvage_execute_failure_recovery(tmp_path: Path, salvage_engine: SQLite
 
     with open_db(mock_src) as conn:
         conn.execute("CREATE TABLE chats (id TEXT PRIMARY KEY, title TEXT);")
-        conn.execute("CREATE TABLE messages (id INT PRIMARY KEY, chat_id TEXT, created_at TEXT);")
-        conn.execute("INSERT INTO messages VALUES (1, 'orphan_x', '2026-09-03 10:00:00');")
+        conn.execute(
+            "CREATE TABLE messages (id INT PRIMARY KEY, chat_id TEXT, created_at TEXT);"
+        )
+        conn.execute(
+            "INSERT INTO messages VALUES (1, 'orphan_x', '2026-09-03 10:00:00');"
+        )
         cnt = salvage_engine._reconstruct_orphans(conn)
         assert cnt == 1
 
@@ -483,7 +549,10 @@ def test_salvage_execute_failure_recovery(tmp_path: Path, salvage_engine: SQLite
         cols = salvage_engine._get_column_names(conn, "chats")
         assert "id" in cols and "title" in cols
 
-def test_salvage_fts_error_handling(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+
+def test_salvage_fts_error_handling(
+    tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine
+) -> None:
     # Test FTS and index error handling branch during _execute_salvage
     test_src = tmp_path / "fts_err_src.db"
     test_dst = tmp_path / "fts_err_dst.db"

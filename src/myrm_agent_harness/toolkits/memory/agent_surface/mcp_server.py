@@ -278,7 +278,9 @@ class MemoryMCPServer:
             parsed_cats = _parse_string_list(categories)
             types: list[MemoryType] | None = None
             if parsed_cats:
-                valid = [_CATEGORY_TO_TYPE[c] for c in parsed_cats if c in _CATEGORY_TO_TYPE]
+                valid = [
+                    _CATEGORY_TO_TYPE[c] for c in parsed_cats if c in _CATEGORY_TO_TYPE
+                ]
                 types = valid or None
 
             parsed_since = _parse_time_bound(since)
@@ -293,13 +295,20 @@ class MemoryMCPServer:
                 until=parsed_until,
             )
             if not results:
-                if mgr.last_retrieval_trace is not None and mgr.last_retrieval_trace.degraded:
-                    return "Memory search timed out. Try a more specific query or retry."
+                if (
+                    mgr.last_retrieval_trace is not None
+                    and mgr.last_retrieval_trace.degraded
+                ):
+                    return (
+                        "Memory search timed out. Try a more specific query or retry."
+                    )
                 return "No relevant memories found."
 
             output: list[str] = []
             max_body_chars = (
-                MAX_RECALL_OUTPUT_CHARS - recall_drift_defense_footer_chars() - recall_preamble_overhead_chars()
+                MAX_RECALL_OUTPUT_CHARS
+                - recall_drift_defense_footer_chars()
+                - recall_preamble_overhead_chars()
             )
             output_chars = 0
             truncated_by_budget = False
@@ -312,14 +321,22 @@ class MemoryMCPServer:
                 mem = r.memory
                 age = memory_age_label(mem.created_at)
                 provenance = _channel_label(mem.scope.channel_id)
-                prefix = f"{provenance}[{cat}] (id: {mem.id}, score: {r.score:.2f}, {age}) "
+                prefix = (
+                    f"{provenance}[{cat}] (id: {mem.id}, score: {r.score:.2f}, {age}) "
+                )
                 suffix = ""
                 if isinstance(mem, ClaimMemory):
                     freshness = mem.freshness
                     contradiction = mem.contradiction_status
                     evidence_count = mem.evidence_count
-                    relation_type = str(mem.metadata.get("latest_relationship_type", "")).strip().lower()
-                    relation_suffix = f" relation={relation_type}" if relation_type else ""
+                    relation_type = (
+                        str(mem.metadata.get("latest_relationship_type", ""))
+                        .strip()
+                        .lower()
+                    )
+                    relation_suffix = (
+                        f" relation={relation_type}" if relation_type else ""
+                    )
                     suffix += (
                         f" [claim_graph freshness={freshness} contradiction={contradiction} "
                         f"evidence={evidence_count}{relation_suffix}]"
@@ -442,7 +459,9 @@ class MemoryMCPServer:
                 snippet = safe_content[:80] + ("…" if len(safe_content) > 80 else "")
                 lines.append(f"  - [{age}] (id: {mem.id}) {snippet}")
             if count > preview_limit:
-                lines.append(f'  ... and {count - preview_limit} more — use memory_list(category="{cat}") to browse')
+                lines.append(
+                    f'  ... and {count - preview_limit} more — use memory_list(category="{cat}") to browse'
+                )
 
         lines.insert(1, f"Total memories: {total}")
         lines.append("")
@@ -478,7 +497,11 @@ class MemoryMCPServer:
             f"# {category} — page {page}/{total_pages} ({count} total)",
             "",
         ]
-        max_body = MAX_RECALL_OUTPUT_CHARS - recall_drift_defense_footer_chars() - recall_preamble_overhead_chars()
+        max_body = (
+            MAX_RECALL_OUTPUT_CHARS
+            - recall_drift_defense_footer_chars()
+            - recall_preamble_overhead_chars()
+        )
         char_count = sum(line_cost(ln) for ln in lines)
         truncated = False
 
@@ -500,7 +523,9 @@ class MemoryMCPServer:
             truncated = truncated or budgeted.truncated
 
         if truncated:
-            lines.append("[list_budget] Some entries truncated. Reduce page_size for full content.")
+            lines.append(
+                "[list_budget] Some entries truncated. Reduce page_size for full content."
+            )
 
         if page < total_pages:
             lines.append(f'\nNext: memory_list(category="{category}", page={page + 1})')
@@ -689,19 +714,29 @@ class MemoryMCPServer:
                             else mgr.config.episodic_collection
                         )
                         n = await mgr.delete_memory(coll, [memory_id])
-                        return f"Memory deleted (ID: {memory_id})" if n > 0 else f"Memory not found (ID: {memory_id})"
+                        return (
+                            f"Memory deleted (ID: {memory_id})"
+                            if n > 0
+                            else f"Memory not found (ID: {memory_id})"
+                        )
                     if mem_type == MemoryType.PROFILE:
                         return "Profile attributes cannot be deleted via memory_manage."
                     if mem_type == MemoryType.PROCEDURAL:
                         if not mgr.has_relational:
                             return "Procedural memory is not enabled."
                         ok = await mgr.delete_rule(memory_id)
-                        return f"Rule deleted (ID: {memory_id})" if ok else f"Rule not found (ID: {memory_id})"
+                        return (
+                            f"Rule deleted (ID: {memory_id})"
+                            if ok
+                            else f"Rule not found (ID: {memory_id})"
+                        )
 
                 if action == "update":
                     if not new_content:
                         return "Update requires 'new_content'."
-                    updated = await mgr.update_memory(memory_id, content=new_content, importance=new_importance)
+                    updated = await mgr.update_memory(
+                        memory_id, content=new_content, importance=new_importance
+                    )
                     return f"Memory updated (ID: {updated.id})"
 
                 if action == "correct":

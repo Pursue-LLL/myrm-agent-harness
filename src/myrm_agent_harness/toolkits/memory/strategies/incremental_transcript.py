@@ -195,7 +195,8 @@ class IncrementalTranscriptParser:
                             assistant_content="",
                             tool_names=[],
                             timestamp=str(
-                                extra_user.get("timestamp") or datetime.now(UTC).isoformat()
+                                extra_user.get("timestamp")
+                                or datetime.now(UTC).isoformat()
                             ),
                             session_id=session_id,
                         )
@@ -213,7 +214,8 @@ class IncrementalTranscriptParser:
                             assistant_content=a_text[:MAX_CONTENT_LENGTH],
                             tool_names=tools,
                             timestamp=str(
-                                extra_asst.get("timestamp") or datetime.now(UTC).isoformat()
+                                extra_asst.get("timestamp")
+                                or datetime.now(UTC).isoformat()
                             ),
                             session_id=session_id,
                         )

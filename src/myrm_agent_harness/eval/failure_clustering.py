@@ -35,8 +35,12 @@ if TYPE_CHECKING:
 class AddressabilityVerdict(enum.StrEnum):
     """Dual-axis addressability classification for failure signatures."""
 
-    ADDRESSABLE = "addressable"  # Fixable via harness middleware, tool binding, or policy
-    MODEL_LIMIT = "model_limit"  # Inherent model reasoning ceiling (route to stronger model)
+    ADDRESSABLE = (
+        "addressable"  # Fixable via harness middleware, tool binding, or policy
+    )
+    MODEL_LIMIT = (
+        "model_limit"  # Inherent model reasoning ceiling (route to stronger model)
+    )
     FLAKE = "flake"  # Transient timeout, rate limit, or environment instability
 
 
@@ -72,15 +76,32 @@ def sanitize_failure_fingerprint(raw_text: str) -> str:
 def extract_query_intent(message: str) -> str:
     """Heuristic intent domain (qi) extractor from case message."""
     msg = message.lower()
-    if any(k in msg for k in ("search", "find online", "http", "google", "fetch", "web")):
+    if any(
+        k in msg for k in ("search", "find online", "http", "google", "fetch", "web")
+    ):
         return "web_search"
     if any(k in msg for k in ("select ", "sql", "query", "database", "table")):
         return "sql_query"
-    if any(k in msg for k in ("def ", "class ", "python", "typescript", "code", "function", "bug", "fix")):
+    if any(
+        k in msg
+        for k in (
+            "def ",
+            "class ",
+            "python",
+            "typescript",
+            "code",
+            "function",
+            "bug",
+            "fix",
+        )
+    ):
         return "code_generation"
     if any(k in msg for k in ("math", "calculate", "prove", "theorem", "equation")):
         return "math_reasoning"
-    if any(k in msg for k in ("read file", "write file", "disk", "directory", "save", "delete")):
+    if any(
+        k in msg
+        for k in ("read file", "write file", "disk", "directory", "save", "delete")
+    ):
         return "file_io"
     return "general_task"
 
@@ -88,7 +109,9 @@ def extract_query_intent(message: str) -> str:
 def is_weak_model_tier(model_id: str) -> bool:
     """Determine if a model is in a compact/weak parameter tier."""
     m = model_id.lower()
-    return any(k in m for k in ("7b", "8b", "3b", "1.5b", "mini", "flash", "haiku", "small"))
+    return any(
+        k in m for k in ("7b", "8b", "3b", "1.5b", "mini", "flash", "haiku", "small")
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,7 +177,9 @@ class SignatureCluster:
             "affected_case_indices": list(self.affected_case_indices),
             "sample_messages": list(self.sample_messages),
             "remediation_hint": self.remediation_hint,
-            "patch_proposal": self.patch_proposal.to_dict() if self.patch_proposal else None,
+            "patch_proposal": (
+                self.patch_proposal.to_dict() if self.patch_proposal else None
+            ),
         }
 
 
@@ -236,7 +261,9 @@ def _derive_patch_and_verdict(
 
     # 5. Execution Timeout
     if sig.failure_mode == FailureMode.EXECUTION_TIMEOUT:
-        if any(term in ci_lower for term in ("rate limit", "503", "connection", "connect")):
+        if any(
+            term in ci_lower for term in ("rate limit", "503", "connection", "connect")
+        ):
             return (
                 AddressabilityVerdict.FLAKE,
                 "Transient network failure or upstream provider rate limit. Retry test without edits.",
@@ -298,7 +325,9 @@ def cluster_failure_signatures(
             continue
 
         # 1. Sanitize raw error string
-        raw_err = turn.error or turn.assertion_details or analysis.evidence_snippet or ""
+        raw_err = (
+            turn.error or turn.assertion_details or analysis.evidence_snippet or ""
+        )
         clean_ci = sanitize_failure_fingerprint(str(raw_err))
 
         # 2. Extract query intent

@@ -182,4 +182,3 @@ def test_cluster_failure_signatures_flake_and_fallback():
     verdicts = {c.verdict for c in clusters}
     assert AddressabilityVerdict.FLAKE in verdicts
     assert AddressabilityVerdict.ADDRESSABLE in verdicts
-

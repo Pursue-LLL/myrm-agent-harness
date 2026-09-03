@@ -186,7 +186,11 @@ class FourTierSpendControlEngine:
             return False
         with self._lock:
             self._active_soft_gate_bypasses[session_id] = bypass_token
-            logger.info("Soft gate confirmed for session %s with token %s", session_id, bypass_token)
+            logger.info(
+                "Soft gate confirmed for session %s with token %s",
+                session_id,
+                bypass_token,
+            )
             return True
 
     def approve_tier4_pause(self, session_id: str, approval_token: str) -> bool:
@@ -195,7 +199,11 @@ class FourTierSpendControlEngine:
             return False
         with self._lock:
             self._approved_tier4_sessions[session_id] = approval_token
-            logger.info("Tier 4 critical pause approved for session %s with token %s", session_id, approval_token)
+            logger.info(
+                "Tier 4 critical pause approved for session %s with token %s",
+                session_id,
+                approval_token,
+            )
             return True
 
     def record_fleet_spend(

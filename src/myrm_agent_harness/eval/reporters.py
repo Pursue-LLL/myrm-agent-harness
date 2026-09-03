@@ -158,15 +158,11 @@ class JsonlReporter:
                     recs = derive_ablation_recommendations(
                         failure_agg["failure_distribution"]
                     )
-                    summary["ablation_recommendations"] = [
-                        r.to_dict() for r in recs
-                    ]
+                    summary["ablation_recommendations"] = [r.to_dict() for r in recs]
                     from .failure_clustering import cluster_failure_signatures
 
                     sig_clusters = cluster_failure_signatures(result)
-                    summary["signature_clusters"] = [
-                        c.to_dict() for c in sig_clusters
-                    ]
+                    summary["signature_clusters"] = [c.to_dict() for c in sig_clusters]
             f.write(json.dumps(summary, ensure_ascii=False) + "\n")
             for line in turn_lines:
                 f.write(line + "\n")

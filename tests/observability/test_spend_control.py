@@ -12,9 +12,13 @@ from myrm_agent_harness.observability.spend_control import (
 
 
 def test_spend_control_normal_allowance():
-    engine = FourTierSpendControlEngine(SpendControlConfig(tier1_ratio=0.70, tier2_ratio=0.90))
+    engine = FourTierSpendControlEngine(
+        SpendControlConfig(tier1_ratio=0.70, tier2_ratio=0.90)
+    )
     # $5 spend on $10 limit = 50% (< 70%)
-    decision = engine.evaluate(current_spend_usd=5.0, quota_limit_usd=10.0, session_id="sess_1")
+    decision = engine.evaluate(
+        current_spend_usd=5.0, quota_limit_usd=10.0, session_id="sess_1"
+    )
 
     assert decision.tier == SpendInterventionTier.TIER_1_VISIBILITY
     assert decision.action == InterventionAction.ALLOW
@@ -23,9 +27,13 @@ def test_spend_control_normal_allowance():
 
 
 def test_tier_1_visibility_and_downgrade_recommendation():
-    engine = FourTierSpendControlEngine(SpendControlConfig(tier1_ratio=0.70, tier2_ratio=0.90))
+    engine = FourTierSpendControlEngine(
+        SpendControlConfig(tier1_ratio=0.70, tier2_ratio=0.90)
+    )
     # $7.5 spend on $10 limit = 75% (>= 70% and < 90%)
-    decision = engine.evaluate(current_spend_usd=7.5, quota_limit_usd=10.0, session_id="sess_2")
+    decision = engine.evaluate(
+        current_spend_usd=7.5, quota_limit_usd=10.0, session_id="sess_2"
+    )
 
     assert decision.tier == SpendInterventionTier.TIER_1_VISIBILITY
     assert decision.action == InterventionAction.RECOMMEND_DOWNGRADE
@@ -35,9 +43,13 @@ def test_tier_1_visibility_and_downgrade_recommendation():
 
 
 def test_tier_2_soft_gate_and_self_confirmation_bypass():
-    engine = FourTierSpendControlEngine(SpendControlConfig(tier2_ratio=0.90, tier3_ratio=1.00))
+    engine = FourTierSpendControlEngine(
+        SpendControlConfig(tier2_ratio=0.90, tier3_ratio=1.00)
+    )
     # $9.5 spend on $10 limit = 95% (>= 90% and < 100%)
-    decision1 = engine.evaluate(current_spend_usd=9.5, quota_limit_usd=10.0, session_id="sess_3")
+    decision1 = engine.evaluate(
+        current_spend_usd=9.5, quota_limit_usd=10.0, session_id="sess_3"
+    )
 
     assert decision1.tier == SpendInterventionTier.TIER_2_SOFT_GATE
     assert decision1.action == InterventionAction.REQUIRE_CONFIRMATION
@@ -45,11 +57,15 @@ def test_tier_2_soft_gate_and_self_confirmation_bypass():
     assert decision1.bypass_token is not None
 
     # Developer self-confirms the soft gate
-    success = engine.confirm_soft_gate(session_id="sess_3", bypass_token=decision1.bypass_token)
+    success = engine.confirm_soft_gate(
+        session_id="sess_3", bypass_token=decision1.bypass_token
+    )
     assert success is True
 
     # Re-evaluate session: should now be unblocked
-    decision2 = engine.evaluate(current_spend_usd=9.5, quota_limit_usd=10.0, session_id="sess_3")
+    decision2 = engine.evaluate(
+        current_spend_usd=9.5, quota_limit_usd=10.0, session_id="sess_3"
+    )
     assert decision2.tier == SpendInterventionTier.TIER_2_SOFT_GATE
     assert decision2.action == InterventionAction.ALLOW
     assert not decision2.is_blocked
@@ -58,10 +74,14 @@ def test_tier_2_soft_gate_and_self_confirmation_bypass():
 
 def test_tier_3_seamless_auto_downgrade_to_economy_model():
     engine = FourTierSpendControlEngine(
-        SpendControlConfig(tier3_ratio=1.00, tier4_ratio=1.30, downgrade_model_id="claude-3-5-haiku")
+        SpendControlConfig(
+            tier3_ratio=1.00, tier4_ratio=1.30, downgrade_model_id="claude-3-5-haiku"
+        )
     )
     # $11.0 spend on $10 limit = 110% (>= 100% and < 130%)
-    decision = engine.evaluate(current_spend_usd=11.0, quota_limit_usd=10.0, session_id="sess_4")
+    decision = engine.evaluate(
+        current_spend_usd=11.0, quota_limit_usd=10.0, session_id="sess_4"
+    )
 
     assert decision.tier == SpendInterventionTier.TIER_3_AUTO_DOWNGRADE
     assert decision.action == InterventionAction.SWITCH_MODEL
@@ -73,7 +93,9 @@ def test_tier_3_seamless_auto_downgrade_to_economy_model():
 def test_tier_4_critical_pause_and_admin_approval():
     engine = FourTierSpendControlEngine(SpendControlConfig(tier4_ratio=1.30))
     # $14.0 spend on $10 limit = 140% (>= 130%)
-    decision1 = engine.evaluate(current_spend_usd=14.0, quota_limit_usd=10.0, session_id="sess_5")
+    decision1 = engine.evaluate(
+        current_spend_usd=14.0, quota_limit_usd=10.0, session_id="sess_5"
+    )
 
     assert decision1.tier == SpendInterventionTier.TIER_4_CRITICAL_PAUSE
     assert decision1.action == InterventionAction.PAUSE_FOR_APPROVAL
@@ -81,11 +103,15 @@ def test_tier_4_critical_pause_and_admin_approval():
     assert decision1.approval_token is not None
 
     # Admin executive override sign-off
-    appr_ok = engine.approve_tier4_pause(session_id="sess_5", approval_token=decision1.approval_token)
+    appr_ok = engine.approve_tier4_pause(
+        session_id="sess_5", approval_token=decision1.approval_token
+    )
     assert appr_ok is True
 
     # Re-evaluate session after override
-    decision2 = engine.evaluate(current_spend_usd=14.0, quota_limit_usd=10.0, session_id="sess_5")
+    decision2 = engine.evaluate(
+        current_spend_usd=14.0, quota_limit_usd=10.0, session_id="sess_5"
+    )
     assert decision2.tier == SpendInterventionTier.TIER_4_CRITICAL_PAUSE
     assert decision2.action == InterventionAction.ALLOW
     assert not decision2.is_blocked

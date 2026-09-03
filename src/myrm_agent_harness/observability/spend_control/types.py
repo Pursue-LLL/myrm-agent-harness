@@ -26,31 +26,43 @@ from enum import StrEnum
 class SpendInterventionTier(StrEnum):
     """The four progressive tiers of spend control and soft quota intervention."""
 
-    TIER_1_VISIBILITY = "tier_1_visibility"        # Real-time visibility & model downgrade recommendation
-    TIER_2_SOFT_GATE = "tier_2_soft_gate"          # Soft spend gate: one-click self-confirmation to proceed
-    TIER_3_AUTO_DOWNGRADE = "tier_3_auto_downgrade"# Automatic seamless fallback to economy/efficient model
-    TIER_4_CRITICAL_PAUSE = "tier_4_critical_pause"# High-risk safety pause with approval link generation
+    TIER_1_VISIBILITY = (
+        "tier_1_visibility"  # Real-time visibility & model downgrade recommendation
+    )
+    TIER_2_SOFT_GATE = (
+        "tier_2_soft_gate"  # Soft spend gate: one-click self-confirmation to proceed
+    )
+    TIER_3_AUTO_DOWNGRADE = "tier_3_auto_downgrade"  # Automatic seamless fallback to economy/efficient model
+    TIER_4_CRITICAL_PAUSE = (
+        "tier_4_critical_pause"  # High-risk safety pause with approval link generation
+    )
 
 
 class InterventionAction(StrEnum):
     """Specific enforcement or guidance action resulting from tier evaluation."""
 
-    ALLOW = "allow"                                # Normal execution allowed without intervention
-    RECOMMEND_DOWNGRADE = "recommend_downgrade"    # Display warning & cost-saving suggestion
-    REQUIRE_CONFIRMATION = "require_confirmation"  # Soft gate: wait for developer confirmation token
-    SWITCH_MODEL = "switch_model"                  # Switch to economy model seamlessly
-    PAUSE_FOR_APPROVAL = "pause_for_approval"      # Suspend session and require manager/admin sign-off
+    ALLOW = "allow"  # Normal execution allowed without intervention
+    RECOMMEND_DOWNGRADE = (
+        "recommend_downgrade"  # Display warning & cost-saving suggestion
+    )
+    REQUIRE_CONFIRMATION = (
+        "require_confirmation"  # Soft gate: wait for developer confirmation token
+    )
+    SWITCH_MODEL = "switch_model"  # Switch to economy model seamlessly
+    PAUSE_FOR_APPROVAL = (
+        "pause_for_approval"  # Suspend session and require manager/admin sign-off
+    )
 
 
 @dataclass(frozen=True, slots=True)
 class SpendControlConfig:
     """Configurable thresholds and fallback parameters for four-tier spend control."""
 
-    tier1_ratio: float = 0.70                      # 70% of quota triggers visibility / hint
-    tier2_ratio: float = 0.90                      # 90% triggers soft confirmation gate
-    tier3_ratio: float = 1.00                      # 100% triggers seamless model downgrade
-    tier4_ratio: float = 1.30                      # 130% triggers critical pause & approval link
-    downgrade_model_id: str = "gpt-4o-mini"         # Fallback model for Tier 3 continuation
+    tier1_ratio: float = 0.70  # 70% of quota triggers visibility / hint
+    tier2_ratio: float = 0.90  # 90% triggers soft confirmation gate
+    tier3_ratio: float = 1.00  # 100% triggers seamless model downgrade
+    tier4_ratio: float = 1.30  # 130% triggers critical pause & approval link
+    downgrade_model_id: str = "gpt-4o-mini"  # Fallback model for Tier 3 continuation
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,8 +87,8 @@ class SpendInterventionDecision:
 class FleetQuotaItem:
     """Aggregated quota and consumption status for a fleet dimension (profile, member, or task)."""
 
-    dimension: str                                 # "agent_profile" | "member" | "task_type"
-    identifier: str                                # e.g. "coder_agent", "user_102", "code_review"
+    dimension: str  # "agent_profile" | "member" | "task_type"
+    identifier: str  # e.g. "coder_agent", "user_102", "code_review"
     spend_usd: float
     allocated_quota_usd: float
     tier: SpendInterventionTier
