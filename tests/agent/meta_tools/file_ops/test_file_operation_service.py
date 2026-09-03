@@ -1052,3 +1052,68 @@ async def test_str_replace_triggers_auto_verify_with_line_range() -> None:
     assert "[Auto-Verify]" in result
     assert "Incompatible types" in result
     mock_auto_verify.assert_called_once_with(executor, "/workspace/main.py", edit_line_start=5, edit_line_end=5)
+
+
+@pytest.mark.asyncio
+async def test_file_operation_service_version_mismatch_raises_structured_tool_error() -> None:
+    """Version mismatch from FileIntegrityGuard raises ToolError with self-healing payload."""
+    from myrm_agent_harness.utils.errors import ToolError
+
+    executor = AsyncMock()
+    context = _str_replace_ctx(
+        executor=executor,
+        path="/workspace/main.py",
+        old_str="x = 1",
+        new_str="x = 2",
+    )
+    service = FileOperationService(context)
+
+    mock_guard = MagicMock()
+    mock_guard.require_read_before_write.return_value = None
+    mock_guard.require_full_read_before_edit.return_value = None
+    mock_guard.require_version_match.return_value = (
+        "File '/workspace/main.py' has changed on disk since your last read (content hash mismatch).\n"
+        "Current disk content snippet:\n```\nx = 100\n```\n"
+        "Rebase your edits directly on this current content without calling file_read_tool."
+    )
+
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(context, "validate"))
+        stack.enter_context(
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.utils.path_utils.resolve_file_id_path",
+                return_value="/workspace/main.py",
+            )
+        )
+        mock_factory = stack.enter_context(
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.FileSystemStrategyFactory.create_strategy",
+            )
+        )
+        mock_vc = stack.enter_context(
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.ValidatorChain",
+            )
+        )
+        strategy = AsyncMock()
+        strategy.exists = AsyncMock(return_value=True)
+        strategy.read_file = AsyncMock(return_value=["x = 100"])
+        mock_factory.return_value = strategy
+        mock_vc.return_value.validate = AsyncMock()
+
+        stack.enter_context(
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.core.file_operation_service.get_file_integrity_guard",
+                return_value=mock_guard,
+            )
+        )
+
+        with pytest.raises(ToolError) as exc_info:
+            await service.execute()
+
+        err = exc_info.value
+        assert err.error_code == "FILE_VERSION_MISMATCH"
+        assert "Current disk content snippet" in str(err)
+        assert err.diagnostic_info.get("error_category") == "version_conflict"
+        assert "Call file_edit_tool again directly" in err.recovery_suggestions[2]
+
