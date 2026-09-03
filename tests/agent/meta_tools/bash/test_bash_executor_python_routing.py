@@ -54,7 +54,7 @@ class TestPrepareExecutionPythonRouting:
         assert "await" in prepared
 
     def test_top_level_async_for_with_future_annotations_passes_preflight(self, bash_executor: BashExecutor) -> None:
-        code = "from __future__ import annotations\nasync for row in async_iter():\n    print(row)"
+        code = "from __future__ import annotations\nimport sys\nimport os\nasync for row in async_iter():\n    print(row)"
         use_python, prepared, _ = bash_executor._prepare_execution(code)
         assert use_python is True
         assert "async for" in prepared

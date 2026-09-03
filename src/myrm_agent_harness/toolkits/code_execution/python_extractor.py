@@ -121,20 +121,22 @@ def validate_python_syntax(code: str) -> str | None:
     """Return ``None`` if *code* is valid Python, otherwise a human-readable error.
 
     Supports top-level await, async for, and async with syntax (used in interactive execution
-    and Jupyter-style PTC scripts), falling back to wrapped async function AST check if top-level
+    and Jupyter-style PTC scripts), falling back to wrapped async function check if top-level
     async constructs are detected.
     """
     try:
-        ast.parse(code)
+        compile(code, "<string>", "exec")
         return None
     except SyntaxError as exc:
         # If the syntax error is caused by top-level async constructs ('await', 'async for', 'async with' outside function),
         # re-validate wrapped in an async function to allow valid top-level async code while preserving __future__ headers.
         msg = str(exc.msg).lower()
-        if ("outside" in msg or "function" in msg) and any(kw in msg for kw in ("await", "async for", "async with")):
+        if ("outside" in msg or "function" in msg) and any(
+            kw in msg for kw in ("'await'", "'async for'", "'async with'", "await", "async for", "async with")
+        ) and "return" not in msg:
             try:
                 wrapped = _wrap_top_level_async_code(code)
-                ast.parse(wrapped)
+                compile(wrapped, "<string>", "exec")
                 return None
             except SyntaxError:
                 pass

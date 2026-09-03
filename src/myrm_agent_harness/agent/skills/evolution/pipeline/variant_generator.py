@@ -32,6 +32,7 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     SkillEvidenceGroup,
     SkillRecord,
 )
+from myrm_agent_harness.eval.leakage_guard import filter_search_cases_for_proposer
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 logger = logging.getLogger(__name__)
@@ -393,11 +394,19 @@ class VariantGenerator:
 
     @staticmethod
     def _build_eval_cases_section(skill: SkillRecord) -> str:
-        """Inject bound EvalCases so the LLM is aware of regression constraints."""
+        """Inject bound EvalCases so the LLM is aware of regression constraints.
+
+        Zero-Test Leakage Guard: Physically filters out held-out test cases so
+        proposer LLM only observes search-split cases to prevent shortcut overfitting.
+        """
         if not skill.eval_cases:
             return ""
+        # Apply Zero-Test Leakage Guard filter
+        search_cases = filter_search_cases_for_proposer(skill.eval_cases)
+        if not search_cases:
+            return ""
         try:
-            cases_json = json.dumps(skill.eval_cases, indent=2, ensure_ascii=False)
+            cases_json = json.dumps(search_cases, indent=2, ensure_ascii=False)
         except (TypeError, ValueError):
             return ""
         return _EVAL_CASE_COEVOLUTION.format(eval_cases_json=cases_json)
