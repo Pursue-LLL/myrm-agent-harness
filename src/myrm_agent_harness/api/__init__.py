@@ -43,6 +43,8 @@ __all__ = [
     "Doctor",
     "DualTrackAuditCollector",
     "FileChecksum",
+    "FleetQuotaItem",
+    "FourTierSpendControlEngine",
     "HookEvent",
     "HookRegistryProtocol",
     "InsecureRedirectSecurityError",
@@ -51,6 +53,7 @@ __all__ = [
     "IntegritySealer",
     "IntegrityStatus",
     "IntegrityVerificationResult",
+    "InterventionAction",
     "KanbanStore",
     "LLMConfig",
     "MCPAnnotations",
@@ -82,6 +85,9 @@ __all__ = [
     "SkillAgent",
     "SkillBackend",
     "SkillRescanResult",
+    "SpendControlConfig",
+    "SpendInterventionDecision",
+    "SpendInterventionTier",
     "SynthesizedSkillDraft",
     "TaskSpecialty",
     "WorkflowIntentPlan",
@@ -173,6 +179,30 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "DualTrackAuditCollector": (
         "myrm_agent_harness.observability.audit_trail",
         "DualTrackAuditCollector",
+    ),
+    "FleetQuotaItem": (
+        "myrm_agent_harness.observability.spend_control",
+        "FleetQuotaItem",
+    ),
+    "FourTierSpendControlEngine": (
+        "myrm_agent_harness.observability.spend_control",
+        "FourTierSpendControlEngine",
+    ),
+    "InterventionAction": (
+        "myrm_agent_harness.observability.spend_control",
+        "InterventionAction",
+    ),
+    "SpendControlConfig": (
+        "myrm_agent_harness.observability.spend_control",
+        "SpendControlConfig",
+    ),
+    "SpendInterventionDecision": (
+        "myrm_agent_harness.observability.spend_control",
+        "SpendInterventionDecision",
+    ),
+    "SpendInterventionTier": (
+        "myrm_agent_harness.observability.spend_control",
+        "SpendInterventionTier",
     ),
     "HookEvent": ("myrm_agent_harness.api.protocols", "HookEvent"),
     "HookRegistryProtocol": (

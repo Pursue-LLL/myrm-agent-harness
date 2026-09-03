@@ -183,20 +183,38 @@ class IncrementalTranscriptParser:
 
         # If user has trailing unreplied query
         if len(user_entries) > pair_count:
-            tail_user = user_entries[pair_count]
-            u_text = IncrementalTranscriptParser._extract_text(tail_user)
-            if u_text:
-                turns.append(
-                    TranscriptTurn(
-                        user_content=u_text[:MAX_CONTENT_LENGTH],
-                        assistant_content="",
-                        tool_names=[],
-                        timestamp=str(
-                            tail_user.get("timestamp") or datetime.now(UTC).isoformat()
-                        ),
-                        session_id=session_id,
+            for extra_user in user_entries[pair_count:]:
+                u_text = IncrementalTranscriptParser._extract_text(extra_user)
+                if u_text:
+                    turns.append(
+                        TranscriptTurn(
+                            user_content=u_text[:MAX_CONTENT_LENGTH],
+                            assistant_content="",
+                            tool_names=[],
+                            timestamp=str(
+                                extra_user.get("timestamp") or datetime.now(UTC).isoformat()
+                            ),
+                            session_id=session_id,
+                        )
                     )
-                )
+
+        # If assistant has replies to previously consumed user turns
+        if len(assistant_entries) > pair_count:
+            for extra_asst in assistant_entries[pair_count:]:
+                a_text = IncrementalTranscriptParser._extract_text(extra_asst)
+                tools = IncrementalTranscriptParser._extract_tool_names(extra_asst)
+                if a_text or tools:
+                    turns.append(
+                        TranscriptTurn(
+                            user_content="",
+                            assistant_content=a_text[:MAX_CONTENT_LENGTH],
+                            tool_names=tools,
+                            timestamp=str(
+                                extra_asst.get("timestamp") or datetime.now(UTC).isoformat()
+                            ),
+                            session_id=session_id,
+                        )
+                    )
 
         return turns
 
