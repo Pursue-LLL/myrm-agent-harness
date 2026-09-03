@@ -202,3 +202,89 @@ def test_scandir_os_error_handling() -> None:
         assert entries == ()
         assert count == 0
 
+
+def test_non_existent_workspace_directory() -> None:
+    snap = generate_sandbox_bootstrap_snapshot(Path("/non_existent_path_xyz_123"))
+    assert snap.top_level_entries == ()
+    assert snap.total_entries_count == 0
+    assert snap.git_branch is None
+
+
+def test_git_cli_missing_fallback() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / ".git").mkdir()
+
+        with patch("shutil.which", return_value=None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.git_branch == "detected (git cli missing)"
+            assert snap.git_dirty is None
+
+
+def test_runtimes_and_version_probing() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+
+        def mock_which(bin_name: str) -> str | None:
+            if bin_name in ("python3", "node", "bun", "go", "rustc", "java", "git", "curl"):
+                return f"/usr/local/bin/{bin_name}"
+            return None
+
+        def mock_run_quick(cmd: list[str], timeout: float = 1.0) -> tuple[int, str]:
+            if "node" in cmd[0]:
+                return 0, "v20.10.0"
+            if "bun" in cmd[0]:
+                return 0, "1.1.20"
+            if "go" in cmd[0]:
+                return 0, "go1.22.1"
+            if "rustc" in cmd[0]:
+                return 0, "rustc 1.78.0 (9b00956e5 2024-05-01)"
+            if "python" in cmd[0]:
+                return 0, "3.12.3"
+            return 0, ""
+
+        with patch("shutil.which", side_effect=mock_which):
+            with patch("myrm_agent_harness.toolkits.code_execution.sandbox_snapshot._run_quick_command", side_effect=mock_run_quick):
+                snap = generate_sandbox_bootstrap_snapshot(root)
+                assert any("Python 3.12.3" in r for r in snap.runtimes)
+                assert any("Node.js 20.10.0" in r for r in snap.runtimes)
+                assert any("Bun 1.1.20" in r for r in snap.runtimes)
+                assert any("Go 1.22.1" in r for r in snap.runtimes)
+                assert any("Rust 1.78.0" in r for r in snap.runtimes)
+                assert "git" in snap.available_tools
+                assert "curl" in snap.available_tools
+
+
+def test_package_manager_config_fallbacks() -> None:
+    # Test package.json fallback without lockfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "package.json").write_text("{}")
+        with patch("shutil.which", side_effect=lambda bin_name: "/bin/" + bin_name if bin_name in ("bun", "npm") else None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.recommended_package_manager == "bun"
+
+    # Test go.mod and go.sum
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "go.sum").write_text("// test")
+        with patch("shutil.which", side_effect=lambda bin_name: "/bin/" + bin_name if bin_name == "go" else None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.recommended_package_manager == "go"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "go.mod").write_text("module demo")
+        with patch("shutil.which", side_effect=lambda bin_name: "/bin/" + bin_name if bin_name == "go" else None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.recommended_package_manager == "go"
+
+    # Test poetry.lock
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "poetry.lock").write_text("version = 1")
+        with patch("shutil.which", side_effect=lambda bin_name: "/bin/" + bin_name if bin_name in ("poetry", "pip") else None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.recommended_package_manager == "poetry"
+
+

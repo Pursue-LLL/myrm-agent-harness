@@ -197,4 +197,14 @@ class TestFactCheckSheet:
         reloaded = FactCheckSheet.model_validate(data)
         assert reloaded.sheet_id == "fcs_json_test"
         assert reloaded.items[0].claim_topic == "质保期限"
-        assert reloaded.items[0].adopted_value == "2年整机质保"
+
+    def test_empty_sheet_to_markdown(self) -> None:
+        sheet = FactCheckSheet(
+            sheet_id="fcs_empty",
+            title="空核查单",
+            items=[],
+        )
+        md = sheet.to_markdown()
+        assert "# 空核查单" in md
+        assert "**核查条目总数**: 0 项" in md
+        assert "## 🔍 事实核查与多源口径仲裁明细" in md

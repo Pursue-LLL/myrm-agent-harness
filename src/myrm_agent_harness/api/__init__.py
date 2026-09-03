@@ -509,10 +509,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "route_task_specialty",
     ),
     "set_workspace_root": ("myrm_agent_harness.api.hooks", "set_workspace_root"),
-    "SourceClaim": (
-        "myrm_agent_harness.core.artifacts.fact_check",
-        "SourceClaim",
-    ),
     "synthesize_desktop_skill_draft": (
         "myrm_agent_harness.toolkits.computer_use.recording",
         "synthesize_desktop_skill_draft",
