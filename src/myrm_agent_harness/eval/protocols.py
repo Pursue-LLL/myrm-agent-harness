@@ -18,6 +18,7 @@
 - RetrievalAssertion: RAG & Memory retrieval quality assertion (Head/Tail spans, collapse hits, duplicate rate)
 - CompactionAssertion: configuration for 5D context compaction quality and continuation assertions
 - CompactionFidelityScore: structured 5D fidelity score container (Constraint, Decision, State, Artifact, Continuation)
+- EvalCaseSplit: dataset split enumeration (SEARCH, TEST, HARDSUBSET)
 
 [POS]
 Defines the eval framework's type system and the AgentExecutor protocol.
@@ -188,6 +189,17 @@ class PostEpisodeAssertion:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+class EvalCaseSplit(enum.StrEnum):
+    """Dataset partition split tag for evaluation anti-leakage isolation.
+
+    Aligns with Meta-Harness (arxiv:2603.28052) Dual-Split Protocol.
+    """
+
+    SEARCH = "search"
+    TEST = "test"
+    HARDSUBSET = "hard_subset"
+
+
 @dataclass(frozen=True, slots=True)
 class EvalCase:
     """Single eval test case."""
@@ -204,6 +216,17 @@ class EvalCase:
     canary_protected: bool = False
     canary_token: str = ""
     metadata: dict[str, str] = field(default_factory=dict)
+    split: EvalCaseSplit = EvalCaseSplit.SEARCH
+
+    @property
+    def is_search_set(self) -> bool:
+        """True if case is in search exploration split visible to proposer."""
+        return self.split == EvalCaseSplit.SEARCH
+
+    @property
+    def is_test_set(self) -> bool:
+        """True if case is in held-out test split invisible to proposer."""
+        return self.split in (EvalCaseSplit.TEST, EvalCaseSplit.HARDSUBSET)
 
 
 OnTurnFail = Literal["continue", "skip_remaining", "abort"]
@@ -216,6 +239,15 @@ class MultiTurnEvalCase:
     turns: list[EvalCase]
     on_turn_fail: OnTurnFail = "continue"
     metadata: dict[str, str] = field(default_factory=dict)
+    split: EvalCaseSplit = EvalCaseSplit.SEARCH
+
+    @property
+    def is_search_set(self) -> bool:
+        return self.split == EvalCaseSplit.SEARCH
+
+    @property
+    def is_test_set(self) -> bool:
+        return self.split in (EvalCaseSplit.TEST, EvalCaseSplit.HARDSUBSET)
 
 
 @dataclass(slots=True)

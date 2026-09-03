@@ -319,6 +319,43 @@ async def execute_dag_plan(
                             progress_sink(step_id, "error", f"Failed: {result.error}")
                         logger.error("[DAG] Failed step %s: %s", step_id, result.error)
 
+            # Check if step produced a runtime GraphPatch
+            patch_data = None
+            if isinstance(getattr(result, "payload", None), dict) and "graph_patch" in result.payload:
+                patch_data = result.payload["graph_patch"]
+            elif isinstance(getattr(result, "result", None), dict) and "graph_patch" in result.result:
+                patch_data = result.result["graph_patch"]
+
+            if isinstance(patch_data, dict) and hasattr(plan, "apply_graph_patch"):
+                from myrm_agent_harness.agent.sub_agents.dag_plan import GraphPatch
+
+                try:
+                    patch = GraphPatch.model_validate(patch_data)
+                    patch_res = plan.apply_graph_patch(patch)
+                    if patch_res.success:
+                        logger.info(
+                            "[DAG] Graph patch applied (v%d): affected=%s, fast_path=%s",
+                            patch_res.new_revision,
+                            patch_res.affected_steps,
+                            patch_res.topology_preserving,
+                        )
+                        if progress_sink:
+                            progress_sink(
+                                step_id,
+                                "graph_patch_applied",
+                                f"Graph patch applied v{patch_res.new_revision} (fast_path={patch_res.topology_preserving})",
+                            )
+                    else:
+                        logger.warning("[DAG] Graph patch rejected: %s", patch_res.error)
+                        if progress_sink:
+                            progress_sink(
+                                step_id,
+                                "graph_patch_rejected",
+                                f"Graph patch rejected: {patch_res.error}",
+                            )
+                except Exception as patch_err:
+                    logger.warning("[DAG] Failed to parse or apply graph patch: %s", patch_err)
+
             running_tasks.remove(step_id)
             step_completed_event.set()
 

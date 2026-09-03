@@ -47,7 +47,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | Submodule | Description |
 |-----------|-------------|
 | checkpoint/ | Subagent checkpoint utilities package. Includes orphan recovery for automatic resumption after restart. |
-| dag_plan.py | DAG `Plan`/`PlanStep` schemas for orchestrator only (not user-facing progress) |
+| dag_plan.py | Core | DAG `Plan`/`PlanStep` schemas, `GraphPatch`/`GraphPatchResult` DTOs, and deterministic Kahn DAG patch compiler gate with OCC revision control. | ✅ |
 
 ## Key Dependencies
 

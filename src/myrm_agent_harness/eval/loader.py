@@ -40,7 +40,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .protocols import EvalCase, MultiTurnEvalCase
+from .protocols import EvalCase, EvalCaseSplit, MultiTurnEvalCase
 
 
 def load_cases(path: str | Path) -> list[EvalCase]:
