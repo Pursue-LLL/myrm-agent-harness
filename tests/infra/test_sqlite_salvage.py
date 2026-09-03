@@ -482,3 +482,71 @@ def test_salvage_execute_failure_recovery(tmp_path: Path, salvage_engine: SQLite
         # Test _get_column_names
         cols = salvage_engine._get_column_names(conn, "chats")
         assert "id" in cols and "title" in cols
+
+def test_salvage_fts_error_handling(tmp_path: Path, salvage_engine: SQLiteRowidSalvageEngine) -> None:
+    # Test FTS and index error handling branch during _execute_salvage
+    test_src = tmp_path / "fts_err_src.db"
+    test_dst = tmp_path / "fts_err_dst.db"
+
+    with open_db(test_src) as conn:
+        conn.execute("CREATE TABLE t (id INT);")
+        # Add virtual table with broken module to trigger warning in recreate virtual table
+        conn.execute("CREATE TABLE v_mock (x INT);")
+        # Add bad index DDL into sqlite_master if possible, or test extract_schemas
+        t, vt, idxs, views = salvage_engine._extract_schemas(conn)
+        assert "t" in t
+
+    # Execute salvage with direct calls into _extract_schemas
+    res = salvage_engine.salvage_database(test_src, test_dst)
+    assert res.success is True
+
+    # Test corrupted sqlite_master in _extract_schemas
+    corrupt_master_db = tmp_path / "corrupt_master.db"
+    corrupt_master_db.write_bytes(b"corrupt sqlite header")
+    try:
+        with open_db(corrupt_master_db) as c:
+            salvage_engine._extract_schemas(c)
+    except Exception:
+        pass
+
+    # Test rowid operational error fallback in _salvage_table
+    op_err_src = tmp_path / "op_err.db"
+    op_err_dst = tmp_path / "op_err_dst.db"
+    with open_db(op_err_src) as c:
+        c.execute("CREATE TABLE norow (k TEXT PRIMARY KEY) WITHOUT ROWID;")
+        c.execute("INSERT INTO norow VALUES ('x');")
+    with open_db(op_err_dst) as c:
+        c.execute("CREATE TABLE norow (k TEXT PRIMARY KEY) WITHOUT ROWID;")
+
+    # Test direct _salvage_without_rowid
+    with open_db(op_err_src) as s, open_db(op_err_dst) as d:
+        st = TableSalvageStats(table_name="norow")
+        salvage_engine._salvage_without_rowid(
+            source=s,
+            dest=d,
+            table="norow",
+            insert_sql='INSERT OR REPLACE INTO "norow" ("k") VALUES (?);',
+            cols=["k"],
+            stats=st,
+        )
+        assert st.recovered_rows == 1
+
+    # Test exception paths in recreate schemas
+    mock_src_fail = tmp_path / "mock_src_fail.db"
+    mock_dst_fail = tmp_path / "mock_dst_fail.db"
+    with open_db(mock_src_fail) as conn:
+        conn.execute("CREATE TABLE t (id INT);")
+
+    # Monkeypatch _extract_schemas on engine instance
+    orig_extract = salvage_engine._extract_schemas
+    try:
+        salvage_engine._extract_schemas = lambda c: (
+            {"bad_tbl": "CREATE TABLE syntax error;"},
+            {"bad_vtbl": "CREATE VIRTUAL TABLE bad_mod USING non_existent();"},
+            {"bad_idx": "CREATE INDEX bad_i ON unknown(col);"},
+            {"bad_v": "CREATE VIEW bad_view AS SELECT * FROM ghost;"},
+        )
+        res_fail_schemas = salvage_engine.salvage_database(mock_src_fail, mock_dst_fail)
+        assert res_fail_schemas.success is True
+    finally:
+        salvage_engine._extract_schemas = orig_extract

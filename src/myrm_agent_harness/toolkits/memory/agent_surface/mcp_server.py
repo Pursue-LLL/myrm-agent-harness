@@ -727,12 +727,11 @@ class MemoryMCPServer:
         """Access the underlying MCPServer instance for advanced configuration."""
         return self._mcp
 
-    def get_streamable_http_app(self) -> Starlette:
+    def get_streamable_http_app(self, stateless: bool | None = None) -> Starlette:
         """Get a Starlette/ASGI app for Streamable HTTP transport.
 
-        The stateless mode is fixed at construction time via the
-        ``stateless_http`` argument (MCP SDK 2.x moved this setting to the
-        ``streamable_http_app`` call). When enabled, each request creates a
+        The stateless mode can be configured via ``stateless_http`` at init or
+        overridden via ``stateless`` here. When enabled, each request creates a
         fresh transport with no session tracking (no ``Mcp-Session-Id``),
         appropriate when tools are inherently per-request (e.g. auth via Bearer
         token + ContextVar scoping) and no cross-request session state is needed.
@@ -740,7 +739,8 @@ class MemoryMCPServer:
         Mount this on your FastAPI application:
             app.mount("/mcp", mcp_server.get_streamable_http_app())
         """
-        return self._mcp.streamable_http_app(stateless_http=self._stateless_http)
+        stateless_http = self._stateless_http if stateless is None else stateless
+        return self._mcp.streamable_http_app(stateless_http=stateless_http)
 
 
 def create_memory_mcp_server(

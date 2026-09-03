@@ -47,6 +47,7 @@ __all__ = [
     "FourTierSpendControlEngine",
     "HookEvent",
     "HookRegistryProtocol",
+    "IncrementalTranscriptParser",
     "InsecureRedirectSecurityError",
     "InstalledSkillRescanEngine",
     "IntegrationProvider",
@@ -209,6 +210,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.api.protocols",
         "HookRegistryProtocol",
     ),
+    "IncrementalTranscriptParser": (
+        "myrm_agent_harness.toolkits.memory.strategies.incremental_transcript",
+        "IncrementalTranscriptParser",
+    ),
     "InsecureRedirectSecurityError": (
         "myrm_agent_harness.core.security.http.redirect_guard",
         "InsecureRedirectSecurityError",
@@ -369,6 +374,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "TaskSpecialty": (
         "myrm_agent_harness.toolkits.llms.routing.specialty_router",
         "TaskSpecialty",
+    ),
+    "TranscriptTurn": (
+        "myrm_agent_harness.toolkits.memory.strategies.incremental_transcript",
+        "TranscriptTurn",
     ),
     "WorkflowIntentPlan": (
         "myrm_agent_harness.backends.skills.workflow_compiler",
