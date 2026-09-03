@@ -14,12 +14,12 @@ Tests verifying mid-run dynamic graph patching guarantees in DAG orchestration.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from myrm_agent_harness.agent.sub_agents.dag_plan import (
     GraphPatch,
-    GraphPatchResult,
     Plan,
     PlanStep,
 )
