@@ -342,10 +342,12 @@ class HandoffFinding:
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> HandoffFinding:
+        raw_conf = str(data.get("confidence", "high")).strip().lower()
+        confidence = raw_conf if raw_conf in ("high", "medium", "low") else "high"
         return cls(
             finding=str(data.get("finding", "")),
             evidence=str(data.get("evidence", "")),
-            confidence=str(data.get("confidence", "high")),
+            confidence=confidence,
         )
 
 

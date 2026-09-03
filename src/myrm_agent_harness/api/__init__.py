@@ -29,14 +29,17 @@ __all__ = [
     "ChangePredictionManifest",
     "CompletionStatus",
     "ComplianceAuditEngine",
+    "ComplianceOutcome",
     "ComplianceReport",
     "ComplianceStatus",
+    "ComplianceTrailExporter",
     "ComplianceViolation",
     "ConfigIncompleteError",
     "ConnectorErrorCategory",
     "ConnectorHealthStatus",
     "DesktopRecordedEvent",
     "Doctor",
+    "DualTrackAuditCollector",
     "HookEvent",
     "HookRegistryProtocol",
     "InsecureRedirectSecurityError",
@@ -133,6 +136,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.runtime.diagnostics.compliance",
         "ComplianceAuditEngine",
     ),
+    "ComplianceOutcome": (
+        "myrm_agent_harness.observability.audit_trail",
+        "ComplianceOutcome",
+    ),
     "ComplianceReport": (
         "myrm_agent_harness.runtime.diagnostics.compliance",
         "ComplianceReport",
@@ -140,6 +147,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ComplianceStatus": (
         "myrm_agent_harness.runtime.diagnostics.compliance",
         "ComplianceStatus",
+    ),
+    "ComplianceTrailExporter": (
+        "myrm_agent_harness.observability.audit_trail",
+        "ComplianceTrailExporter",
     ),
     "ComplianceViolation": (
         "myrm_agent_harness.runtime.diagnostics.compliance",
@@ -159,6 +170,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "DesktopRecordedEvent",
     ),
     "Doctor": ("myrm_agent_harness.runtime.diagnostics.doctor", "Doctor"),
+    "DualTrackAuditCollector": (
+        "myrm_agent_harness.observability.audit_trail",
+        "DualTrackAuditCollector",
+    ),
     "HookEvent": ("myrm_agent_harness.api.protocols", "HookEvent"),
     "HookRegistryProtocol": (
         "myrm_agent_harness.api.protocols",
