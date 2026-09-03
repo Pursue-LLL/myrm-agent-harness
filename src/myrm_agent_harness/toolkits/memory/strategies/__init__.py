@@ -37,6 +37,11 @@ from myrm_agent_harness.toolkits.memory.strategies.implicit_feedback import (
     detect_implicit_feedback,
     plan_memory_corrections,
 )
+from myrm_agent_harness.toolkits.memory.strategies.incremental_transcript import (
+    IncrementalTranscriptParser,
+    TranscriptIncrementalChunk,
+    TranscriptTurn,
+)
 
 __all__ = [
     "BlindSpotCandidate",
@@ -54,10 +59,13 @@ __all__ = [
     "ForgettingStrategy",
     "HashCacheMetrics",
     "ImplicitFeedbackResult",
+    "IncrementalTranscriptParser",
     "MemoryExtractor",
     "PatchTargetType",
     "RetentionScore",
     "SmartDeduplicator",
+    "TranscriptIncrementalChunk",
+    "TranscriptTurn",
     "detect_implicit_feedback",
     "extract_blind_spot_patches",
     "extract_memories_from_conversation",

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import sqlite3
+import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.infra.sqlite_salvage import SQLiteRowidSalvageEngine
+from myrm_agent_harness.infra.sqlite_salvage import (
+    SQLiteRowidSalvageEngine,
+    TableSalvageStats,
+)
 
 
 @contextmanager
@@ -316,3 +320,55 @@ def test_salvage_partial_bounds_and_recovery(tmp_path: Path, salvage_engine: SQL
     assert res.success is True
     assert res.total_recovered_rows == 1
     assert res.table_stats["single_row"].status == "ok"
+
+    # Test error in destination recreate schema
+    corrupted_schema_db = tmp_path / "bad_schema.db"
+    with open_db(corrupted_schema_db) as conn:
+        conn.execute("CREATE TABLE good (id INTEGER PRIMARY KEY);")
+    bad_dst = tmp_path / "bad_dst.db"
+    res_bad = salvage_engine._execute_salvage(
+        working_src=corrupted_schema_db,
+        output_path=bad_dst,
+        original_src_path=corrupted_schema_db,
+        src_sha256="fake_sha",
+        start_time=time.monotonic(),
+    )
+    assert res_bad.success is True
+
+    # Test direct _bisect_range execution
+    mock_src = tmp_path / "bisect_src.db"
+    mock_dst = tmp_path / "bisect_dst.db"
+    with open_db(mock_src) as conn:
+        conn.execute("CREATE TABLE b_tbl (id INTEGER PRIMARY KEY, v TEXT);")
+        conn.execute("INSERT INTO b_tbl VALUES (1, 'one'), (2, 'two'), (3, 'three');")
+    with open_db(mock_dst) as conn:
+        conn.execute("CREATE TABLE b_tbl (id INTEGER PRIMARY KEY, v TEXT);")
+
+    with open_db(mock_src) as s, open_db(mock_dst) as d:
+        st = TableSalvageStats(table_name="b_tbl")
+        insert_sql = 'INSERT OR REPLACE INTO "b_tbl" ("id", "v") VALUES (?, ?);'
+        salvage_engine._bisect_range(
+            source=s,
+            dest=d,
+            table="b_tbl",
+            insert_sql=insert_sql,
+            col_identifiers='"id", "v"',
+            low=1,
+            high=3,
+            stats=st,
+        )
+        assert st.recovered_rows == 3
+
+        # Test single low == high
+        st_single = TableSalvageStats(table_name="b_tbl")
+        salvage_engine._bisect_range(
+            source=s,
+            dest=d,
+            table="b_tbl",
+            insert_sql=insert_sql,
+            col_identifiers='"id", "v"',
+            low=1,
+            high=1,
+            stats=st_single,
+        )
+        assert st_single.recovered_rows == 1
