@@ -29,8 +29,13 @@ def test_strip_tracking_parameters() -> None:
         strip_tracking_parameters("https://example.com/post?fbclid=xyz&gclid=abc")
         == "https://example.com/post"
     )
+    assert (
+        strip_tracking_parameters("https://example.com/path?utm_campaign=spring&utm_term=ai#section")
+        == "https://example.com/path#section"
+    )
     assert strip_tracking_parameters("https://example.com/clean") == "https://example.com/clean"
     assert strip_tracking_parameters("") == ""
+    assert strip_tracking_parameters("not_a_valid_url") == "not_a_valid_url"
 
 
 def test_needs_citation_redirect_resolution_detects_known_wrappers() -> None:
