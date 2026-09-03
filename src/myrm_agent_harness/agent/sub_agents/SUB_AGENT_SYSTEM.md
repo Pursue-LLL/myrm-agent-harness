@@ -49,6 +49,7 @@
 | 文件 | 职责 |
 |:--|:--|
 | `agent/sub_agents/types.py` | SubagentConfig（含 agent_factory/role/budget）, AgentFactory Protocol, SubAgentStatus, SubAgentResult, SubagentCatalog Protocol, DelegationCapabilityManifest 能力清单 |
+| `agent/sub_agents/handover.py` | 结构化交接单领域模型（HandoffFinding, AgentHandoverState，防止跨 Agent 上下文爆炸与事实证据化） |
 | `agent/sub_agents/checkpointer.py` | 子 agent 共享内存 checkpointer（`get_subagent_checkpointer` 单例 + `delete_subagent_checkpoint` 终态线程清理），HITL 审批中断恢复的关键 |
 | `agent/sub_agents/hitl_tool_policy.py` | HITL 工具策略 SSOT（`HitlToolPolicy`, `HITL_TOOL_POLICY`），供 subagent 能力清单读取，避免 `meta_tools` 包级循环导入 |
 | `agent/sub_agents/budget.py` | 委派运行树预算计数（max_descendants_per_run），防止递归/批量委派暴走 |

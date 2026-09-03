@@ -668,6 +668,7 @@ LLM 驱动的事实过期审查。与遗忘策略互补：遗忘靠数值衰减�
 - **主体归属隔离 (Attribution)**：严格区分用户本人与第三方（家人、朋友、同事等），禁止将第三方的特征、疾病或偏好归因于用户本人。
 - **瞬态情绪过滤 (Transient State Filter)**：过滤掉短暂的情绪和心理状态（如“今天很焦虑”、“感觉很抑郁”），除非明确说明是慢性疾病，防止 AI 永久存储瞬态情绪。
 - **业务瞬态事实 L3 写入总闸 (Business Transient Fact Write Gate)**：`transient_fact_boundary.py` 提供双语 regex 启发式；`MemoryWriter.store/store_batch` 与 `MemoryManager.update_memory` 在持久化前统一过滤 Semantic/Episodic 中的实时业务态（物流进度、账户余额、OTP、临时链接等），`memory_save_tool` 与 auto-extract 路径同样拦截；Profile/Procedural/ConversationMemory 豁免。
+- **流程型/FAQ Agent L2 记忆策略预设 (Flow-Type Agent L2-Only Memory Policy Preset)**：`AgentMemoryPolicy` 扩展 `allow_l3_extraction` 与 `auto_cleanup`，提供 `preset_l2_flow`（任务级局部读写、禁用 L3 抽取、完成自动蒸发）与 `preset_faq_retrieval`（会话级局部读写、禁用 L3 抽取）；在 `review.py` 会话结算时短路阻断后台 LLM 抽取，从源头防止工单、即时搜索等瞬态临时数据污染长期库。
 - **Per-Fact TTL**：提取时 LLM 为每条记忆预估有效期 `expected_valid_days`（瞬态 30-90d、项目 90-180d、习惯 180-365d、永久 null），供遗忘策略和 staleness review 使用
 - **动态提示词**：根据 `ExtractionConfig` 动态生成，仅包含启用的记忆类型
 - **Token 优化**：337 tokens（全类型）→ 229 tokens（最小配置），节省 32%
