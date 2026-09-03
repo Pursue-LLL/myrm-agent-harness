@@ -5,6 +5,7 @@ Self-update note: when this file changes, update its INPUT/OUTPUT/POS comments.
 [INPUT]
 - utils.token_tracker::TokenUsage (POS: Token usage tracking type for prompt/completion/total tokens)
 - .hitl_tool_policy::HITL_TOOL_POLICY (POS: HITL tool registry SSOT for subagent blocking)
+- .handover::HandoffFinding, AgentHandoverState (POS: Subagent subsystem handover data contract)
 
 [OUTPUT]
 - CouncilOpinion: Single expert opinion from one council round.

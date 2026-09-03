@@ -5,7 +5,8 @@ SubagentManager queues formatted completion text via ``NotificationManager``.
 Background async wakeup appends user/HumanMessage via ``ServerWakeupHandler`` (server layer).
 
 [INPUT]
-- (none)
+- .types::SubAgentResult (POS: Structured subagent execution result)
+- .handover::AgentHandoverState, HandoffFinding (POS: Subagent subsystem handover data contract)
 
 [OUTPUT]
 - SubagentNotification: Push notification from a completed child agent to the parent.
