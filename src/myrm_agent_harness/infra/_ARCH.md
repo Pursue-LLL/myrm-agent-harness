@@ -10,6 +10,7 @@ Infrastructure layer.
 | __init__.py | Package | Infrastructure layer. | — |
 | atomic_write.py | Core | Atomic file write with crash-consistency guarantee. | ✅ |
 | sqlite_backup.py | Core | SQLite hot-backup manager with integrity verification, SHA-256 checksum, quarantine, and manifest tracking. | ✅ |
+| sqlite_salvage.py | Core | SQLite non-destructive B-Tree page-skipping rowid salvage engine with binary search bad page isolation, orphan session stub healing, and native FTS rebuild. | ✅ |
 | tls_compat.py | Core | Enterprise TLS compatibility for Python 3.13+/OpenSSL 3.x. Narrow relaxation of VERIFY_X509_STRICT for corporate TLS-inspection proxies. Provides `create_httpx_client()` factory for unified TLS-compat injection across all outbound HTTPS exits. | ✅ |
 
 | Submodule | Description |
