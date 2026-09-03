@@ -386,7 +386,9 @@ class SQLiteRowidSalvageEngine:
                 )
             cur_id = chunk_end + 1
 
-        if stats.skipped_ranges:
+        if stats.skipped_ranges or (
+            stats.source_rows_estimate > 0 and stats.recovered_rows < stats.source_rows_estimate
+        ):
             stats.status = "partial"
         return stats
 
