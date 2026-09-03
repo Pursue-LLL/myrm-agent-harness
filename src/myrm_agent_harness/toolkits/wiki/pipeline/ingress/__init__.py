@@ -22,7 +22,17 @@ from myrm_agent_harness.toolkits.wiki.pipeline.ingress.types import (
     ClipIngressRequest,
     ClipIngressResult,
     ClipMode,
+    MediaIngressRequest,
+    MediaKeyframe,
+    MediaTranscriptSegment,
     UrlMarkdownIngressRequest,
+    VideoUrlIngressRequest,
+)
+from myrm_agent_harness.toolkits.wiki.pipeline.ingress.video_ingress import (
+    adaptive_merge_segments,
+    format_timestamp,
+    publish_media_ingress,
+    publish_video_url_ingress,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.ingress.wikiignore import (
     load_wikiignore_patterns,
@@ -36,11 +46,19 @@ __all__ = [
     "ClipIngressRequest",
     "ClipIngressResult",
     "ClipMode",
+    "MediaIngressRequest",
+    "MediaKeyframe",
+    "MediaTranscriptSegment",
     "UrlMarkdownIngressRequest",
+    "VideoUrlIngressRequest",
+    "adaptive_merge_segments",
+    "format_timestamp",
     "load_wikiignore_patterns",
     "path_matches_wikiignore",
     "publish_clip_ingress",
+    "publish_media_ingress",
     "publish_url_markdown_ingress",
+    "publish_video_url_ingress",
     "wikiignore_path",
     "write_wikiignore_patterns",
 ]

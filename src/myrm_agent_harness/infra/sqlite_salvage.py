@@ -111,10 +111,13 @@ class SQLiteRowidSalvageEngine:
         }
 
         try:
-            with sqlite3.connect(f"file:{path.resolve()}?mode=ro", uri=True) as conn:
+            conn = sqlite3.connect(f"file:{path.resolve()}?mode=ro", uri=True)
+            try:
                 check = conn.execute("PRAGMA quick_check;").fetchone()
                 result["quick_check"] = str(check[0]) if check else "unknown"
                 result["readable"] = True
+            finally:
+                conn.close()
         except Exception as exc:
             result["quick_check"] = f"error: {exc}"
 
@@ -230,7 +233,8 @@ class SQLiteRowidSalvageEngine:
             fts_tables.extend(virtual_tables.keys())
 
             # Open destination connection
-            with sqlite3.connect(str(output_path)) as dest_conn:
+            dest_conn = sqlite3.connect(str(output_path))
+            try:
                 dest_conn.execute("PRAGMA foreign_keys = OFF;")
                 dest_conn.execute("PRAGMA journal_mode = WAL;")
 
@@ -250,8 +254,8 @@ class SQLiteRowidSalvageEngine:
                             logger.warning("Failed to recreate virtual table %s: %s", vtbl, exc)
 
                 # Salvage records table by table
-                for table_name in tables:
-                    stats = self._salvage_table(source_conn, dest_conn, table_name)
+                for table_name, ddl in tables.items():
+                    stats = self._salvage_table(source_conn, dest_conn, table_name, ddl)
                     table_stats[table_name] = stats
                     total_recovered += stats.recovered_rows
 
@@ -270,6 +274,8 @@ class SQLiteRowidSalvageEngine:
 
                 dest_conn.commit()
                 dest_conn.execute("PRAGMA foreign_keys = ON;")
+            finally:
+                dest_conn.close()
 
             dst_sha256 = self._compute_sha256(output_path)
             return SalvageResult(
@@ -328,6 +334,7 @@ class SQLiteRowidSalvageEngine:
         source: sqlite3.Connection,
         dest: sqlite3.Connection,
         table: str,
+        ddl: str = "",
     ) -> TableSalvageStats:
         """Performs chunked bisection rowid salvage on a single table."""
         stats = TableSalvageStats(table_name=table)
@@ -337,59 +344,77 @@ class SQLiteRowidSalvageEngine:
             stats.error = "No columns found in destination schema"
             return stats
 
-        # Detect rowid support
-        has_rowid = True
-        try:
-            source.execute(f'SELECT rowid FROM "{table}" LIMIT 1;')
-        except sqlite3.OperationalError:
-            has_rowid = False
-
         col_identifiers = ", ".join(f'"{c}"' for c in cols)
         placeholders = ", ".join("?" for _ in cols)
         insert_sql = f'INSERT OR REPLACE INTO "{table}" ({col_identifiers}) VALUES ({placeholders});'
 
-        if not has_rowid:
-            # Fallback for WITHOUT ROWID tables
-            return self._salvage_without_rowid(source, dest, table, insert_sql, cols, stats)
+        try:
+            # Detect rowid support deterministically from DDL or query
+            has_rowid = "WITHOUT ROWID" not in ddl.upper()
+            if has_rowid:
+                try:
+                    source.execute(f'SELECT rowid FROM "{table}" LIMIT 1;')
+                except sqlite3.OperationalError:
+                    has_rowid = False
+                except sqlite3.DatabaseError:
+                    pass
 
-        # Determine rowid boundaries
-        min_id, max_id = self._probe_rowid_bounds(source, table)
-        if min_id is None or max_id is None:
-            stats.status = "empty"
-            return stats
+            if not has_rowid:
+                # Fallback for WITHOUT ROWID tables
+                return self._salvage_without_rowid(source, dest, table, insert_sql, cols, stats)
 
-        stats.source_rows_estimate = max_id - min_id + 1
-        cur_id = min_id
+            # Determine rowid boundaries
+            min_id, max_id = self._probe_rowid_bounds(source, table)
+            if min_id is None or max_id is None:
+                stats.status = "empty"
+                return stats
 
-        while cur_id <= max_id:
-            chunk_end = min(cur_id + self._chunk_size - 1, max_id)
-            try:
-                query = (
-                    f'SELECT {col_identifiers} FROM "{table}" '
-                    f"WHERE rowid BETWEEN ? AND ? ORDER BY rowid ASC;"
+            stats.source_rows_estimate = max_id - min_id + 1
+            cur_id = min_id
+
+            while cur_id <= max_id:
+                chunk_end = min(cur_id + self._chunk_size - 1, max_id)
+                try:
+                    query = (
+                        f'SELECT {col_identifiers} FROM "{table}" '
+                        f"WHERE rowid BETWEEN ? AND ? ORDER BY rowid ASC;"
+                    )
+                    rows = source.execute(query, (cur_id, chunk_end)).fetchall()
+                    if rows:
+                        dest.executemany(insert_sql, rows)
+                        stats.recovered_rows += len(rows)
+                except sqlite3.DatabaseError:
+                    # Corrupted B-Tree page encountered: bisect this chunk
+                    self._bisect_range(
+                        source=source,
+                        dest=dest,
+                        table=table,
+                        insert_sql=insert_sql,
+                        col_identifiers=col_identifiers,
+                        low=cur_id,
+                        high=chunk_end,
+                        stats=stats,
+                    )
+                cur_id = chunk_end + 1
+
+            if stats.recovered_rows < stats.source_rows_estimate and not stats.skipped_ranges:
+                stats.skipped_ranges.append(
+                    CorruptedRange(
+                        low_rowid=min_id,
+                        high_rowid=max_id,
+                        error=f"{stats.source_rows_estimate - stats.recovered_rows} rows missing or damaged in page gap",
+                    )
                 )
-                rows = source.execute(query, (cur_id, chunk_end)).fetchall()
-                if rows:
-                    dest.executemany(insert_sql, rows)
-                    stats.recovered_rows += len(rows)
-            except sqlite3.DatabaseError:
-                # Corrupted B-Tree page encountered: bisect this chunk
-                self._bisect_range(
-                    source=source,
-                    dest=dest,
-                    table=table,
-                    insert_sql=insert_sql,
-                    col_identifiers=col_identifiers,
-                    low=cur_id,
-                    high=chunk_end,
-                    stats=stats,
-                )
-            cur_id = chunk_end + 1
 
-        if stats.skipped_ranges or (
-            stats.source_rows_estimate > 0 and stats.recovered_rows < stats.source_rows_estimate
-        ):
-            stats.status = "partial"
+            if stats.skipped_ranges or (
+                stats.source_rows_estimate > 0 and stats.recovered_rows < stats.source_rows_estimate
+            ):
+                stats.status = "partial"
+        except Exception as exc:
+            logger.warning("Table salvage encountered error for %s: %s", table, exc)
+            stats.status = "failed"
+            stats.error = str(exc)
+
         return stats
 
     def _bisect_range(
@@ -481,11 +506,20 @@ class SQLiteRowidSalvageEngine:
             row_min = conn.execute(f'SELECT rowid FROM "{table}" ORDER BY rowid ASC LIMIT 1;').fetchone()
             if row_min is not None:
                 min_id = int(row_min[0])
+        except sqlite3.DatabaseError:
+            pass
+        try:
             row_max = conn.execute(f'SELECT rowid FROM "{table}" ORDER BY rowid DESC LIMIT 1;').fetchone()
             if row_max is not None:
                 max_id = int(row_max[0])
         except sqlite3.DatabaseError:
             pass
+
+        if min_id is None and max_id is not None:
+            min_id = 1
+        elif min_id is not None and max_id is None:
+            max_id = min_id + 10000
+
         return min_id, max_id
 
     def _reconstruct_orphans(self, conn: sqlite3.Connection) -> int:

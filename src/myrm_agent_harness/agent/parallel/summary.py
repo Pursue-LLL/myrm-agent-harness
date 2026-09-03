@@ -42,6 +42,7 @@ def batch_summary(results: list[dict[str, object]]) -> dict[str, object]:
     ]
     handoff_states: list[dict[str, object]] = []
     all_artifact_refs: list[str] = []
+    all_citations: list[str] = []
     all_findings: list[dict[str, str]] = []
 
     for item in results:
@@ -53,11 +54,23 @@ def batch_summary(results: list[dict[str, object]]) -> dict[str, object]:
                 for r in refs:
                     if isinstance(r, str) and r not in all_artifact_refs:
                         all_artifact_refs.append(r)
+            cits = ho.get("citations")
+            if isinstance(cits, list):
+                for c in cits:
+                    if isinstance(c, str) and c not in all_citations:
+                        all_citations.append(c)
+            task_id = str(item.get("task_id") or "")
+            agent_type = str(item.get("agent_type") or "")
             f_list = ho.get("findings")
             if isinstance(f_list, list):
                 for f in f_list:
                     if isinstance(f, dict):
-                        all_findings.append({k: str(v) for k, v in f.items()})
+                        f_entry = {k: str(v) for k, v in f.items()}
+                        if task_id and "source_task_id" not in f_entry:
+                            f_entry["source_task_id"] = task_id
+                        if agent_type and "agent_type" not in f_entry:
+                            f_entry["agent_type"] = agent_type
+                        all_findings.append(f_entry)
 
     summary: dict[str, object] = {
         "success": all_success,
@@ -73,6 +86,8 @@ def batch_summary(results: list[dict[str, object]]) -> dict[str, object]:
         summary["handoff_states"] = handoff_states
     if all_artifact_refs:
         summary["all_artifact_refs"] = all_artifact_refs
+    if all_citations:
+        summary["all_citations"] = all_citations
     if all_findings:
         summary["all_findings"] = all_findings
 

@@ -118,4 +118,22 @@ class MediaIngressRequest:
     folder_path: str = "videos"
     agent_id: str | None = None
     caller: RawGateCaller = "agent"
+    conflict_policy: RawConflictPolicy | None = None
+    supersede_reason: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class VideoUrlIngressRequest:
+    """Request to fetch video transcripts from URL and ingest into wiki."""
+
+    url: str
+    folder_path: str = "videos"
+    filename: str = ""
+    preferred_languages: tuple[str, ...] = ("zh-Hans", "zh-CN", "zh", "en")
+    window_duration_seconds: int = 45
+    window_max_chars: int = 350
+    conflict_policy: RawConflictPolicy | None = None
+    supersede_reason: str = ""
+    caller: RawGateCaller = "agent"
+
 

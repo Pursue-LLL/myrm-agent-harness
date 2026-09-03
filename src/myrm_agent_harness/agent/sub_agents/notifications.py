@@ -68,6 +68,8 @@ def format_notification(result: SubAgentResult) -> str:
                     line += f" (evidence: {f.evidence})"
                 f_lines.append(line)
             ho_lines.append("Key Findings:\n" + "\n".join(f_lines))
+        if ho.citations:
+            ho_lines.append("Citations:\n" + "\n".join(f" - {x}" for x in ho.citations))
         if ho.artifact_refs:
             ho_lines.append("Artifacts:\n" + "\n".join(f" - {x}" for x in ho.artifact_refs))
         if ho.task_completed:

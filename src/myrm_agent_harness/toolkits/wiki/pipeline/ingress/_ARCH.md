@@ -10,6 +10,7 @@ Wiki raw ingress SSOT — browser clip and URL markdown asset localization befor
 | `wikiignore.py` | Core | Vault `.wikiignore` load/write + gitignore-like pattern matching | ✅ |
 | `asset_store.py` | Core | Clip asset bytes → `wiki/assets/` hash store; markdown image rewrite + public URL fetch | ✅ |
 | `publish.py` | Core | `publish_clip_ingress`, `publish_url_markdown_ingress` → `raw_gate.publish_raw` | ✅ |
+| `video_ingress.py` | Core | `publish_video_url_ingress`, `publish_media_ingress`, sliding window transcript merging | ✅ |
 | `__init__.py` | Package | Public exports | — |
 
 ## Callers
