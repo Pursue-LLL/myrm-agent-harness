@@ -97,11 +97,27 @@ def extract_cat_py_paths_from_pipe_feeders(command: str) -> list[str]:
 
 
 def validate_python_syntax(code: str) -> str | None:
-    """Return ``None`` if *code* is valid Python, otherwise a human-readable error."""
+    """Return ``None`` if *code* is valid Python, otherwise a human-readable error.
+
+    Supports top-level await syntax (used in interactive execution and Jupyter-style
+    PTC scripts), falling back to wrapped async function AST check if top-level await is detected.
+    """
     try:
         ast.parse(code)
         return None
     except SyntaxError as exc:
+        # If the syntax error is caused by top-level await ('await' outside function),
+        # re-validate wrapped in an async function to allow valid top-level await code.
+        msg = str(exc.msg).lower()
+        if "await" in msg and ("outside" in msg or "function" in msg):
+            try:
+                import textwrap
+                wrapped = f"async def __syntax_check__():\n{textwrap.indent(code, '    ')}"
+                ast.parse(wrapped)
+                return None
+            except SyntaxError:
+                pass
+
         parts = [f"SyntaxError: {exc.msg}"]
         if exc.lineno:
             parts.append(f"line {exc.lineno}")

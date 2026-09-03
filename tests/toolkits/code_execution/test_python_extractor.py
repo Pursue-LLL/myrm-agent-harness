@@ -135,6 +135,16 @@ class TestValidatePythonSyntax:
     def test_valid_code_returns_none(self):
         assert validate_python_syntax("print(1)") is None
 
+    def test_top_level_await_syntax_allowed(self):
+        code = "res = await fetch_data()\nprint(res)"
+        assert validate_python_syntax(code) is None
+
+    def test_top_level_await_with_actual_syntax_error_still_fails(self):
+        code = "res = await fetch_data(\nprint(res)"
+        error = validate_python_syntax(code)
+        assert error is not None
+        assert "SyntaxError" in error
+
     def test_invalid_code_returns_error_message(self):
         error = validate_python_syntax("def broken(")
         assert error is not None

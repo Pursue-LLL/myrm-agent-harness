@@ -47,6 +47,12 @@ class TestPrepareExecutionPythonRouting:
         assert use_python is True
         assert "await" in prepared
 
+    def test_top_level_await_passes_preflight_syntax_validation(self, bash_executor: BashExecutor) -> None:
+        code = "import asyncio\nres = await fetch_something()\nprint(res)"
+        use_python, prepared, _ = bash_executor._prepare_execution(code)
+        assert use_python is True
+        assert "await" in prepared
+
     def test_mcp_timeout_floor_applied(self, bash_executor: BashExecutor) -> None:
         from myrm_agent_harness.agent.meta_tools.bash._executor.constants import MCP_MIN_TIMEOUT
 
