@@ -21,7 +21,7 @@ Text Editor core business logic module.
 | file_edit_normalizer.py | Util | LLM input normalizer for file_edit_tool legacy flat fields（`normalize_edits_payload`、`merge_edits_for_diff`） | ✅ |
 | file_read_handlers.py | Internal | Multimodal/text/vault execution handlers for file_read_tool | ✅ |
 | file_read_truncation.py | Internal | Output truncation helpers for file_read_tool. Complete-line-boundary head truncation with precomputed next_offset and line-count cap. | ✅ |
-| file_read_outline.py | Internal | Adaptive code outline extractor for truncated file reads. Extracts omitted class/function/interface symbols with line ranges. | ✅ |
+| file_read_outline.py | Internal | Adaptive structural outline extractor (Markdown headings, code symbols, classes/functions with line ranges) for truncated reads and structure mode. | ✅ |
 | read_dedup.py | Core | Read dedup guard. Skips re-reading unchanged local files to protect Prompt Cache; stub + hard-block escalation, write invalidation, compression reset, env kill-switch. Agent-aware per-agent buckets. | ✅ |
 | mcp_read_next_step_hint.py | Util | One-shot MCP workflow reminder appended after batch-read of function docs | ✅ |
 

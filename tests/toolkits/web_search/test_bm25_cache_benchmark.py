@@ -163,3 +163,18 @@ class TestBM25CacheBenchmark:
         # 场景 3：完全相同的切片列表以不同顺序传入，Key 必须保持一致（顺序无关性）
         key_reordered = retriever_manager._compute_bm25_cache_key([chunk_2, chunk_0, chunk_1])
         assert key_full == key_reordered, "相同切片集合不同顺序传入应命中相同缓存 Key"
+
+        # 场景 4：同 URL 长切片前缀 >500 字符完全一致但尾部不同，Key 必须不同
+        long_prefix = "A" * 600
+        doc_long_1 = Document(page_content=long_prefix + " TAIL_ONE", metadata={"url": url, "chunk_index": 0})
+        doc_long_2 = Document(page_content=long_prefix + " TAIL_TWO", metadata={"url": url, "chunk_index": 0})
+        key_long_1 = retriever_manager._compute_bm25_cache_key([doc_long_1])
+        key_long_2 = retriever_manager._compute_bm25_cache_key([doc_long_2])
+        assert key_long_1 != key_long_2, "同 URL 长文档前缀相同但尾部不同，Key 必须不同"
+
+        # 场景 5：无 URL 纯内容文档，长前缀完全一致但尾部不同，Key 必须不同
+        doc_content_1 = Document(page_content=long_prefix + " CONTENT_ALPHA")
+        doc_content_2 = Document(page_content=long_prefix + " CONTENT_BETA")
+        key_content_1 = retriever_manager._compute_bm25_cache_key([doc_content_1])
+        key_content_2 = retriever_manager._compute_bm25_cache_key([doc_content_2])
+        assert key_content_1 != key_content_2, "无 URL 纯内容文档前缀相同但尾部不同，Key 必须不同"

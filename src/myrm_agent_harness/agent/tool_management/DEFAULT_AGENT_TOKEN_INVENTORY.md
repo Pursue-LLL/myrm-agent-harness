@@ -29,7 +29,7 @@
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
 | 4a | web_fetch_tool | 148 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 抓取/深读 | Turn1 基线 |
-| 6 | **bash_code_execute_tool** | **1,284** | `harness/agent/meta_tools/bash/_tool/tool_description.py` | Shell/Python；静态 ~4k-char 描述 + OS hint（路由+skill_select+MCP 依赖决策+禁 myrm_tools；无动态 append） | 通用 Agent 基线 |
+| 6 | **bash_code_execute_tool** | **1,322** | `harness/agent/meta_tools/bash/_tool/tool_description.py` | Shell/Python；静态 ~4k-char 描述 + OS hint（路由+skill_select+MCP 依赖决策+禁 myrm_tools；无动态 append） | 通用 Agent 基线 |
 | 6b | **bash_process_tool** | **107** | `harness/agent/meta_tools/bash/bash_process_tools.py` | 后台进程 list/output/kill（CORE；与 bash_code_execute 同挂） | enable_shell_tools |
 | 7 | file_edit_tool | 132 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 批量 edits[] 原子编辑 | 通用 Agent 基线 |
 | 8 | file_read_tool | 307 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件 | 通用 Agent 基线 |
@@ -37,7 +37,7 @@
 | 10 | glob_tool | 201 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符搜索 | 通用 Agent 基线 |
 | 11 | grep_tool | 205 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则搜索 | 通用 Agent 基线 |
 
-**CORE 描述小计（Turn1）**：**2,502 tokens**（8 工具；`scripts/measure_turn1_token_inventory.py` 实测）
+**CORE 描述小计（Turn1）**：**2,540 tokens**（8 工具；`scripts/measure_turn1_token_inventory.py` 实测）
 
 ---
 
@@ -262,27 +262,27 @@ Token 明细（历史 tiktoken 计量保留）：
 | 分类 | Token (tiktoken) | 明细 |
 |------|------------------:|------|
 | System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
-| CORE 工具层 | **2,502** | 8 工具（含 bash_process；`measure_turn1_token_inventory.py` 实测） |
+| CORE 工具层 | **2,540** | 8 工具（含 bash_process；`measure_turn1_token_inventory.py` 实测） |
 | HIGH_PRIORITY 工具层 | **2,336** | web_search + memory×3 + skill_select |
 | EXTENDED 工具层 | **0** | 默认 profile 无附加 EXTENDED 工具 |
 | 工具 JSON schema | **845** | 13 工具 × ~65 |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
-| **tiktoken 小计** | **~10,022** | |
+| **tiktoken 小计** | **~10,060** | |
 
-> bash Turn1 描述 token **1,284**（静态 `_tool_description.py` + OS hint；`scripts/measure_turn1_token_inventory.py` 实测）。
+> bash Turn1 描述 token **1,322**（静态 `_tool_description.py` + OS hint；`scripts/measure_turn1_token_inventory.py` 实测）。
 
 ### 最小 Turn 1 场景（仅 CORE 8 工具，无 HIGH_PRIORITY/EXTENDED）
 
 | 分类 | Token (tiktoken) |
 |------|------------------:|
 | System Prompt 层 | ~2,607 |
-| CORE 工具层 | **2,502** |
+| CORE 工具层 | **2,540** |
 | 工具 JSON schema | **520** (~8 工具 × ~65) |
 | 用户消息 | ~32 |
 | 消息格式 | ~300 |
-| **tiktoken 小计** | **~5,961** |
+| **tiktoken 小计** | **~5,999** |
 
 ### 满载场景（所有可选功能全开：浏览器+Cron+Wiki+子Agent+渲染UI+看板+日历+计算机+IM）
 
@@ -302,7 +302,7 @@ Token 明细（历史 tiktoken 计量保留）：
 ## 缓存分层效果
 
 ```
-[CORE: web_fetch + bash + file_* + glob + grep (~2,502 tok, 8 tools)]
+[CORE: web_fetch + bash + file_* + glob + grep (~2,540 tok, 8 tools)]
   ↑ 通用 Agent 基线前缀（agent 模式）
 
 [HIGH_PRIORITY: web_search + memory_* + skill_select (~2,336 tok)]

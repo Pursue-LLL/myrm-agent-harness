@@ -283,6 +283,15 @@ async def _tool_interceptor_middleware_inner(
     tool_call_id = request.tool_call.get("id", "")
     tool_args: dict[str, object] = request.tool_call.get("args") or {}
 
+    try:
+        from myrm_agent_harness.agent.session_overlay import get_session_overlay_manager
+        _ovl_mgr = get_session_overlay_manager()
+        if _ovl_mgr is not None:
+            tool_args, _applied_ovl = _ovl_mgr.apply_tool_args_adaptation(tool_name, tool_args)
+            request.tool_call["args"] = tool_args
+    except Exception:
+        pass
+
     pre_result = await run_pre_call_guards(request, tool_name, tool_call_id, tool_args, get_loop_guard)
     if isinstance(pre_result, ToolMessage):
         return pre_result
@@ -349,6 +358,13 @@ async def _tool_interceptor_middleware_inner(
             pre_result.freq_verdict,
             pre_result.steering_token,
         )
+        try:
+            from myrm_agent_harness.agent.session_overlay import get_session_overlay_manager
+            _ovl_mgr = get_session_overlay_manager()
+            if _ovl_mgr is not None:
+                _ovl_mgr.record_tool_outcome(tool_name, is_error=False)
+        except Exception:
+            pass
         return result
 
     except asyncio.CancelledError as e:

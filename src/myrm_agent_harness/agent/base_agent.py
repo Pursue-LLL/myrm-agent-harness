@@ -514,8 +514,13 @@ class BaseAgent(BaseAgentModesMixin):
     def cancel_all_children(self, include_detached: bool = True) -> int:
         return self._subagent_manager.cancel_all(include_detached=include_detached)
 
-    def steer_child(self, task_id: str, message: str) -> bool:
-        return self._subagent_manager.steer_child(task_id, message)
+    def steer_child(
+        self,
+        task_id: str,
+        message: str,
+        config_overlay: dict[str, object] | None = None,
+    ) -> bool:
+        return self._subagent_manager.steer_child(task_id, message, config_overlay=config_overlay)
 
     async def wait_children(
         self,

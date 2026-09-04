@@ -17,6 +17,7 @@ from langchain_core.documents import Document
 from myrm_agent_harness.toolkits.retriever.engine import RetrieverManager
 from myrm_agent_harness.toolkits.web_search.engine import (
     WebSearchTools,
+    _cap_chunks_per_doc,
     _merge_adjacent_chunks,
     _precision_mode_search,
 )
@@ -110,12 +111,11 @@ class TestChunkSizeComparison:
         assert results[400]["chunks_per_doc"] <= 30, "chunk_size=400不应产生过多的chunks"
 
 
-class TestMergeAdjacentChunks:
-    """测试chunk合并逻辑的正确性"""
+class TestAdjacentChunkMerging:
+    """验证切片按文档截断与保序策略"""
 
-    def test_merge_continuous_chunks_only(self):
-        """验证只合并连续chunks，不合并间断chunks"""
-        # 模拟Reranker选出的chunks（间断的）
+    def test_cap_chunks_per_doc(self):
+        """验证按 URL 限制切片数量，保留独立切片边界"""
         chunks = [
             Document(
                 page_content="Chunk 3 content",
@@ -135,81 +135,47 @@ class TestMergeAdjacentChunks:
             ),
         ]
 
-        merged = _merge_adjacent_chunks(chunks, max_chunks_per_doc=3, enable_merge=True)
+        capped = _cap_chunks_per_doc(chunks, max_chunks_per_doc=3)
 
-        # 验证：
-        # 1. [3,4,5]应该合并为1个文档
-        # 2. [15]应该独立为1个文档
-        # 总共2个文档
-        assert len(merged) == 2, f"Expected 2 merged docs, got {len(merged)}"
+        # 验证：按相关度保留前 3 个独立切片，第 4 个切片被截断
+        assert len(capped) == 3, f"Expected 3 capped docs, got {len(capped)}"
+        assert capped[0].page_content == "Chunk 3 content"
+        assert capped[1].page_content == "Chunk 15 content"
+        assert capped[2].page_content == "Chunk 4 content"
 
-        # 验证合并后的内容
-        merged_contents = [doc.page_content for doc in merged]
-
-        # 应该有一个包含"Chunk 3", "Chunk 4", "Chunk 5"的合并文档
-        continuous_merged = [c for c in merged_contents if "Chunk 3" in c and "Chunk 4" in c and "Chunk 5" in c]
-        assert len(continuous_merged) == 1, "连续chunks [3,4,5]应该被合并"
-
-        # 应该有一个独立的Chunk 15文档
-        separate_chunks = [c for c in merged_contents if "Chunk 15" in c and "Chunk 3" not in c]
-        assert len(separate_chunks) == 1, "间断的Chunk 15应该保持独立"
-
-    def test_merge_preserves_order(self):
-        """验证合并时保持原文档顺序"""
+    def test_cap_chunks_disabled_when_non_positive(self):
+        """验证 max_chunks_per_doc <= 0 时直接返回全部切片"""
         chunks = [
-            Document(
-                page_content="Chunk 5 content",
-                metadata={"url": "https://example.com/doc1", "chunk_index": 5},
-            ),
-            Document(
-                page_content="Chunk 3 content",
-                metadata={"url": "https://example.com/doc1", "chunk_index": 3},
-            ),
-            Document(
-                page_content="Chunk 4 content",
-                metadata={"url": "https://example.com/doc1", "chunk_index": 4},
-            ),
+            Document(page_content="Chunk 1", metadata={"url": "https://example.com/doc1"}),
+            Document(page_content="Chunk 2", metadata={"url": "https://example.com/doc1"}),
         ]
-
-        merged = _merge_adjacent_chunks(chunks, max_chunks_per_doc=3, enable_merge=True)
-
-        assert len(merged) == 1, "3个连续chunks应该合并为1个文档"
-
-        # 验证顺序：应该是Chunk 3 → Chunk 4 → Chunk 5
-        merged_content = merged[0].page_content
-        idx_3 = merged_content.find("Chunk 3")
-        idx_4 = merged_content.find("Chunk 4")
-        idx_5 = merged_content.find("Chunk 5")
-
-        assert idx_3 < idx_4 < idx_5, "合并后的内容应该按原文档顺序排列"
+        assert len(_cap_chunks_per_doc(chunks, max_chunks_per_doc=0)) == 2
 
     def test_merge_preserves_global_relevance_across_urls(self):
-        """验证跨 URL 多文档切片合并时，全局相关度顺序严格保序，不发生倒置"""
+        """验证跨 URL 多文档切片截断时，全局相关度顺序严格保序，不发生倒置"""
         # 输入切片按重排相关度降序排列：
         # Rank 0: URL A chunk 0 (Top 1)
         # Rank 1: URL B chunk 1 (Top 2)
         # Rank 2: URL B chunk 2 (Top 3)
         # Rank 3: URL A chunk 9 (Rank 4, 较弱相关度)
+        # Rank 4: URL B chunk 3 (Rank 5, 超出 URL B 的 max 限制)
         chunks = [
             Document(page_content="URL A Top Content", metadata={"url": "https://a.com", "chunk_index": 0}),
             Document(page_content="URL B Core Part 1", metadata={"url": "https://b.com", "chunk_index": 1}),
             Document(page_content="URL B Core Part 2", metadata={"url": "https://b.com", "chunk_index": 2}),
             Document(page_content="URL A Tail Content", metadata={"url": "https://a.com", "chunk_index": 9}),
+            Document(page_content="URL B Excess Part", metadata={"url": "https://b.com", "chunk_index": 3}),
         ]
 
-        merged = _merge_adjacent_chunks(chunks, max_chunks_per_doc=2, enable_merge=True)
+        selected = _cap_chunks_per_doc(chunks, max_chunks_per_doc=2)
 
-        assert len(merged) == 3, "应该生成 3 个文档（URL A Top、URL B 合并段、URL A Tail）"
-        # 验证全局顺序：必须是 URL A Top (Rank 0) -> URL B 合并段 (Rank 1-2) -> URL A Tail (Rank 3)
-        assert merged[0].metadata["url"] == "https://a.com"
-        assert "URL A Top Content" in merged[0].page_content
-
-        assert merged[1].metadata["url"] == "https://b.com"
-        assert "URL B Core Part 1\n\nURL B Core Part 2" in merged[1].page_content
-        assert merged[1].metadata.get("merged_chunks_count") == 2
-
-        assert merged[2].metadata["url"] == "https://a.com"
-        assert "URL A Tail Content" in merged[2].page_content
+        # 验证全局顺序：必须是 URL A Top (Rank 0) -> URL B Core 1 (Rank 1) -> URL B Core 2 (Rank 2) -> URL A Tail (Rank 3)
+        # URL B Excess Part 被截断（已达到 2 个切片限制）
+        assert len(selected) == 4
+        assert selected[0].page_content == "URL A Top Content"
+        assert selected[1].page_content == "URL B Core Part 1"
+        assert selected[2].page_content == "URL B Core Part 2"
+        assert selected[3].page_content == "URL A Tail Content"
 
 
 class TestPrecisionModePerformance:

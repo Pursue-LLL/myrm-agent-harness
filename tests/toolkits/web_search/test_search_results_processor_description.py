@@ -215,3 +215,61 @@ class TestCombineSearchResultsMetadataPreservation:
         assert len(unified) == 1
         assert unified[0].metadata["date"] == "2026-01-01"
         assert unified[0].metadata["engines"] == ["volcengine"]
+
+
+class TestRoundRobinInterleaving:
+    """验证多 Query 搜索结果的 Round-Robin 轮选交织与抗稀释能力"""
+
+    def test_interleave_pure_unequal_lengths(self) -> None:
+        from langchain_core.documents import Document
+
+        from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
+            interleave_search_results_round_robin,
+        )
+
+        doc_a0 = Document(page_content="A0")
+        doc_a1 = Document(page_content="A1")
+        doc_a2 = Document(page_content="A2")
+        doc_b0 = Document(page_content="B0")
+        doc_c0 = Document(page_content="C0")
+        doc_c1 = Document(page_content="C1")
+
+        interleaved = interleave_search_results_round_robin([
+            [doc_a0, doc_a1, doc_a2],
+            [doc_b0],
+            [doc_c0, doc_c1],
+        ])
+
+        assert [d.page_content for d in interleaved] == ["A0", "B0", "C0", "A1", "C1", "A2"]
+
+    def test_combine_search_results_unified_fair_representation(self) -> None:
+        from langchain_core.documents import Document
+
+        from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
+            combine_search_results_unified,
+        )
+
+        # Q0: Apple revenue (3 docs)
+        q0_docs = [
+            Document(page_content="Apple Revenue 1", metadata={"url": "https://a.com/rev1"}),
+            Document(page_content="Apple Revenue 2", metadata={"url": "https://a.com/rev2"}),
+            Document(page_content="Apple Revenue 3", metadata={"url": "https://a.com/rev3"}),
+        ]
+        # Q1: iPhone sales (2 docs)
+        q1_docs = [
+            Document(page_content="iPhone Sales 1", metadata={"url": "https://b.com/phone1"}),
+            Document(page_content="iPhone Sales 2", metadata={"url": "https://b.com/phone2"}),
+        ]
+
+        _, unified = combine_search_results_unified([
+            ("Apple revenue", q0_docs, None),
+            ("iPhone sales", q1_docs, None),
+        ])
+
+        # 验证：Q1 的 top 结果必须在 Rank 1（紧跟 Q0 top 0 之后），而不是被 Q0 的全量文档挤到末尾！
+        assert len(unified) == 5
+        assert unified[0].metadata["url"] == "https://a.com/rev1"
+        assert unified[1].metadata["url"] == "https://b.com/phone1"
+        assert unified[2].metadata["url"] == "https://a.com/rev2"
+        assert unified[3].metadata["url"] == "https://b.com/phone2"
+        assert unified[4].metadata["url"] == "https://a.com/rev3"

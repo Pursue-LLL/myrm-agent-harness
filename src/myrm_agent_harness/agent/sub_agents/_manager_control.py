@@ -185,8 +185,13 @@ class SubagentControlMixin:
                 logger.info("[subagent:%s] Cancel requested (parent propagation)", task_id)
         return cancelled
 
-    def steer_child(self, task_id: str, message: str) -> bool:
-        """Inject a steering message into a running child agent."""
+    def steer_child(
+        self,
+        task_id: str,
+        message: str,
+        config_overlay: dict[str, object] | None = None,
+    ) -> bool:
+        """Inject a steering message and optional Continual config overlay into a running child agent."""
         st = self._children_steering.get(task_id)
         if st is None:
             task = self._children.get(task_id)
@@ -197,6 +202,17 @@ class SubagentControlMixin:
             return False
         st.steer(message)  # type: ignore[union-attr]
         logger.info("[subagent:%s] Steering message queued (%d chars)", task_id, len(message))
+
+        if config_overlay:
+            cfg = self._children_configs.get(task_id)
+            if cfg is not None:
+                for k, v in config_overlay.items():
+                    if hasattr(cfg, k):
+                        try:
+                            setattr(cfg, k, v)
+                            logger.info("[subagent:%s] Applied Continual config overlay: %s=%s", task_id, k, v)
+                        except Exception as e:
+                            logger.warning("[subagent:%s] Failed to overlay config attr %s: %s", task_id, k, e)
         return True
 
     async def wait_children(

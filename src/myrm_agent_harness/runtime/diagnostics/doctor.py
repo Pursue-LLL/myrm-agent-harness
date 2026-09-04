@@ -57,6 +57,7 @@ class Doctor:
         self._tasks.extend(
             [
                 self._check_python,
+                self._check_python_environment_isolation,
                 self._check_core_deps,
                 self._check_optional_deps,
                 self._check_llm_config,
@@ -117,6 +118,26 @@ class Doctor:
         status = CheckStatus.OK if v[:2] >= REQUIRED_PYTHON_VERSION else CheckStatus.ERROR
         return DoctorCheckResult(
             "python", status, f"Python {v_str}", fix=None if status == CheckStatus.OK else "Update to 3.13+"
+        )
+
+    async def _check_python_environment_isolation(self) -> DoctorCheckResult:
+        """Scan OS environment for hostile PYTHONPATH / PYTHONHOME pollution."""
+        polluting_vars = []
+        for var in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP"):
+            val = os.environ.get(var)
+            if val:
+                polluting_vars.append(f"{var}={val[:35]}...")
+        if polluting_vars:
+            return DoctorCheckResult(
+                "python_env_isolation",
+                CheckStatus.WARNING,
+                f"Global Python environment variables detected ({', '.join(polluting_vars)}) which may contaminate subprocess site-packages or ABI bindings.",
+                fix="unset PYTHONPATH PYTHONHOME in shell or remove from environment config",
+            )
+        return DoctorCheckResult(
+            "python_env_isolation",
+            CheckStatus.OK,
+            "Clean Python runtime environment (No global PYTHONPATH/PYTHONHOME pollution)",
         )
 
     async def _check_core_deps(self) -> DoctorCheckResult:
@@ -282,6 +303,7 @@ class Doctor:
                 CheckStatus.WARNING,
                 f"Compliance self-check skipped: {str(e)[:80]}",
             )
+
 
     async def _check_system_resources(self) -> list[DoctorCheckResult]:
         from myrm_agent_harness.toolkits.browser.doctor import _check_disk, _check_memory

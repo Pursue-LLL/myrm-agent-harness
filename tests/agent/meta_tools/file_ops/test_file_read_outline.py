@@ -154,6 +154,28 @@ def test_non_code_files_return_empty_outline():
     assert extract_truncated_outline(text_content, "log.txt", next_offset=2) == ""
 
 
+def test_markdown_outline_extraction():
+    from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_outline import (
+        extract_file_outline,
+    )
+
+    md_content = """# Architecture Overview
+Some intro text.
+## 1. System Components
+Details about components.
+### 1.1 Storage Layer
+SQLite details.
+## 2. API Endpoints
+Endpoints description.
+"""
+    outline = extract_file_outline(md_content, "docs/arch.md")
+    assert "[DOCUMENT STRUCTURE OUTLINE: arch.md]:" in outline
+    assert "- Line 1: # Architecture Overview" in outline
+    assert "- Line 3: ## 1. System Components" in outline
+    assert "- Line 5: ### 1.1 Storage Layer" in outline
+    assert "- Line 7: ## 2. API Endpoints" in outline
+
+
 def test_truncate_file_output_appends_outline():
     long_python = "\n".join(
         [f"{i:6}|# comment {i}" for i in range(1, 100)]

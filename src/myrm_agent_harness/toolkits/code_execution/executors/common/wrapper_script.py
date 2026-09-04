@@ -163,10 +163,64 @@ def _has_async_main_call(code: str) -> bool:
 
 
 def _has_top_level_await(code: str) -> bool:
-    """Check if code contains top-level await (await outside any function)."""
-    has_await = bool(re.search(r"\\bawait\\b", code))
-    has_asyncio_run_flag = _has_asyncio_run(code)
-    return has_await and not has_asyncio_run_flag
+    """Check if code contains top-level await (await/async for/async with outside any function)."""
+    import ast
+
+    class _TopLevelAsyncVisitor(ast.NodeVisitor):
+        def __init__(self):
+            self.has_top_level = False
+
+        def visit_FunctionDef(self, node):
+            pass
+
+        def visit_AsyncFunctionDef(self, node):
+            pass
+
+        def visit_ClassDef(self, node):
+            pass
+
+        def visit_Await(self, node):
+            self.has_top_level = True
+
+        def visit_AsyncFor(self, node):
+            self.has_top_level = True
+
+        def visit_AsyncWith(self, node):
+            self.has_top_level = True
+
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        has_await = bool(re.search(r"\\\\bawait\\\\b", code))
+        return has_await and not _has_asyncio_run(code)
+
+    visitor = _TopLevelAsyncVisitor()
+    for stmt in tree.body:
+        visitor.visit(stmt)
+        if visitor.has_top_level:
+            return True
+    return False
+
+
+def _wrap_top_level_async_user_code(user_code: str) -> str:
+    """Wrap code with an async function while keeping future imports and headers at file top."""
+    import textwrap
+
+    header_lines = []
+    body_lines = []
+    in_header = True
+    for line in user_code.splitlines():
+        stripped = line.strip()
+        if in_header:
+            if not stripped or stripped.startswith("#") or stripped.startswith("from __future__ import"):
+                header_lines.append(line)
+                continue
+            in_header = False
+        body_lines.append(line)
+
+    header_part = chr(10).join(header_lines)
+    body_part = textwrap.indent(chr(10).join(body_lines), "    ")
+    return f"{{header_part}}\\nasync def __user_code__():\\n{{body_part}}\\n"
 
 
 # ============================================================
@@ -326,9 +380,8 @@ def main():
             else:
                 result["result"] = None
         elif _has_top_level_await(user_code):
-            # Top-level await mode: wrap in async function
-            import textwrap
-            wrapped_code = f"async def __user_code__():\\n{{textwrap.indent(user_code, '    ')}}"
+            # Top-level await mode: wrap in async function while preserving future imports at file top
+            wrapped_code = _wrap_top_level_async_user_code(user_code)
             exec(wrapped_code, exec_globals, exec_globals)
             user_func = exec_globals.get("__user_code__")
             if user_func:

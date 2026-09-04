@@ -398,3 +398,21 @@ def set_turn_allowed_tool_names(allowed: frozenset[str] | None) -> None:
 def get_turn_allowed_tool_names() -> frozenset[str] | None:
     """Return the current turn tool allowlist, or None when unrestricted."""
     return _turn_allowed_tool_names_var.get()
+
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.continual.overlay import SessionOverlayManager
+
+_session_overlay_manager_var: ContextVar[SessionOverlayManager | None] = ContextVar(
+    "session_overlay_manager", default=None
+)
+
+
+def set_session_overlay_manager(manager: SessionOverlayManager | None) -> None:
+    """Set the active SessionOverlayManager for the current async session context."""
+    _session_overlay_manager_var.set(manager)
+
+
+def get_session_overlay_manager() -> SessionOverlayManager | None:
+    """Get the active SessionOverlayManager for the current async session context."""
+    return _session_overlay_manager_var.get()

@@ -277,6 +277,20 @@ async def run_pre_call_guards(
         record_decision(tool_name, "LOOP_WARN", loop_verdict.reason, tool_call_id=tool_call_id)
         logger.warning("Loop warning: %s -- %s", tool_name, loop_verdict.reason)
         await _emit_loop_guard_event("loop_guard_warn", tool_name, loop_verdict.reason, "warning")
+        try:
+            from myrm_agent_harness.agent.session_overlay import (
+                get_session_overlay_manager,
+                synthesize_loop_stall_overlay,
+            )
+            overlay_mgr = get_session_overlay_manager()
+            if overlay_mgr is not None:
+                stall_overlay = synthesize_loop_stall_overlay(
+                    loop_kind=str(loop_verdict.loop_kind or "loop_warn"),
+                    tool_name=tool_name,
+                )
+                overlay_mgr.apply_overlay(stall_overlay)
+        except Exception as stall_err:
+            logger.debug("Failed to apply loop stall overlay: %s", stall_err)
 
     turn_budget_guard = get_tool_turn_budget_guard()
     turn_budget_units = resolve_turn_budget_units(tool_name, tool_args)

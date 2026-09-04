@@ -107,7 +107,9 @@ async def build_multimodal_result(
                 blocks.append(create_text_block(result))
 
     for pdf_path in pdf_paths:
-        result = await read_pdf_as_content_blocks(pdf_path, executor, supports_vision=supports_vision)
+        result = await read_pdf_as_content_blocks(
+            pdf_path, executor, supports_vision=supports_vision, parse_mode=parse_mode
+        )
         if isinstance(result, list):
             blocks.extend(result)
         else:
@@ -143,17 +145,35 @@ async def build_multimodal_result(
             blocks.append(create_text_block(redact_sensitive_text("\n\n".join(vault_parts))))
 
     if text_paths:
-        op_context = OperationContext(
-            operation=OperationType.VIEW,
-            executor=executor,
-            skills=skills or [],
-            paths=text_paths,
-            reason=reason,
-        )
-        service = FileOperationService(op_context)
-        text_result = await service.execute()
-        if text_result:
-            blocks.append(create_text_block(redact_sensitive_text(text_result)))
+        if parse_mode == "structure":
+            from .file_read_outline import extract_file_outline
+
+            for tp in text_paths:
+                base_tp = path_base(tp)
+                raw_out = await _read_via_service(
+                    tp, executor, skills, reason, config=config, max_lines=5000
+                )
+                outline = extract_file_outline(raw_out, base_tp, max_symbols=100)
+                if outline:
+                    blocks.append(create_text_block(outline))
+                else:
+                    blocks.append(
+                        create_text_block(
+                            f"[DOCUMENT STRUCTURE OUTLINE: {base_tp}]:\n  (No structural symbols detected)"
+                        )
+                    )
+        else:
+            op_context = OperationContext(
+                operation=OperationType.VIEW,
+                executor=executor,
+                skills=skills or [],
+                paths=text_paths,
+                reason=reason,
+            )
+            service = FileOperationService(op_context)
+            text_result = await service.execute()
+            if text_result:
+                blocks.append(create_text_block(redact_sensitive_text(text_result)))
 
     return blocks if blocks else [create_text_block("No results.")]
 
@@ -206,7 +226,9 @@ async def append_media_text_parts(
 
     for pdf_path in pdf_paths:
         if executor is not None:
-            pdf_result = await read_pdf_as_content_blocks(pdf_path, executor, supports_vision=False)
+            pdf_result = await read_pdf_as_content_blocks(
+                pdf_path, executor, supports_vision=False, parse_mode=parse_mode
+            )
             if isinstance(pdf_result, str):
                 text_parts.append(pdf_result)
         else:
@@ -306,6 +328,7 @@ async def process_text_paths(
     chunk_size_mb: int,
     *,
     config: RunnableConfig,
+    parse_mode: str | None = None,
 ) -> list[str]:
     """Read plain text paths with preview/stream/all modes and truncation."""
     max_lines = DEFAULT_FILE_IO_CONFIG.max_read_lines
@@ -313,6 +336,21 @@ async def process_text_paths(
 
     for path_str in text_paths:
         base_path_str = path_base(path_str)
+
+        if parse_mode == "structure":
+            from .file_read_outline import extract_file_outline
+
+            raw_out = await _read_via_service(
+                path_str, executor, skills, reason, config=config, max_lines=5000
+            )
+            outline = extract_file_outline(raw_out, base_path_str, max_symbols=100)
+            if outline:
+                text_content_parts.append(outline)
+            else:
+                text_content_parts.append(
+                    f"[DOCUMENT STRUCTURE OUTLINE: {base_path_str}]:\n  (No structural symbols detected)"
+                )
+            continue
 
         if ":" in path_str or not executor:
             text_content_parts.append(

@@ -71,6 +71,9 @@ async def run_python_subprocess(
         )
 
         process_env = sanitize_env(os.environ.copy())
+        # Strip hostile parent PYTHONPATH to prevent cross-venv binary mismatch & ModuleNotFoundError traps
+        process_env.pop("PYTHONPATH", None)
+
         # Inject venv site-packages into PYTHONPATH if python_executable is from a venv
         python_exec_path = Path(python_executable)
         venv_root = python_exec_path.parent.parent
@@ -81,10 +84,7 @@ async def run_python_subprocess(
                 extra_paths.append(str(sp))
 
         python_path = os.pathsep.join(extra_paths + sys.path)
-        if "PYTHONPATH" in process_env:
-            process_env["PYTHONPATH"] = python_path + os.pathsep + process_env["PYTHONPATH"]
-        else:
-            process_env["PYTHONPATH"] = python_path
+        process_env["PYTHONPATH"] = python_path
 
         if env:
             process_env.update(sanitize_env(env))

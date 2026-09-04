@@ -19,7 +19,7 @@ Utility functions module.
 | video_reader.py | Core | Sandbox video reads for file_read_tool; video-slot-first fallback chain + VideoAnalysisEngine. | ✅ |
 | path_utils.py | Core | Provides resolve_file_id_path. | ✅ |
 | vault_read.py | Core | vault:// URI read, workspace resolve, batch read for file_read_tool | ✅ |
-| pdf_reader.py | Core | PDF file reader with Large Document Smart RAG Diverter. Auto-ingests large PDFs (>20 pages) into wiki knowledge base for RAG retrieval. | ✅ |
+| pdf_reader.py | Core | PDF file reader with structure outline extraction and Large Document Smart RAG Diverter. | ✅ |
 
 ## Tests
 

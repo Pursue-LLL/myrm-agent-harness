@@ -125,6 +125,68 @@ class MatrixResult:
                 regressions.append(i)
         return regressions
 
+    def _extract_profile_metrics(
+        self, pid: str
+    ) -> tuple[list[bool], list[int], list[float], list[float]]:
+        outcomes: list[bool] = []
+        tokens: list[int] = []
+        costs: list[float] = []
+        ms: list[float] = []
+        for idx in range(len(self.cases)):
+            cell = self.get_cell(pid, idx)
+            if cell:
+                outcomes.append(bool(cell.passed))
+                tokens.append(int(cell.token_usage.get("total_tokens", 0)))
+                costs.append(float(cell.cost))
+                ms.append(float(cell.total_ms))
+            else:
+                outcomes.append(False)
+                tokens.append(0)
+                costs.append(0.0)
+                ms.append(0.0)
+        return outcomes, tokens, costs, ms
+
+    @property
+    def paired_significance(self) -> dict[str, dict[str, object]]:
+        """Compute paired McNemar test and Bootstrap CI across profiles."""
+        if len(self.profile_ids) < 2 or not self.cases:
+            return {}
+
+        from myrm_agent_harness.eval.significance import calculate_paired_significance
+
+        sig_map: dict[str, dict[str, object]] = {}
+
+        def _evaluate_pair(base_id: str, cand_id: str) -> None:
+            pair_key = f"{base_id}:{cand_id}"
+            if pair_key in sig_map:
+                return
+            b_out, b_tok, b_cost, b_ms = self._extract_profile_metrics(base_id)
+            c_out, c_tok, c_cost, c_ms = self._extract_profile_metrics(cand_id)
+            assessment = calculate_paired_significance(
+                b_out,
+                c_out,
+                base_id=base_id,
+                candidate_id=cand_id,
+                base_tokens=b_tok,
+                candidate_tokens=c_tok,
+                base_costs=b_cost,
+                candidate_costs=c_cost,
+                base_ms=b_ms,
+                candidate_ms=c_ms,
+            )
+            sig_map[pair_key] = assessment.to_dict()
+
+        # 1. Adjacent pairs (Layer i vs Layer i-1, perfect for Layered Eval)
+        for i in range(1, len(self.profile_ids)):
+            _evaluate_pair(self.profile_ids[i - 1], self.profile_ids[i])
+
+        # 2. All vs Baseline (profile[i] vs profile[0], for multi-profile benchmark)
+        base_0 = self.profile_ids[0]
+        for i in range(1, len(self.profile_ids)):
+            _evaluate_pair(base_0, self.profile_ids[i])
+
+        return sig_map
+
     def _cell_passed(self, profile_id: str, case_index: int) -> bool | None:
         result = self.per_profile_results.get(profile_id)
         if not result or case_index >= len(result.turn_results):
@@ -199,6 +261,7 @@ class MatrixResult:
             "per_profile": per_profile_summary,
             "matrix": matrix,
             "generalization_gate": evaluate_generalization_gate(self).to_dict(),
+            "paired_significance": self.paired_significance,
             "total_ms": round(self.total_ms, 2),
         }
 

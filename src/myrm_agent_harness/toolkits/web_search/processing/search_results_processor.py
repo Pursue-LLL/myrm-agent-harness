@@ -13,7 +13,8 @@ utils.url_utils::normalize_url, extract_domain (POS: URL normalisation and domai
 
 [OUTPUT]
 search_results_to_documents: Converts SearchResult list to Document list
-combine_search_results_unified: Merges multi-query results with two-layer deduplication (URL arbitration + content hash)
+interleave_search_results_round_robin: Interleaves multi-query search result documents using Round-Robin
+combine_search_results_unified: Merges multi-query results with Round-Robin interleaving and two-layer deduplication
 apply_domain_diversity_sort: Reorders documents with same-domain decay to improve source diversity
 
 [POS]
@@ -88,6 +89,34 @@ def search_results_to_documents(results: list[SearchResult]) -> list[Document]:
     return documents
 
 
+def interleave_search_results_round_robin(
+    query_docs_list: list[list[Document]],
+) -> list[Document]:
+    """Interleave search result documents across multiple queries using Round-Robin.
+
+    Ensures balanced representation across all queries rather than letting the
+    first query monopolize top ranking positions.
+
+    Args:
+        query_docs_list: List of document lists, one per successful query.
+
+    Returns:
+        Interleaved list of documents.
+    """
+    if not query_docs_list:
+        return []
+    if len(query_docs_list) == 1:
+        return list(query_docs_list[0])
+
+    interleaved: list[Document] = []
+    max_len = max((len(docs) for docs in query_docs_list), default=0)
+    for depth in range(max_len):
+        for docs in query_docs_list:
+            if depth < len(docs):
+                interleaved.append(docs[depth])
+    return interleaved
+
+
 def combine_search_results_unified(
     search_results: list[tuple[str, list[Document], Exception | None]],
 ) -> tuple[list[dict[str, str]], list[Document]]:
@@ -116,6 +145,7 @@ def combine_search_results_unified(
     total_docs = 0
     failed_queries = 0
     zero_result_queries = 0
+    valid_query_doc_lists: list[list[Document]] = []
 
     for query, documents, error in search_results:
         if error is not None:
@@ -131,34 +161,57 @@ def combine_search_results_unified(
             continue
 
         logger.debug(f"Query '{query}' returned {doc_count} documents")
+        valid_query_doc_lists.append(documents)
 
-        for doc in documents:
-            metadata = doc.metadata
-            original_url = metadata.get("url", "")
-            if not original_url:
-                continue
+    total_queries = len(search_results)
+    successful_queries = total_queries - failed_queries - zero_result_queries
 
-            page_content = doc.page_content
+    if total_docs == 0:
+        logger.debug(
+            f"Document pool: 0 docs "
+            f"(queries={total_queries}: success={successful_queries}, empty={zero_result_queries}, failed={failed_queries})"
+        )
+        raise SearchAPIError(
+            "Search API is unavailable: all queries returned 0 results",
+            context=ErrorContext(
+                metadata={
+                    "total_queries": str(total_queries),
+                    "successful_queries": str(successful_queries),
+                    "zero_result_queries": str(zero_result_queries),
+                    "failed_queries": str(failed_queries),
+                },
+            ),
+        )
 
-            normalized_url_dedup, normalized_url_semantic = normalize_url(original_url)
-            if not normalized_url_dedup:
-                continue
+    # Interleave documents across queries to prevent single-query rank monopolization
+    interleaved_docs = interleave_search_results_round_robin(valid_query_doc_lists)
 
-            content_len = len(page_content)
-            content_prefix = page_content if content_len <= 500 else page_content[:500]
-            content_hash = get_content_hash(content_prefix, strategy="builtin", use_cache=True)
+    for doc in interleaved_docs:
+        metadata = doc.metadata
+        original_url = metadata.get("url", "")
+        if not original_url:
+            continue
 
-            # Layer 2: mirror site dedup (different URL, same content)
-            existing_url = content_hash_seen.get(content_hash)
-            if existing_url is not None and existing_url != normalized_url_dedup:
-                continue
-            content_hash_seen.setdefault(content_hash, normalized_url_dedup)
+        page_content = doc.page_content
 
-            # Layer 1: URL arbitration (same URL, keep longest content)
-            prev = url_best.get(normalized_url_dedup)
-            if prev is not None and content_len <= prev[0]:
-                continue
-            url_best[normalized_url_dedup] = (content_len, doc, normalized_url_semantic)
+        normalized_url_dedup, normalized_url_semantic = normalize_url(original_url)
+        if not normalized_url_dedup:
+            continue
+
+        content_len = len(page_content)
+        content_hash = get_content_hash(page_content, strategy="builtin", use_cache=True)
+
+        # Layer 2: mirror site dedup (different URL, same content)
+        existing_url = content_hash_seen.get(content_hash)
+        if existing_url is not None and existing_url != normalized_url_dedup:
+            continue
+        content_hash_seen.setdefault(content_hash, normalized_url_dedup)
+
+        # Layer 1: URL arbitration (same URL, keep longest content)
+        prev = url_best.get(normalized_url_dedup)
+        if prev is not None and content_len <= prev[0]:
+            continue
+        url_best[normalized_url_dedup] = (content_len, doc, normalized_url_semantic)
 
     total_queries = len(search_results)
     successful_queries = total_queries - failed_queries - zero_result_queries

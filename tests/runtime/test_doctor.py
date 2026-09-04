@@ -33,6 +33,25 @@ class TestPythonVersionCheck:
             assert "Update to 3.13+" in result.fix
 
 
+class TestPythonEnvironmentIsolationCheck:
+    @pytest.mark.asyncio
+    async def test_clean_environment_passes(self):
+        with patch.dict("os.environ", {}, clear=True):
+            result = await Doctor()._check_python_environment_isolation()
+            assert result.status == CheckStatus.OK
+            assert result.name == "python_env_isolation"
+            assert "Clean Python runtime environment" in result.message
+
+    @pytest.mark.asyncio
+    async def test_polluted_environment_warns(self):
+        with patch.dict("os.environ", {"PYTHONPATH": "/opt/host/site-packages", "PYTHONHOME": "/opt/host"}, clear=True):
+            result = await Doctor()._check_python_environment_isolation()
+            assert result.status == CheckStatus.WARNING
+            assert result.name == "python_env_isolation"
+            assert "PYTHONPATH=" in result.message
+            assert "unset PYTHONPATH" in (result.fix or "")
+
+
 class TestCoreDependenciesCheck:
     @pytest.mark.asyncio
     async def test_all_installed(self):
@@ -85,6 +104,7 @@ class TestRunGlobalDoctor:
         assert "python" in report.checks
         assert "core_deps" in report.checks
         assert "llm_config" in report.checks
+        assert "python_env_isolation" in report.checks
 
     @pytest.mark.asyncio
     async def test_no_browser_excludes_browser_checks(self):

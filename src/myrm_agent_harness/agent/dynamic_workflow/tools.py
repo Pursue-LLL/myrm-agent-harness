@@ -388,7 +388,9 @@ class SpawnSubagentTool(BaseTool):
                                 ),
                             )
                         else:
-                            manager = self.parent_agent._subagent_manager
+                            manager = getattr(self.parent_agent, "_subagent_manager", None)
+                            if manager is None:
+                                raise ValueError("Parent agent missing _subagent_manager")
                             from myrm_agent_harness.agent.sub_agents.orchestrator import (
                                 run_with_verification,
                             )
@@ -493,9 +495,11 @@ class SpawnSubagentTool(BaseTool):
             )
             # Sidecar journal mirror (best-effort workspace snapshot)
             ws_root = None
-            if self.parent_agent and getattr(self.parent_agent, "context", None):
-                raw_ws = getattr(self.parent_agent.context, "workspace_dir", None)
-                ws_root = coerce_filesystem_path(raw_ws)
+            if self.parent_agent:
+                parent_ctx = getattr(self.parent_agent, "context", None)
+                if parent_ctx is not None:
+                    raw_ws = getattr(parent_ctx, "workspace_dir", None)
+                    ws_root = coerce_filesystem_path(raw_ws)
             if ws_root is not None:
                 journal_file = ws_root / ".myrm" / ".workflow-journal.jsonl"
                 self.store.append_journal_entry(
@@ -729,7 +733,7 @@ class HumanAskTool(BaseTool):
         await self.event_queue.put(resolved_event)
 
         return {
-            "success": True if error_msg == "" else False,
+            "success": error_msg == "",
             "answer": answer,
             "error": error_msg,
             "timed_out": timed_out,
@@ -755,6 +759,10 @@ class SteerChildInput(BaseModel):
         description="Corrective or follow-up instruction message injected into the sub-agent's next turn.",
         max_length=4000,
     )
+    config_overlay: dict[str, object] | None = Field(
+        default=None,
+        description="Optional Continual configuration overrides (timeout_seconds, retry_attempts, verification_mode, etc.) applied in-flight.",
+    )
 
 
 class SteerChildTool(BaseTool):
@@ -771,14 +779,27 @@ class SteerChildTool(BaseTool):
 
     parent_agent: object
 
-    def _run(self, task_id: str, message: str) -> dict[str, object]:
+    def _run(
+        self,
+        task_id: str,
+        message: str,
+        config_overlay: dict[str, object] | None = None,
+    ) -> dict[str, object]:
         if not hasattr(self.parent_agent, "steer_child"):
             return {
                 "success": False,
                 "task_id": task_id,
                 "error": "Parent agent does not support steer_child.",
             }
-        steered = self.parent_agent.steer_child(task_id, message)
+        try:
+            if config_overlay is not None:
+                steered = self.parent_agent.steer_child(  # type: ignore[call-arg]
+                    task_id, message, config_overlay=config_overlay
+                )
+            else:
+                steered = self.parent_agent.steer_child(task_id, message)  # type: ignore[call-arg]
+        except TypeError:
+            steered = self.parent_agent.steer_child(task_id, message)  # type: ignore[call-arg]
         if steered:
             return {
                 "success": True,
@@ -791,5 +812,10 @@ class SteerChildTool(BaseTool):
             "error": f"Could not steer `{task_id}`: sub-agent not found or already completed.",
         }
 
-    async def _arun(self, task_id: str, message: str) -> dict[str, object]:
-        return self._run(task_id=task_id, message=message)
+    async def _arun(
+        self,
+        task_id: str,
+        message: str,
+        config_overlay: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        return self._run(task_id=task_id, message=message, config_overlay=config_overlay)

@@ -255,6 +255,16 @@ class TestAsyncExecutionModesEndToEnd:
                 "import asyncio\nasync def f():\n    return 'MARK_TOP_AWAIT'\nprint(await f())",
                 "MARK_TOP_AWAIT",
             ),
+            (
+                "top_level_await_with_future_annotations",
+                "from __future__ import annotations\nimport asyncio\nasync def f() -> str:\n    return 'MARK_FUTURE_AWAIT'\nprint(await f())",
+                "MARK_FUTURE_AWAIT",
+            ),
+            (
+                "sync_function_with_internal_await_not_misclassified",
+                "x = 500\nasync def helper():\n    pass\nprint(f'MARK_SYNC_NO_AWAIT_{x}')",
+                "MARK_SYNC_NO_AWAIT_500",
+            ),
         ],
     )
     def test_mode_runs_in_subprocess(

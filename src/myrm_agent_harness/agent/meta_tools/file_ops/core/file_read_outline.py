@@ -1,21 +1,20 @@
-"""Adaptive code outline extractor for truncated file reads.
+"""Adaptive structural outline extractor for files.
 
-Extracts top-level class, function, interface, and struct signatures from
-the omitted portion of a truncated source code file. Appended to the truncation
-warning so the LLM can navigate directly to specific definitions without blind
-sequential pagination.
+Extracts top-level class, function, interface, struct signatures, and Markdown headings
+from source code or document files. Supports truncated file reads and structure-only reading mode.
 
 [INPUT]
 - output: Raw or gutter-formatted file content string
 - path_str: Target file path
-- next_offset: 1-indexed line number where truncation started
+- next_offset: 1-indexed line number where extraction starts (1 for full document)
 
 [OUTPUT]
-- extract_truncated_outline: Formatted outline string block, or empty string
+- extract_file_outline: Formatted document structure outline string, or empty string
+- extract_truncated_outline: Formatted outline string block for truncated reads, or empty string
 
 [POS]
 In-memory zero-dependency outline extraction supporting Python (AST + regex fallback),
-TypeScript/JavaScript, Go, Rust, Java, C/C++, and C#.
+TypeScript/JavaScript, Go, Rust, Java, C/C++, C#, and Markdown.
 """
 
 from __future__ import annotations
@@ -62,6 +61,9 @@ _GENERIC_SYMBOL_PATTERNS: dict[str, list[re.Pattern[str]]] = {
         re.compile(r"^((?:async\s+)?def)\s+([a-zA-Z0-9_]+)\s*\("),
         re.compile(r"^(class)\s+([a-zA-Z0-9_]+)"),
     ],
+    "markdown": [
+        re.compile(r"^(#{1,6})\s+(.+)$"),
+    ],
 }
 
 _EXT_TO_LANGUAGE: dict[str, str] = {
@@ -83,6 +85,8 @@ _EXT_TO_LANGUAGE: dict[str, str] = {
     ".hpp": "c_cpp",
     ".h": "c_cpp",
     ".c": "c_cpp",
+    ".md": "markdown",
+    ".mdx": "markdown",
 }
 
 
@@ -189,7 +193,9 @@ def _extract_regex_symbols(
             continue
 
         stripped_code = raw_text.strip()
-        if not stripped_code or stripped_code.startswith(("//", "/*", "*", "#", "'''", '"""')):
+        if not stripped_code:
+            continue
+        if language_key != "markdown" and stripped_code.startswith(("//", "/*", "*", "#", "'''", '"""')):
             continue
         for pattern in patterns:
             match = pattern.match(stripped_code)
@@ -253,6 +259,55 @@ def extract_truncated_outline(
 
     outline_lines: list[str] = [
         f"[OUTLINE OF REMAINING SYMBOLS (from line {next_offset})]:"
+    ]
+    for sym in displayed_symbols:
+        outline_lines.append(f"  {sym.format_entry()}")
+
+    if total_symbols > max_symbols:
+        omitted = total_symbols - max_symbols
+        outline_lines.append(f"  ... and {omitted:,} more symbols.")
+
+    return "\n".join(outline_lines)
+
+
+def extract_file_outline(
+    output: str,
+    path_str: str,
+    max_symbols: int = 100,
+) -> str:
+    """Extract structural outline with line numbers for a complete source or markdown file.
+
+    Args:
+        output: Full raw or gutter-formatted file text.
+        path_str: Path to determine language syntax.
+        max_symbols: Maximum outline items before applying truncation fuse.
+
+    Returns:
+        Formatted outline text block or empty string.
+    """
+    ext = _clean_path_extension(path_str)
+    language = _EXT_TO_LANGUAGE.get(ext)
+    if not language:
+        return ""
+
+    lines = output.split("\n")
+    if language == "python":
+        raw_lines = [_strip_gutter_line(line)[1] for line in lines]
+        raw_content = "\n".join(raw_lines)
+        symbols = _extract_python_ast_symbols(raw_content, start_line_threshold=1)
+        if not symbols:
+            symbols = _extract_regex_symbols(lines, "python_fallback", start_line_threshold=1)
+    else:
+        symbols = _extract_regex_symbols(lines, language, start_line_threshold=1)
+
+    if not symbols:
+        return ""
+
+    total_symbols = len(symbols)
+    displayed_symbols = symbols[:max_symbols]
+
+    outline_lines: list[str] = [
+        f"[DOCUMENT STRUCTURE OUTLINE: {os.path.basename(path_str)}]:"
     ]
     for sym in displayed_symbols:
         outline_lines.append(f"  {sym.format_entry()}")

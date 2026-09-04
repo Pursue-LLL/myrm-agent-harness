@@ -64,7 +64,10 @@ class RetrieverConfig(BaseModel):
     model_config = ConfigDict()
 
     bm25_cache_max_size: int = Field(default=10, ge=1, le=100, description="Max BM25 index cache entries")
-    content_hash_sample_size: int = Field(default=500, ge=100, le=5000, description="Content hash sample size (chars)")
+    content_hash_sample_size: int | None = Field(
+        default=None,
+        description="Optional content hash sample size in chars; None uses full content to prevent prefix collisions",
+    )
     hybrid_top_k_per_query: int = Field(
         default=50, ge=10, le=200, description="Docs returned per query in hybrid retrieval"
     )
@@ -153,7 +156,12 @@ class RetrieverManager:
                 (
                     doc.metadata["url"],
                     doc.metadata.get("chunk_index", -1),
-                    get_content_hash(doc.page_content[:sample_size], strategy="builtin", use_cache=False),
+                    len(doc.page_content),
+                    get_content_hash(
+                        doc.page_content if sample_size is None else doc.page_content[:sample_size],
+                        strategy="builtin",
+                        use_cache=False,
+                    ),
                 )
                 for doc in documents
             )
@@ -161,7 +169,15 @@ class RetrieverManager:
             return get_content_hash(key_raw, strategy="builtin", use_cache=False)
 
         hash_set = frozenset(
-            get_content_hash(doc.page_content[:sample_size], strategy="builtin", use_cache=False) for doc in documents
+            (
+                len(doc.page_content),
+                get_content_hash(
+                    doc.page_content if sample_size is None else doc.page_content[:sample_size],
+                    strategy="builtin",
+                    use_cache=False,
+                ),
+            )
+            for doc in documents
         )
         key_raw = f"content_docs:{len(documents)}:{sorted(hash_set)}"
         return get_content_hash(key_raw, strategy="builtin", use_cache=False)

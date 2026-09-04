@@ -13,7 +13,7 @@ Uses pdf_content_extractor for unified smart extraction:
 
 [OUTPUT]
 - is_pdf_path: Detect if path is a PDF file
-- read_pdf_as_content_blocks: Read PDF and return smart-extracted content.
+- read_pdf_as_content_blocks: Read PDF and return smart-extracted content (supports parse_mode="structure" for bookmark outlines).
 - register_large_doc_ingest_callback / unregister_large_doc_ingest_callback:
   Module-level callback registry for wiki auto-ingest on large PDFs.
 
@@ -150,11 +150,17 @@ async def _schedule_rag_ingest(
 
 
 async def read_pdf_as_content_blocks(
-    path: str, executor: CodeExecutor, supports_vision: bool
+    path: str,
+    executor: CodeExecutor,
+    supports_vision: bool,
+    *,
+    parse_mode: str | None = None,
 ) -> str | list[ContentBlock]:
-    """Read PDF and return smart-extracted content.
+    """Read PDF and return smart-extracted content or structural outline.
 
-    For documents exceeding RAG_PAGE_THRESHOLD pages, the full text is
+    When parse_mode='structure', extracts the document bookmarks and chapter
+    hierarchy without full text extraction or OCR, enabling progressive disclosure.
+    For documents exceeding RAG_PAGE_THRESHOLD pages in normal mode, the full text is
     asynchronously ingested into the wiki knowledge base and the agent
     receives a hint to use wiki_query for precise retrieval.
     """
@@ -165,6 +171,37 @@ async def read_pdf_as_content_blocks(
     except Exception as e:
         logger.warning("Failed to read PDF bytes: %s, error: %s", path, e)
         return f"[PDF file: {path}] (Failed to read)"
+
+    if parse_mode == "structure":
+        tmp_path = await _write_to_temp(raw_bytes)
+        try:
+            from myrm_agent_harness.toolkits.file_parsers.pdf.pdf import PDFPlumberParser
+
+            parser = PDFPlumberParser(extract_tables=False)
+            res = await asyncio.to_thread(parser.parse_sync, tmp_path)
+            bookmarks = res.metadata.get("bookmarks") or []
+            page_count = res.metadata.get("page_count", 0)
+
+            outline_lines = [f"[DOCUMENT STRUCTURE OUTLINE: {PurePosixPath(path).name} (Total Pages: {page_count})]:"]
+            if bookmarks:
+                for bm in bookmarks:
+                    level = bm.get("level", 1)
+                    title = bm.get("title", "")
+                    page_num = bm.get("page_num")
+                    indent = "  " * int(level)
+                    pg_str = f"Page {page_num}" if page_num else "Page unknown"
+                    outline_lines.append(f"{indent}- {pg_str}: {title}")
+            else:
+                outline_lines.append("  (No bookmarks or structural headings detected in PDF)")
+
+            return "\n".join(outline_lines)
+        except Exception as e:
+            logger.warning("PDF structure outline extraction failed for %s: %s", path, e)
+            return f"[PDF file: {path}] (Failed to extract structure outline: {e})"
+        finally:
+            import contextlib
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
 
     try:
         from myrm_agent_harness.toolkits.file_parsers.pdf.pdf_content_extractor import (

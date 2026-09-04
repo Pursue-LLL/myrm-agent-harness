@@ -521,6 +521,14 @@ async def run_agent_loop(
                 )
             )
 
+        try:
+            from myrm_agent_harness.agent.session_overlay import get_session_overlay_manager
+            overlay_mgr = get_session_overlay_manager(str(session_key or message_id or "default"))
+            if overlay_mgr is not None:
+                overlay_mgr.consume_turn()
+        except Exception:
+            pass
+
         from myrm_agent_harness.agent.context_management.infra.evicted import (
             build_delivery_footer,
             emit_evicted_ref,

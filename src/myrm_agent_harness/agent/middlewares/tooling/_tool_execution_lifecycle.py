@@ -303,9 +303,60 @@ async def handle_execution_error(
         error_content=f"{error_type}: {error_msg}"[:200],
     )
 
+    error_hint: str | None = None
+    try:
+        from myrm_agent_harness.agent.session_overlay import get_session_overlay_manager
+        _ovl_mgr = get_session_overlay_manager()
+        if _ovl_mgr is not None:
+            _ovl_mgr.record_tool_outcome(tool_name, is_error=True, error_signature=f"{tool_name}:{error_type}")
+    except Exception:
+        pass
+
+    try:
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_session_key,
+            get_session_overlay_manager,
+        )
+        overlay_mgr = get_session_overlay_manager()
+        session_id = get_session_key() or "session_default"
+        if overlay_mgr is not None:
+            from myrm_agent_harness.agent.continual.overlay import (
+                synthesize_fault_site_overlay,
+            )
+
+            overlay = synthesize_fault_site_overlay(
+                tool_name=tool_name,
+                error_category=error_category,
+                error_message=f"{error_type}: {error_msg}",
+                tool_args=tool_args,
+                session_id=session_id,
+            )
+            if overlay is not None:
+                overlay_mgr.apply_overlay(overlay)
+                advisory = overlay.patch_data.get("advisory_instruction")
+                if isinstance(advisory, str) and advisory:
+                    error_hint = advisory
+                logger.info(
+                    "[ContinualOverlay] Applied fault-site overlay %s (%s) for tool [%s]",
+                    overlay.overlay_id,
+                    overlay.shell_type.value,
+                    tool_name,
+                )
+    except Exception as overlay_err:
+        logger.warning(
+            "Failed to synthesize fault-site session overlay for [%s]: %s",
+            tool_name,
+            overlay_err,
+        )
+
+    raw_error_msg = format_tool_error(e, tool_name)
+    if error_hint:
+        raw_error_msg = f"{raw_error_msg}\n\n[Runtime Remediation Advisory]: {error_hint}"
+
     return make_error_msg(
         tool_name,
         tool_call_id,
-        format_tool_error(e, tool_name),
+        raw_error_msg,
         error_category=error_category,
+        error_hint=error_hint,
     )

@@ -64,6 +64,9 @@ LAYER_EXEMPT_TOOL_NAMES: frozenset[str] = frozenset(
         "conversation_search_tool",
         "wiki_compile_tool",
         "wiki_maintain_tool",
+        "obsidian_vault_search",
+        "obsidian_vault_read",
+        "obsidian_inbox_write",
     }
 )
 
@@ -79,6 +82,7 @@ ORPHAN_FACTORY_WHITELIST: frozenset[str] = frozenset(
         "create_goal_tools",
         "create_memory_tools",
         "create_submit_verdict_tool",
+        "create_obsidian_tools",
     }
 )
 

@@ -95,3 +95,30 @@ class TestGuardedCommunicate:
         )
         _, stderr = await guarded_communicate(proc, 5, label="stderr test")
         assert b"oops" in stderr
+
+
+class TestPythonSubprocessIsolation:
+    @pytest.mark.asyncio
+    async def test_pythonpath_pollution_sanitized(self, tmp_path):
+        from myrm_agent_harness.toolkits.code_execution.executors.local._python_subprocess import (
+            run_python_subprocess,
+        )
+
+        test_script = tmp_path / "check_path.py"
+        test_script.write_text("import os, sys\nprint('PATH:' + os.environ.get('PYTHONPATH', ''))")
+
+        # Inject hostile parent PYTHONPATH
+        import os
+        from unittest.mock import patch
+
+        hostile_dir = "/malicious/host/incompatible_binary_dir"
+        with patch.dict(os.environ, {"PYTHONPATH": hostile_dir}):
+            res = await run_python_subprocess(
+                script_path=test_script,
+                timeout=10,
+                python_executable=sys.executable,
+                cwd=tmp_path,
+            )
+            assert res.success is True
+            # Assert hostile dir was stripped
+            assert hostile_dir not in res.stdout

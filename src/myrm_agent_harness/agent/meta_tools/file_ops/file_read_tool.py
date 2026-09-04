@@ -214,10 +214,10 @@ class FileReadInput(BaseModel):
     parse_mode: str | None = Field(
         default=None,
         description=(
-            "Office 文档解析模式（对 .xlsx/.xls/.pptx/.ppt/.docx 生效）：\n"
-            "- None（默认）：输出 Markdown 内容（Excel 大文件 >50KB 自动切换 structure）\n"
-            "- 'content'：强制输出完整 Markdown 内容\n"
-            "- 'structure'：输出 JSON 结构元数据（Excel: sheet/列头/公式; PPTX: slide/shape_id/位置; DOCX: 段落ID/样式/表格）\n"
+            "文档解析模式（对 .docx/.pdf/.md/代码/Excel/PPTX 生效）：\n"
+            "- None（默认）：输出完整文本/Markdown（Excel 大文件 >50KB 自动切换 structure）\n"
+            "- 'content'：强制输出完整内容\n"
+            "- 'structure'：结构化渐进阅读模式。输出章节大纲与行号/页号（PDF书签/页码、Markdown/代码符号行范围、Word/Excel结构元数据），便于精准阅读\n"
             "- 'audit'：输出 JSON 审计报告（仅 Excel 生效）"
         ),
     )
@@ -502,6 +502,7 @@ def create_file_read_tool(
                         mode,
                         chunk_size_mb,
                         config=config,
+                        parse_mode=parse_mode,
                     )
                 )
 

@@ -362,6 +362,8 @@ class EvalResult:
     manifest: EvalManifest | None = None
     variance_metrics: object | None = None
     ablation_recommendations: list[dict[str, Any]] | None = None
+    healed_by_overlay_count: int = 0
+    overlay_rollback_count: int = 0
 
     @property
     def total_cases(self) -> int:
@@ -439,6 +441,8 @@ class EvalResult:
             "total_ms": round(self.total_ms, 2),
             "total_tokens": self.total_tokens,
             "total_cost": round(self.total_cost, 6),
+            "healed_by_overlay_count": self.healed_by_overlay_count,
+            "overlay_rollback_count": self.overlay_rollback_count,
         }
         if self.avg_pass_rate is not None:
             result["avg_pass_rate"] = self.avg_pass_rate

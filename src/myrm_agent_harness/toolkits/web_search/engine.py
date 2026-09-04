@@ -291,98 +291,51 @@ class WebSearchTools:
         return sources_metadata, formatted_context
 
 
-def _merge_adjacent_chunks(
+def _cap_chunks_per_doc(
     chunks: list[Document],
     max_chunks_per_doc: int,
-    enable_merge: bool,
 ) -> list[Document]:
-    """Smart merge: only merge consecutive chunks, preserving semantic coherence.
+    """Select top relevance chunks per document, maintaining global rerank order.
 
-    Algorithm:
-    1. Group by URL
-    2. Detect consecutive chunk sequences within each group (by chunk_index)
-    3. Only merge consecutive chunks (e.g. [3,4,5]), not disjoint ones (e.g. [3,15,23])
-    4. Select most relevant consecutive groups (up to max_chunks_per_doc)
+    Each chunk remains an independent, semantically coherent search snippet with distinct chunk boundaries.
 
     Args:
         chunks: Reranker-sorted chunk list (descending by relevance)
-        max_chunks_per_doc: Max consecutive groups to keep per document
-        enable_merge: Whether to enable adjacent chunk merging
+        max_chunks_per_doc: Max chunks to keep per document URL
 
     Returns:
-        Processed document list (semantically coherent)
+        Filtered document list with at most max_chunks_per_doc chunks per URL.
     """
-    if not chunks or not enable_merge:
+    if not chunks or max_chunks_per_doc <= 0:
         return chunks
 
-    # Group by document URL, preserving reranker relevance order and chunk_index
-    doc_groups: dict[str, list[tuple[int, int, Document]]] = {}
-    for rerank_order, chunk in enumerate(chunks):
+    from collections import Counter
+
+    url_counts: Counter[str] = Counter()
+    selected: list[Document] = []
+
+    for chunk in chunks:
         url = chunk.metadata.get("url", "unknown")
-        chunk_index = chunk.metadata.get("chunk_index", -1)
-
-        if url not in doc_groups:
-            doc_groups[url] = []
-        doc_groups[url].append((rerank_order, chunk_index, chunk))
-
-    merged_docs: list[tuple[int, Document]] = []
-
-    for group in doc_groups.values():
-        # Sort by chunk_index (positional order in original document)
-        group_by_chunk_index = sorted(group, key=lambda x: x[1])
-
-        # Detect consecutive chunk sequences
-        continuous_sequences = []
-        current_sequence = [group_by_chunk_index[0]]
-
-        for i in range(1, len(group_by_chunk_index)):
-            _prev_rerank_order, prev_chunk_idx, _prev_chunk = group_by_chunk_index[i - 1]
-            _curr_rerank_order, curr_chunk_idx, _curr_chunk = group_by_chunk_index[i]
-
-            # Check continuity (chunk_index=-1 treated as standalone chunk)
-            if curr_chunk_idx != -1 and prev_chunk_idx != -1 and curr_chunk_idx == prev_chunk_idx + 1:
-                # Consecutive, append to current sequence
-                current_sequence.append(group_by_chunk_index[i])
-            else:
-                # Not consecutive, save current sequence and start new one
-                continuous_sequences.append(current_sequence)
-                current_sequence = [group_by_chunk_index[i]]
-
-        # Save the last sequence
-        continuous_sequences.append(current_sequence)
-
-        # Sort sequences by highest relevance (lowest rerank_order in sequence)
-        continuous_sequences.sort(key=lambda seq: min(item[0] for item in seq))
-
-        # Select top max_chunks_per_doc most relevant consecutive sequences
-        for sequence in continuous_sequences[:max_chunks_per_doc]:
-            best_order = min(item[0] for item in sequence)
-            if len(sequence) == 1:
-                # Single chunk, add directly
-                _, _, chunk = sequence[0]
-                merged_docs.append((best_order, chunk))
-            else:
-                # Multiple consecutive chunks, merge content (by chunk_index order)
-                sequence_sorted = sorted(sequence, key=lambda x: x[1])
-                merged_content = "\n\n".join(chunk.page_content for _, _, chunk in sequence_sorted)
-
-                # Use first chunk metadata
-                merged_metadata = sequence_sorted[0][2].metadata.copy()
-                merged_metadata["merged_chunks_count"] = len(sequence)
-                merged_metadata["merged_chunk_indices"] = [chunk_idx for _, chunk_idx, _ in sequence_sorted]
-
-                merged_doc = Document(page_content=merged_content, metadata=merged_metadata)
-                merged_docs.append((best_order, merged_doc))
-
-    # Restore global relevance ordering across all documents
-    merged_docs.sort(key=lambda item: item[0])
-    final_merged_docs = [doc for _, doc in merged_docs]
+        if url_counts[url] < max_chunks_per_doc:
+            url_counts[url] += 1
+            selected.append(chunk)
 
     logger.info(
-        f"Chunk merge: {len(chunks)} chunks → {len(final_merged_docs)} merged documents "
-        f"(continuous sequences only, preserving semantic coherence and global relevance order)"
+        f"Chunk capping: {len(chunks)} chunks → {len(selected)} chunks "
+        f"(max {max_chunks_per_doc} per doc, preserving discrete boundaries and rerank order)"
     )
-    return final_merged_docs
+    return selected
+
+
+def _merge_adjacent_chunks(
+    chunks: list[Document],
+    max_chunks_per_doc: int,
+    enable_merge: bool = True,
+) -> list[Document]:
+    """Compatibility alias for per-document chunk capping."""
+    if not chunks or not enable_merge:
+        return chunks
+    return _cap_chunks_per_doc(chunks, max_chunks_per_doc)
 
 
 async def _chunk_document_async(
@@ -533,24 +486,23 @@ async def _precision_mode_search(
         logger.warning("No chunks available after reranking/degradation in precision mode")
         return []
 
-    # 4. Merge adjacent chunks + limit chunks per document
-    merge_start = time.perf_counter()
-    merged_docs = _merge_adjacent_chunks(
+    # 4. Limit chunks per document
+    cap_start = time.perf_counter()
+    capped_docs = _cap_chunks_per_doc(
         reranked_chunks,
         max_chunks_per_doc=tools._MAX_CHUNKS_PER_DOC,
-        enable_merge=tools._ENABLE_CHUNK_MERGE,
     )
-    merge_time_ms = (time.perf_counter() - merge_start) * 1000
-    logger.info(f"Chunk merge: {len(reranked_chunks)} chunks → {len(merged_docs)} docs in {merge_time_ms:.0f}ms")
+    cap_time_ms = (time.perf_counter() - cap_start) * 1000
+    logger.info(f"Chunk capping: {len(reranked_chunks)} chunks → {len(capped_docs)} docs in {cap_time_ms:.0f}ms")
 
     total_time_ms = (time.perf_counter() - chunk_start) * 1000
     logger.info(
         f"Precision mode total: {total_time_ms:.0f}ms "
         f"(chunk={chunk_time_ms:.0f}ms, bm25={bm25_time_ms:.0f}ms, "
-        f"rerank={rerank_time_ms:.0f}ms, merge={merge_time_ms:.0f}ms)"
+        f"rerank={rerank_time_ms:.0f}ms, cap={cap_time_ms:.0f}ms)"
     )
 
-    return merged_docs
+    return capped_docs
 
 
 def _drop_blocked_hostname_docs(
