@@ -31,6 +31,9 @@ class _FakeStream:
             return b""
         return self._lines.pop(0)
 
+    async def readexactly(self, n: int) -> bytes:
+        return b""
+
 
 class _FakeProc:
     def __init__(self, pid: int, stdout: list[bytes], stderr: list[bytes]) -> None:
@@ -66,6 +69,7 @@ async def test_progress_throttle_and_terminal_penetration() -> None:
     lines.append(b'MYRM_PROGRESS {"percent": 100, "message": "Completed"}\n')
 
     proc = _FakeProc(pid=29001, stdout=lines, stderr=[])
+    proc.finish(0)
     info = BackgroundProcessInfo(
         job_id="job-29001",
         pid=29001,
@@ -93,17 +97,12 @@ async def test_progress_throttle_and_terminal_penetration() -> None:
     def _clear_idle(_sess: str | None) -> None:
         pass
 
-    task = asyncio.create_task(
-        consume_background_entry(
-            entry,
-            snapshot=_snapshot,
-            schedule_reap=_schedule_reap,
-            clear_session_if_idle=_clear_idle,
-        )
+    await consume_background_entry(
+        entry,
+        snapshot=_snapshot,
+        schedule_reap=_schedule_reap,
+        clear_session_if_idle=_clear_idle,
     )
-    await asyncio.sleep(0.02)
-    proc.finish(0)
-    await task
 
     # 1. High frequency burst must be throttled (significantly fewer than 50 events)
     assert len(emitted) < 20, f"Expected throttled progress events, got {len(emitted)}"
@@ -134,6 +133,7 @@ async def test_trailing_progress_flush_on_non_100_percent_exit() -> None:
     lines.append(b'MYRM_PROGRESS {"percent": 98, "message": "Aborted near finish"}\n')
 
     proc = _FakeProc(pid=29002, stdout=lines, stderr=[])
+    proc.finish(1)
     info = BackgroundProcessInfo(
         job_id="job-29002",
         pid=29002,
@@ -150,17 +150,12 @@ async def test_trailing_progress_flush_on_non_100_percent_exit() -> None:
         progress_listener=_on_progress,
     )
 
-    task = asyncio.create_task(
-        consume_background_entry(
-            entry,
-            snapshot=lambda e: e.info,
-            schedule_reap=lambda _p: None,
-            clear_session_if_idle=lambda _s: None,
-        )
+    await consume_background_entry(
+        entry,
+        snapshot=lambda e: e.info,
+        schedule_reap=lambda _p: None,
+        clear_session_if_idle=lambda _s: None,
     )
-    await asyncio.sleep(0.02)
-    proc.finish(1)
-    await task
 
     # The 98% tail progress must be delivered via trailing flush despite <100ms gap
     assert emitted[-1]["progress"] == 98

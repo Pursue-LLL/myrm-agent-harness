@@ -230,11 +230,17 @@ class FalVideoProvider(VideoGenerationProvider):
                 video_info = submit_data.get("video") or submit_data
                 video_url = video_info.get("url") if isinstance(video_info, dict) else None
                 if video_url:
-                    dl_resp = await secure_get(
-                        video_url,
-                        timeout=config.timeout_seconds,
-                        max_content_length=config.max_download_bytes,
-                    )
+                    from myrm_agent_harness.core.security.http.secure_fetch import ContentTooLargeError
+                    try:
+                        dl_resp = await secure_get(
+                            video_url,
+                            timeout=config.timeout_seconds,
+                            max_content_length=config.max_download_bytes,
+                        )
+                    except ContentTooLargeError as exc:
+                        raise ValueError(
+                            f"Video exceeds max download size (>{config.max_download_bytes} bytes): {video_url[:80]}"
+                        ) from exc
                     if dl_resp.status_code >= 400:
                         raise RuntimeError(f"Failed to download video from {video_url}: HTTP {dl_resp.status_code}")
                     return ProviderOutput(assets=[VideoAsset(data=dl_resp.content, mime_type="video/mp4")])

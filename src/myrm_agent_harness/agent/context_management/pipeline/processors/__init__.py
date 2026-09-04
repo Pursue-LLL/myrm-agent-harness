@@ -3,7 +3,12 @@
 提供各种上下文处理器实现。
 """
 
-from .active_tool_result_prune_processor import ActiveToolResultPruneProcessor
+from .active_tool_result_prune_processor import (
+    ActiveToolResultPruneProcessor,
+    build_memory_truncated_placeholder,
+    prune_tool_results_deterministic,
+    replace_tool_message_content,
+)
 from .cache_optimizer import ExplicitCacheProcessor
 from .cache_ttl_prune_processor import CacheTtlPruneProcessor
 from .compress_processor import CompressProcessor
@@ -41,4 +46,7 @@ __all__ = [
     "SummarizeProcessor",
     "ThinkingBlockCleaner",
     "VisionFallbackProcessor",
+    "build_memory_truncated_placeholder",
+    "prune_tool_results_deterministic",
+    "replace_tool_message_content",
 ]

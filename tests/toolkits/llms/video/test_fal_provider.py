@@ -515,7 +515,7 @@ class TestFalVideoProviderGenerate:
                 "myrm_agent_harness.toolkits.llms.video.providers.fal_provider.secure_get",
                 AsyncMock(side_effect=ContentTooLargeError("Video asset exceeds max download limit")),
             ),
-            pytest.raises(RuntimeError, match="Video asset exceeds max download limit"),
+            pytest.raises(ValueError, match="exceeds max download size"),
         ):
             await provider.generate("huge video prompt", _cfg())
 
@@ -531,6 +531,302 @@ class TestFalVideoProviderGenerate:
             healthy = await provider.health_check(_cfg())
 
         assert healthy is False
+
+    @pytest.mark.asyncio
+    async def test_generate_remote_video_url_from_source_urls(self) -> None:
+        """When _video_source_urls is provided in extra_params, it should extract first URL for continuation."""
+        provider = FalVideoProvider()
+        fake_video_bytes = b"\x00\x00\x00\x18ftypmp42fake-cont"
+
+        posted_payloads: list[dict[str, object]] = []
+
+        async def _fake_post(url: str, headers: dict[str, str], json: dict[str, object]) -> httpx.Response:
+            posted_payloads.append(json)
+            return httpx.Response(200, json={"video": {"url": "https://media.fal.run/out.mp4"}})
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(side_effect=_fake_post)
+        mock_client.aclose = AsyncMock()
+
+        fake_resp = httpx.Response(200, content=fake_video_bytes)
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.secure_get", AsyncMock(return_value=fake_resp)),
+        ):
+            output = await provider.generate(
+                "continue video",
+                _cfg(),
+                extra_params={"_video_source_urls": ["https://storage.example.com/input.mp4"]},
+            )
+
+        assert len(output.assets) == 1
+        assert len(posted_payloads) == 1
+        assert posted_payloads[0]["video_url"] == "https://storage.example.com/input.mp4"
+        assert posted_payloads[0]["continuation"] is True
+
+    @pytest.mark.asyncio
+    async def test_generate_submit_failure_raises(self) -> None:
+        """When queue submission returns non-200, RuntimeError must be raised with response text."""
+        provider = FalVideoProvider()
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=httpx.Response(400, text="Bad Request: invalid aspect ratio"))
+        mock_client.aclose = AsyncMock()
+
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            pytest.raises(RuntimeError, match="FAL submission failed \\(400\\): Bad Request"),
+        ):
+            await provider.generate("test prompt", _cfg())
+
+    @pytest.mark.asyncio
+    async def test_generate_sync_download_http_error_raises(self) -> None:
+        """When direct sync video download returns HTTP >= 400, RuntimeError must be raised."""
+        provider = FalVideoProvider()
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=httpx.Response(
+                200,
+                json={"video": {"url": "https://media.fal.run/broken.mp4"}},
+            )
+        )
+        mock_client.aclose = AsyncMock()
+
+        bad_dl_resp = httpx.Response(404, text="Not Found")
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.secure_get", AsyncMock(return_value=bad_dl_resp)),
+            pytest.raises(RuntimeError, match="Failed to download video from .* HTTP 404"),
+        ):
+            await provider.generate("test prompt", _cfg())
+
+    @pytest.mark.asyncio
+    async def test_generate_sync_unrecognized_response_raises(self) -> None:
+        """When sync response contains neither status_url nor video, RuntimeError must be raised."""
+        provider = FalVideoProvider()
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(return_value=httpx.Response(200, json={"unexpected": "payload"}))
+        mock_client.aclose = AsyncMock()
+
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            pytest.raises(RuntimeError, match="FAL returned unrecognized response"),
+        ):
+            await provider.generate("test prompt", _cfg())
+
+    @pytest.mark.asyncio
+    async def test_generate_poll_timeout_raises(self) -> None:
+        """When polling loop exceeds max_attempts, TimeoutError must be raised."""
+        provider = FalVideoProvider()
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=httpx.Response(
+                200,
+                json={"status_url": "https://queue.fal.run/status/req-timeout"},
+            )
+        )
+        # Always return IN_PROGRESS
+        mock_client.get = AsyncMock(
+            return_value=httpx.Response(200, json={"status": "IN_PROGRESS"})
+        )
+        mock_client.aclose = AsyncMock()
+
+        cfg = _cfg(timeout_seconds=6.0)
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            patch("asyncio.sleep", AsyncMock()),
+            pytest.raises(TimeoutError, match="timed out after 6"),
+        ):
+            await provider.generate("test prompt", cfg)
+
+    @pytest.mark.asyncio
+    async def test_generate_async_content_too_large_raises(self) -> None:
+        """When secure_get raises ContentTooLargeError in async polling branch, ValueError must be raised."""
+        from myrm_agent_harness.core.security.http.secure_fetch import ContentTooLargeError
+
+        provider = FalVideoProvider()
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status_url": "https://queue.fal.run/status/req-large",
+                    "response_url": "https://queue.fal.run/res/req-large",
+                },
+            )
+        )
+        mock_client.get = AsyncMock(
+            side_effect=[
+                httpx.Response(200, json={"status": "COMPLETED"}),
+                httpx.Response(200, json={"video": {"url": "https://media.fal.run/large.mp4"}}),
+            ]
+        )
+        mock_client.aclose = AsyncMock()
+
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            patch(
+                "myrm_agent_harness.toolkits.llms.video.providers.fal_provider.secure_get",
+                AsyncMock(side_effect=ContentTooLargeError("Asset too large")),
+            ),
+            patch("asyncio.sleep", AsyncMock()),
+            pytest.raises(ValueError, match="exceeds max download size"),
+        ):
+            await provider.generate("large video prompt", _cfg())
+
+    @pytest.mark.asyncio
+    async def test_generate_fallback_status_url_from_request_id(self) -> None:
+        """When status_url and response_url are omitted in submit response, construct from request_id."""
+        provider = FalVideoProvider()
+        fake_video_bytes = b"\x00\x00\x00\x18ftypmp42req-id-flow"
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=httpx.Response(200, json={"request_id": "req-fallback-123"})
+        )
+        mock_client.get = AsyncMock(
+            side_effect=[
+                httpx.Response(200, json={"status": "COMPLETED"}),
+                httpx.Response(200, json={"video": {"url": "https://media.fal.run/fallback.mp4"}}),
+            ]
+        )
+        mock_client.aclose = AsyncMock()
+
+        fake_resp = httpx.Response(200, content=fake_video_bytes)
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.secure_get", AsyncMock(return_value=fake_resp)),
+            patch("asyncio.sleep", AsyncMock()),
+        ):
+            output = await provider.generate("fallback prompt", _cfg())
+
+        assert len(output.assets) == 1
+        assert output.assets[0].data == fake_video_bytes
+
+    @pytest.mark.asyncio
+    async def test_generate_poll_retry_on_non_200_status(self) -> None:
+        """When polling status_url returns transient 502 then 200 COMPLETED, it should succeed."""
+        provider = FalVideoProvider()
+        fake_video_bytes = b"\x00\x00\x00\x18ftypmp42transient-ok"
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status_url": "https://queue.fal.run/status/req-retry",
+                    "response_url": "https://queue.fal.run/res/req-retry",
+                },
+            )
+        )
+        mock_client.get = AsyncMock(
+            side_effect=[
+                httpx.Response(502, text="Bad Gateway"),
+                httpx.Response(200, json={"status": "COMPLETED"}),
+                httpx.Response(200, json={"video": {"url": "https://media.fal.run/video.mp4"}}),
+            ]
+        )
+        mock_client.aclose = AsyncMock()
+
+        fake_resp = httpx.Response(200, content=fake_video_bytes)
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.secure_get", AsyncMock(return_value=fake_resp)),
+            patch("asyncio.sleep", AsyncMock()),
+        ):
+            output = await provider.generate("test prompt", _cfg())
+
+        assert len(output.assets) == 1
+        assert output.assets[0].data == fake_video_bytes
+
+    @pytest.mark.asyncio
+    async def test_generate_fetch_result_failure_raises(self) -> None:
+        """When fetching final result fails with HTTP != 200, RuntimeError must be raised."""
+        provider = FalVideoProvider()
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status_url": "https://queue.fal.run/status/req-res-fail",
+                    "response_url": "https://queue.fal.run/res/req-res-fail",
+                },
+            )
+        )
+        mock_client.get = AsyncMock(
+            side_effect=[
+                httpx.Response(200, json={"status": "COMPLETED"}),
+                httpx.Response(500, text="Internal storage fetch error"),
+            ]
+        )
+        mock_client.aclose = AsyncMock()
+
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            patch("asyncio.sleep", AsyncMock()),
+            pytest.raises(RuntimeError, match="Failed to fetch FAL result: Internal storage fetch error"),
+        ):
+            await provider.generate("test prompt", _cfg())
+
+    @pytest.mark.asyncio
+    async def test_generate_result_missing_video_url_raises(self) -> None:
+        """When final result is missing video.url, RuntimeError must be raised."""
+        provider = FalVideoProvider()
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status_url": "https://queue.fal.run/status/req-no-url",
+                    "response_url": "https://queue.fal.run/res/req-no-url",
+                },
+            )
+        )
+        mock_client.get = AsyncMock(
+            side_effect=[
+                httpx.Response(200, json={"status": "COMPLETED"}),
+                httpx.Response(200, json={"video": {}}),
+            ]
+        )
+        mock_client.aclose = AsyncMock()
+
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            patch("asyncio.sleep", AsyncMock()),
+            pytest.raises(RuntimeError, match="FAL result missing video url"),
+        ):
+            await provider.generate("test prompt", _cfg())
+
+    @pytest.mark.asyncio
+    async def test_generate_async_download_http_error_raises(self) -> None:
+        """When final video download returns HTTP >= 400, RuntimeError must be raised."""
+        provider = FalVideoProvider()
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status_url": "https://queue.fal.run/status/req-dl-fail",
+                    "response_url": "https://queue.fal.run/res/req-dl-fail",
+                },
+            )
+        )
+        mock_client.get = AsyncMock(
+            side_effect=[
+                httpx.Response(200, json={"status": "COMPLETED"}),
+                httpx.Response(200, json={"video": {"url": "https://media.fal.run/video.mp4"}}),
+            ]
+        )
+        mock_client.aclose = AsyncMock()
+
+        bad_dl_resp = httpx.Response(403, text="Forbidden")
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.secure_get", AsyncMock(return_value=bad_dl_resp)),
+            patch("asyncio.sleep", AsyncMock()),
+            pytest.raises(RuntimeError, match="Failed to download video from .* HTTP 403"),
+        ):
+            await provider.generate("test prompt", _cfg())
+
 
 
 
