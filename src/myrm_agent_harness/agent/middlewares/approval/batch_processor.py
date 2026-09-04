@@ -473,7 +473,6 @@ async def evaluate_tool_batch(
                 extra_ctx = extra_ctx or {}
                 extra_ctx["high_risk"] = True
 
-                # Smart Intent Guard: Try LLM review for taint conflict if enabled
                 if (
                     auto_mode_enabled
                     and _batch_review._security_reviewer is not None
@@ -537,10 +536,6 @@ async def evaluate_tool_batch(
                             reason = f"{reason}\n\n AI Security Reviewer Note:\n{review_result.reason}"
                             extra_ctx = extra_ctx or {}
                             extra_ctx["high_risk"] = True
-            else:
-                # Auto Mode outbound check: external CLI actions that pass
-                # the deterministic engine as ALLOW still need Classifier review
-                # to prevent prompt-injection → malicious-delegation attacks.
                 if (
                     permission_type == "invoke_external_agent"
                     and auto_mode_enabled
