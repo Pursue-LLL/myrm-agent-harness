@@ -30,6 +30,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (
+    EvidenceReference,
+)
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
     MemoryLifecycle,
@@ -235,6 +238,10 @@ class ExtractedMemory(BaseModel):
         default=None,
         description="Description of the mistake being corrected (for correction memories)",
     )
+    evidence: list[EvidenceReference] = Field(
+        default_factory=list,
+        description="Structured provenance evidence anchoring this fact to raw interaction context",
+    )
 
 
 class ExtractionResult(BaseModel):
@@ -258,7 +265,8 @@ _CORE_RULES = """## Processing Rules
 6. **Third Person**: Write about the user in third person, no pronouns. Good: "User prefers dark mode". Bad: "I prefer dark mode".
 7. **Outcomes**: Record what WAS DONE, not what was requested. Good: "Migrated DB to PostgreSQL 16". Bad: "User wants to migrate DB".
 8. **Concise**: Each fact should be 15-50 words. Split longer observations into multiple facts.
-9. **Attribution**: Strictly distinguish the user from third parties (family, friends, colleagues). NEVER attribute a third party's traits, illnesses, or preferences to the user. Good: "User's son has ADHD". Bad: "User has ADHD"."""
+9. **Attribution**: Strictly distinguish the user from third parties (family, friends, colleagues). NEVER attribute a third party's traits, illnesses, or preferences to the user. Good: "User's son has ADHD". Bad: "User has ADHD".
+10. **Self-Exclusion & Provenance**: NEVER extract Assistant's own advice, proposals, conversational quirks, or suggested options into user profile/preferences (prevents persona drift). Anchor facts strictly in explicit user statements and verified context."""
 
 _MEMORY_TYPES_FULL = """
 ## Memory Types
@@ -504,9 +512,26 @@ class MemoryExtractor:
             logger.warning("No LLM function provided, skipping extraction")
             return ExtractionResult()
 
+        from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (
+            filter_distillable_messages,
+        )
+
+        # Apply deterministic distillation admission guard before token truncation and LLM call
+        filtered_messages, rejections = filter_distillable_messages(
+            messages,
+            allow_other_as_context=True,
+        )
+        if not filtered_messages:
+            logger.info(
+                "MemoryExtractor: all %d messages rejected by distillation guards (%d rejections)",
+                len(messages),
+                len(rejections),
+            )
+            return ExtractionResult()
+
         start = datetime.now(UTC)
         effective_messages, dropped = _truncate_messages_head_tail(
-            messages, self.config.max_input_chars
+            filtered_messages, self.config.max_input_chars
         )
         full_text = "".join(m.get("content", "") for m in effective_messages)
         detected_language = detect_language(full_text)
@@ -583,6 +608,17 @@ class MemoryExtractor:
         result: list[ConcreteMemory] = []
         language = self._last_detected_language
         for m in extracted:
+            first_msg_id = m.evidence[0].message_id if m.evidence and m.evidence[0].message_id else None
+            meta: dict[str, str | int | float | bool] = {}
+            if m.evidence:
+                first_ev = m.evidence[0]
+                if first_ev.quote_snippet:
+                    meta["evidence_quote"] = first_ev.quote_snippet[:200]
+                if first_ev.channel_id:
+                    meta["channel_id"] = first_ev.channel_id
+                if first_ev.author_id:
+                    meta["evidence_author"] = first_ev.author_id
+
             if (
                 m.memory_type == MemoryType.PROFILE
                 and m.profile_key
@@ -606,11 +642,13 @@ class MemoryExtractor:
                         importance=m.importance,
                         confidence=m.confidence,
                         source_chat_id=source_chat_id,
+                        source_message_id=first_msg_id,
                         preference_type=pref_type,
                         preference_strength=pref_strength,
                         source_error=m.source_error,
                         language=language,
                         expected_valid_days=m.expected_valid_days,
+                        metadata=meta,
                     )
                 )
             elif m.memory_type == MemoryType.EPISODIC:
@@ -620,8 +658,10 @@ class MemoryExtractor:
                         event_type="extracted",
                         importance=m.importance,
                         source_chat_id=source_chat_id,
+                        source_message_id=first_msg_id,
                         language=language,
                         expected_valid_days=m.expected_valid_days,
+                        metadata=meta,
                     )
                 )
             elif m.memory_type == MemoryType.PROCEDURAL and m.trigger and m.action:
@@ -641,6 +681,7 @@ class MemoryExtractor:
                         tool_name=m.tool_name,
                         tool_rule_priority=priority_val,
                         expected_valid_days=m.expected_valid_days,
+                        metadata=meta,
                     )
                 )
             elif m.memory_type == MemoryType.TASK_DIGEST:
@@ -707,6 +748,22 @@ def _parse_response(raw: str) -> list[ExtractedMemory]:
                 and raw_evd > 0
             ):
                 evd = min(int(raw_evd), 730)
+
+            parsed_evidences: list[EvidenceReference] = []
+            raw_evidence = item.get("evidence")
+            if isinstance(raw_evidence, list):
+                for ev in raw_evidence:
+                    if isinstance(ev, dict) and ev.get("source_id"):
+                        parsed_evidences.append(
+                            EvidenceReference(
+                                source_id=str(ev.get("source_id")),
+                                message_id=str(ev.get("message_id")) if ev.get("message_id") else None,
+                                channel_id=str(ev.get("channel_id")) if ev.get("channel_id") else None,
+                                quote_snippet=str(ev.get("quote_snippet")) if ev.get("quote_snippet") else None,
+                                author_id=str(ev.get("author_id")) if ev.get("author_id") else None,
+                            )
+                        )
+
             result.append(
                 ExtractedMemory(
                     memory_type=MemoryType(item.get("memory_type", "semantic")),
@@ -726,6 +783,7 @@ def _parse_response(raw: str) -> list[ExtractedMemory]:
                     source_error=(
                         raw_source_error if isinstance(raw_source_error, str) else None
                     ),
+                    evidence=parsed_evidences,
                 )
             )
         except Exception as e:
@@ -746,18 +804,35 @@ async def extract_memories_from_conversation(
     explicit tool edicts (e.g. "never use sudo") before invoking LLM
     extraction. Detected edicts become CRITICAL procedural rules.
     """
+    from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (
+        filter_distillable_messages,
+    )
     from myrm_agent_harness.toolkits.memory.tool_capture import (
         associate_tool,
         extract_tool_edicts,
     )
 
+    # 1. Distillation Admission Guard: filter bot/alert/unconfirmed messages
+    filtered_messages, rejections = filter_distillable_messages(
+        messages,
+        allow_other_as_context=True,
+    )
+    if not filtered_messages:
+        logger.info(
+            "All %d messages rejected by distillation guards (%d rejections)",
+            len(messages),
+            len(rejections),
+        )
+        return ExtractionResult()
+
     regex_memories: list[ExtractedMemory] = []
-    for msg in messages:
-        if msg.get("role") != "user":
+    for msg in filtered_messages:
+        if msg.get("role") != "user" or msg.get("_third_party_context"):
             continue
         text = msg.get("content", "")
         for edict in extract_tool_edicts(text):
             tool = associate_tool(edict.rule_text, None)
+            msg_id = str(msg.get("id") or msg.get("message_id") or "")
             regex_memories.append(
                 ExtractedMemory(
                     memory_type=MemoryType.PROCEDURAL,
@@ -769,13 +844,54 @@ async def extract_memories_from_conversation(
                     tool_name=tool,
                     tool_rule_priority="critical",
                     source_message=edict.original_match,
+                    evidence=[
+                        EvidenceReference(
+                            source_id="user_edict",
+                            message_id=msg_id if msg_id else None,
+                            quote_snippet=edict.original_match[:160],
+                        )
+                    ],
                 )
             )
 
+    user_corpus = [
+        str(m.get("content") or "")
+        for m in filtered_messages
+        if m.get("role") == "user" and not m.get("_third_party_context")
+    ]
+
     extractor = MemoryExtractor(config=config, llm_func=llm_func)
-    result = await extractor.extract(messages, correction_detected=correction_detected)
+    result = await extractor.extract(filtered_messages, correction_detected=correction_detected)
+
+    # Provenance anchor fallback: ensure all LLM extracted memories carry evidence
+    for m in result.memories:
+        if not m.evidence and filtered_messages:
+            last_user = next((m_dict for m_dict in reversed(filtered_messages) if m_dict.get("role") == "user"), None)
+            if last_user:
+                m.evidence.append(
+                    EvidenceReference(
+                        source_id="conversation_turn",
+                        message_id=str(last_user.get("id") or last_user.get("message_id") or "") or None,
+                        quote_snippet=str(last_user.get("content") or "")[:160],
+                    )
+                )
+
+    from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (
+        filter_memories_with_evidence,
+    )
+
+    verified_llm_memories, ungrounded = filter_memories_with_evidence(
+        result.memories,
+        allowed_verbatim_corpus=user_corpus if user_corpus else None,
+    )
+    if ungrounded:
+        logger.warning(
+            "Distillation guard dropped %d ungrounded or hallucinated memories",
+            len(ungrounded),
+        )
+
     return ExtractionResult(
-        memories=regex_memories + result.memories,
+        memories=regex_memories + verified_llm_memories,
         extraction_time_ms=result.extraction_time_ms,
         raw_response=result.raw_response,
     )

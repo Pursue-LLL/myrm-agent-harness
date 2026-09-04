@@ -64,11 +64,7 @@ def _needs_browser_singleton_reset(request: pytest.FixtureRequest) -> bool:
     item_path = Path(request.fspath).resolve()
     if item_path.is_relative_to(_BROWSER_TEST_ROOT):
         return True
-    if item_path.is_relative_to(_INTEGRATION_TEST_ROOT):
-        return True
-    if request.node.get_closest_marker("integration") is not None:
-        return True
-    return request.node.get_closest_marker("e2e") is not None
+    return False
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
@@ -139,10 +135,13 @@ async def _reset_global_browser_pool_singleton(request: pytest.FixtureRequest) -
     if not _needs_browser_singleton_reset(request):
         return
 
-    from myrm_agent_harness.toolkits.browser.pool import reset_global_browser_pool_for_tests
+    try:
+        from myrm_agent_harness.toolkits.browser.pool import reset_global_browser_pool_for_tests
 
-    with suppress(Exception):
-        await reset_global_browser_pool_for_tests()
+        with suppress(Exception):
+            await reset_global_browser_pool_for_tests()
+    except ImportError:
+        pass
 
 
 # ---------------------------------------------------------------------------

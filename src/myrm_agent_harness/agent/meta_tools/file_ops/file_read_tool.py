@@ -41,7 +41,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from myrm_agent_harness.agent.context_management.context import (
     extract_context_from_runnable_config,
 )
-from myrm_agent_harness.agent.context_management.infra.evicted import (
+from myrm_agent_harness.agent.context_management.infra.evicted.content import (
     normalize_delivery_chat_id,
 )
 from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor

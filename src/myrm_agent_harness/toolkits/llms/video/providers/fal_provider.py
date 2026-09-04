@@ -82,16 +82,16 @@ class FalVideoProvider(VideoGenerationProvider):
     @property
     def capabilities(self) -> ProviderCapabilities:
         t2v = ModeCapabilities(
-            aspect_ratios=tuple(_ASPECT_RATIO_MAP.keys()),
-            durations=_SUPPORTED_DURATIONS,
+            supported_aspect_ratios=tuple(_ASPECT_RATIO_MAP.keys()),
+            supported_durations=_SUPPORTED_DURATIONS,
         )
         i2v = ModeCapabilities(
-            aspect_ratios=tuple(_ASPECT_RATIO_MAP.keys()),
-            durations=_SUPPORTED_DURATIONS,
+            supported_aspect_ratios=tuple(_ASPECT_RATIO_MAP.keys()),
+            supported_durations=_SUPPORTED_DURATIONS,
         )
         v2v = ModeCapabilities(
-            aspect_ratios=tuple(_ASPECT_RATIO_MAP.keys()),
-            durations=_SUPPORTED_DURATIONS,
+            supported_aspect_ratios=tuple(_ASPECT_RATIO_MAP.keys()),
+            supported_durations=_SUPPORTED_DURATIONS,
         )
         return ProviderCapabilities(
             max_videos=1,
@@ -102,7 +102,7 @@ class FalVideoProvider(VideoGenerationProvider):
             supports_aspect_ratio=True,
             supports_audio=True,
             mode_capabilities=ProviderModeCapabilities(
-                text_to_video=t2v,
+                generate=t2v,
                 image_to_video=i2v,
                 video_to_video=v2v,
             ),
@@ -128,7 +128,7 @@ class FalVideoProvider(VideoGenerationProvider):
         if not api_key:
             raise ValueError("FAL.ai API key is required")
 
-        base_url = (config.api_base or _DEFAULT_BASE_URL).rstrip("/")
+        base_url = (config.base_url or _DEFAULT_BASE_URL).rstrip("/")
         submit_url = f"{base_url}/{selected_model}"
 
         headers = {
@@ -145,26 +145,66 @@ class FalVideoProvider(VideoGenerationProvider):
         if enable_audio is not None:
             payload["enable_audio"] = enable_audio
 
+        # Explicit generation mode handling: "auto", "t2v", "i2v", "keyframes", "continuation"
+        generation_mode = "auto"
+        if extra_params and "generation_mode" in extra_params:
+            generation_mode = str(extra_params["generation_mode"]).lower()
+
         # Keyframes or single reference image support
         if reference_images:
-            if len(reference_images) >= 2:
-                # Keyframes interpolation mode
-                payload["image_url"] = _encode_data_uri(reference_images[0])
+            payload["image_url"] = _encode_data_uri(reference_images[0])
+            if generation_mode == "keyframes" or (generation_mode == "auto" and len(reference_images) >= 2):
                 payload["end_image_url"] = _encode_data_uri(reference_images[-1])
                 payload["mode"] = "keyframes"
-            else:
-                payload["image_url"] = _encode_data_uri(reference_images[0])
 
-        if reference_videos:
-            # Video continuation mode
-            # Note: FAL accepts data URI or remote storage URL for continuation
-            encoded_video = base64.b64encode(reference_videos[0]).decode("ascii")
+        # 1. Prefer parent_request_id for zero-bandwidth cloud continuation
+        parent_request_id: str | None = None
+        if extra_params:
+            for key in ("parent_request_id", "parent_id", "request_id_continuation"):
+                val = extra_params.get(key)
+                if isinstance(val, str) and val.strip():
+                    parent_request_id = val.strip()
+                    break
+
+        if parent_request_id or generation_mode == "continuation":
+            if parent_request_id:
+                payload["parent_request_id"] = parent_request_id
+                payload["continuation"] = True
+
+        # 2. Check for remote video source URL
+        remote_video_url: str | None = None
+        if not parent_request_id and extra_params:
+            if isinstance(extra_params.get("video_url"), str):
+                remote_video_url = str(extra_params["video_url"])
+            elif isinstance(extra_params.get("_video_source_urls"), list):
+                source_urls: list[object] = extra_params["_video_source_urls"]
+                if source_urls and isinstance(source_urls[0], str):
+                    remote_video_url = source_urls[0]
+
+        if remote_video_url:
+            # Optimal path: pass URL directly to avoid 413 Payload Too Large
+            payload["video_url"] = remote_video_url
+            payload["continuation"] = True
+        elif not parent_request_id and reference_videos:
+            # Fallback path for raw bytes input with 5MB payload protection
+            _MAX_INLINE_VIDEO_BYTES = 5 * 1024 * 1024
+            video_bytes = reference_videos[0]
+            if len(video_bytes) > _MAX_INLINE_VIDEO_BYTES:
+                raise ValueError(
+                    f"Reference video exceeds {_MAX_INLINE_VIDEO_BYTES} bytes limit "
+                    f"({len(video_bytes)} bytes) for inline transfer. "
+                    "Use parent_request_id or provide a remote video_url to prevent HTTP 413."
+                )
+            encoded_video = base64.b64encode(video_bytes).decode("ascii")
             payload["video_url"] = f"data:video/mp4;base64,{encoded_video}"
             payload["continuation"] = True
 
         if extra_params:
             for k, v in extra_params.items():
-                if k not in payload and v is not None:
+                if k.startswith("_"):
+                    continue
+                if v is not None:
+                    # Explicit extra_params overrides implicit guesses
                     payload[k] = v
 
         client = create_httpx_client(timeout=30.0)
@@ -190,8 +230,14 @@ class FalVideoProvider(VideoGenerationProvider):
                 video_info = submit_data.get("video") or submit_data
                 video_url = video_info.get("url") if isinstance(video_info, dict) else None
                 if video_url:
-                    video_bytes = await secure_get(video_url)
-                    return ProviderOutput(assets=[VideoAsset(data=video_bytes, mime_type="video/mp4")])
+                    dl_resp = await secure_get(
+                        video_url,
+                        timeout=config.timeout_seconds,
+                        max_content_length=config.max_download_bytes,
+                    )
+                    if dl_resp.status_code >= 400:
+                        raise RuntimeError(f"Failed to download video from {video_url}: HTTP {dl_resp.status_code}")
+                    return ProviderOutput(assets=[VideoAsset(data=dl_resp.content, mime_type="video/mp4")])
                 raise RuntimeError(f"FAL returned unrecognized response: {submit_data}")
 
             # 2. Poll for completion
@@ -225,9 +271,24 @@ class FalVideoProvider(VideoGenerationProvider):
                 raise RuntimeError(f"FAL result missing video url: {result_data}")
 
             # 4. Download video safely with SSRF protection
-            video_bytes = await secure_get(video_url)
+            from myrm_agent_harness.core.security.http.secure_fetch import ContentTooLargeError
+
+            try:
+                dl_resp = await secure_get(
+                    video_url,
+                    timeout=config.timeout_seconds,
+                    max_content_length=config.max_download_bytes,
+                )
+            except ContentTooLargeError as exc:
+                raise ValueError(
+                    f"Video exceeds max download size (>{config.max_download_bytes} bytes): {video_url[:80]}"
+                ) from exc
+
+            if dl_resp.status_code >= 400:
+                raise RuntimeError(f"Failed to download video from {video_url}: HTTP {dl_resp.status_code}")
+
             return ProviderOutput(
-                assets=[VideoAsset(data=video_bytes, mime_type="video/mp4")],
+                assets=[VideoAsset(data=dl_resp.content, mime_type="video/mp4")],
                 provider_metadata={"request_id": request_id, "model": selected_model},
             )
         finally:
@@ -239,7 +300,7 @@ class FalVideoProvider(VideoGenerationProvider):
         if not api_key:
             return False
 
-        base_url = (config.api_base or _DEFAULT_BASE_URL).rstrip("/")
+        base_url = (config.base_url or _DEFAULT_BASE_URL).rstrip("/")
         # Verify connectivity by checking queue status endpoint
         probe_url = f"{base_url}/fal-ai/flux-3-video"
         client = create_httpx_client(timeout=10.0)

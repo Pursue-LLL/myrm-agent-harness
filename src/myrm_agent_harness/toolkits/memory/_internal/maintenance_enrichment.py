@@ -112,6 +112,7 @@ async def enrich_with_graph(
     *,
     current_channel_id: str | None = None,
     namespaces: list[str] | None = None,
+    reraise_graph_errors: bool = False,
 ) -> list[MemorySearchResult]:
     """Expand results with graph siblings and Claim Graph recall.
 
@@ -135,6 +136,8 @@ async def enrich_with_graph(
         )
     except Exception as e:
         logger.warning("Claim graph search failed (non-fatal): %s", e)
+        if reraise_graph_errors:
+            raise
 
     for claim_result in claim_results:
         if claim_result.id in existing_ids:

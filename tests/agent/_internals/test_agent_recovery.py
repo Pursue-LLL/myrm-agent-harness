@@ -123,6 +123,39 @@ class TestEmergencyCompact:
             assert saved == 500
             mock_compress.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_emergency_compact_integrates_active_prune_phase1(self):
+        from langchain_core.messages import ToolMessage
+        from myrm_agent_harness.agent._internals.agent_recovery import emergency_compact
+
+        large_output = "data " * 5000  # ~5000 tokens
+        msgs: list[BaseMessage] = [
+            HumanMessage(content="run task"),
+            AIMessage(
+                content="running...",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_output, name="grep_tool", tool_call_id="tc1"),
+            AIMessage(
+                content="next step...",
+                tool_calls=[{"id": "tc2", "name": "web_search", "args": {}}],
+            ),
+            ToolMessage(content="ok", name="web_search", tool_call_id="tc2"),
+        ]
+
+        with patch(
+            "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.compress_messages_async",
+            new_callable=AsyncMock,
+            return_value=(msgs, 100),
+        ) as mock_compress:
+            saved = await emergency_compact(msgs)
+            # Active prune saved ~4900 tokens + compactor saved 100
+            assert saved > 4000
+            mock_compress.assert_called_once()
+            # Ensure the large tool message was truncated
+            assert "[Tool output pruned: original size" in str(msgs[2].content)
+
+
 
 # ============================================================================
 # _extract_error_type

@@ -264,6 +264,23 @@ async def persist_extracted_memories(
         batch = filtered_transient_batch
         dropped += dropped_transient
 
+    if batch:
+        from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (
+            filter_memories_with_evidence,
+        )
+
+        grounded, ungrounded = filter_memories_with_evidence(
+            batch,
+            fallback_source_id=source_chat_id,
+        )
+        if ungrounded:
+            logger.warning(
+                "Distillation guard dropped %d ungrounded memories lacking provenance evidence",
+                len(ungrounded),
+            )
+            dropped += len(ungrounded)
+        batch = grounded
+
     stored = (
         await memory_manager.store_batch(batch, _force_pending=force_pending)
         if batch

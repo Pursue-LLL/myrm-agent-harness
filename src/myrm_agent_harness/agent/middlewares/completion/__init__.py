@@ -1,16 +1,18 @@
 """Completion guard subsystem — finish gate, verification, and deliverable checks.
 
 [INPUT]
-- 会话轨迹 / AgentRunStatistics（运行统计）
+- .completion_guard::CompletionGuard, classify_verification, reset_completion_guard (POS: completion guard orchestrator)
+- .completion_guard_checklist::build_checklist (POS: verification checklist builder)
+- .completion_guard_safety::is_mutating_tool (POS: mutating tool detection)
+- .deliverable_confidence_tier::DeliverableConfidenceTier, resolve_deliverable_tier (POS: tier resolver)
+- .deliverable_write_verifier::check_deliverable_write_claim (POS: deliverable write verification)
+- .query_grounding_verifier::check_query_grounding_claim, detect_entity_query_intent, has_successful_query_evidence (POS: query grounding verification)
 
 [OUTPUT]
-- CompletionGuard: 完成判定守卫
-- build_checklist(): 交付清单构建
-- classify_verification(): 验证结果分类
+- CompletionGuard, build_checklist, classify_verification, is_mutating_tool, resolve_deliverable_tier, check_query_grounding_claim
 
 [POS]
-Finish-gate subsystem ensuring the agent only reports completion after
-verification and deliverable checks pass.
+Completion Guard 完成门禁子系统入口。确保智能体在具备验证、交付物证据与实体接地证据的前提下安全结束。
 """
 
 from myrm_agent_harness.agent.middlewares.completion.completion_guard import (

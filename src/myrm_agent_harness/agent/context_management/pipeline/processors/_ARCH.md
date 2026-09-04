@@ -8,7 +8,7 @@ Pipeline processors module.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Pipeline processors module. | — |
-| active_tool_result_prune_processor.py | Core | Per-step active pruning of large tool results from earlier steps. Replaces results exceeding threshold (default 2048 tokens) with archive placeholders at zero LLM cost. Records `active_tool_prune` compression events via TaskMetrics. Positioned after FilterProcessor, before CacheTtlPruneProcessor. | ✅ |
+| active_tool_result_prune_processor.py | Core | Per-step active pruning of large tool results from earlier steps with Prompt Cache prefix protection (`min_reclaim_tokens` gate & `proactive_prune_tokens` trigger). Replaces results exceeding threshold (default 2048 tokens) with archive placeholders or deterministic DSH-style head-and-tail truncated placeholders at zero LLM cost. Records `active_tool_prune` compression events via TaskMetrics. Positioned after FilterProcessor, before CacheTtlPruneProcessor. Provides `prune_tool_results_deterministic` for direct reuse in emergency compaction recovery. | ✅ |
 | cache_breakpoint_validator.py | Core | Validates breakpoints against provider constraints: | ✅ |
 | cache_optimizer.py | Core | ExplicitCacheProcessor for Anthropic/Qwen: 4-strategy breakpoints, 20-block window protection, endpoint-aware TTL (1h for direct API/LiteLLM anthropic routing, 5min for proxies). | ✅ |
 | cache_ttl_prune_processor.py | Core | Token-aware cache-TTL pruning; emergency ratio uses messages + bind-tools + optional API max (same SSOT as compress). | ✅ |
@@ -23,7 +23,7 @@ Pipeline processors module.
 | post_compaction_reread_processor.py | Core | Post-compaction active file reread. After compaction (tokens_saved > 0), reads top-5 recently modified files from ArtifactTracker and injects their content as HumanMessage, eliminating redundant read_file tool calls. | ✅ |
 | post_compaction_refetch_guard_processor.py | Core | One-shot tail hint when repeated archive restores for the same path are detected after compaction (anti refetch loop). | ✅ |
 | session_notes_processor.py | Core | Provides SessionNotesProcessor. | ✅ |
-| summarize_processor.py | Core | SummarizeProcessor with full-context hot-cache 90% gate (estimate_processor_context_tokens), progress-aware timeout guard, cancellation-safe cleanup, lifecycle events. | ✅ |
+| summarize_processor.py | Core | SummarizeProcessor with pre-compaction deterministic tool-result pruning short-circuit (DSH pattern bypassing LLM summarize when under safe ceiling), full-context hot-cache 90% gate (estimate_processor_context_tokens), progress-aware timeout guard, cancellation-safe cleanup, lifecycle events. | ✅ |
 | pre_compact_processor.py | Core | Pre-compaction semantic memory recall processor. Invokes ContextPreCompactCallback before Compress/SessionNotes/Summarize and stores protected HumanMessage recall in context metadata. | ✅ |
 | thinking_cleaner.py | Core | Provides ThinkingBlockCleaner: three-scope cleanup — (1) strips content thinking/redacted_thinking blocks from non-latest assistant turns and from latest turn when current model is non-Anthropic (prevents leaking after model switch), (2) removes reasoning_content from additional_kwargs per-provider (Anthropic always; DeepSeek/MiMo/Kimi on plain-text before last user turn), (3) removes thinking_blocks from additional_kwargs for non-Anthropic models. Detects Anthropic models via substring match covering direct/Bedrock/Vertex AI/OpenRouter naming. | ✅ |
 

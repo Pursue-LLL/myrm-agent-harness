@@ -10,6 +10,7 @@ Video generation providers — pluggable backends for video generation.
 | __init__.py | Package | Video generation providers — pluggable backends for video generation. | — |
 | _image_utils.py | Internal | Shared image encoding utilities for video generation providers. | ✅ |
 | base.py | Core | Abstract base class and registry for video generation providers. | ✅ |
+| fal_provider.py | Core | FAL.ai (FLUX.3 Video, Kling, Luma) video generation provider. | ✅ |
 | google_provider.py | Core | Google Veo video generation provider. | ✅ |
 | minimax_provider.py | Core | MiniMax (Hailuo Hailuo) video generation provider. | ✅ |
 | openai_provider.py | Core | OpenAI Sora video generation provider. | ✅ |

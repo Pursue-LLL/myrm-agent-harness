@@ -295,6 +295,54 @@ class SummarizeProcessor(BaseProcessor):
             )
             return context
 
+        # Pre-compaction deterministic tool-result pruning (DSH short-circuit pattern)
+        if context.metadata.get("enable_pre_compact_tool_prune", True):
+            from .active_tool_result_prune_processor import prune_tool_results_deterministic
+
+            pre_prune_thresh = int(context.metadata.get("pre_compact_prune_threshold_tokens", 1024))
+            pre_prune_keep = int(context.metadata.get("pre_compact_keep_recent_calls", 2))
+
+            new_msgs, pruned_cnt, saved_tokens = await prune_tool_results_deterministic(
+                context.messages,
+                threshold_tokens=pre_prune_thresh,
+                keep_recent_calls=pre_prune_keep,
+                min_reclaim_tokens=0,
+                enable_memory_fallback=True,
+                chat_id=context.chat_id,
+                force=True,
+            )
+
+            if pruned_cnt > 0 and saved_tokens > 0:
+                context.messages = new_msgs
+                context.tokens_saved += saved_tokens
+                context.operations.append(
+                    f"pre_compact_prune: pruned {pruned_cnt} tool results, saved ~{saved_tokens} tokens"
+                )
+
+                # Remeasure context tokens with safety headroom (15% measurement decay guard)
+                remeasured_tokens = estimate_processor_context_tokens(context.messages, context.metadata)
+                trigger_thresh = getattr(self.config, "summarize_trigger_threshold", 115200)
+                # Keep safety headroom: must be comfortably below trigger threshold to bypass
+                safe_ceiling = int(trigger_thresh * 0.95)
+
+                if remeasured_tokens <= safe_ceiling:
+                    logger.info(
+                        "[Summarize] Pre-compaction deterministic pruning short-circuit: "
+                        "saved %d tokens (current=%d <= safe_ceiling=%d). Completely bypassed LLM summarization!",
+                        saved_tokens,
+                        remeasured_tokens,
+                        safe_ceiling,
+                    )
+                    context.metadata["deterministic_prune_bypassed_summarize"] = True
+                    context.metadata.pop("compaction_debt_pending", None)
+                    from ...tracking.task_metrics import get_task_metrics
+
+                    if context.chat_id:
+                        metrics = get_task_metrics(context.chat_id)
+                        if metrics:
+                            metrics.compaction_debt_pending = False
+                    return context
+
         original_tokens = estimate_messages_tokens(context.messages)
         last_msg_db_id = context.metadata.get("last_message_db_id")
         circuit_open = _is_circuit_open()

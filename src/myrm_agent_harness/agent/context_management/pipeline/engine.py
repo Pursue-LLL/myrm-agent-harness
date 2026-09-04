@@ -172,6 +172,8 @@ def build_default_processors(
     time_decay_half_life_days: float | None = None,
     cache_ttl_prune_config: "CacheTtlPruneConfig | None" = None,
     active_prune_threshold_tokens: int = 2048,
+    active_prune_min_reclaim_tokens: int = 4096,
+    active_prune_proactive_tokens: int = 0,
     file_content_reader: "FileContentReader | None" = None,
 ) -> list[BaseProcessor]:
     """Build the unified default processor chain.
@@ -240,6 +242,8 @@ def build_default_processors(
         ActiveToolResultPruneProcessor(
             threshold_tokens=active_prune_threshold_tokens,
             keep_recent_calls=keep_recent_calls,
+            min_reclaim_tokens=active_prune_min_reclaim_tokens,
+            proactive_prune_tokens=active_prune_proactive_tokens,
             on_prune_offload=on_compress_offload,
         ),
         CacheTtlPruneProcessor(

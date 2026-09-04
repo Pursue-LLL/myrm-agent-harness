@@ -93,13 +93,17 @@ async def test_progress_throttle_and_terminal_penetration() -> None:
     def _clear_idle(_sess: str | None) -> None:
         pass
 
-    proc.finish(0)
-    await consume_background_entry(
-        entry,
-        snapshot=_snapshot,
-        schedule_reap=_schedule_reap,
-        clear_session_if_idle=_clear_idle,
+    task = asyncio.create_task(
+        consume_background_entry(
+            entry,
+            snapshot=_snapshot,
+            schedule_reap=_schedule_reap,
+            clear_session_if_idle=_clear_idle,
+        )
     )
+    await asyncio.sleep(0.02)
+    proc.finish(0)
+    await task
 
     # 1. High frequency burst must be throttled (significantly fewer than 50 events)
     assert len(emitted) < 20, f"Expected throttled progress events, got {len(emitted)}"
@@ -146,13 +150,17 @@ async def test_trailing_progress_flush_on_non_100_percent_exit() -> None:
         progress_listener=_on_progress,
     )
 
-    proc.finish(1)
-    await consume_background_entry(
-        entry,
-        snapshot=lambda e: e.info,
-        schedule_reap=lambda _p: None,
-        clear_session_if_idle=lambda _s: None,
+    task = asyncio.create_task(
+        consume_background_entry(
+            entry,
+            snapshot=lambda e: e.info,
+            schedule_reap=lambda _p: None,
+            clear_session_if_idle=lambda _s: None,
+        )
     )
+    await asyncio.sleep(0.02)
+    proc.finish(1)
+    await task
 
     # The 98% tail progress must be delivered via trailing flush despite <100ms gap
     assert emitted[-1]["progress"] == 98

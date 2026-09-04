@@ -45,29 +45,58 @@ logger = get_agent_logger(__name__)
 async def emergency_compact(messages: list[BaseMessage]) -> int:
     """Aggressively compact *messages* in-place after a context overflow.
 
-    Uses ``compress_messages_async`` with zeroed thresholds so that all
-    eligible tool-call pairs are compressed regardless of normal batch
-    heuristics.  Returns the number of tokens saved.
+    Phase 1: Deterministic active tool-result prune with zero LLM cost and
+             force_prune enabled.
+    Phase 2: Priority-aware message compression with zeroed thresholds.
+    Returns the total number of tokens saved.
     """
     from myrm_agent_harness.agent.context_management.infra.schemas import ContextConfig
+    from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
+    from myrm_agent_harness.agent.context_management.pipeline.processors.active_tool_result_prune_processor import (
+        ActiveToolResultPruneProcessor,
+    )
     from myrm_agent_harness.agent.context_management.strategies.compactor.compactor import (
         compress_messages_async,
     )
 
+    total_saved = 0
+
+    # Phase 1: Deterministic active tool prune (zero LLM cost)
+    pruner = ActiveToolResultPruneProcessor(
+        threshold_tokens=1024,
+        keep_recent_calls=1,
+        min_reclaim_tokens=0,
+        enable_memory_fallback=True,
+    )
+    ctx = ProcessorContext(
+        messages=messages,
+        user_query="emergency_recovery",
+        metadata={"force_prune": True},
+    )
+    if await pruner.should_process(ctx):
+        ctx = await pruner.process(ctx)
+        messages[:] = ctx.messages
+        total_saved += ctx.tokens_saved
+
+    # Phase 2: Priority-aware compactor fallback
     emergency_cfg = ContextConfig(
         max_context_tokens=1,
         compress_min_save=0,
         keep_recent_calls=2,
     )
-    _, saved = await compress_messages_async(
+    compressed_msgs, compactor_saved = await compress_messages_async(
         messages,
         dynamic_min_save=0,
         config=emergency_cfg,
     )
+    if compactor_saved > 0 and compressed_msgs is not messages:
+        messages[:] = compressed_msgs
+    total_saved += compactor_saved
+
     logger.warning(
-        f" Emergency compaction: saved {saved} tokens from {len(messages)} messages"
+        f" Emergency compaction: saved {total_saved} tokens (active_prune={ctx.tokens_saved}, compactor={compactor_saved}) from {len(messages)} messages"
     )
-    return saved
+    return total_saved
 
 
 _TRUNCATION_MARKER = "[earlier conversation truncated for context recovery]"

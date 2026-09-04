@@ -3,10 +3,13 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 import myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor as _sp
-from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
+from myrm_agent_harness.agent.context_management.infra.schemas import (
+    ContextConfig,
+    StructuredSummary,
+)
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor import (
     MAX_CONSECUTIVE_SUMMARIZE_FAILURES,
@@ -689,3 +692,129 @@ class TestRecordFallbackCall:
 class TestProcessorName:
     def test_name_is_summarize(self) -> None:
         assert SummarizeProcessor().name == "summarize"
+
+
+class TestPreCompactionDeterministicPruneShortCircuit:
+    """Cover deterministic pre-compaction tool-result pruning short-circuit (DSH pattern)."""
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize"
+    )
+    async def test_pre_compaction_prune_bypasses_llm_summarize_when_tokens_reduced_below_ceiling(
+        self, mock_guarded
+    ) -> None:
+        """When deterministic prune brings context below trigger ceiling, bypass LLM summarization completely."""
+        cfg = ContextConfig(max_context_tokens=10000)
+        processor = SummarizeProcessor(config=cfg)
+
+        large_tool_output = "result_data " * 2000  # ~4000 tokens
+        msgs = [
+            HumanMessage(content="user request"),
+            AIMessage(
+                content="thinking...",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_tool_output, name="grep_tool", tool_call_id="tc1"),
+            AIMessage(
+                content="next step...",
+                tool_calls=[{"id": "tc2", "name": "web_search", "args": {}}],
+            ),
+            ToolMessage(content="short", name="web_search", tool_call_id="tc2"),
+        ]
+
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={
+                "enable_pre_compact_tool_prune": True,
+                "pre_compact_prune_threshold_tokens": 100,
+                "pre_compact_keep_recent_calls": 1,
+            },
+        )
+
+        result = await processor.process(context)
+
+        # 1. Deterministic prune should have bypassed LLM summarize completely
+        mock_guarded.assert_not_called()
+        assert result.metadata.get("deterministic_prune_bypassed_summarize") is True
+        assert result.tokens_saved > 2000
+        # 2. Large tool message should be pruned in-place
+        assert "[Tool output pruned: original size" in str(result.messages[2].content)
+        # 3. Recent tool message should remain intact
+        assert result.messages[4].content == "short"
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize"
+    )
+    async def test_pre_compaction_prune_falls_through_to_llm_when_tokens_still_exceed_ceiling(
+        self, mock_guarded
+    ) -> None:
+        """When text messages are still too large after pruning, fall through to guarded LLM summarize."""
+        cfg = ContextConfig(max_context_tokens=1000)
+        processor = SummarizeProcessor(config=cfg)
+
+        summary = StructuredSummary(user_goal="persisted goal")
+        mock_guarded.return_value = ([HumanMessage(content="summarized")], summary)
+
+        # Massive user conversation that cannot be resolved by tool pruning alone
+        huge_text = "conversation_context " * 1500
+        msgs = [
+            HumanMessage(content=huge_text),
+            AIMessage(
+                content="thinking...",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content="short tool output", name="grep_tool", tool_call_id="tc1"),
+            AIMessage(content="done"),
+        ]
+
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={"enable_pre_compact_tool_prune": True},
+        )
+
+        result = await processor.process(context)
+
+        # Still exceeds ceiling -> LLM summarization must be called as fallback
+        mock_guarded.assert_called_once()
+        assert result.structured_summary is summary
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize"
+    )
+    async def test_pre_compaction_prune_disabled_via_metadata(self, mock_guarded) -> None:
+        """When enable_pre_compact_tool_prune=False, proceed directly to LLM summarize without pruning."""
+        cfg = ContextConfig(max_context_tokens=10000)
+        processor = SummarizeProcessor(config=cfg)
+
+        summary = StructuredSummary(user_goal="persisted goal")
+        mock_guarded.return_value = ([HumanMessage(content="summarized")], summary)
+
+        large_tool_output = "result_data " * 2000
+        msgs = [
+            HumanMessage(content="user request"),
+            AIMessage(
+                content="thinking...",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_tool_output, name="grep_tool", tool_call_id="tc1"),
+            AIMessage(content="done"),
+        ]
+
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={"enable_pre_compact_tool_prune": False},
+        )
+
+        result = await processor.process(context)
+
+        mock_guarded.assert_called_once()
+        assert result.metadata.get("deterministic_prune_bypassed_summarize") is None

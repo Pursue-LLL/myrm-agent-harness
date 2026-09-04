@@ -21,6 +21,7 @@ from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.observability import (
     GATHER_EPISODIC_FAILED,
     GATHER_EPISODIC_TIMEOUT,
+    GATHER_GRAPH_FAILED,
     GATHER_GRAPH_TIMEOUT,
     GATHER_PROCEDURAL_FAILED,
     GATHER_PROFILE_FAILED,
@@ -30,6 +31,7 @@ from myrm_agent_harness.toolkits.memory.observability import (
     GATHER_SEMANTIC_TIMEOUT,
     GATHER_SESSIONS_TIMEOUT,
     GATHER_WIKI_TIMEOUT,
+    GATHER_CONVERSATION_FAILED,
 )
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument, VectorSearchResult
 from myrm_agent_harness.toolkits.memory.reliability import MemoryGatherWarningCode
@@ -243,7 +245,7 @@ class TestSearchServiceWarningCodesCollection:
 
         results = await manager.search(
             "timezone query",
-            memory_types=[MemoryType.PROFILE],
+            memory_types=[MemoryType.PROFILE, MemoryType.CLAIM],
             limit=10,
             use_rrf=False,
         )

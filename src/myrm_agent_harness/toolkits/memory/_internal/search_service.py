@@ -337,6 +337,7 @@ class MemorySearchService:
                             runtime_config,
                             current_channel_id=self._current_channel_id,
                             namespaces=self._namespaces,
+                            reraise_graph_errors=True,
                         ),
                         timeout=_deadline_remaining(deadline),
                     )

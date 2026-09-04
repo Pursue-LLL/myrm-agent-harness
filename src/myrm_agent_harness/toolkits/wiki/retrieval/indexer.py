@@ -82,11 +82,11 @@ class WikiIndexer(SidecarIndexMixin):
     def _get_conn(self) -> Iterator[sqlite3.Connection]:
         from myrm_agent_harness.utils.db.sqlite import CACHE, harden_connection_sync
 
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, uri=True)
         conn.row_factory = sqlite3.Row
         harden_connection_sync(conn, CACHE, db_path=self.db_path)
 
-        # Dynamically ATTACH federated public databases (Read-Only)
+        # Dynamically ATTACH federated public databases (Read-Only via SQLite URI protocol)
         # Cap at 6 to strictly protect SQLite ATTACH limits and system file descriptors.
         attached_count = 0
         for idx, p_dir in enumerate(self._structure.public_dirs):
@@ -96,7 +96,10 @@ class WikiIndexer(SidecarIndexMixin):
             try:
                 pub_db = p_dir / ".wiki_index.db"
                 if pub_db.is_file():
-                    conn.execute(f"ATTACH DATABASE ? AS pub_{idx}", (str(pub_db),))
+                    # Use file:...URI with mode=ro to strictly prevent OperationalError in read-only volumes
+                    # and ensure non-destructive mounting of shared organizational vaults.
+                    safe_uri = f"file:{pub_db.resolve().as_posix()}?mode=ro"
+                    conn.execute(f"ATTACH DATABASE ? AS pub_{idx}", (safe_uri,))
                     attached_count += 1
             except (sqlite3.Error, OSError) as e:
                 logger.warning(f"Failed to attach federated database {p_dir}: {e}")

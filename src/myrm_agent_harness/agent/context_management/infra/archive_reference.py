@@ -77,7 +77,7 @@ class ContextArchiveReference:
         header = (
             "[Tool result offloaded during context compression]"
             if self.reason == "compress_offload"
-            else "[Tool result archived after prompt cache TTL expiry]"
+            else "[Tool Result Archive Reference] [Tool result archived after prompt cache TTL expiry]"
         )
         return (
             f"{header}\n"
