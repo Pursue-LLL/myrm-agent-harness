@@ -555,7 +555,7 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 查询 → L1 Memory LRU (μs) → L2 API (100ms+)
 ```
 
-直接实现 `EmbeddingCacheProtocol`，支持 `get/put/get_batch/put_batch`。使用 LRU 策略淘汰旧缓存。
+直接实现 `EmbeddingCacheProtocol`，支持 `get/put/get_batch/put_batch/evict/evict_batch`。使用 LRU 策略淘汰旧缓存，并在记忆删除时精准同步驱逐对应文本向量。
 
 ---
 
@@ -569,7 +569,7 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 | `RelationalStoreProtocol` | `get_profile`, `set_profile`, `create_rule`, `submit_pending` 等 21 个方法                               | `SQLiteRelationalStore` (aiosqlite)                    | SQLAlchemy 适配器 |
 | `GraphStoreProtocol`      | `create_node`, `create_relationship`(幂等), `get_causal_chain`, `delete_subgraph`, `delete_all_by_owner` | `SQLiteGraphStore` (aiosqlite + CTE + UNIQUE 关系去重) | SQLite CTE        |
 | `EmbeddingProtocol`       | `embed`, `embed_batch`, `dimension`                                                                      | `EmbeddingService`                                     | -                 |
-| `EmbeddingCacheProtocol`  | `get`, `put`, `get_batch`, `put_batch`                                                                   | `EmbeddingCache` (L1+L2)                               | -                 |
+| `EmbeddingCacheProtocol`  | `get`, `put`, `get_batch`, `put_batch`, `evict`, `evict_batch`                                           | `EmbeddingCache` (L1+L2)                               | -                 |
 
 ---
 
@@ -632,7 +632,7 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 - importance ≥ 0.9 的记忆受保护
 - 最近 7 天内访问过的记忆受保护
 
-作用域安全：`run_forgetting` 的向量 scroll 按 `primary_namespace ∈ 当前 manager.namespaces` 精确过滤，只清理本 scope 的低保留记忆，绝不跨 agent/channel/task 误删（仅共享 `global` 广播命名空间的其他 agent 记忆不会进入扫描）；`delete_rule`、`delete_memory` 与按类型清空 `delete_by_type` 同样校验所有权（`get_rule(namespaces=...)`/`_owns_vector_doc` 按 `primary_namespace` 主判定、缺失时按 namespaces 交集兜底/`list_rules(namespaces)` 分页删除），规则与记忆只能在归属 scope 内被删除，杜绝跨 scope 越权删除；`delete_by_type(EPISODIC)` 删除前先收集本 scope 的 episodic id、删除后逐条级联清理 Claim Graph 派生节点，与单条删除的 `_cascade_clean_derived_graph_nodes` 对称，避免批量清空后图谱残留引用已删 task digest 的悬垂节点。
+作用域安全：`run_forgetting` 的向量 scroll 按 `primary_namespace ∈ 当前 manager.namespaces` 精确过滤，只清理本 scope 的低保留记忆，绝不跨 agent/channel/task 误删（仅共享 `global` 广播命名空间的其他 agent 记忆不会进入扫描）；`delete_rule`、`delete_memory` 与按类型清空 `delete_by_type` 同样校验所有权（`get_rule(namespaces=...)`/`_owns_vector_doc` 按 `primary_namespace` 主判定、缺失时按 namespaces 交集兜底/`list_rules(namespaces)` 分页删除），规则与记忆只能在归属 scope 内被删除，杜绝跨 scope 越权删除；`delete_memory` 同步级联清理 Claim Graph 派生节点并精准驱逐 `EmbeddingCache` 中的文本缓存；统一检索出口 `_filter_results` 严格阻断 `archived`/`disabled` 状态数据流出，避免幽灵召回。
 
 **ARCHIVE 字段契约**：向量层以 `archived` 布尔 payload 作为归档过滤标准——`_user_filter` 默认 `archived == False`，归档记忆必须同步设置 `archived: True` 才会被常规检索排除。`run_forgetting` ARCHIVE 分支、staleness review REMOVE、`update_memory(status=archived)` 均同步写入 `archived=True`；`unarchive_memory` 恢复时写回 `archived=False`（而非删除字段，避免 Qdrant 对缺失字段的 MatchValue 不匹配导致恢复后记忆从检索消失）。
 
