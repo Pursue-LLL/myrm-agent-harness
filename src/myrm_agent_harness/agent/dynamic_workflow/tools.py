@@ -388,9 +388,13 @@ class SpawnSubagentTool(BaseTool):
                                 ),
                             )
                         else:
-                            manager = getattr(self.parent_agent, "_subagent_manager", None)
+                            manager = getattr(
+                                self.parent_agent, "_subagent_manager", None
+                            )
                             if manager is None:
-                                raise ValueError("Parent agent missing _subagent_manager")
+                                raise ValueError(
+                                    "Parent agent missing _subagent_manager"
+                                )
                             from myrm_agent_harness.agent.sub_agents.orchestrator import (
                                 run_with_verification,
                             )
@@ -818,4 +822,6 @@ class SteerChildTool(BaseTool):
         message: str,
         config_overlay: dict[str, object] | None = None,
     ) -> dict[str, object]:
-        return self._run(task_id=task_id, message=message, config_overlay=config_overlay)
+        return self._run(
+            task_id=task_id, message=message, config_overlay=config_overlay
+        )
