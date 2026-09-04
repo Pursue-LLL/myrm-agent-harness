@@ -198,6 +198,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.toolkits.memory.strategies.merger",
         "ConflictItem",
     ),
+    "ConfidenceEvolutionEngine": (
+        "myrm_agent_harness.toolkits.memory.strategies.merger",
+        "ConfidenceEvolutionEngine",
+    ),
+    "ConflictItem": (
+        "myrm_agent_harness.toolkits.memory.strategies.merger",
+        "ConflictItem",
+    ),
     "ConfigIncompleteError": ("myrm_agent_harness.api.config", "ConfigIncompleteError"),
     "ConflictSeverity": (
         "myrm_agent_harness.core.artifacts.fact_check",

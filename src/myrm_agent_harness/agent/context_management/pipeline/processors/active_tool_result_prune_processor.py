@@ -307,6 +307,7 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
             )
         )
 
+        prune_reason = str(context.metadata.get("prune_reason", "active_prune"))
         new_messages, pruned, tokens_saved = await prune_tool_results_deterministic(
             messages,
             threshold_tokens=self._threshold_tokens,
@@ -319,7 +320,7 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
             chat_id=context.chat_id,
             placeholder_cache=self._placeholder_cache,
             force=force_prune,
-            reason="active_prune",
+            reason=prune_reason,
         )
 
         if pruned > 0:

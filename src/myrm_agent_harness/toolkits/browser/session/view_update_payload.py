@@ -77,6 +77,8 @@ def build_browser_view_update_data(
     page_title: str,
     viewport_width: int | None = None,
     viewport_height: int | None = None,
+    task_space_id: str = "default",
+    task_space_name: str | None = None,
 ) -> dict[str, object]:
     if viewport_width is None or viewport_height is None:
         vw, vh = resolve_viewport_from_refs(refs_data)
@@ -90,6 +92,8 @@ def build_browser_view_update_data(
         "page_title": page_title,
         "viewport_width": viewport_width,
         "viewport_height": viewport_height,
+        "task_space_id": task_space_id,
+        "task_space_name": task_space_name,
     }
 
 
@@ -97,6 +101,8 @@ async def capture_browser_view_update_data(
     session: object,
     *,
     snapshot_result: SnapshotResult | None = None,
+    task_space_id: str | None = None,
+    task_space_name: str | None = None,
 ) -> dict[str, object]:
     """Capture screenshot + refs payload from a live BrowserSession."""
     from myrm_agent_harness.toolkits.browser.session.browser_session import BrowserSession
@@ -130,11 +136,24 @@ async def capture_browser_view_update_data(
         except Exception:
             pass
 
+    resolved_space_id = (
+        task_space_id
+        if task_space_id is not None
+        else str(getattr(session, "task_space_id", "default") or "default")
+    )
+    resolved_space_name = (
+        task_space_name
+        if task_space_name is not None
+        else getattr(session, "task_space_name", None)
+    )
+
     return build_browser_view_update_data(
         screenshot_base64=screenshot_b64,
         refs_data=refs_data,
         page_url=page_url,
         page_title=page_title,
+        task_space_id=resolved_space_id,
+        task_space_name=resolved_space_name,
     )
 
 
