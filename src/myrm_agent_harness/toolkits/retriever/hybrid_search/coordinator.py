@@ -10,10 +10,10 @@ All model dependencies (embedding, reranker) are passed explicitly via method pa
 - toolkits.retriever.autocut::AutocutConfig (POS: autocut configuration)
 
 [OUTPUT]
-- HybridSearchCoordinator: class — Hybrid Search Coordinator
+- HybridSearchCoordinator: Coordinates BM25 sparse retrieval and vector retrieval with RRF fusion and reranking
 
 [POS]
-Provides HybridSearchCoordinator.
+Coordinator for hybrid sparse and dense retrieval pipelines.
 """
 
 from __future__ import annotations

@@ -3,14 +3,15 @@
 Provides text splitting for different content types (Markdown, plain text) and strategies.
 
 [INPUT]
-retriever.splitter.chunk_processor::detect_content_type (POS: Content-type detection for chunks)
-retriever.splitter.chunk_processor::inject_structured_context (POS: Structured-context injection)
-retriever.splitter.recursive_character_protect_special_splitter::RecursiveCharacterAndProtectSpecialChunkTextSplitterByTiktoken (POS: Tiktoken-based recursive splitter with special-block protection)
-retriever.splitter.smart_markdown_header_text_splitter::SmartMarkdownHeaderTextSplitter (POS: Markdown header-aware splitter)
-utils.text_utils::detect_language, get_token_count (POS: Language detection and token counting)
+- .chunk_processor::detect_content_type (POS: Content-type detection for chunks)
+- .chunk_processor::inject_structured_context (POS: Structured-context injection)
+- .recursive_character_protect_special_splitter::RecursiveCharacterAndProtectSpecialChunkTextSplitterByTiktoken (POS: Tiktoken-based recursive splitter with special-block protection)
+- .smart_markdown_header_text_splitter::SmartMarkdownHeaderTextSplitter (POS: Markdown header-aware splitter)
+- myrm_agent_harness.utils.text_utils::detect_language, get_token_count (POS: Language detection and token counting)
 
 [OUTPUT]
-split_text: Splits a document into token-bounded chunks using Markdown-aware or recursive strategy
+- TextChunker: High-level text chunking manager
+- split_text: Splits a document into token-bounded chunks using Markdown-aware or recursive strategy
 
 [POS]
 High-level text splitter. Selects the appropriate splitting strategy based on content type

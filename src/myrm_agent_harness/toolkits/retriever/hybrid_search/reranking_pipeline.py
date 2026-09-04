@@ -4,10 +4,10 @@
 - toolkits.retriever.reranker::RerankerService (POS: Reranker contract layer. Declares the abstract interface and result type that every reranker backend must implement.)
 
 [OUTPUT]
-- RerankingPipeline: class — Reranking Pipeline
+- RerankingPipeline: Batch reranking pipeline for multi-query retrieval results
 
 [POS]
-Provides RerankingPipeline.
+Provides RerankingPipeline for batch reranker dispatch and score sorting.
 """
 
 import logging

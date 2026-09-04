@@ -69,10 +69,10 @@ restored_chunks = [handler.restore_markdown_links(chunk, link_map) for chunk in 
 - Uses padding char 'x' to match token counts
 
 [INPUT]
-- (none)
+- myrm_agent_harness.utils.text_utils::get_token_count (POS: Token count calculator)
 
 [OUTPUT]
-- MarkdownLinkHandler: Markdown link handler.
+- MarkdownLinkHandler: Markdown link handler for newline protection during text splitting
 
 [POS]
 Markdown link handler module.

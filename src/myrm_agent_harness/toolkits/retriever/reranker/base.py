@@ -4,11 +4,11 @@ Abstract interface for reranking services, defining a unified reranking API.
 All implementations (Cloud API, etc.) must implement this interface.
 
 [INPUT]
-(no external module dependencies — pure ABC + dataclass)
+- (none - standard library ABC and dataclass)
 
 [OUTPUT]
-RerankResult: Dataclass holding index, score, and text of a reranked document
-RerankerService: Abstract base class for all reranker backends
+- RerankResult: Dataclass holding index, score, and text of a reranked document
+- RerankerService: Abstract base class for all reranker backends
 
 [POS]
 Reranker contract layer. Declares the abstract interface and result type that every

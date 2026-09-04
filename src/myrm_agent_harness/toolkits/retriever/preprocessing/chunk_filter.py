@@ -1,17 +1,17 @@
-"""Document chunk filter
+"""Document chunk filter.
 
-Provides BM25-based chunk pre-filtering for long document relevance filtering。
+Provides BM25-based chunk pre-filtering for long document relevance filtering.
 
 [INPUT]
-- toolkits.retriever.bm25_retrieval::BM25Retriever (POS: BM25 sparse retrieval engine. Builds an in-memory inverted index from document chunks and returns keyword-matched results ranked by BM25 score.)
-- toolkits.retriever.splitter::TextChunker (POS: Smart long-message splitter. Line-by-line processing with fence state machine, auto-closing and reopening code blocks that span chunks. "escape" fence protection 2. Enhanced: Supports both ``` and ~~~ fences (3-10 symbols) 3. Smart: Intelligent line splitting at whitespace/punctuation boundaries 4. Configurable: Overflow tolerance for semantic preservation)
+- toolkits.retriever.bm25_retrieval::BM25Retriever (POS: BM25 sparse retrieval engine)
+- toolkits.retriever.splitter::TextChunker (POS: Text chunker for documents)
 
 [OUTPUT]
 - ChunkFilter: Document chunk filter
-- create_document_chunks_from_crawl_results: Create document chunks from crawl results, BM25 pre-filte...
+- create_document_chunks_from_crawl_results: Create document chunks from crawl results with BM25 pre-filtering
 
 [POS]
-Document chunk filter
+Document chunk filter. Filters long document chunks via BM25 + RRF to prune irrelevant content.
 """
 
 import asyncio

@@ -11,7 +11,7 @@ vaults (≤15 raw files, folder depth ≤1).
 |------|------|-------------|-------|
 | types.py | DTO | `CompileSurveyContext`, `CompileSessionState`, `FacetSurvey`, fast-path constants | ✅ |
 | builder.py | Core | `build_compile_survey()` — pending paths for facets; optional vault scope for fast-path gate | ✅ |
-| __init__.py | Package | Public exports | — |
+| `__init__.py` | Package | Public exports | ✅ |
 
 ## Key Dependencies
 

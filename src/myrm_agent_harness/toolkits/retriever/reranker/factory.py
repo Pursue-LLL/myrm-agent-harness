@@ -4,11 +4,12 @@ Creates reranker service instances from configuration with process-level caching
 (identical configs share a single instance).
 
 [INPUT]
-retriever.reranker.base::RerankerService (POS: Reranker contract layer)
+- .base::RerankerService (POS: Reranker contract layer)
 
 [OUTPUT]
-RerankerConfig: Frozen dataclass describing a reranker service configuration
-create_reranker_service: Factory function returning a (possibly cached) RerankerService
+- RerankerConfig: Frozen dataclass describing a reranker service configuration
+- create_reranker_service: Factory function returning a (possibly cached) RerankerService
+- get_reranker_service: Process-wide singleton getter for RerankerService
 
 [POS]
 Reranker factory. Centralises reranker-service instantiation and ensures process-wide

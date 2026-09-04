@@ -1,6 +1,6 @@
-"""代码related ToolFunction
+"""Code-related text splitting utilities.
 
-provides代码语言检测、Code blocks保护、AST智能分割 etc.功能
+Provides programming language detection, code block protection, and AST-aware splitting.
 
 [INPUT]
 - langchain_text_splitters (optional `[retrieval]` extra)::Language, RecursiveCharacterTextSplitter
@@ -12,7 +12,7 @@ provides代码语言检测、Code blocks保护、AST智能分割 etc.功能
 - restore_code_blocks: Restore code blocks from placeholders
 
 [POS]
-Provides detect_code_language, split_large_code_block, protect_code_blocks.
+Code-aware splitting utilities for AST-guided chunking and syntax block protection.
 """
 
 import logging

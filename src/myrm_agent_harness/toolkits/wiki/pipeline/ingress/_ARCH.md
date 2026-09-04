@@ -12,7 +12,7 @@ Wiki raw ingress SSOT — browser clip and URL markdown asset localization befor
 | `publish.py` | Core | `publish_clip_ingress`, `publish_url_markdown_ingress` → `raw_gate.publish_raw` | ✅ |
 | `video_segment_parser.py` | Core | Subtitle segment parsing, sliding-window merging, and markdown synthesis | ✅ |
 | `video_ingress.py` | Core | `publish_video_url_ingress`, `publish_media_ingress` → `raw_gate.publish_raw` | ✅ |
-| `__init__.py` | Package | Public exports | — |
+| `__init__.py` | Package | Public exports | ✅ |
 
 ## Callers
 

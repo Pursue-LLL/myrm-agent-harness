@@ -8,7 +8,7 @@ Security detection modules — PII classification, content boundary marking, inf
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Module public exports for core security detection subsystem. | — |
-| content_boundary.py | Core | Content boundary marking — wraps untrusted/tool output with delimiters; `extract_wrapped_payload` unwraps envelopes for programmatic (PTC) consumers. | ✅ |
+| content_boundary.py | Core | Content boundary marking — wraps untrusted/tool output with Nonce-guarded delimiters and privileged tag stripping; `extract_wrapped_payload` unwraps envelopes via symmetric pairing for programmatic (PTC) consumers. | ✅ |
 | instruction_shape.py | Core | Instruction-shape detector — sentence-level agent-directed shapes (guardrail bypass, unattended execution, exfiltration, spoofed approval, agent command, untrusted-channel-write) in durable content. | ✅ |
 | intent_router.py | Core | Intake-stage dangerous intent router — dual-tier regex & actionability detection for mass destruction, mass exfiltration, and privilege mutation. | ✅ |
 | leak_detector.py | Core | Information leak detector — identifies sensitive data patterns in text, incl. password-like heuristic and numeric-credential (PIN/OTP/2FA) detection. | ✅ |

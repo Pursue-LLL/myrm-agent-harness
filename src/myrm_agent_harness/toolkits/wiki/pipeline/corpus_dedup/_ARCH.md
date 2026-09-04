@@ -10,7 +10,7 @@ Three-tier duplicate detection (exact SHA256, normalized hash, simhash near-matc
 
 | File | Role | Description | I/O/P |
 | --- | --- | --- | --- |
-| `__init__.py` | Package | Public exports for scanner, governor, eligibility, store, types, snippets | — |
+| `__init__.py` | Package | Public exports for scanner, governor, eligibility, store, types, snippets | ✅ |
 | `path_utils.py` | SSOT | `normalize_raw_relative_path` — raw-dir-relative path keys | ✅ |
 | `types.py` | Types | DedupTier, DispositionAction, DuplicateGroup, DuplicateMemberSnippet, ScanResult, DedupStats, VaultHygieneSnapshot | ✅ |
 | `fingerprint.py` | Core | Exact/normalized/simhash fingerprint builders | ✅ |

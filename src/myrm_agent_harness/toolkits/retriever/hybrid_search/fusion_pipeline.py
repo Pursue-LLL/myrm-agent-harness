@@ -7,10 +7,10 @@ Fuses multi-query reranked results: deduplication → orthogonal fusion → auto
 - retriever.autocut::AutocutConfig, apply_autocut (POS: score-discontinuity dynamic truncation)
 
 [OUTPUT]
-- FusionPipeline: class — Fusion Pipeline
+- FusionPipeline: Result fusion pipeline (deduplication, orthogonal fusion, autocut, top-k)
 
 [POS]
-Provides FusionPipeline.
+Provides FusionPipeline for multi-query result aggregation and ranking.
 """
 
 from __future__ import annotations
