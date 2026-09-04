@@ -207,3 +207,6 @@ class WikiPendingEditsManager:
                 if status in stats:
                     stats[status] = row["count"]
             return stats
+
+
+WikiPendingManager = WikiPendingEditsManager

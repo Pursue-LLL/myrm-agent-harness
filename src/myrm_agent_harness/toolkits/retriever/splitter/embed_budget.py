@@ -1,12 +1,12 @@
 """Force-split text chunks to fit embedding model input windows.
 
 [INPUT]
-retriever.embedding.window_policy::EmbedWindowPolicy (POS: embed window SSOT)
-retriever.splitter.splitter::TextChunker (POS: markdown-aware chunking)
-utils.text_utils::get_token_count (POS: tiktoken counting)
+- retriever.embedding.window_policy::EmbedWindowPolicy (POS: embed window SSOT)
+- retriever.splitter.splitter::TextChunker (POS: markdown-aware chunking)
+- utils.text_utils::get_token_count (POS: tiktoken counting)
 
 [OUTPUT]
-split_for_embedding(): split text so every chunk fits the embed budget
+- split_for_embedding: split text so every chunk fits the embed budget
 
 [POS]
 Embed-time chunking helper. Used by wiki indexers and memory storage before embed_batch.

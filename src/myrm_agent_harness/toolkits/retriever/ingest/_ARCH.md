@@ -9,7 +9,7 @@ drained by a process-level BatchEmbedConsumer to guarantee constant O(1) memory 
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Public exports for dual-lane ingestion | — |
+| `__init__.py` | Package | Public exports for dual-lane ingestion | ✅ |
 | `types.py` | Core | Data contracts: Chunk, TaskEnvelope, EndOfTask, DirNode, IngestStats, IngestEvent | ✅ |
 | `tree.py` | Core | DirTreeBuilder: In-memory directory DAG with bottom-up topological reduce | ✅ |
 | `consumer.py` | Core | BatchEmbedConsumer: Bounded queue drainer with batch embedding and idle flush | ✅ |

@@ -143,3 +143,76 @@ def test_rehydrate_ssot_fills_gap_after_compaction() -> None:
         ["alpha_skill", "beta_skill"],
     )
     assert [s.name for s in rehydrated] == ["alpha_skill", "beta_skill"]
+
+
+def test_collect_loaded_skill_names_with_structured_skill_entries() -> None:
+    """Verifies structured <skill_entry> correctly restores hyphen-named skills even if doc contains 'Error:'."""
+    messages = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "skill_select_tool",
+                    "args": {
+                        "skill_names": ["db-diagnostics", "web-scraping", "broken-service"],
+                        "reason": "multitask",
+                    },
+                    "id": "tc_structured",
+                    "type": "tool_call",
+                }
+            ],
+        ),
+        ToolMessage(
+            content=(
+                "<skills_sop>\n"
+                '<skill_entry name="db-diagnostics" status="ready">\n'
+                "db-diagnostics：# db-diagnostics\n"
+                "When debugging, if you encounter Error: 1045 Access denied, check credentials.\n"
+                "</skill_entry>\n"
+                '<skill_entry name="web-scraping" status="ready">\n'
+                "web-scraping：# web-scraping\n"
+                "Scrapes dynamic web pages.\n"
+                "</skill_entry>\n"
+                '<skill_entry name="broken-service" status="error">\n'
+                "broken-service：\nError: skill 'broken-service' not found.\n"
+                "</skill_entry>\n"
+                "</skills_sop>"
+            ),
+            tool_call_id="tc_structured",
+            name="skill_select_tool",
+        ),
+    ]
+
+    loaded = collect_loaded_skill_names_from_messages(messages)
+    assert loaded == ["db-diagnostics", "web-scraping"]
+
+
+def test_collect_loaded_skill_names_with_hyphen_legacy_names() -> None:
+    """Verifies legacy colon format correctly matches hyphen-named skills without _skill suffix."""
+    messages = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "skill_select_tool",
+                    "args": {"skill_names": ["data-analysis", "code-review"], "reason": "review"},
+                    "id": "tc_legacy_hyphen",
+                    "type": "tool_call",
+                }
+            ],
+        ),
+        ToolMessage(
+            content=(
+                "<skills_sop>\n"
+                "data-analysis：# data-analysis\n\nProcess tabular data.\n"
+                "code-review：# code-review\n\nPerform peer review.\n"
+                "</skills_sop>"
+            ),
+            tool_call_id="tc_legacy_hyphen",
+            name="skill_select_tool",
+        ),
+    ]
+
+    loaded = collect_loaded_skill_names_from_messages(messages)
+    assert loaded == ["data-analysis", "code-review"]
+

@@ -7,7 +7,7 @@ Embedding Service Toolkit.
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Embedding Service Toolkit. | — |
+| `__init__.py` | Package | Embedding 模块门面入口：导出 `EmbeddingService` 与工厂方法 | ✅ |
 | base.py | Core | Embedding contract layer. Declares the abstract interface that every embedding backend | ✅ |
 | cache.py | Core | Embedding cache layer. Provides a two-tier caching mechanism (memory + SQLite) that sits | ✅ |
 | cloud_embedding.py | Core | Cloud embedding backend. Translates EmbeddingService into LiteLLM API calls with auto batch splitting (count + chars dual protection), retry, dimension detection, and embed-window preflight. Supports Ollama via api_base | ✅ |

@@ -4,11 +4,11 @@ Header-aware splitter with minimum-token constraints; sections that are too smal
 are merged with subsequent content.
 
 [INPUT]
-langchain_core.documents::Document (POS: LangChain document container)
-utils.text_utils::get_token_count (POS: Token counting utility)
+- langchain_core.documents::Document (POS: LangChain document container)
+- utils.text_utils::get_token_count (POS: Token counting utility)
 
 [OUTPUT]
-SmartMarkdownHeaderTextSplitter: Splits Markdown by headers with min-token merging
+- SmartMarkdownHeaderTextSplitter: Splits Markdown by headers with min-token merging
 
 [POS]
 Markdown-aware splitter. Splits documents along header boundaries while enforcing a

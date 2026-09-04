@@ -10,7 +10,7 @@ Detailed design: [RETRIEVER_SYSTEM.md](../RETRIEVER_SYSTEM.md)
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Public exports for chunk filtering helpers | — |
+| `__init__.py` | Package | Public exports for chunk filtering helpers | ✅ |
 | `chunk_filter.py` | Core | Document chunk filter and crawl-result chunk builder | ✅ |
 
 ## Key Dependencies

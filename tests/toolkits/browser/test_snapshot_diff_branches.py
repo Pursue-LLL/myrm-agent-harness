@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 
-from myrm_agent_harness.toolkits.browser.session.snapshot_diff import SnapshotDiffEngine
+from myrm_agent_harness.toolkits.browser.session.snapshot_diff import (
+    _IDENTICAL_NOTICE,
+    DiffOutput,
+    SnapshotDiffEngine,
+)
+from myrm_agent_harness.toolkits.browser.session.snapshot_result import SnapshotResult
+from myrm_agent_harness.toolkits.browser.snapshot import SnapshotMeta
 
 
 @dataclass
@@ -87,3 +94,91 @@ class TestSnapshotDiffEngine:
         threshold = engine._calculate_fold_threshold(100, 10000)
         assert threshold >= 3
         assert threshold <= 50
+
+    def test_compute_diff_identical_fast_path(self) -> None:
+        tree = "\n".join(f'  e{i}: [button] "Action Button {i}"' for i in range(25))
+        engine = SnapshotDiffEngine()
+        engine.update_baseline(tree, {})
+        output = engine.compute_diff(tree, {}, max_tokens=0, chars_per_token=4)
+        assert output.is_identical is True
+        assert output.additions == 0
+        assert output.removals == 0
+        assert output.is_fallback_full is False
+        assert output.diff_text == _IDENTICAL_NOTICE
+        assert output.tokens_saved > 0
+
+    def test_compute_diff_normalized_identical_fast_path(self) -> None:
+        baseline_tree = "\n".join(f'  e{i}: [button] "Item {i}"' for i in range(25))
+        current_tree = "\n".join(f'  e{i + 50}: [button] "Item {i}"' for i in range(25))
+        engine = SnapshotDiffEngine()
+        engine.update_baseline(baseline_tree, {})
+        output = engine.compute_diff(current_tree, {}, max_tokens=0, chars_per_token=4)
+        assert output.is_identical is True
+        assert output.diff_text == _IDENTICAL_NOTICE
+        assert output.tokens_saved > 0
+
+    def test_compute_diff_adaptive_fallback_large_page(self) -> None:
+        baseline_lines = [f"line_{i}_content" for i in range(20)]
+        baseline_tree = "\n".join(baseline_lines)
+        engine = SnapshotDiffEngine()
+        engine.update_baseline(baseline_tree, {})
+
+        # Change 15 out of 20 lines (> 60% ratio on >= 10 lines)
+        current_lines = [f"completely_different_line_{i}" for i in range(15)] + baseline_lines[15:]
+        current_tree = "\n".join(current_lines)
+
+        output = engine.compute_diff(current_tree, {}, max_tokens=0, chars_per_token=4)
+        assert output.is_fallback_full is True
+        assert output.is_identical is False
+        assert output.diff_text == current_tree
+        assert output.tokens_saved == 0
+
+    def test_ancestor_container_breadcrumb_preservation(self) -> None:
+        lines = [f"header_{i}" for i in range(3)]
+        lines.append('  [dialog "User Profile Modal"]')
+        lines.extend([f"content_body_{i}" for i in range(15)])
+        lines.append("footer")
+        baseline_tree = "\n".join(lines)
+
+        engine = SnapshotDiffEngine()
+        engine.update_baseline(baseline_tree, {})
+
+        # Modify only the footer
+        new_lines = list(lines)
+        new_lines[-1] = "footer_updated"
+        current_tree = "\n".join(new_lines)
+
+        output = engine.compute_diff(current_tree, {}, max_tokens=0, chars_per_token=4)
+        assert output.is_fallback_full is False
+        # Ancestor dialog container should be preserved in folded region
+        assert '[dialog "User Profile Modal"]' in output.diff_text
+        assert "+ footer_updated" in output.diff_text
+
+    def test_snapshot_result_structured_metrics(self) -> None:
+        diff_out = DiffOutput(
+            diff_text="--- Snapshot diff ---\n+ added line",
+            is_identical=False,
+            additions=1,
+            removals=0,
+            unchanged=5,
+            is_fallback_full=False,
+            tokens_saved=42,
+        )
+        meta = SnapshotMeta(ref_count=2, estimated_tokens=10)
+        result = SnapshotResult(
+            aria_tree="sample tree",
+            refs=MappingProxyType({}),
+            meta=meta,
+            is_incremental=True,
+            diff_output=diff_out,
+        )
+        assert result.is_identical is False
+        assert result.additions == 1
+        assert result.removals == 0
+        assert result.tokens_saved == 42
+        assert result.is_fallback_full is False
+
+        # Verify tuple unpacking backward compatibility
+        tree, meta_dict = result
+        assert tree == "sample tree"
+        assert meta_dict["ref_count"] == 2

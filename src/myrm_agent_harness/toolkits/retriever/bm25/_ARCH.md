@@ -8,6 +8,7 @@ BM25 retrieval module providing CJK/English hybrid tokenization for sparse retri
 - **CJK Fallback Strategy**: When `jieba` is unavailable, uses character unigram + bigram tokenization (industry standard, same as openclaw/CodePilot). This ensures partial-match recall for Chinese text.
 - **Backend Property**: `TokenizerService.backend` exposes the active backend ("jieba" or "bigram_fallback") for diagnostics and health checks.
 - **Diagnostic Integration**: Registered via `check_tokenizer_health` probe in `diagnostics/probes.py`.
+- **Query Term Selection Strategy**: `term_selector.py` implements IDF-aware query term selection with head intent token retention, cold-start safe degradation for small corpora (<5 docs), and OOV term deprioritization to protect discriminative vocabulary from typo starvation.
 
 ## File & Submodule Index
 

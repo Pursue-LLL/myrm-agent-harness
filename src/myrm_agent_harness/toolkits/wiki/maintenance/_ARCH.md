@@ -12,7 +12,7 @@ Deterministic broken markdown/wikilink links, frontmatter-type checks, and raw-b
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Init | — |
+| `__init__.py` | Package | Wiki 维护模块入口包：聚合导出 WikiLinter 与 MaintainMode | ✅ |
 | linter.py | Core | Health checker: …; `scan(mode)` read-only issue list; `lint_and_maintain(mode=STRUCTURAL|FULL)` — STRUCTURAL skips LLM drift/backlinks; post-maintain **vault git snapshot** when `enable_version_control`; `_discover_connections` parses LLM-suggested wikilink array via `parse_llm_json_list` (robust against fences, prose, trailing commas) | ✅ |
 | issue_kind.py | Types | `action_kind_for_issue_type` + `count_open_actions` SSOT for health report UI lanes | ✅ |
 | modes.py | Types | `MaintainMode` enum for cron vs manual maintain SSOT | ✅ |

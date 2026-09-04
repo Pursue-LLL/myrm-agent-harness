@@ -32,7 +32,13 @@ logger = logging.getLogger(__name__)
 SESSION_LOADED_SKILL_NAMES_CONTEXT_KEY = "session_loaded_skill_names"
 
 _SKILL_SELECT_TOOL_NAMES = frozenset({"skill_select_tool", "skill_select"})
-_NEXT_SKILL_ENTRY = re.compile(r"\n[^\n]+_skill：")
+_SKILL_ENTRY_RE = re.compile(
+    r'<skill_entry\s+name="([^"]+)"(?:\s+status="([^"]+)")?[^>]*>',
+    re.IGNORECASE,
+)
+_LEGACY_NEXT_SKILL_ENTRY = re.compile(
+    r"\n(?!(?:Error|Note|Warning|Notice|Tip|Hint|Example)[:：])([a-zA-Z0-9_-]{2,64})[：:]"
+)
 _GENERIC_SUCCESS_MARKERS = (
     "Skill executed successfully.",
     "MCP skills executed:",
@@ -155,30 +161,47 @@ def _skill_names_from_args(args: dict[str, object]) -> list[str]:
 
 
 def _skill_entry_section(tool_content: str, skill_name: str) -> str | None:
-    marker = f"{skill_name}："
-    start = tool_content.find(marker)
-    if start < 0:
-        return None
-    section_start = start + len(marker)
-    rest = tool_content[section_start:]
-    next_match = _NEXT_SKILL_ENTRY.search(rest)
-    if next_match:
-        return rest[: next_match.start()]
-    return rest.split("</skills_sop>", 1)[0]
+    for colon in ("：", ":"):
+        marker = f"{skill_name}{colon}"
+        start = tool_content.find(marker)
+        if start < 0:
+            continue
+        section_start = start + len(marker)
+        rest = tool_content[section_start:]
+        next_match = _LEGACY_NEXT_SKILL_ENTRY.search(rest)
+        if next_match:
+            return rest[: next_match.start()]
+        return rest.split("</skills_sop>", 1)[0]
+    return None
 
 
 def _skill_entry_succeeded(tool_content: str, skill_name: str) -> bool:
     if "<skills_sop>" not in tool_content:
         return any(marker in tool_content for marker in _GENERIC_SUCCESS_MARKERS)
 
+    # 1. 优先结构化 <skill_entry name="..." status="..."> 精准匹配
+    if "<skill_entry" in tool_content:
+        for m in _SKILL_ENTRY_RE.finditer(tool_content):
+            entry_name = m.group(1).strip()
+            if entry_name == skill_name:
+                status = (m.group(2) or "ready").strip().lower()
+                return status == "ready"
+
+    # 2. 兼容无 <skill_entry> 的历史文本格式
     section = _skill_entry_section(tool_content, skill_name)
     if section is None:
         return False
 
     stripped = section.lstrip()
-    if stripped.startswith("Error:"):
+    if (
+        stripped.startswith("Error:")
+        or "\nError:" in section
+        or f"Error: skill '{skill_name}'" in section
+        or "Error: failed to load" in section
+        or "Error: file '" in section
+    ):
         return False
-    return "Error:" not in stripped
+    return True
 
 
 def _is_skill_select_tool_message(name: str | None) -> bool:

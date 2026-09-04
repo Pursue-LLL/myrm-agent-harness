@@ -10,7 +10,7 @@ Detailed design: [RETRIEVER_SYSTEM.md](../RETRIEVER_SYSTEM.md)
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Public splitter exports | — |
+| `__init__.py` | Package | Public splitter exports | ✅ |
 | `chunk_processor.py` | Core | Chunk processing utilities | ✅ |
 | `code_utils.py` | Core | Code language detection and large-block splitting | ✅ |
 | `markdown_link_handler.py` | Core | Markdown link handling during split | ✅ |

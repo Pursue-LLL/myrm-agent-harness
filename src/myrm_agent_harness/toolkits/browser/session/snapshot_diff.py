@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_REF_PREFIX_RE = re.compile(r"^(?:f\d+_)?e\d+[:\s]")
+_REF_PREFIX_RE = re.compile(r"^(\s*)(?:f\d+_)?e\d+[:\s]\s*")
 _DIFF_FOLD_THRESHOLD = 3
 _MAX_UNCHANGED_DISPLAY = 10
 _MAX_LINE_CHARS = 500
@@ -85,7 +85,7 @@ class SnapshotDiffEngine:
 
     def _normalize_line(self, line: str) -> str:
         if line not in self._normalization_cache:
-            norm = _REF_PREFIX_RE.sub("", line)
+            norm = _REF_PREFIX_RE.sub(r"\1", line)
             if len(norm) > _MAX_LINE_CHARS:
                 norm = f"{norm[:_MAX_LINE_CHARS]} ...[truncated]"
             self._normalization_cache[line] = norm
@@ -132,7 +132,7 @@ class SnapshotDiffEngine:
     @staticmethod
     def _find_ancestor_anchor(prev_lines: list[str], start_idx: int, end_idx: int) -> str | None:
         """Find the most relevant semantic container in a folded unchanged block."""
-        for idx in range(end_idx - 1, max(start_idx, end_idx - 6), -1):
+        for idx in range(end_idx - 1, start_idx - 1, -1):
             line = prev_lines[idx].strip()
             if any(keyword in line.lower() for keyword in _CONTAINER_KEYWORDS):
                 return prev_lines[idx]
