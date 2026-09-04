@@ -8,7 +8,7 @@ Browser session components.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Browser session components. | — |
-| browser_session.py | Core | Browser session aggregate root: snapshot/interact/navigate, `_publish_inspector_view`→`browser_view_update` SSE, stats. MRO: ViewMixin first, then Network before Navigation before Lifecycle. | ✅ |
+| browser_session.py | Core | Browser session aggregate root: snapshot/interact/navigate, user-initiated takeover hard-stop & resume policy (_user_takeover_event, pause_for_takeover, resume_from_takeover), `_publish_inspector_view`→`browser_view_update` SSE, stats. MRO: ViewMixin first, then Network before Navigation before Lifecycle. | ✅ |
 | browser_session_view_mixin.py | Core | Browser Live Co-View SSE mixin: `_publish_inspector_view` with 300ms throttle via progress_sink. | ✅ |
 | view_update_payload.py | Core | Shared browser inspector payload builder for SSE + REST (`capture_browser_view_update_data`, `build_browser_view_update_data`). | ✅ |
 | browser_session_navigation_mixin.py | Core | Navigation, tab switching, private-network extension routing (`navigate_to_url` + capability guard), CAPTCHA coordination, Stealth Ladder auto-upgrade (Patchright→Camoufox), HTTP 403/429 fallthrough to CAPTCHA after proxy retries, engine affinity clear on terminal challenge / Camoufox launch failure (`ToolError`), site-experience injection | ✅ |

@@ -8,7 +8,7 @@ Browser task spaces module. Manages isolated execution spaces (`BrowserTaskSpace
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `__init__.py` | Package | Browser task spaces module public entry point. Exports BrowserTaskSpace and HarnessTaskSpaceManager. | ✅ |
-| `task_space.py` | Core | Isolated browser execution workspace entity with exclusive context and concurrency lock. | ✅ |
+| `task_space.py` | Core | Isolated browser execution workspace entity with exclusive context, concurrency lock, and user takeover pause/resume lifecycle delegation. | ✅ |
 | `space_manager.py` | Core | Manager for parallel browser task spaces with quota enforcement and idle pruning. | ✅ |
 
 ## Key Dependencies
