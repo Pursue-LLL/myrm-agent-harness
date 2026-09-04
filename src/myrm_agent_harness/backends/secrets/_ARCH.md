@@ -11,6 +11,7 @@ Agent 密钥/凭据存储后端 — 定义 AgentSecretBackend Protocol 及 Local
 | `protocols.py` | Core | AgentSecretBackend Protocol（get/set/delete/list CRUD 契约） | ✅ |
 | `local_backend.py` | Impl | 本地加密文件持久化（.secrets.enc + ConfigCrypto） | ✅ |
 | `memory_backend.py` | Impl | Dict-backed 内存实现（测试 / 临时场景） | ✅ |
+| `command_backend.py` | Impl | 外部命令 Helper 动态拉取（Zero-Disk Plaintext / pass / 1Password / Bitwarden） | ✅ |
 
 ## Key Dependencies
 
