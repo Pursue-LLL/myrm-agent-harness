@@ -1,0 +1,20 @@
+{
+  "id": "xiaohongshu",
+  "name": "Xiaohongshu (RED)",
+  "domains": ["xiaohongshu.com", "*.xiaohongshu.com"],
+  "python_tools": {
+    "get_explore_notes": {
+      "description": "Extract notes, author, and likes from Xiaohongshu explore, search, or user profile page.",
+      "path": "tools/get_explore_notes.py",
+      "callable": "get_explore_notes",
+      "args": {
+        "max_notes": {
+          "type": "integer",
+          "required": "false",
+          "description": "Maximum number of notes to extract (default: 10)."
+        }
+      },
+      "returns": "JSON array of note objects with title, url, author, and stats."
+    }
+  }
+}

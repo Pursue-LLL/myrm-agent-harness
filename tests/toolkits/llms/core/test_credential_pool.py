@@ -302,3 +302,38 @@ class TestCredentialPoolStatsGlobal:
 
         pool.report_success("a")
         assert pool.stats()["max_consecutive_rate_limits"] == 0
+
+
+class TestCredentialPoolResetCooldowns:
+    """Tests for reset_cooldowns() method."""
+
+    def test_reset_all_cooldowns(self) -> None:
+        pool = CredentialPool(["sk-key-1", "sk-key-2"], cooldown_s=60)
+        pool.report_error("sk-key-1", "rate_limit")
+        pool.report_error("sk-key-2", "rate_limit")
+
+        stats_before = pool.stats()
+        assert stats_before["available_keys"] == 0
+        assert stats_before["max_consecutive_rate_limits"] == 1
+
+        reset_count = pool.reset_cooldowns()
+        assert reset_count == 2
+
+        stats_after = pool.stats()
+        assert stats_after["available_keys"] == 2
+        assert stats_after["max_consecutive_rate_limits"] == 0
+
+    def test_reset_cooldown_by_suffix(self) -> None:
+        pool = CredentialPool(["sk-alpha-1234", "sk-beta-5678"], cooldown_s=60)
+        pool.report_error("sk-alpha-1234", "rate_limit")
+        pool.report_error("sk-beta-5678", "rate_limit")
+
+        reset_count = pool.reset_cooldowns("1234")
+        assert reset_count == 1
+
+        stats = pool.stats()
+        assert stats["available_keys"] == 1
+        key_stats = {k["suffix"]: k for k in stats["keys"]}
+        assert key_stats["1234"]["in_cooldown"] is False
+        assert key_stats["5678"]["in_cooldown"] is True
+

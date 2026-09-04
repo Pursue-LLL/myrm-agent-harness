@@ -273,6 +273,20 @@ class CredentialPool:
         """Number of keys not currently in cooldown."""
         return len(self._available_slots(time.monotonic()))
 
+    def reset_cooldowns(self, key_suffix: str | None = None) -> int:
+        """Reset cooldown timers and consecutive rate limit counters for matching slots.
+
+        If *key_suffix* is provided, only slots ending with that suffix are reset.
+        If omitted or None, all slots are reset. Returns the count of slots reset.
+        """
+        reset_count = 0
+        for slot in self._slots:
+            if key_suffix is None or slot.key.endswith(key_suffix):
+                slot.cooldown_until = 0.0
+                slot.consecutive_rate_limit_count = 0
+                reset_count += 1
+        return reset_count
+
     def stats(self) -> dict[str, object]:
         """Pool statistics for observability."""
         now = time.monotonic()

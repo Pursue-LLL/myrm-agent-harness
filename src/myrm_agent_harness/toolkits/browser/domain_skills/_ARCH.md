@@ -28,7 +28,7 @@ SiteExperience (prompt layer)     DomainSkill (executable layer)
 
 | Submodule | Description |
 |-----------|-------------|
-| builtin/ | Bundled domain skill packs shipped with harness (e.g. x-com). Static assets, not runtime data. |
+| builtin/ | Bundled domain skill packs shipped with harness (x-com, bilibili, xiaohongshu, douyin). Static assets, not runtime data. |
 
 ## Allowed Dependencies
 

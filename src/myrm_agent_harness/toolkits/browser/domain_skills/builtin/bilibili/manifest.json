@@ -1,0 +1,20 @@
+{
+  "id": "bilibili",
+  "name": "Bilibili",
+  "domains": ["bilibili.com", "*.bilibili.com"],
+  "python_tools": {
+    "get_feed_videos": {
+      "description": "Extract videos and metadata from Bilibili feed, search, or UP user space.",
+      "path": "tools/get_feed_videos.py",
+      "callable": "get_feed_videos",
+      "args": {
+        "max_videos": {
+          "type": "integer",
+          "required": "false",
+          "description": "Maximum number of video cards to extract (default: 10)."
+        }
+      },
+      "returns": "JSON array of video objects with title, url, author, stats, and duration."
+    }
+  }
+}
