@@ -42,11 +42,15 @@ PTC-adjacent runtime helper. Pure stateless parsing — no I/O, no logging.
 from __future__ import annotations
 
 import json
+import math
 import re
 from typing import Final
 
 _MARKER_PROGRESS: Final[str] = "MYRM_PROGRESS"
 _MARKER_CHECKPOINT: Final[str] = "MYRM_CHECKPOINT"
+
+# Strip ANSI CSI sequences so colored terminals or rich/chalk logs do not mask markers.
+_ANSI_CSI_RE: Final[re.Pattern[str]] = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 
 # Heuristic patterns are checked in order; first match wins. ``re.IGNORECASE``
 # is intentional because LLM-emitted scripts vary in casing.
@@ -80,11 +84,13 @@ def try_parse_progress_line(line: str) -> dict[str, object] | None:
     if not line:
         return None
 
-    explicit = _parse_explicit_marker(line)
+    clean_line = _ANSI_CSI_RE.sub("", line) if "\x1b" in line else line
+
+    explicit = _parse_explicit_marker(clean_line)
     if explicit is not None:
         return explicit
 
-    return _parse_heuristic(line)
+    return _parse_heuristic(clean_line)
 
 
 def _parse_explicit_marker(line: str) -> dict[str, object] | None:
@@ -117,17 +123,31 @@ def _safe_json(body: str) -> dict[str, object] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _safe_float(val: object) -> float | None:
+    """Safely convert int, float, or numeric string to float; returns None on failure or non-finite values."""
+    if isinstance(val, int | float):
+        f_val = float(val)
+        return f_val if not (math.isnan(f_val) or math.isinf(f_val)) else None
+    if isinstance(val, str):
+        try:
+            f_val = float(val.strip())
+            return f_val if not (math.isnan(f_val) or math.isinf(f_val)) else None
+        except ValueError:
+            return None
+    return None
+
+
 def _normalise_payload(payload: dict[str, object], *, default_message: str) -> dict[str, object]:
     """Map raw marker payload to a canonical notify dict."""
     result: dict[str, object] = {}
 
-    raw_percent = payload.get("percent")
-    if isinstance(raw_percent, int | float):
+    raw_percent = _safe_float(payload.get("percent") if payload.get("percent") is not None else payload.get("progress"))
+    if raw_percent is not None:
         result["progress"] = _clamp_percent(raw_percent)
 
-    current = payload.get("current")
-    total = payload.get("total")
-    if isinstance(current, int | float) and isinstance(total, int | float) and total > 0:
+    current = _safe_float(payload.get("current"))
+    total = _safe_float(payload.get("total"))
+    if current is not None and total is not None and total > 0:
         if "progress" not in result:
             result["progress"] = _clamp_percent(current / total * 100)
         result["step_index"] = int(current)
@@ -144,6 +164,8 @@ def _normalise_payload(payload: dict[str, object], *, default_message: str) -> d
 
 def _clamp_percent(value: float) -> int:
     """Clamp a percentage into the inclusive ``[0, 100]`` integer range."""
+    if math.isnan(value) or math.isinf(value):
+        return 0
     return max(0, min(100, round(value)))
 
 

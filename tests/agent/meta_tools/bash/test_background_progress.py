@@ -97,3 +97,40 @@ def test_unrelated_lines_return_none(line: str) -> None:
 def test_error_lines_never_emit_progress(line: str) -> None:
     """O6: stderr-style error markers must not be parsed as build progress."""
     assert try_parse_progress_line(line) is None
+
+
+def test_ansi_csi_color_escape_cleansed_for_marker() -> None:
+    """ANSI color codes before/after MYRM_PROGRESS must not break recognition."""
+    line = "\x1b[32mMYRM_PROGRESS\x1b[0m \x1b[1m{\"percent\": 45, \"message\": \"Building\"}\x1b[0m"
+    payload = try_parse_progress_line(line)
+    assert payload is not None
+    assert payload["progress"] == 45
+    assert payload["message"] == "Building"
+
+
+def test_string_numeric_percent_and_steps_normalized() -> None:
+    """Stringified numeric values in JSON payload must be safely coerced to float/int."""
+    line = 'MYRM_PROGRESS {"current": "4", "total": "16", "message": "Optimizing"}'
+    payload = try_parse_progress_line(line)
+    assert payload is not None
+    assert payload["progress"] == 25
+    assert payload["step_index"] == 4
+    assert payload["total_steps"] == 16
+
+
+def test_progress_key_alias_accepted() -> None:
+    """'progress' key alias must be accepted as fallback when 'percent' is omitted."""
+    line = 'MYRM_PROGRESS {"progress": "66", "message": "Hashing"}'
+    payload = try_parse_progress_line(line)
+    assert payload is not None
+    assert payload["progress"] == 66
+    assert payload["message"] == "Hashing"
+
+
+def test_non_finite_float_safe_clamp() -> None:
+    """NaN and Inf in clamps must not raise unhandled ValueError/OverflowError."""
+    from myrm_agent_harness.agent.meta_tools.bash._background.progress import _clamp_percent
+    assert _clamp_percent(float("nan")) == 0
+    assert _clamp_percent(float("inf")) == 0
+    assert _clamp_percent(float("-inf")) == 0
+

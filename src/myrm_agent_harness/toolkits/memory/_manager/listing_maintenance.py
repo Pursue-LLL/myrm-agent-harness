@@ -90,6 +90,12 @@ class MemoryManagerListingMaintenanceMixin:
         )
         for memory_id in cascade_ids:
             await self._cascade_clean_derived_graph_nodes(memory_id)
+        if (
+            self._cache is not None
+            and hasattr(self._cache, "clear")
+            and memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC)
+        ):
+            await self._cache.clear()
         return deleted
 
     async def _collect_snapshot(self) -> MemorySnapshot | None:

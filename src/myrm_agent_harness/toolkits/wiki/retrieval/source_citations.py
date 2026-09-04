@@ -38,6 +38,18 @@ def resolve_snippet_kb_name(snip: SourceSnippet, structure: WikiStructure | None
                     if isinstance(labels, dict):
                         if str(p_dir) in labels:
                             return str(labels[str(p_dir)])
+                        try:
+                            resolved_p_str = str(p_dir.resolve())
+                            if resolved_p_str in labels:
+                                return str(labels[resolved_p_str])
+                        except OSError:
+                            pass
+                        for l_k, l_v in labels.items():
+                            try:
+                                if Path(l_k).resolve() == p_dir.resolve():
+                                    return str(l_v)
+                            except OSError:
+                                pass
                         if p_dir.name in labels:
                             return str(labels[p_dir.name])
                     meta_file = p_dir / ".kb_meta.json"

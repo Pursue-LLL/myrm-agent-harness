@@ -100,16 +100,27 @@ class WikiStructure:
 
     def resolve_concept_file_path(self, concept_path: str) -> Path | None:
         """Resolve path for reading, checking public enterprise mounts if not found locally."""
-        local_path = self.get_concept_file_path(concept_path)
+        clean_path = concept_path
+        if clean_path.startswith("wiki/"):
+            clean_path = clean_path[len("wiki/") :]
+        if clean_path.startswith("concepts/"):
+            clean_path = clean_path[len("concepts/") :]
+        if clean_path.endswith(".md"):
+            clean_path = clean_path[:-3]
+
+        local_path = self.get_concept_file_path(clean_path)
         if local_path.exists():
             return local_path
 
-        safe_path = self._sanitize_path(concept_path)
+        safe_path = self._sanitize_path(clean_path)
         for p_dir in self.public_dirs[:6]:
             try:
                 public_path = p_dir / "wiki" / "concepts" / f"{safe_path}.md"
                 if public_path.is_file():
                     return public_path
+                direct_path = p_dir / concept_path
+                if direct_path.is_file():
+                    return direct_path
             except (OSError, PermissionError):
                 continue
         return None
