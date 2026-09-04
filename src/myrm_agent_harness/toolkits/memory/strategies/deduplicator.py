@@ -68,6 +68,10 @@ from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
 from myrm_agent_harness.toolkits.memory.strategies.llm_prompt import (
     DEDUPLICATION_SYSTEM_PROMPT,
 )
+from myrm_agent_harness.toolkits.memory.strategies.merger import (
+    DeterministicThreeStateMerger,
+    MergeState,
+)
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
     MemoryType,
@@ -469,6 +473,36 @@ class SmartDeduplicator:
         search_results = [c for c in candidates[:_LLM_CANDIDATES_LIMIT] if isinstance(c, VectorSearchResult)]
         existing_mems = [converter(result.document) for result in search_results]
 
+        # 0-LLM deterministic three-state evaluation
+        merger = DeterministicThreeStateMerger()
+        for result, mem in zip(search_results, existing_mems, strict=False):
+            merge_dec = merger.evaluate(
+                existing=mem,
+                candidate_content=new_memory.content,
+                candidate_evidence=getattr(new_memory, "evidence", []),
+                similarity=result.score,
+            )
+            if merge_dec.state == MergeState.USER_OVERRIDE_PROTECTED:
+                logger.info("Deduplication: blocked overwrite of user-locked memory %s", mem.id)
+                return (DeduplicationDecision.NEW, None)
+            if merge_dec.state == MergeState.CONFIRM:
+                if isinstance(mem, SemanticMemory) and merge_dec.updated_confidence is not None:
+                    mem.confidence = merge_dec.updated_confidence
+                    if merge_dec.merged_evidence:
+                        mem.evidence = merge_dec.merged_evidence
+                return (DeduplicationDecision.DUPLICATE, None)
+            if merge_dec.state == MergeState.SUPPLEMENT:
+                return (DeduplicationDecision.UPDATE_MERGE, merge_dec.merged_content)
+            if merge_dec.state == MergeState.CONFLICT:
+                if isinstance(mem, SemanticMemory) and merge_dec.updated_confidence is not None:
+                    mem.confidence = merge_dec.updated_confidence
+                if isinstance(new_memory, SemanticMemory) and merge_dec.candidate_confidence is not None:
+                    new_memory.confidence = merge_dec.candidate_confidence
+                return (DeduplicationDecision.NEW, None)
+
+        if self._llm is None:
+            return (DeduplicationDecision.NEW, None)
+
         context_parts = [
             f"New memory: {new_memory.content}",
             f"Type: {new_memory.memory_type}",
@@ -572,6 +606,11 @@ class SmartDeduplicator:
 
             existing = converter(docs[0])
 
+            # CRITICAL: User Override Wins - Never allow automated LLM deduplication to overwrite human edits
+            if getattr(existing, "is_user_locked", False) or getattr(existing, "user_pinned", False) or getattr(existing, "source", "") == "user":
+                logger.info("Deduplicator: preserved user-locked memory %s, creating NEW instead of overwrite", target_id)
+                return new_memory
+
             existing_ns = set(existing.scope.namespaces)
             new_ns = set(new_memory.scope.namespaces)
             # Empty namespaces mean global scope (no boundary to enforce);
@@ -584,6 +623,16 @@ class SmartDeduplicator:
             existing.updated_at = datetime.now(UTC)
             existing.merge_count += 1
             existing.embedding = None
+
+            # Merge evidence chains if present
+            if hasattr(existing, "evidence") and hasattr(new_memory, "evidence"):
+                from myrm_agent_harness.toolkits.memory.strategies.conflict_merger import (
+                    merge_evidence_references,
+                )
+                existing.evidence = merge_evidence_references(
+                    getattr(existing, "evidence", None),
+                    getattr(new_memory, "evidence", None),
+                )
 
             if decision == DeduplicationDecision.UPDATE_REPLACE:
                 if new_memory.metadata:

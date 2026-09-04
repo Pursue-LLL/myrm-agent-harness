@@ -251,31 +251,46 @@ class PreferenceStabilityStrategy:
         return facet
 
     async def _resolve_key_conflicts(self, candidate_facet: PreferenceFacet) -> None:
-        """Resolve value conflicts for the same key via argmax(stability).
+        """Resolve value conflicts for the same key via deterministic three-state conflict marking.
 
-        When multiple facets share the same key but different values, the one with
-        highest stability wins. Losers are deleted.
+        Avoids violent hard deletion: retains divergent facets by marking them as conflicted
+        and penalizing stability, while strictly upholding user_pinned protection.
         """
         siblings = await self._store.find_by_key(candidate_facet.key)
         if len(siblings) <= 1:
             return
 
-        siblings.sort(key=lambda f: f.stability, reverse=True)
-        winner = siblings[0]
-        for loser in siblings[1:]:
-            if loser.user_pinned:
+        # Check if any facet is explicitly user pinned (User Override Wins)
+        pinned_winner = next((f for f in siblings if f.user_pinned), None)
+
+        for facet in siblings:
+            if facet.user_pinned:
                 continue
-            await self._store.delete(loser.id)
-            logger.info(
-                "Conflict resolution: dropped facet %s (%s=%s, stab=%.3f) in favor of %s=%s (stab=%.3f)",
-                loser.id,
-                loser.key,
-                loser.value,
-                loser.stability,
-                winner.key,
-                winner.value,
-                winner.stability,
-            )
+
+            if pinned_winner and facet.id != pinned_winner.id:
+                # User pinned facet always wins; demote competitor stability to candidate
+                facet.lifecycle = PreferenceLifecycle.CANDIDATE
+                facet.stability = min(facet.stability, 0.20)
+                await self._store.upsert(facet)
+                logger.info(
+                    "User Override Wins: demoted unpinned competitor %s (%s=%s) against pinned %s",
+                    facet.id,
+                    facet.key,
+                    facet.value,
+                    pinned_winner.id,
+                )
+            else:
+                # True contradiction without user pin: retain both, penalize stability to reflect uncertainty
+                facet.stability = min(facet.stability, 0.35)
+                facet.lifecycle = PreferenceLifecycle.PROVISIONAL
+                await self._store.upsert(facet)
+                logger.info(
+                    "Retained conflicted facet %s (%s=%s) under reduced provisional stability=%.3f",
+                    facet.id,
+                    facet.key,
+                    facet.value,
+                    facet.stability,
+                )
 
     async def micro_rebuild(self) -> int:
         """Quick rebuild for new candidates after session flush.

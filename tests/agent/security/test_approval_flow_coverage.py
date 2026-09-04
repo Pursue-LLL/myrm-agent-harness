@@ -303,3 +303,19 @@ class TestGetOrCreateLock:
         assert is_new
         assert ts is None
         assert isinstance(lock, asyncio.Lock)
+
+    @pytest.mark.asyncio
+    async def test_allowlist_check_expired_pruning(self):
+        """Test that Allowlist.check prunes expired entries in memory."""
+        allowlist = Allowlist(store=None)
+        now = time.time()
+        expired = AllowlistEntry(permission="file_write", tool_name="writer", expires_at=now - 100.0)
+        valid = AllowlistEntry(permission="file_read", tool_name="reader", expires_at=now + 1000.0)
+        await allowlist.add("u1", expired)
+        await allowlist.add("u1", valid)
+
+        assert allowlist.check("u1", "file_write", "writer") is False
+        assert allowlist.check("u1", "file_read", "reader") is True
+        # Verify the expired key was pruned from internal dict
+        assert not any(e.permission == "file_write" for e in allowlist._entries.get("u1", {}).values())
+

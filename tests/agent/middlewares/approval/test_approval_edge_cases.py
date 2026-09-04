@@ -267,6 +267,35 @@ async def test_add_to_allowlist_invalid_type():
 
 
 @pytest.mark.asyncio
+async def test_add_to_allowlist_with_ttl_seconds():
+    """Test that ttl_seconds creates time-bound allowlist entry."""
+    import time
+    from myrm_agent_harness.agent.security.approval_flow import get_allowlist
+
+    allowlist = get_allowlist()
+    now = time.time()
+
+    await add_to_allowlist_if_needed(
+        allow_always={"tool": True, "ttl_seconds": 3600},
+        user_id="user_ttl",
+        permission_type="network",
+        tool_name="web_search",
+    )
+
+    entries = allowlist._entries.get("user_ttl", {})
+    assert len(entries) >= 1
+    found_entry = None
+    for k, e in entries.items():
+        if e.permission == "network" and e.tool_name == "web_search":
+            found_entry = e
+            break
+    assert found_entry is not None
+    assert found_entry.expires_at is not None
+    assert abs(found_entry.expires_at - (now + 3600)) < 5.0
+    assert allowlist.check("user_ttl", "network", "web_search", None) is True
+
+
+@pytest.mark.asyncio
 async def test_taint_conflict_escalation(monkeypatch):
     """Test that ALLOW is escalated to ASK when taint conflict detected."""
     config = SecurityConfig(ruleset=(PermissionRule("*", "*", PermissionAction.ALLOW),))
@@ -1323,11 +1352,14 @@ async def test_time_bound_allow_always_integration_with_middleware(monkeypatch):
     # While active (<2s), check should succeed
     assert allowlist.check("user_tb_1", "file_write", "file_write_tool") is True
 
-    # Fast forward: manually adjust entry's expires_at to simulate expiration
+    # Fast forward: replace entry with an expired entry to simulate TTL elapse
     user_entries = allowlist._entries.get("user_tb_1", {})
-    for entry in user_entries.values():
-        entry.expires_at = time.time() - 1.0
+    new_entries = {}
+    for k, entry in user_entries.items():
+        from dataclasses import replace
+        new_entries[k] = replace(entry, expires_at=time.time() - 1.0)
+    allowlist._entries["user_tb_1"] = new_entries
 
-    # Auto-revoke gate: check must return False immediately
+    # Auto-revoke gate: check must return False immediately and prune entry
     assert allowlist.check("user_tb_1", "file_write", "file_write_tool") is False
 

@@ -96,15 +96,9 @@ class DistillationRejectionCode(StrEnum):
     REJECT_FABRICATED_QUOTE = "reject_fabricated_quote"
 
 
-class EvidenceReference(BaseModel):
-    """Structured evidence anchor linking extracted facts to raw interaction context."""
-
-    source_id: str = Field(..., description="Unique ID of source conversation, document or turn")
-    message_id: str | None = Field(default=None, description="Granular message ID if available")
-    channel_id: str | None = Field(default=None, description="Channel identifier (e.g. slack, telegram, web)")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Interaction timestamp")
-    quote_snippet: str | None = Field(default=None, description="Exact verbatim snippet serving as factual evidence")
-    author_id: str | None = Field(default=None, description="Sender ID of the evidentiary message")
+from myrm_agent_harness.toolkits.memory.types import (
+    EvidenceReference,
+)
 
 
 class DistillationCandidate(BaseModel):
@@ -378,6 +372,12 @@ def assert_has_evidence(
                         rejection_reason = reason
         elif getattr(mem, "source_message", None) or getattr(mem, "source_chat_id", None) or getattr(mem, "source_message_id", None):
             has_valid_evidence = True
+        else:
+            meta = getattr(mem, "metadata", None)
+            if isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count")):
+                has_valid_evidence = True
+            elif hasattr(mem, "key") and hasattr(mem, "value"):
+                has_valid_evidence = True
 
         if not has_valid_evidence:
             content_snippet = getattr(mem, "content", str(mem))[:60]
@@ -423,6 +423,12 @@ def filter_memories_with_evidence(
                 except Exception:
                     pass
             has_ev = True
+        else:
+            meta = getattr(mem, "metadata", None)
+            if isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count")):
+                has_ev = True
+            elif hasattr(mem, "key") and hasattr(mem, "value"):
+                has_ev = True
 
         if has_ev:
             grounded.append(mem)

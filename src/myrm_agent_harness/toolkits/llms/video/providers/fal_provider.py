@@ -186,18 +186,23 @@ class FalVideoProvider(VideoGenerationProvider):
             payload["video_url"] = remote_video_url
             payload["continuation"] = True
         elif not parent_request_id and reference_videos:
-            # Fallback path for raw bytes input with 5MB payload protection
-            _MAX_INLINE_VIDEO_BYTES = 5 * 1024 * 1024
-            video_bytes = reference_videos[0]
-            if len(video_bytes) > _MAX_INLINE_VIDEO_BYTES:
-                raise ValueError(
-                    f"Reference video exceeds {_MAX_INLINE_VIDEO_BYTES} bytes limit "
-                    f"({len(video_bytes)} bytes) for inline transfer. "
-                    "Use parent_request_id or provide a remote video_url to prevent HTTP 413."
-                )
-            encoded_video = base64.b64encode(video_bytes).decode("ascii")
-            payload["video_url"] = f"data:video/mp4;base64,{encoded_video}"
-            payload["continuation"] = True
+            # Check if reference_videos[0] is utf-8 encoded HTTP(S) URL
+            first_ref = reference_videos[0]
+            if first_ref.startswith((b"http://", b"https://")):
+                payload["video_url"] = first_ref.decode("utf-8")
+                payload["continuation"] = True
+            else:
+                # Fallback path for raw bytes input with 5MB payload protection
+                _MAX_INLINE_VIDEO_BYTES = 5 * 1024 * 1024
+                if len(first_ref) > _MAX_INLINE_VIDEO_BYTES:
+                    raise ValueError(
+                        f"Reference video exceeds {_MAX_INLINE_VIDEO_BYTES} bytes limit "
+                        f"({len(first_ref)} bytes) for inline transfer. "
+                        "Use parent_request_id or provide a remote video_url to prevent HTTP 413."
+                    )
+                encoded_video = base64.b64encode(first_ref).decode("ascii")
+                payload["video_url"] = f"data:video/mp4;base64,{encoded_video}"
+                payload["continuation"] = True
 
         if extra_params:
             for k, v in extra_params.items():

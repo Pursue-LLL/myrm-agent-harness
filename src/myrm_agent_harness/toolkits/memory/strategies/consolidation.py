@@ -28,6 +28,11 @@ from typing import TYPE_CHECKING
 from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.toolkits.memory.strategies.merger import (
+    DeterministicThreeStateMerger,
+    MergeState,
+)
+
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import ConsolidationConfig
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
@@ -307,6 +312,41 @@ async def _execute_operations(
                         stats.corrected += 1
                         continue
                     # KEEP_NEW or MERGE: proceed to execute the correction below
+
+                merger = DeterministicThreeStateMerger()
+                merge_dec = merger.evaluate(
+                    existing=existing,
+                    candidate_content=op.corrected_content,
+                    candidate_evidence=getattr(existing, "evidence", []),
+                )
+
+                if merge_dec.state == MergeState.CONFLICT:
+                    logger.info("Consolidation: conflict detected for %s; retaining both with decayed confidence", full_id)
+                    if isinstance(existing, SemanticMemory):
+                        await manager.update_memory(full_id, confidence=merge_dec.updated_confidence or 0.35)
+                        new_mem = await manager.add_memory(
+                            op.corrected_content,
+                            memory_type=MemoryType.SEMANTIC,
+                            confidence=merge_dec.candidate_confidence or 0.35,
+                            scope=existing.scope,
+                        )
+                        stats.affected_ids.append(full_id)
+                        stats.affected_ids.append(new_mem.id)
+                        stats.updated += 1
+                        continue
+
+                if merge_dec.state == MergeState.CONFIRM:
+                    if isinstance(existing, SemanticMemory) and merge_dec.updated_confidence is not None:
+                        await manager.update_memory(full_id, confidence=merge_dec.updated_confidence)
+                    stats.affected_ids.append(full_id)
+                    stats.updated += 1
+                    continue
+
+                if merge_dec.state == MergeState.SUPPLEMENT and merge_dec.merged_content:
+                    await manager.update_memory(full_id, content=merge_dec.merged_content)
+                    stats.affected_ids.append(full_id)
+                    stats.updated += 1
+                    continue
 
                 if isinstance(existing, SemanticMemory):
                     correction = await manager.correct_memory(

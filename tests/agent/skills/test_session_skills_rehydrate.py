@@ -248,3 +248,38 @@ def test_collect_loaded_skill_names_with_escaped_skill_entry_tags() -> None:
     loaded = collect_loaded_skill_names_from_messages(messages)
     assert loaded == ["xml-parser"]
 
+
+def test_collect_loaded_skill_names_with_reordered_entry_tags() -> None:
+    """Verifies that even if model or sub-system reorders skill_entry tags, extraction matches correctly."""
+    messages = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "skill_select_tool",
+                    "args": {"skill_names": ["first_skill", "second_skill"], "reason": "load"},
+                    "id": "tc_reorder",
+                    "type": "tool_call",
+                }
+            ],
+        ),
+        ToolMessage(
+            content=(
+                "<skills_sop>\n"
+                '<skill_entry name="second_skill" status="ready">\n'
+                "second_skill：# second_skill\nReady\n"
+                "</skill_entry>\n"
+                '<skill_entry name="first_skill" status="error">\n'
+                "first_skill：\nError: failed\n"
+                "</skill_entry>\n"
+                "</skills_sop>"
+            ),
+            tool_call_id="tc_reorder",
+            name="skill_select_tool",
+        ),
+    ]
+
+    loaded = collect_loaded_skill_names_from_messages(messages)
+    assert loaded == ["second_skill"]
+
+

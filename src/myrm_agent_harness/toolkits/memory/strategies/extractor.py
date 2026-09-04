@@ -30,11 +30,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from myrm_agent_harness.toolkits.memory.strategies.distillation_guards import (
-    EvidenceReference,
-)
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
+    EvidenceReference,
     MemoryLifecycle,
     MemoryType,
     PreferenceType,
@@ -618,6 +616,7 @@ class MemoryExtractor:
                     meta["channel_id"] = first_ev.channel_id
                 if first_ev.author_id:
                     meta["evidence_author"] = first_ev.author_id
+                meta["evidence_count"] = len(m.evidence)
 
             if (
                 m.memory_type == MemoryType.PROFILE
@@ -648,6 +647,7 @@ class MemoryExtractor:
                         source_error=m.source_error,
                         language=language,
                         expected_valid_days=m.expected_valid_days,
+                        evidence=m.evidence,
                         metadata=meta,
                     )
                 )
@@ -661,6 +661,7 @@ class MemoryExtractor:
                         source_message_id=first_msg_id,
                         language=language,
                         expected_valid_days=m.expected_valid_days,
+                        evidence=m.evidence,
                         metadata=meta,
                     )
                 )
@@ -681,6 +682,7 @@ class MemoryExtractor:
                         tool_name=m.tool_name,
                         tool_rule_priority=priority_val,
                         expected_valid_days=m.expected_valid_days,
+                        evidence=m.evidence,
                         metadata=meta,
                     )
                 )

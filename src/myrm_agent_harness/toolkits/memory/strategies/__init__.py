@@ -7,6 +7,15 @@ from myrm_agent_harness.toolkits.memory.strategies.blind_spot import (
     PatchTargetType,
     extract_blind_spot_patches,
 )
+from myrm_agent_harness.toolkits.memory.strategies.conflict_merger import (
+    ConflictDetail,
+    MergeAction,
+    MergeRelation,
+    MergeResult,
+    classify_relation,
+    merge_evidence_references,
+    merge_memory_candidate,
+)
 from myrm_agent_harness.toolkits.memory.strategies.consolidation import (
     ConsolidationStats,
     run_consolidation,
@@ -39,6 +48,13 @@ from myrm_agent_harness.toolkits.memory.strategies.extractor import (
     MemoryExtractor,
     extract_memories_from_conversation,
 )
+from myrm_agent_harness.toolkits.memory.strategies.merger import (
+    ConfidenceEvolutionEngine,
+    ConflictItem,
+    DeterministicThreeStateMerger,
+    MergeDecision,
+    MergeState,
+)
 from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
     ForgettingConfig,
     ForgettingResult,
@@ -62,6 +78,7 @@ __all__ = [
     "BlindSpotCandidate",
     "BlindSpotKnowledgePatch",
     "BlindSpotReport",
+    "ConflictDetail",
     "ConsolidationStats",
     "CorrectionAction",
     "CorrectionProposal",
@@ -82,6 +99,9 @@ __all__ = [
     "ImplicitFeedbackResult",
     "IncrementalTranscriptParser",
     "MemoryExtractor",
+    "MergeAction",
+    "MergeRelation",
+    "MergeResult",
     "PatchTargetType",
     "RetentionScore",
     "SelfIdentityState",
@@ -91,13 +111,21 @@ __all__ = [
     "assert_distillable",
     "assert_has_evidence",
     "check_distillable",
+    "classify_relation",
     "detect_implicit_feedback",
     "extract_blind_spot_patches",
     "extract_memories_from_conversation",
     "filter_distillable_messages",
     "filter_memories_with_evidence",
     "is_valid_evidence_reference",
+    "merge_evidence_references",
+    "merge_memory_candidate",
     "plan_memory_corrections",
     "run_consolidation",
     "should_consolidate",
+    "ConfidenceEvolutionEngine",
+    "ConflictItem",
+    "DeterministicThreeStateMerger",
+    "MergeDecision",
+    "MergeState",
 ]

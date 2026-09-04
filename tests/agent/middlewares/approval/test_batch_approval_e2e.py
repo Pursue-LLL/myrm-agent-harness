@@ -221,3 +221,72 @@ async def test_mixed_auto_and_manual(monkeypatch):
     assert modified_ai_msg.tool_calls[0]["id"] == "call_1"
     assert modified_ai_msg.tool_calls[1]["id"] == "call_2"
     assert modified_ai_msg.tool_calls[2]["id"] == "call_3"
+
+
+@pytest.mark.asyncio
+async def test_time_bound_allow_always_batch_decision(mock_security_config, monkeypatch):
+    """Test that allow_always with duration/ttl_seconds adds time-bound grant."""
+    import time
+    from myrm_agent_harness.agent.security.approval_flow import get_allowlist
+
+    set_security_config(mock_security_config)
+    set_workspace_root("/tmp")
+    set_approval_session("test-session")
+    set_approval_user_id("user_time_bound")
+
+    allowlist = get_allowlist()
+    now = time.time()
+    mock_called = False
+
+    def mock_interrupt(payload):
+        nonlocal mock_called
+        mock_called = True
+        return {
+            "decisions": [
+                {
+                    "type": "approve",
+                    "allow_always": {
+                        "tool": True,
+                        "duration": "1h",
+                        "ttl_seconds": 3600,
+                    },
+                }
+            ]
+        }
+
+    monkeypatch.setattr("myrm_agent_harness.agent.middlewares.approval.middleware.interrupt", mock_interrupt)
+
+    middleware = ToolApprovalMiddleware()
+    state = {
+        "messages": [
+            AIMessage(
+                content="Execute bash command.",
+                tool_calls=[
+                    ToolCall(
+                        type="tool_call",
+                        name="bash_code_execute_tool",
+                        args={"command": "python3 setup.py install"},
+                        id="call_tb",
+                    )
+                ],
+            )
+        ]
+    }
+
+    result = await middleware.aafter_model(state, MockRuntime())
+    assert mock_called is True
+    assert result is not None
+
+    # Verify allowlist has time-bound grant
+    assert allowlist.check("user_time_bound", "code_interpreter", "bash_code_execute_tool", None) is True
+    entries = allowlist._entries.get("user_time_bound", {})
+    entry = next(e for e in entries.values() if e.tool_name == "bash_code_execute_tool")
+    assert entry.expires_at is not None
+    assert abs(entry.expires_at - (now + 3600)) < 5.0
+
+    # Verify allowlist has time-bound grant
+    assert allowlist.check("user_time_bound", "code_interpreter", "bash_code_execute_tool", None) is True
+    entries = allowlist._entries.get("user_time_bound", {})
+    entry = next(e for e in entries.values() if e.tool_name == "bash_code_execute_tool")
+    assert entry.expires_at is not None
+    assert abs(entry.expires_at - (now + 3600)) < 5.0

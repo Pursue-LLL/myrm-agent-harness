@@ -827,6 +827,51 @@ class TestFalVideoProviderGenerate:
         ):
             await provider.generate("test prompt", _cfg())
 
+    @pytest.mark.asyncio
+    async def test_generate_continuation_direct_http_url(self) -> None:
+        """When reference_video is an already-hosted HTTP(S) URL, it should be passed directly without Base64 encoding."""
+        provider = FalVideoProvider()
+        fake_video_bytes = b"\x00\x00\x00\x18ftypmp42http-pass"
+        hosted_url = "https://cdn.example.com/assets/clip_1.mp4"
+
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status_url": "https://queue.fal.run/status/req-http-cont",
+                    "response_url": "https://queue.fal.run/res/req-http-cont",
+                },
+            )
+        )
+        mock_client.get = AsyncMock(
+            side_effect=[
+                httpx.Response(200, json={"status": "COMPLETED"}),
+                httpx.Response(200, json={"video": {"url": "https://media.fal.run/video_next.mp4"}}),
+            ]
+        )
+        mock_client.aclose = AsyncMock()
+
+        fake_resp = httpx.Response(200, content=fake_video_bytes)
+        with (
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.create_httpx_client", return_value=mock_client),
+            patch("myrm_agent_harness.toolkits.llms.video.providers.fal_provider.secure_get", AsyncMock(return_value=fake_resp)),
+            patch("asyncio.sleep", AsyncMock()),
+        ):
+            output = await provider.generate(
+                "continue scene",
+                _cfg(),
+                reference_videos=[hosted_url.encode("utf-8")],
+            )
+
+        assert len(output.assets) == 1
+        assert output.assets[0].data == fake_video_bytes
+        # Verify the payload video_url passed directly as hosted_url
+        call_kwargs = mock_client.post.call_args[1]
+        assert call_kwargs["json"]["video_url"] == hosted_url
+        assert call_kwargs["json"]["continuation"] is True
+
+
 
 
 

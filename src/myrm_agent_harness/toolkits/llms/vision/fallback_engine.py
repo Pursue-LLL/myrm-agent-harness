@@ -254,11 +254,61 @@ class VisionFallbackEngine:
         retry_count: int = 1,
         prompt: str | None = None,
     ) -> str:
-        """解析单张 Base64 格式的图片 (带 Reactive Resize 与 provider 链 failover)
+        """解析单张 Base64 格式的图片 (带超长截图自适应切片、Reactive Resize 与 provider 链 failover)
 
         Raises:
             VisionDescriptionError: When all providers fail to describe the image.
         """
+        # 1. 尝试自适应长图切片检测，避免极端长截图压缩后字迹严重马赛克失真
+        try:
+            raw_bytes = base64.b64decode(b64_data)
+            slices = image_compressor.slice_long_image_if_needed(raw_bytes)
+            if len(slices) > 1:
+                logger.info(
+                    "Detected long screenshot (auto-sliced into %d overlapping tiles), executing concurrent parsing...",
+                    len(slices),
+                )
+
+                async def _parse_tile(idx: int, tile_bytes: bytes) -> tuple[int, str]:
+                    tile_b64 = base64.b64encode(tile_bytes).decode("ascii")
+                    tile_prompt = (
+                        f"{prompt or self.build_vision_prompt()}\n\n"
+                        f"[Context: This is segment {idx} of {len(slices)} from a vertical long screenshot. "
+                        f"Extract text, table headers, and structural UI elements faithfully. "
+                        f"Smoothly connect boundary content without repeating headers from adjacent slices.]"
+                    )
+                    tile_desc = await self._describe_single_tile_chain(
+                        tile_b64, mime_type, retry_count=retry_count, prompt=tile_prompt
+                    )
+                    return idx, tile_desc
+
+                tile_tasks = [
+                    _parse_tile(idx, tile_bytes)
+                    for idx, tile_bytes in enumerate(slices, start=1)
+                ]
+                parsed_tiles = await asyncio.gather(*tile_tasks)
+                parsed_tiles.sort(key=lambda item: item[0])
+
+                tile_descriptions = [
+                    f"### [Section {idx}/{len(slices)}]\n{desc}"
+                    for idx, desc in parsed_tiles
+                ]
+                return "\n\n".join(tile_descriptions)
+        except Exception as slice_err:
+            logger.warning("Long image slice check failed, falling back to direct describe: %s", slice_err)
+
+        return await self._describe_single_tile_chain(
+            b64_data, mime_type, retry_count=retry_count, prompt=prompt
+        )
+
+    async def _describe_single_tile_chain(
+        self,
+        b64_data: str,
+        mime_type: str,
+        *,
+        retry_count: int,
+        prompt: str | None,
+    ) -> str:
         effective_prompt = prompt or self.build_vision_prompt()
         last_error: str | None = None
         self._last_success_provider_index = None

@@ -35,6 +35,17 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
+class EvidenceReference(BaseModel):
+    """Structured evidence anchor linking extracted facts to raw interaction context."""
+
+    source_id: str = Field(..., description="Unique ID of source conversation, document or turn")
+    message_id: str | None = Field(default=None, description="Granular message ID if available")
+    channel_id: str | None = Field(default=None, description="Channel identifier (e.g. slack, telegram, web)")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Interaction timestamp")
+    quote_snippet: str | None = Field(default=None, description="Exact verbatim snippet serving as factual evidence")
+    author_id: str | None = Field(default=None, description="Sender ID of the evidentiary message")
+
+
 # ── Enums ───────────────────────────────────────────────────────────
 
 
@@ -236,6 +247,10 @@ class BaseMemory(BaseModel):
         description="User feedback rating [0,1]. 0.5 = neutral (no feedback yet). Updated via EMA.",
     )
     pinned: bool = Field(default=False, description="User-pinned: immune to forgetting")
+    is_user_locked: bool = Field(
+        default=False,
+        description="Protected against automated background distillation and overwrite",
+    )
     expected_valid_days: int | None = Field(
         default=None,
         description="LLM-estimated validity window in days. None = use global half-life fallback.",
@@ -244,6 +259,9 @@ class BaseMemory(BaseModel):
     trace_id: str | None = Field(default=None, description="Execution trace ID that produced this memory commit")
     scope: MemoryScope = Field(default_factory=MemoryScope)
     lifecycle: MemoryLifecycle | None = None
+    evidence: list[EvidenceReference] = Field(
+        default_factory=list, description="Structured provenance evidence anchoring this fact"
+    )
 
     @field_validator("created_at", "updated_at", "last_accessed_at", mode="before")
     @classmethod
@@ -436,10 +454,6 @@ class ProceduralMemory(BaseMemory):
         default=ToolRulePriority.NORMAL,
         description="Compression resistance: CRITICAL rules are pinned into system prompt",
     )
-    is_user_locked: bool = Field(
-        default=False,
-        description="User-edited rules are locked against background consolidation/forgetting overwrites",
-    )
 
     def model_post_init(self, __context: object) -> None:
         """Sync is_active ↔ status on construction for legacy data."""
@@ -614,3 +628,10 @@ class PendingRecord(BaseModel):
 # ── Type aliases ────────────────────────────────────────────────────
 
 AnyMemory = SemanticMemory | EpisodicMemory | ConversationMemory | ProceduralMemory | IntegrationMemory
+
+BaseMemory.model_rebuild()
+SemanticMemory.model_rebuild()
+EpisodicMemory.model_rebuild()
+ProceduralMemory.model_rebuild()
+ClaimMemory.model_rebuild()
+IntegrationMemory.model_rebuild()

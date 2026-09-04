@@ -535,3 +535,17 @@ class TestExtractWrappedPayload:
         body = '{"text": "A < B and C > D &lt;skills_sop&gt;"}'
         wrapped = wrap_tool_output(body)
         assert extract_wrapped_payload(wrapped) == body
+
+    def test_extract_wrapped_payload_with_multiple_nested_envelopes(self) -> None:
+        """When multiple envelopes exist sequentially, extract the first one cleanly."""
+        part1 = wrap_tool_output('{"step": 1}')
+        part2 = wrap_tool_output('{"step": 2}')
+        combined = f"{part1}\n{part2}"
+        extracted = extract_wrapped_payload(combined)
+        assert extracted == '{"step": 1}'
+
+    def test_sanitize_preserves_code_with_angle_brackets_and_equations(self) -> None:
+        """Verifies mathematical expressions and valid code comparison symbols are not stripped."""
+        code_snip = "if (x < 10 && y > 20) { return true; }"
+        assert sanitize(code_snip) == code_snip
+

@@ -113,6 +113,16 @@ __all__ = [
     "compute_workflow_fingerprint",
     "create_skill_agent",
     "delete_subagent_checkpoint",
+    "DistillationCandidate",
+    "DistillationOrigin",
+    "DistillationRejectionCode",
+    "EvidenceReference",
+    "SelfIdentityState",
+    "is_alert_or_bot_sender",
+    "check_distillable",
+    "filter_distillable_messages",
+    "filter_memories_with_evidence",
+    "tokenize_for_fts",
     "evaluate_five_contract_progress",
     "evaluate_manifest_attribution",
     "evaluate_metric_proxy_alignment",
@@ -560,6 +570,46 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "unregister_ptc_safety_metadata": (
         "myrm_agent_harness.core.security.tool_registry.registry",
         "unregister_ptc_safety_metadata",
+    ),
+    "DistillationCandidate": (
+        "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
+        "DistillationCandidate",
+    ),
+    "DistillationOrigin": (
+        "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
+        "DistillationOrigin",
+    ),
+    "DistillationRejectionCode": (
+        "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
+        "DistillationRejectionCode",
+    ),
+    "EvidenceReference": (
+        "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
+        "EvidenceReference",
+    ),
+    "SelfIdentityState": (
+        "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
+        "SelfIdentityState",
+    ),
+    "check_distillable": (
+        "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
+        "check_distillable",
+    ),
+    "filter_distillable_messages": (
+        "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
+        "filter_distillable_messages",
+    ),
+    "filter_memories_with_evidence": (
+        "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
+        "filter_memories_with_evidence",
+    ),
+    "is_alert_or_bot_sender": (
+        "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
+        "is_alert_or_bot_sender",
+    ),
+    "tokenize_for_fts": (
+        "myrm_agent_harness.toolkits.wiki.retrieval.tokenizer",
+        "tokenize_for_fts",
     ),
 }
 
