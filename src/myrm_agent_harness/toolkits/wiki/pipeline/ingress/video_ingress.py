@@ -7,14 +7,10 @@
 - ingress.video_segment_parser (POS: transcript parsing, window merging, markdown synthesis)
 
 [OUTPUT]
-- publish_video_url_ingress: Online video URL transcript extraction & ingress
-- publish_media_ingress: Direct media transcript & keyframe ingestion
-- adaptive_merge_segments: Sliding window segment aggregation
-- format_timestamp / parse_timestamp_str: Time conversions
+- publish_video_url_ingress, publish_media_ingress, adaptive_merge_segments, format_timestamp, parse_timestamp_str
 
 [POS]
-Video & audio media raw ingress pipeline. Transforms timestamped video transcripts
-into structured Markdown with second-level timestamps and publishes to Raw Gate.
+Video & audio media raw ingress pipeline. Transforms timestamped video transcripts into structured Markdown with second-level timestamps and publishes to Raw Gate.
 """
 
 from __future__ import annotations

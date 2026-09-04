@@ -182,3 +182,28 @@ class TestSnapshotDiffEngine:
         tree, meta_dict = result
         assert tree == "sample tree"
         assert meta_dict["ref_count"] == 2
+        assert result.tree == "sample tree"
+
+    def test_normalize_line_truncation_and_cache_cap(self) -> None:
+        engine = SnapshotDiffEngine()
+        # Truncation test
+        long_line = "button " + "x" * 600
+        norm = engine._normalize_line(long_line)
+        assert norm.endswith("...[truncated]")
+        assert len(norm) <= 520
+
+        # Cache cap test (simulate filling cache beyond threshold)
+        for i in range(2050):
+            engine._normalize_line(f"line_{i}")
+        assert len(engine._normalization_cache) <= 2048
+
+    def test_generate_diff_pure_deletion(self) -> None:
+        engine = SnapshotDiffEngine()
+        baseline = "\n".join(f"line_{i}" for i in range(15))
+        # Keep first 10 lines, remove last 5 (pure deletion)
+        current = "\n".join(f"line_{i}" for i in range(10))
+        engine.update_baseline(baseline, {})
+        output = engine.compute_diff(current, {}, max_tokens=0, chars_per_token=4)
+        assert output.removals == 5
+        assert output.additions == 0
+        assert "- line_14" in output.diff_text

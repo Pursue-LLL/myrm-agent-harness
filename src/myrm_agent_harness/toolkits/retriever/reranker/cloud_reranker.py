@@ -5,11 +5,11 @@ Cloud API reranking backend supporting multiple providers:
 - OpenAI-compatible providers: direct HTTP calls (SiliconFlow, etc.)
 
 [INPUT]
-retriever.reranker.base::RerankerService (POS: Reranker contract layer)
-retriever.reranker.base::RerankResult (POS: Reranker contract layer)
+- .base::RerankerService (POS: Reranker contract layer)
+- .base::RerankResult (POS: Reranker contract layer)
 
 [OUTPUT]
-CloudReranker: Concrete RerankerService backed by cloud APIs via LiteLLM or direct HTTP
+- CloudReranker: Concrete RerankerService backed by cloud APIs via LiteLLM or direct HTTP
 
 [POS]
 Cloud reranker backend. Translates the abstract RerankerService interface into real

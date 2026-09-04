@@ -4,15 +4,10 @@
 - types.MediaTranscriptSegment (POS: raw subtitle timestamp segment)
 
 [OUTPUT]
-- MergedVideoSegment: Aggregated semantic window segment
-- format_timestamp / parse_timestamp_str: Time conversions
-- adaptive_merge_segments: Sliding window aggregator
-- parse_transcript_text_to_segments: Text to structured segments
-- build_video_markdown: Markdown formatter with Frontmatter
+- MergedVideoSegment, format_timestamp, parse_timestamp_str, adaptive_merge_segments, parse_transcript_text_to_segments, build_video_markdown
 
 [POS]
-Video transcript parsing and Markdown formatting engine. Normalizes disparate
-subtitle sources into timestamp-anchored, readable Markdown sections.
+Video transcript parsing and Markdown formatting engine. Normalizes disparate subtitle sources into timestamp-anchored, readable Markdown sections.
 """
 
 from __future__ import annotations

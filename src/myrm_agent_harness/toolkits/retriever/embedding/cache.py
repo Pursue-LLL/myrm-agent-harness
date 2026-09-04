@@ -6,10 +6,10 @@ Layer 2: SQLite persistent cache (millisecond latency)
 Reduces embedding API cost for repeated text by caching vectors locally.
 
 [INPUT]
-(no external module dependencies — stdlib only: sqlite3, hashlib, pickle, threading)
+- (none - standard library only: sqlite3, hashlib, pickle, threading)
 
 [OUTPUT]
-EmbeddingCache: Two-layer (LRU + SQLite) cache for embedding vectors
+- EmbeddingCache: Two-layer (LRU + SQLite) cache for embedding vectors
 
 [POS]
 Embedding cache layer. Provides a two-tier caching mechanism (memory + SQLite) that sits

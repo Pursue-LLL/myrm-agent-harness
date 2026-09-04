@@ -4,9 +4,10 @@
 - core.structure.WikiStructure (POS: vault directory layout)
 
 [OUTPUT]
-- load_wikiignore_patterns / write_wikiignore_patterns / path_matches_wikiignore
+- load_wikiignore_patterns, write_wikiignore_patterns, path_matches_wikiignore
 
-[POS] User-defined import/dedup exclusion rules at vault root.
+[POS]
+User-defined import/dedup exclusion rules at vault root.
 """
 
 from __future__ import annotations

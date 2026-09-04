@@ -1,15 +1,13 @@
 """Wiki ingress request/result types (clip + URL markdown).
 
 [INPUT]
-- 无（纯类型定义）
+- typing.TYPE_CHECKING (POS: lazy typing import)
 
 [OUTPUT]
-- ClipMode: FULL_PAGE / SELECTION 枚举
-- ClipIngressRequest / ClipAssetInput / ClipIngressResult / UrlMarkdownIngressRequest: 请求与结果 dataclass
+- ClipMode, ClipIngressRequest, ClipAssetInput, ClipIngressResult, UrlMarkdownIngressRequest
 
 [POS]
-Shared type contracts for the wiki raw-ingress pipeline, decoupling transport
-(shapes validated at API boundary) from ingestion logic.
+Shared type contracts for the wiki raw-ingress pipeline, decoupling transport from ingestion logic.
 """
 
 from __future__ import annotations

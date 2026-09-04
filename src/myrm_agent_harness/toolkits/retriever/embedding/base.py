@@ -4,10 +4,10 @@ Abstract interface for vector embedding services, defining a unified embedding A
 Also satisfies MemoryManager's EmbeddingProtocol (embed / embed_batch / dimension).
 
 [INPUT]
-(no external module dependencies — pure ABC)
+- (none - standard library ABC)
 
 [OUTPUT]
-EmbeddingService: Abstract base class for all embedding backends
+- EmbeddingService: Abstract base class for all embedding backends
 
 [POS]
 Embedding contract layer. Declares the abstract interface that every embedding backend

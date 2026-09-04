@@ -296,3 +296,20 @@ class TestFederatedPublicDirsStructure:
 
         resolved = ws.resolve_concept_file_path("team_handbook")
         assert resolved == target
+
+    def test_resolve_concept_file_path_handles_prefixes_and_labels(self, tmp_path):
+        primary = tmp_path / "primary"
+        pub = tmp_path / "pub"
+        labels = {str(pub): "Engineering Handbook"}
+
+        ws = WikiStructure(primary, public_dirs=[pub], public_dir_labels=labels)
+        ws.ensure_structure()
+
+        (pub / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        target = pub / "wiki" / "concepts" / "architecture.md"
+        target.write_text("# Architecture")
+
+        assert ws.resolve_concept_file_path("wiki/concepts/architecture.md") == target
+        assert ws.resolve_concept_file_path("concepts/architecture") == target
+        assert ws.resolve_concept_file_path("architecture.md") == target
+        assert ws.public_dir_labels.get(str(pub)) == "Engineering Handbook"

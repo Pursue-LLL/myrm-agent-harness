@@ -32,6 +32,7 @@ _REF_PREFIX_RE = re.compile(r"^(\s*)(?:f\d+_)?e\d+[:\s]\s*")
 _DIFF_FOLD_THRESHOLD = 3
 _MAX_UNCHANGED_DISPLAY = 10
 _MAX_LINE_CHARS = 500
+_MAX_NORMALIZATION_CACHE_SIZE = 2048
 _FALLBACK_DIFF_RATIO = 0.6
 _MIN_FALLBACK_LINES = 10
 _MIN_FALLBACK_CHANGES = 6
@@ -85,6 +86,8 @@ class SnapshotDiffEngine:
 
     def _normalize_line(self, line: str) -> str:
         if line not in self._normalization_cache:
+            if len(self._normalization_cache) >= _MAX_NORMALIZATION_CACHE_SIZE:
+                self._normalization_cache.clear()
             norm = _REF_PREFIX_RE.sub(r"\1", line)
             if len(norm) > _MAX_LINE_CHARS:
                 norm = f"{norm[:_MAX_LINE_CHARS]} ...[truncated]"

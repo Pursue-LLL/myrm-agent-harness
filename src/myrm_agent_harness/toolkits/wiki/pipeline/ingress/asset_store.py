@@ -5,9 +5,10 @@
 - core.security.http.secure_fetch (POS: server-side public asset fetch)
 
 [OUTPUT]
-- store_clip_assets / localize_public_markdown_images / rewrite_markdown_asset_refs
+- store_clip_assets, localize_public_markdown_images, rewrite_markdown_asset_refs
 
-[POS] Clip and URL-ingest asset localization into wiki/assets/.
+[POS]
+Clip and URL-ingest asset localization into wiki/assets/.
 """
 
 from __future__ import annotations

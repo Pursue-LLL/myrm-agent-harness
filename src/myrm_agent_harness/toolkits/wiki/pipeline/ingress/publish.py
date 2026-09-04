@@ -6,9 +6,10 @@
 - ingress.asset_store (POS: wiki/assets hash store)
 
 [OUTPUT]
-- publish_clip_ingress / publish_url_markdown_ingress (POS: clip + URL ingress writers)
+- publish_clip_ingress, publish_url_markdown_ingress (POS: clip + URL ingress writers)
 
-[POS] Wiki raw ingress writers. Normalize clip/URL content then call publish_raw.
+[POS]
+Wiki raw ingress writers. Normalize clip/URL content then call publish_raw.
 """
 
 from __future__ import annotations
