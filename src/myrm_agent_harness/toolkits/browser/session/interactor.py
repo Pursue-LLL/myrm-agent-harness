@@ -291,9 +291,23 @@ class Interactor(
 
         healed_msg = ""
         try:
-            # Check if locator is attached. If DOM mutated significantly, this will timeout.
-            await locator.wait_for(state="attached", timeout=1500)
+            # Check if locator is attached. If DOM mutated significantly, this will timeout quickly.
+            await locator.wait_for(state="attached", timeout=800)
         except Exception:
+            # Check if URL changed since snapshot, indicating page navigated or submitted
+            current_url = getattr(self._page, "url", "")
+            if current_url and self._last_snapshot_url:
+                change_type, _, _ = RefNotFoundError._classify_url_change(self._last_snapshot_url, current_url)
+                if change_type == "path":
+                    raise RefNotFoundError(
+                        ref=ref,
+                        total_refs=len(self._refs),
+                        ref_range=f"{min(self._refs.keys())}-{max(self._refs.keys())}" if self._refs else "none",
+                        context_refs=[],
+                        last_snapshot_url=self._last_snapshot_url,
+                        context={"action": action, "text": text, "page_url": current_url},
+                    )
+
             # Attempt spatial-fingerprint self-healing
             from myrm_agent_harness.toolkits.browser.snapshot.self_healer import (
                 SelfHealer,

@@ -135,3 +135,21 @@ def test_spend_receipt_cryptographic_chain() -> None:
         timestamp=ts,
     )
     assert tampered_receipt.verify_integrity() is False
+
+
+def test_is_irreversible_social_action() -> None:
+    from myrm_agent_harness.core.security.spend_governance import (
+        is_irreversible_social_action,
+    )
+
+    assert is_irreversible_social_action("channel_notify", {"message": "hello"}) is True
+    assert is_irreversible_social_action("channel_notify_tool", {"channel": "ops"}) is True
+    assert is_irreversible_social_action("artifact_publish", {"pkg": "foo"}) is True
+    assert is_irreversible_social_action("shell_exec", {"command": "git push origin main"}) is True
+    assert is_irreversible_social_action("shell_exec", {"command": "git push --force origin main"}) is True
+    assert is_irreversible_social_action("bash", {"command": "npm publish"}) is True
+    assert is_irreversible_social_action("terminal", {"cmd": "twine upload dist/*"}) is True
+    assert is_irreversible_social_action("shell_exec", {"command": "git status"}) is False
+    assert is_irreversible_social_action("shell_exec", {"command": "git commit -m 'fix'"}) is False
+    assert is_irreversible_social_action("read_file", {"path": "a.txt"}) is False
+

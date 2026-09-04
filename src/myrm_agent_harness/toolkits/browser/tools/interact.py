@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
+from ..exceptions import RefNotFoundError
 from .common import mark_untrusted
 
 if TYPE_CHECKING:
@@ -185,9 +186,25 @@ def create_interact_tool(session: BrowserSession):
             if len(steps) == 0:
                 return "Error: steps must contain at least one action when batch mode is used"
             lines: list[str] = []
+            page = session.get_active_page()
             for index, step in enumerate(steps, start=1):
+                url_before = page.url if page else ""
                 step_result = await _run_single(step.action, step.ref, step.text, step.verify_goal)
                 lines.append(f"Step {index} ({step.action} {step.ref}): {step_result}")
+
+                # Post-action navigation guard: halt subsequent steps if page navigated
+                url_after = page.url if page else ""
+                if url_before and url_after and index < len(steps):
+                    change_type, _, _ = RefNotFoundError._classify_url_change(url_before, url_after)
+                    if change_type == "path":
+                        remaining_count = len(steps) - index
+                        lines.append(
+                            f"[NAVIGATION_HALTED: Step {index} triggered navigation to '{url_after}'. "
+                            f"Remaining {remaining_count} steps halted to prevent stale element execution. "
+                            "Call browser_snapshot to get fresh refs for the new page.]"
+                        )
+                        break
+
             return mark_untrusted("\n".join(lines))
 
         # Ref mode

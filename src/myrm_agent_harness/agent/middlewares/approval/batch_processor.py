@@ -36,6 +36,7 @@ from myrm_agent_harness.agent.security.approval_flow import (
 from myrm_agent_harness.core.security.spend_governance import (
     compute_action_digest,
     is_financial_or_spend_tool,
+    is_irreversible_social_action,
     parse_spend_amount,
 )
 from myrm_agent_harness.agent.security.audit import record_decision
@@ -372,6 +373,13 @@ async def evaluate_tool_batch(
                     tool_name,
                     "FINANCIAL_GATE_ALLOWLIST_BLOCKED",
                     f"Financial spend tools cannot be bypassed via allowlist: {effective_tool_name}",
+                )
+                allowlist_would_match = False
+            elif allowlist_would_match and is_irreversible_social_action(tool_name, tool_input):
+                record_decision(
+                    tool_name,
+                    "IRREVERSIBLE_ACTION_ALLOWLIST_BLOCKED",
+                    f"Socially irreversible actions cannot be bypassed via allowlist: {effective_tool_name}",
                 )
                 allowlist_would_match = False
 

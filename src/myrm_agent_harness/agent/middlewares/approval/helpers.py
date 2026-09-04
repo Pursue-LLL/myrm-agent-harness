@@ -61,9 +61,28 @@ class DenialResult:
 
 
 _denial_state_var: ContextVar[DenialState] = ContextVar("denial_state")
+_session_denial_registry: dict[str, DenialState] = {}
+
+
+def _get_active_session_key() -> str:
+    """Resolve the current session key from session context if available."""
+    try:
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_approval_session,
+        )
+
+        return get_approval_session() or ""
+    except Exception:
+        return ""
 
 
 def _get_state() -> DenialState:
+    session_key = _get_active_session_key()
+    if session_key:
+        if session_key not in _session_denial_registry:
+            _session_denial_registry[session_key] = DenialState()
+        return _session_denial_registry[session_key]
+
     try:
         return _denial_state_var.get()
     except LookupError:
@@ -72,8 +91,14 @@ def _get_state() -> DenialState:
         return state
 
 
-def reset_denial_counter() -> None:
-    """Reset per-run denial counters. Call at the start of each Agent run."""
+def reset_denial_counter(session_key: str | None = None) -> None:
+    """Reset denial counters for a specific session or local context.
+
+    If session_key is provided or bound, explicitly clears that session's state.
+    """
+    target_key = session_key or _get_active_session_key()
+    if target_key and target_key in _session_denial_registry:
+        del _session_denial_registry[target_key]
     _denial_state_var.set(DenialState())
 
 

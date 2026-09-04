@@ -675,7 +675,7 @@ def heal_claim_evidence_snapshot(
     Returns:
         (healed, count): Whether any claim evidence was updated, and the number of healed items.
     """
-    article_path = structure.get_concept_path(concept_name)
+    article_path = structure.get_concept_file_path(concept_name)
     if not article_path.is_file():
         return False, 0
 
@@ -736,7 +736,10 @@ def heal_claim_evidence_snapshot(
                         span = max(1, old_end - old_start + 1)
                     new_start = best_line_idx + 1
                     new_end = min(len(file_lines), new_start + span - 1)
-                    healed_lines = f"{new_start}-{new_end}" if new_end > new_start else str(new_start)
+                    if "-" in ev.lines:
+                        healed_lines = f"{new_start}-{new_end}"
+                    else:
+                        healed_lines = f"{new_start}-{new_end}" if new_end > new_start else str(new_start)
 
             healed_ev = replace(
                 ev,

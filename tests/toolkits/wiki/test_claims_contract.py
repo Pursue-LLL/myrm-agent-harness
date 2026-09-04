@@ -179,3 +179,73 @@ Body
 """
     parsed = parse_claims_from_content(content)
     assert validate_compile_claims(parsed) is False
+
+
+def test_validate_compile_claims_rejects_low_information_patterns() -> None:
+    content = """---
+type: concept
+claims:
+  - id: claim.vacuous
+    text: "Compiled summary of the document"
+    status: supported
+---
+Body
+"""
+    parsed = parse_claims_from_content(content)
+    assert validate_compile_claims(parsed) is False
+
+
+def test_heal_claim_evidence_snapshot(tmp_path) -> None:
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+
+    raw_file = structure.raw_dir / "service_guide.md"
+    raw_lines = ["# Title", "Line 2", "Important claim fact: Port is 8080", "End"]
+    raw_file.write_text("\n".join(raw_lines), encoding="utf-8")
+
+    concept_dir = structure.concepts_dir
+    concept_dir.mkdir(parents=True, exist_ok=True)
+    concept_file = concept_dir / "service.md"
+    initial_content = """---
+type: concept
+claims:
+  - id: claim.port
+    text: "Port is 8080"
+    status: supported
+    evidence:
+      - kind: raw-note
+        path: raw/service_guide.md
+        lines: "3-3"
+        content_sha256: "stale_hash_value"
+---
+
+## Compiled Truth
+Service details.
+"""
+    concept_file.write_text(initial_content, encoding="utf-8")
+
+    from myrm_agent_harness.toolkits.wiki.core.claims_contract import heal_claim_evidence_snapshot
+
+    # First healing updates hash
+    healed, count = heal_claim_evidence_snapshot("service", structure)
+    assert healed is True
+    assert count == 1
+
+    updated_claims = parse_claims_from_content(concept_file.read_text(encoding="utf-8"))
+    assert len(updated_claims) == 1
+    evidence = updated_claims[0].evidence[0]
+    expected_hash = hashlib.sha256(raw_file.read_bytes()).hexdigest()
+    assert evidence.content_sha256 == expected_hash
+
+    # Prepend 2 new lines to simulate file editing / line shift
+    raw_file.write_text("Prefix line 1\nPrefix line 2\n" + "\n".join(raw_lines), encoding="utf-8")
+    healed2, count2 = heal_claim_evidence_snapshot("service", structure)
+    assert healed2 is True
+    assert count2 == 1
+
+    updated_claims2 = parse_claims_from_content(concept_file.read_text(encoding="utf-8"))
+    evidence2 = updated_claims2[0].evidence[0]
+    # The line containing "Port is 8080" was line 3, now it should have shifted to line 5
+    assert evidence2.lines == "5-5"
+    assert evidence2.content_sha256 == hashlib.sha256(raw_file.read_bytes()).hexdigest()
+

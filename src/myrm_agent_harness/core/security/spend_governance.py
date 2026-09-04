@@ -49,6 +49,43 @@ _SPEND_TOOL_KEYWORDS = frozenset(
 )
 
 
+_IRREVERSIBLE_SOCIAL_TOOLS = frozenset(
+    {
+        "channel_notify",
+        "channel_notify_tool",
+        "artifact_publish",
+    }
+)
+
+
+def is_irreversible_social_action(tool_name: str, args: dict[str, object] | None = None) -> bool:
+    """Determine if a tool call constitutes a socially irreversible external action.
+
+    Socially irreversible actions (e.g. git push, public channel notification, package publishing)
+    cannot be rolled back once dispatched into external collaborative environments.
+    """
+    lower_name = tool_name.lower().strip()
+    if lower_name in _IRREVERSIBLE_SOCIAL_TOOLS:
+        return True
+
+    # Check for shell execution targeting git push or publish commands
+    if lower_name in ("shell_exec", "bash", "terminal", "code_interpreter"):
+        if isinstance(args, dict):
+            raw_cmd = str(args.get("command") or args.get("cmd") or args.get("code") or "").strip()
+            if raw_cmd:
+                # Basic token matching for git push variations
+                tokens = raw_cmd.lower().split()
+                for idx, token in enumerate(tokens):
+                    if token == "git" and idx + 1 < len(tokens) and tokens[idx + 1] == "push":
+                        return True
+                    if token in ("npm", "pnpm", "yarn") and idx + 1 < len(tokens) and tokens[idx + 1] == "publish":
+                        return True
+                    if token == "twine" and idx + 1 < len(tokens) and tokens[idx + 1] == "upload":
+                        return True
+
+    return False
+
+
 def is_financial_or_spend_tool(tool_name: str, args: dict[str, object] | None = None) -> bool:
     """Determine if a tool call constitutes a financial spending action."""
     lower_name = tool_name.lower()
