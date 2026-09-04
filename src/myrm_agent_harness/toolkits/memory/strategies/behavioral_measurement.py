@@ -216,8 +216,8 @@ def compute_routine_measurement(
 
             if not msg.is_self:
                 if has_self:
-                    name = msg.sender_name or msg.sender_id
-                    if name and name.lower() not in {"system", "assistant", "agent"}:
+                    name = (msg.sender_name or msg.sender_id).strip()
+                    if name and name.lower() not in {"system", "assistant", "agent", "user", "me", "bot"}:
                         collaborator_counts[name] += 1
                 continue
 

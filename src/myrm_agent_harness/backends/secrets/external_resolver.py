@@ -36,6 +36,8 @@ def is_external_secret_reference(value: str | None) -> bool:
     if not value or not isinstance(value, str):
         return False
     trimmed = value.strip()
+    if (trimmed.startswith('"') and trimmed.endswith('"')) or (trimmed.startswith("'") and trimmed.endswith("'")):
+        trimmed = trimmed[1:-1].strip()
     return trimmed.startswith("op://") or trimmed.startswith(_BW_URI_PREFIXES)
 
 
@@ -61,6 +63,9 @@ def resolve_external_secret(
         ExternalSecretResolutionError: If the CLI returns non-zero, is missing, or times out.
     """
     ref = reference.strip()
+    if (ref.startswith('"') and ref.endswith('"')) or (ref.startswith("'") and ref.endswith("'")):
+        ref = ref[1:-1].strip()
+
     if ref.startswith("op://"):
         cmd = ["op", "read", ref]
     elif ref.startswith("bw://"):

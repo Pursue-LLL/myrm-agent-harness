@@ -1,14 +1,14 @@
-"""Export extracted domain data to Excel or CSV.
+"""Export extracted Bilibili data to Excel or CSV.
 
 [INPUT]
-- session: BrowserSession (unused, conforms to domain tool signature)
-- args: {"data": str | list, "filename": str, "format": str}
+- session: BrowserSession
+- args: {"data": str, "filename": str?, "format": "xlsx" | "csv"?}
 
 [OUTPUT]
-- JSON string with export metadata (filepath, row_count, file_size_bytes)
+- JSON summary containing filepath, row_count, file_size_bytes, etc.
 
 [POS]
-Domain skill export adapter tool.
+Bilibili domain skill executable tool.
 """
 
 from __future__ import annotations
@@ -20,14 +20,14 @@ from myrm_agent_harness.toolkits.browser.domain_skills.social_export import expo
 
 
 async def export_data(session: Any, args: dict[str, Any]) -> str:
-    """Export collected data records to Excel or CSV."""
-    raw_data = args.get("data", "")
+    """Export records to spreadsheet file."""
+    raw_data = args.get("data", "[]")
     filename = args.get("filename")
-    fmt = str(args.get("format", "xlsx"))
+    fmt = args.get("format", "xlsx")
 
-    result = export_records(
+    summary = export_records(
         records=raw_data,
-        filename=str(filename) if filename else None,
-        export_format=fmt,
+        filename=filename,
+        export_format=str(fmt),
     )
-    return json.dumps(result, ensure_ascii=False, indent=2)
+    return json.dumps(summary, ensure_ascii=False, indent=2)

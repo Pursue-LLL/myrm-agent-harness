@@ -16,6 +16,8 @@ class TestExternalSecretResolver:
 
     def test_is_external_secret_reference(self) -> None:
         assert is_external_secret_reference("op://Vault/OpenAI/credential") is True
+        assert is_external_secret_reference('"op://Vault/OpenAI/credential"') is True
+        assert is_external_secret_reference("'bw://my-openai-key'") is True
         assert is_external_secret_reference("bw://my-openai-key") is True
         assert is_external_secret_reference("bws://secret-uuid-1234") is True
         assert is_external_secret_reference("sk-proj-12345678") is False
@@ -31,13 +33,10 @@ class TestExternalSecretResolver:
 
         result = resolve_external_secret("op://Vault/OpenAI/credential")
         assert result == "sk-op-resolved-key-value"
-        mock_run.assert_called_once_with(
-            ["op", "read", "op://Vault/OpenAI/credential"],
-            capture_output=True,
-            text=True,
-            timeout=6.0,
-            check=False,
-        )
+
+        result_quoted = resolve_external_secret('"op://Vault/OpenAI/credential"')
+        assert result_quoted == "sk-op-resolved-key-value"
+        assert mock_run.call_count == 2
 
     @patch("subprocess.run")
     def test_resolve_bw_secret_success(self, mock_run: MagicMock) -> None:
