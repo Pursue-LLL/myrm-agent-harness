@@ -250,16 +250,20 @@ class DeterministicThreeStateMerger:
 
     def _detect_negation_inversion(self, a: str, b: str) -> bool:
         """Detect if one text has explicit negation while the other affirms the same concept."""
-        tokens_a = set(re.findall(r"\w+", a.lower()))
-        tokens_b = set(re.findall(r"\w+", b.lower()))
-        has_neg_a = bool(tokens_a & self._NEGATION_MARKERS)
-        has_neg_b = bool(tokens_b & self._NEGATION_MARKERS)
+        has_neg_a = any(neg in a for neg in self._NEGATION_MARKERS)
+        has_neg_b = any(neg in b for neg in self._NEGATION_MARKERS)
 
         if has_neg_a != has_neg_b:
-            pos_tokens_a = tokens_a - self._NEGATION_MARKERS
-            pos_tokens_b = tokens_b - self._NEGATION_MARKERS
-            overlap = pos_tokens_a & pos_tokens_b
-            if len(overlap) >= 2:
+            core_a = a
+            for neg in self._NEGATION_MARKERS:
+                core_a = core_a.replace(neg, "")
+            core_b = b
+            for neg in self._NEGATION_MARKERS:
+                core_b = core_b.replace(neg, "")
+
+            norm_a = re.sub(r"[\s\W_]+", "", core_a.lower())
+            norm_b = re.sub(r"[\s\W_]+", "", core_b.lower())
+            if norm_a == norm_b or (len(norm_a) >= 3 and (norm_a in norm_b or norm_b in norm_a)):
                 return True
         return False
 
@@ -284,12 +288,12 @@ class DeterministicThreeStateMerger:
         existing_ev: list[EvidenceReference],
         candidate_ev: list[EvidenceReference],
     ) -> list[EvidenceReference]:
-        """Union and deduplicate structured evidence anchors by message_id or quote."""
+        """Union and deduplicate structured evidence anchors by source_id, message_id or quote."""
         seen_keys: set[str] = set()
         merged: list[EvidenceReference] = []
 
         for ev in list(existing_ev) + list(candidate_ev):
-            key = f"{ev.source_type}:{ev.message_id or ''}:{ev.quote_snippet or ''}"
+            key = f"{ev.source_id}:{ev.message_id or ''}:{ev.quote_snippet or ''}"
             if key not in seen_keys:
                 seen_keys.add(key)
                 merged.append(ev)

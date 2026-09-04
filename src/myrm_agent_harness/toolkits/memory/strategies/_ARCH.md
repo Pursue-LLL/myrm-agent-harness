@@ -9,6 +9,7 @@ Optional memory strategies: forgetting, extraction, deduplication, consolidation
 |------|------|-------------|-------|
 | __init__.py | Package | Optional memory strategies: forgetting, extraction, deduplication, consolidation, blind spot. | — |
 | blind_spot.py | Core | Session blind spot knowledge extraction strategy. Analyzes missed queries and user corrections across sessions to extract structured knowledge patches (Wiki, Procedural, Skill gaps). | ✅ |
+| conflict_merger.py | Core | Zero-LLM deterministic three-state conflict merger (Confirm/Supplement/Conflict/Independent) and confidence evolution engine. Implements User Override Wins, evidence deduplicated chaining, auto-unfreeze for stale conflicts, and conflict immunity for forgetting. | ✅ |
 | consolidation.py | Core | Cross-session memory consolidation strategy. Analyzes recent memories via LLM to detect contradictions, redundancies, and generate insights. | ✅ |
 | consolidation_rollback.py | Core | Consolidation rollback. Reverses the most recent consolidation cycle using existing soft-deletion and metadata mechanisms. Zero extra storage. | ✅ |
 | deduplicator.py | Core | Three-layer smart deduplication strategy. Layer 1: O(1) normalized hash with namespace-scoped persistent cache (`namespaces\|hash`); Layer 2: vector candidates filtered by memory's own `scope.namespaces`; Layer 3: LLM semantic judgment. `_apply_update` refuses cross-scope merge/replace (downgrades to NEW). | ✅ |

@@ -414,21 +414,22 @@ def filter_memories_with_evidence(
                     if valid:
                         has_ev = True
                         break
-        elif getattr(mem, "source_message", None) or getattr(mem, "source_chat_id", None) or getattr(mem, "source_message_id", None):
-            has_ev = True
-        elif fallback_source_id:
-            if hasattr(mem, "source_chat_id") and getattr(mem, "source_chat_id", None) is None:
-                try:
-                    setattr(mem, "source_chat_id", fallback_source_id)
-                except Exception:
-                    pass
-            has_ev = True
-        else:
-            meta = getattr(mem, "metadata", None)
-            if isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count")):
+        if not has_ev:
+            if getattr(mem, "source_message", None) or getattr(mem, "source_chat_id", None) or getattr(mem, "source_message_id", None):
                 has_ev = True
-            elif hasattr(mem, "key") and hasattr(mem, "value"):
+            elif fallback_source_id:
+                if hasattr(mem, "source_chat_id") and getattr(mem, "source_chat_id", None) is None:
+                    try:
+                        setattr(mem, "source_chat_id", fallback_source_id)
+                    except Exception:
+                        pass
                 has_ev = True
+            else:
+                meta = getattr(mem, "metadata", None)
+                if isinstance(meta, dict) and (meta.get("evidence_quote") or meta.get("evidence_count")):
+                    has_ev = True
+                elif hasattr(mem, "key") and hasattr(mem, "value"):
+                    has_ev = True
 
         if has_ev:
             grounded.append(mem)

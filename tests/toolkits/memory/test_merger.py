@@ -33,8 +33,8 @@ def test_user_override_lock_protects_existing_memory() -> None:
 def test_exact_normalized_confirm_increases_confidence() -> None:
     """Identical or normalized duplicate corroborates fact, bumping confidence by +0.05."""
     merger = DeterministicThreeStateMerger()
-    existing_ev = EvidenceReference(source_type="chat", message_id="msg-1", quote_snippet="我喜欢用 TypeScript")
-    cand_ev = EvidenceReference(source_type="chat", message_id="msg-2", quote_snippet="写代码必须是 TypeScript")
+    existing_ev = EvidenceReference(source_id="chat-1", message_id="msg-1", quote_snippet="我喜欢用 TypeScript")
+    cand_ev = EvidenceReference(source_id="chat-1", message_id="msg-2", quote_snippet="写代码必须是 TypeScript")
 
     existing_mem = SemanticMemory(
         content="用户主力开发语言是 TypeScript",
