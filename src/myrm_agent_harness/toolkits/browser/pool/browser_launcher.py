@@ -347,9 +347,12 @@ class BrowserLauncher:
         pw = await self._ensure_playwright()
         last_exc: Exception | None = None
 
+        from .chrome_prompt_guard import watch_chrome_remote_debugging_prompt
+
         for attempt in range(3):
             try:
-                browser = await pw.chromium.connect_over_cdp(endpoint, headers=headers)
+                async with watch_chrome_remote_debugging_prompt(timeout=4.0):
+                    browser = await pw.chromium.connect_over_cdp(endpoint, headers=headers)
                 self._total_browsers += 1
                 logger.info(
                     f"Connected to existing Chrome via CDP at {endpoint} "

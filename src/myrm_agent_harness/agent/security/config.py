@@ -219,6 +219,11 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
     yolo_mode_timeout_raw = raw.get("yolo_mode_timeout")
     yolo_mode_timeout = parse_int(yolo_mode_timeout_raw, 0, min_val=1) if yolo_mode_timeout_raw is not None else None
 
+    classify_all_shell = bool(
+        raw.get("classifyAllShellInAutoMode")
+        or raw.get("classify_all_shell_in_auto_mode", False)
+    )
+
     return SecurityConfig(
         capabilities=capabilities,
         ruleset=ruleset,
@@ -238,6 +243,7 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
         yolo_mode_enabled=yolo_mode_enabled,
         yolo_mode_enabled_at=yolo_mode_enabled_at,
         yolo_mode_timeout=yolo_mode_timeout,
+        classify_all_shell_in_auto_mode=classify_all_shell,
     )
 
 

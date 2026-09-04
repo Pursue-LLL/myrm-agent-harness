@@ -219,6 +219,30 @@ async def evaluate_tool_batch(
                         spend_ctx,
                     )
                 )
+            elif is_irreversible_social_action(tool_name, tool_input):
+                logger.warning(
+                    "[YOLO_SOCIAL_IRREVERSIBLE_GATE] Tool %s blocked from YOLO auto-approval (socially irreversible)",
+                    tool_name,
+                )
+                record_decision(
+                    tool_name,
+                    "YOLO_SOCIAL_IRREVERSIBLE_BLOCKED",
+                    "Socially irreversible operations are immune to YOLO auto-approval",
+                )
+                irreversible_ctx: dict[str, object] = {
+                    "socially_irreversible": True,
+                    "high_risk": True,
+                    "hide_allow_always": True,
+                }
+                pending_approval.append(
+                    (
+                        idx,
+                        tool_call,
+                        permission_type,
+                        f"Socially irreversible operation ({tool_name}) requires explicit human approval",
+                        irreversible_ctx,
+                    )
+                )
             else:
                 record_decision(tool_name, "YOLO_AUTO_APPROVE", "YOLO mode enabled")
                 auto_approved.append((idx, tool_call))
@@ -394,6 +418,15 @@ async def evaluate_tool_batch(
                 action = PermissionAction.ALLOW
                 reason = f"Allowlist auto-approve: {effective_tool_name}"
                 record_decision(tool_name, "ALLOWLIST_AUTO_APPROVE", reason)
+
+        if action == PermissionAction.ALLOW and is_irreversible_social_action(tool_name, tool_input):
+            action = PermissionAction.ASK
+            reason = f"Socially irreversible operation ({tool_name}) requires explicit human approval"
+            extra_ctx = extra_ctx or {}
+            extra_ctx["socially_irreversible"] = True
+            extra_ctx["high_risk"] = True
+            extra_ctx["hide_allow_always"] = True
+            record_decision(tool_name, "SOCIAL_IRREVERSIBLE_GATE_ESCALATED", reason)
 
         if action == PermissionAction.ALLOW:
             from myrm_agent_harness.agent.security.guards.taint_tracker import (
@@ -595,7 +628,10 @@ async def evaluate_tool_batch(
                     ).strip()
                     if (
                         shell_cmd
-                        and classify_command_risk(shell_cmd) != CommandRiskLevel.SAFE
+                        and (
+                            getattr(config, "classify_all_shell_in_auto_mode", False)
+                            or classify_command_risk(shell_cmd) != CommandRiskLevel.SAFE
+                        )
                     ):
                         if extra_ctx and "ptc_annotations" in extra_ctx:
                             shell_cmd = f"{shell_cmd}\n\n# PTC Annotations: {extra_ctx['ptc_annotations']}"
@@ -624,13 +660,22 @@ async def evaluate_tool_batch(
                                     review_result.reason,
                                 )
                                 hint = record_denial(tool_name)
-                                auto_denied.append(
-                                    (
-                                        idx,
-                                        tool_call,
-                                        f"Denied by auto-mode shell escalation: {review_result.reason}{hint}",
+                                if is_interactive:
+                                    extra_ctx = extra_ctx or {}
+                                    extra_ctx["smart_denied"] = True
+                                    extra_ctx["reviewer_reason"] = review_result.reason
+                                    reason = f"AI Security Reviewer recommends denial: {review_result.reason}"
+                                    pending_approval.append(
+                                        (idx, tool_call, permission_type, reason, extra_ctx)
                                     )
-                                )
+                                else:
+                                    auto_denied.append(
+                                        (
+                                            idx,
+                                            tool_call,
+                                            f"Denied by auto-mode shell escalation: {review_result.reason}{hint}",
+                                        )
+                                    )
                                 continue
                             if review_result.decision == ReviewDecision.UNCERTAIN:
                                 logger.info(
@@ -810,6 +855,7 @@ async def evaluate_tool_batch(
             auto_mode_enabled
             and _batch_review._security_reviewer is not None
             and is_threshold_breached() == ThresholdBreach.NONE
+            and not is_irreversible_social_action(tool_name, tool_input)
         ):
             # Build command representation for the classifier
             if permission_type in ("shell_exec", "code_interpreter"):
@@ -897,6 +943,7 @@ async def evaluate_tool_batch(
             )
             extra_ctx = extra_ctx or {}
             extra_ctx["high_risk"] = True
+            extra_ctx["auto_mode_suspended"] = breach.value
 
         if reason.startswith("Shell threat"):
             extra_ctx = extra_ctx or {}

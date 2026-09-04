@@ -111,3 +111,30 @@ class TestTotalThresholdPriority:
         assert is_threshold_breached() == ThresholdBreach.TOTAL
         hint = record_denial("tool")
         assert "total denials" in hint
+
+
+class TestSessionScopedDenialPersistence:
+    """Session-scoped denial tracking across agent runs."""
+
+    def test_persists_across_runs_for_same_session(self) -> None:
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            set_approval_session,
+        )
+
+        set_approval_session("session_123")
+        try:
+            record_denial("tool_a")
+            record_denial("tool_b")
+            # In a new run without clearing session state, count is preserved
+            assert is_threshold_breached() == ThresholdBreach.NONE
+            hint = record_denial("tool_c")
+            assert "3 consecutive denials" in hint
+            assert is_threshold_breached() == ThresholdBreach.CONSECUTIVE
+
+            # Explicit reset for this session restores state
+            reset_denial_counter("session_123")
+            assert is_threshold_breached() == ThresholdBreach.NONE
+        finally:
+            set_approval_session("")
+            reset_denial_counter("session_123")
+

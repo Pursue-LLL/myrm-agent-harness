@@ -131,3 +131,16 @@ async def test_space_concurrency_lock() -> None:
 
     # Worker 1 was scheduled first, so execution should be serialized [1, 2]
     assert execution_order == [1, 2]
+
+
+@pytest.mark.asyncio
+async def test_space_takeover_forwarding() -> None:
+    mock_session = AsyncMock()
+    space = BrowserTaskSpace(space_id="takeover-space", session=mock_session)
+
+    await space.pause_for_takeover()
+    mock_session.pause_for_takeover.assert_awaited_once()
+
+    await space.resume_from_takeover()
+    mock_session.resume_from_takeover.assert_awaited_once()
+

@@ -69,7 +69,11 @@ def is_irreversible_social_action(tool_name: str, args: dict[str, object] | None
         return True
 
     # Check for shell execution targeting git push or publish commands
-    if lower_name in ("shell_exec", "bash", "terminal", "code_interpreter"):
+    if (
+        lower_name in ("shell_exec", "bash", "terminal", "code_interpreter", "bash_code_execute_tool")
+        or "bash" in lower_name
+        or "shell" in lower_name
+    ):
         if isinstance(args, dict):
             raw_cmd = str(args.get("command") or args.get("cmd") or args.get("code") or "").strip()
             if raw_cmd:

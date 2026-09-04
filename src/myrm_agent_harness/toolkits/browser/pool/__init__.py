@@ -33,6 +33,12 @@ from .browser_pool import (
     GlobalBrowserPool,
 )
 from .circuit_breaker import CircuitBreaker, CircuitBreakerCallback, CircuitBreakerOpenError, LoggingCallback
+from .chrome_prompt_guard import (
+    ChromePromptGuard,
+    approve_chrome_remote_debugging_prompt,
+    is_accessibility_trusted,
+    watch_chrome_remote_debugging_prompt,
+)
 from .config import (
     BrowserConfig,
     BrowserMode,
@@ -68,12 +74,14 @@ __all__ = [
     "BrowserMode",
     "BrowserPoolConfig",
     "BrowserPoolError",
+    "ChromePromptGuard",
     "CircuitBreaker",
     "CircuitBreakerCallback",
     "CircuitBreakerConfig",
     "CircuitBreakerOpenError",
     "ContextFactory",
     "ContextType",
+    "ChromePromptGuard",
     "EmulationConfig",
     "ExtensionBridge",
     "ExtensionBridgeNotAvailable",
@@ -94,6 +102,10 @@ __all__ = [
     "RobustnessPolicy",
     "RoundRobinProxyPool",
     "ThrottleMode",
+    "ChromePromptGuard",
+    "approve_chrome_remote_debugging_prompt",
     "get_global_browser_pool",
+    "is_accessibility_trusted",
     "reset_global_browser_pool_for_tests",
+    "watch_chrome_remote_debugging_prompt",
 ]

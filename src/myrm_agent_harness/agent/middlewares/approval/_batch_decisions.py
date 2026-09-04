@@ -67,6 +67,8 @@ def _should_block_allow_always(
         or extra_ctx.get("smart_denied")
         or extra_ctx.get("hide_allow_always")
         or extra_ctx.get("requires_dual_insurance")
+        or extra_ctx.get("socially_irreversible")
+        or extra_ctx.get("auto_mode_suspended")
     ):
         return True
     return _integration_mutation_blocks_allow_always(tool_call)
@@ -248,6 +250,13 @@ def build_interrupt_payload(
             review_config["spendCurrency"] = extra_ctx.get("spend_currency")
             review_config["actionDigest"] = extra_ctx.get("action_digest")
             review_config["hideAllowAlways"] = True
+        if extra_ctx and extra_ctx.get("auto_mode_suspended"):
+            review_config["autoModeSuspended"] = extra_ctx.get("auto_mode_suspended")
+            action_request["autoModeSuspended"] = extra_ctx.get("auto_mode_suspended")
+        if extra_ctx and extra_ctx.get("socially_irreversible"):
+            review_config["sociallyIrreversible"] = True
+            review_config["hideAllowAlways"] = True
+            action_request["sociallyIrreversible"] = True
         if domains:
             review_config["domainApproval"] = True
 

@@ -1077,3 +1077,94 @@ class TestMiddlewareRareBranches:
         result = await middleware.aafter_model(state, _Runtime())
         assert result is not None
         assert metrics.record_approval_denied.called
+
+
+@pytest.mark.asyncio
+async def test_irreversible_social_action_blocks_allowlist_bypass() -> None:
+    from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
+        evaluate_tool_batch,
+    )
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        set_approval_user_id,
+        set_approval_session,
+    )
+    from myrm_agent_harness.agent.security.approval_flow import (
+        get_allowlist,
+        AllowlistEntry,
+    )
+
+    set_approval_user_id("test_user_irr")
+    set_approval_session("test_sess_irr")
+    allowlist = get_allowlist()
+    await allowlist.load_user("test_user_irr")
+    await allowlist.add(
+        user_id="test_user_irr",
+        entry=AllowlistEntry(
+            permission="shell_exec",
+            tool_name="bash_code_execute_tool",
+            command_pattern="git *",
+        ),
+    )
+    config = SecurityConfig(
+        ruleset=(
+            PermissionRule("*", "*", PermissionAction.ASK),
+        )
+    )
+    tcs = [
+        ToolCall(
+            type="tool_call",
+            name="bash_code_execute_tool",
+            args={"command": "git push origin main"},
+            id="tc_push_1",
+        )
+    ]
+    auto_approved, auto_denied, pending_approval = await evaluate_tool_batch(
+        tool_calls=tcs,
+        config=config,
+        is_cron=False,
+        workspace_root="/tmp",
+        session_key="test_sess_irr",
+        args_hashes={0: None},
+    )
+    # Even though git * is in allowlist, git push is socially irreversible and cannot bypass
+    assert len(auto_approved) == 0
+    assert len(pending_approval) == 1
+    assert pending_approval[0][1]["id"] == "tc_push_1"
+
+
+
+
+def test_session_scoped_denial_persistence() -> None:
+    from myrm_agent_harness.agent.middlewares.approval.helpers import (
+        ThresholdBreach,
+        is_threshold_breached,
+        record_denial,
+        reset_denial_counter,
+    )
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        set_approval_session,
+    )
+
+    sess_a = "session_test_persistent_a"
+    sess_b = "session_test_persistent_b"
+
+    set_approval_session(sess_a)
+    reset_denial_counter(sess_a)
+    assert is_threshold_breached() == ThresholdBreach.NONE
+
+    record_denial("tool1")
+    record_denial("tool1")
+    assert is_threshold_breached() == ThresholdBreach.NONE
+    record_denial("tool1")
+    assert is_threshold_breached() == ThresholdBreach.CONSECUTIVE
+
+    # Switch session context to sess_b
+    set_approval_session(sess_b)
+    reset_denial_counter(sess_b)
+    assert is_threshold_breached() == ThresholdBreach.NONE
+
+    # Switch back to sess_a: breach state must be preserved cross-run!
+    set_approval_session(sess_a)
+    assert is_threshold_breached() == ThresholdBreach.CONSECUTIVE
+
+
