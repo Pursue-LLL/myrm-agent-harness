@@ -167,29 +167,62 @@ def test_build_browser_view_update_data_shape() -> None:
     assert data["screenshot_base64"] == "img"
     assert data["page_url"] == "https://example.com"
     assert "e1" in data["refs"]
+    assert data["task_space_id"] == "default"
+    assert data["task_space_name"] is None
 
+
+def test_build_browser_view_update_data_custom_space() -> None:
     from myrm_agent_harness.toolkits.browser.session.view_update_payload import (
         build_browser_view_update_data,
         refs_data_from_ref_map,
     )
 
-    refs = refs_data_from_ref_map(
-        {
-            "e1": RefInfo(
-                role="button",
-                name="Submit",
-                nth=0,
-                bbox=None,
-                position=None,
-            )
-        }
-    )
+    refs = refs_data_from_ref_map({})
     data = build_browser_view_update_data(
         screenshot_base64="img",
         refs_data=refs,
-        page_url="https://example.com",
-        page_title="Example",
+        page_url="https://example.com/sub",
+        page_title="Sub Space",
+        task_space_id="space-42",
+        task_space_name="Research Sub-Task",
     )
-    assert data["screenshot_base64"] == "img"
-    assert data["page_url"] == "https://example.com"
-    assert "e1" in data["refs"]
+    assert data["task_space_id"] == "space-42"
+    assert data["task_space_name"] == "Research Sub-Task"
+
+
+@pytest.mark.asyncio
+async def test_capture_browser_view_update_data_resolves_space_from_session() -> None:
+    from myrm_agent_harness.toolkits.browser.session.snapshot_result import (
+        SnapshotResult,
+    )
+    from myrm_agent_harness.toolkits.browser.session.view_update_payload import (
+        capture_browser_view_update_data,
+    )
+    from types import MappingProxyType
+
+    class _MockSessionWithSpace:
+        task_space_id = "space-auto"
+        task_space_name = "Auto Space"
+        _tab_controller = None
+
+        async def snapshot(self, **kwargs: object) -> object:
+            meta = SnapshotMeta(ref_count=0, estimated_tokens=0)
+            return SnapshotResult(
+                aria_tree="tree",
+                refs=MappingProxyType({}),
+                meta=meta,
+                is_incremental=False,
+            )
+
+        async def extract_screenshot(self, *, scale: float = 1.0) -> str:
+            return "img-b64"
+
+    session = _MockSessionWithSpace()
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.browser_session.BrowserSession",
+        _MockSessionWithSpace,
+    ):
+        data = await capture_browser_view_update_data(session)
+
+    assert data["task_space_id"] == "space-auto"
+    assert data["task_space_name"] == "Auto Space"

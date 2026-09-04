@@ -152,8 +152,9 @@ class TestEmergencyCompact:
             # Active prune saved ~4900 tokens + compactor saved 100
             assert saved > 4000
             mock_compress.assert_called_once()
-            # Ensure the large tool message was truncated
+            # Ensure the large tool message was truncated with emergency_recovery reason
             assert "[Tool output pruned: original size" in str(msgs[2].content)
+            assert "emergency_recovery" in str(msgs[2].content)
 
 
 

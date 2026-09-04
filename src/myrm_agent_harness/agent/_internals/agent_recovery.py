@@ -71,7 +71,7 @@ async def emergency_compact(messages: list[BaseMessage]) -> int:
     ctx = ProcessorContext(
         messages=messages,
         user_query="emergency_recovery",
-        metadata={"force_prune": True},
+        metadata={"force_prune": True, "prune_reason": "emergency_recovery"},
     )
     if await pruner.should_process(ctx):
         ctx = await pruner.process(ctx)

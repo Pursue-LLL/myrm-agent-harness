@@ -503,6 +503,7 @@ class TestMinReclaimAndPromptCacheGates:
 
         assert result.tokens_saved > 0
         assert "[Tool output pruned: original size" in str(result.messages[2].content)
+        assert "active_prune" in str(result.messages[2].content)
 
     @pytest.mark.asyncio
     async def test_proactive_prune_tokens_should_process_gate(self):

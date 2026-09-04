@@ -152,6 +152,8 @@ class BrowserSession(
         launch_mode_preference: str | None = None,
         dialog_policy: str | None = None,
         auto_dismiss_consent: bool = True,
+        task_space_id: str = "default",
+        task_space_name: str | None = None,
     ):
         """Initialize BrowserSession.
 
@@ -175,6 +177,8 @@ class BrowserSession(
             launch_mode_preference: Per-agent launch mode override (e.g. 'extension' to use user's real browser).
             dialog_policy: Dialog handling strategy ('smart', 'auto_accept', 'auto_dismiss', 'wait_for_agent').
             auto_dismiss_consent: Auto-accept cookie consent banners after navigation (default True).
+            task_space_id: Identifier of the task space this session belongs to (default 'default').
+            task_space_name: Optional human-readable name of this task space.
         """
         from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine, LaunchMode
 
@@ -242,6 +246,8 @@ class BrowserSession(
         self._vision_verifier = VisionVerifier(vision_llm)
         self._structured_extractor = StructuredExtractor(vision_llm)
         self._vision_llm = vision_llm
+        self._task_space_id: str = task_space_id or "default"
+        self._task_space_name: str | None = task_space_name
 
         self._session_lifecycle_hook = None
 
@@ -492,6 +498,24 @@ class BrowserSession(
     def download_enabled(self) -> bool:
         """Whether download support is configured."""
         return self._download_manager is not None
+
+    @property
+    def task_space_id(self) -> str:
+        """Identifier of the task space this session belongs to."""
+        return self._task_space_id
+
+    @task_space_id.setter
+    def task_space_id(self, value: str) -> None:
+        self._task_space_id = value or "default"
+
+    @property
+    def task_space_name(self) -> str | None:
+        """Human-readable name of this task space."""
+        return self._task_space_name
+
+    @task_space_name.setter
+    def task_space_name(self, value: str | None) -> None:
+        self._task_space_name = value
 
     async def notify_progress(self, message: str) -> None:
         """Send progress notification to observability hook and agent SSE stream."""

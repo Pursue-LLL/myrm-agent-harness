@@ -755,10 +755,15 @@ class TestPreCompactionDeterministicPruneShortCircuit:
                 content=large_tool_output, name="grep_tool", tool_call_id="tc1"
             ),
             AIMessage(
-                content="next step...",
+                content="step2...",
                 tool_calls=[{"id": "tc2", "name": "web_search", "args": {}}],
             ),
-            ToolMessage(content="short", name="web_search", tool_call_id="tc2"),
+            ToolMessage(content="mid_content", name="web_search", tool_call_id="tc2"),
+            AIMessage(
+                content="step3...",
+                tool_calls=[{"id": "tc3", "name": "bash", "args": {}}],
+            ),
+            ToolMessage(content="short", name="bash", tool_call_id="tc3"),
         ]
 
         context = ProcessorContext(
@@ -768,7 +773,7 @@ class TestPreCompactionDeterministicPruneShortCircuit:
             metadata={
                 "enable_pre_compact_tool_prune": True,
                 "pre_compact_prune_threshold_tokens": 100,
-                "pre_compact_keep_recent_calls": 1,
+                "pre_compact_keep_recent_calls": 2,
             },
         )
 
@@ -780,8 +785,9 @@ class TestPreCompactionDeterministicPruneShortCircuit:
         assert result.tokens_saved > 2000
         # 2. Large tool message should be pruned in-place
         assert "[Tool output pruned: original size" in str(result.messages[2].content)
-        # 3. Recent tool message should remain intact
-        assert result.messages[4].content == "short"
+        # 3. Recent 2 tool messages should remain intact
+        assert result.messages[4].content == "mid_content"
+        assert result.messages[6].content == "short"
 
     @pytest.mark.asyncio
     @patch(
@@ -862,3 +868,112 @@ class TestPreCompactionDeterministicPruneShortCircuit:
 
         mock_guarded.assert_called_once()
         assert result.metadata.get("deterministic_prune_bypassed_summarize") is None
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize"
+    )
+    async def test_pre_compaction_prune_with_offload_archives_to_persistent_storage(
+        self, mock_guarded
+    ) -> None:
+        """When on_prune_offload is provided, pruned tool results are archived with persistent references."""
+        offload_mock = AsyncMock(return_value="/vault/archive/tool_output.gz")
+        cfg = ContextConfig(max_context_tokens=10000)
+        processor = SummarizeProcessor(config=cfg, on_prune_offload=offload_mock)
+
+        large_tool_output = "result_data " * 2000
+        msgs = [
+            HumanMessage(content="user request"),
+            AIMessage(
+                content="thinking...",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(
+                content=large_tool_output, name="grep_tool", tool_call_id="tc1"
+            ),
+            AIMessage(
+                content="step2...",
+                tool_calls=[{"id": "tc2", "name": "web_search", "args": {}}],
+            ),
+            ToolMessage(content="mid_content", name="web_search", tool_call_id="tc2"),
+            AIMessage(
+                content="step3...",
+                tool_calls=[{"id": "tc3", "name": "bash", "args": {}}],
+            ),
+            ToolMessage(content="short", name="bash", tool_call_id="tc3"),
+        ]
+
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={
+                "enable_pre_compact_tool_prune": True,
+                "pre_compact_prune_threshold_tokens": 100,
+                "pre_compact_keep_recent_calls": 2,
+            },
+        )
+
+        result = await processor.process(context)
+
+        mock_guarded.assert_not_called()
+        offload_mock.assert_called_once()
+        assert result.metadata.get("deterministic_prune_bypassed_summarize") is True
+        # Tool message content should contain the archive path rendered reference
+        assert "/vault/archive/tool_output.gz" in str(result.messages[2].content)
+        assert "[Tool result archived" in str(result.messages[2].content)
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor._guarded_summarize"
+    )
+    async def test_pre_compaction_prune_keep_recent_calls_hard_boundary_min_2(
+        self, mock_guarded
+    ) -> None:
+        """Even if caller sets pre_compact_keep_recent_calls=0, hard floor ensures last 2 calls are kept."""
+        cfg = ContextConfig(max_context_tokens=10000)
+        processor = SummarizeProcessor(config=cfg)
+
+        large_1 = "large_one " * 1500
+        large_2 = "large_two " * 1500
+        large_3 = "large_three " * 1500
+        msgs = [
+            HumanMessage(content="start"),
+            AIMessage(
+                content="step1",
+                tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_1, name="grep_tool", tool_call_id="tc1"),
+            AIMessage(
+                content="step2",
+                tool_calls=[{"id": "tc2", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_2, name="grep_tool", tool_call_id="tc2"),
+            AIMessage(
+                content="step3",
+                tool_calls=[{"id": "tc3", "name": "grep_tool", "args": {}}],
+            ),
+            ToolMessage(content=large_3, name="grep_tool", tool_call_id="tc3"),
+        ]
+
+        context = ProcessorContext(
+            messages=msgs,
+            user_query="test",
+            llm=AsyncMock(),
+            metadata={
+                "enable_pre_compact_tool_prune": True,
+                "pre_compact_prune_threshold_tokens": 100,
+                # Try setting to 0 to bypass protection
+                "pre_compact_keep_recent_calls": 0,
+            },
+        )
+
+        result = await processor.process(context)
+
+        mock_guarded.assert_not_called()
+        # Step 1 should be pruned (head/tail truncated with reason)
+        assert "[Tool output pruned: original size" in str(result.messages[2].content)
+        assert "summarize_short_circuit" in str(result.messages[2].content)
+        # Step 2 and Step 3 must remain intact due to min 2 hard boundary guard
+        assert result.messages[4].content == large_2
+        assert result.messages[6].content == large_3
