@@ -63,6 +63,7 @@ __all__ = [
     "MCPAnnotations",
     "ManifestAttributionResult",
     "MetricAttributionDetail",
+    "MetricContract",
     "MetricPrediction",
     "MissingDependencyFailClosedError",
     "MissingDependencyFailFastError",
@@ -72,6 +73,10 @@ __all__ = [
     "MissingSemanticsError",
     "MissingSemanticsPolicy",
     "Origin",
+    "OverlayScope",
+    "OverlayShellType",
+    "OverlayStatus",
+    "OverlayTargetType",
     "PredictionDirection",
     "PrivacyFailClosedLadder",
     "PrivacyFailClosedViolationError",
@@ -87,6 +92,7 @@ __all__ = [
     "SafetyMetadata",
     "SealManifest",
     "SemanticsCategory",
+    "SessionOverlay",
     "SkillAgent",
     "SkillBackend",
     "SkillRescanResult",
@@ -109,12 +115,14 @@ __all__ = [
     "delete_subagent_checkpoint",
     "evaluate_five_contract_progress",
     "evaluate_manifest_attribution",
+    "evaluate_metric_proxy_alignment",
     "evaluate_missing_capability",
     "evict_skill_safety_metadata",
     "find_orphan_automation_processes",
     "generate_fix_suggestion",
     "get_distribution_mode",
     "get_ptc_safety_metadata",
+    "get_session_overlay_manager",
     "get_subagent_checkpointer",
     "get_workspace_root",
     "is_compiled_distribution",
@@ -271,6 +279,30 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "MetricAttributionDetail": (
         "myrm_agent_harness.eval.manifest_prediction",
         "MetricAttributionDetail",
+    ),
+    "MetricContract": (
+        "myrm_agent_harness.eval.metric_contract",
+        "MetricContract",
+    ),
+    "OverlayScope": (
+        "myrm_agent_harness.agent.session_overlay.schema",
+        "OverlayScope",
+    ),
+    "OverlayShellType": (
+        "myrm_agent_harness.agent.continual.overlay",
+        "OverlayShellType",
+    ),
+    "OverlayStatus": (
+        "myrm_agent_harness.agent.session_overlay.schema",
+        "OverlayStatus",
+    ),
+    "OverlayTargetType": (
+        "myrm_agent_harness.agent.session_overlay.schema",
+        "OverlayTargetType",
+    ),
+    "SessionOverlay": (
+        "myrm_agent_harness.agent.session_overlay.schema",
+        "SessionOverlay",
     ),
     "MetricPrediction": (
         "myrm_agent_harness.eval.manifest_prediction",
@@ -454,6 +486,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "evaluate_manifest_attribution": (
         "myrm_agent_harness.eval.manifest_prediction",
         "evaluate_manifest_attribution",
+    ),
+    "evaluate_metric_proxy_alignment": (
+        "myrm_agent_harness.eval.metric_contract",
+        "evaluate_metric_proxy_alignment",
+    ),
+    "get_session_overlay_manager": (
+        "myrm_agent_harness.agent.session_overlay.manager",
+        "get_session_overlay_manager",
     ),
     "evaluate_missing_capability": (
         "myrm_agent_harness.core.security.missing_semantics",
