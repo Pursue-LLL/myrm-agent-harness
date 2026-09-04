@@ -1255,3 +1255,78 @@ async def test_normalize_batch_decisions_count_mismatch(monkeypatch):
     error_msgs = [m for m in msgs if hasattr(m, "status") and m.status == "error"]
     assert len(error_msgs) == 2
     assert all("rejected" in m.content.lower() or "mismatch" in m.content.lower() for m in error_msgs)
+
+
+@pytest.mark.asyncio
+async def test_time_bound_allow_always_integration_with_middleware(monkeypatch):
+    """Test full integration: interrupt returns approve + time-bound allow_always, entries auto-revoke when expired."""
+    import time
+    from myrm_agent_harness.agent.security.approval_flow import get_allowlist
+
+    config = SecurityConfig(
+        ruleset=(
+            PermissionRule("file_write", "*", PermissionAction.ASK),
+        )
+    )
+    set_security_config(config)
+    set_workspace_root("/tmp")
+    set_approval_session("timebound-session")
+    set_approval_user_id("user_tb_1")
+
+    # Simulate UI returning approve with a 2-second time-bound allow_always grant
+    def mock_interrupt(payload):
+        return {
+            "decisions": [
+                {
+                    "type": "approve",
+                    "allow_always": {"duration": "15m", "ttl_seconds": 2},
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
+        mock_interrupt,
+    )
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_subagent",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.get_is_shadow_agent",
+        lambda: False,
+    )
+
+    middleware = ToolApprovalMiddleware()
+    state = {
+        "messages": [
+            AIMessage(
+                content="Writing log file.",
+                tool_calls=[
+                    ToolCall(
+                        type="tool_call",
+                        name="file_write_tool",
+                        args={"path": "/tmp/test.log", "content": "hello"},
+                        id="call_tb_1",
+                    ),
+                ],
+            )
+        ]
+    }
+
+    # First turn: triggers interrupt, resolves approve, and adds 2s time-bound grant to allowlist
+    res1 = await middleware.aafter_model(state, MockRuntime())
+    assert res1 is None, "Approved tool should proceed"
+
+    allowlist = get_allowlist()
+    # While active (<2s), check should succeed
+    assert allowlist.check("user_tb_1", "file_write", "file_write_tool") is True
+
+    # Fast forward: manually adjust entry's expires_at to simulate expiration
+    user_entries = allowlist._entries.get("user_tb_1", {})
+    for entry in user_entries.values():
+        entry.expires_at = time.time() - 1.0
+
+    # Auto-revoke gate: check must return False immediately
+    assert allowlist.check("user_tb_1", "file_write", "file_write_tool") is False
+

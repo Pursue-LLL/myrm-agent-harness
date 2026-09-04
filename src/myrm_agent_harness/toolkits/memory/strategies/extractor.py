@@ -986,6 +986,14 @@ async def extract_goal_learnings(
     try:
         raw = await llm_func(_GOAL_LEARNINGS_PROMPT, prompt)
         parsed = _parse_response(raw)
+        for item in parsed:
+            if not item.evidence:
+                item.evidence = [
+                    EvidenceReference(
+                        source_id=f"goal:{goal_objective[:30]}",
+                        quote_snippet=goal_objective[:120],
+                    )
+                ]
         learnings = [m for m in parsed if m.confidence >= 0.7 and m.importance >= 0.6]
         if learnings:
             logger.info(

@@ -216,3 +216,35 @@ def test_collect_loaded_skill_names_with_hyphen_legacy_names() -> None:
     loaded = collect_loaded_skill_names_from_messages(messages)
     assert loaded == ["data-analysis", "code-review"]
 
+
+def test_collect_loaded_skill_names_with_escaped_skill_entry_tags() -> None:
+    """Verifies that entity-encoded </skill_entry> inside SOP doesn't truncate the outer structure."""
+    messages = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "skill_select_tool",
+                    "args": {"skill_names": ["xml-parser"], "reason": "parse"},
+                    "id": "tc_xml",
+                    "type": "tool_call",
+                }
+            ],
+        ),
+        ToolMessage(
+            content=(
+                "<skills_sop>\n"
+                '<skill_entry name="xml-parser" status="ready">\n'
+                "xml-parser：# xml-parser\n"
+                "Example tag: &lt;/skill_entry&gt; must remain safe.\n"
+                "</skill_entry>\n"
+                "</skills_sop>"
+            ),
+            tool_call_id="tc_xml",
+            name="skill_select_tool",
+        ),
+    ]
+
+    loaded = collect_loaded_skill_names_from_messages(messages)
+    assert loaded == ["xml-parser"]
+
