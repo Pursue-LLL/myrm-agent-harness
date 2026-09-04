@@ -315,7 +315,7 @@ def _cap_chunks_per_doc(
     selected: list[Document] = []
 
     for chunk in chunks:
-        url = chunk.metadata.get("url", "unknown")
+        url = (chunk.metadata or {}).get("url", "unknown")
         if url_counts[url] < max_chunks_per_doc:
             url_counts[url] += 1
             selected.append(chunk)

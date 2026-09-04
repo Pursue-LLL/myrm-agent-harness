@@ -3,7 +3,7 @@
 [INPUT]
 - agent.security.tool_registry::resolve_safety_metadata (POS: tool safety metadata resolver)
 - toolkits.mcp.config::parse_mcp_tool_name (POS: parse ``mcp__server__tool`` names)
-- file_ops.path_utils::resolve_file_id_path (POS: resolve ``@file_xxx`` aliases)
+- file_ops.utils.path_utils::resolve_file_id_path (POS: resolve ``@file_xxx`` aliases)
 
 [OUTPUT]
 - build_tool_execution_stages: ordered stage plan for mixed concurrent/serial tool batches
@@ -261,9 +261,7 @@ def _extract_parallel_scope_paths(tool_name: str, function_args: dict[str, Any])
         return tuple()
 
     if tool_name == "file_read_tool":
-        paths = _extract_file_read_scope_paths(function_args)
-        if paths:
-            return paths
+        return _extract_file_read_scope_paths(function_args)
 
     if tool_name == "glob_tool":
         raw_pattern = function_args.get("pattern")

@@ -145,18 +145,20 @@ def _extract_python_ast_symbols(raw_content: str, start_line_threshold: int) -> 
                     )
                 )
             for subnode in node.body:
-                if isinstance(subnode, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if subnode.lineno >= start_line_threshold:
-                        kind = "async def" if isinstance(subnode, ast.AsyncFunctionDef) else "def"
-                        end_lineno = getattr(subnode, "end_lineno", None)
-                        symbols.append(
-                            OutlineSymbol(
-                                name=f"{node.name}.{subnode.name}",
-                                kind=kind,
-                                start_line=subnode.lineno,
-                                end_line=end_lineno,
-                            )
+                if (
+                    isinstance(subnode, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and subnode.lineno >= start_line_threshold
+                ):
+                    kind = "async def" if isinstance(subnode, ast.AsyncFunctionDef) else "def"
+                    end_lineno = getattr(subnode, "end_lineno", None)
+                    symbols.append(
+                        OutlineSymbol(
+                            name=f"{node.name}.{subnode.name}",
+                            kind=kind,
+                            start_line=subnode.lineno,
+                            end_line=end_lineno,
                         )
+                    )
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if node.lineno >= start_line_threshold:
                 kind = "async def" if isinstance(node, ast.AsyncFunctionDef) else "def"
@@ -184,6 +186,7 @@ def _extract_regex_symbols(
         return []
 
     symbols: list[OutlineSymbol] = []
+    in_code_block = False
 
     for idx, line in enumerate(lines, start=1):
         gutter_line, raw_text = _strip_gutter_line(line)
@@ -195,7 +198,13 @@ def _extract_regex_symbols(
         stripped_code = raw_text.strip()
         if not stripped_code:
             continue
-        if language_key != "markdown" and stripped_code.startswith(("//", "/*", "*", "#", "'''", '"""')):
+        if language_key == "markdown":
+            if stripped_code.startswith(("```", "~~~")):
+                in_code_block = not in_code_block
+                continue
+            if in_code_block:
+                continue
+        elif stripped_code.startswith(("//", "/*", "*", "#", "'''", '"""')):
             continue
         for pattern in patterns:
             match = pattern.match(stripped_code)

@@ -176,6 +176,38 @@ Endpoints description.
     assert "- Line 7: ## 2. API Endpoints" in outline
 
 
+def test_markdown_outline_ignores_code_block_comments():
+    from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_outline import (
+        extract_file_outline,
+    )
+
+    md_content = """# Guide Title
+
+Here is how you configure the service:
+
+```python
+# This is a python configuration comment
+def setup():
+    # Another nested comment
+    pass
+```
+
+~~~bash
+# Bash script comment
+curl -X POST http://localhost:8080
+~~~
+
+## Next Steps
+Conclusion text.
+"""
+    outline = extract_file_outline(md_content, "guide.md")
+    assert "- Line 1: # Guide Title" in outline
+    assert "- Line 17: ## Next Steps" in outline
+    assert "This is a python configuration comment" not in outline
+    assert "Another nested comment" not in outline
+    assert "Bash script comment" not in outline
+
+
 def test_truncate_file_output_appends_outline():
     long_python = "\n".join(
         [f"{i:6}|# comment {i}" for i in range(1, 100)]
@@ -185,7 +217,7 @@ def test_truncate_file_output_appends_outline():
             f"{102:6}|        pass",
         ]
     )
-    truncated, was_truncated, meta = truncate_file_output(
+    truncated, was_truncated, _meta = truncate_file_output(
         long_python,
         max_chars=200,
         is_dir=False,

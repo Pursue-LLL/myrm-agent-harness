@@ -18,7 +18,6 @@ from myrm_agent_harness.toolkits.retriever.engine import RetrieverManager
 from myrm_agent_harness.toolkits.web_search.engine import (
     WebSearchTools,
     _cap_chunks_per_doc,
-    _merge_adjacent_chunks,
     _precision_mode_search,
 )
 
@@ -290,3 +289,13 @@ def test_configuration_rationale():
     print(f" rerank_top_k={WebSearchTools._RERANK_TOP_K}")
     print(f" BM25/Rerank比例={bm25_to_rerank_ratio:.1f}x")
     print("=" * 70)
+
+
+def test_cap_chunks_per_doc_defensive_against_none_metadata():
+    doc_none_meta = Document(page_content="some content")
+    doc_none_meta.metadata = None
+
+    result = _cap_chunks_per_doc([doc_none_meta], max_chunks_per_doc=3)
+    assert len(result) == 1
+    assert result[0].page_content == "some content"
+
