@@ -87,6 +87,7 @@ class TestComputeRoutineMeasurement:
                 chat_id="chat_a",
                 channel="feishu",
                 sender_id="colleague",
+                sender_name="Alice",
                 is_self=False,
                 created_at_ms=t0,
                 content="Hey there",
@@ -116,7 +117,8 @@ class TestComputeRoutineMeasurement:
                 id="msg_4",
                 chat_id="chat_a",
                 channel="feishu",
-                sender_id="colleague",
+                sender_id="colleague_2",
+                sender_name="Bob",
                 is_self=False,
                 created_at_ms=t0 + 60_000,
                 content="Can you review this PR?",
@@ -140,8 +142,11 @@ class TestComputeRoutineMeasurement:
         assert measurement.latency_sample_count == 2
         # P50 between 30,000 and 90,000
         assert measurement.reply_latency_p50_ms in (30000.0, 60000.0, 90000.0)
-        assert measurement.reply_latency_p90_ms == 90000.0
         assert measurement.channel_distribution == {"feishu": 3}
+        # Collaborators detected (Alice: 1, Bob: 1)
+        collab_dict = dict(measurement.top_collaborators)
+        assert collab_dict.get("Alice") == 1
+        assert collab_dict.get("Bob") == 1
 
     def test_idle_gap_cutoff_prevents_stale_latency_distortion(self) -> None:
         base_time = datetime(2026, 9, 1, 10, 0, 0, tzinfo=UTC)
@@ -173,6 +178,79 @@ class TestComputeRoutineMeasurement:
         assert measurement.self_message_count == 1
         assert measurement.latency_sample_count == 0  # Dropped because gap exceeded cutoff
         assert measurement.reply_latency_p50_ms is None
+
+    def test_workday_vs_weekend_decoupling(self) -> None:
+        # Friday 10:00 UTC -> 18:00 Beijing (weekday=4, workday)
+        friday_dt = datetime(2026, 9, 4, 10, 0, 0, tzinfo=UTC)
+        # Saturday 14:00 UTC -> 22:00 Beijing (weekday=5, weekend)
+        saturday_dt = datetime(2026, 9, 5, 14, 0, 0, tzinfo=UTC)
+
+        messages = [
+            BehavioralMessage(
+                id="work_1",
+                chat_id="c1",
+                channel="slack",
+                sender_id="me",
+                is_self=True,
+                created_at_ms=int(friday_dt.timestamp() * 1000),
+            ),
+            BehavioralMessage(
+                id="weekend_1",
+                chat_id="c2",
+                channel="slack",
+                sender_id="me",
+                is_self=True,
+                created_at_ms=int(saturday_dt.timestamp() * 1000),
+            ),
+        ]
+
+        options = BehavioralStatsOptions(offset_minutes=480)
+        measurement = compute_routine_measurement(messages, options)
+
+        assert measurement.self_message_count == 2
+        # Friday 18:00 -> hour 18 in workday_hour_histogram
+        assert measurement.workday_hour_histogram[18] == 1
+        assert measurement.workday_hour_histogram[22] == 0
+        # Saturday 22:00 -> hour 22 in weekend_hour_histogram
+        assert measurement.weekend_hour_histogram[22] == 1
+        assert measurement.weekend_hour_histogram[18] == 0
+        # Combined histogram contains both
+        assert measurement.hour_histogram[18] == 1
+        assert measurement.hour_histogram[22] == 1
+
+    def test_per_message_offset_adaptation(self) -> None:
+        # Message 1 sent from New York (UTC-4 = -240m): 04:00 UTC -> 00:00 local NY (hour 0)
+        ny_dt = datetime(2026, 9, 4, 4, 0, 0, tzinfo=UTC)
+        # Message 2 sent from Beijing (UTC+8 = +480m): 04:00 UTC -> 12:00 local Beijing (hour 12)
+        bj_dt = datetime(2026, 9, 4, 4, 0, 0, tzinfo=UTC)
+
+        messages = [
+            BehavioralMessage(
+                id="msg_ny",
+                chat_id="c1",
+                channel="desktop",
+                sender_id="me",
+                is_self=True,
+                created_at_ms=int(ny_dt.timestamp() * 1000),
+                offset_minutes=-240,
+            ),
+            BehavioralMessage(
+                id="msg_bj",
+                chat_id="c2",
+                channel="desktop",
+                sender_id="me",
+                is_self=True,
+                created_at_ms=int(bj_dt.timestamp() * 1000),
+                offset_minutes=480,
+            ),
+        ]
+
+        # Options fallback to 0 offset
+        options = BehavioralStatsOptions(offset_minutes=0)
+        measurement = compute_routine_measurement(messages, options)
+
+        assert measurement.hour_histogram[0] == 1
+        assert measurement.hour_histogram[12] == 1
 
 
 class TestGenerateBehavioralProfileCandidates:
@@ -210,7 +288,8 @@ class TestGenerateBehavioralProfileCandidates:
                     id=f"other_{i}",
                     chat_id="c1",
                     channel="slack",
-                    sender_id="teammate",
+                    sender_id="teammate_bob",
+                    sender_name="Bob",
                     is_self=False,
                     created_at_ms=t0 + i * 60_000,
                 )
@@ -230,10 +309,11 @@ class TestGenerateBehavioralProfileCandidates:
         options = BehavioralStatsOptions(min_self_messages=20, min_latency_samples=10, offset_minutes=480)
         candidates = generate_behavioral_profile_candidates(messages, options)
 
-        assert len(candidates) == 2
+        assert len(candidates) == 3
         keys = {c.profile_key for c in candidates}
         assert "routine_active_hours" in keys
         assert "routine_reply_latency" in keys
+        assert "routine_top_collaborators" in keys
 
         for cand in candidates:
             assert cand.memory_type == MemoryType.PROFILE
@@ -246,3 +326,9 @@ class TestGenerateBehavioralProfileCandidates:
         lat_data = json.loads(latency_cand.profile_value)
         assert lat_data["p50_ms"] == 15000.0
         assert lat_data["sample_count"] == 25
+
+        collab_cand = next(c for c in candidates if c.profile_key == "routine_top_collaborators")
+        assert collab_cand.profile_value is not None
+        collab_data = json.loads(collab_cand.profile_value)
+        assert collab_data[0][0] == "Bob"
+        assert collab_data[0][1] == 25

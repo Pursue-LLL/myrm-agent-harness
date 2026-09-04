@@ -1,15 +1,15 @@
 """Zero-model-cost deterministic behavioral measurement strategy.
 
 Provides pure-local, zero-LLM statistical aggregation of user interaction routines,
-including 24-hour active histograms, weekday distributions, response latency percentiles,
-and channel activity distributions.
+including 24-hour active histograms (decoupled into workday vs weekend), weekday
+distributions, response latency percentiles, channel distribution, and top collaborators.
 
 [INPUT]
-- Sequence[BehavioralMessage]: Streamlined interaction message DTOs
-- BehavioralStatsOptions: Explicit timezone offset and sample floor thresholds
+- Sequence[BehavioralMessage]: Streamlined interaction message DTOs with optional local offset
+- BehavioralStatsOptions: Explicit fallback timezone offset and sample floor thresholds
 
 [OUTPUT]
-- RoutineMeasurement: Strong-typed numerical routine metrics
+- RoutineMeasurement: Strong-typed numerical routine metrics with dual-track peak windows
 - generate_behavioral_profile_candidates: ExtractedMemory profile candidates with provenance
 
 [POS]
@@ -19,7 +19,7 @@ Harness framework strategy layer. Pure Python standard library + Pydantic.
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 import json
@@ -38,6 +38,7 @@ DEFAULT_MIN_SELF_MESSAGES: Final[int] = 20
 DEFAULT_MIN_LATENCY_SAMPLES: Final[int] = 10
 DEFAULT_MAX_IDLE_GAP_MS: Final[int] = 172_800_000  # 48 hours in milliseconds
 DEFAULT_MAX_EVIDENCE: Final[int] = 20
+DEFAULT_TOP_COLLABORATORS_LIMIT: Final[int] = 5
 
 
 class BehavioralMessage(BaseModel):
@@ -51,6 +52,11 @@ class BehavioralMessage(BaseModel):
     is_self: bool = False
     created_at_ms: int
     content: str = ""
+    offset_minutes: int | None = Field(
+        default=None,
+        description="Optional message-specific timezone offset in minutes. Falls back to options.offset_minutes if None.",
+    )
+    offset_minutes: int | None = None
 
 
 class BehavioralStatsOptions(BaseModel):
@@ -58,7 +64,7 @@ class BehavioralStatsOptions(BaseModel):
 
     offset_minutes: int = Field(
         default=480,
-        description="Explicit timezone offset in minutes (e.g. +480 for UTC+8). Never rely on host env.",
+        description="Explicit fallback timezone offset in minutes (e.g. +480 for UTC+8).",
     )
     min_self_messages: int = Field(
         default=DEFAULT_MIN_SELF_MESSAGES,
@@ -70,11 +76,15 @@ class BehavioralStatsOptions(BaseModel):
     )
     max_idle_gap_ms: int = Field(
         default=DEFAULT_MAX_IDLE_GAP_MS,
-        description="Maximum idle time between messages to be considered a continuous conversational turn.",
+        description="Maximum idle time between messages to be considered a continuous turn.",
     )
     max_evidence: int = Field(
         default=DEFAULT_MAX_EVIDENCE,
         description="Maximum number of evidence references anchored to each generated candidate.",
+    )
+    top_collaborators_limit: int = Field(
+        default=DEFAULT_TOP_COLLABORATORS_LIMIT,
+        description="Maximum number of top collaborators to extract.",
     )
 
 
@@ -83,7 +93,15 @@ class RoutineMeasurement(BaseModel):
 
     hour_histogram: list[int] = Field(
         default_factory=lambda: [0] * 24,
-        description="Message count for each local hour (0-23).",
+        description="Message count for each local hour (0-23) across all days.",
+    )
+    workday_hour_histogram: list[int] = Field(
+        default_factory=lambda: [0] * 24,
+        description="Message count for each local hour (0-23) on workdays (Monday-Friday).",
+    )
+    weekend_hour_histogram: list[int] = Field(
+        default_factory=lambda: [0] * 24,
+        description="Message count for each local hour (0-23) on weekends (Saturday-Sunday).",
     )
     weekday_histogram: list[int] = Field(
         default_factory=lambda: [0] * 7,
@@ -111,7 +129,19 @@ class RoutineMeasurement(BaseModel):
     )
     peak_active_window: str | None = Field(
         default=None,
-        description="Estimated continuous peak activity window (e.g. '14:00 - 18:00') if significant.",
+        description="Estimated overall peak activity window (e.g. '14:00 - 18:00') if significant.",
+    )
+    workday_peak_window: str | None = Field(
+        default=None,
+        description="Estimated workday peak activity window if significant.",
+    )
+    weekend_peak_window: str | None = Field(
+        default=None,
+        description="Estimated weekend peak activity window if significant.",
+    )
+    top_collaborators: list[tuple[str, int]] = Field(
+        default_factory=list,
+        description="Top interacted partners sorted by frequency (name, interaction_count).",
     )
 
 
@@ -126,7 +156,6 @@ def percentile(sorted_values: Sequence[float], p: float) -> float | None:
 
 def _local_hour_and_weekday(ms: int, offset_minutes: int) -> tuple[int, int]:
     """Compute local hour (0-23) and weekday (0=Mon, 6=Sun) with explicit timezone offset."""
-    # Absolute epoch translation to explicit shifted UTC representation
     shifted_dt = datetime.fromtimestamp(ms / 1000.0, tz=UTC) + timedelta(minutes=offset_minutes)
     return shifted_dt.hour, shifted_dt.weekday()
 
@@ -136,7 +165,6 @@ def _resolve_peak_window(hour_histogram: list[int], min_count: int = 10) -> str 
     if len(hour_histogram) != 24 or sum(hour_histogram) < min_count:
         return None
 
-    # Sliding 4-hour window with wrap-around
     best_sum = -1
     best_start = 0
     for start in range(24):
@@ -145,7 +173,6 @@ def _resolve_peak_window(hour_histogram: list[int], min_count: int = 10) -> str 
             best_sum = window_sum
             best_start = start
 
-    # Only declare peak if the 4-hour window holds at least 30% of total activity
     total = sum(hour_histogram)
     if total > 0 and (best_sum / total) >= 0.30:
         end = (best_start + 4) % 24
@@ -160,33 +187,51 @@ def compute_routine_measurement(
     """Compute purely deterministic behavioral measurements from conversation logs.
 
     Enforces strict conversation grouping (per chat_id) and strict sequence pairing:
-    Only a verified self-message immediately succeeding another speaker's message
-    within max_idle_gap_ms is counted as a response latency sample.
+    - Only a verified self-message immediately succeeding another speaker's message
+      within max_idle_gap_ms is counted as a response latency sample.
+    - Decouples 24h distribution into workday (Mon-Fri) and weekend (Sat-Sun) histograms.
+    - Counts non-self message senders in conversations the user participated in as collaborators.
     """
     hour_histogram = [0] * 24
+    workday_hour_histogram = [0] * 24
+    weekend_hour_histogram = [0] * 24
     weekday_histogram = [0] * 7
     channel_counts: dict[str, int] = defaultdict(int)
+    collaborator_counts: Counter[str] = Counter()
     latencies: list[float] = []
     self_message_count = 0
 
-    # Group messages by chat_id to maintain conversational coherence
     by_chat: dict[str, list[BehavioralMessage]] = defaultdict(list)
     for msg in messages:
         by_chat[msg.chat_id].append(msg)
 
-    for chat_id, chat_messages in by_chat.items():
-        # Strictly chronological within conversation
+    for _chat_id, chat_messages in by_chat.items():
         sorted_chat = sorted(chat_messages, key=lambda m: m.created_at_ms)
+        has_self = any(m.is_self for m in sorted_chat)
+
         for idx, msg in enumerate(sorted_chat):
+            effective_offset = (
+                msg.offset_minutes if msg.offset_minutes is not None else options.offset_minutes
+            )
+
             if not msg.is_self:
+                if has_self:
+                    name = msg.sender_name or msg.sender_id
+                    if name and name.lower() not in {"system", "assistant", "agent"}:
+                        collaborator_counts[name] += 1
                 continue
 
             self_message_count += 1
             channel_counts[msg.channel] += 1
 
-            hour, weekday = _local_hour_and_weekday(msg.created_at_ms, options.offset_minutes)
+            hour, weekday = _local_hour_and_weekday(msg.created_at_ms, effective_offset)
             hour_histogram[hour] += 1
             weekday_histogram[weekday] += 1
+
+            if weekday < 5:
+                workday_hour_histogram[hour] += 1
+            else:
+                weekend_hour_histogram[hour] += 1
 
             # Latency definition: self message immediately following a non-self message
             if idx > 0:
@@ -198,9 +243,19 @@ def compute_routine_measurement(
 
     latencies.sort()
     peak_window = _resolve_peak_window(hour_histogram, min_count=options.min_self_messages)
+    workday_peak = _resolve_peak_window(
+        workday_hour_histogram, min_count=max(5, options.min_self_messages // 2)
+    )
+    weekend_peak = _resolve_peak_window(
+        weekend_hour_histogram, min_count=max(5, options.min_self_messages // 4)
+    )
+
+    top_collabs = collaborator_counts.most_common(options.top_collaborators_limit)
 
     return RoutineMeasurement(
         hour_histogram=hour_histogram,
+        workday_hour_histogram=workday_hour_histogram,
+        weekend_hour_histogram=weekend_hour_histogram,
         weekday_histogram=weekday_histogram,
         reply_latency_p50_ms=percentile(latencies, 0.5),
         reply_latency_p90_ms=percentile(latencies, 0.9),
@@ -208,6 +263,9 @@ def compute_routine_measurement(
         latency_sample_count=len(latencies),
         channel_distribution=dict(channel_counts),
         peak_active_window=peak_window,
+        workday_peak_window=workday_peak,
+        weekend_peak_window=weekend_peak,
+        top_collaborators=top_collabs,
     )
 
 
@@ -243,12 +301,15 @@ def generate_behavioral_profile_candidates(
 
     # Active hours & weekdays histogram candidate
     if measurement.self_message_count >= options.min_self_messages:
-        # Confidence smoothly increases with sample volume, capped at 0.90
         hist_conf = min(0.90, 0.50 + measurement.self_message_count / 1000.0)
         hist_value_dict = {
             "hour_histogram": measurement.hour_histogram,
+            "workday_hour_histogram": measurement.workday_hour_histogram,
+            "weekend_hour_histogram": measurement.weekend_hour_histogram,
             "weekday_histogram": measurement.weekday_histogram,
             "peak_active_window": measurement.peak_active_window,
+            "workday_peak_window": measurement.workday_peak_window,
+            "weekend_peak_window": measurement.weekend_peak_window,
             "offset_minutes": options.offset_minutes,
             "sample_count": measurement.self_message_count,
             "channel_distribution": measurement.channel_distribution,
@@ -257,7 +318,8 @@ def generate_behavioral_profile_candidates(
             ExtractedMemory(
                 memory_type=MemoryType.PROFILE,
                 content=(
-                    f"User routine active distribution: peak window {measurement.peak_active_window or 'variable'}, "
+                    f"User routine active distribution: workday peak {measurement.workday_peak_window or 'flexible'}, "
+                    f"weekend peak {measurement.weekend_peak_window or 'flexible'}, "
                     f"offset {options.offset_minutes}m across {measurement.self_message_count} samples"
                 ),
                 confidence=round(hist_conf, 3),
@@ -291,6 +353,21 @@ def generate_behavioral_profile_candidates(
                 importance=0.60,
                 profile_key="routine_reply_latency",
                 profile_value=json.dumps(lat_value_dict, ensure_ascii=False),
+                evidence=evidence_refs,
+            )
+        )
+
+    # Top collaborators candidate
+    if measurement.top_collaborators and measurement.self_message_count >= options.min_self_messages:
+        collab_names = [f"{name} ({count})" for name, count in measurement.top_collaborators]
+        candidates.append(
+            ExtractedMemory(
+                memory_type=MemoryType.PROFILE,
+                content=f"Frequent collaborators: {', '.join(collab_names)}",
+                confidence=0.75,
+                importance=0.55,
+                profile_key="routine_top_collaborators",
+                profile_value=json.dumps(measurement.top_collaborators, ensure_ascii=False),
                 evidence=evidence_refs,
             )
         )

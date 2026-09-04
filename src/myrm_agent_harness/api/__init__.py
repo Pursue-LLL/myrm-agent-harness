@@ -148,6 +148,11 @@ __all__ = [
     "synthesize_desktop_skill_draft",
     "track_background_task",
     "unregister_ptc_safety_metadata",
+    "BehavioralMessage",
+    "BehavioralStatsOptions",
+    "RoutineMeasurement",
+    "compute_routine_measurement",
+    "generate_behavioral_profile_candidates",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -628,6 +633,26 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "tokenize_for_fts": (
         "myrm_agent_harness.toolkits.wiki.retrieval.tokenizer",
         "tokenize_for_fts",
+    ),
+    "BehavioralMessage": (
+        "myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement",
+        "BehavioralMessage",
+    ),
+    "BehavioralStatsOptions": (
+        "myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement",
+        "BehavioralStatsOptions",
+    ),
+    "RoutineMeasurement": (
+        "myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement",
+        "RoutineMeasurement",
+    ),
+    "compute_routine_measurement": (
+        "myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement",
+        "compute_routine_measurement",
+    ),
+    "generate_behavioral_profile_candidates": (
+        "myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement",
+        "generate_behavioral_profile_candidates",
     ),
 }
 
