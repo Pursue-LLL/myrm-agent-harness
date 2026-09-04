@@ -180,3 +180,22 @@ class TestGetModuleVersion:
     def test_unknown_module(self):
         version = _get_module_version("nonexistent_module_xyz_123")
         assert version is None
+
+
+class TestPlaintextSecretsHygiene:
+    @pytest.mark.asyncio
+    async def test_clean_environment_passes(self):
+        with patch.dict("os.environ", {}, clear=True):
+            result = await Doctor()._check_plaintext_secrets_hygiene()
+            assert result.status == CheckStatus.OK
+            assert result.name == "plaintext_secrets"
+
+    @pytest.mark.asyncio
+    async def test_plaintext_secret_warns(self):
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-real-test-token"}, clear=True):
+            result = await Doctor()._check_plaintext_secrets_hygiene()
+            assert result.status == CheckStatus.WARNING
+            assert result.name == "plaintext_secrets"
+            assert "OPENAI_API_KEY" in result.message
+            assert "Secrets Command Provider" in (result.fix or "")
+

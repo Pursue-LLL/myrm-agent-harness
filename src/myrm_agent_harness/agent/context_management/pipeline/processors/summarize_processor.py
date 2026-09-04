@@ -55,7 +55,11 @@ from ...infra.context_budget import (
     estimate_processor_context_tokens,
     resolve_budget_kwargs_from_metadata,
 )
-from ...infra.schemas import ContextConfig, StructuredSummary
+from ...infra.schemas import (
+    ContextCompressOffloadCallback,
+    ContextConfig,
+    StructuredSummary,
+)
 from ...strategies.summary.progress_timeout import (
     InactivityTimeoutError,
     ProgressClock,
@@ -207,12 +211,17 @@ class SummarizeProcessor(BaseProcessor):
     - L3: Emergency conversation truncation (stream_executor.py)
     """
 
-    def __init__(self, config: ContextConfig | None = None):
+    def __init__(
+        self,
+        config: ContextConfig | None = None,
+        on_prune_offload: ContextCompressOffloadCallback | None = None,
+    ):
         from myrm_agent_harness.agent.context_management.infra.schemas import (
             DEFAULT_CONTEXT_CONFIG,
         )
 
         self.config = config or DEFAULT_CONTEXT_CONFIG
+        self._on_prune_offload = on_prune_offload
 
     @property
     def name(self) -> str:
@@ -300,7 +309,10 @@ class SummarizeProcessor(BaseProcessor):
             from .active_tool_result_prune_processor import prune_tool_results_deterministic
 
             pre_prune_thresh = int(context.metadata.get("pre_compact_prune_threshold_tokens", 1024))
-            pre_prune_keep = int(context.metadata.get("pre_compact_keep_recent_calls", 2))
+            raw_keep = int(context.metadata.get("pre_compact_keep_recent_calls", 2))
+            # Hard boundary guard against Goodhart's Law: never discard last 2 tool interactions
+            pre_prune_keep = max(raw_keep, 2)
+            effective_offload = context.metadata.get("on_prune_offload", self._on_prune_offload)
 
             new_msgs, pruned_cnt, saved_tokens = await prune_tool_results_deterministic(
                 context.messages,
@@ -308,8 +320,10 @@ class SummarizeProcessor(BaseProcessor):
                 keep_recent_calls=pre_prune_keep,
                 min_reclaim_tokens=0,
                 enable_memory_fallback=True,
+                on_prune_offload=effective_offload,
                 chat_id=context.chat_id,
                 force=True,
+                reason="summarize_short_circuit",
             )
 
             if pruned_cnt > 0 and saved_tokens > 0:
@@ -319,11 +333,11 @@ class SummarizeProcessor(BaseProcessor):
                     f"pre_compact_prune: pruned {pruned_cnt} tool results, saved ~{saved_tokens} tokens"
                 )
 
-                # Remeasure context tokens with safety headroom (15% measurement decay guard)
+                # Remeasure context tokens with safety headroom (10% measurement decay guard)
                 remeasured_tokens = estimate_processor_context_tokens(context.messages, context.metadata)
                 trigger_thresh = getattr(self.config, "summarize_trigger_threshold", 115200)
-                # Keep safety headroom: must be comfortably below trigger threshold to bypass
-                safe_ceiling = int(trigger_thresh * 0.95)
+                # Keep 10% safety headroom: must be comfortably below trigger threshold to bypass
+                safe_ceiling = int(trigger_thresh * 0.90)
 
                 if remeasured_tokens <= safe_ceiling:
                     logger.info(

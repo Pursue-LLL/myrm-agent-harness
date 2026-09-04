@@ -224,7 +224,10 @@ def build_default_processors(
         on_compress_eviction=on_compress_eviction,
         on_context_snapshot=on_context_snapshot,
     )
-    summarize_processor = SummarizeProcessor(config=config)
+    summarize_processor = SummarizeProcessor(
+        config=config,
+        on_prune_offload=on_compress_offload,
+    )
     session_notes_processor = (
         SessionNotesProcessor(
             manager=session_notes_manager,

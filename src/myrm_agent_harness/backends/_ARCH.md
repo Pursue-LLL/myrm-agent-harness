@@ -12,7 +12,7 @@ Backend implementations — profiles, secrets, and skills storage adapters betwe
 | Submodule | Description |
 |-----------|-------------|
 | profiles/ | Agent Profile 存储后端。AgentProfile 数据结构、CRUD Protocol、Local/InMemory 实现。 |
-| secrets/ | Agent 密钥/凭据存储后端。AgentSecretBackend Protocol、Local 加密文件 / InMemory 实现。 |
+| secrets/ | Agent 密钥/凭据存储后端。AgentSecretBackend Protocol、Local 加密文件 / InMemory / CommandSecretBackend（外部命令 Helper）实现。 |
 | skills/ | 技能系统后端。读/写/发现 Protocol、Local/Memory/Storage 实现、快照缓存与安全扫描。 |
 
 ## Key Dependencies

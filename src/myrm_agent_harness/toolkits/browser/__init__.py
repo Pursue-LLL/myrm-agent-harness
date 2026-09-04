@@ -96,6 +96,7 @@ if TYPE_CHECKING:
         run_doctor,
     )
     from .observability import BrowserObservability, RecordingConfig
+    from .spaces import BrowserTaskSpace, HarnessTaskSpaceManager
     from .session_vault import (
         CorruptedSessionError,
         DecryptionError,
@@ -121,6 +122,7 @@ __all__ = [
     "BrowserPoolError",
     "BrowserSession",
     "BrowserSessionError",
+    "BrowserTaskSpace",
     "BrowserToolError",
     "CaptureCallback",
     "CaptureSession",
@@ -135,6 +137,7 @@ __all__ = [
     "EmulationConfig",
     "EncryptionError",
     "FileVaultBackend",
+    "HarnessTaskSpaceManager",
     "IncrementalSessionCheckpointer",
     "InvalidDomainError",
     "ParallelRecoveryOrchestrator",
@@ -213,6 +216,10 @@ _LAZY_MODULES = {
         "ActionType",
         "CaptureCallback",
         "CaptureSession",
+    ],
+    "spaces": [
+        "BrowserTaskSpace",
+        "HarnessTaskSpaceManager",
     ],
 }
 

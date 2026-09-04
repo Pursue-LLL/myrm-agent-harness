@@ -226,3 +226,28 @@ class TestAllowlist:
         assert len(store.saved_entries) == 1
         assert store.saved_entries[0].expires_at == timed_entry.expires_at
 
+    @pytest.mark.asyncio
+    async def test_time_bound_entry_exact_and_pattern_expiry(self, allowlist: Allowlist) -> None:
+        """Verify expiration applies across granularities (pattern and exact args hash)."""
+        import time
+        now = time.time()
+        pattern_entry = AllowlistEntry(
+            permission="shell_exec",
+            tool_name="bash_code_execute_tool",
+            command_pattern="git status *",
+            expires_at=now - 1.0,
+        )
+        exact_entry = AllowlistEntry(
+            permission="shell_exec",
+            tool_name="bash_code_execute_tool",
+            tool_args_hash="hash_123",
+            expires_at=now - 1.0,
+        )
+        await allowlist.add("user1", pattern_entry)
+        await allowlist.add("user1", exact_entry)
+
+        # Both expired entries should be rejected
+        assert allowlist.check("user1", "shell_exec", "bash_code_execute_tool", command="git status -s") is False
+        assert allowlist.check("user1", "shell_exec", "bash_code_execute_tool", tool_args_hash="hash_123") is False
+
+

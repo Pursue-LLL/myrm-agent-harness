@@ -63,6 +63,7 @@ class Doctor:
                 self._check_llm_config,
                 self._check_deploy_mode,
                 self._check_compliance_state,
+                self._check_plaintext_secrets_hygiene,
             ]
         )
 
@@ -303,6 +304,22 @@ class Doctor:
                 CheckStatus.WARNING,
                 f"Compliance self-check skipped: {str(e)[:80]}",
             )
+
+    async def _check_plaintext_secrets_hygiene(self) -> DoctorCheckResult:
+        """Audit for plaintext API keys in environment or workspace files."""
+        sensitive_env_keys = [k for k in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY") if os.getenv(k)]
+        if sensitive_env_keys:
+            return DoctorCheckResult(
+                "plaintext_secrets",
+                CheckStatus.WARNING,
+                f"Plaintext secrets detected in process environment: {', '.join(sensitive_env_keys)}",
+                fix="Use Secrets Command Provider or OS Keyring to eliminate plaintext keys.",
+            )
+        return DoctorCheckResult(
+            "plaintext_secrets",
+            CheckStatus.OK,
+            "No plaintext API keys found in default environment.",
+        )
 
 
     async def _check_system_resources(self) -> list[DoctorCheckResult]:

@@ -1363,3 +1363,42 @@ async def test_time_bound_allow_always_integration_with_middleware(monkeypatch):
     # Auto-revoke gate: check must return False immediately and prune entry
     assert allowlist.check("user_tb_1", "file_write", "file_write_tool") is False
 
+    # Second turn after expiration: middleware must re-trigger approval interrupt instead of auto-allowing
+    interrupt_called = False
+
+    def mock_interrupt_turn_2(payload):
+        nonlocal interrupt_called
+        interrupt_called = True
+        return {
+            "decisions": [
+                {
+                    "type": "approve",
+                    "allow_always": False,
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
+        mock_interrupt_turn_2,
+    )
+
+    state_turn_2 = {
+        "messages": [
+            AIMessage(
+                content="Writing log file again.",
+                tool_calls=[
+                    ToolCall(
+                        type="tool_call",
+                        name="file_write_tool",
+                        args={"path": "/tmp/test.log", "content": "world"},
+                        id="call_tb_2",
+                    ),
+                ],
+            )
+        ]
+    }
+    await middleware.aafter_model(state_turn_2, MockRuntime())
+    assert interrupt_called is True, "Expired allowlist entry must re-trigger approval interrupt for human verification"
+
+

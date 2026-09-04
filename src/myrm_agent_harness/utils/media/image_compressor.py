@@ -254,12 +254,12 @@ class ImageCompressor:
         *,
         max_dimension: int = SEND_COMPRESS_MAX_DIMENSION,
         aspect_ratio_threshold: float = 1.8,
-        min_height_threshold: int = 1000,
+        min_height_threshold: int = 800,
         overlap_pixels: int = 60,
     ) -> list[bytes]:
         """Slice vertically extreme long screenshots into sequential overlapping tiles.
 
-        If the image aspect ratio (height / width) is below threshold or height <= min_height_threshold,
+        If the image aspect ratio (height / width) is below threshold or height < min_height_threshold,
         returns the original bytes in a single-element list.
         Otherwise, slices the image into multiple overlapping tiles preserving full horizontal
         resolution so text does not degrade into unrecognizable artifacts.
@@ -272,11 +272,11 @@ class ImageCompressor:
                     return [img_bytes]
 
                 aspect_ratio = height / width
-                if aspect_ratio < aspect_ratio_threshold or height <= min_height_threshold:
+                if aspect_ratio < aspect_ratio_threshold or height < min_height_threshold:
                     return [img_bytes]
 
                 # Determine tile height (target a square or slightly tall block bounded by max_dimension)
-                tile_height = min(max(int(width * 1.5), 600), max_dimension)
+                tile_height = min(max(int(width * 1.5), 400), max_dimension)
                 overlap = min(overlap_pixels, tile_height // 4)
                 stride = max(100, tile_height - overlap)
 

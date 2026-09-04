@@ -36,6 +36,8 @@ __all__ = [
     "ComplianceStatus",
     "ComplianceTrailExporter",
     "ComplianceViolation",
+    "ConfidenceEvolutionEngine",
+    "ConflictItem",
     "ConfigIncompleteError",
     "ConflictSeverity",
     "ConnectorErrorCategory",
@@ -187,6 +189,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ComplianceViolation": (
         "myrm_agent_harness.runtime.diagnostics.compliance",
         "ComplianceViolation",
+    ),
+    "ConfidenceEvolutionEngine": (
+        "myrm_agent_harness.toolkits.memory.strategies.merger",
+        "ConfidenceEvolutionEngine",
+    ),
+    "ConflictItem": (
+        "myrm_agent_harness.toolkits.memory.strategies.merger",
+        "ConflictItem",
     ),
     "ConfigIncompleteError": ("myrm_agent_harness.api.config", "ConfigIncompleteError"),
     "ConflictSeverity": (

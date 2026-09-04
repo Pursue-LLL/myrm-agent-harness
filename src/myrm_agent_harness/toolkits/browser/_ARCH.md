@@ -31,6 +31,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | session/ | Browser session components. |
 | session_vault/ | AES-256-GCM encrypted session storage. `__init__.py` exposes SessionVault + entry/summary/metrics types + exception hierarchy; `backends/` holds pluggable storage backends (file/cloud protocol). |
 | snapshot/ | Snapshot module. Provides comprehensive snapshot capabilities, ARIA tree enhancements, and O(1) Self-Healing Locators. |
+| spaces/ | Browser task spaces. Manages BrowserTaskSpace entities with isolated BrowserContext, asyncio concurrency locks, and HarnessTaskSpaceManager. |
 | tools/ | API layer of the browser toolkit. Maps BrowserSession capabilities to 8 LangChain @tool functions (incl. AST-gated execute_script), |
 | utils/ | Shared utilities and constants (e.g., selectors, proxy error detection). |
 | wait/ | Page wait strategies. `__init__.py` exposes wait_for_page_ready + WaitStrategy/WaitMetrics + global stats; `_impl.py` holds 4 strategy implementations, `_types.py` the type definitions, `_dom_stable_js.py` the DOM stability JS generator. |

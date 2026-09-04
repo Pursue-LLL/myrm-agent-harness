@@ -64,11 +64,13 @@ def build_memory_truncated_placeholder(
     est_tokens: int,
     head_chars: int = 800,
     tail_chars: int = 400,
+    reason: str | None = None,
 ) -> str:
     """Build a deterministic in-memory truncated placeholder preserving head & tail (DSH style)."""
     original_chars = len(content)
+    reason_info = f" [{reason}]" if reason else ""
     marker = (
-        f"[Tool output pruned: original size {original_chars} chars, ~{est_tokens} tokens. "
+        f"[Tool output pruned: original size {original_chars} chars, ~{est_tokens} tokens{reason_info}. "
         f"Content pruned: {tool_name} output (~{est_tokens} tokens) truncated for recovery. "
         f"Preserved head & tail for context.]"
     )
@@ -103,6 +105,7 @@ async def prune_tool_results_deterministic(
     chat_id: str | None = None,
     placeholder_cache: dict[str, str] | None = None,
     force: bool = False,
+    reason: str | None = None,
 ) -> tuple[list[BaseMessage], int, int]:
     """Execute deterministic tool-result pruning on messages (model-free).
 
@@ -210,6 +213,7 @@ async def prune_tool_results_deterministic(
                 est_tokens=est_tokens,
                 head_chars=head_chars,
                 tail_chars=tail_chars,
+                reason=reason,
             )
 
         if placeholder_text is not None:
@@ -315,6 +319,7 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
             chat_id=context.chat_id,
             placeholder_cache=self._placeholder_cache,
             force=force_prune,
+            reason="active_prune",
         )
 
         if pruned > 0:
