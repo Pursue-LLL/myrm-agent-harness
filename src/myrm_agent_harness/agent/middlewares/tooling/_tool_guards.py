@@ -49,6 +49,10 @@ from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     make_error_msg,
     run_content_validation,
 )
+from myrm_agent_harness.agent.middlewares.tooling.semantic_failure_sniffer import (
+    elevate_semantic_failure_observation,
+    sniff_semantic_failure,
+)
 from myrm_agent_harness.agent.security.audit import record_decision
 from myrm_agent_harness.agent.security.guards.context_budget import (
     BudgetAction,
@@ -489,9 +493,33 @@ async def run_post_call_guards(
             name=tool_name,
             tool_call_id=result.tool_call_id,
             status=result.status,
+            additional_kwargs=result.additional_kwargs,
         )
 
     await emit_archive_restore_block_status(result_text, tool_name)
+
+    # Semantic Failure Sniffer: Catch HTTP 200 pseudo-success business errors
+    if result.status != "error":
+        sniff_res = sniff_semantic_failure(
+            result_text,
+            tool_name=tool_name,
+            tool_args=dict(tool_args),
+        )
+        if sniff_res.is_failure:
+            elevated_content = elevate_semantic_failure_observation(sniff_res, result_text)
+            extra_kwargs = dict(result.additional_kwargs or {})
+            extra_kwargs["error_category"] = sniff_res.failure_type.value
+            extra_kwargs["semantic_failure_reason"] = sniff_res.reason
+            if sniff_res.extracted_code is not None:
+                extra_kwargs["extracted_code"] = sniff_res.extracted_code
+            result = ToolMessage(
+                content=elevated_content,
+                name=tool_name,
+                tool_call_id=result.tool_call_id,
+                status="error",
+                additional_kwargs=extra_kwargs,
+            )
+            result_text = elevated_content
 
     from myrm_agent_harness.agent.middlewares.tooling._mutation_verifier import (
         record_mutation_result,
@@ -532,6 +560,7 @@ async def run_post_call_guards(
             name=tool_name,
             tool_call_id=result.tool_call_id,
             status=result.status,
+            additional_kwargs=result.additional_kwargs,
         )
         result_text = budget_verdict.content
     elif budget_verdict.action == BudgetAction.TRUNCATED:
@@ -542,6 +571,7 @@ async def run_post_call_guards(
             name=tool_name,
             tool_call_id=result.tool_call_id,
             status=result.status,
+            additional_kwargs=result.additional_kwargs,
         )
         result_text = budget_verdict.content
     elif budget_verdict.action == BudgetAction.WARNING:
@@ -569,6 +599,7 @@ async def run_post_call_guards(
             name=tool_name,
             tool_call_id=result.tool_call_id,
             status=result.status,
+            additional_kwargs=result.additional_kwargs,
         )
         result_text = extract_text_content(result.content)
 
@@ -621,6 +652,7 @@ async def run_post_call_guards(
             name=tool_name,
             tool_call_id=result.tool_call_id,
             status=result.status,
+            additional_kwargs=result.additional_kwargs,
         )
 
     post_result_text = extract_text_content(result.content)

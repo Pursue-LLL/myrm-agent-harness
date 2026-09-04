@@ -362,7 +362,7 @@ async def _tool_interceptor_middleware_inner(
             from myrm_agent_harness.agent.session_overlay import get_session_overlay_manager
             _ovl_mgr = get_session_overlay_manager()
             if _ovl_mgr is not None:
-                _ovl_mgr.record_tool_outcome(tool_name, is_error=False)
+                _ovl_mgr.record_tool_outcome(tool_name, is_error=(result.status == "error"))
         except Exception:
             pass
         return result

@@ -17,6 +17,13 @@ is an independent module. Public API:
 - LoopGuard accessors
 """
 
+from myrm_agent_harness.agent.middlewares.tooling.semantic_failure_sniffer import (
+    SemanticFailureSniffResult,
+    SemanticFailureType,
+    elevate_semantic_failure_observation,
+    should_skip_semantic_sniff,
+    sniff_semantic_failure,
+)
 from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
     get_loop_guard,
     notify_loop_guard_compaction,
@@ -25,8 +32,13 @@ from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware im
 )
 
 __all__ = [
+    "SemanticFailureSniffResult",
+    "SemanticFailureType",
+    "elevate_semantic_failure_observation",
     "get_loop_guard",
     "notify_loop_guard_compaction",
     "reset_loop_guard",
+    "should_skip_semantic_sniff",
+    "sniff_semantic_failure",
     "tool_interceptor_middleware",
 ]

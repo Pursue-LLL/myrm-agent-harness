@@ -22,6 +22,8 @@
 - smart_truncate_output(): Keep first/last N lines, truncate middle
 - get_tool_timeout(): Zero-config timeout by tool name pattern
 - is_non_retryable(): Check if exception should not be retried
+- is_semantic_business_error(): Check if tool payload represents a business error under HTTP 200
+- check_semantic_failure_retryable(): Check if tool payload is a transient, retryable business failure
 - make_error_msg(): Build a ToolMessage with error status and structured metadata
 - format_tool_error(): Format exception for LLM consumption
 - apply_validation_result(): Append validation warning to ToolMessage
@@ -145,6 +147,40 @@ def is_non_retryable(e: Exception, tool_name: str) -> bool:
             return True
 
     return tool_name == "bash_code_execute_tool"
+
+
+def is_semantic_business_error(content: object, tool_name: str) -> bool:
+    """Check if tool return payload represents a business error under HTTP 200."""
+    from myrm_agent_harness.agent.middlewares.tooling.semantic_failure_sniffer import (
+        sniff_semantic_failure,
+    )
+
+    return sniff_semantic_failure(content, tool_name=tool_name).is_failure
+
+
+def check_semantic_failure_retryable(
+    content: object,
+    tool_name: str,
+    *,
+    tool_args: dict[str, object] | None = None,
+) -> tuple[bool, str]:
+    """Check if tool payload is a transient, retryable business failure.
+
+    Returns (is_retryable, failure_reason).
+    """
+    from myrm_agent_harness.agent.middlewares.tooling.semantic_failure_sniffer import (
+        SemanticFailureType,
+        should_skip_semantic_sniff,
+        sniff_semantic_failure,
+    )
+
+    if should_skip_semantic_sniff(tool_name, tool_args=tool_args):
+        return False, ""
+
+    sniff_res = sniff_semantic_failure(content, tool_name=tool_name, tool_args=tool_args)
+    if sniff_res.is_failure and sniff_res.failure_type == SemanticFailureType.RETRYABLE:
+        return True, sniff_res.reason
+    return False, ""
 
 
 # ---------------------------------------------------------------------------

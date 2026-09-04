@@ -83,6 +83,49 @@ async def execute_with_retry(
             async with asyncio.timeout(timeout):
                 with URLAllowlistGuard.apply(allowed_domains):
                     result = await handler(request)
+
+                if attempt == 0:
+                    from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
+                        check_semantic_failure_retryable,
+                    )
+
+                    raw_res = result.content if isinstance(result, ToolMessage) else result
+                    is_retryable, reason = check_semantic_failure_retryable(
+                        raw_res,
+                        tool_name,
+                        tool_args=tool_args if isinstance(tool_args, dict) else None,
+                    )
+                    if is_retryable:
+                        elapsed = (time.time() - start_time) * 1000
+                        error_history.append(
+                            {
+                                "attempt": attempt + 1,
+                                "error": f"SemanticRetryableFailure: {reason}",
+                                "elapsed_ms": elapsed,
+                            }
+                        )
+                        event_logger = get_event_logger()
+                        if event_logger is not None:
+                            await event_logger.log(
+                                "TOOL_RETRY",
+                                {
+                                    "tool_name": tool_name,
+                                    "attempt": attempt + 2,
+                                    "reason": f"semantic_retryable:{reason}",
+                                },
+                            )
+                        backoff = min(2**attempt + random.uniform(0, 1), 5.0)
+                        logger.warning(
+                            "Transient business error [%s] attempt %d/2: %s, retry in %.1fs",
+                            tool_name,
+                            attempt + 1,
+                            reason,
+                            backoff,
+                        )
+                        await _emit_retry_event(tool_name, attempt, backoff)
+                        await asyncio.sleep(backoff)
+                        continue
+
                 return result
         except TimeoutError as e:
             elapsed = (time.time() - start_time) * 1000
