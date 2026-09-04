@@ -625,7 +625,10 @@ class MemoryExtractor:
             ):
                 result.append(
                     ProfileEntry(
-                        key=m.profile_key, value=m.profile_value, language=language
+                        key=m.profile_key,
+                        value=m.profile_value,
+                        language=language,
+                        evidence=m.evidence,
                     )
                 )
             elif m.memory_type == MemoryType.SEMANTIC:

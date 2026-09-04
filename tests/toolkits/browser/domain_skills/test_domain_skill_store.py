@@ -556,7 +556,7 @@ class TestBuiltinCnSocialPacks:
         bili = store.get("bilibili")
         assert bili is not None
         assert "bilibili.com" in bili.domains
-        assert "get_video_list" in bili.python_tools
+        assert "get_feed_videos" in bili.python_tools
         assert store.is_builtin("bilibili") is True
         assert len(store.match("https://www.bilibili.com/video/BV1xx")) >= 1
 
@@ -564,7 +564,7 @@ class TestBuiltinCnSocialPacks:
         xhs = store.get("xiaohongshu")
         assert xhs is not None
         assert "xiaohongshu.com" in xhs.domains
-        assert "get_feed_notes" in xhs.python_tools
+        assert "get_explore_notes" in xhs.python_tools
         assert store.is_builtin("xiaohongshu") is True
         assert len(store.match("https://www.xiaohongshu.com/explore")) >= 1
 
@@ -572,7 +572,7 @@ class TestBuiltinCnSocialPacks:
         dy = store.get("douyin")
         assert dy is not None
         assert "douyin.com" in dy.domains
-        assert "get_hot_videos" in dy.python_tools
+        assert "get_user_videos" in dy.python_tools
         assert store.is_builtin("douyin") is True
         assert len(store.match("https://www.douyin.com/hot")) >= 1
 
