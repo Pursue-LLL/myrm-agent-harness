@@ -151,15 +151,49 @@ def _has_asyncio_run(code: str) -> bool:
 
 
 def _has_async_main_call(code: str) -> bool:
-    """Check if code has async def main() with a top-level main() call.
+    """Check if code defines an async main() and invokes main() as a top-level statement or inside if __name__ == '__main__': block without await/asyncio.run."""
+    import ast
 
-    In this case main() returns a coroutine but doesn't execute it;
-    we need to wrap it with asyncio.run().
-    """
-    has_async_main_def = bool(re.search(r"async\\s+def\\s+main\\s*\\(", code))
-    # Check for top-level main() call (at line start)
-    has_main_call = bool(re.search(r"^main\\s*\\(\\s*\\)", code, re.MULTILINE))
-    return has_async_main_def and has_main_call
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return False
+
+    has_async_main_def = False
+    for stmt in tree.body:
+        if isinstance(stmt, ast.AsyncFunctionDef) and stmt.name == "main":
+            has_async_main_def = True
+            break
+
+    if not has_async_main_def:
+        return False
+
+    class _MainCallDetector(ast.NodeVisitor):
+        def __init__(self):
+            self.calls_main_unawaited = False
+
+        def visit_FunctionDef(self, node):
+            pass
+
+        def visit_AsyncFunctionDef(self, node):
+            pass
+
+        def visit_ClassDef(self, node):
+            pass
+
+        def visit_Expr(self, node):
+            if isinstance(node.value, ast.Call):
+                func = node.value.func
+                if isinstance(func, ast.Name) and func.id == "main":
+                    self.calls_main_unawaited = True
+            self.generic_visit(node)
+
+    detector = _MainCallDetector()
+    for stmt in tree.body:
+        detector.visit(stmt)
+        if detector.calls_main_unawaited:
+            return True
+    return False
 
 
 def _has_top_level_await(code: str) -> bool:
@@ -371,9 +405,8 @@ def main():
 
             result["result"] = None
         elif _has_async_main_call(user_code):
-            # async def main() with top-level main() call: strip call and use asyncio.run
-            sanitized_code = re.sub(r"^main\\s*\\(\\s*\\)\\s*$", "", user_code, flags=re.MULTILINE)
-            exec(sanitized_code, exec_globals, exec_globals)
+            # async def main() with unawaited main() call: execute module and drive main() with asyncio.run
+            exec(user_code, exec_globals, exec_globals)
             main_func = exec_globals.get("main")
             if callable(main_func):
                 result["result"] = asyncio.run(main_func())

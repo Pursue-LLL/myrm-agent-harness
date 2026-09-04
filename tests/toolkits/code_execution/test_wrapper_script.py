@@ -251,6 +251,11 @@ class TestAsyncExecutionModesEndToEnd:
                 "MARK_BARE_MAIN",
             ),
             (
+                "async_main_indented_under_if_name",
+                "async def main():\n    print('MARK_INDENTED_MAIN')\nif __name__ == '__main__':\n    main()",
+                "MARK_INDENTED_MAIN",
+            ),
+            (
                 "top_level_await",
                 "import asyncio\nasync def f():\n    return 'MARK_TOP_AWAIT'\nprint(await f())",
                 "MARK_TOP_AWAIT",
