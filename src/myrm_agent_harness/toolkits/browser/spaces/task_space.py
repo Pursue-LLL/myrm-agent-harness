@@ -41,6 +41,16 @@ class BrowserTaskSpace:
         """Update last accessed timestamp to prevent idle timeout eviction."""
         self.last_accessed_at = time.time()
 
+    async def pause_for_takeover(self) -> None:
+        """Forward user-initiated takeover pause to the underlying session."""
+        if self.session is not None:
+            await self.session.pause_for_takeover()
+
+    async def resume_from_takeover(self) -> None:
+        """Forward user-initiated takeover resume to the underlying session."""
+        if self.session is not None:
+            await self.session.resume_from_takeover()
+
     async def close(self) -> None:
         """Cleanly tear down the encapsulated session and browser context."""
         self.is_active = False

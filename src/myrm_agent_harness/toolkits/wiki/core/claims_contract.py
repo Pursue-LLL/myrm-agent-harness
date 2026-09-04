@@ -166,11 +166,27 @@ def parse_claims_from_content(content: str) -> tuple[WikiClaim, ...]:
     return tuple(parsed)
 
 
+_LOW_INFORMATION_PATTERNS = re.compile(
+    r"^(compiled\s+summary|summary\s+for|overview\s+of|introduction|table\s+of\s+contents|chapter\s+\d+|#+)\b",
+    re.IGNORECASE,
+)
+
+
 def validate_compile_claims(claims: tuple[WikiClaim, ...]) -> bool:
-    """Return True when parsed claims are sufficient for compile output."""
+    """Return True when parsed claims are sufficient and meet entropy/quality thresholds."""
     if not claims:
         return False
-    return all(not (not claim.id.strip() or not claim.text.strip()) for claim in claims)
+    valid_count = 0
+    for claim in claims:
+        text = claim.text.strip()
+        cid = claim.id.strip()
+        if not cid or not text or len(text) < 6:
+            continue
+        # Filter out vacuous/low-entropy headings
+        if _LOW_INFORMATION_PATTERNS.match(text):
+            continue
+        valid_count += 1
+    return valid_count > 0
 
 
 def _claim_slug(concept_name: str) -> str:
@@ -643,6 +659,115 @@ def lookup_raw_supersede_uri(structure: WikiStructure | None, source_ref: str) -
     if not previous_sha256:
         return ""
     return format_resource_uri(key, previous_sha256)
+
+
+def heal_claim_evidence_snapshot(
+    concept_name: str,
+    structure: WikiStructure,
+) -> tuple[bool, int]:
+    """Auto-heal shifted line ranges and update content_sha256 for a concept's claims.
+
+    When the referenced raw source file is modified externally, the line numbers
+    may drift. This function attempts to fuzzy-locate the original claim text / note
+    in the raw file, recalculates the line range, updates content_sha256 to the current
+    file hash, and persists the healed claims back to concept frontmatter.
+
+    Returns:
+        (healed, count): Whether any claim evidence was updated, and the number of healed items.
+    """
+    article_path = structure.get_concept_path(concept_name)
+    if not article_path.is_file():
+        return False, 0
+
+    try:
+        content = article_path.read_text(encoding="utf-8")
+    except OSError:
+        return False, 0
+
+    claims = parse_claims_from_content(content)
+    if not claims:
+        return False, 0
+
+    now_iso = _utc_now_iso()
+    healed_count = 0
+    updated_claims: list[WikiClaim] = []
+
+    for claim in claims:
+        new_evidence: list[WikiEvidence] = []
+        claim_changed = False
+        for ev in claim.evidence:
+            if not ev.path.strip():
+                new_evidence.append(ev)
+                continue
+
+            raw = _load_raw_bytes(ev.path, structure)
+            if not raw:
+                new_evidence.append(ev)
+                continue
+
+            current_digest = _digest_raw_bytes(raw)
+            if ev.content_sha256 and ev.content_sha256 == current_digest:
+                # Already up to date
+                new_evidence.append(ev)
+                continue
+
+            # Need healing: raw file digest changed
+            raw_text = _decode_raw_text(raw)
+            file_lines = raw_text.splitlines()
+            old_start, old_end = _parse_evidence_line_range(ev.lines)
+            healed_lines = ev.lines
+
+            # Search target: use claim.text or ev.note
+            search_needle = claim.text.strip()
+            if len(search_needle) > 40:
+                search_needle = search_needle[:40]
+
+            if search_needle and file_lines:
+                # Attempt to find best matching line in file
+                best_line_idx: int | None = None
+                for idx, line in enumerate(file_lines):
+                    if search_needle in line:
+                        best_line_idx = idx
+                        break
+
+                if best_line_idx is not None:
+                    span = 1
+                    if old_start is not None and old_end is not None:
+                        span = max(1, old_end - old_start + 1)
+                    new_start = best_line_idx + 1
+                    new_end = min(len(file_lines), new_start + span - 1)
+                    healed_lines = f"{new_start}-{new_end}" if new_end > new_start else str(new_start)
+
+            healed_ev = replace(
+                ev,
+                lines=healed_lines,
+                content_sha256=current_digest,
+                updated_at=now_iso,
+            )
+            new_evidence.append(healed_ev)
+            healed_count += 1
+            claim_changed = True
+
+        if claim_changed:
+            updated_claims.append(
+                replace(
+                    claim,
+                    evidence=tuple(new_evidence),
+                    updated_at=now_iso,
+                )
+            )
+        else:
+            updated_claims.append(claim)
+
+    if healed_count > 0:
+        new_content = merge_claims_into_content(content, tuple(updated_claims))
+        try:
+            article_path.write_text(new_content, encoding="utf-8")
+            return True, healed_count
+        except OSError:
+            return False, 0
+
+    return False, 0
 
 
 def build_evidence_resource_uri(

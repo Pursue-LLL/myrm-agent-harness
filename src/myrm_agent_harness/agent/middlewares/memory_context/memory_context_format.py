@@ -288,8 +288,21 @@ def _format_memory_context(
             kb_name = sanitize(str(s.get("kb_name", "Knowledge Base")))
             title = sanitize(str(s.get("article_title", "General")))
             snip_text = sanitize(str(s.get("snippet", "")))
+            claim_text = sanitize(str(s.get("claim_text", "")).strip())
+            claim_status = str(s.get("claim_status", "")).strip().lower()
+
+            # Prepend verified claims to give high-certainty facts prominent placement
+            if claim_text and claim_status in ("verified", "supported"):
+                prefix = f"[{kb_name} | {title} | Verified: {claim_text}]"
+            elif claim_text:
+                prefix = f"[{kb_name} | {title} | Claim: {claim_text}]"
+            else:
+                prefix = f"[{kb_name} | {title}]"
+
             if snip_text:
-                snippet_items.append(f"[{kb_name} | {title}] {snip_text}")
+                snippet_items.append(f"{prefix} {snip_text}")
+            elif claim_text:
+                snippet_items.append(prefix)
         if snippet_items:
             untrusted_sections.append(
                 BudgetedSection("Active Knowledge Pack Snippets (authoritative context)", snippet_items, priority=4)

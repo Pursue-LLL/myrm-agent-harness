@@ -68,6 +68,7 @@ so navigate() can call _initialize_components and restart().
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from types import MappingProxyType
 from typing import TYPE_CHECKING
@@ -279,6 +280,12 @@ class BrowserSession(
         self._consent_dismisser = ConsentDismisser(enabled=auto_dismiss_consent)
         self._view_emit_last_monotonic = 0.0
 
+        # User takeover control: event is set (unblocked) by default.
+        # When user initiates takeover via UI, event is cleared (hard pause).
+        self._user_takeover_event: asyncio.Event = asyncio.Event()
+        self._user_takeover_event.set()
+        self._user_takeover_active: bool = False
+
     async def snapshot(
         self,
         scope: str = "content",
@@ -358,8 +365,41 @@ class BrowserSession(
         """
         return self._session_hash_cache.get(domain)
 
+    @property
+    def user_takeover_active(self) -> bool:
+        """Whether human user has actively taken over the browser session."""
+        return self._user_takeover_active
+
+    async def pause_for_takeover(self) -> None:
+        """Pause agent browser interactions due to user-initiated takeover."""
+        self._user_takeover_active = True
+        self._user_takeover_event.clear()
+        logger.info("BrowserSession paused: user takeover activated")
+
+    async def resume_from_takeover(self) -> None:
+        """Resume agent browser interactions after user finishes takeover, triggering fresh snapshot."""
+        self._user_takeover_active = False
+        self._user_takeover_event.set()
+        logger.info("BrowserSession resumed: user takeover finished, refreshing snapshot")
+        try:
+            await self.snapshot(force=True)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to refresh snapshot after takeover resume: %s", exc)
+
+    async def _ensure_not_user_takeover(self, timeout: float = 600.0) -> None:
+        """Ensure session is not paused by user takeover before performing any mutation actions."""
+        if not self._user_takeover_event.is_set():
+            logger.info("Action waiting: BrowserSession is paused by user takeover (timeout=%.1fs)", timeout)
+            try:
+                await asyncio.wait_for(self._user_takeover_event.wait(), timeout=timeout)
+            except asyncio.TimeoutError:
+                logger.warning("User takeover wait timed out (%.1fs); automatically unblocking session", timeout)
+                self._user_takeover_active = False
+                self._user_takeover_event.set()
+
     async def interact(self, action: str, ref: str, text: str = "", verify_goal: str | None = None) -> str:
         """Ref-based element interaction (15 action types) with optional visual verification."""
+        await self._ensure_not_user_takeover()
         await self._ensure_components()
         interactor = self._require_interactor()
         page = self._tab_controller.get_active_page()
@@ -428,6 +468,7 @@ class BrowserSession(
         Bypasses ref resolution — operates directly at viewport (x, y).
         Supports optional visual verification identical to ref-based interact().
         """
+        await self._ensure_not_user_takeover()
         await self._ensure_components()
         interactor = self._require_interactor()
         page = self._tab_controller.get_active_page()
