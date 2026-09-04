@@ -102,6 +102,38 @@ class TestDomainSkillStore:
         skills = store.list_skills()
         ids = [s.id for s in skills]
         assert "x-com" in ids
+        assert "bilibili" in ids
+        assert "xiaohongshu" in ids
+        assert "douyin" in ids
+
+    def test_match_cn_social_domains(self) -> None:
+        store = DomainSkillStore(load_builtin=True, user_dir="/nonexistent")
+        bili_matches = store.match("https://www.bilibili.com/video/BV1xx411c7mD")
+        assert len(bili_matches) == 1
+        assert bili_matches[0].id == "bilibili"
+        assert "get_feed_videos" in bili_matches[0].python_tools
+
+        xhs_matches = store.match("https://www.xiaohongshu.com/explore/66a123")
+        assert len(xhs_matches) == 1
+        assert xhs_matches[0].id == "xiaohongshu"
+        assert "get_explore_notes" in xhs_matches[0].python_tools
+
+        douyin_matches = store.match("https://www.douyin.com/user/MS4wLj")
+        assert len(douyin_matches) == 1
+        assert douyin_matches[0].id == "douyin"
+        assert "get_user_videos" in douyin_matches[0].python_tools
+
+    def test_cn_social_tool_script_paths_resolve(self) -> None:
+        store = DomainSkillStore(load_builtin=True, user_dir="/nonexistent")
+        for skill_id, tool_name in (
+            ("bilibili", "get_feed_videos"),
+            ("xiaohongshu", "get_explore_notes"),
+            ("douyin", "get_user_videos"),
+        ):
+            path = store.get_tool_script_path(skill_id, tool_name)
+            assert path is not None
+            assert path.exists()
+            assert path.is_file()
 
     def test_match_x_com_url(self) -> None:
         store = DomainSkillStore(load_builtin=True, user_dir="/nonexistent")
