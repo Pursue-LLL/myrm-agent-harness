@@ -7,4 +7,4 @@ metrics from Bilibili via the browser session sandbox.
 
 | File | Role | Description | I/O/P |
 | --- | --- | --- | --- |
-| `get_video_list.py` | Core | Extract videos from Bilibili feeds or user space pages via browser session. | ✅ |
+| `get_feed_videos.py` | Core | Extract videos from Bilibili feeds or user space pages via browser session. | ✅ |

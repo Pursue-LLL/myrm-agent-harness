@@ -7,4 +7,4 @@ data from Douyin via the browser session sandbox.
 
 | File | Role | Description | I/O/P |
 | --- | --- | --- | --- |
-| `get_hot_videos.py` | Core | Extract hot videos from Douyin feeds or hotlist pages via browser session. | ✅ |
+| `get_user_videos.py` | Core | Extract hot videos from Douyin feeds or hotlist pages via browser session. | ✅ |

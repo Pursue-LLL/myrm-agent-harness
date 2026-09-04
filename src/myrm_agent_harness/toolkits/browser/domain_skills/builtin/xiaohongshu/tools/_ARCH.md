@@ -7,4 +7,4 @@ from Xiaohongshu (RED) via the browser session sandbox.
 
 | File | Role | Description | I/O/P |
 | --- | --- | --- | --- |
-| `get_feed_notes.py` | Core | Extract notes from Xiaohongshu explore feeds or search results via browser session. | ✅ |
+| `get_explore_notes.py` | Core | Extract notes from Xiaohongshu explore feeds or search results via browser session. | ✅ |
