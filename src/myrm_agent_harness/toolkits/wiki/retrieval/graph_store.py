@@ -55,8 +55,19 @@ class WikiGraphStore:
             for idx in range(min(len(self._structure.public_dirs), 6)):
                 alias = f"pub_{idx}"
                 if alias in attached_dbs:
-                    fts_tables.append(f"{alias}.wiki_fts")
-                    edges_tables.append(f"{alias}.wiki_edges")
+                    try:
+                        has_fts = conn.execute(
+                            f"SELECT 1 FROM {alias}.sqlite_master WHERE type IN ('table', 'view') AND name = 'wiki_fts'"
+                        ).fetchone()
+                        has_edges = conn.execute(
+                            f"SELECT 1 FROM {alias}.sqlite_master WHERE type IN ('table', 'view') AND name = 'wiki_edges'"
+                        ).fetchone()
+                        if has_fts:
+                            fts_tables.append(f"{alias}.wiki_fts")
+                        if has_edges:
+                            edges_tables.append(f"{alias}.wiki_edges")
+                    except (sqlite3.OperationalError, sqlite3.DatabaseError):
+                        continue
 
             fts_union = " UNION ALL ".join(f"SELECT concept_name FROM {t}" for t in fts_tables)
             edges_union = " UNION ALL ".join(f"SELECT source, target, weight FROM {t}" for t in edges_tables)

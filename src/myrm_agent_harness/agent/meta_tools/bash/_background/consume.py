@@ -84,7 +84,7 @@ async def consume_background_entry(
         try_parse_progress_line,
     )
 
-    async def _emit_progress(progress: dict[str, object]) -> None:
+    async def _emit_progress(progress: dict[str, object], *, force: bool = False) -> None:
         now = time.time()
         entry.info.last_progress = {**progress, "updated_at": now}
         listener = entry.progress_listener
@@ -95,7 +95,7 @@ async def consume_background_entry(
         # bypass the interval check so final state and milestones arrive with zero latency.
         is_terminal_progress = progress.get("progress") == 100
         has_checkpoint_category = bool(progress.get("category"))
-        if not (is_terminal_progress or has_checkpoint_category):
+        if not (force or is_terminal_progress or has_checkpoint_category):
             if (now - entry.last_progress_emit_at) < _PROGRESS_EMIT_INTERVAL_S:
                 return
 
@@ -179,6 +179,12 @@ async def consume_background_entry(
     except Exception as exc:  # pragma: no cover — defensive
         logger.warning("background reader for pid=%s crashed: %s", entry.info.pid, exc)
     finally:
+        # Trailing flush: deliver un-emitted tail progress trapped by the 10Hz throttle before finish.
+        tail_progress = entry.info.last_progress
+        if tail_progress is not None and entry.last_progress_emit_at < float(tail_progress.get("updated_at") or 0.0):
+            with suppress(Exception):
+                await _emit_progress(tail_progress, force=True)
+
         listener = entry.finish_listener
         if listener is not None:
             try:

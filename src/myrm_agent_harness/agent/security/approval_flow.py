@@ -1,6 +1,7 @@
 """Persistent allowlist for allow-always tool approval decisions.
 
 [INPUT]
+- agent.security.command_allowlist_pattern::matches_command_pattern (POS: command allowlist wildcard/exact matcher)
 
 [OUTPUT]
 - DEFAULT_USER_ID: Framework-level sentinel user ID for single-user environments
@@ -11,14 +12,6 @@
 [POS]
 Core component for "Always Allow" feature in Human-in-the-Loop approval system.
 Works with middlewares/approval/ subsystem which uses LangGraph interrupt() for approval flow.
-
-Allow-always decisions use database persistence (DBAllowlistStore):
-- User clicks "Always Allow" → saved to user_tool_allowlist table
-- On restart → middleware lazy-loads rules via allowlist.load_user()
-- Rules survive backend restarts
-- TTL refresh (default 5min) ensures multi-instance cache consistency when ttl_seconds > 0
-- ttl_seconds <= 0 disables time-based expiry and opportunistic TTL cleanup
-- Automatic cleanup prevents memory leaks when TTL is enabled (expired locks removed opportunistically)
 """
 
 from __future__ import annotations
@@ -298,12 +291,13 @@ class Allowlist:
         if self._store:
             await self._store.save(user_id, entry)
         logger.info(
-            "[ALLOWLIST] Added (%s, tool=%s, args_hash=%s, pattern=%s, agent=%s) for user %s",
+            "[ALLOWLIST] Added (%s, tool=%s, args_hash=%s, pattern=%s, agent=%s, expires_at=%s) for user %s",
             entry.permission,
             entry.tool_name,
             entry.tool_args_hash,
             entry.command_pattern,
             entry.agent_id,
+            entry.expires_at,
             user_id,
         )
 

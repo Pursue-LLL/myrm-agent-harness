@@ -4,12 +4,12 @@ Provides persistent vector storage and retrieval based on Qdrant.
 For ephemeral in-memory retrieval, use ``vector_search.NumpyVectorRetriever``.
 
 [INPUT]
-myrm_agent_harness.toolkits.vector.base (POS: vector store abstraction layer)
-myrm_agent_harness.toolkits.retriever.embedding (POS: embedding service)
+- myrm_agent_harness.toolkits.vector.base (POS: vector store abstraction layer)
+- myrm_agent_harness.toolkits.retriever.embedding (POS: embedding service)
 
 [OUTPUT]
-QdrantRetriever: Persistent vector retriever with single/batch query support
-RetrievalResult: Search result dataclass
+- QdrantRetriever: Persistent vector retriever with single/batch query support
+- RetrievalResult: Search result dataclass
 
 [POS]
 Qdrant persistent vector retriever. Wraps vector store search capability, providing automatic text-to-vector conversion.

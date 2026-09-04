@@ -75,7 +75,7 @@ async def test_federated_query_engine_loads_public_article(
     pub_struct = WikiStructure(pub_dir)
     pub_struct.ensure_structure()
 
-    cfg = WikiConfig(enable_hybrid_search=False)
+    cfg = WikiConfig(enable_hybrid_search=False, enable_semantic_search=True)
 
     # Create content on disk in public vault
     pub_concept_path = pub_dir / "wiki" / "concepts" / "architecture_guideline.md"
@@ -88,16 +88,28 @@ async def test_federated_query_engine_loads_public_article(
     pub_indexer = WikiIndexer(pub_struct, cfg)
     await pub_indexer.upsert("architecture_guideline", pub_concept_path.read_text(encoding="utf-8"))
 
-    # Instantiate indexer for primary struct so tables are created
     primary_indexer = WikiIndexer(primary_struct, cfg)
+
+    hits = await primary_indexer.search("event-driven messaging")
+    assert len(hits) >= 1
+    assert "architecture_guideline" in [name for name, _ in hits]
 
     engine = WikiQueryEngine(
         llm=mock_chat_llm,
         structure=primary_struct,
         config=cfg,
+        indexer=primary_indexer,
     )
-    engine._indexer = primary_indexer
-
-    res = await engine.query("event-driven messaging")
+    import traceback
+    try:
+        sr = await engine._search_concepts("event-driven messaging", None)
+        print("DEBUG_SR:", sr)
+        seeds = await engine._collect_retrieval_seeds("event-driven messaging", primary_struct.list_concepts(), index_matches=[], seed_names=[], top_n=5, query_config=engine._query_config)
+        print("DEBUG_SEEDS:", seeds)
+        res = await engine.query("event-driven messaging")
+    except Exception as e:
+        traceback.print_exc()
+        raise e
+    print("DEBUG_RES:", res)
     assert res.confidence_score > 0
     assert any("architecture_guideline" in str(s.article_path) for s in res.source_snippets)

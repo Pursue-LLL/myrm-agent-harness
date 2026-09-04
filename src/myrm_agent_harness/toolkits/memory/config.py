@@ -414,6 +414,9 @@ class MemoryConfig:
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     bm25_top_k: int = 50
     bm25_max_corpus_size: int = 5000
+    bm25_max_query_terms: int = 15
+    """Maximum query tokens evaluated during BM25 search. Queries exceeding this
+    budget trigger IDF-aware selective pruning to prevent fan-out calculation explosion."""
     dedup: DeduplicationParams = field(default_factory=DeduplicationParams)
     max_learned_context_chars: int = 2000
     max_corrections: int = 10

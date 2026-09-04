@@ -3,12 +3,14 @@
 Keyword-matching retrieval based on the BM25 algorithm with smart CJK/English hybrid tokenization.
 
 [INPUT]
-rank_bm25::BM25Okapi (POS: BM25 scoring algorithm)
-retriever.bm25::get_tokenizer_service (POS: Unified tokenization service for CJK/English)
+- rank_bm25::BM25Okapi (POS: BM25 scoring algorithm)
+- retriever.bm25::get_tokenizer_service (POS: Unified tokenization service for CJK/English)
+- retriever.bm25::select_selective_bm25_tokens (POS: IDF-aware query term selection)
 
 [OUTPUT]
-extract_version_tokens: Generates hierarchical version-number tokens for version-aware search
-BM25Retrieval: Stateful BM25 index that supports build / query / incremental add / remove
+- extract_version_tokens: Generates hierarchical version-number tokens for version-aware search
+- BM25Retriever: Stateful BM25 index that supports build / query / incremental add / remove
+- bm25_retrieval: Standalone one-shot BM25 search function
 
 [POS]
 BM25 sparse retrieval engine. Builds an in-memory inverted index from document chunks and
@@ -23,7 +25,10 @@ import warnings
 
 from rank_bm25 import BM25Okapi
 
-from myrm_agent_harness.toolkits.retriever.bm25 import get_tokenizer_service
+from myrm_agent_harness.toolkits.retriever.bm25 import (
+    get_tokenizer_service,
+    select_selective_bm25_tokens,
+)
 
 # Suppress jieba pkg_resources deprecation warning
 warnings.filterwarnings("ignore", message="pkg_resources is deprecated as an API.*", category=UserWarning)
@@ -345,13 +350,21 @@ class BM25Retriever:
         else:
             self.bm25 = BM25Okapi(self.valid_processed_docs)
 
-    def search(self, query: str, top_k: int = 20, only_relevant: bool = False) -> list[tuple[int, float]]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 20,
+        only_relevant: bool = False,
+        *,
+        max_query_terms: int = 16,
+    ) -> list[tuple[int, float]]:
         """Search for relevant documents using BM25.
 
         Args:
             query: Query string
             top_k: Number of top results to return
             only_relevant: Only return relevant documents (score > 0), default False
+            max_query_terms: Max query tokens to evaluate (triggers IDF selection when exceeded)
 
         Returns:
             List of (document_index, BM25_score) sorted by score descending
@@ -365,6 +378,17 @@ class BM25Retriever:
         # Preprocess query with the same tokenization path used for documents
         preprocess_start_time = time.perf_counter()
         processed_query = preprocess_text(query)
+
+        # Apply IDF-aware query term selection for long queries
+        if len(processed_query) > max_query_terms and self.bm25 is not None:
+            processed_query = select_selective_bm25_tokens(
+                processed_query,
+                getattr(self.bm25, "idf", None),
+                doc_count=len(self.valid_processed_docs),
+                max_terms=max_query_terms,
+                min_corpus_docs=min_corpus_docs,
+            )
+
         preprocess_time = time.perf_counter() - preprocess_start_time
 
         if not processed_query:
@@ -413,7 +437,12 @@ class BM25Retriever:
 
 
 def bm25_retrieval(
-    documents: list[str], query: str, top_k: int = 20, only_relevant: bool = False
+    documents: list[str],
+    query: str,
+    top_k: int = 20,
+    only_relevant: bool = False,
+    *,
+    max_query_terms: int = 16,
 ) -> list[tuple[int, float]]:
     """Perform BM25 retrieval over a document set (one-shot interface for single-query scenarios).
 
@@ -424,8 +453,11 @@ def bm25_retrieval(
         query: Query string
         top_k: Number of top results to return
         only_relevant: Only return relevant documents (score > 0), default False
+        max_query_terms: Max query tokens to evaluate (triggers IDF selection when exceeded)
 
     Returns:
         List of (document_index, BM25_score) sorted by score descending
     """
-    return BM25Retriever(documents).search(query, top_k, only_relevant=only_relevant)
+    return BM25Retriever(documents).search(
+        query, top_k=top_k, only_relevant=only_relevant, max_query_terms=max_query_terms
+    )

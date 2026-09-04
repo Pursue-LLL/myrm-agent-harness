@@ -1,14 +1,14 @@
 """Wiki configuration for LLM-Wiki Knowledge Base.
 
 [INPUT]
-dataclasses::dataclass, field (POS: standard library dataclass definition)
-typing::Literal (POS: standard library type hints)
+- dataclasses::dataclass, field (POS: standard library dataclass definition)
+- typing::Literal (POS: standard library type hints)
 
 [OUTPUT]
-WikiConfig: Wiki overall configuration class
-WikiCompileConfig: compilation strategy configuration class
-WikiQueryConfig: query strategy configuration class
-WikiQueryMode: query retrieval mode literal (auto | raw_claim)
+- WikiConfig: Wiki overall configuration class
+- WikiCompileConfig: compilation strategy configuration class
+- WikiQueryConfig: query strategy configuration class
+- WikiQueryMode: query retrieval mode literal (auto | raw_claim)
 
 [POS]
 Wiki configuration center. Defines Wiki behavior configuration (compilation strategy, parallel

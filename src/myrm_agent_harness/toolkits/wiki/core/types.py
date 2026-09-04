@@ -1,20 +1,20 @@
 """Type definitions for Wiki toolkit.
 
 [INPUT]
-dataclasses::dataclass, field (POS: standard library dataclass definition)
-datetime::datetime, UTC (POS: standard library datetime handling)
-pathlib::Path (POS: standard library file path operations)
+- dataclasses::dataclass, field (POS: standard library dataclass definition)
+- datetime::datetime, UTC (POS: standard library datetime handling)
+- pathlib::Path (POS: standard library file path operations)
 
 [OUTPUT]
-ConceptInfo: concept information dataclass
-WikiArticle: Wiki article dataclass
-CompileResult: compilation result dataclass
-SourceSnippet: chunk-level snippet for citation linking
-QueryResult: query result dataclass
-WikiRetrievalTrace, WikiRetrievalSeedTrace, WikiIndexTraceHit: structured retrieval trace metadata
-LintIssue: lint issue dataclass
-LintResult: lint result dataclass
-WikiMetadata: Wiki metadata class
+- ConceptInfo: concept information dataclass
+- WikiArticle: Wiki article dataclass
+- CompileResult: compilation result dataclass
+- SourceSnippet: chunk-level snippet for citation linking
+- QueryResult: query result dataclass
+- WikiRetrievalTrace, WikiRetrievalSeedTrace, WikiIndexTraceHit: structured retrieval trace metadata
+- LintIssue: lint issue dataclass
+- LintResult: lint result dataclass
+- WikiMetadata: Wiki metadata class
 
 [POS]
 Wiki toolkit type definition center. Defines all core data models (concepts, articles,

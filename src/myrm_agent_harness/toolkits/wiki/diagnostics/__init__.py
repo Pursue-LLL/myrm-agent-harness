@@ -1,7 +1,14 @@
 """Wiki diagnostics — deterministic quality measurement.
 
+[INPUT]
+- .recall_benchmark::run_wiki_recall_benchmark (POS: offline retrieval benchmark)
+- .structural_lint::collect_structural_lint_snapshot (POS: zero-LLM structural lint)
+
+[OUTPUT]
+- BENCHMARK_SCHEMA_VERSION, StructuralLintSnapshot, run_wiki_recall_benchmark, collect_structural_lint_snapshot
+
 [POS]
-See module docstring.
+Wiki diagnostics entry point. Re-exports deterministic linting and recall benchmark tooling.
 """
 
 from myrm_agent_harness.toolkits.wiki.diagnostics.recall_benchmark import (

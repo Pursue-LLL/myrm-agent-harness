@@ -1,32 +1,55 @@
-"""MemoryManager mixin module (internal). Do not import directly."""
+"""MemoryManager deletion and cascade eviction mixin module.
+
+[INPUT]
+- memory._manager.archival::MemoryManagerArchivalMixin (POS: memory lifecycle archiver)
+- memory._manager.queries::MemoryManagerQueriesMixin (POS: metadata and session query mixin)
+- memory._internal.graph_cascade::cascade_clean_derived_graph_nodes (POS: cascade clean claim graph)
+
+[OUTPUT]
+- MemoryManagerDeletionMixin: ownership-gated delete by id/metadata/type with cascade clean
+
+[POS]
+Memory deletion mixin — owns vector/relational deletion, graph cascade, and embedding cache eviction.
+"""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+import asyncio
+from typing import Any
 
-from myrm_agent_harness.toolkits.memory._manager.helpers import _memory_ref
+from myrm_agent_harness.toolkits.memory._internal.graph_cascade import (
+    cascade_clean_derived_graph_nodes,
+)
+from myrm_agent_harness.toolkits.memory._manager.archival import MemoryManagerArchivalMixin
+from myrm_agent_harness.toolkits.memory._manager.queries import MemoryManagerQueriesMixin
 from myrm_agent_harness.toolkits.memory._manager.shared import (
-    EpisodicMemory,
     FilterDict,
     MemoryError,
     MemoryMutationRef,
     MemoryMutationResult,
-    MemoryNotFoundError,
     MemoryType,
-    SemanticMemory,
     Sequence,
     VectorDocument,
     delete_from_vector,
-    doc_to_episodic,
-    doc_to_semantic,
     logger,
 )
-from myrm_agent_harness.toolkits.memory._internal.graph_cascade import (
-    cascade_clean_derived_graph_nodes,
-)
 
 
-class MemoryManagerDeletionMixin:
+class MemoryManagerDeletionMixin(MemoryManagerArchivalMixin, MemoryManagerQueriesMixin):
+    """Provides pure deletion and cascade eviction operations for MemoryManager."""
+
+    # Dynamic mixin attributes satisfied by MemoryManagerCore / StorageMixin
+    _graph: Any
+    _vector: Any
+    _relational: Any
+    _cache: Any
+    _config: Any
+    _namespaces: Any
+    _user_id: Any
+    _active_session: Any
+    _preference_strategy: Any
+    _rel: Any
+
     # ── Graph cascade ──
 
     async def _cascade_clean_derived_graph_nodes(self, memory_id: str) -> None:
@@ -310,148 +333,6 @@ class MemoryManagerDeletionMixin:
                     for t in evict_texts:
                         await self._cache.evict(t)
 
-    async def list_memory_ids_by_metadata(
-        self,
-        metadata_key: str,
-        metadata_value: str,
-        *,
-        memory_types: Sequence[MemoryType] | None = None,
-    ) -> dict[str, list[str]]:
-        """List owned memory ids whose flat metadata contains an exact key/value pair."""
-
-        selected_types = tuple(
-            memory_types
-            or (
-                MemoryType.SEMANTIC,
-                MemoryType.EPISODIC,
-                MemoryType.CONVERSATION,
-                MemoryType.PROCEDURAL,
-            )
-        )
-        matches: dict[str, list[str]] = {}
-        vector_collections: dict[MemoryType, str] = {
-            MemoryType.SEMANTIC: self._config.semantic_collection,
-            MemoryType.EPISODIC: self._config.episodic_collection,
-            MemoryType.CONVERSATION: self._config.conversation_collection,
-        }
-
-        if self._vector is not None:
-            filters = {metadata_key: metadata_value}
-            for memory_type, collection in vector_collections.items():
-                if memory_type not in selected_types:
-                    continue
-                matches[memory_type.value] = [
-                    doc_id for doc_id, owned in await self._collect_vector_ids(collection, filters) if owned
-                ]
-
-        if MemoryType.PROCEDURAL in selected_types and self._relational is not None:
-            rule_ids: list[str] = []
-            offset = 0
-            while True:
-                rules = await self._relational.list_rules(
-                    active_only=False,
-                    limit=500,
-                    offset=offset,
-                    namespaces=self._namespaces,
-                )
-                if not rules:
-                    break
-                rule_ids.extend(rule.id for rule in rules if rule.metadata.get(metadata_key) == metadata_value)
-                offset += len(rules)
-            matches[MemoryType.PROCEDURAL.value] = rule_ids
-
-        return matches
-
-    async def list_memory_refs_by_metadata(
-        self,
-        metadata_key: str,
-        metadata_value: str,
-        *,
-        memory_types: Sequence[MemoryType] | None = None,
-    ) -> dict[str, list[dict[str, str]]]:
-        """List owned memory refs and flat metadata markers for an exact metadata key/value pair."""
-
-        selected_types = tuple(
-            memory_types
-            or (
-                MemoryType.SEMANTIC,
-                MemoryType.EPISODIC,
-                MemoryType.CONVERSATION,
-                MemoryType.PROCEDURAL,
-            )
-        )
-        refs: dict[str, list[dict[str, str]]] = {}
-        vector_collections: dict[MemoryType, str] = {
-            MemoryType.SEMANTIC: self._config.semantic_collection,
-            MemoryType.EPISODIC: self._config.episodic_collection,
-            MemoryType.CONVERSATION: self._config.conversation_collection,
-        }
-
-        if self._vector is not None:
-            filters = {metadata_key: metadata_value}
-            for memory_type, collection in vector_collections.items():
-                if memory_type not in selected_types:
-                    continue
-                refs[memory_type.value] = [
-                    _memory_ref(doc.id, doc.metadata)
-                    for doc in await self._collect_vector_docs(collection, filters)
-                    if self._owns_vector_doc(doc)
-                ]
-
-        if MemoryType.PROCEDURAL in selected_types and self._relational is not None:
-            rule_refs: list[dict[str, str]] = []
-            offset = 0
-            while True:
-                rules = await self._relational.list_rules(
-                    active_only=False,
-                    limit=500,
-                    offset=offset,
-                    namespaces=self._namespaces,
-                )
-                if not rules:
-                    break
-                rule_refs.extend(
-                    _memory_ref(rule.id, rule.metadata)
-                    for rule in rules
-                    if rule.metadata.get(metadata_key) == metadata_value
-                )
-                offset += len(rules)
-            refs[MemoryType.PROCEDURAL.value] = rule_refs
-
-        return refs
-
-    async def purge_by_source_chat_id(self, chat_id: str) -> dict[str, int]:
-        """Cascade-delete all memories derived from a specific chat session.
-
-        Deletes Semantic, Episodic, Conversation, and Procedural memories with
-        matching source_chat_id metadata, plus any PendingRecords linked to this chat.
-        Gracefully handles missing vector collections (returns 0 for those types).
-        """
-        try:
-            counts = await self.delete_memories_by_metadata("source_chat_id", chat_id)
-        except Exception as e:
-            logger.warning("Vector cascade deletion skipped (chat=%s): %s", chat_id, e)
-            counts = {}
-        if self._relational is not None:
-            pending_deleted = await self._relational.delete_pending_by_source_chat_id(chat_id)
-            if pending_deleted:
-                counts["pending"] = pending_deleted
-        return counts
-
-    async def count_by_source_chat_id(self, chat_id: str) -> dict[str, int]:
-        """Count memories linked to a chat session (for UI preview before deletion)."""
-        try:
-            id_map = await self.list_memory_ids_by_metadata("source_chat_id", chat_id)
-            result = {k: len(v) for k, v in id_map.items() if v}
-        except Exception as e:
-            logger.warning("Vector cascade count skipped (chat=%s): %s", chat_id, e)
-            result = {}
-        if self._relational is not None:
-            pending_count = await self._relational.count_pending_by_source_chat_id(chat_id)
-            if pending_count:
-                result["pending"] = pending_count
-        return result
-
     async def delete_all(self) -> dict[str, int]:
         uid, counts = self._user_id, {}
         if self._relational:
@@ -518,88 +399,6 @@ class MemoryManagerDeletionMixin:
             return bool(namespaces.intersection(self._namespaces))
         return True
 
-    async def unarchive_memory(self, memory_id: str) -> SemanticMemory | EpisodicMemory:
-        """Restore an archived memory to active status."""
-        if self._vector is None:
-            raise MemoryError("Vector backend is required but not provided")
-
-        for coll, converter in (
-            (self._config.semantic_collection, doc_to_semantic),
-            (self._config.episodic_collection, doc_to_episodic),
-        ):
-            docs = await self._vector.get(coll, [memory_id])
-            if not docs:
-                continue
-            doc = docs[0]
-            if not self._owns_vector_doc(doc):
-                raise MemoryNotFoundError(f"Memory {memory_id} not found")
-            is_archived = doc.metadata.get("status") == "archived" or doc.metadata.get("archived")
-            if not is_archived:
-                raise MemoryError(f"Memory {memory_id} is not archived")
-            doc.metadata["status"] = "active"
-            doc.metadata["archived"] = False
-            doc.metadata.pop("archived_at", None)
-            doc.metadata.pop("archive_reason", None)
-            await self._vector.upsert(coll, [doc])
-            return converter(doc)
-
-        raise MemoryNotFoundError(f"Memory {memory_id} not found")
-
-    async def purge_expired_archived_memories(self, *, ttl_days: int = 7) -> int:
-        """Permanently purge soft-deleted memories whose archive retention has expired.
-
-        Scans semantic and episodic collections for documents marked with
-        ``status="archived"`` or ``archived=True``, checks their
-        ``archive_expires_at`` (or ``archived_at`` + ttl_days), and physically
-        deletes expired ones with full graph cascade.
-        """
-        if self._vector is None:
-            return 0
-
-        now_iso = datetime.now(UTC).isoformat()
-        now_dt = datetime.now(UTC)
-        purged_total = 0
-        vector_collections = (self._config.semantic_collection, self._config.episodic_collection)
-
-        for coll in vector_collections:
-            try:
-                docs, _ = await self._vector.scroll(
-                    coll,
-                    filters={"archived": True},
-                    limit=500,
-                )
-            except Exception as exc:
-                logger.warning("purge_expired_archived_memories: failed to scroll %s: %s", coll, exc)
-                continue
-
-            expired_ids: list[str] = []
-            for doc in docs:
-                expires_at = doc.metadata.get("archive_expires_at")
-                archived_at = doc.metadata.get("archived_at")
-
-                is_expired = False
-                if isinstance(expires_at, str) and expires_at <= now_iso:
-                    is_expired = True
-                elif not expires_at and isinstance(archived_at, str):
-                    try:
-                        arch_dt = datetime.fromisoformat(archived_at)
-                        if now_dt - arch_dt >= timedelta(days=ttl_days):
-                            is_expired = True
-                    except ValueError:
-                        pass
-
-                if is_expired:
-                    expired_ids.append(doc.id)
-
-            if expired_ids:
-                deleted = await self.delete_memory(coll, expired_ids)
-                purged_total += deleted
-
-        if purged_total > 0:
-            logger.info("purge_expired_archived_memories: permanently purged %d expired memories", purged_total)
-
-        return purged_total
-
     async def close(self) -> None:
         if self._active_session is not None:
             try:
@@ -616,3 +415,6 @@ class MemoryManagerDeletionMixin:
             await self._graph.close()
         if self._preference_strategy is not None:
             await self._preference_strategy.close()
+
+
+__all__ = ["MemoryManagerDeletionMixin"]

@@ -3,10 +3,10 @@
 Provides multi-query result fusion algorithms (RRF, etc.).
 
 [INPUT]
-(no external module dependencies)
+- (no external module dependencies)
 
 [OUTPUT]
-rrf_fusion: Reciprocal Rank Fusion algorithm for merging ranked result lists
+- rrf_fusion: Reciprocal Rank Fusion algorithm for merging ranked result lists
 
 [POS]
 Score-fusion utilities for hybrid retrieval. Merges multiple ranked lists into a single

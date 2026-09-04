@@ -1,11 +1,11 @@
 """Wiki file system structure management.
 
 [INPUT]
-pathlib::Path (POS: standard library file path operations)
-core.security.path_security::safe_join_path (POS: secure path resolution against traversal)
+- pathlib::Path (POS: standard library file path operations)
+- core.security.path_security::safe_join_path (POS: secure path resolution against traversal)
 
 [OUTPUT]
-WikiStructure: LLM-Wiki file system structure manager
+- WikiStructure: LLM-Wiki file system structure manager
 
 [POS]
 Wiki file system abstraction layer. Manages Karpathy architecture standard directory layout
@@ -108,11 +108,11 @@ class WikiStructure:
         if clean_path.endswith(".md"):
             clean_path = clean_path[:-3]
 
-        local_path = self.get_concept_file_path(clean_path)
-        if local_path.exists():
+        safe_path = self._sanitize_path(clean_path)
+        local_path = self.concepts_dir / f"{safe_path}.md"
+        if local_path.is_file():
             return local_path
 
-        safe_path = self._sanitize_path(clean_path)
         for p_dir in self.public_dirs[:6]:
             try:
                 public_path = p_dir / "wiki" / "concepts" / f"{safe_path}.md"

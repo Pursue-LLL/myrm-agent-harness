@@ -1,14 +1,13 @@
 """Deterministic wiki structural lint — SSOT for broken links and frontmatter gates.
 
 [INPUT]
-..core.structure::WikiStructure (POS: vault paths)
-..core.frontmatter_contract::validate_wiki_frontmatter (POS: type enum gate)
-..core.types::LintIssue (POS: shared lint issue model)
+- ..core.structure::WikiStructure (POS: vault paths)
+- ..core.frontmatter_contract::validate_wiki_frontmatter (POS: type enum gate)
+- ..core.types::LintIssue (POS: shared lint issue model)
 
 [OUTPUT]
-StructuralLintSnapshot: aggregate counts for product stats surfaces
-collect_broken_link_issues, collect_broken_wikilink_issues, collect_invalid_frontmatter_type_issues,
-collect_provenance_gap_issues, build_wikilink_title_index
+- StructuralLintSnapshot: aggregate counts for product stats surfaces
+- collect_broken_link_issues, collect_broken_wikilink_issues, collect_invalid_frontmatter_type_issues, collect_provenance_gap_issues, build_wikilink_title_index
 
 [POS]
 Zero-LLM structural lint SSOT. Used by WikiLinter and server /wiki/stats without

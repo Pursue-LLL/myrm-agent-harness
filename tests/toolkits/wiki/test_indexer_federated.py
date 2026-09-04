@@ -186,3 +186,69 @@ async def test_federated_multi_source_labels_and_citations(tmp_path):
     assert "Sec Policy" in nodes
 
 
+@pytest.mark.asyncio
+async def test_federated_indexer_handles_empty_or_uninitialized_database_gracefully(tmp_path):
+    """Mounting an empty SQLite DB without wiki_fts must not crash federated search or graph."""
+    import sqlite3
+
+    local_dir = tmp_path / "local_clean"
+    empty_kb_dir = tmp_path / "empty_kb"
+    empty_kb_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create an empty sqlite database file without wiki_fts or wiki_edges tables
+    empty_db_path = empty_kb_dir / ".wiki_index.db"
+    conn = sqlite3.connect(str(empty_db_path))
+    conn.execute("CREATE TABLE dummy (id INTEGER PRIMARY KEY)")
+    conn.commit()
+    conn.close()
+
+    local_s = WikiStructure(local_dir, public_dirs=[empty_kb_dir])
+    local_s.ensure_structure()
+    local_indexer = WikiIndexer(local_s, WikiConfig(enable_hybrid_search=False))
+
+    await local_indexer.upsert("Local Knowledge", "## Compiled Truth\nLocal production knowledge")
+
+    # 1. Search must succeed without OperationalError: no such table
+    results = await local_indexer.search("production")
+    assert len(results) >= 1
+    assert results[0][0] == "Local Knowledge"
+
+    # 2. get_truth must succeed
+    truth = local_indexer.get_truth("Local Knowledge")
+    assert truth is not None and "Local production knowledge" in truth
+
+    # 3. get_knowledge_graph must succeed
+    graph = local_indexer.get_knowledge_graph()
+    node_ids = {n["id"] for n in graph["nodes"]}
+    assert "Local Knowledge" in node_ids
+
+
+@pytest.mark.asyncio
+async def test_federated_indexer_more_than_six_public_dirs_clamped(tmp_path):
+    """Mounting >6 public directories clamps to first 6 to satisfy SQLite ATTACH limits."""
+    local_dir = tmp_path / "local_clamp"
+    dirs = []
+    for i in range(10):
+        d = tmp_path / f"kb_{i}"
+        s = WikiStructure(d)
+        s.ensure_structure()
+        idx = WikiIndexer(s, WikiConfig(enable_hybrid_search=False))
+        await idx.upsert(f"Concept_{i}", f"## Compiled Truth\nContent from base {i}")
+        dirs.append(d)
+
+    local_s = WikiStructure(local_dir, public_dirs=dirs)
+    local_s.ensure_structure()
+    local_idx = WikiIndexer(local_s, WikiConfig(enable_hybrid_search=False))
+
+    # Search should query up to first 6 without error
+    res = await local_idx.search("Content", limit=20)
+    matched_names = {r[0] for r in res}
+    # Concepts 0 to 5 should be searchable
+    assert "Concept_0" in matched_names
+    assert "Concept_5" in matched_names
+    # Concept 6 to 9 clamped by 6 attachments limit
+    assert "Concept_7" not in matched_names
+
+
+
+

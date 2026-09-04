@@ -112,3 +112,50 @@ async def test_progress_throttle_and_terminal_penetration() -> None:
     assert entry.info.last_progress is not None
     assert entry.info.last_progress["progress"] == 100
     assert entry.info.last_progress["message"] == "Completed"
+
+
+@pytest.mark.asyncio
+async def test_trailing_progress_flush_on_non_100_percent_exit() -> None:
+    """Non-100% progress trapped inside the 100ms window must be flushed on exit."""
+    emitted: list[dict[str, object]] = []
+
+    async def _on_progress(_info: BackgroundProcessInfo, payload: dict[str, object]) -> None:
+        emitted.append(payload)
+
+    # 10 lines emitted in zero delay, ending with 98% (not 100%, no checkpoint)
+    lines = [
+        f'MYRM_PROGRESS {{"percent": {i}, "message": "Step {i}"}}\n'.encode("utf-8")
+        for i in range(1, 10)
+    ]
+    lines.append(b'MYRM_PROGRESS {"percent": 98, "message": "Aborted near finish"}\n')
+
+    proc = _FakeProc(pid=29002, stdout=lines, stderr=[])
+    info = BackgroundProcessInfo(
+        job_id="job-29002",
+        pid=29002,
+        command="abort.sh",
+        session_id="test-sess-2",
+        started_at=0.0,
+        status="running",
+    )
+    entry = BackgroundRegistryEntry(
+        info=info,
+        proc=cast(AsyncProcessProtocol, proc),
+        stdout_buffer=deque(),
+        stderr_buffer=deque(),
+        progress_listener=_on_progress,
+    )
+
+    proc.finish(1)
+    await consume_background_entry(
+        entry,
+        snapshot=lambda e: e.info,
+        schedule_reap=lambda _p: None,
+        clear_session_if_idle=lambda _s: None,
+    )
+
+    # The 98% tail progress must be delivered via trailing flush despite <100ms gap
+    assert emitted[-1]["progress"] == 98
+    assert emitted[-1]["message"] == "Aborted near finish"
+    assert entry.info.exit_code == 1
+

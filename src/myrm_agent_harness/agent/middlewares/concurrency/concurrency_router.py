@@ -199,14 +199,21 @@ def _paths_overlap(left: Path, right: Path) -> bool:
     return left_parts[:common_len] == right_parts[:common_len]
 
 
+_NETWORK_URL_PREFIXES = ("http://", "https://", "ws://", "wss://")
 _PATH_LINE_RANGE_PATTERN = re.compile(r"^(.+):(\d+)(?:-(\d*))?$")
 
 
 def _clean_path_scope_target(raw_target: str) -> str:
-    """Strip line range syntax (e.g. 'file.py:1-50' -> 'file.py') and whitespace."""
+    """Strip line range syntax (e.g. 'file.py:1-50' -> 'file.py') and whitespace.
+
+    Network URLs (e.g. 'http://localhost:8080') are preserved verbatim to avoid
+    stripping port numbers as line ranges.
+    """
     target = raw_target.strip()
     if not target:
         return ""
+    if target.startswith(_NETWORK_URL_PREFIXES):
+        return target
     m = _PATH_LINE_RANGE_PATTERN.match(target)
     if m:
         return m.group(1).strip()

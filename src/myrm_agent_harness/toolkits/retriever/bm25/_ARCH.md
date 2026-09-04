@@ -11,7 +11,8 @@ BM25 retrieval module providing CJK/English hybrid tokenization for sparse retri
 
 ## File & Submodule Index
 
-| File | Role | Description |
-|------|------|-------------|
-| __init__.py | Package | Exports TokenizerService, get_tokenizer_service, preload_tokenizer, _cjk_bigram_tokenize |
-| tokenizer.py | Core | Unified tokenization service with jieba + CJK bigram fallback |
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Exports TokenizerService, get_tokenizer_service, preload_tokenizer, _cjk_bigram_tokenize, select_selective_bm25_tokens | ✅ |
+| `tokenizer.py` | Core | Unified tokenization service with jieba + CJK bigram fallback | ✅ |
+| `term_selector.py` | Core | IDF-aware query term selection for long search queries | ✅ |

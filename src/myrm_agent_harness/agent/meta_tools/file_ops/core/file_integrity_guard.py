@@ -23,6 +23,7 @@ Per-executor isolation via module-level factory.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import hashlib
 import os
 from typing import TYPE_CHECKING
@@ -108,7 +109,7 @@ class FileIntegrityGuard:
         path: str,
         disk_content: str,
         agent_id: str | None = None,
-        anchor: str | None = None,
+        anchor: str | Sequence[str] | None = None,
     ) -> str | None:
         """Hard-reject when disk content hash differs from the last full-read hash."""
         aid = agent_id or _current_agent_id()
@@ -126,14 +127,39 @@ class FileIntegrityGuard:
         if len(disk_content) <= 2000:
             preview = disk_content
         else:
+            candidates: list[str] = []
+            if isinstance(anchor, str):
+                candidates = [anchor]
+            elif anchor is not None:
+                candidates = [c for c in anchor if isinstance(c, str)]
+
             anchor_pos = -1
-            clean_anchor = anchor.strip() if anchor else ""
-            if clean_anchor:
-                anchor_pos = disk_content.find(clean_anchor)
+            matched_len = 0
+            for cand in candidates:
+                clean_cand = cand.strip()
+                if not clean_cand:
+                    continue
+                # 1. 优先整块精确匹配
+                pos = disk_content.find(clean_cand)
+                if pos != -1:
+                    anchor_pos = pos
+                    matched_len = len(clean_cand)
+                    break
+                # 2. 二级降级：提取首条有效特征行（非空、非注释、长度>=4）次级定位
+                for line in clean_cand.splitlines():
+                    sline = line.strip()
+                    if sline and len(sline) >= 4 and not sline.startswith("#"):
+                        pos = disk_content.find(sline)
+                        if pos != -1:
+                            anchor_pos = pos
+                            matched_len = len(sline)
+                            break
+                if anchor_pos != -1:
+                    break
 
             if anchor_pos != -1:
                 start = max(0, anchor_pos - 800)
-                end = min(len(disk_content), anchor_pos + len(clean_anchor) + 800)
+                end = min(len(disk_content), anchor_pos + matched_len + 800)
                 prefix = "... [preceding content omitted]\n" if start > 0 else ""
                 suffix = "\n... [following content omitted]" if end < len(disk_content) else ""
                 preview = f"{prefix}{disk_content[start:end]}{suffix}"

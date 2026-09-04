@@ -221,10 +221,20 @@ class SidecarIndexMixin:
                 if not fts_query:
                     return []
                 fts_tables = ["wiki_fts"]
-                for idx, p_dir in enumerate(self._structure.public_dirs):
-                    pub_db = p_dir / ".wiki_index.db"
-                    if pub_db.exists():
-                        fts_tables.append(f"pub_{idx}.wiki_fts")
+                attached_dbs = {
+                    str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()
+                }
+                for idx in range(min(len(self._structure.public_dirs), 6)):
+                    alias = f"pub_{idx}"
+                    if alias in attached_dbs:
+                        try:
+                            has_table = conn.execute(
+                                f"SELECT 1 FROM {alias}.sqlite_master WHERE type IN ('table', 'view') AND name = 'wiki_fts'"
+                            ).fetchone()
+                            if has_table:
+                                fts_tables.append(f"{alias}.wiki_fts")
+                        except (sqlite3.OperationalError, sqlite3.DatabaseError):
+                            continue
                 sidecar_filters = " OR ".join(["concept_name GLOB ?"] * len(allowed_levels))
                 patterns = tuple(f"{_SIDECAR_PREFIX}:{_SIDECAR_LEVEL_LABEL[level]}:*" for level in allowed_levels)
                 union_queries = " UNION ALL ".join(

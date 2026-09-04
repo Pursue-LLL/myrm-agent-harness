@@ -349,6 +349,10 @@ def test_clean_path_scope_target_windows_paths_and_line_ranges():
     assert _clean_path_scope_target("vault://uuid-1234:1-50") == "vault://uuid-1234"
     assert _clean_path_scope_target("vault://uuid-1234") == "vault://uuid-1234"
     assert _clean_path_scope_target("src/core/app.py:1-20") == "src/core/app.py"
+    # Network URLs must preserve port numbers and never be stripped
+    assert _clean_path_scope_target("http://localhost:8080") == "http://localhost:8080"
+    assert _clean_path_scope_target("https://127.0.0.1:3000/api") == "https://127.0.0.1:3000/api"
+    assert _clean_path_scope_target("ws://localhost:9000") == "ws://localhost:9000"
 
 
 def test_build_tool_execution_stages_isolates_windows_path_line_range():

@@ -1,19 +1,18 @@
 """Wiki Indexer - SQLite FTS5 + Qdrant RRF based Hybrid search engine.
 
 [INPUT]
-sqlite3 (POS: standard library database)
-re (POS: standard library regex)
-..core.structure::WikiStructure (POS: database path resolution)
-..core.config::WikiConfig (POS: Wiki configuration)
-..core.frontmatter_contract::WikiPublishStatus (POS: publish_status SSOT)
-myrm_agent_harness.toolkits.vector.base::VectorDocument (POS: vector document)
-myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: result fusion strategy)
-.tokenizer::tokenize_for_fts (POS: FTS5 query tokenizer)
-.graph_store::WikiGraphStore (POS: knowledge graph storage)
-.sidecar_index::SidecarIndexMixin (POS: L0/L1 sidecar index operations)
+- sqlite3 (POS: standard library database)
+- ..core.structure::WikiStructure (POS: database path resolution)
+- ..core.config::WikiConfig (POS: Wiki configuration)
+- ..core.frontmatter_contract::WikiPublishStatus (POS: publish_status SSOT)
+- myrm_agent_harness.toolkits.vector.base::VectorDocument (POS: vector document)
+- myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: result fusion strategy)
+- .tokenizer::tokenize_for_fts (POS: FTS5 query tokenizer)
+- .graph_store::WikiGraphStore (POS: knowledge graph storage)
+- .sidecar_index::SidecarIndexMixin (POS: L0/L1 sidecar index operations)
 
 [OUTPUT]
-WikiIndexer: hybrid search engine; wiki_index_meta publish_status gate for FTS/vector/get_truth
+- WikiIndexer: hybrid search engine; wiki_index_meta publish_status gate for FTS/vector/get_truth
 
 [POS]
 Wiki concept indexer core. Manages FTS5 + Qdrant hybrid search for L2 concept entries,
@@ -283,9 +282,27 @@ class WikiIndexer(SidecarIndexMixin):
             (concept_name,),
         )
         row = cursor.fetchone()
-        if row is None:
-            return True
-        return str(row["publish_status"]) == WikiPublishStatus.PUBLISHED.value
+        if row is not None:
+            return str(row["publish_status"]) == WikiPublishStatus.PUBLISHED.value
+
+        # Check attached federated public databases
+        attached_dbs = {
+            str(r["name"]) for r in conn.execute("PRAGMA database_list").fetchall()
+        }
+        for idx in range(min(len(self._structure.public_dirs), 6)):
+            alias = f"pub_{idx}"
+            if alias in attached_dbs:
+                try:
+                    c = conn.execute(
+                        f"SELECT publish_status FROM {alias}.wiki_index_meta WHERE concept_name = ?",
+                        (concept_name,),
+                    )
+                    r = c.fetchone()
+                    if r is not None:
+                        return str(r["publish_status"]) == WikiPublishStatus.PUBLISHED.value
+                except (sqlite3.OperationalError, sqlite3.DatabaseError):
+                    continue
+        return True
 
     def _filter_published(self, conn: sqlite3.Connection, results: list[tuple[str, float]]) -> list[tuple[str, float]]:
         return [(name, score) for name, score in results if self._is_published(conn, name)]
@@ -391,7 +408,14 @@ class WikiIndexer(SidecarIndexMixin):
                     for idx in range(min(len(self._structure.public_dirs), 6)):
                         alias = f"pub_{idx}"
                         if alias in attached_dbs:
-                            fts_tables.append(f"{alias}.wiki_fts")
+                            try:
+                                has_table = conn.execute(
+                                    f"SELECT 1 FROM {alias}.sqlite_master WHERE type IN ('table', 'view') AND name = 'wiki_fts'"
+                                ).fetchone()
+                                if has_table:
+                                    fts_tables.append(f"{alias}.wiki_fts")
+                            except (sqlite3.OperationalError, sqlite3.DatabaseError):
+                                continue
 
                     fts_query = tokenize_for_fts(safe_query)
 
@@ -506,7 +530,14 @@ class WikiIndexer(SidecarIndexMixin):
             for idx in range(min(len(self._structure.public_dirs), 6)):
                 alias = f"pub_{idx}"
                 if alias in attached_dbs:
-                    fts_tables.append(f"{alias}.wiki_fts")
+                    try:
+                        has_table = conn.execute(
+                            f"SELECT 1 FROM {alias}.sqlite_master WHERE type IN ('table', 'view') AND name = 'wiki_fts'"
+                        ).fetchone()
+                        if has_table:
+                            fts_tables.append(f"{alias}.wiki_fts")
+                    except (sqlite3.OperationalError, sqlite3.DatabaseError):
+                        continue
 
             fts_union = " UNION ALL ".join(f"SELECT truth_content FROM {t} WHERE concept_name = ?" for t in fts_tables)
             params = (concept_name,) * len(fts_tables)

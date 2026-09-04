@@ -87,13 +87,14 @@ class WikiQueryEngine:
         config: WikiConfig,
         query_config: WikiQueryConfig | None = None,
         search_fn: SemanticSearchFn | None = None,
+        indexer: WikiIndexer | None = None,
     ):
         self._llm = llm
         self._structure = structure
         self._config = config
         self._query_config = query_config or WikiQueryConfig()
         self._search_fn = search_fn
-        self._indexer = WikiIndexer(structure, config)
+        self._indexer = indexer or WikiIndexer(structure, config)
         self._asset_indexer: WikiAssetIndexer | None = None
 
     async def query(

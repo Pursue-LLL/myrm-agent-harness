@@ -242,7 +242,10 @@ async def search_bm25(
     from myrm_agent_harness.toolkits.retriever.bm25_retrieval import BM25Retriever
 
     retriever = BM25Retriever(contents)
-    bm25_results = retriever.search(query, top_k=config.bm25_top_k, only_relevant=True)
+    max_terms = getattr(config, "bm25_max_query_terms", 15)
+    bm25_results = retriever.search(
+        query, top_k=config.bm25_top_k, only_relevant=True, max_query_terms=max_terms
+    )
 
     if not bm25_results:
         return []

@@ -8,13 +8,13 @@ Core capabilities:
 - Smart detection: auto-identifies mixed CJK/English text
 
 [INPUT]
-(no external module dependencies at import time — jieba is lazy-loaded)
+- (no external module dependencies at import time — jieba is lazy-loaded)
 
 [OUTPUT]
-TokenizerService: Singleton tokenizer with tokenize method and backend property
-get_tokenizer_service: Module-level accessor returning the singleton instance
-preload_tokenizer: Async convenience function for startup preloading
-_cjk_bigram_tokenize: CJK character unigram+bigram tokenization fallback
+- TokenizerService: Singleton tokenizer with tokenize method and backend property
+- get_tokenizer_service: Module-level accessor returning the singleton instance
+- preload_tokenizer: Async convenience function for startup preloading
+- _cjk_bigram_tokenize: CJK character unigram+bigram tokenization fallback
 
 [POS]
 Tokenization service for BM25 retrieval. Provides language-aware tokenization that feeds

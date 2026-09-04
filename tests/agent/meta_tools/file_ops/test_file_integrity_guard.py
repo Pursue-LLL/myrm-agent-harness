@@ -64,6 +64,42 @@ class TestFileIntegrityGuard:
         assert rejection is not None
         assert "... [truncated]" in rejection
 
+    def test_rejection_payload_falls_back_to_signature_line_when_target_internally_modified(self) -> None:
+        guard = FileIntegrityGuard()
+        guard.record_read("/a/b.py", "initial_content")
+        target_on_disk = "def calculate_discount(price):\n    return price * 0.90"
+        large_content = ("# header comment\n" * 250) + target_on_disk + ("\n# footer line\n" * 250)
+        # Model attempts to replace old block containing 0.95 (which was concurrently modified to 0.90)
+        stale_anchor = "def calculate_discount(price):\n    return price * 0.95"
+        rejection = guard.require_version_match(
+            "/a/b.py",
+            large_content,
+            anchor=stale_anchor,
+        )
+        assert rejection is not None
+        # Must center around the signature line and show the actual on-disk 0.90 code
+        assert "def calculate_discount(price):" in rejection
+        assert "return price * 0.90" in rejection
+        assert "... [preceding content omitted]" in rejection
+        assert "... [following content omitted]" in rejection
+
+    def test_rejection_payload_matches_candidate_anchor_sequence(self) -> None:
+        guard = FileIntegrityGuard()
+        guard.record_read("/a/b.py", "initial_content")
+        target_on_disk = "def secondary_helper():\n    pass"
+        large_content = ("# header comment\n" * 250) + target_on_disk + ("\n# footer line\n" * 250)
+        # Candidate 1 is completely absent; Candidate 2 is present on disk
+        candidates = ["vanished_code_block()", "def secondary_helper():\n    pass"]
+        rejection = guard.require_version_match(
+            "/a/b.py",
+            large_content,
+            anchor=candidates,
+        )
+        assert rejection is not None
+        assert "def secondary_helper():" in rejection
+        assert "... [preceding content omitted]" in rejection
+        assert "... [following content omitted]" in rejection
+
     def test_no_rejection_for_unread_file(self) -> None:
         guard = FileIntegrityGuard()
         assert guard.require_version_match("/unknown.py", "anything") is None

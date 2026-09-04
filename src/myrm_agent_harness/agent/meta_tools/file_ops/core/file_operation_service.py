@@ -40,6 +40,7 @@ File operation service. Provides a unified file operation interface integrating 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 import logging
 import os
 
@@ -505,8 +506,8 @@ class FileOperationService:
         self._raise_if_integrity_rejection(guard, resolved_path, require_version=False)
 
         old_content = "\n".join(await strategy.read_file(resolved_path))
-        target_anchor = (
-            self.context.edits[0].old_str
+        target_anchors = (
+            [edit.old_str for edit in self.context.edits if edit.old_str]
             if self.context.edits
             else None
         )
@@ -515,7 +516,7 @@ class FileOperationService:
             resolved_path,
             disk_content=old_content,
             require_version=True,
-            anchor=target_anchor,
+            anchor=target_anchors,
         )
 
         line_start, line_end = compute_batch_edit_line_range(
@@ -650,7 +651,7 @@ class FileOperationService:
         *,
         disk_content: str | None = None,
         require_version: bool,
-        anchor: str | None = None,
+        anchor: str | Sequence[str] | None = None,
     ) -> None:
         if guard is None:
             return

@@ -200,3 +200,29 @@ class TestAllowlist:
         # Active entry should be allowed
         assert allowlist.check("user1", "email_send", "send_email") is True
 
+    @pytest.mark.asyncio
+    async def test_time_bound_scoped_grant_persistence_to_store(self) -> None:
+        import time
+
+        class TrackingStore:
+            def __init__(self):
+                self.saved_entries = []
+
+            async def load(self, user_id: str):
+                return self.saved_entries
+
+            async def save(self, user_id: str, entry: AllowlistEntry):
+                self.saved_entries.append(entry)
+
+            async def remove(self, user_id: str, permission: str, tool_name=None, tool_args_hash=None, command_pattern=None, agent_id=None):
+                pass
+
+        store = TrackingStore()
+        al = Allowlist(store=store)
+        now = time.time()
+        timed_entry = AllowlistEntry(permission="email_send", tool_name="send_mail", expires_at=now + 3600.0)
+        await al.add("user1", timed_entry)
+
+        assert len(store.saved_entries) == 1
+        assert store.saved_entries[0].expires_at == timed_entry.expires_at
+
