@@ -10,7 +10,7 @@ Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Public exports for hybrid retrieval entrypoints | — |
+| `__init__.py` | Package | Public exports for hybrid retrieval entrypoints | ✅ |
 | `autocut.py` | Core | Score-discontinuity autocut for dynamic truncation after rerank | ✅ |
 | `bm25_retrieval.py` | Core | BM25 sparse retrieval; in-memory inverted index over document chunks | ✅ |
 | `engine.py` | Core | Retrieval tools wrapper: hybrid retrieval + reranking orchestration | ✅ |
