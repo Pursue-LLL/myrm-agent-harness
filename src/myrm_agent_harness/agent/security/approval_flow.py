@@ -64,6 +64,7 @@ class AllowlistEntry:
     command_pattern: str | None = None
     agent_id: str | None = None
     created_at: float = field(default_factory=time.time)
+    expires_at: float | None = None
 
 
 class AllowlistStore(Protocol):
@@ -215,7 +216,17 @@ class Allowlist:
         if not user_entries:
             return False
 
-        entries = list(user_entries.values())
+        now = time.time()
+        # Filter out expired time-bound scoped grants opportunistically
+        entries = [e for e in user_entries.values() if e.expires_at is None or e.expires_at > now]
+        if len(entries) != len(user_entries):
+            # Prune expired entries from in-memory cache
+            self._entries[user_id] = {
+                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern, e.agent_id): e
+                for e in entries
+            }
+        if not entries:
+            return False
 
         # Helper to check if entry agent_id is compatible with current caller agent_id
         def _scope_matches(entry: AllowlistEntry) -> bool:

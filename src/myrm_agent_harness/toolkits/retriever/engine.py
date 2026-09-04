@@ -431,8 +431,11 @@ class RetrieverManager:
                 f"Slow BM25 query detected: {elapsed_ms:.0f}ms for {len(queries)} queries on {len(documents)} docs"
             )
 
-        if not selected_docs and documents and is_cross_language(queries, documents):
-            logger.warning("BM25 zero recall with cross-language detected, returning top_k by original order")
+        if not selected_docs and documents:
+            if is_cross_language(queries, documents):
+                logger.warning("BM25 zero recall with cross-language detected, returning top_k by original order")
+            else:
+                logger.warning("BM25 zero recall detected (lexical mismatch), returning top_k by original order")
             return documents[:top_k]
 
         return selected_docs

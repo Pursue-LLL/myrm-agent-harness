@@ -500,9 +500,13 @@ class WikiIndexer(SidecarIndexMixin):
             if not self._is_published(conn, concept_name):
                 return None
             fts_tables = ["wiki_fts"]
-            for idx, p_dir in enumerate(self._structure.public_dirs):
-                if (p_dir / ".wiki_index.db").exists():
-                    fts_tables.append(f"pub_{idx}.wiki_fts")
+            attached_dbs = {
+                str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()
+            }
+            for idx in range(min(len(self._structure.public_dirs), 6)):
+                alias = f"pub_{idx}"
+                if alias in attached_dbs:
+                    fts_tables.append(f"{alias}.wiki_fts")
 
             fts_union = " UNION ALL ".join(f"SELECT truth_content FROM {t} WHERE concept_name = ?" for t in fts_tables)
             params = (concept_name,) * len(fts_tables)

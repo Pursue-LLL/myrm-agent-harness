@@ -15,6 +15,7 @@ host-serial MCP lane constraints while preserving safe parallel execution.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Any, Literal
 
@@ -198,15 +199,17 @@ def _paths_overlap(left: Path, right: Path) -> bool:
     return left_parts[:common_len] == right_parts[:common_len]
 
 
+_PATH_LINE_RANGE_PATTERN = re.compile(r"^(.+):(\d+)(?:-(\d*))?$")
+
+
 def _clean_path_scope_target(raw_target: str) -> str:
     """Strip line range syntax (e.g. 'file.py:1-50' -> 'file.py') and whitespace."""
     target = raw_target.strip()
     if not target:
         return ""
-    if ":" in target and not target.startswith("vault://"):
-        head, _sep, tail = target.partition(":")
-        if any(ch.isdigit() for ch in tail):
-            return head.strip()
+    m = _PATH_LINE_RANGE_PATTERN.match(target)
+    if m:
+        return m.group(1).strip()
     return target
 
 

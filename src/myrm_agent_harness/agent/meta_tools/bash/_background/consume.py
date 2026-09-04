@@ -40,6 +40,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _LINE_MAX_BYTES = 32 * 1024
+# Minimum interval between asynchronous progress listener dispatches (10Hz).
+# Aligns with builtin_notify.py's 10 req/s rate-limiting, preventing event storms
+# and cascading frontend HTTP refresh requests on high-frequency log bursts.
+_PROGRESS_EMIT_INTERVAL_S = 0.1
 
 
 @dataclass
@@ -65,6 +69,7 @@ class BackgroundRegistryEntry:
     empty_poll_streak: int = 0
     stdin_lock: asyncio.Lock | None = None
     stdin_closed: bool = False
+    last_progress_emit_at: float = 0.0
 
 
 async def consume_background_entry(
@@ -80,10 +85,21 @@ async def consume_background_entry(
     )
 
     async def _emit_progress(progress: dict[str, object]) -> None:
-        entry.info.last_progress = {**progress, "updated_at": time.time()}
+        now = time.time()
+        entry.info.last_progress = {**progress, "updated_at": now}
         listener = entry.progress_listener
         if listener is None:
             return
+
+        # Adaptive throttle: 100% completion or explicit checkpoint categories
+        # bypass the interval check so final state and milestones arrive with zero latency.
+        is_terminal_progress = progress.get("progress") == 100
+        has_checkpoint_category = bool(progress.get("category"))
+        if not (is_terminal_progress or has_checkpoint_category):
+            if (now - entry.last_progress_emit_at) < _PROGRESS_EMIT_INTERVAL_S:
+                return
+
+        entry.last_progress_emit_at = now
         try:
             await listener(entry.info, progress)
         except Exception as exc:  # pragma: no cover — best-effort

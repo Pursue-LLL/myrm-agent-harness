@@ -35,7 +35,7 @@ class MemoryManagerDeletionMixin:
 
     # ── Delete ──
 
-    async def delete_memory(self, collection: str, ids: list[str], *, allow_pinned: bool = True) -> int:
+    async def delete_memory(self, collection: str, ids: list[str] | None = None, *, allow_pinned: bool = True) -> int:
         if self._vector is None:
             raise MemoryError("Vector backend is required but not provided")
         evict_texts: list[str] = []
@@ -51,7 +51,7 @@ class MemoryManagerDeletionMixin:
             ids = [doc.id for doc in owned_docs]
             evict_texts = [doc.content for doc in owned_docs if doc.content]
         deleted = await delete_from_vector(collection, ids, self._vector)
-        for memory_id in ids:
+        for memory_id in (ids or []):
             await self._cascade_clean_derived_graph_nodes(memory_id)
         if self._cache is not None and evict_texts:
             if hasattr(self._cache, "evict_batch"):
@@ -76,8 +76,9 @@ class MemoryManagerDeletionMixin:
         deleted = await self._rel().delete_rule(rule_id)
         if deleted:
             await self._cascade_clean_derived_graph_nodes(rule_id)
-            if self._cache is not None and rule.action_text and hasattr(self._cache, "evict"):
-                await self._cache.evict(rule.action_text)
+            evict_text = getattr(rule, "action", None) or getattr(rule, "action_text", None) or getattr(rule, "content", None)
+            if self._cache is not None and evict_text and hasattr(self._cache, "evict"):
+                await self._cache.evict(evict_text)
         return deleted
 
     async def delete_memories_by_metadata(
@@ -132,7 +133,7 @@ class MemoryManagerDeletionMixin:
                 offset += len(rules)
             deleted_rules = 0
             for rule_id in matching_rule_ids:
-                if await self._relational.delete_rule(rule_id):
+                if await self.delete_rule(rule_id):
                     deleted_rules += 1
             counts[MemoryType.PROCEDURAL.value] = deleted_rules
 
@@ -173,7 +174,7 @@ class MemoryManagerDeletionMixin:
                             )
                         )
                         continue
-                    if await self._relational.delete_rule(rule_id):
+                    if await self.delete_rule(rule_id):
                         result.deleted_refs.append(
                             MemoryMutationRef(
                                 memory_type=memory_type,

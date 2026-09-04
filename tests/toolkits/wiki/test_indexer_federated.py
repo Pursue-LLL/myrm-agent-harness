@@ -129,3 +129,11 @@ async def test_federated_offline_and_corrupt_resilience(tmp_path):
     assert len(res) == 1
     assert res[0][0] == "Local Resilience"
 
+    # get_truth should also succeed safely without SQLite OperationalError
+    truth = local_indexer.get_truth("Local Resilience")
+    assert truth is not None and "Healthy content" in truth
+
+    # Graph retrieval should also succeed safely
+    graph = local_indexer.get_knowledge_graph()
+    assert any(n["id"] == "Local Resilience" for n in graph["nodes"])
+

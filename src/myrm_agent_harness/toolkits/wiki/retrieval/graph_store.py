@@ -49,10 +49,14 @@ class WikiGraphStore:
         with self._get_conn() as conn:
             fts_tables = ["wiki_fts"]
             edges_tables = ["wiki_edges"]
-            for idx, p_dir in enumerate(self._structure.public_dirs):
-                if (p_dir / ".wiki_index.db").exists():
-                    fts_tables.append(f"pub_{idx}.wiki_fts")
-                    edges_tables.append(f"pub_{idx}.wiki_edges")
+            attached_dbs = {
+                str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()
+            }
+            for idx in range(min(len(self._structure.public_dirs), 6)):
+                alias = f"pub_{idx}"
+                if alias in attached_dbs:
+                    fts_tables.append(f"{alias}.wiki_fts")
+                    edges_tables.append(f"{alias}.wiki_edges")
 
             fts_union = " UNION ALL ".join(f"SELECT concept_name FROM {t}" for t in fts_tables)
             edges_union = " UNION ALL ".join(f"SELECT source, target, weight FROM {t}" for t in edges_tables)

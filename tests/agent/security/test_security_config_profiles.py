@@ -114,6 +114,13 @@ class TestSecurityConfigReadonly:
         config = SecurityConfig.readonly()
         assert config.capabilities == frozenset({Capability("*", "*")})
 
+    def test_readonly_denies_egress_and_notification(self) -> None:
+        config = SecurityConfig.readonly()
+        denied_perms = {r.permission for r in config.ruleset if r.action == PermissionAction.DENY}
+        assert "channel_notify" in denied_perms
+        assert "channel_notify_tool" in denied_perms
+        assert "artifact_publish" in denied_perms
+
 
 class TestSecurityConfigWorkspace:
     """Tests for SecurityConfig.workspace() factory method."""

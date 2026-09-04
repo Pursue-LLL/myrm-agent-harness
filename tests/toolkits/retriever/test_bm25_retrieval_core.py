@@ -80,3 +80,4 @@ def test_bm25_retriever_empty_query_and_only_relevant() -> None:
 def test_bm25_retriever_query_empty_after_preprocess() -> None:
     retriever = BM25Retriever(["valid document"])
     assert retriever.search("!!!") == []
+

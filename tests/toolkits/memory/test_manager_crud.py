@@ -661,6 +661,96 @@ class TestGraphCascadeDelete:
         mock_cache.evict_batch.assert_called_once_with(["sensitive content to evict"])
 
     @pytest.mark.asyncio
+    async def test_delete_memory_ids_none_does_not_crash(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        """delete_memory with ids=None safely delegates to delete_from_vector without iterating None."""
+        mock_vector_store.delete.return_value = 5
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+        )
+
+        count = await manager.delete_memory("test_collection", None)
+        assert count == 5
+        mock_vector_store.delete.assert_called_once_with("test_collection", None)
+
+    @pytest.mark.asyncio
+    async def test_delete_memories_by_metadata_cascades_rule_graph_and_cache(
+        self, mock_relational_store, mock_graph_store, memory_config
+    ):
+        """delete_memories_by_metadata for procedural rules cascades graph and cache via self.delete_rule."""
+        from unittest.mock import AsyncMock
+        from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
+
+        rule = ProceduralMemory(
+            id="rule-test-1",
+            content="test action to evict",
+            trigger="test trigger",
+            action="test action to evict",
+            metadata={"tag": "deprecated"},
+        )
+        mock_relational_store.list_rules.side_effect = [[rule], []]
+        mock_relational_store.get_rule.return_value = rule
+        mock_relational_store.delete_rule.return_value = True
+
+        mock_cache = AsyncMock()
+        mock_cache.evict = AsyncMock(return_value=True)
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            relational=mock_relational_store,
+            graph=mock_graph_store,
+            cache=mock_cache,
+        )
+
+        counts = await manager.delete_memories_by_metadata(
+            "tag", "deprecated", memory_types=[MemoryType.PROCEDURAL]
+        )
+
+        assert counts[MemoryType.PROCEDURAL.value] == 1
+        mock_relational_store.delete_rule.assert_called_once_with("rule-test-1")
+        mock_cache.evict.assert_called_once_with("test action to evict")
+
+    @pytest.mark.asyncio
+    async def test_delete_memories_by_ids_procedural_cascades_rule_graph_and_cache(
+        self, mock_relational_store, mock_graph_store, memory_config
+    ):
+        """delete_memories_by_ids for procedural rules cascades graph and cache."""
+        from unittest.mock import AsyncMock
+        from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
+
+        rule = ProceduralMemory(
+            id="rule-test-2",
+            content="test action 2 to evict",
+            trigger="test trigger 2",
+            action="test action 2 to evict",
+        )
+        mock_relational_store.get_rule.return_value = rule
+        mock_relational_store.delete_rule.return_value = True
+
+        mock_cache = AsyncMock()
+        mock_cache.evict = AsyncMock(return_value=True)
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            relational=mock_relational_store,
+            graph=mock_graph_store,
+            cache=mock_cache,
+        )
+
+        result = await manager.delete_memories_by_ids({MemoryType.PROCEDURAL.value: ["rule-test-2"]})
+
+        assert len(result.deleted_refs) == 1
+        assert result.deleted_refs[0].memory_id == "rule-test-2"
+        mock_relational_store.delete_rule.assert_called_once_with("rule-test-2")
+        mock_cache.evict.assert_called_once_with("test action 2 to evict")
+
+    @pytest.mark.asyncio
     async def test_delete_all_includes_graph_cleanup(
         self, mock_vector_store, mock_relational_store, mock_graph_store, mock_embedding, memory_config
     ):
@@ -705,3 +795,5 @@ class TestGraphCascadeDelete:
 
         assert counts.get("relational") == 5
         assert "graph" not in counts
+
+
