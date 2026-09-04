@@ -105,7 +105,14 @@ from .manifest_prediction import (
     PredictionDirection,
     evaluate_manifest_attribution,
 )
-from .matrix import MatrixCellResult, MatrixResult, MatrixRunner
+from .matrix import (
+    GeneralizationGateMetrics,
+    GeneralizationGateVerdict,
+    MatrixCellResult,
+    MatrixResult,
+    MatrixRunner,
+    evaluate_generalization_gate,
+)
 from .protocols import (
     AgentExecutor,
     AgentResponse,
@@ -181,6 +188,8 @@ __all__ = [
     "FleetEvalResult",
     "FleetEvalRunner",
     "FleetVarianceMetrics",
+    "GeneralizationGateMetrics",
+    "GeneralizationGateVerdict",
     "JsonlReporter",
     "JudgeConfig",
     "LeakageAuditResult",
@@ -223,6 +232,7 @@ __all__ = [
     "embed_canary_header",
     "evaluate_compaction_assertions",
     "evaluate_five_contract_progress",
+    "evaluate_generalization_gate",
     "evaluate_manifest_attribution",
     "evaluate_pareto_generalization",
     "evaluate_post_episode_assertions",

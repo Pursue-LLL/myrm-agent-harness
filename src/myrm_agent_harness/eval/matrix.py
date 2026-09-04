@@ -8,15 +8,20 @@
 - MatrixRunner: orchestrates eval across multiple executors sequentially
 - MatrixResult: aggregated comparison with stable/regression classification
 - MatrixCellResult: per-case-per-profile outcome
+- GeneralizationGateVerdict: cross-model generalization gate outcome
+- GeneralizationGateMetrics: structured multi-profile generalization assessment
+- evaluate_generalization_gate: evaluates whether an agent variant generalizes across >=N models
 
 [POS]
 Enables comparing the same eval cases across different Agent Profiles
 (e.g., different LLM models) to identify capability regressions before
-switching. Framework-only — no business-layer imports.
+switching. Implements Meta-Harness cross-model generalization gate.
+Framework-only — no business-layer imports.
 """
 
 from __future__ import annotations
 
+import enum
 import logging
 import time
 from collections.abc import Callable
@@ -51,6 +56,45 @@ class MatrixCellResult:
     tool_calls: int = 0
     limit_reached: str | None = None
     blocked_count: int = 0
+
+
+class GeneralizationGateVerdict(enum.StrEnum):
+    """Verdict for cross-model generalization gate."""
+
+    PASSED = "passed"  # Generalizes across >=N models without severe regression
+    PARTIAL_OVERFIT = "partial_overfit"  # High pass rate on single model but regresses on others
+    GENERALIZATION_COLLAPSE = "generalization_collapse"  # Severe regression across multiple models
+    INSUFFICIENT_PROFILES = "insufficient_profiles"  # Fewer than min_required_profiles evaluated
+
+
+@dataclass(frozen=True, slots=True)
+class GeneralizationGateMetrics:
+    """Multi-profile generalization gate assessment details."""
+
+    verdict: GeneralizationGateVerdict
+    min_required_profiles: int
+    evaluated_profile_count: int
+    passed_profile_count: int
+    regression_case_count: int
+    stable_case_count: int
+    mean_pass_rate: float
+    pass_rate_spread: float
+    per_profile_status: dict[str, dict[str, object]] = field(default_factory=dict)
+    recommendation: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "verdict": self.verdict.value,
+            "min_required_profiles": self.min_required_profiles,
+            "evaluated_profile_count": self.evaluated_profile_count,
+            "passed_profile_count": self.passed_profile_count,
+            "regression_case_count": self.regression_case_count,
+            "stable_case_count": self.stable_case_count,
+            "mean_pass_rate": round(self.mean_pass_rate, 4),
+            "pass_rate_spread": round(self.pass_rate_spread, 4),
+            "per_profile_status": self.per_profile_status,
+            "recommendation": self.recommendation,
+        }
 
 
 @dataclass(slots=True)
@@ -154,8 +198,96 @@ class MatrixResult:
             "stable_rate": round(len(self.stable_cases) / len(self.cases), 4) if self.cases else 0.0,
             "per_profile": per_profile_summary,
             "matrix": matrix,
+            "generalization_gate": evaluate_generalization_gate(self).to_dict(),
             "total_ms": round(self.total_ms, 2),
         }
+
+
+def evaluate_generalization_gate(
+    matrix_result: MatrixResult,
+    *,
+    min_required_profiles: int = 2,
+    pass_rate_threshold: float = 0.5,
+    max_regression_rate: float = 0.25,
+) -> GeneralizationGateMetrics:
+    """Evaluate whether an agent variant generalizes across multiple model profiles.
+
+    Implements Meta-Harness held-out generalization gate principle:
+    To prevent single-model pathology-patch overfitting, an evolution or configuration
+    must maintain acceptable performance across at least >=min_required_profiles without
+    incurring severe cross-profile capability regressions.
+    """
+    profile_count = len(matrix_result.profile_ids)
+    case_count = len(matrix_result.cases)
+    stable_count = len(matrix_result.stable_cases)
+    regression_count = len(matrix_result.regression_cases)
+
+    if profile_count < min_required_profiles:
+        return GeneralizationGateMetrics(
+            verdict=GeneralizationGateVerdict.INSUFFICIENT_PROFILES,
+            min_required_profiles=min_required_profiles,
+            evaluated_profile_count=profile_count,
+            passed_profile_count=0,
+            regression_case_count=regression_count,
+            stable_case_count=stable_count,
+            mean_pass_rate=0.0,
+            pass_rate_spread=0.0,
+            per_profile_status={},
+            recommendation=f"Evaluate at least {min_required_profiles} profiles to verify cross-model generalization.",
+        )
+
+    pass_rates: list[float] = []
+    per_profile_status: dict[str, dict[str, object]] = {}
+    passed_profiles = 0
+
+    for pid in matrix_result.profile_ids:
+        res = matrix_result.per_profile_results.get(pid)
+        pr = res.pass_rate if res else 0.0
+        pass_rates.append(pr)
+        meets_threshold = pr >= pass_rate_threshold
+        if meets_threshold:
+            passed_profiles += 1
+        per_profile_status[pid] = {
+            "pass_rate": round(pr, 4),
+            "passed_gate": meets_threshold,
+        }
+
+    mean_pr = sum(pass_rates) / len(pass_rates) if pass_rates else 0.0
+    pr_spread = (max(pass_rates) - min(pass_rates)) if pass_rates else 0.0
+    regression_rate = (regression_count / case_count) if case_count > 0 else 0.0
+
+    if passed_profiles >= min_required_profiles and regression_rate <= max_regression_rate:
+        verdict = GeneralizationGateVerdict.PASSED
+        recommendation = (
+            f"Cross-model generalization verified on {passed_profiles}/{profile_count} profiles. "
+            "Safe to adopt globally."
+        )
+    elif passed_profiles == 0 or (mean_pr < 0.2 and regression_rate > 0.5):
+        verdict = GeneralizationGateVerdict.GENERALIZATION_COLLAPSE
+        recommendation = (
+            "Severe capability collapse across evaluated models. "
+            "Reject candidate change."
+        )
+    else:
+        verdict = GeneralizationGateVerdict.PARTIAL_OVERFIT
+        recommendation = (
+            f"Overfitting detected (spread: {round(pr_spread * 100, 1)}%, "
+            f"regression rate: {round(regression_rate * 100, 1)}%). "
+            "Patch likely addresses single-model pathology rather than universal capability."
+        )
+
+    return GeneralizationGateMetrics(
+        verdict=verdict,
+        min_required_profiles=min_required_profiles,
+        evaluated_profile_count=profile_count,
+        passed_profile_count=passed_profiles,
+        regression_case_count=regression_count,
+        stable_case_count=stable_count,
+        mean_pass_rate=mean_pr,
+        pass_rate_spread=pr_spread,
+        per_profile_status=per_profile_status,
+        recommendation=recommendation,
+    )
 
 
 OnProfileStart = Callable[[str, int, int], None]
