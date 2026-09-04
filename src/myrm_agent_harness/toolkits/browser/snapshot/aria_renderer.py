@@ -56,32 +56,34 @@ def render_to_yaml(
         name = node.node.name
         indent_str = "  " * node.node.indent
         position_suffix = f" {node.position}" if node.position else ""
+        hover_suffix = f" {node.hover_hint}" if node.hover_hint else ""
+        blocked_prefix = "[blocked] " if node.is_blocked else ""
 
         if node.ref_id:
             ref_count += 1
             if compact:
-                lines.append(f"{node.ref_id}:{role}{position_suffix}")
+                lines.append(f"{blocked_prefix}{node.ref_id}:{role}{position_suffix}{hover_suffix}")
             else:
                 # Reconstruct attributes string
                 attrs = node.node.attributes
                 rest = " ".join(f"[{k}={v}]" for k, v in attrs.items()) if attrs else ""
                 rest = f" {rest}" if rest else ""
-                lines.append(f'{indent_str}- {role} "{name}" [ref={node.ref_id}]{position_suffix}{rest}')
+                lines.append(f'{indent_str}- {blocked_prefix}{role} "{name}" [ref={node.ref_id}]{position_suffix}{hover_suffix}{rest}')
         else:
             # Non-ref element
             if compact:
                 # Compact mode: show as 'role "name"' without ref
                 if name:
-                    lines.append(f'{role} "{name}"')
+                    lines.append(f'{blocked_prefix}{role} "{name}"{hover_suffix}')
             else:
                 # Reconstruct original YAML line
                 attrs = node.node.attributes
                 rest = " ".join(f"[{k}={v}]" for k, v in attrs.items()) if attrs else ""
                 rest = f" {rest}" if rest else ""
                 if name:
-                    lines.append(f'{indent_str}- {role} "{name}"{rest}')
+                    lines.append(f'{indent_str}- {blocked_prefix}{role} "{name}"{hover_suffix}{rest}')
                 else:
-                    lines.append(f'{indent_str}- {role} ""{rest}')
+                    lines.append(f'{indent_str}- {blocked_prefix}{role} ""{hover_suffix}{rest}')
 
         # Recursively render children
         for child in node.children:

@@ -147,7 +147,13 @@ def test_is_irreversible_social_action() -> None:
     assert is_irreversible_social_action("artifact_publish", {"pkg": "foo"}) is True
     assert is_irreversible_social_action("shell_exec", {"command": "git push origin main"}) is True
     assert is_irreversible_social_action("shell_exec", {"command": "git push --force origin main"}) is True
+    assert is_irreversible_social_action("shell_exec", {"command": "git -C /workspace push origin main"}) is True
+    assert is_irreversible_social_action("bash", {"command": "git --no-pager push"}) is True
+    assert is_irreversible_social_action("bash", {"command": "git status && git -C repo push"}) is True
+    assert is_irreversible_social_action("bash", {"command": "git push && echo done"}) is True
+    assert is_irreversible_social_action("bash", {"command": "git checkout -b feature && git commit -m 'wip'"}) is False
     assert is_irreversible_social_action("bash", {"command": "npm publish"}) is True
+    assert is_irreversible_social_action("bash", {"command": "pnpm --filter pkg publish"}) is True
     assert is_irreversible_social_action("terminal", {"cmd": "twine upload dist/*"}) is True
     assert is_irreversible_social_action("shell_exec", {"command": "git status"}) is False
     assert is_irreversible_social_action("shell_exec", {"command": "git commit -m 'fix'"}) is False

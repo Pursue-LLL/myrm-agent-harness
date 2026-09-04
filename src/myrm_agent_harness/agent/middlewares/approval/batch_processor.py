@@ -478,6 +478,7 @@ async def evaluate_tool_batch(
                     auto_mode_enabled
                     and _batch_review._security_reviewer is not None
                     and is_threshold_breached() == ThresholdBreach.NONE
+                    and not is_irreversible_social_action(tool_name, tool_input)
                 ):
                     safe_tool_input = _truncate_tool_args(tool_input)
                     command_repr = (
@@ -982,9 +983,11 @@ async def evaluate_tool_batch(
         elif is_irreversible_social_action(tool_name, tool_input):
             extra_ctx = extra_ctx or {}
             extra_ctx["is_irreversible"] = True
+            extra_ctx["socially_irreversible"] = True
             extra_ctx["action_digest"] = compute_action_digest(tool_name, tool_input)
             extra_ctx["high_risk"] = True
             extra_ctx["hide_allow_always"] = True
+
 
         pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
 

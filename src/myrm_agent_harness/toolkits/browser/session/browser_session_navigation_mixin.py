@@ -69,6 +69,8 @@ def _camoufox_launch_tool_error(exc: BrowserLaunchError) -> NoReturn:
 class BrowserSessionNavigationMixin:
     async def new_tab(self, url: str | None = None) -> str:
         """Create new Tab or reuse existing same-origin Tab, return Tab ID."""
+        if hasattr(self, "_ensure_not_user_takeover"):
+            await self._ensure_not_user_takeover()
         if url:
             from urllib.parse import urlparse
 
@@ -133,6 +135,8 @@ class BrowserSessionNavigationMixin:
 
     async def navigate(self, url: str, verify_goal: str | None = None) -> str:
         """Navigate to URL (auto-injects site experience, auto-detects CAPTCHA)."""
+        if hasattr(self, "_ensure_not_user_takeover"):
+            await self._ensure_not_user_takeover()
         if not self._tab_controller.list_tabs():
             await self.new_tab()
         await self._ensure_components()

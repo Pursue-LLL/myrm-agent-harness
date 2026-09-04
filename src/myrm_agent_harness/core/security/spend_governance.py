@@ -76,17 +76,30 @@ def is_irreversible_social_action(tool_name: str, args: dict[str, object] | None
         or "shell" in lower_name
     ):
         if isinstance(args, dict):
-            raw_cmd = str(args.get("command") or args.get("cmd") or args.get("code") or "").strip()
+            raw_cmd = str(args.get("command") or args.get("cmd") or args.get("code") or args.get("script") or "").strip()
             if raw_cmd:
-                # Basic token matching for git push variations
+                # Robust token parsing handling flags between command and subcommands (e.g. git -C /dir push)
                 tokens = raw_cmd.lower().split()
                 for idx, token in enumerate(tokens):
-                    if token == "git" and idx + 1 < len(tokens) and tokens[idx + 1] == "push":
-                        return True
-                    if token in ("npm", "pnpm", "yarn") and idx + 1 < len(tokens) and tokens[idx + 1] == "publish":
-                        return True
-                    if token == "twine" and idx + 1 < len(tokens) and tokens[idx + 1] == "upload":
-                        return True
+                    if token == "git":
+                        # Search forward within the same command clause for "push"
+                        for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                            if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                                break
+                            if tokens[sub_idx] == "push":
+                                return True
+                    if token in ("npm", "pnpm", "yarn"):
+                        for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                            if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                                break
+                            if tokens[sub_idx] == "publish":
+                                return True
+                    if token == "twine":
+                        for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                            if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                                break
+                            if tokens[sub_idx] == "upload":
+                                return True
 
     return False
 

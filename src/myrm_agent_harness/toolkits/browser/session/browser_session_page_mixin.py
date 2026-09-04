@@ -42,6 +42,8 @@ class BrowserSessionPageMixin:
 
     async def evaluate(self, expression: str) -> str:
         """Execute JavaScript code"""
+        if hasattr(self, "_ensure_not_user_takeover"):
+            await self._ensure_not_user_takeover()
         await self._ensure_components()
 
         from myrm_agent_harness.toolkits.browser.tools.semantic_dom_hitl import enforce_js_eval_guard
@@ -62,6 +64,8 @@ class BrowserSessionPageMixin:
 
     async def go_back(self) -> str:
         """Go back one page"""
+        if hasattr(self, "_ensure_not_user_takeover"):
+            await self._ensure_not_user_takeover()
         await self._ensure_components()
         navigator = self._require_navigator()
 
@@ -70,6 +74,8 @@ class BrowserSessionPageMixin:
 
     async def go_forward(self) -> str:
         """Go forward one page"""
+        if hasattr(self, "_ensure_not_user_takeover"):
+            await self._ensure_not_user_takeover()
         await self._ensure_components()
         navigator = self._require_navigator()
 

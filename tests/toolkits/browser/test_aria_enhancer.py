@@ -475,3 +475,52 @@ class TestAriaEnhancer:
         assert refs["e1"].nth == 1
         assert refs["e0"].name == long_name
         assert refs["e1"].name == long_name
+
+    def test_enhance_with_blocking_modal(self) -> None:
+        """Verify modal blocker scopes Ref assignment to modal interior only."""
+        nodes = [
+            AriaNode(role="button", name="Background Button", indent=0),
+            AriaNode(role="button", name="Close Modal", indent=0),
+            AriaNode(role="button", name="Confirm", indent=0),
+        ]
+        blocking_modal = {
+            "role": "dialog",
+            "coverage": 0.8,
+            "zIndex": 1000,
+            "innerInteractive": ["Close Modal", "Confirm"],
+        }
+        enhanced, refs = enhance_aria_tree(
+            nodes,
+            scope="interactive",
+            blocking_modal=blocking_modal,
+        )
+
+        assert len(refs) == 2
+        assert "e0" in refs and refs["e0"].name == "Close Modal"
+        assert "e1" in refs and refs["e1"].name == "Confirm"
+        # Background button is blocked and has no ref ID
+        assert enhanced[0].ref_id is None
+        assert enhanced[0].is_blocked is True
+
+    def test_enhance_with_hover_surfaces(self) -> None:
+        """Verify hover surface hints are attached to enhanced nodes."""
+        nodes = [
+            AriaNode(role="button", name="Products", indent=0),
+            AriaNode(role="link", name="About", indent=0),
+        ]
+        hover_surfaces = [
+            {
+                "triggerName": "Products",
+                "triggerRole": "button",
+                "subItems": ["Shoes", "Bags", "Accessories"],
+            }
+        ]
+        enhanced, _ = enhance_aria_tree(
+            nodes,
+            scope="interactive",
+            hover_surfaces=hover_surfaces,
+        )
+
+        assert enhanced[0].hover_hint == "[hover first: Shoes | Bags | Accessories]"
+        assert enhanced[1].hover_hint is None
+

@@ -32,7 +32,12 @@ import time
 from typing import TYPE_CHECKING
 
 from ..exceptions import AriaAcquisitionError, AriaParseError
-from .element_detectors import collect_bboxes, detect_cursor_interactive
+from .element_detectors import (
+    collect_bboxes,
+    detect_blocking_modal,
+    detect_cursor_interactive,
+    detect_hover_surfaces,
+)
 from .observer_manager import ObserverManager
 from .snapshot_types import AriaSnapshot, SnapshotMetrics, SnapshotSource
 
@@ -248,8 +253,19 @@ class FrameState:
         if include_bbox:
             bbox_map = await collect_bboxes(self._frame, aria_yaml)
 
-        # Layer 3: Enhance tree with ref IDs and semantic positions
-        enhanced_nodes, refs = enhance_aria_tree(aria_nodes, scope=scope, compact=compact, bbox_map=bbox_map)
+        # Detect blocking modal dialogs / backdrops and hover surfaces
+        blocking_modal = await detect_blocking_modal(self._frame)
+        hover_surfaces = await detect_hover_surfaces(self._frame)
+
+        # Layer 3: Enhance tree with ref IDs, semantic positions, modal scope, and hover hints
+        enhanced_nodes, refs = enhance_aria_tree(
+            aria_nodes,
+            scope=scope,
+            compact=compact,
+            bbox_map=bbox_map,
+            blocking_modal=blocking_modal,
+            hover_surfaces=hover_surfaces,
+        )
 
         # Layer 4: Render to text (with optional intelligent budget-aware truncation)
         was_truncated = False

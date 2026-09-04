@@ -94,3 +94,59 @@ async def collect_bboxes(frame: Page | Frame, aria_tree: str) -> dict[str, dict[
     except Exception as exc:
         logger.warning(f"Failed to collect bboxes: {exc}")
         return {}
+
+
+async def detect_blocking_modal(frame: Page | Frame) -> dict[str, object] | None:
+    """Detect top-level blocking modal dialog or backdrop layer.
+
+    Args:
+        frame: Page or Frame instance
+
+    Returns:
+        Dict with modal metadata (role, coverage, zIndex, innerInteractive) or None
+    """
+    from .observer_scripts import MODAL_BLOCKING_SCRIPT
+
+    try:
+        modal_info = await asyncio.wait_for(
+            frame.evaluate(MODAL_BLOCKING_SCRIPT),
+            timeout=2.0,
+        )
+        if isinstance(modal_info, dict):
+            logger.info(
+                "Detected blocking layer: role=%s, coverage=%s, zIndex=%s",
+                modal_info.get("role"),
+                modal_info.get("coverage"),
+                modal_info.get("zIndex"),
+            )
+            return modal_info
+        return None
+    except Exception as exc:
+        logger.debug("Blocking modal detection non-critical failure: %s", exc)
+        return None
+
+
+async def detect_hover_surfaces(frame: Page | Frame) -> list[dict[str, object]]:
+    """Detect interactive trigger elements that reveal hover surfaces.
+
+    Args:
+        frame: Page or Frame instance
+
+    Returns:
+        List of dicts: [{triggerName, triggerRole, subItems: [...]}]
+    """
+    from .observer_scripts import HOVER_SURFACE_SCRIPT
+
+    try:
+        surfaces = await asyncio.wait_for(
+            frame.evaluate(HOVER_SURFACE_SCRIPT),
+            timeout=2.0,
+        )
+        if isinstance(surfaces, list):
+            logger.info("Detected %d hover surfaces", len(surfaces))
+            return surfaces
+        return []
+    except Exception as exc:
+        logger.debug("Hover surfaces detection non-critical failure: %s", exc)
+        return []
+

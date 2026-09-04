@@ -285,3 +285,118 @@ BBOX_COLLECTOR_SCRIPT = """
   return bboxMap;
 })
 """
+
+MODAL_BLOCKING_SCRIPT = """
+(function() {
+  const vp = { width: window.innerWidth, height: window.innerHeight };
+  const vpArea = vp.width * vp.height;
+  if (vpArea <= 0) return null;
+
+  const candidates = [];
+  const allElements = document.querySelectorAll('*');
+
+  for (const el of allElements) {
+    if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') continue;
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+    if (style.pointerEvents === 'none') continue;
+
+    const role = (el.getAttribute('role') || '').toLowerCase();
+    const isModalAttr = el.getAttribute('aria-modal') === 'true';
+    const isDialog = role === 'dialog' || role === 'alertdialog' || el.tagName.toLowerCase() === 'dialog';
+
+    const rect = el.getBoundingClientRect();
+    const w = Math.max(0, Math.min(rect.right, vp.width) - Math.max(rect.left, 0));
+    const h = Math.max(0, Math.min(rect.bottom, vp.height) - Math.max(rect.top, 0));
+    const coverage = (w * h) / vpArea;
+
+    // Check if element qualifies as a modal or backdrop cover
+    if (isModalAttr || isDialog || coverage >= 0.5) {
+      let zIndex = parseInt(style.zIndex, 10);
+      if (isNaN(zIndex)) zIndex = 0;
+      candidates.push({
+        element: el,
+        role: role || (isDialog ? 'dialog' : 'region'),
+        isModal: isModalAttr || isDialog,
+        coverage: coverage,
+        zIndex: zIndex
+      });
+    }
+  }
+
+  if (candidates.length === 0) return null;
+
+  // Pick candidate with highest zIndex, prioritizing explicit modals
+  candidates.sort((a, b) => {
+    if (a.isModal !== b.isModal) return a.isModal ? -1 : 1;
+    if (a.zIndex !== b.zIndex) return b.zIndex - a.zIndex;
+    return b.coverage - a.coverage;
+  });
+
+  const best = candidates[0];
+  // Extract visible element names inside this modal
+  const innerInteractive = [];
+  const innerElements = best.element.querySelectorAll('button, a, input, select, textarea, [role="button"], [role="link"], [role="checkbox"]');
+  for (const item of innerElements) {
+    const text = (item.innerText || item.getAttribute('aria-label') || '').trim();
+    if (text) {
+      innerInteractive.push(text.substring(0, 50));
+    }
+  }
+
+  return {
+    role: best.role,
+    coverage: Math.round(best.coverage * 100) / 100,
+    zIndex: best.zIndex,
+    innerInteractive: innerInteractive.slice(0, 30)
+  };
+})();
+"""
+
+HOVER_SURFACE_SCRIPT = """
+(function() {
+  const surfaces = [];
+  const elements = document.querySelectorAll('button, [role="button"], a, [role="menuitem"], .dropdown, .menu-item');
+
+  for (const el of elements) {
+    if (surfaces.length >= 20) break;
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+
+    // Check children or sibling dropdown menus that are currently hidden
+    const container = el.parentElement || el;
+    const subMenus = container.querySelectorAll('ul, [role="menu"], [role="listbox"], .dropdown-menu, .sub-menu');
+    for (const sub of subMenus) {
+      if (sub === el) continue;
+      const subStyle = window.getComputedStyle(sub);
+      const isHidden = subStyle.display === 'none' || subStyle.visibility === 'hidden' || subStyle.opacity === '0' || sub.offsetHeight === 0;
+
+      if (isHidden) {
+        // Collect prospective sub items
+        const subItems = [];
+        const items = sub.querySelectorAll('li, a, button, [role="menuitem"]');
+        for (const it of items) {
+          const txt = (it.innerText || it.getAttribute('aria-label') || '').trim();
+          if (txt && txt.length < 50 && !subItems.includes(txt)) {
+            subItems.push(txt);
+            if (subItems.length >= 5) break;
+          }
+        }
+        if (subItems.length > 0) {
+          const triggerText = (el.innerText || el.getAttribute('aria-label') || '').trim();
+          if (triggerText) {
+            surfaces.push({
+              triggerName: triggerText.substring(0, 50),
+              triggerRole: (el.getAttribute('role') || el.tagName.toLowerCase()).substring(0, 20),
+              subItems: subItems
+            });
+            break;
+          }
+        }
+      }
+    }
+  }
+  return surfaces;
+})();
+"""
+

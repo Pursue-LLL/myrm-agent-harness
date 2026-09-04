@@ -187,6 +187,8 @@ def enhance_aria_tree(
     scope: str = "interactive",
     compact: bool = False,
     bbox_map: dict[str, dict[str, int | dict[str, int]]] | None = None,
+    blocking_modal: dict[str, object] | None = None,
+    hover_surfaces: list[dict[str, object]] | None = None,
 ) -> tuple[list[EnhancedNode], dict[str, RefInfo]]:
     """Enhance AriaNode tree with ref IDs, semantic positions, and scope filtering.
 
@@ -201,6 +203,8 @@ def enhance_aria_tree(
             - "full": All elements including structural
         compact: Skip unnamed structural elements in full mode (token optimization).
         bbox_map: Optional bbox data keyed by "role:name" (string from JS).
+        blocking_modal: Optional metadata of top-level blocking modal/backdrop layer.
+        hover_surfaces: Optional list of detected hover surface triggers and sub-items.
 
     Returns:
         (enhanced_tree, refs) where:
@@ -218,6 +222,25 @@ def enhance_aria_tree(
     if bbox_map:
         typed_bbox_map = {cast(BBoxMapKey, tuple(k.split(":", 1))): cast(BBoxData, v) for k, v in bbox_map.items()}
 
+    # Map hover surface triggers: triggerName -> formatted hover_hint
+    hover_map: dict[str, str] = {}
+    if hover_surfaces:
+        for surf in hover_surfaces:
+            t_name = str(surf.get("triggerName", "")).strip()
+            items = surf.get("subItems", [])
+            if t_name and isinstance(items, list) and items:
+                formatted_items = " | ".join(str(it) for it in items[:5])
+                hover_map[t_name] = f"[hover first: {formatted_items}]"
+
+    # Identify allowed inner interactive names if modal blocker is active
+    modal_active = False
+    allowed_inner_names: set[str] = set()
+    if blocking_modal and isinstance(blocking_modal, dict):
+        inner_names = blocking_modal.get("innerInteractive", [])
+        if isinstance(inner_names, list) and inner_names:
+            modal_active = True
+            allowed_inner_names = {str(n).strip() for n in inner_names if str(n).strip()}
+
     # Phase 1: Pre-count (role, name) occurrences
     filter_unnamed_structural = compact
     role_name_totals = _count_role_names(nodes, scope, filter_unnamed_structural)
@@ -232,11 +255,21 @@ def enhance_aria_tree(
         role = node.role
         name = node.name
 
+        # Blocking layer check: if modal is active and this element is outside
+        is_blocked = False
+        if modal_active and role in _ROLE_CATEGORY and _ROLE_CATEGORY[role] == "interactive":
+            if name and name not in allowed_inner_names:
+                is_blocked = True
+
         should_assign_ref = _role_in_scope(role, scope)
 
         # full+filter mode: skip unnamed structural elements
         is_unnamed_structural = not name and role in _STRUCTURAL_ROLES
         if should_assign_ref and scope == "full" and filter_unnamed_structural and is_unnamed_structural:
+            should_assign_ref = False
+
+        # If element is blocked by modal layer, do not assign ref ID to prevent LLM click interception
+        if is_blocked:
             should_assign_ref = False
 
         ref_id = None
@@ -290,6 +323,9 @@ def enhance_aria_tree(
             # Store RefInfo
             refs[ref_id] = RefInfo(role=role, name=name, nth=nth_value, bbox=bbox_data, position=position)
 
+        # Hover surface hint lookup
+        hover_hint = hover_map.get(name) if name else None
+
         # Recursively enhance children
         enhanced_children = tuple(_enhance_node(child) for child in node.children)
 
@@ -300,9 +336,12 @@ def enhance_aria_tree(
             position=position,
             nth=nth_value,
             children=enhanced_children,
+            hover_hint=hover_hint,
+            is_blocked=is_blocked,
         )
 
     # Enhance all root nodes
     enhanced_nodes = [_enhance_node(node) for node in nodes]
 
     return enhanced_nodes, refs
+

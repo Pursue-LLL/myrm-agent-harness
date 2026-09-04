@@ -141,6 +141,8 @@ class EnhancedNode:
     position: str | None = None
     nth: int | None = None
     children: tuple[EnhancedNode, ...] = ()
+    hover_hint: str | None = None
+    is_blocked: bool = False
 
     def __repr__(self) -> str:
         return f"EnhancedNode(role={self.node.role!r}, ref_id={self.ref_id!r}, children={len(self.children)})"

@@ -1132,6 +1132,8 @@ async def test_irreversible_social_action_blocks_allowlist_bypass() -> None:
     assert pending_approval[0][1]["id"] == "tc_push_1"
     assert pending_approval[0][4].get("hide_allow_always") is True
     assert pending_approval[0][4].get("is_irreversible") is True
+    assert pending_approval[0][4].get("socially_irreversible") is True
+
 
 
 

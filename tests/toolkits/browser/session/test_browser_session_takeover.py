@@ -81,3 +81,23 @@ async def test_ensure_not_user_takeover_timeout_unblocks(mock_session: BrowserSe
     await mock_session._ensure_not_user_takeover(timeout=0.1)
     assert mock_session.user_takeover_active is False
     assert mock_session._user_takeover_event.is_set() is True
+
+
+@pytest.mark.asyncio
+async def test_navigate_and_evaluate_block_during_takeover(mock_session: BrowserSession) -> None:
+    mock_session._require_navigator = MagicMock()
+    mock_session._require_snapshot_manager = MagicMock()
+    mock_nav = MagicMock()
+    mock_nav.goto = AsyncMock(return_value=("Example", "https://example.com", 200))
+    mock_session._require_navigator.return_value = mock_nav
+    mock_session._require_snapshot_manager.return_value = MagicMock()
+
+    await mock_session.pause_for_takeover()
+
+    nav_task = asyncio.create_task(mock_session.navigate("https://example.com"))
+    await asyncio.sleep(0.05)
+    assert not nav_task.done()
+
+    await mock_session.resume_from_takeover()
+    nav_result = await asyncio.wait_for(nav_task, timeout=2.0)
+    assert "https://example.com" in nav_result or "Example" in nav_result

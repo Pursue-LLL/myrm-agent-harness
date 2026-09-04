@@ -61,6 +61,7 @@ class DenialResult:
 
 
 _denial_state_var: ContextVar[DenialState] = ContextVar("denial_state")
+_MAX_SESSION_REGISTRY_SIZE = 10000
 _session_denial_registry: dict[str, DenialState] = {}
 
 
@@ -80,6 +81,10 @@ def _get_state() -> DenialState:
     session_key = _get_active_session_key()
     if session_key:
         if session_key not in _session_denial_registry:
+            if len(_session_denial_registry) >= _MAX_SESSION_REGISTRY_SIZE:
+                # Evict oldest recorded entry to bound memory
+                first_key = next(iter(_session_denial_registry))
+                _session_denial_registry.pop(first_key, None)
             _session_denial_registry[session_key] = DenialState()
         return _session_denial_registry[session_key]
 
