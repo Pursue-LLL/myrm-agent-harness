@@ -50,6 +50,9 @@ __all__ = [
     "FileChecksum",
     "FleetQuotaItem",
     "FourTierSpendControlEngine",
+    "ExternalSecretResolutionError",
+    "is_external_secret_reference",
+    "resolve_external_secret",
     "HookEvent",
     "HookRegistryProtocol",
     "IncrementalTranscriptParser",
@@ -266,6 +269,18 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "SpendInterventionTier",
     ),
     "HookEvent": ("myrm_agent_harness.api.protocols", "HookEvent"),
+    "ExternalSecretResolutionError": (
+        "myrm_agent_harness.backends.secrets",
+        "ExternalSecretResolutionError",
+    ),
+    "is_external_secret_reference": (
+        "myrm_agent_harness.backends.secrets",
+        "is_external_secret_reference",
+    ),
+    "resolve_external_secret": (
+        "myrm_agent_harness.backends.secrets",
+        "resolve_external_secret",
+    ),
     "HookRegistryProtocol": (
         "myrm_agent_harness.api.protocols",
         "HookRegistryProtocol",
