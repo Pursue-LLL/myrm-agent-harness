@@ -1316,7 +1316,8 @@ async def test_time_bound_allow_always_integration_with_middleware(monkeypatch):
 
     # First turn: triggers interrupt, resolves approve, and adds 2s time-bound grant to allowlist
     res1 = await middleware.aafter_model(state, MockRuntime())
-    assert res1 is None, "Approved tool should proceed"
+    assert res1 is not None and "messages" in res1
+    assert len(res1["messages"][0].tool_calls) == 1, "Approved tool call should be preserved in revised_tool_calls"
 
     allowlist = get_allowlist()
     # While active (<2s), check should succeed
