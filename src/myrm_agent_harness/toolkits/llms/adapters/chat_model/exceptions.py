@@ -33,6 +33,7 @@ _FRAMEWORK_REQUIRED_OPENAI_PARAMS: frozenset[str] = frozenset(
         "context_management",
         "store",
         "previous_response_id",
+        "reasoning_effort",
     }
 )
 

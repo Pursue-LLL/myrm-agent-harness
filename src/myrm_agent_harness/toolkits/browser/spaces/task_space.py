@@ -1,7 +1,14 @@
 """Browser task space entity for multi-tenant and multi-subagent isolated execution.
 
-Each TaskSpace encapsulates an independent BrowserContext, a dedicated BrowserSession,
-an asyncio.Lock for race-condition prevention, and active lifecycle tracking.
+[INPUT]
+- patchright.async_api::BrowserContext (POS: 底层浏览器独立上下文)
+- session.browser_session::BrowserSession (POS: 浏览器会话聚合根)
+
+[OUTPUT]
+- BrowserTaskSpace: 隔离执行的浏览器任务空间实体
+
+[POS]
+浏览器任务空间实体。封装独立的 BrowserContext、BrowserSession、专有 asyncio.Lock 并发互斥锁与实时生命周期追踪。
 """
 
 from __future__ import annotations

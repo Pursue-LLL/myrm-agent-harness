@@ -8,6 +8,7 @@ Optional memory strategies: forgetting, extraction, deduplication, consolidation
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Optional memory strategies: forgetting, extraction, deduplication, consolidation, blind spot. | — |
+| behavioral_measurement.py | Core | Zero-model-cost deterministic behavioral measurement strategy. Computes 24h active histograms, weekday distributions, response latency percentiles (P50/P90), and channel distribution without LLM calls. | ✅ |
 | blind_spot.py | Core | Session blind spot knowledge extraction strategy. Analyzes missed queries and user corrections across sessions to extract structured knowledge patches (Wiki, Procedural, Skill gaps). | ✅ |
 | conflict_merger.py | Core | Zero-LLM deterministic three-state conflict merger (Confirm/Supplement/Conflict/Independent) and confidence evolution engine. Implements User Override Wins, evidence deduplicated chaining, auto-unfreeze for stale conflicts, and conflict immunity for forgetting. | ✅ |
 | consolidation.py | Core | Cross-session memory consolidation strategy. Analyzes recent memories via LLM to detect contradictions, redundancies, and generate insights. | ✅ |

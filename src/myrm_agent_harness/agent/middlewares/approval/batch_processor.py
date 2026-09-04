@@ -33,6 +33,11 @@ from myrm_agent_harness.agent.security.approval_flow import (
     DEFAULT_USER_ID,
     get_allowlist,
 )
+from myrm_agent_harness.core.security.spend_governance import (
+    compute_action_digest,
+    is_financial_or_spend_tool,
+    parse_spend_amount,
+)
 from myrm_agent_harness.agent.security.audit import record_decision
 from myrm_agent_harness.agent.security.engine import (
     evaluate_tool_call,
@@ -183,6 +188,36 @@ async def evaluate_tool_batch(
                         f"Tool execution denied by security policy: {reason}",
                     )
                 )
+            elif is_financial_or_spend_tool(tool_name, tool_input):
+                logger.warning(
+                    "[YOLO_FINANCIAL_GATE] Tool %s blocked from YOLO auto-approval (financial spend detected)",
+                    tool_name,
+                )
+                record_decision(
+                    tool_name,
+                    "YOLO_FINANCIAL_GATE_BLOCKED",
+                    "Financial spend tools are immune to YOLO auto-approval",
+                )
+                spend_amt, spend_cur = parse_spend_amount(tool_input)
+                spend_digest = compute_action_digest(tool_name, tool_input)
+                spend_ctx: dict[str, object] = {
+                    "is_spend": True,
+                    "spend_amount": spend_amt,
+                    "spend_currency": spend_cur,
+                    "action_digest": spend_digest,
+                    "high_risk": True,
+                    "hide_allow_always": True,
+                }
+                disp_amt = f"{spend_amt:.2f} {spend_cur}" if spend_amt is not None else "transaction"
+                pending_approval.append(
+                    (
+                        idx,
+                        tool_call,
+                        permission_type,
+                        f"Financial spend operation requires explicit approval ({disp_amt})",
+                        spend_ctx,
+                    )
+                )
             else:
                 record_decision(tool_name, "YOLO_AUTO_APPROVE", "YOLO mode enabled")
                 auto_approved.append((idx, tool_call))
@@ -330,6 +365,13 @@ async def evaluate_tool_batch(
                     tool_name,
                     "BATCH_RISK_DUAL_INSURANCE_ESCALATED",
                     f"batch high-risk dual insurance blocked allowlist bypass: {effective_tool_name}",
+                )
+                allowlist_would_match = False
+            elif allowlist_would_match and is_financial_or_spend_tool(tool_name, tool_input):
+                record_decision(
+                    tool_name,
+                    "FINANCIAL_GATE_ALLOWLIST_BLOCKED",
+                    f"Financial spend tools cannot be bypassed via allowlist: {effective_tool_name}",
                 )
                 allowlist_would_match = False
 
@@ -872,6 +914,16 @@ async def evaluate_tool_batch(
             extra_ctx["recovery_hint"] = (
                 recovery_hint.recovery_command or recovery_hint.description
             )
+
+        if is_financial_or_spend_tool(tool_name, tool_input):
+            extra_ctx = extra_ctx or {}
+            amt, cur = parse_spend_amount(tool_input)
+            extra_ctx["is_spend"] = True
+            extra_ctx["spend_amount"] = amt
+            extra_ctx["spend_currency"] = cur
+            extra_ctx["action_digest"] = compute_action_digest(tool_name, tool_input)
+            extra_ctx["high_risk"] = True
+            extra_ctx["hide_allow_always"] = True
 
         pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
 

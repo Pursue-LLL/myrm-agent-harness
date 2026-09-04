@@ -1,5 +1,13 @@
 """Optional memory strategies: forgetting, extraction, deduplication, consolidation."""
 
+from myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement import (
+    BehavioralMessage,
+    BehavioralStatsOptions,
+    RoutineMeasurement,
+    compute_routine_measurement,
+    generate_behavioral_profile_candidates,
+    percentile,
+)
 from myrm_agent_harness.toolkits.memory.strategies.blind_spot import (
     BlindSpotCandidate,
     BlindSpotKnowledgePatch,
@@ -75,6 +83,8 @@ from myrm_agent_harness.toolkits.memory.strategies.incremental_transcript import
 )
 
 __all__ = [
+    "BehavioralMessage",
+    "BehavioralStatsOptions",
     "BlindSpotCandidate",
     "BlindSpotKnowledgePatch",
     "BlindSpotReport",
@@ -104,6 +114,7 @@ __all__ = [
     "MergeResult",
     "PatchTargetType",
     "RetentionScore",
+    "RoutineMeasurement",
     "SelfIdentityState",
     "SmartDeduplicator",
     "TranscriptIncrementalChunk",
@@ -112,14 +123,17 @@ __all__ = [
     "assert_has_evidence",
     "check_distillable",
     "classify_relation",
+    "compute_routine_measurement",
     "detect_implicit_feedback",
     "extract_blind_spot_patches",
     "extract_memories_from_conversation",
     "filter_distillable_messages",
     "filter_memories_with_evidence",
+    "generate_behavioral_profile_candidates",
     "is_valid_evidence_reference",
     "merge_evidence_references",
     "merge_memory_candidate",
+    "percentile",
     "plan_memory_corrections",
     "run_consolidation",
     "should_consolidate",

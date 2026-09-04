@@ -138,6 +138,10 @@ class ChatLiteLLM(
     top_k: int | None = None
     n: int | None = None
     max_tokens: int | None = None
+    reasoning_effort: str | None = Field(
+        default=None,
+        description="Reasoning effort level (e.g. 'low', 'medium', 'high', 'max')",
+    )
     streaming: bool = False
     max_retries: int = 1
     empty_retry_enabled: bool = Field(
@@ -171,6 +175,10 @@ class ChatLiteLLM(
     wire_protocol: WireProtocol = Field(
         default=DEFAULT_WIRE_PROTOCOL,
         description="HTTP wire transport: chat_completions, responses, or anthropic_messages",
+    )
+    reasoning_effort: str | None = Field(
+        default=None,
+        description="Reasoning effort level (e.g. low, medium, high, max)",
     )
 
     # Private attribute for metrics (Pydantic v2 PrivateAttr)
@@ -225,6 +233,8 @@ class ChatLiteLLM(
         }
         if self.extra_body:
             params["extra_body"] = self.extra_body
+        if self.reasoning_effort is not None:
+            params["reasoning_effort"] = self.reasoning_effort
         if self.web_search_options is not None:
             params["web_search_options"] = self.web_search_options
         return params

@@ -1,4 +1,16 @@
-"""Manager for parallel browser task spaces with quota enforcement and idle pruning."""
+"""Manager for parallel browser task spaces with quota enforcement and idle pruning.
+
+[INPUT]
+- .task_space::BrowserTaskSpace (POS: 任务空间隔离实体)
+- session.browser_session::BrowserSession (POS: 浏览器会话聚合根)
+- patchright.async_api::BrowserContext (POS: 底层浏览器上下文)
+
+[OUTPUT]
+- HarnessTaskSpaceManager: 浏览器任务空间多实例管理器
+
+[POS]
+浏览器任务空间管理器。管理 TaskSpace 的创建、路由寻址、并发互斥、硬配额保护与超时自动清理。
+"""
 
 from __future__ import annotations
 

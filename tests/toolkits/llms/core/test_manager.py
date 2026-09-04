@@ -161,3 +161,36 @@ async def test_get_llm_from_config_keeps_model_kwargs_temperature_when_top_level
     await LLMManager.get_llm_from_config(config, streaming=False)
 
     assert captured["temperature"] == 0.7
+
+
+@pytest.mark.asyncio
+async def test_get_llm_from_config_passes_top_level_reasoning_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _capturing_model(*, api_key: str, **kwargs: object) -> MagicMock:
+        captured.update(kwargs)
+        model = MagicMock()
+        model.model = f"model-{api_key}"
+        return model
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.llms.core.manager.create_litellm_model",
+        _capturing_model,
+    )
+
+    config = SimpleNamespace(
+        model="deepseek/deepseek-v4-pro",
+        api_key="key-a",
+        base_url="https://example.invalid",
+        temperature=None,
+        reasoning_effort="max",
+        model_kwargs={"reasoning_effort": "low"},
+        api_keys=None,
+        credential_pool_strategy=None,
+    )
+
+    await LLMManager.get_llm_from_config(config, streaming=False)
+
+    assert captured["reasoning_effort"] == "max"

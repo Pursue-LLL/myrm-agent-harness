@@ -242,6 +242,12 @@ def build_interrupt_payload(
             review_config["batchImpactSummary"] = extra_ctx.get("batch_impact_summary")
         if extra_ctx and extra_ctx.get("recovery_hint"):
             review_config["recoveryHint"] = extra_ctx.get("recovery_hint")
+        if extra_ctx and extra_ctx.get("is_spend"):
+            review_config["isSpend"] = True
+            review_config["spendAmount"] = extra_ctx.get("spend_amount")
+            review_config["spendCurrency"] = extra_ctx.get("spend_currency")
+            review_config["actionDigest"] = extra_ctx.get("action_digest")
+            review_config["hideAllowAlways"] = True
         if domains:
             review_config["domainApproval"] = True
 
@@ -374,6 +380,51 @@ async def apply_approval_decisions(
             )
 
             if decision_type == "approve":
+                expected_digest = extra_ctx.get("action_digest") if extra_ctx else None
+                if expected_digest:
+                    from myrm_agent_harness.core.security.spend_governance import (
+                        verify_action_digest,
+                    )
+
+                    user_digest = str(
+                        decision.get("action_digest")
+                        or decision.get("actionDigest")
+                        or extensions.get("actionDigest")
+                        or extensions.get("action_digest")
+                        or ""
+                    ).strip()
+                    if not verify_action_digest(tool_name, tool_call.get("args", {}), user_digest):
+                        logger.warning(
+                            "[APPROVAL] Tool %s: action digest mismatch (expected=%s, received=%s)",
+                            tool_name,
+                            expected_digest,
+                            user_digest,
+                        )
+                        record_decision(
+                            tool_name,
+                            "DIGEST_MISMATCH_REJECT",
+                            "Financial action digest mismatch or missing: parameter tampering prevented",
+                        )
+                        hint = record_denial(tool_name)
+                        artificial_tool_messages.append(
+                            ToolMessage(
+                                content=(
+                                    f"Security Blocked: Financial action digest verification failed. "
+                                    f"Expected '{expected_digest[:16]}...', received '{user_digest[:16] if user_digest else 'none'}...'. "
+                                    f"Execution aborted to prevent parameter tampering.{hint}"
+                                ),
+                                name=tool_name,
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        )
+                        continue
+
+                if extra_ctx and extra_ctx.get("is_spend"):
+                    raw_args = tool_call.get("args")
+                    if isinstance(raw_args, dict) and "idempotency_key" not in raw_args:
+                        raw_args["idempotency_key"] = f"myrm_tx_{uuid.uuid4().hex[:16]}"
+
                 record_decision(tool_name, "USER_APPROVED", reason)
 
                 if grant_directory and "Path outside allowed zones" in reason:

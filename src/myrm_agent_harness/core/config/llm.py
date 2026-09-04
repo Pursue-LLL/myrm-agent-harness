@@ -41,6 +41,7 @@ class CustomModelDef:
     supports_streaming: bool = True
     supports_vision: bool = False
     supports_video: bool = False
+    reasoning_effort: str | None = None
 
 
 class LLMConfig(BaseModel):
@@ -84,6 +85,10 @@ class LLMConfig(BaseModel):
         default=DEFAULT_WIRE_PROTOCOL,
         description="HTTP wire transport: chat_completions, responses, or anthropic_messages",
     )
+    reasoning_effort: str | None = Field(
+        default=None,
+        description="Reasoning effort level (e.g. low, medium, high, max, or token budget)",
+    )
 
     model_config = {
         "frozen": True,
@@ -94,13 +99,13 @@ class LLMConfig(BaseModel):
     def _strip_whitespace(cls, v: str) -> str:
         return v.strip() if isinstance(v, str) else v
 
-    @field_validator("base_url", mode="before")
+    @field_validator("base_url", "reasoning_effort", mode="before")
     @classmethod
-    def _normalize_base_url(cls, v: str | None) -> str | None:
+    def _normalize_string_fields(cls, v: str | None) -> str | None:
         if not isinstance(v, str):
             return v
-        normalized = v.strip().rstrip("/")
-        return normalized or None
+        cleaned = v.strip()
+        return cleaned or None
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
@@ -119,6 +124,7 @@ class LLMConfig(BaseModel):
 
         max_ctx_str = os.getenv("MYRM_MAX_CONTEXT_TOKENS")
         temp_str = os.getenv("MYRM_TEMPERATURE")
+        effort_str = os.getenv("MYRM_REASONING_EFFORT")
         return cls(
             model=model,
             api_key=api_key,
@@ -126,4 +132,5 @@ class LLMConfig(BaseModel):
             temperature=float(temp_str) if temp_str is not None else None,
             streaming=os.getenv("MYRM_STREAMING", "true").lower() == "true",
             max_context_tokens=int(max_ctx_str) if max_ctx_str else None,
+            reasoning_effort=effort_str.strip() if effort_str else None,
         )

@@ -227,6 +227,9 @@ class LLMManager:
             # 顶层 temperature 是 LLMConfig 的权威字段，覆盖 model_kwargs 中的同名项，
             # 与 agent builder 装配路径保持一致的「顶层优先」语义。
             model_kwargs["temperature"] = top_level_temperature
+        top_level_reasoning_effort = getattr(config, "reasoning_effort", None)
+        if top_level_reasoning_effort is not None:
+            model_kwargs["reasoning_effort"] = top_level_reasoning_effort
         effective_api_keys = api_keys if api_keys is not None else getattr(config, "api_keys", None)
         effective_strategy = (
             credential_pool_strategy

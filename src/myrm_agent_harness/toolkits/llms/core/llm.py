@@ -34,6 +34,7 @@ from myrm_agent_harness.infra.tls_compat import build_httpx_verify, tls_strict_d
 # Side-effect import: registers custom providers into litellm.custom_provider_map
 from myrm_agent_harness.toolkits.llms import providers  # noqa: F401
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM, clean_model_kwargs
+from myrm_agent_harness.toolkits.llms.core.deepseek_reasoning import apply_deepseek_reasoning_effort
 from myrm_agent_harness.toolkits.llms.core.openrouter_verbosity import apply_openrouter_reasoning_effort
 from myrm_agent_harness.toolkits.llms.core.reasoning_timeout import get_reasoning_timeout_floor
 from myrm_agent_harness.toolkits.llms.core.thinking_headroom import ensure_thinking_headroom
@@ -141,6 +142,7 @@ def create_litellm_model(
     native_tools: set[str] | None = None,
     web_search_options: dict[str, Any] | None = None,
     wire_protocol: WireProtocol = DEFAULT_WIRE_PROTOCOL,
+    reasoning_effort: str | None = None,
     **kwargs: Any,
 ) -> "ChatLiteLLM":
     """Unified factory for creating ChatLiteLLM instances across all providers.
@@ -162,6 +164,11 @@ def create_litellm_model(
         Configured ChatLiteLLM instance.
     """
     llm_kwargs: dict[str, Any] = {"model": model, "wire_protocol": wire_protocol, **kwargs}
+    if reasoning_effort is not None:
+        llm_kwargs["reasoning_effort"] = reasoning_effort
+        extra_body = llm_kwargs.setdefault("extra_body", {})
+        if isinstance(extra_body, dict) and "reasoning_effort" not in extra_body:
+            extra_body["reasoning_effort"] = reasoning_effort
     if temperature is not None:
         llm_kwargs["temperature"] = temperature
 
@@ -176,6 +183,9 @@ def create_litellm_model(
 
     # Merge kwargs into extra_body for cross-provider compatibility
     _merge_model_kwargs_to_extra_body(llm_kwargs, kwargs)
+
+    # DeepSeek: normalize reasoning_effort ('off'|'low'|'high'|'max') & thinking ('enabled'|'disabled')
+    apply_deepseek_reasoning_effort(model, llm_kwargs)
 
     # OpenRouter: rewrite reasoning_effort → extra_body.reasoning.effort
     apply_openrouter_reasoning_effort(model, llm_kwargs)
