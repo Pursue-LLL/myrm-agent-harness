@@ -24,6 +24,12 @@ async def get_feed_notes(session: BrowserSession, args: dict[str, Any]) -> str:
     """
     max_notes = int(args.get("max_notes", 10))
 
+    # Known trap mitigation: dismiss modal login overlay if present via Escape
+    try:
+        await session.interact(action="press", text="Escape")
+    except Exception:
+        pass
+
     refs = session.get_all_refs()
     if not refs:
         await session.snapshot()
@@ -56,4 +62,4 @@ async def get_feed_notes(session: BrowserSession, args: dict[str, Any]) -> str:
             if len(line) >= 4 and not line.startswith(("http", "www")):
                 notes.append({"title": line[:200]})
 
-    return json.dumps(notes, ensure_ascii=False)
+    return json.dumps(notes, ensure_ascii=False, indent=2)

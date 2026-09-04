@@ -24,6 +24,12 @@ async def get_hot_videos(session: BrowserSession, args: dict[str, Any]) -> str:
     """
     max_videos = int(args.get("max_videos", 10))
 
+    # Known trap mitigation: trigger smooth micro-scroll to force virtual list render
+    try:
+        await session.interact(action="scroll", text="350")
+    except Exception:
+        pass
+
     refs = session.get_all_refs()
     if not refs:
         await session.snapshot()
@@ -57,4 +63,4 @@ async def get_hot_videos(session: BrowserSession, args: dict[str, Any]) -> str:
             if len(line) >= 4 and not line.startswith(("http", "www")):
                 videos.append({"title": line[:200]})
 
-    return json.dumps(videos, ensure_ascii=False)
+    return json.dumps(videos, ensure_ascii=False, indent=2)

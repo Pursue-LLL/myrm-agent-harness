@@ -29,6 +29,7 @@ from typing import Any
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
+from pydantic import PrivateAttr
 
 from myrm_agent_harness.toolkits.llms.core.credential_pool import CredentialPool
 from myrm_agent_harness.toolkits.llms.errors.classifier import (
@@ -60,6 +61,10 @@ class KeyPoolLLM(BaseChatModel):
     Transparent to callers — behaves exactly like a single ``ChatLiteLLM``.
     """
 
+    _instances: dict[str, BaseChatModel] = PrivateAttr(default_factory=dict)
+    _pool: CredentialPool | None = PrivateAttr(default=None)
+    _primary_key: str = PrivateAttr(default="")
+
     def __init__(
         self,
         instances: dict[str, BaseChatModel],
@@ -81,7 +86,19 @@ class KeyPoolLLM(BaseChatModel):
 
     @property
     def credential_pool(self) -> CredentialPool:
+        if self._pool is None:
+            raise RuntimeError("KeyPoolLLM pool is not initialized")
         return self._pool
+
+    @property
+    def pool(self) -> CredentialPool:
+        if self._pool is None:
+            raise RuntimeError("KeyPoolLLM pool is not initialized")
+        return self._pool
+
+    @property
+    def instances(self) -> dict[str, BaseChatModel]:
+        return self._instances
 
     # ------------------------------------------------------------------
     # BaseChatModel interface

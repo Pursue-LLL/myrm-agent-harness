@@ -541,3 +541,38 @@ class TestAddUserSkillOverride:
         assert updated is not None
         assert updated.name == "Overridden X"
         assert "custom-x.com" in updated.domains
+
+
+# ---------------------------------------------------------------------------
+# Builtin CN Social Packs (Bilibili, Xiaohongshu, Douyin)
+# ---------------------------------------------------------------------------
+
+
+class TestBuiltinCnSocialPacks:
+    def test_all_cn_social_builtin_packs_loaded_and_matched(self) -> None:
+        store = DomainSkillStore(load_builtin=True, user_dir="/nonexistent")
+
+        # Bilibili
+        bili = store.get("bilibili")
+        assert bili is not None
+        assert "bilibili.com" in bili.domains
+        assert "get_video_list" in bili.python_tools
+        assert store.is_builtin("bilibili") is True
+        assert len(store.match("https://www.bilibili.com/video/BV1xx")) >= 1
+
+        # Xiaohongshu
+        xhs = store.get("xiaohongshu")
+        assert xhs is not None
+        assert "xiaohongshu.com" in xhs.domains
+        assert "get_feed_notes" in xhs.python_tools
+        assert store.is_builtin("xiaohongshu") is True
+        assert len(store.match("https://www.xiaohongshu.com/explore")) >= 1
+
+        # Douyin
+        dy = store.get("douyin")
+        assert dy is not None
+        assert "douyin.com" in dy.domains
+        assert "get_hot_videos" in dy.python_tools
+        assert store.is_builtin("douyin") is True
+        assert len(store.match("https://www.douyin.com/hot")) >= 1
+

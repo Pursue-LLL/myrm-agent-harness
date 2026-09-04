@@ -337,3 +337,45 @@ class TestCredentialPoolResetCooldowns:
         assert key_stats["1234"]["in_cooldown"] is False
         assert key_stats["5678"]["in_cooldown"] is True
 
+
+class TestLLMManagerPoolObservability:
+    """Tests for LLMManager.get_pool_stats() and reset_pool_cooldowns()."""
+
+    def test_manager_pool_stats_and_reset(self) -> None:
+        from myrm_agent_harness.toolkits.llms.core.manager import LLMManager
+        from myrm_agent_harness.toolkits.llms.core.key_pool_llm import KeyPoolLLM
+        from unittest.mock import MagicMock
+
+        LLMManager.clear_cache()
+        pool = CredentialPool(["sk-mgr-1111", "sk-mgr-2222"], cooldown_s=60)
+        pool.report_error("sk-mgr-1111", "rate_limit")
+
+        mock_instance = MagicMock()
+        mock_instance.model = "gpt-4o"
+        instances = {"sk-mgr-1111": mock_instance, "sk-mgr-2222": mock_instance}
+        pooled_llm = KeyPoolLLM(instances=instances, pool=pool)
+
+        # Inject into cache
+        LLMManager._llm_cache.set("test_pool_cache_key", pooled_llm)
+
+        # Verify get_pool_stats()
+        all_stats = LLMManager.get_pool_stats()
+        assert len(all_stats) == 1
+        assert all_stats[0]["model"] == "gpt-4o"
+        stats = all_stats[0]["stats"]
+        assert isinstance(stats, dict)
+        assert stats["total_keys"] == 2
+        assert stats["available_keys"] == 1
+
+        # Verify reset_pool_cooldowns()
+        reset_count = LLMManager.reset_pool_cooldowns("1111")
+        assert reset_count == 1
+
+        updated_stats = LLMManager.get_pool_stats()
+        up_stats = updated_stats[0]["stats"]
+        assert isinstance(up_stats, dict)
+        assert up_stats["available_keys"] == 2
+
+        LLMManager.clear_cache()
+
+

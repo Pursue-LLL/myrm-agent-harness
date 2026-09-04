@@ -290,6 +290,9 @@ class ProfileEntry(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     language: Literal["zh", "en"] = "en"
     scope: MemoryScope = Field(default_factory=MemoryScope)
+    evidence: list[EvidenceReference] = Field(
+        default_factory=list, description="Structured provenance evidence anchoring this profile fact"
+    )
 
     @field_validator("created_at", "updated_at", mode="before")
     @classmethod

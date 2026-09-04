@@ -24,6 +24,12 @@ async def get_video_list(session: BrowserSession, args: dict[str, Any]) -> str:
     """
     max_videos = int(args.get("max_videos", 10))
 
+    # Known trap mitigation: trigger smooth micro-scroll to bypass lazy loading
+    try:
+        await session.interact(action="scroll", text="350")
+    except Exception:
+        pass
+
     refs = session.get_all_refs()
     if not refs:
         await session.snapshot()
@@ -39,7 +45,7 @@ async def get_video_list(session: BrowserSession, args: dict[str, Any]) -> str:
         role = info.role or ""
         # Bilibili video cards typically expose title in link or article names
         if role in ("link", "article", "listitem") and len(text) > 4:
-            if any(term in text for term in ("万", "播放", "弹幕", "视频", "P")):
+            if any(term in text for term in ("万", "播放", "弹幕", "视频", "P", "BV", "av")):
                 videos.append(
                     {
                         "ref": ref_id,
@@ -58,4 +64,4 @@ async def get_video_list(session: BrowserSession, args: dict[str, Any]) -> str:
             if len(line) >= 5 and not line.startswith(("http", "www")):
                 videos.append({"title": line[:200]})
 
-    return json.dumps(videos, ensure_ascii=False)
+    return json.dumps(videos, ensure_ascii=False, indent=2)

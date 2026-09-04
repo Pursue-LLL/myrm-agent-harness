@@ -262,6 +262,52 @@ class LLMManager:
         logger.warning("LLM cache cleared")
 
     @classmethod
+    def get_pool_stats(cls) -> list[dict[str, object]]:
+        """Get statistics from all active KeyPoolLLM instances in cache.
+
+        Returns list of pool metadata containing strategy, key counts, call counts,
+        cooldown statuses and remaining seconds per key suffix.
+        """
+        seen_pools: set[int] = set()
+        results: list[dict[str, object]] = []
+        for cache_key, instance in cls._llm_cache.items().items():
+            if isinstance(instance, KeyPoolLLM) and hasattr(instance, "credential_pool"):
+                pool = instance.credential_pool
+                if id(pool) not in seen_pools:
+                    seen_pools.add(id(pool))
+                    pool_stats = pool.stats()
+                    sub_instances = getattr(instance, "_instances", {})
+                    first_sub = next(iter(sub_instances.values()), None) if isinstance(sub_instances, dict) else None
+                    model_name = getattr(first_sub, "model", None) or getattr(first_sub, "model_name", None) or "unknown"
+                    results.append({
+                        "cache_key": cache_key,
+                        "model": str(model_name),
+                        "stats": pool_stats,
+                    })
+        return results
+
+    @classmethod
+    def reset_pool_cooldowns(cls, key_suffix: str | None = None) -> int:
+        """Reset cooldown timers across all KeyPoolLLM instances in cache.
+
+        Args:
+            key_suffix: Optional 4-character or exact suffix to target specific slots.
+                        If None, resets all slots across all cached pools.
+
+        Returns:
+            Total count of slots reset across all active pools.
+        """
+        seen_pools: set[int] = set()
+        total_reset = 0
+        for instance in cls._llm_cache.items().values():
+            if isinstance(instance, KeyPoolLLM) and hasattr(instance, "credential_pool"):
+                pool = instance.credential_pool
+                if id(pool) not in seen_pools:
+                    seen_pools.add(id(pool))
+                    total_reset += pool.reset_cooldowns(key_suffix=key_suffix)
+        return total_reset
+
+    @classmethod
     def get_cache_size(cls) -> int:
         """Get current cache size
 
