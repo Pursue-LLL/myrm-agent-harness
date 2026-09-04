@@ -72,6 +72,40 @@ class EmbeddingCache:
     async def put_batch(self, texts: list[str], embeddings: list[list[float]]) -> None:
         await asyncio.gather(*[self.put(t, e) for t, e in zip(texts, embeddings, strict=True)])
 
+    async def evict(self, text: str) -> bool:
+        """Evict an embedding from L1 cache by original text.
+
+        Returns True if the key was present and removed, False otherwise.
+        """
+        key = self._key(text)
+        async with self._l1_lock:
+            removed = self._l1.pop(key, None) is not None
+            self._access.pop(key, None)
+            return removed
+
+    async def evict_batch(self, texts: list[str]) -> int:
+        """Evict multiple embeddings from L1 cache by original texts.
+
+        Returns the number of keys successfully evicted.
+        """
+        if not texts:
+            return 0
+        evicted = 0
+        async with self._l1_lock:
+            for text in texts:
+                key = self._key(text)
+                if self._l1.pop(key, None) is not None:
+                    evicted += 1
+                self._access.pop(key, None)
+        return evicted
+
+    async def clear(self) -> None:
+        """Clear all entries from L1 cache and access counts."""
+        async with self._l1_lock:
+            self._l1.clear()
+            self._access.clear()
+
+
     # ── High-level API (used by MemoryManager) ──────────────────────
 
     async def get_embedding(self, text: str) -> list[float]:

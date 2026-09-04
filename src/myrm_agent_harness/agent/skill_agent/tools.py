@@ -312,9 +312,11 @@ class SkillAgentToolsMixin:
             )
 
             public_dirs = getattr(self, "_wiki_public_dirs", None) or []
+            public_dir_labels = getattr(self, "_wiki_public_dir_labels", None) or {}
             structure = WikiStructure(
                 self._wiki_base_dir,  # type: ignore[attr-defined]
                 public_dirs=public_dirs,
+                public_dir_labels=public_dir_labels,
             )
             structure.ensure_structure()
             config = WikiConfig()

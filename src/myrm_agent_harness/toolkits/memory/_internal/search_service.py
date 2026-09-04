@@ -51,7 +51,13 @@ from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProto
 from myrm_agent_harness.toolkits.memory.query_analyzer import analyze_query, is_assistant_reference_query
 from myrm_agent_harness.toolkits.memory.query_sanitizer import QuerySanitizer
 from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
-from myrm_agent_harness.toolkits.memory.types import ConversationMemory, MemorySearchResult, MemoryType
+from myrm_agent_harness.toolkits.memory.types import (
+    ConversationMemory,
+    MemorySearchResult,
+    MemoryStatus,
+    MemoryType,
+    ProceduralMemory,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -452,6 +458,19 @@ class MemorySearchService:
         """
         filtered: list[MemorySearchResult] = []
         for result in results:
+            mem = result.memory
+            status = getattr(mem, "status", None)
+            status_str = str(getattr(status, "value", status or "")).strip().lower()
+            if status_str in ("archived", "disabled"):
+                continue
+            meta = getattr(mem, "metadata", None)
+            if isinstance(meta, dict):
+                meta_status = str(meta.get("status", "")).strip().lower()
+                if meta.get("archived") is True or meta_status in ("archived", "disabled"):
+                    continue
+            if isinstance(mem, ProceduralMemory) and not mem.is_active:
+                continue
+
             if result.memory_type != MemoryType.EPISODIC:
                 filtered.append(result)
                 continue

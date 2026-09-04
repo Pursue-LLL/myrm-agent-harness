@@ -115,7 +115,7 @@ asyncio.run(main())
 - 严禁盲目假设未知返回值结构，遇到未知数据必须先通过 `[OBSERVATION]` 探测。
 - 严禁输出多余的无意义 print，标准输出严格仅允许 `[OBSERVATION]` 与 `[RESULT]`。
 
-## 输出格式(仅允许以下两种)
+## Python 代码输出格式
 
 - `print(f"[OBSERVATION] {变量}")` — 观察未知返回值结构。
 - `print(f"[RESULT] {结果}")` — 输出最终结果（仅输出下游决策所需的关键字段或摘要，禁止 dump 超大无用原始对象）。
@@ -211,7 +211,7 @@ Prefer `/workspace/...` (default working directory) in commands and Python code.
 - NEVER assume unknown return structures; always inspect unfamiliar data with `[OBSERVATION]` first.
 - Do NOT emit superfluous print statements; stdout is strictly restricted to `[OBSERVATION]` and `[RESULT]`.
 
-## Output Format (Only two allowed)
+## Python Output Format
 - `print(f"[OBSERVATION] {variable}")` — Inspect unknown return value structures.
 - `print(f"[RESULT] {result}")` — Output final results (print only essential fields/summaries for downstream decisions; avoid dumping giant raw objects).
 

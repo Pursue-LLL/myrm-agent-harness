@@ -632,6 +632,35 @@ class TestGraphCascadeDelete:
         assert count == 1
 
     @pytest.mark.asyncio
+    async def test_delete_memory_evicts_from_embedding_cache(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        """delete_memory evicts memory text content from embedding cache."""
+        from unittest.mock import AsyncMock
+        from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
+
+        mock_vector_store.get.return_value = [
+            VectorDocument(id="mem-1", content="sensitive content to evict", vector=[], metadata={"user_id": "test_user"}),
+        ]
+        mock_vector_store.delete.return_value = 1
+
+        mock_cache = AsyncMock()
+        mock_cache.evict_batch = AsyncMock(return_value=1)
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            cache=mock_cache,
+        )
+
+        count = await manager.delete_memory("test_collection", ["mem-1"])
+
+        assert count == 1
+        mock_cache.evict_batch.assert_called_once_with(["sensitive content to evict"])
+
+    @pytest.mark.asyncio
     async def test_delete_all_includes_graph_cleanup(
         self, mock_vector_store, mock_relational_store, mock_graph_store, mock_embedding, memory_config
     ):

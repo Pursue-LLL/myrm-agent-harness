@@ -38,19 +38,27 @@ class MemoryManagerDeletionMixin:
     async def delete_memory(self, collection: str, ids: list[str], *, allow_pinned: bool = True) -> int:
         if self._vector is None:
             raise MemoryError("Vector backend is required but not provided")
+        evict_texts: list[str] = []
         if ids:
             docs = await self._vector.get(collection, ids) or []
-            owned_ids = [
-                doc.id
+            owned_docs = [
+                doc
                 for doc in docs
                 if self._owns_vector_doc(doc) and (allow_pinned or not doc.metadata.get("pinned"))
             ]
-            if not owned_ids:
+            if not owned_docs:
                 return 0
-            ids = owned_ids
+            ids = [doc.id for doc in owned_docs]
+            evict_texts = [doc.content for doc in owned_docs if doc.content]
         deleted = await delete_from_vector(collection, ids, self._vector)
         for memory_id in ids:
             await self._cascade_clean_derived_graph_nodes(memory_id)
+        if self._cache is not None and evict_texts:
+            if hasattr(self._cache, "evict_batch"):
+                await self._cache.evict_batch(evict_texts)
+            elif hasattr(self._cache, "evict"):
+                for t in evict_texts:
+                    await self._cache.evict(t)
         return deleted
 
     async def delete_rule(self, rule_id: str, *, allow_pinned: bool = True) -> bool:
@@ -65,7 +73,12 @@ class MemoryManagerDeletionMixin:
             return False
         if not allow_pinned and rule.pinned:
             return False
-        return await self._rel().delete_rule(rule_id)
+        deleted = await self._rel().delete_rule(rule_id)
+        if deleted:
+            await self._cascade_clean_derived_graph_nodes(rule_id)
+            if self._cache is not None and rule.action_text and hasattr(self._cache, "evict"):
+                await self._cache.evict(rule.action_text)
+        return deleted
 
     async def delete_memories_by_metadata(
         self,
@@ -283,6 +296,19 @@ class MemoryManagerDeletionMixin:
             )
             await self._cascade_clean_derived_graph_nodes(memory_id)
 
+        if self._cache is not None and deleted_ids:
+            evict_texts = [
+                docs_by_id[mid].content
+                for mid in deleted_ids
+                if mid in docs_by_id and docs_by_id[mid].content
+            ]
+            if evict_texts:
+                if hasattr(self._cache, "evict_batch"):
+                    await self._cache.evict_batch(evict_texts)
+                elif hasattr(self._cache, "evict"):
+                    for t in evict_texts:
+                        await self._cache.evict(t)
+
     async def list_memory_ids_by_metadata(
         self,
         metadata_key: str,
@@ -446,6 +472,14 @@ class MemoryManagerDeletionMixin:
                 counts["graph"] = await self._graph.delete_all_by_owner(uid)
             except Exception as e:
                 logger.warning("Error deleting graph data: %s", e)
+        if self._cache is not None and hasattr(self._cache, "clear"):
+            try:
+                if asyncio.iscoroutinefunction(self._cache.clear):
+                    await self._cache.clear()
+                else:
+                    self._cache.clear()
+            except Exception as e:
+                logger.warning("Error clearing cache in delete_all: %s", e)
         return counts
 
     async def _collect_vector_ids(self, collection: str, filters: FilterDict) -> list[tuple[str, bool]]:

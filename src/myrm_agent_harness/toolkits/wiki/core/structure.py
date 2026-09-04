@@ -105,10 +105,13 @@ class WikiStructure:
             return local_path
 
         safe_path = self._sanitize_path(concept_path)
-        for p_dir in self.public_dirs:
-            public_path = p_dir / "wiki" / "concepts" / f"{safe_path}.md"
-            if public_path.exists():
-                return public_path
+        for p_dir in self.public_dirs[:6]:
+            try:
+                public_path = p_dir / "wiki" / "concepts" / f"{safe_path}.md"
+                if public_path.is_file():
+                    return public_path
+            except (OSError, PermissionError):
+                continue
         return None
 
     def get_index_file_path(self) -> Path:
@@ -137,12 +140,15 @@ class WikiStructure:
         return files
 
     def list_concepts(self) -> list[Path]:
-        """List all concept articles, including from public federated mounts."""
+        """List all concept articles, including from public federated mounts (max 6)."""
         concepts = [p for p in sorted(self.concepts_dir.rglob("*.md")) if not self._is_directory_sidecar(p)]
-        for p_dir in self.public_dirs:
-            p_concepts = p_dir / "wiki" / "concepts"
-            if p_concepts.exists():
-                concepts.extend(p for p in sorted(p_concepts.rglob("*.md")) if not self._is_directory_sidecar(p))
+        for p_dir in self.public_dirs[:6]:
+            try:
+                p_concepts = p_dir / "wiki" / "concepts"
+                if p_concepts.is_dir():
+                    concepts.extend(p for p in sorted(p_concepts.rglob("*.md")) if not self._is_directory_sidecar(p))
+            except (OSError, PermissionError):
+                continue
         return concepts
 
     def get_purpose_path(self) -> Path:

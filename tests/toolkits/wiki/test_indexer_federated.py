@@ -106,3 +106,26 @@ async def test_structure_federated_methods(tmp_path):
 
     res = local_s.resolve_concept_file_path("pub-concept")
     assert res and "public" in str(res)
+
+
+@pytest.mark.asyncio
+async def test_federated_offline_and_corrupt_resilience(tmp_path):
+    # Test non-existent and unreadable public dirs do not crash search
+    local_dir = tmp_path / "local"
+    missing_dir = tmp_path / "missing_dir_xyz"
+    corrupt_dir = tmp_path / "corrupt_dir"
+    corrupt_dir.mkdir(parents=True, exist_ok=True)
+    # Put a non-sqlite file as .wiki_index.db to simulate corruption
+    (corrupt_dir / ".wiki_index.db").write_text("not a valid sqlite db")
+
+    local_s = WikiStructure(local_dir, public_dirs=[missing_dir, corrupt_dir])
+    local_s.ensure_structure()
+
+    local_indexer = WikiIndexer(local_s)
+    await local_indexer.upsert("Local Resilience", "## Compiled Truth\nHealthy content")
+
+    # Search should succeed and not raise SQLite OperationalError
+    res = await local_indexer.search("Healthy", limit=5)
+    assert len(res) == 1
+    assert res[0][0] == "Local Resilience"
+

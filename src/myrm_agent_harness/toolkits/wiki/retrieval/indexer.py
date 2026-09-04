@@ -88,11 +88,19 @@ class WikiIndexer(SidecarIndexMixin):
         harden_connection_sync(conn, CACHE, db_path=self.db_path)
 
         # Dynamically ATTACH federated public databases (Read-Only)
+        # Cap at 6 to strictly protect SQLite ATTACH limits and system file descriptors.
+        attached_count = 0
         for idx, p_dir in enumerate(self._structure.public_dirs):
-            pub_db = p_dir / ".wiki_index.db"
-            if pub_db.exists():
-                with contextlib.suppress(sqlite3.OperationalError):
+            if attached_count >= 6:
+                logger.warning("Reached maximum federated public dirs attachment limit (6), skipping remaining.")
+                break
+            try:
+                pub_db = p_dir / ".wiki_index.db"
+                if pub_db.is_file():
                     conn.execute(f"ATTACH DATABASE ? AS pub_{idx}", (str(pub_db),))
+                    attached_count += 1
+            except (sqlite3.Error, OSError) as e:
+                logger.warning(f"Failed to attach federated database {p_dir}: {e}")
 
         try:
             with conn:
@@ -377,9 +385,13 @@ class WikiIndexer(SidecarIndexMixin):
             with self._get_conn() as conn:
                 try:
                     fts_tables = ["wiki_fts"]
-                    for idx, p_dir in enumerate(self._structure.public_dirs):
-                        if (p_dir / ".wiki_index.db").exists():
-                            fts_tables.append(f"pub_{idx}.wiki_fts")
+                    attached_dbs = {
+                        str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()
+                    }
+                    for idx in range(min(len(self._structure.public_dirs), 6)):
+                        alias = f"pub_{idx}"
+                        if alias in attached_dbs:
+                            fts_tables.append(f"{alias}.wiki_fts")
 
                     fts_query = tokenize_for_fts(safe_query)
 

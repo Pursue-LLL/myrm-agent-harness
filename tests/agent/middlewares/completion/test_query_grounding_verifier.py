@@ -9,6 +9,9 @@ from myrm_agent_harness.agent.middlewares.completion.completion_guard import (
     CompletionGuard,
     reset_completion_guard,
 )
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
+    reset_loop_guard,
+)
 from myrm_agent_harness.agent.middlewares.completion.query_grounding_verifier import (
     check_query_grounding_claim,
     detect_entity_query_intent,
@@ -175,17 +178,9 @@ class TestCheckQueryGroundingClaim:
 
 
 @pytest.mark.asyncio
-async def test_completion_guard_blocks_ungrounded_entity_query(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_completion_guard_blocks_ungrounded_entity_query() -> None:
     reset_completion_guard()
-
-    class _MockLoopGuard:
-        _window: list[CallRecord] = []
-
-    mock_guard = _MockLoopGuard()
-    monkeypatch.setattr(
-        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard",
-        lambda: mock_guard,
-    )
+    reset_loop_guard()
 
     guard = CompletionGuard(enabled=True)
     messages = [

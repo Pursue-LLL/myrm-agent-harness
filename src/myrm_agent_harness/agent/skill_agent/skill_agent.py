@@ -144,6 +144,7 @@ class SkillAgent(
         on_skill_review_ready: "Callable[[dict[str, object]], None] | None" = None,
         wiki_base_dir: "Path | str | None" = None,
         wiki_public_dirs: list["Path | str"] | None = None,
+        wiki_public_dir_labels: dict[str, str] | None = None,
         wiki_search_fn: "SemanticSearchFn | None" = None,
         wiki_scope_id: str | None = None,
         similarity_checker: "SkillSimilarityChecker | None" = None,
@@ -199,6 +200,7 @@ class SkillAgent(
         self._global_env = global_env
         self._wiki_base_dir = wiki_base_dir
         self._wiki_public_dirs = list(wiki_public_dirs) if wiki_public_dirs else []
+        self._wiki_public_dir_labels = dict(wiki_public_dir_labels) if wiki_public_dir_labels else {}
         self._wiki_search_fn: SemanticSearchFn | None = wiki_search_fn
         self._wiki_scope_id = (wiki_scope_id or "").strip() or None
         self._wiki_compiler: WikiCompiler | None = None

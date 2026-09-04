@@ -289,4 +289,7 @@ class MemoryManagerListingMaintenanceMixin:
 
 
     async def delete_profile(self, key_or_id: str) -> bool:
-        return await self._rel().delete_profile(key_or_id, namespaces=self._namespaces)
+        deleted = await self._rel().delete_profile(key_or_id, namespaces=self._namespaces)
+        if deleted:
+            await self._cascade_clean_derived_graph_nodes(key_or_id)
+        return deleted

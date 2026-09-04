@@ -155,6 +155,49 @@ class AgentEventType(StrEnum):
     COUNCIL_PHASE = "council_phase"
     CAPABILITY_GAP = "capability_gap"
     SKILL_GAP = "skill_gap"
+    PHASE_TRANSITION = "phase_transition"
+
+
+class ExecutionPhase(StrEnum):
+    """The 3 macro stages in the production agent lifecycle."""
+
+    PLANNING = "planning"  # Phase 1: Request understanding & planning (Nodes 1-11)
+    EXECUTING = "executing"  # Phase 2: Tool execution & collaboration (Nodes 12-25)
+    VERIFYING = "verifying"  # Phase 3: Verification & delivery (Nodes 26-30)
+    COMPLETED = "completed"
+
+
+class ExecutionLane(StrEnum):
+    """The 6 active lanes in the multi-lane orchestration model."""
+
+    USER = "user"  # User / HITL approval
+    AGENT = "agent"  # Agent core workflow & steering
+    SKILLS = "skills"  # Agent skills & prompt templates
+    LLM = "llm"  # Deep inference & model reasoning
+    MCP = "mcp"  # Model Context Protocol external servers
+    SANDBOX = "sandbox"  # Sandbox code execution & filesystem tools
+
+
+@dataclass(frozen=True)
+class PhaseTransitionPayload:
+    """Standardized event payload for phase_transition streaming events."""
+
+    phase: str
+    phase_index: int
+    active_lane: str
+    node_id: int
+    node_label: str
+    duration_ms: int = 0
+
+    def to_dict(self) -> dict[str, str | int]:
+        return {
+            "phase": self.phase,
+            "phase_index": self.phase_index,
+            "active_lane": self.active_lane,
+            "node_id": self.node_id,
+            "node_label": self.node_label,
+            "duration_ms": self.duration_ms,
+        }
 
 
 @dataclass

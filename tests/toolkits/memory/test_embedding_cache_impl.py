@@ -351,3 +351,54 @@ class TestKeyGeneration:
         key1 = cache._key("  text1  ")
         key2 = cache._key("text1")
         assert key1 == key2
+
+
+class TestEviction:
+    """Test explicit eviction methods."""
+
+    @pytest.mark.asyncio
+    async def test_evict_existing_entry(self, mock_embed_func):
+        """Test evicting an existing cache entry removes it from L1 and access counts."""
+        cache = EmbeddingCache(embedding_func=mock_embed_func, l1_max_size=10)
+        await cache.put("text_to_evict", [1.0, 2.0])
+
+        assert await cache.get("text_to_evict") == [1.0, 2.0]
+        evicted = await cache.evict("text_to_evict")
+        assert evicted is True
+        assert await cache.get("text_to_evict") is None
+        assert cache._key("text_to_evict") not in cache._access
+
+    @pytest.mark.asyncio
+    async def test_evict_non_existing_entry(self, mock_embed_func):
+        """Test evicting a missing entry returns False safely."""
+        cache = EmbeddingCache(embedding_func=mock_embed_func, l1_max_size=10)
+        assert await cache.evict("missing_text") is False
+
+    @pytest.mark.asyncio
+    async def test_evict_batch(self, mock_embed_func):
+        """Test evicting multiple entries in batch."""
+        cache = EmbeddingCache(embedding_func=mock_embed_func, l1_max_size=10)
+        await cache.put("a", [1.0])
+        await cache.put("b", [2.0])
+        await cache.put("c", [3.0])
+
+        count = await cache.evict_batch(["a", "c", "nonexistent"])
+        assert count == 2
+        assert await cache.get("a") is None
+        assert await cache.get("b") == [2.0]
+        assert await cache.get("c") is None
+
+    @pytest.mark.asyncio
+    async def test_clear(self, mock_embed_func):
+        """Test clearing all entries from L1 cache."""
+        cache = EmbeddingCache(embedding_func=mock_embed_func, l1_max_size=10)
+        await cache.put("x", [1.0])
+        await cache.put("y", [2.0])
+
+        assert len(cache._l1) == 2
+        await cache.clear()
+        assert len(cache._l1) == 0
+        assert len(cache._access) == 0
+        assert await cache.get("x") is None
+
+
