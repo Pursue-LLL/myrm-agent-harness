@@ -1,12 +1,12 @@
 """Wiki canonical identity registry and page lease hashing.
 
 [INPUT]
-frontmatter_contract.load_frontmatter_metadata (POS: FM parse SSOT)
-structure.WikiStructure (POS: vault concept paths)
+- frontmatter_contract.load_frontmatter_metadata (POS: FM parse SSOT)
+- structure.WikiStructure (POS: vault concept paths)
 
 [OUTPUT]
-build_canonical_index, find_canonical_conflict, derive_canonical_id,
-compute_page_lease_hash, stamp_content_hash, ensure_canonical_metadata
+- build_canonical_index, find_canonical_conflict, derive_canonical_id
+- compute_page_lease_hash, stamp_content_hash, ensure_canonical_metadata
 
 [POS]
 Write-time dedup and optimistic concurrency for wiki apply mutations.

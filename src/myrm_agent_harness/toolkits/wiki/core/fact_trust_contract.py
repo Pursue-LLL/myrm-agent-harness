@@ -1,11 +1,10 @@
 """Shared Workspace Trust Structure contract.
 
 [INPUT]
-utils.markdown_frontmatter::parse_frontmatter (POS: YAML FM parse SSOT)
+- utils.markdown_frontmatter::parse_frontmatter (POS: YAML FM parse SSOT)
 
 [OUTPUT]
-FactStatus, FactTrustLevel, FACT_STATUSES, resolve_fact_status, FactTrustPolicy,
-DEFAULT_FACT_TRUST_POLICY
+- FactStatus, FactTrustLevel, FACT_STATUSES, resolve_fact_status, FactTrustPolicy, DEFAULT_FACT_TRUST_POLICY
 
 [POS]
 Harness SSOT for three-tier fact trust contract (published_truth, in_progress_draft, deprecated)

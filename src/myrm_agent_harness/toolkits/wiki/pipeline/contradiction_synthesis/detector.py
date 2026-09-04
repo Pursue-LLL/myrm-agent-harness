@@ -1,10 +1,10 @@
 """LLM conflict detector for CCSP.
 
 [INPUT]
-langchain_core.language_models::BaseChatModel (POS: compile LLM)
-..core.structure::WikiStructure (POS: read concept summaries)
-utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
-utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- langchain_core.language_models::BaseChatModel (POS: compile LLM)
+- ..core.structure::WikiStructure (POS: read concept summaries)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output)
 
 [OUTPUT]
 - detect_conflict: structured verdict for a concept pair

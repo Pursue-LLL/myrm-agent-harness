@@ -4,7 +4,7 @@ Defines the payload types, task envelopes, and lifecycle sentinels that flow
 through the Object Lane, Job Lane, bounded chunk queue, and batch embed consumer.
 
 [INPUT]
-- None (pure domain contracts)
+- (none - pure domain contracts)
 
 [OUTPUT]
 - Chunk: Atomic text slice with content and metadata

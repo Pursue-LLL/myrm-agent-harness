@@ -1,12 +1,12 @@
 """Deterministic SCHEMA.md writer for Karpathy Layer 3 vault contract.
 
 [INPUT]
-..core.frontmatter_contract::WIKI_PAGE_TYPES, WikiPageType (POS: type enum SSOT)
-..core.structure::WikiStructure (POS: vault paths)
+- ..core.frontmatter_contract::WIKI_PAGE_TYPES, WikiPageType (POS: type enum SSOT)
+- ..core.structure::WikiStructure (POS: vault paths)
 
 [OUTPUT]
-render_schema_markdown(): human-readable schema body from code contract
-write_schema_markdown(): atomic write to wiki/SCHEMA.md
+- render_schema_markdown: human-readable schema body from code contract
+- write_schema_markdown: atomic write to wiki/SCHEMA.md
 
 [POS]
 OKF schema contract file generator. Keeps vault-facing SCHEMA.md aligned with compile/lint gates.

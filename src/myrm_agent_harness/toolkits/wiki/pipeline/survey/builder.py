@@ -1,11 +1,11 @@
 """Zero-LLM compile structure survey for wiki vault raw files.
 
 [INPUT]
-..core.structure::WikiStructure (POS: vault filesystem layout)
-.types::CompileSurveyContext, FacetSurvey, FAST_PATH_* (POS: survey DTOs and thresholds)
+- ..core.structure::WikiStructure (POS: vault filesystem layout)
+- .types::CompileSurveyContext, FacetSurvey, FAST_PATH_* (POS: survey DTOs and thresholds)
 
 [OUTPUT]
-build_compile_survey: Build folder facets, chunk sibling groups, and processing order
+- build_compile_survey: Build folder facets, chunk sibling groups, and processing order
 
 [POS]
 Pre-semantic compile survey. Groups pending raw paths by folder facet, detects

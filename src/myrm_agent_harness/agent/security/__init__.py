@@ -1,37 +1,16 @@
 """Agent security subsystem — 6-layer onion defense architecture.
 
-Public API surface for the security module. Uses lazy imports to keep
-module loading lightweight.
+[INPUT]
+- .types::SecurityConfig, PermissionAction, Capability, PathPolicy (POS: core security types)
+- .engine::evaluate_tool_call, check_capability (POS: security evaluation engine)
+- .config::parse_security_config (POS: configuration parser)
+- .audit::record_decision (POS: security audit logging)
 
-Core types (from ``types``)::
+[OUTPUT]
+- SecurityConfig, PermissionAction, Capability, PathPolicy, evaluate_tool_call, parse_security_config
 
-    SecurityConfig, PermissionAction, PermissionRule, Capability, PathPolicy,
-    SensitivityLevel, PIIAction, PrivacyPolicy,
-    ReviewDecision, ReviewResult, SecurityReviewerProtocol
-
-LLM classifier (from ``transcript_classifier``)::
-
-    TranscriptClassifier
-
-Evaluation (from ``engine``)::
-
-    evaluate_tool_call, check_capability, merge, disabled_permissions
-
-Configuration (from ``config``)::
-
-    parse_security_config
-
-Audit (from ``audit``)::
-
-    record_decision, get_audit_entries, reset_audit_log
-
-Privacy tracking (from ``guards.privacy_tracker``)::
-
-    get_privacy_tracker, reset_privacy_tracker, get_pending_privacy_event
-
-Message filtering (from ``message_filtering``)::
-
-    FilterConfig, FilterContext, MessageFilter, MessageFilterPipeline, SystemRoleFilter
+[POS]
+Agent 安全子系统入口。提供 6 层洋葱防御架构的类型、引擎、配置与审计日志统一门面导出。
 """
 
 from importlib import import_module as _import_module

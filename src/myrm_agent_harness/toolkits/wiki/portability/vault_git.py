@@ -1,12 +1,12 @@
 """Local git auto-commit for wiki vault directories.
 
 [INPUT]
-myrm_agent_harness.toolkits.wiki.core.structure::WikiStructure
-myrm_agent_harness.toolkits.wiki.core.config::WikiConfig
+- myrm_agent_harness.toolkits.wiki.core.structure::WikiStructure (POS: vault layout)
+- myrm_agent_harness.toolkits.wiki.core.config::WikiConfig (POS: version control knobs)
 
 [OUTPUT]
-commit_vault_git_snapshot: Initialize repo if needed and commit vault changes
-maybe_commit_vault_git_snapshot: Gate on WikiConfig.enable_version_control
+- commit_vault_git_snapshot: Initialize repo if needed and commit vault changes
+- maybe_commit_vault_git_snapshot: Gate on WikiConfig.enable_version_control
 
 [POS]
 Framework-level vault version discipline for Karpathy/Obsidian users who expect git log/blame.

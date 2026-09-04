@@ -276,6 +276,25 @@ def _format_memory_context(
                 BudgetedSection("Learned Rules (from past interactions)", normal_items, priority=5)
             )
 
+    # ── Proactive Knowledge Pack Snippets (Authoritative Context from Mounted Vaults) ──
+    # Injected into the untrusted layer before user HumanMessage, keeping System Prompt 100% cache-stable.
+    proactive_pack = ctx.get("proactive_knowledge_pack")
+    if isinstance(proactive_pack, dict):
+        raw_snippets = proactive_pack.get("snippets", [])
+        snippet_items: list[str] = []
+        for s in raw_snippets:
+            if not isinstance(s, dict):
+                continue
+            kb_name = sanitize(str(s.get("kb_name", "Knowledge Base")))
+            title = sanitize(str(s.get("article_title", "General")))
+            snip_text = sanitize(str(s.get("snippet", "")))
+            if snip_text:
+                snippet_items.append(f"[{kb_name} | {title}] {snip_text}")
+        if snippet_items:
+            untrusted_sections.append(
+                BudgetedSection("Active Knowledge Pack Snippets (authoritative context)", snippet_items, priority=4)
+            )
+
     is_cold = not stable_sections and not untrusted_sections
 
     # Cold start: guide the agent to actively learn about the user. Skipped when

@@ -1,7 +1,16 @@
 """OKF cognitive map — index.md, log.md, hot.md deterministic writers.
 
+[INPUT]
+- .events::WikiMapEvent, WikiMapEventType (POS: log event data contracts)
+- .schema_writer::read_index_context, render_schema_markdown, write_schema_markdown (POS: schema writers)
+- .snapshot::HotSnapshot, build_hot_snapshot (POS: hot snapshot generator)
+- .writer::CognitiveMapRefreshResult, WikiCognitiveMapService, write_hot_markdown, write_index_markdown (POS: map writers)
+
+[OUTPUT]
+- CognitiveMapRefreshResult, HotSnapshot, WikiCognitiveMapService, WikiMapEvent, WikiMapEventType, read_hot_context, read_index_context
+
 [POS]
-See module docstring.
+OKF 认知地图模块入口。提供 wiki/index.md, wiki/log.md, wiki/hot.md 与 wiki/SCHEMA.md 的确定性免 LLM 构建与刷新。
 """
 
 from __future__ import annotations

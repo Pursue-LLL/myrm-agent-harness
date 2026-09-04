@@ -198,6 +198,26 @@ class TestConvertDictToMessage:
         restored = convert_message_to_dict(msg)
         assert restored["responses_reasoning_items"] == reasoning_items
 
+    def test_responses_reasoning_items_wire_projection_gate(self) -> None:
+        reasoning_items = [{"type": "reasoning", "id": "rs_1", "encrypted_content": "blob"}]
+        msg = AIMessage(
+            content="done",
+            additional_kwargs={"responses_reasoning_items": reasoning_items},
+        )
+        # Default (wire_protocol=None): preserves for backward compatibility
+        assert convert_message_to_dict(msg)["responses_reasoning_items"] == reasoning_items
+
+        # Explicit responses wire: preserves
+        responses_dict = convert_message_to_dict(msg, wire_protocol="responses")
+        assert responses_dict["responses_reasoning_items"] == reasoning_items
+
+        # Non-responses wire (chat_completions, anthropic_messages): strictly stripped to avoid HTTP 400
+        chat_dict = convert_message_to_dict(msg, wire_protocol="chat_completions")
+        assert "responses_reasoning_items" not in chat_dict
+
+        anthropic_dict = convert_message_to_dict(msg, wire_protocol="anthropic_messages")
+        assert "responses_reasoning_items" not in anthropic_dict
+
 
 class TestParseToolCallArgsHooks:
     def test_parse_tool_call_args_logs_when_unsafe(self) -> None:

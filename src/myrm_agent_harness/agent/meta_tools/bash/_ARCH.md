@@ -54,7 +54,7 @@ bash/
 | `_executor/workspace_manager.py` | Core | 工作区薄委托（懒加载绑定存储根）。 |
 | `_executor/skill_workspace_manager.py` | Core | 技能文件 staging 路径解析。 |
 | `_executor/mcp_citation_handler.py` | Core | MCP Metadata Extractor。 |
-| `_executor/event_logging.py` | Internal | 命令执行事件日志（脱敏+分类）。 |
+| `_executor/event_logging.py` | Internal | 命令执行事件日志（脱敏+分类，对齐 red team 回归防护）。 |
 | `_executor/error.py` | Core | 结构化 BashExecutionError，携带 stdout/stderr eviction 引用。 |
 | `_executor/auto_yield.py` | Core | 前台白名单命令超时自动后台化。 |
 | `_executor/command_classifier.py` | Core | 命令分类器（READ/WRITE/DANGEROUS/NETWORK/GIT/SEARCH/PYTHON）。 |

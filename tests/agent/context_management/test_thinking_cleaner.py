@@ -17,12 +17,13 @@ from myrm_agent_harness.agent.context_management.pipeline.processors.thinking_cl
 )
 
 
-def _ctx(messages, model_name="openai/gpt-4"):
+def _ctx(messages, model_name="openai/gpt-4", wire_protocol=None):
     class FakeLLM:
-        def __init__(self, name):
+        def __init__(self, name, wire):
             self.model_name = name
+            self.wire_protocol = wire
 
-    return ProcessorContext(messages=messages, user_query="test", llm=FakeLLM(model_name))
+    return ProcessorContext(messages=messages, user_query="test", llm=FakeLLM(model_name, wire_protocol))
 
 
 # ── should_process gate ──────────────────────────────────────────────
@@ -541,3 +542,40 @@ async def test_model_switch_deepseek_strips_claude_thinking():
     for block in ai_msg.content:
         if isinstance(block, dict):
             assert block.get("type") not in ("thinking", "redacted_thinking")
+
+
+@pytest.mark.asyncio
+async def test_responses_reasoning_items_stripped_for_non_responses_wire():
+    """When target LLM is not responses wire, responses_reasoning_items is stripped."""
+    cleaner = ThinkingBlockCleaner()
+    reasoning_blob = [{"type": "reasoning", "id": "rs_123", "encrypted_content": "enc_data"}]
+    messages = [
+        HumanMessage(content="first question"),
+        AIMessage(
+            content="o3 answer",
+            additional_kwargs={"responses_reasoning_items": reasoning_blob},
+        ),
+        HumanMessage(content="next question"),
+    ]
+    ctx = _ctx(messages, model_name="deepseek/deepseek-v4", wire_protocol="chat_completions")
+    assert await cleaner.should_process(ctx)
+    result = await cleaner.process(ctx)
+    assert "responses_reasoning_items" not in result.messages[1].additional_kwargs
+
+
+@pytest.mark.asyncio
+async def test_responses_reasoning_items_preserved_for_responses_wire():
+    """When target LLM uses responses wire, responses_reasoning_items is preserved."""
+    cleaner = ThinkingBlockCleaner()
+    reasoning_blob = [{"type": "reasoning", "id": "rs_123", "encrypted_content": "enc_data"}]
+    messages = [
+        HumanMessage(content="first question"),
+        AIMessage(
+            content="o3 answer",
+            additional_kwargs={"responses_reasoning_items": reasoning_blob},
+        ),
+        HumanMessage(content="next question"),
+    ]
+    ctx = _ctx(messages, model_name="openai/o3-mini", wire_protocol="responses")
+    # should_process returns False because no other cleanable items and responses wire retains items
+    assert not await cleaner.should_process(ctx)

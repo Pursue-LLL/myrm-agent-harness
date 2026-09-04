@@ -85,11 +85,14 @@ class ThinkingBlockCleaner(BaseProcessor):
         return "ThinkingBlockCleaner"
 
     async def should_process(self, context: ProcessorContext) -> bool:
+        wire_protocol = getattr(context.llm, "wire_protocol", None) if context.llm else None
+        clean_responses_reasoning = wire_protocol != "responses"
         return any(
             isinstance(m, AIMessage)
             and (
                 m.additional_kwargs.get("reasoning_content")
                 or m.additional_kwargs.get("thinking_blocks")
+                or (clean_responses_reasoning and m.additional_kwargs.get("responses_reasoning_items"))
                 or _has_content_thinking_blocks(m)
             )
             for m in context.messages
@@ -100,10 +103,13 @@ class ThinkingBlockCleaner(BaseProcessor):
         if context.llm is not None:
             model_name = getattr(context.llm, "model_name", "") or getattr(context.llm, "model", "") or ""
 
+        wire_protocol = getattr(context.llm, "wire_protocol", None) if context.llm else None
+        is_responses_wire = wire_protocol == "responses"
         is_anthropic = _is_anthropic_model(model_name)
         cleaned_tb = 0
         cleaned_rc = 0
         cleaned_content_tb = 0
+        cleaned_responses_items = 0
         chars_dropped = 0
 
         last_human_idx = _find_last_human_index(context.messages)
@@ -159,15 +165,20 @@ class ThinkingBlockCleaner(BaseProcessor):
                     del kwargs["reasoning_content"]
                     cleaned_rc += 1
 
-        total = cleaned_tb + cleaned_rc + cleaned_content_tb
+            if not is_responses_wire and "responses_reasoning_items" in kwargs:
+                del kwargs["responses_reasoning_items"]
+                cleaned_responses_items += 1
+
+        total = cleaned_tb + cleaned_rc + cleaned_content_tb + cleaned_responses_items
         if total:
             context.tokens_saved += chars_dropped // 4
             logger.warning(
-                " [ThinkingBlockCleaner] cleaned %d items (rc=%d, tb=%d, content_tb=%d, chars=%d, anthropic=%s)",
+                " [ThinkingBlockCleaner] cleaned %d items (rc=%d, tb=%d, content_tb=%d, responses_items=%d, chars=%d, anthropic=%s)",
                 total,
                 cleaned_rc,
                 cleaned_tb,
                 cleaned_content_tb,
+                cleaned_responses_items,
                 chars_dropped,
                 is_anthropic,
             )

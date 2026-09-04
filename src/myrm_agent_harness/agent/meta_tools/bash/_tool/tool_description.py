@@ -219,7 +219,7 @@ Prefer `/workspace/...` (default working directory) in commands and Python code.
 For dev servers, watchers, or long-running jobs, pass `run_in_background=true` to return `{pid, status}` immediately without blocking. Max 5 concurrent jobs per session.
 **Note**: Do NOT append `&` at the end of the command when `run_in_background=true` (the tool handles backgrounding automatically).
 Use `bash_process_tool` to manage background jobs: `list` (includes `last_progress`), `output` (incremental tail with `since_cursor`), `wait`, `kill`, `write_stdin`, `submit_stdin`, `close_stdin`.
-When output/wait returns `waiting_for_input=true`, check `input_wait_hint` and respond using `submit_stdin`.
+When output/wait returns `waiting_for_input=true`, check `input_wait_hint` and respond using `submit_stdin` (do not poll blindly); when `waiting_for_input=false`, continue polling output or waiting normally.
 
 ### Progress Reporting
 Background scripts can emit `echo 'MYRM_PROGRESS {"percent": 42, "message": "Compiling"}'` (or `{"current": 3, "total": 10}`) to automatically update UI progress bars without LLM turns. Use `MYRM_CHECKPOINT {"message": "..."}` for checkpoints.

@@ -1,12 +1,12 @@
 """Reindex concept articles after vault path changes (move/rename).
 
 [INPUT]
-..core.frontmatter_contract::validate_wiki_frontmatter (POS: type gate)
-..core.structure::WikiStructure (POS: concept paths)
-..retrieval.indexer::WikiIndexer (POS: delete + upsert)
+- ..core.frontmatter_contract::validate_wiki_frontmatter (POS: type gate)
+- ..core.structure::WikiStructure (POS: concept paths)
+- ..retrieval.indexer::WikiIndexer (POS: delete + upsert)
 
 [OUTPUT]
-ConceptPathMapping, reindex_concepts_after_move
+- ConceptPathMapping, reindex_concepts_after_move
 
 [POS]
 Frontmatter-aware reindex for wiki tree move/rename; preserves publish_status on disk; skips directory sidecars.

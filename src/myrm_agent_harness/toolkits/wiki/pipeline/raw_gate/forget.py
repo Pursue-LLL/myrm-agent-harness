@@ -1,7 +1,15 @@
 """Forget raw evidence and re-anchor dependent compiled pages.
 
+[INPUT]
+- core.structure::WikiStructure (POS: vault paths)
+- cognitive_map.writer::append_log_entry (POS: audit log)
+- .evidence_removal::remove_raw_evidence (POS: shared raw removal SSOT)
+
+[OUTPUT]
+- ForgetEvidenceResult, forget_evidence, scan_existing_raw_vault
+
 [POS]
-See module docstring.
+提供证据遗忘（GDPR/隐私清除）能力，并自动重新校准与重排依赖该证据的已编译页面。
 """
 
 from __future__ import annotations

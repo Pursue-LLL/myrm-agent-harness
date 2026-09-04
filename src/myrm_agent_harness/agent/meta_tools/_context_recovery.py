@@ -38,7 +38,7 @@ def restore_context_vars(context: dict[str, object], executor: object) -> None:
 
     Restores: executor, workspace_root, chat_id, workspace_storage_fs_root.
     """
-    from myrm_agent_harness.agent.context_management.infra.evicted import (
+    from myrm_agent_harness.agent.context_management.infra.evicted.content import (
         normalize_delivery_chat_id,
     )
     from myrm_agent_harness.agent.middlewares.approval import set_workspace_root

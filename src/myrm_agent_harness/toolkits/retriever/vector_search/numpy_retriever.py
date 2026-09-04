@@ -1,17 +1,18 @@
-"""基于 NumPy  纯内存Vector检索器
+"""NumPy-based in-memory vector retriever.
 
- for temporary文档集合 高性能Vector检索（Web SearchResult、爬取Content etc.）， no 需持久化。
+Designed for high-performance vector retrieval over temporary document collections
+(e.g., web search results, crawled content) without requiring persistence.
 
 [INPUT]
-- toolkits.retriever.embedding::EmbeddingService (POS: Embedding protocol — text to vector abstraction.)
+- toolkits.retriever.embedding::EmbeddingService (POS: Embedding protocol — text to vector abstraction)
 
 [OUTPUT]
-- RetrievalResult: Retrieval result.
-- NumpyVectorRetriever: Performance optimization：
-- search_with_numpy_retriever: function — search_with_numpy_retriever
+- RetrievalResult: Dataclass holding retrieved Document and similarity score
+- NumpyVectorRetriever: In-memory vector retriever using normalized dot-product search
+- search_with_numpy_retriever: Helper function to perform one-shot in-memory vector search
 
 [POS]
-Provides RetrievalResult, NumpyVectorRetriever, search_with_numpy_retriever.
+Provides RetrievalResult, NumpyVectorRetriever, search_with_numpy_retriever for ephemeral in-memory RAG.
 """
 
 import logging

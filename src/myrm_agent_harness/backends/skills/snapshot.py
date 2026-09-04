@@ -20,6 +20,8 @@ Skill backend snapshot cache. Serves as an intermediate layer to accelerate full
 
 """
 
+from collections.abc import Generator
+from contextlib import contextmanager
 import logging
 import sqlite3
 from pathlib import Path
@@ -54,11 +56,21 @@ class SQLiteSkillSnapshot:
         harden_connection_sync(conn, CACHE, db_path=self.db_path)
         return conn
 
+    @contextmanager
+    def _connection(self) -> Generator[sqlite3.Connection, None, None]:
+        """Context manager providing hardened connection with guaranteed close."""
+        conn = self._connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _init_db(self) -> None:
         """Initialize the SQLite database schema."""
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
-            with self._connect() as conn:
+            with self._connection() as conn:
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS skill_snapshots (
@@ -86,7 +98,7 @@ class SQLiteSkillSnapshot:
             return skills
 
         try:
-            with self._connect() as conn:
+            with self._connection() as conn:
                 cursor = conn.execute("SELECT skill_name, storage_path, content, trust FROM skill_snapshots")
                 rows = cursor.fetchall()
                 cursor.close()
@@ -121,7 +133,7 @@ class SQLiteSkillSnapshot:
             return
 
         try:
-            with self._connect() as conn:
+            with self._connection() as conn:
                 for meta in skills:
                     # Only snapshot storage skills (file-based)
                     if not meta.is_storage_skill or not meta.storage_path:
@@ -189,7 +201,7 @@ class SQLiteSkillSnapshot:
                 workspace_root=workspace_root,
             )
 
-            with self._connect() as conn:
+            with self._connection() as conn:
                 conn.execute(
                     """
                     INSERT INTO skill_snapshots (skill_name, storage_path, content, trust, file_mtime, updated_at)
@@ -216,7 +228,7 @@ class SQLiteSkillSnapshot:
         skill_name = skill_md.parent.name
 
         try:
-            with self._connect() as conn:
+            with self._connection() as conn:
                 cursor = conn.execute("DELETE FROM skill_snapshots WHERE skill_name = ?", (skill_name,))
                 deleted = cursor.rowcount > 0
                 conn.commit()
@@ -239,7 +251,7 @@ class SQLiteSkillSnapshot:
         # 1. Get current DB state
         db_state = {}
         try:
-            with self._connect() as conn:
+            with self._connection() as conn:
                 cursor = conn.execute("SELECT skill_name, storage_path, file_mtime FROM skill_snapshots")
                 rows = cursor.fetchall()
                 cursor.close()
@@ -302,7 +314,7 @@ class SQLiteSkillSnapshot:
         deleted_count = 0
         if to_delete:
             try:
-                with self._connect() as conn:
+                with self._connection() as conn:
                     conn.executemany(
                         "DELETE FROM skill_snapshots WHERE skill_name = ?",
                         [(n,) for n in to_delete],
@@ -318,7 +330,7 @@ class SQLiteSkillSnapshot:
     def delete_skill(self, skill_name: str) -> None:
         """Remove a skill from the snapshot."""
         try:
-            with self._connect() as conn:
+            with self._connection() as conn:
                 conn.execute("DELETE FROM skill_snapshots WHERE skill_name = ?", (skill_name,))
                 conn.commit()
         except sqlite3.Error as e:
@@ -327,7 +339,7 @@ class SQLiteSkillSnapshot:
     def clear(self) -> None:
         """Clear all snapshot data."""
         try:
-            with self._connect() as conn:
+            with self._connection() as conn:
                 conn.execute("DELETE FROM skill_snapshots")
                 conn.commit()
         except sqlite3.Error as e:

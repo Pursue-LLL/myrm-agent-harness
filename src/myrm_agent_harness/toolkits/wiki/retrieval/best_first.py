@@ -1,14 +1,14 @@
 """Best-first retrieval convergence for wiki query.
 
 [INPUT]
-..core.claims_contract::WikiClaim, parse_claims_from_content, resolve_evidence_snapshot_status (POS: claim parse + snapshot tri-state)
-..core.config::WikiQueryConfig (POS: query strategy knobs)
-..core.structure::WikiStructure (POS: concept path resolution)
-.indexer::WikiIndexer (POS: weighted graph edge lookup)
-.tokenizer::extract_query_terms (POS: shared query term extraction)
+- ..core.claims_contract::WikiClaim, parse_claims_from_content, resolve_evidence_snapshot_status (POS: claim parse + snapshot tri-state)
+- ..core.config::WikiQueryConfig (POS: query strategy knobs)
+- ..core.structure::WikiStructure (POS: concept path resolution)
+- .indexer::WikiIndexer (POS: weighted graph edge lookup)
+- .tokenizer::extract_query_terms (POS: shared query term extraction)
 
 [OUTPUT]
-RetrievalSeed, score_claim_overlap, converge_retrieval_candidates (claim status + stale evidence + claim confidence aware rerank)
+- RetrievalSeed, score_claim_overlap, converge_retrieval_candidates
 
 [POS]
 Budgeted priority-queue convergence over index/FTS/sidecar/keyword seeds plus weighted

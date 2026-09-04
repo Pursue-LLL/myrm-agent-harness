@@ -1,5 +1,4 @@
-"""Retrieval tools
-
+"""Retrieval tools orchestrator.
 
 [INPUT]
 - retriever.autocut::AutocutConfig (POS: score-discontinuity autocut configuration)
@@ -14,8 +13,8 @@
 - pydantic::BaseModel, Field (POS: configuration validation)
 
 [OUTPUT]
-- RetrieverConfig: retrieval config class, unified management of retrieval parameters (cache size, sample size, etc.)
-- RetrieverManager: retrieval manager class, providing hybrid retrieval and reranking (with BM25 index cache)
+- RetrieverConfig: retrieval config class, unified management of retrieval parameters
+- RetrieverManager: retrieval manager class, providing hybrid retrieval and reranking
 - BM25CacheStats: BM25 index cache statistics class (hit rate, request count, evictions, memory usage)
 
 [POS]

@@ -203,3 +203,34 @@ class TestStampMissingReasoningContent:
         assert len(assistant_msgs) == 3
         for msg in assistant_msgs:
             assert msg["reasoning_content"] == ""
+
+
+class TestOutboundWireReasoningGate:
+    """Verify wire-aware projection gates outbound reasoning items."""
+
+    def test_chat_completions_wire_strips_responses_reasoning_items(self) -> None:
+        model = _make_model("deepseek/deepseek-v4-flash", wire_protocol="chat_completions")
+        reasoning_blob = [{"type": "reasoning", "id": "rs_123", "encrypted_content": "enc_data"}]
+        ai_msg = AIMessage(
+            content="Plan created",
+            additional_kwargs={"responses_reasoning_items": reasoning_blob},
+        )
+        messages = [HumanMessage(content="Next step"), ai_msg]
+        message_dicts, _ = model._create_message_dicts(messages, stop=None)
+        assistant_dict = next(m for m in message_dicts if m["role"] == "assistant")
+        assert "responses_reasoning_items" not in assistant_dict
+        # Original message object must remain unmutated (durable checkpoint preservation)
+        assert ai_msg.additional_kwargs["responses_reasoning_items"] == reasoning_blob
+
+    def test_responses_wire_preserves_responses_reasoning_items(self) -> None:
+        model = _make_model("openai/o3-mini", wire_protocol="responses")
+        reasoning_blob = [{"type": "reasoning", "id": "rs_123", "encrypted_content": "enc_data"}]
+        ai_msg = AIMessage(
+            content="Plan created",
+            additional_kwargs={"responses_reasoning_items": reasoning_blob},
+        )
+        messages = [HumanMessage(content="Next step"), ai_msg]
+        message_dicts, _ = model._create_message_dicts(messages, stop=None)
+        assistant_dict = next(m for m in message_dicts if m["role"] == "assistant")
+        assert assistant_dict.get("responses_reasoning_items") == reasoning_blob
+

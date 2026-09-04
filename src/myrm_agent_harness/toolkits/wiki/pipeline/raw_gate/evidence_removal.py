@@ -1,7 +1,15 @@
 """Shared raw evidence removal and concept re-anchoring.
 
+[INPUT]
+- core.structure::WikiStructure (POS: vault paths)
+- cognitive_map.writer::append_log_entry (POS: audit log)
+- claims_contract::parse_claims_from_content (POS: claims parser)
+
+[OUTPUT]
+- RawEvidenceRemovalResult, remove_raw_evidence
+
 [POS]
-See module docstring.
+底层的原始证据移除与概念重锚定通用组件。
 """
 
 from __future__ import annotations

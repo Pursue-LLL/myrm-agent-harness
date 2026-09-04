@@ -1,7 +1,15 @@
 """Wiki apply request/result types.
 
+[INPUT]
+- dataclasses::dataclass, field (POS: standard library dataclass definition)
+- enum::StrEnum (POS: standard library string enum)
+- typing::Literal (POS: standard library literal type)
+
+[OUTPUT]
+- WikiApplyOp, WikiApplyCaller, WikiApplyRequest, WikiApplyResult
+
 [POS]
-See module docstring.
+Wiki Apply 请求与响应数据结构契约定义。
 """
 
 from __future__ import annotations

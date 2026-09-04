@@ -1,10 +1,10 @@
 """Portable full-vault ZIP archive for WikiStructure.
 
 [INPUT]
-myrm_agent_harness.toolkits.wiki.core.structure::WikiStructure
+- myrm_agent_harness.toolkits.wiki.core.structure::WikiStructure (POS: vault layout)
 
 [OUTPUT]
-build_vault_archive_zip: ZIP bytes for raw + wiki tree (excludes internal caches)
+- build_vault_archive_zip: ZIP bytes for raw + wiki tree (excludes internal caches)
 
 [POS]
 Framework-level vault file export. Server adds Obsidian-specific presets separately.

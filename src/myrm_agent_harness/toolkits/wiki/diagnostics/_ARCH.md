@@ -9,7 +9,7 @@ server `/wiki/stats` and CI retrieval regression gates.
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Package marker and re-exports for the diagnostics module. | — |
+| `__init__.py` | Package | Package marker and re-exports for the diagnostics module. | ✅ |
 | `structural_lint.py` | Core | SSOT for broken markdown links (code-fence aware), broken `[[wikilink]]` targets (path + title alias), frontmatter type gate counts, and raw-backed provenance gaps | ✅ |
 | `recall_benchmark.py` | Core | Offline **Tier-1** FTS indexer benchmark (hit@k, latency). **Tier-2** query-path claim-health cases live in `tests/toolkits/wiki/test_query_closure_v2.py` (CI via harness `test.yml`) | ✅ |
 

@@ -1,12 +1,12 @@
 """Sufficiency evaluation prompts.
 
 [INPUT]
-- (none — self-contained prompt templates)
+- (none - self-contained prompt templates)
 
 [OUTPUT]
-- SUFFICIENCY_EVAL_SYSTEM: System prompt for the evaluator LLM.
-- SUFFICIENCY_EVAL_USER_TEMPLATE: User prompt template (format with query + snippets).
-- SUFFICIENCY_JSON_SCHEMA: JSON Schema enforcing structured output.
+- SUFFICIENCY_EVAL_SYSTEM: System prompt for the evaluator LLM
+- SUFFICIENCY_EVAL_USER_TEMPLATE: User prompt template (format with query + snippets)
+- SUFFICIENCY_JSON_SCHEMA: JSON Schema enforcing structured output
 
 [POS]
 Prompt templates for the Retrieval Sufficiency Guard evaluator. Designed for

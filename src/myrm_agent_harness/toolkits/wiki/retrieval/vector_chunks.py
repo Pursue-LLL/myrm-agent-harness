@@ -1,13 +1,13 @@
 """Shared wiki vector upsert helpers with embed-window-aware chunking.
 
 [INPUT]
-retriever.embedding.window_policy (POS: embed window SSOT + EmbedInputTooLargeError)
-retriever.splitter.embed_budget::split_for_embedding (POS: embed-time chunking)
-memory.protocols.embedding::EmbeddingProtocol (POS: embed contract)
-memory.protocols.vector::VectorStoreProtocol (POS: vector store contract)
+- retriever.embedding.window_policy (POS: embed window SSOT + EmbedInputTooLargeError)
+- retriever.splitter.embed_budget::split_for_embedding (POS: embed-time chunking)
+- memory.protocols.embedding::EmbeddingProtocol (POS: embed contract)
+- memory.protocols.vector::VectorStoreProtocol (POS: vector store contract)
 
 [OUTPUT]
-upsert_text_vectors / delete_text_vectors / collapse_vector_hits
+- upsert_text_vectors, delete_text_vectors, collapse_vector_hits
 
 [POS]
 DRY embed+vector path for WikiIndexer, SidecarIndexMixin, and WikiAssetIndexer.

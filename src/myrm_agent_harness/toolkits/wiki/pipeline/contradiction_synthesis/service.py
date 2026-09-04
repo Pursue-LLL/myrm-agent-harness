@@ -1,8 +1,8 @@
 """CCSP orchestration service.
 
 [INPUT]
-..pipeline.pending::WikiPendingEditsManager (POS: stage evolution drafts)
-..core.types::ConceptInfo (POS: compile batch concepts)
+- ..pipeline.pending::WikiPendingEditsManager (POS: stage evolution drafts)
+- ..core.types::ConceptInfo (POS: compile batch concepts)
 
 [OUTPUT]
 - run_contradiction_synthesis_pass

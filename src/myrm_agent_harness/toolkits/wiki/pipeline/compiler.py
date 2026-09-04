@@ -1,20 +1,20 @@
 """Wiki compiler - LLM as compiler for Karpathy-style knowledge base.
 
 [INPUT]
-langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
-langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
-..core.config::WikiConfig, WikiCompileConfig (POS: Wiki configuration center)
-..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
-..core.types::ConceptInfo, CompileResult (POS: Wiki toolkit type definitions)
-..core.parsers::parse_concepts_response (POS: LLM response parser)
-.postprocess::generate_backlinks, save_metadata (POS: post-compilation steps)
-.cognitive_map::WikiCognitiveMapService (POS: OKF index/log/hot writers)
-.queue::WikiIngestionQueue (POS: persistent ingestion queue)
-.sidecar::build_directory_sidecars (POS: bottom-up directory sidecar builder)
-utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+- langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
+- langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
+- ..core.config::WikiConfig, WikiCompileConfig (POS: Wiki configuration center)
+- ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
+- ..core.types::ConceptInfo, CompileResult (POS: Wiki toolkit type definitions)
+- ..core.parsers::parse_concepts_response (POS: LLM response parser)
+- .postprocess::generate_backlinks, save_metadata (POS: post-compilation steps)
+- .cognitive_map::WikiCognitiveMapService (POS: OKF index/log/hot writers)
+- .queue::WikiIngestionQueue (POS: persistent ingestion queue)
+- .sidecar::build_directory_sidecars (POS: bottom-up directory sidecar builder)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取)
 
 [OUTPUT]
-WikiCompiler: LLM-Wiki compilation engine
+- WikiCompiler: LLM-Wiki compilation engine
 
 [POS]
 Wiki compilation core engine. Uses LLM to compile raw documents into structured wiki articles:

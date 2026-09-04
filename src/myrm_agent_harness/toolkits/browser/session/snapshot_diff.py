@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_REF_PREFIX_RE = re.compile(r"^(\s*)(?:f\d+_)?e\d+[:\s]\s*")
+_REF_PREFIX_RE = re.compile(r"^(?:f\d+_)?e\d+[:\s]")
 _DIFF_FOLD_THRESHOLD = 3
 _MAX_UNCHANGED_DISPLAY = 10
 _MAX_LINE_CHARS = 500
@@ -48,7 +48,7 @@ _CONTAINER_KEYWORDS = (
     "[drawer",
     "[sheet",
 )
-_IDENTICAL_NOTICE = "=== Snapshot diff: No DOM changes detected since last snapshot ==="
+_IDENTICAL_NOTICE = "=== No DOM changes detected since last snapshot ==="
 
 
 @dataclasses.dataclass(frozen=True)
@@ -88,7 +88,10 @@ class SnapshotDiffEngine:
         if line not in self._normalization_cache:
             if len(self._normalization_cache) >= _MAX_NORMALIZATION_CACHE_SIZE:
                 self._normalization_cache.clear()
-            norm = _REF_PREFIX_RE.sub(r"\1", line)
+            stripped = line.lstrip()
+            indent = line[: len(line) - len(stripped)]
+            norm_body = _REF_PREFIX_RE.sub("", stripped)
+            norm = indent + norm_body.lstrip()
             if len(norm) > _MAX_LINE_CHARS:
                 norm = f"{norm[:_MAX_LINE_CHARS]} ...[truncated]"
             self._normalization_cache[line] = norm
@@ -207,9 +210,17 @@ class SnapshotDiffEngine:
 
         # 1. Identical Fast Path (0ms, 0 token waste)
         if self._prev_hash and current_hash == self._prev_hash:
-            tokens_saved = max(0, (len(current_tree) - len(_IDENTICAL_NOTICE)) // chars_per_token)
+            unchanged_refs = [ref_id for ref_id, _role in self._prev_ref_map.values()][:_MAX_UNCHANGED_DISPLAY]
+            diff_lines = [
+                "--- Snapshot diff ---",
+                _IDENTICAL_NOTICE,
+            ]
+            if unchanged_refs:
+                diff_lines.append(f"--- Unchanged interactive: {', '.join(unchanged_refs)} ---")
+            diff_text = "\n".join(diff_lines)
+            tokens_saved = max(0, (len(current_tree) - len(diff_text)) // chars_per_token)
             return DiffOutput(
-                diff_text=_IDENTICAL_NOTICE,
+                diff_text=diff_text,
                 is_identical=True,
                 additions=0,
                 removals=0,
@@ -223,9 +234,17 @@ class SnapshotDiffEngine:
 
         # Fast path 2: Normalized lines identical (e.g. only ref IDs shifted)
         if self._prev_normalized and current_normalized == self._prev_normalized:
-            tokens_saved = max(0, (len(current_tree) - len(_IDENTICAL_NOTICE)) // chars_per_token)
+            unchanged_refs = [ref_id for ref_id, _role in self._prev_ref_map.values()][:_MAX_UNCHANGED_DISPLAY]
+            diff_lines = [
+                "--- Snapshot diff ---",
+                _IDENTICAL_NOTICE,
+            ]
+            if unchanged_refs:
+                diff_lines.append(f"--- Unchanged interactive: {', '.join(unchanged_refs)} ---")
+            diff_text = "\n".join(diff_lines)
+            tokens_saved = max(0, (len(current_tree) - len(diff_text)) // chars_per_token)
             return DiffOutput(
-                diff_text=_IDENTICAL_NOTICE,
+                diff_text=diff_text,
                 is_identical=True,
                 additions=0,
                 removals=0,

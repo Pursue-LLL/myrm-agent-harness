@@ -1,7 +1,15 @@
 """Raw publication gate request/result types.
 
+[INPUT]
+- dataclasses::dataclass, field (POS: standard library dataclass definition)
+- enum::StrEnum (POS: standard library string enum)
+- typing::Literal (POS: standard library literal type)
+
+[OUTPUT]
+- RawConflictPolicy, RawGateCaller, RawPublishRequest, RawPublishResult
+
 [POS]
-See module docstring.
+Raw Gate 原始材料发布门禁的数据契约与冲突策略枚举定义。
 """
 
 from __future__ import annotations

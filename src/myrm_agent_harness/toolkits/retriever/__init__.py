@@ -1,4 +1,19 @@
-"""Hybrid retrieval toolkit — embedding, BM25, fusion, rerank, and RSG hooks."""
+"""Hybrid retrieval toolkit — embedding, BM25, fusion, rerank, and RSG hooks.
+
+[INPUT]
+- .bm25_retrieval::bm25_retrieval (POS: BM25 sparse search)
+- .embedding::EmbeddingService (POS: vector embedding service)
+- .reranker::RerankerService (POS: reranking service)
+- .engine::RetrieverManager (POS: retrieval manager)
+- .hybrid_search::HybridSearchCoordinator (POS: hybrid search coordinator)
+- .qdrant_retrieval::QdrantRetriever (POS: Qdrant vector retriever)
+
+[OUTPUT]
+- RetrieverManager, HybridSearchCoordinator, QdrantRetriever, EmbeddingService, RerankerService
+
+[POS]
+Hybrid retrieval toolkit public facade re-exporting key entrypoints.
+"""
 
 from typing import TYPE_CHECKING
 

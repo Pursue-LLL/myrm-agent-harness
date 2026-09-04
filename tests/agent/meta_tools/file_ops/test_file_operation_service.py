@@ -1112,7 +1112,7 @@ async def test_file_operation_service_version_mismatch_raises_structured_tool_er
             await service.execute()
 
         mock_guard.require_version_match.assert_called_once_with(
-            "/workspace/main.py", "x = 100", anchor="x = 1"
+            "/workspace/main.py", "x = 100", anchor=["x = 1"]
         )
         err = exc_info.value
         assert err.error_code == "FILE_VERSION_MISMATCH"

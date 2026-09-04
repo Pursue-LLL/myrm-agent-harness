@@ -9,11 +9,11 @@ Features:
 - Automatic retry on transient errors (network jitter, timeouts)
 
 [INPUT]
-retriever.embedding.base::EmbeddingService (POS: Embedding contract layer)
-memory.protocols.cache::EmbeddingCacheProtocol (POS: Cache protocol for embeddings)
+- .base::EmbeddingService (POS: Embedding contract layer)
+- toolkits.memory.protocols.cache::EmbeddingCacheProtocol (POS: Cache protocol for embeddings)
 
 [OUTPUT]
-CloudEmbeddingService: Concrete EmbeddingService backed by cloud APIs via LiteLLM
+- CloudEmbeddingService: Concrete EmbeddingService backed by cloud APIs via LiteLLM
 
 [POS]
 Cloud embedding backend. Translates the abstract EmbeddingService interface into real

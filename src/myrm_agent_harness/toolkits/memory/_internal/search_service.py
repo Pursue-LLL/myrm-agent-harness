@@ -24,6 +24,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from time import perf_counter
+from typing import Any, Literal
 from uuid import uuid4
 
 from myrm_agent_harness.toolkits.memory._assistant_retrieval import search_conversation_two_pass
@@ -42,7 +43,26 @@ from myrm_agent_harness.toolkits.memory.adaptive import should_use_dual_channel
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.intent_recognizers import KeywordBasedRecognizer
 from myrm_agent_harness.toolkits.memory.metrics import get_search_metrics
-from myrm_agent_harness.toolkits.memory.observability import MemoryRetrievalTrace, MemoryTraceStep
+from myrm_agent_harness.toolkits.memory.observability import (
+    GATHER_BM25_FAILED,
+    GATHER_BM25_TIMEOUT,
+    GATHER_CONVERSATION_FAILED,
+    GATHER_CONVERSATION_TIMEOUT,
+    GATHER_EPISODIC_FAILED,
+    GATHER_EPISODIC_TIMEOUT,
+    GATHER_GRAPH_FAILED,
+    GATHER_GRAPH_TIMEOUT,
+    GATHER_PROCEDURAL_FAILED,
+    GATHER_PROCEDURAL_TIMEOUT,
+    GATHER_PROFILE_FAILED,
+    GATHER_PROFILE_TIMEOUT,
+    GATHER_QUERY_EMBEDDING_FAILED,
+    GATHER_QUERY_EMBEDDING_TIMEOUT,
+    GATHER_SEMANTIC_FAILED,
+    GATHER_SEMANTIC_TIMEOUT,
+    MemoryRetrievalTrace,
+    MemoryTraceStep,
+)
 from myrm_agent_harness.toolkits.memory.protocols.cache import EmbeddingCacheProtocol
 from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
 from myrm_agent_harness.toolkits.memory.protocols.graph import GraphStoreProtocol
@@ -62,6 +82,24 @@ from myrm_agent_harness.toolkits.memory.types import (
 logger = logging.getLogger(__name__)
 
 FTS5SearcherFunc = Callable[[str, int], Awaitable[list[MemorySearchResult]]]
+
+_STREAM_WARNING_MAP: dict[str, tuple[str, str]] = {
+    "query_embedding": (GATHER_QUERY_EMBEDDING_TIMEOUT, GATHER_QUERY_EMBEDDING_FAILED),
+    "profile": (GATHER_PROFILE_TIMEOUT, GATHER_PROFILE_FAILED),
+    "procedural": (GATHER_PROCEDURAL_TIMEOUT, GATHER_PROCEDURAL_FAILED),
+    "semantic": (GATHER_SEMANTIC_TIMEOUT, GATHER_SEMANTIC_FAILED),
+    "episodic": (GATHER_EPISODIC_TIMEOUT, GATHER_EPISODIC_FAILED),
+    "conversation": (GATHER_CONVERSATION_TIMEOUT, GATHER_CONVERSATION_FAILED),
+    "bm25": (GATHER_BM25_TIMEOUT, GATHER_BM25_FAILED),
+    "graph": (GATHER_GRAPH_TIMEOUT, GATHER_GRAPH_FAILED),
+}
+
+
+def _stream_warning_code(stream: str, failure_type: Literal["timeout", "failed"]) -> str:
+    codes = _STREAM_WARNING_MAP.get(stream)
+    if not codes:
+        return f"GATHER_{stream.upper()}_{failure_type.upper()}"
+    return codes[0] if failure_type == "timeout" else codes[1]
 
 
 def _deadline_remaining(deadline: float) -> float:
@@ -179,6 +217,7 @@ class MemorySearchService:
 
         with metrics.track_search(searched_types=tracked_types, current_chat_id=current_chat_id) as tracker:
             degraded = False
+            warning_codes: list[str] = []
             deadline = perf_counter() + runtime_config.retrieval.timeout_seconds
             embedding_required = self._embedding is not None and any(
                 memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CONVERSATION)
@@ -194,11 +233,25 @@ class MemorySearchService:
                     )
                 except TimeoutError:
                     degraded = True
+                    warning_codes.append(GATHER_QUERY_EMBEDDING_TIMEOUT)
                     get_search_metrics().record_degradation("timeout")
                     logger.warning(
                         "Memory query embedding timed out after %.1fs; continuing with local-only recall",
                         runtime_config.retrieval.timeout_seconds,
                     )
+                except BaseException as exc:
+                    degraded = True
+                    warning_codes.append(GATHER_QUERY_EMBEDDING_FAILED)
+                    get_search_metrics().record_degradation("error")
+                    logger.warning(
+                        "Memory query embedding failed: %s; continuing with local-only recall",
+                        exc,
+                    )
+            embed_metadata: dict[str, Any] = {}
+            if query_vector is None and embedding_required:
+                embed_metadata["degraded"] = True
+                embed_metadata["kind"] = "timeout" if GATHER_QUERY_EMBEDDING_TIMEOUT in warning_codes else "error"
+                embed_metadata["warning_codes"] = [c for c in warning_codes if c.startswith("GATHER_QUERY_EMBEDDING")]
             steps.append(
                 MemoryTraceStep(
                     phase="embed",
@@ -212,11 +265,11 @@ class MemorySearchService:
                     duration_ms=_elapsed_ms(embed_start),
                     input_count=1,
                     output_count=1 if query_vector is not None else 0,
-                    metadata={"degraded": True, "kind": "timeout"} if degraded and query_vector is None else {},
+                    metadata=embed_metadata,
                 )
             )
             collect_start = perf_counter()
-            result_lists, collect_degraded = await self._collect_result_lists(
+            result_lists, collect_degraded, collect_warnings = await self._collect_result_lists(
                 query=sanitized_query,
                 memory_types=search_types,
                 limit=limit,
@@ -228,7 +281,14 @@ class MemorySearchService:
                 until=until,
             )
             degraded = degraded or collect_degraded
+            warning_codes.extend(collect_warnings)
             candidate_count = sum(len(result_list) for result_list in result_lists)
+            collect_metadata: dict[str, Any] = {"result_lists": len(result_lists)}
+            if collect_degraded:
+                collect_metadata["degraded"] = True
+                collect_metadata["kind"] = "timeout" if any(w.endswith("_TIMEOUT") for w in collect_warnings) else "error"
+            if collect_warnings:
+                collect_metadata["warning_codes"] = list(collect_warnings)
             steps.append(
                 MemoryTraceStep(
                     phase="collect",
@@ -238,10 +298,7 @@ class MemorySearchService:
                     duration_ms=_elapsed_ms(collect_start),
                     input_count=len(search_types),
                     output_count=candidate_count,
-                    metadata={
-                        "result_lists": len(result_lists),
-                        **({"degraded": True, "kind": "timeout"} if collect_degraded else {}),
-                    },
+                    metadata=collect_metadata,
                 )
             )
             rank_start = perf_counter()
@@ -268,6 +325,7 @@ class MemorySearchService:
             if self._graph is not None and claim_requested:
                 graph_start = perf_counter()
                 graph_degraded = False
+                graph_warnings: list[str] = []
                 try:
                     final = await asyncio.wait_for(
                         enrich_with_graph(
@@ -285,11 +343,25 @@ class MemorySearchService:
                 except TimeoutError:
                     graph_degraded = True
                     degraded = True
+                    warning_codes.append(GATHER_GRAPH_TIMEOUT)
+                    graph_warnings.append(GATHER_GRAPH_TIMEOUT)
                     get_search_metrics().record_degradation("timeout")
                     logger.warning(
                         "Memory claim graph enrichment timed out after %.1fs; skipping graph results",
                         runtime_config.retrieval.timeout_seconds,
                     )
+                except BaseException as exc:
+                    graph_degraded = True
+                    degraded = True
+                    warning_codes.append(GATHER_GRAPH_FAILED)
+                    graph_warnings.append(GATHER_GRAPH_FAILED)
+                    get_search_metrics().record_degradation("error")
+                    logger.warning("Memory claim graph enrichment error: %s", exc)
+                graph_metadata: dict[str, Any] = {}
+                if graph_degraded:
+                    graph_metadata["degraded"] = True
+                    graph_metadata["kind"] = "timeout" if GATHER_GRAPH_TIMEOUT in graph_warnings else "error"
+                    graph_metadata["warning_codes"] = graph_warnings
                 steps.append(
                     MemoryTraceStep(
                         phase="graph",
@@ -299,7 +371,7 @@ class MemorySearchService:
                         duration_ms=_elapsed_ms(graph_start),
                         input_count=candidate_count,
                         output_count=len(final),
-                        metadata={"degraded": True, "kind": "timeout"} if graph_degraded else {},
+                        metadata=graph_metadata,
                     )
                 )
             else:
@@ -316,12 +388,14 @@ class MemorySearchService:
             if not include_raw:
                 final = self._strip_raw_exchange(final)
             tracker.record(final)
+        deduped_warning_codes = list(dict.fromkeys(warning_codes))
         self._last_trace = MemoryRetrievalTrace(
             id=uuid4().hex,
             query_preview=sanitized_query[:180],
             occurred_at=datetime.now(UTC),
             result_count=len(final),
             degraded=degraded,
+            warning_codes=deduped_warning_codes,
             steps=[
                 *steps,
                 MemoryTraceStep(
@@ -371,17 +445,19 @@ class MemorySearchService:
         deadline: float,
         since: datetime | None = None,
         until: datetime | None = None,
-    ) -> tuple[list[list[MemorySearchResult]], bool]:
+    ) -> tuple[list[list[MemorySearchResult]], bool, list[str]]:
         """Fan out per-type store searches and collect results under one deadline.
 
-        Returns ``(result_lists, degraded)``. Store tasks that outlive the shared
-        wall-clock deadline are cancelled and whatever already completed is kept, so a
-        hanging remote store degrades recall instead of blocking the agent turn.
+        Returns ``(result_lists, degraded, warning_codes)``. Store tasks that outlive
+        the shared wall-clock deadline are cancelled and whatever already completed is kept,
+        so a hanging remote store degrades recall instead of blocking the agent turn.
         """
         tasks: list[asyncio.Task[list[MemorySearchResult]]] = []
+        task_stream_map: dict[asyncio.Task[Any], str] = {}
         for memory_type in memory_types:
             self._append_type_search_tasks(
                 tasks,
+                task_stream_map,
                 memory_type=memory_type,
                 query=query,
                 limit=limit,
@@ -397,21 +473,21 @@ class MemorySearchService:
             for memory_type in memory_types
         )
         if self._vector is not None and needs_vector:
-            tasks.append(
-                asyncio.create_task(
-                    search_bm25(
-                        query,
-                        self._vector,
-                        config,
-                        namespaces=self._namespaces,
-                        since=since,
-                        until=until,
-                    )
+            bm25_task = asyncio.create_task(
+                search_bm25(
+                    query,
+                    self._vector,
+                    config,
+                    namespaces=self._namespaces,
+                    since=since,
+                    until=until,
                 )
             )
+            tasks.append(bm25_task)
+            task_stream_map[bm25_task] = "bm25"
 
         if not tasks:
-            return [], False
+            return [], False, []
 
         done, pending = await asyncio.wait(
             tasks,
@@ -419,11 +495,14 @@ class MemorySearchService:
             return_when=asyncio.ALL_COMPLETED,
         )
         degraded = False
+        warning_codes: list[str] = []
         if pending:
             degraded = True
             timeout_seconds = self._config.retrieval.timeout_seconds
             for task in pending:
                 task.cancel()
+                stream = task_stream_map.get(task, "unknown")
+                warning_codes.append(_stream_warning_code(stream, "timeout"))
             await asyncio.gather(*pending, return_exceptions=True)
             get_search_metrics().record_degradation("timeout")
             logger.warning(
@@ -435,18 +514,20 @@ class MemorySearchService:
 
         result_lists: list[list[MemorySearchResult]] = []
         for task in done:
+            stream = task_stream_map.get(task, "unknown")
             try:
                 result = task.result()
             except BaseException as exc:
                 degraded = True
+                warning_codes.append(_stream_warning_code(stream, "failed"))
                 get_search_metrics().record_degradation("error")
-                logger.warning("Memory search error: %s", exc)
+                logger.warning("Memory search error (%s): %s", stream, exc)
                 continue
             if isinstance(result, list) and result:
                 filtered = self._filter_results(result)
                 if filtered:
                     result_lists.append(apply_channel_affinity(filtered, current_channel_id=self._current_channel_id))
-        return result_lists, degraded
+        return result_lists, degraded, warning_codes
 
     @staticmethod
     def _filter_results(results: list[MemorySearchResult]) -> list[MemorySearchResult]:
@@ -484,6 +565,7 @@ class MemorySearchService:
     def _append_type_search_tasks(
         self,
         tasks: list[asyncio.Task[list[MemorySearchResult]]],
+        task_stream_map: dict[asyncio.Task[Any], str],
         *,
         memory_type: MemoryType,
         query: str,
@@ -495,48 +577,49 @@ class MemorySearchService:
         until: datetime | None = None,
     ) -> None:
         if memory_type == MemoryType.PROFILE and self._relational is not None:
-            tasks.append(
-                asyncio.create_task(search_profile(query, limit, self._relational, namespaces=self._namespaces))
-            )
+            t = asyncio.create_task(search_profile(query, limit, self._relational, namespaces=self._namespaces))
+            tasks.append(t)
+            task_stream_map[t] = "profile"
             return
         if memory_type == MemoryType.PROCEDURAL and self._relational is not None:
-            tasks.append(
-                asyncio.create_task(search_procedural(query, limit, self._relational, namespaces=self._namespaces))
-            )
+            t = asyncio.create_task(search_procedural(query, limit, self._relational, namespaces=self._namespaces))
+            tasks.append(t)
+            task_stream_map[t] = "procedural"
             return
         if memory_type == MemoryType.SEMANTIC and self._vector is not None and query_vector is not None:
-            tasks.append(
-                asyncio.create_task(
-                    search_semantic(
-                        query_vector,
-                        limit,
-                        self._vector,
-                        config,
-                        namespaces=self._namespaces,
-                        since=since,
-                        until=until,
-                    )
+            t = asyncio.create_task(
+                search_semantic(
+                    query_vector,
+                    limit,
+                    self._vector,
+                    config,
+                    namespaces=self._namespaces,
+                    since=since,
+                    until=until,
                 )
             )
+            tasks.append(t)
+            task_stream_map[t] = "semantic"
             return
         if memory_type == MemoryType.EPISODIC and self._vector is not None and query_vector is not None:
-            tasks.append(
-                asyncio.create_task(
-                    search_episodic(
-                        query_vector,
-                        limit,
-                        self._vector,
-                        config,
-                        namespaces=self._namespaces,
-                        since=since,
-                        until=until,
-                    )
+            t = asyncio.create_task(
+                search_episodic(
+                    query_vector,
+                    limit,
+                    self._vector,
+                    config,
+                    namespaces=self._namespaces,
+                    since=since,
+                    until=until,
                 )
             )
+            tasks.append(t)
+            task_stream_map[t] = "episodic"
             return
         if memory_type == MemoryType.CONVERSATION and self._vector is not None and query_vector is not None:
             self._append_conversation_tasks(
                 tasks,
+                task_stream_map,
                 query=query,
                 limit=limit,
                 include_raw=include_raw,
@@ -549,6 +632,7 @@ class MemorySearchService:
     def _append_conversation_tasks(
         self,
         tasks: list[asyncio.Task[list[MemorySearchResult]]],
+        task_stream_map: dict[asyncio.Task[Any], str],
         *,
         query: str,
         limit: int,
@@ -562,31 +646,11 @@ class MemorySearchService:
             get_search_metrics().record_assistant_reference_query()
             use_dual = self._should_use_dual_channel(query)
             query_raw = query_vector if use_dual else None
-            tasks.append(
-                asyncio.create_task(
-                    search_conversation_two_pass(
-                        query_raw or query_vector,
-                        query_vector,
-                        query,
-                        limit,
-                        self._vector,
-                        config,
-                        namespaces=self._namespaces,
-                        include_raw=include_raw,
-                        since=since,
-                        until=until,
-                    )
-                )
-            )
-            return
-
-        use_dual = self._should_use_dual_channel(query)
-        query_raw = query_vector if use_dual else None
-        tasks.append(
-            asyncio.create_task(
-                search_conversation(
-                    query_raw,
+            t = asyncio.create_task(
+                search_conversation_two_pass(
+                    query_raw or query_vector,
                     query_vector,
+                    query,
                     limit,
                     self._vector,
                     config,
@@ -596,9 +660,31 @@ class MemorySearchService:
                     until=until,
                 )
             )
+            tasks.append(t)
+            task_stream_map[t] = "conversation"
+            return
+
+        use_dual = self._should_use_dual_channel(query)
+        query_raw = query_vector if use_dual else None
+        t = asyncio.create_task(
+            search_conversation(
+                query_raw,
+                query_vector,
+                limit,
+                self._vector,
+                config,
+                namespaces=self._namespaces,
+                include_raw=include_raw,
+                since=since,
+                until=until,
+            )
         )
+        tasks.append(t)
+        task_stream_map[t] = "conversation"
         if self._fts5_searcher is not None:
-            tasks.append(asyncio.create_task(self._fts5_searcher(query, limit)))
+            fts_t = asyncio.create_task(self._fts5_searcher(query, limit))
+            tasks.append(fts_t)
+            task_stream_map[fts_t] = "fts5"
 
     def _should_use_dual_channel(self, query: str) -> bool:
         if not self._config.retrieval.enable_adaptive_channel:

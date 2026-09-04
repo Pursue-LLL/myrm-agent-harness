@@ -15,9 +15,37 @@ dependencies; applications decide how to execute, store, and expose these DTOs.
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+
+class MemoryGatherWarningCode(StrEnum):
+    """Machine-stable warning codes for per-stream recall degradation.
+
+    Transmitted code-only on the wire to isolate internal exceptions from
+    LLM prompt context and prevent prompt cache degradation.
+    """
+
+    GATHER_EMBED_TIMEOUT = "GATHER_EMBED_TIMEOUT"
+    GATHER_EMBED_FAILED = "GATHER_EMBED_FAILED"
+    GATHER_VECTOR_TIMEOUT = "GATHER_VECTOR_TIMEOUT"
+    GATHER_VECTOR_FAILED = "GATHER_VECTOR_FAILED"
+    GATHER_SEMANTIC_TIMEOUT = "GATHER_SEMANTIC_TIMEOUT"
+    GATHER_SEMANTIC_FAILED = "GATHER_SEMANTIC_FAILED"
+    GATHER_EPISODIC_TIMEOUT = "GATHER_EPISODIC_TIMEOUT"
+    GATHER_EPISODIC_FAILED = "GATHER_EPISODIC_FAILED"
+    GATHER_CONVERSATION_TIMEOUT = "GATHER_CONVERSATION_TIMEOUT"
+    GATHER_CONVERSATION_FAILED = "GATHER_CONVERSATION_FAILED"
+    GATHER_GRAPH_TIMEOUT = "GATHER_GRAPH_TIMEOUT"
+    GATHER_GRAPH_FAILED = "GATHER_GRAPH_FAILED"
+    GATHER_FTS5_FAILED = "GATHER_FTS5_FAILED"
+    GATHER_WIKI_TIMEOUT = "GATHER_WIKI_TIMEOUT"
+    GATHER_WIKI_FAILED = "GATHER_WIKI_FAILED"
+    GATHER_SESSIONS_TIMEOUT = "GATHER_SESSIONS_TIMEOUT"
+    GATHER_SESSIONS_FAILED = "GATHER_SESSIONS_FAILED"
+
 
 MemoryReliabilityStatus = Literal["ready", "warning", "critical", "missing"]
 MemoryReliabilityCategory = Literal["storage", "index", "embedding", "ledger", "deployment", "quality"]

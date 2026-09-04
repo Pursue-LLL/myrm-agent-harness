@@ -33,8 +33,11 @@ class BashExecutionError(Exception):
         stderr_evicted_total_lines: int | None = None,
         stderr_evicted_storage_truncated: bool = False,
     ):
-        super().__init__(message)
-        self.error_hint = error_hint
+        from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
+        sanitized_msg = redact_sensitive_text(message) if message else ""
+        super().__init__(sanitized_msg)
+        self.error_hint = redact_sensitive_text(error_hint) if error_hint else None
         self.error_category = error_category
         self.phase = phase
         self.stdout_evicted_ref = stdout_evicted_ref

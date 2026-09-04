@@ -1,17 +1,17 @@
 """Directory sidecar builder for hierarchical wiki retrieval.
 
 [INPUT]
-langchain_core.language_models::BaseChatModel (POS: LLM summarisation engine)
-langchain_core.messages::HumanMessage, SystemMessage (POS: prompt messages)
-..core.structure::WikiStructure (POS: concept tree filesystem abstraction)
-..core.config::WikiCompileConfig (POS: sidecar generation knobs)
-..core.types::ConceptInfo (POS: touched concept hints from compiler)
-utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
-utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- langchain_core.language_models::BaseChatModel (POS: LLM summarisation engine)
+- langchain_core.messages::HumanMessage, SystemMessage (POS: prompt messages)
+- ..core.structure::WikiStructure (POS: concept tree filesystem abstraction)
+- ..core.config::WikiCompileConfig (POS: sidecar generation knobs)
+- ..core.types::ConceptInfo (POS: touched concept hints from compiler)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output)
 
 [OUTPUT]
-SidecarBuildResult: sidecar build statistics
-build_directory_sidecars(): incremental bottom-up sidecar build entrypoint
+- SidecarBuildResult: sidecar build statistics
+- build_directory_sidecars: incremental bottom-up sidecar build entrypoint
 
 [POS]
 Builds L0/L1 directory sidecars (`.abstract.md`, `.overview.md`) using a bottom-up

@@ -1,9 +1,9 @@
 """Evolution synthesis page writer for CCSP.
 
 [INPUT]
-..core.frontmatter_contract (POS: page type + metadata)
-..core.section_contract (POS: Compiled Truth / Timeline skeleton)
-..core.claims_contract (POS: contested claims)
+- ..core.frontmatter_contract (POS: page type + metadata)
+- ..core.section_contract (POS: Compiled Truth / Timeline skeleton)
+- ..core.claims_contract (POS: contested claims)
 
 [OUTPUT]
 - build_evolution_concept_path, build_synthesis_page

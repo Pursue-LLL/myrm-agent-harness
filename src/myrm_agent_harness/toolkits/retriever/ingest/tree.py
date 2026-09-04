@@ -6,7 +6,7 @@ and provides a topological bottom-up reduce order so directory summaries fold up
 without waiting for Object Lane vector embeddings.
 
 [INPUT]
-- types.py::DirNode (POS: Node representation in the directory DAG)
+- .types::DirNode (POS: Node representation in the directory DAG)
 
 [OUTPUT]
 - DirTreeBuilder: In-memory directory DAG builder and topological folder

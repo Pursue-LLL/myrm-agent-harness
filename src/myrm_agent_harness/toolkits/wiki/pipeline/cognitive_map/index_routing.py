@@ -1,15 +1,15 @@
 """Index-first routing helpers for wiki_query (Karpathy OKF index.md catalog).
 
 [INPUT]
-..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
-..retrieval.tokenizer::extract_query_terms (POS: FTS5 tokenizer with CJK bigram support)
+- ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
+- ..retrieval.tokenizer::extract_query_terms (POS: FTS5 tokenizer with CJK bigram support)
 
 [OUTPUT]
-IndexRouteEntry: Parsed index.md catalog row
-parse_index_entries(), read_index_entries(): Load OKF index catalog
-match_index_entries(): Score query against catalog rows
-format_index_route_context(): L0 index routing block for wiki_query answers
-INDEX_ROUTING_SECTION: Machine section id for citation metadata (FE i18n key)
+- IndexRouteEntry: Parsed index.md catalog row
+- parse_index_entries, read_index_entries: Load OKF index catalog
+- match_index_entries: Score query against catalog rows
+- format_index_route_context: L0 index routing block for wiki_query answers
+- INDEX_ROUTING_SECTION: Machine section id for citation metadata (FE i18n key)
 
 [POS]
 OKF index-first routing helpers. Seeds wiki_query retrieval from wiki/index.md before

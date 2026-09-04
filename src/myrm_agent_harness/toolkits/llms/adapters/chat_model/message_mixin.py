@@ -186,14 +186,33 @@ class ChatLiteLLMMessageMixin:
             if "stop" in params:
                 raise ValueError("`stop` found in both the input and default params.")
             params["stop"] = stop
-        message_dicts = [convert_message_to_dict(m) for m in self._normalize_messages_for_provider(messages)]
+        wire_protocol = getattr(self, "wire_protocol", "chat_completions")
+        message_dicts = [
+            convert_message_to_dict(m, wire_protocol=wire_protocol)
+            for m in self._normalize_messages_for_provider(messages)
+        ]
         if self._should_promote_system_to_developer() and message_dicts:
             first = message_dicts[0]
             if isinstance(first, dict) and first.get("role") == "system":
                 first["role"] = "developer"
         self._stamp_missing_reasoning_content(message_dicts)
         self._sanitize_image_urls(message_dicts)
+        self._sanitize_outbound_wire_messages(message_dicts)
         return message_dicts, params
+
+    def _sanitize_outbound_wire_messages(self, message_dicts: list[dict[str, Any]]) -> None:
+        """Sanitize message dicts according to target wire protocol.
+
+        When wire_protocol is not 'responses', strip internal
+        'responses_reasoning_items' which would trigger HTTP 400 on standard
+        ChatCompletions gateways (OpenAI, DeepSeek, Cloudflare, etc.).
+        """
+        wire_protocol = getattr(self, "wire_protocol", "chat_completions")
+        if wire_protocol == "responses":
+            return
+        for msg in message_dicts:
+            if "responses_reasoning_items" in msg:
+                del msg["responses_reasoning_items"]
 
     def _sanitize_image_urls(self, message_dicts: list[dict[str, Any]]) -> None:
         """Sanitize image_url blocks for provider-specific quirks.

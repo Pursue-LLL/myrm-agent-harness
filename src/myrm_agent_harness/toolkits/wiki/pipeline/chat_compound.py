@@ -1,14 +1,14 @@
 """Chat message → Wiki pending compound staging (zero LLM).
 
 [INPUT]
-..core.section_contract (POS: Compiled Truth / Timeline skeleton)
-..core.frontmatter_contract (POS: session frontmatter + metadata)
-..core.claims_contract (POS: structured claims merge)
-..pending.WikiPendingEditsManager (POS: HITL stage SSOT)
+- ..core.section_contract (POS: Compiled Truth / Timeline skeleton)
+- ..core.frontmatter_contract (POS: session frontmatter + metadata)
+- ..core.claims_contract (POS: structured claims merge)
+- ..pending.WikiPendingEditsManager (POS: HITL stage SSOT)
 
 [OUTPUT]
-build_chat_compound_draft: assemble pending markdown from Q&A + trust signals
-stage_chat_compound: dedupe by source_message + stage_pending_edit
+- build_chat_compound_draft: assemble pending markdown from Q&A + trust signals
+- stage_chat_compound: dedupe by source_message + stage_pending_edit
 
 [POS]
 REST/chat capture pipeline only. Agent auto-archive uses publish_raw separately.

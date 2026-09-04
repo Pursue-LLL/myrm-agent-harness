@@ -14,9 +14,9 @@ safeguarding everyday enterprise entity queries.
 - Session CallRecord window (LoopGuard)
 
 [OUTPUT]
-- check_query_grounding_claim(): reason string when blocking is required, else None
-- detect_entity_query_intent(): bool
-- has_successful_query_evidence(): bool
+- check_query_grounding_claim: reason string when blocking is required, else None
+- detect_entity_query_intent: bool
+- has_successful_query_evidence: bool
 
 [POS]
 Harness middleware helper; invoked from CompletionGuard.aafter_model at completion.

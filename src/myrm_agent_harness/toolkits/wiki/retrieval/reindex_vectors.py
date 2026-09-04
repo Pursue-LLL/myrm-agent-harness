@@ -1,12 +1,12 @@
 """Rebuild wiki vectors after embedding model or chunking policy changes.
 
 [INPUT]
-..core.structure::WikiStructure (POS: vault paths)
-..retrieval.indexer::WikiIndexer (POS: FTS/Qdrant upsert + sidecar mixin)
-..retrieval.asset_index::WikiAssetIndexer (POS: optional asset caption vectors)
+- ..core.structure::WikiStructure (POS: vault paths)
+- ..retrieval.indexer::WikiIndexer (POS: FTS/Qdrant upsert + sidecar mixin)
+- ..retrieval.asset_index::WikiAssetIndexer (POS: optional asset caption vectors)
 
 [OUTPUT]
-WikiVectorReindexResult, reindex_published_vectors()
+- WikiVectorReindexResult, reindex_published_vectors
 
 [POS]
 Harness wiki vector reindex SSOT. Re-embeds published L2 concepts, L0/L1 directory

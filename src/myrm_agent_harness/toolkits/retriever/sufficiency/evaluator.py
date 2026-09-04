@@ -9,8 +9,7 @@
 - utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
-- evaluate_sufficiency(): async function that evaluates whether retrieved snippets
-  are sufficient to answer a user query.
+- evaluate_sufficiency: async function that evaluates whether retrieved snippets are sufficient to answer a user query
 
 [POS]
 Core evaluator for the Retrieval Sufficiency Guard. Uses a lightweight LLM

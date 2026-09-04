@@ -1,17 +1,17 @@
 """Wiki query engine - Query and enhance knowledge base.
 
 [INPUT]
-langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
-langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
-..core.config::WikiConfig, WikiQueryConfig (POS: Wiki configuration center)
-..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
-..core.types::QueryResult (POS: Wiki toolkit type definition center)
-..pipeline.cognitive_map::read_hot_context, read_log_context (POS: OKF hot.md / log.md readers for wiki_query prefix)
-..pipeline.cognitive_map.index_routing::format_index_route_context, match_index_entries, read_index_entries (POS: OKF index-first routing)
-.best_first::RetrievalSeed, converge_retrieval_candidates (POS: budgeted best-first graph convergence + raw_claim rerank)
+- langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
+- langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
+- ..core.config::WikiConfig, WikiQueryConfig (POS: Wiki configuration center)
+- ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
+- ..core.types::QueryResult (POS: Wiki toolkit type definition center)
+- ..pipeline.cognitive_map::read_hot_context, read_log_context (POS: OKF hot.md / log.md readers for wiki_query prefix)
+- ..pipeline.cognitive_map.index_routing::format_index_route_context, match_index_entries, read_index_entries (POS: OKF index-first routing)
+- .best_first::RetrievalSeed, converge_retrieval_candidates (POS: budgeted best-first graph convergence + raw_claim rerank)
 
 [OUTPUT]
-WikiQueryEngine: Wiki query and enhancement engine; derived QueryResult.confidence_score; QueryResult.retrieval_trace metadata
+- WikiQueryEngine: Wiki query and enhancement engine; derived QueryResult.confidence_score; QueryResult.retrieval_trace metadata
 
 [POS]
 Wiki query core engine. Responsible for querying the wiki knowledge base and answering questions:

@@ -1,13 +1,13 @@
 """Raw publication gate — single SSOT for vault raw/ writes.
 
 [INPUT]
-..core.structure::WikiStructure (POS: raw paths)
-..core.canonical_registry::compute_page_lease_hash (POS: content hash)
-..cognitive_map.writer::append_log_entry (POS: audit log)
-..cognitive_map.events::WikiMapEvent (POS: log event types)
+- ..core.structure::WikiStructure (POS: raw paths)
+- ..core.canonical_registry::compute_page_lease_hash (POS: content hash)
+- ..cognitive_map.writer::append_log_entry (POS: audit log)
+- ..cognitive_map.events::WikiMapEvent (POS: log event types)
 
 [OUTPUT]
-publish_raw: guarded raw file write with conflict policies
+- publish_raw: guarded raw file write with conflict policies
 
 [POS]
 Mirrors pipeline/apply/ for the raw evidence layer. Stable-path imports and agent

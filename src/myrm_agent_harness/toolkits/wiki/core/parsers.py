@@ -1,12 +1,12 @@
 """LLM response parsers for concept extraction.
 
 [INPUT]
-- utils.json_parsing::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_list (POS: robust JSON array extraction from LLM output)
 - re (POS: standard library regex for bullet-point fallback)
 - .core.types::ConceptInfo (POS: Wiki toolkit type definition)
 
 [OUTPUT]
-parse_concepts_response(): Parse LLM response into ConceptInfo list
+- parse_concepts_response: Parse LLM response into ConceptInfo list
 
 [POS]
 Parses LLM concept extraction responses in JSON or bullet-point format into

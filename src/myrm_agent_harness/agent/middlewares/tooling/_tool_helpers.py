@@ -248,7 +248,9 @@ def make_error_msg(
     if error_category:
         kwargs["error_category"] = error_category
     if error_hint:
-        kwargs["error_hint"] = error_hint
+        from myrm_agent_harness.agent.security.redact import redact_sensitive_text
+
+        kwargs["error_hint"] = redact_sensitive_text(error_hint)
     if loop_kind:
         kwargs["loop_kind"] = loop_kind
     return ToolMessage(

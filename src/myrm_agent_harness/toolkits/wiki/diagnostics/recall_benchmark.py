@@ -76,7 +76,9 @@ def _normalize_concept_name(name: str) -> str:
     return name.strip().lower().replace("\\", "/")
 
 
-def _match_rank(hits: list[tuple[str, float]], expected_concept_name: str, top_k: int) -> int | None:
+def _match_rank(
+    hits: list[tuple[str, float]], expected_concept_name: str, top_k: int
+) -> int | None:
     expected = _normalize_concept_name(expected_concept_name)
     for index, (concept_name, _score) in enumerate(hits[:top_k], start=1):
         if _normalize_concept_name(concept_name) == expected:
@@ -109,7 +111,9 @@ async def run_wiki_recall_benchmark(
     return results
 
 
-def summarize_wiki_recall_benchmark(results: list[WikiRecallBenchmarkResult]) -> WikiRecallBenchmarkSummary:
+def summarize_wiki_recall_benchmark(
+    results: list[WikiRecallBenchmarkResult],
+) -> WikiRecallBenchmarkSummary:
     """Summarize benchmark results without inspecting article bodies."""
     if not results:
         return WikiRecallBenchmarkSummary(

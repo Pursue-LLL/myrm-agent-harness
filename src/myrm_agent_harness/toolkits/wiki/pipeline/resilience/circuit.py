@@ -1,11 +1,11 @@
 """Persistent compile circuit state (running/paused) per wiki vault.
 
 [INPUT]
-.types::CompileRunSnapshot, CompileCircuitState (POS: compile circuit DTO)
-utils.db.sqlite::harden_connection_sync (POS: hardened SQLite connections)
+- .types::CompileRunSnapshot, CompileCircuitState (POS: compile circuit DTO)
+- utils.db.sqlite::harden_connection_sync (POS: hardened SQLite connections)
 
 [OUTPUT]
-CompileCircuitStore: pause/resume/is_paused/get_snapshot for compile worker
+- CompileCircuitStore: pause/resume/is_paused/get_snapshot for compile worker
 
 [POS]
 Wiki compile circuit store. Persists running/paused state beside the ingestion queue database.

@@ -120,17 +120,23 @@ WIKI_APPLY_DESCRIPTION_ZH = """对 Wiki 概念页面应用结构化更新。
 
 def resolve_wiki_ingest_description(locale: str | None = None) -> str:
     """Resolve localized description for wiki_ingest_tool."""
-    return WIKI_INGEST_DESCRIPTION_ZH if is_chinese(locale) else WIKI_INGEST_DESCRIPTION_EN
+    return (
+        WIKI_INGEST_DESCRIPTION_ZH if is_chinese(locale) else WIKI_INGEST_DESCRIPTION_EN
+    )
 
 
 def resolve_wiki_query_description(locale: str | None = None) -> str:
     """Resolve localized description for wiki_query_tool."""
-    return WIKI_QUERY_DESCRIPTION_ZH if is_chinese(locale) else WIKI_QUERY_DESCRIPTION_EN
+    return (
+        WIKI_QUERY_DESCRIPTION_ZH if is_chinese(locale) else WIKI_QUERY_DESCRIPTION_EN
+    )
 
 
 def resolve_wiki_apply_description(locale: str | None = None) -> str:
     """Resolve localized description for wiki_apply_tool."""
-    return WIKI_APPLY_DESCRIPTION_ZH if is_chinese(locale) else WIKI_APPLY_DESCRIPTION_EN
+    return (
+        WIKI_APPLY_DESCRIPTION_ZH if is_chinese(locale) else WIKI_APPLY_DESCRIPTION_EN
+    )
 
 
 def create_wiki_tools(
@@ -168,8 +174,13 @@ def create_wiki_agent_tools(
 
     @tool("wiki_ingest_tool", description=resolve_wiki_ingest_description(locale))
     async def wiki_ingest(
-        source: Annotated[str, "URL or file path to ingest (supports Web URLs, local documents like PDF/Word/Excel/Markdown, or raw text)"],
-        filename: Annotated[str, "Optional custom filename for the ingested document"] = "",
+        source: Annotated[
+            str,
+            "URL or file path to ingest (supports Web URLs, local documents like PDF/Word/Excel/Markdown, or raw text)",
+        ],
+        filename: Annotated[
+            str, "Optional custom filename for the ingested document"
+        ] = "",
         folder_path: Annotated[
             str,
             "Optional logical folder path to categorize this document (e.g., 'Research/AI')",
@@ -320,7 +331,10 @@ def create_wiki_agent_tools(
 
     @tool("wiki_query_tool", description=resolve_wiki_query_description(locale))
     async def wiki_query(
-        question: Annotated[str, "Question to ask the wiki knowledge base (e.g. concept definitions, architecture patterns, team facts)"],
+        question: Annotated[
+            str,
+            "Question to ask the wiki knowledge base (e.g. concept definitions, architecture patterns, team facts)",
+        ],
     ) -> dict | str:
         logger.info(f"Querying wiki: {question[:100]}")
 
@@ -380,15 +394,23 @@ def create_wiki_agent_tools(
             str,
             "Operation: 'create_note' (new note with body), 'patch_compiled_truth' (update core facts with compiled_truth), 'append_timeline' (add event with timeline_entry), or 'update_metadata' (tags/aliases)",
         ],
-        concept_name: Annotated[str, "Concept path, e.g. 'research/react-hooks' or 'team/onboarding'"],
-        compiled_truth: Annotated[str, "For patch_compiled_truth: New Compiled Truth section content"] = "",
-        timeline_entry: Annotated[str, "For append_timeline: Milestone or event bullet to append"] = "",
+        concept_name: Annotated[
+            str, "Concept path, e.g. 'research/react-hooks' or 'team/onboarding'"
+        ],
+        compiled_truth: Annotated[
+            str, "For patch_compiled_truth: New Compiled Truth section content"
+        ] = "",
+        timeline_entry: Annotated[
+            str, "For append_timeline: Milestone or event bullet to append"
+        ] = "",
         body: Annotated[str, "For create_note: Main note content"] = "",
         tags: Annotated[
-            str, "Comma-separated tags for update_metadata or create_note (e.g. 'frontend,react')"
+            str,
+            "Comma-separated tags for update_metadata or create_note (e.g. 'frontend,react')",
         ] = "",
         aliases: Annotated[
-            str, "Comma-separated aliases for update_metadata or create_note (e.g. 'Hooks,React Hooks')"
+            str,
+            "Comma-separated aliases for update_metadata or create_note (e.g. 'Hooks,React Hooks')",
         ] = "",
         sources: Annotated[
             str, "Comma-separated source references for update_metadata or create_note"

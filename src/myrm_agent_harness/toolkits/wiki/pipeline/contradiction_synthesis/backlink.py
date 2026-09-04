@@ -1,8 +1,8 @@
 """Backlink helper when evolution synthesis pages are approved.
 
 [INPUT]
-..pipeline.publication.publish_concept_article (POS: publish updated concept pages)
-..core.section_contract (POS: append Timeline entries)
+- ..pipeline.publication.publish_concept_article (POS: publish updated concept pages)
+- ..core.section_contract (POS: append Timeline entries)
 
 [OUTPUT]
 - apply_synthesis_backlinks: append timeline links on linked concept pages

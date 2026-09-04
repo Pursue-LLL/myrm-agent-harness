@@ -1,7 +1,15 @@
 """Wiki raw write security pre-scan hook.
 
+[INPUT]
+- core.security.persistence.content_scan::scan_persistable_content (POS: content security scan SSOT)
+- core.structure::WikiStructure (POS: vault paths)
+- cognitive_map.writer::append_log_entry (POS: security audit logging)
+
+[OUTPUT]
+- scan_raw_publish_content, scan_publish_article_content, apply_raw_security_scan
+
 [POS]
-See module docstring.
+Wiki 原始内容持久化前的安全扫描钩子。拦截高危注入与敏感凭据。
 """
 
 from __future__ import annotations

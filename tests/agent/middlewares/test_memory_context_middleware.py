@@ -1621,5 +1621,32 @@ class TestFormatCoverageBranches:
         assert "How: before any push" in untrusted
 
 
+    def test_proactive_knowledge_pack_snippet_injection(self):
+        """Verify proactive knowledge pack snippets are injected in untrusted envelope, protecting System Prompt cache."""
+        proactive_pack = {
+            "snippets": [
+                {
+                    "kb_name": "Finance",
+                    "article_title": "ExpensePolicy",
+                    "snippet": "Hotel rate in Shenzhen is capped at 650 RMB/night.",
+                    "confidence": 0.95,
+                }
+            ],
+            "total_chars": 50,
+            "latency_ms": 12.5,
+        }
+        ctx = {"proactive_knowledge_pack": proactive_pack}
+        stable, untrusted = _format_memory_context(ctx, _EMPTY_LEARNED)
+
+        # 1. System Prompt must not contain dynamic snippets (protecting prefix cache)
+        assert stable is None
+
+        # 2. Untrusted payload must contain the authoritative snippet
+        assert untrusted is not None
+        assert "Active Knowledge Pack Snippets (authoritative context)" in untrusted
+        assert "[Finance | ExpensePolicy]" in untrusted
+        assert "Hotel rate in Shenzhen is capped at 650 RMB/night." in untrusted
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

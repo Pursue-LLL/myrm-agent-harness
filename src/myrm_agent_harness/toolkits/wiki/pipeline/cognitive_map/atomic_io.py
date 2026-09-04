@@ -1,7 +1,13 @@
 """Atomic text writes for OKF cognitive map artifacts.
 
+[INPUT]
+- pathlib::Path (POS: filesystem path operations)
+
+[OUTPUT]
+- atomic_write_text: atomic write helper via temporary file replace
+
 [POS]
-See module docstring.
+OKF 认知地图底层原子写入工具函数。
 """
 
 from __future__ import annotations

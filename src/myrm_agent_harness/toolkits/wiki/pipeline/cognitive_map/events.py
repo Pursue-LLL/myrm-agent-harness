@@ -1,11 +1,11 @@
 """Wiki cognitive map event types for human-readable log.md entries.
 
 [INPUT]
-None — standalone enum and event dataclass.
+- None (standalone enum and event dataclass)
 
 [OUTPUT]
-WikiMapEventType: lifecycle event labels for cognitive map refresh
-WikiMapEvent: immutable event payload for log.md append
+- WikiMapEventType: lifecycle event labels for cognitive map refresh
+- WikiMapEvent: immutable event payload for log.md append
 
 [POS]
 Event taxonomy for OKF wiki/log.md entries. Used by compiler, linter, and server hooks.

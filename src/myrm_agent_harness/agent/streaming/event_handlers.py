@@ -201,7 +201,7 @@ async def _handle_tool_result(
             event["fault_side"] = FaultSide.HARNESS_TOOL.value
 
         if error_hint := msg.additional_kwargs.get("error_hint"):
-            event["error_hint"] = str(error_hint)
+            event["error_hint"] = scrub_sensitive_info(str(error_hint))
 
         yield event
 

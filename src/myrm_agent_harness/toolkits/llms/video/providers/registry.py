@@ -38,6 +38,7 @@ def get_registry() -> ProviderRegistry:
     _register_builtin(_registry, "qwen_provider", "QwenVideoProvider")
     _register_builtin(_registry, "minimax_provider", "MiniMaxVideoProvider")
     _register_builtin(_registry, "xai_provider", "XAIGrokProvider")
+    _register_builtin(_registry, "fal_provider", "FalVideoProvider")
 
     logger.info("Video provider registry initialized with %d providers", len(_registry))
     return _registry

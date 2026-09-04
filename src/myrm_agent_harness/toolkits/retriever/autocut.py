@@ -5,12 +5,12 @@ keeping only the high-relevance cluster. Operates purely on cross-encoder rerank
 scores (the most reliable relevance signal).
 
 [INPUT]
-(no external module dependencies — pure algorithm)
+- (none - standard library only)
 
 [OUTPUT]
-- AutocutConfig: dataclass — autocut configuration
-- AutocutDecision: dataclass — autocut decision metadata (for logging/debugging)
-- apply_autocut: function — compute autocut decision from a sorted score list
+- AutocutConfig: dataclass holding autocut parameters
+- AutocutDecision: dataclass with autocut decision metadata for logging
+- apply_autocut: function computing autocut decision from a sorted score list
 
 [POS]
 Score-discontinuity autocut. Detects the largest normalised gap in a

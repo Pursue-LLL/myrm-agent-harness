@@ -52,15 +52,17 @@ async def log_bash_command_execution(
         if not event_logger:
             return
 
+        from myrm_agent_harness.agent.security.redact import redact_sensitive_text
+
         redactor = SensitiveParameterRedactor()
-        redacted_command = redactor.redact(command)
+        redacted_command = redact_sensitive_text(redactor.redact(command))
         command_type, risk_level = CommandClassifier.classify(command)
 
         event_data: dict[str, object] = {
             "command": redacted_command,
             "exit_code": exit_code,
-            "stdout": stdout,
-            "stderr": stderr,
+            "stdout": redact_sensitive_text(stdout),
+            "stderr": redact_sensitive_text(stderr),
             "duration_ms": duration_ms,
             "success": success,
             "command_type": command_type.value,
@@ -74,7 +76,7 @@ async def log_bash_command_execution(
             event_data["message_id"] = message_id
 
         if error_message:
-            event_data["error_message"] = error_message
+            event_data["error_message"] = redact_sensitive_text(error_message)
 
         await event_logger.log("bash_command_executed", event_data)
     except Exception:

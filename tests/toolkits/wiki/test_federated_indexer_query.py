@@ -104,3 +104,54 @@ async def test_federated_query_engine_loads_public_article(
     res = await engine.query("event-driven messaging")
     assert res.confidence_score > 0
     assert any("architecture_guideline" in str(s.article_path) for s in res.source_snippets)
+
+
+@pytest.mark.asyncio
+async def test_federated_indexer_deduplicates_and_caps_at_6_mounts(tmp_path: Path) -> None:
+    """Verify WikiIndexer safely caps attached public databases at 6 and ignores invalid paths."""
+    primary_dir = tmp_path / "primary"
+    pub_dirs = [tmp_path / f"pub_{i}" for i in range(10)]
+
+    for p in pub_dirs:
+        p_struct = WikiStructure(p)
+        p_struct.ensure_structure()
+        p_idx = WikiIndexer(p_struct, WikiConfig(enable_hybrid_search=False))
+        # Ensure .wiki_index.db is created
+        await p_idx.upsert("dummy", "truth")
+
+    primary_struct = WikiStructure(primary_dir, public_dirs=pub_dirs)
+    primary_struct.ensure_structure()
+
+    indexer = WikiIndexer(primary_struct, WikiConfig(enable_hybrid_search=False))
+    with indexer._get_conn() as conn:
+        dbs = [row["name"] for row in conn.execute("PRAGMA database_list").fetchall()]
+        pub_dbs = [name for name in dbs if name.startswith("pub_")]
+        assert len(pub_dbs) == 6
+
+
+@pytest.mark.asyncio
+async def test_federated_indexer_unpublished_filtering_across_mounts(tmp_path: Path) -> None:
+    """Verify _filter_published respects publish_status stored in attached public databases."""
+    primary_dir = tmp_path / "primary"
+    pub_dir = tmp_path / "pub_vault"
+
+    primary_struct = WikiStructure(primary_dir, public_dirs=[pub_dir])
+    primary_struct.ensure_structure()
+
+    pub_struct = WikiStructure(pub_dir)
+    pub_struct.ensure_structure()
+
+    cfg = WikiConfig(enable_hybrid_search=False)
+
+    # 1. Ingest draft article into public vault
+    pub_indexer = WikiIndexer(pub_struct, cfg)
+    await pub_indexer.upsert(
+        "draft_spec",
+        "---\ntitle: Draft Specification\npublish_status: draft\n---\n\n## Compiled Truth\nConfidential unreleased design details.",
+    )
+
+    primary_indexer = WikiIndexer(primary_struct, cfg)
+
+    # 2. Search from primary: should be filtered out because publish_status is draft
+    hits = await primary_indexer.search("Confidential")
+    assert "draft_spec" not in [name for name, _ in hits]

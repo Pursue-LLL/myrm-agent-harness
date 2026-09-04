@@ -1,15 +1,15 @@
 """Wiki asset indexer — caption-based hybrid search for wiki/assets images.
 
 [INPUT]
-..core.structure::WikiStructure (POS: wiki paths)
-..core.config::WikiConfig (POS: feature flags)
-myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: RRF merge)
-.tokenizer::tokenize_for_fts (POS: FTS5 query builder)
+- ..core.structure::WikiStructure (POS: wiki paths)
+- ..core.config::WikiConfig (POS: feature flags)
+- myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: RRF merge)
+- .tokenizer::tokenize_for_fts (POS: FTS5 query builder)
 
 [OUTPUT]
-WikiAssetIndexer: FTS5 + optional Qdrant index for image captions
-AssetSearchHit, AssetIndexStats, AssetIndexResult, AssetCaptionProvider
-purge_orphan_entries(): remove index rows for deleted on-disk assets
+- WikiAssetIndexer: FTS5 + optional Qdrant index for image captions
+- AssetSearchHit, AssetIndexStats, AssetIndexResult, AssetCaptionProvider
+- purge_orphan_entries: remove index rows for deleted on-disk assets
 
 [POS]
 Parallel retrieval module for Obsidian-imported images under wiki/assets/.

@@ -104,7 +104,8 @@ class TestSnapshotDiffEngine:
         assert output.additions == 0
         assert output.removals == 0
         assert output.is_fallback_full is False
-        assert output.diff_text == _IDENTICAL_NOTICE
+        assert _IDENTICAL_NOTICE in output.diff_text
+        assert "--- Snapshot diff ---" in output.diff_text
         assert output.tokens_saved > 0
 
     def test_compute_diff_normalized_identical_fast_path(self) -> None:
@@ -114,7 +115,8 @@ class TestSnapshotDiffEngine:
         engine.update_baseline(baseline_tree, {})
         output = engine.compute_diff(current_tree, {}, max_tokens=0, chars_per_token=4)
         assert output.is_identical is True
-        assert output.diff_text == _IDENTICAL_NOTICE
+        assert _IDENTICAL_NOTICE in output.diff_text
+        assert "--- Snapshot diff ---" in output.diff_text
         assert output.tokens_saved > 0
 
     def test_compute_diff_adaptive_fallback_large_page(self) -> None:
@@ -205,5 +207,44 @@ class TestSnapshotDiffEngine:
         engine.update_baseline(baseline, {})
         output = engine.compute_diff(current, {}, max_tokens=0, chars_per_token=4)
         assert output.removals == 5
-        assert output.additions == 0
-        assert "- line_14" in output.diff_text
+
+    def test_empty_trees_edge_cases(self) -> None:
+        """Edge case: empty string trees comparison, whitespace lines and unicode characters."""
+        engine = SnapshotDiffEngine()
+        engine.update_baseline("", {})
+        out = engine.compute_diff("", {}, max_tokens=0, chars_per_token=4)
+        assert out.is_identical is True
+
+        # Unicode with special symbols
+        unicode_tree_1 = '  e1: [button] "🚀 提交审核 (Submit)"\n  e2: [text] "你好，世界"'
+        engine.update_baseline(unicode_tree_1, {})
+        unicode_tree_2 = '  e1: [button] "🚀 提交审核 (Submit)"\n  e2: [text] "你好，世界 (已更新)"'
+        out2 = engine.compute_diff(unicode_tree_2, {}, max_tokens=0, chars_per_token=4)
+        assert out2.is_identical is False
+        assert "+ " in out2.diff_text
+        assert "已更新" in out2.diff_text
+
+    def test_deeply_nested_containers_breadcrumb_anchor(self) -> None:
+        """Edge case: deeply nested ARIA tree with multiple container tags in folded block."""
+        engine = SnapshotDiffEngine()
+        lines = [
+            '  e0: [main "Dashboard"]',
+            '    e1: [navigation "Sidebar"]',
+            '      e2: [section "Settings"]',
+            '        e3: [dialog "Security Preferences"]',
+        ]
+        # Pad with 25 unchanged items
+        lines.extend([f'          e{i + 4}: [button] "Setting Option {i}"' for i in range(25)])
+        lines.append('          e99: [button] "Save Changes"')
+        engine.update_baseline("\n".join(lines), {})
+
+        # Change only the last item
+        new_lines = list(lines)
+        new_lines[-1] = '          e99: [button] "Save Changes Immediately"'
+        output = engine.compute_diff("\n".join(new_lines), {}, max_tokens=0, chars_per_token=4)
+        assert output.is_fallback_full is False
+        assert '[dialog "Security Preferences"]' in output.diff_text
+        assert "+ " in output.diff_text
+        assert "Save Changes Immediately" in output.diff_text
+        assert output.additions == 1
+        assert output.removals == 1

@@ -424,7 +424,7 @@ class WikiIndexer(SidecarIndexMixin):
                         # e.g., pub_0.wiki_fts MATCH ? is valid, but the column name inside WHERE is wiki_fts MATCH ?
                         fts_union = " UNION ALL ".join(
                             (
-                                f"SELECT concept_name, rank FROM {t} "
+                                f"SELECT concept_name, rank, '{t}' AS src_tbl FROM {t} "
                                 f"WHERE {t.split('.')[-1]} MATCH ? "
                                 f"AND concept_name NOT GLOB '{_SIDECAR_PREFIX}:*'"
                             )
@@ -434,7 +434,7 @@ class WikiIndexer(SidecarIndexMixin):
 
                         cursor = conn.execute(
                             f"""
-                            SELECT concept_name, rank
+                            SELECT concept_name, rank, src_tbl
                             FROM ({fts_union})
                             ORDER BY rank
                             LIMIT ? OFFSET ?
@@ -446,7 +446,9 @@ class WikiIndexer(SidecarIndexMixin):
                             if self._is_sidecar_entry(str(row["concept_name"])):
                                 continue
                             # FTS5 rank is negative, lower is better. We invert it for RRF fusion.
-                            score = 1.0 / (abs(row["rank"]) + 1.0)
+                            # Primary vault has decay=1.0; attached federated public vaults receive 0.9 to prevent generic terms from overtaking primary truths.
+                            decay = 0.9 if str(row["src_tbl"]).startswith("pub_") else 1.0
+                            score = (1.0 / (abs(row["rank"]) + 1.0)) * decay
                             results.append((row["concept_name"], score))
                     results[:] = self._filter_published(conn, results)
                 except sqlite3.OperationalError as e:
@@ -457,7 +459,7 @@ class WikiIndexer(SidecarIndexMixin):
                         with contextlib.suppress(sqlite3.OperationalError):
                             cursor = conn.execute(
                                 f"""
-                                SELECT concept_name, rank
+                                SELECT concept_name, rank, src_tbl
                                 FROM ({fts_union})
                                 ORDER BY rank
                                 LIMIT ? OFFSET ?
@@ -467,7 +469,8 @@ class WikiIndexer(SidecarIndexMixin):
                             for row in cursor.fetchall():
                                 if self._is_sidecar_entry(str(row["concept_name"])):
                                     continue
-                                score = 1.0 / (abs(row["rank"]) + 1.0)
+                                decay = 0.9 if str(row["src_tbl"]).startswith("pub_") else 1.0
+                                score = (1.0 / (abs(row["rank"]) + 1.0)) * decay
                                 results.append((row["concept_name"], score))
                         results[:] = self._filter_published(conn, results)
             return results

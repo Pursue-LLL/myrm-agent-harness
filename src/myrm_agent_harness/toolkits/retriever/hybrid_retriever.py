@@ -3,7 +3,7 @@
 Implementation lives in the `hybrid_search` package; this module provides a stable import path.
 
 [INPUT]
-- hybrid_search::HybridSearchCoordinator (POS: Orchestrates vector + BM25 hybrid search)
+- .hybrid_search::HybridSearchCoordinator (POS: Orchestrates vector + BM25 hybrid search)
 
 [OUTPUT]
 - hybrid_retriever: Pre-built module-level HybridSearchCoordinator instance

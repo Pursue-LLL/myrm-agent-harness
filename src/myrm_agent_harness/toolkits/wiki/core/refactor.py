@@ -1,11 +1,11 @@
 """Wiki link refactoring engine.
 
 [INPUT]
-pathlib::Path (POS: standard library file path operations)
-re (POS: regular expressions)
+- pathlib::Path (POS: standard library file path operations)
+- re (POS: regular expressions)
 
 [OUTPUT]
-LinkRefactorEngine: Engine to update markdown links when files are moved/renamed.
+- LinkRefactorEngine: Engine to update markdown links when files are moved/renamed.
 
 [POS]
 Handles the complexity of maintaining relative links in markdown files when

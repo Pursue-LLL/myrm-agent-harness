@@ -1,16 +1,16 @@
 """Wiki linter - Health checks and maintenance.
 
 [INPUT]
-langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
-langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
-..core.config::WikiConfig (POS: Wiki configuration center)
-..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
-..core.types::LintIssue, LintResult (POS: Wiki toolkit type definition center)
-utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
-utils.json_parsing::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- langchain_core.language_models::BaseChatModel (POS: LangChain LLM base class)
+- langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message types)
+- ..core.config::WikiConfig (POS: Wiki configuration center)
+- ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
+- ..core.types::LintIssue, LintResult (POS: Wiki toolkit type definition center)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取)
+- utils.json_parsing::parse_llm_json_list (POS: robust JSON array extraction from LLM output)
 
 [OUTPUT]
-WikiLinter: Wiki health check and maintenance engine
+- WikiLinter: Wiki health check and maintenance engine
 
 [POS]
 Wiki health maintenance core engine. Performs wiki quality checks and targeted repairs:

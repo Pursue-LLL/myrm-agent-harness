@@ -1,16 +1,16 @@
 """Sidecar indexing mixin for WikiIndexer.
 
 [INPUT]
-asyncio (POS: standard library async utilities)
-contextlib (POS: standard library context utilities)
-uuid (POS: standard library UUID generation)
-..core.config::WikiConfig (POS: Wiki configuration center)
-myrm_agent_harness.toolkits.vector.base::VectorDocument (POS: vector document)
-myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: result fusion strategy)
-.tokenizer::tokenize_for_fts (POS: FTS5 query tokenizer)
+- asyncio (POS: standard library async utilities)
+- contextlib (POS: standard library context utilities)
+- uuid (POS: standard library UUID generation)
+- ..core.config::WikiConfig (POS: Wiki configuration center)
+- myrm_agent_harness.toolkits.vector.base::VectorDocument (POS: vector document)
+- myrm_agent_harness.toolkits.retriever.fusion_strategies::rrf_fusion (POS: result fusion strategy)
+- .tokenizer::tokenize_for_fts (POS: FTS5 query tokenizer)
 
 [OUTPUT]
-SidecarIndexMixin: L0/L1 directory sidecar index operations (upsert, delete, search)
+- SidecarIndexMixin: L0/L1 directory sidecar index operations (upsert, delete, search)
 
 [POS]
 Mixin providing sidecar (L0/L1 directory summary) indexing operations for WikiIndexer.

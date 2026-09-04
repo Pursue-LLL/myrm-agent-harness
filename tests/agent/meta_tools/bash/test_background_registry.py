@@ -593,6 +593,20 @@ async def test_list_processes_without_session_returns_all() -> None:
     assert pids == {17001, 17002}
 
 
+@pytest.mark.asyncio
+async def test_register_redacts_command_in_background_info() -> None:
+    """Registering a command with credentials must redact them in BackgroundProcessInfo."""
+    registry = BackgroundProcessRegistry()
+    proc = _FakeProc(pid=17003, stdout=[], stderr=[])
+    info = await registry.register(
+        cast(AsyncProcessProtocol, proc),
+        command="export ANTHROPIC_API_KEY=sk-ant-api03-abcdefghijklmnop1234567890",
+        session_id="sess-secret",
+    )
+    assert "sk-ant-api03" not in info.command
+    assert "..." in info.command or "***" in info.command
+
+
 def test_get_output_unknown_pid_returns_empty_snapshot() -> None:
     registry = BackgroundProcessRegistry()
     out = registry.get_output(99999, since_cursor=5)

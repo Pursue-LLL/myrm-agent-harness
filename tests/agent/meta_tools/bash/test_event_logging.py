@@ -164,3 +164,34 @@ async def test_log_bash_command_execution_exception_safe() -> None:
             duration_ms=5,
             success=True,
         )
+
+
+@pytest.mark.asyncio
+async def test_log_bash_command_execution_redacts_credentials_in_streams() -> None:
+    """Verify that credentials in stdout/stderr/error_message are redacted."""
+    from myrm_agent_harness.agent.meta_tools.bash._executor.event_logging import (
+        log_bash_command_execution,
+    )
+
+    mock_logger = AsyncMock()
+    mock_logger.log = AsyncMock()
+
+    with patch(_PATCH_GET_LOGGER, return_value=mock_logger):
+        await log_bash_command_execution(
+            command="echo sk-ant-api03-abcdefghijklmnop1234567890",
+            session_id="test-session",
+            exit_code=1,
+            stdout="Returned token: sk-ant-api03-abcdefghijklmnop1234567890",
+            stderr="Error with token ghp_abcdefghijklmnop12345678901234567890",
+            duration_ms=10,
+            success=False,
+            error_message="Failed key: xoxb-TESTING_MOCK_TOKEN_NOT_REAL_SECRET_123",
+        )
+
+    event_data = mock_logger.log.call_args[0][1]
+    assert "sk-ant-api03" not in event_data["command"]
+    assert "sk-ant-api03" not in event_data["stdout"]
+    assert "ghp_abcdefghijklmnop12345678901234567890" not in event_data["stderr"]
+    assert "xoxb-TESTING" not in event_data["error_message"]
+    assert "..." in event_data["stdout"] or "***" in event_data["stdout"]
+

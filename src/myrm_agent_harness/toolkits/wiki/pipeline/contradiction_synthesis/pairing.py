@@ -1,9 +1,9 @@
 """Zero-LLM concept pairing for CCSP.
 
 [INPUT]
-..core.types::ConceptInfo (POS: batch concepts from compiler)
-..core.canonical_registry (POS: vault canonical index)
-..core.structure::WikiStructure (POS: vault paths)
+- ..core.types::ConceptInfo (POS: batch concepts from compiler)
+- ..core.canonical_registry (POS: vault canonical index)
+- ..core.structure::WikiStructure (POS: vault paths)
 
 [OUTPUT]
 - collect_concept_pairs: ranked distinct concept pairs for conflict detection

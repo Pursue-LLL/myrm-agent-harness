@@ -1,13 +1,13 @@
 """Wiki apply service — vault lock + publish gate entrypoint.
 
 [INPUT]
-..handlers.apply_mutation_to_content (POS: narrow-write transforms)
-..publication.publish_concept_article (POS: WPG publish SSOT)
-..core.structure::WikiStructure (POS: vault paths)
-..retrieval.indexer::WikiIndexer (POS: FTS/Qdrant upsert)
+- ..handlers.apply_mutation_to_content (POS: narrow-write transforms)
+- ..publication.publish_concept_article (POS: WPG publish SSOT)
+- ..core.structure::WikiStructure (POS: vault paths)
+- ..retrieval.indexer::WikiIndexer (POS: FTS/Qdrant upsert)
 
 [OUTPUT]
-apply_wiki_mutation: async publish orchestration with per-vault asyncio lock
+- apply_wiki_mutation: async publish orchestration with per-vault asyncio lock
 
 [POS]
 Single write orchestrator for REST, agent tool, and chat capture callers.

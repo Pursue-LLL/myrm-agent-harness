@@ -201,7 +201,7 @@ def test_output_text_field_used_when_present() -> None:
     assert completion["choices"][0]["message"]["content"] == "direct text"
 
 
-def test_reasoning_summary_contributes_to_output_text() -> None:
+def test_reasoning_summary_extracted_to_reasoning_content_not_output_text() -> None:
     completion = responses_dict_to_chat_completion(
         {
             "output": [
@@ -216,8 +216,8 @@ def test_reasoning_summary_contributes_to_output_text() -> None:
             ]
         }
     )
-    assert "thought" in completion["choices"][0]["message"]["content"]
-    assert "answer" in completion["choices"][0]["message"]["content"]
+    assert completion["choices"][0]["message"]["content"] == "answer"
+    assert completion["choices"][0]["message"]["reasoning_content"] == "thought"
 
 
 def test_reasoning_item_with_summary_only_is_preserved() -> None:
@@ -302,3 +302,38 @@ def test_non_function_output_items_are_ignored_for_tool_calls() -> None:
     assert chunk is not None
     assert chunk["choices"][0]["finish_reason"] == "stop"
     assert chunk["usage"]["total_tokens"] == 3
+
+
+def test_response_completed_with_reasoning_summary_sets_delta_reasoning_content() -> None:
+    chunk = responses_event_to_completion_chunk(
+        {
+            "type": "response.completed",
+            "response": {
+                "output": [
+                    {
+                        "type": "reasoning",
+                        "summary": [{"type": "summary_text", "text": "streaming thought"}],
+                    },
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": "final answer"}],
+                    },
+                ],
+            },
+        }
+    )
+    assert chunk is not None
+    delta = chunk["choices"][0]["delta"]
+    assert delta.get("reasoning_content") == "streaming thought"
+
+
+def test_reasoning_summary_delta_event_maps_to_delta_reasoning_content() -> None:
+    chunk = responses_event_to_completion_chunk(
+        {
+            "type": "response.reasoning_summary.delta",
+            "delta": "thought chunk ",
+        }
+    )
+    assert chunk is not None
+    assert chunk["choices"][0]["delta"]["reasoning_content"] == "thought chunk "
+

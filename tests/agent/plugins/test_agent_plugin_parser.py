@@ -709,3 +709,31 @@ Extract structured numbers from documents.
         assert "templates/report_template.xlsx" in result.workspace_files
         assert "README.md" in result.workspace_files
         assert result.workspace_files["README.md"] == b"# Research Workspace Guide"
+
+    def test_discovers_agent_dir_layout_and_template_files_fallback(self) -> None:
+        """Covers agents/<name>/AGENT.md layout and template_files/ fallback directory."""
+        zip_bytes = build_plugin_zip(
+            {
+                "plugin.json": json.dumps(
+                    {
+                        "$schema": PLUGIN_SCHEMA,
+                        "name": "dir-agent",
+                        "version": "1.0.0",
+                    }
+                ),
+                "agents/writer/AGENT.md": """---
+name: Tech Writer
+---
+Write docs.
+""",
+                "template_files/init.sql": "CREATE TABLE test();",
+            }
+        )
+        result = AgentPluginParser().parse_zip(zip_bytes)
+        assert len(result.agents) == 1
+        agent = result.agents[0]
+        assert agent.name == "Tech Writer"
+        assert agent.is_entry_agent is True  # default first agent is entry
+        assert "Write docs." in agent.system_prompt
+        assert "init.sql" in result.workspace_files
+        assert result.workspace_files["init.sql"] == b"CREATE TABLE test();"

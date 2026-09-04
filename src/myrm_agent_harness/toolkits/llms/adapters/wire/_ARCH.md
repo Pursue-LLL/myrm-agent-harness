@@ -9,7 +9,7 @@ OpenCode multi-wire transport for ChatLiteLLM: Responses API (`/v1/responses`) a
 |------|------|-------------|
 | __init__.py | Package | Re-exports wire transport helpers (params, translator, normalizer). |
 | translator.py | Core | Chat messages → Responses input; reasoning item replay; tool_calls/function_call_output; system → instructions |
-| normalizer.py | Core | Responses payload/events → chat-completions shape; preserve `responses_reasoning_items`; failed/error SSE → ResponsesStreamError |
+| normalizer.py | Core | Responses payload/events → chat-completions shape; decouple reasoning summary into reasoning_content; preserve `responses_reasoning_items`; failed/error SSE → ResponsesStreamError |
 | params.py | Core | Build litellm.responses kwargs (reasoning, include) from ChatLiteLLM call params |
 | anthropic_params.py | Core | Anthropic Messages wire overrides for OpenCode Go minimax/qwen |
 | invocation.py | Core | Sync/async invoke + stream adapters; fail-open retry on `invalid_encrypted_content` |

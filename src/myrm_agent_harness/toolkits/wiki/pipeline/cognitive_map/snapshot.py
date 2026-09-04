@@ -1,12 +1,12 @@
 """Build zero-LLM hot.md snapshot content from vault state.
 
 [INPUT]
-..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
+- ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 
 [OUTPUT]
-HotSnapshot: immutable hot.md section data
-build_hot_snapshot(): derive snapshot from vault filesystem state
-render_hot_markdown(): render Molio-style hot.md body
+- HotSnapshot: immutable hot.md section data
+- build_hot_snapshot: derive snapshot from vault filesystem state
+- render_hot_markdown: render Molio-style hot.md body
 
 [POS]
 Hot cache snapshot builder. Derives recent ops, key pages, and open questions without LLM calls.

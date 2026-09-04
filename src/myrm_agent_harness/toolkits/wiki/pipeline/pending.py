@@ -1,15 +1,14 @@
 """Wiki HITL pending edits manager.
 
 [INPUT]
-sqlite3 (POS: standard library database)
-typing::Literal, TypedDict (POS: standard library types)
-..core.structure::WikiStructure (POS: database path resolution)
+- sqlite3 (POS: standard library database)
+- typing::Literal, TypedDict (POS: standard library types)
+- ..core.structure::WikiStructure (POS: database path resolution)
 
 [OUTPUT]
-WikiPendingEditsManager: SQLite-driven pending review draft manager
-PendingWikiEdit: draft type definition
-count_synthesis_pending: SQL count of Comparisons/* evolution drafts
-approve_edit: publish + evolution synthesis timeline backlinks
+- WikiPendingEditsManager: SQLite-driven pending review draft manager
+- PendingWikiEdit: draft type definition
+- count_synthesis_pending: SQL count of Comparisons/* evolution drafts
 
 [POS]
 Implements Human-in-the-loop (HITL) knowledge review mechanism. Intercepts LLM-generated

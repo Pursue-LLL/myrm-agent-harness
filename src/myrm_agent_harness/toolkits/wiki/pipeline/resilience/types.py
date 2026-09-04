@@ -1,11 +1,11 @@
 """Compile resilience types for wiki ingestion queue.
 
 [INPUT]
-typing::Literal (POS: standard library types)
+- typing::Literal (POS: standard library types)
 
 [OUTPUT]
-CompileRunSnapshot: vault-scoped compile worker circuit snapshot
-FailureResolution: per-item retry/pause policy result
+- CompileRunSnapshot: vault-scoped compile worker circuit snapshot
+- FailureResolution: per-item retry/pause policy result
 
 [POS]
 Wiki compile resilience types. DTOs shared by queue, compiler, and server API mapping.

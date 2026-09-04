@@ -5,9 +5,9 @@ bottom-up summarization), and unified BatchEmbedConsumer over a strictly bounded
 asyncio.Queue to eliminate memory spikes and OOM crashes during massive ingestion.
 
 [INPUT]
-- types.py::Chunk, EndOfTask, TaskEnvelope, IngestStats, IngestEvent, TaskStatus
-- tree.py::DirTreeBuilder
-- consumer.py::BatchEmbedConsumer
+- .types::Chunk, EndOfTask, TaskEnvelope, IngestStats, IngestEvent, TaskStatus
+- .tree::DirTreeBuilder
+- .consumer::BatchEmbedConsumer
 - toolkits.memory.protocols.embedding::EmbeddingProtocol
 - toolkits.memory.protocols.vector::VectorStoreProtocol
 

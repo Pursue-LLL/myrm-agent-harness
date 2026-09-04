@@ -127,7 +127,7 @@ class ToolError(Exception):
         # last line of defense against credential leakage (OAuth codes, API keys).
         message = redact_sensitive_text(message)
         super().__init__(message)
-        self.user_hint = user_hint
+        self.user_hint = redact_sensitive_text(user_hint) if user_hint else ""
         self.diagnostic_info = diagnostic_info or {}
         self.recovery_suggestions = recovery_suggestions or []
         self.error_code = error_code
@@ -206,7 +206,7 @@ def format_error_message(
         tb = traceback.format_exc()
         formatted_error += f"\nStack trace:\n{tb}"
 
-    return formatted_error
+    return redact_sensitive_text(formatted_error)
 
 
 def log_and_format_error(

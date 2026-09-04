@@ -103,7 +103,7 @@ def ensure_arguments_json_string(
     return result
 
 
-def convert_message_to_dict(message: BaseMessage) -> dict[str, Any]:
+def convert_message_to_dict(message: BaseMessage, *, wire_protocol: str | None = None) -> dict[str, Any]:
     """Convert a LangChain message to the LiteLLM dict format."""
     message_dict: dict[str, Any] = {"content": message.content}
     if isinstance(message, ChatMessage):
@@ -115,7 +115,10 @@ def convert_message_to_dict(message: BaseMessage) -> dict[str, Any]:
         # ThinkingBlockCleaner has already selectively removed stale reasoning_content by tool_calls
         if "reasoning_content" in message.additional_kwargs:
             message_dict["reasoning_content"] = message.additional_kwargs["reasoning_content"]
-        if "responses_reasoning_items" in message.additional_kwargs:
+        if (
+            "responses_reasoning_items" in message.additional_kwargs
+            and (wire_protocol is None or wire_protocol == "responses")
+        ):
             message_dict["responses_reasoning_items"] = message.additional_kwargs["responses_reasoning_items"]
         # Process function_call (OpenAI deprecated format)
         if "function_call" in message.additional_kwargs:

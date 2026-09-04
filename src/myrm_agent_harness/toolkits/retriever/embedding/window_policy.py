@@ -1,13 +1,13 @@
 """Embedding input window policy — model max tokens SSOT for embed-time chunking.
 
 [INPUT]
-utils.text_utils::get_token_count (POS: o200k token counting)
+- myrm_agent_harness.utils.text_utils::get_token_count (POS: o200k token counting)
 
 [OUTPUT]
-EmbedWindowPolicy: effective chunk budget derived from provider max input tokens
-EmbedInputTooLargeError: fail-loud when text exceeds embed window after split
-resolve_embed_window_policy(): derive policy from an embedding service instance
-token_counter_for_model(): model-family counter for fail-loud window checks
+- EmbedWindowPolicy: effective chunk budget derived from provider max input tokens
+- EmbedInputTooLargeError: fail-loud when text exceeds embed window after split
+- resolve_embed_window_policy: derive policy from an embedding service instance
+- token_counter_for_model: model-family counter for fail-loud window checks
 
 [POS]
 Embedding transport policy layer. Keeps ingest/index chunk budgets aligned with the

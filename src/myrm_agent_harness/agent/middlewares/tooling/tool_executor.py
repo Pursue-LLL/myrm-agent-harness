@@ -40,6 +40,7 @@ from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     is_non_retryable,
     make_error_msg,
 )
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
 from myrm_agent_harness.utils.errors import ToolError
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -202,6 +203,7 @@ async def execute_with_retry(
                     logger.error(f" Tool execution final failure [{tool_name}]: {error_msg}")
                     if tool_execution_failed_total is not None:
                         tool_execution_failed_total.labels(tool_name=tool_name, error_type=type(e).__name__).inc()
+                    safe_orig_error = redact_sensitive_text(f"{type(e).__name__}: {str(e)[:200]}")
                     raise ToolError(
                         message=error_msg,
                         user_hint=user_hint,
@@ -209,7 +211,7 @@ async def execute_with_retry(
                             "retry_count": attempt,
                             "total_duration_seconds": total_duration,
                             "error_history": error_history,
-                            "original_error": f"{type(e).__name__}: {str(e)[:200]}",
+                            "original_error": safe_orig_error,
                         },
                         error_code="MAX_RETRIES_EXCEEDED",
                     ) from e
@@ -234,10 +236,11 @@ async def execute_with_retry(
                 raise
 
             elapsed = (time.time() - start_time) * 1000
+            safe_err_text = redact_sensitive_text(f"{type(e).__name__}: {str(e)[:200]}")
             error_history.append(
                 {
                     "attempt": attempt + 1,
-                    "error": f"{type(e).__name__}: {str(e)[:200]}",
+                    "error": safe_err_text,
                     "elapsed_ms": elapsed,
                 }
             )
@@ -250,7 +253,7 @@ async def execute_with_retry(
                         "tool_name": tool_name,
                         "attempt": attempt + 2,
                         "reason": f"{type(e).__name__}",
-                        "error": str(e)[:200],
+                        "error": safe_err_text,
                     },
                 )
 
@@ -271,7 +274,9 @@ async def execute_with_retry(
                 )
             else:
                 backoff = min(2**attempt + random.uniform(0, 1), 10.0)
-                logger.warning(f" Error [{tool_name}] {type(e).__name__}: {str(e)[:100]}, retry in {backoff:.1f}s")
+                logger.warning(
+                    f" Error [{tool_name}] {type(e).__name__}: {redact_sensitive_text(str(e)[:100])}, retry in {backoff:.1f}s"
+                )
 
             await asyncio.sleep(backoff)
 

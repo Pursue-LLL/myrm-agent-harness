@@ -5,7 +5,7 @@ or flushes on idle timeout, invokes the injected EmbeddingProtocol, and upserts
 into the injected VectorStoreProtocol.
 
 [INPUT]
-- types.py::Chunk, TaskEnvelope, EndOfTask
+- .types::Chunk, TaskEnvelope, EndOfTask
 - toolkits.memory.protocols.embedding::EmbeddingProtocol
 - toolkits.memory.protocols.vector::VectorStoreProtocol
 - toolkits.vector.base::VectorDocument

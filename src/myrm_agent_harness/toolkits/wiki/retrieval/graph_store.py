@@ -1,12 +1,12 @@
 """Wiki knowledge graph storage and BFS traversal.
 
 [INPUT]
-sqlite3 (POS: standard library database)
-..core.structure::WikiStructure (POS: database path resolution)
-.graph_analysis::enrich_graph_with_communities, compute_graph_insights (POS: graph analysis)
+- sqlite3 (POS: standard library database)
+- ..core.structure::WikiStructure (POS: database path resolution)
+- .graph_analysis::enrich_graph_with_communities, compute_graph_insights (POS: graph analysis)
 
 [OUTPUT]
-WikiGraphStore: Graph topology storage, BFS traversal, and insight computation
+- WikiGraphStore: Graph topology storage, BFS traversal, and insight computation
 
 [POS]
 Encapsulates knowledge graph operations: BFS neighbor traversal, federated

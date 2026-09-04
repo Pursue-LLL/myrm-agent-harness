@@ -100,6 +100,20 @@ class TestFileIntegrityGuard:
         assert "... [preceding content omitted]" in rejection
         assert "... [following content omitted]" in rejection
 
+    def test_rejection_advances_known_hash_for_one_turn_rebase(self) -> None:
+        guard = FileIntegrityGuard()
+        guard.record_read("/a/b.py", "v1")
+        # Turn 2: disk changed to v2 -> rejected with snippet
+        rejection = guard.require_version_match("/a/b.py", "v2")
+        assert rejection is not None
+        assert "v2" in rejection
+        # Turn 3: agent rebases on v2 directly without calling file_read_tool -> passes
+        assert guard.require_version_match("/a/b.py", "v2") is None
+        # Subsequent change to v3 -> correctly rejected again
+        rejection2 = guard.require_version_match("/a/b.py", "v3")
+        assert rejection2 is not None
+        assert "v3" in rejection2
+
     def test_no_rejection_for_unread_file(self) -> None:
         guard = FileIntegrityGuard()
         assert guard.require_version_match("/unknown.py", "anything") is None

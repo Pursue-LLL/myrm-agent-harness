@@ -277,3 +277,75 @@ async def test_normalizer_flat_old_str_payload_on_disk(workspace: Path) -> None:
 
     assert "Successfully replaced text" in str(result)
     assert target.read_text(encoding="utf-8") == "after\n"
+
+
+@pytest.mark.asyncio
+async def test_cas_version_conflict_self_healing_real_disk_full_flow(workspace: Path) -> None:
+    """Full-chain real-disk integration test for CAS version conflict and 1-Turn self-healing.
+
+    1. Writes initial file to disk.
+    2. Agent reads file -> Guard establishes baseline hash v1.
+    3. External concurrent process modifies file on disk to v2.
+    4. Agent attempts edit based on v1 -> ToolError with centered snippet is raised.
+    5. Agent rebases edits directly on v2 without calling file_read_tool.
+    6. Agent invokes file_edit_tool with rebased edit -> Guard permits edit, disk is updated!
+    """
+    target = workspace / "service.py"
+    initial_func = "def calculate_fee(amount):\n    return amount * 0.10\n"
+    initial_content = ("# system header\n" * 250) + initial_func + ("# system footer\n" * 250)
+    target.write_text(initial_content, encoding="utf-8")
+
+    executor = _make_local_executor(workspace)
+    token = set_executor(executor)
+    try:
+        # Step 1: Agent reads file
+        read_tool = create_file_read_tool()
+        await read_tool.ainvoke({"paths": ["service.py"], "mode": "all"}, config=_DUMMY_CONFIG)
+
+        # Step 2: Concurrent process updates file on disk to 0.15
+        concurrent_func = "def calculate_fee(amount):\n    return amount * 0.15\n"
+        concurrent_content = ("# system header\n" * 250) + concurrent_func + ("# system footer\n" * 250)
+        target.write_text(concurrent_content, encoding="utf-8")
+
+        # Step 3: Agent attempts to edit assuming old value 0.10
+        edit_tool = create_file_edit_tool()
+        with pytest.raises(ToolError) as exc_info:
+            await edit_tool.ainvoke(
+                {
+                    "path": "service.py",
+                    "edits": [
+                        {
+                            "old_str": "def calculate_fee(amount):\n    return amount * 0.10\n",
+                            "new_str": "def calculate_fee(amount):\n    return amount * 0.05\n",
+                        }
+                    ],
+                },
+                config=_DUMMY_CONFIG,
+            )
+
+        err_msg = str(exc_info.value)
+        assert "has changed on disk since your last read" in err_msg
+        assert "return amount * 0.15" in err_msg
+        assert "def calculate_fee(amount):" in err_msg
+        assert "Rebase your edits directly on this current content without calling file_read_tool" in err_msg
+
+        # Step 4: Agent performs 1-Turn rebase directly on the received snippet WITHOUT calling file_read_tool
+        rebase_result = await edit_tool.ainvoke(
+            {
+                "path": "service.py",
+                "edits": [
+                    {
+                        "old_str": "def calculate_fee(amount):\n    return amount * 0.15\n",
+                        "new_str": "def calculate_fee(amount):\n    return amount * 0.05\n",
+                    }
+                ],
+            },
+            config=_DUMMY_CONFIG,
+        )
+
+        assert "Successfully replaced text" in str(rebase_result)
+        final_disk = target.read_text(encoding="utf-8")
+        assert "return amount * 0.05\n" in final_disk
+    finally:
+        reset_executor(token)
+

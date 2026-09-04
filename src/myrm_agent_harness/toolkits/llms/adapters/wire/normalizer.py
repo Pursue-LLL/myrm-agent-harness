@@ -74,12 +74,20 @@ def _extract_output_text(response: dict[str, Any]) -> str:
                     text = part.get("text")
                     if isinstance(text, str):
                         parts.append(text)
-        if item.get("type") == "reasoning":
-            summary = item.get("summary")
-            if isinstance(summary, list):
-                for part in summary:
-                    if isinstance(part, dict) and isinstance(part.get("text"), str):
-                        parts.append(part["text"])
+    return "".join(parts)
+
+
+def _extract_reasoning_summary(response: dict[str, Any]) -> str:
+    """Extract plain text summary from reasoning output items, if available."""
+    parts: list[str] = []
+    for item in response.get("output") or []:
+        if not isinstance(item, dict) or item.get("type") != "reasoning":
+            continue
+        summary = item.get("summary")
+        if isinstance(summary, list):
+            for part in summary:
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    parts.append(part["text"])
     return "".join(parts)
 
 
@@ -148,6 +156,9 @@ def responses_dict_to_chat_completion(response: dict[str, Any]) -> dict[str, Any
     text = _extract_output_text(response)
     tool_calls = _extract_tool_calls(response)
     message: dict[str, Any] = {"role": "assistant", "content": text or None}
+    reasoning_summary = _extract_reasoning_summary(response)
+    if reasoning_summary:
+        message["reasoning_content"] = reasoning_summary
     reasoning_items = extract_responses_reasoning_items(response)
     if reasoning_items:
         message["responses_reasoning_items"] = reasoning_items
@@ -196,6 +207,19 @@ def responses_event_to_completion_chunk(event: dict[str, Any]) -> dict[str, Any]
             "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": None}],
         }
 
+    if (
+        "reasoning.delta" in normalized_type
+        or "reasoning_summary.delta" in normalized_type
+        or "reasoning_text.delta" in normalized_type
+    ):
+        text_delta = delta if isinstance(delta, str) else ""
+        if not text_delta and isinstance(delta, dict):
+            text_delta = str(delta.get("text") or "")
+        if text_delta:
+            return {
+                "choices": [{"index": 0, "delta": {"reasoning_content": text_delta}, "finish_reason": None}],
+            }
+
     item = event.get("item")
     if isinstance(item, dict) and item.get("type") == "function_call":
         mapped = _tool_call_from_function_item(item)
@@ -239,6 +263,9 @@ def responses_event_to_completion_chunk(event: dict[str, Any]) -> dict[str, Any]
                     }
                     for idx, tc in enumerate(tool_calls)
                 ]
+            reasoning_summary = _extract_reasoning_summary(response)
+            if reasoning_summary:
+                delta["reasoning_content"] = reasoning_summary
             reasoning_items = extract_responses_reasoning_items(response)
             if reasoning_items:
                 delta["responses_reasoning_items"] = reasoning_items

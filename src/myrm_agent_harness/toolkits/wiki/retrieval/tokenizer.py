@@ -1,12 +1,12 @@
 """FTS5 query tokenizer with CJK bigram support.
 
 [INPUT]
-re (POS: standard library regex)
+- re (POS: standard library regex)
 
 [OUTPUT]
-tokenize_for_fts(): Build FTS5 query with CJK bigram support
-extract_query_terms(): Normalized query term set for index routing and keyword overlap
-STOP_WORDS: English + Chinese stop words for FTS filtering
+- tokenize_for_fts: Build FTS5 query with CJK bigram support
+- extract_query_terms: Normalized query term set for index routing and keyword overlap
+- STOP_WORDS: English + Chinese stop words for FTS filtering
 
 [POS]
 Tokenization utilities for FTS5 full-text search, including CJK (Chinese/Japanese/Korean)

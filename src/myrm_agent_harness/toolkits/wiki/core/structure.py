@@ -59,6 +59,7 @@ class WikiStructure:
         self.raw_dir = self.base_dir / "raw"
         self.wiki_dir = self.base_dir / "wiki"
         self.concepts_dir = self.wiki_dir / "concepts"
+        self.archive_dir = self.wiki_dir / "archive" / "concepts"
 
     def ensure_structure(self) -> None:
         """Create all required directories if they don't exist."""
@@ -67,6 +68,7 @@ class WikiStructure:
             self.raw_dir,
             self.wiki_dir,
             self.concepts_dir,
+            self.archive_dir,
             self.wiki_dir / "assets",
         ]:
             directory.mkdir(parents=True, exist_ok=True)
@@ -79,6 +81,13 @@ class WikiStructure:
         """Get path for a concept article in the local writable directory. Supports nested paths."""
         safe_path = self._sanitize_path(concept_path)
         path = self.concepts_dir / f"{safe_path}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def get_archived_concept_file_path(self, concept_path: str) -> Path:
+        """Get path for an archived concept article in the isolated archive directory."""
+        safe_path = self._sanitize_path(concept_path)
+        path = self.archive_dir / f"{safe_path}.md"
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -158,15 +167,87 @@ class WikiStructure:
 
     def list_concepts(self) -> list[Path]:
         """List all concept articles, including from public federated mounts (max 6)."""
-        concepts = [p for p in sorted(self.concepts_dir.rglob("*.md")) if not self._is_directory_sidecar(p)]
+        concepts = [
+            p
+            for p in sorted(self.concepts_dir.rglob("*.md"))
+            if not self._is_directory_sidecar(p)
+        ]
         for p_dir in self.public_dirs[:6]:
             try:
                 p_concepts = p_dir / "wiki" / "concepts"
                 if p_concepts.is_dir():
-                    concepts.extend(p for p in sorted(p_concepts.rglob("*.md")) if not self._is_directory_sidecar(p))
+                    concepts.extend(
+                        p
+                        for p in sorted(p_concepts.rglob("*.md"))
+                        if not self._is_directory_sidecar(p)
+                    )
             except (OSError, PermissionError):
                 continue
         return concepts
+
+    def list_archived_concepts(self) -> list[Path]:
+        """List all archived concept articles from local isolated archive directory."""
+        if not self.archive_dir.exists():
+            return []
+        return [
+            p
+            for p in sorted(self.archive_dir.rglob("*.md"))
+            if not self._is_directory_sidecar(p)
+        ]
+
+    async def archive_concept_safe(
+        self,
+        concept_name: str,
+        indexer: "WikiIndexer | None" = None,
+        reason: str = "",
+    ) -> Path:
+        """Atomically archive a concept article out of active concepts and unindex from FTS5."""
+        source_path = self.get_concept_file_path(concept_name)
+        if not source_path.exists():
+            raise FileNotFoundError(f"Active concept not found: {concept_name}")
+
+        target_path = self.get_archived_concept_file_path(concept_name)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # 1. Unindex from FTS5 & vector if indexer provided
+        if indexer is not None:
+            try:
+                await indexer.delete(concept_name)
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning("Failed to unindex concept %s before archive: %s", concept_name, exc)
+
+        # 2. Atomic file move
+        source_path.replace(target_path)
+        return target_path
+
+    async def revive_concept_safe(
+        self,
+        concept_name: str,
+        indexer: "WikiIndexer | None" = None,
+    ) -> Path:
+        """Atomically revive an archived concept back to active concepts directory."""
+        archive_path = self.get_archived_concept_file_path(concept_name)
+        if not archive_path.exists():
+            raise FileNotFoundError(f"Archived concept not found: {concept_name}")
+
+        target_path = self.get_concept_file_path(concept_name)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # 1. Atomic file move
+        archive_path.replace(target_path)
+
+        # 2. Reindex if indexer provided
+        if indexer is not None:
+            try:
+                await indexer.index_file(target_path)
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning("Failed to reindex revived concept %s: %s", concept_name, exc)
+
+        return target_path
 
     def get_purpose_path(self) -> Path:
         """Get path for purpose.md (knowledge base direction/scope)."""
@@ -254,7 +335,9 @@ class WikiStructure:
         if extensions is None:
             extensions = [".md", ".txt", ".org"]
 
-        ext_set = {e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions}
+        ext_set = {
+            e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions
+        }
 
         files: list[Path] = []
         ignore_patterns = self.load_wikiignore_patterns()

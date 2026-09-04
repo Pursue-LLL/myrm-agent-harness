@@ -166,6 +166,11 @@ class FileIntegrityGuard:
             else:
                 preview = disk_content[:2000] + "\n... [truncated]"
 
+        # Advance recorded hash to current disk content exposed in rejection preview.
+        # This breaks the infinite CAS rejection loop and enables 1-turn self-healing
+        # without requiring a redundant file_read_tool call.
+        bucket[norm] = current
+
         return (
             f"File '{norm}' has changed on disk since your last read (content hash mismatch).\n"
             f"Current disk content snippet:\n```\n{preview}\n```\n"

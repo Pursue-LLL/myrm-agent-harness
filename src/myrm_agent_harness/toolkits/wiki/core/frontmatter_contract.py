@@ -1,13 +1,13 @@
 """Wiki page frontmatter contract — required `type` field and enum validation.
 
 [INPUT]
-utils.markdown_frontmatter::parse_frontmatter (POS: YAML FM parse SSOT)
+- utils.markdown_frontmatter::parse_frontmatter (POS: YAML FM parse SSOT)
 
 [OUTPUT]
-WikiPageType, WikiPublishStatus, WikiProvenance, validate_wiki_frontmatter, infer_type_for_import,
-repair_missing_types, apply_compile_gate, load_frontmatter_metadata, serialize_frontmatter_block,
-ensure_frontmatter_type, ensure_published_frontmatter, ensure_draft_frontmatter,
-repair_publication_on_disk, PublicationOnDiskRepairResult, FrontmatterValidationError
+- WikiPageType, WikiPublishStatus, WikiProvenance, validate_wiki_frontmatter, infer_type_for_import
+- repair_missing_types, apply_compile_gate, load_frontmatter_metadata, serialize_frontmatter_block
+- ensure_frontmatter_type, ensure_published_frontmatter, ensure_draft_frontmatter
+- repair_publication_on_disk, PublicationOnDiskRepairResult, FrontmatterValidationError
 
 [POS]
 Harness SSOT for wiki page type gate used by compile, import writeback, linter, pending approve,

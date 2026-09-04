@@ -1,11 +1,11 @@
 """Performance monitor for hybrid retrieval and reranking pipelines.
 
 [INPUT]
-- (none)
+- (none - standard library time and contextlib)
 
 [OUTPUT]
-- PerformanceMonitor: class — Performance Monitor
-- get_performance_monitor: function — get_performance_monitor
+- PerformanceMonitor: Tracks per-operation latency for retrieval pipelines
+- get_performance_monitor: Process-wide singleton getter for PerformanceMonitor
 
 [POS]
 Provides PerformanceMonitor, get_performance_monitor.

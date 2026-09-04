@@ -153,7 +153,9 @@ async def search_memory_corpus(
                 retrieval_trace=manager.last_retrieval_trace,
             )
             if manager.last_retrieval_trace.degraded:
-                return "Memory search timed out. Try a more specific query or retry."
+                codes = manager.last_retrieval_trace.warning_codes
+                code_suffix = f" ({', '.join(codes)})" if codes else ""
+                return f"Memory search degraded due to timeout or internal store error{code_suffix}. Try a more specific query or retry."
         return "No relevant memories found."
 
     for result in results:
@@ -261,7 +263,7 @@ async def search_wiki_corpus(
         corpus="Wiki",
     )
     if result is None:
-        return "Wiki search timed out. Try a more specific query or retry."
+        return "Wiki search timed out (GATHER_WIKI_TIMEOUT). Try a more specific query or retry."
     sources = build_wiki_query_sources(result, structure=backends.wiki_structure)
     wiki_sources: list[dict[str, object]] = []
     for source in sources:
@@ -316,5 +318,5 @@ async def search_sessions_corpus(
         corpus="Conversation",
     )
     if response is None:
-        return "Conversation history search timed out. Try a more specific query or retry."
+        return "Conversation history search timed out (GATHER_SESSIONS_TIMEOUT). Try a more specific query or retry."
     return await format_conversation_search_response(response)

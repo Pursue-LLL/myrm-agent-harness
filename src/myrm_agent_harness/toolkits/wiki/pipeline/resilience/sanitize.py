@@ -1,10 +1,10 @@
 """Sanitize compile error messages before exposing them in API/UI.
 
 [INPUT]
-core.security.persistence.content_scan::sanitize_display_secrets (POS: credential redaction SSOT)
+- core.security.persistence.content_scan::sanitize_display_secrets (POS: credential redaction SSOT)
 
 [OUTPUT]
-sanitize_display_message: redact credential fragments and truncate user-visible errors
+- sanitize_display_message: redact credential fragments and truncate user-visible errors
 
 [POS]
 Wiki compile error sanitizer. Strips API key patterns before queue/API/UI display.

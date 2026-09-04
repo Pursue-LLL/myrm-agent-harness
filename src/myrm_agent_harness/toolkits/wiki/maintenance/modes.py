@@ -1,5 +1,8 @@
 """Maintain mode taxonomy for wiki linter runs.
 
+[INPUT]
+- None (standalone enum definition)
+
 [OUTPUT]
 - MaintainMode: structural (zero LLM) vs full maintenance pipeline
 

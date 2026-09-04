@@ -6,13 +6,13 @@ prompt does not guarantee these custom frontmatter fields survive regeneration.
 These helpers re-attach them so knowledge-to-chat traceability survives compiles.
 
 [INPUT]
-..core.frontmatter_contract::load_frontmatter_metadata, serialize_frontmatter_block (POS: yaml-aware frontmatter read/write)
-..core.structure::WikiStructure (POS: Wiki file system abstraction layer — raw path resolution)
+- ..core.frontmatter_contract::load_frontmatter_metadata, serialize_frontmatter_block (POS: yaml-aware frontmatter read/write)
+- ..core.structure::WikiStructure (POS: Wiki file system abstraction layer — raw path resolution)
 
 [OUTPUT]
-PROVENANCE_METADATA_KEYS: provenance field names preserved across compiles
-provenance_from_raw_sources: collect provenance from concept raw source files
-restore_provenance_metadata: re-attach provenance onto regenerated article content
+- PROVENANCE_METADATA_KEYS: provenance field names preserved across compiles
+- provenance_from_raw_sources: collect provenance from concept raw source files
+- restore_provenance_metadata: re-attach provenance onto regenerated article content
 
 [POS]
 Compile-time provenance preservation. Kept separate from ``compiler.py`` so the

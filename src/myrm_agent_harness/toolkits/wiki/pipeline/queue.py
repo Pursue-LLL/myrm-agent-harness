@@ -1,15 +1,15 @@
 """Wiki ingestion queue using SQLite for persistent batch processing.
 
 [INPUT]
-sqlite3 (POS: standard library database)
-pathlib::Path (POS: standard library file path operations)
-typing::Literal, TypedDict (POS: standard library types)
-..core.structure::WikiStructure (POS: database path retrieval)
-.resilience::CompileCircuitStore, is_transient_error_kind (POS: compile pause + retry policy)
+- sqlite3 (POS: standard library database)
+- pathlib::Path (POS: standard library file path operations)
+- typing::Literal, TypedDict (POS: standard library types)
+- ..core.structure::WikiStructure (POS: database path retrieval)
+- .resilience::CompileCircuitStore, is_transient_error_kind (POS: compile pause + retry policy)
 
 [OUTPUT]
-WikiIngestionQueue: SQLite-driven persistent file ingestion queue
-QueueItem: queue item type
+- WikiIngestionQueue: SQLite-driven persistent file ingestion queue
+- QueueItem: queue item type
 
 [POS]
 Wiki persistent queue. Queues large volumes of raw files for serial or controlled batch processing,

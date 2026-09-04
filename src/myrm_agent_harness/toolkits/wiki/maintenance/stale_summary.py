@@ -1,12 +1,12 @@
 """Stale raw-source summary for wiki compile visibility.
 
 [INPUT]
-..core.structure::WikiStructure (POS: vault paths and metadata)
-..core.claims_contract (POS: portable raw hash snapshots)
+- ..core.structure::WikiStructure (POS: vault paths and metadata)
+- ..core.claims_contract (POS: portable raw hash snapshots)
 
 [OUTPUT]
-collect_stale_raw_files, collect_stale_raw_path_set, concept_uses_stale_sources,
-resolve_raw_file_ingest_status, WikiStaleSummary, StaleRawFile
+- collect_stale_raw_files, collect_stale_raw_path_set, concept_uses_stale_sources
+- resolve_raw_file_ingest_status, WikiStaleSummary, StaleRawFile
 
 [POS]
 Shared stale detection for WikiLinter and product API surfaces. Compares current raw

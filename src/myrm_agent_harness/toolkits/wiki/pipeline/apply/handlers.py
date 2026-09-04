@@ -1,13 +1,13 @@
 """Wiki apply operation handlers — narrow writes through section contract.
 
 [INPUT]
-..core.section_contract (POS: managed block SSOT)
-..core.claims_contract (POS: structured claims merge/reconcile)
-..core.frontmatter_contract (POS: YAML frontmatter serialize)
-..core.structure::WikiStructure (POS: vault paths)
+- ..core.section_contract (POS: managed block SSOT)
+- ..core.claims_contract (POS: structured claims merge/reconcile)
+- ..core.frontmatter_contract (POS: YAML frontmatter serialize)
+- ..core.structure::WikiStructure (POS: vault paths)
 
 [OUTPUT]
-apply_mutation_to_content: pure content transform for each WikiApplyOp
+- apply_mutation_to_content: pure content transform for each WikiApplyOp
 
 [POS]
 Stateless apply handlers. Caller-aware metadata semantics (settings replace, agent merge).

@@ -3,10 +3,11 @@
 Provides multi-query result fusion algorithms (RRF, etc.).
 
 [INPUT]
-- (no external module dependencies)
+- (none - standard library defaultdict)
 
 [OUTPUT]
 - rrf_fusion: Reciprocal Rank Fusion algorithm for merging ranked result lists
+- unified_fusion: Four-pillar orthogonal fusion algorithm (quality, advantage, consensus, prestige)
 
 [POS]
 Score-fusion utilities for hybrid retrieval. Merges multiple ranked lists into a single

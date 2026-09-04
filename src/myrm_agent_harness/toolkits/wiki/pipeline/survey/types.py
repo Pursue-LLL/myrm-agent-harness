@@ -1,12 +1,12 @@
 """Compile survey DTOs for vault-scoped structure scan before semantic extraction.
 
 [INPUT]
-typing (POS: standard library type hints)
+- typing (POS: standard library type hints)
 
 [OUTPUT]
-CompileSurveyContext: zero-LLM vault survey result for a compile session
-CompileSessionState: mutable session carrying facet seeds across worker batches
-FacetSurvey: folder-scoped facet metadata for one compile survey
+- CompileSurveyContext: zero-LLM vault survey result for a compile session
+- CompileSessionState: mutable session carrying facet seeds across worker batches
+- FacetSurvey: folder-scoped facet metadata for one compile survey
 
 [POS]
 Wiki compile survey types. DTOs shared by survey builder and compiler orchestration.

@@ -1,15 +1,15 @@
 """Compile failure classification and retry/pause policy.
 
 [INPUT]
-toolkits.llms.errors.classifier::classify_error, ErrorKind (POS: LLM error taxonomy SSOT)
-.sanitize::sanitize_display_message (POS: user-safe compile error display)
-.types::FailureResolution (POS: compile failure policy result)
+- toolkits.llms.errors.classifier::classify_error, ErrorKind (POS: LLM error taxonomy SSOT)
+- .sanitize::sanitize_display_message (POS: user-safe compile error display)
+- .types::FailureResolution (POS: compile failure policy result)
 
 [OUTPUT]
-resolve_io_failure, resolve_llm_failure, resolve_embed_failure: map failures to queue retry/pause policy
-evaluate_batch_pause: batch-level compile circuit pause decision
-is_transient_error_kind: transient retry eligibility filter
-EMBED_WINDOW_VIOLATION: embed input window error kind for compile circuit + UI
+- resolve_io_failure, resolve_llm_failure, resolve_embed_failure: map failures to queue retry/pause policy
+- evaluate_batch_pause: batch-level compile circuit pause decision
+- is_transient_error_kind: transient retry eligibility filter
+- EMBED_WINDOW_VIOLATION: embed input window error kind for compile circuit + UI
 
 [POS]
 Wiki compile failure policy. Classifies IO/LLM failures and decides retry backoff vs circuit pause.

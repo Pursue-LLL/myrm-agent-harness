@@ -1,17 +1,17 @@
 """Deterministic writers for OKF cognitive map files (index.md, log.md, hot.md).
 
 [INPUT]
-..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
-..core.frontmatter_contract::validate_wiki_frontmatter, WIKI_PAGE_TYPES (POS: Wiki frontmatter type gate)
-.utils.markdown_frontmatter::parse_frontmatter (POS: Markdown frontmatter parser)
-.snapshot::HotSnapshot, build_hot_snapshot, render_hot_markdown (POS: Hot cache snapshot builder)
-.events::WikiMapEvent (POS: Event taxonomy for wiki/log.md entries)
+- ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
+- ..core.frontmatter_contract::validate_wiki_frontmatter, WIKI_PAGE_TYPES (POS: Wiki frontmatter type gate)
+- .utils.markdown_frontmatter::parse_frontmatter (POS: Markdown frontmatter parser)
+- .snapshot::HotSnapshot, build_hot_snapshot, render_hot_markdown (POS: Hot cache snapshot builder)
+- .events::WikiMapEvent (POS: Event taxonomy for wiki/log.md entries)
 
 [OUTPUT]
-write_index_markdown(), append_log_entry(), write_hot_markdown(): vault file writers
-read_hot_context(), read_log_context(): hot.md / log.md readers for wiki_query prefix
-count_log_entries(), hot_updated_at_iso(): stats helpers for server /stats API
-WikiCognitiveMapService: orchestrates index + log + hot refresh
+- write_index_markdown, append_log_entry, write_hot_markdown: vault file writers
+- read_hot_context, read_log_context: hot.md / log.md readers for wiki_query prefix
+- count_log_entries, hot_updated_at_iso: stats helpers for server /stats API
+- WikiCognitiveMapService: orchestrates index + log + hot refresh
 
 [POS]
 OKF cognitive map writer service. Maintains human-navigable index/log/hot artifacts after wiki lifecycle events.

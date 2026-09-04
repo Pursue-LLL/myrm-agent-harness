@@ -1,12 +1,12 @@
 """Publish concept articles through a single validated write + index path.
 
 [INPUT]
-..core.frontmatter_contract (POS: type + publish_status validation)
-..core.structure::WikiStructure (POS: vault paths)
-..retrieval.indexer::WikiIndexer (POS: FTS/Qdrant upsert)
+- ..core.frontmatter_contract (POS: type + publish_status validation)
+- ..core.structure::WikiStructure (POS: vault paths)
+- ..retrieval.indexer::WikiIndexer (POS: FTS/Qdrant upsert)
 
 [OUTPUT]
-publish_concept_article, repair_publication_status, ArticlePublishOutcome
+- publish_concept_article, repair_publication_status, ArticlePublishOutcome
 
 [POS]
 WPG-MVP: all published concept writes and indexer upserts go through here.

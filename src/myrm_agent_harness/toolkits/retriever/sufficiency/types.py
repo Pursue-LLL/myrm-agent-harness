@@ -1,7 +1,7 @@
 """Retrieval sufficiency evaluation types.
 
 [INPUT]
-- (none — self-contained stdlib dataclass types)
+- (none - self-contained stdlib dataclass types)
 
 [OUTPUT]
 - SufficiencyVerdict: evaluation result (is_sufficient, missing_aspects, suggested_queries, etc.)

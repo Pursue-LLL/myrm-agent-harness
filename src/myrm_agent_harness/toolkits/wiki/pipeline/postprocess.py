@@ -1,14 +1,14 @@
 """Post-compilation processing: index, backlinks, and metadata persistence.
 
 [INPUT]
-..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
-..core.config::WikiConfig (POS: Wiki configuration center)
-..core.types::ConceptInfo, WikiMetadata (POS: Wiki toolkit type definitions)
-..core.claims_contract (POS: raw hash metadata keys and collectors)
+- ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
+- ..core.config::WikiConfig (POS: Wiki configuration center)
+- ..core.types::ConceptInfo, WikiMetadata (POS: Wiki toolkit type definitions)
+- ..core.claims_contract (POS: raw hash metadata keys and collectors)
 
 [OUTPUT]
-generate_backlinks(): Generate Obsidian-compatible backlinks between concepts
-save_metadata(): Persist compilation metadata with portable SHA256 raw snapshots (preserves raw_supersede lineage)
+- generate_backlinks: Generate Obsidian-compatible backlinks between concepts
+- save_metadata: Persist compilation metadata with portable SHA256 raw snapshots
 
 [POS]
 Post-compilation steps: backlink creation and metadata persistence after concept

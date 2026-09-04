@@ -18,7 +18,7 @@ BashExecutor 聚合根与执行编排域：同步/后台执行、上下文构建
 | `skill_workspace_manager.py` | Core | 技能文件 staging 路径解析。 | ✅ |
 | `mcp_citation_handler.py` | Core | MCP Metadata Extractor。 | ✅ |
 | `event_logging.py` | Internal | 命令执行事件日志（脱敏+分类）。 | ✅ |
-| `error.py` | Core | 结构化 ``BashExecutionError``，携带 stdout/stderr eviction 引用。 | ✅ |
+| `error.py` | Core | 结构化 ``BashExecutionError``，携带 stdout/stderr eviction 引用与异常消息脱敏。 | ✅ |
 | `auto_yield.py` | Core | 前台白名单命令超时自动后台化。 | ✅ |
 | `command_classifier.py` | Core | 命令分类器（READ/WRITE/DANGEROUS/NETWORK/GIT/SEARCH/PYTHON/SKILL）。 | ✅ |
 | `sensitive_parameter_redactor.py` | Core | 命令参数脱敏（--token/--password/--api-key 等）。 | ✅ |

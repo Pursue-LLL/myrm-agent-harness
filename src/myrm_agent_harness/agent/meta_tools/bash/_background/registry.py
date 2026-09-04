@@ -128,10 +128,14 @@ class BackgroundProcessRegistry:
         if session_id:
             spill_writer = BackgroundOutputSpillWriter(session_id=session_id, job_id=job_id)
 
+        from myrm_agent_harness.agent.security.redact import redact_sensitive_text
+
+        sanitized_command = redact_sensitive_text(command)
+
         info = BackgroundProcessInfo(
             job_id=job_id,
             pid=pid,
-            command=command,
+            command=sanitized_command,
             session_id=session_id,
             started_at=started_at,
             status="running",
@@ -159,7 +163,7 @@ class BackgroundProcessRegistry:
                     job_id=job_id,
                     pid=pid,
                     session_id=session_id,
-                    command=command,
+                    command=sanitized_command,
                     started_at=started_at,
                 )
             except Exception as exc:

@@ -1,7 +1,13 @@
 """Wiki apply mutation errors.
 
+[INPUT]
+- dataclasses::dataclass (POS: standard library dataclass definition)
+
+[OUTPUT]
+- WikiApplyError: structured apply failure surfaced to REST and agent callers
+
 [POS]
-See module docstring.
+Wiki apply 异常定义。提供统一的错误结构与状态码。
 """
 
 from __future__ import annotations

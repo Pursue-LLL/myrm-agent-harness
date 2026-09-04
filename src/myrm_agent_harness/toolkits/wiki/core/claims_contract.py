@@ -1,12 +1,13 @@
 """Structured wiki claims and evidence frontmatter contract.
 
 [INPUT]
-utils.markdown_frontmatter (POS: frontmatter block detection)
+- utils.markdown_frontmatter (POS: frontmatter block detection)
 
 [OUTPUT]
-WikiClaim, WikiEvidence, parse_claims_from_content, validate_compile_claims, ensure_compile_claims,
-merge_claims_into_content, resolve_evidence_snapshot_status, resolve_evidence_snapshot_and_excerpt, read_evidence_excerpt, clear_raw_bytes_lru_cache, format_resource_uri, build_evidence_resource_uri,
-last_compile_raw_hashes metadata helpers, raw_supersede lineage
+- WikiClaim, WikiEvidence, parse_claims_from_content, validate_compile_claims, ensure_compile_claims
+- merge_claims_into_content, resolve_evidence_snapshot_status, resolve_evidence_snapshot_and_excerpt
+- read_evidence_excerpt, clear_raw_bytes_lru_cache, format_resource_uri, build_evidence_resource_uri
+- last_compile_raw_hashes metadata helpers, raw_supersede lineage
 
 [POS]
 Parse, validate, and merge OC-compatible `claims` frontmatter for compile output and belief-layer citations.
@@ -75,7 +76,9 @@ class WikiClaim:
 
 
 def _parse_frontmatter_mapping(content: str) -> dict[str, object]:
-    from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import load_frontmatter_metadata
+    from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
+        load_frontmatter_metadata,
+    )
 
     metadata, _body = load_frontmatter_metadata(content)
     return metadata
@@ -102,7 +105,9 @@ def _parse_evidence_entry(raw: object) -> WikiEvidence | None:
     path = str(raw.get("path") or "").strip()
     lines = str(raw.get("lines") or "").strip()
     note = str(raw.get("note") or "").strip()
-    content_sha256 = str(raw.get("contentSha256") or raw.get("content_sha256") or "").strip()
+    content_sha256 = str(
+        raw.get("contentSha256") or raw.get("content_sha256") or ""
+    ).strip()
     updated_at = str(raw.get("updatedAt") or raw.get("updated_at") or "").strip()
     if not kind and not path and not source_id:
         return None
@@ -169,7 +174,13 @@ def validate_compile_claims(claims: tuple[WikiClaim, ...]) -> bool:
 
 
 def _claim_slug(concept_name: str) -> str:
-    slug = concept_name.strip().replace("\\", "/").replace("/", ".").replace(" ", "-").lower()
+    slug = (
+        concept_name.strip()
+        .replace("\\", "/")
+        .replace("/", ".")
+        .replace(" ", "-")
+        .lower()
+    )
     return slug or "concept"
 
 
@@ -225,9 +236,14 @@ def _extract_compiled_truth_summary(content: str) -> str:
     return first_line[:240] if first_line else ""
 
 
-def _build_fallback_claims(content: str, concept_name: str, source_files: list[str]) -> tuple[WikiClaim, ...]:
+def _build_fallback_claims(
+    content: str, concept_name: str, source_files: list[str]
+) -> tuple[WikiClaim, ...]:
     slug = _claim_slug(concept_name)
-    summary = _extract_compiled_truth_summary(content) or f"Compiled summary for {concept_name}"
+    summary = (
+        _extract_compiled_truth_summary(content)
+        or f"Compiled summary for {concept_name}"
+    )
     evidence: list[WikiEvidence] = []
     for index, source_ref in enumerate(source_files[:3]):
         evidence.append(
@@ -475,12 +491,15 @@ def _pin_claims_with_source_snapshots(
     for claim in claims:
         evidence_items: list[WikiEvidence] = []
         for evidence in claim.evidence:
-            content_sha256 = evidence.content_sha256 or _content_sha256_for_ref(evidence.path, structure)
+            content_sha256 = evidence.content_sha256 or _content_sha256_for_ref(
+                evidence.path, structure
+            )
             evidence_items.append(
                 replace(
                     evidence,
                     content_sha256=content_sha256,
-                    updated_at=evidence.updated_at or (stamped_at if content_sha256 else ""),
+                    updated_at=evidence.updated_at
+                    or (stamped_at if content_sha256 else ""),
                 )
             )
         pinned.append(
@@ -558,7 +577,9 @@ def get_last_compile_raw_hashes(metadata: dict[str, object]) -> dict[str, str]:
     raw = metadata.get(LAST_COMPILE_RAW_HASHES_KEY)
     if not isinstance(raw, dict):
         return {}
-    return {str(key): str(value) for key, value in raw.items() if isinstance(value, str)}
+    return {
+        str(key): str(value) for key, value in raw.items() if isinstance(value, str)
+    }
 
 
 def format_resource_uri(source_path: str, content_sha256: str) -> str:

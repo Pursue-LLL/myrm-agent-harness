@@ -1,12 +1,12 @@
 """Stale-source guard for HITL pending edits.
 
 [INPUT]
-..core.frontmatter_contract::ensure_draft_frontmatter (POS: publish_status draft stamp)
-..core.structure::WikiStructure (POS: vault paths)
-..retrieval.indexer::WikiIndexer (POS: FTS reindex on demote)
+- ..core.frontmatter_contract::ensure_draft_frontmatter (POS: publish_status draft stamp)
+- ..core.structure::WikiStructure (POS: vault paths)
+- ..retrieval.indexer::WikiIndexer (POS: FTS reindex on demote)
 
 [OUTPUT]
-sources_newer_than_article, demote_stale_published_article, StalePendingApprovalError
+- sources_newer_than_article, demote_stale_published_article, StalePendingApprovalError
 
 [POS]
 When compile stages a new pending draft, demote stale published articles from RAG.
