@@ -37,7 +37,12 @@ class WikiStructure:
     DIRECTORY_OVERVIEW_FILENAME = ".overview.md"
     INDEX_CATALOG_RELATIVE_PATH = "wiki/index.md"
 
-    def __init__(self, base_dir: Path | str, public_dirs: list[Path | str] | None = None):
+    def __init__(
+        self,
+        base_dir: Path | str,
+        public_dirs: list[Path | str] | None = None,
+        public_dir_labels: dict[str, str] | None = None,
+    ):
         """
         Initialize wiki structure.
 
@@ -46,9 +51,11 @@ class WikiStructure:
                       For multi-tenant: /wikis/{tenant_id}/
                       For single-user: /wiki/ or ~/.myrm/wiki/
             public_dirs: Optional list of public enterprise read-only mounted wikis.
+            public_dir_labels: Optional mapping of public dir path or name to display label.
         """
         self.base_dir = Path(base_dir)
         self.public_dirs = [Path(p) for p in public_dirs] if public_dirs else []
+        self.public_dir_labels = public_dir_labels or {}
         self.raw_dir = self.base_dir / "raw"
         self.wiki_dir = self.base_dir / "wiki"
         self.concepts_dir = self.wiki_dir / "concepts"

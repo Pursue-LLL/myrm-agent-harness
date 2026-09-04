@@ -146,8 +146,21 @@ import traceback
 # ============================================================
 
 def _has_asyncio_run(code: str) -> bool:
-    """Check if code contains asyncio.run()."""
-    return bool(re.search(r"asyncio\\.run\\s*\\(", code))
+    """Check if code contains a real asyncio.run() Call node via AST."""
+    import ast
+
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Attribute) and func.attr == "run":
+                if isinstance(func.value, ast.Name) and func.value.id == "asyncio":
+                    return True
+    return False
 
 
 def _has_async_main_call(code: str) -> bool:
@@ -181,11 +194,20 @@ def _has_async_main_call(code: str) -> bool:
         def visit_ClassDef(self, node):
             pass
 
-        def visit_Expr(self, node):
-            if isinstance(node.value, ast.Call):
-                func = node.value.func
-                if isinstance(func, ast.Name) and func.id == "main":
-                    self.calls_main_unawaited = True
+        def visit_Await(self, node):
+            # Awaited calls (e.g. await main() or res = await main()) are properly scheduled
+            pass
+
+        def visit_Call(self, node):
+            # Skip runners that take care of scheduling coroutines
+            if isinstance(node.func, ast.Attribute) and node.func.attr in (
+                "run",
+                "create_task",
+                "run_until_complete",
+            ):
+                return
+            if isinstance(node.func, ast.Name) and node.func.id == "main":
+                self.calls_main_unawaited = True
             self.generic_visit(node)
 
     detector = _MainCallDetector()
@@ -431,6 +453,14 @@ def main():
 
         result["success"] = True
 
+    except SystemExit as e:
+        exit_code = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+        if exit_code == 0:
+            result["success"] = True
+            result["error"] = None
+        else:
+            result["success"] = False
+            result["error"] = f"SystemExit: {{e.code}}"
     except Exception as e:
         result["error"] = f"{{type(e).__name__}}: {{str(e)}}"
         result["stderr"] = traceback.format_exc()

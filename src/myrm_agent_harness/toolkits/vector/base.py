@@ -25,7 +25,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-FilterValue = str | int | float | bool | list[str] | dict[str, str | int | float]
+FilterValue = str | int | float | bool | list[str] | dict[str, str | int | float | bool]
 FilterDict = dict[str, FilterValue]
 
 

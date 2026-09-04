@@ -187,6 +187,7 @@ def _extract_regex_symbols(
 
     symbols: list[OutlineSymbol] = []
     in_code_block = False
+    in_frontmatter = False
 
     for idx, line in enumerate(lines, start=1):
         gutter_line, raw_text = _strip_gutter_line(line)
@@ -199,10 +200,22 @@ def _extract_regex_symbols(
         if not stripped_code:
             continue
         if language_key == "markdown":
+            # Handle YAML frontmatter at document start
+            if idx == 1 and stripped_code == "---":
+                in_frontmatter = True
+                continue
+            if in_frontmatter:
+                if stripped_code == "---":
+                    in_frontmatter = False
+                continue
+
             if stripped_code.startswith(("```", "~~~")):
                 in_code_block = not in_code_block
                 continue
             if in_code_block:
+                continue
+            # CommonMark indented code blocks (4+ leading spaces/tabs) are not headings.
+            if len(raw_text) - len(raw_text.lstrip(" \t")) >= 4:
                 continue
         elif stripped_code.startswith(("//", "/*", "*", "#", "'''", '"""')):
             continue

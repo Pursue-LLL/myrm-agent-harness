@@ -265,6 +265,26 @@ class TestAsyncExecutionModesEndToEnd:
                 "MARK_INDENTED_MAIN",
             ),
             (
+                "async_main_assigned_to_variable",
+                "async def main():\n    print('MARK_ASSIGNED_MAIN')\nres = main()",
+                "MARK_ASSIGNED_MAIN",
+            ),
+            (
+                "async_main_ann_assigned_under_if_name",
+                "from typing import Any\nasync def main():\n    print('MARK_ANN_ASSIGNED_MAIN')\nif __name__ == '__main__':\n    res: Any = main()",
+                "MARK_ANN_ASSIGNED_MAIN",
+            ),
+            (
+                "async_main_with_comment_mentioning_asyncio_run",
+                "# Note: do not call asyncio.run(main()) directly\nasync def main():\n    print('MARK_COMMENT_ASYNC_RUN')\nif __name__ == '__main__':\n    main()",
+                "MARK_COMMENT_ASYNC_RUN",
+            ),
+            (
+                "async_main_with_string_mentioning_asyncio_run",
+                "msg = 'testing asyncio.run(main()) here'\nasync def main():\n    print('MARK_STRING_ASYNC_RUN')\nmain()",
+                "MARK_STRING_ASYNC_RUN",
+            ),
+            (
                 "top_level_await",
                 "import asyncio\nasync def f():\n    return 'MARK_TOP_AWAIT'\nprint(await f())",
                 "MARK_TOP_AWAIT",
@@ -278,6 +298,11 @@ class TestAsyncExecutionModesEndToEnd:
                 "sync_function_with_internal_await_not_misclassified",
                 "x = 500\nasync def helper():\n    pass\nprint(f'MARK_SYNC_NO_AWAIT_{x}')",
                 "MARK_SYNC_NO_AWAIT_500",
+            ),
+            (
+                "sys_exit_zero_graceful_success",
+                "import sys\nprint('MARK_SYS_EXIT_ZERO')\nsys.exit(0)",
+                "MARK_SYS_EXIT_ZERO",
             ),
         ],
     )
@@ -305,3 +330,26 @@ class TestAsyncExecutionModesEndToEnd:
         assert result.returncode == 0, result.stderr
         assert '"success": true' in result.stdout
         assert marker in result.stdout
+
+    def test_sys_exit_nonzero_reports_error_without_crash(self, tmp_path: Path) -> None:
+        code_file = tmp_path / "exit_nonzero_user_code.py"
+        wrapper_file = tmp_path / "exit_nonzero_wrapper.py"
+        code_file.write_text("import sys\nprint('MARK_BEFORE_EXIT_42')\nsys.exit(42)", encoding="utf-8")
+        wrapper_file.write_text(
+            generate_wrapper_script(str(code_file)),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [sys.executable, str(wrapper_file)],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr
+        assert '"success": false' in result.stdout
+        assert "SystemExit: 42" in result.stdout
+        parsed = parse_execution_output(result.stdout, result.stderr, result.returncode)
+        assert parsed.success is False
+        assert "SystemExit: 42" in (parsed.error or "")
+        assert "MARK_BEFORE_EXIT_42" in parsed.stdout

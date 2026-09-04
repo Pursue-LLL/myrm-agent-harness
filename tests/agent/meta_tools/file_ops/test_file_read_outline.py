@@ -208,6 +208,43 @@ Conclusion text.
     assert "Bash script comment" not in outline
 
 
+def test_markdown_outline_ignores_indented_code_comments():
+    from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_outline import (
+        extract_file_outline,
+    )
+
+    md_content = """# Guide Title
+
+    # indented python comment
+    x = 1
+
+## Next Steps
+"""
+    outline = extract_file_outline(md_content, "guide.md")
+    assert "- Line 1: # Guide Title" in outline
+    assert "- Line 6: ## Next Steps" in outline
+    assert "indented python comment" not in outline
+
+
+def test_markdown_outline_ignores_yaml_frontmatter_comments():
+    from myrm_agent_harness.agent.meta_tools.file_ops.core.file_read_outline import (
+        extract_file_outline,
+    )
+
+    md_content = """---
+title: Sample Post
+# This is a yaml frontmatter comment
+author: Admin
+---
+
+# Real Heading
+Intro paragraph.
+"""
+    outline = extract_file_outline(md_content, "post.md")
+    assert "- Line 7: # Real Heading" in outline
+    assert "This is a yaml frontmatter comment" not in outline
+
+
 def test_truncate_file_output_appends_outline():
     long_python = "\n".join(
         [f"{i:6}|# comment {i}" for i in range(1, 100)]

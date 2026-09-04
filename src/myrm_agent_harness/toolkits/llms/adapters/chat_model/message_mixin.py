@@ -192,7 +192,26 @@ class ChatLiteLLMMessageMixin:
             if isinstance(first, dict) and first.get("role") == "system":
                 first["role"] = "developer"
         self._stamp_missing_reasoning_content(message_dicts)
+        self._sanitize_image_urls(message_dicts)
         return message_dicts, params
+
+    def _sanitize_image_urls(self, message_dicts: list[dict[str, Any]]) -> None:
+        """Sanitize image_url blocks for provider-specific quirks.
+
+        MiniMax rejects `detail: "auto"` with HTTP 400 ('invalid params, invalid
+        image detail: auto (2013)'). Under standard OpenAI spec, omitting
+        `detail` defaults to 'auto', so stripping 'auto' is universally safe
+        for all providers and strictly required for MiniMax.
+        """
+        for msg in message_dicts:
+            content = msg.get("content")
+            if not isinstance(content, list):
+                continue
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "image_url":
+                    iu = block.get("image_url")
+                    if isinstance(iu, dict) and iu.get("detail") == "auto":
+                        del iu["detail"]
 
     def _stamp_missing_reasoning_content(self, message_dicts: list[dict[str, Any]]) -> None:
         """Back-fill empty reasoning_content on assistant messages for thinking-mode models.

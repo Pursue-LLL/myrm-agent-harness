@@ -151,11 +151,11 @@ class RetrieverManager:
             Cache key (hash string)
         """
         sample_size = self.config.content_hash_sample_size
-        if all(doc.metadata.get("url") for doc in documents):
+        if all((doc.metadata or {}).get("url") for doc in documents):
             doc_signatures = frozenset(
                 (
-                    doc.metadata["url"],
-                    doc.metadata.get("chunk_index", -1),
+                    (doc.metadata or {})["url"],
+                    (doc.metadata or {}).get("chunk_index", -1),
                     len(doc.page_content),
                     get_content_hash(
                         doc.page_content if sample_size is None else doc.page_content[:sample_size],

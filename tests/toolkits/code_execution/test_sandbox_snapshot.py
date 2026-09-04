@@ -16,7 +16,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 from myrm_agent_harness.toolkits.code_execution.sandbox_snapshot import (
     SandboxBootstrapSnapshot,
     format_bootstrap_snapshot_xml,
@@ -143,8 +142,9 @@ def test_is_git_repo_property() -> None:
 
 
 def test_run_quick_command_failure_and_timeout() -> None:
-    from myrm_agent_harness.toolkits.code_execution.sandbox_snapshot import _run_quick_command
     import subprocess
+
+    from myrm_agent_harness.toolkits.code_execution.sandbox_snapshot import _run_quick_command
 
     with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd=["sleep"], timeout=1.0)):
         rc, out = _run_quick_command(["sleep", "10"], timeout=1.0)
@@ -184,6 +184,14 @@ def test_package_manager_lockfiles_and_fallbacks() -> None:
         with patch("shutil.which", side_effect=lambda bin_name: "/usr/bin/" + bin_name if bin_name in ("uv", "pip") else None):
             snap = generate_sandbox_bootstrap_snapshot(root)
             assert snap.recommended_package_manager == "uv"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        # Test Cargo.lock
+        (root / "Cargo.lock").write_text("[[package]]")
+        with patch("shutil.which", side_effect=lambda bin_name: "/usr/bin/" + bin_name if bin_name in ("cargo",) else None):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert snap.recommended_package_manager == "cargo"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
@@ -243,16 +251,18 @@ def test_runtimes_and_version_probing() -> None:
                 return 0, "3.12.3"
             return 0, ""
 
-        with patch("shutil.which", side_effect=mock_which):
-            with patch("myrm_agent_harness.toolkits.code_execution.sandbox_snapshot._run_quick_command", side_effect=mock_run_quick):
-                snap = generate_sandbox_bootstrap_snapshot(root)
-                assert any("Python 3.12.3" in r for r in snap.runtimes)
-                assert any("Node.js 20.10.0" in r for r in snap.runtimes)
-                assert any("Bun 1.1.20" in r for r in snap.runtimes)
-                assert any("Go 1.22.1" in r for r in snap.runtimes)
-                assert any("Rust 1.78.0" in r for r in snap.runtimes)
-                assert "git" in snap.available_tools
-                assert "curl" in snap.available_tools
+        with (
+            patch("shutil.which", side_effect=mock_which),
+            patch("myrm_agent_harness.toolkits.code_execution.sandbox_snapshot._run_quick_command", side_effect=mock_run_quick),
+        ):
+            snap = generate_sandbox_bootstrap_snapshot(root)
+            assert any("Python 3.12.3" in r for r in snap.runtimes)
+            assert any("Node.js 20.10.0" in r for r in snap.runtimes)
+            assert any("Bun 1.1.20" in r for r in snap.runtimes)
+            assert any("Go 1.22.1" in r for r in snap.runtimes)
+            assert any("Rust 1.78.0" in r for r in snap.runtimes)
+            assert "git" in snap.available_tools
+            assert "curl" in snap.available_tools
 
 
 def test_package_manager_config_fallbacks() -> None:

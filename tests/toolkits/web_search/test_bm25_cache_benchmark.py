@@ -178,3 +178,9 @@ class TestBM25CacheBenchmark:
         key_content_1 = retriever_manager._compute_bm25_cache_key([doc_content_1])
         key_content_2 = retriever_manager._compute_bm25_cache_key([doc_content_2])
         assert key_content_1 != key_content_2, "无 URL 纯内容文档前缀相同但尾部不同，Key 必须不同"
+
+    def test_bm25_cache_key_handles_none_metadata(self, retriever_manager):
+        doc_none_meta = Document(page_content="content without metadata wrapper")
+        doc_none_meta.metadata = None
+        key = retriever_manager._compute_bm25_cache_key([doc_none_meta])
+        assert isinstance(key, str) and len(key) > 0

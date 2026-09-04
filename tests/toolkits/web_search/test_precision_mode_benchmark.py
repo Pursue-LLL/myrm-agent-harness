@@ -299,3 +299,13 @@ def test_cap_chunks_per_doc_defensive_against_none_metadata():
     assert len(result) == 1
     assert result[0].page_content == "some content"
 
+
+def test_drop_blocked_hostname_docs_defensive_against_none_metadata():
+    from myrm_agent_harness.toolkits.web_search.engine import _drop_blocked_hostname_docs
+
+    doc_none_meta = Document(page_content="some content")
+    doc_none_meta.metadata = None
+
+    result = _drop_blocked_hostname_docs([doc_none_meta], blocked_hostnames=("blocked.example",))
+    assert len(result) == 1
+    assert result[0].page_content == "some content"

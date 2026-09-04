@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from myrm_agent_harness.toolkits.memory._manager.helpers import _memory_ref
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     EpisodicMemory,
@@ -19,66 +21,17 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     doc_to_semantic,
     logger,
 )
+from myrm_agent_harness.toolkits.memory._internal.graph_cascade import (
+    cascade_clean_derived_graph_nodes,
+)
 
 
 class MemoryManagerDeletionMixin:
     # ── Graph cascade ──
 
     async def _cascade_clean_derived_graph_nodes(self, memory_id: str) -> None:
-        """Remove Claim Graph nodes derived from a deleted/archived memory.
-
-        Evidence nodes carry ``source_memory_id`` pointing back to the original
-        vector document.  Claim nodes track ``latest_source_memory_id``.  When
-        the original memory is removed, the derived Evidence must be deleted and
-        Claim's ``evidence_count`` decremented; a Claim with zero remaining
-        Evidence is deleted entirely.
-        """
-        if self._graph is None:
-            return
-        try:
-            await self._graph.delete_subgraph(memory_id)
-        except Exception as exc:
-            logger.warning("Graph subgraph cleanup failed for %s: %s", memory_id, exc)
-
-        try:
-            evidence_nodes = await self._graph.find_nodes(
-                ["Evidence"],
-                {"source_memory_id": memory_id},
-            )
-        except Exception as exc:
-            logger.warning("Graph evidence lookup failed for %s: %s", memory_id, exc)
-            return
-
-        for evidence in evidence_nodes:
-            try:
-                await self._graph.delete_subgraph(evidence.id)
-            except Exception as exc:
-                logger.warning("Graph evidence delete failed for %s: %s", evidence.id, exc)
-
-        try:
-            claim_nodes = await self._graph.find_nodes(
-                ["Claim"],
-                {"latest_source_memory_id": memory_id},
-            )
-        except Exception as exc:
-            logger.warning("Graph claim lookup failed for %s: %s", memory_id, exc)
-            return
-
-        for claim in claim_nodes:
-            evidence_count = int(claim.properties.get("evidence_count", 0))
-            if evidence_count <= 1:
-                try:
-                    await self._graph.delete_subgraph(claim.id)
-                except Exception as exc:
-                    logger.warning("Graph claim delete failed for %s: %s", claim.id, exc)
-            else:
-                try:
-                    await self._graph.update_node_properties(
-                        claim.id,
-                        {"evidence_count": max(0, evidence_count - 1)},
-                    )
-                except Exception as exc:
-                    logger.warning("Graph claim update failed for %s: %s", claim.id, exc)
+        """Remove Claim Graph nodes derived from a deleted/archived memory."""
+        await cascade_clean_derived_graph_nodes(self._graph, memory_id)
 
     # ── Delete ──
 
@@ -556,6 +509,61 @@ class MemoryManagerDeletionMixin:
             return converter(doc)
 
         raise MemoryNotFoundError(f"Memory {memory_id} not found")
+
+    async def purge_expired_archived_memories(self, *, ttl_days: int = 7) -> int:
+        """Permanently purge soft-deleted memories whose archive retention has expired.
+
+        Scans semantic and episodic collections for documents marked with
+        ``status="archived"`` or ``archived=True``, checks their
+        ``archive_expires_at`` (or ``archived_at`` + ttl_days), and physically
+        deletes expired ones with full graph cascade.
+        """
+        if self._vector is None:
+            return 0
+
+        now_iso = datetime.now(UTC).isoformat()
+        now_dt = datetime.now(UTC)
+        purged_total = 0
+        vector_collections = (self._config.semantic_collection, self._config.episodic_collection)
+
+        for coll in vector_collections:
+            try:
+                docs, _ = await self._vector.scroll(
+                    coll,
+                    filters={"archived": True},
+                    limit=500,
+                )
+            except Exception as exc:
+                logger.warning("purge_expired_archived_memories: failed to scroll %s: %s", coll, exc)
+                continue
+
+            expired_ids: list[str] = []
+            for doc in docs:
+                expires_at = doc.metadata.get("archive_expires_at")
+                archived_at = doc.metadata.get("archived_at")
+
+                is_expired = False
+                if isinstance(expires_at, str) and expires_at <= now_iso:
+                    is_expired = True
+                elif not expires_at and isinstance(archived_at, str):
+                    try:
+                        arch_dt = datetime.fromisoformat(archived_at)
+                        if now_dt - arch_dt >= timedelta(days=ttl_days):
+                            is_expired = True
+                    except ValueError:
+                        pass
+
+                if is_expired:
+                    expired_ids.append(doc.id)
+
+            if expired_ids:
+                deleted = await self.delete_memory(coll, expired_ids)
+                purged_total += deleted
+
+        if purged_total > 0:
+            logger.info("purge_expired_archived_memories: permanently purged %d expired memories", purged_total)
+
+        return purged_total
 
     async def close(self) -> None:
         if self._active_session is not None:

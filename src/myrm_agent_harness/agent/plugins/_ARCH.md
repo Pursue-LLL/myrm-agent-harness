@@ -17,9 +17,9 @@ binding) is owned by the business layer (`myrm-agent-server`), which consumes th
 | `__init__.py` | Package | Agent Plugins parsing & exporting module. | ✅ |
 | `manifest.py` | Core | `AgentPluginManifest` + strict spec 1.0.0 validation (closed schema, name constraints, `$schema` version negotiation). | ✅ |
 | `mcp_config.py` | Core | `AgentPluginMcpConfig` + per-server variant parsing (stdio / streamable-http / sse), placeholder scanning and containment. | ✅ |
-| `parser.py` | Core | `AgentPluginParser.parse_zip` orchestrating discovery (skills/ non-recursive, mcp.json) with per-component failure isolation. Retains non-skill files (plugin.json / mcp.json / bundled stdio scripts) on `PluginParseResult.files` for the business layer to persist into the plugin root; skill files live on `PluginSkill.files` instead. | ✅ |
+| `parser.py` | Core | `AgentPluginParser.parse_zip` orchestrating discovery (skills/, agents/, mcp.json, workspace/ assets) with per-component failure isolation. Retains non-skill files on `PluginParseResult.files` for the business layer to persist into the plugin root; parses `PluginAgent` records and extracts `workspace_files`. | ✅ |
 | `exporter.py` | Core | `AgentPluginPacker` + `canonical_plugin_name` building spec 1.0.0 conformant plugin ZIPs (`plugin.json` + `skills/<name>/` + optional `mcp.json`). | ✅ |
-| `models.py` | Core | Shared dataclasses: `PluginSkill`, `PluginMcpServer`, `PluginDiagnostic`, `PluginParseResult` (incl. the `files: dict[str, bytes]` non-skill file tree). | ✅ |
+| `models.py` | Core | Shared dataclasses: `PluginSkill`, `PluginAgent`, `PluginMcpServer`, `PluginDiagnostic`, `PluginParseResult` (incl. `agents`, `workspace_files`, and non-skill `files`). | ✅ |
 
 ## I/O
 

@@ -377,7 +377,7 @@ async def _precision_mode_search(
     1. Smart chunking: chunk long docs (>1000 tokens), keep short ones intact, concurrent processing
     2. BM25 coarse filtering: select top-50 from all chunks
     3. Reranker fine ranking: semantic reranking, output top-20
-    4. Smart merge: merge consecutive chunks, limit to 3 passage groups per document
+    4. Per-document chunk capping: keep top-N chunks per URL without content merging
 
     Args:
         questions: Query list
@@ -521,7 +521,7 @@ def _drop_blocked_hostname_docs(
     kept: list[Document] = []
     dropped = 0
     for doc in documents:
-        hostname = (urlparse(str(doc.metadata.get("url") or "")).hostname or "").lower()
+        hostname = (urlparse(str((doc.metadata or {}).get("url") or "")).hostname or "").lower()
         if hostname and blocklist.is_blocked(hostname):
             dropped += 1
             continue

@@ -283,7 +283,7 @@ _FILE_READ_TOOL_DESCRIPTION_ZH = """读取文件内容或目录列表。支持�
 - mode: 读取模式（'all'默认 | 'preview'快速预览 | 'stream'大文件防OOM）
   - 大文件建议：>100MB 使用 mode='preview' 或行号范围
 - chunk_size_mb: streaming 块大小（默认 10MB）
-- parse_mode: Office 文档解析模式（structure/content/audit）
+- parse_mode: 结构解析模式（'structure' 提取 PDF/Markdown/代码/Word/Excel 章节与符号大纲及行号，便于精准阅读；'content' 完整读取；'audit' 仅用于 Excel 审计）
 
 **注意**: 仅支持本地文件/沙箱路径，不支持网络 URL（网页请用 web_fetch_tool）。
 """
@@ -301,7 +301,7 @@ Parameters:
 - mode: Read mode ('all' default | 'preview' fast preview | 'stream' large file chunking)
   - Large files (>100MB): use mode='preview' or line ranges
 - chunk_size_mb: Streaming chunk size in MB (default 10)
-- parse_mode: Office document parsing mode (structure/content/audit)
+- parse_mode: Structure parsing mode ('structure' extracts outline and line numbers for PDF/Markdown/code/Word/Excel; 'content' reads full text; 'audit' for Excel audit)
 
 **Note**: Only supports local files / sandbox paths; does NOT support web URLs (use web_fetch_tool for webpages).
 """

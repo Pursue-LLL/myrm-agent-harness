@@ -77,7 +77,7 @@ def _user_filter(
     match any document sharing a broadcast namespace (e.g. ``global``) and
     leak one agent's memories into another agent's reads and deletions.
     """
-    f: FilterDict = {"archived": False}
+    f: FilterDict = {"archived": {"not": True}}
     if namespaces:
         f["primary_namespace"] = namespaces
     if include_archived:

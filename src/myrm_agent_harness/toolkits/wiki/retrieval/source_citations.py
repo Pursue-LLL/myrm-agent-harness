@@ -25,12 +25,53 @@ if TYPE_CHECKING:
     from ..core.structure import WikiStructure
 
 
-def wiki_source_dedup_key(snip: SourceSnippet) -> str:
+def resolve_snippet_kb_name(snip: SourceSnippet, structure: WikiStructure | None) -> str:
+    """Resolve knowledge base name for a snippet, checking mounted public wikis."""
+    if not structure:
+        return "LLM-Wiki"
+    resolved_path = structure.resolve_concept_file_path(snip.article_path)
+    if resolved_path is not None:
+        for p_dir in structure.public_dirs:
+            try:
+                if resolved_path.is_relative_to(p_dir):
+                    labels = getattr(structure, "public_dir_labels", None)
+                    if isinstance(labels, dict):
+                        if str(p_dir) in labels:
+                            return str(labels[str(p_dir)])
+                        if p_dir.name in labels:
+                            return str(labels[p_dir.name])
+                    meta_file = p_dir / ".kb_meta.json"
+                    if meta_file.exists():
+                        import json
+
+                        try:
+                            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                            if isinstance(meta, dict) and meta.get("name"):
+                                return str(meta["name"])
+                        except Exception:
+                            pass
+                    purpose_file = p_dir / "wiki" / "purpose.md"
+                    if purpose_file.exists():
+                        try:
+                            for line in purpose_file.read_text(encoding="utf-8").splitlines()[:5]:
+                                if line.strip().startswith("# "):
+                                    title = line.strip().lstrip("# ").strip()
+                                    if title:
+                                        return title
+                        except Exception:
+                            pass
+                    return p_dir.name
+            except (ValueError, AttributeError):
+                continue
+    return "LLM-Wiki"
+
+
+def wiki_source_dedup_key(snip: SourceSnippet, kb_name: str = "LLM-Wiki") -> str:
     if snip.hit_kind == "asset" and snip.asset_filename:
-        return f"kb:LLM-Wiki:asset:{snip.asset_filename}"
+        return f"kb:{kb_name}:asset:{snip.asset_filename}"
     if snip.claim_id and snip.evidence_path:
-        return f"kb:LLM-Wiki:{snip.article_path}:claim:{snip.claim_id}:evidence:{snip.evidence_path}:{snip.line_range}"
-    return f"kb:LLM-Wiki:{snip.article_path}:{snip.section}:{snip.level}"
+        return f"kb:{kb_name}:{snip.article_path}:claim:{snip.claim_id}:evidence:{snip.evidence_path}:{snip.line_range}"
+    return f"kb:{kb_name}:{snip.article_path}:{snip.section}:{snip.level}"
 
 
 def _evidence_resource_uri_for_snippet(
@@ -70,13 +111,14 @@ def wiki_source_entry(
     structure: WikiStructure | None = None,
 ) -> dict[str, object]:
     display_name = snip.article_name or Path(snip.article_path).stem or "wiki-source"
+    kb_name = resolve_snippet_kb_name(snip, structure)
     entry: dict[str, object] = {
         "type": "knowledge",
-        "kb_name": "LLM-Wiki",
+        "kb_name": kb_name,
         "filename": display_name,
         "score": confidence_score,
         "path": snip.article_path,
-        "source_key": wiki_source_dedup_key(snip),
+        "source_key": wiki_source_dedup_key(snip, kb_name=kb_name),
     }
     if snip.snippet:
         entry["snippet"] = snip.snippet
@@ -127,7 +169,8 @@ def build_wiki_query_sources(
     ordered_keys: list[str] = []
 
     for snip in result.source_snippets:
-        key = wiki_source_dedup_key(snip)
+        kb_name = resolve_snippet_kb_name(snip, structure)
+        key = wiki_source_dedup_key(snip, kb_name=kb_name)
         if key in sources_by_key:
             entry = sources_by_key[key]
             if snip.snippet:
@@ -152,13 +195,15 @@ def build_wiki_query_sources(
     for path_str in result.related_articles:
         if path_str in snippet_paths:
             continue
-        path_key = f"kb:LLM-Wiki:{path_str}::L2"
+        dummy_snip = SourceSnippet(article_path=path_str, article_name="", snippet="")
+        rel_kb_name = resolve_snippet_kb_name(dummy_snip, structure)
+        path_key = f"kb:{rel_kb_name}:{path_str}::L2"
         if path_key in sources_by_key:
             continue
         path = Path(path_str)
         sources_by_key[path_key] = {
             "type": "knowledge",
-            "kb_name": "LLM-Wiki",
+            "kb_name": rel_kb_name,
             "filename": path.stem,
             "score": result.confidence_score,
             "path": path_str,

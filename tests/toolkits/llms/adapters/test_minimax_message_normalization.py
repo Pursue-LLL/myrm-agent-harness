@@ -60,3 +60,31 @@ def test_minimax_chat_message_system_role_is_folded_into_first_human_turn() -> N
 
     assert [entry["role"] for entry in message_dicts] == ["user"]
     assert message_dicts[0]["content"] == "You are a concise assistant.\n\nHello"
+
+
+def test_sanitize_image_urls_strips_auto_detail() -> None:
+    model = ChatLiteLLM.model_construct(
+        client=MagicMock(),
+        model="minimax/MiniMax-M3",
+        api_base="https://api.minimaxi.com/v1",
+        custom_llm_provider="minimax",
+    )
+
+    messages = [
+        HumanMessage(
+            content=[
+                {"type": "text", "text": "Describe this image"},
+                {"type": "image_url", "image_url": {"url": "https://example.com/test.jpg", "detail": "auto"}},
+            ]
+        ),
+    ]
+
+    message_dicts, _ = model._create_message_dicts(messages, stop=None)
+
+    assert len(message_dicts) == 1
+    content = message_dicts[0]["content"]
+    assert isinstance(content, list)
+    image_block = next(b for b in content if isinstance(b, dict) and b.get("type") == "image_url")
+    assert "detail" not in image_block["image_url"]
+    assert image_block["image_url"]["url"] == "https://example.com/test.jpg"
+
