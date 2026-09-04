@@ -145,8 +145,28 @@ import traceback
 # Execution mode detection
 # ============================================================
 
+def _collect_async_runners(tree: object) -> set[str]:
+    """Collect all callable names that act as asyncio.run (including aliases and imports)."""
+    import ast
+
+    runners = {{"asyncio.run"}}
+    if not isinstance(tree, ast.AST):
+        return runners
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "asyncio":
+            for alias in node.names:
+                if alias.name == "run":
+                    runners.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "asyncio" and alias.asname:
+                    runners.add(f"{{alias.asname}}.run")
+    return runners
+
+
 def _has_asyncio_run(code: str) -> bool:
-    """Check if code contains a real asyncio.run() Call node via AST."""
+    """Check if code contains a real asyncio.run() Call node (or alias) via AST."""
     import ast
 
     try:
@@ -154,11 +174,18 @@ def _has_asyncio_run(code: str) -> bool:
     except SyntaxError:
         return False
 
+    runners = _collect_async_runners(tree)
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             func = node.func
             if isinstance(func, ast.Attribute) and func.attr == "run":
-                if isinstance(func.value, ast.Name) and func.value.id == "asyncio":
+                if isinstance(func.value, ast.Name):
+                    call_name = f"{{func.value.id}}.run"
+                    if call_name in runners:
+                        return True
+            elif isinstance(func, ast.Name):
+                if func.id in runners:
                     return True
     return False
 
@@ -181,6 +208,8 @@ def _has_async_main_call(code: str) -> bool:
     if not has_async_main_def:
         return False
 
+    runners = _collect_async_runners(tree)
+
     class _MainCallDetector(ast.NodeVisitor):
         def __init__(self):
             self.calls_main_unawaited = False
@@ -200,13 +229,16 @@ def _has_async_main_call(code: str) -> bool:
 
         def visit_Call(self, node):
             # Skip runners that take care of scheduling coroutines
-            if isinstance(node.func, ast.Attribute) and node.func.attr in (
+            func = node.func
+            if isinstance(func, ast.Attribute) and func.attr in (
                 "run",
                 "create_task",
                 "run_until_complete",
             ):
                 return
-            if isinstance(node.func, ast.Name) and node.func.id == "main":
+            if isinstance(func, ast.Name) and func.id in runners:
+                return
+            if isinstance(func, ast.Name) and func.id == "main":
                 self.calls_main_unawaited = True
             self.generic_visit(node)
 

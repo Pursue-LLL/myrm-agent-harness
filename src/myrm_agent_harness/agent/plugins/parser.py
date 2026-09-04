@@ -258,6 +258,7 @@ class AgentPluginParser:
                 continue
 
             display_name = str(metadata.get("name") or agent_name)
+            metadata.setdefault("slug", agent_name)
             max_iters = metadata.get("max_iterations") or metadata.get("max_iters")
             parsed_iters = (
                 int(max_iters)

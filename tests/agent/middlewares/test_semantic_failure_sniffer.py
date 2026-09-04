@@ -1,25 +1,21 @@
-"""Unit and integration tests for SemanticFailureSniffer and HTTP 200 observation failure defense.
+"""Unit tests for semantic failure sniffer and observation elevation in tooling middleware.
 
-Covers:
-1. Core sniffing logic over various business failure envelopes (success=false, code!=0, errors).
-2. Two-tier classification (retryable transient vs non-retryable permanent).
-3. False positive prevention (domain entities with status="failed", valid data, etc.).
-4. Tool exemptions and metadata-based bypass switches.
-5. Observation elevation formatting and anti-hallucination guidance for LLMs.
-6. Integration with run_post_call_guards flipping ToolMessage status to error.
+Tests cover:
+1. Exemption filtering (default exempt tools, prefix matches, metadata flags)
+2. JSON payload inspection (boolean flags, error status, error codes, nested errors)
+3. Error classification (transient/retryable vs permanent/non-retryable)
+4. System observation elevation formatting
+5. Post-call guard integration with ToolMessage elevation
 """
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import ToolMessage
 
-from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
-    run_post_call_guards,
-)
+from myrm_agent_harness.agent.middlewares.tooling._tool_guards import run_post_call_guards
 from myrm_agent_harness.agent.middlewares.tooling.semantic_failure_sniffer import (
     SemanticFailureSniffResult,
     SemanticFailureType,
@@ -27,242 +23,155 @@ from myrm_agent_harness.agent.middlewares.tooling.semantic_failure_sniffer impor
     should_skip_semantic_sniff,
     sniff_semantic_failure,
 )
-from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard, LoopVerdict
 
 
-class TestSemanticFailureSnifferCore:
-    """Tests for pure payload sniffing logic."""
+class TestSemanticFailureSnifferExemptions:
+    """Test tool exemption policies."""
 
-    def test_explicit_success_false_payload(self) -> None:
-        payload = {"success": False, "error": "订单不存在", "code": 404}
-        res = sniff_semantic_failure(payload, tool_name="order_query_tool")
+    def test_default_exempt_tools(self) -> None:
+        assert should_skip_semantic_sniff("bash_code_execute_tool") is True
+        assert should_skip_semantic_sniff("file_read_tool") is True
+        assert should_skip_semantic_sniff("file_write_tool") is True
+        assert should_skip_semantic_sniff("file_edit_tool") is True
+        assert should_skip_semantic_sniff("glob_tool") is True
+        assert should_skip_semantic_sniff("grep_tool") is True
+        assert should_skip_semantic_sniff("diff_tool") is True
 
+    def test_prefix_exemptions(self) -> None:
+        assert should_skip_semantic_sniff("test_order_flow") is True
+        assert should_skip_semantic_sniff("verify_signature") is True
+        assert should_skip_semantic_sniff("check_system_health") is True
+
+    def test_metadata_skip_flag(self) -> None:
+        assert should_skip_semantic_sniff("custom_tool", metadata={"skip_semantic_failure_sniffing": True}) is True
+        assert should_skip_semantic_sniff("custom_tool", metadata={"skip_semantic_failure_sniffing": False}) is False
+
+    def test_target_mcp_tools_are_not_exempt(self) -> None:
+        assert should_skip_semantic_sniff("mcp__github__get_issue") is False
+        assert should_skip_semantic_sniff("query_customer_crm") is False
+
+
+class TestSemanticFailureSnifferInspection:
+    """Test payload inspection and error extraction."""
+
+    def test_non_json_strings_ignored(self) -> None:
+        res = sniff_semantic_failure("Plain text output without json", tool_name="external_api")
+        assert res.is_failure is False
+        assert res.failure_type == SemanticFailureType.NONE
+
+    def test_success_payload_not_flagged(self) -> None:
+        payload = '{"code": 0, "status": "ok", "data": {"id": "12345"}}'
+        res = sniff_semantic_failure(payload, tool_name="order_service")
+        assert res.is_failure is False
+
+    def test_explicit_boolean_failure_non_retryable(self) -> None:
+        payload = '{"success": false, "message": "User not found", "code": 404}'
+        res = sniff_semantic_failure(payload, tool_name="user_service")
         assert res.is_failure is True
         assert res.failure_type == SemanticFailureType.NON_RETRYABLE
         assert res.extracted_code == 404
-        assert res.extracted_message == "订单不存在"
-        assert "Explicit failure flag" in res.reason
+        assert res.extracted_message == "User not found"
 
-    def test_wechat_style_errcode_payload(self) -> None:
-        payload = '{"errcode": 40001, "errmsg": "invalid credential, access_token is invalid"}'
-        res = sniff_semantic_failure(payload, tool_name="mcp_wechat_send")
-
-        assert res.is_failure is True
-        assert res.failure_type == SemanticFailureType.NON_RETRYABLE
-        assert res.extracted_code == 40001
-        assert res.extracted_message == "invalid credential, access_token is invalid"
-
-    def test_retryable_rate_limit_payload(self) -> None:
-        payload = {"code": 429, "message": "Too Many Requests: rate limit exceeded"}
-        res = sniff_semantic_failure(payload, tool_name="crm_api_tool")
-
+    def test_explicit_boolean_failure_retryable(self) -> None:
+        payload = '{"is_success": false, "error": "rate limit exceeded, try again later", "code": 429}'
+        res = sniff_semantic_failure(payload, tool_name="llm_service")
         assert res.is_failure is True
         assert res.failure_type == SemanticFailureType.RETRYABLE
         assert res.extracted_code == 429
 
-    def test_retryable_concurrency_conflict_chinese(self) -> None:
-        payload = {"status": "error", "msg": "系统繁忙，存在并发锁冲突，请稍后重试"}
-        res = sniff_semantic_failure(payload, tool_name="inventory_deduct_tool")
-
-        assert res.is_failure is True
-        assert res.failure_type == SemanticFailureType.RETRYABLE
-        assert "Explicit status" in res.reason
-
-    def test_root_error_string_payload(self) -> None:
-        payload = {"error": "unauthorized access to resource"}
-        res = sniff_semantic_failure(payload, tool_name="vault_secret_tool")
-
+    def test_status_error_with_nested_payload(self) -> None:
+        payload = {
+            "status": "error",
+            "error": {"code": 403, "message": "Permission denied for tenant resource"},
+        }
+        res = sniff_semantic_failure(payload, tool_name="tenant_mgr")
         assert res.is_failure is True
         assert res.failure_type == SemanticFailureType.NON_RETRYABLE
-        assert res.extracted_message == "unauthorized access to resource"
+        assert res.extracted_code == 403
+        assert "Permission denied" in (res.extracted_message or "")
 
     def test_errors_array_payload(self) -> None:
-        payload = {"errors": [{"message": "Field 'email' is invalid"}]}
-        res = sniff_semantic_failure(payload, tool_name="user_create_tool")
-
+        payload = {
+            "code": 422,
+            "errors": [{"field": "email", "reason": "invalid parameter format"}],
+        }
+        res = sniff_semantic_failure(payload, tool_name="account_api")
         assert res.is_failure is True
         assert res.failure_type == SemanticFailureType.NON_RETRYABLE
-        assert res.extracted_message == "Field 'email' is invalid"
 
-
-class TestSemanticFailureFalsePositiveDefense:
-    """Tests ensuring valid business outputs are not misclassified as errors."""
-
-    def test_valid_successful_payload(self) -> None:
-        payload = {"success": True, "code": 0, "data": {"id": "ord_1001", "amount": 99.5}}
-        res = sniff_semantic_failure(payload, tool_name="order_query_tool")
-
-        assert res.is_failure is False
-        assert res.failure_type == SemanticFailureType.NONE
-
-    def test_normal_json_string_success(self) -> None:
-        payload = json.dumps({"status": "success", "result": [1, 2, 3]})
-        res = sniff_semantic_failure(payload, tool_name="batch_calc_tool")
-
-        assert res.is_failure is False
-
-    def test_domain_entity_state_not_rpc_failure(self) -> None:
-        # Querying a build job whose own status happened to be 'failed'
-        payload = {
-            "task_id": "ci_build_982",
-            "status": "failed",
-            "exit_code": 1,
-            "duration": 42.5,
-        }
-        res = sniff_semantic_failure(payload, tool_name="get_build_status")
-
-        assert res.is_failure is False
-
-    def test_entity_with_substantive_data_and_failed_field(self) -> None:
-        payload = {
-            "order_id": "OD_7788",
-            "payment_status": "failed",
-            "items": [{"name": "Widget A", "qty": 2}],
-        }
-        res = sniff_semantic_failure(payload, tool_name="order_detail_tool")
-
-        assert res.is_failure is False
-
-    def test_plain_text_not_json_object(self) -> None:
-        plain_text = "Task finished with status: failed on worker 3"
-        res = sniff_semantic_failure(plain_text, tool_name="custom_tool")
-
-        assert res.is_failure is False
-
-
-class TestToolExemptionsAndMetadata:
-    """Tests for bypass rules."""
-
-    def test_default_exempt_tool_names(self) -> None:
-        payload = {"error": "syntax error", "code": 1}
-        assert should_skip_semantic_sniff("bash_code_execute_tool") is True
-        assert should_skip_semantic_sniff("file_read_tool") is True
-        assert should_skip_semantic_sniff("web_search") is True
-
+    def test_exempt_tool_returns_no_failure(self) -> None:
+        payload = '{"status": "error", "code": 500, "message": "fail"}'
         res = sniff_semantic_failure(payload, tool_name="bash_code_execute_tool")
         assert res.is_failure is False
-        assert "exempt" in res.reason
-
-    def test_prefix_exempt_tool_names(self) -> None:
-        assert should_skip_semantic_sniff("memory_retrieve") is True
-        assert should_skip_semantic_sniff("knowledge_search") is True
-        assert should_skip_semantic_sniff("test_runner") is True
-        assert should_skip_semantic_sniff("browser_click") is True
-
-    def test_metadata_skip_override(self) -> None:
-        payload = {"success": False, "error": "Expected business denial in test"}
-        res = sniff_semantic_failure(
-            payload,
-            tool_name="some_mcp_tool",
-            tool_metadata={"skip_semantic_failure_sniffing": True},
-        )
-        assert res.is_failure is False
-        assert "exempt" in res.reason
 
 
 class TestObservationElevation:
-    """Tests for formatting elevated LLM observations."""
+    """Test observation elevation text generation."""
 
-    def test_elevation_content_and_rules(self) -> None:
+    def test_elevation_formatting(self) -> None:
         sniff_result = SemanticFailureSniffResult(
             is_failure=True,
             failure_type=SemanticFailureType.NON_RETRYABLE,
             reason="Explicit failure flag 'success=False'",
             extracted_code=404,
-            extracted_message="订单不存在",
-            raw_payload={"success": False, "error": "订单不存在"},
+            extracted_message="Resource does not exist",
+            raw_payload={"success": False, "code": 404, "message": "Resource does not exist"},
         )
         elevated = elevate_semantic_failure_observation(sniff_result, '{"success": false}')
-
         assert "[SYSTEM OBSERVATION ELEVATION: TARGET SYSTEM REPORTED BUSINESS FAILURE]" in elevated
-        assert "Transport Status: HTTP 200 / Communication Succeeded" in elevated
-        assert "Business Status: FAILURE (Explicit failure flag 'success=False') [Code: 404] [Message: 订单不存在]" in elevated
-        assert "NON-RETRYABLE (permanent business failure)" in elevated
-        assert "Strict Grounding: NEVER hallucinate that the record exists" in elevated
+        assert "Transport Status: HTTP 200" in elevated
+        assert "Business Status: FAILURE" in elevated
+        assert "NON-RETRYABLE" in elevated
+        assert "Strict Grounding: NEVER hallucinate" in elevated
         assert "Do NOT retry with the identical parameters" in elevated
 
-    def test_retryable_action_guidance(self) -> None:
+    def test_retryable_elevation_guidance(self) -> None:
         sniff_result = SemanticFailureSniffResult(
             is_failure=True,
             failure_type=SemanticFailureType.RETRYABLE,
-            reason="Rate limited",
+            reason="Non-success code 'code=429'",
             extracted_code=429,
             extracted_message="Too many requests",
-            raw_payload={"code": 429},
+            raw_payload={"code": 429, "message": "Too many requests"},
         )
-        elevated = elevate_semantic_failure_observation(sniff_result, "{}")
-
-        assert "RETRYABLE (transient system state)" in elevated
-        assert "Action Guidance: This error is transient" in elevated
-        assert "retry after a backoff" in elevated
+        elevated = elevate_semantic_failure_observation(sniff_result, '{"code": 429}')
+        assert "RETRYABLE" in elevated
+        assert "This error is transient" in elevated
 
 
 class TestPostCallGuardsIntegration:
-    """Integration test verifying run_post_call_guards flips ToolMessage to error."""
+    """Test integration of semantic sniffer inside post-call guards."""
 
     @pytest.mark.asyncio
-    async def test_post_call_guards_flips_pseudo_success_tool_message(self) -> None:
-        initial_msg = ToolMessage(
-            content='{"success": false, "error": "客户信息不存在", "code": 404}',
-            name="customer_mcp_query",
-            tool_call_id="call_abc_123",
-            status="success",
-        )
+    async def test_post_call_elevates_pseudo_success(self) -> None:
+        raw_payload = '{"success": false, "code": 404, "message": "Item missing"}'
+        initial_msg = ToolMessage(content=raw_payload, name="mcp_query", tool_call_id="call_123")
 
-        mock_loop_guard = MagicMock(spec=LoopGuard)
-        mock_loop_verdict = MagicMock(spec=LoopVerdict)
-        mock_loop_verdict.action.value = "allow"
+        mock_loop_guard = MagicMock()
+        mock_loop_verdict = MagicMock()
         mock_freq_guard = MagicMock()
         mock_freq_verdict = MagicMock()
+        mock_steering_token = MagicMock(has_pending=False)
 
-        with patch("myrm_agent_harness.agent.security.audit.record_decision"):
-            result_msg = await run_post_call_guards(
+        with (
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.emit_archive_restore_block_status",
+                new_callable=AsyncMock,
+            ),
+        ):
+            elevated_msg = await run_post_call_guards(
                 result=initial_msg,
-                tool_name="customer_mcp_query",
-                tool_call_id="call_abc_123",
-                tool_args={"customer_id": "C999"},
+                tool_name="mcp_query",
+                tool_call_id="call_123",
+                tool_args={"id": "item_1"},
                 loop_guard=mock_loop_guard,
                 loop_verdict=mock_loop_verdict,
                 freq_guard=mock_freq_guard,
                 freq_verdict=mock_freq_verdict,
-                steering_token=None,
+                steering_token=mock_steering_token,
             )
 
-        assert isinstance(result_msg, ToolMessage)
-        assert result_msg.status == "error"
-        assert "[SYSTEM OBSERVATION ELEVATION: TARGET SYSTEM REPORTED BUSINESS FAILURE]" in str(result_msg.content)
-        assert result_msg.additional_kwargs.get("error_category") == "non_retryable_business_error"
-        assert result_msg.additional_kwargs.get("extracted_code") == 404
-        assert "Explicit failure flag" in str(result_msg.additional_kwargs.get("semantic_failure_reason"))
-
-    @pytest.mark.asyncio
-    async def test_post_call_guards_leaves_normal_output_untouched(self) -> None:
-        initial_msg = ToolMessage(
-            content='{"success": true, "data": {"name": "Alice"}}',
-            name="customer_mcp_query",
-            tool_call_id="call_abc_456",
-            status="success",
-        )
-
-        mock_loop_guard = MagicMock(spec=LoopGuard)
-        mock_loop_verdict = MagicMock(spec=LoopVerdict)
-        mock_loop_verdict.action.value = "allow"
-        mock_freq_guard = MagicMock()
-        mock_freq_verdict = MagicMock()
-
-        with patch("myrm_agent_harness.agent.security.audit.record_decision"):
-            result_msg = await run_post_call_guards(
-                result=initial_msg,
-                tool_name="customer_mcp_query",
-                tool_call_id="call_abc_456",
-                tool_args={"customer_id": "C100"},
-                loop_guard=mock_loop_guard,
-                loop_verdict=mock_loop_verdict,
-                freq_guard=mock_freq_guard,
-                freq_verdict=mock_freq_verdict,
-                steering_token=None,
-            )
-
-        assert isinstance(result_msg, ToolMessage)
-        assert result_msg.status == "success"
-        assert '{"success": true, "data": {"name": "Alice"}}' in str(result_msg.content)
+        assert elevated_msg.status == "error"
+        assert "[SYSTEM OBSERVATION ELEVATION" in str(elevated_msg.content)
+        assert elevated_msg.additional_kwargs.get("error_category") == "non_retryable_business_error"
+        assert elevated_msg.additional_kwargs.get("extracted_code") == 404

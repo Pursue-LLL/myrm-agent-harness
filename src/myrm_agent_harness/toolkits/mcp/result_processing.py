@@ -183,6 +183,17 @@ def normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
     is_error = bool(getattr(result, "is_error", None))
     structured = getattr(result, "structured_content", None)
 
+    # Detect SEP-2145 explicit structured error indicator when is_error transport flag was omitted
+    if not is_error and isinstance(structured, dict) and (
+        structured.get("isError") is True
+        or structured.get("is_error") is True
+        or (
+            str(structured.get("status") or "").lower() in ("error", "failed", "failure")
+            and (structured.get("error") or structured.get("message") or structured.get("code"))
+        )
+    ):
+        is_error = True
+
     coerced: list[dict[str, object]] = []
     for block in content_blocks:
         if isinstance(block, dict):

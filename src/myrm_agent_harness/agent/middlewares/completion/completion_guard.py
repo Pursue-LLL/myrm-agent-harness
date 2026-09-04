@@ -81,6 +81,7 @@ from myrm_agent_harness.agent.middlewares.completion.completion_guard_checklist 
 )
 from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
     build_external_evidence_reason,
+    extract_latest_human_text,
 )
 from myrm_agent_harness.agent.middlewares.completion.completion_guard_safety import (
     _INTERACTION_UI_TOOLS,
@@ -88,6 +89,9 @@ from myrm_agent_harness.agent.middlewares.completion.completion_guard_safety imp
 )
 from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier import (
     check_deliverable_write_claim,
+)
+from myrm_agent_harness.agent.middlewares.completion.query_grounding_verifier import (
+    check_query_grounding_claim,
 )
 from myrm_agent_harness.agent.orchestration.hooks import COMPLETION_CHECK_TOOL_NAME
 from myrm_agent_harness.agent.security.guards.loop_guard import (
@@ -117,6 +121,7 @@ def _completion_check_tool(
     force_fail: bool = False,
     evidence_reason: str = "",
     deliverable_write_reason: str = "",
+    query_grounding_reason: str = "",
 ) -> str:
     """Generate a task-aware verification checklist before finishing.
 
@@ -148,6 +153,14 @@ def _completion_check_tool(
             f"Reason: {deliverable_write_reason}\n"
             "Before finishing, call file_write_tool or file_edit_tool to persist the file, "
             "or revise the response to remove the false write claim."
+        )
+
+    if query_grounding_reason.strip():
+        return (
+            " CRITICAL COMPLETION CHECK: Entity query observation ungrounded.\n"
+            f"Reason: {query_grounding_reason}\n"
+            "Before finishing, execute the appropriate query or MCP tool to retrieve verified data, "
+            "or revise the response to honestly state the missing status or tool failure to the user."
         )
 
     from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
@@ -320,7 +333,13 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                             )
                             is not None
                         )
-                        if requires_evidence:
+                        latest_user_text = extract_latest_human_text(messages)
+                        query_grounding_reason = check_query_grounding_claim(
+                            user_text=latest_user_text,
+                            assistant_text=content_str,
+                            records=filtered,
+                        )
+                        if requires_evidence or query_grounding_reason is not None:
                             return None
                         logger.info(
                             "[CompletionGuard] Mixed message detected: content is substantive "
@@ -356,12 +375,28 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             records=filtered_records,
         )
         deliverable_write_reason: str | None = None
+        latest_human_for_grounding = extract_latest_human_text(messages)
+        query_grounding_reason: str | None = None
         if last_ai_msg.content:
             content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content)
             deliverable_write_reason = check_deliverable_write_claim(content_str, filtered_records)
+            query_grounding_reason = check_query_grounding_claim(
+                user_text=latest_human_for_grounding,
+                assistant_text=content_str,
+                records=filtered_records,
+            )
+        else:
+            query_grounding_reason = check_query_grounding_claim(
+                user_text=latest_human_for_grounding,
+                assistant_text="",
+                records=filtered_records,
+            )
+
         if evidence_reason is not None:
             has_critical_errors = True
         if deliverable_write_reason is not None:
+            has_critical_errors = True
+        if query_grounding_reason is not None:
             has_critical_errors = True
 
         if not has_critical_errors:
@@ -372,7 +407,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         # modified AFTER the last successful verification. Other critical errors
         # (no verification, failed verification, empty tests, execution failures)
         # must NOT be bypassed by independent re-run.
-        if evidence_reason is None:
+        if evidence_reason is None and query_grounding_reason is None:
             has_code_writes = any(
                 get_tool_group(r.tool_name) == ToolGroup.WRITE and _is_code_file(str(r.args.get("path", "")))
                 for r in filtered_records
@@ -406,6 +441,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 forced_args["evidence_reason"] = evidence_reason
             if deliverable_write_reason is not None:
                 forced_args["deliverable_write_reason"] = deliverable_write_reason
+            if query_grounding_reason is not None:
+                forced_args["query_grounding_reason"] = query_grounding_reason
             patched = deepcopy(last_ai_msg)
             patched.tool_calls = [
                 {
@@ -430,6 +467,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             tool_args["evidence_reason"] = evidence_reason
         if deliverable_write_reason is not None:
             tool_args["deliverable_write_reason"] = deliverable_write_reason
+        if query_grounding_reason is not None:
+            tool_args["query_grounding_reason"] = query_grounding_reason
         patched = deepcopy(last_ai_msg)
         patched.tool_calls = [
             {

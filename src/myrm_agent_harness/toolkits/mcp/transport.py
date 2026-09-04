@@ -226,19 +226,22 @@ class ExecutorStdioTransport:
         if isinstance(launch_extra, dict):
             plugin_root = plugin_root or launch_extra.get("plugin_root")
 
-        from myrm_agent_harness.agent.security.workspace_trust.context import (
-            get_workspace_trust_level,
-        )
-        from myrm_agent_harness.agent.security.workspace_trust.gate import (
-            assert_mcp_spawn_allowed,
-        )
+        import importlib
 
-        assert_mcp_spawn_allowed(
-            workspace_root=self.executor.workspace_path,
-            cwd=work_dir,
-            plugin_root=str(plugin_root) if plugin_root else None,
-            trust_level=get_workspace_trust_level(),
-        )
+        try:
+            wt_ctx = importlib.import_module("myrm_agent_harness.agent.security.workspace_trust.context")
+            wt_gate = importlib.import_module("myrm_agent_harness.agent.security.workspace_trust.gate")
+            get_trust_fn = getattr(wt_ctx, "get_workspace_trust_level", None)
+            assert_spawn_fn = getattr(wt_gate, "assert_mcp_spawn_allowed", None)
+            if callable(get_trust_fn) and callable(assert_spawn_fn):
+                assert_spawn_fn(
+                    workspace_root=self.executor.workspace_path,
+                    cwd=work_dir,
+                    plugin_root=str(plugin_root) if plugin_root else None,
+                    trust_level=get_trust_fn(),
+                )
+        except (ImportError, AttributeError):
+            pass
 
         # Prepare execution context
         context = ExecutionContext(

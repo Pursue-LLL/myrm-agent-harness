@@ -420,7 +420,7 @@ class TestMemoryManagerBM25Integration:
         await search_bm25("test", mock_vector_store, memory_config)
 
         mock_vector_store.scroll.assert_any_call(
-            memory_config.semantic_collection, limit=5000, filters={"archived": False}
+            memory_config.semantic_collection, limit=5000, filters={"archived": {"not": True}}
         )
 
 

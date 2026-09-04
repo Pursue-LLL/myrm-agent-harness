@@ -33,6 +33,12 @@ from myrm_agent_harness.agent.middlewares.completion.deliverable_confidence_tier
 from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier import (
     check_deliverable_write_claim,
 )
+from myrm_agent_harness.agent.middlewares.completion.query_grounding_verifier import (
+    check_query_grounding_claim,
+    detect_entity_query_intent,
+    has_successful_query_evidence,
+    is_honest_negative_or_clarification,
+)
 from myrm_agent_harness.agent.orchestration.hooks import COMPLETION_CHECK_TOOL_NAME
 
 __all__ = [
@@ -43,7 +49,11 @@ __all__ = [
     "DeliverableTierMetadata",
     "build_checklist",
     "check_deliverable_write_claim",
+    "check_query_grounding_claim",
     "classify_verification",
+    "detect_entity_query_intent",
+    "has_successful_query_evidence",
+    "is_honest_negative_or_clarification",
     "is_mutating_tool",
     "reset_completion_guard",
     "resolve_deliverable_tier",

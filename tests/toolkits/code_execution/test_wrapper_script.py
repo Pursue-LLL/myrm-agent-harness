@@ -304,6 +304,16 @@ class TestAsyncExecutionModesEndToEnd:
                 "import sys\nprint('MARK_SYS_EXIT_ZERO')\nsys.exit(0)",
                 "MARK_SYS_EXIT_ZERO",
             ),
+            (
+                "from_asyncio_import_run_single_execution",
+                "from asyncio import run\ncount = 0\nasync def main():\n    global count\n    count += 1\n    print(f'MARK_FROM_IMPORT_COUNT_{count}')\nrun(main())",
+                "MARK_FROM_IMPORT_COUNT_1",
+            ),
+            (
+                "import_asyncio_as_aio_single_execution",
+                "import asyncio as aio\ncount = 0\nasync def main():\n    global count\n    count += 1\n    print(f'MARK_AIO_COUNT_{count}')\naio.run(main())",
+                "MARK_AIO_COUNT_1",
+            ),
         ],
     )
     def test_mode_runs_in_subprocess(

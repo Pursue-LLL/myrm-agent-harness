@@ -111,9 +111,9 @@ asyncio.run(main())
 
 ## 严格禁止
 
-- 禁止写注释(一次性脚本无需注释,节省 token)。
-- 严禁假设、猜测返回值结构。
-- 禁止调试代码、乱用 print。
+- 严禁添加非必要的解释性注释，只输出纯净可执行代码。
+- 严禁盲目假设未知返回值结构，遇到未知数据必须先通过 `[OBSERVATION]` 探测。
+- 严禁输出多余的无意义 print，标准输出严格仅允许 `[OBSERVATION]` 与 `[RESULT]`。
 
 ## 输出格式(仅允许以下两种)
 
@@ -207,9 +207,9 @@ Prefer `/workspace/...` (default working directory) in commands and Python code.
 - **Bash**: Persistent across turns within the current session (isolated per chat session); environment variables, working directory, and shell functions remain active.
 
 ## Prohibitions
-- Do NOT write comments in disposable scripts (saves tokens).
-- NEVER assume or guess return value structures.
-- Do NOT leave debug code or superfluous print statements.
+- Do NOT add unnecessary explanatory comments; output clean, executable code only.
+- NEVER assume unknown return structures; always inspect unfamiliar data with `[OBSERVATION]` first.
+- Do NOT emit superfluous print statements; stdout is strictly restricted to `[OBSERVATION]` and `[RESULT]`.
 
 ## Output Format (Only two allowed)
 - `print(f"[OBSERVATION] {variable}")` — Inspect unknown return value structures.
