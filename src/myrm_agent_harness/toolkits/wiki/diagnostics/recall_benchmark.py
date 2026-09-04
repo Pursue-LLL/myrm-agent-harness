@@ -6,7 +6,11 @@
 - ..retrieval.indexer::WikiIndexer (POS: FTS5 hybrid search)
 
 [OUTPUT]
-- WikiRecallBenchmarkCase/Result/Summary, run_wiki_recall_benchmark, summarize_wiki_recall_benchmark
+- WikiRecallBenchmarkCase: query and expected concept case definition
+- WikiRecallBenchmarkResult: single benchmark execution result
+- WikiRecallBenchmarkSummary: aggregate benchmark metrics and summary
+- run_wiki_recall_benchmark: executes deterministic offline retrieval benchmark
+- summarize_wiki_recall_benchmark: calculates recall@k and summary statistics
 
 [POS]
 Offline retrieval quality probe. Measures whether expected concepts appear in top-k

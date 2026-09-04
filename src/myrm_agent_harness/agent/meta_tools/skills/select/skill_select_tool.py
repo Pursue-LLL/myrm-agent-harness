@@ -148,12 +148,27 @@ def create_select_skill_tool(
                     selected_skills_info.append(f"# {skill_name}\n\nError: failed to load skill document")
                     record_skill_selection(skill_meta, success=False)
 
-        skill_docs_formatted: list[str] = []
+        skill_entries: list[str] = []
         for idx, skill_name in enumerate(skill_names):
-            if idx < len(selected_skills_info):
-                skill_docs_formatted.append(f"{skill_name}：{selected_skills_info[idx]}")
+            if idx >= len(selected_skills_info):
+                continue
+            info = selected_skills_info[idx]
+            is_err = (
+                info.lstrip().startswith("Error:")
+                or f"Error: skill '{skill_name}'" in info
+                or "Error: failed to load" in info
+                or "Error: file '" in info
+            )
+            status = "error" if is_err else "ready"
+            safe_info = (
+                info.replace("</skill_entry>", "&lt;/skill_entry&gt;")
+                .replace("</skills_sop>", "&lt;/skills_sop&gt;")
+            )
+            skill_entries.append(
+                f'<skill_entry name="{skill_name}" status="{status}">\n{skill_name}：{safe_info}\n</skill_entry>'
+            )
 
-        return f"<skills_sop>\n{chr(10).join(skill_docs_formatted)}\n</skills_sop>"
+        return f"<skills_sop>\n{chr(10).join(skill_entries)}\n</skills_sop>"
 
     from myrm_agent_harness.utils.tool_dynamic_hints import with_dynamic_hints
 

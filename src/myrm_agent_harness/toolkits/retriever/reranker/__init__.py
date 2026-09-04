@@ -1,33 +1,14 @@
 """Reranker Service Toolkit.
 
-Unified cloud reranking API abstraction layer:
-- Cohere Rerank API (via LiteLLM)
-- Jina AI Reranker API (via LiteLLM)
-- Voyage AI Reranker API (via LiteLLM)
-- OpenAI-compatible endpoints (SiliconFlow, etc.)
+[INPUT]
+- .base::RerankerService (POS: abstract reranker interface)
+- .factory::RerankerConfig, get_reranker_service (POS: reranker factory)
 
-Example:
-    ```python
-    from myrm_agent_harness.toolkits.retriever.reranker import (
-        RerankerConfig,
-        RerankerService,
-        get_reranker_service,
-    )
+[OUTPUT]
+- RerankerConfig, RerankerService, get_reranker_service
 
-    # Create config and get service instance
-    config = RerankerConfig(
-        model="cohere/rerank-v3.5",
-        api_key="your_api_key"
-    )
-    service = get_reranker_service(config)
-
-    # Rerank documents
-    results = await service.rerank(
-        query="What is AI?",
-        documents=["AI is...", "Machine learning..."],
-        top_k=5
-    )
-    ```
+[POS]
+Reranker 模块门面入口。提供统一的重排序接口抽象与服务工厂。
 """
 
 from myrm_agent_harness.toolkits.retriever.reranker.base import RerankerService

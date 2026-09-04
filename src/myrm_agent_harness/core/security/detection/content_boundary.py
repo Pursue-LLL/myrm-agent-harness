@@ -154,7 +154,10 @@ def _fold_unicode(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 _STRUCTURAL_FRAMING_RE = re.compile(
-    r"</?(?:tool_call|function_call|result|response|output|input|system|assistant|user)>"
+    r"</?(?:tool_call|function_call|result|response|output|input|system|assistant|user"
+    r"|skills_sop|skill_entry|data_boundary_rules|user_instructions|workspace_context|user_memory_context|bound_skills"
+    r"|system_notification|graph_patch|verification_evidence|handover|preserve_context|pre_compact_recall_context"
+    r"|sandbox_environment_snapshot|untrusted_objective)(?:[\s/][^>]*)?>"
     r"|<\|(?:im_start|im_end|endoftext)\|>"
     r"|<!\[CDATA\[.*?\]\]>"
     r"|^\s*```(?:json|xml|html|markdown|python|bash|sh|javascript|typescript)?\s*$"
@@ -344,19 +347,28 @@ def extract_wrapped_payload(text: str) -> str:
 
     LLM-facing tool results stay wrapped; programmatic MCP skill returns must be
     unwrapped so Python code receives plain dates/JSON, not security boundary text.
+    Uses Nonce-aware symmetric pairing to prevent accidental or malicious premature truncation.
     """
     stripped = text.strip()
     for marker in ("UNTRUSTED_DATA", "TOOL_OUTPUT"):
         open_tag = f"<<<{marker}"
-        close_tag = f"<<<END_{marker}"
         if open_tag not in stripped:
             continue
         start = stripped.find(open_tag)
         after_open = stripped.find("\n", start)
         if after_open == -1:
             continue
+        open_header = stripped[start:after_open]
+        id_match = re.search(r'id="([^"]+)"', open_header)
         body = stripped[after_open + 1 :]
-        close_idx = body.find(close_tag)
+        close_idx = -1
+        if id_match:
+            open_id = id_match.group(1)
+            target_close = f'<<<END_{marker} id="{open_id}">>>'
+            close_idx = body.find(target_close)
+        if close_idx == -1:
+            close_tag = f"<<<END_{marker}"
+            close_idx = body.find(close_tag)
         if close_idx == -1:
             continue
         inner = body[:close_idx].rstrip("\n")

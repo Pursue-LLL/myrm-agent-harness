@@ -1,23 +1,15 @@
 """Hybrid retrieval module.
 
-provides BM25 + Vector检索 混合检索能力，Support重Sort and 多Query融合。
+[INPUT]
+- .coordinator::HybridSearchCoordinator (POS: hybrid search coordinator)
+- .fusion_pipeline::FusionPipeline (POS: multi-query fusion and autocut)
+- .reranking_pipeline::RerankingPipeline (POS: document reranking pipeline)
 
-coreComponent：
-- HybridSearchCoordinator: 混合检索协调器（主入口）
-- FusionPipeline: Result融合管道
-- RerankingPipeline: 重Sort管道
+[OUTPUT]
+- FusionPipeline, HybridSearchCoordinator, RerankingPipeline
 
-Usage example：
-    ```python
-    from myrm_agent_harness.toolkits.retriever.hybrid_search import HybridSearchCoordinator
-
-    coordinator = HybridSearchCoordinator()
-    results = await coordinator.search(
-        queries=["Python tutorial", "Machine learning"],
-        documents=[doc1, doc2, doc3],
-        final_top_k=10,
-    )
-    ```
+[POS]
+Hybrid Search 混合检索管道模块入口。聚合协调稠密向量、稀疏 BM25、RRF 融合与重排。
 """
 
 from myrm_agent_harness.toolkits.retriever.hybrid_search.coordinator import HybridSearchCoordinator

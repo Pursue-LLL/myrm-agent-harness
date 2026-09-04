@@ -9,7 +9,7 @@ and sidecar-first hierarchical retrieval (L0/L1 route + L2 article grounding).
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Init | — |
+| `__init__.py` | Package | Wiki 检索域入口包：导出 `WikiIndexer` 与 `WikiQueryEngine` | ✅ |
 | indexer.py | Core | FTS5+Qdrant hybrid indexer for L2 concepts; `wiki_index_meta` publish_status gate; weighted edge storage + `get_outgoing_edges`; federated search | ✅ |
 | sidecar_index.py | Core | SidecarIndexMixin: L0/L1 directory sidecar FTS5+Qdrant indexing, search, and lifecycle (inherited by WikiIndexer) | ✅ |
 | tokenizer.py | Core | FTS5 query tokenizer with CJK bigram support; `extract_query_terms()` shared with index routing | ✅ |

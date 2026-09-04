@@ -1,9 +1,14 @@
 """Retrieval Sufficiency Guard (RSG) — evaluate retrieval quality before answering.
 
-Public API:
-- evaluate_sufficiency(): Evaluate whether retrieval results adequately cover a query.
-- SufficiencyVerdict: Evaluation result dataclass.
-- SufficiencyConfig: Configuration for activation and behavior.
+[INPUT]
+- .evaluator::evaluate_sufficiency (POS: evaluate retrieval adequacy)
+- .types::SufficiencyConfig, SufficiencyVerdict (POS: evaluation config and verdict dataclass)
+
+[OUTPUT]
+- evaluate_sufficiency, SufficiencyConfig, SufficiencyVerdict
+
+[POS]
+Retrieval Sufficiency Guard 模块入口。提供检索后质量评估与判定结果导出。
 """
 
 from .evaluator import evaluate_sufficiency

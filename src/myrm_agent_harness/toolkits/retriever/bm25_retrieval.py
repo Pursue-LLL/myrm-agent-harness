@@ -386,7 +386,6 @@ class BM25Retriever:
                 getattr(self.bm25, "idf", None),
                 doc_count=len(self.valid_processed_docs),
                 max_terms=max_query_terms,
-                min_corpus_docs=min_corpus_docs,
             )
 
         preprocess_time = time.perf_counter() - preprocess_start_time

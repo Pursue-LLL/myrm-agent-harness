@@ -33,6 +33,8 @@ _DIFF_FOLD_THRESHOLD = 3
 _MAX_UNCHANGED_DISPLAY = 10
 _MAX_LINE_CHARS = 500
 _FALLBACK_DIFF_RATIO = 0.6
+_MIN_FALLBACK_LINES = 10
+_MIN_FALLBACK_CHANGES = 6
 _CONTAINER_KEYWORDS = (
     "[dialog",
     "[modal",
@@ -45,7 +47,7 @@ _CONTAINER_KEYWORDS = (
     "[drawer",
     "[sheet",
 )
-_IDENTICAL_NOTICE = "=== Snapshot: No DOM changes detected since last snapshot ==="
+_IDENTICAL_NOTICE = "=== Snapshot diff: No DOM changes detected since last snapshot ==="
 
 
 @dataclasses.dataclass(frozen=True)
@@ -242,9 +244,14 @@ class SnapshotDiffEngine:
 
         # 2. Adaptive Diff Fallback Circuit Breaker
         prev_len = len(self._prev_original)
-        if prev_len > 0 and ((added_count + removed_count) / max(1, prev_len) > _FALLBACK_DIFF_RATIO):
+        total_changes = added_count + removed_count
+        if (
+            prev_len >= _MIN_FALLBACK_LINES
+            and total_changes >= _MIN_FALLBACK_CHANGES
+            and (total_changes / prev_len > _FALLBACK_DIFF_RATIO)
+        ):
             logger.info(
-                f"Adaptive diff fallback triggered: change ratio ({(added_count + removed_count) / prev_len:.2f}) "
+                f"Adaptive diff fallback triggered: change ratio ({total_changes / prev_len:.2f}) "
                 f"> {_FALLBACK_DIFF_RATIO}. Returning full snapshot to preserve context."
             )
             return DiffOutput(

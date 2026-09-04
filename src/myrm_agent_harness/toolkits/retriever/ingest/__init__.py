@@ -1,7 +1,16 @@
 """Dual-Lane Ingest Pipeline package.
 
-Provides high-throughput, bounded-backpressure data and knowledge ingestion
-with decoupled Object Lane (micro chunks) and Job Lane (macro directory tree summarization).
+[INPUT]
+- .consumer::BatchEmbedConsumer (POS: bounded queue drainer with batch embedding)
+- .pipeline::DualLaneIngestPipeline (POS: main coordinator for dual-lane ingestion)
+- .tree::DirTreeBuilder (POS: in-memory directory DAG builder)
+- .types::Chunk, DirNode, EndOfTask, IngestEvent, IngestStats, TaskEnvelope, TaskStatus (POS: data contracts)
+
+[OUTPUT]
+- BatchEmbedConsumer, DualLaneIngestPipeline, DirTreeBuilder, Chunk, IngestEvent, TaskEnvelope
+
+[POS]
+Retriever Ingest 双车道管道模块入口。解耦原子微切片与宏观目录树拓扑聚合，提供常量内存级大规模入库。
 """
 
 from __future__ import annotations

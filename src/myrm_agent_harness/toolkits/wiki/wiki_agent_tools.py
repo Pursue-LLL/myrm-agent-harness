@@ -11,8 +11,8 @@
 - core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP, fallback path)
 
 [OUTPUT]
-- create_wiki_tools(): creates 3 LangChain agent tools (ingest, query, apply)
-- create_wiki_admin_tools(): creates compile/maintain tools for REST and tests
+- create_wiki_tools: creates 3 LangChain agent tools (ingest, query, apply)
+- create_wiki_admin_tools: creates compile/maintain tools for REST and tests
 - retrieval.source_citations::build_wiki_query_sources (POS: Shared wiki citation metadata builder)
 
 [POS]

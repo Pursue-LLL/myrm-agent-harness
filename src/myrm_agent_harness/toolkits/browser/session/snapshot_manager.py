@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.browser.snapshot import SnapshotMeta
 
-from .snapshot_diff import _REF_PREFIX_RE, SnapshotDiffEngine
+from .snapshot_diff import _REF_PREFIX_RE, DiffOutput, SnapshotDiffEngine
 from .snapshot_result import SnapshotResult
 from .snapshot_suggestion import generate_snapshot_suggestion
 
@@ -131,9 +131,11 @@ class SnapshotManager:
         )
 
         original_tree = aria_tree
+        diff_output: DiffOutput | None = None
         is_diff_output = diff and self._diff.has_baseline()
         if is_diff_output:
-            aria_tree = self._diff.generate_diff(original_tree, refs, max_tokens, _ESTIMATED_CHARS_PER_TOKEN)
+            diff_output = self._diff.compute_diff(original_tree, refs, max_tokens, _ESTIMATED_CHARS_PER_TOKEN)
+            aria_tree = diff_output.diff_text
 
         if update_baseline:
             self._diff.update_baseline(original_tree, refs)
@@ -145,7 +147,8 @@ class SnapshotManager:
             aria_tree=aria_tree,
             refs=MappingProxyType(refs),
             meta=meta,
-            is_incremental=is_diff_output,
+            is_incremental=is_diff_output and not (diff_output is not None and diff_output.is_fallback_full),
+            diff_output=diff_output,
         )
 
     def reset_diff_baseline(self) -> None:

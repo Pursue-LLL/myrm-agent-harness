@@ -7,7 +7,11 @@
 
 [OUTPUT]
 - StructuralLintSnapshot: aggregate counts for product stats surfaces
-- collect_broken_link_issues, collect_broken_wikilink_issues, collect_invalid_frontmatter_type_issues, collect_provenance_gap_issues, build_wikilink_title_index
+- collect_broken_link_issues: scans and returns broken markdown link issues
+- collect_broken_wikilink_issues: scans and returns broken Obsidian wikilink issues
+- collect_invalid_frontmatter_type_issues: scans and returns invalid frontmatter type issues
+- collect_provenance_gap_issues: scans and returns provenance gap issues
+- build_wikilink_title_index: builds wikilink target-to-filepath lookup index
 
 [POS]
 Zero-LLM structural lint SSOT. Used by WikiLinter and server /wiki/stats without

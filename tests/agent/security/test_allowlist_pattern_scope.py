@@ -90,3 +90,44 @@ async def test_pattern_allowlist_skips_compound_shell_command() -> None:
         "bash_code_execute_tool",
         command="npm install && rm -rf /",
     )
+
+
+@pytest.mark.asyncio
+async def test_time_bound_allowlist_expires_and_auto_revokes() -> None:
+    allowlist = get_allowlist()
+
+    # 1. Add time-bound entry with ttl_seconds = 1.0
+    await add_to_allowlist_if_needed(
+        allow_always={"tool": True, "ttl_seconds": 0.5},
+        user_id="user_ttl",
+        permission_type="code_interpreter",
+        tool_name="bash_code_execute_tool",
+    )
+
+    # Immediately should pass
+    assert allowlist.check(
+        "user_ttl",
+        "code_interpreter",
+        "bash_code_execute_tool",
+    )
+
+    # Active grants should list 1 entry
+    active = await allowlist.list_active_grants("user_ttl")
+    assert len(active) == 1
+    assert active[0].expires_at is not None
+
+    # Wait for expiration
+    import asyncio
+    await asyncio.sleep(0.6)
+
+    # Now check should fail and auto-revoke/prune
+    assert not allowlist.check(
+        "user_ttl",
+        "code_interpreter",
+        "bash_code_execute_tool",
+    )
+
+    # Active grants should be empty
+    active_after = await allowlist.list_active_grants("user_ttl")
+    assert len(active_after) == 0
+

@@ -100,16 +100,7 @@ async def test_federated_query_engine_loads_public_article(
         config=cfg,
         indexer=primary_indexer,
     )
-    import traceback
-    try:
-        sr = await engine._search_concepts("event-driven messaging", None)
-        print("DEBUG_SR:", sr)
-        seeds = await engine._collect_retrieval_seeds("event-driven messaging", primary_struct.list_concepts(), index_matches=[], seed_names=[], top_n=5, query_config=engine._query_config)
-        print("DEBUG_SEEDS:", seeds)
-        res = await engine.query("event-driven messaging")
-    except Exception as e:
-        traceback.print_exc()
-        raise e
-    print("DEBUG_RES:", res)
+
+    res = await engine.query("event-driven messaging")
     assert res.confidence_score > 0
     assert any("architecture_guideline" in str(s.article_path) for s in res.source_snippets)

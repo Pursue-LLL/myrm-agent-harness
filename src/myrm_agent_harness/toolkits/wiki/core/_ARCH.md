@@ -8,7 +8,7 @@ knowledge direction, compile/query configs, and recursive file system operations
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Init | — |
+| `__init__.py` | Package | Wiki 核心模块入口包：聚合导出配置、结构与核心数据模型 | ✅ |
 | config.py | Config | WikiConfig, WikiQueryConfig (incl. index_first/sidecar/best-first/raw_claim knobs), WikiCompileConfig | ✅ |
 | parsers.py | Core | LLM response parsers — JSON (via `parse_llm_json_list`, robust against fences, prose, bare control chars, trailing commas) and bullet-point format to ConceptInfo list | ✅ |
 | structure.py | Core | File system layout, OKF paths (`index.md`, `log.md`, `hot.md`, `SCHEMA.md`), directory sidecar helpers, tree CRUD | ✅ |

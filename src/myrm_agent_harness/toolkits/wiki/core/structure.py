@@ -112,12 +112,18 @@ class WikiStructure:
         local_path = self.concepts_dir / f"{safe_path}.md"
         if local_path.is_file():
             return local_path
+        direct_local = self.concepts_dir / f"{clean_path}.md"
+        if direct_local.is_file():
+            return direct_local
 
         for p_dir in self.public_dirs[:6]:
             try:
                 public_path = p_dir / "wiki" / "concepts" / f"{safe_path}.md"
                 if public_path.is_file():
                     return public_path
+                direct_pub_concepts = p_dir / "wiki" / "concepts" / f"{clean_path}.md"
+                if direct_pub_concepts.is_file():
+                    return direct_pub_concepts
                 direct_path = p_dir / concept_path
                 if direct_path.is_file():
                     return direct_path

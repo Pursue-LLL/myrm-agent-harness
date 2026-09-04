@@ -1,26 +1,14 @@
 """Embedding Service Toolkit.
 
-vectorembeddingserviceabstractlayer, unifiedusingcustom API:
-- supports OpenAI / Azure OpenAI
-- supportslocal Ollama (http://localhost:11434/v1)
-- supportsits OpenAI compatibleservice
+[INPUT]
+- .base::EmbeddingService (POS: abstract embedding contract)
+- .factory::get_embedding_service, get_embedding_config (POS: embedding service factory)
 
-Example:
-    ```python
-    from myrm_agent_harness.toolkits.retriever.embedding import (
-        get_embedding_service,
-        EmbeddingService,
-    )
+[OUTPUT]
+- EmbeddingService, get_embedding_service, get_embedding_config
 
-    # usingdefaultconfigurationcreateservice
-    service = get_embedding_service()
-
-    # embeddingdocument
-    vectors = await service.embed_batch(["Hello world", "hello world"])
-
-    # embeddingquery
-    query_vector = await service.embed("What is AI?")
-    ```
+[POS]
+Embedding 模块门面入口。提供统一的嵌入服务抽象与单例获取工厂。
 """
 
 from myrm_agent_harness.toolkits.retriever.embedding.base import EmbeddingService
