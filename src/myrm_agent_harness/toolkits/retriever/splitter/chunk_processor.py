@@ -3,14 +3,16 @@
 Provides content quality assessment, deduplication, context injection, and content type detection
 
 [INPUT]
-- (none)
+- langchain_core.documents::Document (POS: standard document container)
+- myrm_agent_harness.utils.document_utils::enhance_document_content (POS: document metadata and context enhancer)
 
 [OUTPUT]
-- ContentTypeConfig: Content type configuration.
-- calculate_text_metrics: Compute text statistics (reused by multiple functions).
-- detect_content_type: Detect content type and return configuration.
-- assess_content_quality: Assess content quality level.
-- generate_content_hash: Generate content hash for deduplication.
+- ContentTypeConfig: Content type configuration
+- calculate_text_metrics: Compute text statistics (reused by multiple functions)
+- detect_content_type: Detect content type and return configuration
+- assess_content_quality: Assess content quality level
+- generate_content_hash: Generate content hash for deduplication
+- inject_structured_context: Injects section path and metadata into chunk content
 
 [POS]
 Chunk processing utilities.

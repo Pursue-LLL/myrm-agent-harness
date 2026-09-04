@@ -31,7 +31,9 @@ from myrm_agent_harness.toolkits.retriever.bm25 import (
 )
 
 # Suppress jieba pkg_resources deprecation warning
-warnings.filterwarnings("ignore", message="pkg_resources is deprecated as an API.*", category=UserWarning)
+warnings.filterwarnings(
+    "ignore", message="pkg_resources is deprecated as an API.*", category=UserWarning
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +64,9 @@ def extract_version_tokens(version: str) -> list[str]:
     # Clean version: strip prefix and suffix identifiers
     clean_version = version
     clean_version = re.sub(r"^v", "", clean_version)
-    clean_version = re.sub(r"[-+].*$", "", clean_version)  # Strip suffixes like -alpha.1, +build.123
+    clean_version = re.sub(
+        r"[-+].*$", "", clean_version
+    )  # Strip suffixes like -alpha.1, +build.123
 
     if clean_version != version:
         tokens.append(clean_version)
@@ -372,7 +376,9 @@ class BM25Retriever:
         total_start_time = time.perf_counter()
 
         if not self.bm25 or not query.strip():
-            logger.debug(f"BM25 search skipped: bm25={self.bm25 is not None}, query='{query.strip()}'")
+            logger.debug(
+                f"BM25 search skipped: bm25={self.bm25 is not None}, query='{query.strip()}'"
+            )
             return []
 
         # Preprocess query with the same tokenization path used for documents
@@ -391,7 +397,9 @@ class BM25Retriever:
         preprocess_time = time.perf_counter() - preprocess_start_time
 
         if not processed_query:
-            logger.debug(f"BM25 search: query is empty after preprocessing, original='{query}'")
+            logger.debug(
+                f"BM25 search: query is empty after preprocessing, original='{query}'"
+            )
             return []
 
         logger.debug(

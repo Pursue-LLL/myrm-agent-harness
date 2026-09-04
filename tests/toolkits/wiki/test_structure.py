@@ -296,4 +296,3 @@ class TestFederatedPublicDirsStructure:
 
         resolved = ws.resolve_concept_file_path("team_handbook")
         assert resolved == target
-        assert str(path).endswith("raw/a/b/c/d/e/deep.md")

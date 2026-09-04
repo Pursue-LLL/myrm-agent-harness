@@ -72,10 +72,11 @@ chunks = splitter.handle_special_block(block)
 ```
 
 [INPUT]
-retriever.splitter.special_block_detector::SpecialBlockDetector (POS: Detects code/table/list special blocks)
+- .code_utils::detect_code_language, split_large_code_block (POS: code splitting utilities)
+- .special_block_detector::SpecialBlockDetector (POS: detects code/table/list special blocks)
 
 [OUTPUT]
-SpecialBlockSplitter: Splits oversized code blocks, tables, and lists into token-bounded chunks
+- SpecialBlockSplitter: Splits oversized code blocks, tables, and lists into token-bounded chunks
 
 [POS]
 Special-block splitter. Handles oversized code / table / list blocks that exceed the normal

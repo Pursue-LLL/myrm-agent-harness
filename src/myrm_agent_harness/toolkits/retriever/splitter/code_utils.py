@@ -6,10 +6,10 @@ provides代码语言检测、Code blocks保护、AST智能分割 etc.功能
 - langchain_text_splitters (optional `[retrieval]` extra)::Language, RecursiveCharacterTextSplitter
 
 [OUTPUT]
-- detect_code_language: Args:
-- split_large_code_block: Args:
-- protect_code_blocks: Args:
-- restore_code_blocks: RestoreCode blocks
+- detect_code_language: Detect programming language from code block or text
+- split_large_code_block: Split large code block using AST-aware splitter
+- protect_code_blocks: Protect code blocks with placeholders during splitting
+- restore_code_blocks: Restore code blocks from placeholders
 
 [POS]
 Provides detect_code_language, split_large_code_block, protect_code_blocks.

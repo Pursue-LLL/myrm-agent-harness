@@ -1,12 +1,15 @@
-"""[INPUT]
-- (none)
+"""Special block detection module.
+
+Identifies and extracts special structures in text (code blocks, tables, lists).
+
+[INPUT]
+- (none - standard library regex)
 
 [OUTPUT]
-- SpecialBlockDetector: class — Special Block Detector
-- hello: import re
+- SpecialBlockDetector: Detects code, table, and list blocks for boundary protection
 
 [POS]
-Provides SpecialBlockDetector, hello.
+Provides SpecialBlockDetector for markdown structure extraction.
 """
 
 import re

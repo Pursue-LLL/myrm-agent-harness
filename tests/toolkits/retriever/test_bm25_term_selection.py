@@ -29,13 +29,23 @@ class TestBm25TermSelection:
         # Less than min_corpus_docs (default 5): should fallback to head truncation without sorting by skewed idf
         tokens = [f"t{i}" for i in range(20)]
         idf = {f"t{i}": float(i) for i in range(20)}
-        result = select_selective_bm25_tokens(tokens, idf, doc_count=3, max_terms=10, min_corpus_docs=5)
+        result = select_selective_bm25_tokens(
+            tokens, idf, doc_count=3, max_terms=10, min_corpus_docs=5
+        )
         assert len(result) == 10
         assert result == tokens[:10]
 
     def test_prunes_low_idf_common_words_pure_idf(self) -> None:
         # High IDF = rare / specific; Low IDF = ubiquitous / noise (with protect_leading_terms=0)
-        tokens = ["the", "error", "occurred", "in", "sqlite_wal_checkpoint", "during", "transaction"]
+        tokens = [
+            "the",
+            "error",
+            "occurred",
+            "in",
+            "sqlite_wal_checkpoint",
+            "during",
+            "transaction",
+        ]
         idf = {
             "the": 0.05,
             "error": 0.2,

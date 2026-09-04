@@ -11,7 +11,7 @@ New pending drafts demote stale published articles via `stale_guard`.
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Re-exports publish API | — |
+| `__init__.py` | Package | Re-exports publish API | ✅ |
 | publish.py | Core | `publish_concept_article`, `repair_publication_status`, outcome types | ✅ |
 | stale_guard.py | Core | Stale source detection, demote on pending stage, `StalePendingApprovalError` on approve | ✅ |
 | path_change.py | Core | `reindex_concepts_after_move` for vault move/rename; skips directory sidecars | ✅ |

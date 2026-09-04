@@ -3,7 +3,10 @@
 Protects special blocks during recursive splitting in a single pass
 
 [INPUT]
-- (none)
+- .markdown_link_handler::MarkdownLinkHandler (POS: Markdown link handling during split)
+- .overlap_processor::OverlapProcessor (POS: Chunk overlap processing)
+- .special_block_detector::SpecialBlockDetector (POS: Detects code/table/list blocks)
+- .special_block_splitter::SpecialBlockSplitter (POS: Splits oversized special blocks)
 
 [OUTPUT]
 - RecursiveCharacterAndProtectSpecialChunkTextSplitterByTiktoken: Unified recursive character splitter

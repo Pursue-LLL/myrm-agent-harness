@@ -7,13 +7,13 @@ All operations route through `publish_concept_article` (WPG) after section-aware
 
 ## Files
 
-| File | Role |
-|------|------|
-| __init__.py | Package marker for the apply module. |
-| types.py | `WikiApplyOp`, `WikiApplyRequest`, `WikiApplyResult` |
-| errors.py | `WikiApplyError` structured failures |
-| handlers.py | Section/metadata transforms (no I/O) |
-| service.py | Vault lock + publish gate orchestration |
+| File | Role | Description | I/O/P |
+|------|------|-------------|-------|
+| `__init__.py` | Package | Package marker for the apply module. | ✅ |
+| `types.py` | Types | `WikiApplyOp`, `WikiApplyRequest`, `WikiApplyResult` | ✅ |
+| `errors.py` | Errors | `WikiApplyError` structured failures | ✅ |
+| `handlers.py` | Core | Section/metadata transforms (no I/O) | ✅ |
+| `service.py` | Core | Vault lock + publish gate orchestration | ✅ |
 
 ## Operations
 

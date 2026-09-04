@@ -38,9 +38,9 @@ Browser session components.
 | session_persistence.py | Core | Encrypted session persistence (save/restore/list/delete). Uses normalize_cookies + add_init_script from checkpoint.session_state | ✅ |
 | session_lifecycle_hook.py | Protocol | SessionLifecycleHookProtocol: optional observer for session save/delete/expire events. | ✅ |
 | session_memory_bridge.py | Core | SessionMemoryBridge: keeps active_browser_sessions profile attribute in sync with the vault via SessionLifecycleHookProtocol. | ✅ |
-| snapshot_diff.py | Core | Semantic line-level diff for ARIA snapshot text (ref-prefix normalized, fold unchanged lines). | ✅ |
-| snapshot_manager.py | Core | Snapshot generation manager. Responsibilities: | ✅ |
-| snapshot_result.py | Core | Immutable snapshot result type for browser ARIA snapshots. | ✅ |
+| snapshot_diff.py | Core | Semantic line-level diff for ARIA snapshot text with Myers optimization, ref-prefix normalization with indentation preservation, Identical Fast Path (0ms, 0 token waste), adaptive full snapshot fallback circuit breaker for large page shifts (>60%), and ancestor container breadcrumb preservation. | ✅ |
+| snapshot_manager.py | Core | Snapshot generation manager orchestrating ARIA tree capture, diff baseline maintenance, and structured DiffOutput metric propagation into SnapshotResult. | ✅ |
+| snapshot_result.py | Core | Immutable snapshot result type for browser ARIA snapshots, exposing structured DiffOutput metrics (is_identical, additions, removals, tokens_saved, is_fallback_full) with backward-compatible tuple unpacking. | ✅ |
 | snapshot_suggestion.py | Core | Heuristic token / scope suggestions for large ARIA snapshots. | ✅ |
 | tab_controller.py | Core | Tab lifecycle manager. Responsibilities: create/close tabs, switch active tab, LRU eviction, automatic popup capture (window.open / OAuth / target=_blank) with parent-child tracking and close auto-recovery, origin-based tab routing (find_tab_by_origin), domain-aware tab listing (list_tabs_with_info). Optional async lifecycle callbacks: `on_tab_closed` fires on every exit path (explicit close / LRU eviction / popup close), `on_tab_created` fires for captured popups — owners keep per-page state consistent. | ✅ |
 | vision_verifier.py | Core | 3-Layer Vision Verifier for Action-Verification Fusion. | ✅ |

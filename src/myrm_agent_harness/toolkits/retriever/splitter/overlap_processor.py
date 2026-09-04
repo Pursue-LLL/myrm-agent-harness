@@ -79,11 +79,10 @@ overlapped = processor.add_overlap_to_chunks(chunks)
 - Intelligently detects and protects code blocks, tables, and other special structures
 
 [INPUT]
-- (none)
+- .special_block_detector::SpecialBlockDetector (POS: detects special blocks like tables and code)
 
 [OUTPUT]
-- OverlapProcessor: class — Overlap Processor
-- func: import re
+- OverlapProcessor: Overlap processor for chunk merging and overlap management
 
 [POS]
 Overlap processing module.

@@ -5,14 +5,21 @@ from datetime import UTC, datetime
 import pytest
 
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-from myrm_agent_harness.toolkits.memory.types import MemoryType, ProceduralMemory, ProfileEntry, SemanticMemory
+from myrm_agent_harness.toolkits.memory.types import (
+    MemoryType,
+    ProceduralMemory,
+    ProfileEntry,
+    SemanticMemory,
+)
 
 
 class TestGetOperations:
     """Test get and retrieval operations."""
 
     @pytest.mark.asyncio
-    async def test_get_semantic_memory(self, mock_vector_store, mock_embedding, memory_config):
+    async def test_get_semantic_memory(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
         """Test getting a semantic memory by ID."""
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
@@ -35,7 +42,12 @@ class TestGetOperations:
         )
         mock_vector_store.get.return_value = [doc]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+        )
 
         result = await manager.get_memory("mem-1")
 
@@ -48,20 +60,28 @@ class TestGetOperations:
         """Test getting a profile attribute."""
         mock_relational_store.get_profile.return_value = "UTC+8"
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store
+        )
 
         result = await manager.get_profile_attribute("timezone")
 
         assert result == "UTC+8"
-        mock_relational_store.get_profile.assert_called_once_with("timezone", namespaces=["global", "agent:default"])
+        mock_relational_store.get_profile.assert_called_once_with(
+            "timezone", namespaces=["global", "agent:default"]
+        )
 
     @pytest.mark.asyncio
     async def test_get_procedural_rule(self, mock_relational_store, memory_config):
         """Test getting a procedural rule."""
-        rule = ProceduralMemory(id="rule-1", content="Test rule", trigger="trigger", action="action")
+        rule = ProceduralMemory(
+            id="rule-1", content="Test rule", trigger="trigger", action="action"
+        )
         mock_relational_store.get_rule.return_value = rule
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store
+        )
 
         result = await manager.get_memory("rule-1")
 
@@ -90,7 +110,9 @@ class TestListAndCountOperations:
     """Test list and count operations."""
 
     @pytest.mark.asyncio
-    async def test_list_by_type_semantic(self, mock_vector_store, mock_embedding, memory_config):
+    async def test_list_by_type_semantic(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
         """Test listing semantic memories."""
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
@@ -116,7 +138,12 @@ class TestListAndCountOperations:
         ]
         mock_vector_store.scroll.return_value = docs
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+        )
 
         result = await manager.list_memories(MemoryType.SEMANTIC, limit=10)
 
@@ -130,7 +157,9 @@ class TestListAndCountOperations:
             ProfileEntry(key="timezone", value="UTC+8"),
         ]
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store
+        )
 
         result = await manager.list_memories(MemoryType.PROFILE, limit=10)
 
@@ -144,11 +173,18 @@ class TestListAndCountOperations:
         )
 
     @pytest.mark.asyncio
-    async def test_count_by_type(self, mock_vector_store, mock_embedding, memory_config):
+    async def test_count_by_type(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
         """Test counting memories by type."""
         mock_vector_store.count.return_value = 42
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+        )
 
         count = await manager.count_memories(MemoryType.SEMANTIC)
 
@@ -159,7 +195,9 @@ class TestUpdateOperations:
     """Test update operations."""
 
     @pytest.mark.asyncio
-    async def test_update_semantic_memory(self, mock_vector_store, mock_embedding, memory_config):
+    async def test_update_semantic_memory(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
         """Test updating a semantic memory."""
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
@@ -183,9 +221,16 @@ class TestUpdateOperations:
         mock_vector_store.get.return_value = [existing_doc]
         mock_vector_store.upsert.return_value = ["mem-1"]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+        )
 
-        result = await manager.update_memory("mem-1", content="Updated content", importance=0.8)
+        result = await manager.update_memory(
+            "mem-1", content="Updated content", importance=0.8
+        )
 
         assert result is not None
         assert result.content == "Updated content"
@@ -193,7 +238,9 @@ class TestUpdateOperations:
         mock_vector_store.upsert.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_update_without_content_no_previous(self, mock_vector_store, mock_embedding, memory_config):
+    async def test_update_without_content_no_previous(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
         """Updating without content change should not set previous_content."""
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
@@ -217,7 +264,12 @@ class TestUpdateOperations:
         mock_vector_store.get.return_value = [existing_doc]
         mock_vector_store.upsert.return_value = ["mem-1"]
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+        )
 
         result = await manager.update_memory("mem-1", importance=0.9)
 
@@ -227,7 +279,9 @@ class TestUpdateOperations:
     @pytest.mark.asyncio
     async def test_set_profile_attribute(self, mock_relational_store, memory_config):
         """Test setting a profile attribute."""
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store
+        )
 
         result = await manager.set_profile_attribute("language", "zh-CN")
         assert result is None
@@ -237,7 +291,9 @@ class TestUpdateOperations:
         mock_relational_store.set_profile.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_store_semantic_persists_scope_metadata(self, mock_vector_store, mock_embedding, memory_config):
+    async def test_store_semantic_persists_scope_metadata(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
         manager = MemoryManager(
             memory_config,
             user_id="test_user",
@@ -265,17 +321,26 @@ class TestDeleteOperations:
     """Test delete operations."""
 
     @pytest.mark.asyncio
-    async def test_delete_memory(self, mock_vector_store, mock_embedding, memory_config):
+    async def test_delete_memory(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
         """Test deleting memories by collection and IDs."""
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
         mock_vector_store.get.return_value = [
-            VectorDocument(id=mid, content="c", vector=[], metadata={"user_id": "test_user"})
+            VectorDocument(
+                id=mid, content="c", vector=[], metadata={"user_id": "test_user"}
+            )
             for mid in ("mem-1", "mem-2")
         ]
         mock_vector_store.delete.return_value = 2
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+        )
 
         count = await manager.delete_memory("test_collection", ["mem-1", "mem-2"])
 
@@ -287,19 +352,30 @@ class TestDeleteOperations:
         """Test deleting a profile entry."""
         mock_relational_store.delete_profile.return_value = True
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store
+        )
 
         result = await manager.delete_profile("timezone")
 
         assert result is True
-        mock_relational_store.delete_profile.assert_called_once_with("timezone", namespaces=["global", "agent:default"])
+        mock_relational_store.delete_profile.assert_called_once_with(
+            "timezone", namespaces=["global", "agent:default"]
+        )
 
     @pytest.mark.asyncio
-    async def test_delete_by_type(self, mock_vector_store, mock_embedding, memory_config):
+    async def test_delete_by_type(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
         """Test deleting all memories of a specific type."""
         mock_vector_store.delete_by_filter.return_value = 10
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+        )
 
         count = await manager.delete_by_type(MemoryType.SEMANTIC)
 
@@ -369,7 +445,9 @@ class TestDeleteOperations:
         mock_graph_store.delete_subgraph.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_delete_by_type_procedural_scoped_to_namespaces(self, mock_relational_store, memory_config):
+    async def test_delete_by_type_procedural_scoped_to_namespaces(
+        self, mock_relational_store, memory_config
+    ):
         """Procedural delete-by-type must be scoped to the manager's namespaces.
 
         Rules must be listed with a namespace filter and deleted one by one so
@@ -383,7 +461,9 @@ class TestDeleteOperations:
         mock_relational_store.list_rules.side_effect = [rules, []]
         mock_relational_store.delete_rule.return_value = True
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store
+        )
 
         count = await manager.delete_by_type(MemoryType.PROCEDURAL)
 
@@ -398,24 +478,34 @@ class TestDeleteOperations:
     @pytest.mark.asyncio
     async def test_delete_rule(self, mock_relational_store, memory_config):
         """Test deleting a procedural rule owned by the manager's scope."""
-        existing = ProceduralMemory(id="rule-1", content="Rule", trigger="t", action="a")
+        existing = ProceduralMemory(
+            id="rule-1", content="Rule", trigger="t", action="a"
+        )
         mock_relational_store.get_rule.return_value = existing
         mock_relational_store.delete_rule.return_value = True
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store
+        )
 
         result = await manager.delete_rule("rule-1")
 
         assert result is True
-        mock_relational_store.get_rule.assert_called_once_with("rule-1", namespaces=manager.namespaces)
+        mock_relational_store.get_rule.assert_called_once_with(
+            "rule-1", namespaces=manager.namespaces
+        )
         mock_relational_store.delete_rule.assert_called_once_with("rule-1")
 
     @pytest.mark.asyncio
-    async def test_delete_rule_rejects_out_of_scope(self, mock_relational_store, memory_config):
+    async def test_delete_rule_rejects_out_of_scope(
+        self, mock_relational_store, memory_config
+    ):
         """Deleting a rule outside the manager's scope must be rejected."""
         mock_relational_store.get_rule.return_value = None
 
-        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store
+        )
 
         result = await manager.delete_rule("rule-other")
 
@@ -461,7 +551,9 @@ class TestDeleteOperations:
         mock_vector_store.delete.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_delete_by_type_uses_primary_namespace_filter(self, mock_vector_store, mock_embedding, memory_config):
+    async def test_delete_by_type_uses_primary_namespace_filter(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
         """Bulk type clears must filter on ``primary_namespace`` exactly so the
         wipe cannot cross into another agent's memories via ``global``."""
         mock_vector_store.delete_by_filter.return_value = 3
@@ -478,10 +570,14 @@ class TestDeleteOperations:
 
         assert count == 3
         mock_vector_store.delete_by_filter.assert_awaited_once()
-        assert mock_vector_store.delete_by_filter.await_args.args[1]["primary_namespace"] == ["global", "agent:b"]
+        assert mock_vector_store.delete_by_filter.await_args.args[1][
+            "primary_namespace"
+        ] == ["global", "agent:b"]
 
     @pytest.mark.asyncio
-    async def test_delete_all(self, mock_vector_store, mock_relational_store, mock_embedding, memory_config):
+    async def test_delete_all(
+        self, mock_vector_store, mock_relational_store, mock_embedding, memory_config
+    ):
         """Test deleting all memories for a user."""
         mock_relational_store.delete_all.return_value = 5
         mock_vector_store.delete_by_filter.return_value = 10
@@ -526,7 +622,9 @@ class TestDeleteOperations:
     ):
         """Test delete_all handles vector backend exceptions gracefully."""
         mock_relational_store.delete_all.return_value = 5
-        mock_vector_store.delete_by_filter.side_effect = Exception("Vector delete failed")
+        mock_vector_store.delete_by_filter.side_effect = Exception(
+            "Vector delete failed"
+        )
 
         manager = MemoryManager(
             memory_config,
@@ -570,7 +668,9 @@ class TestGraphCascadeDelete:
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
         mock_vector_store.get.return_value = [
-            VectorDocument(id=mid, content="c", vector=[], metadata={"user_id": "test_user"})
+            VectorDocument(
+                id=mid, content="c", vector=[], metadata={"user_id": "test_user"}
+            )
             for mid in ("mem-1", "mem-2")
         ]
         mock_vector_store.delete.return_value = 2
@@ -591,16 +691,25 @@ class TestGraphCascadeDelete:
         mock_graph_store.delete_subgraph.assert_any_call("mem-2")
 
     @pytest.mark.asyncio
-    async def test_delete_memory_without_graph_backend(self, mock_vector_store, mock_embedding, memory_config):
+    async def test_delete_memory_without_graph_backend(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
         """delete_memory works normally when no graph backend is present."""
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
         mock_vector_store.get.return_value = [
-            VectorDocument(id="mem-1", content="c", vector=[], metadata={"user_id": "test_user"}),
+            VectorDocument(
+                id="mem-1", content="c", vector=[], metadata={"user_id": "test_user"}
+            ),
         ]
         mock_vector_store.delete.return_value = 1
 
-        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+        )
 
         count = await manager.delete_memory("test_collection", ["mem-1"])
 
@@ -614,7 +723,9 @@ class TestGraphCascadeDelete:
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
         mock_vector_store.get.return_value = [
-            VectorDocument(id="mem-1", content="c", vector=[], metadata={"user_id": "test_user"}),
+            VectorDocument(
+                id="mem-1", content="c", vector=[], metadata={"user_id": "test_user"}
+            ),
         ]
         mock_vector_store.delete.return_value = 1
         mock_graph_store.delete_subgraph.side_effect = Exception("Graph error")
@@ -640,7 +751,12 @@ class TestGraphCascadeDelete:
         from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
         mock_vector_store.get.return_value = [
-            VectorDocument(id="mem-1", content="sensitive content to evict", vector=[], metadata={"user_id": "test_user"}),
+            VectorDocument(
+                id="mem-1",
+                content="sensitive content to evict",
+                vector=[],
+                metadata={"user_id": "test_user"},
+            ),
         ]
         mock_vector_store.delete.return_value = 1
 
@@ -743,7 +859,9 @@ class TestGraphCascadeDelete:
             cache=mock_cache,
         )
 
-        result = await manager.delete_memories_by_ids({MemoryType.PROCEDURAL.value: ["rule-test-2"]})
+        result = await manager.delete_memories_by_ids(
+            {MemoryType.PROCEDURAL.value: ["rule-test-2"]}
+        )
 
         assert len(result.deleted_refs) == 1
         assert result.deleted_refs[0].memory_id == "rule-test-2"
@@ -752,7 +870,12 @@ class TestGraphCascadeDelete:
 
     @pytest.mark.asyncio
     async def test_delete_all_includes_graph_cleanup(
-        self, mock_vector_store, mock_relational_store, mock_graph_store, mock_embedding, memory_config
+        self,
+        mock_vector_store,
+        mock_relational_store,
+        mock_graph_store,
+        mock_embedding,
+        memory_config,
     ):
         """delete_all cleans up graph data in addition to relational and vector."""
         mock_relational_store.delete_all.return_value = 5
@@ -775,7 +898,12 @@ class TestGraphCascadeDelete:
 
     @pytest.mark.asyncio
     async def test_delete_all_graph_error_is_non_fatal(
-        self, mock_vector_store, mock_relational_store, mock_graph_store, mock_embedding, memory_config
+        self,
+        mock_vector_store,
+        mock_relational_store,
+        mock_graph_store,
+        mock_embedding,
+        memory_config,
     ):
         """delete_all handles graph cleanup failures gracefully."""
         mock_relational_store.delete_all.return_value = 5
@@ -795,5 +923,3 @@ class TestGraphCascadeDelete:
 
         assert counts.get("relational") == 5
         assert "graph" not in counts
-
-
