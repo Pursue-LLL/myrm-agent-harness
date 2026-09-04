@@ -239,7 +239,16 @@ class TestAsyncExecutionModesEndToEnd:
     @pytest.mark.parametrize(
         ("name", "user_code", "marker"),
         [
-            ("sync", "print('MARK_SYNC')", "MARK_SYNC"),
+            (
+                "sync",
+                "print('MARK_SYNC')",
+                "MARK_SYNC",
+            ),
+            (
+                "sync_main_under_if_name",
+                "def main():\n    print('MARK_SYNC_MAIN_UNDER_IF_NAME')\nif __name__ == '__main__':\n    main()",
+                "MARK_SYNC_MAIN_UNDER_IF_NAME",
+            ),
             (
                 "asyncio_run",
                 "import asyncio\nasync def main():\n    print('MARK_ASYNC_RUN')\nasyncio.run(main())",

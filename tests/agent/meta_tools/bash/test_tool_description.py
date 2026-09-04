@@ -112,7 +112,12 @@ def test_cross_call_persistence_uses_workspace_files_not_session_store() -> None
     assert "json.dump" in TOOL_DESCRIPTION or "json.dump/load" in TOOL_DESCRIPTION
     assert "file_write_tool" in TOOL_DESCRIPTION
     assert "禁止" in TOOL_DESCRIPTION and "[RESULT]" in TOOL_DESCRIPTION
-    assert "优先一次 bash 合并" in TOOL_DESCRIPTION
+    assert "优先合并到单次代码执行中" in TOOL_DESCRIPTION
+    assert "Prefer combining operations into a single execution" in TOOL_DESCRIPTION_EN
+    assert "chat_id" not in TOOL_DESCRIPTION
+    assert "chat_id" not in TOOL_DESCRIPTION_EN
+    assert "chat session" in TOOL_DESCRIPTION
+    assert "chat session" in TOOL_DESCRIPTION_EN
 
 
 def test_no_internal_module_name_leaked_to_prompt() -> None:

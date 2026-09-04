@@ -16,7 +16,7 @@ Common executor components.
 | file_scanner.py | Core | Generated files scanner. | ✅ |
 | subprocess_guard.py | Core | Single-responsibility guard. Does NOT replace the richer timeout logic | ✅ |
 | venv_manager.py | Core | Virtual environment management service. | ✅ |
-| wrapper_script.py | Core | Unified execution wrapper script with AST-based async main/top-level async detection and future import preservation. | ✅ |
+| wrapper_script.py | Core | Unified execution wrapper script with standard main module contract, AST-based async main/top-level async detection, and future import preservation. | ✅ |
 
 ## Key Dependencies
 

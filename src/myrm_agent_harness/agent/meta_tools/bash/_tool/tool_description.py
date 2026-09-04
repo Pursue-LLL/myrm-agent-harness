@@ -106,8 +106,8 @@ asyncio.run(main())
 
 ### Python 无状态,Bash 持久化
 
-- **Python**:每次执行独立进程,变量/import/函数**不保持**。**优先一次 bash 合并**;确需跨轮持久化 → 写 ``/workspace/...`` 中间 JSON(``json.dump/load`` 或 ``file_write_tool``);**禁止**大 payload 进 ``[RESULT]``/``[OBSERVATION]``。
-- **Bash**:持久化会话(按 chat_id 隔离),环境变量/工作目录/Shell 函数**保持**。
+- **Python**:每次执行独立进程,变量/import/函数**不保持**。**优先合并到单次代码执行中**;确需跨轮持久化 → 写 ``/workspace/...`` 中间 JSON(``json.dump/load`` 或 ``file_write_tool``);**禁止**大 payload 进 ``[RESULT]``/``[OBSERVATION]``。
+- **Bash**:当前会话跨轮持久保持(按 chat session 隔离),环境变量/工作目录/Shell 函数**始终生效**。
 
 ## 严格禁止
 
@@ -203,8 +203,8 @@ Skill/async invocations must be awaited. Use `async def main(): ...` + `asyncio.
 Prefer `/workspace/...` (default working directory) in commands and Python code.
 
 ### Python is Stateless, Bash is Persistent
-- **Python**: Each execution runs in an independent process; variables and imports do not persist. For cross-turn persistence, write to `/workspace/...` via `json.dump` or `file_write_tool`. Never put large payloads into `[RESULT]` or `[OBSERVATION]`.
-- **Bash**: Session is persistent across turns (isolated by chat_id); environment variables, working directory, and shell functions persist.
+- **Python**: Each execution runs in an independent process; variables and imports do not persist. **Prefer combining operations into a single execution**; for cross-turn persistence, write intermediate JSON under `/workspace/...` (`json.dump/load` or `file_write_tool`). Never put large payloads into `[RESULT]` or `[OBSERVATION]`.
+- **Bash**: Persistent across turns within the current session (isolated per chat session); environment variables, working directory, and shell functions remain active.
 
 ## Prohibitions
 - Do NOT write comments in disposable scripts (saves tokens).

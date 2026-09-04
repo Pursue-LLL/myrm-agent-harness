@@ -318,7 +318,12 @@ def main():
         )
 
         # Phase 3: Create user code execution env (inheriting builtins naturally, but heavily secured by PEP 578)
-        exec_globals = {{"__builtins__": __builtins__}}
+        exec_globals = {{
+            "__builtins__": __builtins__,
+            "__name__": "__main__",
+            "__file__": "{code_file_path}",
+            "__doc__": None,
+        }}
 
         # Pass MCP client objects to user code (skills.xxx accessible)
         for key in ["skills", "MCPError", "_call", "_Pkg", "_Mod", "_FuncProxy"]:
