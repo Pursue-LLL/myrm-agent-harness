@@ -32,7 +32,12 @@ from .browser_pool import (
     ContextType,
     GlobalBrowserPool,
 )
-from .circuit_breaker import CircuitBreaker, CircuitBreakerCallback, CircuitBreakerOpenError, LoggingCallback
+from .circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerCallback,
+    CircuitBreakerOpenError,
+    LoggingCallback,
+)
 from .chrome_prompt_guard import (
     ChromePromptGuard,
     approve_chrome_remote_debugging_prompt,

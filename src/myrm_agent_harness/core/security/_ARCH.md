@@ -19,7 +19,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | remote_ops_ledger.py | Core | Remote operations audit ledger and symmetric action recovery (`RemoteOpsActionRecord`, `ActionRecoveryHint`, `derive_recovery_hint`). | ✅ |
 | missing_semantics.py | Core | Standardized missing semantics contract matrix (`MissingSemanticsPolicy`: `FAIL_CLOSED`, `FAIL_FAST`, `FALLBACK`), dynamic contract registry (`register_missing_semantics_contract`), structured diagnostic exporter (`to_diagnostic_dict`), and `@enforce_missing_semantics` gate decorator. | ✅ |
 | credential_vault.py | Core | In-memory credential vault — label→password/TOTP resolution for browser/desktop injection (secrets never in LLM context). | ✅ |
-| spend_governance.py | Core | Spend governance and cryptographic receipt primitives for Agent Commerce (parse_spend_amount, is_financial_or_spend_tool, compute_action_digest, verify_action_digest, compute_entry_hash, SpendPolicy, SpendReceipt). | ✅ |
+| spend_governance.py | Core | Spend governance and cryptographic receipt primitives for Agent Commerce (parse_spend_amount, is_financial_or_spend_tool, is_irreversible_social_action, compute_action_digest, verify_action_digest, compute_entry_hash, SpendPolicy, SpendReceipt). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

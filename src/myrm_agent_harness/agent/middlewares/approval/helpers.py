@@ -4,7 +4,7 @@
 - agent.security.approval_flow::AllowlistEntry (POS: Core component for "Always Allow" feature in Human-in-the-Loop approval system. Works with middlewares/approval/ subsystem which uses LangGraph interrupt() for approval flow. Allow-always decisions use database persistence (DBAllowlistStore): User clicks "Always Allow" → saved to user_tool_allowlist table On restart → middleware lazy-loads rules via allowlist.load_user() Rules survive backend restarts TTL refresh (default 5min) ensures multi-instance cache consistency when ttl_seconds > 0 ttl_seconds <= 0 disables time-based expiry and opportunistic TTL cleanup Automatic cleanup prevents memory leaks when TTL is enabled (expired locks removed opportunistically))
 
 [OUTPUT]
-- reset_denial_counter: Reset per-run denial counters. Call at the start of each ...
+- reset_denial_counter: Reset session-scoped or per-run denial counters.
 - record_denial: Increment denial counter and return guidance + threshold status.
 - record_approval: Reset consecutive denial counter on successful operation.
 - is_threshold_breached: Check if denial thresholds have been breached.

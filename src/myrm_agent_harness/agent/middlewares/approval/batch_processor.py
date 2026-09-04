@@ -979,7 +979,14 @@ async def evaluate_tool_batch(
             extra_ctx["action_digest"] = compute_action_digest(tool_name, tool_input)
             extra_ctx["high_risk"] = True
             extra_ctx["hide_allow_always"] = True
+        elif is_irreversible_social_action(tool_name, tool_input):
+            extra_ctx = extra_ctx or {}
+            extra_ctx["is_irreversible"] = True
+            extra_ctx["action_digest"] = compute_action_digest(tool_name, tool_input)
+            extra_ctx["high_risk"] = True
+            extra_ctx["hide_allow_always"] = True
 
         pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
+
 
     return auto_approved, auto_denied, pending_approval

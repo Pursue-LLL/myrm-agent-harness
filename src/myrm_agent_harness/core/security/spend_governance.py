@@ -6,6 +6,7 @@
 [OUTPUT]
 - parse_spend_amount: Extract normalized amount and currency from tool arguments
 - is_financial_or_spend_tool: Detect if tool invocation represents a financial transaction
+- is_irreversible_social_action: Detect if action is socially irreversible (git push, package publish, external notify)
 - compute_action_digest: Cryptographic HMAC-SHA256 digest of tool + args + amount
 - verify_action_digest: Timing-attack safe verification of action digest
 - compute_entry_hash: Compute HMAC-chained hash for append-only tamper-evident ledger

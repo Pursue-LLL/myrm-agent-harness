@@ -2085,6 +2085,7 @@ class TestShellEscalationAutoMode:
             workspace_root="/tmp",
             session_key="s",
             args_hashes={},
+            is_interactive=False,
         )
 
         assert len(denied) == 1
@@ -2221,6 +2222,7 @@ class TestShellEscalationAutoMode:
             workspace_root="/tmp",
             session_key="s",
             args_hashes={},
+            is_interactive=False,
         )
 
         assert len(denied) == 1
