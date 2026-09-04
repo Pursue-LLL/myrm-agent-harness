@@ -173,28 +173,7 @@ def check_distillable(candidate: DistillationCandidate) -> DistillationGuardResu
             rejection_reason="Agent self-generated messages are permanently excluded from memory distillation",
         )
 
-    # 2. Strict Tri-State Identity: Unconfirmed identity strictly prohibited
-    if candidate.is_self == SelfIdentityState.UNCONFIRMED:
-        return DistillationGuardResult(
-            allowed=False,
-            rejection_code=DistillationRejectionCode.REJECT_IDENTITY_UNCONFIRMED,
-            rejection_reason="Speaker identity is unconfirmed; guessing identity is forbidden to prevent cross-contamination",
-        )
-    if candidate.is_self == SelfIdentityState.OTHER:
-        return DistillationGuardResult(
-            allowed=False,
-            rejection_code=DistillationRejectionCode.REJECT_IDENTITY_OTHER,
-            rejection_reason="Third-party messages cannot be distilled as primary user traits",
-        )
-
-    if candidate.is_self == SelfIdentityState.OTHER and candidate.origin == DistillationOrigin.USER:
-        return DistillationGuardResult(
-            allowed=False,
-            rejection_code=DistillationRejectionCode.REJECT_IDENTITY_OTHER,
-            rejection_reason="Speaker is an external third party; cannot be distilled into primary user profile",
-        )
-
-    # 3. Bot & Monitoring Alert Exclusion
+    # 2. Bot & Monitoring Alert Exclusion (Priority over human identity)
     if candidate.is_bot_or_alert or candidate.origin == DistillationOrigin.BOT:
         return DistillationGuardResult(
             allowed=False,
@@ -207,6 +186,20 @@ def check_distillable(candidate: DistillationCandidate) -> DistillationGuardResu
             allowed=False,
             rejection_code=DistillationRejectionCode.REJECT_BOT_OR_ALERT,
             rejection_reason=f"Sender '{candidate.sender_name}' matches automated alert bot pattern",
+        )
+
+    # 3. Strict Tri-State Identity: Unconfirmed identity strictly prohibited
+    if candidate.is_self == SelfIdentityState.UNCONFIRMED:
+        return DistillationGuardResult(
+            allowed=False,
+            rejection_code=DistillationRejectionCode.REJECT_IDENTITY_UNCONFIRMED,
+            rejection_reason="Speaker identity is unconfirmed; guessing identity is forbidden to prevent cross-contamination",
+        )
+    if candidate.is_self == SelfIdentityState.OTHER:
+        return DistillationGuardResult(
+            allowed=False,
+            rejection_code=DistillationRejectionCode.REJECT_IDENTITY_OTHER,
+            rejection_reason="Third-party messages cannot be distilled as primary user traits",
         )
 
     return DistillationGuardResult(allowed=True)

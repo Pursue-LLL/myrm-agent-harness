@@ -271,6 +271,16 @@ class TestContextPipeline:
         assert get_active_session_count() == 0
 
     @pytest.mark.asyncio
+    async def test_create_default_pipeline_includes_active_pruner_and_summarizer(self) -> None:
+        """Integration verification: default pipeline includes active_tool_result_pruner and summarize in correct order."""
+        pipeline = create_default_pipeline()
+        names = [p.name for p in pipeline.processors]
+        assert "active_tool_result_prune" in names
+        assert "summarize" in names
+        # Active prune runs before summarize
+        assert names.index("active_tool_result_prune") < names.index("summarize")
+
+    @pytest.mark.asyncio
     async def test_pipeline_uses_contextvar_chat_id_and_allows_reentrant_lock(self) -> None:
         await clear_all_locks()
         processor = LockProbeProcessor()

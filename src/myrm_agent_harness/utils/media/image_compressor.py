@@ -248,6 +248,59 @@ class ImageCompressor:
             return img.resize(new_size, Image.Resampling.LANCZOS)
         return img
 
+    def slice_long_image_if_needed(
+        self,
+        img_bytes: bytes,
+        *,
+        max_dimension: int = SEND_COMPRESS_MAX_DIMENSION,
+        aspect_ratio_threshold: float = 2.5,
+        overlap_pixels: int = 60,
+    ) -> list[bytes]:
+        """Slice vertically extreme long screenshots into sequential overlapping tiles.
+
+        If the image aspect ratio (height / width) is below threshold or height <= max_dimension,
+        returns the original bytes in a single-element list.
+        Otherwise, slices the image into multiple overlapping tiles preserving full horizontal
+        resolution so text does not degrade into unrecognizable artifacts.
+        """
+        Image.MAX_IMAGE_PIXELS = MAX_DECODE_PIXELS
+        try:
+            with Image.open(io.BytesIO(img_bytes)) as img:
+                width, height = img.size
+                if width <= 0 or height <= 0:
+                    return [img_bytes]
+
+                aspect_ratio = height / width
+                if aspect_ratio < aspect_ratio_threshold or height <= max_dimension:
+                    return [img_bytes]
+
+                # Determine tile height (target a square or slightly tall block)
+                tile_height = min(int(width * 1.5), max_dimension)
+                overlap = min(overlap_pixels, tile_height // 4)
+                stride = max(100, tile_height - overlap)
+
+                slices: list[bytes] = []
+                top = 0
+                while top < height:
+                    bottom = min(top + tile_height, height)
+                    box = (0, top, width, bottom)
+                    tile = img.crop(box)
+
+                    buf = io.BytesIO()
+                    tile_format = img.format or "PNG"
+                    tile.save(buf, format=tile_format, optimize=True)
+                    slices.append(buf.getvalue())
+
+                    if bottom >= height:
+                        break
+                    top += stride
+
+                return slices if slices else [img_bytes]
+        except Exception as exc:
+            logger.warning("slice_long_image_if_needed failed fallback to original: %s", exc)
+            return [img_bytes]
+
+
     def _compress_with_pillow(
         self,
         input_source: Path | BinaryIO,

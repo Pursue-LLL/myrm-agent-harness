@@ -345,10 +345,18 @@ async def apply_approval_decisions(
 
             decision_type = decision.get("type", "reject")
             extensions = decision.get("extensions", {})
-            allow_always = extensions.get("allowAlways", False)
-            allow_domain = extensions.get("allowDomain", False)
-            grant_directory = extensions.get("grantDirectory", False)
-            ttl_seconds = extensions.get("ttlSeconds", extensions.get("ttl_seconds", None))
+            allow_always = (
+                decision.get("allow_always", extensions.get("allowAlways", False))
+                or decision.get("allowAlways", False)
+            )
+            allow_domain = decision.get("allow_domain", extensions.get("allowDomain", False))
+            grant_directory = decision.get("grant_directory", extensions.get("grantDirectory", False))
+            ttl_seconds = (
+                decision.get("ttl_seconds")
+                or decision.get("ttlSeconds")
+                or extensions.get("ttlSeconds")
+                or extensions.get("ttl_seconds")
+            )
             guidance_text = (
                 decision.get("guidance", "").strip()
                 if isinstance(decision.get("guidance"), str)
