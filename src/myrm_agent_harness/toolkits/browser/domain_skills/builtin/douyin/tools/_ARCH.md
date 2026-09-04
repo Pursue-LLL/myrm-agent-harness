@@ -1,10 +1,11 @@
-# douyin/tools — Douyin browser automation tools
+# douyin/tools/
 
-Domain-specific browser scripts for extracting hot videos and engagement
-data from Douyin via the browser session sandbox.
+## Overview
 
-## File Index
+Self-contained executable tools for Douyin video harvesting.
 
-| File | Role | Description | I/O/P |
-| --- | --- | --- | --- |
-| `get_user_videos.py` | Core | Extract hot videos from Douyin feeds or hotlist pages via browser session. | ✅ |
+## Tools
+
+| Tool | Callable | Description |
+|------|----------|-------------|
+| get_video_feed | `get_video_feed` | Extract structured video cards with video_id, title, author, likes, and CSV/JSON export. |

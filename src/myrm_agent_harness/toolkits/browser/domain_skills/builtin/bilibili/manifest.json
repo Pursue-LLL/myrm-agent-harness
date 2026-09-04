@@ -1,20 +1,65 @@
 {
   "id": "bilibili",
-  "name": "Bilibili",
+  "name": "Bilibili (哔哩哔哩)",
   "domains": ["bilibili.com", "*.bilibili.com"],
+  "known_traps": [
+    "未登录状态可能弹出二维码登录遮罩弹窗，可通过 ESC 键或点击遮罩边缘关闭；若遭遇滑块验证风控，请调用 browser_ask_human_tool 请求人工接管。",
+    "首页及分区视频流采用瀑布流懒加载机制，如需提取更多视频可配合向下滚动触发加载。",
+    "视频详情页的评论区需滚动至可视区域才会异步加载数据。"
+  ],
+  "successful_flows": [
+    "采集视频列表：导航至主页或频道页 -> 调用 get_video_feed(max_items=20) -> 调用 export_data 导出表格",
+    "采集评论：打开视频详情页 -> 滚动至下方评论区 -> 调用 get_video_comments(max_comments=20) -> 调用 export_data 导出"
+  ],
   "python_tools": {
-    "get_feed_videos": {
-      "description": "Extract videos and metadata from Bilibili feed, search, or UP user space.",
-      "path": "tools/get_feed_videos.py",
-      "callable": "get_feed_videos",
+    "get_video_feed": {
+      "description": "提取 Bilibili 首页、分区或搜索页面的视频列表（标题、UP主、播放量、弹幕数、时长、链接）。",
+      "path": "tools/get_video_feed.py",
+      "callable": "get_video_feed",
       "args": {
-        "max_videos": {
+        "max_items": {
           "type": "integer",
           "required": "false",
-          "description": "Maximum number of video cards to extract (default: 10)."
+          "description": "最大提取视频数量（默认: 10）。"
         }
       },
-      "returns": "JSON array of video objects with title, url, author, stats, and duration."
+      "returns": "JSON 数组，包含视频标题、UP主、播放量、弹幕数及链接等信息。"
+    },
+    "get_video_comments": {
+      "description": "提取当前打开的 Bilibili 视频详情页的热门评论（用户名、评论正文、点赞数、发布时间）。",
+      "path": "tools/get_video_comments.py",
+      "callable": "get_video_comments",
+      "args": {
+        "max_comments": {
+          "type": "integer",
+          "required": "false",
+          "description": "最大提取评论数量（默认: 10）。"
+        }
+      },
+      "returns": "JSON 数组，包含评论者、评论内容、点赞数和时间。"
+    },
+    "export_data": {
+      "description": "将提取的视频或评论数据导出为 Excel (.xlsx) 或 CSV 电子表格文件。",
+      "path": "tools/export_data.py",
+      "callable": "export_data",
+      "args": {
+        "data": {
+          "type": "string",
+          "required": "true",
+          "description": "待导出的数据（JSON 数组字符串或由提取工具返回的原始数据）。"
+        },
+        "filename": {
+          "type": "string",
+          "required": "false",
+          "description": "目标文件名（如 bilibili_videos.xlsx，默认根据时间戳自动命名）。"
+        },
+        "format": {
+          "type": "string",
+          "required": "false",
+          "description": "导出格式：'xlsx' 或 'csv'（默认: 'xlsx'）。"
+        }
+      },
+      "returns": "包含导出文件路径、记录数及文件大小的 JSON 对象。"
     }
   }
 }

@@ -1,20 +1,25 @@
 {
   "id": "xiaohongshu",
   "name": "Xiaohongshu (RED)",
-  "domains": ["xiaohongshu.com", "*.xiaohongshu.com"],
+  "domains": ["xiaohongshu.com", "*.xiaohongshu.com", "xhslink.com", "*.xhslink.com"],
   "python_tools": {
-    "get_explore_notes": {
-      "description": "Extract notes, author, and likes from Xiaohongshu explore, search, or user profile page.",
-      "path": "tools/get_explore_notes.py",
-      "callable": "get_explore_notes",
+    "get_note_feed": {
+      "description": "Extract structured notes from Xiaohongshu explore, user profile, or search results. Supports JSON and Excel-compatible CSV export.",
+      "path": "tools/get_note_feed.py",
+      "callable": "get_note_feed",
       "args": {
-        "max_notes": {
+        "max_items": {
           "type": "integer",
           "required": "false",
           "description": "Maximum number of notes to extract (default: 10)."
+        },
+        "export_format": {
+          "type": "string",
+          "required": "false",
+          "description": "Output format: 'json' or 'csv' (default: 'json'). CSV includes UTF-8 BOM for direct Excel compatibility."
         }
       },
-      "returns": "JSON array of note objects with title, url, author, and stats."
+      "returns": "JSON array or CSV string of note objects (note_id, title, author, likes, note_type, url)."
     }
   }
 }

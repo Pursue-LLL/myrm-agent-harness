@@ -148,11 +148,16 @@ class DomainSkillStore:
                 returns_description=tool_raw.get("returns", ""),
             )
 
+        known_traps = tuple(raw.get("known_traps", []))
+        successful_flows = tuple(raw.get("successful_flows", []))
+
         return DomainSkillManifest(
             id=skill_id,
             name=name,
             domains=domains,
             python_tools=python_tools,
+            known_traps=known_traps,
+            successful_flows=successful_flows,
         )
 
     def match(self, url: str) -> list[DomainSkillManifest]:

@@ -16,6 +16,11 @@ Agent secrets backend package entry point. Re-exports storage protocols and impl
 """
 
 from .command_backend import CommandExecutionError, CommandSecretBackend
+from .external_resolver import (
+    ExternalSecretResolutionError,
+    is_external_secret_reference,
+    resolve_external_secret,
+)
 from .local_backend import LocalSecretBackend, SecretEncryptionError
 from .memory_backend import InMemorySecretBackend
 from .protocols import AgentSecretBackend
@@ -24,7 +29,10 @@ __all__ = [
     "AgentSecretBackend",
     "CommandExecutionError",
     "CommandSecretBackend",
+    "ExternalSecretResolutionError",
     "InMemorySecretBackend",
     "LocalSecretBackend",
     "SecretEncryptionError",
+    "is_external_secret_reference",
+    "resolve_external_secret",
 ]

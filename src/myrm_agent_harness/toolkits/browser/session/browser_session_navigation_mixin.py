@@ -583,6 +583,9 @@ class BrowserSessionNavigationMixin:
                 sigs = manifest.tool_signatures()
                 if sigs:
                     parts.append(f"Available domain tools (use browser_manage_tool action='run_site_tool'): {sigs}")
+                if manifest.known_traps:
+                    traps = "; ".join(manifest.known_traps)
+                    parts.append(f"Known traps: {traps}")
         except Exception:
             pass
 

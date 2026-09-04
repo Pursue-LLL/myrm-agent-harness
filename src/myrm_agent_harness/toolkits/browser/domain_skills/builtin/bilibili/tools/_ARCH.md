@@ -1,10 +1,11 @@
-# bilibili/tools — Bilibili browser automation tools
+# bilibili/tools/
 
-Domain-specific browser scripts for extracting video lists and video
-metrics from Bilibili via the browser session sandbox.
+## Overview
 
-## File Index
+Self-contained executable tools for Bilibili domain harvesting.
 
-| File | Role | Description | I/O/P |
-| --- | --- | --- | --- |
-| `get_feed_videos.py` | Core | Extract videos from Bilibili feeds or user space pages via browser session. | ✅ |
+## Tools
+
+| Tool | Callable | Description |
+|------|----------|-------------|
+| get_video_feed | `get_video_feed` | Extract structured video cards with bvid, title, play count, duration, and CSV/JSON export. |

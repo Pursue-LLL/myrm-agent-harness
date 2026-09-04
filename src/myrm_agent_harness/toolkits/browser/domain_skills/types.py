@@ -41,6 +41,8 @@ class DomainSkillManifest:
     name: str
     domains: tuple[str, ...]
     python_tools: dict[str, DomainTool] = field(default_factory=dict)
+    known_traps: tuple[str, ...] = field(default_factory=tuple)
+    successful_flows: tuple[str, ...] = field(default_factory=tuple)
 
     def tool_signatures(self) -> str:
         """Format tool signatures for navigate injection (~20 tokens per tool)."""

@@ -1,20 +1,25 @@
 {
   "id": "douyin",
-  "name": "Douyin (TikTok CN)",
+  "name": "Douyin",
   "domains": ["douyin.com", "*.douyin.com"],
   "python_tools": {
-    "get_user_videos": {
-      "description": "Extract videos, titles, and stats from Douyin feed or creator user profile page.",
-      "path": "tools/get_user_videos.py",
-      "callable": "get_user_videos",
+    "get_video_feed": {
+      "description": "Extract structured video entries from Douyin feed, search results, or user profile. Supports JSON and Excel-compatible CSV export.",
+      "path": "tools/get_video_feed.py",
+      "callable": "get_video_feed",
       "args": {
-        "max_videos": {
+        "max_items": {
           "type": "integer",
           "required": "false",
-          "description": "Maximum number of videos to extract (default: 10)."
+          "description": "Maximum number of video items to extract (default: 10)."
+        },
+        "export_format": {
+          "type": "string",
+          "required": "false",
+          "description": "Output format: 'json' or 'csv' (default: 'json'). CSV includes UTF-8 BOM for direct Excel compatibility."
         }
       },
-      "returns": "JSON array of video objects with title, url, author, and likes."
+      "returns": "JSON array or CSV string of video objects (video_id, title, author, likes, url)."
     }
   }
 }

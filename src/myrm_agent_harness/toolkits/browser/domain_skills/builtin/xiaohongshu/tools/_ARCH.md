@@ -1,10 +1,11 @@
-# xiaohongshu/tools — Xiaohongshu browser automation tools
+# xiaohongshu/tools/
 
-Domain-specific browser scripts for extracting notes and feed items
-from Xiaohongshu (RED) via the browser session sandbox.
+## Overview
 
-## File Index
+Self-contained executable tools for Xiaohongshu (RED) domain harvesting.
 
-| File | Role | Description | I/O/P |
-| --- | --- | --- | --- |
-| `get_explore_notes.py` | Core | Extract notes from Xiaohongshu explore feeds or search results via browser session. | ✅ |
+## Tools
+
+| Tool | Callable | Description |
+|------|----------|-------------|
+| get_note_feed | `get_note_feed` | Extract structured note cards with note_id, title, likes, note_type, and CSV/JSON export. |

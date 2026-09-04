@@ -96,6 +96,17 @@ class LLMManager:
         Returns:
             BaseChatModel: LLM instance (ChatLiteLLM or KeyPoolLLM)
         """
+        from myrm_agent_harness.backends.secrets import is_external_secret_reference, resolve_external_secret
+
+        if is_external_secret_reference(api_key):
+            api_key = resolve_external_secret(api_key)
+
+        if api_keys:
+            resolved_keys: list[str] = []
+            for k in api_keys:
+                resolved_keys.append(resolve_external_secret(k) if is_external_secret_reference(k) else k)
+            api_keys = resolved_keys
+
         normalized_keys = normalize_api_keys(api_keys) if api_keys else None
         effective_keys = normalized_keys if normalized_keys and len(normalized_keys) > 1 else None
 
