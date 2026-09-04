@@ -380,8 +380,8 @@ class WikiQueryEngine:
         resolved: list[Path] = []
         seen_paths: set[Path] = set()
         for name in expanded:
-            path = self._structure.get_concept_file_path(name)
-            if path.exists() and path not in seen_paths:
+            path = self._structure.resolve_concept_file_path(name)
+            if path and path.exists() and path not in seen_paths:
                 seen_paths.add(path)
                 resolved.append(path)
         sidecar_directories = self._sidecar_directories_from_articles(resolved)
@@ -698,11 +698,19 @@ class WikiQueryEngine:
         if max_dirs == 0:
             return parts, total_chars, snippets
         for article in article_paths:
+            dir_path = ""
             try:
                 rel = article.relative_to(self._structure.concepts_dir).with_suffix("")
+                dir_path = "" if str(rel.parent) in (".", "") else str(rel.parent).replace("\\", "/")
             except ValueError:
-                continue
-            dir_path = "" if str(rel.parent) in (".", "") else str(rel.parent).replace("\\", "/")
+                for p_dir in self._structure.public_dirs:
+                    p_concepts = p_dir / "wiki" / "concepts"
+                    try:
+                        rel = article.relative_to(p_concepts).with_suffix("")
+                        dir_path = "" if str(rel.parent) in (".", "") else str(rel.parent).replace("\\", "/")
+                        break
+                    except ValueError:
+                        continue
             if dir_path in seen:
                 continue
             seen.add(dir_path)
@@ -751,11 +759,7 @@ class WikiQueryEngine:
         for dir_path in dir_paths:
             normalized = dir_path.strip("/").replace("\\", "/")
             for concept in concepts:
-                try:
-                    rel = concept.relative_to(self._structure.concepts_dir).with_suffix("")
-                except ValueError:
-                    continue
-                concept_name = str(rel).replace("\\", "/")
+                concept_name = self._concept_name_from_path(concept)
                 if normalized and not concept_name.startswith(f"{normalized}/"):
                     continue
                 if concept not in seen_paths:
@@ -764,16 +768,29 @@ class WikiQueryEngine:
         return ordered
 
     def _concept_name_from_path(self, path: Path) -> str:
-        rel = path.relative_to(self._structure.concepts_dir).with_suffix("")
-        return str(rel).replace("\\", "/")
+        try:
+            rel = path.relative_to(self._structure.concepts_dir).with_suffix("")
+            return str(rel).replace("\\", "/")
+        except ValueError:
+            pass
+
+        for p_dir in self._structure.public_dirs:
+            p_concepts = p_dir / "wiki" / "concepts"
+            try:
+                rel = path.relative_to(p_concepts).with_suffix("")
+                return str(rel).replace("\\", "/")
+            except ValueError:
+                continue
+
+        return path.stem
 
     def _normalize_concept_name(self, name: str) -> str:
         """Map FTS/index aliases to the canonical on-disk concept relative path."""
         candidate = name.strip().replace("\\", "/")
         if not candidate:
             return ""
-        path = self._structure.get_concept_file_path(candidate)
-        if path.exists():
+        path = self._structure.resolve_concept_file_path(candidate)
+        if path and path.exists():
             return self._concept_name_from_path(path)
         return candidate
 

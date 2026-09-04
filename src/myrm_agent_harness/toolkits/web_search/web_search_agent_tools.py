@@ -109,8 +109,6 @@ def create_web_search_tool(
         Returns: {"content": "...", "metadata": {...}}
         - content: Formatted text content (for the LLM)
         - metadata: Structured metadata (for business layer, e.g., citation collection)
-
-        Results are processed via BM25 + reranker model, returning the most relevant content snippets.
         """
         from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
 

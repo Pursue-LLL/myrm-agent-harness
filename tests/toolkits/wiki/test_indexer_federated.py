@@ -137,3 +137,52 @@ async def test_federated_offline_and_corrupt_resilience(tmp_path):
     graph = local_indexer.get_knowledge_graph()
     assert any(n["id"] == "Local Resilience" for n in graph["nodes"])
 
+
+@pytest.mark.asyncio
+async def test_federated_multi_source_labels_and_citations(tmp_path):
+    local_dir = tmp_path / "local"
+    kb1_dir = tmp_path / "kb1"
+    kb2_dir = tmp_path / "kb2"
+
+    kb1_s = WikiStructure(kb1_dir)
+    kb1_s.ensure_structure()
+    kb1_indexer = WikiIndexer(kb1_s, WikiConfig(enable_hybrid_search=False))
+    await kb1_indexer.upsert("Arch Spec", "## Compiled Truth\nMicroservices architecture standard")
+
+    kb2_s = WikiStructure(kb2_dir)
+    kb2_s.ensure_structure()
+    kb2_indexer = WikiIndexer(kb2_s, WikiConfig(enable_hybrid_search=False))
+    await kb2_indexer.upsert("Sec Policy", "## Compiled Truth\nZero trust network security rules")
+
+    # Local mounts both with labels
+    labels = {
+        str(kb1_dir.resolve()): "Enterprise Architecture",
+        str(kb2_dir.resolve()): "Security Guidelines",
+    }
+    local_s = WikiStructure(local_dir, public_dirs=[kb1_dir, kb2_dir], public_dir_labels=labels)
+    local_s.ensure_structure()
+    local_indexer = WikiIndexer(local_s, WikiConfig(enable_hybrid_search=False))
+
+    # Cross-source hybrid/fts search returns matches across all mounted bases
+    res_arch = await local_indexer.search("architecture")
+    assert len(res_arch) == 1
+    assert res_arch[0][0] == "Arch Spec"
+
+    res_sec = await local_indexer.search("security")
+    assert len(res_sec) == 1
+    assert res_sec[0][0] == "Sec Policy"
+
+    # Verify truth retrieval from federated attachments
+    truth_arch = local_indexer.get_truth("Arch Spec")
+    assert truth_arch is not None and "Microservices" in truth_arch
+
+    truth_sec = local_indexer.get_truth("Sec Policy")
+    assert truth_sec is not None and "Zero trust" in truth_sec
+
+    # Verify knowledge graph merges all sources
+    graph = local_indexer.get_knowledge_graph()
+    nodes = {n["id"] for n in graph["nodes"]}
+    assert "Arch Spec" in nodes
+    assert "Sec Policy" in nodes
+
+

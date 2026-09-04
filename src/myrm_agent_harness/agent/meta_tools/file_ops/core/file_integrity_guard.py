@@ -108,6 +108,7 @@ class FileIntegrityGuard:
         path: str,
         disk_content: str,
         agent_id: str | None = None,
+        anchor: str | None = None,
     ) -> str | None:
         """Hard-reject when disk content hash differs from the last full-read hash."""
         aid = agent_id or _current_agent_id()
@@ -122,11 +123,23 @@ class FileIntegrityGuard:
         if current == expected:
             return None
 
-        preview = (
-            disk_content
-            if len(disk_content) <= 2000
-            else disk_content[:2000] + "\n... [truncated]"
-        )
+        if len(disk_content) <= 2000:
+            preview = disk_content
+        else:
+            anchor_pos = -1
+            clean_anchor = anchor.strip() if anchor else ""
+            if clean_anchor:
+                anchor_pos = disk_content.find(clean_anchor)
+
+            if anchor_pos != -1:
+                start = max(0, anchor_pos - 800)
+                end = min(len(disk_content), anchor_pos + len(clean_anchor) + 800)
+                prefix = "... [preceding content omitted]\n" if start > 0 else ""
+                suffix = "\n... [following content omitted]" if end < len(disk_content) else ""
+                preview = f"{prefix}{disk_content[start:end]}{suffix}"
+            else:
+                preview = disk_content[:2000] + "\n... [truncated]"
+
         return (
             f"File '{norm}' has changed on disk since your last read (content hash mismatch).\n"
             f"Current disk content snippet:\n```\n{preview}\n```\n"

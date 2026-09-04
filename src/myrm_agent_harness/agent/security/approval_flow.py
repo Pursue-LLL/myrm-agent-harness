@@ -336,6 +336,19 @@ class Allowlist:
         if self._store:
             await self._store.remove(user_id, permission, tool_name, tool_args_hash, command_pattern, agent_id)
 
+    async def list_active_grants(self, user_id: str) -> list[AllowlistEntry]:
+        """Return all currently active allowlist entries for a user, filtering expired grants."""
+        await self.load_user(user_id)
+        now = time.time()
+        user_entries = self._entries.get(user_id, {})
+        active = [e for e in user_entries.values() if e.expires_at is None or e.expires_at > now]
+        if len(active) != len(user_entries):
+            self._entries[user_id] = {
+                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern, e.agent_id): e
+                for e in active
+            }
+        return active
+
     async def clear_user(self, user_id: str) -> int:
         """Clear all allowlist entries for a user (concurrent-safe).
 

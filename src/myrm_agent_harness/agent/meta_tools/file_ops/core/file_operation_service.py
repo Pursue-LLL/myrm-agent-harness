@@ -505,11 +505,17 @@ class FileOperationService:
         self._raise_if_integrity_rejection(guard, resolved_path, require_version=False)
 
         old_content = "\n".join(await strategy.read_file(resolved_path))
+        target_anchor = (
+            self.context.edits[0].old_str
+            if self.context.edits
+            else None
+        )
         self._raise_if_integrity_rejection(
             guard,
             resolved_path,
             disk_content=old_content,
             require_version=True,
+            anchor=target_anchor,
         )
 
         line_start, line_end = compute_batch_edit_line_range(
@@ -644,6 +650,7 @@ class FileOperationService:
         *,
         disk_content: str | None = None,
         require_version: bool,
+        anchor: str | None = None,
     ) -> None:
         if guard is None:
             return
@@ -664,7 +671,7 @@ class FileOperationService:
             )
 
         if require_version and disk_content is not None:
-            version_rejection = guard.require_version_match(path, disk_content)
+            version_rejection = guard.require_version_match(path, disk_content, anchor=anchor)
             if version_rejection is not None:
                 raise ToolError(
                     message=version_rejection,

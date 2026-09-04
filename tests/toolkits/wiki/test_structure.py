@@ -252,4 +252,48 @@ class TestGetRawFilePathBoundary:
         ws = WikiStructure(tmp_path)
         ws.ensure_structure()
         path = ws.get_raw_file_path("a/b/c/d/e/deep.md")
+
+
+class TestFederatedPublicDirsStructure:
+    """Tests for federated public_dirs read-only mounts in WikiStructure."""
+
+    def test_list_concepts_includes_public_dirs(self, tmp_path):
+        primary = tmp_path / "primary"
+        pub1 = tmp_path / "pub1"
+        pub2 = tmp_path / "pub2"
+
+        ws = WikiStructure(primary, public_dirs=[pub1, pub2])
+        ws.ensure_structure()
+
+        # Primary concept
+        (primary / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        (primary / "wiki" / "concepts" / "concept_primary.md").write_text("# Primary")
+
+        # Public 1 concept
+        (pub1 / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        (pub1 / "wiki" / "concepts" / "concept_pub1.md").write_text("# Pub 1")
+
+        # Public 2 concept
+        (pub2 / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        (pub2 / "wiki" / "concepts" / "concept_pub2.md").write_text("# Pub 2")
+
+        concepts = ws.list_concepts()
+        concept_names = {p.name for p in concepts}
+        assert "concept_primary.md" in concept_names
+        assert "concept_pub1.md" in concept_names
+        assert "concept_pub2.md" in concept_names
+
+    def test_resolve_concept_file_path_falls_back_to_public_mount(self, tmp_path):
+        primary = tmp_path / "primary"
+        pub = tmp_path / "pub"
+
+        ws = WikiStructure(primary, public_dirs=[pub])
+        ws.ensure_structure()
+
+        (pub / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        target = pub / "wiki" / "concepts" / "team_handbook.md"
+        target.write_text("# Handbook")
+
+        resolved = ws.resolve_concept_file_path("team_handbook")
+        assert resolved == target
         assert str(path).endswith("raw/a/b/c/d/e/deep.md")

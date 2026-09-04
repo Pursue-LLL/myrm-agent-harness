@@ -149,6 +149,7 @@ async def add_to_allowlist_if_needed(
     *,
     tool_command: str | None = None,
     agent_id: str | None = None,
+    ttl_seconds: int | float | None = None,
 ) -> None:
     """Add permission to user's allowlist if requested.
 
@@ -158,6 +159,10 @@ async def add_to_allowlist_if_needed(
     3. Exact match: allow_always={'tool': True, 'args': True} → matches tool + args (requires tool_args_hash)
     4. Pattern match: allow_always={'tool': True, 'pattern': True} → matches tool + command glob
 
+    Time-bound grant:
+    - ttl_seconds: Optional time-to-live in seconds. If provided (> 0), expires_at
+      is calculated as current time + ttl_seconds, enabling auto-revocation.
+
     Identity Scope:
     - agent_id: Bound agent identifier. For hosted MCP tools (mcp_invoke / mcp__*),
       persisting agent_id ensures allowlist entries are isolated to this specific subagent.
@@ -165,14 +170,27 @@ async def add_to_allowlist_if_needed(
     if not allow_always or not user_id:
         return
 
+    # Extract ttl_seconds from allow_always dict if provided
+    effective_ttl = ttl_seconds
+    if isinstance(allow_always, dict) and "ttl_seconds" in allow_always and effective_ttl is None:
+        try:
+            raw_ttl = allow_always["ttl_seconds"]
+            if raw_ttl is not None:
+                effective_ttl = float(raw_ttl)
+        except (ValueError, TypeError):
+            effective_ttl = None
+
+    expires_at = (time.time() + float(effective_ttl)) if (effective_ttl is not None and float(effective_ttl) > 0) else None
+
     if isinstance(allow_always, bool):
         entry = AllowlistEntry(
             permission=permission_type,
             tool_name=None,
             tool_args_hash=None,
             agent_id=agent_id,
+            expires_at=expires_at,
         )
-        log_msg = f"permission-level: ({permission_type}, *, agent={agent_id})"
+        log_msg = f"permission-level: ({permission_type}, *, agent={agent_id}, expires_at={expires_at})"
     elif isinstance(allow_always, dict):
         match_args = allow_always.get("args", False)
         match_pattern = allow_always.get("pattern", False)
@@ -190,8 +208,9 @@ async def add_to_allowlist_if_needed(
                 tool_args_hash=None,
                 command_pattern=pattern,
                 agent_id=agent_id,
+                expires_at=expires_at,
             )
-            log_msg = f"pattern-match: ({permission_type}, {tool_name}, pattern={pattern}, agent={agent_id})"
+            log_msg = f"pattern-match: ({permission_type}, {tool_name}, pattern={pattern}, agent={agent_id}, expires_at={expires_at})"
         else:
             args_hash = tool_args_hash if match_args else None
             entry = AllowlistEntry(
@@ -199,11 +218,12 @@ async def add_to_allowlist_if_needed(
                 tool_name=tool_name,
                 tool_args_hash=args_hash,
                 agent_id=agent_id,
+                expires_at=expires_at,
             )
             if args_hash:
-                log_msg = f"exact-match: ({permission_type}, {tool_name}, args_hash={args_hash}, agent={agent_id})"
+                log_msg = f"exact-match: ({permission_type}, {tool_name}, args_hash={args_hash}, agent={agent_id}, expires_at={expires_at})"
             else:
-                log_msg = f"tool-level: ({permission_type}, {tool_name}, agent={agent_id})"
+                log_msg = f"tool-level: ({permission_type}, {tool_name}, agent={agent_id}, expires_at={expires_at})"
     else:
         return
 

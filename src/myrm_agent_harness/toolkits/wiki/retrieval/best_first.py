@@ -142,8 +142,8 @@ def _claim_overlap_for_concept(
 ) -> float:
     if concept_name in cache:
         return cache[concept_name]
-    path = structure.get_concept_file_path(concept_name)
-    if not path.exists():
+    path = structure.resolve_concept_file_path(concept_name)
+    if not path or not path.exists():
         cache[concept_name] = 0.0
         return 0.0
     try:
@@ -185,7 +185,8 @@ def converge_retrieval_candidates(
             return
         if valid_names is not None and normalized not in valid_names:
             return
-        if not structure.get_concept_file_path(normalized).exists():
+        path = structure.resolve_concept_file_path(normalized)
+        if not path or not path.exists():
             return
         overlap = _claim_overlap_for_concept(
             structure=structure,

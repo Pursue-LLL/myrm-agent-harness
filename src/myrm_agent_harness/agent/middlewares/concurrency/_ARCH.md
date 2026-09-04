@@ -13,7 +13,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](../MIDDLEWARE_SYSTEM.md)
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public exports for concurrency factories and stage planners. | — |
 | `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type; `get_subagent_semaphore` accessor. | ✅ |
-| `concurrency_router.py` | Core | Smart tool routing: host-serial MCP lane awareness, canonical path identity, default CWD scope reservation for omitted paths, precise `file_read_tool.paths[]` & alias/string conflict modeling, `build_tool_execution_stages()` + `should_parallelize_tool_batch()`. | ✅ |
+| `concurrency_router.py` | Core | Smart tool routing: host-serial MCP lane awareness, canonical path identity, default CWD scope reservation for omitted paths, cross-platform path line range normalization (`_PATH_LINE_RANGE_PATTERN`), precise `file_read_tool.paths[]` & alias/string conflict modeling, `build_tool_execution_stages()` + `should_parallelize_tool_batch()`. | ✅ |
 | `safety_dispatcher.py` | Core | safe→concurrent / unsafe→serial tool routing middleware factory. | ✅ |
 
 ## Key Dependencies

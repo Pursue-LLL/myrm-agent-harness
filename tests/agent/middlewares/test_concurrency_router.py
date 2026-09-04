@@ -339,4 +339,25 @@ def test_build_tool_execution_stages_isolates_file_read_with_json_encoded_paths(
     assert build_tool_execution_stages(calls_alias_json) == [[0], [1]]
 
 
+def test_clean_path_scope_target_windows_paths_and_line_ranges():
+    from myrm_agent_harness.agent.middlewares.concurrency.concurrency_router import _clean_path_scope_target
+
+    assert _clean_path_scope_target(r"C:\workspace\proj3\main.py:10-50") == r"C:\workspace\proj3\main.py"
+    assert _clean_path_scope_target(r"C:\workspace\proj3\main.py:100-") == r"C:\workspace\proj3\main.py"
+    assert _clean_path_scope_target(r"C:\workspace\proj3\main.py:50") == r"C:\workspace\proj3\main.py"
+    assert _clean_path_scope_target(r"C:\workspace\proj3\main.py") == r"C:\workspace\proj3\main.py"
+    assert _clean_path_scope_target("vault://uuid-1234:1-50") == "vault://uuid-1234"
+    assert _clean_path_scope_target("vault://uuid-1234") == "vault://uuid-1234"
+    assert _clean_path_scope_target("src/core/app.py:1-20") == "src/core/app.py"
+
+
+def test_build_tool_execution_stages_isolates_windows_path_line_range():
+    calls = [
+        {"name": "file_read_tool", "args": {"paths": [r"C:\workspace\proj3\main.py:10-50"]}},
+        {"name": "file_write_tool", "args": {"path": r"C:\workspace\proj3\main.py", "file_text": "data"}},
+    ]
+    assert build_tool_execution_stages(calls) == [[0], [1]]
+
+
+
 

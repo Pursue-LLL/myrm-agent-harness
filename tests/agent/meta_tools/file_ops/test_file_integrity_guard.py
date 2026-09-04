@@ -37,6 +37,33 @@ class TestFileIntegrityGuard:
         assert "... [truncated]" in rejection
         assert len(rejection) < 2500
 
+    def test_rejection_payload_centers_around_anchor_in_large_file(self) -> None:
+        guard = FileIntegrityGuard()
+        guard.record_read("/a/b.py", "initial_content")
+        target_code = "def calculate_discount(price):\n    return price * 0.9"
+        large_content = ("# padding line\n" * 300) + target_code + ("\n# trailing line\n" * 300)
+        rejection = guard.require_version_match(
+            "/a/b.py",
+            large_content,
+            anchor="def calculate_discount(price):",
+        )
+        assert rejection is not None
+        assert "def calculate_discount(price):" in rejection
+        assert "... [preceding content omitted]" in rejection
+        assert "... [following content omitted]" in rejection
+
+    def test_rejection_payload_falls_back_to_head_when_anchor_not_found(self) -> None:
+        guard = FileIntegrityGuard()
+        guard.record_read("/a/b.py", "initial_content")
+        large_content = "x" * 3000
+        rejection = guard.require_version_match(
+            "/a/b.py",
+            large_content,
+            anchor="non_existent_anchor",
+        )
+        assert rejection is not None
+        assert "... [truncated]" in rejection
+
     def test_no_rejection_for_unread_file(self) -> None:
         guard = FileIntegrityGuard()
         assert guard.require_version_match("/unknown.py", "anything") is None

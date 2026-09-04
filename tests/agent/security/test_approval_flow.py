@@ -175,3 +175,28 @@ class TestAllowlist:
         al2 = Allowlist(store=store, ttl_seconds=1.0)
         await al2.load_user("user1")
         assert al2.check("user1", "file_read") is True
+
+    @pytest.mark.asyncio
+    async def test_time_bound_scoped_grant_auto_revoke(self, allowlist: Allowlist) -> None:
+        import time
+        now = time.time()
+        # Expired entry (5 seconds in the past)
+        expired_entry = AllowlistEntry(
+            permission="shell_exec",
+            tool_name="bash",
+            expires_at=now - 5.0,
+        )
+        # Active entry (10 seconds in future)
+        active_entry = AllowlistEntry(
+            permission="email_send",
+            tool_name="send_email",
+            expires_at=now + 10.0,
+        )
+        await allowlist.add("user1", expired_entry)
+        await allowlist.add("user1", active_entry)
+
+        # Expired entry should be rejected and automatically pruned
+        assert allowlist.check("user1", "shell_exec", "bash") is False
+        # Active entry should be allowed
+        assert allowlist.check("user1", "email_send", "send_email") is True
+

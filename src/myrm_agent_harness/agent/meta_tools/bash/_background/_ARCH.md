@@ -11,7 +11,7 @@ Background bash process registry and durable job ledger for ``bash_code_execute_
 | __init__.py | Package | 域聚合出口：导出 registry 单例 + 快照类型（6 个公共符号）。 | ✅ |
 | types.py | Core | Shared dataclasses (`BackgroundProcessInfo`, `BackgroundQuotaError`, listener aliases). | ✅ |
 | registry.py | Core | Process-wide singleton registry with per-session buckets, SIGTERM→SIGKILL kill, reap, ``kill_session_jobs``. | ✅ |
-| consume.py | Core | Per-entry stdout/stderr reader loop, spill hooks, finish listener dispatch. | ✅ |
+| consume.py | Core | Per-entry stdout/stderr reader loop, spill hooks, 10Hz adaptive progress throttle (with 100% terminal penetration), and finish listener dispatch. | ✅ |
 | stdin.py | Core | ``write_background_stdin`` — raw/submit/EOF writes to live child stdin. | ✅ |
 | store_sync.py | Core | Write-through helpers: spawn upsert, vault log ref, terminal state persist. | ✅ |
 | poll.py | Core | Incremental poll snapshot builder for ``bash_process_tool`` / auto-yield. | ✅ |

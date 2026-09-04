@@ -80,6 +80,7 @@ async def _try_add_to_allowlist(
     allowlist_tool_name: str,
     idx: int,
     args_hashes: dict[int, str | None],
+    ttl_seconds: int | float | None = None,
 ) -> None:
     """Write to allowlist if allow_always is set and not blocked by security guards."""
     if not allow_always:
@@ -110,6 +111,7 @@ async def _try_add_to_allowlist(
         args_hashes.get(idx),
         tool_command=shell_command,
         agent_id=agent_id,
+        ttl_seconds=ttl_seconds,
     )
 
 
@@ -346,6 +348,7 @@ async def apply_approval_decisions(
             allow_always = extensions.get("allowAlways", False)
             allow_domain = extensions.get("allowDomain", False)
             grant_directory = extensions.get("grantDirectory", False)
+            ttl_seconds = extensions.get("ttlSeconds", extensions.get("ttl_seconds", None))
             guidance_text = (
                 decision.get("guidance", "").strip()
                 if isinstance(decision.get("guidance"), str)
@@ -353,12 +356,13 @@ async def apply_approval_decisions(
             )
 
             logger.info(
-                "[APPROVAL] Tool %s decision: type=%s, allow_always=%s, allow_domain=%s, grant_directory=%s",
+                "[APPROVAL] Tool %s decision: type=%s, allow_always=%s, allow_domain=%s, grant_directory=%s, ttl_seconds=%s",
                 tool_name,
                 decision_type,
                 allow_always,
                 allow_domain,
                 grant_directory,
+                ttl_seconds,
             )
 
             if decision_type == "approve":
@@ -439,6 +443,7 @@ async def apply_approval_decisions(
                     allowlist_tool_name,
                     idx,
                     args_hashes,
+                    ttl_seconds=ttl_seconds,
                 )
 
                 revised_tool_calls.append(tool_call)
@@ -508,6 +513,7 @@ async def apply_approval_decisions(
                         allowlist_tool_name,
                         idx,
                         args_hashes,
+                        ttl_seconds=ttl_seconds,
                     )
 
             else:
