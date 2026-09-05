@@ -182,18 +182,12 @@ class PathValidator(Validator):
         Raises:
             PermissionError: 路径不在允许的基础路径内
         """
-        # 使用 os.path.commonpath 进行严格的路径前缀检查
+        # 使用 canonical path guard (is_within_boundary) 进行严格的物理沙箱边界检查
         is_allowed = False
         for base in self.allowed_base_paths:
-            try:
-                # 使用 commonpath 确保真正的父子关系
-                common = os.path.commonpath([abs_path, base])
-                if common == base:
-                    is_allowed = True
-                    break
-            except ValueError:
-                # 不同驱动器（Windows）或路径格式不兼容
-                continue
+            if is_within_boundary(abs_path, base):
+                is_allowed = True
+                break
 
         if not is_allowed:
             raise PermissionError(

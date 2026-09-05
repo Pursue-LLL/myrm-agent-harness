@@ -269,7 +269,7 @@ class MemorySearchService:
                 )
             )
             collect_start = perf_counter()
-            result_lists, collect_degraded, collect_warnings = await self._collect_result_lists(
+            result_lists, collect_degraded, collect_warnings, source_names = await self._collect_result_lists(
                 query=sanitized_query,
                 memory_types=search_types,
                 limit=limit,
@@ -283,7 +283,7 @@ class MemorySearchService:
             degraded = degraded or collect_degraded
             warning_codes.extend(collect_warnings)
             candidate_count = sum(len(result_list) for result_list in result_lists)
-            collect_metadata: dict[str, Any] = {"result_lists": len(result_lists)}
+            collect_metadata: dict[str, Any] = {"result_lists": len(result_lists), "sources": source_names}
             if collect_degraded:
                 collect_metadata["degraded"] = True
                 collect_metadata["kind"] = "timeout" if any(w.endswith("_TIMEOUT") for w in collect_warnings) else "error"
@@ -310,6 +310,7 @@ class MemorySearchService:
                 use_rrf=use_rrf,
                 config=runtime_config,
                 query_context=query_context,
+                source_names=source_names,
             )
             steps.append(
                 MemoryTraceStep(
@@ -514,6 +515,7 @@ class MemorySearchService:
             )
 
         result_lists: list[list[MemorySearchResult]] = []
+        source_names: list[str] = []
         for task in done:
             stream = task_stream_map.get(task, "unknown")
             try:
@@ -528,7 +530,8 @@ class MemorySearchService:
                 filtered = self._filter_results(result)
                 if filtered:
                     result_lists.append(apply_channel_affinity(filtered, current_channel_id=self._current_channel_id))
-        return result_lists, degraded, warning_codes
+                    source_names.append(stream)
+        return result_lists, degraded, warning_codes, source_names
 
     @staticmethod
     def _filter_results(results: list[MemorySearchResult]) -> list[MemorySearchResult]:
@@ -701,10 +704,17 @@ class MemorySearchService:
         use_rrf: bool,
         config: MemoryConfig,
         query_context: object | None = None,
+        source_names: list[str] | None = None,
     ) -> list[MemorySearchResult]:
         retriever = MemoryRetriever(config.retrieval) if config != self._config else self._retriever
         if use_rrf and len(result_lists) > 1:
-            return retriever.fuse(result_lists, limit=limit, query=query, query_context=query_context)
+            return retriever.fuse(
+                result_lists,
+                limit=limit,
+                query=query,
+                query_context=query_context,
+                source_names=source_names,
+            )
         merged = [memory for result_list in result_lists for memory in result_list]
         return retriever.rank(merged, limit=limit, query=query, query_context=query_context)
 

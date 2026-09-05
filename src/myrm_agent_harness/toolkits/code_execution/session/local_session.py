@@ -82,7 +82,7 @@ class LocalPersistentSession(PersistentSession):
 
         p = self._platform
         shell_path, shell_args = p.shell_path, p.shell_args
-        raw_env = self.config.env if self.config.env is not None else {**os.environ}
+        raw_env = {**os.environ, **(self.config.env or {})}
         merged_env = sanitize_env(raw_env)
 
         if self._sandbox_status and self._sandbox_status.enabled and self._sandbox_policy:

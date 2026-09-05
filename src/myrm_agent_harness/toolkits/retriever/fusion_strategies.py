@@ -208,12 +208,22 @@ def rrf_fusion[T](
         >>> fused = rrf_fusion(filtered_results, k=60)
     """
     rrf_scores: defaultdict[T, float] = defaultdict(float)
+    hit_counts: defaultdict[T, int] = defaultdict(int)
 
     for results in query_results:
         for rank, (doc_idx, _) in enumerate(results):
             rrf_scores[doc_idx] += 1.0 / (k + rank + 1)
+            hit_counts[doc_idx] += 1
 
-    sorted_results = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
+    # Deterministic multi-tier sort:
+    # 1. -round(score, 9) (descending with epsilon bucket)
+    # 2. -hit_count (descending consensus count)
+    # 3. str(doc_idx) (ascending deterministic tie-breaker)
+    sorted_items = sorted(
+        rrf_scores.keys(),
+        key=lambda doc: (-round(rrf_scores[doc], 9), -hit_counts[doc], str(doc)),
+    )
+    sorted_results = [(doc, rrf_scores[doc]) for doc in sorted_items]
 
     logger.debug(f"RRF fusion: {len(query_results)} queries -> {len(rrf_scores)} unique docs, selecting top_{top_k}")
 

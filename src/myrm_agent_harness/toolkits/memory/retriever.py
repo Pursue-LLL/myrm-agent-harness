@@ -28,7 +28,12 @@ from myrm_agent_harness.toolkits.memory.signals import (
     get_default_signal_weights,
 )
 from myrm_agent_harness.toolkits.memory.text_utils import tokenize
-from myrm_agent_harness.toolkits.memory.types import MemorySearchResult, SemanticMemory
+from myrm_agent_harness.toolkits.memory.types import (
+    HitSource,
+    MemorySearchResult,
+    RecallDebugTrace,
+    SemanticMemory,
+)
 
 
 def _jaccard_similarity(a: frozenset[str], b: frozenset[str]) -> float:
@@ -75,20 +80,28 @@ class MemoryRetriever:
         limit: int = 10,
         query: str = "",
         query_context: object | None = None,
+        source_names: list[str] | None = None,
     ) -> list[MemorySearchResult]:
-        """Fuse multiple result lists using RRF, correction suppression, and MMR diversity.
+        """Fuse multiple result lists using RRF, deterministic tie-breaking, and MMR diversity.
 
         Supports dual-channel fusion for ConversationMemory:
         - Raw channel (raw_embedding): high precision for exact wording
         - Summary channel (summary_embedding): broad coverage for semantic meaning
         - Channel weights applied via type_weights configuration
+
+        Deterministic 3-tier tie-breaking:
+        1. Fused/boosted score descending
+        2. Hit count (number of distinct streams hitting the candidate) descending
+        3. Stable string candidate ID ascending (eliminates hash seed/iteration order jitter)
         """
         scores: dict[str, float] = {}
         items: dict[str, MemorySearchResult] = {}
+        hit_attributions: dict[str, list[HitSource]] = {}
         k = self._config.rrf_k
         query_tokens = tokenize(query)
 
-        for results in result_lists:
+        for list_idx, results in enumerate(result_lists):
+            src_name = source_names[list_idx] if source_names and list_idx < len(source_names) else f"stream_{list_idx}"
             for rank_idx, r in enumerate(results):
                 mid = r.id
                 rrf = 1.0 / (k + rank_idx + 1)
@@ -97,10 +110,13 @@ class MemoryRetriever:
                 scores[mid] = scores.get(mid, 0.0) + boosted
                 if mid not in items:
                     items[mid] = r
+                if mid not in hit_attributions:
+                    hit_attributions[mid] = []
+                hit_attributions[mid].append(HitSource(source=src_name, rank=rank_idx, score=r.score))
 
         self._suppress_corrected(scores, items)
         scores, items = self._mmr_select(scores, items, limit)
-        return self._normalise(scores, items, limit)
+        return self._normalise(scores, items, limit, hit_attributions=hit_attributions)
 
     def _hard_cutoff(self, scores: dict[str, float], items: dict[str, MemorySearchResult]) -> None:
         """Discard memories below min_relevance_score to prevent noise injection.
@@ -194,19 +210,53 @@ class MemoryRetriever:
         return ({mid: scores[mid] for mid in selected_set}, {mid: items[mid] for mid in selected_set})
 
     def _normalise(
-        self, scores: dict[str, float], items: dict[str, MemorySearchResult], limit: int
+        self,
+        scores: dict[str, float],
+        items: dict[str, MemorySearchResult],
+        limit: int,
+        hit_attributions: dict[str, list[HitSource]] | None = None,
     ) -> list[MemorySearchResult]:
-        """Normalize scores to [0, 1] range and return top-k results."""
-        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:limit]
+        """Normalize scores to [0, 1] range and return top-k results with 3-tier deterministic tie-breaking.
+
+        Tie-breaking hierarchy:
+        1. Score descending (-score)
+        2. Hit count descending (-hit_count)
+        3. Stable string candidate ID ascending (mid)
+        """
+        if not scores:
+            return []
+
+        def _sort_key(item: tuple[str, float]) -> tuple[float, int, str]:
+            mid, score = item
+            hit_count = len(hit_attributions[mid]) if hit_attributions and mid in hit_attributions else 1
+            # Sort order: highest score first, highest hit_count first, lowest ID alphabetically first
+            return (-score, -hit_count, mid)
+
+        ranked = sorted(scores.items(), key=_sort_key)[:limit]
         if not ranked:
             return []
+
         max_score = max(ranked[0][1], 1e-9)
-        return [
-            MemorySearchResult(
-                memory=items[mid].memory, score=min(score / max_score, 1.0), memory_type=items[mid].memory_type
+        out: list[MemorySearchResult] = []
+        for rank_pos, (mid, score) in enumerate(ranked):
+            debug_trace: RecallDebugTrace | None = None
+            if hit_attributions and mid in hit_attributions:
+                hits = hit_attributions[mid]
+                debug_trace = RecallDebugTrace(
+                    hit_sources=hits,
+                    hit_count=len(hits),
+                    fused_score=round(score, 6),
+                    tie_break_rank=rank_pos,
+                )
+            out.append(
+                MemorySearchResult(
+                    memory=items[mid].memory,
+                    score=min(score / max_score, 1.0),
+                    memory_type=items[mid].memory_type,
+                    recall_debug=debug_trace,
+                )
             )
-            for mid, score in ranked
-        ]
+        return out
 
     def _suppress_corrected(self, scores: dict[str, float], items: dict[str, MemorySearchResult]) -> None:
         """Demote memories that have been superseded by a correction."""
