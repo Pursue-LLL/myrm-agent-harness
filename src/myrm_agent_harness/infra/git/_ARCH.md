@@ -15,3 +15,7 @@
 - `GitMetadata`：强类型不可变数据类，包含 `branch`、`commit`、`is_worktree`、`is_detached`。
 - `resolve_git_metadata(workspace_dir: str | Path | None = None) -> GitMetadata`：完整解析接口。
 - `resolve_git_branch(workspace_dir: str | Path | None = None) -> str | None`：轻量分支名提取便捷函数。
+
+## 4. 文件清单
+- `git_resolver.py`：纯 Python Git 元数据解析器与内存防抖缓存实现。
+

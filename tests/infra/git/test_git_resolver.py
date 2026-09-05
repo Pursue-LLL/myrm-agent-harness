@@ -127,3 +127,31 @@ def test_resolve_git_metadata_mtime_caching(tmp_path: Path):
 
     meta3 = resolve_git_metadata(repo)
     assert meta3.branch == "branch-2"
+
+
+def test_resolve_git_metadata_permission_or_os_error(tmp_path: Path):
+    """Test that file read errors (e.g. unreadable HEAD) degrade gracefully without throwing."""
+    repo = tmp_path / "corrupt_repo"
+    git_dir = repo / ".git"
+    git_dir.mkdir(parents=True)
+    head_file = git_dir / "HEAD"
+    head_file.mkdir()  # Making HEAD a directory causes OSError / IsADirectoryError on read_text
+
+    meta = resolve_git_metadata(repo)
+    assert meta.branch is None
+    assert meta.commit is None
+    assert resolve_git_branch(repo) is None
+
+
+def test_resolve_git_metadata_empty_head(tmp_path: Path):
+    """Test that an empty HEAD file returns empty metadata without throwing."""
+    repo = tmp_path / "empty_head_repo"
+    git_dir = repo / ".git"
+    git_dir.mkdir(parents=True)
+    head_file = git_dir / "HEAD"
+    head_file.write_text("   \n", encoding="utf-8")
+
+    meta = resolve_git_metadata(repo)
+    assert meta.branch is None
+    assert meta.commit is None
+
