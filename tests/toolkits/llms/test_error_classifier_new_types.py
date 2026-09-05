@@ -164,6 +164,11 @@ class TestProviderPolicyBlocked:
         [
             "No endpoints available matching your guardrail restrictions and data policy",
             "No endpoints available matching your data policy",
+            "Your organization has been disabled due to policy violation",
+            "Third-party client not permitted for this subscription tier",
+            "Your credential is not authorized for direct API access",
+            "Subscription tier does not allow external integration",
+            "Request blocked by provider policy",
         ],
     )
     def test_classify_provider_policy_blocked(self, msg: str) -> None:
