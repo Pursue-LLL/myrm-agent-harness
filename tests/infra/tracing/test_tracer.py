@@ -81,49 +81,71 @@ async def test_trace_async_with_kwargs():
 
 
 def test_record_gen_ai_semantic_conventions():
-    """Test GenAI Semantic Conventions helper functions."""
+    """Test GenAI Semantic Conventions helper functions with recording mock span."""
+    from unittest.mock import MagicMock
+    from opentelemetry.trace import Span
     from myrm_agent_harness.infra.tracing import (
         GEN_AI_CACHE_HIT_RATIO,
+        GEN_AI_OPERATION_NAME,
+        GEN_AI_REQUEST_MODEL,
+        GEN_AI_SYSTEM,
+        GEN_AI_TOOL_NAME,
         GEN_AI_USAGE_CACHE_READ_TOKENS,
+        GEN_AI_USAGE_INPUT_TOKENS,
         SPAN_AGENT_TURN,
         record_gen_ai_agent_turn,
         record_gen_ai_llm_request,
         record_gen_ai_tool_call,
     )
 
-    setup_tracing(service_name="test-service", console_export=False)
-    tracer = get_tracer("test_genai")
+    # 1. Agent Turn Span
+    mock_turn_span = MagicMock(spec=Span)
+    mock_turn_span.is_recording.return_value = True
+    record_gen_ai_agent_turn(
+        mock_turn_span,
+        conversation_id="conv-123",
+        turn_id="turn-1",
+        agent_type="SkillAgent",
+        query_preview="Check weather in Tokyo",
+        status="completed",
+    )
+    mock_turn_span.set_attribute.assert_any_call(GEN_AI_SYSTEM, "myrm")
+    mock_turn_span.set_attribute.assert_any_call(GEN_AI_OPERATION_NAME, "agent.turn")
+    mock_turn_span.set_attribute.assert_any_call("agent.type", "SkillAgent")
 
-    with tracer.start_span(SPAN_AGENT_TURN) as span:
-        record_gen_ai_agent_turn(
-            span,
-            conversation_id="conv-123",
-            turn_id="turn-1",
-            agent_type="SkillAgent",
-            query_preview="Check weather in Tokyo",
-            status="completed",
-        )
-        assert span.is_recording()
+    # 2. LLM Request Span with Token & Cache Hit Accounting
+    mock_llm_span = MagicMock(spec=Span)
+    mock_llm_span.is_recording.return_value = True
+    record_gen_ai_llm_request(
+        mock_llm_span,
+        model_name="deepseek-chat",
+        prompt_tokens=1000,
+        completion_tokens=200,
+        cache_read_tokens=800,
+        reasoning_tokens=50,
+        ttft_ms=120.5,
+    )
+    mock_llm_span.set_attribute.assert_any_call(GEN_AI_REQUEST_MODEL, "deepseek-chat")
+    mock_llm_span.set_attribute.assert_any_call(GEN_AI_USAGE_INPUT_TOKENS, 1000)
+    mock_llm_span.set_attribute.assert_any_call(GEN_AI_USAGE_CACHE_READ_TOKENS, 800)
+    mock_llm_span.set_attribute.assert_any_call(GEN_AI_CACHE_HIT_RATIO, 0.8)
 
-    with tracer.start_span("llm.request") as span:
-        record_gen_ai_llm_request(
-            span,
-            model_name="deepseek-chat",
-            prompt_tokens=1000,
-            completion_tokens=200,
-            cache_read_tokens=800,
-            reasoning_tokens=50,
-            ttft_ms=120.5,
-        )
-        assert span.is_recording()
+    # 3. Tool Call Span
+    mock_tool_span = MagicMock(spec=Span)
+    mock_tool_span.is_recording.return_value = True
+    record_gen_ai_tool_call(
+        mock_tool_span,
+        tool_name="web_search",
+        tool_call_id="call-456",
+        status="success",
+        duration_ms=350.0,
+    )
+    mock_tool_span.set_attribute.assert_any_call(GEN_AI_TOOL_NAME, "web_search")
+    mock_tool_span.set_attribute.assert_any_call("gen_ai.tool.call_id", "call-456")
 
-    with tracer.start_span("tool.call") as span:
-        record_gen_ai_tool_call(
-            span,
-            tool_name="web_search",
-            tool_call_id="call-456",
-            status="success",
-            duration_ms=350.0,
-        )
-        assert span.is_recording()
+    # 4. Non-recording span safety (no-op)
+    non_recording = MagicMock(spec=Span)
+    non_recording.is_recording.return_value = False
+    record_gen_ai_agent_turn(non_recording)
+    non_recording.set_attribute.assert_not_called()
 

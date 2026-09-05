@@ -297,7 +297,7 @@ class TestBrowserObservability:
         assert snap["request_count"] == 2
         assert snap["failed_request_count"] == 1
 
-        obs = BrowserObservability()
+        obs = BrowserObservability(RecordingConfig())
         # Verify action watchdog tripping
         obs.check_action_watchdog(action_name="looping_action", duration_seconds=200.0)
         assert obs.telemetry.watchdog_tripped_count == 1
