@@ -127,6 +127,7 @@ __all__ = [
     "WorkflowSkillCompiler",
     "reset_denial_counter",
     "resolve_git_branch",
+    "resolve_git_metadata",
     "build_parent_delegatable_toolkit",
     "calculate_trajectory_determinism",
     "check_distillable",
@@ -187,8 +188,6 @@ __all__ = [
     "is_within_boundary",
     "safe_join_path",
     "safe_purge_fts5_virtual_table",
-    "resolve_git_branch",
-    "resolve_git_metadata",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -400,6 +399,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "MetricPrediction": (
         "myrm_agent_harness.eval.manifest_prediction",
         "MetricPrediction",
+    ),
+    "resolve_git_branch": (
+        "myrm_agent_harness.infra.git",
+        "resolve_git_branch",
     ),
     "MissingSemanticsBlockedError": (
         "myrm_agent_harness.core.security.missing_semantics",
@@ -821,10 +824,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "EnvInheritPolicy": (
         "myrm_agent_harness.toolkits.code_execution.security.env_isolation",
         "EnvInheritPolicy",
-    ),
-    "safe_purge_fts5_virtual_table": (
-        "myrm_agent_harness.utils.db.fts5",
-        "safe_purge_fts5_virtual_table",
     ),
 }
 
