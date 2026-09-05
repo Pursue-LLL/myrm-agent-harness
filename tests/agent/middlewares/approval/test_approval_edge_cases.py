@@ -271,6 +271,7 @@ async def test_add_to_allowlist_invalid_type():
 async def test_add_to_allowlist_with_ttl_seconds():
     """Test that ttl_seconds creates time-bound allowlist entry."""
     import time
+
     from myrm_agent_harness.agent.security.approval_flow import get_allowlist
 
     allowlist = get_allowlist()
@@ -286,7 +287,7 @@ async def test_add_to_allowlist_with_ttl_seconds():
     entries = allowlist._entries.get("user_ttl", {})
     assert len(entries) >= 1
     found_entry = None
-    for k, e in entries.items():
+    for _k, e in entries.items():
         if e.permission == "network" and e.tool_name == "web_search":
             found_entry = e
             break
@@ -1291,6 +1292,7 @@ async def test_normalize_batch_decisions_count_mismatch(monkeypatch):
 async def test_time_bound_allow_always_integration_with_middleware(monkeypatch):
     """Test full integration: interrupt returns approve + time-bound allow_always, entries auto-revoke when expired."""
     import time
+
     from myrm_agent_harness.agent.security.approval_flow import get_allowlist
 
     config = SecurityConfig(

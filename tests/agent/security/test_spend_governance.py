@@ -5,14 +5,12 @@ from langchain_core.messages import AIMessage, ToolCall
 
 from myrm_agent_harness.agent.middlewares.approval._batch_decisions import (
     apply_approval_decisions,
-    build_interrupt_payload,
 )
 from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
     evaluate_tool_batch,
 )
 from myrm_agent_harness.agent.security.types import SecurityConfig
 from myrm_agent_harness.core.security.spend_governance import (
-    DEFAULT_SPEND_SALT,
     GENESIS_PREV_HASH,
     SpendPolicy,
     SpendReceipt,
@@ -146,7 +144,7 @@ async def test_yolo_financial_gate_blocks_auto_approval():
         {"name": "mcp__stripe__charge_customer", "args": {"amount": 15.0, "currency": "USD"}, "id": "call_1"},
     ]
 
-    auto_approved, auto_denied, pending = await evaluate_tool_batch(
+    auto_approved, _auto_denied, pending = await evaluate_tool_batch(
         tool_calls=tool_calls,
         config=config,
         is_cron=False,
@@ -158,7 +156,7 @@ async def test_yolo_financial_gate_blocks_auto_approval():
     # Must NOT be auto-approved despite YOLO mode!
     assert len(auto_approved) == 0
     assert len(pending) == 1
-    idx, tc, perm_type, reason, extra_ctx = pending[0]
+    idx, _tc, _perm_type, _reason, extra_ctx = pending[0]
     assert idx == 0
     assert extra_ctx["is_spend"] is True
     assert extra_ctx["spend_amount"] == 15.0
@@ -199,7 +197,7 @@ async def test_apply_approval_decisions_digest_binding_protection():
 
     # Case 2: Matching digest in decision -> Allowed and idempotency_key injected
     good_decision = [{"type": "approve", "action_digest": expected_digest}]
-    revised_ok, messages_ok, _ = await apply_approval_decisions(
+    revised_ok, _messages_ok, _ = await apply_approval_decisions(
         decisions=good_decision,
         last_ai_msg=last_ai_msg,
         auto_denied=[],

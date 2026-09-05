@@ -181,6 +181,8 @@ __all__ = [
     "RecallDebug",
     "is_within_boundary",
     "safe_join_path",
+    "build_isolated_child_env",
+    "EnvInheritPolicy",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -785,6 +787,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "safe_join_path": (
         "myrm_agent_harness.core.security.path_security",
         "safe_join_path",
+    ),
+    "build_isolated_child_env": (
+        "myrm_agent_harness.toolkits.code_execution.security.env_isolation",
+        "build_isolated_child_env",
+    ),
+    "EnvInheritPolicy": (
+        "myrm_agent_harness.toolkits.code_execution.security.env_isolation",
+        "EnvInheritPolicy",
     ),
 }
 

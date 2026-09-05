@@ -40,7 +40,6 @@ from .mcp_config import decode_mcp_json, parse_mcp_servers
 from .models import (
     PluginAgent,
     PluginDiagnosticLevel,
-    PluginMcpServer,
     PluginParseResult,
     PluginSkill,
 )

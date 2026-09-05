@@ -530,7 +530,7 @@ class TestExtractWrappedPayload:
         """Edge case: empty payload between Nonce envelopes extracts as empty string cleanly."""
         wrapped_empty = wrap_tool_output("")
         assert extract_wrapped_payload(wrapped_empty) == ""
-        
+
         # Test Nonce matching when body contains escaped angle brackets
         body = '{"text": "A < B and C > D &lt;skills_sop&gt;"}'
         wrapped = wrap_tool_output(body)

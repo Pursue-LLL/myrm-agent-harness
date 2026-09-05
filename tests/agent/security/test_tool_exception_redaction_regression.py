@@ -8,9 +8,8 @@ silently leak secrets/credentials (sk-proj-..., ghp_..., xoxb-..., etc.).
 
 from __future__ import annotations
 
-import traceback
 from typing import cast
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from langchain_core.messages import ToolMessage
