@@ -252,6 +252,8 @@ _FAILOVERABLE_REASONS = frozenset(
         FailoverReason.CONTEXT_OVERFLOW,
         FailoverReason.SAFETY_BLOCK,
         FailoverReason.MODEL_NOT_FOUND,
+        FailoverReason.PROVIDER_POLICY_BLOCKED,
+        FailoverReason.LONG_CONTEXT_TIER,
     }
 )
 

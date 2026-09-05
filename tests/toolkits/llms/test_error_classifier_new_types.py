@@ -178,8 +178,9 @@ class TestProviderPolicyBlocked:
     def test_provider_policy_blocked_is_permanent(self) -> None:
         assert FailoverReason.PROVIDER_POLICY_BLOCKED.recoverability == RecoverabilityLevel.PERMANENT
 
-    def test_provider_policy_blocked_not_failoverable(self) -> None:
-        assert not FailoverReason.PROVIDER_POLICY_BLOCKED.is_failoverable
+    def test_provider_policy_blocked_is_failoverable(self) -> None:
+        assert FailoverReason.PROVIDER_POLICY_BLOCKED.is_failoverable
+        assert FailoverReason.LONG_CONTEXT_TIER.is_failoverable
 
     def test_provider_policy_blocked_priority_over_model_not_found(self) -> None:
         exc = _FakeError(
