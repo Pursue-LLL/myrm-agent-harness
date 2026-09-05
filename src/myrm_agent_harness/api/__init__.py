@@ -172,6 +172,10 @@ __all__ = [
     "build_cjk_index_segment",
     "build_cjk_query_tokens",
     "build_cjk_query_token_tiers",
+    "fuse_rrf_deterministic",
+    "RankedList",
+    "FusedHit",
+    "RecallDebug",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -684,6 +688,22 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "build_cjk_query_token_tiers": (
         "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
         "build_cjk_query_token_tiers",
+    ),
+    "fuse_rrf_deterministic": (
+        "myrm_agent_harness.toolkits.retriever.fusion_strategies",
+        "fuse_rrf_deterministic",
+    ),
+    "RankedList": (
+        "myrm_agent_harness.toolkits.retriever.fusion_strategies",
+        "RankedList",
+    ),
+    "FusedHit": (
+        "myrm_agent_harness.toolkits.retriever.fusion_strategies",
+        "FusedHit",
+    ),
+    "RecallDebug": (
+        "myrm_agent_harness.toolkits.retriever.fusion_strategies",
+        "RecallDebug",
     ),
     "tokenize_for_fts": (
         "myrm_agent_harness.toolkits.wiki.retrieval.tokenizer",

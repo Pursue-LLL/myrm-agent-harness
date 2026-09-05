@@ -15,10 +15,148 @@ ranking using rank-based (not score-based) fusion.
 
 """
 
+from __future__ import annotations
+
 import logging
 from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Callable, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+
+@dataclass(frozen=True, slots=True)
+class SourceRank:
+    """Record of an item's hit source and 1-based rank within that source."""
+
+    source: str
+    rank: int
+
+
+@dataclass(frozen=True, slots=True)
+class SourceDebugStats:
+    """Per-source debug latency and hit count."""
+
+    source: str
+    count: int
+    latency_ms: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RecallDebug:
+    """Structured recall debugging stats for transparency and troubleshooting."""
+
+    per_source: list[SourceDebugStats] = field(default_factory=list)
+    fused_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class RankedList(Generic[T]):
+    """A ranked list of candidate items from a single retrieval source."""
+
+    source: str
+    items: list[T]
+    weight: float = 1.0
+    latency_ms: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FusedHit(Generic[T]):
+    """A fused result item with normalized score and provenance tracking."""
+
+    item: T
+    score: float
+    raw_rrf_score: float
+    hit_by: list[SourceRank] = field(default_factory=list)
+
+
+def fuse_rrf_deterministic[T](
+    lists: list[RankedList[T]],
+    *,
+    key_func: Callable[[T], str],
+    k: int = 60,
+    top_k: int | None = 20,
+    normalize_target: float = 0.98,
+) -> tuple[list[FusedHit[T]], RecallDebug]:
+    """Deterministic Reciprocal Rank Fusion (RRF) with multi-tier tie-breaking and adaptive normalization.
+
+    Tie-breaking hierarchy:
+    1. Highest normalized RRF score descending
+    2. Multi-source consensus count descending (len(hit_by))
+    3. Deterministic entity ID ascending (key_func(item)) to prevent hash/dict iteration drift.
+
+    Score normalization:
+    Maps raw reciprocal rank values (~0.016) to [0.0, 1.0] by dividing by theoretical maximum RRF
+    for the active non-empty sources. This guarantees compatibility with downstream min_score threshold filters.
+    """
+    if not lists:
+        return [], RecallDebug(per_source=[], fused_count=0)
+
+    active_lists = [l for l in lists if l.items]
+    if not active_lists:
+        per_source = [
+            SourceDebugStats(source=l.source, count=0, latency_ms=l.latency_ms)
+            for l in lists
+        ]
+        return [], RecallDebug(per_source=per_source, fused_count=0)
+
+    # Accumulate scores and hits
+    item_map: dict[str, T] = {}
+    score_map: defaultdict[str, float] = defaultdict(float)
+    hit_by_map: defaultdict[str, list[SourceRank]] = defaultdict(list)
+
+    # Calculate theoretical maximum possible RRF for active sources at rank 1
+    max_theoretical_rrf = sum((l.weight / (k + 1)) for l in active_lists)
+    if max_theoretical_rrf <= 0:
+        max_theoretical_rrf = 1.0 / (k + 1)
+
+    for r_list in active_lists:
+        weight = max(0.0, r_list.weight)
+        for idx, item in enumerate(r_list.items):
+            rank = idx + 1
+            key = key_func(item)
+            if key not in item_map:
+                item_map[key] = item
+            score_contribution = weight / (k + rank)
+            score_map[key] += score_contribution
+            hit_by_map[key].append(SourceRank(source=r_list.source, rank=rank))
+
+    fused_candidates: list[tuple[str, float, float, list[SourceRank]]] = []
+    for key, item in item_map.items():
+        raw_score = score_map[key]
+        normalized_score = min(1.0, (raw_score / max_theoretical_rrf) * normalize_target)
+        fused_candidates.append((key, normalized_score, raw_score, hit_by_map[key]))
+
+    # Deterministic sorting:
+    # 1. -score (descending)
+    # 2. -len(hit_by) (more sources agreeing is better)
+    # 3. key (alphabetical ascending for 100% stable tie-break)
+    fused_candidates.sort(key=lambda x: (-x[1], -len(x[3]), x[0]))
+
+    if top_k is not None:
+        fused_candidates = fused_candidates[:top_k]
+
+    fused_hits: list[FusedHit[T]] = [
+        FusedHit(
+            item=item_map[key],
+            score=norm_score,
+            raw_rrf_score=raw_score,
+            hit_by=hits,
+        )
+        for key, norm_score, raw_score, hits in fused_candidates
+    ]
+
+    recall_debug = RecallDebug(
+        per_source=[
+            SourceDebugStats(source=l.source, count=len(l.items), latency_ms=l.latency_ms)
+            for l in lists
+        ],
+        fused_count=len(fused_hits),
+    )
+
+    return fused_hits, recall_debug
 
 
 def rrf_fusion[T](

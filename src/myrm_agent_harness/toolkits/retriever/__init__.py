@@ -25,6 +25,14 @@ if TYPE_CHECKING:
         build_cjk_query_tokens,
         tokenize_cjk_bigram,
     )
+    from myrm_agent_harness.toolkits.retriever.fusion_strategies import (
+        FusedHit,
+        RankedList,
+        RecallDebug,
+        SourceDebugStats,
+        SourceRank,
+        fuse_rrf_deterministic,
+    )
     from myrm_agent_harness.toolkits.retriever.embedding import EmbeddingService, get_embedding_service
     from myrm_agent_harness.toolkits.retriever.engine import (
         BM25CacheStats,
@@ -103,9 +111,22 @@ __all__ = [
     "build_cjk_index_segment",
     "build_cjk_query_tokens",
     "build_cjk_query_token_tiers",
+    # Deterministic RRF Fusion
+    "fuse_rrf_deterministic",
+    "RankedList",
+    "FusedHit",
+    "RecallDebug",
+    "SourceRank",
+    "SourceDebugStats",
 ]
 
 _LAZY_IMPORTS = {
+    "fuse_rrf_deterministic": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "fuse_rrf_deterministic"),
+    "RankedList": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "RankedList"),
+    "FusedHit": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "FusedHit"),
+    "RecallDebug": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "RecallDebug"),
+    "SourceRank": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "SourceRank"),
+    "SourceDebugStats": ("myrm_agent_harness.toolkits.retriever.fusion_strategies", "SourceDebugStats"),
     "tokenize_cjk_bigram": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "tokenize_cjk_bigram"),
     "build_cjk_index_segment": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "build_cjk_index_segment"),
     "build_cjk_query_tokens": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "build_cjk_query_tokens"),
