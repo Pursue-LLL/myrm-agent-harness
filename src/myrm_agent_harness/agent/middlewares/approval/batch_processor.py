@@ -6,6 +6,7 @@ allowlist checking, and generation of approval requests.
 [INPUT]
 - agent.security.approval_flow::DEFAULT_USER_ID, get_allowlist (POS: Core component for "Always Allow" feature in Human-in-the-Loop approval system.)
 - agent.security.guards.skill_approval_hook::HookAction, SkillApprovalHook, SkillHookVerdict (POS: Integrated into tool_interceptor_middleware between the onion policy engine (L1-L3) and HITL approval. When a skill returns require_approval, the request is forwarded to the existing HITL approval flow.)
+- agent.security.script_operand_verifier::compute_file_content_digest, extract_script_file_operand (POS: TOCTOU Defense script operand extraction and sha256 snapshotting.)
 - agent.security.tool_registry::resolve_permission_type, resolve_safety_metadata (POS: Maps tool names to abstract permission types and provides safety metadata for MCP tools.)
 - agent.security.types::PermissionAction, RecentToolCall, ReviewResult, SecurityConfig (POS: Foundation layer of the security type hierarchy. All other security modules import from here; this module imports from none of them.)
 
@@ -998,6 +999,39 @@ async def evaluate_tool_batch(
             extra_ctx["high_risk"] = True
             extra_ctx["hide_allow_always"] = True
 
+        # TOCTOU Defense: extract mutable script operand and compute content digest (CVE-2026-32921)
+        if permission_type in ("shell_exec", "code_interpreter") or tool_name in (
+            "bash_code_execute_tool",
+            "execute_code",
+        ):
+            shell_cmd_for_snapshot = str(
+                tool_input.get("command", "")
+                or tool_input.get("code", "")
+                or tool_input.get("script", "")
+                or tool_input.get("cmd", "")
+            ).strip()
+            if shell_cmd_for_snapshot:
+                from myrm_agent_harness.agent.security.script_operand_verifier import (
+                    compute_file_content_digest,
+                    extract_script_file_operand,
+                )
+
+                script_path = extract_script_file_operand(
+                    shell_cmd_for_snapshot, workspace_root=workspace_root
+                )
+                if script_path:
+                    script_digest = compute_file_content_digest(script_path)
+                    if script_digest:
+                        extra_ctx = extra_ctx or {}
+                        extra_ctx["script_operand_path"] = script_path
+                        extra_ctx["script_operand_hash"] = script_digest
+                        extra_ctx["hide_allow_always"] = True
+                        logger.info(
+                            "[SCRIPT_OPERAND] Snapshotted script operand for %s: path=%s, sha256=%s",
+                            tool_name,
+                            script_path,
+                            script_digest[:12],
+                        )
 
         pending_approval.append((idx, tool_call, permission_type, reason, extra_ctx))
 

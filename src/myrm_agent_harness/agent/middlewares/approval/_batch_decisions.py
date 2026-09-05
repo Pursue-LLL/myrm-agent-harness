@@ -2,6 +2,7 @@
 
 [INPUT]
 - agent.security (POS: security types, approval flow, audit, engine)
+- agent.security.script_operand_verifier::compute_file_content_digest, extract_script_file_operand (POS: TOCTOU Defense verification)
 
 [OUTPUT]
 - build_interrupt_payload: Build LangChain-standard interrupt payload for batch approval (includes optional command_spans for shell tools).
@@ -421,6 +422,45 @@ async def apply_approval_decisions(
                                     f"Security Blocked: Financial action digest verification failed. "
                                     f"Expected '{expected_digest[:16]}...', received '{user_digest[:16] if user_digest else 'none'}...'. "
                                     f"Execution aborted to prevent parameter tampering.{hint}"
+                                ),
+                                name=tool_name,
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        )
+                        continue
+
+                expected_script_hash = (
+                    extra_ctx.get("script_operand_hash") if extra_ctx else None
+                )
+                script_path = (
+                    extra_ctx.get("script_operand_path") if extra_ctx else None
+                )
+                if expected_script_hash and script_path:
+                    from myrm_agent_harness.agent.security.script_operand_verifier import (
+                        verify_script_operand_integrity,
+                    )
+
+                    is_valid, drift_reason = verify_script_operand_integrity(
+                        expected_script_hash, script_path
+                    )
+                    if not is_valid:
+                        logger.warning(
+                            "[APPROVAL] Tool %s script operand drift blocked: %s",
+                            tool_name,
+                            drift_reason,
+                        )
+                        record_decision(
+                            tool_name,
+                            "SCRIPT_OPERAND_DRIFT_REJECT",
+                            drift_reason or "Approved script content modified before execution",
+                        )
+                        hint = record_denial(tool_name)
+                        artificial_tool_messages.append(
+                            ToolMessage(
+                                content=(
+                                    f"Security Blocked: {drift_reason or 'Approved script content was modified before execution (TOCTOU detected)'}. "
+                                    f"Execution aborted to prevent unreviewed code from running.{hint}"
                                 ),
                                 name=tool_name,
                                 tool_call_id=tool_call_id,
