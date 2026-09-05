@@ -252,3 +252,21 @@ def shutdown_tracing() -> None:
     finally:
         _tracer_provider = None
         _initialized = False
+
+
+# =====================================================================
+# OpenTelemetry GenAI Semantic Conventions (SSOT)
+# =====================================================================
+GEN_AI_SYSTEM = "gen_ai.system"
+GEN_AI_REQUEST_MODEL = "gen_ai.request.model"
+GEN_AI_RESPONSE_MODEL = "gen_ai.response.model"
+GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
+GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
+GEN_AI_USAGE_CACHE_READ_TOKENS = "gen_ai.usage.cache_read_tokens"
+GEN_AI_USAGE_TOTAL_TOKENS = "gen_ai.usage.total_tokens"
+GEN_AI_TOOL_NAME = "gen_ai.tool.name"
+GEN_AI_TOOL_CALL_ID = "gen_ai.tool.call.id"
+GEN_AI_TOOL_STATUS = "gen_ai.tool.status"
+GEN_AI_AGENT_TURN = "gen_ai.agent.turn"
+GEN_AI_SERVER_TTFT_MS = "gen_ai.server.ttft_ms"
+

@@ -18,6 +18,7 @@ class TestLitellmRoutePrefixForEffective:
         assert litellm_route_prefix_for_effective("openai-like") == "openai/"
         assert litellm_route_prefix_for_effective("openai_compatible") == "openai/"
         assert litellm_route_prefix_for_effective("spark") == "openai/"
+        assert litellm_route_prefix_for_effective("vercel_ai_gateway") == "openai/"
 
     def test_gemini_family(self) -> None:
         assert litellm_route_prefix_for_effective("gemini-like") == "gemini/"
@@ -67,6 +68,7 @@ class TestConstantsExport:
 
         assert BUILTIN_PROVIDER_LITELLM_SEGMENT["siliconflow"] == "openai"
         assert BUILTIN_PROVIDER_LITELLM_SEGMENT["xiaomi_mimo"] == "xiaomi_mimo"
+        assert BUILTIN_PROVIDER_LITELLM_SEGMENT["vercel_ai_gateway"] == "openai"
         assert set(CUSTOM_COMPAT_TYPE_LITELLM_SEGMENT.keys()) == {
             "openai-like",
             "gemini-like",

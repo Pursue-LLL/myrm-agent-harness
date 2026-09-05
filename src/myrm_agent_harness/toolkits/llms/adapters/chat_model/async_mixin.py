@@ -219,12 +219,36 @@ class ChatLiteLLMAsyncMixin:
                         response = self._convert_response_to_dict(response)
 
                     if usage := response.get("usage"):
-                        span.set_attribute("llm.token_count.prompt", usage.get("prompt_tokens", 0))
+                        prompt_tokens = usage.get("prompt_tokens", 0)
+                        completion_tokens = usage.get("completion_tokens", 0)
+                        total_tokens = usage.get("total_tokens", 0)
+                        span.set_attribute("llm.token_count.prompt", prompt_tokens)
                         span.set_attribute(
                             "llm.token_count.completion",
-                            usage.get("completion_tokens", 0),
+                            completion_tokens,
                         )
-                        span.set_attribute("llm.token_count.total", usage.get("total_tokens", 0))
+                        span.set_attribute("llm.token_count.total", total_tokens)
+
+                        span.set_attribute("gen_ai.operation.name", "llm.request")
+                        span.set_attribute("gen_ai.system", "myrm-agent")
+                        span.set_attribute("gen_ai.request.model", model_name)
+                        span.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)
+                        span.set_attribute("gen_ai.usage.output_tokens", completion_tokens)
+                        span.set_attribute("gen_ai.usage.total_tokens", total_tokens)
+
+                        # Extract Prompt Cache tokens across OpenAI / DeepSeek / Anthropic formats
+                        cached_tokens = 0
+                        if details := usage.get("prompt_tokens_details"):
+                            cached_tokens = details.get("cached_tokens", 0)
+                        elif "cache_read_input_tokens" in usage:
+                            cached_tokens = usage.get("cache_read_input_tokens", 0)
+                        span.set_attribute("gen_ai.usage.cache_read_tokens", cached_tokens)
+                        if prompt_tokens > 0:
+                            span.set_attribute("gen_ai.usage.cache_hit_ratio", round(cached_tokens / prompt_tokens, 4))
+
+                        if comp_details := usage.get("completion_tokens_details"):
+                            if reasoning_tok := comp_details.get("reasoning_tokens"):
+                                span.set_attribute("gen_ai.usage.reasoning_tokens", reasoning_tok)
 
                 log_llm_response(response)
 

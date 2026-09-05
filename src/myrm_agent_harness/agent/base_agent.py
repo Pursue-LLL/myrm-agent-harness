@@ -402,10 +402,15 @@ class BaseAgent(BaseAgentModesMixin):
         try:
             span = tracer.start_span("agent.run")
             span.set_attribute("agent.type", type(self).__name__)
+            # OpenTelemetry GenAI Semantic Conventions
+            span.set_attribute("gen_ai.system", "myrm-agent")
+            span.set_attribute("gen_ai.operation.name", "agent.turn")
             if message_id:
                 span.set_attribute("agent.message_id", message_id)
+                span.set_attribute("gen_ai.conversation.id", message_id)
             query_text = query if isinstance(query, str) else str(query)[:200]
             span.set_attribute("agent.query", query_text)
+            span.set_attribute("gen_ai.prompt", query_text)
 
             try:
                 async for event in self._run_internal(
@@ -419,8 +424,10 @@ class BaseAgent(BaseAgentModesMixin):
                 ):
                     yield event
                 span.set_attribute("agent.status", "completed")
+                span.set_attribute("gen_ai.response.status", "success")
             except Exception as exc:
                 span.set_attribute("agent.status", "error")
+                span.set_attribute("gen_ai.response.status", "error")
                 span.set_attribute("error.type", type(exc).__name__)
                 span.record_exception(exc)
                 raise

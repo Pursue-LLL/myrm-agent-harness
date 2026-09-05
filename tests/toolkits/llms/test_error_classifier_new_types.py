@@ -169,11 +169,22 @@ class TestProviderPolicyBlocked:
             "Your credential is not authorized for direct API access",
             "Subscription tier does not allow external integration",
             "Request blocked by provider policy",
+            "This credential is not authorized for third-party client access",
+            "Claude Pro and Team subscriptions are not supported for third-party API use without an approved application or extra usage credits",
+            "Claude max subscription not permitted on third-party application",
         ],
     )
     def test_classify_provider_policy_blocked(self, msg: str) -> None:
-        exc = _FakeError(msg, status_code=404)
+        exc = _FakeError(msg, status_code=403)
         assert classify_failover_reason(exc) == FailoverReason.PROVIDER_POLICY_BLOCKED
+
+    def test_policy_blocked_priority_over_generic_auth_403(self) -> None:
+        exc = _FakeError(
+            "Forbidden: permission_error: credential is not authorized for third-party client access",
+            status_code=403,
+        )
+        assert classify_failover_reason(exc) == FailoverReason.PROVIDER_POLICY_BLOCKED
+        assert classify_failover_reason(exc).is_failoverable
 
     def test_provider_policy_blocked_is_permanent(self) -> None:
         assert FailoverReason.PROVIDER_POLICY_BLOCKED.recoverability == RecoverabilityLevel.PERMANENT

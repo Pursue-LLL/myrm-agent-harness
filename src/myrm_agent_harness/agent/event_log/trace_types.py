@@ -80,6 +80,7 @@ class LLMCallRecord:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    cache_read_tokens: int = 0
 
 
 @dataclass(slots=True)
@@ -157,6 +158,7 @@ class ExecutionTrace:
                     "prompt_tokens": lc.prompt_tokens,
                     "completion_tokens": lc.completion_tokens,
                     "total_tokens": lc.total_tokens,
+                    "cache_read_tokens": lc.cache_read_tokens,
                 }
                 for lc in self.llm_calls
             ],
@@ -166,4 +168,12 @@ class ExecutionTrace:
             "first_irrecoverable_timestamp": self.first_irrecoverable_timestamp,
             "total_events": self.total_events,
             "total_tokens": self.total_tokens,
+            "prompt_tokens": sum(lc.prompt_tokens for lc in self.llm_calls),
+            "completion_tokens": sum(lc.completion_tokens for lc in self.llm_calls),
+            "cache_read_tokens": sum(lc.cache_read_tokens for lc in self.llm_calls),
+            "cache_hit_ratio": (
+                round(sum(lc.cache_read_tokens for lc in self.llm_calls) / sum(lc.prompt_tokens for lc in self.llm_calls), 4)
+                if sum(lc.prompt_tokens for lc in self.llm_calls) > 0
+                else 0.0
+            ),
         }

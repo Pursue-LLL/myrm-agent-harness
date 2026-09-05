@@ -307,10 +307,14 @@ _MEDIA_REJECTED_RE = re.compile(
 _PROVIDER_POLICY_BLOCKED_RE = re.compile(
     r"no endpoints available matching your (?:guardrail|data policy)"
     r"|organization has been (?:disabled|suspended|blocked)"
-    r"|third[- ]party (?:client|app|application|integration) not (?:permitted|allowed|supported|authorized)"
-    r"|credential is not authorized for (?:direct )?api access"
+    r"|third[- ]party (?:client|app|application|integration|tool).*(?:not (?:permitted|allowed|supported|authorized)|disallowed|restricted)"
+    r"|(?:not (?:authorized|permitted|allowed|supported)|unauthorized).*(?:third[- ]party|external|direct api)"
+    r"|credential is not authorized for (?:direct )?(?:api|third[- ]party|client) access"
     r"|subscription tier does not allow (?:external|api|tool)"
-    r"|blocked by provider policy",
+    r"|claude (?:pro|max|team)? (?:subscription|account).*(?:not (?:permitted|allowed|supported)|requires? (?:extra|approved)|extra usage credits)"
+    r"|(?:extra )?usage credits required"
+    r"|only available (?:via|in) (?:claude code|official|claude\.ai)"
+    r"|blocked by (?:provider|anthropic) policy",
     re.IGNORECASE,
 )
 
@@ -403,9 +407,10 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
     """Classify an LLM exception into a ``FailoverReason`` using deep inspection.
 
     Priority (specific → broad):
-      thinking_signature → duplicate_tool_use_id → image_too_large → long_context_tier → billing →
-      rate_limit → auth → provider_format → safety_block → provider_policy_blocked →
-      model_not_found → overloaded → context_overflow → timeout → UNKNOWN
+      thinking_signature → duplicate_tool_use_id → image_too_large → media_rejected →
+      long_context_tier → billing → rate_limit → provider_policy_blocked → auth →
+      provider_format → safety_block → model_not_found → overloaded → context_overflow →
+      timeout → UNKNOWN
     """
     if isinstance(exc, TypeError) and _LITELLM_INIT_BUG_RE.search(str(exc)):
         return FailoverReason.TIMEOUT
@@ -452,11 +457,15 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
             return FailoverReason.RATE_LIMIT
         return FailoverReason.BILLING
 
-    # 3. Authentication
+    # 3. Provider Policy / Guardrail Block (must precede generic 401/403 auth)
+    if _PROVIDER_POLICY_BLOCKED_RE.search(msg):
+        return FailoverReason.PROVIDER_POLICY_BLOCKED
+
+    # 4. Authentication (permanent credential / key errors)
     if _AUTH_RE.search(msg):
         return FailoverReason.AUTH_PERMANENT
 
-    # 4. Model / Format / Safety (usually 400s or specific codes)
+    # 5. Model / Format / Safety (usually 400s or specific codes)
     if _PROVIDER_FORMAT_400_RE.search(msg):
         # API gateway validation error on LLM output (e.g., "must be in JSON format")
         # This is a model issue (weak model generated invalid JSON), not our bug
@@ -464,9 +473,6 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
 
     if _SAFETY_BLOCK_RE.search(msg):
         return FailoverReason.SAFETY_BLOCK
-
-    if _PROVIDER_POLICY_BLOCKED_RE.search(msg):
-        return FailoverReason.PROVIDER_POLICY_BLOCKED
 
     # Model-not-found before overloaded: ServiceUnavailableError wrappers often match
     # service.?unavailable while the inner message is a missing-model distributor error.

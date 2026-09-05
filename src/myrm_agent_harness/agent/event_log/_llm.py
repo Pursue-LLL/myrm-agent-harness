@@ -83,6 +83,13 @@ def _handle_token_usage(
         else:
             start_time = end_time
 
+    cached_tokens = 0
+    if details := usage.get("prompt_tokens_details"):
+        if isinstance(details, dict):
+            cached_tokens = int(details.get("cached_tokens", 0))
+    elif "cache_read_input_tokens" in usage:
+        cached_tokens = int(usage.get("cache_read_input_tokens", 0))
+
     trace.llm_calls.append(
         LLMCallRecord(
             sequence=sequence,
@@ -100,5 +107,6 @@ def _handle_token_usage(
             prompt_tokens=int(usage.get("prompt_tokens", 0)),
             completion_tokens=int(usage.get("completion_tokens", 0)),
             total_tokens=int(usage.get("total_tokens", 0)),
+            cache_read_tokens=cached_tokens,
         )
     )

@@ -11,7 +11,7 @@ Shared data models, exception hierarchy, error classification, and in-process me
 | common.py | Core | SearchResult and Citation data models | ✅ |
 | exceptions.py | Core | Web search exception hierarchy with format_for_llm | ✅ |
 | error_handling.py | Core | Search failure classification and ErrorContext SSOT | ✅ |
-| metrics.py | Core | Thread-safe in-process search counters | ✅ |
+| metrics.py | Core | Thread-safe in-process search counters with per-provider quota telemetry | ✅ |
 
 ## Dependencies
 

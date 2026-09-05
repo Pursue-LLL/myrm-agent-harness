@@ -180,6 +180,13 @@ async def tool_interceptor_middleware(
     tracer = get_tracer("tool.execute")
     with tracer.start_as_current_span("tool.execute") as span:
         span.set_attribute("tool.name", tool_name)
+        # OpenTelemetry GenAI Semantic Conventions
+        span.set_attribute("gen_ai.system", "myrm-agent")
+        span.set_attribute("gen_ai.operation.name", "tool.call")
+        span.set_attribute("gen_ai.tool.name", tool_name)
+        call_id = request.tool_call.get("id")
+        if call_id:
+            span.set_attribute("gen_ai.tool.call.id", str(call_id))
 
         try:
             result = await _tool_interceptor_middleware_inner(request, handler)
@@ -193,8 +200,10 @@ async def tool_interceptor_middleware(
                 error_message = getattr(result, "content", "")
                 error_category, loop_kind = _extract_failure_metadata(result)
                 span.set_attribute("tool.status", "error")
+                span.set_attribute("gen_ai.tool.status", "error")
             else:
                 span.set_attribute("tool.status", "success")
+                span.set_attribute("gen_ai.tool.status", "success")
 
             from myrm_agent_harness.observability.metrics.registry import (
                 metrics_registry,
