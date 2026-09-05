@@ -187,6 +187,8 @@ __all__ = [
     "is_within_boundary",
     "safe_join_path",
     "safe_purge_fts5_virtual_table",
+    "resolve_git_branch",
+    "resolve_git_metadata",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -304,6 +306,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.infra.git",
         "resolve_git_branch",
     ),
+    "resolve_git_metadata": (
+        "myrm_agent_harness.infra.git",
+        "resolve_git_metadata",
+    ),
+    "GitMetadata": (
+        "myrm_agent_harness.infra.git",
+        "GitMetadata",
+    ),
     "ExternalSecretResolutionError": (
         "myrm_agent_harness.backends.secrets",
         "ExternalSecretResolutionError",
@@ -390,18 +400,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "MetricPrediction": (
         "myrm_agent_harness.eval.manifest_prediction",
         "MetricPrediction",
-    ),
-    "resolve_git_branch": (
-        "myrm_agent_harness.infra.git",
-        "resolve_git_branch",
-    ),
-    "resolve_git_metadata": (
-        "myrm_agent_harness.infra.git",
-        "resolve_git_metadata",
-    ),
-    "GitMetadata": (
-        "myrm_agent_harness.infra.git",
-        "GitMetadata",
     ),
     "MissingSemanticsBlockedError": (
         "myrm_agent_harness.core.security.missing_semantics",
