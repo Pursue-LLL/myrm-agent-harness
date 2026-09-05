@@ -5,8 +5,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
-
 from myrm_agent_harness.agent.security.script_operand_verifier import (
     compute_file_content_digest,
     extract_script_file_operand,
