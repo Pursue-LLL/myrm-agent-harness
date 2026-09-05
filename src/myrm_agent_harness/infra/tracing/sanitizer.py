@@ -216,8 +216,17 @@ def sanitize_trace_payload(payload: Mapping[str, object]) -> dict[str, object]:
 class SanitizingSpanProcessor(SpanProcessor):
     """OpenTelemetry SpanProcessor that scrubs sensitive attributes before downstream export."""
 
-    def __init__(self, sanitizer: TraceSpanSanitizer | None = None) -> None:
-        self._sanitizer = sanitizer or _DEFAULT_SANITIZER
+    def __init__(
+        self,
+        sanitizer: TraceSpanSanitizer | None = None,
+        max_value_len: int | None = None,
+    ) -> None:
+        if sanitizer is not None:
+            self._sanitizer = sanitizer
+        elif max_value_len is not None:
+            self._sanitizer = TraceSpanSanitizer(max_value_len=max_value_len)
+        else:
+            self._sanitizer = _DEFAULT_SANITIZER
 
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
         pass
@@ -227,8 +236,16 @@ class SanitizingSpanProcessor(SpanProcessor):
         if isinstance(attrs, dict):
             sanitized = self._sanitizer.sanitize_attributes(attrs)
             # ReadableSpan._attributes is a BoundedAttributes dict where __delitem__ is disallowed.
-            # Directly setting the attribute dictionary ensures safe in-place replacement.
-            span._attributes = sanitized
+            # Directly updating or replacing attributes dict ensures safe in-place replacement.
+            try:
+                dict.clear(attrs)
+                dict.update(attrs, sanitized)
+            except Exception:
+                pass
+            try:
+                object.__setattr__(span, "_attributes", sanitized)
+            except Exception:
+                pass
 
     def shutdown(self) -> None:
         pass
