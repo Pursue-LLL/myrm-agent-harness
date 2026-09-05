@@ -97,6 +97,8 @@ __all__ = [
     "PrivacyLadderViolationType",
     "PrivacyScanVerdict",
     "PrivacyScope",
+    "RepoCommitItem",
+    "RepoHistoryEvidenceDigest",
     "ResolutionStatus",
     "RoutineMeasurement",
     "SafetyMetadata",
@@ -131,6 +133,7 @@ __all__ = [
     "evaluate_metric_proxy_alignment",
     "evaluate_missing_capability",
     "evict_skill_safety_metadata",
+    "extract_repo_history_digest",
     "filter_distillable_messages",
     "filter_memories_with_evidence",
     "find_orphan_automation_processes",
@@ -665,6 +668,18 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "resolve_utc_offset_minutes": (
         "myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement",
         "resolve_utc_offset_minutes",
+    ),
+    "RepoCommitItem": (
+        "myrm_agent_harness.toolkits.code_execution.git_digest",
+        "RepoCommitItem",
+    ),
+    "RepoHistoryEvidenceDigest": (
+        "myrm_agent_harness.toolkits.code_execution.git_digest",
+        "RepoHistoryEvidenceDigest",
+    ),
+    "extract_repo_history_digest": (
+        "myrm_agent_harness.toolkits.code_execution.git_digest",
+        "extract_repo_history_digest",
     ),
 }
 
