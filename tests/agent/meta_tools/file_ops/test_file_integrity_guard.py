@@ -361,9 +361,10 @@ class TestEdgeCases:
     def test_empty_file_content_does_not_conflict_with_sentinel(self) -> None:
         guard = FileIntegrityGuard()
         guard.record_read("/empty.py", "")
+        assert guard.require_version_match("/empty.py", "") is None
         rejection = guard.require_version_match("/empty.py", "now has content")
         assert rejection is not None
-        assert guard.require_version_match("/empty.py", "") is None
+        assert guard.require_version_match("/empty.py", "now has content") is None
 
     def test_gate_passes_after_create_then_edit(self) -> None:
         guard = FileIntegrityGuard()

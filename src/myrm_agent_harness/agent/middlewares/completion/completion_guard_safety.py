@@ -79,4 +79,39 @@ def is_mutating_tool(tool_name: str) -> bool:
     return not resolve_safety_metadata(tool_name).is_read_only
 
 
-__all__ = ["is_mutating_tool"]
+_UNFINISHED_MARKERS: tuple[str, ...] = (
+    "...",
+    "接下来我会",
+    "I'll now",
+    "Let me",
+    "I will now",
+    "下面我来",
+    "让我",
+    "我现在",
+    "Next, I'll",
+)
+
+_STRUCTURE_MARKERS: tuple[str, ...] = ("\n#", "\n-", "\n*", "\n1.", "```")
+
+
+def is_substantive_final_response(content: str) -> bool:
+    """Determine if content is a complete final response rather than in-progress narration.
+
+    Returns True only when the content exhibits characteristics of a finished answer:
+    sufficient length, structured formatting, and no trailing "unfinished" indicators.
+    """
+    if len(content) < 500:
+        return False
+    has_structure = any(marker in content for marker in _STRUCTURE_MARKERS)
+    if not has_structure:
+        return False
+    trailing = content[-150:].strip()
+    has_unfinished_marker = any(trailing.endswith(marker) or marker in trailing for marker in _UNFINISHED_MARKERS)
+    return not has_unfinished_marker
+
+
+__all__ = [
+    "_INTERACTION_UI_TOOLS",
+    "is_mutating_tool",
+    "is_substantive_final_response",
+]

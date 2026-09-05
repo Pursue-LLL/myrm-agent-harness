@@ -1,10 +1,13 @@
-"""Unit tests for CompletionGuard deliverable write claim verifier."""
+"""Unit tests for CompletionGuard deliverable write claim and unwritten deliverable verifier."""
 
 from __future__ import annotations
 
 from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier import (
     check_deliverable_write_claim,
+    check_unwritten_deliverable,
+    check_unwritten_deliverables,
     detect_claimed_file_write,
+    detect_unwritten_deliverables,
     has_successful_file_write_calls,
 )
 from myrm_agent_harness.agent.security.guards.loop_guard.types import (
@@ -86,3 +89,86 @@ class TestCheckDeliverableWriteClaim:
         reason = check_deliverable_write_claim("Saved to `out/report.md`", [])
         assert reason is not None
         assert "no successful file_write_tool" in reason
+
+
+class TestDetectUnwrittenDeliverables:
+    def test_empty_text_returns_empty(self) -> None:
+        assert detect_unwritten_deliverables("") == []
+        assert detect_unwritten_deliverables("Just simple text without code blocks.") == []
+
+    def test_ignored_languages_skipped(self) -> None:
+        content = "```plaintext\nLine 1\nLine 2\nLine 3\nLine 4\nLine 5\n```"
+        assert detect_unwritten_deliverables(content) == []
+
+    def test_bash_commands_only_skipped(self) -> None:
+        content = "```bash\ncd my-project\npip install -r requirements.txt\npython main.py\n```"
+        assert detect_unwritten_deliverables(content) == []
+
+    def test_pedagogical_snippet_allowed_under_explanation_intent(self) -> None:
+        # A 10-line python snippet explaining recursion should not trigger unwritten block
+        code = (
+            "```python\n"
+            "def factorial(n):\n"
+            "    if n <= 1:\n"
+            "        return 1\n"
+            "    return n * factorial(n - 1)\n"
+            "\n"
+            "print(factorial(5))\n"
+            "```"
+        )
+        assert detect_unwritten_deliverables(code, latest_user_text="什么是递归算法？请解释一下原理") == []
+        assert detect_unwritten_deliverables(code, latest_user_text="给个 demo 看看，不用保存") == []
+        assert detect_unwritten_deliverables(code, latest_user_text="just show an example snippet, do not save") == []
+        assert detect_unwritten_deliverables(code, latest_user_text="仅供参考的示例片段") == []
+
+    def test_explicit_filename_hint_detected(self) -> None:
+        code = (
+            "```python\n"
+            "# filename: app/server.py\n"
+            "from fastapi import FastAPI\n"
+            "app = FastAPI()\n"
+            "\n"
+            "@app.get('/')\n"
+            "def root():\n"
+            "    return {'status': 'ok'}\n"
+            "```"
+        )
+        result = detect_unwritten_deliverables(code)
+        assert len(result) == 1
+        assert result[0].filename_hint == "app/server.py"
+        assert result[0].language == "python"
+        assert result[0].suggested_ext == ".py"
+
+    def test_explicit_deliverable_intent_detects_substantive_code(self) -> None:
+        code_lines = [f"x_{i} = {i}" for i in range(15)]
+        code = f"```typescript\n{chr(10).join(code_lines)}\n```"
+        result = detect_unwritten_deliverables(code, latest_user_text="请实现并输出完整的数据模型代码")
+        assert len(result) == 1
+        assert result[0].language == "typescript"
+        assert result[0].line_count >= 12
+
+
+class TestCheckUnwrittenDeliverables:
+    def test_with_successful_write_returns_none(self) -> None:
+        code = "```python\n# filename: script.py\nprint('hello')\nprint('world')\nprint('test')\nprint('more')\nprint('lines')\n```"
+        reason, items = check_unwritten_deliverables(
+            content=code,
+            records=[_record("file_write_tool")],
+        )
+        assert reason is None
+        assert items == []
+        assert check_unwritten_deliverable(content=code, records=[_record("file_write_tool")]) is None
+
+    def test_without_write_returns_reason_and_items(self) -> None:
+        code = "```python\n# filename: script.py\nprint('hello')\nprint('world')\nprint('test')\nprint('more')\nprint('lines')\n```"
+        reason, items = check_unwritten_deliverables(
+            content=code,
+            records=[],
+        )
+        assert reason is not None
+        assert "Substantial unpersisted deliverables detected" in reason
+        assert len(items) == 1
+        assert items[0].filename_hint == "script.py"
+
+        single_reason = check_unwritten_deliverable(content=code, records=[])
+        assert single_reason == reason

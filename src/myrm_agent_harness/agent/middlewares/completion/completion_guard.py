@@ -86,9 +86,15 @@ from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_e
 from myrm_agent_harness.agent.middlewares.completion.completion_guard_safety import (
     _INTERACTION_UI_TOOLS,
     is_mutating_tool,
+    is_substantive_final_response,
+)
+from myrm_agent_harness.agent.middlewares.completion.deliverable_auto_staging import (
+    stage_unwritten_deliverables,
 )
 from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier import (
+    UnwrittenDeliverable,
     check_deliverable_write_claim,
+    check_unwritten_deliverables,
 )
 from myrm_agent_harness.agent.middlewares.completion.query_grounding_verifier import (
     check_query_grounding_claim,
@@ -122,6 +128,7 @@ def _completion_check_tool(
     evidence_reason: str = "",
     deliverable_write_reason: str = "",
     query_grounding_reason: str = "",
+    staged_artifacts: list[dict[str, object]] | None = None,
 ) -> str:
     """Generate a task-aware verification checklist before finishing.
 
@@ -130,13 +137,17 @@ def _completion_check_tool(
     before delivering the final answer.
     """
     if force_fail:
-        return (
+        msg = (
             " CRITICAL SYSTEM DIRECTIVE: You have failed to verify your work multiple times. "
             "You are now permitted to finish the task, but you MUST include a clear warning "
             "in your final response to the user stating that you were unable to successfully "
             "verify the changes (e.g., tests failed or were not run) and that they should "
             "manually review the work."
         )
+        if staged_artifacts:
+            staged_names = ", ".join(str(item.get("filename", "")) for item in staged_artifacts)
+            msg += f"\nNOTICE: Unwritten deliverables were automatically staged to .myrm/staged_artifacts/ [{staged_names}]."
+        return msg
 
     if evidence_reason.strip():
         return (
@@ -212,37 +223,6 @@ async def _rerun_verification_in_sandbox(command: str) -> bool:
         return False
 
 
-_UNFINISHED_MARKERS: tuple[str, ...] = (
-    "...",
-    "接下来我会",
-    "I'll now",
-    "Let me",
-    "I will now",
-    "下面我来",
-    "让我",
-    "我现在",
-    "Next, I'll",
-)
-
-_STRUCTURE_MARKERS: tuple[str, ...] = ("\n#", "\n-", "\n*", "\n1.", "```")
-
-
-def _is_substantive_final_response(content: str) -> bool:
-    """Determine if content is a complete final response rather than in-progress narration.
-
-    Returns True only when the content exhibits characteristics of a finished answer:
-    sufficient length, structured formatting, and no trailing "unfinished" indicators.
-    """
-    if len(content) < 500:
-        return False
-    has_structure = any(marker in content for marker in _STRUCTURE_MARKERS)
-    if not has_structure:
-        return False
-    tail = content[-100:]
-    has_unfinished = any(marker in tail for marker in _UNFINISHED_MARKERS)
-    return not has_unfinished
-
-
 class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
     """Critical completion verification guard.
 
@@ -310,7 +290,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             # --- Mixed Message Guard ---
             if last_ai_msg.content and last_ai_msg.tool_calls:
                 content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content)
-                if _is_substantive_final_response(content_str):
+                if is_substantive_final_response(content_str):
                     has_non_strippable = any(
                         is_mutating_tool(str(tc.get("name", ""))) or str(tc.get("name", "")) in _INTERACTION_UI_TOOLS
                         for tc in last_ai_msg.tool_calls
@@ -375,11 +355,20 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             records=filtered_records,
         )
         deliverable_write_reason: str | None = None
+        unwritten_deliverables: list[UnwrittenDeliverable] = []
         latest_human_for_grounding = extract_latest_human_text(messages)
         query_grounding_reason: str | None = None
         if last_ai_msg.content:
             content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content)
             deliverable_write_reason = check_deliverable_write_claim(content_str, filtered_records)
+            if deliverable_write_reason is None:
+                unwritten_reason, unwritten_deliverables = check_unwritten_deliverables(
+                    content=content_str,
+                    records=filtered_records,
+                    latest_user_text=latest_human_for_grounding,
+                )
+                if unwritten_reason is not None:
+                    deliverable_write_reason = unwritten_reason
             query_grounding_reason = check_query_grounding_claim(
                 user_text=latest_human_for_grounding,
                 assistant_text=content_str,
@@ -432,6 +421,11 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 self._max_rejections,
             )
             _forced_finish = True
+            staged_metas_dict: list[dict[str, object]] = []
+            if unwritten_deliverables and workspace_root:
+                staged = stage_unwritten_deliverables(str(workspace_root), unwritten_deliverables)
+                staged_metas_dict = [m.to_dict() for m in staged]
+
             tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
             forced_args: dict[str, object] = {
                 "workspace_root": (str(workspace_root) if workspace_root else ""),
@@ -443,7 +437,11 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 forced_args["deliverable_write_reason"] = deliverable_write_reason
             if query_grounding_reason is not None:
                 forced_args["query_grounding_reason"] = query_grounding_reason
+            if staged_metas_dict:
+                forced_args["staged_artifacts"] = staged_metas_dict
             patched = deepcopy(last_ai_msg)
+            if staged_metas_dict:
+                patched.additional_kwargs["staged_artifacts"] = staged_metas_dict
             patched.tool_calls = [
                 {
                     "name": COMPLETION_CHECK_TOOL_NAME,
