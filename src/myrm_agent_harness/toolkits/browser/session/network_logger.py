@@ -17,6 +17,7 @@ Network request logging for the browser toolkit. Provides self-diagnosis capabil
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from collections import deque
@@ -28,6 +29,8 @@ from myrm_agent_harness.core.security.redact import redact_sensitive_text
 
 if TYPE_CHECKING:
     from patchright.async_api import Page, Request, Response
+
+    from ..observability import BrowserRunTelemetry
 
 logger = logging.getLogger(__name__)
 
@@ -85,15 +88,21 @@ class NetworkLogger:
     listener functions.
     """
 
-    def __init__(self, max_requests: int = 50) -> None:
+    def __init__(
+        self,
+        max_requests: int = 50,
+        telemetry: BrowserRunTelemetry | None = None,
+    ) -> None:
         """Initialize network logger.
 
         Args:
             max_requests: Maximum number of requests to store (FIFO)
+            telemetry: Optional runtime telemetry collector
         """
         self._requests: deque[RequestInfo] = deque(maxlen=max_requests)
         self._pending: WeakKeyDictionary[Request, float] = WeakKeyDictionary()
         self._bound_page: Page | None = None
+        self._telemetry = telemetry
 
     @property
     def bound_page(self) -> Page | None:
@@ -193,6 +202,17 @@ class NetworkLogger:
             )
             self._requests.append(info)
 
+            bytes_transferred = 0
+            with contextlib.suppress(Exception):
+                cl = response.headers.get("content-length")
+                if cl:
+                    bytes_transferred = int(cl)
+            if self._telemetry is not None:
+                self._telemetry.record_request(
+                    success=response.status < 400,
+                    bytes_transferred=bytes_transferred,
+                )
+
         except Exception as exc:
             logger.warning("Failed to capture response: %s", exc)
 
@@ -215,6 +235,9 @@ class NetworkLogger:
                 duration_ms=duration_ms,
             )
             self._requests.append(info)
+
+            if self._telemetry is not None:
+                self._telemetry.record_request(success=False, bytes_transferred=0)
 
         except Exception as exc:
             logger.warning("Failed to capture failed request: %s", exc)

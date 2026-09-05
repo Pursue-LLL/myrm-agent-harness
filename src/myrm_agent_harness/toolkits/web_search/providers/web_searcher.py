@@ -40,6 +40,7 @@ from myrm_agent_harness.toolkits.web_search.coalescing.search_coalescing import 
 from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.core.error_handling import (
     build_search_error_context,
+    is_quota_or_rate_limit_error,
     is_retryable_search_error,
 )
 from myrm_agent_harness.toolkits.web_search.core.exceptions import (
@@ -348,6 +349,11 @@ class WebSearcher:
 
                 if not is_retryable_search_error(exc) or attempt >= max_attempts - 1:
                     self._metrics.record_terminal_failure()
+                    self._metrics.record_provider_search(
+                        provider,
+                        success=False,
+                        quota_exceeded=is_quota_or_rate_limit_error(exc),
+                    )
                     ctx = build_search_error_context(
                         exc,
                         query=query,
@@ -367,6 +373,7 @@ class WebSearcher:
                 continue
 
             self._metrics.record_success()
+            self._metrics.record_provider_search(provider, success=True, quota_exceeded=False)
             return results
 
         msg = f"Search request failed after {max_attempts} attempts"

@@ -174,6 +174,11 @@ def create_litellm_model(
 
     if base_url:
         llm_kwargs["api_base"] = base_url
+        if "ai-gateway.vercel.sh" in base_url:
+            extra_headers = llm_kwargs.setdefault("extra_headers", {})
+            if isinstance(extra_headers, dict):
+                extra_headers.setdefault("HTTP-Referer", "https://myrm.ai")
+                extra_headers.setdefault("X-Title", "Myrm Agent")
 
     if api_key:
         llm_kwargs["api_key"] = api_key
@@ -227,6 +232,15 @@ def create_litellm_model(
             options = extra_body.setdefault("options", {})
             if isinstance(options, dict) and "num_ctx" not in options:
                 options["num_ctx"] = 64000
+
+    # Vercel AI Gateway: auto-inject attribution headers for spend observability
+    if base_url and "ai-gateway.vercel.sh" in base_url.lower():
+        model_kwargs_dict = llm_kwargs.setdefault("model_kwargs", {})
+        if isinstance(model_kwargs_dict, dict):
+            extra_headers = model_kwargs_dict.setdefault("extra_headers", {})
+            if isinstance(extra_headers, dict):
+                extra_headers.setdefault("HTTP-Referer", "https://myrm.ai")
+                extra_headers.setdefault("X-Title", "Myrm Agent")
 
     llm_kwargs = clean_model_kwargs(llm_kwargs, model)
 

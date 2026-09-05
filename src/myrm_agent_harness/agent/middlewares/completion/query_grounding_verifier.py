@@ -16,7 +16,9 @@ safeguarding everyday enterprise entity queries.
 [OUTPUT]
 - check_query_grounding_claim: reason string when blocking is required, else None
 - detect_entity_query_intent: bool
+- extract_query_entities: list[str]
 - has_successful_query_evidence: bool
+- is_entity_grounded: bool
 
 [POS]
 Harness middleware helper; invoked from CompletionGuard.aafter_model at completion.
@@ -164,6 +166,69 @@ def is_query_call_record(record: CallRecord) -> bool:
     return _is_bash_ptc_query(record)
 
 
+def extract_query_entities(user_text: str | None) -> list[str]:
+    """Extract concrete entity identifier tokens (e.g. OD-9921, TK-8802) from user prompt.
+
+    Maintains order of appearance and deduplicates case-insensitively while preserving original casing.
+    """
+    if not user_text:
+        return []
+    matches = _IDENTIFIER_PATTERN.findall(user_text)
+    seen: set[str] = set()
+    result: list[str] = []
+    for match in matches:
+        token = match.strip()
+        lowered = token.lower()
+        if lowered not in seen:
+            seen.add(lowered)
+            result.append(token)
+    return result
+
+
+def _is_entity_grounded_in_record(entity: str, record: CallRecord) -> bool:
+    """Return True if the entity identifier is present in query tool arguments or output."""
+    if not is_query_call_record(record):
+        return False
+    success_level = getattr(record, "success_level", None)
+    if success_level == SuccessLevel.FAILURE:
+        return False
+
+    entity_lower = entity.lower()
+
+    # 1. 检查调用参数
+    args = getattr(record, "args", None)
+    if isinstance(args, dict):
+        for val in args.values():
+            if isinstance(val, (str, int, float)) and entity_lower in str(val).lower():
+                return True
+
+    # 2. 检查工具返回观测或输出
+    result = getattr(record, "result", None)
+    if result is not None and entity_lower in str(result).lower():
+        return True
+
+    output = getattr(record, "output", None)
+    return bool(output is not None and entity_lower in str(output).lower())
+
+
+def is_entity_grounded(entity: str, records: list[CallRecord]) -> bool:
+    """Return True if the specified entity identifier has at least one valid query record."""
+    return any(_is_entity_grounded_in_record(entity, record) for record in records)
+
+
+def _is_entity_honestly_reported(entity: str, assistant_text: str | None) -> bool:
+    """Check if the assistant specifically disclosed that this entity is missing or unretrieved."""
+    if not assistant_text:
+        return False
+    text = assistant_text.lower()
+    entity_lower = entity.lower()
+    if entity_lower not in text:
+        return False
+
+    # 实体附近或整段有否定或未找到描述
+    return any(p.search(assistant_text) is not None for p in _HONEST_NEGATIVE_OR_CLARIFICATION_PATTERNS)
+
+
 def has_successful_query_evidence(records: list[CallRecord]) -> bool:
     """Return True if at least one query tool completed without FAILURE."""
     for record in records:
@@ -193,11 +258,32 @@ def check_query_grounding_claim(
     if is_honest_negative_or_clarification(assistant_text):
         return None
 
-    # 如果有至少一次成功的查询记录，放行
+    # 1. 实体槽位一对一细粒度接地核验（Per-Entity Grounding Map）
+    entities = extract_query_entities(user_text)
+    if entities:
+        unsearched = [e for e in entities if not is_entity_grounded(e, records)]
+        if unsearched:
+            unreported = [e for e in unsearched if not _is_entity_honestly_reported(e, assistant_text)]
+            if unreported:
+                if len(entities) > 1:
+                    missing_str = ", ".join(f"'{e}'" for e in unreported)
+                    return (
+                        f"The user requested querying multiple business entities, but entity {missing_str} "
+                        "was not queried via any tool. Execute the appropriate query tool to retrieve real data, "
+                        "or honestly report to the user that the entity information is unavailable."
+                    )
+                if has_successful_query_evidence(records):
+                    return (
+                        f"The user requested querying business entity '{unreported[0]}', but no tool call "
+                        f"queried this specific entity. Execute the query tool with '{unreported[0]}', "
+                        "or honestly report to the user if the record is unavailable."
+                    )
+
+    # 2. 如果有至少一次成功的查询记录（且没有被上述实体级未接地拦截），放行
     if has_successful_query_evidence(records):
         return None
 
-    # 收集本次会话中所有相关的查询工具记录
+    # 3. 收集本次会话中所有相关的查询工具记录
     query_records = [r for r in records if is_query_call_record(r)]
 
     if not query_records:
@@ -219,7 +305,9 @@ def check_query_grounding_claim(
 __all__ = [
     "check_query_grounding_claim",
     "detect_entity_query_intent",
+    "extract_query_entities",
     "has_successful_query_evidence",
+    "is_entity_grounded",
     "is_honest_negative_or_clarification",
     "is_query_call_record",
 ]

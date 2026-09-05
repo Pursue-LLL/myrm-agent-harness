@@ -25,12 +25,14 @@ for debugging and UX optimization. Follows a minimalist principle: records only 
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from patchright.async_api import BrowserContext, Page, Request
     from .checkpoint.metrics import CheckpointMetrics
 
 logger = logging.getLogger(__name__)
@@ -57,10 +59,67 @@ class RecordingConfig:
     video_size: tuple[int, int] = (1280, 720)
 
 
+@dataclass
+class BrowserRunTelemetry:
+    """Telemetry capturing runtime compute duration, network usage, and session health."""
+
+    start_time: float = field(default_factory=time.time)
+    end_time: float | None = None
+    active_compute_seconds: float = 0.0
+    total_bytes_transferred: int = 0
+    request_count: int = 0
+    failed_request_count: int = 0
+    page_count: int = 0
+    watchdog_tripped_count: int = 0
+
+    @property
+    def total_duration_seconds(self) -> float:
+        """Total session duration from start until end or current time."""
+        current = self.end_time if self.end_time is not None else time.time()
+        return max(0.0, current - self.start_time)
+
+    def record_transfer(self, bytes_transferred: int) -> None:
+        """Record transferred network bytes."""
+        if bytes_transferred > 0:
+            self.total_bytes_transferred += bytes_transferred
+
+    def record_request(self, *, success: bool, bytes_transferred: int = 0) -> None:
+        """Record completed or failed request and optional transferred bytes."""
+        self.request_count += 1
+        if not success:
+            self.failed_request_count += 1
+        if bytes_transferred > 0:
+            self.total_bytes_transferred += bytes_transferred
+
+    def record_compute(self, duration_seconds: float) -> None:
+        """Record active compute/action execution duration."""
+        if duration_seconds > 0:
+            self.active_compute_seconds += duration_seconds
+
+    def mark_closed(self) -> None:
+        """Mark session end time."""
+        if self.end_time is None:
+            self.end_time = time.time()
+
+    def snapshot(self) -> dict[str, object]:
+        """Return point-in-time telemetry dictionary."""
+        return {
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "total_duration_seconds": round(self.total_duration_seconds, 2),
+            "active_compute_seconds": round(self.active_compute_seconds, 2),
+            "total_bytes_transferred": self.total_bytes_transferred,
+            "request_count": self.request_count,
+            "failed_request_count": self.failed_request_count,
+            "page_count": self.page_count,
+            "watchdog_tripped_count": self.watchdog_tripped_count,
+        }
+
+
 class BrowserObservability:
     """Browser observability manager.
 
-    Manages recording lifecycle, progress notifications, and checkpoint metrics for browser sessions.
+    Manages recording lifecycle, progress notifications, runtime telemetry, and checkpoint metrics.
     Minimal implementation following the principle of progressive enhancement.
     """
 
@@ -69,6 +128,7 @@ class BrowserObservability:
         recording_config: RecordingConfig,
         progress_callback: ProgressCallback | None = None,
         checkpoint_metrics: CheckpointMetrics | None = None,
+        telemetry: BrowserRunTelemetry | None = None,
     ) -> None:
         """Initialize observability manager.
 
@@ -76,12 +136,68 @@ class BrowserObservability:
             recording_config: Recording configuration
             progress_callback: Optional callback for progress notifications
             checkpoint_metrics: Optional checkpoint metrics instance (for shared tracking)
+            telemetry: Optional existing BrowserRunTelemetry instance
         """
         self._config = recording_config
         self._progress_callback = progress_callback
         self._video_path: Path | None = None
         self._task_succeeded: bool = True
         self._checkpoint_metrics = checkpoint_metrics
+        self._telemetry = telemetry if telemetry is not None else BrowserRunTelemetry()
+
+    @property
+    def telemetry(self) -> BrowserRunTelemetry:
+        """Runtime compute and bandwidth telemetry."""
+        return self._telemetry
+
+    def attach_to_context(self, context: BrowserContext) -> None:
+        """Attach lightweight observers to BrowserContext for real-time bandwidth and page telemetry."""
+        def _on_page(_page: Page) -> None:
+            self._telemetry.page_count += 1
+
+        def _on_request_finished(request: Request) -> None:
+            try:
+                size = 0
+                response = request.response()
+                if response is not None:
+                    headers = response.headers
+                    cl = headers.get("content-length")
+                    if cl and cl.isdigit():
+                        size = int(cl)
+                self._telemetry.record_request(success=True, bytes_transferred=size)
+            except Exception:
+                self._telemetry.record_request(success=True, bytes_transferred=0)
+
+        def _on_request_failed(_request: Request) -> None:
+            self._telemetry.record_request(success=False, bytes_transferred=0)
+
+        try:
+            context.on("page", _on_page)
+            context.on("requestfinished", _on_request_finished)
+            context.on("requestfailed", _on_request_failed)
+        except Exception as exc:
+            logger.debug("Failed to attach browser context telemetry listeners: %s", exc)
+
+    def check_action_watchdog(
+        self,
+        action_start_time: float,
+        timeout_seconds: float = 180.0,
+    ) -> bool:
+        """Check if single action compute duration exceeded safety watchdog threshold (default 3 minutes).
+
+        Returns:
+            True if within safe duration limits; False if tripped/hung.
+        """
+        elapsed = time.monotonic() - action_start_time
+        if elapsed > timeout_seconds:
+            self._telemetry.watchdog_tripped_count += 1
+            logger.warning(
+                "Browser action exceeded watchdog threshold (%.1fs > %.1fs); potential infinite loop detected",
+                elapsed,
+                timeout_seconds,
+            )
+            return False
+        return True
 
     @property
     def recording_enabled(self) -> bool:
@@ -200,5 +316,7 @@ class BrowserObservability:
 
         if self._checkpoint_metrics:
             stats["checkpoint_metrics"] = self._checkpoint_metrics.to_dict()
+
+        stats["telemetry"] = self._telemetry.snapshot()
 
         return stats

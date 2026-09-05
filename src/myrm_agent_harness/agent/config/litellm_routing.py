@@ -46,6 +46,7 @@ BUILTIN_PROVIDER_LITELLM_SEGMENT: dict[str, str] = {
     "nvidia": "openai",
     "ai302": "openai",
     "opencode_go": "openai",
+    "vercel_ai_gateway": "openai",
 }
 
 CUSTOM_COMPAT_TYPE_LITELLM_SEGMENT: dict[str, str] = {
@@ -61,6 +62,9 @@ _OPENAI_ROUTE_FAMILY: frozenset[str] = frozenset(
         "spark",
         "openai_compatible",
         "openai_like",
+        "ai302",
+        "opencode_go",
+        "vercel_ai_gateway",
     }
 )
 

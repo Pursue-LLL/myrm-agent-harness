@@ -180,13 +180,15 @@ class BrowserSessionLifecycleMixin:
                 logger.warning("HAR recording was still active during session close, cleaning up state")
 
         video_path = None
-        if self._observability and self._observability.recording_enabled:
-            try:
-                page = self._tab_controller.get_active_page()
-                if page.video:
-                    video_path = Path(await page.video.path())
-            except Exception as e:
-                logger.warning("Failed to get video path: %s", e)
+        if self._observability:
+            self._observability.telemetry.mark_closed()
+            if self._observability.recording_enabled:
+                try:
+                    page = self._tab_controller.get_active_page()
+                    if page.video:
+                        video_path = Path(await page.video.path())
+                except Exception as e:
+                    logger.warning("Failed to get video path: %s", e)
 
         if self._download_manager is not None:
             await self._download_manager.cleanup()

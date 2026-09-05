@@ -19,7 +19,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](../MIDDLEWARE_SYSTEM.md)
 | `completion_guard_checklist.py` | Internal | Verification command classification, checklist builder, temporal ordering analysis. | ✅ |
 | `completion_guard_external_evidence.py` | Internal | Freshness-sensitive external evidence gate (web/browser + MCP: PTC bash via ``skills.mcp_*`` and Direct FC via ``mcp__{server}__{tool}``; internal code-task requests are exempted from external-evidence requirements). | ✅ |
 | `deliverable_write_verifier.py` | Internal | Zero-call deliverable write claim detection and unwritten deliverable heuristic sniffer. | ✅ |
-| `query_grounding_verifier.py` | Internal | Entity state/data query intent grounding and physical evidence verification (detects business entity queries e.g. orders/tickets/logistics, blocks ungrounded hallucination when no query tools were executed, and halts fake success claims when all query tools failed). | ✅ |
+| `query_grounding_verifier.py` | Internal | Entity state/data query intent grounding and physical evidence verification (detects business entity queries e.g. orders/tickets/logistics, supports per-entity grounding map matching against tool arguments and outputs, blocks ungrounded hallucination when query tools were omitted or unsearched entities were fabricated, and halts fake success claims when query tools failed). | ✅ |
 
 ## Key Dependencies
 

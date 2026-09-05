@@ -73,7 +73,10 @@ import logging
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.browser.observability import BrowserObservability
+from myrm_agent_harness.toolkits.browser.observability import (
+    BrowserObservability,
+    BrowserRunTelemetry,
+)
 from myrm_agent_harness.toolkits.browser.recording_manager import RecordingManager
 from myrm_agent_harness.toolkits.browser.utils.selectors import PASSWORD_FIELD_SELECTOR
 
@@ -232,7 +235,7 @@ class BrowserSession(
         self._snapshot_manager: SnapshotManager | None = None
         self._interactor: Interactor | None = None
         self._extractor: Extractor | None = None
-        self._network_logger = NetworkLogger()
+        self._network_logger = NetworkLogger(telemetry=self._observability.telemetry)
         self._network_intelligence = NetworkIntelligence()
         self._web_vitals = WebVitalsCollector()
         self._console_logger = ConsoleLogger()
@@ -659,4 +662,11 @@ class BrowserSession(
         if self._download_manager:
             stats["downloads"] = len(self._download_manager.downloads)
 
+        stats["telemetry"] = self._observability.telemetry.snapshot()
+
         return stats
+
+    @property
+    def runtime_telemetry(self) -> BrowserRunTelemetry:
+        """Runtime compute and network telemetry for this browser session."""
+        return self._observability.telemetry

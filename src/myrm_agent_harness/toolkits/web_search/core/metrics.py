@@ -30,6 +30,9 @@ class WebSearchMetrics:
     fallback_successes: int = 0
     fallback_failures: int = 0
     chain_hop_count: int = 0
+    provider_attempts: dict[str, int] = field(default_factory=dict)
+    provider_successes: dict[str, int] = field(default_factory=dict)
+    provider_quota_exceeded: dict[str, int] = field(default_factory=dict)
 
     def record_attempt(self) -> None:
         with self._lock:
@@ -73,7 +76,22 @@ class WebSearchMetrics:
         with self._lock:
             self.chain_hop_count += 1
 
-    def snapshot(self) -> dict[str, int]:
+    def record_provider_search(
+        self,
+        provider: str,
+        *,
+        success: bool,
+        quota_exceeded: bool = False,
+    ) -> None:
+        """Record provider-specific search attempt and outcome."""
+        with self._lock:
+            self.provider_attempts[provider] = self.provider_attempts.get(provider, 0) + 1
+            if success:
+                self.provider_successes[provider] = self.provider_successes.get(provider, 0) + 1
+            if quota_exceeded:
+                self.provider_quota_exceeded[provider] = self.provider_quota_exceeded.get(provider, 0) + 1
+
+    def snapshot(self) -> dict[str, object]:
         with self._lock:
             return {
                 "search_attempts": self.search_attempts,
@@ -85,6 +103,9 @@ class WebSearchMetrics:
                 "fallback_successes": self.fallback_successes,
                 "fallback_failures": self.fallback_failures,
                 "chain_hop_count": self.chain_hop_count,
+                "provider_attempts": dict(self.provider_attempts),
+                "provider_successes": dict(self.provider_successes),
+                "provider_quota_exceeded": dict(self.provider_quota_exceeded),
             }
 
 

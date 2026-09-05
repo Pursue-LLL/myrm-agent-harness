@@ -5,6 +5,7 @@
 
 [OUTPUT]
 - is_quota_or_rate_limit_error: Quota / rate-limit detection (chain hop + non-retryable)
+- is_persistent_quota_depleted_error: Detect persistent account quota exhaustion vs transient rate limits
 - is_retryable_search_error: function — is_retryable_search_error
 - build_search_error_context: Build structured context for a single failed search attempt.
 
@@ -106,6 +107,31 @@ def is_retryable_search_error(exc: BaseException) -> bool:
     if "connection refused" in text or "broken pipe" in text:
         return True
     return bool("connectionerror" in text and "apiconnectionerror" not in text)
+
+
+_PERSISTENT_QUOTA_MARKERS: frozenset[str] = frozenset(
+    {
+        "quota",
+        "quota_exceeded",
+        "insufficient_quota",
+        "usage limit",
+        "plan limit",
+        "monthly limit",
+        "monthly_limit_reached",
+        "credit limit",
+        "out of credits",
+        "payment required",
+    }
+)
+
+
+def is_persistent_quota_depleted_error(exc: BaseException) -> bool:
+    """Return True when an error denotes account quota/credit exhaustion rather than transient rate limits."""
+    if _status_from_exception(exc) == 402:
+        return True
+    body = _response_body_snippet(exc) or ""
+    combined = f"{exc!s} {body}".lower()
+    return any(marker in combined for marker in _PERSISTENT_QUOTA_MARKERS)
 
 
 def build_search_error_context(

@@ -9,15 +9,15 @@ from myrm_agent_harness.agent.middlewares.completion.completion_guard import (
     CompletionGuard,
     reset_completion_guard,
 )
-from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
-    reset_loop_guard,
-)
 from myrm_agent_harness.agent.middlewares.completion.query_grounding_verifier import (
     check_query_grounding_claim,
     detect_entity_query_intent,
     has_successful_query_evidence,
     is_honest_negative_or_clarification,
     is_query_call_record,
+)
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
+    reset_loop_guard,
 )
 from myrm_agent_harness.agent.security.guards.loop_guard.types import (
     CallRecord,
@@ -144,11 +144,87 @@ class TestCheckQueryGroundingClaim:
         )
 
     def test_query_intent_with_successful_evidence_returns_none(self) -> None:
-        records = [_record("mcp__erp__query_order", SuccessLevel.FULL_SUCCESS)]
+        records = [
+            _record(
+                "mcp__erp__query_order",
+                SuccessLevel.FULL_SUCCESS,
+                args={"order_id": "OD-9921"},
+            )
+        ]
         assert (
             check_query_grounding_claim(
                 user_text="查一下订单 OD-9921 的状态",
                 assistant_text="订单 OD-9921 当前状态为已发货。",
+                records=records,
+            )
+            is None
+        )
+
+    def test_generic_query_intent_without_id_passes_with_any_query_tool(self) -> None:
+        records = [_record("mcp__erp__query_order", SuccessLevel.FULL_SUCCESS)]
+        assert (
+            check_query_grounding_claim(
+                user_text="帮我查询一下订单发货处理进度",
+                assistant_text="当前订单均处于正常处理中。",
+                records=records,
+            )
+            is None
+        )
+
+    def test_multi_entity_query_missing_one_blocks(self) -> None:
+        # 用户查了两个单号：OD-9921 和 TK-8802；工具只查了 OD-9921
+        records = [
+            _record(
+                "mcp__erp__query_order",
+                SuccessLevel.FULL_SUCCESS,
+                args={"order_id": "OD-9921"},
+            )
+        ]
+        reason = check_query_grounding_claim(
+            user_text="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度",
+            assistant_text="订单 OD-9921 已发货，工单 TK-8802 已由技术人员处理完毕。",
+            records=records,
+        )
+        assert reason is not None
+        assert "multiple business entities" in reason
+        assert "TK-8802" in reason
+
+    def test_multi_entity_query_missing_one_with_honest_negative_passes(self) -> None:
+        # 用户查了两个单号；工具只查了 OD-9921，但在回答中如实说明 TK-8802 未查询到
+        records = [
+            _record(
+                "mcp__erp__query_order",
+                SuccessLevel.FULL_SUCCESS,
+                args={"order_id": "OD-9921"},
+            )
+        ]
+        assert (
+            check_query_grounding_claim(
+                user_text="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度",
+                assistant_text="订单 OD-9921 已经发货；工单 TK-8802 暂未查询到对应处理进度。",
+                records=records,
+            )
+            is None
+        )
+
+    def test_multi_entity_query_all_grounded_passes(self) -> None:
+        # 用户查了两个单号，两个单号在不同的工具调用入参中均有物理证据
+        records = [
+            _record(
+                "mcp__erp__query_order",
+                SuccessLevel.FULL_SUCCESS,
+                args={"order_id": "OD-9921"},
+            ),
+            _record(
+                "mcp__itsm__query_ticket",
+                SuccessLevel.FULL_SUCCESS,
+                args={"ticket_id": "TK-8802"},
+            ),
+        ]
+        assert (
+            check_query_grounding_claim(
+                user_text="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度",
+                assistant_text="订单 OD-9921 已发货，工单 TK-8802 处理中。",
                 records=records,
             )
             is None
