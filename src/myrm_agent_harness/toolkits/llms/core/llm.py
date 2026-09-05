@@ -35,6 +35,7 @@ from myrm_agent_harness.infra.tls_compat import build_httpx_verify, tls_strict_d
 from myrm_agent_harness.toolkits.llms import providers  # noqa: F401
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM, clean_model_kwargs
 from myrm_agent_harness.toolkits.llms.core.deepseek_reasoning import apply_deepseek_reasoning_effort
+from myrm_agent_harness.toolkits.llms.core.openai_reasoning import apply_openai_reasoning_effort
 from myrm_agent_harness.toolkits.llms.core.openrouter_verbosity import apply_openrouter_reasoning_effort
 from myrm_agent_harness.toolkits.llms.core.reasoning_timeout import get_reasoning_timeout_floor
 from myrm_agent_harness.toolkits.llms.core.thinking_headroom import ensure_thinking_headroom
@@ -189,6 +190,9 @@ def create_litellm_model(
 
     # OpenRouter: rewrite reasoning_effort → extra_body.reasoning.effort
     apply_openrouter_reasoning_effort(model, llm_kwargs)
+
+    # OpenAI: remap non-standard reasoning levels ('minimal'→'low', 'xhigh'→'high') & strip for non-reasoning
+    apply_openai_reasoning_effort(model, llm_kwargs)
 
     # Thinking models: raise max_tokens floor to prevent thinking-phase truncation
     ensure_thinking_headroom(model, llm_kwargs)
