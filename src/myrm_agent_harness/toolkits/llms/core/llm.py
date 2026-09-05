@@ -174,11 +174,6 @@ def create_litellm_model(
 
     if base_url:
         llm_kwargs["api_base"] = base_url
-        if "ai-gateway.vercel.sh" in base_url:
-            extra_headers = llm_kwargs.setdefault("extra_headers", {})
-            if isinstance(extra_headers, dict):
-                extra_headers.setdefault("HTTP-Referer", "https://myrm.ai")
-                extra_headers.setdefault("X-Title", "Myrm Agent")
 
     if api_key:
         llm_kwargs["api_key"] = api_key
@@ -235,12 +230,18 @@ def create_litellm_model(
 
     # Vercel AI Gateway: auto-inject attribution headers for spend observability
     if base_url and "ai-gateway.vercel.sh" in base_url.lower():
+        extra_headers = llm_kwargs.setdefault("extra_headers", {})
+        if isinstance(extra_headers, dict):
+            extra_headers.setdefault("HTTP-Referer", "https://myrm.ai")
+            extra_headers.setdefault("X-Title", "Myrm Agent")
+            extra_headers.setdefault("User-Agent", "Myrm/1.0 (Vercel-AI-Gateway-Client)")
         model_kwargs_dict = llm_kwargs.setdefault("model_kwargs", {})
         if isinstance(model_kwargs_dict, dict):
-            extra_headers = model_kwargs_dict.setdefault("extra_headers", {})
-            if isinstance(extra_headers, dict):
-                extra_headers.setdefault("HTTP-Referer", "https://myrm.ai")
-                extra_headers.setdefault("X-Title", "Myrm Agent")
+            extra_headers_m = model_kwargs_dict.setdefault("extra_headers", {})
+            if isinstance(extra_headers_m, dict):
+                extra_headers_m.setdefault("HTTP-Referer", "https://myrm.ai")
+                extra_headers_m.setdefault("X-Title", "Myrm Agent")
+                extra_headers_m.setdefault("User-Agent", "Myrm/1.0 (Vercel-AI-Gateway-Client)")
 
     llm_kwargs = clean_model_kwargs(llm_kwargs, model)
 

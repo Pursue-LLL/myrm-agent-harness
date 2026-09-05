@@ -238,4 +238,8 @@ class TestCreateLitellmModel:
         model_kwargs = call_kwargs.get("model_kwargs", {})
         assert model_kwargs["extra_headers"]["HTTP-Referer"] == "https://myrm.ai"
         assert model_kwargs["extra_headers"]["X-Title"] == "Myrm Agent"
+        assert model_kwargs["extra_headers"]["User-Agent"] == "Myrm/1.0 (Vercel-AI-Gateway-Client)"
+        assert call_kwargs["extra_headers"]["HTTP-Referer"] == "https://myrm.ai"
+        assert call_kwargs["extra_headers"]["X-Title"] == "Myrm Agent"
+        assert call_kwargs["extra_headers"]["User-Agent"] == "Myrm/1.0 (Vercel-AI-Gateway-Client)"
 
