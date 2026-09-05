@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import threading
 from collections.abc import Awaitable, Callable
 from contextlib import contextmanager
 from typing import Any, ParamSpec, TypeVar
@@ -231,27 +232,57 @@ def trace_async(
     return decorator
 
 
-def shutdown_tracing() -> None:
-    """Gracefully shutdown tracing provider and flush buffered spans.
+def shutdown_tracing(timeout_ms: float = 1500.0) -> bool:
+    """Gracefully shutdown tracing provider with bounded timeout and daemon thread isolation.
 
-    Call this on process exit (e.g., via atexit or signal handler) to ensure
-    all buffered spans in BatchSpanProcessor are exported before the process
-    terminates. Without this, the last batch of spans may be lost.
+    Uses a dedicated daemon thread to invoke tracer provider shutdown so that if remote
+    OTLP endpoints hang or network lags, the process/session exit is not blocked indefinitely,
+    and Python's atexit handler avoids deadlocks waiting on non-daemon threads.
+
+    Args:
+        timeout_ms: Maximum duration in milliseconds to wait for flush/shutdown (default 1500ms).
+
+    Returns:
+        True if shutdown completed within timeout, False if it timed out or was already uninitialized.
     """
     global _tracer_provider, _initialized
 
     if not _initialized or _tracer_provider is None:
-        return
+        return False
 
-    try:
-        if hasattr(_tracer_provider, "shutdown"):
-            _tracer_provider.shutdown()
-        logger.info("Tracing provider shutdown complete")
-    except Exception as exc:
-        logger.error("Error during tracing shutdown: %s", exc)
-    finally:
-        _tracer_provider = None
-        _initialized = False
+    provider = _tracer_provider
+    _tracer_provider = None
+    _initialized = False
+
+    if not hasattr(provider, "shutdown"):
+        return True
+
+    shutdown_error: list[Exception] = []
+
+    def _worker() -> None:
+        try:
+            provider.shutdown()
+        except Exception as exc:
+            shutdown_error.append(exc)
+
+    thread = threading.Thread(target=_worker, name="otel-bounded-shutdown", daemon=True)
+    thread.start()
+    timeout_sec = max(0.01, timeout_ms / 1000.0)
+    thread.join(timeout=timeout_sec)
+
+    if thread.is_alive():
+        logger.warning(
+            "Tracing provider shutdown timed out after %.1fms (daemon thread detached)",
+            timeout_ms,
+        )
+        return False
+
+    if shutdown_error:
+        logger.error("Error during tracing shutdown: %s", shutdown_error[0])
+        return False
+
+    logger.info("Tracing provider shutdown complete")
+    return True
 
 
 # =====================================================================

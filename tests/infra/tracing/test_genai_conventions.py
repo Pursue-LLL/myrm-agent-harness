@@ -147,3 +147,23 @@ def test_record_gen_ai_helpers():
     mock_tool_span.set_attribute.assert_any_call(GEN_AI_TOOL_STATUS, "success")
     mock_tool_span.set_attribute.assert_any_call("gen_ai.tool.duration_ms", 125.0)
 
+
+def test_record_gen_ai_helpers_not_recording():
+    """Verify record_gen_ai_* helper functions safely no-op when span is not recording."""
+    from unittest.mock import MagicMock
+    from myrm_agent_harness.infra.tracing.gen_ai_conventions import (
+        record_gen_ai_agent_turn,
+        record_gen_ai_llm_request,
+        record_gen_ai_tool_call,
+    )
+
+    mock_span = MagicMock()
+    mock_span.is_recording.return_value = False
+
+    record_gen_ai_agent_turn(mock_span, conversation_id="conv-1")
+    record_gen_ai_llm_request(mock_span, model_name="gpt-4o")
+    record_gen_ai_tool_call(mock_span, tool_name="bash")
+
+    mock_span.set_attribute.assert_not_called()
+
+

@@ -18,6 +18,7 @@ Infrastructure layer.
 |-----------|-------------|
 | concurrency/ | Async coordination primitives for bounded parallel work and serialized state merges. |
 | delivery/ | Message delivery queue. Disk-persistent with automatic retry on failure and pending delivery recover |
+| git/ | Pure-Python zero-subprocess Git metadata resolver (branch, commit, worktrees, detached HEAD) with mtime debounce. |
 | incremental/ | Incremental state tracking for monitoring data changes. |
 | health/ | Health checking infrastructure. Abstract interfaces for resource health checks and automatic recovery. |
 | locks/ | Unified locking mechanisms for concurrent operations. |
