@@ -265,11 +265,11 @@ def coerce_filesystem_path(value: object) -> Path | None:
 def is_dangerous_path(path: str) -> bool:
     """Check if *path* falls under any dangerous root.
 
-    Uses normalised absolute-path prefix comparison — stricter than
+    Uses canonical boundary guard — stricter than
     substring matching and immune to partial-name false positives.
     """
     normalised = os.path.realpath(os.path.expanduser(path))
-    return any(normalised == dp or normalised.startswith(dp + os.sep) for dp in DANGEROUS_PATHS)
+    return any(is_within_boundary(normalised, dp) for dp in DANGEROUS_PATHS)
 
 
 def is_blocked_device_path(path: str) -> bool:
@@ -317,7 +317,7 @@ def is_blocked_device_path(path: str) -> bool:
     try:
         real_p = os.path.realpath(os.path.expanduser(cleaned))
         for root in ("/dev", "/proc", "/sys"):
-            if real_p == root or real_p.startswith(root + os.sep):
+            if is_within_boundary(real_p, root):
                 return True
     except Exception:
         pass

@@ -11,6 +11,7 @@ Execution security — shell command analysis, blacklists, validators, and C-lev
 | archive_sanitizer.py | Core | Archive extraction security hardening. | ✅ |
 | audit_sandbox.py | Core | PEP 578 Audit Hook. Provides C-level interception of dangerous operations (network, fs, process, memory) to prevent LLM code escapes. | ✅ |
 | blacklist.py | Core | Security blacklists for code execution. | ✅ |
+| env_isolation.py | Core | Child process environment variable isolation, sensitive token stripping, and safe inheritance SSOT. | ✅ |
 | risk_classifier.py | Core | Command risk classifier for shell_exec auto-allow decisions. | ✅ |
 | command_explainer/ | Core | Shell pipeline span extraction + per-segment risk levels for approval UI highlighting. | ✅ |
 | shell_bleed.py | Core | Shell bleed detection — scan scripts for sensitive environment variable references. | ✅ |

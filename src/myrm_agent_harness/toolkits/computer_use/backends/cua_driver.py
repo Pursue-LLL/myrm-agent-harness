@@ -87,11 +87,17 @@ class _McpSession:
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
 
+        from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+            EnvInheritPolicy,
+            build_isolated_child_env,
+        )
+
         stack = AsyncExitStack()
+        isolated_env = build_isolated_child_env(inherit_policy=EnvInheritPolicy.CORE)
         params = StdioServerParameters(
             command=_CUA_DRIVER_CMD,
             args=["mcp"],
-            env={**os.environ},
+            env=isolated_env,
         )
         read, write = await stack.enter_async_context(stdio_client(params))
         session = await stack.enter_async_context(ClientSession(read, write))
@@ -275,7 +281,7 @@ class CuaDriverBackend:
                 if button == "right"
                 else ("double_click" if clicks >= 2 else "click")
             )
-            args: dict[str, Any] = {"pid": pid, "x": x, "y": y}
+            args: dict[str, object] = {"pid": pid, "x": x, "y": y}
             if modifiers:
                 args["modifier"] = [_MODIFIER_TO_CUA[m] for m in modifiers]
 
@@ -406,7 +412,7 @@ class CuaDriverBackend:
         try:
             await self._ensure_session()
             pid = await self._resolve_target()
-            args: dict[str, Any] = {
+            args: dict[str, object] = {
                 "pid": pid,
                 "x": x,
                 "y": y,
@@ -434,7 +440,7 @@ class CuaDriverBackend:
         try:
             await self._ensure_session()
             pid = await self._resolve_target()
-            args: dict[str, Any] = {
+            args: dict[str, object] = {
                 "pid": pid,
                 "from_x": start_x,
                 "from_y": start_y,

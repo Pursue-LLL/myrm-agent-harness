@@ -6,8 +6,10 @@ Provides multi-query result fusion algorithms (RRF, etc.).
 - (none - standard library defaultdict)
 
 [OUTPUT]
+- fuse_rrf_deterministic: Deterministic Reciprocal Rank Fusion with multi-tier tie-breaking and adaptive normalization
 - rrf_fusion: Reciprocal Rank Fusion algorithm for merging ranked result lists
 - unified_fusion: Four-pillar orthogonal fusion algorithm (quality, advantage, consensus, prestige)
+- SourceRank, SourceDebugStats, RecallDebug, RankedList, FusedHit: Structured provenance and debug tracking data types
 
 [POS]
 Score-fusion utilities for hybrid retrieval. Merges multiple ranked lists into a single

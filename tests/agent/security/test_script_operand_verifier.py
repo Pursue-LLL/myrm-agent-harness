@@ -125,3 +125,10 @@ class TestScriptDigestAndIntegrity:
         assert valid is False
         assert reason is not None
         assert "no longer exists" in reason
+
+    def test_verify_integrity_empty_hash_rejected(self, tmp_path: Path) -> None:
+        script = tmp_path / "test.sh"
+        script.write_text("echo hi")
+        valid, reason = verify_script_operand_integrity("", str(script))
+        assert valid is False
+        assert "empty or missing" in (reason or "")

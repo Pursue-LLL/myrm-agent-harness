@@ -128,6 +128,26 @@ class TestAllowedBasePaths:
             valid_path = os.path.join(allowed_dir, "test.txt")
             await validator._do_validate(_make_context(), valid_path)
 
+    @pytest.mark.asyncio
+    async def test_rejects_symlink_traversal_escape_outside_boundary(self) -> None:
+        """Physical resolve-based canonical guard prevents symlink escape attacks."""
+        with tempfile.TemporaryDirectory() as outside_dir, tempfile.TemporaryDirectory() as allowed_dir:
+            secret_file = os.path.join(outside_dir, "secret.txt")
+            Path(secret_file).write_text("secret_data")
+
+            # Symlink pointing outside
+            escape_link = os.path.join(allowed_dir, "escape_link.txt")
+            os.symlink(secret_file, escape_link)
+
+            from myrm_agent_harness.agent.config import FileIOConfig
+
+            # Even if follow_symlinks=True, the physical path must strictly reside within boundary
+            config = FileIOConfig(follow_symlinks=True)
+            validator = PathValidator(allowed_base_paths=[allowed_dir], io_config=config)
+
+            with pytest.raises(PermissionError, match="outside allowed directories"):
+                await validator._do_validate(_make_context(), escape_link)
+
 
 class TestDangerousPaths:
     @pytest.mark.asyncio

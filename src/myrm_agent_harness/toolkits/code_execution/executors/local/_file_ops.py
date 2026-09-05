@@ -87,9 +87,10 @@ class LocalFileOpsMixin:
     """
 
     def _is_readonly(self, resolved_path: str) -> bool:
-        rp = Path(resolved_path).resolve()
+        from myrm_agent_harness.core.security.path_security import is_within_boundary
+
         return any(
-            rp == Path(p).resolve() or rp.is_relative_to(Path(p).resolve())
+            is_within_boundary(resolved_path, p)
             for p in self._readonly_paths  # type: ignore[attr-defined]
         )
 

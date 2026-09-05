@@ -114,17 +114,17 @@ class TestSafeExecEnvSanitization:
     async def test_inherited_parent_env_is_sanitized(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Host pollution must not leak into subprocess environment."""
+        """Host pollution must not leak into subprocess environment, while safe core vars pass."""
         monkeypatch.setenv("LD_PRELOAD", "/tmp/evil.so")
         monkeypatch.setenv("PYTHONHOME", "/tmp/evil")
         monkeypatch.setenv("MY_SERVICE_API_KEY", "sekrit")
-        monkeypatch.setenv("TEST_SAFE_VAR", "visible")
+        monkeypatch.setenv("PAGER", "test-safe-pager")
         result = await safe_exec("env", timeout=10)
         assert result.returncode == 0
         assert "LD_PRELOAD" not in result.stdout
         assert "PYTHONHOME" not in result.stdout
         assert "MY_SERVICE_API_KEY" not in result.stdout
-        assert "TEST_SAFE_VAR=visible" in result.stdout
+        assert "PAGER=test-safe-pager" in result.stdout
 
     async def test_credential_injection_overrides_sanitized_env(self) -> None:
         """Authentic credentials are injected after sanitization and must reach child."""

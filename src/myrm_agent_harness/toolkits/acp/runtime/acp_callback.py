@@ -23,6 +23,7 @@ import logging
 import os
 from pathlib import Path
 
+from myrm_agent_harness.core.security.path_security import is_within_boundary
 from myrm_agent_harness.toolkits.acp.core.event_bus import EventBus
 from myrm_agent_harness.toolkits.acp.types import (
     PermissionDecision,
@@ -45,7 +46,7 @@ def _resolve_safe_path(path_str: str, cwd: str) -> Path | None:
             candidate = Path(cwd) / candidate
         resolved = candidate.resolve()
         cwd_resolved = Path(cwd).resolve()
-        if resolved == cwd_resolved or str(resolved).startswith(str(cwd_resolved) + os.sep):
+        if is_within_boundary(resolved, cwd_resolved):
             return resolved
         return None
     except (ValueError, OSError):

@@ -25,17 +25,24 @@ this validator provides defense-in-depth for the local code executor.
 Unified security validator for code execution.
 """
 
-import logging
 import os
 import re
 from dataclasses import dataclass
-from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlparse
 
+from myrm_agent_harness.core.security.path_security import is_within_boundary
 from myrm_agent_harness.toolkits.code_execution.security.blacklist import (
     DANGEROUS_MODULES,
     DANGEROUS_MODULES_REASONS,
+)
+from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+    DEFAULT_CHILD_SAFE_ENV_KEYS,
+    EnvInheritPolicy,
+    _matches_wildcard,
+    build_isolated_child_env,
+    is_non_inheritable_env_var,
+    sanitize_env,
 )
 from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
     ThreatLevel,
@@ -65,7 +72,7 @@ def _is_forbidden_path(path_str: str) -> bool:
     normalized = os.path.realpath(os.path.expanduser(os.path.expandvars(path_str)))
     for fp in FORBIDDEN_PATHS:
         normalized_fp = os.path.realpath(os.path.expanduser(os.path.expandvars(fp)))
-        if normalized == normalized_fp or normalized.startswith(normalized_fp + os.sep):
+        if is_within_boundary(normalized, normalized_fp):
             return True
     return False
 
@@ -507,20 +514,20 @@ def is_path_component_safe(component: str, component_name: str = "path component
 # Environment variable sanitization (delegated to env_isolation SSOT)
 # ============================================================
 
-from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
-    DEFAULT_CHILD_SAFE_ENV_KEYS,
-    EnvInheritPolicy,
-    build_isolated_child_env,
-    sanitize_env,
-)
+is_command_safe = is_command_allowed
+is_path_safe = is_path_allowed
 
 __all__ = [
     "DEFAULT_CHILD_SAFE_ENV_KEYS",
     "EnvInheritPolicy",
     "ValidationResult",
+    "_matches_wildcard",
     "build_isolated_child_env",
+    "is_command_allowed",
     "is_command_safe",
     "is_module_allowed",
+    "is_non_inheritable_env_var",
+    "is_path_allowed",
     "is_path_component_safe",
     "is_path_safe",
     "sanitize_env",

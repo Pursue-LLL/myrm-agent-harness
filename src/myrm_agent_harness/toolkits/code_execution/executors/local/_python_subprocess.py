@@ -90,6 +90,15 @@ async def run_python_subprocess(
             process_env.update(sanitize_env(env))
             logger.debug(f" User env vars: {list(env.keys())}")
 
+        # Post-override scrubbing guarantee: strip any non-inheritable host secrets (Codex #38941)
+        from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+            is_non_inheritable_env_var,
+        )
+
+        for k in list(process_env.keys()):
+            if is_non_inheritable_env_var(k):
+                process_env.pop(k, None)
+
         logger.info(f" [LocalExecutor] Using Python: {python_executable}")
 
         work_dir_str = str(cwd) if cwd else "/tmp"

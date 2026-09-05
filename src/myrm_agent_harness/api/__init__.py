@@ -706,10 +706,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
         "build_cjk_query_token_tiers",
     ),
-    "CjkFtsQueryPlanner": (
-        "myrm_agent_harness.utils.db.fts5",
-        "CjkFtsQueryPlanner",
-    ),
     "fuse_rrf_deterministic": (
         "myrm_agent_harness.toolkits.retriever.fusion_strategies",
         "fuse_rrf_deterministic",

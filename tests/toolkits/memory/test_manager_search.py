@@ -486,6 +486,13 @@ class TestSearchOperations:
         )
 
         assert isinstance(results, list)
+        assert len(results) >= 1
+        # Validate deterministic tie break & recall_debug trace propagation in MemoryManager
+        for r in results:
+            assert r.recall_debug is not None
+            assert r.recall_debug.hit_count >= 1
+            assert len(r.recall_debug.hit_sources) >= 1
+            assert r.recall_debug.hit_sources[0].source in ("vector", "procedural", "hybrid", "bm25", "graph")
         mock_relational_store.search_rules.assert_called_once()
         mock_vector_store.search.assert_called_once()
 

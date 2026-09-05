@@ -555,6 +555,15 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         except LookupError:
             pass
 
+        # Post-override scrubbing guarantee: strip any non-inheritable host secrets (Codex #38941)
+        from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+            is_non_inheritable_env_var,
+        )
+
+        for k in list(env.keys()):
+            if is_non_inheritable_env_var(k):
+                env.pop(k, None)
+
         return env
 
     def _setup_workspace(self, workspace_path: str | None) -> None:

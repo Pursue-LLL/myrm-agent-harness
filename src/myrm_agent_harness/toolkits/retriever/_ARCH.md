@@ -15,7 +15,7 @@ Detailed design: [RETRIEVER_SYSTEM.md](RETRIEVER_SYSTEM.md)
 | `bm25_retrieval.py` | Core | BM25 sparse retrieval; in-memory inverted index over document chunks | ✅ |
 | `cjk_tokenizer.py` | Core | Single-pass position-preserving CJK unigram/bigram & ASCII word tokenizer with two-tier recall | ✅ |
 | `engine.py` | Core | Retrieval tools wrapper: hybrid retrieval + reranking orchestration | ✅ |
-| `fusion_strategies.py` | Core | Score fusion utilities (RRF, weighted merge) for hybrid lists | ✅ |
+| `fusion_strategies.py` | Core | Score fusion utilities (deterministic RRF with tie-breaking & recall debug, weighted merge) for hybrid lists | ✅ |
 | `hybrid_retriever.py` | Core | Stable public facade re-exporting the hybrid coordinator | ✅ |
 | `performance_monitor.py` | Core | `PerformanceMonitor` and `get_performance_monitor` hooks | ✅ |
 | `qdrant_retrieval.py` | Core | Qdrant-backed vector retriever with automatic text handling | ✅ |

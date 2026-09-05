@@ -78,9 +78,11 @@ def _validate_commit_hash(value: str) -> bool:
 
 
 def _safe_path(base: Path, user_input: str) -> Path:
-    """Resolve user input against base, preventing path traversal."""
+    """Resolve user input against base, preventing path traversal via canonical guard."""
+    from myrm_agent_harness.core.security.path_security import is_within_boundary
+
     resolved = (base / user_input).resolve()
-    if not str(resolved).startswith(str(base.resolve())):
+    if not is_within_boundary(resolved, base):
         raise ValueError(f"Path traversal detected: {user_input}")
     return resolved
 

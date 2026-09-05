@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import shlex
 import signal
 from dataclasses import dataclass
@@ -169,13 +168,18 @@ async def safe_exec(
                 )
 
     from myrm_agent_harness.core.security.types import user_credentials_ctx
-    from myrm_agent_harness.toolkits.code_execution.security.validator import (
-        sanitize_env,
+    from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+        EnvInheritPolicy,
+        build_isolated_child_env,
     )
     from myrm_agent_harness.utils.os_compat import get_process_group_kwargs
 
     session_kwargs = get_process_group_kwargs()
-    active_env = sanitize_env(dict(env) if env is not None else dict(os.environ))
+    active_env = build_isolated_child_env(
+        base_env=None,
+        extra_env=env,
+        inherit_policy=EnvInheritPolicy.CORE,
+    )
 
     try:
         credentials = user_credentials_ctx.get()

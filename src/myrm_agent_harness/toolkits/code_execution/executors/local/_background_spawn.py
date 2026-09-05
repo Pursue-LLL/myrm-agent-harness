@@ -129,7 +129,16 @@ async def spawn_background_process(
     env.setdefault("PYTHONUNBUFFERED", "1")
 
     if context.env:
-        env.update(context.env)
+        env.update(sanitize_env(context.env))
+
+    from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+        is_non_inheritable_env_var,
+    )
+
+    # Post-override scrubbing guarantee for background subprocesses
+    for k in list(env.keys()):
+        if is_non_inheritable_env_var(k):
+            env.pop(k, None)
 
     cmd = context.code
     args = context.args or []

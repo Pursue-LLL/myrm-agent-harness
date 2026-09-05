@@ -1,5 +1,6 @@
-"""Execution security — shell command analysis, blacklists, and validators.
+"""Execution security — shell command analysis, blacklists, validators, and env isolation.
 
+- env_isolation.py: child process environment variable isolation and security sanitization SSOT
 - shell_command_analyzer.py: shell command threat detection (injection, dangerous patterns)
 - risk_classifier.py: command risk classification (SAFE/UNKNOWN) with flag-level validation
 - safe_command_configs.py: subcommand flag whitelist data (git read-only subcommands)
@@ -22,6 +23,7 @@ from myrm_agent_harness.toolkits.code_execution.security.blacklist import (
     DANGEROUS_MODULES_REASONS,
     FILE_MODIFYING_COMMANDS,
     NETWORK_MODULES,
+    NON_INHERITABLE_ENV_VARS,
     get_dangerous_modules,
 )
 from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
@@ -64,6 +66,7 @@ __all__ = [
     "DANGEROUS_ENV_PREFIXES",
     "DANGEROUS_ENV_VARS",
     "DANGEROUS_ENV_WILDCARDS",
+    "NON_INHERITABLE_ENV_VARS",
     # Blacklist definitions
     "DANGEROUS_MODULES",
     "DANGEROUS_MODULES_REASONS",

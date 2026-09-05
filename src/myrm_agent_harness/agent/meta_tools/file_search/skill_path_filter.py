@@ -25,6 +25,7 @@ from collections.abc import Sequence
 from langchain_core.runnables import RunnableConfig
 
 from myrm_agent_harness.agent.context_management.context import extract_context_from_runnable_config
+from myrm_agent_harness.core.security.path_security import is_within_boundary
 
 
 def normalize_path(path: str) -> str:
@@ -34,12 +35,7 @@ def normalize_path(path: str) -> str:
 def is_under_disabled_skill_root(path: str, disabled_roots: Sequence[str]) -> bool:
     if not disabled_roots:
         return False
-    norm = normalize_path(path)
-    for root in disabled_roots:
-        root_norm = normalize_path(root)
-        if norm == root_norm or norm.startswith(root_norm + os.sep):
-            return True
-    return False
+    return any(is_within_boundary(path, root) for root in disabled_roots)
 
 
 def filter_disabled_skill_paths(paths: Sequence[str], disabled_roots: Sequence[str]) -> list[str]:
