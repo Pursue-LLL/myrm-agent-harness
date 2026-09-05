@@ -519,7 +519,10 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
 
 def is_context_overflow(exc: Exception) -> bool:
     """Return ``True`` if *exc* signals a context-window overflow."""
-    return classify_error(exc) == ErrorKind.CONTEXT_OVERFLOW
+    if classify_error(exc) == ErrorKind.CONTEXT_OVERFLOW:
+        return True
+    msg = normalize_provider_error(exc).message
+    return _is_context_overflow(msg)
 
 
 def is_payload_overflow(exc: Exception) -> bool:

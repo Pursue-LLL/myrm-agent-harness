@@ -78,3 +78,52 @@ async def test_trace_async_with_kwargs():
 
     result = await function_with_kwargs(channel="telegram", recipient="user123")
     assert result == "telegram:user123"
+
+
+def test_record_gen_ai_semantic_conventions():
+    """Test GenAI Semantic Conventions helper functions."""
+    from myrm_agent_harness.infra.tracing import (
+        GEN_AI_CACHE_HIT_RATIO,
+        GEN_AI_USAGE_CACHE_READ_TOKENS,
+        SPAN_AGENT_TURN,
+        record_gen_ai_agent_turn,
+        record_gen_ai_llm_request,
+        record_gen_ai_tool_call,
+    )
+
+    setup_tracing(service_name="test-service", console_export=False)
+    tracer = get_tracer("test_genai")
+
+    with tracer.start_span(SPAN_AGENT_TURN) as span:
+        record_gen_ai_agent_turn(
+            span,
+            conversation_id="conv-123",
+            turn_id="turn-1",
+            agent_type="SkillAgent",
+            query_preview="Check weather in Tokyo",
+            status="completed",
+        )
+        assert span.is_recording()
+
+    with tracer.start_span("llm.request") as span:
+        record_gen_ai_llm_request(
+            span,
+            model_name="deepseek-chat",
+            prompt_tokens=1000,
+            completion_tokens=200,
+            cache_read_tokens=800,
+            reasoning_tokens=50,
+            ttft_ms=120.5,
+        )
+        assert span.is_recording()
+
+    with tracer.start_span("tool.call") as span:
+        record_gen_ai_tool_call(
+            span,
+            tool_name="web_search",
+            tool_call_id="call-456",
+            status="success",
+            duration_ms=350.0,
+        )
+        assert span.is_recording()
+

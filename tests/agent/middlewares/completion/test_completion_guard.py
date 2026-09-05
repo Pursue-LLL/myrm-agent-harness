@@ -2549,3 +2549,116 @@ class TestCompletionGuardUnwrittenDeliverablesAndAutoStaging:
         assert res is None
 
 
+class TestCompletionGuardQueryGroundingIntegration:
+    """Integration tests for query grounding enforcement in CompletionGuard."""
+
+    def setup_method(self) -> None:
+        self.guard = CompletionGuard()
+        reset_completion_guard()
+
+    @pytest.mark.asyncio
+    async def test_query_intent_without_tool_calls_blocks_with_query_grounding_reason(
+        self, tmp_path: Path
+    ) -> None:
+        state = _make_state([
+            HumanMessage(content="查一下订单 OD-10086 的发货状态"),
+            AIMessage(content="订单 OD-10086 已经发货了，预计明天送达。"),
+        ])
+        runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
+
+        mock_loop_guard = MagicMock()
+        mock_loop_guard._window = []
+
+        with patch(LOOP_GUARD_PATCH, return_value=mock_loop_guard):
+            res = await self.guard.aafter_model(state, runtime)
+
+        assert res is not None
+        final_msg = res["messages"][0]
+        assert final_msg.tool_calls[0]["name"] == COMPLETION_CHECK_TOOL_NAME
+        reason = final_msg.tool_calls[0]["args"].get("query_grounding_reason")
+        assert reason is not None
+        assert "no query or MCP tool was executed" in str(reason)
+
+    @pytest.mark.asyncio
+    async def test_multi_entity_query_missing_one_entity_blocks_in_guard(
+        self, tmp_path: Path
+    ) -> None:
+        rec_od = CallRecord(
+            tool_name="mcp__erp__query_order",
+            args={"order_id": "OD-9921"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        state = _make_state([
+            HumanMessage(content="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度"),
+            AIMessage(content="订单 OD-9921 已发货，工单 TK-8802 正在处理中。"),
+        ])
+        runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
+
+        mock_loop_guard = MagicMock()
+        mock_loop_guard._window = [rec_od]
+
+        with patch(LOOP_GUARD_PATCH, return_value=mock_loop_guard):
+            res = await self.guard.aafter_model(state, runtime)
+
+        assert res is not None
+        final_msg = res["messages"][0]
+        assert final_msg.tool_calls[0]["name"] == COMPLETION_CHECK_TOOL_NAME
+        reason = final_msg.tool_calls[0]["args"].get("query_grounding_reason")
+        assert reason is not None
+        assert "TK-8802" in str(reason)
+
+    @pytest.mark.asyncio
+    async def test_multi_entity_query_missing_one_with_honest_negative_passes_guard(
+        self, tmp_path: Path
+    ) -> None:
+        rec_od = CallRecord(
+            tool_name="mcp__erp__query_order",
+            args={"order_id": "OD-9921"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        state = _make_state([
+            HumanMessage(content="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度"),
+            AIMessage(
+                content="订单 OD-9921 已发货；系统查询显示工单 TK-8802 暂未查询到对应处理进度。"
+            ),
+        ])
+        runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
+
+        mock_loop_guard = MagicMock()
+        mock_loop_guard._window = [rec_od]
+
+        with patch(LOOP_GUARD_PATCH, return_value=mock_loop_guard):
+            res = await self.guard.aafter_model(state, runtime)
+
+        assert res is None
+
+    @pytest.mark.asyncio
+    async def test_multi_entity_query_all_grounded_passes_guard(
+        self, tmp_path: Path
+    ) -> None:
+        rec_od = CallRecord(
+            tool_name="mcp__erp__query_order",
+            args={"order_id": "OD-9921"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        rec_tk = CallRecord(
+            tool_name="mcp__itsm__query_ticket",
+            args={"ticket_id": "TK-8802"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        state = _make_state([
+            HumanMessage(content="帮我查一下订单 OD-9921 的状态，顺便看一下工单 TK-8802 的进度"),
+            AIMessage(content="订单 OD-9921 已发货，工单 TK-8802 处理中。"),
+        ])
+        runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
+
+        mock_loop_guard = MagicMock()
+        mock_loop_guard._window = [rec_od, rec_tk]
+
+        with patch(LOOP_GUARD_PATCH, return_value=mock_loop_guard):
+            res = await self.guard.aafter_model(state, runtime)
+
+        assert res is None
+
+
+
