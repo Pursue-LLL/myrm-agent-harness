@@ -17,7 +17,7 @@ from collections.abc import Collection
 from dataclasses import dataclass, replace
 from typing import Final
 
-from .models import PluginDiagnostic, PluginDiagnosticLevel, PluginMcpServer
+from .models import PluginCapabilityTier, PluginDiagnostic, PluginDiagnosticLevel, PluginMcpServer
 
 # Standard script interpreters that execute entrypoint scripts as arguments
 _SCRIPT_INTERPRETERS: Final[frozenset[str]] = frozenset(

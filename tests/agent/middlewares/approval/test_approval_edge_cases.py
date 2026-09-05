@@ -7,6 +7,7 @@ Tests:
 4. Cron fail-closed policy
 5. Rate limiting
 6. Invalid batch response error handling
+7. Irreversible social actions gate & session denial persistence
 """
 
 import time

@@ -184,12 +184,12 @@ def parse_manifest(
         for cap_str in caps_raw:
             try:
                 declared_capabilities.append(PluginCapabilityTier(cap_str.lower()))
-            except ValueError:
+            except ValueError as err:
                 # Disallow unknown capability strings or treat as reportable validation error
                 raise ManifestSchemaValidationError(
                     f"plugin.json contains invalid capability '{cap_str}'",
                     code="manifest_invalid_capability",
-                )
+                ) from err
 
     meta = AgentPluginManifestMeta(
         name=name,
