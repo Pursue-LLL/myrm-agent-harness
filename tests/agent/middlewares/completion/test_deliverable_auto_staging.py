@@ -135,5 +135,3 @@ def test_ensure_git_hygiene_creates_and_updates_gitignore() -> None:
         _ensure_git_hygiene(root)
         content_after = gitignore_path.read_text(encoding="utf-8")
         assert content_after == content
-
-
