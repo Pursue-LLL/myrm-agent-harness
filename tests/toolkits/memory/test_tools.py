@@ -6,16 +6,16 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.memory.config import RecallMode
-from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
     create_memory_tools,
 )
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     channel_label as _channel_label,
 )
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     is_stale as _is_stale,
 )
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     memory_age_label,
 )
 from myrm_agent_harness.toolkits.memory.types import (
@@ -555,10 +555,10 @@ class TestMemorySaveTool:
         self, mock_vector_store, mock_embedding, memory_config
     ):
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-        from myrm_agent_harness.toolkits.memory.memory_search_policy import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
             MemorySearchPolicy,
         )
-        from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
             get_wiki_memory_save_rejection_count,
             reset_wiki_memory_save_rejection_count,
         )
@@ -585,7 +585,7 @@ class TestMemorySaveTool:
         self, mock_vector_store, mock_embedding, memory_config
     ):
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-        from myrm_agent_harness.toolkits.memory.memory_search_policy import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
             MemorySearchPolicy,
         )
 
@@ -891,35 +891,35 @@ class TestParseStringList:
     """Tests for _parse_string_list helper."""
 
     def test_none_returns_empty(self):
-        from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
             _parse_string_list,
         )
 
         assert _parse_string_list(None) == []
 
     def test_list_passthrough(self):
-        from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
             _parse_string_list,
         )
 
         assert _parse_string_list(["a", "b"]) == ["a", "b"]
 
     def test_json_string_list(self):
-        from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
             _parse_string_list,
         )
 
         assert _parse_string_list('["x", "y"]') == ["x", "y"]
 
     def test_comma_separated(self):
-        from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
             _parse_string_list,
         )
 
         assert _parse_string_list("foo, bar, baz") == ["foo", "bar", "baz"]
 
     def test_invalid_json_falls_back_to_comma(self):
-        from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
             _parse_string_list,
         )
 
@@ -939,7 +939,7 @@ class TestSearchDescriptionConditionalization:
 
         from myrm_agent_harness.toolkits.memory.config import MemoryConfig
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-        from myrm_agent_harness.toolkits.memory.memory_search_policy import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
             MemorySearchPolicy,
         )
 
@@ -1174,7 +1174,7 @@ class TestMemorySaveSessionBuffer:
         from unittest.mock import MagicMock
 
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-        from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchPolicy
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import MemorySearchPolicy
 
         manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
         policy = MemorySearchPolicy(allow_shared_write=False)

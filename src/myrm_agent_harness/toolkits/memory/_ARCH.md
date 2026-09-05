@@ -4,7 +4,7 @@
 
 Pluggable memory system for AI agents.
 
-Agent-visible I/O implementations live under ``agent_surface/``; root ``memory_*.py`` / ``mcp_server.py`` paths are stable import facades.
+Agent-visible I/O implementations live strictly under ``agent_surface/`` (tools, MCP server, search policies, and recall formatting). Obsolete root facades have been completely removed.
 
 Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 
@@ -17,16 +17,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | setup.py                 | Core     | Out-of-the-box local memory factory. Combines SQLite and embedded Qdrant to provide zero-config               | ✅    |
 | types.py                 | Core     | Memory type system foundation. Provides MemoryType, MemoryStatus, exact mutation outcome DTOs, profile attribute snapshots, BaseMemory (with trace_id), and all typed memory schemas. | ✅    |
 | config.py                | Core     | Memory configuration — functional switches and retrieval params only.                                         | ✅    |
-| memory_agent_tools.py    | Facade   | Stable import path → ``agent_surface/memory_agent_tools.py``. | —     |
-| _memory_agent_tool_descriptions.py | Facade | Stable import path → ``agent_surface/_memory_agent_tool_descriptions.py``. | — |
-| memory_search_policy.py  | Facade   | Stable import path → ``agent_surface/memory_search_policy.py``. | — |
-| memory_search_execution.py | Facade | Stable import path → ``agent_surface/memory_search_execution.py``. | — |
-| memory_recall_budget.py  | Facade   | Stable import path → ``agent_surface/memory_recall_budget.py``. | — |
-| memory_recall_formatting.py | Facade | Stable import path → ``agent_surface/memory_recall_formatting.py``. | — |
-| memory_citations.py      | Facade   | Stable import path → ``agent_surface/memory_citations.py``. | — |
-| mcp_server.py            | Facade   | Stable import path → ``agent_surface/mcp_server.py``. | — |
-| wiki_memory_boundary.py  | Facade   | Stable import path → ``agent_surface/wiki_memory_boundary.py``. | — |
-| transient_fact_boundary.py | Facade | Stable import path → ``agent_surface/transient_fact_boundary.py``. | — |
 | _assistant_retrieval.py  | Internal | Two-Pass Assistant Retrieval for assistant-reference queries (MemPalace enhancement).                         | ✅    |
 | adaptive.py              | Core     | Adaptive dual-channel selection logic. Analyzes query characteristics (token count,                           | ✅    |
 | backup.py                | Core     | Provides BackupMetadata, BackupResult, RestoreResult.                                                         | ✅    |
@@ -39,7 +29,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | observability.py         | Core     | Business-neutral memory operation, influence, retrieval trace (with typed stream warning codes), memory-space DTOs, and MemoryOperationSink protocol for app-layer dashboards and logs. | ✅    |
 | query_analyzer.py        | Core     | Bilingual (EN/CN) query pattern recognition for temporal markers, person names, quoted phrases, preference queries, and assistant reference detection. Integrated into main retrieval path via search_service. | ✅    |
 | query_sanitizer.py       | Core     | Agent Memory query preprocessing layer.                                                                       | ✅    |
-| reliability.py           | Core     | Framework-safe memory reliability DTOs for probe results, repair plans, repair execution results, archive restore plans/results, import dry-run mappings, import plans, and recall benchmark summaries with IR metrics (ndcg, mrr, precision, latency percentiles). | ✅    |
+| reliability.py           | Core     | Framework-safe memory reliability DTOs for probe results, repair plans, repair execution results, archive restore plans/results, import dry-run mappings, import plans, typed recall warning codes (MemoryGatherWarningCode), and recall benchmark summaries with IR metrics (ndcg, mrr, precision, latency percentiles). | ✅    |
 | result_booster.py        | Core     | Result boosting for memory retrieval (MemPalace enhancement).                                                 | ✅    |
 | security.py              | Core     | Public facade for memory security preflight scanning used by app-layer import and archive restore review flows. | ✅    |
 | retriever.py             | Core     | RRF retriever for multi-source memory search with 3-tier deterministic tie-breaking (score descending -> hit_count descending -> id ascending) and white-box RecallDebugTrace (HitSource). rank(): geometric scoring → correction-chain suppression → hard cutoff → MMR → normalization. fuse(): RRF scoring → correction-chain suppression → MMR → deterministic normalization with hit attribution. | ✅    |

@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from myrm_agent_harness.toolkits.memory._memory_agent_tool_descriptions import (
+from myrm_agent_harness.toolkits.memory.agent_surface._memory_agent_tool_descriptions import (
     MEMORY_MANAGE_TOOL_DESCRIPTION_EN,
     MEMORY_MANAGE_TOOL_DESCRIPTION_ZH,
     MEMORY_SAVE_CORE_EN,
     MEMORY_SAVE_CORE_ZH,
     build_memory_save_tool_description,
 )
-from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchPolicy
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import MemorySearchPolicy
 
 
 @dataclass(frozen=True, slots=True)

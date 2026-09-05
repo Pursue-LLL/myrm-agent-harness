@@ -36,6 +36,8 @@ class TestProtectedInstructionPathDetection:
             "AGENTS.md",
             "CLAUDE.md",
             "SOUL.md",
+            "USER.md",
+            ".user.md",
             "MEMORY.md",
             ".cursorrules",
             ".clinerules",
@@ -139,6 +141,8 @@ class TestShellMutationAnalysis:
         [
             "echo 'hacked' > AGENTS.md",
             "cat payload.txt >> SOUL.md",
+            "echo 'override' > USER.md",
+            "rm -f .user.md",
             "sed -i 's/safe/unsafe/' .cursorrules",
             "tee MEMORY.md < injection.txt",
             "rm -f .clinerules",

@@ -162,6 +162,8 @@ PROTECTED_INSTRUCTION_PATTERNS: tuple[str, ...] = (
     "**/AGENTS.md",
     "**/CLAUDE.md",
     "**/SOUL.md",
+    "**/USER.md",
+    "**/.user.md",
     "**/MEMORY.md",
     "**/.myrm.md",
     "**/myrm.md",

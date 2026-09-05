@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     EpisodicMemory,
     MemoryWriteTarget,
@@ -95,11 +97,48 @@ class MemoryManagerConvenienceMixin:
         related_entities: list[str] | None = None,
         source_chat_id: str | None = None,
         source_message_id: str | None = None,
+        subtask_phase: Literal["analyze", "locate", "edit", "verify"] | None = None,
+        is_failure_attempt: bool = False,
+        failure_reason: str | None = None,
+        negative_lesson: str | None = None,
+        confidence_tier: Literal["strong", "weak", "shadow"] = "strong",
         write_target: MemoryWriteTarget = "bound",
     ) -> EpisodicMemory:
         memory = self._writer.build_event(
             content=content,
             event_type=event_type,
+            related_entities=related_entities,
+            source_chat_id=source_chat_id,
+            source_message_id=source_message_id,
+            subtask_phase=subtask_phase,
+            is_failure_attempt=is_failure_attempt,
+            failure_reason=failure_reason,
+            negative_lesson=negative_lesson,
+            confidence_tier=confidence_tier,
+            write_target=write_target,
+        )
+        result = await self.store(memory, _bypass_approval=True)
+        return result if isinstance(result, EpisodicMemory) else memory
+
+    async def add_pitfall(
+        self,
+        content: str,
+        *,
+        failure_reason: str,
+        negative_lesson: str,
+        subtask_phase: Literal["analyze", "locate", "edit", "verify"] | None = None,
+        confidence_tier: Literal["strong", "weak", "shadow"] = "strong",
+        related_entities: list[str] | None = None,
+        source_chat_id: str | None = None,
+        source_message_id: str | None = None,
+        write_target: MemoryWriteTarget = "bound",
+    ) -> EpisodicMemory:
+        memory = self._writer.build_pitfall(
+            content=content,
+            failure_reason=failure_reason,
+            negative_lesson=negative_lesson,
+            subtask_phase=subtask_phase,
+            confidence_tier=confidence_tier,
             related_entities=related_entities,
             source_chat_id=source_chat_id,
             source_message_id=source_message_id,

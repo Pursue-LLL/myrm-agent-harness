@@ -29,12 +29,12 @@ from myrm_agent_harness.core.security.detection.content_boundary import (
     wrap_untrusted,
 )
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-from myrm_agent_harness.toolkits.memory.memory_recall_budget import (
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_budget import (
     budget_recall_line,
     line_cost,
     normalize_recall_limit,
 )
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import memory_age_label
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import memory_age_label
 from myrm_agent_harness.toolkits.memory.types import MemorySearchResult
 
 logger = logging.getLogger(__name__)

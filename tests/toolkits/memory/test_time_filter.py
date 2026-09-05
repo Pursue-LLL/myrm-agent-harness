@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.memory._internal.storage import _user_filter
-from myrm_agent_harness.toolkits.memory.memory_agent_tools import _parse_time_bound
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import _parse_time_bound
 from myrm_agent_harness.toolkits.memory.types import MemoryScope, MemorySearchResult, MemoryType, SemanticMemory
 from myrm_agent_harness.toolkits.vector.qdrant.filters import (
     _is_datetime_range,
@@ -106,7 +106,7 @@ class TestUserFilter:
     def test_no_time_filter(self):
         f = _user_filter()
         assert "created_at" not in f
-        assert f["archived"] is False
+        assert f["archived"] == {"not": True}
 
     def test_since_only(self):
         since = datetime(2026, 4, 1, tzinfo=UTC)
@@ -145,7 +145,7 @@ class TestUserFilter:
     def test_time_filter_preserves_archived_exclusion(self):
         since = datetime(2026, 4, 1, tzinfo=UTC)
         f = _user_filter(since=since)
-        assert f["archived"] is False
+        assert f["archived"] == {"not": True}
 
     def test_time_filter_with_include_archived(self):
         since = datetime(2026, 4, 1, tzinfo=UTC)
@@ -226,7 +226,7 @@ class TestMemoryRecallTimePassing:
     @pytest.mark.asyncio
     async def test_recall_passes_since_and_until(self, mock_vector_store, mock_embedding, memory_config):
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-        from myrm_agent_harness.toolkits.memory.memory_agent_tools import create_memory_tools
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
 
         manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
 
@@ -254,7 +254,7 @@ class TestMemoryRecallTimePassing:
     @pytest.mark.asyncio
     async def test_recall_without_time_params(self, mock_vector_store, mock_embedding, memory_config):
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-        from myrm_agent_harness.toolkits.memory.memory_agent_tools import create_memory_tools
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
 
         manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
 
@@ -271,7 +271,7 @@ class TestMemoryRecallTimePassing:
     @pytest.mark.asyncio
     async def test_recall_iso_since(self, mock_vector_store, mock_embedding, memory_config):
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-        from myrm_agent_harness.toolkits.memory.memory_agent_tools import create_memory_tools
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
 
         manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
 
@@ -289,7 +289,7 @@ class TestMemoryRecallTimePassing:
     @pytest.mark.asyncio
     async def test_recall_invalid_since_ignored(self, mock_vector_store, mock_embedding, memory_config):
         from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-        from myrm_agent_harness.toolkits.memory.memory_agent_tools import create_memory_tools
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import create_memory_tools
 
         manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
 

@@ -2,15 +2,16 @@
 
 [INPUT]
 - creation_protocols::SkillWriteBackend (POS: Skill write-backend protocol)
-- scanning::scan_skill_content (POS: Skill content security scanner)
+- scanning.scanner::scan_skill_content (POS: Skill content security scanner)
+- scanning.types_enums::SkillTrustRecommendation (POS: Skill trust classification)
 - scanning.llm_auditor::SkillLLMAuditor (POS: Optional LLM semantic audit layer)
 
 [OUTPUT]
 - ScanningSkillWriteBackend: security wrapper that enforces scanning before writes
 
 [POS]
-Framework-level security wrapper for SkillWriteBackend.
-Wraps the actual business-layer backend and enforces:
+Framework-level security wrapper for SkillWriteBackend, hosted inside scanning subpackage.
+Wraps the actual backend and enforces:
 1. Mandatory regex-based security scanning before every save (cannot be bypassed)
 2. Optional LLM semantic audit (only-escalate: can raise severity, never lower)
 3. REJECT-level findings block the write entirely
@@ -31,7 +32,7 @@ from myrm_agent_harness.backends.skills.creation_protocols import (
     SkillSaveResult,
     SkillWriteBackend,
 )
-from myrm_agent_harness.backends.skills.scanning import (
+from myrm_agent_harness.backends.skills.scanning.scanner import (
     SkillTrustRecommendation,
     format_scan_report,
     scan_skill_content,

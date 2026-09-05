@@ -157,6 +157,7 @@ class WebSearchTools:
         from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
             SearchIntent,
             detect_search_intent,
+            extract_and_pin_structured_identifiers,
             resolve_search_params,
         )
 
@@ -169,18 +170,20 @@ class WebSearchTools:
         effective_questions: list[str] = []
         bilibili_queries: list[str] = []
         for q in questions:
+            # Pin structured domain identifiers (CVE/DOI/tickers) to preserve exact match
+            pinned_q, _ = extract_and_pin_structured_identifiers(q)
             intent_result = detect_search_intent(q)
             if intent_result.intent == SearchIntent.PLATFORM_BILIBILI:
-                bilibili_queries.append(q)
+                bilibili_queries.append(pinned_q)
             override = resolve_search_params(intent_result, provider)
 
             # Fusion: explicit_params > intent_optimizer > config.extra_params
             if normalized_explicit:
                 override = {**(override or {}), **normalized_explicit}
 
-            search_query = q
+            search_query = pinned_q
             if provider == "tavily":
-                search_query, override = apply_tavily_site_constraint(q, override)
+                search_query, override = apply_tavily_site_constraint(pinned_q, override)
 
             effective_questions.append(search_query)
             per_query_overrides.append(override)
@@ -252,17 +255,15 @@ class WebSearchTools:
                 questions, unified_docs, self._reranker, self, self._retriever_manager
             )
         else:
-            # Basic mode: BM25 full-document retrieval -> smart truncation
-            if len(questions) <= 1:
-                logger.info(f"Basic mode (single query): selecting top {top_k} from {len(unified_docs)} docs")
-                selected_docs = unified_docs[:top_k]
-            else:
-                logger.info(f"Basic mode (multi-query BM25): {len(questions)} queries, {len(unified_docs)} docs")
-                selected_docs = await self._retriever_manager.bm25_retrieval_only(
-                    queries=questions,
-                    documents=unified_docs,
-                    top_k=top_k,
-                )
+            # Basic mode: Dual-track hybrid consensus (search engine prior + BM25 consensus) -> smart truncation
+            logger.info(
+                f"Basic mode (dual-track RRF): {len(questions)} queries, {len(unified_docs)} docs, top_k={top_k}"
+            )
+            selected_docs = await self._retriever_manager.bm25_retrieval_only(
+                queries=questions,
+                documents=unified_docs,
+                top_k=top_k,
+            )
 
         ranking_time_ms = (time.perf_counter() - ranking_start) * 1000
         total_time_ms = (time.perf_counter() - start_time) * 1000

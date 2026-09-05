@@ -292,6 +292,13 @@ class TestResolveSearchParams:
         intent_result = SearchIntentResult(intent=SearchIntent.SECURITY, confidence=0.7)
         params = resolve_search_params(intent_result, "searxng")
         assert params is not None
+        assert params["categories"] == "it"
+        assert params["time_range"] == "year"
+
+    def test_searxng_authority_params(self):
+        intent_result = SearchIntentResult(intent=SearchIntent.AUTHORITY, confidence=0.7)
+        params = resolve_search_params(intent_result, "searxng")
+        assert params is not None
         assert params["categories"] == "general"
 
     # --- Tavily provider ---
@@ -497,3 +504,91 @@ class TestIntentIntegrationWithWebSearcher:
         await searcher.search(unique_q, 5, extra_params_override={"categories": "it"})
 
         assert mock_service.search.call_count == 2
+
+
+class TestStructuredIdentifierPinning:
+    """Tests for zero-cost structured identifier extraction and exact phrase pinning."""
+
+    def test_cve_extraction_and_pinning(self):
+        from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
+            extract_and_pin_structured_identifiers,
+        )
+
+        query = "Explain CVE-2024-38077 exploit and mitigation"
+        pinned_q, ids = extract_and_pin_structured_identifiers(query)
+
+        assert ids == ["CVE-2024-38077"]
+        assert '"CVE-2024-38077"' in pinned_q
+        assert "exploit and mitigation" in pinned_q
+
+    def test_cve_already_quoted(self):
+        from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
+            extract_and_pin_structured_identifiers,
+        )
+
+        query = 'Analyze "CVE-2023-1234" patch'
+        pinned_q, ids = extract_and_pin_structured_identifiers(query)
+
+        assert ids == ["CVE-2023-1234"]
+        # Must not double quote
+        assert '""CVE-2023-1234""' not in pinned_q
+
+    def test_doi_extraction_and_pinning(self):
+        from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
+            extract_and_pin_structured_identifiers,
+        )
+
+        query = "What is the result of 10.1038/s41586-024-07487-w paper?"
+        pinned_q, ids = extract_and_pin_structured_identifiers(query)
+
+        assert ids == ["10.1038/s41586-024-07487-w"]
+        assert '"10.1038/s41586-024-07487-w"' in pinned_q
+
+    def test_stock_ticker_extraction(self):
+        from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
+            extract_and_pin_structured_identifiers,
+        )
+
+        query = "NVDA stock price and revenue growth"
+        pinned_q, ids = extract_and_pin_structured_identifiers(query)
+        assert "NVDA" in ids
+        assert '"NVDA"' in pinned_q
+
+    def test_empty_or_plain_query_no_change(self):
+        from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
+            extract_and_pin_structured_identifiers,
+        )
+
+        assert extract_and_pin_structured_identifiers("") == ("", [])
+        plain = "how to cook pasta"
+        pinned_q, ids = extract_and_pin_structured_identifiers(plain)
+        assert pinned_q == plain
+        assert ids == []
+
+    def test_multi_identifier_extraction_and_mixed_chinese(self):
+        from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
+            extract_and_pin_structured_identifiers,
+        )
+
+        query = "请分析 CVE-2024-38077 漏洞与 10.1038/s41586-024-07487-w 论文的关系，以及 AAPL 股价走势"
+        pinned_q, ids = extract_and_pin_structured_identifiers(query)
+
+        assert "CVE-2024-38077" in ids
+        assert "10.1038/s41586-024-07487-w" in ids
+        assert "AAPL" in ids
+        assert '"CVE-2024-38077"' in pinned_q
+        assert '"10.1038/s41586-024-07487-w"' in pinned_q
+
+    def test_case_insensitive_cve_and_doi_already_single_quoted(self):
+        from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
+            extract_and_pin_structured_identifiers,
+        )
+
+        query = "check 'cve-2024-1234' and '10.1234/test.doi'"
+        pinned_q, ids = extract_and_pin_structured_identifiers(query)
+
+        assert ids == ["CVE-2024-1234", "10.1234/test.doi"]
+        # Single-quoted should not be wrapped again with double quotes
+        assert "''" not in pinned_q
+        assert '""' not in pinned_q
+

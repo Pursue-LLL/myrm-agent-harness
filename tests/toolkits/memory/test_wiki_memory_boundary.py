@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, SemanticMemory
-from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
+from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     WIKI_MEMORY_SAVE_MAX_CHARS,
     WIKI_MEMORY_SAVE_MIN_HEADINGS,
     filter_wiki_document_vector_memories,

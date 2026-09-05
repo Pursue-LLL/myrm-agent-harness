@@ -10,8 +10,8 @@ import pytest
 from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
     unpack_corpus_tool_result,
 )
-from myrm_agent_harness.toolkits.memory.memory_search_execution import search_wiki_corpus
-from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchBackends
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import search_wiki_corpus
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import MemorySearchBackends
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import QueryResult, SourceSnippet
 
@@ -65,10 +65,11 @@ async def test_search_wiki_corpus_wraps_answer_with_untrusted_tag() -> None:
     backends = MemorySearchBackends(query_wiki=AsyncMock(return_value=result))
 
     body = await search_wiki_corpus(backends, "diagram")
+    content, _ = unpack_corpus_tool_result(body)
 
-    assert isinstance(body, str)
-    assert "UNTRUSTED_DATA" in body
-    assert "Found an architecture diagram." in body
+    assert isinstance(content, str)
+    assert "UNTRUSTED_DATA" in content
+    assert "Found an architecture diagram." in content
 
 
 @pytest.mark.asyncio
@@ -83,8 +84,9 @@ async def test_search_wiki_corpus_empty_answer_fallback() -> None:
     backends = MemorySearchBackends(query_wiki=AsyncMock(return_value=result))
 
     body = await search_wiki_corpus(backends, "missing")
+    content, _ = unpack_corpus_tool_result(body)
 
-    assert body == "No relevant wiki content found."
+    assert content == "No relevant wiki content found."
 
 
 @pytest.mark.asyncio

@@ -124,16 +124,21 @@ class ChunkFilter:
         sorted_indices = rrf_fusion(query_rankings, k=60, top_k=self.max_retained_chunks)
         filtered_chunks = [chunks[idx] for idx, _ in sorted_indices if idx < len(chunks)]
 
-        # BM25 Zero recall + cross-language -> skip filtering, retain all chunks
-        if not filtered_chunks:
+        # BM25 Zero recall fallback: Return initial chunks capped at max_retained_chunks
+        if not filtered_chunks and chunks:
             query_lang = detect_language(" ".join(queries))
             doc_lang = detect_language(" ".join(chunk_texts[:3]))
             if query_lang != doc_lang and "mixed" not in (query_lang, doc_lang):
                 logger.warning(
                     f"URL {url} BM25 cross-language skip: query={query_lang}, doc={doc_lang}, "
-                    f"returning all {len(chunks)} chunks"
+                    f"returning top {min(len(chunks), self.max_retained_chunks)} chunks"
                 )
-                return chunks
+            else:
+                logger.warning(
+                    f"URL {url} BM25 zero recall (lexical mismatch), "
+                    f"returning top {min(len(chunks), self.max_retained_chunks)} chunks by original order"
+                )
+            return chunks[:self.max_retained_chunks]
 
         # Output RRF fusion results
         self._log_filtering_results(url, chunks, sorted_indices, query_rankings, queries)

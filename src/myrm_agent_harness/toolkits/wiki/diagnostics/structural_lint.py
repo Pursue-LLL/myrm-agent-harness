@@ -18,8 +18,8 @@ Zero-LLM structural lint SSOT. Used by WikiLinter and server /wiki/stats without
 triggering LLM maintenance paths.
 
 Scope: markdown `[text](path)` links and Obsidian `[[wikilink]]` targets resolved via
-`WikiStructure.resolve_concept_file_path`, with frontmatter `title` / path-stem aliases,
-and raw-backed provenance (`sources` + `provenance`) for local concept pages.
+`WikiStructure.resolve_concept_file_path`, with frontmatter `title` / aliases / `canonical_id`
+and path-stem aliases, and raw-backed provenance (`sources` + `provenance`) for local concept pages.
 Fenced/inline code blocks are skipped for both markdown links and wikilinks.
 """
 
@@ -110,6 +110,18 @@ def build_wikilink_title_index(structure: WikiStructure) -> dict[str, str]:
         title = metadata.get("title")
         if isinstance(title, str) and title.strip():
             keys.add(_normalize_lookup_key(title.strip()))
+
+        raw_aliases = metadata.get("aliases")
+        if isinstance(raw_aliases, list):
+            for alias in raw_aliases:
+                if str(alias).strip():
+                    keys.add(_normalize_lookup_key(str(alias)))
+        elif isinstance(raw_aliases, str) and raw_aliases.strip():
+            keys.add(_normalize_lookup_key(raw_aliases))
+
+        canonical_id = metadata.get("canonical_id")
+        if isinstance(canonical_id, str) and canonical_id.strip():
+            keys.add(_normalize_lookup_key(canonical_id))
 
         for key in keys:
             candidates.setdefault(key, []).append(link_name)

@@ -26,6 +26,7 @@ class ArtifactType(StrEnum):
     WORD_DOCUMENT = "word_document"
     BINARY = "binary"
     REACT = "react"
+    ARCHITECTURE = "architecture"
 
 
 # ==================== Extension → Language Mapping ====================
@@ -174,6 +175,7 @@ EXTENSION_TO_ARTIFACT_TYPE: dict[str, ArtifactType] = {
     ".xls": ArtifactType.SPREADSHEET,
     ".pptx": ArtifactType.PRESENTATION,
     ".docx": ArtifactType.WORD_DOCUMENT,
+    ".arch.json": ArtifactType.ARCHITECTURE,
 }
 
 _EXTRA_DOCUMENT_EXTENSIONS: frozenset[str] = frozenset({".log"})
@@ -272,6 +274,9 @@ def infer_language_from_extension(filename: str) -> str | None:
 
 def infer_artifact_type_from_extension(filename: str) -> ArtifactType:
     """Infer artifact type from filename extension with fallback strategy."""
+    lower_fn = filename.lower()
+    if lower_fn.endswith(".arch.json"):
+        return ArtifactType.ARCHITECTURE
     ext = Path(filename).suffix.lower()
     if ext in EXTENSION_TO_ARTIFACT_TYPE:
         return EXTENSION_TO_ARTIFACT_TYPE[ext]

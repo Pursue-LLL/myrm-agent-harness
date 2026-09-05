@@ -604,3 +604,16 @@ class TestStorageCrudBranches:
         result = await delete_by_type(MemoryType.SEMANTIC, relational=None, vector=None, config=memory_config)
 
         assert result == 0
+
+
+def test_anti_future_leakage_filter_construction():
+    """Verify _user_filter enforces temporal boundary (until / since) on episodic and semantic queries."""
+    from datetime import datetime, timezone
+    from myrm_agent_harness.toolkits.memory._internal.storage_converters import _user_filter
+
+    anchor_time = datetime(2026, 9, 5, 12, 0, 0, tzinfo=timezone.utc)
+    f = _user_filter(namespaces=["ns1"], until=anchor_time)
+    assert f["archived"] == {"not": True}
+    assert f["primary_namespace"] == ["ns1"]
+    assert "created_at" in f
+    assert f["created_at"]["lte"] == anchor_time.isoformat()

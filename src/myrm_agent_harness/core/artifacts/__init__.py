@@ -4,6 +4,16 @@ Re-exports ArtifactType and related utility functions/mappings.
 The artifact *registry* (runtime) remains in ``agent.artifacts``.
 """
 
+from myrm_agent_harness.core.artifacts.architecture_ir import (
+    ArchitectureEdge,
+    ArchitectureGroup,
+    ArchitectureIR,
+    ArchitectureNode,
+    ArchitectureNodeType,
+    DiagramType,
+    ValidationReceipt,
+    validate_and_sanitize_architecture_ir,
+)
 from myrm_agent_harness.core.artifacts.constants import (
     ACTIVE_CONTENT_MIME_TYPES,
     EXTENSION_TO_ARTIFACT_TYPE,
@@ -42,9 +52,16 @@ from myrm_agent_harness.core.artifacts.paths import (
 __all__ = [
     "ACTIVE_CONTENT_MIME_TYPES",
     "ARTIFACT_VAULT_DIR_NAME",
+    "ArchitectureEdge",
+    "ArchitectureGroup",
+    "ArchitectureIR",
+    "ArchitectureNode",
+    "ArchitectureNodeType",
     "CATEGORY_DIRECTORY_MAPPING",
+    "DiagramType",
     "EXTENSION_TO_ARTIFACT_TYPE",
     "EXTENSION_TO_LANGUAGE",
+    "ValidationReceipt",
     "WORKSPACE_AGENT_DIR_NAME",
     "ArtifactMappings",
     "ArtifactType",
@@ -65,5 +82,6 @@ __all__ = [
     "is_active_content",
     "is_text_content",
     "resolve_workspace_artifact_vault_dir",
+    "validate_and_sanitize_architecture_ir",
     "workspace_vault_relative_parts",
 ]

@@ -193,7 +193,7 @@ class MemoryManagerMutationsMixin:
             }
             updated.content = content
             if isinstance(updated, (SemanticMemory, EpisodicMemory)):
-                from myrm_agent_harness.toolkits.memory.transient_fact_boundary import (
+                from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
                     looks_like_transient_business_fact,
                     transient_fact_save_rejection_message,
                 )

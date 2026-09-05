@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.memory._memory_agent_tool_descriptions import (
+from myrm_agent_harness.toolkits.memory.agent_surface._memory_agent_tool_descriptions import (
     DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE,
     MEMORY_MANAGE_TOOL_DESCRIPTION,
     MEMORY_MANAGE_TOOL_DESCRIPTION_EN,
@@ -16,8 +16,8 @@ from myrm_agent_harness.toolkits.memory._memory_agent_tool_descriptions import (
     resolve_memory_manage_tool_description,
     resolve_memory_save_tool_description,
 )
-from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchPolicy
-from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import MemorySearchPolicy
+from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     WIKI_MEMORY_SAVE_MAX_CHARS,
     WIKI_MEMORY_SAVE_MIN_HEADINGS,
 )
@@ -59,7 +59,7 @@ def test_mcp_surface_zh_never_leaks_gui_wiki_tool() -> None:
     net (the ZH replacement pair strips the GUI tool reference from the
     WIKI BOUNDARY fragment).
     """
-    from myrm_agent_harness.toolkits.memory._memory_agent_tool_descriptions import (
+    from myrm_agent_harness.toolkits.memory.agent_surface._memory_agent_tool_descriptions import (
         build_mcp_memory_store_tool_description,
     )
 
@@ -151,7 +151,7 @@ def test_memory_save_description_includes_approval_when_required() -> None:
 
 def test_create_memory_tools_uses_description_ssot(memory_config, mock_vector_store, mock_embedding) -> None:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-    from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
+    from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
         create_memory_tools,
     )
 
@@ -218,7 +218,7 @@ def test_memory_tool_descriptions_support_zh_cn_locale() -> None:
 
 def test_create_memory_tools_supports_chinese_locale(memory_config, mock_vector_store, mock_embedding) -> None:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-    from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
+    from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
         create_memory_tools,
     )
 

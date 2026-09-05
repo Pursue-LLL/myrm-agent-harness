@@ -119,6 +119,7 @@ from myrm_agent_harness.toolkits.memory.types import (
     RuleSource,
     SemanticMemory,
     ToolRulePriority,
+    create_pitfall_memory,
 )
 
 __all__ = [
@@ -131,6 +132,7 @@ __all__ = [
     "ConversationSearchProtocol",
     "ConversationSearchRequest",
     "ConversationSearchResponse",
+    "create_pitfall_memory",
     "EmbeddingCache",
     "EmbeddingCacheProtocol",
     "EmbeddingProtocol",

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from myrm_agent_harness.toolkits.memory._internal.hash_utils import NormalizationLevel, compute_normalized_hash
 from myrm_agent_harness.toolkits.memory.types import (
@@ -100,7 +100,16 @@ class MemorySession:
         return mem
 
     def add_event(
-        self, content: str, *, event_type: str = "conversation", related_entities: list[str] | None = None
+        self,
+        content: str,
+        *,
+        event_type: str = "conversation",
+        related_entities: list[str] | None = None,
+        subtask_phase: Literal["analyze", "locate", "edit", "verify"] | None = None,
+        is_failure_attempt: bool = False,
+        failure_reason: str | None = None,
+        negative_lesson: str | None = None,
+        confidence_tier: Literal["strong", "weak", "shadow"] = "strong",
     ) -> EpisodicMemory | None:
         """Add episodic event to session buffer.
 
@@ -119,6 +128,71 @@ class MemorySession:
             related_entities=related_entities or [],
             source_chat_id=self.chat_id,
             trace_id=resolve_current_trace_id(),
+            subtask_phase=subtask_phase,
+            is_failure_attempt=is_failure_attempt,
+            failure_reason=failure_reason,
+            negative_lesson=negative_lesson,
+            confidence_tier=confidence_tier,
+        )
+        self._buffer.append(mem)
+        return mem
+
+    def add_pitfall(
+        self,
+        content: str,
+        *,
+        failure_reason: str,
+        negative_lesson: str,
+        subtask_phase: Literal["analyze", "locate", "edit", "verify"] | None = None,
+        confidence_tier: Literal["strong", "weak", "shadow"] = "strong",
+        related_entities: list[str] | None = None,
+    ) -> EpisodicMemory:
+        """Add or deepen a pitfall/failed attempt memory in the session buffer.
+
+        If a pitfall memory with the same content already exists in the current session,
+        this in-place updates its negative_lesson and failure_reason so deeper takeaways
+        supersede shallower initial observations rather than being dropped.
+        """
+        cleaned_reason = failure_reason.strip() if failure_reason else ""
+        cleaned_lesson = negative_lesson.strip() if negative_lesson else ""
+        fallback_lesson = cleaned_lesson or cleaned_reason or content.strip()
+
+        content_hash = compute_normalized_hash(content, self._normalization_level)
+
+        if content_hash in self._content_hashes:
+            # Check if already in buffer to update in-place with deeper lessons
+            for existing in self._buffer:
+                if (
+                    isinstance(existing, EpisodicMemory)
+                    and existing.is_failure_attempt
+                    and compute_normalized_hash(existing.content, self._normalization_level) == content_hash
+                ):
+                    if cleaned_reason:
+                        existing.failure_reason = cleaned_reason
+                    existing.negative_lesson = fallback_lesson
+                    if subtask_phase is not None:
+                        existing.subtask_phase = subtask_phase
+                    existing.confidence_tier = confidence_tier
+                    if related_entities:
+                        merged_entities = list(dict.fromkeys(existing.related_entities + related_entities))
+                        existing.related_entities = merged_entities
+                    return existing
+
+        self._content_hashes.add(content_hash)
+        from myrm_agent_harness.observability.tracing import resolve_current_trace_id
+
+        mem = EpisodicMemory(
+            user_id=self.user_id,
+            content=content,
+            event_type="failed_attempt",
+            related_entities=related_entities or [],
+            source_chat_id=self.chat_id,
+            trace_id=resolve_current_trace_id(),
+            subtask_phase=subtask_phase,
+            is_failure_attempt=True,
+            failure_reason=cleaned_reason or "Unspecified failure cause",
+            negative_lesson=fallback_lesson,
+            confidence_tier=confidence_tier,
         )
         self._buffer.append(mem)
         return mem

@@ -246,7 +246,7 @@ async def persist_extracted_memories(
         batch = await _apply_deep_pii_scan(batch, deep_scan_llm_func, memory_manager)
 
     if batch and wiki_boundary_enabled:
-        from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
             filter_wiki_document_vector_memories,
         )
 
@@ -256,7 +256,7 @@ async def persist_extracted_memories(
         dropped = 0
 
     if batch:
-        from myrm_agent_harness.toolkits.memory.transient_fact_boundary import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
             filter_transient_business_memories,
         )
 

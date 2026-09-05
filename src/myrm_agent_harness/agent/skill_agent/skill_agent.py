@@ -66,7 +66,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.protocols import (
         SkillBackend as SkillBackendProtocol,
     )
-    from myrm_agent_harness.backends.skills.scanning_write_backend import (
+    from myrm_agent_harness.backends.skills.scanning import (
         ScanningSkillWriteBackend,
     )
     from myrm_agent_harness.backends.skills.similarity import SkillSimilarityChecker

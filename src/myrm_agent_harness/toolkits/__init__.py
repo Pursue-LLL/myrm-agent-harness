@@ -70,7 +70,7 @@ _LAZY_IMPORTS = {
     "web_fetch_tools": ("myrm_agent_harness.toolkits.web_fetch", "web_fetch_tools"),
     "create_browser_tools": ("myrm_agent_harness.toolkits.browser.tools", "create_browser_tools"),
     "create_cron_tools": ("myrm_agent_harness.toolkits.cron.cron_agent_tools", "create_cron_tools"),
-    "create_memory_tools": ("myrm_agent_harness.toolkits.memory.memory_agent_tools", "create_memory_tools"),
+    "create_memory_tools": ("myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools", "create_memory_tools"),
     "create_conversation_search_tool": (
         "myrm_agent_harness.toolkits.memory.conversation_search",
         "create_conversation_search_tool",

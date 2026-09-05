@@ -24,7 +24,6 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | permission_templates.py | Core | Out-of-the-box permission templates for skill declarations. | ✅ |
 | permission_validator.py | Core | Maps skill permissions to tool calls without user identity coupling. | ✅ |
 | protocols.py | Core | SkillBackend protocol plus decorator store protocols (state, snapshot, A/B). | ✅ |
-| scanning_write_backend.py | Core | Security-scanning wrapper around SkillWriteBackend implementations. | ✅ |
 | similarity.py | Core | Protocol for detecting semantically similar skills. | ✅ |
 | snapshot.py | Core | SQLite snapshot cache for O(N) skill metadata reads and incremental sync. | ✅ |
 | watcher.py | Core | Watchdog-based SKILL.md hot reload with debounced snapshot updates. | ✅ |

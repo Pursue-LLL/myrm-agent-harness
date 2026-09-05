@@ -53,6 +53,13 @@ from myrm_agent_harness.toolkits.code_execution.executors import (
     set_executor,
 )
 from myrm_agent_harness.toolkits.code_execution.factory import create_executor
+from myrm_agent_harness.toolkits.code_execution.git_digest import (
+    RepoCommitItem,
+    RepoHistoryEvidenceDigest,
+    RepoSyncDecision,
+    evaluate_repo_sync_policy,
+    extract_repo_history_digest,
+)
 from myrm_agent_harness.toolkits.code_execution.sandbox_snapshot import (
     SandboxBootstrapSnapshot,
     format_bootstrap_snapshot_xml,
@@ -89,6 +96,12 @@ __all__ = [
     "create_executor",
     "create_workspace_service",
     "get_execution_config",
+    # Git Digest & Adaptive Sync
+    "RepoCommitItem",
+    "RepoHistoryEvidenceDigest",
+    "RepoSyncDecision",
+    "extract_repo_history_digest",
+    "evaluate_repo_sync_policy",
     # Executor ContextVar management
     "get_executor",
     "require_executor",

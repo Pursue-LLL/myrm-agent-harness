@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory.memory_citations import (
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_citations import (
     MAX_CITATION_CONTENT_CHARS,
     cited_memory_ref,
     emit_cited_memory_ids,

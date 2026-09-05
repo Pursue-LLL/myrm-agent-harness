@@ -54,6 +54,7 @@ Generate queries in the following order:
 - First decide whether the current question is a follow-up. If it contains referential or elliptical expressions such as "it", "that", "he/she", "what about...", or "how about...", resolve the referent from conversation history and replace the pronoun.
 - Each query must be understandable on its own, outside the conversation and other queries, with complete independently searchable information; never rely on another query to supply missing meaning.
 - Expand abbreviations, codes, or short names that appear alone without context.
+- For domain-specific structured identifiers (such as CVE-YYYY-NNNN, DOI 10.xxxx/..., stock/quote tickers), preserve the exact identifier intact in the query rather than diluting it with generic descriptions.
 - Example: history "What are the new features in Python 3.12?"; current "How does it compare to 3.11?" → `Python 3.12 vs Python 3.11 new features comparison`.
 
 3. Correction and normalization
@@ -114,6 +115,7 @@ web_search_tool 用于检索互联网中的实时信息、新闻、学术资料�
 - 先判断当前问题是否为跟进问题。若包含「它、那个、他、那……呢、怎么样」等指代或省略表达，须从会话历史确定所指实体并替换代词。
 - 每条 query 脱离会话和其他 query 后都必须可理解，包含完整、可独立检索的信息；禁止依赖另一条 query 补足语义。
 - 补全单独出现且没有上下文的缩写、代号或短名称。
+- 涉及专业领域结构化标识符（如 CVE-YYYY-NNNN 漏洞号、DOI 10.xxxx/... 论文号、股票行情代码等）时，务必在 query 中完整保留原始标识符，不要稀释为模糊泛化表述。
 - 示例：历史「Python 3.12 有什么新特性？」；当前「和 3.11 比怎么样？」→ `Python 3.12 与 Python 3.11 新特性对比`。
 
 3. 纠错与标准化

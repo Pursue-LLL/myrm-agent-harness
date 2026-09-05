@@ -300,7 +300,7 @@ async def test_live_transcript_classifier_with_model() -> None:
         api_base=base_url,
         temperature=0,
     )
-    classifier = TranscriptClassifier(chat_model, timeout_seconds=15.0)
+    classifier = TranscriptClassifier(chat_model, timeout_seconds=30.0)
 
     # 1. Safe command in response to user intent
     try:

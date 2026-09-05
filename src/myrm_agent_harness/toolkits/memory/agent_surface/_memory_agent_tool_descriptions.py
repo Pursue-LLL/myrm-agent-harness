@@ -135,6 +135,7 @@ MEMORY_SAVE_CORE_EN = """Store a new memory for the user. Memory persists across
 - preference: user likes/dislikes (requires preference_key)
 - rule: conditional behavioral rules with a specific condition (requires rule_trigger, e.g., "when writing code"; optional rule_priority, rule_keywords)
 - instruction: unconditional global rules that always apply (e.g., "always reply in Chinese") — do not set rule_trigger
+- pitfall: failed attempts, bugs, or dead-ends to prevent repeating (requires failure_reason and negative_lesson; optional subtask_phase)
 
 **IMPORTANCE SCORING** (0–1, primarily for knowledge):
 - 0.8–1.0: User explicitly asked to remember / correction of your behavior
@@ -211,6 +212,7 @@ MEMORY_SAVE_CORE_ZH = """为用户存储新记忆。记忆跨会话持久化并�
 - preference：用户喜好/厌恶（需 preference_key）
 - rule：条件性行为规则（需 rule_trigger 如「写代码时」；可选 rule_priority、rule_keywords）
 - instruction：全局无条件指令（如「始终用中文回复」）— 不要设置 rule_trigger
+- pitfall：失败尝试、报错陷阱或死胡同教训，用于防止重复踩坑（需要 failure_reason 和 negative_lesson；可选 subtask_phase）
 
 **重要性评分**（0–1，主要用于 knowledge）：
 - 0.8–1.0：用户明确要求记住 / 纠正你的行为

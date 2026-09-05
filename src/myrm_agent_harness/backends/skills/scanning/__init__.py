@@ -55,6 +55,12 @@ from myrm_agent_harness.backends.skills.scanning.scanner import (
     scan_skill_content,
     scan_skill_directory,
 )
+from myrm_agent_harness.backends.skills.scanning.scanning_write_backend import (
+    ScanningSkillWriteBackend,
+    SkillLoaderCacheInvalidator,
+    _MAX_RESOURCE_SIZE,
+    _validate_resource_path,
+)
 from myrm_agent_harness.backends.skills.scanning.security_advisories import (
     AdvisoryFinding,
     KnownAdvisory,
@@ -111,4 +117,8 @@ __all__ = [
     "safe_extract_zip",
     "scan_skill_content",
     "scan_skill_directory",
+    "ScanningSkillWriteBackend",
+    "SkillLoaderCacheInvalidator",
+    "_MAX_RESOURCE_SIZE",
+    "_validate_resource_path",
 ]

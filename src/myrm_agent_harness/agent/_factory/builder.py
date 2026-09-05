@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.protocols import (
         SkillBackend as SkillBackendProtocol,
     )
-    from myrm_agent_harness.backends.skills.scanning_write_backend import (
+    from myrm_agent_harness.backends.skills.scanning import (
         ScanningSkillWriteBackend,
     )
     from myrm_agent_harness.backends.skills.similarity import SkillSimilarityChecker
@@ -374,7 +374,7 @@ async def create_skill_agent(
     final_write_backend: ScanningSkillWriteBackend | None = None
     if write_backend is not None:
         from myrm_agent_harness.agent.skills.runtime.loader import skill_md_loader
-        from myrm_agent_harness.backends.skills.scanning_write_backend import (
+        from myrm_agent_harness.backends.skills.scanning import (
             ScanningSkillWriteBackend,
         )
 

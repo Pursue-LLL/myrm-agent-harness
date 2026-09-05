@@ -405,14 +405,27 @@ class RetrieverManager:
 
         retriever = await self._get_cached_bm25_retriever(documents)
 
-        query_results: list[list[tuple[int, float]]] = []
+        # Dual-track RRF fusion:
+        # Track 0: Search engine anchor/prior ranking preserving domain diversity & authority
+        # Track 1..m: BM25 lexical relevance rankings normalized by query count
+        engine_ranking: list[tuple[int, float]] = [(idx, 1.0 / (idx + 1)) for idx in range(len(documents))]
+        fused_lists: list[list[tuple[int, float]]] = [engine_ranking]
+        bm25_weight = 1.0 / max(1, len(queries))
+        weights: list[float] = [1.0]
+
         total_raw_results = 0
         for query in queries:
             results = retriever.search(query, top_k * self.config.bm25_candidate_multiplier, only_relevant=True)
-            query_results.append(results)
+            fused_lists.append(results)
+            weights.append(bm25_weight)
             total_raw_results += len(results)
 
-        fused_results = rrf_fusion(query_results, k=self.config.rrf_k_parameter, top_k=top_k)
+        fused_results = rrf_fusion(
+            fused_lists,
+            k=self.config.rrf_k_parameter,
+            top_k=top_k,
+            weights=weights,
+        )
         selected_docs = [documents[idx] for idx, _ in fused_results if idx < len(documents)]
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000

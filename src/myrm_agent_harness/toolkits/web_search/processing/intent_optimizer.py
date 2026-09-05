@@ -12,6 +12,7 @@ relevance. Provider-aware for SearxNG, Tavily, and Volcengine Doubao.
 - SearchIntentResult: Intent detection result with confidence score.
 - SearchIntentDetector: Protocol for intent detection strategies.
 - KeywordSearchIntentDetector: Default keyword-based implementation (zero LLM cost).
+- extract_and_pin_structured_identifiers: Zero-cost identifier slot extraction and exact phrase pinning.
 - resolve_search_params: Maps intent + provider to optimal search parameters (incl. AUTHORITY→Volcengine AuthInfoLevel).
 
 [POS]
@@ -209,6 +210,10 @@ _SEARXNG_INTENT_PARAMS: dict[SearchIntent, dict[str, str]] = {
         "categories": "social media",
     },
     SearchIntent.SECURITY: {
+        "categories": "it",
+        "time_range": "year",
+    },
+    SearchIntent.AUTHORITY: {
         "categories": "general",
     },
     # GENERAL: no override (use user's default config)
@@ -261,6 +266,64 @@ def resolve_search_params(
 _default_detector = KeywordSearchIntentDetector()
 
 
+# Common structured identifier regex patterns for zero-LLM-cost slot extraction
+_CVE_PATTERN = re.compile(r"\b(CVE-\d{4}-\d{4,7})\b", re.IGNORECASE)
+_DOI_PATTERN = re.compile(r"\b(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)\b")
+_STOCK_SYMBOL_PATTERN = re.compile(
+    r"\b(?:stock|quote|ticker|symbol|shares?|纳斯达克|美股|港股|A股)[\s:]+([A-Z0-9.]{1,8})\b"
+    r"|\b([A-Z]{2,5})\b(?=[\s]+(?:stock|quote|shares?|earnings|财报|股价))",
+    re.IGNORECASE,
+)
+
+
+def extract_and_pin_structured_identifiers(query: str) -> tuple[str, list[str]]:
+    """Extract structured domain identifiers (CVE, DOI, stock codes) and pin them with quotes.
+
+    Ensures critical domain identifiers are not fragmented by tokenizer/search engine
+    without adding extra LLM turn or latency overhead.
+
+    Args:
+        query: The raw rewritten search query string.
+
+    Returns:
+        tuple of (pinned_query, extracted_identifiers).
+    """
+    if not query or not query.strip():
+        return query, []
+
+    pinned_ids: list[str] = []
+    modified_query = query
+
+    # 1. CVE identifier extraction and exact pinning
+    for match in _CVE_PATTERN.finditer(query):
+        cve_id = match.group(1).upper()
+        if cve_id not in pinned_ids:
+            pinned_ids.append(cve_id)
+            # Avoid duplicate quotes if already quoted
+            raw_match = match.group(1)
+            if f'"{raw_match}"' not in modified_query and f"'{raw_match}'" not in modified_query:
+                modified_query = re.sub(rf"\b{re.escape(raw_match)}\b", f'"{cve_id}"', modified_query)
+
+    # 2. DOI identifier extraction and exact pinning
+    for match in _DOI_PATTERN.finditer(query):
+        doi_id = match.group(1)
+        if doi_id not in pinned_ids:
+            pinned_ids.append(doi_id)
+            if f'"{doi_id}"' not in modified_query and f"'{doi_id}'" not in modified_query:
+                modified_query = modified_query.replace(doi_id, f'"{doi_id}"')
+
+    # 3. Stock ticker extraction
+    for match in _STOCK_SYMBOL_PATTERN.finditer(query):
+        symbol = (match.group(1) or match.group(2) or "").upper()
+        if symbol and len(symbol) >= 2 and symbol not in pinned_ids:
+            pinned_ids.append(symbol)
+            raw_sym = match.group(1) or match.group(2)
+            if f'"{raw_sym}"' not in modified_query and f"'{raw_sym}'" not in modified_query:
+                modified_query = re.sub(rf"\b{re.escape(raw_sym)}\b", f'"{symbol}"', modified_query)
+
+    return modified_query, pinned_ids
+
+
 def detect_search_intent(query: str) -> SearchIntentResult:
     """Convenience function using the default keyword-based detector.
 
@@ -271,3 +334,4 @@ def detect_search_intent(query: str) -> SearchIntentResult:
         Intent detection result
     """
     return _default_detector.detect(query)
+

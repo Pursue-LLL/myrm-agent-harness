@@ -54,7 +54,7 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
     from myrm_agent_harness.backends.skills.types import SkillMetadata
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-    from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
+    from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
         create_memory_tools,
     )
     from myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools import (

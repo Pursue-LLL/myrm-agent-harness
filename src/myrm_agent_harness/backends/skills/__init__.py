@@ -4,7 +4,7 @@
 - protocols::SkillBackendProtocol (POS: 技能后端协议，定义技能加载接口契约)
 - creation_protocols::SkillWriteBackend, SkillSaveResult, SkillDeleteResult, SkillResourceWriteResult (POS: 技能写入后端协议)
 - market_protocols::SkillMarketBackend, SkillSearchResult, SkillInstallResult (POS: 技能市场后端协议)
-- scanning_write_backend::ScanningSkillWriteBackend (POS: 安全扫描写入后端包装类)
+- scanning.scanning_write_backend::ScanningSkillWriteBackend (POS: 安全扫描写入后端包装类)
 - local::LocalSkillBackend (POS: 本地技能后端，从文件系统加载)
 - storage::StorageSkillBackend (POS: 存储技能后端，从存储桶加载)
 - memory::InMemorySkillBackend (POS: 内存技能后端，用于动态技能)
@@ -78,7 +78,7 @@ from myrm_agent_harness.backends.skills.protocols import (
 from myrm_agent_harness.backends.skills.protocols import (
     SkillBackend as SkillBackendProtocol,
 )
-from myrm_agent_harness.backends.skills.scanning_write_backend import (
+from myrm_agent_harness.backends.skills.scanning import (
     ScanningSkillWriteBackend,
 )
 from myrm_agent_harness.backends.skills.storage import StorageSkillBackend

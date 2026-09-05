@@ -499,7 +499,7 @@ def is_integration_mutation_command(command: str) -> bool:
 
 
 _PROTECTED_FILE_NAMES_RE = (
-    r"(?:AGENTS\.md|CLAUDE\.md|SOUL\.md|MEMORY\.md|\.myrm\.md|myrm\.md|\.hermes\.md|"
+    r"(?:AGENTS\.md|CLAUDE\.md|SOUL\.md|USER\.md|\.user\.md|MEMORY\.md|\.myrm\.md|myrm\.md|\.hermes\.md|"
     r"HERMES\.md|\.cursorrules|\.clinerules|\.windsurfrules|copilot-instructions\.md)"
 )
 

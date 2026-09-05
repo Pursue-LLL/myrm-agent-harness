@@ -22,6 +22,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 from myrm_agent_harness.toolkits.memory._internal.maintenance import dedup_semantics
 from myrm_agent_harness.toolkits.memory._internal.memory_scanner import (
@@ -248,6 +249,11 @@ class MemoryWriter:
         related_entities: list[str] | None = None,
         source_chat_id: str | None = None,
         source_message_id: str | None = None,
+        subtask_phase: Literal["analyze", "locate", "edit", "verify"] | None = None,
+        is_failure_attempt: bool = False,
+        failure_reason: str | None = None,
+        negative_lesson: str | None = None,
+        confidence_tier: Literal["strong", "weak", "shadow"] = "strong",
         write_target: MemoryWriteTarget = "bound",
     ) -> EpisodicMemory:
         return EpisodicMemory(
@@ -256,6 +262,42 @@ class MemoryWriter:
             related_entities=related_entities or [],
             source_chat_id=source_chat_id,
             source_message_id=source_message_id,
+            subtask_phase=subtask_phase,
+            is_failure_attempt=is_failure_attempt,
+            failure_reason=failure_reason,
+            negative_lesson=negative_lesson,
+            confidence_tier=confidence_tier,
+            scope=scope_for_write_target(self._scope, self._namespaces, write_target),
+        )
+
+    def build_pitfall(
+        self,
+        content: str,
+        *,
+        failure_reason: str,
+        negative_lesson: str,
+        subtask_phase: Literal["analyze", "locate", "edit", "verify"] | None = None,
+        confidence_tier: Literal["strong", "weak", "shadow"] = "strong",
+        related_entities: list[str] | None = None,
+        source_chat_id: str | None = None,
+        source_message_id: str | None = None,
+        write_target: MemoryWriteTarget = "bound",
+    ) -> EpisodicMemory:
+        cleaned_reason = failure_reason.strip() if failure_reason else ""
+        cleaned_lesson = negative_lesson.strip() if negative_lesson else ""
+        fallback_lesson = cleaned_lesson or cleaned_reason or content.strip()
+
+        return EpisodicMemory(
+            content=content,
+            event_type="failed_attempt",
+            related_entities=related_entities or [],
+            source_chat_id=source_chat_id,
+            source_message_id=source_message_id,
+            subtask_phase=subtask_phase,
+            is_failure_attempt=True,
+            failure_reason=cleaned_reason or "Unspecified failure cause",
+            negative_lesson=fallback_lesson,
+            confidence_tier=confidence_tier,
             scope=scope_for_write_target(self._scope, self._namespaces, write_target),
         )
 
@@ -279,7 +321,7 @@ class MemoryWriter:
         )
 
     def _filter_transient_business_batch(self, memories: Sequence[AnyMemory]) -> list[AnyMemory]:
-        from myrm_agent_harness.toolkits.memory.transient_fact_boundary import (
+        from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
             filter_transient_business_memories,
         )
 
@@ -294,7 +336,7 @@ class MemoryWriter:
     def _require_transient_fact_allowed(self, memory: AnyMemory) -> AnyMemory:
         filtered = self._filter_transient_business_batch([memory])
         if not filtered:
-            from myrm_agent_harness.toolkits.memory.transient_fact_boundary import (
+            from myrm_agent_harness.toolkits.memory.agent_surface.transient_fact_boundary import (
                 transient_fact_save_rejection_message,
             )
 

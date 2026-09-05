@@ -26,7 +26,7 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     ConversationSearchHit,
     ConversationSearchResponse,
 )
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     finalize_recall_tool_output,
     recall_preamble_overhead_chars,
     sanitize_recalled_content,

@@ -1,7 +1,7 @@
 """Skill management meta tool (save / patch / delete / write_file / remove_file / lock / unlock).
 
 [INPUT]
-- backends.skills.scanning_write_backend::ScanningSkillWriteBackend (POS: Framework-level security wrapper for SkillWriteBackend)
+- backends.skills.scanning::ScanningSkillWriteBackend (POS: Framework-level security wrapper for SkillWriteBackend)
 - backends.skills.protocols::SkillBackend (POS: Skill backend protocol definition)
 - backends.skills.similarity::SkillSimilarityChecker (POS: Skill similarity checking protocol)
 - agent.meta_tools.skills.manage._manage_handlers (POS: Internal action handlers and validation logic)
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
     from myrm_agent_harness.backends.skills.protocols import SkillBackend
-    from myrm_agent_harness.backends.skills.scanning_write_backend import (
+    from myrm_agent_harness.backends.skills.scanning import (
         ScanningSkillWriteBackend,
     )
     from myrm_agent_harness.backends.skills.similarity import SkillSimilarityChecker

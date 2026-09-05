@@ -692,7 +692,7 @@ class TestScanningSkillWriteBackend:
     async def test_reject_blocks_save(self) -> None:
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         backend = ScanningSkillWriteBackend(inner=mock_inner)
@@ -712,7 +712,7 @@ class TestScanningSkillWriteBackend:
         from unittest.mock import AsyncMock
 
         from myrm_agent_harness.backends.skills.creation_protocols import SkillSaveResult
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.save_skill.return_value = SkillSaveResult(
@@ -735,7 +735,7 @@ class TestScanningSkillWriteBackend:
         from unittest.mock import AsyncMock, MagicMock
 
         from myrm_agent_harness.backends.skills.creation_protocols import SkillSaveResult
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.save_skill.return_value = SkillSaveResult(success=True, skill_name="test")
@@ -762,7 +762,7 @@ class TestScanningSkillWriteBackend:
         from unittest.mock import AsyncMock, MagicMock
 
         from myrm_agent_harness.backends.skills.creation_protocols import SkillSaveResult
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.save_skill.return_value = SkillSaveResult(success=True, skill_name="test")
@@ -781,7 +781,7 @@ class TestScanningSkillWriteBackend:
         from unittest.mock import AsyncMock, MagicMock
 
         from myrm_agent_harness.backends.skills.creation_protocols import SkillSaveResult
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.save_skill.return_value = SkillSaveResult(success=True, skill_name="test")
@@ -797,7 +797,7 @@ class TestScanningSkillWriteBackend:
         from unittest.mock import AsyncMock, MagicMock
 
         from myrm_agent_harness.backends.skills.creation_protocols import SkillDeleteResult
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.delete_skill.return_value = SkillDeleteResult(success=True, skill_name="test")
@@ -812,7 +812,7 @@ class TestScanningSkillWriteBackend:
     async def test_inner_save_failure_propagates(self) -> None:
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.save_skill.side_effect = RuntimeError("DB error")
@@ -827,7 +827,7 @@ class TestScanningSkillWriteBackend:
     async def test_inner_delete_failure_propagates(self) -> None:
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.delete_skill.side_effect = RuntimeError("DB error")
@@ -861,7 +861,7 @@ class TestScanningSkillWriteBackend:
     async def test_write_resource_path_validation(self, path: str, expected_error: str) -> None:
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         backend = ScanningSkillWriteBackend(inner=mock_inner)
@@ -880,7 +880,7 @@ class TestScanningSkillWriteBackend:
     async def test_write_resource_size_limit(self) -> None:
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.backends.skills.scanning_write_backend import (
+        from myrm_agent_harness.backends.skills.scanning import (
             _MAX_RESOURCE_SIZE,
             ScanningSkillWriteBackend,
         )
@@ -903,7 +903,7 @@ class TestScanningSkillWriteBackend:
     async def test_write_resource_security_scan_reject(self) -> None:
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         backend = ScanningSkillWriteBackend(inner=mock_inner)
@@ -924,7 +924,7 @@ class TestScanningSkillWriteBackend:
         from unittest.mock import AsyncMock, MagicMock
 
         from myrm_agent_harness.backends.skills.creation_protocols import SkillResourceWriteResult
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.write_resource.return_value = SkillResourceWriteResult(
@@ -950,7 +950,7 @@ class TestScanningSkillWriteBackend:
     async def test_write_resource_inner_failure(self) -> None:
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.write_resource.side_effect = RuntimeError("Disk full")
@@ -973,7 +973,7 @@ class TestScanningSkillWriteBackend:
     async def test_delete_resource_path_validation(self) -> None:
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         backend = ScanningSkillWriteBackend(inner=mock_inner)
@@ -992,7 +992,7 @@ class TestScanningSkillWriteBackend:
         from unittest.mock import AsyncMock, MagicMock
 
         from myrm_agent_harness.backends.skills.creation_protocols import SkillResourceWriteResult
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.delete_resource.return_value = SkillResourceWriteResult(
@@ -1016,7 +1016,7 @@ class TestScanningSkillWriteBackend:
     async def test_delete_resource_inner_failure(self) -> None:
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+        from myrm_agent_harness.backends.skills.scanning import ScanningSkillWriteBackend
 
         mock_inner = AsyncMock()
         mock_inner.delete_resource.side_effect = RuntimeError("Permission denied")
@@ -1055,7 +1055,7 @@ class TestScanningSkillWriteBackend:
         ],
     )
     def test_validate_resource_path(self, path: str, should_pass: bool) -> None:
-        from myrm_agent_harness.backends.skills.scanning_write_backend import _validate_resource_path
+        from myrm_agent_harness.backends.skills.scanning import _validate_resource_path
 
         result = _validate_resource_path(path)
         if should_pass:

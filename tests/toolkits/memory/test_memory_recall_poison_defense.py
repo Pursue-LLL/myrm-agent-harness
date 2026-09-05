@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory.mcp_server import MemoryMCPServer
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+from myrm_agent_harness.toolkits.memory.agent_surface.mcp_server import MemoryMCPServer
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     RECALL_TOOL_UNTRUSTED_PREAMBLE,
 )
-from myrm_agent_harness.toolkits.memory.memory_search_execution import (
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
     search_memory_corpus,
 )
 from myrm_agent_harness.toolkits.memory.types import (
@@ -40,7 +40,7 @@ async def test_search_memory_corpus_sanitizes_poison_and_adds_preamble() -> None
     category_to_type = {"knowledge": MemoryType.SEMANTIC}
 
     with patch(
-        "myrm_agent_harness.toolkits.memory.memory_search_execution.emit_cited_memory_ids",
+        "myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution.emit_cited_memory_ids",
         AsyncMock(),
     ):
         result = await search_memory_corpus(
@@ -88,7 +88,7 @@ async def test_search_memory_corpus_redacts_credentials() -> None:
     category_to_type = {"knowledge": MemoryType.SEMANTIC}
 
     with patch(
-        "myrm_agent_harness.toolkits.memory.memory_search_execution.emit_cited_memory_ids",
+        "myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution.emit_cited_memory_ids",
         AsyncMock(),
     ):
         result = await search_memory_corpus(
@@ -107,7 +107,7 @@ async def test_search_memory_corpus_redacts_credentials() -> None:
 
 
 def test_finalize_recall_tool_output_skips_preamble_for_empty_body() -> None:
-    from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
         finalize_recall_tool_output,
     )
 
@@ -146,7 +146,7 @@ async def test_mcp_profile_recall_sanitizes_poison_value() -> None:
 
 
 def test_format_profile_recall_output_redacts_credentials() -> None:
-    from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
         format_profile_recall_output,
     )
 
@@ -157,7 +157,7 @@ def test_format_profile_recall_output_redacts_credentials() -> None:
 
 
 def test_format_preference_save_ack_redacts_credentials() -> None:
-    from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
         format_preference_save_ack,
     )
 
@@ -170,7 +170,7 @@ def test_format_preference_save_ack_redacts_credentials() -> None:
 
 
 def test_format_recall_source_error_suffix_redacts_credentials() -> None:
-    from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
         format_recall_source_error_suffix,
     )
 
@@ -232,7 +232,7 @@ _CREDENTIAL_SNIPPET = "Deploy failed; key was sk-proj-abcdefghij1234567890 in en
 
 
 def test_sanitize_recalled_content_redacts_credentials() -> None:
-    from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
         sanitize_recalled_content,
     )
 

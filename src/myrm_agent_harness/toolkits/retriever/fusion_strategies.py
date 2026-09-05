@@ -163,18 +163,20 @@ def rrf_fusion[T](
     query_results: list[list[tuple[T, float]]],
     k: int = 60,
     top_k: int | None = None,
+    weights: list[float] | None = None,
 ) -> list[tuple[T, float]]:
     """Reciprocal Rank Fusion — merges multiple query results into a single ranking.
 
     A concise and efficient multi-query fusion strategy based on rank positions
-    rather than absolute scores.
+    rather than absolute scores. Supports optional list-level weighting.
 
     Formula:
-        RRF(doc) = Σ(1 / (k + rank_i + 1))
+        RRF(doc) = Σ(w_i / (k + rank_i + 1))
 
     Where:
         - k: Constant parameter (typically 60), controls rank decay speed
         - rank_i: Document rank in the i-th query result (0-based)
+        - w_i: Optional weight for the i-th query result list (defaults to 1.0)
 
     Characteristics:
         - More sensitive to rank positions than absolute scores
@@ -189,6 +191,7 @@ def rrf_fusion[T](
         query_results: Retrieval results per query, formatted as [(doc_idx, score), ...]
         k: RRF parameter controlling rank decay speed (default 60)
         top_k: Number of top results to return (None returns all)
+        weights: Optional weight multiplier per query list (matches length of query_results)
 
     Returns:
         Fused result list [(doc_idx, rrf_score), ...] sorted by score descending
@@ -210,9 +213,12 @@ def rrf_fusion[T](
     rrf_scores: defaultdict[T, float] = defaultdict(float)
     hit_counts: defaultdict[T, int] = defaultdict(int)
 
-    for results in query_results:
+    for i, results in enumerate(query_results):
+        weight = weights[i] if weights is not None and i < len(weights) else 1.0
+        if weight <= 0.0:
+            continue
         for rank, (doc_idx, _) in enumerate(results):
-            rrf_scores[doc_idx] += 1.0 / (k + rank + 1)
+            rrf_scores[doc_idx] += weight / (k + rank + 1)
             hit_counts[doc_idx] += 1
 
     # Deterministic multi-tier sort:

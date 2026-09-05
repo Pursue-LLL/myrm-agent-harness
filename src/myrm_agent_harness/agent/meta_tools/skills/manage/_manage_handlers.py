@@ -1,7 +1,7 @@
 """Skill management action handlers and validation helpers.
 
 [INPUT]
-- backends.skills.scanning_write_backend::ScanningSkillWriteBackend (POS: Framework-level security wrapper for SkillWriteBackend)
+- backends.skills.scanning::ScanningSkillWriteBackend (POS: Framework-level security wrapper for SkillWriteBackend)
 - backends.skills.protocols::SkillBackend (POS: Skill backend protocol definition)
 - backends.skills.similarity::SkillSimilarityChecker (POS: Skill similarity checking protocol)
 - agent.context_management.context::extract_context_from_runnable_config (POS: Context extraction helper)
@@ -36,7 +36,7 @@ from myrm_agent_harness.agent.context_management.context import (
 
 if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.protocols import SkillBackend
-    from myrm_agent_harness.backends.skills.scanning_write_backend import (
+    from myrm_agent_harness.backends.skills.scanning import (
         ScanningSkillWriteBackend,
     )
     from myrm_agent_harness.backends.skills.similarity import SkillSimilarityChecker
