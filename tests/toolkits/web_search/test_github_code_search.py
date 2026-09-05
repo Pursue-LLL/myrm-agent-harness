@@ -16,6 +16,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
+from langchain_core.documents import Document
+
 from myrm_agent_harness.toolkits.web_search.core.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.processing.intent_optimizer import (
     SearchIntent,
@@ -151,13 +153,10 @@ class TestEngineCodeFastPath:
         from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
         from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
             SearchServiceConfig,
-            WebSearcher,
         )
 
-        mock_searcher = MagicMock(spec=WebSearcher)
-        mock_searcher.config = SearchServiceConfig(search_service="searxng")
-
-        engine = WebSearchTools(searcher=mock_searcher)
+        config = SearchServiceConfig(search_service="searxng", search_service_url="http://localhost:8888")
+        tools = WebSearchTools(config=config)
 
         sample_result = SearchResult(
             title="tikv/raft-rs: src/raw_node.rs",
@@ -172,38 +171,39 @@ class TestEngineCodeFastPath:
         ) as mock_search_code:
             mock_search_code.return_value = [sample_result]
 
-            response = await engine.fast_search_with_questions(
-                questions=["tikv raft rust implementation"],
+            sources, formatted = await tools.fast_search_with_questions(
+                questions=["tikv raft rust implementation source code"],
                 search_results_per_query=2,
             )
 
-            assert response is not None
-            assert len(response.documents) >= 1
-            doc = response.documents[0]
-            assert "tikv/raft-rs" in doc.page_content
+            assert sources is not None
+            assert len(sources) >= 1
+            assert "tikv/raft-rs" in str(sources[0])
+            assert "tikv/raft-rs" in formatted
 
     @pytest.mark.asyncio
     async def test_engine_code_fast_path_fallback_on_failure(self) -> None:
         from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
         from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
             SearchServiceConfig,
-            WebSearcher,
         )
 
-        mock_searcher = MagicMock(spec=WebSearcher)
-        mock_searcher.config = SearchServiceConfig(search_service="searxng")
+        config = SearchServiceConfig(search_service="searxng", search_service_url="http://localhost:8888")
+        tools = WebSearchTools(config=config)
 
-        fallback_search_result = [
-            SearchResult(
-                title="GitHub - TiKV Raft",
-                link="https://github.com/tikv/raft-rs",
-                snippet="TiKV Raft implementation in Rust",
-                engines=["searxng"],
+        mock_fallback_docs = [
+            (
+                "tikv raft rust implementation source code",
+                [
+                    Document(
+                        page_content="TiKV Raft implementation in Rust source code",
+                        metadata={"url": "https://github.com/tikv/raft-rs", "title": "GitHub - TiKV Raft"},
+                    )
+                ],
+                None,
             )
         ]
-        mock_searcher.multi_query_parallel_search = AsyncMock(return_value=[fallback_search_result])
-
-        engine = WebSearchTools(searcher=mock_searcher)
+        tools._searcher.multi_query_parallel_search = AsyncMock(return_value=mock_fallback_docs)
 
         with patch(
             "myrm_agent_harness.toolkits.web_search.providers.github_code_search.search_github_code",
@@ -212,14 +212,12 @@ class TestEngineCodeFastPath:
             # Simulate rate limit or network failure
             mock_search_code.return_value = None
 
-            response = await engine.fast_search_with_questions(
-                questions=["tikv raft rust implementation"],
+            sources, formatted = await tools.fast_search_with_questions(
+                questions=["tikv raft rust implementation source code"],
                 search_results_per_query=2,
             )
 
-            assert response is not None
-            assert len(response.documents) >= 1
-            # Verify multi_query_parallel_search was invoked with fallback query containing site:github.com
-            mock_searcher.multi_query_parallel_search.assert_called_once()
-            fallback_query = mock_searcher.multi_query_parallel_search.call_args[0][0][0]
-            assert "site:github.com" in fallback_query
+            assert sources is not None
+            assert len(sources) >= 1
+            tools._searcher.multi_query_parallel_search.assert_called_once()
+            assert "TiKV Raft" in formatted

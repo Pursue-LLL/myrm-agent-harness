@@ -60,7 +60,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.retriever.engine import RetrieverConfig, RetrieverManager
     from myrm_agent_harness.toolkits.retriever.reranker import RerankerConfig, RerankerService
 
-__all__ = ["SearchServiceConfig", "SearchServiceType", "WebSearchTools"]
+__all__ = ["SearchServiceConfig", "SearchServiceType", "WebSearchEngine", "WebSearchTools"]
 
 logger = logging.getLogger(__name__)
 
@@ -95,13 +95,21 @@ class WebSearchTools:
 
     def __init__(
         self,
-        config: SearchServiceConfig,
+        config: SearchServiceConfig | None = None,
         reranker_config: RerankerConfig | None = None,
         retriever_config: RetrieverConfig | None = None,
+        *,
+        searcher: WebSearcher | None = None,
     ):
         from myrm_agent_harness.toolkits.retriever.engine import RetrieverManager
 
-        self._searcher = WebSearcher(config)
+        if searcher is not None:
+            self._searcher = searcher
+        elif config is not None:
+            self._searcher = WebSearcher(config)
+        else:
+            raise ValueError("Either config or searcher must be provided to WebSearchTools")
+
         self._retriever_manager = RetrieverManager(retriever_config)
 
         if reranker_config:
@@ -564,3 +572,8 @@ def _drop_blocked_hostname_docs(
             dropped,
         )
     return kept
+
+
+# Convenience alias for backwards compatibility and test clarity
+WebSearchEngine = WebSearchTools
+

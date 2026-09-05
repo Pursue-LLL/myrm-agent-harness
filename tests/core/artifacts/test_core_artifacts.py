@@ -30,6 +30,9 @@ class TestArtifactType:
     def test_word_document_type(self) -> None:
         assert ArtifactType.WORD_DOCUMENT == "word_document"
 
+    def test_architecture_type(self) -> None:
+        assert ArtifactType.ARCHITECTURE == "architecture"
+
 
 class TestExtensionMappings:
     def test_python_extension(self) -> None:
@@ -72,6 +75,10 @@ class TestInferFunctions:
 
     def test_infer_type_from_extension_word_document(self) -> None:
         assert infer_artifact_type_from_extension("report.docx") == ArtifactType.WORD_DOCUMENT
+
+    def test_infer_type_from_extension_architecture(self) -> None:
+        assert infer_artifact_type_from_extension("system.arch.json") == ArtifactType.ARCHITECTURE
+        assert infer_artifact_type_from_extension("flow.architecture.arch.json") == ArtifactType.ARCHITECTURE
 
     def test_old_office_formats_fallback_to_binary(self) -> None:
         assert infer_artifact_type_from_extension("old.doc") == ArtifactType.BINARY

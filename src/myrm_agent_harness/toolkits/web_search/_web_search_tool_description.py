@@ -38,6 +38,7 @@ Use web_search_tool to retrieve real-time information from the internet, includi
 - For most questions, generate 1-2 queries; for complex or multi-faceted questions only, generate 3-5 queries, at most 5.
 - Each query must include the entities, keywords, and constraints needed to retrieve the answer; avoid irrelevant words. One call should cover the core information dimensions of the user's question; unless key information is missing, do not repeat similar searches.
 - If results do not cover key aspects needed to answer, prefer rewriting for missing aspects or adding complementary queries.
+- When search snippets provide insufficient detail or the user needs in-depth data from a retrieved webpage, combine with web_fetch_tool's fetch_and_extract operation to retrieve cleaned, targeted article sections without redundant searches.
 
 ## Query rewrite rules
 
@@ -55,6 +56,7 @@ Generate queries in the following order:
 - Each query must be understandable on its own, outside the conversation and other queries, with complete independently searchable information; never rely on another query to supply missing meaning.
 - Expand abbreviations, codes, or short names that appear alone without context.
 - For domain-specific structured identifiers (such as CVE-YYYY-NNNN, DOI 10.xxxx/..., stock/quote tickers), preserve the exact identifier intact in the query rather than diluting it with generic descriptions.
+- When searching for real code implementations from open-source repositories rather than tutorials, specify the programming language and core symbol/library name (e.g. `fastapi lifespan context manager github`, `tokio poll_read rust implementation`).
 - Example: history "What are the new features in Python 3.12?"; current "How does it compare to 3.11?" → `Python 3.12 vs Python 3.11 new features comparison`.
 
 3. Correction and normalization
@@ -116,6 +118,7 @@ web_search_tool 用于检索互联网中的实时信息、新闻、学术资料�
 - 每条 query 脱离会话和其他 query 后都必须可理解，包含完整、可独立检索的信息；禁止依赖另一条 query 补足语义。
 - 补全单独出现且没有上下文的缩写、代号或短名称。
 - 涉及专业领域结构化标识符（如 CVE-YYYY-NNNN 漏洞号、DOI 10.xxxx/... 论文号、股票行情代码等）时，务必在 query 中完整保留原始标识符，不要稀释为模糊泛化表述。
+- 检索真实开源仓库的代码实现而非教程示例时，在 query 中明确编程语言与核心函数/库名（如 `fastapi lifespan 上下文管理器 源码实现`、`tokio poll_read rust 源码`）。
 - 示例：历史「Python 3.12 有什么新特性？」；当前「和 3.11 比怎么样？」→ `Python 3.12 与 Python 3.11 新特性对比`。
 
 3. 纠错与标准化
