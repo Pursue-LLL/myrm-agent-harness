@@ -39,6 +39,9 @@ from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
         "Prompt exceeds max length",
         "tokens in request more than max tokens allowed",
         "total message size 5943865 exceeds limit 2097152",
+        "llama.cpp error: Context size has been exceeded.",
+        "llama-server: available context size exceeded",
+        "input tokens exceed maximum context length",
     ],
 )
 def test_classify_context_overflow(msg: str) -> None:
@@ -717,11 +720,3 @@ def test_classify_provider_policy_blocked(msg: str) -> None:
     reason = classify_failover_reason(exc)
     assert reason == FailoverReason.PROVIDER_POLICY_BLOCKED
 
-        shallow = Exception("depth 0 with response")
-        shallow.response = FakeResponse()
-        current = shallow
-        for i in range(1, 4):
-            exc = Exception(f"depth {i}")
-            exc.__cause__ = current
-            current = exc
-        assert extract_retry_after(current) == 120.0

@@ -247,6 +247,19 @@ def create_litellm_model(
                 extra_headers_m.setdefault("X-Title", "Myrm Agent")
                 extra_headers_m.setdefault("User-Agent", "Myrm/1.0 (Vercel-AI-Gateway-Client)")
 
+    # OpenRouter: auto-inject attribution headers for ranking & free tier compliance
+    if (base_url and "openrouter.ai" in base_url.lower()) or model.lower().startswith("openrouter/"):
+        extra_headers = llm_kwargs.setdefault("extra_headers", {})
+        if isinstance(extra_headers, dict):
+            extra_headers.setdefault("HTTP-Referer", "https://myrm.ai")
+            extra_headers.setdefault("X-Title", "Myrm Agent")
+        model_kwargs_dict = llm_kwargs.setdefault("model_kwargs", {})
+        if isinstance(model_kwargs_dict, dict):
+            extra_headers_m = model_kwargs_dict.setdefault("extra_headers", {})
+            if isinstance(extra_headers_m, dict):
+                extra_headers_m.setdefault("HTTP-Referer", "https://myrm.ai")
+                extra_headers_m.setdefault("X-Title", "Myrm Agent")
+
     llm_kwargs = clean_model_kwargs(llm_kwargs, model)
 
     return ChatLiteLLM(**llm_kwargs)

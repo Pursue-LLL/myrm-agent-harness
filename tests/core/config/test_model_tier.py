@@ -10,8 +10,17 @@ class TestInferModelTier:
     def test_strong_cloud_models(self) -> None:
         assert infer_model_tier("gpt-4o") == ModelTier.STRONG
         assert infer_model_tier("claude-3.5-sonnet") == ModelTier.STRONG
-        assert infer_model_tier("gemini-2-flash") == ModelTier.STRONG
+        assert infer_model_tier("gemini-1.5-pro") == ModelTier.STRONG
         assert infer_model_tier("deepseek-v3") == ModelTier.STRONG
+
+    def test_flash_and_mini_workhorse_models_resolve_to_medium(self) -> None:
+        assert infer_model_tier("gemini-2.0-flash") == ModelTier.MEDIUM
+        assert infer_model_tier("gpt-4o-mini") == ModelTier.MEDIUM
+        assert infer_model_tier("claude-3-5-haiku-20241022") == ModelTier.MEDIUM
+        assert infer_model_tier("glm-4-flash") == ModelTier.MEDIUM
+        assert infer_model_tier("glm-5.3-flash") == ModelTier.MEDIUM
+        assert infer_model_tier("qwen-turbo") == ModelTier.MEDIUM
+        assert infer_model_tier("doubao-lite-32k") == ModelTier.MEDIUM
 
     def test_weak_by_param_size_in_name(self) -> None:
         assert infer_model_tier("qwen2.5:7b") == ModelTier.WEAK

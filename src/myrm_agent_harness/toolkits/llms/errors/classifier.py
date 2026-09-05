@@ -182,6 +182,9 @@ _OVERFLOW_EXACT_RE = re.compile(
             r"prompt exceeds max length",
             r"tokens in request more than max tokens allowed",
             r"total message size.*exceeds limit",
+            r"context size has been exceeded",
+            r"available context size",
+            r"input tokens exceed",
         ]
     ),
     re.IGNORECASE,
