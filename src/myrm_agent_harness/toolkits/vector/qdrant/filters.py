@@ -65,6 +65,7 @@ def build_qdrant_filter(filters: FilterDict | None) -> Filter | None:
     )
 
     conditions: list[Condition] = []
+    must_not_conditions: list[Condition] = []
 
     for key, value in filters.items():
         if key == "id" and isinstance(value, list):
@@ -75,12 +76,21 @@ def build_qdrant_filter(filters: FilterDict | None) -> Filter | None:
             conditions.append(HasIdCondition(has_id=[value]))  # type: ignore[arg-type]
         elif isinstance(value, dict):
             if "not" in value:
-                conditions.append(
-                    FieldCondition(
-                        key=key,
-                        match=MatchExcept(**{"except": [value["not"]]}),  # type: ignore[arg-type]
+                not_val = value["not"]
+                if isinstance(not_val, bool):
+                    must_not_conditions.append(
+                        FieldCondition(
+                            key=key,
+                            match=MatchValue(value=not_val),
+                        )
                     )
-                )
+                else:
+                    conditions.append(
+                        FieldCondition(
+                            key=key,
+                            match=MatchExcept(**{"except": [not_val]}),  # type: ignore[arg-type]
+                        )
+                    )
             elif any(k in value for k in ("gt", "gte", "lt", "lte")):
                 if _is_datetime_range(value):
                     conditions.append(
@@ -115,4 +125,7 @@ def build_qdrant_filter(filters: FilterDict | None) -> Filter | None:
                 FieldCondition(key=key, match=MatchValue(value=value))  # type: ignore[arg-type]
             )
 
-    return Filter(must=conditions)
+    return Filter(
+        must=conditions or None,
+        must_not=must_not_conditions or None,
+    )

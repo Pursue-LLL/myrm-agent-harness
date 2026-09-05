@@ -56,6 +56,20 @@ class RepoHistoryEvidenceDigest:
     )
 
 
+@dataclass(frozen=True)
+class RepoSyncDecision:
+    """Decision output for incremental repository synchronization policy."""
+
+    repo_path: str
+    current_head: str
+    baseline_commit: str | None
+    is_dirty: bool
+    sync_recommended: bool
+    ahead_commits_count: int
+    reason: str
+    files_changed: tuple[str, ...] = field(default_factory=tuple)
+
+
 def _run_git_cmd(
     args: list[str], cwd: Path, timeout: float = 2.0
 ) -> tuple[int, str]:

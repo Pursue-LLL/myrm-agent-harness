@@ -40,6 +40,17 @@ def test_build_qdrant_filter_match_except():
     ]
 
 
+def test_build_qdrant_filter_not_bool_uses_must_not():
+    from qdrant_client.models import MatchValue
+
+    f = build_qdrant_filter({"archived": {"not": True}})
+    assert f.must is None or len(f.must) == 0
+    assert len(f.must_not) == 1
+    assert f.must_not[0].key == "archived"
+    assert isinstance(f.must_not[0].match, MatchValue)
+    assert f.must_not[0].match.value is True
+
+
 def test_build_qdrant_filter_range():
     from qdrant_client.models import Range
 

@@ -79,6 +79,7 @@ MemoryImportSource = Literal[
     "claude",
     "windsurf",
     "trae",
+    "gemini",
     "mem0",
     "chatgpt",
     "plur",
