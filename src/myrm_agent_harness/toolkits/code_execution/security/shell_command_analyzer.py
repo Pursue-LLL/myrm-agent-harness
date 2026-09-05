@@ -509,9 +509,9 @@ _PROTECTED_INSTRUCTION_SHELL_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.IGNORECASE,
     ),
     re.compile(
-        rf"(?:^|[\s;|&])(?:sed\s+-[a-zA-Z]*i[a-zA-Z]*|tee(?:\s+-[a-zA-Z]+)*|cp(?:\s+-[a-zA-Z]+)*|"
-        rf"mv(?:\s+-[a-zA-Z]+)*|rm(?:\s+-[a-zA-Z]+)*|truncate(?:\s+-[a-zA-Z]+)*)\s+.*?"
-        rf"(?:[\s/'\"]|^){_PROTECTED_FILE_NAMES_RE}(?:[\s/'\"]|$)",
+        rf"\b(?:sed\s+-[a-zA-Z]*i[a-zA-Z]*|tee(?:\s+-[a-zA-Z]+)*|cp(?:\s+-[a-zA-Z]+)*|"
+        rf"mv(?:\s+-[a-zA-Z]+)*|rm(?:\s+-[a-zA-Z]+)*|truncate(?:\s+-[a-zA-Z]+)*)\b.*?"
+        rf"(?:[\s/'\"]|^)(?:[^\s;|\'\"<>]*?/)?{_PROTECTED_FILE_NAMES_RE}(?:[\s/'\"<>]|$)",
         re.IGNORECASE,
     ),
     re.compile(

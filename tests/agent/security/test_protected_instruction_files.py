@@ -209,8 +209,10 @@ class TestBatchProcessorAllowlistAndExemptionGuards:
         approved, denied, pending = await evaluate_tool_batch(
             tool_calls=tool_calls,
             config=config,
+            is_cron=False,
             workspace_root=workspace,
-            agent_id="test_agent",
+            session_key="test_session",
+            args_hashes={},
         )
 
         assert len(pending) == 1

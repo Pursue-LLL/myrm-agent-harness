@@ -124,6 +124,7 @@ __all__ = [
     "TranscriptTurn",
     "WorkflowIntentPlan",
     "WorkflowSkillCompiler",
+    "reset_denial_counter",
     "build_parent_delegatable_toolkit",
     "calculate_trajectory_determinism",
     "check_distillable",
@@ -293,6 +294,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "SpendInterventionTier",
     ),
     "HookEvent": ("myrm_agent_harness.api.protocols", "HookEvent"),
+    "reset_denial_counter": (
+        "myrm_agent_harness.agent.middlewares.approval.helpers",
+        "reset_denial_counter",
+    ),
     "ExternalSecretResolutionError": (
         "myrm_agent_harness.backends.secrets",
         "ExternalSecretResolutionError",

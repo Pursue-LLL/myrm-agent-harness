@@ -475,3 +475,13 @@ def set_allowlist_store(store: AllowlistStore) -> None:
     """
     global _allowlist
     _allowlist = Allowlist(store=store)
+
+
+def reset_denial_counter(chat_id: str) -> None:
+    """Reset the denial counter for a given chat session."""
+    from myrm_agent_harness.agent.middlewares.approval.helpers import (
+        reset_denial_counter as _reset,
+    )
+
+    _reset(chat_id)
+
