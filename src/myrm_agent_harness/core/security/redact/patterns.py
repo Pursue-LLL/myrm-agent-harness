@@ -111,7 +111,7 @@ _SECRET_ENV_NAMES = r"(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)"
 # key 必须含 secret 关键词且关键词落在词边界（`author=`/`tokenizer=` 等散文词
 # 不误伤，见 _key_has_secret_keyword）。
 _ENV_ASSIGN_RE = re.compile(
-    rf"(?<![?&])([A-Z_]{{0,50}}{_SECRET_ENV_NAMES}[A-Z_]{{0,50}})\s*=\s*((?:(['\"])(?:[^'\"\\\\]|''|\\.)*\3)|(?:[^\s&\"']+))",
+    rf"(?<![?&])([A-Za-z_]{{0,50}}{_SECRET_ENV_NAMES}[A-Za-z0-9_]{{0,50}})\s*=\s*((?:(['\"])(?:[^'\"\\\\]|''|\\.)*\3)|(?:[^\s&\"']+))",
     re.IGNORECASE,
 )
 
