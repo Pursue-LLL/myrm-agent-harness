@@ -78,6 +78,13 @@ _PARAM_REJECTION_PATTERNS: tuple[tuple[re.Pattern[str], tuple[str, ...]], ...] =
         ),
         ("user",),
     ),
+    (
+        re.compile(
+            r"top_p.*(?:not supported|unsupported|does not support)|unsupported.*top_p|temperature.*top_p|top_p.*temperature",
+            re.IGNORECASE,
+        ),
+        ("top_p",),
+    ),
 )
 
 

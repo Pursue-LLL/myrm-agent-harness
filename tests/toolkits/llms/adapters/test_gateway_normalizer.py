@@ -193,3 +193,23 @@ class TestGateway400Downgrade:
         assert stripped == ["response_format"]
         assert "response_format" not in params
         assert params["allowed_openai_params"] == ["model"]
+
+    def test_detect_top_p_conflict_rejection(self) -> None:
+        exc = Exception("BadRequestError: 400 temperature and top_p are mutually exclusive for this model")
+        assert is_gateway_param_rejection(exc) is True
+
+    def test_sanitize_params_strips_top_p_on_conflict(self) -> None:
+        params = {
+            "model": "moonshot-v1-8k",
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "allowed_openai_params": ["model", "temperature", "top_p"],
+        }
+        exc = Exception("BadRequestError: 400 temperature and top_p cannot both be set")
+        stripped = sanitize_gateway_params_on_400(params, exc)
+
+        assert stripped == ["top_p"]
+        assert "top_p" not in params
+        assert "temperature" in params
+        assert params["allowed_openai_params"] == ["model", "temperature"]
+
