@@ -267,3 +267,79 @@ class ArtifactVault:
             return None
 
         return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    def purge_object(self, uri_or_id: str) -> bool:
+        """从金库物理删除单个对象（包含文件与元数据）。
+
+        Args:
+            uri_or_id: 对象 UUID 或以 'vault://' 开头的 URI 指针。
+
+        Returns:
+            若对象存在且成功删除返回 True，否则返回 False。
+        """
+        obj_id = uri_or_id[len(VAULT_PREFIX) :] if uri_or_id.startswith(VAULT_PREFIX) else uri_or_id
+        obj_path = self.get_object_path(obj_id)
+        meta_path = self._get_meta_path(obj_id)
+
+        deleted = False
+        try:
+            if obj_path.exists():
+                obj_path.unlink(missing_ok=True)
+                deleted = True
+            if meta_path.exists():
+                meta_path.unlink(missing_ok=True)
+                deleted = True
+        except OSError as e:
+            logger.warning("Failed to purge vault object %s: %s", obj_id, e)
+            return False
+
+        if deleted:
+            logger.debug("Purged vault object: %s", obj_id)
+        return deleted
+
+    def purge_objects(self, uri_or_ids: list[str]) -> int:
+        """批量物理删除指定对象。
+
+        Args:
+            uri_or_ids: 对象 UUID 或 URI 列表。
+
+        Returns:
+            成功物理删除的对象计数。
+        """
+        count = 0
+        for uid in uri_or_ids:
+            if self.purge_object(uid):
+                count += 1
+        return count
+
+    def purge_by_task_id(self, task_id: str) -> int:
+        """清理特定任务生成的所有金库对象（如 subagent_{task_id}.md 等）。
+
+        Args:
+            task_id: 关联的任务 ID 或会话 ID 标识。
+
+        Returns:
+            物理释放的对象数量。
+        """
+        if not task_id:
+            return 0
+
+        target_pattern = f"subagent_{task_id}"
+        purged = 0
+        for obj in self.list_objects():
+            if target_pattern in obj.filename or target_pattern in obj.description or task_id in obj.id:
+                if self.purge_object(obj.id):
+                    purged += 1
+
+        if purged > 0:
+            logger.info("Purged %d vault objects for task_id: %s", purged, task_id)
+        return purged
+
+    def purge_all(self) -> int:
+        """清空金库中所有对象及元数据（用于测试隔离或会话彻底重置）。"""
+        count = 0
+        for obj in self.list_objects():
+            if self.purge_object(obj.id):
+                count += 1
+        return count
+

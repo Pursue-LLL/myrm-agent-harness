@@ -70,6 +70,19 @@ class RestoreResult:
     error: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class SnapshotVerificationResult:
+    """Outcome of a snapshot verification check."""
+
+    valid: bool
+    backup_id: str | None = None
+    file_name: str | None = None
+    checksum_sha256: str | None = None
+    checksum_matched: bool = False
+    integrity_check: str = "unknown"
+    error: str | None = None
+
+
 def _compute_sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -90,6 +103,21 @@ def _pragma_quick_check(db_path: str | Path) -> str:
         return f"connection failed: {exc}"
     try:
         row = conn.execute("PRAGMA quick_check").fetchone()
+        return row[0] if row else "empty result"
+    except sqlite3.DatabaseError as exc:
+        return f"database error: {exc}"
+    finally:
+        conn.close()
+
+
+def _pragma_integrity_check(db_path: str | Path) -> str:
+    """Run PRAGMA integrity_check on a database file and return the result string."""
+    try:
+        conn = sqlite3.connect(str(db_path), timeout=5.0)
+    except sqlite3.Error as exc:
+        return f"connection failed: {exc}"
+    try:
+        row = conn.execute("PRAGMA integrity_check").fetchone()
         return row[0] if row else "empty result"
     except sqlite3.DatabaseError as exc:
         return f"database error: {exc}"
