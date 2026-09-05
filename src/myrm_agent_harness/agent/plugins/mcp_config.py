@@ -22,10 +22,10 @@ Per-server mcp.json variant parser for the framework-level plugin parser.
 
 from __future__ import annotations
 
-import contextlib
 import ipaddress
 import json
 import re
+from dataclasses import replace
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -164,6 +164,7 @@ def _parse_stdio(name: str, entry: dict[str, Any]) -> PluginMcpServer | None:
     env_key_names = [str(k) for k in env] if isinstance(env, dict) else []
     raw_env = {str(k): str(v) for k, v in env.items()} if isinstance(env, dict) else {}
 
+    from dataclasses import replace
     from .integrity import infer_server_capabilities
 
     server_obj = PluginMcpServer(
@@ -176,7 +177,7 @@ def _parse_stdio(name: str, entry: dict[str, Any]) -> PluginMcpServer | None:
         cwd=cwd,
         env_key_names=env_key_names,
         raw_env=raw_env,
-        capabilities=tuple(declared_caps),
+        capabilities=(),
     )
     return replace(server_obj, capabilities=infer_server_capabilities(server_obj))
 
@@ -224,17 +225,18 @@ def _parse_remote(name: str, entry: dict[str, Any], *, is_sse: bool) -> PluginMc
     if unknown:
         return None
 
+    from dataclasses import replace
     from .integrity import infer_server_capabilities
 
     server_obj = PluginMcpServer(
         name=name,
-        server_type=st,
+        server_type="sse" if is_sse else "streamable_http",
         command=None,
         args=None,
         url=url,
         headers=({str(k): str(v) for k, v in headers.items()} if isinstance(headers, dict) else None),
         cwd=None,
-        capabilities=tuple(declared_caps),
+        capabilities=(),
     )
     return replace(server_obj, capabilities=infer_server_capabilities(server_obj))
 

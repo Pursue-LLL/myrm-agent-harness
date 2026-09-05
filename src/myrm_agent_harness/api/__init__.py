@@ -797,6 +797,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.toolkits.code_execution.security.env_isolation",
         "EnvInheritPolicy",
     ),
+    "safe_purge_fts5_virtual_table": (
+        "myrm_agent_harness.utils.db.fts5",
+        "safe_purge_fts5_virtual_table",
+    ),
 }
 
 

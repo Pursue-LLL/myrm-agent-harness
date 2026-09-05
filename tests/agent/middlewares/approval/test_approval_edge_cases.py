@@ -1441,8 +1441,8 @@ async def test_session_scoped_denial_persistence() -> None:
 @pytest.mark.asyncio
 async def test_toctou_script_content_alteration_blocked(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that altering a script between approval and execution triggers SCRIPT_INTEGRITY_REJECT."""
-    from myrm_agent_harness.agent.middlewares.approval.middleware import ToolApprovalMiddleware
     from myrm_agent_harness.agent.middlewares._session_context import set_approval_user_id
+    from myrm_agent_harness.agent.middlewares.approval.middleware import ToolApprovalMiddleware
 
     user_id = "test_user_toctou"
     set_approval_user_id(user_id)
@@ -1483,6 +1483,7 @@ async def test_toctou_script_content_alteration_blocked(tmp_path, monkeypatch: p
     }
 
     result = await middleware.aafter_model(state, MockRuntime())
+    from langchain_core.messages import ToolMessage
     assert "messages" in result
     tool_msgs = [m for m in result["messages"] if isinstance(m, ToolMessage)]
     assert len(tool_msgs) == 1

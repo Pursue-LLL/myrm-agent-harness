@@ -65,12 +65,12 @@ def test_sentinel_replacement_in_headers_and_body() -> None:
 
     # Text substitution
     raw_header = f"Authorization: Bearer {sentinel_a}\nOther: {sentinel_b}"
-    replaced_header = mgr.replace_sentinels_str(raw_header)
+    replaced_header = mgr.substitute_text(raw_header)
     assert replaced_header == f"Authorization: Bearer {key_a}\nOther: {key_b}"
 
     # Bytes substitution
     raw_bytes = f'{{"token": "{sentinel_a}", "slack": "{sentinel_b}"}}'.encode("utf-8")
-    replaced_bytes = mgr.replace_sentinels_bytes(raw_bytes)
+    replaced_bytes = mgr.substitute_bytes(raw_bytes)
     assert replaced_bytes == f'{{"token": "{key_a}", "slack": "{key_b}"}}'.encode("utf-8")
 
 
@@ -104,7 +104,7 @@ def test_credential_env_overrides_sentinel_wrapping() -> None:
         issuer="github",
         user_id="user-1",
         token="ghp_real_secret_token_123",
-        scopes=("repo",),
+        scope="repo",
     )
 
     overrides = credential_env_overrides((cred,), use_sentinel=True)
@@ -120,21 +120,22 @@ def test_credential_env_overrides_sentinel_wrapping() -> None:
 async def test_proxy_server_lifecycle_and_env() -> None:
     """Verify loopback egress proxy starts, generates env overrides, and shuts down safely."""
     mgr = SentinelManager()
-    ca_mgr = EphemeralCaManager()
 
     proxy = LoopbackEgressProxy(
         sentinel_manager=mgr,
-        ca_manager=ca_mgr,
         host="127.0.0.1",
         port=0,
+        enable_tls_interception=True,
     )
 
     async with proxy:
-        assert proxy.port > 0
+        url = proxy.proxy_url
+        port = int(url.split(":")[-1])
+        assert port > 0
         overrides = proxy.get_env_overrides()
         assert "http_proxy" in overrides
         assert "https_proxy" in overrides
-        assert f"http://127.0.0.1:{proxy.port}" == overrides["http_proxy"]
+        assert f"http://127.0.0.1:{port}" == overrides["http_proxy"]
         assert "REQUESTS_CA_BUNDLE" in overrides
         assert "SSL_CERT_FILE" in overrides
         assert "NODE_EXTRA_CA_CERTS" in overrides

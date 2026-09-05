@@ -161,6 +161,11 @@ class LoopbackEgressProxy:
         self._running: bool = False
 
     @property
+    def port(self) -> int:
+        """Get the assigned port of the running proxy."""
+        return self._assigned_port
+
+    @property
     def proxy_url(self) -> str:
         """Get the HTTP proxy connection URL."""
         if not self._assigned_port:
@@ -171,6 +176,26 @@ class LoopbackEgressProxy:
     def ca_bundle_path(self) -> str | None:
         """Get path to the ephemeral CA bundle for environment variable injection."""
         return self._ca_manager.ca_bundle_path if self._ca_manager else None
+
+    def get_env_overrides(self) -> dict[str, str]:
+        """Generate process environment variable overrides for child process redirection."""
+        url = self.proxy_url
+        env: dict[str, str] = {
+            "http_proxy": url,
+            "https_proxy": url,
+            "HTTP_PROXY": url,
+            "HTTPS_PROXY": url,
+            "ALL_PROXY": url,
+            "NO_PROXY": "localhost,127.0.0.1,::1",
+            "no_proxy": "localhost,127.0.0.1,::1",
+        }
+        ca = self.ca_bundle_path
+        if ca:
+            env["REQUESTS_CA_BUNDLE"] = ca
+            env["SSL_CERT_FILE"] = ca
+            env["NODE_EXTRA_CA_CERTS"] = ca
+            env["CURL_CA_BUNDLE"] = ca
+        return env
 
     async def start(self) -> str:
         """Start the loopback proxy server.

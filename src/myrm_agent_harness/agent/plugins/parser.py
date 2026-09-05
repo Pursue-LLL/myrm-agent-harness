@@ -35,7 +35,6 @@ from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract
 
 from . import manifest, mcp_config
 from .integrity import (
-    infer_server_capabilities,
     verify_mcp_server_artifacts,
     verify_plugin_capability_diff,
 )
@@ -224,13 +223,11 @@ class AgentPluginParser:
             )
             raw_entry = target_path or ""
             missing_tuple = (raw_entry,) if (not is_valid and raw_entry) else ()
-            inferred_caps = infer_server_capabilities(server)
             updated_server = replace(
                 server,
                 is_runnable=is_valid,
                 missing_artifact=target_path if not is_valid else None,
                 missing_artifacts=missing_tuple,
-                capabilities=inferred_caps,
             )
             result.servers.append(updated_server)
 

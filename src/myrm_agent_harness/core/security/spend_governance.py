@@ -326,7 +326,6 @@ def compute_script_content_hash(target_path: str) -> str | None:
 
     Returns None if file does not exist, is not a regular file, or cannot be read.
     """
-    import os
     from pathlib import Path
 
     try:

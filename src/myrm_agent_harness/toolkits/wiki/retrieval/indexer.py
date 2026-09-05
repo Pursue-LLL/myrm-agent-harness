@@ -29,13 +29,23 @@ import sqlite3
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
+    EmbedInputTooLargeError,
+)
 from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
-from myrm_agent_harness.utils.db.fts5 import fts5_auto_heal, fts5_integrity_check, fts5_rebuild
+from myrm_agent_harness.utils.db.fts5 import (
+    fts5_auto_heal,
+    fts5_integrity_check,
+    fts5_rebuild,
+)
 from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 
 from ..core.config import WikiConfig
-from ..core.frontmatter_contract import PUBLISH_STATUS_KEY, WIKI_PUBLISH_STATUSES, WikiPublishStatus
+from ..core.frontmatter_contract import (
+    PUBLISH_STATUS_KEY,
+    WIKI_PUBLISH_STATUSES,
+    WikiPublishStatus,
+)
 from ..core.structure import WikiStructure
 from .graph_store import WikiGraphStore
 from .sidecar_index import _SIDECAR_PREFIX, SidecarIndexMixin
@@ -92,7 +102,9 @@ class WikiIndexer(SidecarIndexMixin):
         attached_count = 0
         for idx, p_dir in enumerate(self._structure.public_dirs):
             if attached_count >= 6:
-                logger.warning("Reached maximum federated public dirs attachment limit (6), skipping remaining.")
+                logger.warning(
+                    "Reached maximum federated public dirs attachment limit (6), skipping remaining."
+                )
                 break
             try:
                 pub_db = p_dir / ".wiki_index.db"
@@ -114,36 +126,46 @@ class WikiIndexer(SidecarIndexMixin):
     def _init_db(self) -> None:
         with self._get_conn() as conn:
             # Use FTS5 for full-text search
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE VIRTUAL TABLE IF NOT EXISTS wiki_fts USING fts5(
                     concept_name,
                     truth_content,
                     tokenize="unicode61 remove_diacritics 1"
                 )
-            """)
+            """
+            )
             # 增量 O(1) 图谱双链关系表 (Holographic Graph Persistence)
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS wiki_edges(
                     source TEXT,
                     target TEXT,
                     weight REAL DEFAULT 1.0,
                     PRIMARY KEY (source, target)
                 )
-            """)
+            """
+            )
             # Migrate: add weight column to existing tables created before this version
             # (OperationalError means the column already exists).
             with contextlib.suppress(sqlite3.OperationalError):
-                conn.execute("ALTER TABLE wiki_edges ADD COLUMN weight REAL DEFAULT 1.0")
+                conn.execute(
+                    "ALTER TABLE wiki_edges ADD COLUMN weight REAL DEFAULT 1.0"
+                )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_wiki_edges_target ON wiki_edges(target)
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS wiki_index_meta(
                     concept_name TEXT PRIMARY KEY,
                     publish_status TEXT NOT NULL DEFAULT 'published'
                 )
-            """)
+            """
+            )
 
             if not fts5_integrity_check(conn, "wiki_fts"):
                 logger.warning("FTS5 index corrupted on startup, rebuilding: wiki_fts")
@@ -166,9 +188,13 @@ class WikiIndexer(SidecarIndexMixin):
                 "SELECT target, weight FROM wiki_edges WHERE source = ? ORDER BY weight DESC",
                 (source,),
             )
-            return [(str(row["target"]), float(row["weight"])) for row in cursor.fetchall()]
+            return [
+                (str(row["target"]), float(row["weight"])) for row in cursor.fetchall()
+            ]
 
-    def upsert_edges(self, source: str, targets: list[str], source_files: list[str] | None = None) -> None:
+    def upsert_edges(
+        self, source: str, targets: list[str], source_files: list[str] | None = None
+    ) -> None:
         """Upsert directional edges with multi-dimensional weight calculation."""
         with self._get_conn() as conn:
             conn.execute("DELETE FROM wiki_edges WHERE source = ?", (source,))
@@ -182,7 +208,11 @@ class WikiIndexer(SidecarIndexMixin):
                 )
 
     def _calculate_edge_weight(
-        self, conn: sqlite3.Connection, source: str, target: str, source_files: list[str] | None
+        self,
+        conn: sqlite3.Connection,
+        source: str,
+        target: str,
+        source_files: list[str] | None,
     ) -> float:
         """
         Multi-dimensional edge weight: direct_link(3.0) + source_overlap(4.0) + common_neighbors(1.5).
@@ -191,16 +221,22 @@ class WikiIndexer(SidecarIndexMixin):
 
         # Source overlap: check if target's sources overlap with source's
         if source_files:
-            cursor = conn.execute("SELECT source FROM wiki_edges WHERE target = ? LIMIT 20", (target,))
+            cursor = conn.execute(
+                "SELECT source FROM wiki_edges WHERE target = ? LIMIT 20", (target,)
+            )
             target_neighbors = {row["source"] for row in cursor.fetchall()}
             # If target links back to concepts that share source files, add overlap bonus
             if target_neighbors:
                 weight += min(len(target_neighbors) * 0.5, 4.0)
 
         # Common neighbors (Adamic-Adar inspired): shared connections indicate relatedness
-        cursor = conn.execute("SELECT target FROM wiki_edges WHERE source = ?", (source,))
+        cursor = conn.execute(
+            "SELECT target FROM wiki_edges WHERE source = ?", (source,)
+        )
         source_neighbors = {row["target"] for row in cursor.fetchall()}
-        cursor = conn.execute("SELECT target FROM wiki_edges WHERE source = ?", (target,))
+        cursor = conn.execute(
+            "SELECT target FROM wiki_edges WHERE source = ?", (target,)
+        )
         target_out_neighbors = {row["target"] for row in cursor.fetchall()}
 
         common = source_neighbors & target_out_neighbors
@@ -304,13 +340,20 @@ class WikiIndexer(SidecarIndexMixin):
                     )
                     r = c.fetchone()
                     if r is not None:
-                        return str(r["publish_status"]) == WikiPublishStatus.PUBLISHED.value
+                        return (
+                            str(r["publish_status"])
+                            == WikiPublishStatus.PUBLISHED.value
+                        )
                 except (sqlite3.OperationalError, sqlite3.DatabaseError):
                     continue
         return True
 
-    def _filter_published(self, conn: sqlite3.Connection, results: list[tuple[str, float]]) -> list[tuple[str, float]]:
-        return [(name, score) for name, score in results if self._is_published(conn, name)]
+    def _filter_published(
+        self, conn: sqlite3.Connection, results: list[tuple[str, float]]
+    ) -> list[tuple[str, float]]:
+        return [
+            (name, score) for name, score in results if self._is_published(conn, name)
+        ]
 
     async def upsert(self, concept_name: str, full_markdown: str) -> None:
         """
@@ -322,10 +365,16 @@ class WikiIndexer(SidecarIndexMixin):
         def sync_upsert() -> None:
             indexed_truth = build_cjk_index_segment(f"{concept_name} {truth_content}")
             with self._get_conn() as conn:
-                conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (concept_name,))
-                conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (f"raw:{concept_name}",))
                 conn.execute(
-                    "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)", (concept_name, indexed_truth)
+                    "DELETE FROM wiki_fts WHERE concept_name = ?", (concept_name,)
+                )
+                conn.execute(
+                    "DELETE FROM wiki_fts WHERE concept_name = ?",
+                    (f"raw:{concept_name}",),
+                )
+                conn.execute(
+                    "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)",
+                    (concept_name, indexed_truth),
                 )
                 conn.execute(
                     "INSERT OR REPLACE INTO wiki_index_meta (concept_name, publish_status) VALUES (?, ?)",
@@ -362,7 +411,9 @@ class WikiIndexer(SidecarIndexMixin):
                 # vector failures degrade gracefully to FTS-only.
                 raise
             except Exception as e:
-                logger.warning(f"Vector upsert failed for wiki concept '{concept_name}', keeping FTS only: {e}")
+                logger.warning(
+                    f"Vector upsert failed for wiki concept '{concept_name}', keeping FTS only: {e}"
+                )
 
     async def delete(self, concept_name: str) -> None:
         """
@@ -372,9 +423,17 @@ class WikiIndexer(SidecarIndexMixin):
         # 1. Delete from SQLite FTS5 and edges (Sync wrapped in async thread)
         def sync_delete() -> None:
             with self._get_conn() as conn:
-                conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (concept_name,))
-                conn.execute("DELETE FROM wiki_edges WHERE source = ? OR target = ?", (concept_name, concept_name))
-                conn.execute("DELETE FROM wiki_index_meta WHERE concept_name = ?", (concept_name,))
+                conn.execute(
+                    "DELETE FROM wiki_fts WHERE concept_name = ?", (concept_name,)
+                )
+                conn.execute(
+                    "DELETE FROM wiki_edges WHERE source = ? OR target = ?",
+                    (concept_name, concept_name),
+                )
+                conn.execute(
+                    "DELETE FROM wiki_index_meta WHERE concept_name = ?",
+                    (concept_name,),
+                )
 
         await asyncio.to_thread(sync_delete)
 
@@ -388,9 +447,13 @@ class WikiIndexer(SidecarIndexMixin):
                     metadata_key="concept_name",
                 )
             except Exception as e:
-                logger.error(f"Failed to delete vector for wiki concept '{concept_name}': {e}")
+                logger.error(
+                    f"Failed to delete vector for wiki concept '{concept_name}': {e}"
+                )
 
-    async def search(self, query: str, limit: int = 5, offset: int = 0) -> list[tuple[str, float]]:
+    async def search(
+        self, query: str, limit: int = 5, offset: int = 0
+    ) -> list[tuple[str, float]]:
         """
         Search the index and return (concept_name, score).
         If Hybrid Search is enabled, performs FTS5 + Vector search and fuses via RRF.
@@ -409,7 +472,8 @@ class WikiIndexer(SidecarIndexMixin):
                 try:
                     fts_tables = ["wiki_fts"]
                     attached_dbs = {
-                        str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()
+                        str(row["name"])
+                        for row in conn.execute("PRAGMA database_list").fetchall()
                     }
                     for idx in range(min(len(self._structure.public_dirs), 6)):
                         alias = f"pub_{idx}"
@@ -453,7 +517,9 @@ class WikiIndexer(SidecarIndexMixin):
                                 continue
                             # FTS5 rank is negative, lower is better. We invert it for RRF fusion.
                             # Primary vault has decay=1.0; attached federated public vaults receive 0.9 to prevent generic terms from overtaking primary truths.
-                            decay = 0.9 if str(row["src_tbl"]).startswith("pub_") else 1.0
+                            decay = (
+                                0.9 if str(row["src_tbl"]).startswith("pub_") else 1.0
+                            )
                             score = (1.0 / (abs(row["rank"]) + 1.0)) * decay
                             results.append((row["concept_name"], score))
                     results[:] = self._filter_published(conn, results)
@@ -475,7 +541,11 @@ class WikiIndexer(SidecarIndexMixin):
                             for row in cursor.fetchall():
                                 if self._is_sidecar_entry(str(row["concept_name"])):
                                     continue
-                                decay = 0.9 if str(row["src_tbl"]).startswith("pub_") else 1.0
+                                decay = (
+                                    0.9
+                                    if str(row["src_tbl"]).startswith("pub_")
+                                    else 1.0
+                                )
                                 score = (1.0 / (abs(row["rank"]) + 1.0)) * decay
                                 results.append((row["concept_name"], score))
                         results[:] = self._filter_published(conn, results)
@@ -495,7 +565,9 @@ class WikiIndexer(SidecarIndexMixin):
                     self._collection_name, query_vector=query_vec, limit=search_limit
                 )
                 for res in search_res[offset:]:
-                    candidate = str(res.document.metadata.get("concept_name", res.document.id))
+                    candidate = str(
+                        res.document.metadata.get("concept_name", res.document.id)
+                    )
                     if self._is_sidecar_entry(candidate):
                         continue
                     vec_results.append((candidate, res.score))
@@ -508,7 +580,9 @@ class WikiIndexer(SidecarIndexMixin):
 
         if vec_results:
 
-            def sync_filter_vec(results: list[tuple[str, float]]) -> list[tuple[str, float]]:
+            def sync_filter_vec(
+                results: list[tuple[str, float]],
+            ) -> list[tuple[str, float]]:
                 with self._get_conn() as conn:
                     return self._filter_published(conn, results)
 
@@ -517,7 +591,9 @@ class WikiIndexer(SidecarIndexMixin):
         # 3. Hybrid Fusion (RRF)
         if self._config.enable_hybrid_search and self._vector and self._embedding:
             if fts_results or vec_results:
-                final_results = rrf_fusion([fts_results, vec_results], k=getattr(self._config, "rrf_k", 60))
+                final_results = rrf_fusion(
+                    [fts_results, vec_results], k=getattr(self._config, "rrf_k", 60)
+                )
             else:
                 final_results = []
         else:
@@ -534,7 +610,8 @@ class WikiIndexer(SidecarIndexMixin):
                 return None
             fts_tables = ["wiki_fts"]
             attached_dbs = {
-                str(row["name"]) for row in conn.execute("PRAGMA database_list").fetchall()
+                str(row["name"])
+                for row in conn.execute("PRAGMA database_list").fetchall()
             }
             for idx in range(min(len(self._structure.public_dirs), 6)):
                 alias = f"pub_{idx}"
@@ -548,7 +625,10 @@ class WikiIndexer(SidecarIndexMixin):
                     except (sqlite3.OperationalError, sqlite3.DatabaseError):
                         continue
 
-            fts_union = " UNION ALL ".join(f"SELECT truth_content FROM {t} WHERE concept_name = ?" for t in fts_tables)
+            fts_union = " UNION ALL ".join(
+                f"SELECT truth_content FROM {t} WHERE concept_name = ?"
+                for t in fts_tables
+            )
             params = (concept_name,) * len(fts_tables)
 
             cursor = conn.execute(fts_union, params)
@@ -566,7 +646,9 @@ class WikiIndexer(SidecarIndexMixin):
             truth_content += f"---\n{yaml_match.group(1)}\n---\n\n"
 
         # 2. Extract Truth section
-        truth_match = re.search(r"(## Compiled Truth\n.*?)(?=\n## |$)", content, re.DOTALL)
+        truth_match = re.search(
+            r"(## Compiled Truth\n.*?)(?=\n## |$)", content, re.DOTALL
+        )
         if truth_match:
             truth_content += truth_match.group(1).strip()
         else:

@@ -21,12 +21,10 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T")
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +53,7 @@ class RecallDebug:
 
 
 @dataclass(frozen=True, slots=True)
-class RankedList(Generic[T]):
+class RankedList[T]:
     """A ranked list of candidate items from a single retrieval source."""
 
     source: str
@@ -65,7 +63,7 @@ class RankedList(Generic[T]):
 
 
 @dataclass(frozen=True, slots=True)
-class FusedHit(Generic[T]):
+class FusedHit[T]:
     """A fused result item with normalized score and provenance tracking."""
 
     item: T
@@ -96,11 +94,11 @@ def fuse_rrf_deterministic[T](
     if not lists:
         return [], RecallDebug(per_source=[], fused_count=0)
 
-    active_lists = [l for l in lists if l.items]
+    active_lists = [r_list for r_list in lists if r_list.items]
     if not active_lists:
         per_source = [
-            SourceDebugStats(source=l.source, count=0, latency_ms=l.latency_ms)
-            for l in lists
+            SourceDebugStats(source=r_list.source, count=0, latency_ms=r_list.latency_ms)
+            for r_list in lists
         ]
         return [], RecallDebug(per_source=per_source, fused_count=0)
 
@@ -110,7 +108,7 @@ def fuse_rrf_deterministic[T](
     hit_by_map: defaultdict[str, list[SourceRank]] = defaultdict(list)
 
     # Calculate theoretical maximum possible RRF for active sources at rank 1
-    max_theoretical_rrf = sum((l.weight / (k + 1)) for l in active_lists)
+    max_theoretical_rrf = sum((r_list.weight / (k + 1)) for r_list in active_lists)
     if max_theoretical_rrf <= 0:
         max_theoretical_rrf = 1.0 / (k + 1)
 
@@ -126,7 +124,7 @@ def fuse_rrf_deterministic[T](
             hit_by_map[key].append(SourceRank(source=r_list.source, rank=rank))
 
     fused_candidates: list[tuple[str, float, float, list[SourceRank]]] = []
-    for key, item in item_map.items():
+    for key in item_map:
         raw_score = score_map[key]
         normalized_score = min(1.0, (raw_score / max_theoretical_rrf) * normalize_target)
         fused_candidates.append((key, normalized_score, raw_score, hit_by_map[key]))
@@ -152,8 +150,8 @@ def fuse_rrf_deterministic[T](
 
     recall_debug = RecallDebug(
         per_source=[
-            SourceDebugStats(source=l.source, count=len(l.items), latency_ms=l.latency_ms)
-            for l in lists
+            SourceDebugStats(source=r_list.source, count=len(r_list.items), latency_ms=r_list.latency_ms)
+            for r_list in lists
         ],
         fused_count=len(fused_hits),
     )
