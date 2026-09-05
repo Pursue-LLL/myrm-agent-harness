@@ -446,10 +446,10 @@ class MemorySearchService:
         deadline: float,
         since: datetime | None = None,
         until: datetime | None = None,
-    ) -> tuple[list[list[MemorySearchResult]], bool, list[str]]:
+    ) -> tuple[list[list[MemorySearchResult]], bool, list[str], list[str]]:
         """Fan out per-type store searches and collect results under one deadline.
 
-        Returns ``(result_lists, degraded, warning_codes)``. Store tasks that outlive
+        Returns ``(result_lists, degraded, warning_codes, source_names)``. Store tasks that outlive
         the shared wall-clock deadline are cancelled and whatever already completed is kept,
         so a hanging remote store degrades recall instead of blocking the agent turn.
         """
@@ -488,7 +488,7 @@ class MemorySearchService:
             task_stream_map[bm25_task] = "bm25"
 
         if not tasks:
-            return [], False, []
+            return [], False, [], []
 
         done, pending = await asyncio.wait(
             tasks,
