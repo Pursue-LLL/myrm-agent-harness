@@ -33,7 +33,6 @@ from typing import Any
 from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract_zip
 
 from . import manifest, mcp_config
-from .integrity import verify_mcp_server_artifacts as _check_server_artifact_integrity
 from .manifest import decode_manifest_json, parse_manifest
 from .mcp_config import decode_mcp_json, parse_mcp_servers
 from .models import PluginAgent, PluginDiagnosticLevel, PluginParseResult, PluginSkill

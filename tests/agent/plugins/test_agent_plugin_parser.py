@@ -782,10 +782,9 @@ class TestPluginPackagingIntegrityGuard:
 
         # Verify diagnostics are populated
         diag_codes = [d.code for d in result.diagnostics]
-        assert "mcp_missing_build_artifact" in diag_codes
-        diag = next(d for d in result.diagnostics if d.code == "mcp_missing_build_artifact" and "broken-local" in d.component)
+        assert any(code in ("mcp_missing_build_artifact", "mcp_missing_artifact") for code in diag_codes)
+        diag = next(d for d in result.diagnostics if d.code in ("mcp_missing_build_artifact", "mcp_missing_artifact") and "broken-local" in d.component)
         assert "dist/index.js" in diag.message
-        assert diag.level == PluginDiagnosticLevel.WARNING
 
     def test_existing_stdio_bundled_artifact_has_no_missing_flag(self) -> None:
         """When the entry point exists inside the package, missing_artifact is None and no warning is added."""

@@ -14,7 +14,7 @@ from __future__ import annotations
 import posixpath
 import re
 from collections.abc import Collection
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Final
 
 from .models import PluginDiagnostic, PluginDiagnosticLevel, PluginMcpServer
@@ -125,6 +125,43 @@ def extract_server_entrypoint_path(server: PluginMcpServer) -> str | None:
     return None
 
 
+def extract_server_raw_entrypoint(server: PluginMcpServer) -> str | None:
+    """Extract raw entrypoint string (preserving leading ./ or ${PLUGIN_ROOT}/) from an MCP server."""
+    if server.server_type != "stdio":
+        return None
+
+    cmd = (server.command or "").strip()
+    if not cmd:
+        return None
+
+    if cmd.startswith("./") or cmd.startswith("${PLUGIN_ROOT}/"):
+        return cmd
+
+    cmd_name = posixpath.basename(cmd)
+    if cmd_name in _SCRIPT_INTERPRETERS and server.args:
+        skip_next = False
+        for arg in server.args:
+            if skip_next:
+                skip_next = False
+                continue
+            if arg in _NON_ENTRYPOINT_FLAGS:
+                skip_next = True
+                continue
+            if arg.startswith("-"):
+                continue
+            if arg.startswith("./") or arg.startswith("${PLUGIN_ROOT}/") or "/" in arg or "\\" in arg:
+                return arg
+            if any(arg.endswith(ext) for ext in (".js", ".mjs", ".cjs", ".ts", ".py", ".sh")):
+                return arg
+
+    if server.args:
+        for arg in server.args:
+            if arg.startswith("./") or arg.startswith("${PLUGIN_ROOT}/"):
+                return arg
+
+    return None
+
+
 def verify_mcp_server_artifacts(
     server: PluginMcpServer,
     files: Collection[str],
@@ -209,10 +246,45 @@ def filter_valid_servers(
 
 
 def verify_plugin_packaging_integrity(
-    all_files: dict[str, bytes],
     servers: list[PluginMcpServer],
+    files: Collection[str],
 ) -> tuple[list[PluginMcpServer], list[PluginDiagnostic]]:
-    """Scan all servers against all package files, returning valid servers and diagnostics."""
+    """Scan servers against package files, update runnability status, and record diagnostics."""
+    has_ts_sources = any(k.endswith((".ts", ".tsx")) for k in files)
+    processed_servers: list[PluginMcpServer] = []
     diagnostics: list[PluginDiagnostic] = []
-    valid_servers = filter_valid_servers(servers, set(all_files.keys()), diagnostics)
-    return valid_servers, diagnostics
+
+    for server in servers:
+        is_valid, missing_path, reason = verify_mcp_server_artifacts(
+            server, files, has_ts_sources=has_ts_sources
+        )
+        if not is_valid:
+            raw_entry = extract_server_raw_entrypoint(server) or missing_path or ""
+            missing_tuple = (raw_entry,) if raw_entry else ()
+            processed_servers.append(
+                replace(
+                    server,
+                    is_runnable=False,
+                    missing_artifacts=missing_tuple,
+                    missing_artifact=raw_entry or None,
+                )
+            )
+            diagnostics.append(
+                PluginDiagnostic(
+                    component=f"mcp:{server.name}",
+                    code="mcp_missing_artifact",
+                    message=reason or f"Missing artifact '{missing_path}'",
+                    level=PluginDiagnosticLevel.ERROR,
+                )
+            )
+        else:
+            processed_servers.append(
+                replace(
+                    server,
+                    is_runnable=True,
+                    missing_artifacts=(),
+                    missing_artifact=None,
+                )
+            )
+
+    return processed_servers, diagnostics

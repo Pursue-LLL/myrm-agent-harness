@@ -286,3 +286,45 @@ class TestAuditPackageEntryArtifacts:
         findings = audit_skill_directory(tmp_path)
         assert any(f.threat_type == "missing_artifact" for f in findings)
 
+    def test_implicit_extension_and_directory_index_resolution(self, tmp_path):
+        from myrm_agent_harness.backends.skills.scanning.package_audit import (
+            audit_package_entry_artifacts,
+        )
+
+        dist_dir = tmp_path / "dist"
+        dist_dir.mkdir()
+        (dist_dir / "index.js").write_text("console.log('main');")
+
+        # 1. Main omitting .js extension
+        pkg_omit_ext = {"name": "omit-ext", "main": "dist/index"}
+        assert audit_package_entry_artifacts(pkg_omit_ext, tmp_path) == []
+
+        # 2. Main pointing to directory (implicit /index.js)
+        pkg_dir = {"name": "dir-pkg", "main": "./dist"}
+        assert audit_package_entry_artifacts(pkg_dir, tmp_path) == []
+
+    def test_nested_conditional_exports_inspection(self, tmp_path):
+        from myrm_agent_harness.backends.skills.scanning.package_audit import (
+            audit_package_entry_artifacts,
+        )
+
+        dist_dir = tmp_path / "dist"
+        dist_dir.mkdir()
+        (dist_dir / "index.mjs").write_text("export default 1;")
+        # Notice index.cjs is intentionally missing
+
+        pkg = {
+            "name": "esm-cjs-pkg",
+            "exports": {
+                ".": {
+                    "import": "./dist/index.mjs",
+                    "require": "./dist/index.cjs",
+                }
+            },
+        }
+        findings = audit_package_entry_artifacts(pkg, tmp_path)
+        assert len(findings) == 1
+        assert findings[0].threat_type == "missing_artifact"
+        assert "dist/index.cjs" in findings[0].detail
+
+

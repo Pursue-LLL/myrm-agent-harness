@@ -226,16 +226,47 @@ def audit_package_entry_artifacts(
                     _verify_entry_artifact(cmd_path.strip(), base_dir, manifest_rel_path, f"bin[{cmd_name}]")
                 )
 
-    # 3. Audit "exports" default entry
+    # 3. Audit "exports" entries (supporting conditional exports and nested maps)
     exports_val = pkg.get("exports")
-    if isinstance(exports_val, str) and exports_val.strip():
-        findings.extend(_verify_entry_artifact(exports_val.strip(), base_dir, manifest_rel_path, "exports"))
-    elif isinstance(exports_val, dict):
-        dot_export = exports_val.get(".")
-        if isinstance(dot_export, str) and dot_export.strip():
-            findings.extend(_verify_entry_artifact(dot_export.strip(), base_dir, manifest_rel_path, "exports['.']"))
+    if exports_val is not None:
+        for target in _collect_export_targets(exports_val):
+            findings.extend(_verify_entry_artifact(target, base_dir, manifest_rel_path, "exports"))
 
     return findings
+
+
+def _collect_export_targets(val: object) -> list[str]:
+    """Recursively collect relative file paths from nested conditional exports."""
+    targets: list[str] = []
+    if isinstance(val, str) and val.strip():
+        targets.append(val.strip())
+    elif isinstance(val, dict):
+        for sub_val in val.values():
+            targets.extend(_collect_export_targets(sub_val))
+    elif isinstance(val, list):
+        for sub_val in val:
+            targets.extend(_collect_export_targets(sub_val))
+    return targets
+
+
+def _resolve_artifact_file(base_dir: Path, clean_entry: str) -> Path | None:
+    """Resolve physical file respecting Node.js extension and directory index conventions."""
+    direct = base_dir / clean_entry
+    if direct.is_file():
+        return direct
+
+    extensions = (".js", ".cjs", ".mjs", ".json")
+    for ext in extensions:
+        candidate = base_dir / f"{clean_entry}{ext}"
+        if candidate.is_file():
+            return candidate
+
+    for ext in extensions:
+        candidate = base_dir / clean_entry / f"index{ext}"
+        if candidate.is_file():
+            return candidate
+
+    return None
 
 
 def _verify_entry_artifact(
@@ -265,8 +296,8 @@ def _verify_entry_artifact(
         )
         return findings
 
-    target_path = base_dir / clean_entry
-    if not target_path.exists():
+    resolved_file = _resolve_artifact_file(base_dir, clean_entry)
+    if resolved_file is None:
         ts_hint = ""
         src_dir = base_dir / "src"
         if src_dir.is_dir() and any(src_dir.glob("*.ts")):
@@ -281,7 +312,7 @@ def _verify_entry_artifact(
                 detail=f"Missing file: {clean_entry}.{ts_hint}",
             )
         )
-    elif target_path.is_file() and target_path.stat().st_size == 0:
+    elif resolved_file.stat().st_size == 0:
         findings.append(
             PackageAuditFinding(
                 threat_type="empty_artifact",
