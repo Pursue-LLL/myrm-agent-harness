@@ -129,3 +129,28 @@ def test_edge_cases_and_error_handling() -> None:
     # 5. Invalid float32 byte length
     with pytest.raises(ValueError, match="must be a multiple of 4"):
         decode_float32(b"\x00\x01\x02")
+
+
+@pytest.mark.asyncio
+async def test_qdrant_store_quantization_config() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+    from myrm_agent_harness.toolkits.vector.config import VectorStoreConfig
+    from myrm_agent_harness.toolkits.vector.qdrant.store import QdrantVectorStore
+
+    mock_client = MagicMock()
+    mock_client.collection_exists = AsyncMock(return_value=False)
+    mock_client.create_collection = AsyncMock()
+
+    config = VectorStoreConfig(
+        embedding_dimension=1536,
+        quantization_enabled=True,
+    )
+    store = QdrantVectorStore(client=mock_client, config=config, is_async=True)
+
+    created = await store.create_collection("quantized_collection", dimension=1024)
+    assert created is True
+    assert mock_client.create_collection.call_count == 1
+    call_kwargs = mock_client.create_collection.call_args.kwargs
+    assert call_kwargs["collection_name"] == "quantized_collection"
+    assert "quantization_config" in call_kwargs
+

@@ -213,9 +213,45 @@ class TranscriptClassifier:
             )
         except Exception:
             logger.warning(
-                "Transcript classifier failed, defaulting to UNCERTAIN",
+                "Transcript classifier structured output failed, falling back to raw invocation",
                 exc_info=True,
             )
+            # Resilient fallback: attempt raw text invocation and extract decision
+            try:
+                from langchain_core.messages import HumanMessage, SystemMessage
+                fallback_prompt = (
+                    f"{_SYSTEM_PROMPT}\n\nRespond with valid JSON: "
+                    '{"decision": "allow" | "deny" | "uncertain", "reason": "short explanation"}'
+                )
+                raw_messages = [
+                    SystemMessage(content=fallback_prompt),
+                    HumanMessage(content=user_msg),
+                ]
+                raw_llm = self._llm.bind(**_CLASSIFIER_LLM_OVERRIDES)
+                raw_resp = await asyncio.wait_for(raw_llm.ainvoke(raw_messages), timeout=self._timeout)
+                raw_content = getattr(raw_resp, "content", "")
+                if isinstance(raw_content, list):
+                    raw_content = " ".join(str(c) for c in raw_content)
+                raw_str = str(raw_content).strip().lower()
+
+                # Robust JSON or bare token parsing
+                if "{" in raw_str and "}" in raw_str:
+                    import json
+                    try:
+                        extracted = json.loads(raw_str[raw_str.find("{"):raw_str.rfind("}") + 1])
+                        if isinstance(extracted, dict) and "decision" in extracted:
+                            dec_str = str(extracted["decision"]).lower().strip()
+                            dec = _DECISION_MAP.get(dec_str, ReviewDecision.UNCERTAIN)
+                            return ReviewResult(decision=dec, reason=str(extracted.get("reason", "")))
+                    except Exception:
+                        pass
+
+                for candidate in ("deny", "allow", "uncertain"):
+                    if candidate in raw_str:
+                        return ReviewResult(decision=_DECISION_MAP[candidate], reason=f"Extracted from text: {raw_str[:100]}")
+            except Exception:
+                logger.warning("Classifier raw fallback also failed", exc_info=True)
+
             return ReviewResult(
                 decision=ReviewDecision.UNCERTAIN,
                 reason="Transcript classifier error",

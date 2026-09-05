@@ -417,7 +417,6 @@ class TestAgentPluginParser:
                         },
                     }
                 ),
-                "bin/pdf": "#!/bin/sh\necho pdf",
             }
         )
         result = AgentPluginParser().parse_zip(zip_bytes)

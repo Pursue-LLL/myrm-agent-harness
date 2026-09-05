@@ -132,12 +132,36 @@ class QdrantVectorStore(VectorStore):
         }
         qdrant_distance = distance_map.get(distance.lower(), Distance.COSINE)
 
+        quantization_config = None
+        if getattr(self._config, "quantization_enabled", False):
+            try:
+                from qdrant_client.models import (
+                    ScalarQuantization,
+                    ScalarQuantizationConfig,
+                    ScalarType,
+                )
+
+                quantization_config = ScalarQuantization(
+                    scalar=ScalarQuantizationConfig(
+                        type=ScalarType.INT8,
+                        always_ram=True,
+                    )
+                )
+            except Exception as e:
+                logger.warning("Failed to configure Qdrant scalar quantization: %s", e)
+
+        create_kwargs: dict[str, object] = {
+            "collection_name": name,
+            "vectors_config": VectorParams(size=dim, distance=qdrant_distance),
+        }
+        if quantization_config is not None:
+            create_kwargs["quantization_config"] = quantization_config
+
         await self._with_retry(
             self._client.create_collection,  # type: ignore[attr-defined]
-            collection_name=name,
-            vectors_config=VectorParams(size=dim, distance=qdrant_distance),
+            **create_kwargs,
         )
-        logger.debug(f"Created collection: {name} (dim={dim}, distance={distance})")
+        logger.debug(f"Created collection: {name} (dim={dim}, distance={distance}, quant={quantization_config is not None})")
         return True
 
     async def ensure_collection(

@@ -95,6 +95,8 @@ class PluginMcpServer:
     cwd: str | None
     env_key_names: list[str] = field(default_factory=list)
     raw_env: dict[str, str] = field(default_factory=dict)
+    is_runnable: bool = True
+    missing_artifacts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

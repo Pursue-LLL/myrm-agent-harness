@@ -61,6 +61,10 @@ class VectorStoreConfig(BaseModel):
     # Common
     default_collection_prefix: str = Field(default="default", description="Default prefix for collection names")
     embedding_dimension: int = Field(default=1536, description="Default embedding vector dimension")
+    quantization_enabled: bool = Field(
+        default=False,
+        description="Whether to enable int8 scalar quantization on created collections (4x memory reduction)",
+    )
 
     def get_collection_name(self, name: str) -> str:
         """Get full collection name with prefix."""
