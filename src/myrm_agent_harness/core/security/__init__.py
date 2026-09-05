@@ -43,6 +43,7 @@ from myrm_agent_harness.core.security.spend_governance import (
     compute_action_digest,
     is_financial_or_spend_tool,
     is_irreversible_social_action,
+    is_shell_execution_tool,
     parse_spend_amount,
     verify_action_digest,
 )
@@ -72,6 +73,7 @@ __all__ = [
     "get_registered_contract",
     "is_financial_or_spend_tool",
     "is_irreversible_social_action",
+    "is_shell_execution_tool",
     "list_registered_contracts",
     "parse_spend_amount",
     "register_missing_semantics_contract",
