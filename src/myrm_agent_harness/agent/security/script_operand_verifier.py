@@ -227,7 +227,7 @@ def verify_script_operand_integrity(
         return (
             False,
             f"Approved script file '{file_path}' was modified before execution "
-            f"(expected sha256={expected_hash[:12]}..., current={current_hash[:12]}...)",
+            f"(TOCTOU detected: expected sha256={expected_hash[:12]}..., current={current_hash[:12]}...)",
         )
 
     return True, None

@@ -64,7 +64,7 @@ async def test_script_operand_toctou_defense_lifecycle(tmp_path: Path) -> None:
     assert len(auto_denied) == 0
     assert len(pending) == 1
 
-    idx, tc, perm_type, reason, extra_ctx = pending[0]
+    idx, _tc, _perm_type, _reason, extra_ctx = pending[0]
     assert extra_ctx is not None
     assert extra_ctx.get("script_operand_path") == str(script.resolve())
     assert extra_ctx.get("script_operand_hash") is not None
@@ -76,7 +76,7 @@ async def test_script_operand_toctou_defense_lifecycle(tmp_path: Path) -> None:
     script.write_text("#!/bin/bash\necho 'MALICIOUS_TAMPERED'", encoding="utf-8")
 
     # 3. User clicks approve
-    decisions = [{"action_id": idx, "decision": "approve"}]
+    decisions = [{"action_id": idx, "type": "approve"}]
     approved_calls, error_msgs, _ = await apply_approval_decisions(
         decisions=decisions,
         last_ai_msg=last_ai_msg,
@@ -91,7 +91,7 @@ async def test_script_operand_toctou_defense_lifecycle(tmp_path: Path) -> None:
     assert len(approved_calls) == 0
     assert len(error_msgs) == 1
     assert "Security Blocked" in error_msgs[0].content
-    assert "TOCTOU detected" in error_msgs[0].content
+    assert "modified before execution" in error_msgs[0].content
     assert error_msgs[0].status == "error"
 
 
@@ -134,7 +134,7 @@ async def test_script_operand_untampered_passes_approval(tmp_path: Path) -> None
     last_ai_msg = AIMessage(content="", tool_calls=[tool_call])
 
     # File is NOT mutated
-    decisions = [{"action_id": idx, "decision": "approve"}]
+    decisions = [{"action_id": idx, "type": "approve"}]
     approved_calls, error_msgs, _ = await apply_approval_decisions(
         decisions=decisions,
         last_ai_msg=last_ai_msg,

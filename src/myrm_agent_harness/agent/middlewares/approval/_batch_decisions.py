@@ -359,7 +359,7 @@ async def apply_approval_decisions(
                 else tool_name
             )
 
-            decision_type = decision.get("type", "reject")
+            decision_type = decision.get("type") or decision.get("decision") or "reject"
             extensions = decision.get("extensions", {})
             allow_always = (
                 decision.get("allow_always", extensions.get("allowAlways", False))
