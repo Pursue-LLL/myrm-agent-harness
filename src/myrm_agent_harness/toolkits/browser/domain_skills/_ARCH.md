@@ -25,6 +25,7 @@ SiteExperience (prompt layer)     DomainSkill (executable layer)
 | __init__.py | Package | Re-exports DomainSkillStore, DomainSkillManifest, DomainTool | ✅ |
 | types.py | Core | DomainSkillManifest, DomainTool frozen dataclasses | ✅ |
 | store.py | Core | DomainSkillStore: manifest loading, domain matching, builtin detection, singleton | ✅ |
+| social_export.py | Utility | Social media data export helper (Excel .xlsx / UTF-8-SIG CSV) | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
