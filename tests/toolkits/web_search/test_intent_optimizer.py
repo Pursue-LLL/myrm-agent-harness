@@ -314,10 +314,13 @@ class TestResolveSearchParams:
         assert params is not None
         assert params["topic"] == "finance"
 
-    def test_tavily_code_returns_none(self):
+    def test_tavily_code_params(self):
         intent_result = SearchIntentResult(intent=SearchIntent.CODE, confidence=0.9)
         params = resolve_search_params(intent_result, "tavily")
-        assert params is None
+        assert params == _TAVILY_INTENT_PARAMS[SearchIntent.CODE]
+        assert "include_domains" in params
+        assert "github.com" in params["include_domains"]
+        assert "stackoverflow.com" in params["include_domains"]
 
     # --- GENERAL intent returns None ---
     def test_general_intent_returns_none(self):

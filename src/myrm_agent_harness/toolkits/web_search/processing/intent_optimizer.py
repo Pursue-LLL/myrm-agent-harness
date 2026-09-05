@@ -219,9 +219,10 @@ _SEARXNG_INTENT_PARAMS: dict[SearchIntent, dict[str, str]] = {
     # GENERAL: no override (use user's default config)
 }
 
-_TAVILY_INTENT_PARAMS: dict[SearchIntent, dict[str, str]] = {
+_TAVILY_INTENT_PARAMS: dict[SearchIntent, dict[str, str | list[str]]] = {
     SearchIntent.NEWS: {"topic": "news"},
     SearchIntent.FINANCE: {"topic": "finance"},
+    SearchIntent.CODE: {"include_domains": ["github.com", "stackoverflow.com"]},
 }
 
 _VOLCENGINE_DOUBAO_INTENT_PARAMS: dict[SearchIntent, dict[str, str | bool | int]] = {
@@ -235,7 +236,7 @@ _VOLCENGINE_DOUBAO_INTENT_PARAMS: dict[SearchIntent, dict[str, str | bool | int]
 def resolve_search_params(
     intent_result: SearchIntentResult,
     provider: SearchServiceType,
-) -> dict[str, str | bool] | None:
+) -> dict[str, str | bool | int | list[str]] | None:
     """Resolve optimal search parameters based on detected intent and provider.
 
     Returns None when no adjustment should be made (GENERAL intent or low confidence).

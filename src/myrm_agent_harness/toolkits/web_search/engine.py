@@ -169,12 +169,15 @@ class WebSearchTools:
         per_query_overrides: list[dict[str, str | int | bool] | None] = []
         effective_questions: list[str] = []
         bilibili_queries: list[str] = []
+        code_queries: list[str] = []
         for q in questions:
             # Pin structured domain identifiers (CVE/DOI/tickers) to preserve exact match
             pinned_q, _ = extract_and_pin_structured_identifiers(q)
             intent_result = detect_search_intent(q)
             if intent_result.intent == SearchIntent.PLATFORM_BILIBILI:
                 bilibili_queries.append(pinned_q)
+            elif intent_result.intent == SearchIntent.CODE:
+                code_queries.append(pinned_q)
             override = resolve_search_params(intent_result, provider)
 
             # Fusion: explicit_params > intent_optimizer > config.extra_params
@@ -219,6 +222,34 @@ class WebSearchTools:
                 fallback_questions = [f"{q} site:bilibili.com" for q in questions]
                 search_results = await self._searcher.multi_query_parallel_search(
                     fallback_questions, search_results_per_query, [None] * len(fallback_questions)
+                )
+                _, unified_docs = combine_search_results_unified(search_results)
+                unified_docs = apply_domain_diversity_sort(unified_docs)
+                search_time_ms = (time.perf_counter() - start_time) * 1000
+        elif code_queries and len(code_queries) == len(questions):
+            from myrm_agent_harness.toolkits.web_search.processing.search_results_processor import (
+                search_results_to_documents,
+            )
+            from myrm_agent_harness.toolkits.web_search.providers.github_code_search import search_github_code
+
+            all_code_results = []
+            for q in code_queries:
+                code_res = await search_github_code(q, max_results=search_results_per_query)
+                if code_res:
+                    all_code_results.extend(code_res)
+
+            if all_code_results:
+                unified_docs = search_results_to_documents(all_code_results)
+                unified_docs = apply_domain_diversity_sort(unified_docs)
+                search_time_ms = (time.perf_counter() - start_time) * 1000
+                logger.info(
+                    f"GitHub code fast-path: {len(code_queries)} queries, "
+                    f"{len(unified_docs)} docs in {search_time_ms:.0f}ms"
+                )
+            else:
+                logger.info("GitHub code fast-path yielded no results, falling back to generic search")
+                search_results = await self._searcher.multi_query_parallel_search(
+                    effective_questions, search_results_per_query, per_query_overrides
                 )
                 _, unified_docs = combine_search_results_unified(search_results)
                 unified_docs = apply_domain_diversity_sort(unified_docs)

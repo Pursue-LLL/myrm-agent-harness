@@ -13,6 +13,10 @@ Subpackage entry for search provider adapters and orchestration.
 """
 
 from myrm_agent_harness.toolkits.web_search.providers.chain import search_provider_chain
+from myrm_agent_harness.toolkits.web_search.providers.github_code_search import (
+    build_github_code_query,
+    search_github_code,
+)
 from myrm_agent_harness.toolkits.web_search.providers.litellm_search import LiteLLMSearch
 from myrm_agent_harness.toolkits.web_search.providers.web_searcher import (
     SearchServiceConfig,
@@ -25,5 +29,7 @@ __all__ = [
     "SearchServiceConfig",
     "SearchServiceType",
     "WebSearcher",
+    "build_github_code_query",
+    "search_github_code",
     "search_provider_chain",
 ]

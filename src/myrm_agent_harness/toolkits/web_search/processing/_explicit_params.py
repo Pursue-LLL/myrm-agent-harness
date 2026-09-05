@@ -36,7 +36,7 @@ _TAVILY_MAX_DAYS = 365
 
 _SITE_OPERATOR_PATTERN = re.compile(r"\bsite:([^\s]+)", re.IGNORECASE)
 
-ProviderOverride = dict[str, str | int | bool]
+ProviderOverride = dict[str, str | int | bool | list[str]]
 
 
 def tavily_time_range_to_days(time_range: str) -> str:

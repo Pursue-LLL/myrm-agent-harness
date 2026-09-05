@@ -45,6 +45,9 @@ User query → LLM Query Rewriting → questions: list[str]
     → IF all queries = PLATFORM_BILIBILI:
          providers.bilibili_search.search_bilibili() → structured results
          (on failure → fallback: site:bilibili.com via generic search)
+    → ELIF all queries = CODE:
+         providers.github_code_search.search_github_code() → structured code snippets
+         (on failure → fallback: site:github.com via generic search)
     → ELSE:
          providers.WebSearcher.search(query, extra_params_override=fused_override)
          (when provider_chain set → providers.chain search_provider_chain failover)
