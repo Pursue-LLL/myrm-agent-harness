@@ -49,6 +49,11 @@ class AllowlistEntry:
     - agent_id: Optional agent identity scope. For hosted MCP tools (mcp_invoke / mcp__*),
       binding agent_id guarantees that another agent cannot unintentionally inherit or hijack
       this permission (Confused Deputy Protection).
+
+    Session Lifetime Scope:
+    - session_id: Optional session identifier. When set, this entry is scoped strictly
+      to the current conversation session (e.g. session-only duration) and MUST NEVER
+      be persisted to long-term storage or leak across sessions.
     """
 
     permission: str
@@ -58,6 +63,7 @@ class AllowlistEntry:
     agent_id: str | None = None
     created_at: float = field(default_factory=time.time)
     expires_at: float | None = None
+    session_id: str | None = None
 
 
 class AllowlistStore(Protocol):
@@ -174,9 +180,16 @@ class Allowlist:
                     return
 
             entries = await self._store.load(user_id)
-            self._entries[user_id] = {
-                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern, e.agent_id): e for e in entries
+            # Preserve existing session-scoped entries in memory when reloading DB entries
+            current_session_entries = {
+                k: v for k, v in self._entries.get(user_id, {}).items() if v.session_id is not None
             }
+            loaded_entries = {
+                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern, e.agent_id, e.session_id): e
+                for e in entries
+            }
+            loaded_entries.update(current_session_entries)
+            self._entries[user_id] = loaded_entries
             self._cache_meta[user_id] = (time.time(), lock)
 
     def check(
@@ -188,14 +201,15 @@ class Allowlist:
         *,
         command: str | None = None,
         agent_id: str | None = None,
+        session_id: str | None = None,
     ) -> bool:
         """Check if the tool is in the user's allowlist with identity scope validation.
 
         Matching priority:
-        1. Exact match: (permission, tool_name, tool_args_hash) all match + agent scope matches
-        2. Pattern match: (permission, tool_name, command_pattern) glob match + agent scope matches
-        3. Tool-level: (permission, tool_name) match, no args_hash/pattern constraint + agent scope matches
-        4. Permission-level: permission match, no tool constraints + agent scope matches
+        1. Exact match: (permission, tool_name, tool_args_hash) all match + agent/session scope matches
+        2. Pattern match: (permission, tool_name, command_pattern) glob match + agent/session scope matches
+        3. Tool-level: (permission, tool_name) match, no args_hash/pattern constraint + agent/session scope matches
+        4. Permission-level: permission match, no tool constraints + agent/session scope matches
 
         Args:
             user_id: User identifier
@@ -204,6 +218,7 @@ class Allowlist:
             tool_args_hash: Optional pre-computed hash for exact match (SHA256[:16])
             command: Optional shell command for pattern matching
             agent_id: Optional current agent identity for hosted MCP scope isolation
+            session_id: Optional current conversation session identity for session-scoped isolation
         """
         user_entries = self._entries.get(user_id, {})
         if not user_entries:
@@ -215,18 +230,19 @@ class Allowlist:
         if len(entries) != len(user_entries):
             # Prune expired entries from in-memory cache
             self._entries[user_id] = {
-                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern, e.agent_id): e
+                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern, e.agent_id, e.session_id): e
                 for e in entries
             }
         if not entries:
             return False
 
-        # Helper to check if entry agent_id is compatible with current caller agent_id
+        # Helper to check if entry agent_id and session_id are compatible with current caller
         def _scope_matches(entry: AllowlistEntry) -> bool:
+            if entry.session_id:
+                if not session_id or entry.session_id.strip() != session_id.strip():
+                    return False
             if entry.agent_id:
                 return bool(agent_id and entry.agent_id.strip() == agent_id.strip())
-            # For hosted MCP tools, if entry was created with a specific agent, it won't be None.
-            # If entry has agent_id=None, it represents a global legacy entry.
             return True
 
         for entry in entries:
@@ -269,7 +285,12 @@ class Allowlist:
         )
 
     async def add(self, user_id: str, entry: AllowlistEntry) -> None:
-        """Add an allow-always entry for a user (concurrent-safe)."""
+        """Add an allow-always entry for a user (concurrent-safe).
+
+        Physical Security Invariant:
+        Entries with a non-None session_id are in-memory session-scoped grants.
+        They MUST NEVER be persisted to the permanent store.
+        """
         # Ensure lock exists
         async with self._meta_lock:
             _, lock, is_new = self._get_or_create_lock(user_id)
@@ -280,7 +301,7 @@ class Allowlist:
         async with lock:
             if user_id not in self._entries:
                 self._entries[user_id] = {}
-            key = (entry.permission, entry.tool_name, entry.tool_args_hash, entry.command_pattern, entry.agent_id)
+            key = (entry.permission, entry.tool_name, entry.tool_args_hash, entry.command_pattern, entry.agent_id, entry.session_id)
 
             if key in self._entries[user_id]:
                 return
@@ -288,15 +309,17 @@ class Allowlist:
             self._entries[user_id][key] = entry
             self._cache_meta[user_id] = (time.time(), lock)
 
-        if self._store:
+        # Do NOT persist session-scoped grants to disk/DB!
+        if self._store and entry.session_id is None:
             await self._store.save(user_id, entry)
         logger.info(
-            "[ALLOWLIST] Added (%s, tool=%s, args_hash=%s, pattern=%s, agent=%s, expires_at=%s) for user %s",
+            "[ALLOWLIST] Added (%s, tool=%s, args_hash=%s, pattern=%s, agent=%s, session=%s, expires_at=%s) for user %s",
             entry.permission,
             entry.tool_name,
             entry.tool_args_hash,
             entry.command_pattern,
             entry.agent_id,
+            entry.session_id,
             entry.expires_at,
             user_id,
         )
@@ -309,6 +332,7 @@ class Allowlist:
         tool_args_hash: str | None = None,
         command_pattern: str | None = None,
         agent_id: str | None = None,
+        session_id: str | None = None,
     ) -> None:
         """Remove an allow-always entry (concurrent-safe)."""
         if user_id in self._cache_meta:
@@ -323,9 +347,33 @@ class Allowlist:
                     and (tool_args_hash is None or entry.tool_args_hash == tool_args_hash)
                     and (command_pattern is None or entry.command_pattern == command_pattern)
                     and (agent_id is None or entry.agent_id == agent_id)
+                    and (session_id is None or entry.session_id == session_id)
                 ]
                 for key in keys_to_remove:
                     user_entries.pop(key, None)
+
+        if self._store and session_id is None:
+            await self._store.remove(user_id, permission, tool_name, tool_args_hash, command_pattern, agent_id)
+
+    async def clear_session(self, user_id: str, session_id: str) -> int:
+        """Clear all session-scoped allowlist entries for a specific conversation session."""
+        if not session_id or user_id not in self._entries:
+            return 0
+        async with self._meta_lock:
+            _, lock, is_new = self._get_or_create_lock(user_id)
+            if is_new:
+                self._cache_meta[user_id] = (time.time(), lock)
+
+        cleared_count = 0
+        async with lock:
+            user_entries = self._entries.get(user_id, {})
+            keys_to_remove = [k for k, e in user_entries.items() if e.session_id == session_id]
+            for k in keys_to_remove:
+                user_entries.pop(k, None)
+                cleared_count += 1
+        if cleared_count > 0:
+            logger.info("[ALLOWLIST] Cleared %d session-scoped entries for session %s (user %s)", cleared_count, session_id, user_id)
+        return cleared_count
 
         if self._store:
             await self._store.remove(user_id, permission, tool_name, tool_args_hash, command_pattern, agent_id)

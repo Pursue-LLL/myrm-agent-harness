@@ -331,6 +331,10 @@ def test_js_eval_read_only_safe(expression: str):
         "NumpadEnter",
         "\n",
         "\r\n",
+        "Control+Enter",
+        "Meta+Enter",
+        "ctrl+enter",
+        "Shift+Enter",
     ],
 )
 def test_key_activation_mutations_high_risk(key: str):

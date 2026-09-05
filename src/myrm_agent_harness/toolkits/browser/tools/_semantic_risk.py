@@ -176,10 +176,16 @@ def classify_interaction_risk(
     is_key_activation = False
 
     if not is_mutating and action == "press":
-        clean_key = text.strip().lower() if isinstance(text, str) else ""
-        if clean_key in _ACTIVATION_KEYS:
-            is_mutating = True
-            is_key_activation = True
+        if isinstance(text, str):
+            raw_key = text.lower()
+            clean_key = raw_key.strip()
+            if (
+                clean_key in _ACTIVATION_KEYS
+                or raw_key in _ACTIVATION_KEYS
+                or any(clean_key.endswith(k) for k in ("+enter", "+return", "+space", "+numpadenter"))
+            ):
+                is_mutating = True
+                is_key_activation = True
 
     if not is_mutating:
         return RiskVerdict(SemanticRiskLevel.SAFE, "")
