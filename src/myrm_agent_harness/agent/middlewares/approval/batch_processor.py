@@ -42,6 +42,9 @@ from myrm_agent_harness.agent.security.engine import (
 from myrm_agent_harness.agent.security.guards.skill_approval_hook import (
     HookAction,
 )
+from myrm_agent_harness.agent.security.path_security import (
+    is_protected_instruction_file,
+)
 from myrm_agent_harness.agent.security.tool_registry import (
     resolve_permission_type,
     resolve_safety_metadata,
@@ -411,6 +414,19 @@ async def evaluate_tool_batch(
                     tool_name,
                     "IRREVERSIBLE_ACTION_ALLOWLIST_BLOCKED",
                     f"Socially irreversible actions cannot be bypassed via allowlist: {effective_tool_name}",
+                )
+                allowlist_would_match = False
+            elif allowlist_would_match and (
+                "Protected instruction file write requires human approval" in reason
+                or (
+                    permission_type in ("file_write", "fs_mutation")
+                    and is_protected_instruction_file(str(tool_input.get("path", "") or tool_input.get("file_path", "") or tool_input.get("filepath", "")))
+                )
+            ):
+                record_decision(
+                    tool_name,
+                    "PROTECTED_INSTRUCTION_ALLOWLIST_BLOCKED",
+                    f"Protected instruction files cannot be bypassed via allowlist: {effective_tool_name}",
                 )
                 allowlist_would_match = False
 
@@ -1017,6 +1033,30 @@ async def evaluate_tool_batch(
             extra_ctx["action_digest"] = compute_action_digest(tool_name, tool_input)
             extra_ctx["high_risk"] = True
             extra_ctx["hide_allow_always"] = True
+
+        raw_path_arg = str(
+            tool_input.get("path", "")
+            or tool_input.get("file_path", "")
+            or tool_input.get("filepath", "")
+        ).strip()
+        if (
+            "Protected instruction file write requires human approval" in reason
+            or (raw_path_arg and is_protected_instruction_file(raw_path_arg))
+        ):
+            extra_ctx = extra_ctx or {}
+            extra_ctx["protected_instruction"] = True
+            extra_ctx["hide_allow_always"] = True
+            extra_ctx["high_risk"] = True
+            record_decision(
+                tool_name,
+                "PROTECTED_INSTRUCTION_ATTEMPT",
+                f"Attempted mutation of protected instruction file: {raw_path_arg}",
+            )
+            logger.warning(
+                "[PROTECTED_INSTRUCTION] Gate triggered for %s (path=%s): hide_allow_always enforced",
+                tool_name,
+                raw_path_arg,
+            )
 
         script_target = extract_script_file_target(tool_name, tool_input)
         if script_target:

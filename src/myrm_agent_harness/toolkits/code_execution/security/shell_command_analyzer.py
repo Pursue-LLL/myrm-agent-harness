@@ -473,6 +473,16 @@ def analyze_command(command: str, *, _depth: int = 0) -> tuple[CommandThreat, ..
                 )
             )
 
+    if is_protected_instruction_mutation_command(command):
+        threats.append(
+            CommandThreat(
+                level=ThreatLevel.ESCALATE,
+                category="protected_instruction_mutation",
+                detail="Attempted modification of protected instruction file via shell command",
+                evidence=command[:100],
+            )
+        )
+
     # Layer 4: Recursive analysis of embedded commands in shell wrappers
     if _depth < _MAX_RECURSIVE_DEPTH:
         threats.extend(_analyze_recursive(command, _depth))
@@ -486,6 +496,37 @@ def is_integration_mutation_command(command: str) -> bool:
     stripped = _strip_quoted_content(command)
     normalized = " ".join(stripped.split())
     return any(pattern.search(normalized) for pattern, _desc in _integration_write_patterns_compiled())
+
+
+_PROTECTED_FILE_NAMES_RE = (
+    r"(?:AGENTS\.md|CLAUDE\.md|SOUL\.md|MEMORY\.md|\.myrm\.md|myrm\.md|\.hermes\.md|"
+    r"HERMES\.md|\.cursorrules|\.clinerules|\.windsurfrules|copilot-instructions\.md)"
+)
+
+_PROTECTED_INSTRUCTION_SHELL_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        rf"(?:>|>>)\s*['\"]?(?:[^\s;|\'\"]*?/)?{_PROTECTED_FILE_NAMES_RE}['\"]?",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"(?:^|[\s;|&])(?:sed\s+-[a-zA-Z]*i[a-zA-Z]*|tee(?:\s+-[a-zA-Z]+)*|cp(?:\s+-[a-zA-Z]+)*|"
+        rf"mv(?:\s+-[a-zA-Z]+)*|rm(?:\s+-[a-zA-Z]+)*|truncate(?:\s+-[a-zA-Z]+)*)\s+.*?"
+        rf"(?:[\s/'\"]|^){_PROTECTED_FILE_NAMES_RE}(?:[\s/'\"]|$)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"(?:python[0-9.]*|node|ruby|perl)\b.*?(?:write|open).*?{_PROTECTED_FILE_NAMES_RE}",
+        re.IGNORECASE,
+    ),
+)
+
+
+def is_protected_instruction_mutation_command(command: str) -> bool:
+    """Return True if command attempts to overwrite, delete or mutate protected instruction files."""
+    if not command or not command.strip():
+        return False
+    return any(p.search(command) for p in _PROTECTED_INSTRUCTION_SHELL_PATTERNS)
+
 
 
 def has_block_threat(command: str) -> CommandThreat | None:

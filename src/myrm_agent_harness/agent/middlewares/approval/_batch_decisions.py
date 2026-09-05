@@ -26,6 +26,9 @@ from myrm_agent_harness.agent.security.audit import record_decision
 from myrm_agent_harness.agent.security.command_allowlist_pattern import (
     extract_shell_command,
 )
+from myrm_agent_harness.agent.security.path_security import (
+    is_protected_instruction_file,
+)
 from myrm_agent_harness.agent.security.engine import extract_url_domains
 from myrm_agent_harness.agent.security.types import SecurityConfig
 from myrm_agent_harness.core.security.redact import redact_for_display
@@ -70,8 +73,29 @@ def _should_block_allow_always(
         or extra_ctx.get("requires_dual_insurance")
         or extra_ctx.get("socially_irreversible")
         or extra_ctx.get("auto_mode_suspended")
+        or extra_ctx.get("protected_instruction")
     ):
         return True
+
+    raw_args = tool_call.get("args") or tool_call.get("arguments") or {}
+    if isinstance(raw_args, dict):
+        p = str(
+            raw_args.get("path", "")
+            or raw_args.get("file_path", "")
+            or raw_args.get("filepath", "")
+        ).strip()
+        if p and is_protected_instruction_file(p):
+            return True
+
+        cmd = str(raw_args.get("command", "") or raw_args.get("code", "")).strip()
+        if cmd:
+            from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (
+                is_protected_instruction_mutation_command,
+            )
+
+            if is_protected_instruction_mutation_command(cmd):
+                return True
+
     return _integration_mutation_blocks_allow_always(tool_call)
 
 
