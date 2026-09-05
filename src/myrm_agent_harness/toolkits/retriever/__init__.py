@@ -19,6 +19,12 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.retriever.bm25_retrieval import bm25_retrieval
+    from myrm_agent_harness.toolkits.retriever.cjk_tokenizer import (
+        build_cjk_index_segment,
+        build_cjk_query_token_tiers,
+        build_cjk_query_tokens,
+        tokenize_cjk_bigram,
+    )
     from myrm_agent_harness.toolkits.retriever.embedding import EmbeddingService, get_embedding_service
     from myrm_agent_harness.toolkits.retriever.engine import (
         BM25CacheStats,
@@ -31,13 +37,11 @@ if TYPE_CHECKING:
         BatchEmbedConsumer,
         Chunk,
         DirNode,
-        DirSummarizerFunc,
         DirTreeBuilder,
         DualLaneIngestPipeline,
         EndOfTask,
         IngestEvent,
         IngestStats,
-        ObjectProducerFunc,
         TaskEnvelope,
         TaskStatus,
         ancestor_dirs,
@@ -94,9 +98,18 @@ __all__ = [
     "TaskStatus",
     "ancestor_dirs",
     "dir_depth",
+    # CJK Tokenizer
+    "tokenize_cjk_bigram",
+    "build_cjk_index_segment",
+    "build_cjk_query_tokens",
+    "build_cjk_query_token_tiers",
 ]
 
 _LAZY_IMPORTS = {
+    "tokenize_cjk_bigram": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "tokenize_cjk_bigram"),
+    "build_cjk_index_segment": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "build_cjk_index_segment"),
+    "build_cjk_query_tokens": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "build_cjk_query_tokens"),
+    "build_cjk_query_token_tiers": ("myrm_agent_harness.toolkits.retriever.cjk_tokenizer", "build_cjk_query_token_tiers"),
     "DualLaneIngestPipeline": ("myrm_agent_harness.toolkits.retriever.ingest", "DualLaneIngestPipeline"),
     "BatchEmbedConsumer": ("myrm_agent_harness.toolkits.retriever.ingest", "BatchEmbedConsumer"),
     "DirTreeBuilder": ("myrm_agent_harness.toolkits.retriever.ingest", "DirTreeBuilder"),

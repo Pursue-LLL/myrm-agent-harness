@@ -29,6 +29,8 @@ import logging
 import re
 from typing import Literal
 
+from myrm_agent_harness.toolkits.retriever.cjk_tokenizer import tokenize_cjk_bigram
+
 logger = logging.getLogger(__name__)
 
 _CJK_RUN = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]+")
@@ -36,25 +38,11 @@ _NON_CJK_WORD = re.compile(r"[a-zA-Z0-9]+")
 
 
 def _cjk_bigram_tokenize(text: str) -> list[str]:
-    """Tokenize CJK text into character unigrams + bigrams.
+    """Tokenize CJK text into character unigrams + bigrams preserving order.
 
-    This is the industry-standard fallback when no proper segmenter (jieba)
-    is available. Same approach used by openclaw and CodePilot.
-
-    For input "机器学习模型":
-      unigrams: ["机", "器", "学", "习", "模", "型"]
-      bigrams:  ["机器", "器学", "学习", "习模", "模型"]
-      result:   all combined (enables partial phrase matching in BM25)
+    Delegates to unified position-preserving cjk_tokenizer.
     """
-    tokens: list[str] = []
-    for run_match in _CJK_RUN.finditer(text):
-        chars = list(run_match.group())
-        tokens.extend(chars)
-        for i in range(len(chars) - 1):
-            tokens.append(chars[i] + chars[i + 1])
-    for word_match in _NON_CJK_WORD.finditer(text):
-        tokens.append(word_match.group())
-    return tokens
+    return tokenize_cjk_bigram(text)
 
 
 class TokenizerService:

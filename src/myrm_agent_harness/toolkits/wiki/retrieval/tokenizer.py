@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import re
 
+from myrm_agent_harness.toolkits.retriever.cjk_tokenizer import tokenize_cjk_bigram
+
 STOP_WORDS = frozenset(
     {
         "a",
@@ -97,40 +99,22 @@ CJK_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\uF900-\uFAFF]+")
 
 
 def tokenize_for_fts(query: str) -> str:
-    """Build FTS5 query with CJK bigram support for proper Chinese/Japanese/Korean search."""
-    tokens: list[str] = []
+    """Build FTS5 query with CJK bigram and unigram support for proper search."""
+    tokens = tokenize_cjk_bigram(query)
+    fts_tokens: list[str] = []
+    for token in tokens:
+        if token.lower() not in STOP_WORDS and token.strip():
+            fts_tokens.append(f'"{token}"')
 
-    cjk_segments = CJK_RE.findall(query)
-    for seg in cjk_segments:
-        if len(seg) == 1:
-            tokens.append(f'"{seg}"')
-        else:
-            for i in range(len(seg) - 1):
-                tokens.append(f'"{seg[i]}{seg[i + 1]}"')
-
-    latin_text = CJK_RE.sub(" ", query)
-    for word in latin_text.split():
-        if word.lower() not in STOP_WORDS and word.strip():
-            tokens.append(f'"{word}"')
-
-    return " ".join(tokens)
+    return " ".join(fts_tokens)
 
 
 def extract_query_terms(query: str) -> set[str]:
-    """Extract normalized terms for index routing and keyword overlap (EN + CJK bigrams)."""
+    """Extract normalized terms for index routing and keyword overlap (EN + CJK unigram + bigrams)."""
+    tokens = tokenize_cjk_bigram(query)
     terms: set[str] = set()
-
-    for segment in CJK_RE.findall(query):
-        if len(segment) == 1:
-            terms.add(segment)
-            continue
-        for index in range(len(segment) - 1):
-            terms.add(segment[index : index + 2])
-
-    latin_text = CJK_RE.sub(" ", query)
-    for match in re.finditer(r"\w+", latin_text.lower()):
-        word = match.group(0)
-        if word and word not in STOP_WORDS:
-            terms.add(word)
-
+    for token in tokens:
+        term = token.lower().strip()
+        if term and term not in STOP_WORDS:
+            terms.add(term)
     return terms

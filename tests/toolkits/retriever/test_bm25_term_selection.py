@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.toolkits.retriever.bm25 import (
     select_selective_bm25_tokens,
 )

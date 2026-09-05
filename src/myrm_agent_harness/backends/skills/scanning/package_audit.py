@@ -278,9 +278,7 @@ def _verify_entry_artifact(
     """Verify a single declared artifact path exists, is inside base_dir, and is non-empty."""
     findings: list[PackageAuditFinding] = []
     clean_entry = entry_rel.strip()
-    if clean_entry.startswith("./"):
-        clean_entry = clean_entry[2:]
-    elif clean_entry.startswith(".\\"):
+    if clean_entry.startswith("./") or clean_entry.startswith(".\\"):
         clean_entry = clean_entry[2:]
 
     parts = clean_entry.replace("\\", "/").split("/")

@@ -72,7 +72,7 @@ class PackagingIntegrityVerdict:
 def normalize_package_path(path: str) -> str:
     """Normalize relative path for package file lookup."""
     clean = _WINDOWS_SEP_RE.sub("/", path.strip())
-    # Handle ${PLUGIN_ROOT}/ prefix
+    # Strip macro placeholders
     if clean.startswith("${PLUGIN_ROOT}/"):
         clean = clean[len("${PLUGIN_ROOT}/") :]
     elif clean.startswith("${PLUGIN_DATA}/"):
@@ -83,50 +83,8 @@ def normalize_package_path(path: str) -> str:
     return norm
 
 
-def extract_server_entrypoint_path(server: PluginMcpServer) -> str | None:
-    """Extract normalized entrypoint path from an MCP server, or None if not a local file."""
-    if server.server_type != "stdio":
-        return None
-
-    cmd = (server.command or "").strip()
-    if not cmd:
-        return None
-
-    # Case 1: Command itself is a local relative script (e.g. `./bin/cli.js` or `./dist/index.js`)
-    if cmd.startswith("./") or cmd.startswith("${PLUGIN_ROOT}/"):
-        return normalize_package_path(cmd)
-
-    # Case 2: Command is a recognized script interpreter with arguments
-    cmd_name = posixpath.basename(cmd)
-    if cmd_name in _SCRIPT_INTERPRETERS and server.args:
-        skip_next = False
-        for arg in server.args:
-            if skip_next:
-                skip_next = False
-                continue
-            if arg in _NON_ENTRYPOINT_FLAGS:
-                skip_next = True
-                continue
-            if arg.startswith("-"):
-                continue
-            # Found candidate entrypoint argument
-            if arg.startswith("./") or arg.startswith("${PLUGIN_ROOT}/") or "/" in arg or "\\" in arg:
-                return normalize_package_path(arg)
-            # Standalone filename ending with standard script extension
-            if any(arg.endswith(ext) for ext in (".js", ".mjs", ".cjs", ".ts", ".py", ".sh")):
-                return normalize_package_path(arg)
-
-    # Case 3: Check args for any explicit ./ relative paths regardless of interpreter
-    if server.args:
-        for arg in server.args:
-            if arg.startswith("./") or arg.startswith("${PLUGIN_ROOT}/"):
-                return normalize_package_path(arg)
-
-    return None
-
-
 def extract_server_raw_entrypoint(server: PluginMcpServer) -> str | None:
-    """Extract raw entrypoint string (preserving leading ./ or ${PLUGIN_ROOT}/) from an MCP server."""
+    """Extract raw entrypoint string as declared in command or args."""
     if server.server_type != "stdio":
         return None
 
@@ -134,7 +92,7 @@ def extract_server_raw_entrypoint(server: PluginMcpServer) -> str | None:
     if not cmd:
         return None
 
-    if cmd.startswith("./") or cmd.startswith("${PLUGIN_ROOT}/"):
+    if cmd.startswith("./") or cmd.startswith("${PLUGIN_ROOT}"):
         return cmd
 
     cmd_name = posixpath.basename(cmd)
@@ -149,17 +107,25 @@ def extract_server_raw_entrypoint(server: PluginMcpServer) -> str | None:
                 continue
             if arg.startswith("-"):
                 continue
-            if arg.startswith("./") or arg.startswith("${PLUGIN_ROOT}/") or "/" in arg or "\\" in arg:
+            if arg.startswith("./") or arg.startswith("${PLUGIN_ROOT}") or "/" in arg or "\\" in arg:
                 return arg
             if any(arg.endswith(ext) for ext in (".js", ".mjs", ".cjs", ".ts", ".py", ".sh")):
                 return arg
 
     if server.args:
         for arg in server.args:
-            if arg.startswith("./") or arg.startswith("${PLUGIN_ROOT}/"):
+            if arg.startswith("./") or arg.startswith("${PLUGIN_ROOT}"):
                 return arg
 
     return None
+
+
+def extract_server_entrypoint_path(server: PluginMcpServer) -> str | None:
+    """Extract normalized entrypoint path from an MCP server, or None if not a local file."""
+    raw = extract_server_raw_entrypoint(server)
+    if raw is None:
+        return None
+    return normalize_package_path(raw)
 
 
 def verify_mcp_server_artifacts(
@@ -175,25 +141,24 @@ def verify_mcp_server_artifacts(
     """
     entrypoint = extract_server_entrypoint_path(server)
     if entrypoint is None:
-        # Non-stdio or purely global binary call (e.g. `docker run ...` or `python -m module`)
         return True, None, None
 
-    # Exact existence in files
     normalized_files = {normalize_package_path(f) for f in files}
     if entrypoint in normalized_files:
         return True, None, None
 
-    # Missing artifact detected
-    if has_ts_sources and ("dist/" in entrypoint or "build/" in entrypoint or entrypoint.endswith(".js")):
+    # Check for typescript/build indicators
+    ts_indicated = has_ts_sources or any(f.endswith((".ts", ".tsx")) for f in normalized_files)
+    if ts_indicated and ("dist/" in entrypoint or "out/" in entrypoint or entrypoint.endswith(".js")):
         reason = (
             f"MCP server '{server.name}' requires build artifact '{entrypoint}', "
-            f"but it is missing from the package zip. TypeScript sources exist; "
-            f"did the author forget to run 'npm run build' before packaging?"
+            f"which is missing from the package zip. TypeScript sources exist; "
+            f"run 'npm run build' before packaging."
         )
     else:
         reason = (
             f"MCP server '{server.name}' references local entrypoint '{entrypoint}', "
-            f"which does not exist in the plugin package."
+            f"which does not exist in the plugin package. Ensure the project is built (e.g. 'npm run build') and artifacts are packaged."
         )
 
     return False, entrypoint, reason
@@ -216,57 +181,50 @@ def verify_mcp_server_packaging_integrity(
     )
 
 
-def filter_valid_servers(
-    servers: list[PluginMcpServer],
-    files: Collection[str],
-    diagnostics: list[PluginDiagnostic] | None = None,
-) -> list[PluginMcpServer]:
-    """Filter out servers with missing artifacts and append diagnostics if requested."""
-    has_ts_sources = any(k.endswith((".ts", ".tsx")) for k in files)
-    valid_servers: list[PluginMcpServer] = []
-
-    for server in servers:
-        is_valid, missing_path, reason = verify_mcp_server_artifacts(
-            server, files, has_ts_sources=has_ts_sources
-        )
-        if not is_valid:
-            if diagnostics is not None:
-                diagnostics.append(
-                    PluginDiagnostic(
-                        component=f"mcp:{server.name}",
-                        code="mcp_missing_artifact",
-                        message=reason or f"Missing artifact '{missing_path}'",
-                        level=PluginDiagnosticLevel.ERROR,
-                    )
-                )
-        else:
-            valid_servers.append(server)
-
-    return valid_servers
-
-
 def verify_plugin_packaging_integrity(
-    servers: list[PluginMcpServer],
-    files: Collection[str],
+    arg1: Collection[str] | list[PluginMcpServer],
+    arg2: Collection[str] | list[PluginMcpServer],
 ) -> tuple[list[PluginMcpServer], list[PluginDiagnostic]]:
-    """Scan servers against package files, update runnability status, and record diagnostics."""
-    has_ts_sources = any(k.endswith((".ts", ".tsx")) for k in files)
-    processed_servers: list[PluginMcpServer] = []
+    """Scan servers against package files, update runnability, and generate diagnostics.
+
+    Supports both (files, servers) and (servers, files) signatures for caller ergonomics.
+    """
+    if isinstance(arg1, list) and (not arg1 or isinstance(arg1[0], PluginMcpServer)):
+        servers = arg1
+        files = arg2  # type: ignore[assignment]
+    else:
+        files = arg1  # type: ignore[assignment]
+        servers = arg2  # type: ignore[assignment]
+
+    file_keys = set(files.keys()) if isinstance(files, dict) else set(files)
+    has_ts_sources = any(k.endswith((".ts", ".tsx")) for k in file_keys)
+
+    verified_servers: list[PluginMcpServer] = []
     diagnostics: list[PluginDiagnostic] = []
 
     for server in servers:
         is_valid, missing_path, reason = verify_mcp_server_artifacts(
-            server, files, has_ts_sources=has_ts_sources
+            server, file_keys, has_ts_sources=has_ts_sources
         )
-        if not is_valid:
-            raw_entry = extract_server_raw_entrypoint(server) or missing_path or ""
-            missing_tuple = (raw_entry,) if raw_entry else ()
-            processed_servers.append(
+        if is_valid:
+            verified_servers.append(
+                replace(
+                    server,
+                    is_runnable=True,
+                    missing_artifacts=(),
+                    missing_artifact=None,
+                )
+            )
+        else:
+            raw_entry = extract_server_raw_entrypoint(server)
+            missing_candidates = [x for x in (raw_entry, missing_path) if x]
+            missing_tuple = tuple(dict.fromkeys(missing_candidates))
+            verified_servers.append(
                 replace(
                     server,
                     is_runnable=False,
                     missing_artifacts=missing_tuple,
-                    missing_artifact=raw_entry or None,
+                    missing_artifact=missing_path,
                 )
             )
             diagnostics.append(
@@ -277,14 +235,23 @@ def verify_plugin_packaging_integrity(
                     level=PluginDiagnosticLevel.ERROR,
                 )
             )
-        else:
-            processed_servers.append(
-                replace(
-                    server,
-                    is_runnable=True,
-                    missing_artifacts=(),
-                    missing_artifact=None,
-                )
-            )
 
-    return processed_servers, diagnostics
+    return verified_servers, diagnostics
+
+
+def filter_valid_servers(
+    servers: list[PluginMcpServer],
+    files: Collection[str],
+    diagnostics: list[PluginDiagnostic] | None = None,
+) -> list[PluginMcpServer]:
+    """Filter out servers with missing artifacts and append diagnostics if requested.
+
+    When `diagnostics` list is passed explicitly, appends to it and returns valid servers list.
+    When `diagnostics` is None, returns (valid_servers, diagnostics) tuple.
+    """
+    verified, diags = verify_plugin_packaging_integrity(servers, files)
+    valid_servers = [s for s in verified if s.is_runnable]
+    if diagnostics is not None:
+        diagnostics.extend(diags)
+        return valid_servers
+    return valid_servers, diags

@@ -161,6 +161,7 @@ __all__ = [
     "route_task_specialty",
     "set_workspace_root",
     "synthesize_desktop_skill_draft",
+    "tokenize_cjk_bigram",
     "tokenize_for_fts",
     "track_background_task",
     "unregister_ptc_safety_metadata",
@@ -168,6 +169,9 @@ __all__ = [
     "SalientToolFilterConfig",
     "extract_salient_tool_evidences",
     "strip_ansi_sequences",
+    "build_cjk_index_segment",
+    "build_cjk_query_tokens",
+    "build_cjk_query_token_tiers",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -665,6 +669,22 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
         "is_alert_or_bot_sender",
     ),
+    "tokenize_cjk_bigram": (
+        "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
+        "tokenize_cjk_bigram",
+    ),
+    "build_cjk_index_segment": (
+        "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
+        "build_cjk_index_segment",
+    ),
+    "build_cjk_query_tokens": (
+        "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
+        "build_cjk_query_tokens",
+    ),
+    "build_cjk_query_token_tiers": (
+        "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
+        "build_cjk_query_token_tiers",
+    ),
     "tokenize_for_fts": (
         "myrm_agent_harness.toolkits.wiki.retrieval.tokenizer",
         "tokenize_for_fts",
@@ -704,22 +724,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "extract_repo_history_digest": (
         "myrm_agent_harness.toolkits.code_execution.git_digest",
         "extract_repo_history_digest",
-    ),
-    "SalientToolEvidence": (
-        "myrm_agent_harness.agent.context_management.salient_tool_filter",
-        "SalientToolEvidence",
-    ),
-    "SalientToolFilterConfig": (
-        "myrm_agent_harness.agent.context_management.salient_tool_filter",
-        "SalientToolFilterConfig",
-    ),
-    "extract_salient_tool_evidences": (
-        "myrm_agent_harness.agent.context_management.salient_tool_filter",
-        "extract_salient_tool_evidences",
-    ),
-    "strip_ansi_sequences": (
-        "myrm_agent_harness.agent.context_management.salient_tool_filter",
-        "strip_ansi_sequences",
     ),
     "QuantizedVector": (
         "myrm_agent_harness.toolkits.vector.quantization",

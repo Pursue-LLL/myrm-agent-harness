@@ -154,3 +154,150 @@ async def test_qdrant_store_quantization_config() -> None:
     assert call_kwargs["collection_name"] == "quantized_collection"
     assert "quantization_config" in call_kwargs
 
+
+@pytest.mark.parametrize("dim", [384, 768, 1536, 3072])
+def test_mainstream_model_dimensions_accuracy_and_compression(dim: int) -> None:
+    """Validate 4x compression and fidelity across mainstream embedding dimensions.
+
+    384: BGE-small / MiniLM-L6-v2
+    768: BGE-base
+    1536: text-embedding-3-small
+    3072: text-embedding-3-large
+    """
+    rng = random.Random(dim)
+    vec_a = [rng.gauss(0.0, 1.0) for _ in range(dim)]
+    vec_b = [rng.gauss(0.0, 1.0) for _ in range(dim)]
+
+    quant_a = quantize_int8(vec_a)
+    quant_b = quantize_int8(vec_b)
+
+    # 1. 4x compression ratio verification
+    raw_bytes = encode_float32(vec_a)
+    assert len(raw_bytes) == dim * 4
+    assert len(quant_a.data) == dim
+    assert len(quant_a.data) * 4 == len(raw_bytes)
+
+    # 2. Cosine fidelity
+    true_cos = _float_cosine(vec_a, vec_b)
+    int8_cos = cosine_similarity_int8(quant_a, quant_b)
+    assert abs(true_cos - int8_cos) < 0.005
+
+
+def test_knn_batch_ranking_fidelity_recall_at_k() -> None:
+    """Verify that int8 quantized dot products maintain Top-K ranking fidelity against float32."""
+    dim = 256
+    corpus_size = 150
+    rng = random.Random(999)
+
+    corpus = [[rng.gauss(0.0, 1.0) for _ in range(dim)] for _ in range(corpus_size)]
+    query = [rng.gauss(0.0, 1.0) for _ in range(dim)]
+
+    # 1. True float32 scores
+    true_scores = [(_float_cosine(query, cand), idx) for idx, cand in enumerate(corpus)]
+    true_scores.sort(key=lambda x: x[0], reverse=True)
+    top_10_true = {idx for _, idx in true_scores[:10]}
+
+    # 2. Quantized scores
+    quant_query = quantize_int8(query)
+    quant_corpus = [quantize_int8(cand) for cand in corpus]
+    quant_scores = [
+        (cosine_similarity_int8(quant_query, q_cand), idx)
+        for idx, q_cand in enumerate(quant_corpus)
+    ]
+    quant_scores.sort(key=lambda x: x[0], reverse=True)
+    top_10_quant = {idx for _, idx in quant_scores[:10]}
+
+    # Overlap between true Top-10 and quantized Top-10 must be >= 90% (>= 9 items)
+    overlap = len(top_10_true.intersection(top_10_quant))
+    recall_at_10 = overlap / 10.0
+    assert recall_at_10 >= 0.90, f"Recall@10 was {recall_at_10:.2f}, expected >= 0.90"
+
+
+def test_extreme_value_distributions() -> None:
+    """Verify robustness under extreme value distributions without overflow or NaN."""
+    # 1. Ultra-sparse vector: only 2 active non-zero elements
+    sparse = [0.0] * 512
+    sparse[7] = 5.0
+    sparse[42] = -3.0
+    quant_sparse = quantize_int8(sparse)
+    assert quant_sparse.scale > 0.0
+    assert not math.isnan(quant_sparse.scale)
+    assert not math.isinf(quant_sparse.scale)
+    sim_self = cosine_similarity_int8(quant_sparse, quant_sparse)
+    assert abs(sim_self - 1.0) < 0.01
+
+    # 2. Ultra-small magnitude vector (1e-9)
+    tiny = [1e-9] * 128
+    quant_tiny = quantize_int8(tiny)
+    assert quant_tiny.scale > 0.0
+    sim_tiny = cosine_similarity_int8(quant_tiny, quant_tiny)
+    assert abs(sim_tiny - 1.0) < 0.01
+
+    # 3. Ultra-large magnitude vector (1e9)
+    huge = [1e9] * 128
+    quant_huge = quantize_int8(huge)
+    assert quant_huge.scale > 0.0
+    sim_huge = cosine_similarity_int8(quant_huge, quant_huge)
+    assert abs(sim_huge - 1.0) < 0.01
+
+    # 4. Heavy-tailed dominant single component
+    dominant = [1e-4] * 64
+    dominant[0] = 1e4
+    quant_dom = quantize_int8(dominant)
+    sim_dom = cosine_similarity_int8(quant_dom, quant_dom)
+    assert abs(sim_dom - 1.0) < 0.01
+
+
+@pytest.mark.asyncio
+async def test_concurrency_and_immutability() -> None:
+    """Verify that QuantizedVector is strictly thread/task safe for concurrent evaluation."""
+    import asyncio
+
+    dim = 128
+    rng = random.Random(333)
+    quant_a = quantize_int8([rng.gauss(0.0, 1.0) for _ in range(dim)])
+    quant_b = quantize_int8([rng.gauss(0.0, 1.0) for _ in range(dim)])
+
+    async def _worker() -> float:
+        await asyncio.sleep(0.001)
+        return cosine_similarity_int8(quant_a, quant_b)
+
+    tasks = [_worker() for _ in range(50)]
+    results = await asyncio.gather(*tasks)
+
+    # All concurrent calls must produce the exact identical deterministic float value
+    expected = results[0]
+    for val in results:
+        assert val == expected
+
+
+@pytest.mark.asyncio
+async def test_real_qdrant_in_memory_quantization_lifecycle() -> None:
+    """End-to-end integration test with real AsyncQdrantClient(':memory:')."""
+    from qdrant_client import AsyncQdrantClient
+    from myrm_agent_harness.toolkits.vector.config import DeploymentMode, VectorStoreConfig
+    from myrm_agent_harness.toolkits.vector.qdrant.store import QdrantVectorStore
+
+    client = AsyncQdrantClient(":memory:")
+    try:
+        config = VectorStoreConfig(
+            mode=DeploymentMode.EMBEDDED,
+            embedding_dimension=128,
+            quantization_enabled=True,
+        )
+        store = QdrantVectorStore(client=client, config=config, is_async=True)
+
+        col_name = "test_real_int8_collection"
+        created = await store.create_collection(col_name, dimension=128)
+        assert created is True
+
+        exists = await client.collection_exists(col_name)
+        assert exists is True
+
+        # Ensure collection skips recreation safely
+        recheck = await store.ensure_collection(col_name, dimension=128)
+        assert recheck is True
+    finally:
+        await client.close()
+
+

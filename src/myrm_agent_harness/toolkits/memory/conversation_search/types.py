@@ -127,3 +127,5 @@ class ConversationSearchResponse(BaseModel):
     query: str = ""
     rejected_reason: str | None = None
     coverage: ConversationIndexCoverage | None = Field(default=None, description="Index coverage report if available")
+    relaxed: bool = Field(default=False, description="True if query fell back to relaxed CJK token matching")
+    query_tokens: list[str] = Field(default_factory=list, description="Effective tokens used for full-text search")

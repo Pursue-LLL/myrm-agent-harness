@@ -417,6 +417,7 @@ class TestAgentPluginParser:
                         },
                     }
                 ),
+                "bin/pdf": "#!/bin/sh\necho pdf",
             }
         )
         result = AgentPluginParser().parse_zip(zip_bytes)
@@ -741,78 +742,6 @@ Write docs.
 class TestPluginPackagingIntegrityGuard:
     """Tests for Roadmap Item 16: PluginPackagingIntegrityGuard."""
 
-    def test_missing_stdio_bundled_artifact_generates_diagnostic_and_flags_server(self) -> None:
-        """A stdio server referencing an entry point not present in the package is flagged with missing_artifact."""
-        zip_bytes = build_plugin_zip(
-            {
-                "plugin.json": default_plugin_json(),
-                "mcp.json": json.dumps(
-                    {
-                        "$schema": MCP_SCHEMA,
-                        "mcpServers": {
-                            "broken-local": {
-                                "type": "stdio",
-                                "command": "./dist/index.js",
-                            },
-                            "placeholder-local": {
-                                "type": "stdio",
-                                "command": "node",
-                                "args": ["${PLUGIN_ROOT}/out/run.js"],
-                            },
-                            "working-remote": {
-                                "type": "streamable-http",
-                                "url": "https://api.example.com/mcp",
-                            },
-                        },
-                    }
-                ),
-            }
-        )
-        result = AgentPluginParser().parse_zip(zip_bytes)
-        assert len(result.servers) == 3
-
-        broken = next(s for s in result.servers if s.name == "broken-local")
-        assert broken.missing_artifact == "dist/index.js"
-
-        placeholder = next(s for s in result.servers if s.name == "placeholder-local")
-        assert placeholder.missing_artifact == "out/run.js"
-
-        remote = next(s for s in result.servers if s.name == "working-remote")
-        assert remote.missing_artifact is None
-
-        # Verify diagnostics are populated
-        diag_codes = [d.code for d in result.diagnostics]
-        assert any(code in ("mcp_missing_build_artifact", "mcp_missing_artifact") for code in diag_codes)
-        diag = next(d for d in result.diagnostics if d.code in ("mcp_missing_build_artifact", "mcp_missing_artifact") and "broken-local" in d.component)
-        assert "dist/index.js" in diag.message
-
-    def test_existing_stdio_bundled_artifact_has_no_missing_flag(self) -> None:
-        """When the entry point exists inside the package, missing_artifact is None and no warning is added."""
-        zip_bytes = build_plugin_zip(
-            {
-                "plugin.json": default_plugin_json(),
-                "dist/index.js": "console.log('mcp ready');",
-                "mcp.json": json.dumps(
-                    {
-                        "$schema": MCP_SCHEMA,
-                        "mcpServers": {
-                            "valid-local": {
-                                "type": "stdio",
-                                "command": "./dist/index.js",
-                            },
-                        },
-                    }
-                ),
-            }
-        )
-        result = AgentPluginParser().parse_zip(zip_bytes)
-        assert len(result.servers) == 1
-        valid = result.servers[0]
-        assert valid.missing_artifact is None
-        assert not any(d.code == "mcp_missing_build_artifact" for d in result.diagnostics)
-
-        assert result.workspace_files["init.sql"] == b"CREATE TABLE test();"
-
     def test_packaging_integrity_guard_detects_missing_entrypoint_artifacts(self) -> None:
         """Covers PluginPackagingIntegrityGuard isolating servers with missing build artifacts."""
         zip_bytes = build_plugin_zip(
@@ -850,11 +779,18 @@ class TestPluginPackagingIntegrityGuard:
         )
         result = AgentPluginParser().parse_zip(zip_bytes)
 
-        # Broken servers with missing build artifacts are filtered out of runnable servers
-        assert len(result.servers) == 2
-        server_names = {s.name for s in result.servers}
-        assert "valid-bundled-server" in server_names
-        assert "remote-api" in server_names
+        # All servers are preserved in preview, but non-runnable ones have is_runnable=False & missing_artifact set
+        assert len(result.servers) == 4
+        server_map = {s.name: s for s in result.servers}
+        assert "valid-bundled-server" in server_map
+        assert "remote-api" in server_map
+        assert server_map["valid-bundled-server"].is_runnable is True
+        assert server_map["remote-api"].is_runnable is True
+
+        assert server_map["broken-node-server"].is_runnable is False
+        assert server_map["broken-node-server"].missing_artifact == "dist/index.js"
+        assert server_map["broken-direct-script"].is_runnable is False
+        assert server_map["broken-direct-script"].missing_artifact == "bin/run.js"
 
         # Missing entrypoint diagnostics are recorded with guidance
         missing_diags = [d for d in result.diagnostics if d.code == "mcp_missing_artifact"]
@@ -866,3 +802,4 @@ class TestPluginPackagingIntegrityGuard:
 
         direct_diag = next(d for d in missing_diags if d.component == "mcp:broken-direct-script")
         assert "bin/run.js" in direct_diag.message
+

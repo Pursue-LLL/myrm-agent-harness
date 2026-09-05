@@ -20,6 +20,7 @@ binding) is owned by the business layer (`myrm-agent-server`), which consumes th
 | `parser.py` | Core | `AgentPluginParser.parse_zip` orchestrating discovery (skills/, agents/, mcp.json, workspace/ assets) with per-component failure isolation. Retains non-skill files on `PluginParseResult.files` for the business layer to persist into the plugin root; parses `PluginAgent` records and extracts `workspace_files`. | ✅ |
 | `exporter.py` | Core | `AgentPluginPacker` + `canonical_plugin_name` building spec 1.0.0 conformant plugin ZIPs (`plugin.json` + `skills/<name>/` + optional `mcp.json`). | ✅ |
 | `models.py` | Core | Shared dataclasses: `PluginSkill`, `PluginAgent`, `PluginMcpServer`, `PluginDiagnostic`, `PluginParseResult` (incl. `agents`, `workspace_files`, and non-skill `files`). | ✅ |
+| `integrity.py` | Core | `verify_plugin_packaging_integrity` & `verify_mcp_server_artifacts` ensuring stdio servers verify referenced build artifacts/entrypoints at parse time (prevents subprocess crashes on unbuilt packages). | ✅ |
 
 ## I/O
 

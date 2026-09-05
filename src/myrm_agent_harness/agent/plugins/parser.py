@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import replace
 from typing import Any
 
 from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract_zip
@@ -35,7 +36,13 @@ from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract
 from . import manifest, mcp_config
 from .manifest import decode_manifest_json, parse_manifest
 from .mcp_config import decode_mcp_json, parse_mcp_servers
-from .models import PluginAgent, PluginDiagnosticLevel, PluginParseResult, PluginSkill
+from .models import (
+    PluginAgent,
+    PluginDiagnosticLevel,
+    PluginMcpServer,
+    PluginParseResult,
+    PluginSkill,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,10 +93,13 @@ def _check_server_artifact_integrity(
         return True, None, None
 
     if target_path not in package_files:
-        guide = " Run 'npm run build' before packaging." if has_ts_sources else ""
+        guide = " TypeScript sources exist; run 'npm run build' before packaging." if has_ts_sources else ""
         reason = (
-            f"MCP server '{server.name}' references entrypoint '{target_path}', "
-            f"which does not exist in the plugin package.{guide}"
+            f"MCP server '{server.name}' requires build artifact '{target_path}', "
+            f"which is missing from the package zip.{guide}"
+            if has_ts_sources
+            else f"MCP server '{server.name}' references local entrypoint '{target_path}', "
+            f"which does not exist in the plugin package."
         )
         return False, target_path, reason
 
@@ -258,6 +268,16 @@ class AgentPluginParser:
             is_valid, target_path, reason = _check_server_artifact_integrity(
                 server, package_file_set, has_ts_sources=has_ts_sources
             )
+            raw_entry = target_path or ""
+            missing_tuple = (raw_entry,) if (not is_valid and raw_entry) else ()
+            updated_server = replace(
+                server,
+                is_runnable=is_valid,
+                missing_artifact=target_path if not is_valid else None,
+                missing_artifacts=missing_tuple,
+            )
+            result.servers.append(updated_server)
+
             if not is_valid:
                 result.add_diagnostic(
                     f"mcp:{server.name}",
@@ -265,8 +285,6 @@ class AgentPluginParser:
                     reason or f"MCP server '{server.name}' references missing artifact '{target_path}'",
                     PluginDiagnosticLevel.ERROR,
                 )
-            else:
-                result.servers.append(server)
 
         # Surface skipped/invalid variants as diagnostics so failures are visible (§11.3).
         raw_servers = raw.get("mcpServers")

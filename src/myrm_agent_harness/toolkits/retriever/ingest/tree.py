@@ -78,9 +78,8 @@ class DirTreeBuilder:
                 parent = ancestors[i - 1] if i > 0 else None
                 depth = dir_depth(d_path)
                 self._nodes[d_path] = DirNode(path=d_path, parent_path=parent, depth=depth)
-                if parent and parent in self._nodes:
-                    if d_path not in self._nodes[parent].children_dirs:
-                        self._nodes[parent].children_dirs.append(d_path)
+                if parent and parent in self._nodes and d_path not in self._nodes[parent].children_dirs:
+                    self._nodes[parent].children_dirs.append(d_path)
 
         leaf_dir = ancestors[-1]
         if clean_path not in self._nodes[leaf_dir].children_files:
