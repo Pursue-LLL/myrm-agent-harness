@@ -38,6 +38,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 | managed_approval_policy.py | Core | Org floor MAP model + env/process loader (empty = local noop). | ✅ |
 | managed_policy_gates.py | Core | Pure gate helpers: honor allowlist, global/per-model YOLO, effective auto_mode. | ✅ |
 | batch_risk.py | Core | Batch risk evaluation and dual insurance policy check for approval queues. Pure deterministic functions. | ✅ |
+| script_operand_verifier.py | Core | TOCTOU defense: extracts and validates mutable script file operand content SHA-256 digests across approval and execution (CVE-2026-32921). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

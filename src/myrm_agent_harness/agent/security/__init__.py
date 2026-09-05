@@ -80,6 +80,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "BatchRiskItemDetail": (".batch_risk", "BatchRiskItemDetail"),
     "BatchRiskReport": (".batch_risk", "BatchRiskReport"),
     "classify_batch_approval_risk": (".batch_risk", "classify_batch_approval_risk"),
+    # script_operand_verifier.py
+    "extract_script_file_operand": (".script_operand_verifier", "extract_script_file_operand"),
+    "compute_file_content_digest": (".script_operand_verifier", "compute_file_content_digest"),
+    "verify_script_operand_integrity": (".script_operand_verifier", "verify_script_operand_integrity"),
 }
 
 __all__ = list(_EXPORTS.keys())

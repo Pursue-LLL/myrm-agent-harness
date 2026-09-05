@@ -189,7 +189,7 @@ extend-exclude = []
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "S", "SIM", "RUF"]
 ignore = [
-  "E501", "B008", "SIM108", "RUF001", "RUF002", "RUF003",
+  "E501", "B008", "SIM108", "RUF001", "RUF002", "RUF003", "RUF022",
   # S 规则噪音抑制：LangChain/subprocess/pickle 等场景在 agent 框架中是刚需，逐条评估后排除误报。
   "S101",  # assert — 运行时不变量检查
   "S105", "S106", "S107",  # hardcoded-password — 变量名含 SECRET/TOKEN 但非真实密码
