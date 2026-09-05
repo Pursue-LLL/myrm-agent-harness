@@ -11,10 +11,12 @@ module, ensuring a single set of definitions and consistent checks.
 - DANGEROUS_PATHS: frozenset[str] — normalised dangerous root paths
 - BLOCKED_DEVICE_NAMES: frozenset[str] — Windows reserved device names
 - SENSITIVE_FILE_PATTERNS: tuple[str, ...] — glob patterns for sensitive files
+- PROTECTED_INSTRUCTION_PATTERNS: tuple[str, ...] — glob patterns for protected instruction files
 - coerce_filesystem_path(value) -> Path | None — runtime path coercion; rejects unittest.mock objects
 - is_dangerous_path(path) -> bool — unified check function
 - is_blocked_device_path(path) -> bool — pre-IO device path blocklist check
 - is_sensitive_file(path) -> bool — sensitive file check function
+- is_protected_instruction_file(path) -> bool — protected instruction check function
 - is_within_boundary(target, boundary) -> bool — boundary check immune to symlink escape
 - safe_join_path(base_dir, user_input) -> Path — secure path resolution against traversal
 
@@ -150,6 +152,28 @@ SENSITIVE_FILE_PATTERNS: tuple[str, ...] = (
     "**/password.txt",
     "**/passwd",
     "**/shadow",
+)
+
+# ---------------------------------------------------------------------------
+# Protected instruction file patterns (anti-persona tampering & prompt injection persistence)
+# ---------------------------------------------------------------------------
+
+PROTECTED_INSTRUCTION_PATTERNS: tuple[str, ...] = (
+    "**/AGENTS.md",
+    "**/CLAUDE.md",
+    "**/SOUL.md",
+    "**/MEMORY.md",
+    "**/.myrm.md",
+    "**/myrm.md",
+    "**/.hermes.md",
+    "**/HERMES.md",
+    "**/.cursorrules",
+    "**/.clinerules",
+    "**/.windsurfrules",
+    "**/.cursor/rules/**",
+    "**/.myrm/rules/**",
+    "**/.claude/CLAUDE.md",
+    "**/.github/copilot-instructions.md",
 )
 
 # ---------------------------------------------------------------------------
@@ -338,3 +362,37 @@ def is_sensitive_file(path: str) -> bool:
         if fnmatch(file_name, file_pattern):
             return True
     return False
+
+
+def is_protected_instruction_file(path: str) -> bool:
+    """Check if *path* refers to a protected instruction file (case-insensitive & normalised).
+
+    Protected instruction files steer the future persona and behavioral guardrails
+    of AI agents (e.g. AGENTS.md, SOUL.md, .cursorrules). Modifications to these files
+    are high-risk persistence vectors for indirect prompt injection and MUST
+    require human approval.
+    """
+    if not path or not str(path).strip():
+        return False
+    path_obj = Path(path)
+    file_name_folded = path_obj.name.casefold()
+
+    try:
+        resolved_path = str(path_obj.resolve()).replace("\\", "/")
+    except Exception:
+        resolved_path = str(path_obj.absolute()).replace("\\", "/")
+
+    resolved_folded = resolved_path.casefold()
+
+    for pattern in PROTECTED_INSTRUCTION_PATTERNS:
+        pattern_folded = pattern.casefold()
+        if fnmatch(resolved_folded, pattern_folded):
+            return True
+        file_pattern = pattern_folded.replace("**/", "")
+        if fnmatch(file_name_folded, file_pattern):
+            return True
+        norm_relative = str(path_obj).replace("\\", "/").casefold()
+        if fnmatch(norm_relative, pattern_folded):
+            return True
+    return False
+
