@@ -250,4 +250,45 @@ class TestAllowlist:
         assert allowlist.check("user1", "shell_exec", "bash_code_execute_tool", command="git status -s") is False
         assert allowlist.check("user1", "shell_exec", "bash_code_execute_tool", tool_args_hash="hash_123") is False
 
+    @pytest.mark.asyncio
+    async def test_session_scoped_allowlist_grant_isolation_and_no_persist(self) -> None:
+        """Verify that session-scoped entries match only for the same session and never call store.save()."""
+        class MockStore:
+            def __init__(self):
+                self.saved_entries = []
+
+            async def load(self, user_id: str):
+                return []
+
+            async def save(self, user_id: str, entry: AllowlistEntry):
+                self.saved_entries.append(entry)
+
+            async def remove(self, *args, **kwargs):
+                pass
+
+        store = MockStore()
+        al = Allowlist(store=store)
+
+        session_entry = AllowlistEntry(
+            permission="shell_exec",
+            tool_name="bash",
+            session_id="sess_alpha_123",
+        )
+        await al.add("user1", session_entry)
+
+        # 1. Never persisted to store
+        assert len(store.saved_entries) == 0
+
+        # 2. Matches when caller is the same session
+        assert al.check("user1", "shell_exec", "bash", session_id="sess_alpha_123") is True
+
+        # 3. Denied when caller is a different session or has no session
+        assert al.check("user1", "shell_exec", "bash", session_id="sess_beta_456") is False
+        assert al.check("user1", "shell_exec", "bash", session_id=None) is False
+
+        # 4. clear_session purges only that session
+        await al.clear_session("user1", "sess_alpha_123")
+        assert al.check("user1", "shell_exec", "bash", session_id="sess_alpha_123") is False
+
+
 

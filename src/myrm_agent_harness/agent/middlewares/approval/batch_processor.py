@@ -341,12 +341,14 @@ async def evaluate_tool_batch(
         if action == PermissionAction.ASK:
             from myrm_agent_harness.agent.middlewares._session_context import (
                 get_agent_id,
+                get_approval_session,
                 get_approval_user_id,
             )
 
             allowlist = get_allowlist()
             user_id = get_approval_user_id() or DEFAULT_USER_ID
             current_agent_id = get_agent_id() or None
+            current_session_id = get_approval_session() or None
             await allowlist.load_user(user_id)
             effective_tool_name = (
                 extra_ctx.get("ptc_tool_name_full", tool_name)
@@ -379,14 +381,16 @@ async def evaluate_tool_batch(
                         reason = "Repo-declared command prefix auto-approve"
                         record_decision(tool_name, "REPO_PREFIX_AUTO_APPROVE", reason)
 
-            allowlist_would_match = allowlist.check(
+            matching_allowlist_entry = allowlist.find_matching_entry(
                 user_id,
                 permission_type,
                 effective_tool_name,
                 args_hash,
                 command=shell_command,
                 agent_id=current_agent_id,
+                session_id=current_session_id,
             )
+            allowlist_would_match = matching_allowlist_entry is not None
             # If batch assessment marked this batch as high-risk/dual insurance, block allowlist bypass
             if allowlist_would_match and batch_assessment.allow_always_blocked:
                 record_decision(
@@ -419,8 +423,15 @@ async def evaluate_tool_batch(
                     )
             elif allowlist_would_match:
                 action = PermissionAction.ALLOW
-                reason = f"Allowlist auto-approve: {effective_tool_name}"
-                record_decision(tool_name, "ALLOWLIST_AUTO_APPROVE", reason)
+                if (
+                    matching_allowlist_entry is not None
+                    and matching_allowlist_entry.session_id is not None
+                ):
+                    reason = f"Allowlist session-scoped auto-approve: {effective_tool_name}"
+                    record_decision(tool_name, "ALLOWLIST_SESSION_ALLOW", reason)
+                else:
+                    reason = f"Allowlist auto-approve: {effective_tool_name}"
+                    record_decision(tool_name, "ALLOWLIST_AUTO_APPROVE", reason)
 
         if action == PermissionAction.ALLOW and is_irreversible_social_action(tool_name, tool_input):
             action = PermissionAction.ASK

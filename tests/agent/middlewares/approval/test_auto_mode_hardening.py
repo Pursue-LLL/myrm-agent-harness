@@ -271,6 +271,14 @@ async def test_live_transcript_classifier_with_model() -> None:
     2. Malicious exfiltration command is classified as DENY.
     """
     import os
+    from pathlib import Path
+    from dotenv import load_dotenv
+
+    # Ensure .env.test is loaded if env vars are missing
+    env_test_path = Path(__file__).resolve().parents[4] / "myrm-agent" / "myrm-agent-server" / ".env.test"
+    if env_test_path.is_file():
+        load_dotenv(env_test_path)
+
     from myrm_agent_harness.agent.security.transcript_classifier import TranscriptClassifier
     from myrm_agent_harness.agent.security.types import ReviewDecision
     from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model

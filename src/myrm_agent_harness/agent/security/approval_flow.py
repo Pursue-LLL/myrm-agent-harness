@@ -192,6 +192,98 @@ class Allowlist:
             self._entries[user_id] = loaded_entries
             self._cache_meta[user_id] = (time.time(), lock)
 
+    def find_matching_entry(
+        self,
+        user_id: str,
+        permission_type: str,
+        tool_name: str | None = None,
+        tool_args_hash: str | None = None,
+        *,
+        command: str | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+    ) -> AllowlistEntry | None:
+        """Find the matching allowlist entry for an action if one exists.
+
+        Args:
+            user_id: User identifier
+            permission_type: Permission type
+            tool_name: Tool name (required for tool-level/exact/pattern match)
+            tool_args_hash: SHA-256 of canonical JSON args (for exact match)
+            command: Shell command string (for pattern match)
+            agent_id: Optional current agent identity for hosted MCP scope isolation
+            session_id: Optional current conversation session identity for session-scoped isolation
+
+        Returns:
+            The matched AllowlistEntry, or None if no entry matched.
+        """
+        user_entries = self._entries.get(user_id, {})
+        if not user_entries:
+            return None
+
+        now = time.time()
+        # Filter out expired time-bound scoped grants opportunistically
+        entries = [e for e in user_entries.values() if e.expires_at is None or e.expires_at > now]
+        if len(entries) != len(user_entries):
+            # Prune expired entries from in-memory cache
+            self._entries[user_id] = {
+                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern, e.agent_id, e.session_id): e
+                for e in entries
+            }
+        if not entries:
+            return None
+
+        # Helper to check if entry agent_id and session_id are compatible with current caller
+        def _scope_matches(entry: AllowlistEntry) -> bool:
+            if entry.session_id:
+                if not session_id or entry.session_id.strip() != session_id.strip():
+                    return False
+            if entry.agent_id:
+                return bool(agent_id and entry.agent_id.strip() == agent_id.strip())
+            return True
+
+        for entry in entries:
+            if (
+                entry.permission == permission_type
+                and entry.tool_name == tool_name
+                and entry.tool_args_hash is not None
+                and entry.command_pattern is None
+                and entry.tool_args_hash == tool_args_hash
+                and _scope_matches(entry)
+            ):
+                return entry
+
+        if command:
+            for entry in entries:
+                if (
+                    entry.permission == permission_type
+                    and entry.tool_name == tool_name
+                    and entry.command_pattern is not None
+                    and matches_command_pattern(entry.command_pattern, command)
+                    and _scope_matches(entry)
+                ):
+                    return entry
+
+        for entry in entries:
+            if (
+                entry.permission == permission_type
+                and entry.tool_name == tool_name
+                and entry.tool_args_hash is None
+                and entry.command_pattern is None
+                and _scope_matches(entry)
+            ):
+                return entry
+
+        for entry in entries:
+            if (
+                entry.permission == permission_type
+                and entry.tool_name is None
+                and _scope_matches(entry)
+            ):
+                return entry
+
+        return None
+
     def check(
         self,
         user_id: str,
@@ -220,68 +312,17 @@ class Allowlist:
             agent_id: Optional current agent identity for hosted MCP scope isolation
             session_id: Optional current conversation session identity for session-scoped isolation
         """
-        user_entries = self._entries.get(user_id, {})
-        if not user_entries:
-            return False
-
-        now = time.time()
-        # Filter out expired time-bound scoped grants opportunistically
-        entries = [e for e in user_entries.values() if e.expires_at is None or e.expires_at > now]
-        if len(entries) != len(user_entries):
-            # Prune expired entries from in-memory cache
-            self._entries[user_id] = {
-                (e.permission, e.tool_name, e.tool_args_hash, e.command_pattern, e.agent_id, e.session_id): e
-                for e in entries
-            }
-        if not entries:
-            return False
-
-        # Helper to check if entry agent_id and session_id are compatible with current caller
-        def _scope_matches(entry: AllowlistEntry) -> bool:
-            if entry.session_id:
-                if not session_id or entry.session_id.strip() != session_id.strip():
-                    return False
-            if entry.agent_id:
-                return bool(agent_id and entry.agent_id.strip() == agent_id.strip())
-            return True
-
-        for entry in entries:
-            if (
-                entry.permission == permission_type
-                and entry.tool_name == tool_name
-                and entry.tool_args_hash is not None
-                and entry.command_pattern is None
-                and entry.tool_args_hash == tool_args_hash
-                and _scope_matches(entry)
-            ):
-                return True
-
-        if command:
-            for entry in entries:
-                if (
-                    entry.permission == permission_type
-                    and entry.tool_name == tool_name
-                    and entry.command_pattern is not None
-                    and matches_command_pattern(entry.command_pattern, command)
-                    and _scope_matches(entry)
-                ):
-                    return True
-
-        for entry in entries:
-            if (
-                entry.permission == permission_type
-                and entry.tool_name == tool_name
-                and entry.tool_args_hash is None
-                and entry.command_pattern is None
-                and _scope_matches(entry)
-            ):
-                return True
-
-        return any(
-            entry.permission == permission_type
-            and entry.tool_name is None
-            and _scope_matches(entry)
-            for entry in entries
+        return (
+            self.find_matching_entry(
+                user_id,
+                permission_type,
+                tool_name,
+                tool_args_hash,
+                command=command,
+                agent_id=agent_id,
+                session_id=session_id,
+            )
+            is not None
         )
 
     async def add(self, user_id: str, entry: AllowlistEntry) -> None:

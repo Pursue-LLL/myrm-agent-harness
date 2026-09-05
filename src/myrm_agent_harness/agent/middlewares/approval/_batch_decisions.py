@@ -97,11 +97,13 @@ async def _try_add_to_allowlist(
         return
     from myrm_agent_harness.agent.middlewares._session_context import (
         get_agent_id,
+        get_approval_session,
         get_approval_user_id,
     )
 
     user_id = get_approval_user_id() or DEFAULT_USER_ID
     agent_id = get_agent_id() or None
+    session_id = get_approval_session() or None
     tool_args = tool_call.get("args", {})
     shell_command = extract_shell_command(
         tool_args if isinstance(tool_args, dict) else None
@@ -115,6 +117,7 @@ async def _try_add_to_allowlist(
         tool_command=shell_command,
         agent_id=agent_id,
         ttl_seconds=ttl_seconds,
+        session_id=session_id,
     )
 
 

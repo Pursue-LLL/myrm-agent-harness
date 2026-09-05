@@ -409,6 +409,7 @@ class SecurityConfig:
     yolo_mode_enabled_at: float | None = None
     yolo_mode_timeout: int | None = None
     classify_all_shell_in_auto_mode: bool = False
+    is_sandbox: bool = False
 
     # ------------------------------------------------------------------
     # Factory methods — pre-built profiles for common security postures

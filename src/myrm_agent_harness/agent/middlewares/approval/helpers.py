@@ -200,6 +200,7 @@ async def add_to_allowlist_if_needed(
     tool_command: str | None = None,
     agent_id: str | None = None,
     ttl_seconds: int | float | None = None,
+    session_id: str | None = None,
 ) -> None:
     """Add permission to user's allowlist if requested.
 
@@ -212,25 +213,52 @@ async def add_to_allowlist_if_needed(
     Time-bound grant:
     - ttl_seconds: Optional time-to-live in seconds. If provided (> 0), expires_at
       is calculated as current time + ttl_seconds, enabling auto-revocation.
+    - If ttl_seconds == -1 or duration == "session", this grant is treated as strictly
+      session-scoped and bound to session_id (in-memory only, NEVER persisted to DB).
 
     Identity Scope:
     - agent_id: Bound agent identifier. For hosted MCP tools (mcp_invoke / mcp__*),
       persisting agent_id ensures allowlist entries are isolated to this specific subagent.
+
+    Session Lifetime Scope:
+    - session_id: Current session identifier. When session-scoped, entry will not persist
+      beyond the current session.
     """
     if not allow_always or not user_id:
         return
 
-    # Extract ttl_seconds from allow_always dict if provided
+    # Extract ttl_seconds and duration from allow_always dict if provided
     effective_ttl = ttl_seconds
-    if isinstance(allow_always, dict) and "ttl_seconds" in allow_always and effective_ttl is None:
-        try:
-            raw_ttl = allow_always["ttl_seconds"]
-            if raw_ttl is not None:
-                effective_ttl = float(raw_ttl)
-        except (ValueError, TypeError):
-            effective_ttl = None
+    is_session_duration = False
+    bound_session_id = session_id
 
-    expires_at = (time.time() + float(effective_ttl)) if (effective_ttl is not None and float(effective_ttl) > 0) else None
+    if isinstance(allow_always, dict):
+        if "duration" in allow_always and allow_always["duration"] == "session":
+            is_session_duration = True
+        if "ttl_seconds" in allow_always and effective_ttl is None:
+            try:
+                raw_ttl = allow_always["ttl_seconds"]
+                if raw_ttl is not None:
+                    effective_ttl = float(raw_ttl)
+            except (ValueError, TypeError):
+                effective_ttl = None
+
+    if effective_ttl == -1 or is_session_duration:
+        is_session_duration = True
+        expires_at = None
+        if not bound_session_id:
+            from myrm_agent_harness.agent.middlewares._session_context import (
+                get_approval_session,
+            )
+
+            bound_session_id = get_approval_session() or "ephemeral_session"
+    else:
+        expires_at = (
+            (time.time() + float(effective_ttl))
+            if (effective_ttl is not None and float(effective_ttl) > 0)
+            else None
+        )
+        bound_session_id = None
 
     if isinstance(allow_always, bool):
         entry = AllowlistEntry(
@@ -239,8 +267,9 @@ async def add_to_allowlist_if_needed(
             tool_args_hash=None,
             agent_id=agent_id,
             expires_at=expires_at,
+            session_id=bound_session_id,
         )
-        log_msg = f"permission-level: ({permission_type}, *, agent={agent_id}, expires_at={expires_at})"
+        log_msg = f"permission-level: ({permission_type}, *, agent={agent_id}, session={bound_session_id}, expires_at={expires_at})"
     elif isinstance(allow_always, dict):
         match_args = allow_always.get("args", False)
         match_pattern = allow_always.get("pattern", False)
@@ -259,8 +288,9 @@ async def add_to_allowlist_if_needed(
                 command_pattern=pattern,
                 agent_id=agent_id,
                 expires_at=expires_at,
+                session_id=bound_session_id,
             )
-            log_msg = f"pattern-match: ({permission_type}, {tool_name}, pattern={pattern}, agent={agent_id}, expires_at={expires_at})"
+            log_msg = f"pattern-match: ({permission_type}, {tool_name}, pattern={pattern}, agent={agent_id}, session={bound_session_id}, expires_at={expires_at})"
         else:
             args_hash = tool_args_hash if match_args else None
             entry = AllowlistEntry(
@@ -269,11 +299,12 @@ async def add_to_allowlist_if_needed(
                 tool_args_hash=args_hash,
                 agent_id=agent_id,
                 expires_at=expires_at,
+                session_id=bound_session_id,
             )
             if args_hash:
-                log_msg = f"exact-match: ({permission_type}, {tool_name}, args_hash={args_hash}, agent={agent_id}, expires_at={expires_at})"
+                log_msg = f"exact-match: ({permission_type}, {tool_name}, args_hash={args_hash}, agent={agent_id}, session={bound_session_id}, expires_at={expires_at})"
             else:
-                log_msg = f"tool-level: ({permission_type}, {tool_name}, agent={agent_id}, expires_at={expires_at})"
+                log_msg = f"tool-level: ({permission_type}, {tool_name}, agent={agent_id}, session={bound_session_id}, expires_at={expires_at})"
     else:
         return
 

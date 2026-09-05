@@ -11,7 +11,9 @@ def test_sanitize_fts5_query_strips_dangerous_chars():
 
 def test_sanitize_fts5_preserves_quoted_phrases():
     assert sanitize_fts5_query('find "exact phrase here"') == 'find "exact phrase here"'
-    assert sanitize_fts5_query('"phrase 1" AND "phrase 2"') == '"phrase 1" AND "phrase 2"'
+    assert (
+        sanitize_fts5_query('"phrase 1" AND "phrase 2"') == '"phrase 1" AND "phrase 2"'
+    )
 
 
 def test_sanitize_fts5_quotes_hyphenated_terms():
@@ -111,19 +113,25 @@ def test_safe_purge_fts5_virtual_table_external_content():
         )"""
     )
     # Populate data
-    conn.execute("INSERT INTO docs(body) VALUES('first document with important secret')")
+    conn.execute(
+        "INSERT INTO docs(body) VALUES('first document with important secret')"
+    )
     conn.execute("INSERT INTO docs(body) VALUES('second document with user token')")
     conn.execute("INSERT INTO docs_fts(docs_fts) VALUES('rebuild')")
 
     # Verify FTS matching works
-    rows = conn.execute("SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'secret'").fetchall()
+    rows = conn.execute(
+        "SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'secret'"
+    ).fetchall()
     assert len(rows) == 1
 
     # Safe purge virtual table (invokes delete-all)
     safe_purge_fts5_virtual_table(conn, "docs_fts")
 
     # Verify FTS index is completely cleared
-    rows_after = conn.execute("SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'secret'").fetchall()
+    rows_after = conn.execute(
+        "SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'secret'"
+    ).fetchall()
     assert len(rows_after) == 0
 
     # Test with connection proxy/wrapper (has _conn)
@@ -138,6 +146,7 @@ def test_safe_purge_fts5_virtual_table_external_content():
     conn.execute("DELETE FROM docs")
     conn.execute("INSERT INTO docs(body) VALUES('new secret after purge')")
     conn.execute("INSERT INTO docs_fts(docs_fts) VALUES('rebuild')")
-    rows_rebuilt = conn.execute("SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'secret'").fetchall()
+    rows_rebuilt = conn.execute(
+        "SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'secret'"
+    ).fetchall()
     assert len(rows_rebuilt) == 1
-

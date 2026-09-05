@@ -1601,5 +1601,36 @@ async def test_session_scoped_denial_persistence() -> None:
     assert is_threshold_breached() == ThresholdBreach.NONE
 
 
+@pytest.mark.asyncio
+async def test_session_scoped_allowlist_duration_negative_one_not_permanent() -> None:
+    """Verify that duration='session' or ttl_seconds=-1 creates an in-memory session grant, not permanent."""
+    from myrm_agent_harness.agent.security.approval_flow import get_allowlist
+    from myrm_agent_harness.agent.middlewares.approval.helpers import add_to_allowlist_if_needed
+
+    user_id = "test_user_session_scope"
+    session_id = "test_session_active_999"
+    al = get_allowlist()
+
+    # Pass ttl_seconds=-1 (the frontend representation of session-only)
+    await add_to_allowlist_if_needed(
+        allow_always={"tool": True, "duration": "session", "ttl_seconds": -1},
+        user_id=user_id,
+        permission_type="shell_exec",
+        tool_name="pytest_tool",
+        session_id=session_id,
+    )
+
+    # 1. Matches under the exact same session
+    assert al.check(user_id, "shell_exec", "pytest_tool", session_id=session_id) is True
+
+    # 2. Denied under another session or without session
+    assert al.check(user_id, "shell_exec", "pytest_tool", session_id="other_session_888") is False
+    assert al.check(user_id, "shell_exec", "pytest_tool", session_id=None) is False
+
+    # 3. Explicit clear_session purges it
+    await al.clear_session(user_id, session_id)
+    assert al.check(user_id, "shell_exec", "pytest_tool", session_id=session_id) is False
+
+
 
 
