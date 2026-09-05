@@ -295,8 +295,8 @@ async def test_real_qdrant_in_memory_quantization_lifecycle() -> None:
         assert exists is True
 
         # Ensure collection skips recreation safely
-        recheck = await store.ensure_collection(col_name, dimension=128)
-        assert recheck is True
+        await store.ensure_collection(col_name, dimension=128)
+        assert await store.collection_exists(col_name) is True
     finally:
         await client.close()
 

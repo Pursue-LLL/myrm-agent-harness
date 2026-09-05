@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.api import (
     build_cjk_index_segment,
     build_cjk_query_token_tiers,
@@ -74,6 +72,12 @@ def test_build_cjk_query_token_tiers_pure_ascii_single_tier() -> None:
     # 纯 ASCII 不需要放宽档，只返回 [strict]
     assert len(tiers) == 1
     assert tiers[0] == ["kubernetes", "pod", "restart"]
+
+
+def test_build_cjk_query_tokens() -> None:
+    tokens = build_cjk_query_tokens("部署沙箱")
+    assert "部署" in tokens
+    assert "沙箱" in tokens
 
 
 def test_tokenize_empty_and_punctuation() -> None:
