@@ -112,6 +112,10 @@ class DistillationCandidate(BaseModel):
     )
     is_bot_or_alert: bool = Field(default=False, description="Flag indicating automated bot or alert channel")
     sender_name: str | None = Field(default=None, description="Optional sender display name for bot heuristic checks")
+    target_locale: str = Field(
+        default="en",
+        description="Target ISO language code (e.g. 'zh', 'en') for stable fact distillation, preventing bilingual duplicates.",
+    )
     evidence: list[EvidenceReference] = Field(default_factory=list, description="Associated evidence references")
     metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
 

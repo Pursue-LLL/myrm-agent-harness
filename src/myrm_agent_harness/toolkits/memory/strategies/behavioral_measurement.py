@@ -56,7 +56,6 @@ class BehavioralMessage(BaseModel):
         default=None,
         description="Optional message-specific timezone offset in minutes. Falls back to options.offset_minutes if None.",
     )
-    offset_minutes: int | None = None
 
 
 class BehavioralStatsOptions(BaseModel):
@@ -373,3 +372,50 @@ def generate_behavioral_profile_candidates(
         )
 
     return candidates
+
+
+def resolve_utc_offset_minutes(tz_name: str | None, ref_dt: datetime | None = None) -> int:
+    """Resolve UTC offset in minutes for a given IANA timezone or offset representation.
+
+    Supports:
+    1. IANA timezone names (e.g., 'Asia/Shanghai', 'America/New_York') with DST sensitivity.
+    2. Fixed string offsets (e.g., '+08:00', '-04:00', 'UTC', 'Z').
+    3. Fallback gracefully to 0 (UTC) on unknown/empty/corrupted timezone strings.
+    """
+    if not tz_name or not tz_name.strip():
+        return 0
+
+    s = tz_name.strip()
+    if s in ("UTC", "Z", "Etc/UTC", "Etc/GMT"):
+        return 0
+
+    # Handle fixed offsets like +08:00, -05:00, +0800, -0500
+    if (s.startswith("+") or s.startswith("-")) and len(s) in (5, 6):
+        try:
+            sign = 1 if s[0] == "+" else -1
+            clean = s[1:].replace(":", "")
+            hours = int(clean[:2])
+            minutes = int(clean[2:4]) if len(clean) >= 4 else 0
+            return sign * (hours * 60 + minutes)
+        except ValueError:
+            pass
+
+    # Handle IANA timezone with DST sensitivity via zoneinfo
+    try:
+        from zoneinfo import ZoneInfo
+        zi = ZoneInfo(s)
+        now_dt = ref_dt if ref_dt is not None else datetime.now(UTC)
+        if now_dt.tzinfo is None:
+            now_dt = now_dt.replace(tzinfo=UTC)
+        offset = zi.utcoffset(now_dt)
+        if offset is not None:
+            return int(offset.total_seconds() // 60)
+    except Exception as e:
+        logger.warning(
+            "Failed to resolve timezone '%s' via zoneinfo: %s. Falling back to UTC (0m offset).",
+            s,
+            e,
+        )
+
+    return 0
+

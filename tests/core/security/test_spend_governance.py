@@ -155,6 +155,12 @@ def test_is_irreversible_social_action() -> None:
     assert is_irreversible_social_action("bash", {"command": "npm publish"}) is True
     assert is_irreversible_social_action("bash", {"command": "pnpm --filter pkg publish"}) is True
     assert is_irreversible_social_action("terminal", {"cmd": "twine upload dist/*"}) is True
+    assert is_irreversible_social_action("shell_exec", {"command": "docker push myregistry.com/myimg:latest"}) is True
+    assert is_irreversible_social_action("shell_exec", {"command": "podman push quay.io/myorg/app:v1"}) is True
+    assert is_irreversible_social_action("shell_exec", {"command": "gh release create v1.0.0 --notes 'release'"}) is True
+    assert is_irreversible_social_action("shell_exec", {"command": "gh pr merge 42 --squash"}) is True
+    assert is_irreversible_social_action("shell_exec", {"command": "gh pr view 42"}) is False
+    assert is_irreversible_social_action("shell_exec", {"command": "docker build -t myimg ."}) is False
     assert is_irreversible_social_action("shell_exec", {"command": "git status"}) is False
     assert is_irreversible_social_action("shell_exec", {"command": "git commit -m 'fix'"}) is False
     assert is_irreversible_social_action("read_file", {"path": "a.txt"}) is False

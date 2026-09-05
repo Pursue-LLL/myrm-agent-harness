@@ -149,6 +149,7 @@ __all__ = [
     "redact_sensitive_text",
     "register_ptc_safety_metadata",
     "resolve_external_secret",
+    "resolve_utc_offset_minutes",
     "route_task",
     "route_task_specialty",
     "set_workspace_root",
@@ -660,6 +661,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "generate_behavioral_profile_candidates": (
         "myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement",
         "generate_behavioral_profile_candidates",
+    ),
+    "resolve_utc_offset_minutes": (
+        "myrm_agent_harness.toolkits.memory.strategies.behavioral_measurement",
+        "resolve_utc_offset_minutes",
     ),
 }
 
