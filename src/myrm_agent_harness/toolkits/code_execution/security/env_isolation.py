@@ -235,9 +235,20 @@ _PTC_ORCHESTRATION_ENV_KEYS: Final[frozenset[str]] = frozenset(
 
 
 def _matches_wildcard(key: str) -> bool:
-    """Check if env var name contains any dangerous wildcard pattern."""
+    """Check if env var name contains any dangerous wildcard pattern.
+
+    Safeguards developer Git author variables (GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, etc.)
+    from false-positive matches against authentication prefixes.
+    """
     upper = key.upper()
-    return any(wildcard in upper for wildcard in SENSITIVE_WILDCARDS)
+    for wildcard in SENSITIVE_WILDCARDS:
+        if wildcard in upper:
+            if "AUTHOR" in upper and "AUTHORIZATION" not in upper and not any(
+                p in upper for p in ("TOKEN", "KEY", "SECRET", "PASSWORD", "PASS")
+            ):
+                continue
+            return True
+    return False
 
 
 def _is_ptc_orchestration_env(env: dict[str, str]) -> bool:

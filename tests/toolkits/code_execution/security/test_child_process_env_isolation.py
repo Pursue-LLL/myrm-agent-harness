@@ -257,7 +257,7 @@ class TestExecutorAndHookSubprocessIsolation:
             "CUSTOM_DEV_VAR": "valid_value",
         }
         with patch.dict(os.environ, {"PATH": "/usr/bin", "AUTHORIZATION": "Bearer host_token"}):
-            built_env = executor._build_env(user_env=user_env)
+            built_env = executor._build_bash_env(user_env=user_env)
 
             assert "AUTHORIZATION" not in built_env
             assert "SSH_AUTH_SOCK" not in built_env
