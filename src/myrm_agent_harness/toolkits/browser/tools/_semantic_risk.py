@@ -37,6 +37,7 @@ class RiskVerdict(NamedTuple):
 
 
 _MUTATING_ACTIONS = frozenset({"click", "dblclick"})
+_ACTIVATION_KEYS = frozenset({"enter", "return", "space", "numpadenter", "\n", "\r\n"})
 
 # Patterns matched against the lowercased element name.
 # Each entry is (compiled regex, human-readable category).
@@ -149,28 +150,46 @@ def classify_js_eval_risk(expression: str) -> RiskVerdict:
     return RiskVerdict(SemanticRiskLevel.SAFE, "")
 
 
-def classify_interaction_risk(action: str, ref_info: RefInfo) -> RiskVerdict:
+def classify_interaction_risk(
+    action: str,
+    ref_info: RefInfo,
+    text: str = "",
+) -> RiskVerdict:
     """Classify the risk of an element interaction based on semantic content.
 
-    Only mutating actions (click, dblclick) on elements whose name or role
-    signals a destructive/financial/admin operation are classified as HIGH.
-    Read-only actions (hover, focus, scroll, scroll_to_bottom) are always SAFE.
+    Mutating actions (click, dblclick, or press with activation keys like Enter/Space)
+    on elements whose name or role signals a destructive/financial/admin operation
+    are classified as HIGH.
+    Read-only actions (hover, focus, scroll, scroll_to_bottom) and non-activation keys
+    (Tab, Escape, arrows) are always SAFE.
     browser_extract (all modes: text, screenshot, media, diff) is inherently read-only.
 
     Args:
-        action: The interaction action (click, fill, hover, ...).
+        action: The interaction action (click, fill, hover, press, ...).
         ref_info: ARIA metadata of the target element.
+        text: Optional key name or input text associated with the action (e.g. for press).
 
     Returns:
         RiskVerdict with level and human-readable reason.
     """
-    if action not in _MUTATING_ACTIONS:
+    is_mutating = action in _MUTATING_ACTIONS
+    is_key_activation = False
+
+    if not is_mutating and action == "press":
+        clean_key = text.strip().lower() if isinstance(text, str) else ""
+        if clean_key in _ACTIVATION_KEYS:
+            is_mutating = True
+            is_key_activation = True
+
+    if not is_mutating:
         return RiskVerdict(SemanticRiskLevel.SAFE, "")
+
+    key_suffix = f" (key activation [{text}])" if is_key_activation else ""
 
     if ref_info.role in _HIGH_RISK_ROLES:
         return RiskVerdict(
             SemanticRiskLevel.HIGH,
-            f'Interaction with alert dialog: [{ref_info.role}] "{ref_info.name}"',
+            f'Interaction with alert dialog{key_suffix}: [{ref_info.role}] "{ref_info.name}"',
         )
 
     name_lower = ref_info.name.lower()
@@ -179,7 +198,7 @@ def classify_interaction_risk(action: str, ref_info: RefInfo) -> RiskVerdict:
             label = _CATEGORY_LABELS.get(category, category)
             return RiskVerdict(
                 SemanticRiskLevel.HIGH,
-                f'{label}: [{ref_info.role}] "{ref_info.name}"',
+                f'{label}{key_suffix}: [{ref_info.role}] "{ref_info.name}"',
             )
 
     return RiskVerdict(SemanticRiskLevel.SAFE, "")

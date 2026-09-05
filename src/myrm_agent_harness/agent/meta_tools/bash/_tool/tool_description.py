@@ -32,7 +32,7 @@ TOOL_DESCRIPTION_ZH: Final[str] = """
 
 ## 能力
 
-1. **Shell 命令**:执行 shell 命令(mv/cp/rm、包管理、构建测试、git、curl 等)。
+1. **Shell 命令**:执行 shell 命令(mv/cp/rm、包管理、构建测试、git、curl 等)。必须使用非交互参数（如 `-y`、`--yes`、`git commit -m "..."`），严禁等待交互式输入。
 2. **执行脚本**:运行已存在的脚本文件(python script.py / bash script.sh)。
 3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入**（支持原生多行代码，无需压缩或转义）。
    - 预装三方库:pandas, numpy, scipy, matplotlib, seaborn;Python 标准库(json, datetime, re 等)均可用。
@@ -122,7 +122,7 @@ asyncio.run(main())
 
 ## 后台长任务(可选)
 
-启动 dev server / 监听器 / 长爬虫时,传 `run_in_background=true`,立即返回 `{pid, status}` 而不阻塞当前轮。后台进程按 chat session 隔离,每会话最多 5 个并发。
+启动 dev server / 监听器 / 长任务时,传 `run_in_background=true`,立即返回 `{pid, status}` 而不阻塞当前轮。后台进程按 chat session 隔离,每会话最多 5 个并发。对测试构建等命令，亦可传 `yield_after_seconds=N`（默认 10s，0 为禁用），超时未结束自动转入后台。
 
 **注意**:传 `run_in_background=true` 时**不要**在命令末尾追加 `&` — 工具已自动后台化,追加 `&` 会导致进程脱离管理(pid 失效,无法 output/kill/wait)。
 
@@ -132,7 +132,7 @@ asyncio.run(main())
 
 ### 零 token 进度上报
 
-后台脚本若 `echo 'MYRM_PROGRESS {"percent": 42, "message": "Compiling"}'`(或 `{"current": 3, "total": 10}`),自动显示进度条,无需 LLM 参与。检查点用 `MYRM_CHECKPOINT {"message": "..."}`。三方工具的自然输出(如 `Building 42%`、`3/10 tests`、`Compiling main.rs`)也会被启发式识别。
+后台脚本若 `echo 'MYRM_PROGRESS {"percent": 42, "message": "Compiling"}'`(或 `{"current": 3, "total": 10}`),自动显示进度条,无需 LLM 参与。检查点用 `MYRM_CHECKPOINT {"message": "..."}`。
 """.strip()
 
 TOOL_DESCRIPTION_EN: Final[str] = """
@@ -140,7 +140,7 @@ Execute Shell commands or Python code to solve problems accurately and efficient
 
 ## Capabilities
 
-1. **Shell commands**: Execute shell commands (mv/cp/rm, package management, build & test, git, curl, etc.).
+1. **Shell commands**: Execute shell commands (mv/cp/rm, package management, build & test, git, curl, etc.). Always pass non-interactive flags (`-y`, `--yes`, `git commit -m "..."`). Never block for interactive stdin.
 2. **Execute scripts**: Run existing script files (`python script.py` / `bash script.sh`).
 3. **Execute Python code**: **Pass Python source code directly as `command`** (supports raw multi-line scripts without escaping or compression).
    - Pre-installed libraries: pandas, numpy, scipy, matplotlib, seaborn; Python standard library (json, datetime, re, etc.) are available.
@@ -163,8 +163,8 @@ Execute Shell commands or Python code to solve problems accurately and efficient
 
 Combining multiple tasks improves efficiency, but **only when the return value structure of target methods is concrete**. Always analyze dependencies. NEVER guess return structures.
 
-1. **Concrete return value**: Field names and types are explicitly documented (e.g., `{"code": str}`, `list[{"id": int}]`).
-2. **Ambiguous return value**: Only says "returns dict" or "JSON result" without field breakdown → must emit `[OBSERVATION]` first to inspect.
+1. **Concrete return value**: Field names and types are explicitly documented (e.g. `{"code": str}`, `list[{"id": int}]`). Reference types (dict/list) must expand to primitive types; stating only "returns dict" is NOT concrete!
+2. **Ambiguous return value**: Missing key/field breakdown → must emit `[OBSERVATION]` first to inspect.
 
 #### Concrete structure → Combine into one Python execution:
 ```python
@@ -191,10 +191,10 @@ asyncio.run(main())
 
 ### Optimization Strategies
 
-- When dependencies and return structures are clear, combine multiple steps into one Python script with while/if/try control flow to avoid multiple tool roundtrips.
+- When dependencies and return structures are clear, combine multiple steps in one Python script with while/if/try control flow to avoid multiple tool roundtrips.
 - Output only necessary data: analyze large data (CSV/JSON/logs) in Python and print only summaries.
 - When large output is evicted/truncated, read the returned path under `.context/.../evicted/` using `file_read_tool`.
-- When a command fails, read stdout/stderr and error messages to identify the root cause before fixing. Do not blindly retry the same failed command (never repeat identical failed operations without adjusting arguments or logic).
+- When a command fails, read stdout/stderr and error messages to identify root cause before fixing. Do not blindly retry the same failed command (never repeat identical failed operations without adjusting arguments or logic).
 
 ### Async Patterns
 Skill/async invocations must be awaited. Use `async def main(): ...` + `asyncio.run(main())` entrypoint.
@@ -216,7 +216,7 @@ Prefer `/workspace/...` (default working directory) in commands and Python code.
 - `print(f"[RESULT] {result}")` — Output final results (print only essential fields/summaries for downstream decisions; avoid dumping giant raw objects).
 
 ## Background Tasks (Optional)
-For dev servers, watchers, or long-running jobs, pass `run_in_background=true` to return `{pid, status}` immediately without blocking. Max 5 concurrent jobs per session.
+For dev servers, watchers, or long jobs, pass `run_in_background=true` to return `{pid, status}` immediately without blocking. Max 5 concurrent jobs per session. For long test/build commands, pass `yield_after_seconds=N` (default 10s, 0 to disable) to transition to background if still running.
 **Note**: Do NOT append `&` at the end of the command when `run_in_background=true` (the tool handles backgrounding automatically).
 Use `bash_process_tool` to manage background jobs: `list` (includes `last_progress`), `output` (incremental tail with `since_cursor`), `wait`, `kill`, `write_stdin`, `submit_stdin`, `close_stdin`.
 When output/wait returns `waiting_for_input=true`, check `input_wait_hint` and respond using `submit_stdin` (do not poll blindly); when `waiting_for_input=false`, continue polling output or waiting normally.

@@ -30,7 +30,7 @@ from myrm_agent_harness.agent.security.engine import extract_url_domains
 from myrm_agent_harness.agent.security.types import SecurityConfig
 from myrm_agent_harness.core.security.redact import redact_for_display
 
-from .helpers import add_to_allowlist_if_needed, record_denial
+from .helpers import add_to_allowlist_if_needed, record_approval, record_denial
 
 logger = logging.getLogger(__name__)
 
@@ -332,6 +332,11 @@ async def apply_approval_decisions(
     Returns: (revised_tool_calls, artificial_tool_messages, guidance_messages)
     """
     from ._batch_review import _get_runtime_domains
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_approval_session,
+    )
+
+    session_key = get_approval_session()
 
     revised_tool_calls: list[ToolCall] = []
     artificial_tool_messages: list[ToolMessage] = []
@@ -425,7 +430,7 @@ async def apply_approval_decisions(
                             "DIGEST_MISMATCH_REJECT",
                             "Financial action digest mismatch or missing: parameter tampering prevented",
                         )
-                        hint = record_denial(tool_name)
+                        hint = record_denial(tool_name, session_key)
                         artificial_tool_messages.append(
                             ToolMessage(
                                 content=(
@@ -465,7 +470,7 @@ async def apply_approval_decisions(
                             "SCRIPT_OPERAND_DRIFT_REJECT",
                             drift_reason or "Approved script content modified before execution",
                         )
-                        hint = record_denial(tool_name)
+                        hint = record_denial(tool_name, session_key)
                         artificial_tool_messages.append(
                             ToolMessage(
                                 content=(
@@ -501,7 +506,7 @@ async def apply_approval_decisions(
                             "SCRIPT_INTEGRITY_REJECT",
                             script_fail_reason,
                         )
-                        hint = record_denial(tool_name)
+                        hint = record_denial(tool_name, session_key)
                         artificial_tool_messages.append(
                             ToolMessage(
                                 content=f"Security Blocked: {script_fail_reason}{hint}",
@@ -518,6 +523,7 @@ async def apply_approval_decisions(
                         raw_args["idempotency_key"] = f"myrm_tx_{uuid.uuid4().hex[:16]}"
 
                 record_decision(tool_name, "USER_APPROVED", reason)
+                record_approval(session_key)
 
                 if grant_directory and "Path outside allowed zones" in reason:
                     from myrm_agent_harness.agent.middlewares._session_context import (
@@ -627,7 +633,7 @@ async def apply_approval_decisions(
                         record_decision(
                             tool_name, "USER_EDIT_REJECTED", edit_block_reason
                         )
-                        hint = record_denial(tool_name)
+                        hint = record_denial(tool_name, session_key)
                         artificial_tool_messages.append(
                             ToolMessage(
                                 content=f"{edit_block_reason}{hint}",
@@ -656,6 +662,7 @@ async def apply_approval_decisions(
                     edit_applied = True
 
                 if edit_applied:
+                    record_approval(session_key)
                     await _try_add_to_allowlist(
                         tool_call,
                         extra_ctx,
@@ -673,7 +680,7 @@ async def apply_approval_decisions(
                     "[SECURITY] Tool %s REJECTED by user: %s", tool_name, feedback
                 )
                 record_decision(tool_name, "USER_REJECTED", feedback)
-                hint = record_denial(tool_name)
+                hint = record_denial(tool_name, session_key)
                 artificial_tool_messages.append(
                     ToolMessage(
                         content=f"Action rejected by user: {feedback}{hint}",

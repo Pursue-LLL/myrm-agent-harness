@@ -313,3 +313,75 @@ def test_js_eval_mutations_high_risk(expression: str):
 def test_js_eval_read_only_safe(expression: str):
     verdict = classify_js_eval_risk(expression)
     assert verdict.level is SemanticRiskLevel.SAFE
+
+
+# ──────────────────────────────────────────────────────────────────
+# Key activation bypass guard (Enter, Space, Return, NumpadEnter)
+# ──────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "Enter",
+        "enter",
+        " Return ",
+        "Space",
+        "space",
+        "NumpadEnter",
+        "\n",
+        "\r\n",
+    ],
+)
+def test_key_activation_mutations_high_risk(key: str):
+    ref = _ref("button", "Delete Repository")
+    verdict = classify_interaction_risk("press", ref, text=key)
+    assert verdict.level is SemanticRiskLevel.HIGH
+    assert "key activation" in verdict.reason
+    assert "Delete Repository" in verdict.reason
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "Tab",
+        "Escape",
+        "ArrowDown",
+        "ArrowUp",
+        "PageDown",
+        "Shift",
+        "Control",
+        "Alt",
+        "",
+    ],
+)
+def test_non_activation_keys_on_high_risk_element_safe(key: str):
+    ref = _ref("button", "Delete Repository")
+    verdict = classify_interaction_risk("press", ref, text=key)
+    assert verdict.level is SemanticRiskLevel.SAFE
+    assert verdict.reason == ""
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "Enter",
+        "Space",
+        "Return",
+        "NumpadEnter",
+    ],
+)
+def test_activation_keys_on_benign_element_safe(key: str):
+    ref = _ref("button", "Search Products")
+    verdict = classify_interaction_risk("press", ref, text=key)
+    assert verdict.level is SemanticRiskLevel.SAFE
+    assert verdict.reason == ""
+
+
+def test_key_activation_on_alert_dialog():
+    ref = _ref("alertdialog", "Do you wish to proceed?")
+    verdict = classify_interaction_risk("press", ref, text="Enter")
+    assert verdict.level is SemanticRiskLevel.HIGH
+    assert "key activation" in verdict.reason
+    assert "alert dialog" in verdict.reason
+

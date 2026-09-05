@@ -121,11 +121,11 @@ async def enforce_semantic_interaction_guard(
     ref_info: RefInfo | None,
     text: str = "",
 ) -> str | None:
-    """Gate click/dblclick on high-risk ARIA refs. Returns block message or None."""
+    """Gate click/dblclick and key activation mutations on high-risk ARIA refs. Returns block message or None."""
     if ref_info is None or not isinstance(getattr(ref_info, "name", None), str):
         return None
 
-    verdict = classify_interaction_risk(action, ref_info)
+    verdict = classify_interaction_risk(action, ref_info, text)
     if verdict.level is not SemanticRiskLevel.HIGH:
         return None
 
@@ -138,6 +138,7 @@ async def enforce_semantic_interaction_guard(
             "role": ref_info.role,
             "name": ref_info.name,
             "ref": ref,
+            **({"key": text} if action == "press" else {}),
         },
     )
 

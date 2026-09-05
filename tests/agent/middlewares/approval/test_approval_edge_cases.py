@@ -1568,4 +1568,38 @@ async def test_irreversible_social_action_blocks_allowlist_bypass(monkeypatch: p
     assert interrupt_calls[1]["reviewConfigs"][0]["sociallyIrreversible"] is True
 
 
+@pytest.mark.asyncio
+async def test_session_scoped_denial_persistence() -> None:
+    """Test that DenialState persists across runs when bound to a session."""
+    from myrm_agent_harness.agent.middlewares._session_context import set_approval_session
+    from myrm_agent_harness.agent.middlewares.approval.helpers import (
+        ThresholdBreach,
+        is_threshold_breached,
+        record_denial,
+        reset_denial_counter,
+    )
+
+    session_id = "test_session_persistence_001"
+    set_approval_session(session_id)
+    reset_denial_counter(session_id)
+
+    assert is_threshold_breached() == ThresholdBreach.NONE
+
+    # Run 1: 2 consecutive denials
+    record_denial("tool_x")
+    record_denial("tool_y")
+    assert is_threshold_breached() == ThresholdBreach.NONE
+
+    # Simulate next run starting: ordinary local ContextVar reset shouldn't wipe session state
+    reset_denial_counter()  # local reset without session key
+    # But because session context is bound, state should be preserved
+    record_denial("tool_z")
+    assert is_threshold_breached() == ThresholdBreach.CONSECUTIVE
+
+    # Explicit session reset clears it
+    reset_denial_counter(session_id)
+    assert is_threshold_breached() == ThresholdBreach.NONE
+
+
+
 
