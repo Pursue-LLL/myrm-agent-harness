@@ -22,7 +22,6 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
-from typing import Any
 
 from myrm_agent_harness.core.security.redact.engine import redact_sensitive_text
 
@@ -33,10 +32,10 @@ try:
     HAS_OTEL_SDK = True
 except (ImportError, TypeError):
     HAS_OTEL_SDK = False
-    SpanProcessor = object  # type: ignore
-    ReadableSpan = Any  # type: ignore
-    Span = Any  # type: ignore
-    Context = Any  # type: ignore
+    SpanProcessor = object  # type: ignore[assignment,misc]
+    ReadableSpan = object  # type: ignore[assignment,misc]
+    Span = object  # type: ignore[assignment,misc]
+    Context = object  # type: ignore[assignment,misc]
 
 type AttributePrimitive = str | int | float | bool
 type AttributeValue = AttributePrimitive | Sequence[AttributePrimitive]
