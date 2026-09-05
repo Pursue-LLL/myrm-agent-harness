@@ -517,7 +517,7 @@ async def evaluate_tool_batch(
                 if (
                     auto_mode_enabled
                     and _batch_review._security_reviewer is not None
-                    and is_threshold_breached() == ThresholdBreach.NONE
+                    and is_threshold_breached(session_key) == ThresholdBreach.NONE
                     and not is_irreversible_social_action(tool_name, tool_input)
                 ):
                     safe_tool_input = _truncate_tool_args(tool_input)
@@ -548,7 +548,7 @@ async def evaluate_tool_batch(
                                 tool_name, "LLM_REVIEW_ALLOW", review_result.reason
                             )
                             auto_approved.append((idx, tool_call))
-                            record_approval()
+                            record_approval(session_key)
                             continue
                         if review_result.decision == ReviewDecision.DENY:
                             logger.warning(
@@ -559,7 +559,7 @@ async def evaluate_tool_batch(
                             record_decision(
                                 tool_name, "LLM_REVIEW_DENY", review_result.reason
                             )
-                            hint = record_denial(tool_name)
+                            hint = record_denial(tool_name, session_key)
                             auto_denied.append(
                                 (
                                     idx,
@@ -585,7 +585,7 @@ async def evaluate_tool_batch(
                     permission_type == "invoke_external_agent"
                     and auto_mode_enabled
                     and _batch_review._security_reviewer is not None
-                    and is_threshold_breached() == ThresholdBreach.NONE
+                    and is_threshold_breached(session_key) == ThresholdBreach.NONE
                 ):
                     safe_tool_input = _truncate_tool_args(tool_input)
                     command_repr = f"Tool: {tool_name}\nArgs: {json.dumps(safe_tool_input, ensure_ascii=False, default=str)}"
@@ -611,7 +611,7 @@ async def evaluate_tool_batch(
                             record_decision(
                                 tool_name, "OUTBOUND_DENY", review_result.reason
                             )
-                            hint = record_denial(tool_name)
+                            hint = record_denial(tool_name, session_key)
                             auto_denied.append(
                                 (
                                     idx,
