@@ -15,6 +15,15 @@ Persistence is owned by the business layer, keeping the harness reusable.
 """
 
 from .exporter import AgentPluginPacker, PluginPackageResult, canonical_plugin_name
+from .integrity import (
+    PackagingIntegrityVerdict,
+    extract_server_entrypoint_path,
+    filter_valid_servers,
+    normalize_package_path,
+    verify_mcp_server_artifacts,
+    verify_mcp_server_packaging_integrity,
+    verify_plugin_packaging_integrity,
+)
 from .manifest import AgentPluginManifestMeta, decode_manifest_json, parse_manifest
 from .mcp_config import decode_mcp_json, parse_mcp_servers, validate_mcp_top_level
 from .models import (
@@ -31,6 +40,7 @@ __all__ = [
     "AgentPluginManifestMeta",
     "AgentPluginPacker",
     "AgentPluginParser",
+    "PackagingIntegrityVerdict",
     "PluginAgent",
     "PluginDiagnostic",
     "PluginDiagnosticLevel",
@@ -41,7 +51,11 @@ __all__ = [
     "canonical_plugin_name",
     "decode_manifest_json",
     "decode_mcp_json",
+    "extract_server_entrypoint_path",
+    "filter_valid_servers",
+    "normalize_package_path",
     "parse_manifest",
     "parse_mcp_servers",
     "validate_mcp_top_level",
+    "verify_mcp_server_artifacts",
 ]
