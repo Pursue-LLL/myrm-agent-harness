@@ -405,28 +405,25 @@ class RetrieverManager:
 
         retriever = await self._get_cached_bm25_retriever(documents)
 
-        # Dual-track RRF fusion:
-        # Track 0: Search engine anchor/prior ranking preserving domain diversity & authority
-        # Track 1..m: BM25 lexical relevance rankings normalized by query count
-        engine_ranking: list[tuple[int, float]] = [(idx, 1.0 / (idx + 1)) for idx in range(len(documents))]
-        fused_lists: list[list[tuple[int, float]]] = [engine_ranking]
-        bm25_weight = 1.0 / max(1, len(queries))
-        weights: list[float] = [1.0]
-
+        # Multi-query BM25 lexical reranking across candidate documents
+        query_results: list[list[tuple[int, float]]] = []
         total_raw_results = 0
         for query in queries:
             results = retriever.search(query, top_k * self.config.bm25_candidate_multiplier, only_relevant=True)
-            fused_lists.append(results)
-            weights.append(bm25_weight)
-            total_raw_results += len(results)
+            if results:
+                query_results.append(results)
+                total_raw_results += len(results)
 
-        fused_results = rrf_fusion(
-            fused_lists,
-            k=self.config.rrf_k_parameter,
-            top_k=top_k,
-            weights=weights,
-        )
-        selected_docs = [documents[idx] for idx, _ in fused_results if idx < len(documents)]
+        if query_results:
+            fused_results = rrf_fusion(
+                query_results,
+                k=self.config.rrf_k_parameter,
+                top_k=top_k,
+            )
+            selected_docs = [documents[idx] for idx, _ in fused_results if idx < len(documents)]
+        else:
+            # Fallback when all queries yield zero lexical matches
+            selected_docs = []
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         recall_rate = len(selected_docs) / min(top_k, len(documents)) if documents else 0.0

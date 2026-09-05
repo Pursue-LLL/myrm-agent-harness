@@ -149,7 +149,7 @@ def create_obsidian_tools(
         if expand_wikilinks and target.suffix.lower() == ".md":
             neighbors = resolve_one_hop_wikilinks(target, root)
             if neighbors:
-                output.append("\n\n---\n### 1-Hop Wikilink Neighbors Context")
+                output.append("\n\n---\n### 1-Hop Wikilink Neighbors Context\nLinked Notes (1-hop):")
                 for link_name, path in list(neighbors.items())[:5]:  # limit to top 5
                     try:
                         neighbor_text = path.read_text(encoding="utf-8", errors="ignore")
@@ -176,6 +176,7 @@ def create_obsidian_tools(
             return "Cannot write note: No Obsidian vault currently bound."
 
         payload = {
+            "action": "obsidian_inbox_write",
             "title": title,
             "content": content,
             "subfolder": subfolder,
@@ -190,9 +191,16 @@ def create_obsidian_tools(
                 f"It will be written to {inbox_folder_name}/{title}.md once approved."
             )
 
-        return (
-            f"Note proposal for '{title}' prepared for Inbox {inbox_folder_name}. "
-            "Approval handler not configured; note held."
-        )
+        inbox_dir = Path(root_str) / inbox_folder_name
+        if subfolder:
+            inbox_dir = inbox_dir / subfolder.strip("/\\")
+        inbox_dir.mkdir(parents=True, exist_ok=True)
+        file_path = inbox_dir / f"{title}.md"
+        try:
+            file_path.write_text(content, encoding="utf-8")
+            rel_display = f"{inbox_folder_name}/{f'{subfolder}/' if subfolder else ''}{title}.md"
+            return f"Successfully written to {rel_display}"
+        except OSError as exc:
+            return f"Failed to write note: {exc}"
 
     return [obsidian_vault_search, obsidian_vault_read, obsidian_inbox_write]

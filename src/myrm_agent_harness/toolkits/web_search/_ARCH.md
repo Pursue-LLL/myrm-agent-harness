@@ -19,7 +19,7 @@ and the intent-aware search parameter optimizer.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Toolkit entry point; lazy re-exports WebSearchTools, LiteLLMSearch, SearchServiceConfig | ✅ |
-| engine.py | Core | WebSearchTools wrapper: parallel search + dedup + dual-track BM25/precision modes | ✅ |
+| engine.py | Core | WebSearchTools wrapper: parallel search + dedup + BM25/precision modes | ✅ |
 | web_search_agent_tools.py | Core | LangChain `web_search_tool` factory | ✅ |
 | _web_search_tool_description.py | Core | LLM-visible tool description SSOT (EN/ZH) | ✅ |
 

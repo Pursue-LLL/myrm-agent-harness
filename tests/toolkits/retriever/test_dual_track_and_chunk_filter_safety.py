@@ -1,4 +1,4 @@
-"""Unit tests for dual-track RRF fusion and chunk_filter safety fallback."""
+"""Unit tests for pure BM25 multi-query RRF reranking and chunk_filter safety fallback."""
 
 from __future__ import annotations
 
@@ -10,31 +10,57 @@ from myrm_agent_harness.toolkits.retriever.preprocessing.chunk_filter import Chu
 
 
 @pytest.mark.asyncio
-async def test_dual_track_rrf_preserves_anchor_authority_and_consensus() -> None:
-    """Verify dual-track RRF protects engine anchor ranking while boosting cross-query consensus."""
+async def test_bm25_multi_query_relevance_reranking() -> None:
+    """Verify BM25 reranks candidate pool based purely on keyword relevance and consensus."""
     manager = RetrieverManager()
     docs = [
         Document(
-            page_content="Official Kubernetes documentation about pod eviction and allocatable memory constraints.",
-            metadata={"title": "K8s Official Docs", "url": "https://kubernetes.io/docs/concepts/scheduling-eviction/"},
+            page_content="Welcome to our cloud platform homepage. We provide best-in-class solutions.",
+            metadata={"title": "Cloud Vendor Landing Page", "url": "https://example.com/home"},
         ),
         Document(
-            page_content="CNCF technical article explaining production guidelines for kubelet eviction thresholds.",
-            metadata={"title": "CNCF Best Practices", "url": "https://cncf.io/blog/kubelet-eviction-production"},
+            page_content="Detailed guide on PostgreSQL sequence overflow and BIGINT migration strategies.",
+            metadata={"title": "Postgres Sequence Deep Dive", "url": "https://example.com/postgres-overflow"},
         ),
         Document(
-            page_content="Eviction threshold eviction threshold eviction threshold keyword spam blog guide hacks.",
-            metadata={"title": "Spammy Aggregator", "url": "https://spammy-seo-aggregator.xyz/post/1234"},
+            page_content="Troubleshooting database primary key sequence exhaustion in PostgreSQL production.",
+            metadata={"title": "Production Fix Guide", "url": "https://example.com/troubleshoot-sequence"},
         ),
     ]
 
-    queries = ["kubelet eviction thresholds", "pod allocatable memory"]
+    queries = ["postgresql sequence overflow", "primary key exhaustion"]
     results = await manager.bm25_retrieval_only(queries=queries, documents=docs, top_k=2)
 
     assert len(results) == 2
-    # Official docs must maintain top 1 rank due to anchor track weighting
-    assert results[0].metadata["title"] == "K8s Official Docs"
-    assert results[1].metadata["title"] == "CNCF Best Practices"
+    # Generic landing page with 0 query keywords must be naturally dropped out of top 2
+    titles = [r.metadata["title"] for r in results]
+    assert "Cloud Vendor Landing Page" not in titles
+    assert "Postgres Sequence Deep Dive" in titles
+    assert "Production Fix Guide" in titles
+
+
+@pytest.mark.asyncio
+async def test_bm25_retrieval_only_zero_match_fallback() -> None:
+    """Verify bm25_retrieval_only falls back safely to original order when all queries have zero matches."""
+    manager = RetrieverManager()
+    docs = [
+        Document(
+            page_content="Python asyncio event loop guide.",
+            metadata={"title": "Asyncio Doc 1", "url": "https://example.com/asyncio-1"},
+        ),
+        Document(
+            page_content="Python asyncio tasks and futures.",
+            metadata={"title": "Asyncio Doc 2", "url": "https://example.com/asyncio-2"},
+        ),
+    ]
+
+    # Queries completely unrelated to docs
+    queries = ["量子力学 波粒二象性", "天体物理学 恒星演化"]
+    results = await manager.bm25_retrieval_only(queries=queries, documents=docs, top_k=1)
+
+    assert len(results) == 1
+    # Safe fallback to original order
+    assert results[0].metadata["title"] == "Asyncio Doc 1"
 
 
 @pytest.mark.asyncio
