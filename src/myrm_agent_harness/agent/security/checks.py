@@ -15,6 +15,7 @@ import re
 from urllib.parse import urlparse
 
 from myrm_agent_harness.agent.security.path_security import (
+    is_protected_instruction_file,
     is_sensitive_file,
     is_within_boundary,
 )
@@ -73,6 +74,12 @@ def check_path_policy(
 
     if workspace_root and _is_subpath(normalized, _normalize_path(workspace_root)):
         matched_writable = True
+
+    if require_write and (is_protected_instruction_file(raw_path) or is_protected_instruction_file(normalized)):
+        return (
+            PermissionAction.ASK,
+            f"Protected instruction file write requires human approval: {os.path.basename(raw_path)}",
+        )
 
     if matched_writable:
         if is_sensitive_file(raw_path):
