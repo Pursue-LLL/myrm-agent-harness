@@ -195,8 +195,13 @@ DANGEROUS_ENV_VARS: frozenset[str] = frozenset(
         "CC",
         "CXX",
         "CARGO_BUILD_RUSTC",
-        # Credential Vault Master Key
+        # Credential Vault Master Key & Auth Isolation
         "MYRM_VAULT_MASTER_KEY",
+        "NOISE_AUTH_TOKEN",
+        "AUTH_TOKEN",
+        "ACCESS_TOKEN",
+        "REFRESH_TOKEN",
+        "SESSION_TOKEN",
     }
 )
 
@@ -208,6 +213,9 @@ DANGEROUS_ENV_WILDCARDS: tuple[str, ...] = (
     "TOKEN",
     "PASSWORD",
     "CREDENTIAL",
+    "AUTH",
+    "BEARER",
+    "SIGNATURE",
 )
 
 CORE_SAFE_ENV_VARS: frozenset[str] = frozenset(

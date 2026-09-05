@@ -471,10 +471,11 @@ class TestSanitizeEnv:
         assert _matches_wildcard("CUSTOM_SECRET") is True
         assert _matches_wildcard("SAFE_VARIABLE") is False
 
-        env = {"SAFE_VAR": "ok", "MY_SECRET_TOKEN": "hidden"}
+        env = {"SAFE_VAR": "ok", "MY_SECRET_TOKEN": "hidden", "NOISE_AUTH_TOKEN": "secret_noise"}
         result = sanitize_env(env, EnvInheritPolicy.ALL)
         assert "SAFE_VAR" in result
         assert "MY_SECRET_TOKEN" not in result
+        assert "NOISE_AUTH_TOKEN" not in result
 
     def test_all_policy_safe_vars_pass(self) -> None:
         from myrm_agent_harness.toolkits.code_execution.security.validator import (

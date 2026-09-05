@@ -46,6 +46,11 @@ from .registry import (
     unregister_ptc_safety_metadata,
 )
 from .safety import check_safety_coverage
+from .script_hasher import (
+    ScriptTargetInfo,
+    compute_file_sha256,
+    extract_script_target_and_hash,
+)
 
 __all__ = [
     "AUTO_APPROVED_BUILTIN_TOOLS",
@@ -65,11 +70,14 @@ __all__ = [
     "_PTC_TOOL_FLAT_INDEX",
     "MCPAnnotations",
     "SafetyMetadata",
+    "ScriptTargetInfo",
     "_check_safety_coverage",
     "_sanitize_url_for_taint",
     "check_safety_coverage",
     "compute_canonical_args_hash",
+    "compute_file_sha256",
     "evict_skill_safety_metadata",
+    "extract_script_target_and_hash",
     "get_ptc_safety_metadata",
     "register_ptc_safety_metadata",
     "resolve_permission_type",

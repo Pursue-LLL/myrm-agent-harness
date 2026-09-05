@@ -94,15 +94,24 @@ def tokenize_cjk_bigram(text: str) -> list[str]:
     return tokens
 
 
-def build_cjk_index_segment(text: str) -> str:
-    """Write side: Convert text into deduplicated space-separated tokens for FTS index columns."""
+def build_cjk_index_segment(text: str, max_expansion_ratio: float = 2.2) -> str:
+    """Write side: Convert text into deduplicated space-separated tokens for FTS index columns.
+
+    Applies expansion safety bounds: if generated token count exceeds max_expansion_ratio * original_chars,
+    truncates excessive tokens to protect SQLite virtual table index sizes against combinatorial explosion.
+    """
+    if not text:
+        return ""
     tokens = tokenize_cjk_bigram(text)
     seen: set[str] = set()
     unique_tokens: list[str] = []
+    max_tokens = max(int(len(text) * max_expansion_ratio), 64)
     for t in tokens:
         if t not in seen:
             seen.add(t)
             unique_tokens.append(t)
+            if len(unique_tokens) >= max_tokens:
+                break
     return " ".join(unique_tokens)
 
 

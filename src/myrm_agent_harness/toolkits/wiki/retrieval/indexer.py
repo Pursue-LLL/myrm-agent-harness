@@ -40,6 +40,7 @@ from ..core.structure import WikiStructure
 from .graph_store import WikiGraphStore
 from .sidecar_index import _SIDECAR_PREFIX, SidecarIndexMixin
 from .tokenizer import tokenize_for_fts
+from myrm_agent_harness.toolkits.retriever.cjk_tokenizer import build_cjk_index_segment
 from .vector_chunks import (
     collapse_vector_hits,
     delete_text_vectors,
@@ -263,12 +264,13 @@ class WikiIndexer(SidecarIndexMixin):
         """
         raw_key = f"raw:{name}"
         preview = text[:5000] if len(text) > 5000 else text
+        indexed_content = build_cjk_index_segment(f"{name} {preview}")
 
         with self._get_conn() as conn:
             conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (raw_key,))
             conn.execute(
                 "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)",
-                (raw_key, preview),
+                (raw_key, indexed_content),
             )
 
     @staticmethod
@@ -318,11 +320,12 @@ class WikiIndexer(SidecarIndexMixin):
         publish_status = self._resolve_publish_status(full_markdown)
 
         def sync_upsert() -> None:
+            indexed_truth = build_cjk_index_segment(f"{concept_name} {truth_content}")
             with self._get_conn() as conn:
                 conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (concept_name,))
                 conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (f"raw:{concept_name}",))
                 conn.execute(
-                    "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)", (concept_name, truth_content)
+                    "INSERT INTO wiki_fts (concept_name, truth_content) VALUES (?, ?)", (concept_name, indexed_truth)
                 )
                 conn.execute(
                     "INSERT OR REPLACE INTO wiki_index_meta (concept_name, publish_status) VALUES (?, ?)",

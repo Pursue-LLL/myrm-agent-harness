@@ -69,6 +69,21 @@ class TestWildcardExclusion:
         result = sanitize_env(env)
         assert "MY_CREDENTIAL_FILE" not in result
 
+    def test_auth_and_bearer_and_signature_blocked(self) -> None:
+        env = {
+            "NOISE_AUTH_TOKEN": "noise-12345",
+            "OAUTH_AUTHORIZATION_HEADER": "Bearer xxx",
+            "BEARER_TOKEN": "bearer-secret",
+            "AWS_SIGNATURE": "sig-hex",
+            "NORMAL_PATH": "/usr/bin",
+        }
+        result = sanitize_env(env)
+        assert "NOISE_AUTH_TOKEN" not in result
+        assert "OAUTH_AUTHORIZATION_HEADER" not in result
+        assert "BEARER_TOKEN" not in result
+        assert "AWS_SIGNATURE" not in result
+        assert "NORMAL_PATH" in result
+
     def test_case_insensitive_wildcard(self) -> None:
         env = {"my_api_key": "value", "My_Secret": "value2"}
         result = sanitize_env(env)

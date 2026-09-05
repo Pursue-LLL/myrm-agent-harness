@@ -520,7 +520,28 @@ class IntegrationMemory(BaseMemory):
         return v
 
 
-# ── Search result ───────────────────────────────────────────────────
+# ── Search result & Recall Debug Trace ──────────────────────────────
+
+
+class HitSource(BaseModel):
+    """Source stream attribution and original rank for multi-source recall."""
+
+    source: str = Field(..., description="Name of the retrieval stream/source (e.g. 'vector', 'fts', 'graph')")
+    rank: int = Field(..., ge=0, description="0-indexed rank within that source stream")
+    score: float = Field(default=0.0, description="Original source-specific raw score if available")
+
+
+class RecallDebugTrace(BaseModel):
+    """White-box audit trail for multi-source RRF ranking decisions."""
+
+    hit_sources: list[HitSource] = Field(
+        default_factory=list, description="All sources that retrieved this candidate"
+    )
+    hit_count: int = Field(default=0, ge=0, description="Total number of distinct streams that hit this candidate")
+    fused_score: float = Field(default=0.0, description="Composite score before normalization")
+    tie_break_rank: int = Field(
+        default=0, ge=0, description="Rank resolved after deterministic three-tier tie-breaking"
+    )
 
 
 class MemorySearchResult(BaseModel):
@@ -529,6 +550,9 @@ class MemorySearchResult(BaseModel):
     memory: SemanticMemory | EpisodicMemory | ConversationMemory | ProceduralMemory | ClaimMemory | IntegrationMemory
     score: float = Field(ge=0.0, le=1.0)
     memory_type: MemoryType
+    recall_debug: RecallDebugTrace | None = Field(
+        default=None, description="Detailed white-box attribution trace for multi-source retrieval"
+    )
 
     @property
     def id(self) -> str:

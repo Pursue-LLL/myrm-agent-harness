@@ -106,6 +106,54 @@ def sanitize_fts5_query(query: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# CJK FTS5 Query Planner (Strict & Relaxed Two-Tier Fallback)
+# ---------------------------------------------------------------------------
+
+
+class CjkFtsQueryPlanner:
+    """Industrial deterministic query planner for SQLite FTS5 supporting CJK and ASCII.
+
+    Provides two-tier query plans without external C-extensions:
+    - strict: combines CJK bigrams, unigrams, and ASCII keywords via AND conjunction.
+    - relaxed: drops 2-character CJK bigrams to allow unigram/out-of-order recall.
+    - trigram_safe: wraps short tokens (<3 chars) or delegates safely for trigram tables.
+    """
+
+    @staticmethod
+    def plan_query_tiers(query: str) -> list[tuple[str, bool]]:
+        """Generate (match_query_string, is_relaxed) plan tiers for FTS5 MATCH execution.
+
+        Returns:
+            List of tuples (fts5_match_query, is_relaxed).
+            Strict tier has is_relaxed=False, relaxed tier has is_relaxed=True.
+        """
+        from myrm_agent_harness.toolkits.retriever.cjk_tokenizer import (
+            build_cjk_query_token_tiers,
+        )
+
+        safe_input = sanitize_fts5_query(query)
+        if not safe_input:
+            return []
+
+        tiers = build_cjk_query_token_tiers(safe_input)
+        if not tiers:
+            return [(safe_input, False)]
+
+        plans: list[tuple[str, bool]] = []
+        for idx, token_list in enumerate(tiers):
+            if not token_list:
+                continue
+            # Double-quote tokens to escape SQLite operators and protect phrases
+            safe_tokens = [f'"{t}"' for t in token_list if t.strip()]
+            if safe_tokens:
+                match_str = " AND ".join(safe_tokens)
+                is_relaxed = idx > 0
+                plans.append((match_str, is_relaxed))
+
+        return plans or [(safe_input, False)]
+
+
+# ---------------------------------------------------------------------------
 # FTS5 Index Integrity & Auto-Heal
 # ---------------------------------------------------------------------------
 

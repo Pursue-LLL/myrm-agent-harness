@@ -258,6 +258,10 @@ def build_interrupt_payload(
             review_config["sociallyIrreversible"] = True
             review_config["hideAllowAlways"] = True
             action_request["sociallyIrreversible"] = True
+        if extra_ctx and extra_ctx.get("script_operand_path"):
+            action_request["scriptOperandPath"] = extra_ctx.get("script_operand_path")
+            action_request["scriptOperandHash"] = extra_ctx.get("script_operand_hash")
+            review_config["scriptOperandProtected"] = True
         if domains:
             review_config["domainApproval"] = True
 

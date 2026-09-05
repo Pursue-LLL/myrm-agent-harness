@@ -117,6 +117,35 @@ async def test_close_cleans_up_provider(
     assert provider.cleanup_called
 
 
+@pytest.mark.asyncio
+async def test_create_process_sanitizes_credentials_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Child process launched via LocalPersistentSession must not inherit tokens/keys."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-live-secret")
+    monkeypatch.setenv("NOISE_AUTH_TOKEN", "noise-token-val")
+    monkeypatch.setenv("MYRM_VAULT_MASTER_KEY", "vault-master-pass")
+    monkeypatch.setenv("SAFE_SYSTEM_VAR", "visible-val")
+
+    provider = _FakeSandboxProvider()
+    fake_native = AsyncMock()
+    provider.create_process = AsyncMock(return_value=fake_native)
+    _enable_fake_provider(monkeypatch, provider)
+
+    session = LocalPersistentSession(_make_config())
+    try:
+        await session._create_process()
+        # Verify passed env argument to sandbox provider
+        call_kwargs = provider.create_process.call_args.kwargs
+        passed_env = call_kwargs["env"]
+        assert "OPENAI_API_KEY" not in passed_env
+        assert "NOISE_AUTH_TOKEN" not in passed_env
+        assert "MYRM_VAULT_MASTER_KEY" not in passed_env
+        assert passed_env.get("SAFE_SYSTEM_VAR") == "visible-val"
+    finally:
+        await session.close()
+
+
 def test_factory_returns_local_session() -> None:
     """create_persistent_session wires a LocalPersistentSession."""
     import asyncio
