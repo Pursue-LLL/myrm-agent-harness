@@ -60,6 +60,8 @@ __all__ = [
     "FleetQuotaItem",
     "FourTierSpendControlEngine",
     "GitMetadata",
+    "resolve_git_branch",
+    "resolve_git_metadata",
     "HitSource",
     "HookEvent",
     "HookRegistryProtocol",
@@ -399,10 +401,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "MetricPrediction": (
         "myrm_agent_harness.eval.manifest_prediction",
         "MetricPrediction",
-    ),
-    "resolve_git_branch": (
-        "myrm_agent_harness.infra.git",
-        "resolve_git_branch",
     ),
     "MissingSemanticsBlockedError": (
         "myrm_agent_harness.core.security.missing_semantics",
