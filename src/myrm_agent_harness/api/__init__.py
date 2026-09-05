@@ -60,8 +60,6 @@ __all__ = [
     "FleetQuotaItem",
     "FourTierSpendControlEngine",
     "GitMetadata",
-    "resolve_git_branch",
-    "resolve_git_metadata",
     "HitSource",
     "HookEvent",
     "HookRegistryProtocol",
