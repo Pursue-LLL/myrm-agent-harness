@@ -130,6 +130,55 @@ class TestSearchGithubCode:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_empty_query_returns_none(self) -> None:
+        result = await search_github_code("")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_http_500_server_error_returns_none(self) -> None:
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 500
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.get.return_value = mock_response
+
+        result = await search_github_code("any query", client=mock_client)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_success_without_text_matches(self) -> None:
+        mock_payload = {
+            "total_count": 1,
+            "items": [
+                {
+                    "name": "Cargo.toml",
+                    "path": "Cargo.toml",
+                    "html_url": "https://github.com/tikv/raft-rs/blob/master/Cargo.toml",
+                    "repository": {"full_name": "tikv/raft-rs"},
+                    "text_matches": [],
+                },
+                "not_a_dict_skipped",
+            ],
+        }
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.return_value = mock_payload
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.get.return_value = mock_response
+
+        results = await search_github_code("raft cargo", client=mock_client)
+        assert results is not None
+        assert len(results) == 1
+        assert "Direct link:" in results[0].snippet
+
+    @pytest.mark.asyncio
+    async def test_unexpected_exception_returns_none(self) -> None:
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.get.side_effect = RuntimeError("Fatal system error")
+
+        result = await search_github_code("any query", client=mock_client)
+        assert result is None
+
+    @pytest.mark.asyncio
     async def test_empty_items_returns_none(self) -> None:
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 200

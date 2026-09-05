@@ -38,6 +38,7 @@ Use web_search_tool to retrieve real-time information from the internet, includi
 - For most questions, generate 1-2 queries; for complex or multi-faceted questions only, generate 3-5 queries, at most 5.
 - Each query must include the entities, keywords, and constraints needed to retrieve the answer; avoid irrelevant words. One call should cover the core information dimensions of the user's question; unless key information is missing, do not repeat similar searches.
 - If results do not cover key aspects needed to answer, prefer rewriting for missing aspects or adding complementary queries.
+- When an information request spans multiple domains or you are uncertain whether a query is general or vertical, use a hybrid strategy: issue 1 general query and 1-2 domain-specific queries in parallel.
 - When search snippets provide insufficient detail or the user needs in-depth data from a retrieved webpage, combine with web_fetch_tool's fetch_and_extract operation to retrieve cleaned, targeted article sections without redundant searches.
 
 ## Query rewrite rules
@@ -101,6 +102,8 @@ web_search_tool 用于检索互联网中的实时信息、新闻、学术资料�
 - 大多数问题生成 1-2 条 query；仅复杂或多方面问题生成 3-5 条，最多 5 条。
 - 每条 query 应包含检索答案所需的实体、关键词和约束，避免无关词语。一次调用尽量覆盖用户问题的核心信息维度；除非缺少关键信息，不要重复搜索相似内容。
 - 若结果没有覆盖回答所需的关键方面，优先改写缺失方面或增加互补 query。
+- 当信息诉求涉及多领域交叉或无法断定属于泛化还是垂直领域时，采用混合策略：并行发起 1 条通用 query 与 1-2 条垂直领域针对性 query。
+- 当搜索返回的片段（snippet）信息不足或用户需要页面深层细节时，联动 web_fetch_tool 的 fetch_and_extract 操作提取清洗后的正文段落，避免盲目重复搜索。
 
 ## Query 改写规则
 
