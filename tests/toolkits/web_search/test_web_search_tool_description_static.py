@@ -31,6 +31,8 @@ def test_web_search_tool_description_preserves_rewrite_guardrails_en() -> None:
         "time_range: Set only when the user explicitly gives a time range",
         "use site: in the query to restrict domains",
         "If results do not cover key aspects needed to answer, prefer rewriting for missing aspects or adding complementary queries",
+        "When an information request spans multiple domains or you are uncertain whether a query is general or vertical, use a hybrid strategy",
+        "combine with web_fetch_tool's fetch_and_extract operation",
     )
     forbidden_fragments = (
         "依赖搜索提供商",
@@ -53,6 +55,8 @@ def test_web_search_tool_description_preserves_rewrite_guardrails_zh() -> None:
         "time_range：仅当用户明确给出时间范围",
         "site:",
         "若结果没有覆盖回答所需的关键方面，优先改写缺失方面或增加互补 query",
+        "采用混合策略：并行发起 1 条通用 query 与 1-2 条垂直领域针对性 query",
+        "联动 web_fetch_tool 的 fetch_and_extract 操作提取清洗后的正文段落",
     )
     forbidden_fragments = (
         "Provider-dependent",

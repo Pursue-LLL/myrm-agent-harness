@@ -38,7 +38,15 @@ from pathlib import Path
 # Dangerous path roots (normalised at import time)
 # ---------------------------------------------------------------------------
 
-_UNIX_SYSTEM_ROOTS: tuple[str, ...] = ("/etc", "/sys", "/proc", "/dev", "/root", "/boot", "/var/log")
+_UNIX_SYSTEM_ROOTS: tuple[str, ...] = (
+    "/etc",
+    "/sys",
+    "/proc",
+    "/dev",
+    "/root",
+    "/boot",
+    "/var/log",
+)
 
 _USER_SENSITIVE_DIRS: tuple[str, ...] = (
     "~/.ssh",
@@ -83,30 +91,32 @@ Used by both ``types.PathPolicy`` (Layer 2.5) and
 ``path_validator.PathValidator`` (file-operation layer).
 """
 
-BLOCKED_DEVICE_NAMES: frozenset[str] = frozenset({
-    "CON",
-    "PRN",
-    "AUX",
-    "NUL",
-    "COM1",
-    "COM2",
-    "COM3",
-    "COM4",
-    "COM5",
-    "COM6",
-    "COM7",
-    "COM8",
-    "COM9",
-    "LPT1",
-    "LPT2",
-    "LPT3",
-    "LPT4",
-    "LPT5",
-    "LPT6",
-    "LPT7",
-    "LPT8",
-    "LPT9",
-})
+BLOCKED_DEVICE_NAMES: frozenset[str] = frozenset(
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9",
+    }
+)
 """Windows reserved device names (matched case-insensitively with or without extensions)."""
 
 _DEVICE_PREFIXES: tuple[str, ...] = (
@@ -227,7 +237,9 @@ def safe_join_path(base_dir: str | Path, user_input: str | Path) -> Path:
     if "\0" in input_str:
         raise ValueError("Null byte injection detected in path")
     if is_content_not_path(input_str):
-        raise ValueError("Invalid path: content or multiline string cannot be parsed as a filesystem path")
+        raise ValueError(
+            "Invalid path: content or multiline string cannot be parsed as a filesystem path"
+        )
 
     user_path = Path(user_input)
     if user_path.is_absolute():
@@ -249,7 +261,9 @@ def safe_join_path(base_dir: str | Path, user_input: str | Path) -> Path:
         raise ValueError(f"Path resolution failed: {e}") from e
 
     if not resolved_final.is_relative_to(resolved_base):
-        raise ValueError(f"Path traversal detected: {user_input} resolves outside base directory")
+        raise ValueError(
+            f"Path traversal detected: {user_input} resolves outside base directory"
+        )
 
     return final_virtual_path
 
@@ -362,7 +376,12 @@ def is_blocked_device_path(path: str) -> bool:
     try:
         st = os.lstat(os.path.expanduser(cleaned))
         mode = st.st_mode
-        if stat.S_ISCHR(mode) or stat.S_ISBLK(mode) or stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode):
+        if (
+            stat.S_ISCHR(mode)
+            or stat.S_ISBLK(mode)
+            or stat.S_ISFIFO(mode)
+            or stat.S_ISSOCK(mode)
+        ):
             return True
     except (OSError, ValueError):
         pass
@@ -433,4 +452,3 @@ def is_protected_instruction_file(path: str) -> bool:
     except Exception:
         return False
     return False
-

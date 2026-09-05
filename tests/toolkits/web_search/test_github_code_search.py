@@ -145,6 +145,17 @@ class TestSearchGithubCode:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_unexpected_exception_returns_none(self) -> None:
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.json.side_effect = RuntimeError("Malformed JSON payload simulation")
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.get.return_value = mock_response
+
+        result = await search_github_code("any query", client=mock_client)
+        assert result is None
+
+    @pytest.mark.asyncio
     async def test_success_without_text_matches(self) -> None:
         mock_payload = {
             "total_count": 1,
