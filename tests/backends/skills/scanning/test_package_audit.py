@@ -201,3 +201,88 @@ class TestCheckLifecycleScripts:
             f.threat_type == "supply_chain" and "postinstall" in f.description
             for f in findings
         )
+
+
+class TestAuditPackageEntryArtifacts:
+    """Entry point and build artifact integrity detection."""
+
+    def test_existing_valid_main_and_bin(self, tmp_path):
+        from myrm_agent_harness.backends.skills.scanning.package_audit import (
+            audit_package_entry_artifacts,
+        )
+
+        dist_dir = tmp_path / "dist"
+        dist_dir.mkdir()
+        (dist_dir / "index.js").write_text("console.log('hello');")
+        (dist_dir / "cli.js").write_text("#!/usr/bin/env node\nconsole.log('cli');")
+
+        pkg = {
+            "name": "valid-plugin",
+            "main": "dist/index.js",
+            "bin": {"my-cli": "./dist/cli.js"},
+        }
+        findings = audit_package_entry_artifacts(pkg, tmp_path)
+        assert findings == []
+
+    def test_missing_main_with_typescript_sources_detected(self, tmp_path):
+        from myrm_agent_harness.backends.skills.scanning.package_audit import (
+            audit_package_entry_artifacts,
+        )
+
+        src_dir = tmp_path / "src"
+        src_dir.mkdir()
+        (src_dir / "index.ts").write_text("export const run = () => {};")
+
+        pkg = {
+            "name": "uncompiled-ts-plugin",
+            "main": "dist/index.js",
+        }
+        findings = audit_package_entry_artifacts(pkg, tmp_path)
+        assert len(findings) == 1
+        finding = findings[0]
+        assert finding.threat_type == "missing_artifact"
+        assert finding.severity == "high"
+        assert "dist/index.js" in finding.description
+        assert "npm run build" in finding.detail
+
+    def test_empty_zero_byte_entry_artifact(self, tmp_path):
+        from myrm_agent_harness.backends.skills.scanning.package_audit import (
+            audit_package_entry_artifacts,
+        )
+
+        dist_dir = tmp_path / "dist"
+        dist_dir.mkdir()
+        (dist_dir / "index.js").write_text("")  # 0 bytes
+
+        pkg = {
+            "name": "zero-byte-plugin",
+            "main": "dist/index.js",
+        }
+        findings = audit_package_entry_artifacts(pkg, tmp_path)
+        assert len(findings) == 1
+        assert findings[0].threat_type == "empty_artifact"
+        assert findings[0].severity == "high"
+
+    def test_path_traversal_in_main_blocked(self, tmp_path):
+        from myrm_agent_harness.backends.skills.scanning.package_audit import (
+            audit_package_entry_artifacts,
+        )
+
+        pkg = {
+            "name": "traversal-plugin",
+            "main": "../../../etc/passwd",
+        }
+        findings = audit_package_entry_artifacts(pkg, tmp_path)
+        assert len(findings) == 1
+        assert findings[0].threat_type == "integrity"
+        assert "unsafe path traversal" in findings[0].description
+
+    def test_audit_skill_directory_integrates_artifact_check(self, tmp_path):
+        pkg = {
+            "name": "missing-artifact-pkg",
+            "main": "dist/bundle.js",
+        }
+        (tmp_path / "package.json").write_text(json.dumps(pkg))
+        findings = audit_skill_directory(tmp_path)
+        assert any(f.threat_type == "missing_artifact" for f in findings)
+

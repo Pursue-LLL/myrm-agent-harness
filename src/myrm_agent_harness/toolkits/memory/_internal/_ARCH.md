@@ -11,6 +11,7 @@ Internal implementation details — not part of the public API.
 | approval.py | Core | Approval queue helpers. Handles AnyMemory ↔ PendingRecord conversion for the approval | ✅ |
 | embedding_cache.py | Core | Two-tier embedding cache. L1 uses in-memory LRU (OrderedDict + access-count eviction), L2 calls the  | ✅ |
 | governance_service.py | Core | Governance-side orchestration. Handles approval flow, profile updates, and content scanning. | ✅ |
+| graph_cascade.py | Internal | Cascade graph cleanup for derived nodes upon memory deletion | ✅ |
 | hash_utils.py | Core | Content hash computation utilities for deduplication. | ✅ |
 | maintenance.py | Core | Stateless background maintenance operations. Handles dedup, forgetting, access tracking, Task Digest evaporation, and Blob GC. Dedup candidates, forgetting, evaporation, and claim compilation are namespace-scoped to never touch other agents' memories. | ✅ |
 | maintenance_rule_forgetting.py | Core | Forgetting execution for procedural rules — archives TTL-expired rules (bypassing retention-score threshold) then applies ForgettingStrategy to the rest. | ✅ |

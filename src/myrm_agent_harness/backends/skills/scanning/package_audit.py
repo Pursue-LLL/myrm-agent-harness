@@ -12,6 +12,7 @@ Audits package.json files for supply chain attack vectors:
 - PackageAuditFinding: single finding from package audit
 - audit_package_json(): audit a package.json string for security issues
 - audit_skill_directory(): scan a skill directory for package.json issues
+- audit_package_entry_artifacts(): audit entry files and build artifacts for existence and integrity
 
 [POS]
 Supply chain security audit for skill package manifests.
@@ -190,7 +191,108 @@ def audit_skill_directory(skill_dir: str | Path) -> list[PackageAuditFinding]:
         findings = audit_package_json(content, relative)
         all_findings.extend(findings)
 
+        try:
+            pkg_dict = json.loads(content)
+            if isinstance(pkg_dict, dict):
+                artifact_findings = audit_package_entry_artifacts(pkg_dict, file_path.parent, relative)
+                all_findings.extend(artifact_findings)
+        except Exception as exc:
+            logger.debug("Failed parsing %s for artifact checks: %s", relative, exc)
+
     return all_findings
+
+
+def audit_package_entry_artifacts(
+    pkg: dict[str, object],
+    base_dir: Path,
+    manifest_rel_path: str = "package.json",
+) -> list[PackageAuditFinding]:
+    """Audit declared entry points and executable outputs for physical existence and integrity."""
+    findings: list[PackageAuditFinding] = []
+
+    # 1. Audit "main" entry
+    main_val = pkg.get("main")
+    if isinstance(main_val, str) and main_val.strip():
+        findings.extend(_verify_entry_artifact(main_val.strip(), base_dir, manifest_rel_path, "main"))
+
+    # 2. Audit "bin" entries
+    bin_val = pkg.get("bin")
+    if isinstance(bin_val, str) and bin_val.strip():
+        findings.extend(_verify_entry_artifact(bin_val.strip(), base_dir, manifest_rel_path, "bin"))
+    elif isinstance(bin_val, dict):
+        for cmd_name, cmd_path in bin_val.items():
+            if isinstance(cmd_path, str) and cmd_path.strip():
+                findings.extend(
+                    _verify_entry_artifact(cmd_path.strip(), base_dir, manifest_rel_path, f"bin[{cmd_name}]")
+                )
+
+    # 3. Audit "exports" default entry
+    exports_val = pkg.get("exports")
+    if isinstance(exports_val, str) and exports_val.strip():
+        findings.extend(_verify_entry_artifact(exports_val.strip(), base_dir, manifest_rel_path, "exports"))
+    elif isinstance(exports_val, dict):
+        dot_export = exports_val.get(".")
+        if isinstance(dot_export, str) and dot_export.strip():
+            findings.extend(_verify_entry_artifact(dot_export.strip(), base_dir, manifest_rel_path, "exports['.']"))
+
+    return findings
+
+
+def _verify_entry_artifact(
+    entry_rel: str,
+    base_dir: Path,
+    manifest_rel_path: str,
+    field_label: str,
+) -> list[PackageAuditFinding]:
+    """Verify a single declared artifact path exists, is inside base_dir, and is non-empty."""
+    findings: list[PackageAuditFinding] = []
+    clean_entry = entry_rel.strip()
+    if clean_entry.startswith("./"):
+        clean_entry = clean_entry[2:]
+    elif clean_entry.startswith(".\\"):
+        clean_entry = clean_entry[2:]
+
+    parts = clean_entry.replace("\\", "/").split("/")
+    if ".." in parts or clean_entry.startswith(("/", "\\")):
+        findings.append(
+            PackageAuditFinding(
+                threat_type="integrity",
+                severity="high",
+                description=f"Declared {field_label} uses unsafe path traversal: {entry_rel}",
+                file_path=manifest_rel_path,
+                detail=f"Path traversal blocked: {entry_rel}",
+            )
+        )
+        return findings
+
+    target_path = base_dir / clean_entry
+    if not target_path.exists():
+        ts_hint = ""
+        src_dir = base_dir / "src"
+        if src_dir.is_dir() and any(src_dir.glob("*.ts")):
+            ts_hint = " Detected TypeScript sources in 'src/' but missing compiled outputs. Run 'npm run build' before packaging."
+
+        findings.append(
+            PackageAuditFinding(
+                threat_type="missing_artifact",
+                severity="high",
+                description=f"Declared {field_label} entry file not found: {entry_rel}",
+                file_path=manifest_rel_path,
+                detail=f"Missing file: {clean_entry}.{ts_hint}",
+            )
+        )
+    elif target_path.is_file() and target_path.stat().st_size == 0:
+        findings.append(
+            PackageAuditFinding(
+                threat_type="empty_artifact",
+                severity="high",
+                description=f"Declared {field_label} entry file is empty (0 bytes): {entry_rel}",
+                file_path=manifest_rel_path,
+                detail=f"Empty file: {clean_entry}",
+            )
+        )
+
+    return findings
 
 
 def _walk_files(root: Path):

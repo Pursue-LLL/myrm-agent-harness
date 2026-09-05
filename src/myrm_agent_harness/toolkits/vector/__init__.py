@@ -32,6 +32,14 @@ from myrm_agent_harness.toolkits.vector.config import (
     VectorStoreConfig,
 )
 from myrm_agent_harness.toolkits.vector.pool import VectorStorePool
+from myrm_agent_harness.toolkits.vector.quantization import (
+    QuantizedVector,
+    cosine_similarity_int8,
+    decode_float32,
+    dequantize_int8,
+    encode_float32,
+    quantize_int8,
+)
 from myrm_agent_harness.toolkits.vector.warmer import (
     DummyQueryStrategy,
     VectorStoreWarmer,
@@ -45,6 +53,7 @@ __all__ = [
     "DummyQueryStrategy",
     "FilterDict",
     "FilterValue",
+    "QuantizedVector",
     "SearchResult",
     "VectorDocument",
     "VectorStore",
@@ -53,4 +62,9 @@ __all__ = [
     "VectorStoreWarmer",
     "VectorWarmupMetrics",
     "WarmupStrategy",
+    "cosine_similarity_int8",
+    "decode_float32",
+    "dequantize_int8",
+    "encode_float32",
+    "quantize_int8",
 ]

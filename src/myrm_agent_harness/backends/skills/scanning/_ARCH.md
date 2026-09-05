@@ -14,7 +14,7 @@ Skill content security scanning — regex patterns, Python AST analysis, package
 | dependency_extractor.py | Core | Manifest and lockfile dependency extractor for package.json (npm), requirements.txt (PyPI), pyproject.toml (PyPI), uv.lock (PyPI), bun.lock (npm), and package-lock.json (npm). | ✅ |
 | llm_auditor.py | Core | LLM-based semantic threat detection beyond regex/AST coverage. Parses the finding object via `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas). | ✅ |
 | osv_scanner.py | Core | Online OSV.dev batch vulnerability intelligence scanner with query batching and graceful offline fallback. | ✅ |
-| package_audit.py | Core | package.json supply-chain audit (install scripts, suspicious deps, in-memory lifecycle script gate). | ✅ |
+| package_audit.py | Core | package.json supply-chain audit (install scripts, suspicious deps, in-memory lifecycle script gate, entry point artifact physical reachability & non-empty integrity verification). | ✅ |
 | patterns.py | Core | Regex pattern groups for 26 threat categories. | ✅ |
 | rescan_engine.py | Core | Installed skill multi-layer rescan orchestrator with AdvisoryAckRegistry governance and auto-quarantine disposition. | ✅ |
 | scanner.py | Core | Multi-file skill directory scanner and scan summary aggregation. | ✅ |

@@ -97,6 +97,7 @@ __all__ = [
     "PrivacyLadderViolationType",
     "PrivacyScanVerdict",
     "PrivacyScope",
+    "QuantizedVector",
     "RepoCommitItem",
     "RepoHistoryEvidenceDigest",
     "ResolutionStatus",
@@ -126,8 +127,10 @@ __all__ = [
     "cleanup_orphan_processes",
     "compute_routine_measurement",
     "compute_workflow_fingerprint",
+    "cosine_similarity_int8",
     "create_skill_agent",
     "delete_subagent_checkpoint",
+    "dequantize_int8",
     "evaluate_five_contract_progress",
     "evaluate_manifest_attribution",
     "evaluate_metric_proxy_alignment",
@@ -148,6 +151,7 @@ __all__ = [
     "is_compiled_distribution",
     "is_external_secret_reference",
     "is_registered_action_tool",
+    "quantize_int8",
     "redact_connector_url",
     "redact_sensitive_text",
     "register_ptc_safety_metadata",
@@ -160,6 +164,10 @@ __all__ = [
     "tokenize_for_fts",
     "track_background_task",
     "unregister_ptc_safety_metadata",
+    "SalientToolEvidence",
+    "SalientToolFilterConfig",
+    "extract_salient_tool_evidences",
+    "strip_ansi_sequences",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -440,6 +448,22 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.core.security.integrity.seal",
         "IntegrityVerificationResult",
     ),
+    "SalientToolEvidence": (
+        "myrm_agent_harness.agent.context_management.salient_tool_filter",
+        "SalientToolEvidence",
+    ),
+    "SalientToolFilterConfig": (
+        "myrm_agent_harness.agent.context_management.salient_tool_filter",
+        "SalientToolFilterConfig",
+    ),
+    "extract_salient_tool_evidences": (
+        "myrm_agent_harness.agent.context_management.salient_tool_filter",
+        "extract_salient_tool_evidences",
+    ),
+    "strip_ansi_sequences": (
+        "myrm_agent_harness.agent.context_management.salient_tool_filter",
+        "strip_ansi_sequences",
+    ),
     "SEAL_FILENAME": (
         "myrm_agent_harness.core.security.integrity.seal",
         "SEAL_FILENAME",
@@ -680,6 +704,38 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "extract_repo_history_digest": (
         "myrm_agent_harness.toolkits.code_execution.git_digest",
         "extract_repo_history_digest",
+    ),
+    "SalientToolEvidence": (
+        "myrm_agent_harness.agent.context_management.salient_tool_filter",
+        "SalientToolEvidence",
+    ),
+    "SalientToolFilterConfig": (
+        "myrm_agent_harness.agent.context_management.salient_tool_filter",
+        "SalientToolFilterConfig",
+    ),
+    "extract_salient_tool_evidences": (
+        "myrm_agent_harness.agent.context_management.salient_tool_filter",
+        "extract_salient_tool_evidences",
+    ),
+    "strip_ansi_sequences": (
+        "myrm_agent_harness.agent.context_management.salient_tool_filter",
+        "strip_ansi_sequences",
+    ),
+    "QuantizedVector": (
+        "myrm_agent_harness.toolkits.vector.quantization",
+        "QuantizedVector",
+    ),
+    "quantize_int8": (
+        "myrm_agent_harness.toolkits.vector.quantization",
+        "quantize_int8",
+    ),
+    "dequantize_int8": (
+        "myrm_agent_harness.toolkits.vector.quantization",
+        "dequantize_int8",
+    ),
+    "cosine_similarity_int8": (
+        "myrm_agent_harness.toolkits.vector.quantization",
+        "cosine_similarity_int8",
     ),
 }
 

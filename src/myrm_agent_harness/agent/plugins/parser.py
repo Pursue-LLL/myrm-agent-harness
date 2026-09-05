@@ -33,6 +33,7 @@ from typing import Any
 from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract_zip
 
 from . import manifest, mcp_config
+from .integrity import verify_plugin_packaging_integrity
 from .manifest import decode_manifest_json, parse_manifest
 from .mcp_config import decode_mcp_json, parse_mcp_servers
 from .models import PluginAgent, PluginDiagnosticLevel, PluginParseResult, PluginSkill
@@ -203,8 +204,9 @@ class AgentPluginParser:
             result.add_diagnostic("mcp", exc.code, str(exc))
             return  # disable MCP for the plugin, keep skills (§7.2.2)
 
-        for server in parse_mcp_servers(raw):
-            result.servers.append(server)
+        parsed_servers = parse_mcp_servers(raw)
+        for s in parsed_servers:
+            result.servers.append(s)
 
         # Surface skipped/invalid variants as diagnostics so failures are visible (§11.3).
         raw_servers = raw.get("mcpServers")
