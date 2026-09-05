@@ -15,6 +15,8 @@ Framework design:
 
 [OUTPUT]
 - setup_tracing: 初始化追踪（业务层调用）
+- is_local_trace_only: 本地 Trace 模式判定
+- assert_local_trace_only: 本地 Trace 零泄漏断言
 - get_tracer: 获取追踪器（框架内部使用）
 - trace_async: 异步函数装饰器（框架内部使用）
 - trace_context: 上下文管理器（框架内部使用）
@@ -28,6 +30,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import os
 import threading
 from collections.abc import Awaitable, Callable
 from contextlib import contextmanager
@@ -58,11 +61,27 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 
+def is_local_trace_only() -> bool:
+    """Return True if local-trace-only security isolation is enforced."""
+    return os.getenv("MYRM_LOCAL_TRACE_ONLY", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def assert_local_trace_only(endpoint: str | None = None) -> None:
+    """Verify that no remote endpoint is configured when local-trace-only mode is active."""
+    if (is_local_trace_only()) and endpoint and not (
+        endpoint.startswith(("http://localhost", "http://127.0.0.1", "grpc://localhost", "grpc://127.0.0.1"))
+    ):
+        raise PermissionError(
+            f"Security Policy Violation: Remote trace export to '{endpoint}' is blocked in local-trace-only mode."
+        )
+
+
 def setup_tracing(
     service_name: str = "myrm-agent-harness",
     console_export: bool = True,
     sample_rate: float = 0.1,
     otlp_endpoint: str | None = None,
+    local_trace_only: bool = False,
 ) -> None:
     """Initialize OpenTelemetry tracing.
 
@@ -77,8 +96,17 @@ def setup_tracing(
             Errors, slow requests, and critical paths are always 100% sampled.
         otlp_endpoint: OTLP exporter endpoint for production. When set, takes
             priority over console_export.
+        local_trace_only: If True, enforce that no external remote OTLP export occurs.
     """
     global _tracer_provider, _initialized
+
+    if local_trace_only or is_local_trace_only():
+        assert_local_trace_only(otlp_endpoint)
+        if otlp_endpoint and not (
+            otlp_endpoint.startswith(("http://localhost", "http://127.0.0.1", "grpc://localhost", "grpc://127.0.0.1"))
+        ):
+            logger.warning("Local-trace-only mode active: ignoring remote OTLP endpoint '%s'", otlp_endpoint)
+            otlp_endpoint = None
 
     if not HAS_OTEL_SDK:
         logger.warning(
@@ -104,6 +132,11 @@ def setup_tracing(
 
     # Create tracer provider with sampler
     _tracer_provider = TracerProvider(resource=resource, sampler=sampler)
+
+    # Attach privacy sanitizer processor prior to any batch exporters
+    from .sanitizer import SanitizingSpanProcessor
+
+    _tracer_provider.add_span_processor(SanitizingSpanProcessor())
 
     # Add exporter
     if otlp_endpoint:

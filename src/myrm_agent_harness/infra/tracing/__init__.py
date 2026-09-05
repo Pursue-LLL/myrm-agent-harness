@@ -66,12 +66,15 @@ from .propagation import (
 )
 from .sampling import IntelligentSampler, create_intelligent_sampler
 from .sanitizer import (
+    SanitizingSpanProcessor,
     TraceSpanSanitizer,
     sanitize_trace_attributes,
     sanitize_trace_payload,
 )
 from .tracer import (
+    assert_local_trace_only,
     get_tracer,
+    is_local_trace_only,
     setup_tracing,
     shutdown_tracing,
     trace_async,
@@ -102,7 +105,9 @@ __all__ = [
     "SPAN_AGENT_TURN",
     "SPAN_LLM_REQUEST",
     "SPAN_TOOL_CALL",
+    "SanitizingSpanProcessor",
     "TraceSpanSanitizer",
+    "assert_local_trace_only",
     "create_intelligent_sampler",
     "extract_trace_context",
     "get_current_span_id",
@@ -110,6 +115,7 @@ __all__ = [
     "get_meter",
     "get_tracer",
     "inject_trace_context",
+    "is_local_trace_only",
     "record_gen_ai_agent_turn",
     "record_gen_ai_llm_request",
     "record_gen_ai_tool_call",

@@ -5,6 +5,7 @@
 
 [OUTPUT]
 - TraceSpanSanitizer: 三层渐进式 Trace 属性与 Payload 脱敏清洗器
+- SanitizingSpanProcessor: OpenTelemetry 导出前脱敏 Span 处理器
 - sanitize_trace_attributes: 顶层无状态 Span 属性清洗快捷函数
 - sanitize_trace_payload: 任意嵌套 JSONL / EventLog 追踪数据安全清洗器
 
@@ -18,10 +19,24 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 from myrm_agent_harness.core.security.redact.engine import redact_sensitive_text
+
+try:
+    from opentelemetry.context import Context
+    from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
+
+    HAS_OTEL_SDK = True
+except (ImportError, TypeError):
+    HAS_OTEL_SDK = False
+    SpanProcessor = object  # type: ignore
+    ReadableSpan = Any  # type: ignore
+    Span = Any  # type: ignore
+    Context = Any  # type: ignore
 
 type AttributePrimitive = str | int | float | bool
 type AttributeValue = AttributePrimitive | Sequence[AttributePrimitive]
@@ -84,9 +99,35 @@ class TraceSpanSanitizer:
         """Apply pattern-based redaction and bounded SHA-256 truncation."""
         if not val:
             return val
+
+        # Handle nested stringified JSON if applicable
+        stripped = val.strip()
+        if (stripped.startswith("{") and stripped.endswith("}")) or (
+            stripped.startswith("[") and stripped.endswith("]")
+        ):
+            try:
+                parsed = json.loads(val)
+                if isinstance(parsed, dict):
+                    sanitized_dict = self.sanitize_payload(parsed)
+                    val = json.dumps(sanitized_dict, ensure_ascii=False)
+                elif isinstance(parsed, list):
+                    sanitized_list = [
+                        self.sanitize_payload(item)
+                        if isinstance(item, Mapping)
+                        else (
+                            self.sanitize_string_value(item)
+                            if isinstance(item, str)
+                            else item
+                        )
+                        for item in parsed
+                    ]
+                    val = json.dumps(sanitized_list, ensure_ascii=False)
+            except Exception:
+                pass
+
         # Layer 2: Sensitive value pattern scrubbing
-        redacted = redact_sensitive_text(val)
-        redacted = _BEARER_PATTERN.sub("Bearer [REDACTED_BEARER_TOKEN]", redacted)
+        redacted = _BEARER_PATTERN.sub("Bearer [REDACTED_BEARER_TOKEN]", val)
+        redacted = redact_sensitive_text(redacted)
         # Layer 3: Bounded truncation with integrity fingerprint
         length = len(redacted)
         if length > self._max_value_len:
@@ -170,3 +211,27 @@ def sanitize_trace_attributes(
 def sanitize_trace_payload(payload: Mapping[str, object]) -> dict[str, object]:
     """Pure convenience helper to sanitize trace event payloads via default sanitizer."""
     return _DEFAULT_SANITIZER.sanitize_payload(payload)
+
+
+class SanitizingSpanProcessor(SpanProcessor):
+    """OpenTelemetry SpanProcessor that scrubs sensitive attributes before downstream export."""
+
+    def __init__(self, sanitizer: TraceSpanSanitizer | None = None) -> None:
+        self._sanitizer = sanitizer or _DEFAULT_SANITIZER
+
+    def on_start(self, span: Span, parent_context: Context | None = None) -> None:
+        pass
+
+    def on_end(self, span: ReadableSpan) -> None:
+        attrs = getattr(span, "_attributes", None)
+        if isinstance(attrs, dict):
+            sanitized = self._sanitizer.sanitize_attributes(attrs)
+            # ReadableSpan._attributes is a BoundedAttributes dict where __delitem__ is disallowed.
+            # Directly setting the attribute dictionary ensures safe in-place replacement.
+            span._attributes = sanitized
+
+    def shutdown(self) -> None:
+        pass
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return True
