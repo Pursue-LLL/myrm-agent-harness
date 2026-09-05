@@ -105,7 +105,7 @@ _EXPLANATION_INTENT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(
         r"(?i)\b(what is|explain|difference between|how does|why does|what are|example|sample|demo|snippet|don't save|do not save|no need to save|just show|just explain)\b"
     ),
-    re.compile(r"(什么是|解释一下|为什么|区别是什么|怎么理解|如何理解|原理是什么|例子|示例|演示|片段|不用保存|无需保存|不要保存|仅供参考|只看不写|纯演示)"),
+    re.compile(r"(什么是|解释一下|解释|为什么|区别是什么|怎么理解|如何理解|原理是什么|原理|例子|示例|演示|片段|不用保存|无需保存|不要保存|仅供参考|只看不写|纯演示)"),
 )
 
 _DELIVERABLE_INTENT_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -216,9 +216,10 @@ def detect_unwritten_deliverables(
             # User specifically requested writing/implementing an artifact
             is_substantive = line_count >= 12
         elif is_pure_explanation:
-            # Pure educational inquiry: require very large full-file structure
-            is_substantive = line_count >= 28 and (
+            # Pure educational inquiry: require substantial full-file structure
+            is_substantive = line_count >= 24 and (
                 "if __name__ == '__main__':" in body
+                or 'if __name__ == "__main__":' in body
                 or "export default" in body
                 or "<!DOCTYPE html>" in body
             )
