@@ -101,3 +101,42 @@ def test_resolve_one_hop_wikilinks(tmp_path: Path):
 
     assert "billing_rule" in resolved
     assert resolved["billing_rule"] == billing_file
+
+
+def test_extract_canvas_edge_cases(tmp_path: Path):
+    # Non-existent file
+    assert extract_canvas_text_nodes(tmp_path / "missing.canvas") == []
+
+    # Corrupted JSON
+    corrupted = tmp_path / "corrupted.canvas"
+    corrupted.write_text("{bad-json}", encoding="utf-8")
+    assert extract_canvas_text_nodes(corrupted) == []
+
+    # Non-dict payload
+    non_dict = tmp_path / "array.canvas"
+    non_dict.write_text("[1, 2, 3]", encoding="utf-8")
+    assert extract_canvas_text_nodes(non_dict) == []
+
+    # Invalid nodes container
+    invalid_nodes = tmp_path / "bad_nodes.canvas"
+    invalid_nodes.write_text(json.dumps({"nodes": "not-a-list"}), encoding="utf-8")
+    assert extract_canvas_text_nodes(invalid_nodes) == []
+
+    # Non-dict node entries inside list
+    mixed_nodes = tmp_path / "mixed.canvas"
+    mixed_nodes.write_text(json.dumps({"nodes": ["string-node", 123, None]}), encoding="utf-8")
+    assert extract_canvas_text_nodes(mixed_nodes) == []
+
+
+def test_wikilinks_and_resolve_edge_cases(tmp_path: Path):
+    # Empty content
+    assert extract_wikilinks_from_markdown("") == []
+
+    # Seed does not exist or vault root invalid
+    assert resolve_one_hop_wikilinks(tmp_path / "none.md", tmp_path) == {}
+    seed = tmp_path / "empty_seed.md"
+    seed.write_text("No wikilinks here", encoding="utf-8")
+    assert resolve_one_hop_wikilinks(seed, tmp_path / "non_existent_vault") == {}
+
+    # Seed without links
+    assert resolve_one_hop_wikilinks(seed, tmp_path) == {}

@@ -126,3 +126,54 @@ def test_obsidian_inbox_write(tmp_path: Path):
     assert len(recorded_actions) == 1
     assert recorded_actions[0]["action"] == "obsidian_inbox_write"
     assert recorded_actions[0]["title"] == "Q3 Goals"
+
+
+def test_obsidian_tools_search_and_read_edge_cases(tmp_path: Path):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+
+    # Create several notes to hit max_results limit
+    for i in range(10):
+        (vault / f"Topic_{i}.md").write_text(f"Shared query keyword in content {i}", encoding="utf-8")
+
+    # Canvas note with links and files
+    canvas_file = vault / "Mixed.canvas"
+    canvas_file.write_text(
+        json.dumps({
+            "nodes": [
+                {"id": "c1", "type": "link", "url": "https://example.com", "label": "Shared query external link"},
+                {"id": "c2", "type": "file", "file": "specs/doc.md", "label": "Shared query file doc"},
+            ]
+        }),
+        encoding="utf-8",
+    )
+
+    tools = create_obsidian_tools(lambda: str(vault))
+    search_tool, read_tool, inbox_tool = tools
+
+    # Search with limit
+    limited_res = search_tool.invoke({"query": "Shared query", "max_results": 3})
+    assert "Found 3 matches" in limited_res
+
+    # Search when vault directory does not exist
+    bad_tools = create_obsidian_tools(lambda: str(tmp_path / "non_existent"))
+    bad_search = bad_tools[0].invoke({"query": "test"})
+    assert "Bound Obsidian vault path does not exist" in bad_search
+
+    # Read missing file completely
+    missing_read = read_tool.invoke({"relative_path": "NonExistentNote"})
+    assert "not found in Obsidian vault" in missing_read
+
+    # Read canvas with link and file cards
+    canvas_read = read_tool.invoke({"relative_path": "Mixed.canvas"})
+    assert "[Link Card] Shared query external link" in canvas_read
+    assert "[File Card] Shared query file doc" in canvas_read
+
+    # Inbox write with subfolder
+    res_sub = inbox_tool.invoke({
+        "title": "SubNote",
+        "content": "Deep content",
+        "subfolder": "projects/alpha",
+    })
+    assert "Successfully written to _Myrm_Inbox/projects/alpha/SubNote.md" in res_sub
+    assert (vault / "_Myrm_Inbox" / "projects" / "alpha" / "SubNote.md").is_file()

@@ -23,7 +23,7 @@ async def test_bm25_retrieval_only_zero_recall_fallback_unconditional() -> None:
 
     # Monolingual zero-match query (Chinese query vs fruit/hardware docs, no overlapping tokens)
     res_mono = await manager.bm25_retrieval_only(
-        queries=["量子力学 宇宙膨胀 黑洞"],
+        queries=["空间折叠 引力波 奇点"],
         documents=docs,
         top_k=2,
     )
