@@ -236,6 +236,10 @@ class GlobalBrowserPool(CrashWatchdogMixin):
             pages_per_context: Number of Pages to pre-create per Context
 
         """
+        if browsers <= 0:
+            logger.info("GlobalBrowserPool warmup skipped (browsers=%d)", browsers)
+            return
+
         logger.info(f"GlobalBrowserPool warmup: browsers={browsers}, pages={pages_per_context}")
 
         launcher = self._get_launcher(self._config.engine)
