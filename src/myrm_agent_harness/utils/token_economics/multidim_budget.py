@@ -111,19 +111,20 @@ class MultidimensionalBudgetGuard:
     def reset_session(self, session_id: str | None = None) -> None:
         """Reset session cost counter.
 
-        If session_id is provided, resets only that session's counter.
+        If session_id is provided, resets that session's counter and clears the fallback
+        session_cost so backwards-compatible properties reflect a clean state.
         If session_id is None, clears all tracked sessions and fallback counter.
         """
         with self._lock:
+            self._session_cost = 0.0
+            self._warning_emitted_session = False
+            self._finalization_emitted_session = False
             if session_id is not None:
                 self._session_costs[session_id] = 0.0
                 self._warning_emitted_sessions.discard(session_id)
                 self._finalization_emitted_sessions.discard(session_id)
             else:
-                self._session_cost = 0.0
                 self._session_costs.clear()
-                self._warning_emitted_session = False
-                self._finalization_emitted_session = False
                 self._warning_emitted_sessions.clear()
                 self._finalization_emitted_sessions.clear()
 
