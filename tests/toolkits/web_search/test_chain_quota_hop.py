@@ -102,3 +102,32 @@ def test_provider_quota_tracker_workflow() -> None:
     status, _ = tracker.get_status("brave")
     assert status == ProviderQuotaStatus.HEALTHY
 
+
+def test_browser_run_telemetry_bandwidth_and_watchdog() -> None:
+    """测试 BrowserRunTelemetry 带宽度量与看门狗计数"""
+    from myrm_agent_harness.toolkits.browser.observability import (
+        BrowserObservability,
+        BrowserRunTelemetry,
+        RecordingConfig,
+    )
+    import time
+
+    telemetry = BrowserRunTelemetry()
+    telemetry.record_compute(12.5)
+    telemetry.record_transfer(1024)
+    telemetry.record_request(success=True, bytes_transferred=2048)
+    telemetry.record_request(success=False, bytes_transferred=512)
+
+    snap = telemetry.snapshot()
+    assert snap["active_compute_seconds"] == 12.5
+    assert snap["total_bytes_transferred"] == 3584
+    assert snap["request_count"] == 2
+    assert snap["failed_request_count"] == 1
+
+    obs = BrowserObservability(RecordingConfig(), telemetry=telemetry)
+    start_time = time.monotonic() - 200.0
+    safe = obs.check_action_watchdog(action_start_time=start_time, timeout_seconds=180.0)
+    assert safe is False
+    assert obs.telemetry.watchdog_tripped_count == 1
+
+
