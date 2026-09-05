@@ -45,7 +45,7 @@ class TestTraceSpanSanitizer:
 
         # Layer 2 redacts sensitive patterns
         assert "sk-ant-" not in str(result["gen_ai.prompt"])
-        assert "Bearer eyJ" not in str(result["tool.call_args"])
+        assert "eyJhbGciOiJIUzI1Ni" not in str(result["tool.call_args"])
         assert "mypassword123" not in str(result["http.url"])
 
     def test_layer3_bounded_hash_truncation(self) -> None:
