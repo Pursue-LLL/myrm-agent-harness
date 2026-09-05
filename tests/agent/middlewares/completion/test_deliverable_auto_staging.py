@@ -6,10 +6,7 @@ import tempfile
 import time
 from pathlib import Path
 
-import pytest
-
 from myrm_agent_harness.agent.middlewares.completion.deliverable_auto_staging import (
-    MAX_STAGED_ARTIFACTS_LIMIT,
     STAGED_ARTIFACTS_DIR,
     _prune_old_staged_artifacts,
     stage_unwritten_deliverables,

@@ -2585,6 +2585,7 @@ class TestCompletionGuardQueryGroundingIntegration:
     ) -> None:
         rec_od = CallRecord(
             tool_name="mcp__erp__query_order",
+            args_hash="hash_query_od",
             args={"order_id": "OD-9921"},
             success_level=SuccessLevel.FULL_SUCCESS,
         )
@@ -2613,6 +2614,7 @@ class TestCompletionGuardQueryGroundingIntegration:
     ) -> None:
         rec_od = CallRecord(
             tool_name="mcp__erp__query_order",
+            args_hash="hash_query_od",
             args={"order_id": "OD-9921"},
             success_level=SuccessLevel.FULL_SUCCESS,
         )
@@ -2638,11 +2640,13 @@ class TestCompletionGuardQueryGroundingIntegration:
     ) -> None:
         rec_od = CallRecord(
             tool_name="mcp__erp__query_order",
+            args_hash="hash_query_od",
             args={"order_id": "OD-9921"},
             success_level=SuccessLevel.FULL_SUCCESS,
         )
         rec_tk = CallRecord(
             tool_name="mcp__itsm__query_ticket",
+            args_hash="hash_query_tk",
             args={"ticket_id": "TK-8802"},
             success_level=SuccessLevel.FULL_SUCCESS,
         )
