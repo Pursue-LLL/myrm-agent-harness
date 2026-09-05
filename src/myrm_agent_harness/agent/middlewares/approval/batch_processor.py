@@ -895,13 +895,13 @@ async def evaluate_tool_batch(
                         f"runtime domain match: {domains}",
                     )
                     auto_approved.append((idx, tool_call))
-                    record_approval()
+                    record_approval(session_key)
                     continue
 
         if (
             auto_mode_enabled
             and _batch_review._security_reviewer is not None
-            and is_threshold_breached() == ThresholdBreach.NONE
+            and is_threshold_breached(session_key) == ThresholdBreach.NONE
             and not is_irreversible_social_action(tool_name, tool_input)
         ):
             # Build command representation for the classifier
