@@ -251,3 +251,49 @@ class TestMultidimensionalBudgetGuard:
         )
         guard.record_cost(8.6)
         assert guard.check_budget(0.0) == BudgetStatus.FINALIZATION
+
+    def test_multi_session_isolation(self) -> None:
+        """Multiple sessions should track costs independently."""
+        guard = MultidimensionalBudgetGuard(
+            per_session=BudgetDimension(limit_usd=5.0),
+            daily=BudgetDimension(limit_usd=20.0),
+        )
+        guard.record_cost(3.0, session_id="tab_1")
+        guard.record_cost(4.0, session_id="tab_2")
+
+        assert guard.get_session_cost("tab_1") == pytest.approx(3.0)
+        assert guard.get_session_cost("tab_2") == pytest.approx(4.0)
+        assert guard.get_session_cost("tab_unknown") == 0.0
+        assert guard.daily_cost == pytest.approx(7.0)
+
+    def test_session_isolated_reset(self) -> None:
+        """Resetting one session should not affect other sessions."""
+        guard = MultidimensionalBudgetGuard(
+            per_session=BudgetDimension(limit_usd=5.0),
+            daily=BudgetDimension(limit_usd=20.0),
+        )
+        guard.record_cost(3.0, session_id="tab_1")
+        guard.record_cost(4.0, session_id="tab_2")
+
+        guard.reset_session("tab_1")
+        assert guard.get_session_cost("tab_1") == 0.0
+        assert guard.get_session_cost("tab_2") == pytest.approx(4.0)
+        # Daily cost remains cumulative
+        assert guard.daily_cost == pytest.approx(7.0)
+
+        # Global reset
+        guard.reset_session()
+        assert guard.get_session_cost("tab_2") == 0.0
+
+    def test_session_isolated_budget_status(self) -> None:
+        """One session exceeding budget should not block another session."""
+        guard = MultidimensionalBudgetGuard(
+            per_session=BudgetDimension(limit_usd=5.0),
+            daily=BudgetDimension(limit_usd=20.0),
+        )
+        guard.record_cost(5.5, session_id="tab_exhausted")
+        assert guard.check_budget(0.0, session_id="tab_exhausted") == BudgetStatus.EXCEEDED
+
+        # Another session is still fresh and OK
+        assert guard.check_budget(0.0, session_id="tab_fresh") == BudgetStatus.OK
+

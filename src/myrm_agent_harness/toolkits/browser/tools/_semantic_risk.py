@@ -36,7 +36,7 @@ class RiskVerdict(NamedTuple):
     reason: str
 
 
-_MUTATING_ACTIONS = frozenset({"click", "dblclick"})
+_MUTATING_ACTIONS = frozenset({"click", "dblclick", "check", "uncheck"})
 _ACTIVATION_KEYS = frozenset({"enter", "return", "space", "numpadenter", "\n", "\r\n"})
 
 # Patterns matched against the lowercased element name.
@@ -186,6 +186,10 @@ def classify_interaction_risk(
             ):
                 is_mutating = True
                 is_key_activation = True
+    elif not is_mutating and action == "type":
+        if isinstance(text, str) and ("\n" in text or "\r" in text):
+            is_mutating = True
+            is_key_activation = True
 
     if not is_mutating:
         return RiskVerdict(SemanticRiskLevel.SAFE, "")

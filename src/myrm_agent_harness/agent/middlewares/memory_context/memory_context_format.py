@@ -276,6 +276,64 @@ def _format_memory_context(
                 BudgetedSection("Learned Rules (from past interactions)", normal_items, priority=5)
             )
 
+    # ── Subtask-Phase & Negative Attempt Traps (Avoid Repeating Failures) ──
+    # Renders failed attempts, confidence-tiered cross-task associations, and subtask-level guidance
+    episodic_items = learned.get("learned_episodes", [])
+    if episodic_items:
+        failure_traps: list[str] = []
+        phase_memories: list[str] = []
+        background_memories: list[str] = []
+        for ep in episodic_items:
+            content = sanitize(ep.get("content", "")).strip()
+            phase = ep.get("subtask_phase")
+            is_failure = ep.get("is_failure_attempt", False)
+            lesson = ep.get("negative_lesson")
+            reason = ep.get("failure_reason")
+            confidence_tier = ep.get("confidence_tier", "strong")
+
+            # Ignore empty or corrupted memory entries with no meaningful payload
+            if not content and not lesson and not reason:
+                continue
+
+            phase_label = f"[{phase.upper()}] " if phase else ""
+            if is_failure:
+                warn_text = f"{phase_label}{content}" if content else phase_label.strip()
+                if reason:
+                    warn_text = f"{warn_text} | Cause: {sanitize(reason)}" if warn_text else f"Cause: {sanitize(reason)}"
+                if lesson:
+                    warn_text = f"{warn_text} — AVOID: {sanitize(lesson)}" if warn_text else f"AVOID: {sanitize(lesson)}"
+                failure_traps.append(warn_text)
+            elif not content:
+                # Non-failure memory requires meaningful content
+                continue
+            elif confidence_tier in ("weak", "shadow"):
+                # Action execution guard (TencentDB: 99% shadow relations must not drive automated actions)
+                background_memories.append(
+                    f"{phase_label}[BACKGROUND CONTEXT - Reference only, do not execute as automated SOP] {content}"
+                )
+            elif phase:
+                phase_memories.append(f"{phase_label}{content}")
+            else:
+                phase_memories.append(content)
+
+        if failure_traps:
+            # Place failed attempts in untrusted high-priority budget section to intercept repetition
+            untrusted_sections.append(
+                BudgetedSection("Failed Attempts & Negative Traps (Do not repeat)", failure_traps, priority=3)
+            )
+        if phase_memories:
+            untrusted_sections.append(
+                BudgetedSection("Subtask Phase Memories", phase_memories, priority=5)
+            )
+        if background_memories:
+            untrusted_sections.append(
+                BudgetedSection(
+                    "Cross-Task Background Context (Weak/Shadow - Do not execute)",
+                    background_memories,
+                    priority=7,
+                )
+            )
+
     # ── Proactive Knowledge Pack Snippets (Authoritative Context from Mounted Vaults) ──
     # Injected into the untrusted layer before user HumanMessage, keeping System Prompt 100% cache-stable.
     proactive_pack = ctx.get("proactive_knowledge_pack")

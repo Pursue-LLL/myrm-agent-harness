@@ -211,11 +211,21 @@ class TranscriptClassifier:
                 decision=ReviewDecision.UNCERTAIN,
                 reason="Transcript classifier timed out",
             )
-        except Exception:
+        except Exception as primary_exc:
             logger.warning(
-                "Transcript classifier structured output failed, falling back to raw invocation",
-                exc_info=True,
+                "Transcript classifier structured output failed, falling back to raw invocation: %s",
+                primary_exc,
             )
+            # Check if primary exception already contained the raw decision token (e.g. Invalid json output: deny)
+            primary_text = str(primary_exc).lower()
+            if "invalid json output:" in primary_text:
+                for candidate in ("deny", "allow", "uncertain"):
+                    if candidate in primary_text:
+                        return ReviewResult(
+                            decision=_DECISION_MAP[candidate],
+                            reason=f"Extracted from structured parser output: {candidate}",
+                        )
+
             # Resilient fallback: attempt raw text invocation and extract decision
             try:
                 from langchain_core.messages import HumanMessage, SystemMessage

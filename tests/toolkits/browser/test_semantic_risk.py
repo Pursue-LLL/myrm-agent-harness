@@ -389,3 +389,65 @@ def test_key_activation_on_alert_dialog():
     assert "key activation" in verdict.reason
     assert "alert dialog" in verdict.reason
 
+
+# ──────────────────────────────────────────────────────────────────
+# Check / uncheck mutating actions on high-risk checkboxes
+# ──────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("action", ["check", "uncheck"])
+def test_checkbox_mutating_actions_on_high_risk_element(action: str):
+    ref = _ref("checkbox", "I acknowledge permanent delete of my account")
+    verdict = classify_interaction_risk(action, ref)
+    assert verdict.level is SemanticRiskLevel.HIGH
+    assert "account" in verdict.reason or "destructive" in verdict.reason
+    assert "checkbox" in verdict.reason
+
+
+@pytest.mark.parametrize("action", ["check", "uncheck"])
+def test_checkbox_mutating_actions_on_benign_element_safe(action: str):
+    ref = _ref("checkbox", "Remember me on this computer")
+    verdict = classify_interaction_risk(action, ref)
+    assert verdict.level is SemanticRiskLevel.SAFE
+    assert verdict.reason == ""
+
+
+# ──────────────────────────────────────────────────────────────────
+# Type action with implicit newline submission
+# ──────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "\n",
+        "\r\n",
+        "confirm\n",
+        "delete-bucket\r\n",
+        "sudo rm -rf\n",
+    ],
+)
+def test_type_with_newline_on_high_risk_element_high_risk(text: str):
+    ref = _ref("textbox", "Type repository name to delete")
+    verdict = classify_interaction_risk("type", ref, text=text)
+    assert verdict.level is SemanticRiskLevel.HIGH
+    assert "key activation" in verdict.reason
+    assert "Destructive action" in verdict.reason
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "just plain text",
+        "delete without newline",
+        "12345",
+        "",
+    ],
+)
+def test_type_without_newline_on_high_risk_element_safe(text: str):
+    ref = _ref("textbox", "Type repository name to delete")
+    verdict = classify_interaction_risk("type", ref, text=text)
+    assert verdict.level is SemanticRiskLevel.SAFE
+    assert verdict.reason == ""
+
+

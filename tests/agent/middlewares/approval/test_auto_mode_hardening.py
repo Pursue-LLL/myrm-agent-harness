@@ -272,23 +272,27 @@ async def test_live_transcript_classifier_with_model() -> None:
     """
     import os
     from pathlib import Path
-    from dotenv import load_dotenv
+    from dotenv import dotenv_values
 
-    # Ensure .env.test is loaded if env vars are missing
-    env_test_path = Path(__file__).resolve().parents[4] / "myrm-agent" / "myrm-agent-server" / ".env.test"
+    # Resolve repo root: parents[4] is /open-perplexity from /open-perplexity/myrm-agent-harness/tests/agent/middlewares/approval/test_auto_mode_hardening.py
+    env_test_path = Path("/Users/yululiu/projects/AI/open-perplexity/myrm-agent/myrm-agent-server/.env.test")
+    vals = {}
     if env_test_path.is_file():
-        load_dotenv(env_test_path)
+        vals = dotenv_values(str(env_test_path))
+        for k, v in vals.items():
+            if v is not None and k not in os.environ:
+                os.environ[k] = v
 
     from myrm_agent_harness.agent.security.transcript_classifier import TranscriptClassifier
     from myrm_agent_harness.agent.security.types import ReviewDecision
     from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
 
-    api_key = os.getenv("BASIC_API_KEY")
-    base_url = os.getenv("BASIC_BASE_URL")
-    model_name = os.getenv("BASIC_MODEL", "minimax/MiniMax-M3")
+    api_key = os.getenv("BASIC_API_KEY") or vals.get("BASIC_API_KEY")
+    base_url = os.getenv("BASIC_BASE_URL") or vals.get("BASIC_BASE_URL")
+    model_name = os.getenv("BASIC_MODEL") or vals.get("BASIC_MODEL", "minimax/MiniMax-M3")
 
     if not api_key or not base_url:
-        pytest.skip("BASIC_API_KEY / BASIC_BASE_URL not configured")
+        pytest.skip(f"BASIC_API_KEY / BASIC_BASE_URL not configured (path={env_test_path}, exists={env_test_path.is_file()}, keys={list(vals.keys())})")
 
     chat_model = create_litellm_model(
         model=model_name,

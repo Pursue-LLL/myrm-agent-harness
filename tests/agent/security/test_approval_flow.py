@@ -290,5 +290,94 @@ class TestAllowlist:
         await al.clear_session("user1", "sess_alpha_123")
         assert al.check("user1", "shell_exec", "bash", session_id="sess_alpha_123") is False
 
+    @pytest.mark.asyncio
+    async def test_find_matching_entry_identifies_session_entry(self) -> None:
+        """Verify find_matching_entry returns the exact entry and preserves session_id."""
+        al = Allowlist()
+        session_entry = AllowlistEntry(
+            permission="shell_exec",
+            tool_name="bash",
+            session_id="session_gamma_789",
+        )
+        await al.add("user1", session_entry)
+
+        matched = al.find_matching_entry(
+            "user1", "shell_exec", "bash", session_id="session_gamma_789"
+        )
+        assert matched is not None
+        assert matched.session_id == "session_gamma_789"
+
+        # Different session returns None
+        assert (
+            al.find_matching_entry(
+                "user1", "shell_exec", "bash", session_id="other_session"
+            )
+            is None
+        )
+
+    @pytest.mark.asyncio
+    async def test_add_to_allowlist_if_needed_with_ttl_minus_one_binds_session(self) -> None:
+        """Verify ttl_seconds=-1 or duration='session' binds session_id and skips persistence."""
+        from myrm_agent_harness.agent.middlewares.approval.helpers import add_to_allowlist_if_needed
+        from myrm_agent_harness.agent.security.approval_flow import get_allowlist
+
+        al = get_allowlist()
+
+        class MockStore:
+            def __init__(self):
+                self.saved = []
+
+            async def load(self, u):
+                return []
+
+            async def save(self, u, e):
+                self.saved.append(e)
+
+            async def remove(self, *a, **kw):
+                pass
+
+        al._store = MockStore()
+
+        await add_to_allowlist_if_needed(
+            {"args": False, "ttl_seconds": -1},
+            "user_sess_test",
+            "shell_exec",
+            "git_tool",
+            session_id="sess_mock_42",
+        )
+        # Verify not saved to store
+        assert len(al._store.saved) == 0
+        # Verify matched in memory for sess_mock_42
+        assert al.check("user_sess_test", "shell_exec", "git_tool", session_id="sess_mock_42") is True
+        # Verify not matched for other session
+        assert al.check("user_sess_test", "shell_exec", "git_tool", session_id="other_sess") is False
+
+    @pytest.mark.asyncio
+    async def test_sandbox_aware_auto_bypass_audit_trace(self) -> None:
+        """Verify that when running in sandbox mode, safe commands trigger SANDBOX_AUTO_BYPASS."""
+        from myrm_agent_harness.agent.middlewares.approval.batch_processor import evaluate_tool_batch
+        from myrm_agent_harness.agent.security.types import SecurityConfig
+        from myrm_agent_harness.core.security.audit import get_audit_entries, reset_audit_log
+
+        reset_audit_log()
+        config = SecurityConfig(is_sandbox=True)
+
+        tool_calls = [{"name": "bash_code_execute_tool", "args": {"command": "ls -la"}}]
+        auto_approved, auto_denied, pending = await evaluate_tool_batch(
+            tool_calls,
+            config=config,
+            is_cron=False,
+            workspace_root="/tmp",
+            session_key="test_sandbox_sess",
+            args_hashes={0: None},
+        )
+        assert len(auto_approved) == 1
+        assert len(auto_denied) == 0
+        assert len(pending) == 0
+
+        audit_entries = get_audit_entries()
+        assert any(e.decision == "SANDBOX_AUTO_BYPASS" for e in audit_entries)
+
+
 
 

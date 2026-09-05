@@ -731,7 +731,13 @@ async def evaluate_tool_batch(
                                 "shell command cleared by escalation check",
                             )
 
-                record_decision(tool_name, "ALLOW", reason)
+                if reason.startswith("Sandbox-aware") or (
+                    getattr(config, "is_sandbox", False)
+                    and permission_type in ("shell_exec", "code_interpreter")
+                ):
+                    record_decision(tool_name, "SANDBOX_AUTO_BYPASS", reason)
+                else:
+                    record_decision(tool_name, "ALLOW", reason)
                 auto_approved.append((idx, tool_call))
                 record_approval(session_key)
                 continue

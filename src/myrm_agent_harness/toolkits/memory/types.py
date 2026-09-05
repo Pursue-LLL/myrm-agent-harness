@@ -347,6 +347,10 @@ class EpisodicMemory(BaseMemory):
         language: Primary language of the content ("zh" or "en")
         merge_count: Number of times this memory has been merged/updated
         merge_history: Compact text log of merge operations
+        subtask_phase: Software engineering / task workflow phase ("analyze", "locate", "edit", "verify")
+        is_failure_attempt: Whether this episodic entry represents a failed attempt or dead-end
+        failure_reason: Root-cause error message or reason for failure
+        negative_lesson: Distilled negative rule / advice to avoid repeating this dead-end
     """
 
     memory_type: Literal[MemoryType.EPISODIC] = MemoryType.EPISODIC
@@ -360,6 +364,30 @@ class EpisodicMemory(BaseMemory):
     language: Literal["zh", "en"] = "en"
     merge_count: int = Field(default=0, ge=0, description="Number of merges applied to this memory")
     merge_history: str = Field(default="", description="Compact merge log: timestamp|action|summary")
+    subtask_phase: Literal["analyze", "locate", "edit", "verify"] | None = Field(
+        default=None,
+        description="Workflow phase for subtask-level episodic memory",
+    )
+    is_failure_attempt: bool = Field(
+        default=False,
+        description="Flag indicating this episodic entry captures a failed attempt or dead-end",
+    )
+    failure_reason: str | None = Field(
+        default=None,
+        description="Structured failure cause or error summary",
+    )
+    negative_lesson: str | None = Field(
+        default=None,
+        description="Negative guidance / rule to prevent repeating this failed attempt",
+    )
+    confidence_tier: Literal["strong", "weak", "shadow"] = Field(
+        default="strong",
+        description="Confidence tier for cross-task reuse: strong drives action, weak/shadow is read-only background",
+    )
+    relation_category: Literal["same_work_item", "same_problem", "reusable_sop", "shadow_context"] = Field(
+        default="same_work_item",
+        description="Category describing the cross-task relationship",
+    )
 
 
 class ConversationMemory(BaseMemory):
@@ -420,6 +448,14 @@ class EpisodicRelation(BaseModel):
     target_memory_id: str
     relation_type: str
     weight: float = Field(default=1.0, ge=0.0, le=1.0)
+    confidence_tier: Literal["strong", "weak", "shadow"] = Field(
+        default="strong",
+        description="Confidence tier: strong drives plans/skills, weak/shadow is background-only",
+    )
+    relation_category: Literal["same_work_item", "same_problem", "reusable_sop", "shadow_context"] = Field(
+        default="same_work_item",
+        description="Semantic relation category across tasks",
+    )
     metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
