@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
 
 
 class PluginDiagnosticLevel(StrEnum):
@@ -183,3 +182,4 @@ class PluginParseResult:
         level: PluginDiagnosticLevel = PluginDiagnosticLevel.ERROR,
     ) -> None:
         self.diagnostics.append(PluginDiagnostic(component, code, message, level))
+

@@ -211,3 +211,45 @@ def fts5_auto_heal(conn: sqlite3.Connection, table: str) -> bool:
     except sqlite3.Error as exc:
         logger.error("FTS5 auto-heal failed for %s: %s", table, exc)
         return False
+
+
+def safe_purge_fts5_virtual_table(
+    conn: sqlite3.Connection,
+    table: str,
+    *,
+    is_external_content: bool = True,
+) -> None:
+    """Safely purge an FTS5 virtual table without leaving shadow-table orphan rows.
+
+    When using External Content tables (content=source_table), deleting rows from the
+    source table via ON DELETE CASCADE before notifying FTS5 causes the FTS DELETE
+    trigger to fail to read old.content, leaving orphaned rows permanently in the
+    _data / _idx shadow tables.
+
+    This function executes the safe inverse wipe sequence:
+    1. If external content or contentless: invokes `delete-all` on the FTS5 virtual table.
+    2. Runs `rebuild` to synchronize shadow tables to empty state.
+    3. Runs `optimize` to merge B-tree segments into a single minimal segment.
+    """
+    table = _validate_table_name(table)
+    try:
+        # Step 1: Explicitly invoke delete-all command to flush inverted index
+        conn.execute(f"INSERT INTO {table}({table}) VALUES('delete-all')")
+    except sqlite3.OperationalError:
+        # If 'delete-all' is not supported on older SQLite versions, proceed with DELETE
+        try:
+            conn.execute(f"DELETE FROM {table}")
+        except sqlite3.OperationalError as exc:
+            logger.warning("FTS5 direct delete failed for %s: %s", table, exc)
+
+    if is_external_content:
+        try:
+            conn.execute(f"INSERT INTO {table}({table}) VALUES('rebuild')")
+        except sqlite3.OperationalError as exc:
+            logger.warning("FTS5 rebuild after purge failed for %s: %s", table, exc)
+
+    try:
+        conn.execute(f"INSERT INTO {table}({table}) VALUES('optimize')")
+    except sqlite3.OperationalError:
+        pass
+    logger.info("FTS5 table safely purged and optimized: %s", table)

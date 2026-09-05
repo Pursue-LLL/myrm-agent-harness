@@ -262,6 +262,12 @@ def build_interrupt_payload(
             action_request["scriptOperandPath"] = extra_ctx.get("script_operand_path")
             action_request["scriptOperandHash"] = extra_ctx.get("script_operand_hash")
             review_config["scriptOperandProtected"] = True
+        if extra_ctx and extra_ctx.get("script_content_hash"):
+            review_config["scriptTarget"] = extra_ctx.get("script_target")
+            review_config["scriptContentHash"] = extra_ctx.get("script_content_hash")
+            action_request["scriptTarget"] = extra_ctx.get("script_target")
+            action_request["scriptContentHash"] = extra_ctx.get("script_content_hash")
+            review_config["scriptOperandProtected"] = True
         if domains:
             review_config["domainApproval"] = True
 
@@ -466,6 +472,39 @@ async def apply_approval_decisions(
                                     f"Security Blocked: {drift_reason or 'Approved script content was modified before execution (TOCTOU detected)'}. "
                                     f"Execution aborted to prevent unreviewed code from running.{hint}"
                                 ),
+                                name=tool_name,
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        )
+                        continue
+
+                # ApprovedScriptsChangePrevention: generic script file content integrity check
+                if extra_ctx and extra_ctx.get("script_content_hash"):
+                    from myrm_agent_harness.core.security.spend_governance import (
+                        verify_script_file_integrity,
+                    )
+
+                    exp_script_hash = str(extra_ctx.get("script_content_hash"))
+                    target_script_path = str(extra_ctx.get("script_target") or "")
+                    is_script_valid, script_fail_reason = verify_script_file_integrity(
+                        target_script_path, exp_script_hash
+                    )
+                    if not is_script_valid:
+                        logger.warning(
+                            "[SCRIPT_INTEGRITY] TOCTOU script alteration detected on %s: %s",
+                            tool_name,
+                            script_fail_reason,
+                        )
+                        record_decision(
+                            tool_name,
+                            "SCRIPT_INTEGRITY_REJECT",
+                            script_fail_reason,
+                        )
+                        hint = record_denial(tool_name)
+                        artificial_tool_messages.append(
+                            ToolMessage(
+                                content=f"Security Blocked: {script_fail_reason}{hint}",
                                 name=tool_name,
                                 tool_call_id=tool_call_id,
                                 status="error",

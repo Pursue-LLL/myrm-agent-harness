@@ -28,6 +28,18 @@ from .privacy_tracker import (
     reset_privacy_tracker,
     set_privacy_policy,
 )
+from .ssrf import (
+    SSRFResult,
+    SSRFSecurityError,
+    SSRFVerdict,
+    async_pin_url,
+    async_validate_url_for_ssrf,
+    check_url,
+    is_internal_ip,
+    resolve_and_check,
+    validate_url_for_ssrf,
+)
+from .url_allowlist import URLAllowlistGuard
 
 __all__ = [
     "DetectionRecord",
@@ -36,13 +48,22 @@ __all__ = [
     "PrivacyLadderLevel",
     "PrivacyLadderVerdict",
     "PrivacyLadderViolationType",
-    "PrivacyPolicy",
     "PrivacyScope",
     "PrivacyTracker",
+    "SSRFResult",
+    "SSRFSecurityError",
+    "SSRFVerdict",
+    "URLAllowlistGuard",
+    "async_pin_url",
+    "async_validate_url_for_ssrf",
+    "check_url",
     "get_pending_privacy_event",
     "get_privacy_policy",
     "get_privacy_tracker",
+    "is_internal_ip",
     "reset_privacy_tracker",
+    "resolve_and_check",
     "set_privacy_policy",
+    "validate_url_for_ssrf",
 ]
 

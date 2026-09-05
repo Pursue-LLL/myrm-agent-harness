@@ -133,6 +133,20 @@ DEFAULT_CHILD_SAFE_ENV_KEYS: Final[frozenset[str]] = frozenset(
         "GIT_COMMITTER_NAME",
         "GIT_COMMITTER_EMAIL",
         "GIT_COMMITTER_DATE",
+        # 9. Proxy & Ephemeral Egress Routing
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
+        "NODE_EXTRA_CA_CERTS",
         # 12. Safe User Defined Testing Variables
         "SAFE_SYSTEM_VAR",
     }
@@ -370,6 +384,13 @@ def build_isolated_child_env(
             if upper in ("NODE_OPTIONS", "PYTHONSTARTUP"):
                 logger.warning("Blocked interpreter startup injection override in child env: %s", k)
                 continue
+            # Ephemeral sentinel voucher (AES-256-GCM) contains no raw secret and is safely substituted at the proxy egress boundary
+            from myrm_agent_harness.core.security.egress.sentinel import is_sentinel_voucher
+
+            if is_sentinel_voucher(str(v)):
+                sanitized[k] = str(v)
+                continue
+
             # Codex PR #38941 & #37607 parity: auth tokens and launch context cannot be restored via overrides
             if _is_sensitive_key(k):
                 logger.warning("Blocked non-inheritable credential override in child env: %s", k)
@@ -377,7 +398,12 @@ def build_isolated_child_env(
             sanitized[k] = str(v)
 
     # Post-override scrubbing guarantee: re-check all keys to prevent case-variant injection
+    from myrm_agent_harness.core.security.egress.sentinel import is_sentinel_voucher
+
     for k in list(sanitized.keys()):
+        val = sanitized[k]
+        if is_sentinel_voucher(val):
+            continue
         if _is_sensitive_key(k):
             logger.warning("Stripped non-inheritable credential from child env: %s", k)
             sanitized.pop(k, None)

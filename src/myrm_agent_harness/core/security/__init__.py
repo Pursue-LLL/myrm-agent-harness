@@ -38,14 +38,18 @@ from myrm_agent_harness.core.security.remote_ops_ledger import (
     derive_recovery_hint,
 )
 from myrm_agent_harness.core.security.spend_governance import (
+    DEFAULT_SPEND_SALT,
     SpendPolicy,
     SpendReceipt,
     compute_action_digest,
+    compute_script_content_hash,
+    extract_script_file_target,
     is_financial_or_spend_tool,
     is_irreversible_social_action,
     is_shell_execution_tool,
     parse_spend_amount,
     verify_action_digest,
+    verify_script_file_integrity,
 )
 
 __all__ = [
@@ -78,4 +82,8 @@ __all__ = [
     "parse_spend_amount",
     "register_missing_semantics_contract",
     "verify_action_digest",
+    "DEFAULT_SPEND_SALT",
+    "compute_script_content_hash",
+    "extract_script_file_target",
+    "verify_script_file_integrity",
 ]

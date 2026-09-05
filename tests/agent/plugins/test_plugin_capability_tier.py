@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import json
+
+import pytest
+
 from myrm_agent_harness.agent.plugins import (
     AgentPluginParser,
     PluginCapabilityTier,
     PluginMcpServer,
     parse_manifest,
 )
-from myrm_agent_harness.agent.plugins.manifest import PLUGIN_SCHEMA
+from myrm_agent_harness.agent.plugins.manifest import (
+    PLUGIN_SCHEMA,
+    ManifestSchemaValidationError,
+)
 from myrm_agent_harness.agent.plugins.models import PluginParseResult
 
 
@@ -22,15 +28,13 @@ class TestPluginCapabilityTier:
             "name": "network-plugin",
             "capabilities": ["network", "read_only"],
         }
-        meta, reported = parse_manifest(manifest_dict)
+        meta, _reported = parse_manifest(manifest_dict)
         assert meta.declared_capabilities == (
             PluginCapabilityTier.NETWORK,
             PluginCapabilityTier.READ_ONLY,
         )
 
     def test_manifest_invalid_capability_raises(self) -> None:
-        import pytest
-        from myrm_agent_harness.agent.plugins.manifest import ManifestSchemaValidationError
 
         manifest_dict = {
             "$schema": PLUGIN_SCHEMA,
@@ -101,3 +105,82 @@ class TestPluginCapabilityTier:
         server = res.servers[0]
         assert PluginCapabilityTier.SHELL_EXEC in server.capabilities
         assert PluginCapabilityTier.SHELL_EXEC in res.aggregated_capabilities
+
+    def test_destructive_inference_for_dangerous_commands(self) -> None:
+        parser = AgentPluginParser()
+        files = {
+            "plugin.json": json.dumps({
+                "$schema": PLUGIN_SCHEMA,
+                "name": "dangerous-plugin",
+            }).encode("utf-8"),
+            "mcp.json": json.dumps({
+                "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+                "mcpServers": {
+                    "root_exec": {
+                        "type": "stdio",
+                        "command": "bash",
+                        "args": ["-c", "rm -rf /tmp/data"],
+                    }
+                },
+            }).encode("utf-8"),
+        }
+        res = parser.parse_files(files)
+        assert len(res.servers) == 1
+        server = res.servers[0]
+        assert PluginCapabilityTier.DESTRUCTIVE in server.capabilities
+        assert PluginCapabilityTier.DESTRUCTIVE in res.aggregated_capabilities
+
+    def test_capability_diff_undeclared_privilege_emits_diagnostic(self) -> None:
+        parser = AgentPluginParser()
+        files = {
+            "plugin.json": json.dumps({
+                "$schema": PLUGIN_SCHEMA,
+                "name": "cheat-plugin",
+                "capabilities": ["read_only"],  # Declared as read_only!
+            }).encode("utf-8"),
+            "mcp.json": json.dumps({
+                "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+                "mcpServers": {
+                    "sneaky_stdio": {
+                        "type": "stdio",
+                        "command": "./tool.sh",
+                    }
+                },
+            }).encode("utf-8"),
+            "tool.sh": b"#!/bin/sh\necho hello",
+        }
+        res = parser.parse_files(files)
+        assert len(res.servers) == 1
+        undeclared_diags = [
+            d for d in res.diagnostics if d.code == "capability_undeclared_privilege"
+        ]
+        assert len(undeclared_diags) == 1
+        assert "sneaky_stdio" in undeclared_diags[0].message
+        assert undeclared_diags[0].level.value == "error"
+
+    def test_capability_diff_matching_declared_capabilities_passes(self) -> None:
+        parser = AgentPluginParser()
+        files = {
+            "plugin.json": json.dumps({
+                "$schema": PLUGIN_SCHEMA,
+                "name": "honest-plugin",
+                "capabilities": ["shell_exec", "fs_read", "fs_write"],
+            }).encode("utf-8"),
+            "mcp.json": json.dumps({
+                "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+                "mcpServers": {
+                    "runner": {
+                        "type": "stdio",
+                        "command": "./tool.sh",
+                    }
+                },
+            }).encode("utf-8"),
+            "tool.sh": b"#!/bin/sh\necho hello",
+        }
+        res = parser.parse_files(files)
+        assert len(res.servers) == 1
+        undeclared_diags = [
+            d for d in res.diagnostics if d.code == "capability_undeclared_privilege"
+        ]
+        assert len(undeclared_diags) == 0
+

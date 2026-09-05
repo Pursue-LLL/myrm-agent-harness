@@ -34,7 +34,11 @@ from typing import Any
 from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract_zip
 
 from . import manifest, mcp_config
-from .integrity import infer_server_capabilities, verify_mcp_server_artifacts
+from .integrity import (
+    infer_server_capabilities,
+    verify_mcp_server_artifacts,
+    verify_plugin_capability_diff,
+)
 from .manifest import decode_manifest_json, parse_manifest
 from .mcp_config import decode_mcp_json, parse_mcp_servers
 from .models import (
@@ -250,6 +254,13 @@ class AgentPluginParser:
                         f"MCP server '{name}' is skipped",
                         PluginDiagnosticLevel.WARNING,
                     )
+
+        # Audit declared capabilities against inferred server capabilities (Capability Diff)
+        if result.meta and result.meta.declared_capabilities:
+            diff_diags = verify_plugin_capability_diff(
+                result.meta.declared_capabilities, result.servers
+            )
+            result.diagnostics.extend(diff_diags)
 
     def _discover_agents(
         self,

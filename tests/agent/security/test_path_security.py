@@ -322,8 +322,14 @@ class TestCanonicalPathContainmentGuard:
         assert is_within_boundary(sibling_evil, root) is False
 
     def test_executor_base_workspace_containment_prefix_attack(self, tmp_path: Path) -> None:
-        """Verify BaseExecutor.resolve_path blocks prefix-truncation traversal attacks."""
-        from myrm_agent_harness.toolkits.code_execution.executors.base import BaseExecutor
+        """Verify CodeExecutor.resolve_path blocks prefix-truncation traversal attacks."""
+        import asyncio
+
+        from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
+        from myrm_agent_harness.toolkits.code_execution.executors.models import (
+            ExecutionContext,
+            ExecutionResult,
+        )
 
         ws = tmp_path / "ws"
         ws.mkdir()
@@ -332,17 +338,18 @@ class TestCanonicalPathContainmentGuard:
         evil_file = ws_evil / "hack.sh"
         evil_file.write_text("malicious")
 
-        class DummyExecutor(BaseExecutor):
-            async def execute_bash(self, context):
+        class DummyExecutor(CodeExecutor):
+            async def execute(self, context: ExecutionContext) -> ExecutionResult:
                 raise NotImplementedError
 
-        executor = DummyExecutor(workspace_path=str(ws))
+            async def execute_bash(self, context: ExecutionContext) -> ExecutionResult:
+                raise NotImplementedError
 
-        import pytest
+        executor = DummyExecutor()
+        executor.bind_workspace(str(ws))
 
         # Relative path resolving to sibling with common prefix must be blocked
         with pytest.raises(ValueError, match="Path traversal detected"):
-            import asyncio
             asyncio.run(executor.resolve_path("../ws_evil/hack.sh"))
 
     def test_policy_engine_symlink_containment(self, tmp_path: Path) -> None:

@@ -22,6 +22,7 @@ Per-server mcp.json variant parser for the framework-level plugin parser.
 
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import json
 import re
@@ -156,16 +157,16 @@ def _parse_stdio(name: str, entry: dict[str, Any]) -> PluginMcpServer | None:
     if cwd is not None and (not isinstance(cwd, str) or not _CWD_FORM_RE.match(cwd) or _contains_escape(cwd)):
         return None
 
-    unknown = set(entry.keys()) - {"type", "command", "args", "env", "cwd"}
+    unknown = set(entry.keys()) - {"type", "command", "args", "env", "cwd", "capabilities"}
     if unknown:
         return None  # unknown field makes the variant invalid (§7.2.1)
 
     env_key_names = [str(k) for k in env] if isinstance(env, dict) else []
     raw_env = {str(k): str(v) for k, v in env.items()} if isinstance(env, dict) else {}
 
-    from .models import PluginCapabilityTier
+    from .integrity import infer_server_capabilities
 
-    return PluginMcpServer(
+    server_obj = PluginMcpServer(
         name=name,
         server_type="stdio",
         command=command,
@@ -175,8 +176,9 @@ def _parse_stdio(name: str, entry: dict[str, Any]) -> PluginMcpServer | None:
         cwd=cwd,
         env_key_names=env_key_names,
         raw_env=raw_env,
-        capabilities=(PluginCapabilityTier.SHELL_EXEC,),
+        capabilities=tuple(declared_caps),
     )
+    return replace(server_obj, capabilities=infer_server_capabilities(server_obj))
 
 
 def _is_valid_command(command: str) -> bool:
@@ -218,22 +220,23 @@ def _parse_remote(name: str, entry: dict[str, Any], *, is_sse: bool) -> PluginMc
                 return None
             lowered.add(lname)
 
-    unknown = set(entry.keys()) - {"type", "url", "headers"}
+    unknown = set(entry.keys()) - {"type", "url", "headers", "capabilities"}
     if unknown:
         return None
 
-    from .models import PluginCapabilityTier
+    from .integrity import infer_server_capabilities
 
-    return PluginMcpServer(
+    server_obj = PluginMcpServer(
         name=name,
-        server_type="sse" if is_sse else "streamable_http",
+        server_type=st,
         command=None,
         args=None,
         url=url,
         headers=({str(k): str(v) for k, v in headers.items()} if isinstance(headers, dict) else None),
         cwd=None,
-        capabilities=(PluginCapabilityTier.NETWORK,),
+        capabilities=tuple(declared_caps),
     )
+    return replace(server_obj, capabilities=infer_server_capabilities(server_obj))
 
 
 def _is_valid_remote_url(url: str) -> bool:

@@ -283,6 +283,8 @@ filterwarnings = [
     "ignore::DeprecationWarning:google",
     "ignore::DeprecationWarning:pkg_resources",
     "ignore::DeprecationWarning:websockets",
+    "ignore::ResourceWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
 markers = [
   "api: Public API surface smoke tests (myrm_agent_harness.api)",

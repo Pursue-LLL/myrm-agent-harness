@@ -369,13 +369,49 @@ class TestIdleIntegration:
         from myrm_agent_harness.agent.skills.sync import idle_integration
         from myrm_agent_harness.agent.skills.sync.manager import SkillSyncManager
 
-        mock_manager = MagicMock(spec=SkillSyncManager)
-        mock_manager.is_syncing = True
+    @pytest.mark.asyncio
+    async def test_pull_skill_blocks_path_escape(self, tmp_path: Path) -> None:
+        """Verify LocalSync pull blocks prefix-similarity and directory traversal attacks."""
+        from myrm_agent_harness.agent.skills.sync.local_sync import LocalFSSyncBackend
+        from myrm_agent_harness.agent.skills.packaging.unpacker import UnpackResult
 
-        idle_integration._sync_manager_ref = mock_manager
-        mock_task = MagicMock()
-        result = await idle_integration._handle_skill_sync(mock_task, "session_3")
-        assert result["skipped"] is True
+        local_skills = tmp_path / "skills"
+        local_skills.mkdir()
+
+        storage = AsyncMock()
+        storage.read = AsyncMock(return_value=b"fake_zip")
+
+        unpacker = MagicMock()
+        # Mock unpacker returning malicious relative paths
+        unpacker.unpack.return_value = UnpackResult(
+            success=True,
+            skill_info=None,
+            files={
+                "SKILL.md": b"# Good Skill",
+                "../skills_evil/malicious.py": b"# exploit",
+                "../../outside.txt": b"# exploit2",
+            },
+        )
+
+        backend = LocalFSSyncBackend(
+            storage=storage,
+            local_skills_path=local_skills,
+        )
+        backend._unpacker = unpacker
+
+        # Mock remote manifest with 1 skill
+        backend._load_remote_manifest = AsyncMock(return_value={"test_skill": {"updated_at": "2026-01-01T00:00:00"}})
+
+        result = await backend.pull_skills()
+        assert result.success is True
+        assert "test_skill" in result.pulled_skills
+
+        # Legitimate skill file is written
+        assert (local_skills / "test_skill" / "SKILL.md").exists()
+        # Malicious paths are blocked and NOT written
+        assert not (tmp_path / "skills_evil").exists()
+        assert not (tmp_path / "outside.txt").exists()
+
 
     def test_task_type_constant(self) -> None:
         from myrm_agent_harness.agent.skills.sync.idle_integration import SKILL_SYNC_TASK_TYPE

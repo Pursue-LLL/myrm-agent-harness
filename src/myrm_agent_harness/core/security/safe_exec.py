@@ -72,12 +72,26 @@ def credential_env_overrides(
     credentials: tuple[EphemeralUserCredential, ...],
     *,
     allowed_issuers: list[str] | None = None,
+    use_sentinel: bool = True,
 ) -> dict[str, str]:
-    """Map EphemeralUserCredential issuers to process env vars (post-sanitize injection)."""
+    """Map EphemeralUserCredential issuers to process env vars (post-sanitize injection).
+
+    When ``use_sentinel`` is True, secrets are protected via AES-256-GCM ephemeral vouchers
+    (AgentSentinelEgressGuard) rather than injected as raw plaintext.
+    """
     overrides: dict[str, str] = {}
     normalized_allowed: set[str] | None = None
     if allowed_issuers is not None:
         normalized_allowed = {issuer.lower() for issuer in allowed_issuers}
+
+    from myrm_agent_harness.core.security.egress.sentinel import get_global_sentinel_manager
+
+    sentinel_mgr = get_global_sentinel_manager() if use_sentinel else None
+
+    def _wrap_val(raw_secret: str, key_name: str) -> str:
+        if sentinel_mgr is not None and raw_secret:
+            return sentinel_mgr.create_sentinel(raw_secret, metadata={"key": key_name})
+        return raw_secret
 
     for cred in credentials:
         if (
@@ -86,19 +100,20 @@ def credential_env_overrides(
         ):
             continue
         if cred.issuer == "feishu":
-            overrides["FEISHU_USER_ACCESS_TOKEN"] = cred.token
+            overrides["FEISHU_USER_ACCESS_TOKEN"] = _wrap_val(cred.token, "FEISHU_USER_ACCESS_TOKEN")
         elif cred.issuer == "dingtalk":
-            overrides["DINGTALK_USER_ACCESS_TOKEN"] = cred.token
+            overrides["DINGTALK_USER_ACCESS_TOKEN"] = _wrap_val(cred.token, "DINGTALK_USER_ACCESS_TOKEN")
         elif cred.issuer == "github":
-            overrides["GITHUB_TOKEN"] = cred.token
+            overrides["GITHUB_TOKEN"] = _wrap_val(cred.token, "GITHUB_TOKEN")
         elif cred.issuer == "google_workspace":
-            overrides["GOOGLE_WORKSPACE_TOKEN"] = cred.token
+            overrides["GOOGLE_WORKSPACE_TOKEN"] = _wrap_val(cred.token, "GOOGLE_WORKSPACE_TOKEN")
         elif cred.issuer == "xai":
-            overrides["XAI_API_KEY"] = cred.token
+            overrides["XAI_API_KEY"] = _wrap_val(cred.token, "XAI_API_KEY")
             if cred.scope:
                 overrides["XAI_BASE_URL"] = cred.scope
         else:
-            overrides[f"{cred.issuer.upper()}_TOKEN"] = cred.token
+            key_name = f"{cred.issuer.upper()}_TOKEN"
+            overrides[key_name] = _wrap_val(cred.token, key_name)
     return overrides
 
 

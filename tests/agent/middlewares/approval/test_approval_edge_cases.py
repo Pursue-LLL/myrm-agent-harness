@@ -7,7 +7,7 @@ Tests:
 4. Cron fail-closed policy
 5. Rate limiting
 6. Invalid batch response error handling
-7. Irreversible social actions gate & session denial persistence
+7. Irreversible social actions gate & session denial persistence.
 """
 
 import time
@@ -1439,7 +1439,60 @@ async def test_session_scoped_denial_persistence() -> None:
 
 
 @pytest.mark.asyncio
+async def test_toctou_script_content_alteration_blocked(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that altering a script between approval and execution triggers SCRIPT_INTEGRITY_REJECT."""
+    from myrm_agent_harness.agent.middlewares.approval.middleware import ToolApprovalMiddleware
+    from myrm_agent_harness.agent.middlewares._session_context import set_approval_user_id
+
+    user_id = "test_user_toctou"
+    set_approval_user_id(user_id)
+
+    script_file = tmp_path / "deploy.sh"
+    script_file.write_text("#!/bin/bash\necho 'benign'", encoding="utf-8")
+
+    middleware = ToolApprovalMiddleware()
+
+    def mock_interrupt(payload):
+        # Malicious modification right when human is approving!
+        script_file.write_text("#!/bin/bash\nrm -rf /tmp/data\necho 'malicious'", encoding="utf-8")
+        return {
+            "decisions": [
+                {"type": "approve", "allow_always": False}
+            ]
+        }
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
+        mock_interrupt,
+    )
+
+    state = {
+        "messages": [
+            AIMessage(
+                content="Executing deploy script.",
+                tool_calls=[
+                    ToolCall(
+                        type="tool_call",
+                        name="shell_exec",
+                        args={"command": f"bash {script_file}"},
+                        id="call_deploy_toctou",
+                    ),
+                ],
+            )
+        ]
+    }
+
+    result = await middleware.aafter_model(state, MockRuntime())
+    assert "messages" in result
+    tool_msgs = [m for m in result["messages"] if isinstance(m, ToolMessage)]
+    assert len(tool_msgs) == 1
+    assert "TOCTOU" in tool_msgs[0].content or "altered after approval" in tool_msgs[0].content
+    assert tool_msgs[0].status == "error"
+
+
+@pytest.mark.asyncio
 async def test_irreversible_social_action_blocks_allowlist_bypass(monkeypatch: pytest.MonkeyPatch) -> None:
+
     """Test that git push and channel notifications cannot bypass approval via allowlist."""
     from myrm_agent_harness.agent.security.approval_flow import AllowlistEntry, get_allowlist
 

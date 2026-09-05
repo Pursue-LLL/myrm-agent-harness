@@ -7,7 +7,7 @@ Session-level security guards — privacy tracking, SSRF prevention, and skill D
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Module exports for core security guards. | — |
+| `__init__.py` | Package | Module exports for core security guards: privacy ladder, privacy tracker, ssrf, and url allowlist. | ✅ |
 | privacy_ladder.py | Core | Privacy fail-closed ladder — 3-level hierarchy (Workspace -> Session -> File) for sandboxed persistence and mutations. | ✅ |
 | privacy_tracker.py | Core | Privacy tracker — per-turn PII sensitivity tracking, ContextVar-based privacy policy access (set/get_privacy_policy). | ✅ |
 | ssrf.py | Core | Unified outbound URL SSRF validation — sync/async validate, DNS-pinned URLs, SSRF_BLOCKED audit on block. HTTP fetch: `core/security/http/secure_fetch.py`. | ✅ |

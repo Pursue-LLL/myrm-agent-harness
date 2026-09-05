@@ -53,6 +53,8 @@ from myrm_agent_harness.agent.security.types import (
 )
 from myrm_agent_harness.core.security.spend_governance import (
     compute_action_digest,
+    compute_script_content_hash,
+    extract_script_file_target,
     is_financial_or_spend_tool,
     is_irreversible_social_action,
     parse_spend_amount,
@@ -998,6 +1000,16 @@ async def evaluate_tool_batch(
             extra_ctx["action_digest"] = compute_action_digest(tool_name, tool_input)
             extra_ctx["high_risk"] = True
             extra_ctx["hide_allow_always"] = True
+
+        script_target = extract_script_file_target(tool_name, tool_input)
+        if script_target:
+            script_hash = compute_script_content_hash(script_target)
+            if script_hash:
+                extra_ctx = extra_ctx or {}
+                extra_ctx["script_target"] = script_target
+                extra_ctx["script_content_hash"] = script_hash
+                extra_ctx["high_risk"] = True
+
 
         # TOCTOU Defense: extract mutable script operand and compute content digest (CVE-2026-32921)
         if permission_type in ("shell_exec", "code_interpreter") or tool_name in (

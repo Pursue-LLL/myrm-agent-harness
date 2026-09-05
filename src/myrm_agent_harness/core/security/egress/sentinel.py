@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import re
-from typing import Generator
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +229,11 @@ class StreamingSentinelScanner:
         remaining = self._buffer
         self._buffer = b""
         return self._manager.substitute_bytes(remaining)
+
+
+def is_sentinel_voucher(val: str) -> bool:
+    """Check if a string matches the sentinel voucher pattern."""
+    return bool(val and val.startswith(SENTINEL_PREFIX) and val.endswith(SENTINEL_SUFFIX))
 
 
 _GLOBAL_SENTINEL_MANAGER: SentinelManager | None = None

@@ -261,13 +261,14 @@ def infer_server_capabilities(server: PluginMcpServer) -> tuple[PluginCapability
     """Statically infer the sandbox capability tier for an MCP server entry.
 
     Heuristics:
-    1. Remote transports (streamable_http, sse) require NETWORK capability.
-    2. Local stdio transport spawns child processes, thus requiring SHELL_EXEC and FS_WRITE.
-    3. Commands executing compilers, package managers, or explicit shell scripts also flag DESTRUCTIVE if dangerous.
+    1. Declared server capabilities are always preserved.
+    2. Remote transports (streamable_http, sse) require NETWORK capability.
+    3. Local stdio transport spawns child processes, thus requiring SHELL_EXEC, FS_READ, FS_WRITE.
+    4. Commands executing compilers, package managers, or explicit shell scripts also flag DESTRUCTIVE if dangerous.
     """
     from .models import PluginCapabilityTier
 
-    caps: set[PluginCapabilityTier] = set()
+    caps: set[PluginCapabilityTier] = set(server.capabilities)
 
     if server.server_type in ("streamable_http", "sse"):
         caps.add(PluginCapabilityTier.NETWORK)
@@ -287,4 +288,63 @@ def infer_server_capabilities(server: PluginMcpServer) -> tuple[PluginCapability
         caps.add(PluginCapabilityTier.READ_ONLY)
 
     return tuple(sorted(caps, key=lambda c: c.value))
+
+
+def verify_plugin_capability_diff(
+    declared_caps: Collection[PluginCapabilityTier],
+    servers: Collection[PluginMcpServer],
+) -> list[PluginDiagnostic]:
+    """Audit declared capabilities against inferred server capabilities.
+
+    If declared_caps is empty (manifest did not specify capabilities), no diff
+    violation is raised (backwards-compatible with unannotated plugins).
+
+    When declared_caps is explicitly specified, verifies whether any server
+    requires capabilities outside the declared set.
+    For any undeclared capability, records a structured diagnostic:
+      - Level ERROR if DESTRUCTIVE or SHELL_EXEC is undeclared (high security threat).
+      - Level WARNING for other undeclared capabilities (NETWORK, FS_WRITE, FS_READ).
+    """
+    if not declared_caps:
+        return []
+
+    declared_set = frozenset(declared_caps)
+    diagnostics: list[PluginDiagnostic] = []
+
+    for server in servers:
+        server_caps = frozenset(server.capabilities)
+        undeclared = server_caps - declared_set
+        # READ_ONLY is a subset of all capabilities, so having READ_ONLY is never an escalation
+        undeclared = {c for c in undeclared if c != PluginCapabilityTier.READ_ONLY}
+
+        if undeclared:
+            sorted_undeclared = sorted(undeclared, key=lambda c: c.value)
+            is_high_risk = any(
+                c in (PluginCapabilityTier.DESTRUCTIVE, PluginCapabilityTier.SHELL_EXEC)
+                for c in undeclared
+            )
+            level = (
+                PluginDiagnosticLevel.ERROR
+                if is_high_risk
+                else PluginDiagnosticLevel.WARNING
+            )
+            cap_names = ", ".join(c.value for c in sorted_undeclared)
+            declared_names = (
+                ", ".join(c.value for c in sorted(declared_set, key=lambda c: c.value))
+                or "none"
+            )
+            diagnostics.append(
+                PluginDiagnostic(
+                    component=f"mcp:{server.name}",
+                    code="capability_undeclared_privilege",
+                    message=(
+                        f"MCP server '{server.name}' requires undeclared capability ({cap_names}). "
+                        f"Plugin manifest only declared: [{declared_names}]."
+                    ),
+                    level=level,
+                )
+            )
+
+    return diagnostics
+
 

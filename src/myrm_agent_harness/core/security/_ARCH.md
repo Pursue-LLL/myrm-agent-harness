@@ -31,6 +31,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | integrity/ | Persistence write integrity, corruption detection, and atomic sealing validation ([integrity/_ARCH.md](integrity/_ARCH.md)). |
 | guards/ | Session-level security guards — privacy tracker, unified SSRF (`ssrf.py`), skill DLP allowlist (`url_allowlist.py`). |
 | http/ | SSRF-protected outbound HTTP fetch — DNS pinning and redirect validation (`secure_fetch.py`). |
+| egress/ | Ephemeral sentinel voucher encoding/decoding and loopback egress proxy substitution for agent execution environments (`sentinel.py`, `proxy_server.py`). |
 
 ## Key Dependencies
 

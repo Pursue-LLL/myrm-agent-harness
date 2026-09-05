@@ -29,8 +29,8 @@ _PREFIX_PATTERNS: tuple[str, ...] = (
     r"ghu_[A-Za-z0-9]{10,}",
     r"ghs_[A-Za-z0-9]{10,}",
     r"ghr_[A-Za-z0-9]{10,}",
-    r"xox[baprs]-[A-Za-z0-9-]{10,}",  # Slack
-    r"xapp-\d+-[A-Za-z0-9-]{10,}",  # Slack App (OPT-4)
+    r"xox[baprs]-[A-Za-z0-9_-]{10,}",  # Slack (supports - and _)
+    r"xapp-\d+-[A-Za-z0-9_-]{10,}",  # Slack App (OPT-4)
     r"gsk_[A-Za-z0-9_-]{10,}",  # Groq (OPT-4)
     r"AIza[A-Za-z0-9_-]{30,}",
     r"AKIA[A-Z0-9]{16}",

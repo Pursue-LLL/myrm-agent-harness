@@ -30,6 +30,7 @@ __all__ = [
     "AttributionVerdict",
     "BehavioralMessage",
     "BehavioralStatsOptions",
+    "build_isolated_child_env",
     "ChangePredictionManifest",
     "CompletionStatus",
     "ComplianceAuditEngine",
@@ -50,6 +51,7 @@ __all__ = [
     "DistillationRejectionCode",
     "Doctor",
     "DualTrackAuditCollector",
+    "EnvInheritPolicy",
     "EvidenceReference",
     "ExternalSecretResolutionError",
     "FactCheckItem",
@@ -181,8 +183,7 @@ __all__ = [
     "RecallDebug",
     "is_within_boundary",
     "safe_join_path",
-    "build_isolated_child_env",
-    "EnvInheritPolicy",
+    "safe_purge_fts5_virtual_table",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {

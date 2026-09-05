@@ -840,4 +840,48 @@ class TestPluginPackagingIntegrityGuard:
         diags = [d for d in result.diagnostics if d.code == "mcp_missing_artifact"]
         assert len(diags) == 2
 
+    def test_manifest_declared_capabilities_and_mcp_inferred_capabilities(self) -> None:
+        """Verifies PluginCapabilityTier declared in plugin.json and inferred for MCP servers."""
+        from myrm_agent_harness.agent.plugins.models import PluginCapabilityTier
+
+        zip_bytes = build_plugin_zip(
+            {
+                "plugin.json": json.dumps(
+                    {
+                        "$schema": PLUGIN_SCHEMA,
+                        "name": "capable-plugin",
+                        "capabilities": ["network", "fs_read", "shell_exec"],
+                    }
+                ),
+                "mcp.json": json.dumps(
+                    {
+                        "$schema": MCP_SCHEMA,
+                        "mcpServers": {
+                            "remote-mcp": {
+                                "type": "streamable-http",
+                                "url": "https://example.com/mcp",
+                            },
+                            "stdio-mcp": {
+                                "type": "stdio",
+                                "command": "./run.sh",
+                            },
+                        },
+                    }
+                ),
+                "run.sh": "#!/usr/bin/env bash\necho hi",
+            }
+        )
+        result = AgentPluginParser().parse_zip(zip_bytes)
+        assert result.meta is not None
+        assert result.meta.declared_capabilities == (
+            PluginCapabilityTier.NETWORK,
+            PluginCapabilityTier.FS_READ,
+            PluginCapabilityTier.SHELL_EXEC,
+        )
+
+        server_map = {s.name: s for s in result.servers}
+        assert PluginCapabilityTier.NETWORK in server_map["remote-mcp"].capabilities
+        assert PluginCapabilityTier.SHELL_EXEC in server_map["stdio-mcp"].capabilities
+
+
 

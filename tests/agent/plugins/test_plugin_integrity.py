@@ -14,10 +14,14 @@ from myrm_agent_harness.agent.plugins.integrity import (
     extract_server_entrypoint_path,
     extract_server_raw_entrypoint,
     filter_valid_servers,
+    infer_server_capabilities,
     normalize_package_path,
     verify_mcp_server_artifacts,
+    verify_plugin_capability_diff,
 )
 from myrm_agent_harness.agent.plugins.models import (
+    PluginCapabilityTier,
+    PluginDiagnosticLevel,
     PluginMcpServer,
 )
 
@@ -158,3 +162,55 @@ class TestFilterAndVerifyPluginPackagingIntegrity:
         assert len(diags) == 1
         assert diags[0].code == "mcp_missing_artifact"
         assert "broken" in diags[0].component
+
+
+class TestCapabilityInferenceAndDiff:
+    def test_infer_server_capabilities_stdio(self) -> None:
+        server = PluginMcpServer("local", "stdio", "./run.sh", [], None, None, None)
+        caps = infer_server_capabilities(server)
+        assert PluginCapabilityTier.SHELL_EXEC in caps
+        assert PluginCapabilityTier.FS_READ in caps
+        assert PluginCapabilityTier.FS_WRITE in caps
+
+    def test_infer_server_capabilities_remote(self) -> None:
+        server = PluginMcpServer("remote", "streamable_http", None, None, "https://api.example.com", None, None)
+        caps = infer_server_capabilities(server)
+        assert caps == (PluginCapabilityTier.NETWORK,)
+
+    def test_infer_server_capabilities_destructive_command(self) -> None:
+        server = PluginMcpServer("danger", "stdio", "bash", ["-c", "rm -rf /tmp/data"], None, None, None)
+        caps = infer_server_capabilities(server)
+        assert PluginCapabilityTier.DESTRUCTIVE in caps
+
+    def test_verify_capability_diff_clean(self) -> None:
+        server = PluginMcpServer(
+            "net",
+            "streamable_http",
+            None,
+            None,
+            "https://api.example.com",
+            None,
+            None,
+            capabilities=(PluginCapabilityTier.NETWORK,),
+        )
+        diags = verify_plugin_capability_diff([PluginCapabilityTier.NETWORK], [server])
+        assert diags == []
+
+    def test_verify_capability_diff_undeclared_high_risk(self) -> None:
+        server = PluginMcpServer(
+            "shell",
+            "stdio",
+            "./run.sh",
+            [],
+            None,
+            None,
+            None,
+            capabilities=(PluginCapabilityTier.SHELL_EXEC,),
+        )
+        # Declared only read_only, but server needs shell_exec
+        diags = verify_plugin_capability_diff([PluginCapabilityTier.READ_ONLY], [server])
+        assert len(diags) == 1
+        assert diags[0].code == "capability_undeclared_privilege"
+        assert diags[0].level == PluginDiagnosticLevel.ERROR
+        assert "shell_exec" in diags[0].message
+

@@ -282,3 +282,130 @@ class SpendReceipt:
             secret_salt=secret_salt,
         )
         return hmac.compare_digest(self.entry_hash, expected)
+
+
+# ============================================================================
+# Script Content Integrity & TOCTOU Protection (§19 ApprovedScriptsChangePrevention)
+# ============================================================================
+
+_SCRIPT_EXTENSIONS = frozenset(
+    {
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".py",
+        ".pyw",
+        ".js",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".rb",
+        ".pl",
+        ".php",
+    }
+)
+
+_INTERPRETER_TOKENS = frozenset(
+    {
+        "bash",
+        "sh",
+        "zsh",
+        "python",
+        "python3",
+        "node",
+        "bun",
+        "deno",
+        "ruby",
+        "perl",
+    }
+)
+
+
+def compute_script_content_hash(target_path: str) -> str | None:
+    """Compute deterministic SHA-256 hash of a script file on disk.
+
+    Returns None if file does not exist, is not a regular file, or cannot be read.
+    """
+    import os
+    from pathlib import Path
+
+    try:
+        p = Path(target_path).resolve()
+        if not p.is_file():
+            return None
+        hasher = hashlib.sha256()
+        with p.open("rb") as f:
+            while chunk := f.read(65536):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    except (OSError, PermissionError) as exc:
+        logger.debug("Failed computing script hash for %s: %s", target_path, exc)
+        return None
+
+
+def extract_script_file_target(tool_name: str, args: dict[str, object] | None) -> str | None:
+    """Extract candidate script file path from tool arguments if applicable.
+
+    Inspects common tool arguments: 'script_path', 'file_path', 'path', or shell commands
+    like `bash ./run.sh` or `python script.py`.
+    """
+    import os
+    from pathlib import Path
+
+    if not isinstance(args, dict):
+        return None
+
+    # 1. Direct argument fields
+    for field in ("script_path", "script", "file_path", "file"):
+        val = args.get(field)
+        if isinstance(val, str) and val.strip():
+            candidate = val.strip()
+            _, ext = os.path.splitext(candidate)
+            if ext.lower() in _SCRIPT_EXTENSIONS and os.path.isfile(candidate):
+                return str(Path(candidate).resolve())
+
+    # 2. Inspect shell commands: `python deploy.py`, `bash ./scripts/run.sh`
+    cmd_val = args.get("command") or args.get("cmd") or args.get("code")
+    if isinstance(cmd_val, str) and cmd_val.strip():
+        cmd_str = cmd_val.strip()
+        tokens = cmd_str.split()
+        if len(tokens) >= 2 and tokens[0].lower() in _INTERPRETER_TOKENS:
+            for token in tokens[1:]:
+                if token.startswith("-"):
+                    continue
+                _, ext = os.path.splitext(token)
+                if ext.lower() in _SCRIPT_EXTENSIONS and os.path.isfile(token):
+                    return str(Path(token).resolve())
+
+        # Direct executable invocation: `./run.sh`
+        if len(tokens) >= 1:
+            first = tokens[0]
+            _, ext = os.path.splitext(first)
+            if ext.lower() in _SCRIPT_EXTENSIONS and os.path.isfile(first):
+                return str(Path(first).resolve())
+
+    return None
+
+
+def verify_script_file_integrity(file_path: str, expected_hash: str) -> tuple[bool, str]:
+    """Verify that script file on disk matches expected cryptographic SHA-256 hash.
+
+    Returns (is_valid, reason).
+    """
+    if not expected_hash:
+        return True, ""
+
+    current_hash = compute_script_content_hash(file_path)
+    if current_hash is None:
+        return False, f"Script file '{file_path}' no longer exists or is unreadable"
+
+    if current_hash != expected_hash:
+        return (
+            False,
+            f"Script file '{file_path}' content was altered after approval. "
+            f"Expected SHA-256 '{expected_hash[:16]}...', current '{current_hash[:16]}...'. "
+            "Execution blocked to prevent TOCTOU script substitution.",
+        )
+
+    return True, ""
+

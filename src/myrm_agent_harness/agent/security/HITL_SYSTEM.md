@@ -48,6 +48,13 @@
 - TTL refresh（默认5分钟，确保多实例一致性）
 - Opportunistic cleanup（ttl_seconds > 0时回收过期缓存）
 
+### 4. 脚本操作数防篡改锁定（TOCTOU Defense）
+在审批涉及外部脚本文件（如 `bash ./deploy.sh`、`python3 main.py`）的操作时，系统在中断发起时刻（TOC）自动解析物理规范路径并锚定文件内容的 SHA-256 摘要；在用户恢复批准（TOU）执行的瞬间，系统原子性重验文件真实哈希。若文件在审批停留期间被外部进程篡改、软链接偷换或覆盖，立即触发 `SCRIPT_OPERAND_DRIFT_REJECT` 并中断执行，杜绝「所审非所执」的 TOCTOU 安全漏洞。
+- 自动禁用永久白名单（强制 `hide_allow_always=True`）
+- 支持系统级包装命令（`nohup`、`sudo`、`time` 等）穿透
+- 支持复合管道与子句切分（`cd ... && ...`）精准提取
+- 最大支持 64MB 文件摘要计算，防御内存爆盘与拒绝服务攻击
+
 ---
 
 ## 数据结构
