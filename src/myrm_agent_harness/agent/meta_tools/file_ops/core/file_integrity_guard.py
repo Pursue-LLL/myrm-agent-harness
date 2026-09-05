@@ -52,7 +52,7 @@ class FileIntegrityGuard:
 
     __slots__ = ("_agent_read_hashes",)
 
-    _PARTIAL_READ_SENTINEL = ""
+    _PARTIAL_READ_SENTINEL = "__MYRM_PARTIAL_READ_SENTINEL__"
 
     def __init__(self) -> None:
         self._agent_read_hashes: dict[str, dict[str, str]] = {}

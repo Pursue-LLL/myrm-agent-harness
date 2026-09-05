@@ -185,12 +185,21 @@ class HookExecutor:
     # -- Command --
 
     async def _run_command(self, hook: CommandHookDefinition, event: str, payload: dict[str, object]) -> HookResult:
+        from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+            EnvInheritPolicy,
+            build_isolated_child_env,
+        )
+
         command = _inject_arguments(hook.command, payload, shell_escape=True)
-        env = {
-            **os.environ,
+        extra_env = {
             "HOOK_EVENT": event,
             "HOOK_PAYLOAD": json.dumps(payload, default=str, ensure_ascii=True),
         }
+        env = build_isolated_child_env(
+            base_env=None,
+            extra_env=extra_env,
+            inherit_policy=EnvInheritPolicy.CORE,
+        )
 
         process = await asyncio.create_subprocess_shell(
             command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env

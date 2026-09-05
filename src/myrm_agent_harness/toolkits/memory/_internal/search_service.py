@@ -74,7 +74,6 @@ from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
 from myrm_agent_harness.toolkits.memory.types import (
     ConversationMemory,
     MemorySearchResult,
-    MemoryStatus,
     MemoryType,
     ProceduralMemory,
 )

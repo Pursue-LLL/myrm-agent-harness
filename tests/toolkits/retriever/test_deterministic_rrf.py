@@ -77,3 +77,20 @@ def test_fuse_rrf_deterministic_empty_input() -> None:
     fused, debug = fuse_rrf_deterministic([], key_func=lambda x: x)
     assert fused == []
     assert debug.fused_count == 0
+
+
+def test_rrf_fusion_legacy_wrapper_deterministic_tie_breaker() -> None:
+    """Ensure standard rrf_fusion enjoys deterministic tie-breaking without dictionary order flakiness."""
+    from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
+
+    # Scenario: Concurrent execution order reversal
+    fts_results = [("doc_A", 0.9), ("doc_B", 0.8)]
+    vec_results = [("doc_B", 0.9), ("doc_A", 0.8)]
+
+    run1 = rrf_fusion([fts_results, vec_results])
+    run2 = rrf_fusion([vec_results, fts_results])
+
+    # Both documents have identical score and hit count 2; deterministic natural key ensures doc_A is first
+    assert run1[0][0] == run2[0][0] == "doc_A"
+    assert run1[1][0] == run2[1][0] == "doc_B"
+

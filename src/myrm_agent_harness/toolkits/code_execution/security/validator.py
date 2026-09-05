@@ -34,10 +34,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from myrm_agent_harness.toolkits.code_execution.security.blacklist import (
-    CORE_SAFE_ENV_VARS,
-    DANGEROUS_ENV_PREFIXES,
-    DANGEROUS_ENV_VARS,
-    DANGEROUS_ENV_WILDCARDS,
     DANGEROUS_MODULES,
     DANGEROUS_MODULES_REASONS,
 )
@@ -508,95 +504,28 @@ def is_path_component_safe(component: str, component_name: str = "path component
 
 
 # ============================================================
-# Environment variable sanitization
+# Environment variable sanitization (delegated to env_isolation SSOT)
 # ============================================================
 
-
-_env_logger = logging.getLogger(__name__)
-
-
-class EnvInheritPolicy(StrEnum):
-    """Environment variable inheritance strategy for subprocess execution.
-
-    ALL: Inherit all env vars, filter only dangerous ones (default).
-    CORE: Only inherit CORE_SAFE_ENV_VARS, filter everything else.
-    NONE: Pass no env vars at all (strictest isolation).
-    """
-
-    ALL = "all"
-    CORE = "core"
-    NONE = "none"
-
-
-def _matches_wildcard(key: str) -> bool:
-    """Check if env var name contains any dangerous wildcard pattern."""
-    upper = key.upper()
-    return any(w in upper for w in DANGEROUS_ENV_WILDCARDS)
-
-
-_PTC_ORCHESTRATION_ENV_KEYS: frozenset[str] = frozenset(
-    {
-        "_MYRM_PTC_SOCKET",
-        "_MYRM_PTC_PORT",
-        "_MYRM_PTC_TIMEOUT",
-    }
+from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+    DEFAULT_CHILD_SAFE_ENV_KEYS,
+    EnvInheritPolicy,
+    build_isolated_child_env,
+    sanitize_env,
 )
 
-
-def _is_ptc_orchestration_env(env: dict[str, str]) -> bool:
-    """True when env carries Dynamic Workflow PTC RPC bridge markers."""
-    return "_MYRM_PTC_SOCKET" in env or "_MYRM_PTC_PORT" in env
-
-
-def sanitize_env(
-    env: dict[str, str],
-    inherit_policy: EnvInheritPolicy = EnvInheritPolicy.ALL,
-) -> dict[str, str]:
-    """Filter environment variables based on security policy.
-
-    Policies:
-    - ALL: Inherit all vars, filter dangerous ones (exact + prefix + wildcard).
-    - CORE: Only keep CORE_SAFE_ENV_VARS, reject everything else.
-    - NONE: Return empty dict (strictest isolation).
-
-    Args:
-        env: Original environment variables dictionary.
-        inherit_policy: Inheritance strategy (default: ALL).
-
-    Returns:
-        Sanitized environment variables dictionary.
-    """
-    if inherit_policy == EnvInheritPolicy.NONE:
-        return {}
-
-    filtered: dict[str, str] = {}
-    blocked: list[str] = []
-    ptc_orchestration = _is_ptc_orchestration_env(env)
-
-    for key, value in env.items():
-        if inherit_policy == EnvInheritPolicy.CORE:
-            if key not in CORE_SAFE_ENV_VARS:
-                blocked.append(key)
-                continue
-            filtered[key] = value
-            continue
-
-        if key in _PTC_ORCHESTRATION_ENV_KEYS:
-            filtered[key] = value
-            continue
-
-        if key in DANGEROUS_ENV_VARS or key.startswith(DANGEROUS_ENV_PREFIXES):
-            if key == "PYTHONPATH" and ptc_orchestration:
-                filtered[key] = value
-                continue
-            blocked.append(key)
-            continue
-        if _matches_wildcard(key):
-            blocked.append(key)
-            continue
-        filtered[key] = value
-
-    if blocked:
-        _env_logger.info(f" Blocked {len(blocked)} env vars ({inherit_policy}): {', '.join(sorted(blocked))}")
-
-    return filtered
+__all__ = [
+    "DEFAULT_CHILD_SAFE_ENV_KEYS",
+    "EnvInheritPolicy",
+    "ValidationResult",
+    "build_isolated_child_env",
+    "is_command_safe",
+    "is_module_allowed",
+    "is_path_component_safe",
+    "is_path_safe",
+    "sanitize_env",
+    "validate_command",
+    "validate_module",
+    "validate_path",
+    "validate_path_component",
+]

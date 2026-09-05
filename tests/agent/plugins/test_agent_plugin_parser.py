@@ -803,3 +803,41 @@ class TestPluginPackagingIntegrityGuard:
         direct_diag = next(d for d in missing_diags if d.component == "mcp:broken-direct-script")
         assert "bin/run.js" in direct_diag.message
 
+    def test_packaging_integrity_guard_detects_bare_relative_arguments_without_dot_slash(self) -> None:
+        """Covers bare relative args like 'node dist/index.js' and 'python server.py' without './'."""
+        zip_bytes = build_plugin_zip(
+            {
+                "plugin.json": default_plugin_json(),
+                "mcp.json": json.dumps(
+                    {
+                        "$schema": MCP_SCHEMA,
+                        "mcpServers": {
+                            "bare-node-server": {
+                                "type": "stdio",
+                                "command": "node",
+                                "args": ["dist/index.js"],
+                            },
+                            "bare-py-server": {
+                                "type": "stdio",
+                                "command": "python",
+                                "args": ["-u", "server.py"],
+                            },
+                        },
+                    }
+                ),
+            }
+        )
+        result = AgentPluginParser().parse_zip(zip_bytes)
+        assert len(result.servers) == 2
+        server_map = {s.name: s for s in result.servers}
+
+        assert server_map["bare-node-server"].is_runnable is False
+        assert server_map["bare-node-server"].missing_artifact == "dist/index.js"
+
+        assert server_map["bare-py-server"].is_runnable is False
+        assert server_map["bare-py-server"].missing_artifact == "server.py"
+
+        diags = [d for d in result.diagnostics if d.code == "mcp_missing_artifact"]
+        assert len(diags) == 2
+
+

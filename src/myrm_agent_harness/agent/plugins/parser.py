@@ -27,13 +27,13 @@ persistence owned by the business layer).
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import replace
 from typing import Any
 
 from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract_zip
 
 from . import manifest, mcp_config
+from .integrity import verify_mcp_server_artifacts
 from .manifest import decode_manifest_json, parse_manifest
 from .mcp_config import decode_mcp_json, parse_mcp_servers
 from .models import (
@@ -54,56 +54,6 @@ _EXCLUDED_SEGMENTS = frozenset(
 def _is_excluded_file(path: str) -> bool:
     parts = path.split("/")
     return any(part.startswith(".") or part in _EXCLUDED_SEGMENTS for part in parts)
-
-
-def _check_server_artifact_integrity(
-    server: PluginMcpServer,
-    package_files: frozenset[str],
-    *,
-    has_ts_sources: bool = False,
-) -> tuple[bool, str | None, str | None]:
-    """Verify that any bundled executable or entry script referenced by stdio exists in package_files.
-
-    Returns (is_valid, target_path, reason).
-    """
-    if server.server_type != "stdio":
-        return True, None, None
-
-    cmd = (server.command or "").strip()
-    target_path: str | None = None
-
-    if cmd.startswith("./"):
-        target_path = cmd[2:].replace("\\", "/").lstrip("/")
-    elif "${PLUGIN_ROOT}" in cmd:
-        m = re.search(r"\$\{PLUGIN_ROOT\}/([^\s\"']+)", cmd)
-        if m:
-            target_path = m.group(1).replace("\\", "/").lstrip("/")
-    elif server.args:
-        for arg in server.args:
-            if "${PLUGIN_ROOT}" in arg:
-                m = re.search(r"\$\{PLUGIN_ROOT\}/([^\s\"']+)", arg)
-                if m:
-                    target_path = m.group(1).replace("\\", "/").lstrip("/")
-                    break
-            elif arg.startswith("./"):
-                target_path = arg[2:].replace("\\", "/").lstrip("/")
-                break
-
-    if not target_path:
-        return True, None, None
-
-    if target_path not in package_files:
-        guide = " TypeScript sources exist; run 'npm run build' before packaging." if has_ts_sources else ""
-        reason = (
-            f"MCP server '{server.name}' requires build artifact '{target_path}', "
-            f"which is missing from the package zip.{guide}"
-            if has_ts_sources
-            else f"MCP server '{server.name}' references local entrypoint '{target_path}', "
-            f"which does not exist in the plugin package."
-        )
-        return False, target_path, reason
-
-    return True, target_path, None
 
 
 class AgentPluginParser:
@@ -265,7 +215,7 @@ class AgentPluginParser:
         has_ts_sources = any(k.endswith((".ts", ".tsx")) for k in package_file_set)
 
         for server in parsed_servers:
-            is_valid, target_path, reason = _check_server_artifact_integrity(
+            is_valid, target_path, reason = verify_mcp_server_artifacts(
                 server, package_file_set, has_ts_sources=has_ts_sources
             )
             raw_entry = target_path or ""

@@ -14,7 +14,10 @@ import os
 import re
 from urllib.parse import urlparse
 
-from myrm_agent_harness.agent.security.path_security import is_sensitive_file
+from myrm_agent_harness.agent.security.path_security import (
+    is_sensitive_file,
+    is_within_boundary,
+)
 from myrm_agent_harness.agent.security.types import PathPolicy, PermissionAction
 
 # ---------------------------------------------------------------------------
@@ -28,8 +31,8 @@ def _normalize_path(raw: str) -> str:
 
 
 def _is_subpath(child: str, parent: str) -> bool:
-    """Check if child path is equal to or under parent directory."""
-    return child == parent or child.startswith(parent + os.sep)
+    """Check if child path is equal to or under parent directory via canonical boundary guard."""
+    return is_within_boundary(child, parent)
 
 
 def check_path_policy(

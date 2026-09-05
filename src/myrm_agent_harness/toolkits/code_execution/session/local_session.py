@@ -76,14 +76,18 @@ class LocalPersistentSession(PersistentSession):
             self._sandbox_provider.cleanup()
 
     async def _create_process(self) -> asyncio.subprocess.Process:
-        from myrm_agent_harness.toolkits.code_execution.security.validator import (
-            sanitize_env,
+        from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+            EnvInheritPolicy,
+            build_isolated_child_env,
         )
 
         p = self._platform
         shell_path, shell_args = p.shell_path, p.shell_args
-        raw_env = {**os.environ, **(self.config.env or {})}
-        merged_env = sanitize_env(raw_env)
+        merged_env = build_isolated_child_env(
+            base_env=None,
+            extra_env=self.config.env,
+            inherit_policy=EnvInheritPolicy.CORE,
+        )
 
         if self._sandbox_status and self._sandbox_status.enabled and self._sandbox_policy:
             native_proc = await self._sandbox_provider.create_process(

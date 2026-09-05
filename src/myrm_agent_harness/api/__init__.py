@@ -174,11 +174,12 @@ __all__ = [
     "build_cjk_index_segment",
     "build_cjk_query_tokens",
     "build_cjk_query_token_tiers",
-    "CjkFtsQueryPlanner",
     "fuse_rrf_deterministic",
     "RankedList",
     "FusedHit",
     "RecallDebug",
+    "is_within_boundary",
+    "safe_join_path",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -676,6 +677,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.toolkits.memory.strategies.distillation_guards",
         "is_alert_or_bot_sender",
     ),
+    "HitSource": (
+        "myrm_agent_harness.toolkits.memory.types",
+        "HitSource",
+    ),
+    "RecallDebugTrace": (
+        "myrm_agent_harness.toolkits.memory.types",
+        "RecallDebugTrace",
+    ),
     "tokenize_cjk_bigram": (
         "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
         "tokenize_cjk_bigram",
@@ -691,10 +700,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "build_cjk_query_token_tiers": (
         "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
         "build_cjk_query_token_tiers",
-    ),
-    "CjkFtsQueryPlanner": (
-        "myrm_agent_harness.utils.db.fts5",
-        "CjkFtsQueryPlanner",
     ),
     "fuse_rrf_deterministic": (
         "myrm_agent_harness.toolkits.retriever.fusion_strategies",
@@ -767,6 +772,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "cosine_similarity_int8": (
         "myrm_agent_harness.toolkits.vector.quantization",
         "cosine_similarity_int8",
+    ),
+    "is_within_boundary": (
+        "myrm_agent_harness.core.security.path_security",
+        "is_within_boundary",
+    ),
+    "safe_join_path": (
+        "myrm_agent_harness.core.security.path_security",
+        "safe_join_path",
     ),
 }
 

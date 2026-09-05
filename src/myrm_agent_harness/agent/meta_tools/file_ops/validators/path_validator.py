@@ -21,7 +21,11 @@ from typing import TYPE_CHECKING
 from urllib.parse import unquote
 
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
-from myrm_agent_harness.agent.security.path_security import is_blocked_device_path, is_dangerous_path
+from myrm_agent_harness.agent.security.path_security import (
+    is_blocked_device_path,
+    is_dangerous_path,
+    is_within_boundary,
+)
 
 from .base import Validator
 

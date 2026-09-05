@@ -102,3 +102,94 @@ def test_rrf_dedup_limit_enforcement(retriever: MemoryRetriever) -> None:
     fused = retriever.fuse([raw_results, summary_results], limit=5, query="")
 
     assert len(fused) == 5
+
+
+def test_rrf_deterministic_tie_breaker_multi_hit_priority(retriever: MemoryRetriever) -> None:
+    """RRF tie-breaking: identical scores must prioritize items hit by MORE sources."""
+    ts = datetime.now(UTC)
+    # Item A is hit by Stream 0 (rank 1) and Stream 1 (rank 1)
+    # Item B is hit by Stream 0 only (rank 0)
+    # With rrf_k=60:
+    # Item B score = 1 / (60 + 0 + 1) = 1/61 = 0.01639344...
+    # If we construct two items with identical boosted score, multi-hit must win.
+    conv_a = ConversationMemory(id="conv_a", content="Multi hit candidate", raw_exchange="...", timestamp=ts)
+    conv_b = ConversationMemory(id="conv_b", content="Single hit candidate", raw_exchange="...", timestamp=ts)
+
+    # Let's craft scores such that mid A has hit_count=2, mid B has hit_count=1
+    # We can pass custom result lists
+    stream_vector = [
+        MemorySearchResult(memory=conv_a, score=0.8, memory_type=MemoryType.CONVERSATION),
+        MemorySearchResult(memory=conv_b, score=0.8, memory_type=MemoryType.CONVERSATION),
+    ]
+    stream_fts = [
+        MemorySearchResult(memory=conv_a, score=0.8, memory_type=MemoryType.CONVERSATION),
+    ]
+
+    fused = retriever.fuse(
+        [stream_vector, stream_fts],
+        limit=10,
+        query="",
+        source_names=["vector", "fts"],
+    )
+
+    # conv_a is hit by 2 streams, conv_b by 1 stream. conv_a must be ranked #0
+    assert len(fused) == 2
+    assert fused[0].memory.id == "conv_a"
+    assert fused[1].memory.id == "conv_b"
+
+    # Verify recall_debug trace metadata
+    trace_a = fused[0].recall_debug
+    assert trace_a is not None
+    assert trace_a.hit_count == 2
+    assert len(trace_a.hit_sources) == 2
+    assert trace_a.hit_sources[0].source == "vector"
+    assert trace_a.hit_sources[1].source == "fts"
+
+    trace_b = fused[1].recall_debug
+    assert trace_b is not None
+    assert trace_b.hit_count == 1
+    assert len(trace_b.hit_sources) == 1
+    assert trace_b.hit_sources[0].source == "vector"
+
+
+def test_rrf_deterministic_tie_breaker_id_alphabetical(retriever: MemoryRetriever) -> None:
+    """When scores AND hit counts are identical, sort strictly by ID alphabetically ascending."""
+    ts = datetime.now(UTC)
+    # conv_z and conv_a with exact same rank in single stream
+    conv_z = ConversationMemory(id="conv_z", content="Content Z", raw_exchange="...", timestamp=ts)
+    conv_a = ConversationMemory(id="conv_a", content="Content A", raw_exchange="...", timestamp=ts)
+
+    # Both are at rank 0 in separate single-item streams
+    stream_1 = [MemorySearchResult(memory=conv_z, score=0.9, memory_type=MemoryType.CONVERSATION)]
+    stream_2 = [MemorySearchResult(memory=conv_a, score=0.9, memory_type=MemoryType.CONVERSATION)]
+
+    # Both receive identical 1.0 / (60 + 0 + 1) RRF score, both hit_count=1
+    fused = retriever.fuse([stream_1, stream_2], limit=10, query="")
+    assert len(fused) == 2
+
+    # Alphabetical order: 'conv_a' must strictly precede 'conv_z'
+    assert fused[0].memory.id == "conv_a"
+    assert fused[1].memory.id == "conv_z"
+    assert fused[0].recall_debug is not None
+    assert fused[0].recall_debug.tie_break_rank == 0
+    assert fused[1].recall_debug is not None
+    assert fused[1].recall_debug.tie_break_rank == 1
+
+
+def test_rrf_repeated_runs_zero_jitter(retriever: MemoryRetriever) -> None:
+    """Validate 100% deterministic ranking across 50 repeated executions without flapping."""
+    ts = datetime.now(UTC)
+    candidates = [
+        ConversationMemory(id=f"cand_{i:02d}", content=f"Memory {i}", raw_exchange="...", timestamp=ts)
+        for i in range(20)
+    ]
+
+    list_0 = [MemorySearchResult(memory=c, score=0.8, memory_type=MemoryType.CONVERSATION) for c in candidates[:15]]
+    list_1 = [MemorySearchResult(memory=c, score=0.8, memory_type=MemoryType.CONVERSATION) for c in candidates[5:]]
+
+    first_run_ids = [r.memory.id for r in retriever.fuse([list_0, list_1], limit=10, query="")]
+
+    for _ in range(50):
+        run_ids = [r.memory.id for r in retriever.fuse([list_0, list_1], limit=10, query="")]
+        assert run_ids == first_run_ids, "RRF fusion order flapped! Order must be 100% deterministic."
+

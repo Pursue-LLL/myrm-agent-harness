@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import sqlite3
-import pytest
 
 from myrm_agent_harness.api import (
     CjkFtsQueryPlanner,
     build_cjk_index_segment,
-    build_cjk_query_token_tiers,
     tokenize_cjk_bigram,
 )
 
@@ -77,24 +75,27 @@ def test_cjk_fts_query_planner_ascii_only() -> None:
 
 def test_sqlite_fts5_cjk_recall_end_to_end() -> None:
     conn = sqlite3.connect(":memory:")
-    conn.execute(
-        'CREATE VIRTUAL TABLE t USING fts5(content, tokenize="unicode61 remove_diacritics 1")'
-    )
+    try:
+        conn.execute(
+            'CREATE VIRTUAL TABLE t USING fts5(content, tokenize="unicode61 remove_diacritics 1")'
+        )
 
-    corpus = "沙箱环境部署已完成，PR review 通过，AI agent 运行正常"
-    indexed_text = build_cjk_index_segment(corpus)
-    conn.execute("INSERT INTO t(content) VALUES (?)", (indexed_text,))
+        corpus = "沙箱环境部署已完成，PR review 通过，AI agent 运行正常"
+        indexed_text = build_cjk_index_segment(corpus)
+        conn.execute("INSERT INTO t(content) VALUES (?)", (indexed_text,))
 
-    # Test all high-frequency 2-char CJK and short ASCII keywords
-    test_queries = ["沙箱", "部署", "完成", "PR", "AI", "agent"]
+        # Test all high-frequency 2-char CJK and short ASCII keywords
+        test_queries = ["沙箱", "部署", "完成", "PR", "AI", "agent"]
 
-    for q in test_queries:
-        plans = CjkFtsQueryPlanner.plan_query_tiers(q)
-        hits = 0
-        for match_str, _ in plans:
-            cursor = conn.execute("SELECT content FROM t WHERE t MATCH ?", (match_str,))
-            rows = cursor.fetchall()
-            if rows:
-                hits = len(rows)
-                break
-        assert hits > 0, f"Query '{q}' failed to recall from FTS5 indexed corpus!"
+        for q in test_queries:
+            plans = CjkFtsQueryPlanner.plan_query_tiers(q)
+            hits = 0
+            for match_str, _ in plans:
+                cursor = conn.execute("SELECT content FROM t WHERE t MATCH ?", (match_str,))
+                rows = cursor.fetchall()
+                if rows:
+                    hits = len(rows)
+                    break
+            assert hits > 0, f"Query '{q}' failed to recall from FTS5 indexed corpus!"
+    finally:
+        conn.close()
