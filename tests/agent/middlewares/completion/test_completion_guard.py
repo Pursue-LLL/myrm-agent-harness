@@ -145,6 +145,103 @@ class TestCompletionGuardTriggerConditions:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_blocks_when_unwritten_deliverable_detected_without_write(self) -> None:
+        """Substantial code deliverable without write calls should be blocked."""
+        code_body = (
+            "```python\n"
+            "# filename: src/server.py\n"
+            "from fastapi import FastAPI\n"
+            "app = FastAPI()\n"
+            "\n"
+            "@app.get('/health')\n"
+            "def health():\n"
+            "    return {'status': 'healthy'}\n"
+            "```"
+        )
+        state = _make_state(
+            [
+                HumanMessage(content="请帮我写一个 FastAPI 服务代码"),
+                AIMessage(content=f"这是实现的服务：\n{code_body}"),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is not None
+        tool_calls = result["messages"][0].tool_calls
+        assert tool_calls[0]["name"] == COMPLETION_CHECK_TOOL_NAME
+        assert "deliverable_write_reason" in tool_calls[0]["args"]
+        assert "Substantial unpersisted deliverables" in tool_calls[0]["args"]["deliverable_write_reason"]
+
+    @pytest.mark.asyncio
+    async def test_unwritten_deliverable_auto_staged_at_max_rejections(self) -> None:
+        """At max rejections, unwritten deliverables should be auto-staged to workspace."""
+        import tempfile
+
+        code_body = (
+            "```python\n"
+            "# filename: draft_worker.py\n"
+            "import time\n"
+            "\n"
+            "def run_worker():\n"
+            "    print('working')\n"
+            "    time.sleep(1)\n"
+            "```"
+        )
+        state = _make_state(
+            [
+                HumanMessage(content="写一个 worker 脚本"),
+                AIMessage(content=f"完成：\n{code_body}"),
+            ]
+        )
+        guard = CompletionGuard(max_rejections=1)
+        reset_completion_guard()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            runtime = {"configurable": {"context": {"workspace_root": tmp_dir}}}
+            with patch(LOOP_GUARD_PATCH) as mock_guard:
+                mock_guard.return_value._window = []
+                # First rejection (rejection_count=1)
+                r1 = await guard.aafter_model(state, runtime)
+                assert r1 is not None
+
+                # Second attempt hits max_rejections -> forced finish with auto-staging
+                r2 = await guard.aafter_model(state, runtime)
+                assert r2 is not None
+                tool_calls = r2["messages"][0].tool_calls
+                assert tool_calls[0]["args"]["force_fail"] is True
+                assert "staged_artifacts" in tool_calls[0]["args"]
+                staged = tool_calls[0]["args"]["staged_artifacts"]
+                assert len(staged) == 1
+                assert staged[0]["original_hint"] == "draft_worker.py"
+
+                # Check physical file staged in workspace
+                staged_path = Path(tmp_dir) / staged[0]["relative_path"]
+                assert staged_path.exists()
+                assert "run_worker" in staged_path.read_text(encoding="utf-8")
+
+    @pytest.mark.asyncio
+    async def test_blocks_when_long_code_lines_without_write(self) -> None:
+        """Substantial code deliverable without write calls should be blocked."""
+        msg_content = f"Here is the complete implementation:\n```python\n# filename: app.py\n{code_lines}\n```"
+        state = _make_state(
+            [
+                HumanMessage(content="请帮我写一个完整的数据处理程序并保存"),
+                AIMessage(content=msg_content),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is not None
+        tool_calls = result["messages"][0].tool_calls
+        assert tool_calls[0]["name"] == COMPLETION_CHECK_TOOL_NAME
+        assert "deliverable_write_reason" in tool_calls[0]["args"]
+        assert "Substantial unpersisted deliverables detected" in str(tool_calls[0]["args"]["deliverable_write_reason"])
+
+    @pytest.mark.asyncio
     async def test_allows_when_mcp_ptc_bash_evidence_exists(self) -> None:
         """Freshness query with successful MCP PTC bash should pass through."""
         state = _make_state(
@@ -2334,4 +2431,120 @@ class TestCompletionGuardTodoChecklist:
         assert "You MUST complete actionable todos" not in checklist
         # Should prompt to mark blocked as cancelled
         assert "For blocked todos that cannot be completed due to external constraints, mark them as 'cancelled'" in checklist
+
+
+class TestCompletionGuardUnwrittenDeliverablesAndAutoStaging:
+    """Test unwritten deliverable gate and auto-staging integration in CompletionGuard."""
+
+    def setup_method(self) -> None:
+        self.guard = CompletionGuard(max_rejections=2)
+        reset_completion_guard()
+
+    @pytest.mark.asyncio
+    async def test_blocks_completion_when_substantive_code_without_write(self, tmp_path: Path) -> None:
+        code_msg = (
+            "Here is the implementation:\n"
+            "```python\n"
+            "# filename: app/server.py\n"
+            "from fastapi import FastAPI\n"
+            "app = FastAPI()\n"
+            "\n"
+            "@app.get('/health')\n"
+            "def health():\n"
+            "    return {'status': 'ok'}\n"
+            "```\n"
+            "All done!"
+        )
+        state = _make_state([
+            HumanMessage(content="Please implement the FastAPI server."),
+            AIMessage(content=code_msg),
+        ])
+        runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
+
+        mock_loop_guard = MagicMock()
+        mock_loop_guard._window = []
+
+        with patch(LOOP_GUARD_PATCH, return_value=mock_loop_guard):
+            res = await self.guard.aafter_model(state, runtime)
+
+        assert res is not None
+        patched_msg = res["messages"][0]
+        assert len(patched_msg.tool_calls) == 1
+        tc = patched_msg.tool_calls[0]
+        assert tc["name"] == COMPLETION_CHECK_TOOL_NAME
+        assert "Substantial unpersisted deliverables detected" in str(tc["args"].get("deliverable_write_reason", ""))
+
+    @pytest.mark.asyncio
+    async def test_forced_finish_triggers_auto_staging(self, tmp_path: Path) -> None:
+        code_msg = (
+            "```python\n"
+            "# filename: app/calc.py\n"
+            "def add(a, b):\n"
+            "    return a + b\n"
+            "\n"
+            "def sub(a, b):\n"
+            "    return a - b\n"
+            "```"
+        )
+        state = _make_state([
+            HumanMessage(content="Create calculator"),
+            AIMessage(content=code_msg),
+        ])
+        runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
+
+        mock_loop_guard = MagicMock()
+        mock_loop_guard._window = []
+
+        with patch(LOOP_GUARD_PATCH, return_value=mock_loop_guard):
+            # First rejection
+            res1 = await self.guard.aafter_model(state, runtime)
+            assert res1 is not None
+
+            # Second rejection
+            res2 = await self.guard.aafter_model(state, runtime)
+            assert res2 is not None
+
+            # Third attempt triggers max_rejections (max_rejections=2) -> forced finish
+            res3 = await self.guard.aafter_model(state, runtime)
+            assert res3 is not None
+            final_msg = res3["messages"][0]
+            assert final_msg.tool_calls[0]["args"].get("force_fail") is True
+            staged = final_msg.tool_calls[0]["args"].get("staged_artifacts")
+            assert staged is not None
+            assert len(staged) == 1
+            assert staged[0]["original_hint"] == "app/calc.py"
+
+            # Verify actual file staged in sandbox workspace
+            staged_dir = tmp_path / ".myrm" / "staged_artifacts"
+            assert staged_dir.exists()
+            staged_files = list(staged_dir.glob("*_calc.py"))
+            assert len(staged_files) == 1
+            assert "def add(a, b):" in staged_files[0].read_text(encoding="utf-8")
+
+    @pytest.mark.asyncio
+    async def test_pedagogical_snippet_not_blocked(self, tmp_path: Path) -> None:
+        snippet_msg = (
+            "Here is how quicksort works in theory:\n"
+            "```python\n"
+            "def qs(arr):\n"
+            "    if not arr: return []\n"
+            "    return qs([x for x in arr[1:] if x < arr[0]]) + [arr[0]] + qs([x for x in arr[1:] if x >= arr[0]])\n"
+            "```\n"
+            "Let me know if you have questions!"
+        )
+        state = _make_state([
+            HumanMessage(content="什么是快速排序算法？请解释一下原理"),
+            AIMessage(content=snippet_msg),
+        ])
+        runtime = {"configurable": {"context": {"workspace_root": str(tmp_path)}}}
+
+        mock_loop_guard = MagicMock()
+        mock_loop_guard._window = []
+
+        with patch(LOOP_GUARD_PATCH, return_value=mock_loop_guard):
+            res = await self.guard.aafter_model(state, runtime)
+
+        # No critical error blocking for short educational explanation
+        assert res is None
+
 

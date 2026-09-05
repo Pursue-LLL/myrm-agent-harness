@@ -6,6 +6,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import pytest
+
 from myrm_agent_harness.agent.middlewares.completion.deliverable_auto_staging import (
     MAX_STAGED_ARTIFACTS_LIMIT,
     STAGED_ARTIFACTS_DIR,
@@ -72,3 +74,72 @@ def test_prune_old_staged_artifacts_enforces_limit() -> None:
         assert created_files[2].exists()
         assert created_files[3].exists()
         assert created_files[4].exists()
+
+
+def test_staged_artifact_meta_to_dict_and_anonymous_deliverable() -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        item = UnwrittenDeliverable(
+            language="html",
+            content="<h1>Test</h1>",
+            line_count=1,
+            filename_hint=None,
+            suggested_ext=".html",
+            is_code=False,
+        )
+
+        res = stage_unwritten_deliverables(root, [item])
+        assert len(res) == 1
+        meta = res[0]
+        meta_dict = meta.to_dict()
+        assert meta_dict["language"] == "html"
+        assert meta_dict["filename"].endswith("draft_html_1.html")
+        assert meta_dict["original_hint"] is None
+        assert "artifact_id" in meta_dict
+
+
+def test_prune_old_staged_artifacts_handles_nonexistent_and_errors() -> None:
+    non_existent = Path("/non/existent/path/for/staging/pruning")
+    # Must not raise
+    _prune_old_staged_artifacts(non_existent)
+
+
+def test_stage_unwritten_deliverables_handles_os_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pathlib import Path
+
+    item = UnwrittenDeliverable(
+        language="python",
+        content="code",
+        line_count=1,
+        filename_hint="test.py",
+        suggested_ext=".py",
+        is_code=True,
+    )
+
+    def mock_mkdir(*args: object, **kwargs: object) -> None:
+        raise OSError("Permission denied")
+
+    monkeypatch.setattr(Path, "mkdir", mock_mkdir)
+    res = stage_unwritten_deliverables("/tmp", [item])
+    assert res == []
+
+
+def test_stage_unwritten_deliverables_handles_write_bytes_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        item = UnwrittenDeliverable(
+            language="python",
+            content="code",
+            line_count=1,
+            filename_hint="test.py",
+            suggested_ext=".py",
+            is_code=True,
+        )
+
+        def mock_write_bytes(*args: object, **kwargs: object) -> None:
+            raise OSError("Disk full")
+
+        monkeypatch.setattr(Path, "write_bytes", mock_write_bytes)
+        res = stage_unwritten_deliverables(tmp_dir, [item])
+        assert res == []
+
+
