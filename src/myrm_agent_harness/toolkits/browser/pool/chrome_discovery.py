@@ -7,6 +7,7 @@
 [OUTPUT]
 - discover_chrome_cdp_endpoint: returns discovered CDP endpoint (str) or None
 - get_chromium_data_dirs: yields candidate browser data directories for current platform
+- is_local_browser_attach_allowed: checks whether local browser auto-discovery is allowed by policy
 
 [POS]
 Scans known Chromium-based browser user-data directories for DevToolsActivePort files,
@@ -27,6 +28,7 @@ import logging
 import os
 import platform
 import socket
+import time
 import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
@@ -37,6 +39,37 @@ _HTTP_PROBE_TIMEOUT_S = 2.0
 _TCP_PROBE_TIMEOUT_S = 1.0
 _FALLBACK_PORT = 9222
 _MYRM_E2E_DEFAULT_PORT = 9333
+_PORT_FAILURE_CACHE_TTL_S = 15.0
+
+# In-memory negative cache: port -> monotonic timestamp of last probe failure
+_port_failure_cache: dict[int, float] = {}
+
+
+def _is_port_in_failure_cache(port: int) -> bool:
+    """Return True if port failed probing recently (within TTL)."""
+    now = time.monotonic()
+    fail_time = _port_failure_cache.get(port)
+    if fail_time is None:
+        return False
+    if now - fail_time < _PORT_FAILURE_CACHE_TTL_S:
+        return True
+    _port_failure_cache.pop(port, None)
+    return False
+
+
+def _record_port_failure(port: int) -> None:
+    """Record a probe failure for the given port."""
+    _port_failure_cache[port] = time.monotonic()
+
+
+def is_local_browser_attach_allowed() -> bool:
+    """Check whether local browser auto-discovery is allowed by environment policy.
+
+    Defaults to True. Can be disabled via MYRM_LOCAL_BROWSER_ATTACH_ALLOWED=0/false
+    for enterprise Zero-Trust EDR / DLP compliance environments.
+    """
+    raw = os.environ.get("MYRM_LOCAL_BROWSER_ATTACH_ALLOWED", "true").strip().lower()
+    return raw not in {"0", "false", "no", "off", "disable", "disabled"}
 
 
 def _myrm_e2e_port() -> int:
@@ -218,18 +251,25 @@ def discover_chrome_cdp_endpoint() -> str | None:
     """Auto-discover a local Chromium-based browser's CDP endpoint.
 
     Strategy (ordered by reliability):
+      -1. Compliance check: abort if MYRM_LOCAL_BROWSER_ATTACH_ALLOWED=false
       0. Myrm E2E Chrome fixed port (MYRM_CHROME_E2E=1 only) via HTTP
-      1. Scan DevToolsActivePort files from known browser data dirs
+      1. Scan DevToolsActivePort files from known browser data dirs (with negative cache)
       2. For each found port: HTTP probe → WebSocket path + TCP (inspect-only mode)
       3. Fallback: probe well-known port 9222 via HTTP
 
     Returns a CDP endpoint URL (http:// or ws:// for connect_over_cdp) or None.
     """
+    if not is_local_browser_attach_allowed():
+        logger.debug("Chrome discovery skipped: MYRM_LOCAL_BROWSER_ATTACH_ALLOWED is disabled")
+        return None
+
     if _myrm_e2e_enabled():
         myrm_port = _myrm_e2e_port()
-        if _probe_http_version(myrm_port):
-            logger.info("Chrome discovery: connected via Myrm E2E port %d", myrm_port)
-            return f"http://127.0.0.1:{myrm_port}"
+        if not _is_port_in_failure_cache(myrm_port):
+            if _probe_http_version(myrm_port):
+                logger.info("Chrome discovery: connected via Myrm E2E port %d", myrm_port)
+                return f"http://127.0.0.1:{myrm_port}"
+            _record_port_failure(myrm_port)
 
     for data_dir in get_chromium_data_dirs():
         result = _read_devtools_active_port(data_dir)
@@ -238,6 +278,10 @@ def discover_chrome_cdp_endpoint() -> str | None:
 
         port, ws_path = result
         logger.debug("DevToolsActivePort found: %s (port=%d)", data_dir.name, port)
+
+        if _is_port_in_failure_cache(port):
+            logger.debug("DevToolsActivePort skipped via negative cache: port %d", port)
+            continue
 
         if _probe_http_version(port):
             logger.info(
@@ -256,10 +300,13 @@ def discover_chrome_cdp_endpoint() -> str | None:
             )
             return ws_endpoint
 
+        _record_port_failure(port)
         logger.debug("DevToolsActivePort stale (port=%d not reachable): %s", port, data_dir.name)
 
-    if _probe_http_version(_FALLBACK_PORT):
-        logger.info("Chrome discovery: connected via fallback port %d", _FALLBACK_PORT)
-        return f"http://127.0.0.1:{_FALLBACK_PORT}"
+    if not _is_port_in_failure_cache(_FALLBACK_PORT):
+        if _probe_http_version(_FALLBACK_PORT):
+            logger.info("Chrome discovery: connected via fallback port %d", _FALLBACK_PORT)
+            return f"http://127.0.0.1:{_FALLBACK_PORT}"
+        _record_port_failure(_FALLBACK_PORT)
 
     return None

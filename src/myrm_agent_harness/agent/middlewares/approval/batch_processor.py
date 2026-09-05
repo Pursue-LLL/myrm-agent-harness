@@ -628,7 +628,7 @@ async def evaluate_tool_batch(
                     permission_type in ("shell_exec", "code_interpreter")
                     and auto_mode_enabled
                     and _batch_review._security_reviewer is not None
-                    and is_threshold_breached() == ThresholdBreach.NONE
+                    and is_threshold_breached(session_key) == ThresholdBreach.NONE
                 ):
                     from myrm_agent_harness.toolkits.code_execution.security.risk_classifier import (
                         CommandRiskLevel,
@@ -673,7 +673,7 @@ async def evaluate_tool_batch(
                                     "SHELL_ESCALATION_DENY",
                                     review_result.reason,
                                 )
-                                hint = record_denial(tool_name)
+                                hint = record_denial(tool_name, session_key)
                                 if is_interactive:
                                     extra_ctx = extra_ctx or {}
                                     extra_ctx["smart_denied"] = True
@@ -722,13 +722,13 @@ async def evaluate_tool_batch(
 
                 record_decision(tool_name, "ALLOW", reason)
                 auto_approved.append((idx, tool_call))
-                record_approval()
+                record_approval(session_key)
                 continue
 
         if action == PermissionAction.DENY:
             logger.warning("[SECURITY] Tool %s DENIED: %s", tool_name, reason)
             record_decision(tool_name, "DENY", reason)
-            hint = record_denial(tool_name)
+            hint = record_denial(tool_name, session_key)
             auto_denied.append(
                 (
                     idx,
@@ -753,7 +753,7 @@ async def evaluate_tool_batch(
                     "CRON_DENY",
                     "cron fail-closed: no explicit capability declaration",
                 )
-                hint = record_denial(tool_name)
+                hint = record_denial(tool_name, session_key)
                 auto_denied.append(
                     (
                         idx,
@@ -785,7 +785,7 @@ async def evaluate_tool_batch(
                         "CRON_DENY",
                         "cron fail-closed: integration write mutation",
                     )
-                    hint = record_denial(tool_name)
+                    hint = record_denial(tool_name, session_key)
                     auto_denied.append(
                         (
                             idx,
@@ -802,7 +802,7 @@ async def evaluate_tool_batch(
             )
             record_decision(tool_name, "ALLOW", "cron capability pre-approval")
             auto_approved.append((idx, tool_call))
-            record_approval()
+            record_approval(session_key)
             continue
 
         skill_hook_verdict = _evaluate_skill_hooks_for_tool(tool_name, tool_input)
@@ -927,7 +927,7 @@ async def evaluate_tool_batch(
                                 (idx, tool_call, permission_type, reason, extra_ctx)
                             )
                         else:
-                            hint = record_denial(tool_name)
+                            hint = record_denial(tool_name, session_key)
                             auto_denied.append(
                                 (
                                     idx,

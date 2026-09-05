@@ -72,6 +72,29 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+def _normalize_domain_token(domain: str) -> str:
+    """Normalize domain/hostname pattern with Punycode IDN and URI sanitation.
+
+    1. Trims whitespace and converts to lower case.
+    2. Strips leading scheme ('https://') and trailing paths/ports if inadvertently passed.
+    3. Converts internationalized domain names (IDN / Unicode) to ASCII Punycode (e.g. 'xn--...').
+    4. Preserves wildcard prefix ('*.') if present.
+    """
+    domain = domain.strip().lower()
+    if not domain:
+        return ""
+    if "://" in domain:
+        domain = domain.split("://", 1)[1]
+    domain = domain.split("/", 1)[0].split(":", 1)[0]
+    is_wildcard = domain.startswith("*.")
+    raw_domain = domain[2:] if is_wildcard else domain
+    try:
+        ascii_domain = raw_domain.encode("idna").decode("ascii")
+    except (UnicodeError, Exception):
+        ascii_domain = raw_domain
+    return f"*.{ascii_domain}" if is_wildcard else ascii_domain
+
+
 @dataclass(frozen=True, slots=True)
 class DomainAllowlist:
     """Immutable domain allowlist with exact and wildcard matching.
@@ -79,6 +102,7 @@ class DomainAllowlist:
     Patterns:
     - ``"example.com"`` — exact match
     - ``"*.example.com"`` — matches ``example.com`` and all subdomains
+    - Supports Punycode (IDN) and URL cleaning (scheme/port/path stripping).
 
     Callers with an allowlist semantics use :meth:`is_allowed`; callers with a
     blocklist semantics use :meth:`is_blocked`. Both share the same pattern
@@ -88,14 +112,19 @@ class DomainAllowlist:
     patterns: tuple[str, ...]
 
     def _matches(self, hostname: str) -> bool:
-        hostname = hostname.lower()
+        hostname = _normalize_domain_token(hostname)
+        if not hostname:
+            return False
         for pattern in self.patterns:
-            if pattern.startswith("*."):
-                suffix = pattern[1:]  # ".example.com"
-                bare = pattern[2:]  # "example.com"
+            norm_pattern = _normalize_domain_token(pattern)
+            if not norm_pattern:
+                continue
+            if norm_pattern.startswith("*."):
+                suffix = norm_pattern[1:]  # ".example.com"
+                bare = norm_pattern[2:]  # "example.com"
                 if hostname == bare or hostname.endswith(suffix):
                     return True
-            elif hostname == pattern:
+            elif hostname == norm_pattern:
                 return True
         return False
 
@@ -115,8 +144,8 @@ class DomainAllowlist:
     @classmethod
     def from_strings(cls, domains: Sequence[str]) -> DomainAllowlist:
         """Create from a sequence of domain pattern strings."""
-        cleaned = tuple(d.strip().lower() for d in domains if d.strip())
-        return cls(patterns=cleaned)
+        cleaned = tuple(_normalize_domain_token(d) for d in domains if d.strip())
+        return cls(patterns=tuple(d for d in cleaned if d))
 
     @property
     def is_empty(self) -> bool:

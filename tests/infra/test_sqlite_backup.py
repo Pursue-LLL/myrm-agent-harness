@@ -307,6 +307,40 @@ class TestRestoreLatest:
         assert result.restored is True
         assert _count_rows(db) == 30
 
+    def test_restore_latest_blocked_when_allow_live_overwrite_false(self, tmp_path: Path) -> None:
+        db = tmp_path / "app.db"
+        _create_test_db(db, rows=10)
+        mgr = SQLiteBackupManager(db, tmp_path / "backups")
+        mgr.create_backup()
+
+        result = mgr.restore_latest(allow_live_overwrite=False)
+        assert result.restored is False
+        assert "Live database overwrite prevented by safety gate" in (result.error or "")
+
+    def test_restore_latest_skips_corrupted_snapshot_and_picks_older_valid(
+        self, tmp_path: Path
+    ) -> None:
+        db = tmp_path / "app.db"
+        _create_test_db(db, rows=5)
+        mgr = SQLiteBackupManager(db, tmp_path / "backups", retention=5)
+        r1 = mgr.create_backup()
+
+        conn = sqlite3.connect(str(db))
+        conn.execute("INSERT INTO items (data) VALUES ('row-99')")
+        conn.commit()
+        conn.close()
+        r2 = mgr.create_backup()
+
+        p2 = tmp_path / "backups" / "snapshots" / r2.file_name
+        b2 = bytearray(p2.read_bytes())
+        b2[-1] ^= 0xFF
+        p2.write_bytes(bytes(b2))
+
+        result = mgr.restore_latest()
+        assert result.restored is True
+        assert result.snapshot_file == r1.file_name
+        assert _count_rows(db) == 5
+
 
 # ---------------------------------------------------------------
 # SQLiteBackupManager.list_backups
@@ -437,3 +471,5 @@ class TestDataclasses:
         assert result.snapshot_file is None
         assert result.quarantine_dir is None
         assert result.error is None
+
+

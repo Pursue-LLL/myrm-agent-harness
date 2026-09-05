@@ -55,6 +55,7 @@ hybrid_retriever (混合检索器)
 | **hybrid_search/** | 混合搜索管道（检索 → 融合 → 重排序） |
 | **sufficiency/** | 检索充分性评估（LLM-based 后检索质量判断 + 负面约束检测） |
 | **vector_search/** | 向量搜索（Qdrant、Numpy 等后端） |
+| **cjk_tokenizer** | 确定性单趟保序 CJK/ASCII 分词与两档检索规划（无 C 扩展依赖） |
 | **ingest/** | 双车道入库管道（实时与批量并行） |
 
 ---

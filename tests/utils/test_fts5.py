@@ -94,3 +94,50 @@ def test_sanitize_fts5_strips_near_operator():
     assert result == ""
     result2 = sanitize_fts5_query("hello NEAR world")
     assert "NEAR" not in result2
+
+
+def test_safe_purge_fts5_virtual_table_external_content():
+    import sqlite3
+    from myrm_agent_harness.utils.db.fts5 import safe_purge_fts5_virtual_table
+
+    conn = sqlite3.connect(":memory:")
+    # Create backing table and external content FTS table
+    conn.execute("CREATE TABLE docs (id INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT)")
+    conn.execute(
+        """CREATE VIRTUAL TABLE docs_fts USING fts5(
+            body,
+            content=docs,
+            content_rowid=id
+        )"""
+    )
+    # Populate data
+    conn.execute("INSERT INTO docs(body) VALUES('first document with important secret')")
+    conn.execute("INSERT INTO docs(body) VALUES('second document with user token')")
+    conn.execute("INSERT INTO docs_fts(docs_fts) VALUES('rebuild')")
+
+    # Verify FTS matching works
+    rows = conn.execute("SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'secret'").fetchall()
+    assert len(rows) == 1
+
+    # Safe purge virtual table (invokes delete-all)
+    safe_purge_fts5_virtual_table(conn, "docs_fts")
+
+    # Verify FTS index is completely cleared
+    rows_after = conn.execute("SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'secret'").fetchall()
+    assert len(rows_after) == 0
+
+    # Test with connection proxy/wrapper (has _conn)
+    class ConnectionWrapper:
+        def __init__(self, c: sqlite3.Connection):
+            self._conn = c
+
+    wrapper = ConnectionWrapper(conn)
+    safe_purge_fts5_virtual_table(wrapper, "docs_fts")
+
+    # Ensure table can still receive new data and rebuild after purge
+    conn.execute("DELETE FROM docs")
+    conn.execute("INSERT INTO docs(body) VALUES('new secret after purge')")
+    conn.execute("INSERT INTO docs_fts(docs_fts) VALUES('rebuild')")
+    rows_rebuilt = conn.execute("SELECT rowid FROM docs_fts WHERE docs_fts MATCH 'secret'").fetchall()
+    assert len(rows_rebuilt) == 1
+

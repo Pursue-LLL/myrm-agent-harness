@@ -11,12 +11,13 @@ Usage::
     result  = manager.restore_latest("/data/app.db")  # restore from latest valid snapshot
 
 [INPUT]
-- (none)
+- pathlib.Path, sqlite3.Connection
 
 [OUTPUT]
 - SQLiteBackupManager: Hot-backup, verify, restore, quarantine for SQLite databases.
 - BackupRecord: Immutable metadata for a single backup snapshot.
 - RestoreResult: Outcome of a restore operation.
+- SnapshotVerificationResult: Integrity verification outcome.
 
 [POS]
 Framework-level SQLite physical backup utility. Technology-agnostic — any project
@@ -26,117 +27,44 @@ GUI repair actions) is handled externally.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import os
 import shutil
 import sqlite3
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
+
+from .sqlite_backup_models import (
+    _BACKUP_PAGE_BATCH,
+    _DEFAULT_RETENTION,
+    _MANIFEST_FILE,
+    _MANIFEST_VERSION,
+    _QUARANTINE_DIR,
+    _SNAPSHOTS_DIR,
+    _compute_sha256,
+    _pragma_integrity_check,
+    _pragma_quick_check,
+    _pragma_schema_version,
+    _timestamp_dirname,
+    BackupRecord,
+    RestoreResult,
+    SnapshotVerificationResult,
+)
 
 logger = logging.getLogger(__name__)
 
-_SNAPSHOTS_DIR = "snapshots"
-_QUARANTINE_DIR = "quarantine"
-_MANIFEST_FILE = "manifest.json"
-_MANIFEST_VERSION = 1
-_DEFAULT_RETENTION = 3
-_BACKUP_PAGE_BATCH = 100
-
-
-@dataclass(frozen=True, slots=True)
-class BackupRecord:
-    """Immutable metadata for a single backup snapshot."""
-
-    backup_id: str
-    file_name: str
-    created_at: float
-    size_bytes: int
-    checksum_sha256: str
-    quick_check: str
-    schema_version: int | None
-    restore_tested: bool
-
-
-@dataclass(frozen=True, slots=True)
-class RestoreResult:
-    """Outcome of a restore operation."""
-
-    restored: bool
-    snapshot_file: str | None = None
-    quarantine_dir: str | None = None
-    error: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class SnapshotVerificationResult:
-    """Outcome of a snapshot verification check."""
-
-    valid: bool
-    backup_id: str | None = None
-    file_name: str | None = None
-    checksum_sha256: str | None = None
-    checksum_matched: bool = False
-    integrity_check: str = "unknown"
-    error: str | None = None
-
-
-def _compute_sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        while chunk := f.read(1 << 16):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def _pragma_quick_check(db_path: str | Path) -> str:
-    """Run PRAGMA quick_check on a database file and return the result string.
-
-    Returns ``"ok"`` when healthy. On severe corruption the PRAGMA itself may
-    raise ``sqlite3.DatabaseError``; this is caught and surfaced as a string.
-    """
-    try:
-        conn = sqlite3.connect(str(db_path), timeout=5.0)
-    except sqlite3.Error as exc:
-        return f"connection failed: {exc}"
-    try:
-        row = conn.execute("PRAGMA quick_check").fetchone()
-        return row[0] if row else "empty result"
-    except sqlite3.DatabaseError as exc:
-        return f"database error: {exc}"
-    finally:
-        conn.close()
-
-
-def _pragma_integrity_check(db_path: str | Path) -> str:
-    """Run PRAGMA integrity_check on a database file and return the result string."""
-    try:
-        conn = sqlite3.connect(str(db_path), timeout=5.0)
-    except sqlite3.Error as exc:
-        return f"connection failed: {exc}"
-    try:
-        row = conn.execute("PRAGMA integrity_check").fetchone()
-        return row[0] if row else "empty result"
-    except sqlite3.DatabaseError as exc:
-        return f"database error: {exc}"
-    finally:
-        conn.close()
-
-
-def _pragma_schema_version(db_path: str | Path) -> int | None:
-    conn = sqlite3.connect(str(db_path), timeout=5.0)
-    try:
-        row = conn.execute("PRAGMA schema_version").fetchone()
-        return int(row[0]) if row and isinstance(row[0], int) else None
-    finally:
-        conn.close()
-
-
-def _timestamp_dirname(ts: float) -> str:
-    t = time.gmtime(ts)
-    return f"{t.tm_year:04d}-{t.tm_mon:02d}-{t.tm_mday:02d}T{t.tm_hour:02d}-{t.tm_min:02d}-{t.tm_sec:02d}"
+__all__ = [
+    "SQLiteBackupManager",
+    "BackupRecord",
+    "RestoreResult",
+    "SnapshotVerificationResult",
+    "_compute_sha256",
+    "_pragma_quick_check",
+    "_pragma_integrity_check",
+    "_pragma_schema_version",
+]
 
 
 class SQLiteBackupManager:
@@ -248,23 +176,191 @@ class SQLiteBackupManager:
             return "ok"
         return _pragma_quick_check(self._db_path)
 
-    def restore_latest(self, target_path: str | Path | None = None) -> RestoreResult:
-        """Restore the live database from the most recent valid backup.
+    def verify_snapshot(
+        self, snapshot_ref: str | Path | BackupRecord | None = None
+    ) -> SnapshotVerificationResult:
+        """Verify artifact hash and SQLite integrity for a snapshot.
+
+        Validates:
+          1. Snapshot file existence.
+          2. SHA-256 matches the manifest checksum (tamper & corruption check).
+          3. SQLite PRAGMA integrity_check passes.
+        """
+        manifest = self._read_manifest()
+        if not manifest:
+            return SnapshotVerificationResult(
+                valid=False,
+                error="No backup manifest or snapshots available",
+            )
+
+        target_record: BackupRecord | None = None
+        target_path: Path | None = None
+
+        if snapshot_ref is None:
+            target_record = max(manifest, key=lambda r: r.created_at)
+            target_path = self._snapshots_dir / target_record.file_name
+        elif isinstance(snapshot_ref, BackupRecord):
+            target_record = snapshot_ref
+            target_path = self._snapshots_dir / target_record.file_name
+        elif isinstance(snapshot_ref, Path):
+            target_path = snapshot_ref
+            target_record = next((r for r in manifest if r.file_name == target_path.name), None)
+        elif isinstance(snapshot_ref, str):
+            target_record = next(
+                (r for r in manifest if r.backup_id == snapshot_ref or r.file_name == snapshot_ref),
+                None,
+            )
+            target_path = self._snapshots_dir / (
+                target_record.file_name if target_record else snapshot_ref
+            )
+        else:
+            return SnapshotVerificationResult(
+                valid=False,
+                error=f"Unsupported snapshot reference type: {type(snapshot_ref)}",
+            )
+
+        if target_path is None or not target_path.exists():
+            return SnapshotVerificationResult(
+                valid=False,
+                backup_id=target_record.backup_id if target_record else None,
+                file_name=target_record.file_name if target_record else None,
+                error=f"Snapshot file not found: {target_path}",
+            )
+
+        actual_sha256 = _compute_sha256(target_path)
+        expected_sha256 = target_record.checksum_sha256 if target_record else None
+        checksum_matched = bool(expected_sha256 and actual_sha256.lower() == expected_sha256.lower())
+
+        if expected_sha256 and not checksum_matched:
+            return SnapshotVerificationResult(
+                valid=False,
+                backup_id=target_record.backup_id if target_record else None,
+                file_name=target_path.name,
+                checksum_sha256=actual_sha256,
+                checksum_matched=False,
+                integrity_check="skipped",
+                error=f"Checksum mismatch: expected {expected_sha256}, got {actual_sha256}",
+            )
+
+        ic = _pragma_integrity_check(target_path)
+        if ic != "ok":
+            return SnapshotVerificationResult(
+                valid=False,
+                backup_id=target_record.backup_id if target_record else None,
+                file_name=target_path.name,
+                checksum_sha256=actual_sha256,
+                checksum_matched=checksum_matched,
+                integrity_check=ic,
+                error=f"SQLite integrity_check failed: {ic}",
+            )
+
+        return SnapshotVerificationResult(
+            valid=True,
+            backup_id=target_record.backup_id if target_record else None,
+            file_name=target_path.name,
+            checksum_sha256=actual_sha256,
+            checksum_matched=checksum_matched or (expected_sha256 is None),
+            integrity_check="ok",
+        )
+
+    def verify_all_snapshots(self) -> list[SnapshotVerificationResult]:
+        """Verify all snapshots recorded in the manifest (newest first)."""
+        manifest = self.list_backups()
+        return [self.verify_snapshot(record) for record in manifest]
+
+    def restore_to_fresh_target(
+        self,
+        target_dir: str | Path | None = None,
+        snapshot_ref: str | Path | BackupRecord | None = None,
+    ) -> tuple[RestoreResult, Path | None]:
+        """Safely restore a verified snapshot to a fresh, isolated database file.
+
+        Enforces the Fresh-Target Restore Gate:
+        - Never touches or overwrites the live active database.
+        - Verifies SHA-256 and SQLite integrity before and after copy.
+        - Creates a new unique file for testing or recovery migration.
+        """
+        dest_dir = Path(target_dir) if target_dir else self._db_path.parent
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        v_res = self.verify_snapshot(snapshot_ref)
+        if not v_res.valid or not v_res.file_name:
+            return (
+                RestoreResult(
+                    restored=False,
+                    snapshot_file=v_res.file_name,
+                    error=f"Fresh-target restore blocked: snapshot verification failed ({v_res.error})",
+                ),
+                None,
+            )
+
+        source_snapshot = self._snapshots_dir / v_res.file_name
+        ts_suffix = f"{int(time.time() * 1000)}"
+        fresh_name = f"{self._db_path.stem}.restored.{ts_suffix}.sqlite"
+        fresh_target = dest_dir / fresh_name
+
+        try:
+            shutil.copy2(str(source_snapshot), str(fresh_target))
+            for suffix in ("-wal", "-shm"):
+                fresh_target.with_name(fresh_target.name + suffix).unlink(missing_ok=True)
+
+            post_ic = _pragma_integrity_check(fresh_target)
+            if post_ic != "ok":
+                fresh_target.unlink(missing_ok=True)
+                return (
+                    RestoreResult(
+                        restored=False,
+                        snapshot_file=v_res.file_name,
+                        error=f"Post-restore integrity check failed: {post_ic}",
+                    ),
+                    None,
+                )
+
+            logger.info(
+                "[SQLiteBackup] Fresh-target restore succeeded: %s -> %s",
+                v_res.file_name,
+                fresh_target,
+            )
+            return (
+                RestoreResult(
+                    restored=True,
+                    snapshot_file=v_res.file_name,
+                ),
+                fresh_target,
+            )
+        except OSError as exc:
+            fresh_target.unlink(missing_ok=True)
+            return (
+                RestoreResult(
+                    restored=False,
+                    snapshot_file=v_res.file_name,
+                    error=f"Failed to copy fresh-target restore file: {exc}",
+                ),
+                None,
+            )
+
+    def restore_latest(
+        self,
+        target_path: str | Path | None = None,
+        *,
+        allow_live_overwrite: bool = True,
+    ) -> RestoreResult:
+        """Restore the database from the most recent valid backup.
 
         Steps:
-          1. Quarantine the current (presumably corrupted) database and WAL/SHM files.
-          2. Iterate snapshots newest-first, copy to target, run ``PRAGMA integrity_check``.
-          3. Return on the first snapshot that passes integrity verification.
-
-        Args:
-            target_path: Where to restore.  Defaults to ``self._db_path``.
-
-        Returns:
-            RestoreResult indicating success or failure.
+          1. Check safety against accidental in-place live overwrites.
+          2. Verify snapshot hash and SQLite integrity.
+          3. Quarantine current database and WAL/SHM files if dest exists.
+          4. Restore and verify SQLite integrity on target.
         """
         dest = Path(target_path) if target_path else self._db_path
-        manifest = self._read_manifest()
+        if not allow_live_overwrite and dest.resolve() == self._db_path.resolve():
+            return RestoreResult(
+                restored=False,
+                error="Live database overwrite prevented by safety gate. Set allow_live_overwrite=True or use restore_to_fresh_target().",
+            )
 
+        manifest = self._read_manifest()
         if not manifest:
             return RestoreResult(restored=False, error="No backup snapshots available")
 
@@ -275,6 +371,15 @@ class SQLiteBackupManager:
         for record in sorted(manifest, key=lambda r: r.created_at, reverse=True):
             snapshot_path = self._snapshots_dir / record.file_name
             if not snapshot_path.exists():
+                continue
+
+            v_res = self.verify_snapshot(record)
+            if not v_res.valid:
+                logger.warning(
+                    "[SQLiteBackup] Snapshot %s failed verification (%s), trying next",
+                    record.file_name,
+                    v_res.error,
+                )
                 continue
 
             if not quarantined and dest.exists():
@@ -288,25 +393,22 @@ class SQLiteBackupManager:
                     wal = dest.with_name(dest.name + suffix)
                     wal.unlink(missing_ok=True)
 
-                conn = sqlite3.connect(str(dest), timeout=5.0)
-                try:
-                    ic = conn.execute("PRAGMA integrity_check").fetchone()
-                    if ic and ic[0] == "ok":
-                        logger.info(
-                            "[SQLiteBackup] Restored from snapshot %s",
-                            record.file_name,
-                        )
-                        return RestoreResult(
-                            restored=True,
-                            snapshot_file=record.file_name,
-                            quarantine_dir=str(quarantine_target) if quarantined else None,
-                        )
-                finally:
-                    conn.close()
+                ic = _pragma_integrity_check(dest)
+                if ic == "ok":
+                    logger.info(
+                        "[SQLiteBackup] Restored from snapshot %s",
+                        record.file_name,
+                    )
+                    return RestoreResult(
+                        restored=True,
+                        snapshot_file=record.file_name,
+                        quarantine_dir=str(quarantine_target) if quarantined else None,
+                    )
 
                 logger.warning(
-                    "[SQLiteBackup] Snapshot %s failed integrity_check, trying next",
+                    "[SQLiteBackup] Target %s failed integrity_check: %s, trying next",
                     record.file_name,
+                    ic,
                 )
                 dest.unlink(missing_ok=True)
 

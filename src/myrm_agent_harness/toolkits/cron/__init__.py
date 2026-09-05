@@ -113,6 +113,7 @@ from myrm_agent_harness.toolkits.cron.types import (
     ScheduleKind,
     SessionTarget,
     TransientErrorKind,
+    UnattendedSecurityMode,
 )
 
 __all__ = [

@@ -111,7 +111,7 @@ def _https_pin_extensions(request_url: str, pin_headers: dict[str, str]) -> dict
     if parsed.scheme.lower() != "https":
         return {}
 
-    hop_host = (parsed.hostname or "").strip()
+    hop_host = (parsed.hostname or "").strip().strip("[]")
     if not hop_host:
         return {}
 

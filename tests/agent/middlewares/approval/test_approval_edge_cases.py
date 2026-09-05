@@ -46,10 +46,13 @@ def _isolation() -> None:
     from myrm_agent_harness.agent.security.guards.taint_tracker import (
         reset_taint_tracker,
     )
+    from myrm_agent_harness.agent.middlewares.approval.helpers import (
+        clear_all_session_denials_for_tests,
+    )
 
     approval_flow._allowlist = approval_flow.Allowlist()
     reset_taint_tracker()
-    reset_denial_counter()
+    clear_all_session_denials_for_tests()
     get_approval_rate_limiter().reset(None)
 
 
@@ -1540,6 +1543,8 @@ async def test_irreversible_social_action_blocks_allowlist_bypass(monkeypatch: p
     }
     await middleware.aafter_model(state_git, MockRuntime())
     assert len(interrupt_calls) == 1, "git push must trigger interrupt even with allowlist match"
+    assert interrupt_calls[0]["review_config"]["hide_allow_always"] is True
+    assert interrupt_calls[0]["review_config"]["socially_irreversible"] is True
 
     # 2. channel_notify tool call
     state_notify = {
@@ -1559,6 +1564,8 @@ async def test_irreversible_social_action_blocks_allowlist_bypass(monkeypatch: p
     }
     await middleware.aafter_model(state_notify, MockRuntime())
     assert len(interrupt_calls) == 2, "channel_notify must trigger interrupt even with allowlist match"
+    assert interrupt_calls[1]["review_config"]["hide_allow_always"] is True
+    assert interrupt_calls[1]["review_config"]["socially_irreversible"] is True
 
 
 

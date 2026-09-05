@@ -72,7 +72,7 @@ def credential_env_overrides(
     credentials: tuple[EphemeralUserCredential, ...],
     *,
     allowed_issuers: list[str] | None = None,
-    use_sentinel: bool = True,
+    use_sentinel: bool = False,
 ) -> dict[str, str]:
     """Map EphemeralUserCredential issuers to process env vars (post-sanitize injection).
 

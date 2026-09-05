@@ -89,6 +89,20 @@ class TestDomainAllowlist:
         assert DomainAllowlist(patterns=()).is_empty
         assert not DomainAllowlist(patterns=("x.com")).is_empty
 
+    def test_punycode_and_url_normalization(self):
+        al = DomainAllowlist.from_strings([
+            "https://api.github.com:443/v1",
+            "*.github.com",
+            "*.你好.cn",
+        ])
+        assert al.is_allowed("api.github.com")
+        assert al.is_allowed("https://api.github.com/v1")
+        assert al.is_allowed("raw.github.com")
+        assert al.is_allowed("sub.你好.cn")
+        assert al.is_allowed("sub.xn--6qq79v.cn")
+        assert not al.is_allowed("evil.cn")
+        assert not al.is_allowed("")
+
 
 # ============================================================================
 # TestBuildInitScript — JS hardening script generation

@@ -159,6 +159,22 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
 
         self._setup_workspace(context.workspace_root)
 
+        # Audit potential environment variable secret leaks in python code
+        try:
+            from myrm_agent_harness.toolkits.code_execution.security.shell_bleed import (
+                scan_content_for_env_leaks,
+            )
+
+            leak_warnings = scan_content_for_env_leaks(context.code)
+            for leak_warn in leak_warnings:
+                logger.warning(
+                    " [LocalExecutor] Python env leak warning: reference to sensitive environment variable '%s' (pattern: '%s') in user code",
+                    leak_warn.var_name,
+                    leak_warn.access_pattern,
+                )
+        except Exception as bleed_err:
+            logger.debug("Failed to perform shell bleed check on python code: %s", bleed_err)
+
         with tempfile.NamedTemporaryFile(
             mode="w",
             suffix="_user_code.py",
@@ -293,6 +309,22 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             additional_paths=self._venv_manager.command_whitelist_paths(context.additional_readonly_paths),
             allowed_hosts=effective_allowed_hosts,
         )
+
+        # Audit potential environment variable secret leaks in command
+        try:
+            from myrm_agent_harness.toolkits.code_execution.security.shell_bleed import (
+                scan_content_for_env_leaks,
+            )
+
+            leak_warnings = scan_content_for_env_leaks(validation_command)
+            for leak_warn in leak_warnings:
+                logger.warning(
+                    " [LocalExecutor] Shell bleed warning: reference to sensitive environment variable '%s' (pattern: '%s') in command",
+                    leak_warn.var_name,
+                    leak_warn.access_pattern,
+                )
+        except Exception as bleed_err:
+            logger.debug("Failed to perform shell bleed check on command: %s", bleed_err)
 
         if not validation_result.is_safe:
             error_msg = f"Command blocked for security reasons: {validation_result.reason}"
@@ -470,12 +502,19 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             env["HTTPS_PROXY"] = proxy_url
             env["http_proxy"] = proxy_url
             env["https_proxy"] = proxy_url
+            env["ALL_PROXY"] = proxy_url
+            env["all_proxy"] = proxy_url
+            env["NODE_USE_ENV_PROXY"] = "1"
+            no_proxy_val = "localhost,127.0.0.1,::1,[::1],_MYRM_PTC_*"
+            env["NO_PROXY"] = no_proxy_val
+            env["no_proxy"] = no_proxy_val
             from myrm_agent_harness.core.security.egress.proxy_server import LoopbackEgressProxy
 
             if isinstance(self._egress_proxy, LoopbackEgressProxy) and self._egress_proxy.ca_bundle_path:
                 ca_path = self._egress_proxy.ca_bundle_path
                 env["SSL_CERT_FILE"] = ca_path
                 env["REQUESTS_CA_BUNDLE"] = ca_path
+                env["CURL_CA_BUNDLE"] = ca_path
                 env["NODE_EXTRA_CA_CERTS"] = ca_path
 
         config = SessionConfig(
@@ -578,6 +617,15 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             env.update(sanitize_env(user_env))
             logger.debug(f" User env vars: {list(user_env.keys())}")
 
+        # Post-override scrubbing guarantee: strip any non-inheritable host secrets from base/user env (Codex #38941)
+        from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
+            is_non_inheritable_env_var,
+        )
+
+        for k in list(env.keys()):
+            if is_non_inheritable_env_var(k, env.get(k)):
+                env.pop(k, None)
+
         from myrm_agent_harness.core.security.safe_exec import credential_env_overrides
         from myrm_agent_harness.core.security.types import user_credentials_ctx
 
@@ -588,7 +636,6 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
                     credential_env_overrides(
                         credentials,
                         allowed_issuers=allowed_credential_issuers,
-                        use_sentinel=True,
                     )
                 )
         except LookupError:
@@ -603,15 +650,6 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
         except LookupError:
             pass
 
-        # Post-override scrubbing guarantee: strip any non-inheritable host secrets (Codex #38941)
-        from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
-            is_non_inheritable_env_var,
-        )
-
-        for k in list(env.keys()):
-            if is_non_inheritable_env_var(k):
-                env.pop(k, None)
-
         # Inject Egress Proxy environment if proxy is running
         egress_proxy_url = os.getenv("MYRM_EGRESS_PROXY_URL")
         if egress_proxy_url:
@@ -620,11 +658,17 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             env["HTTP_PROXY"] = egress_proxy_url
             env["HTTPS_PROXY"] = egress_proxy_url
             env["ALL_PROXY"] = egress_proxy_url
+            env["all_proxy"] = egress_proxy_url
+            env["NODE_USE_ENV_PROXY"] = "1"
+            no_proxy_val = "localhost,127.0.0.1,::1,[::1],_MYRM_PTC_*"
+            env["NO_PROXY"] = no_proxy_val
+            env["no_proxy"] = no_proxy_val
 
         ca_bundle = os.getenv("MYRM_EGRESS_CA_BUNDLE")
         if ca_bundle:
             env["REQUESTS_CA_BUNDLE"] = ca_bundle
             env["SSL_CERT_FILE"] = ca_bundle
+            env["CURL_CA_BUNDLE"] = ca_bundle
             env["NODE_EXTRA_CA_CERTS"] = ca_bundle
 
         return env

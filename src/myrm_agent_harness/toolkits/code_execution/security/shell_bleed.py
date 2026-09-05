@@ -97,6 +97,7 @@ _ENV_VAR_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\$([A-Z_][A-Z0-9_]*)"), "shell $VAR"),
     (re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}"), "shell ${VAR}"),
     (re.compile(r"os\.environ\[[\"\']([A-Z_][A-Z0-9_]*)[\"\']\]"), "Python os.environ"),
+    (re.compile(r"os\.environ\.get\([\"\']([A-Z_][A-Z0-9_]*)[\"\']"), "Python os.environ.get"),
     (re.compile(r"os\.getenv\([\"\']([A-Z_][A-Z0-9_]*)[\"\']"), "Python os.getenv"),
     (re.compile(r"process\.env\.([A-Z_][A-Z0-9_]*)"), "Node process.env"),
     (re.compile(r"ENV\[[\"\']([A-Z_][A-Z0-9_]*)[\"\']\]"), "Ruby ENV"),

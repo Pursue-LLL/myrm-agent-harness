@@ -282,12 +282,20 @@ def _is_sensitive_key(key: str) -> bool:
     return _matches_wildcard(key)
 
 
-def is_non_inheritable_env_var(key: str) -> bool:
+def is_non_inheritable_env_var(key: str, value: str | None = None) -> bool:
     """Return True if the environment variable name is forbidden from child process inheritance.
 
     Implements case-insensitive detection for privilege escalation vectors, sensitive
     sockets (SSH/GPG), tokens, and cloud launch context (Codex PR #38941 & #37607 parity).
+    When ``value`` is provided and matches an ephemeral sentinel voucher (myrm-sent-v1.*),
+    it is explicitly permitted as safe child process token.
     """
+    if value is not None:
+        from myrm_agent_harness.core.security.egress.sentinel import is_sentinel_voucher
+
+        if is_sentinel_voucher(str(value)):
+            return False
+
     return _is_sensitive_key(key)
 
 
@@ -335,6 +343,11 @@ def sanitize_env(
 
         # Sensitive check
         if _is_sensitive_key(key):
+            from myrm_agent_harness.core.security.egress.sentinel import is_sentinel_voucher
+
+            if is_sentinel_voucher(value):
+                filtered[key] = value
+                continue
             blocked.append(key)
             continue
 

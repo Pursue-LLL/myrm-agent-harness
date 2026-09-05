@@ -48,10 +48,20 @@ class URLAllowlistGuard:
         if allowed_domains is None:
             return
 
+        clean_host = (hostname or "").strip().lower().rstrip(".")
+        if not clean_host:
+            raise SSRFSecurityError("Access blocked: empty or invalid hostname")
+
         for domain in allowed_domains:
-            if domain == "*":
+            if not domain:
+                continue
+            clean_domain = domain.strip().lower()
+            if clean_domain == "*":
                 return
-            if hostname == domain or hostname.endswith(f".{domain}"):
+            clean_domain = clean_domain.lstrip(".").rstrip(".")
+            if not clean_domain:
+                continue
+            if clean_host == clean_domain or clean_host.endswith(f".{clean_domain}"):
                 return
 
         logger.warning("DLP Shield blocked request to unauthorized domain: %s", hostname)

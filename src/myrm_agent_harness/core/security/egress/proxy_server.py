@@ -284,7 +284,35 @@ class LoopbackEgressProxy:
         writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
         await writer.drain()
 
-        # Connect to remote target
+        # Check for local loopback bypass: always blind tunnel internal IPC to avoid TLS interception deadlocks
+        if target_host in ("127.0.0.1", "localhost", "::1"):
+            try:
+                remote_reader, remote_writer = await asyncio.open_connection(target_host, target_port)
+            except Exception as e:
+                logger.warning("[EGRESS_PROXY] Failed to connect to loopback target %s:%d: %s", target_host, target_port, e)
+                writer.close()
+                await writer.wait_closed()
+                return
+            await self._pipe_bidirectional(reader, writer, remote_reader, remote_writer)
+            return
+
+        # Dynamic TLS interception when enabled and CA manager is configured
+        if self._enable_tls and self._ca_manager is not None:
+            try:
+                server_ssl_ctx = self._ca_manager.get_server_ssl_context(target_host)
+                await writer.start_tls(server_ssl_ctx, server_side=True)
+
+                client_ssl_ctx = ssl.create_default_context()
+                remote_reader, remote_writer = await asyncio.open_connection(
+                    target_host, target_port, ssl=client_ssl_ctx, server_hostname=target_host
+                )
+
+                await self._forward_tls_http_stream(reader, writer, remote_reader, remote_writer, target_host)
+                return
+            except Exception as e:
+                logger.debug("[EGRESS_PROXY] TLS interception fallback to blind tunnel for %s: %s", target_host, e)
+
+        # Fallback to blind TCP tunnel with stream-level substitution
         try:
             remote_reader, remote_writer = await asyncio.open_connection(target_host, target_port)
         except Exception as e:
@@ -293,8 +321,91 @@ class LoopbackEgressProxy:
             await writer.wait_closed()
             return
 
-        # Blind TCP tunnel with stream-level substitution
         await self._pipe_bidirectional(reader, writer, remote_reader, remote_writer)
+
+    async def _forward_tls_http_stream(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        remote_reader: asyncio.StreamReader,
+        remote_writer: asyncio.StreamWriter,
+        target_host: str,
+    ) -> None:
+        """Process decrypted TLS HTTP stream, substituting sentinels in headers and body."""
+        try:
+            while not reader.at_eof():
+                first_line_bytes = await reader.readline()
+                if not first_line_bytes:
+                    break
+
+                req_line = first_line_bytes.decode("latin1", errors="replace").strip()
+                parts = req_line.split()
+                if len(parts) < 2:
+                    break
+                method, path = parts[0], parts[1]
+
+                raw_headers: list[bytes] = []
+                content_length = 0
+                while True:
+                    h_line = await reader.readline()
+                    if not h_line or h_line in (b"\r\n", b"\n"):
+                        break
+                    raw_headers.append(h_line)
+                    h_str = h_line.decode("latin1", errors="replace").lower()
+                    if h_str.startswith("content-length:"):
+                        try:
+                            content_length = int(h_str.split(":", 1)[1].strip())
+                        except ValueError:
+                            content_length = 0
+
+                sub_path = self._manager.substitute_text(path)
+                remote_writer.write(f"{method} {sub_path} HTTP/1.1\r\n".encode("latin1"))
+                for h in raw_headers:
+                    h_str = h.decode("latin1", errors="replace")
+                    if h_str.lower().startswith("proxy-"):
+                        continue
+                    sub_h = self._manager.substitute_text(h_str)
+                    remote_writer.write(sub_h.encode("latin1"))
+                remote_writer.write(b"\r\n")
+                await remote_writer.drain()
+
+                if content_length > 0:
+                    scanner = StreamingSentinelScanner(self._manager)
+                    bytes_left = content_length
+                    while bytes_left > 0:
+                        chunk = await reader.read(min(bytes_left, 16384))
+                        if not chunk:
+                            break
+                        bytes_left -= len(chunk)
+                        ready = scanner.feed(chunk)
+                        if ready:
+                            remote_writer.write(ready)
+                            await remote_writer.drain()
+                    rem = scanner.flush()
+                    if rem:
+                        remote_writer.write(rem)
+                        await remote_writer.drain()
+
+                while True:
+                    resp_chunk = await remote_reader.read(16384)
+                    if not resp_chunk:
+                        break
+                    writer.write(resp_chunk)
+                    await writer.drain()
+                break
+        except Exception as e:
+            logger.debug("[EGRESS_PROXY] Error in TLS HTTP forward stream for %s: %s", target_host, e)
+        finally:
+            try:
+                remote_writer.close()
+                await remote_writer.wait_closed()
+            except Exception:
+                pass
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
 
     async def _handle_http_forward(
         self,

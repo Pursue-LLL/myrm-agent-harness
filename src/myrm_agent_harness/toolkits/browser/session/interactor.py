@@ -463,9 +463,24 @@ class Interactor(
 
         except Exception as e:
             error_msg = str(e)
-            if "TargetClosedError" in error_msg or "Target closed" in error_msg or "Timeout" in error_msg:
-                # A native OS dialog (file picker / permission prompt) blocks the
-                # browser process, so Playwright times out or loses the target.
+            if "TargetClosedError" in error_msg or "Target closed" in error_msg or "has been closed" in error_msg:
+                # 1. Probe for native OS blocking dialog (file picker / permission prompt)
+                hint = await self._dialog_block_hint(error_msg)
+                if hint is not None:
+                    return hint
+                # 2. If no OS dialog, check if target tab was actually closed by user or detached
+                is_closed = True
+                try:
+                    is_closed = self._page.is_closed()
+                except Exception:
+                    is_closed = True
+                if is_closed:
+                    logger.warning(f"Browser interaction target closed: {error_msg}")
+                    return (
+                        f"Interaction failed: The browser tab was closed or detached ({error_msg}). "
+                        "The target page is no longer available. Please inspect open tabs or ask the user."
+                    )
+            elif "Timeout" in error_msg:
                 hint = await self._dialog_block_hint(error_msg)
                 if hint is not None:
                     return hint

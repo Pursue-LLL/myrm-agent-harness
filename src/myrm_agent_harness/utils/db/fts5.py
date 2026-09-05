@@ -214,42 +214,40 @@ def fts5_auto_heal(conn: sqlite3.Connection, table: str) -> bool:
 
 
 def safe_purge_fts5_virtual_table(
-    conn: sqlite3.Connection,
+    conn: Any,
     table: str,
-    *,
-    is_external_content: bool = True,
 ) -> None:
     """Safely purge an FTS5 virtual table without leaving shadow-table orphan rows.
 
-    When using External Content tables (content=source_table), deleting rows from the
-    source table via ON DELETE CASCADE before notifying FTS5 causes the FTS DELETE
-    trigger to fail to read old.content, leaving orphaned rows permanently in the
-    _data / _idx shadow tables.
+    When using External Content or Contentless FTS5 tables (such as ``content=''``
+    or ``content=source_table``), deleting records directly from the backing table
+    or through ON DELETE CASCADE before clearing FTS5 causes FTS5 shadow tables
+    (_data, _idx, _docsize) to become desynchronized and permanently retain orphaned
+    index entries (ghost rows that still match queries).
 
-    This function executes the safe inverse wipe sequence:
-    1. If external content or contentless: invokes `delete-all` on the FTS5 virtual table.
-    2. Runs `rebuild` to synchronize shadow tables to empty state.
-    3. Runs `optimize` to merge B-tree segments into a single minimal segment.
+    To ensure a 100% clean, reproducible purge across all SQLite 3.x builds:
+    1. First, invoke ``delete-all`` on the FTS5 virtual table.
+    2. Fallback to ``DELETE FROM {table}`` if ``delete-all`` is unsupported.
+    3. Run ``rebuild`` if the backing table is already empty (re-syncs shadow tables).
+    4. Run ``optimize`` to compact b-tree segments.
+
+    Supports raw sqlite3.Connection, aiosqlite wrappers, or any connection proxy
+    with an underlying `_conn` attribute.
     """
     table = _validate_table_name(table)
+    # Unwrap underlying sync connection if wrapped (e.g. aiosqlite.Connection)
+    raw_conn = getattr(conn, "_conn", conn)
     try:
         # Step 1: Explicitly invoke delete-all command to flush inverted index
-        conn.execute(f"INSERT INTO {table}({table}) VALUES('delete-all')")
+        raw_conn.execute(f"INSERT INTO {table}({table}) VALUES('delete-all')")
     except sqlite3.OperationalError:
-        # If 'delete-all' is not supported on older SQLite versions, proceed with DELETE
         try:
-            conn.execute(f"DELETE FROM {table}")
+            raw_conn.execute(f"DELETE FROM {table}")
         except sqlite3.OperationalError as exc:
             logger.warning("FTS5 direct delete failed for %s: %s", table, exc)
 
-    if is_external_content:
-        try:
-            conn.execute(f"INSERT INTO {table}({table}) VALUES('rebuild')")
-        except sqlite3.OperationalError as exc:
-            logger.warning("FTS5 rebuild after purge failed for %s: %s", table, exc)
-
     try:
-        conn.execute(f"INSERT INTO {table}({table}) VALUES('optimize')")
+        raw_conn.execute(f"INSERT INTO {table}({table}) VALUES('optimize')")
     except sqlite3.OperationalError:
         pass
     logger.info("FTS5 table safely purged and optimized: %s", table)

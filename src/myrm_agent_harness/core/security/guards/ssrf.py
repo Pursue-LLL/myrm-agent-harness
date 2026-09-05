@@ -256,6 +256,7 @@ async def async_pin_url(
         raise SSRFSecurityError(f"DNS resolution failed for {hostname}")
 
     ip_address = result.resolved_ips[0]
-    netloc = f"{ip_address}:{parsed.port}" if parsed.port else ip_address
+    host_part = f"[{ip_address}]" if ":" in ip_address and not ip_address.startswith("[") else ip_address
+    netloc = f"{host_part}:{parsed.port}" if parsed.port else host_part
     safe_url = urlunparse(parsed._replace(netloc=netloc))
     return safe_url, {"Host": hostname}

@@ -73,6 +73,20 @@ class TestSSRFShield:
             assert headers == {"Host": "example.com"}
 
     @pytest.mark.asyncio
+    async def test_validate_external_url_ipv6_with_and_without_port(self):
+        # Public IPv6 without port: RFC 3986 square bracket wrapping
+        with mock_getaddrinfo("2001:4860:4860::8888"):
+            safe_url, headers = await async_pin_url("https://google.com/search?q=test")
+            assert safe_url == "https://[2001:4860:4860::8888]/search?q=test"
+            assert headers == {"Host": "google.com"}
+
+        # Public IPv6 with port: RFC 3986 bracketed host and port separator
+        with mock_getaddrinfo("2001:4860:4860::8888"):
+            safe_url, headers = await async_pin_url("https://google.com:8443/api")
+            assert safe_url == "https://[2001:4860:4860::8888]:8443/api"
+            assert headers == {"Host": "google.com"}
+
+    @pytest.mark.asyncio
     async def test_blocks_internal_ip(self):
         with (
             mock_getaddrinfo("192.168.1.100"),
@@ -254,6 +268,21 @@ class TestURLAllowlistGuard:
         with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(None):
             safe_url, _headers = await async_pin_url("https://random.com/users")
             assert safe_url == "https://8.8.8.8/users"
+
+    @pytest.mark.asyncio
+    async def test_allowlist_guard_supports_leading_dot_and_case_insensitive(self):
+        with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply([".github.com", "  EXAMPLE.ORG  "]):
+            # Leading dot allowlist matches subdomain
+            safe_url1, _ = await async_pin_url("https://API.GITHUB.COM/users")
+            assert safe_url1 == "https://8.8.8.8/users"
+
+            # Leading dot allowlist matches apex domain
+            safe_url2, _ = await async_pin_url("https://github.com/users")
+            assert safe_url2 == "https://8.8.8.8/users"
+
+            # Stripped whitespace and case-insensitive
+            safe_url3, _ = await async_pin_url("https://sub.example.org/data")
+            assert safe_url3 == "https://8.8.8.8/data"
 
 
 class TestValidateUrlForSSRF:

@@ -253,6 +253,20 @@ def build_channel_security_config(
 
     if channel_type == ChannelType.CRON:
         plan_confirm_enabled = False
+        # Unattended execution hardening: by default, deny destructive file writes and edits
+        # in CRON channels unless explicitly elevated via allow_unattended_write in agent_security_raw.
+        allow_unattended_write = False
+        if agent_security_raw and isinstance(agent_security_raw, dict):
+            allow_unattended_write = bool(agent_security_raw.get("allow_unattended_write", False))
+
+        if not allow_unattended_write:
+            ruleset = merge(
+                ruleset,
+                (
+                    PermissionRule("file_write_tool", "*", PermissionAction.DENY),
+                    PermissionRule("file_edit_tool", "*", PermissionAction.DENY),
+                ),
+            )
 
     if injection_policy == "log_only" and channel_type in (ChannelType.IM, ChannelType.CRON):
         injection_policy = "fail_closed"
