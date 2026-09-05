@@ -119,3 +119,24 @@ def test_stage_unwritten_deliverables_handles_os_errors() -> None:
         assert res == []
 
 
+def test_ensure_git_hygiene_creates_and_updates_gitignore() -> None:
+    from myrm_agent_harness.agent.middlewares.completion.deliverable_auto_staging import (
+        _ensure_git_hygiene,
+    )
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        root = Path(tmp_dir)
+        # First call creates .myrm/.gitignore with expected entries
+        _ensure_git_hygiene(root)
+        gitignore_path = root / ".myrm" / ".gitignore"
+        assert gitignore_path.exists()
+        content = gitignore_path.read_text(encoding="utf-8")
+        assert "staged_artifacts/" in content
+        assert "*.tmp" in content
+
+        # Second call does not duplicate
+        _ensure_git_hygiene(root)
+        content_after = gitignore_path.read_text(encoding="utf-8")
+        assert content_after == content
+
+

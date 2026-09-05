@@ -79,6 +79,29 @@ def _prune_old_staged_artifacts(staged_dir: Path, max_keep: int = MAX_STAGED_ART
         logger.warning("[DeliverableAutoStaging] Error while pruning staged drafts: %s", e)
 
 
+def _ensure_git_hygiene(root_path: Path) -> None:
+    """Ensure .myrm/.gitignore exists and ignores staged artifacts to keep workspace git clean."""
+    try:
+        myrm_dir = root_path / ".myrm"
+        myrm_dir.mkdir(parents=True, exist_ok=True)
+        gitignore_path = myrm_dir / ".gitignore"
+        expected_entries = {"staged_artifacts/", "*.tmp"}
+
+        existing_lines: set[str] = set()
+        if gitignore_path.exists():
+            existing_lines = {line.strip() for line in gitignore_path.read_text(encoding="utf-8").splitlines()}
+
+        missing_entries = expected_entries - existing_lines
+        if missing_entries:
+            with gitignore_path.open("a", encoding="utf-8") as f:
+                if existing_lines and not gitignore_path.read_text(encoding="utf-8").endswith("\n"):
+                    f.write("\n")
+                for entry in sorted(missing_entries):
+                    f.write(f"{entry}\n")
+    except OSError as e:
+        logger.warning("[DeliverableAutoStaging] Failed to ensure .myrm/.gitignore: %s", e)
+
+
 def stage_unwritten_deliverables(
     workspace_root: str | Path,
     deliverables: list[UnwrittenDeliverable],
@@ -95,6 +118,7 @@ def stage_unwritten_deliverables(
 
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
+        _ensure_git_hygiene(root_path)
     except OSError as e:
         logger.error("[DeliverableAutoStaging] Cannot create staging dir %s: %s", target_dir, e)
         return []

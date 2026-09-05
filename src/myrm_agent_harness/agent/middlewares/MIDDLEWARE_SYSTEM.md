@@ -59,7 +59,7 @@
 | `approval/` | HITL 审批队列、batch、scheduler、correction_learning |
 | `approval_interception/` | 审批拦截识别与注入 |
 | `guardrails/` | Provider 链 + `GuardrailMiddleware` |
-| `completion/` | 完成验证门子系统：`completion_guard.py`（代码任务完成验证门 + 外部证据缺失门控（web/browser/MCP：PTC bash `skills.mcp_*` 或 Direct FC `mcp__{server}__{tool}`；本地代码任务豁免）；Mixed Message Guard（保留变异调用 `is_mutating_tool` registry fail-closed + 交互/UI 承载工具，仅剥离确定无副作用无交互的只读工具；证据缺失时保留只读 tool_calls 防未核实内容直达用户））、`completion_guard_safety.py`（effectful 工具判定 SSOT，供 Mixed Message Guard 与 server Cron 后验消费） |
+| `completion/` | 完成验证门子系统：`completion_guard.py`（代码任务完成验证门 + 外部证据缺失门控（web/browser/MCP：PTC bash `skills.mcp_*` 或 Direct FC `mcp__{server}__{tool}`；本地代码任务豁免）+ 未落盘交付物门控与自动暂存保全；Mixed Message Guard（保留变异调用 `is_mutating_tool` registry fail-closed + 交互/UI 承载工具，仅剥离确定无副作用无交互的只读工具；证据缺失时保留只读 tool_calls 防未核实内容直达用户））、`completion_guard_safety.py`（effectful 工具判定 SSOT，供 Mixed Message Guard 与 server Cron 后验消费）、`deliverable_auto_staging.py`（未落盘交付物沙箱草案自动安全暂存与 LRU 保护）、`deliverable_write_verifier.py`（写盘声称检测与实质未落盘交付物代码块启发式嗅探） |
 | `context_pipeline/` | `context_pipeline_middleware.py`（桥接 `context_management/pipeline/`）、`context_pipeline_helpers.py`（压缩意图/cache feedback/schema fingerprint） |
 | `memory_context/` | `memory_context_middleware.py`（记忆上下文注入编排，首轮 LLM 前 idempotent 注入）、`memory_context_format.py`（注入格式化纯函数：stable SystemMessage / learned UNTRUSTED HumanMessage） |
 | `concurrency/` | `concurrency_limiter.py`（按 agent_type Semaphore）、`concurrency_router.py`（智能并发路由：host-serial MCP lane + canonical path + `build_tool_execution_stages`）、`safety_dispatcher.py`（safe→concurrent / unsafe→serial） |

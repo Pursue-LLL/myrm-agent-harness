@@ -219,3 +219,44 @@ class TestCheckUnwrittenDeliverables:
         assert reason is not None
         assert len(items) == 1
         assert items[0].language == "python"
+
+    def test_structured_data_csv_wide_table_detected_by_byte_density(self) -> None:
+        # A 7-line CSV with a header and 6 wide rows (> 300 bytes) should be detected
+        header = "id,name,email,company,role,department,location,phone,created_at\n"
+        rows = "".join(
+            f"usr_{i},Alice_{i},alice_{i}@example.com,VortexAI,Engineer,DevOps,Beijing,1380013800{i},2026-09-05T12:00:00Z\n"
+            for i in range(6)
+        )
+        csv_block = f"```csv\n{header}{rows}```"
+        reason, items = check_unwritten_deliverables(
+            content=f"Here is your exported data:\n{csv_block}",
+            records=[],
+            latest_user_text="请整理用户数据并输出为 CSV 格式",
+        )
+        assert reason is not None
+        assert len(items) == 1
+        assert items[0].language == "csv"
+        assert items[0].suggested_ext == ".csv"
+
+    def test_structured_data_compact_json_detected_by_byte_density(self) -> None:
+        # A 7-line JSON config (> 250 bytes) under explicit deliverable intent
+        json_content = (
+            "{\n"
+            '  "service_name": "production-api-gateway",\n'
+            '  "environment": "production-vortex-cloud",\n'
+            '  "listen_port": 8080,\n'
+            '  "endpoints": ["/api/v1/health", "/api/v1/auth", "/api/v1/metrics", "/api/v1/query"],\n'
+            '  "rate_limit_per_minute": 1200,\n'
+            '  "tls_enabled": true\n'
+            "}\n"
+        )
+        json_block = f"```json\n{json_content}\n```"
+        reason, items = check_unwritten_deliverables(
+            content=f"Configuration file generated:\n{json_block}",
+            records=[],
+            latest_user_text="请生成网关服务配置文件 config.json",
+        )
+        assert reason is not None
+        assert len(items) == 1
+        assert items[0].language == "json"
+

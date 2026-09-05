@@ -207,13 +207,21 @@ def detect_unwritten_deliverables(
         suggested_ext = _LANG_TO_EXT_MAP.get(raw_lang, ".txt")
         is_code = raw_lang not in ("markdown", "md", "csv", "json", "yaml", "yml")
 
-        # Threshold evaluation
+        # Threshold evaluation with byte density awareness for structured data
+        byte_count = len(body.encode("utf-8"))
         is_substantive = False
         if filename_hint is not None:
             # Explicit filename comment is a strong indicator of a file deliverable
             is_substantive = line_count >= 5
+        elif not is_code and is_explicit_deliverable:
+            # Structured data (csv, json, yaml) under explicit deliverable intent:
+            # Wide tables or compact JSON configs might have fewer lines but substantial payload
+            is_substantive = line_count >= 10 or (line_count >= 5 and byte_count >= 250)
+        elif not is_code:
+            # Standard structured data deliverable
+            is_substantive = line_count >= 14 or (line_count >= 6 and byte_count >= 350)
         elif is_explicit_deliverable:
-            # User specifically requested writing/implementing an artifact
+            # User specifically requested writing/implementing a code artifact
             is_substantive = line_count >= 12
         elif is_pure_explanation:
             # Pure educational inquiry: require substantial full-file structure
