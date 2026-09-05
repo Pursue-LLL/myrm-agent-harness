@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+
 import pytest
 
 from myrm_agent_harness.agent.context_management.pipeline.processors.media_budget_governor import (
@@ -11,7 +12,6 @@ from myrm_agent_harness.agent.context_management.pipeline.processors.media_budge
 from myrm_agent_harness.toolkits.llms.errors.classifier import (
     is_payload_overflow,
 )
-from myrm_agent_harness.utils.image_utils import estimate_base64_byte_size
 
 
 class _FakeError(Exception):
@@ -111,6 +111,7 @@ class TestEmergencyEvictFromMessageDicts:
     def test_downsamples_real_image_preserving_multimodal(self) -> None:
         import io
         import os
+
         from PIL import Image
 
         # Create a real 400x400 image with random noise so PNG deflate cannot trivially compress it
@@ -170,7 +171,9 @@ class TestChatLiteLLMPayloadRecovery:
     @pytest.mark.asyncio
     async def test_async_stream_payload_overflow_recovers(self) -> None:
         from unittest.mock import AsyncMock, MagicMock
+
         from langchain_core.messages import HumanMessage
+
         from myrm_agent_harness.toolkits.llms.core.llm import ChatLiteLLM
 
         model = ChatLiteLLM(model="openai/test-model")
@@ -212,7 +215,9 @@ class TestChatLiteLLMPayloadRecovery:
     @pytest.mark.asyncio
     async def test_agenerate_payload_overflow_recovers(self) -> None:
         from unittest.mock import AsyncMock, MagicMock
+
         from langchain_core.messages import HumanMessage
+
         from myrm_agent_harness.toolkits.llms.core.llm import ChatLiteLLM
 
         model = ChatLiteLLM(model="openai/test-model")
@@ -245,4 +250,45 @@ class TestChatLiteLLMPayloadRecovery:
         assert result.generations[0].message.content == "agenerate recovered"
         # Historical message was evicted
         assert messages[0].content[0]["type"] == "text"
+
+    def test_sync_stream_payload_overflow_recovers(self) -> None:
+        from unittest.mock import MagicMock
+        from langchain_core.messages import HumanMessage
+        from myrm_agent_harness.toolkits.llms.core.llm import ChatLiteLLM
+
+        model = ChatLiteLLM(model="openai/test-model")
+        model.client = MagicMock()
+        calls = {"count": 0}
+
+        img1 = _make_dummy_data_url(2000)
+        img2 = _make_dummy_data_url(2000)
+
+        def _flaky_stream(messages: object, **kwargs: object) -> object:
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise _FakeError("413 Request Entity Too Large", status_code=413)
+            return iter(
+                [
+                    {"choices": [{"delta": {"role": "assistant", "content": "sync stream recovered"}}]},
+                    {"choices": [{"delta": {"content": None}, "finish_reason": "stop"}]},
+                ]
+            )
+
+        model.client.completion = MagicMock(side_effect=_flaky_stream)
+        model.empty_retry_max_attempts = 2
+        model.empty_retry_delay = 0.01
+
+        messages = [
+            HumanMessage(content=[{"type": "image_url", "image_url": {"url": img1}}]),
+            HumanMessage(content=[{"type": "image_url", "image_url": {"url": img2}}]),
+        ]
+
+        collected = []
+        for chunk in model._stream(messages):
+            collected.append(chunk)
+
+        assert calls["count"] == 2
+        assert any("sync stream recovered" in str(c.message.content) for c in collected)
+        assert messages[0].content[0]["type"] == "text"
+
 

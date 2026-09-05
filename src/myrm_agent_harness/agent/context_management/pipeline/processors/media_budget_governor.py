@@ -64,6 +64,10 @@ DEFAULT_FOCUS_WINDOW_TURNS: Final[int] = 2
 TIER2_DOWNSAMPLE_MAX_DIM: Final[int] = 512
 TIER2_DOWNSAMPLE_QUALITY: Final[float] = 0.65
 
+# Tier 4 Focus window safety net downsampling (preserves high-res vision reasoning)
+TIER4_FOCUS_DOWNSAMPLE_MAX_DIM: Final[int] = 1024
+TIER4_FOCUS_DOWNSAMPLE_QUALITY: Final[float] = 0.80
+
 
 @dataclass(slots=True)
 class ImageItemRef:
@@ -227,6 +231,37 @@ class CumulativeImageBudgetGovernor:
                     total_bytes -= item.byte_size
                     textified_count += 1
 
+        # Tier 4: Focus window safety net — if total payload still exceeds budget
+        # (e.g. single-turn multi-image upload or massive screenshots in focus window),
+        # downsample focus images to 1024px WebP (preserving high-res details for vision reasoning)
+        if total_bytes > self.max_cumulative_bytes:
+            focus_items = [it for it in items if it.is_focus]
+            focus_items.sort(key=lambda it: it.byte_size, reverse=True)
+            for item in focus_items:
+                if total_bytes <= self.max_cumulative_bytes:
+                    break
+                if item.byte_size <= 250 * 1024:
+                    continue
+
+                downsampled_url = await asyncio.to_thread(
+                    _downsample_base64_image,
+                    item.data_url,
+                    max_dim=TIER4_FOCUS_DOWNSAMPLE_MAX_DIM,
+                    quality=TIER4_FOCUS_DOWNSAMPLE_QUALITY,
+                )
+                if downsampled_url and downsampled_url != item.data_url:
+                    new_size = estimate_base64_byte_size(downsampled_url)
+                    saved = item.byte_size - new_size
+                    if saved > 0:
+                        content = messages[item.msg_idx].content
+                        if isinstance(content, list) and item.item_idx < len(content):
+                            entry = content[item.item_idx]
+                            if isinstance(entry, dict) and isinstance(entry.get("image_url"), dict):
+                                entry["image_url"]["url"] = downsampled_url
+                                total_bytes -= saved
+                                item.byte_size = new_size
+                                downsampled_count += 1
+
         if downsampled_count > 0 or textified_count > 0:
             logger.info(
                 "[MediaBudgetGovernor] Enforced budget: %d downsampled, %d textified, final payload %d bytes",
@@ -242,6 +277,7 @@ class CumulativeImageBudgetGovernor:
         cls,
         message_dicts: list[dict[str, Any]],
         target_bytes: int = 5 * 1024 * 1024,
+        force_shrink: bool = False,
     ) -> int:
         """Synchronously downsample or evict images in raw dict messages.
 
@@ -278,12 +314,16 @@ class CumulativeImageBudgetGovernor:
                     total_bytes += size
                     image_entries.append((m_idx, c_idx, part, size, url))
 
-        if not image_entries or total_bytes <= target_bytes:
+        if not image_entries or (not force_shrink and total_bytes <= target_bytes):
             return 0
+
+        effective_target = target_bytes
+        if force_shrink and total_bytes <= target_bytes:
+            effective_target = max(512, total_bytes // 2)
 
         # Stage 1: Downsample all large images to compact WebP first (preserve visual reasoning)
         for idx, (m_idx, c_idx, part, size, url) in enumerate(image_entries):
-            if total_bytes <= target_bytes:
+            if total_bytes <= effective_target:
                 break
             if size <= 2 * 1024:  # Tiny icon, skipping downsample
                 continue
@@ -306,14 +346,14 @@ class CumulativeImageBudgetGovernor:
                     modified_count += 1
 
         # Stage 2: If still over budget, convert historical images from oldest to newest into text
-        if total_bytes > target_bytes:
+        if total_bytes > effective_target:
             last_m_idx = max(m_idx for m_idx, _, _, _, _ in image_entries)
             candidates = [e for e in image_entries if e[0] < last_m_idx]
             if not candidates:
                 candidates = image_entries[:-1] if len(image_entries) > 1 else image_entries
 
             for m_idx, c_idx, _part, size, _ in candidates:
-                if total_bytes <= target_bytes:
+                if total_bytes <= effective_target:
                     break
 
                 msg_content = message_dicts[m_idx]["content"]
@@ -338,12 +378,15 @@ class CumulativeImageBudgetGovernor:
         cls,
         messages: list[Any],
         target_bytes: int = 5 * 1024 * 1024,
+        force_shrink: bool = False,
     ) -> int:
         """Unified emergency eviction supporting both BaseMessage instances and raw dicts."""
         if not messages:
             return 0
         if isinstance(messages[0], dict):
-            return cls.emergency_evict_from_message_dicts(messages, target_bytes=target_bytes)
+            return cls.emergency_evict_from_message_dicts(
+                messages, target_bytes=target_bytes, force_shrink=force_shrink
+            )
 
         modified_count = 0
         total_bytes = 0
@@ -369,14 +412,18 @@ class CumulativeImageBudgetGovernor:
                     total_bytes += size
                     image_entries.append((m_idx, c_idx, part, size, url))
 
-        if not image_entries or total_bytes <= target_bytes:
+        if not image_entries or (not force_shrink and total_bytes <= target_bytes):
             return 0
+
+        effective_target = target_bytes
+        if force_shrink and total_bytes <= target_bytes:
+            effective_target = max(512, total_bytes // 2)
 
         # Stage 1: Downsample all large images to compact WebP first
         for idx, (m_idx, c_idx, part, size, url) in enumerate(image_entries):
-            if total_bytes <= target_bytes:
+            if total_bytes <= effective_target:
                 break
-            if size <= 32 * 1024:
+            if size <= 2 * 1024:
                 continue
 
             downsampled_url = _downsample_base64_image(url, max_dim=512, quality=0.65)
@@ -396,14 +443,14 @@ class CumulativeImageBudgetGovernor:
                     modified_count += 1
 
         # Stage 2: Convert historical to text
-        if total_bytes > target_bytes:
+        if total_bytes > effective_target:
             last_m_idx = max(m_idx for m_idx, _, _, _, _ in image_entries)
             candidates = [e for e in image_entries if e[0] < last_m_idx]
             if not candidates:
                 candidates = image_entries[:-1] if len(image_entries) > 1 else image_entries
 
             for m_idx, c_idx, _part, size, _ in candidates:
-                if total_bytes <= target_bytes:
+                if total_bytes <= effective_target:
                     break
 
                 msg_content = getattr(messages[m_idx], "content", None)

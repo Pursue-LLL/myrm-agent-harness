@@ -31,7 +31,10 @@ from myrm_agent_harness.agent._internals.agent_recovery import (
     truncate_oldest_rounds as _truncate_oldest_rounds,
 )
 from myrm_agent_harness.agent.streaming.types import AgentEventType
-from myrm_agent_harness.toolkits.llms.errors.classifier import classify_failover_reason
+from myrm_agent_harness.toolkits.llms.errors.classifier import (
+    classify_failover_reason,
+    is_payload_overflow,
+)
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.media.image_compressor import SEND_COMPRESS_TRIGGER_BYTES
@@ -189,12 +192,14 @@ class OneshotRecoveryMixin:
         if shrunk == 0:
             return False
 
+        recovery_step = "image_shrink_recovery"
         logger.warning(
-            " Image(s) exceeded provider limit — shrank %d image(s) (max_dimension=%s), retrying",
+            " Image(s) exceeded provider/gateway limit (%s) — shrank %d image(s) (max_dimension=%s), retrying",
+            recovery_step,
             shrunk,
             max_dim,
         )
-        await self._emit_recovery_event("image_shrink_recovery", restart=True)
+        await self._emit_recovery_event(recovery_step, restart=True)
         self.streaming_final_answer = False
         return True
 
@@ -461,6 +466,7 @@ def _shrink_oversized_images(
     messages: list[BaseMessage],
     *,
     max_dimension: int = _DEFAULT_MAX_DIMENSION,
+    enable_aggregate_fallback: bool = True,
 ) -> int:
     """Walk messages and shrink base64 images exceeding byte/dimension limits.
 
@@ -562,8 +568,8 @@ def _shrink_oversized_images(
     # Tier 2 Aggregate Fallback: If no single image was oversized individually
     # but the provider/gateway rejected the request with IMAGE_TOO_LARGE or 413,
     # perform aggregate progressive downsampling on older historical images.
-    # If messages has only 1 turn, downsample that turn's images directly.
-    if shrunk_count == 0 and messages:
+    # Protects the latest message (Focus Window) by requiring multiple turns (len > 1).
+    if enable_aggregate_fallback and shrunk_count == 0 and len(messages) > 1:
         shrunk_count = _evict_aggregate_historical_images(messages)
 
     return shrunk_count
@@ -572,9 +578,8 @@ def _shrink_oversized_images(
 def _evict_aggregate_historical_images(messages: list[BaseMessage]) -> int:
     """Progressively compress or placeholder older images when aggregate payload overflows.
 
-    Protects the latest message (Focus Window) when multiple messages exist;
-    if only 1 message exists, processes all images in that message.
-    Downsamples base64 images to 512px WebP (quality 0.5) to clear gateway payload restrictions.
+    Protects the latest message (Focus Window) and downsamples historical base64
+    images to 512px WebP (quality 0.5) to clear gateway payload restrictions.
     """
     import base64
     import io
@@ -588,8 +593,8 @@ def _evict_aggregate_historical_images(messages: list[BaseMessage]) -> int:
     compressor = ImageCompressor()
     evicted_count = 0
 
-    # Protect the latest message turn if multiple turns exist, else process all
-    target_messages = messages[:-1] if len(messages) > 1 else messages
+    # Protect the latest message turn (last message in sequence)
+    target_messages = messages[:-1]
 
     for msg in target_messages:
         content = getattr(msg, "content", None)

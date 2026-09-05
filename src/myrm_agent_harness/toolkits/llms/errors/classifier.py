@@ -275,6 +275,8 @@ _PAYLOAD_TOO_LARGE_RE = re.compile(
     r"|request body too large"
     r"|client intended to send too large body"
     r"|body size exceeds"
+    r"|payload size exceeds"
+    r"|payload exceeds"
     r"|request body exceeds"
     r"|request size exceeds"
     r"|entity too large"

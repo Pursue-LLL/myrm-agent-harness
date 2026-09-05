@@ -166,14 +166,14 @@ class ChatLiteLLMSyncMixin:
 
                 if is_payload_overflow(e) and attempt < max_attempts - 1:
                     evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
-                        message_dicts, target_bytes=4 * 1024 * 1024
+                        message_dicts, target_bytes=4 * 1024 * 1024, force_shrink=True
                     )
-                    CumulativeImageBudgetGovernor.emergency_evict(
-                        messages, target_bytes=4 * 1024 * 1024
+                    evicted_msgs = CumulativeImageBudgetGovernor.emergency_evict(
+                        messages, target_bytes=4 * 1024 * 1024, force_shrink=True
                     )
-                    if evicted > 0:
+                    if evicted > 0 or evicted_msgs > 0:
                         logger.warning(
-                            f" Sync payload overflow 400/413 intercepted: evicted {evicted} historical images, retrying (attempt {attempt + 1})"
+                            f" Sync payload overflow 400/413 intercepted: evicted {max(evicted, evicted_msgs)} historical images, retrying (attempt {attempt + 1})"
                         )
                         continue
 
@@ -503,6 +503,58 @@ class ChatLiteLLMSyncMixin:
                     time.sleep(self.empty_retry_delay)
                 else:
                     logger.error(f" Empty stream after {max_attempts} attempts.")
+            except Exception as e:
+                from myrm_agent_harness.agent.context_management.pipeline.processors.media_budget_governor import (
+                    CumulativeImageBudgetGovernor,
+                )
+                from myrm_agent_harness.toolkits.llms.adapters.gateway_normalizer import (
+                    is_gateway_param_rejection,
+                    sanitize_gateway_params_on_400,
+                )
+                from myrm_agent_harness.toolkits.llms.errors.classifier import (
+                    is_context_overflow,
+                    is_payload_overflow,
+                    parse_available_output_tokens_from_error,
+                )
+
+                if is_payload_overflow(e) and attempt < max_attempts - 1:
+                    evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
+                        message_dicts, target_bytes=4 * 1024 * 1024, force_shrink=True
+                    )
+                    evicted_msgs = CumulativeImageBudgetGovernor.emergency_evict(
+                        messages, target_bytes=4 * 1024 * 1024, force_shrink=True
+                    )
+                    if evicted > 0 or evicted_msgs > 0:
+                        logger.warning(
+                            f" Sync streaming payload overflow 400/413 intercepted: evicted/downsampled {max(evicted, evicted_msgs)} images, retrying (attempt {attempt + 1})"
+                        )
+                        continue
+
+                if is_gateway_param_rejection(e) and attempt < max_attempts - 1:
+                    stripped = sanitize_gateway_params_on_400(params, e)
+                    if stripped:
+                        logger.warning(
+                            f" Sync streaming gateway rejected params {stripped}, retrying without them (attempt {attempt + 1})"
+                        )
+                        continue
+
+                if is_context_overflow(e):
+                    available = parse_available_output_tokens_from_error(e)
+                    if available is not None and available >= 500 and attempt < max_attempts - 1:
+                        safe_tokens = max(1, available - 64)
+                        logger.warning(
+                            f" Context overflow, injecting ephemeral max_tokens={safe_tokens} (attempt {attempt + 1})"
+                        )
+                        params["max_tokens"] = safe_tokens
+                        continue
+                    else:
+                        logger.warning(
+                            f" Context overflow (available={available}), fast-failing to trigger compression."
+                        )
+                        raise e
+
+                logger.error(f" LiteLLM sync streaming failed: {type(e).__name__} - {e!s} (Model: {self.model_name or self.model})")
+                raise
 
         if last_error:
             raise last_error

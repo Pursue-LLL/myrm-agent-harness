@@ -665,7 +665,7 @@ class TestShrinkOversizedImagesRealPillow:
                 ]
             ),
         ]
-        count = _shrink_oversized_images(messages, max_dimension=2000)
+        count = _shrink_oversized_images(messages, max_dimension=2000, enable_aggregate_fallback=False)
         assert count == 0
 
     def test_shrunk_image_respects_max_dimension(self) -> None:

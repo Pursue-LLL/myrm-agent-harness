@@ -249,4 +249,81 @@ async def test_conversation_search_tool_expanded_view_preserves_long_content() -
     content = str(result.get("content", ""))
     assert "end of detailed context" in content
     assert len(content) > 1500
+    # In expanded view, tip should be hidden
+    assert "tip: pass expand_conversation_id=" not in content
+
+
+@pytest.mark.asyncio
+async def test_conversation_search_tool_expand_window_parameter_and_tip_behavior() -> None:
+    captured_window: list[int] = []
+
+    class WindowVerifyProvider:
+        async def search(self, request: ConversationSearchRequest) -> ConversationSearchResponse:
+            captured_window.append(request.expand_window)
+            return ConversationSearchResponse(
+                mode="search",
+                query="",
+                hits=[
+                    ConversationSearchHit(
+                        conversation_id="chat-2",
+                        title="Window plan",
+                        snippet="Snippet with message id",
+                        summary=None,
+                        score=1.0,
+                        source="conversation_index",
+                        message_id="msg-2",
+                    )
+                ],
+            )
+
+    provider = WindowVerifyProvider()
+    search_tool = create_conversation_search_tool(provider)
+    result = await search_tool.ainvoke({
+        "query": "",
+        "expand_conversation_id": "chat-2",
+        "expand_message_id": "msg-2",
+        "expand_window": 8,
+    })
+
+    assert captured_window == [8]
+    assert isinstance(result, dict)
+    content = str(result.get("content", ""))
+    assert "Snippet with message id" in content
+    # In expanded view, tip is absent
+    assert "tip: pass expand_conversation_id=" not in content
+
+
+@pytest.mark.asyncio
+async def test_conversation_search_tool_recent_mode_does_not_trigger_expanded_view() -> None:
+    class RecentSingleHitProvider:
+        async def search(self, request: ConversationSearchRequest) -> ConversationSearchResponse:
+            return ConversationSearchResponse(
+                mode="recent",
+                query="",
+                hits=[
+                    ConversationSearchHit(
+                        conversation_id="chat-recent",
+                        title="Recent only",
+                        snippet="A" * 1500,
+                        summary=None,
+                        score=1.0,
+                        source="recent",
+                        message_id="msg-recent",
+                    )
+                ],
+            )
+
+    provider = RecentSingleHitProvider()
+    search_tool = create_conversation_search_tool(provider)
+    result = await search_tool.ainvoke({"query": ""})
+
+    assert isinstance(result, dict)
+    content = str(result.get("content", ""))
+    # In recent mode, snippet is bounded by MAX_SNIPPET_CHARS (700), not expanded (4000)
+    assert "A" * 700 in content
+    assert "A" * 701 not in content
+    assert len(content) < 1200
+    # And tip should be present because it's not expanded view and has message_id
+    assert "tip: pass expand_conversation_id='chat-recent'" in content
+
 

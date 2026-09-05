@@ -202,3 +202,83 @@ class TestMediaBudgetGovernorProcessor:
 
         assert result_ctx.tokens_saved > 0
         assert proc.name == "media_budget_governor"
+
+    @pytest.mark.asyncio
+    async def test_processor_should_process_false_on_empty(self) -> None:
+        proc = MediaBudgetGovernorProcessor()
+        ctx = ProcessorContext(messages=[], user_query="hello")
+        assert await proc.should_process(ctx) is False
+
+
+class TestMediaBudgetGovernorEdgeCases:
+    """Targeted coverage for Tier 4, Anthropic payloads, and RGBA downsampling."""
+
+    @pytest.mark.asyncio
+    async def test_tier4_focus_window_safety_net(self) -> None:
+        """When images are only in focus window and exceed budget, Tier 4 activates."""
+        # Single turn with 2 large images (>250KB each)
+        img1 = _make_dummy_base64_image(width=1200, height=1200)
+        img2 = _make_dummy_base64_image(width=1200, height=1200)
+        size1 = estimate_base64_byte_size(img1)
+        size2 = estimate_base64_byte_size(img2)
+
+        # Budget is lower than total focus payload
+        gov = CumulativeImageBudgetGovernor(
+            max_cumulative_bytes=size1,
+            focus_window_turns=2,
+        )
+        msgs = [
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": img1}},
+                    {"type": "image_url", "image_url": {"url": img2}},
+                ]
+            )
+        ]
+        downsampled, textified = await gov.enforce_budget(msgs)
+        assert downsampled >= 1
+        assert textified == 0
+
+    def test_downsample_rgba_and_palette(self) -> None:
+        # RGBA image
+        img_rgba = Image.new("RGBA", (400, 400), (255, 0, 0, 128))
+        buf = io.BytesIO()
+        img_rgba.save(buf, format="PNG")
+        b64_rgba = base64.b64encode(buf.getvalue()).decode("ascii")
+        url_rgba = f"data:image/png;base64,{b64_rgba}"
+        res_rgba = _downsample_base64_image(url_rgba, max_dim=200)
+        assert res_rgba is not None
+
+        # P (Palette) image
+        img_p = Image.new("P", (300, 300))
+        buf_p = io.BytesIO()
+        img_p.save(buf_p, format="PNG")
+        b64_p = base64.b64encode(buf_p.getvalue()).decode("ascii")
+        url_p = f"data:image/png;base64,{b64_p}"
+        res_p = _downsample_base64_image(url_p, max_dim=150)
+        assert res_p is not None
+
+    def test_emergency_evict_anthropic_format(self) -> None:
+        raw = b"B" * (200 * 1024)
+        b64 = base64.b64encode(raw).decode("ascii")
+        message_dicts = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": b64,
+                        },
+                    }
+                ],
+            }
+        ]
+        evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
+            message_dicts, target_bytes=50 * 1024, force_shrink=True
+        )
+        assert evicted >= 1
+        part = message_dicts[0]["content"][0]
+        assert part["type"] in ("image", "text")
