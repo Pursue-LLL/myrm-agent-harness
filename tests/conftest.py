@@ -62,9 +62,7 @@ _INTEGRATION_TEST_ROOT = _TESTS_ROOT / "integration"
 def _needs_browser_singleton_reset(request: pytest.FixtureRequest) -> bool:
     """Return whether a test may touch the GlobalBrowserPool singleton."""
     item_path = Path(request.fspath).resolve()
-    if item_path.is_relative_to(_BROWSER_TEST_ROOT):
-        return True
-    return False
+    return bool(item_path.is_relative_to(_BROWSER_TEST_ROOT))
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
@@ -120,6 +118,18 @@ def pytest_collection_finish(session: pytest.Session) -> None:
             "Real browser tests must run outside the default suite.",
             pytrace=False,
         )
+
+
+@pytest.fixture(autouse=True)
+def _reset_approval_denial_state() -> Iterator[None]:
+    """Isolate approval denial counters between all tests."""
+    with suppress(Exception):
+        from myrm_agent_harness.agent.middlewares.approval.helpers import clear_all_session_denials_for_tests
+        clear_all_session_denials_for_tests()
+    yield
+    with suppress(Exception):
+        from myrm_agent_harness.agent.middlewares.approval.helpers import clear_all_session_denials_for_tests
+        clear_all_session_denials_for_tests()
 
 
 @pytest.fixture(autouse=True)

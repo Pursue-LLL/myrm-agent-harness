@@ -6,6 +6,7 @@
 [OUTPUT]
 - parse_spend_amount: Extract normalized amount and currency from tool arguments
 - is_financial_or_spend_tool: Detect if tool invocation represents a financial transaction
+- is_shell_execution_tool: Determine whether a tool call represents a shell or bash execution primitive
 - is_irreversible_social_action: Detect if action is socially irreversible (git push, package publish, external notify)
 - compute_action_digest: Cryptographic HMAC-SHA256 digest of tool + args + amount
 - verify_action_digest: Timing-attack safe verification of action digest
@@ -58,6 +59,29 @@ _IRREVERSIBLE_SOCIAL_TOOLS = frozenset(
     }
 )
 
+_SHELL_TOOL_NAMES = frozenset(
+    {
+        "shell_exec",
+        "bash",
+        "terminal",
+        "code_interpreter",
+        "bash_code_execute_tool",
+    }
+)
+
+
+def is_shell_execution_tool(tool_name: str, permission_type: str | None = None) -> bool:
+    """Determine whether a tool call represents a shell or bash execution primitive."""
+    if permission_type in ("shell_exec", "code_interpreter"):
+        return True
+    lower_name = tool_name.lower().strip()
+    return (
+        lower_name in _SHELL_TOOL_NAMES
+        or "bash" in lower_name
+        or "shell" in lower_name
+        or lower_name.startswith("terminal")
+    )
+
 
 def is_irreversible_social_action(tool_name: str, args: dict[str, object] | None = None) -> bool:
     """Determine if a tool call constitutes a socially irreversible external action.
@@ -70,36 +94,31 @@ def is_irreversible_social_action(tool_name: str, args: dict[str, object] | None
         return True
 
     # Check for shell execution targeting git push or publish commands
-    if (
-        lower_name in ("shell_exec", "bash", "terminal", "code_interpreter", "bash_code_execute_tool")
-        or "bash" in lower_name
-        or "shell" in lower_name
-    ):
-        if isinstance(args, dict):
-            raw_cmd = str(args.get("command") or args.get("cmd") or args.get("code") or args.get("script") or "").strip()
-            if raw_cmd:
-                # Robust token parsing handling flags between command and subcommands (e.g. git -C /dir push)
-                tokens = raw_cmd.lower().split()
-                for idx, token in enumerate(tokens):
-                    if token == "git":
-                        # Search forward within the same command clause for "push"
-                        for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
-                            if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
-                                break
-                            if tokens[sub_idx] == "push":
-                                return True
-                    if token in ("npm", "pnpm", "yarn"):
-                        for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
-                            if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
-                                break
-                            if tokens[sub_idx] == "publish":
-                                return True
-                    if token == "twine":
-                        for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
-                            if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
-                                break
-                            if tokens[sub_idx] == "upload":
-                                return True
+    if is_shell_execution_tool(lower_name) and isinstance(args, dict):
+        raw_cmd = str(args.get("command") or args.get("cmd") or args.get("code") or args.get("script") or "").strip()
+        if raw_cmd:
+            # Robust token parsing handling flags between command and subcommands (e.g. git -C /dir push)
+            tokens = raw_cmd.lower().split()
+            for idx, token in enumerate(tokens):
+                if token == "git":
+                    # Search forward within the same command clause for "push"
+                    for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                        if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                            break
+                        if tokens[sub_idx] == "push":
+                            return True
+                if token in ("npm", "pnpm", "yarn"):
+                    for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                        if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                            break
+                        if tokens[sub_idx] == "publish":
+                            return True
+                if token == "twine":
+                    for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                        if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                            break
+                        if tokens[sub_idx] == "upload":
+                            return True
 
     return False
 
@@ -111,11 +130,10 @@ def is_financial_or_spend_tool(tool_name: str, args: dict[str, object] | None = 
         if kw in lower_name:
             return True
 
-    if isinstance(args, dict):
-        if any(k in args for k in ("amount", "total_amount", "charge_amount", "price_cents", "unit_amount")):
-            return True
-
-    return False
+    return bool(
+        isinstance(args, dict)
+        and any(k in args for k in ("amount", "total_amount", "charge_amount", "price_cents", "unit_amount"))
+    )
 
 
 def parse_spend_amount(args: dict[str, object] | None) -> tuple[float | None, str | None]:
@@ -163,7 +181,7 @@ def compute_action_digest(
     """Compute HMAC-SHA256 signature binding tool_name and exact arguments."""
     canonical_args = _canonical_json(args if isinstance(args, dict) else {})
     amount, currency = parse_spend_amount(args)
-    payload = f"{tool_name}:{amount}:{currency}:{canonical_args}".encode("utf-8")
+    payload = f"{tool_name}:{amount}:{currency}:{canonical_args}".encode()
     return hmac.new(secret_salt.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
 
@@ -191,9 +209,7 @@ def compute_entry_hash(
     secret_salt: str = DEFAULT_SPEND_SALT,
 ) -> str:
     """Compute hash for a single tamper-evident ledger entry chaining from prev_hash."""
-    payload = f"{prev_hash}:{timestamp:.3f}:{tool_name}:{amount}:{currency}:{action_digest}:{idempotency_key}".encode(
-        "utf-8"
-    )
+    payload = f"{prev_hash}:{timestamp:.3f}:{tool_name}:{amount}:{currency}:{action_digest}:{idempotency_key}".encode()
     return hmac.new(secret_salt.encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
 

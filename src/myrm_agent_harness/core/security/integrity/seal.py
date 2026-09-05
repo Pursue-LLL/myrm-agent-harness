@@ -141,7 +141,7 @@ class IntegritySealer:
 
     @classmethod
     def create_seal_manifest(
-        self,
+        cls,
         session_id: str,
         files_data: dict[str, bytes],
         epoch_ms: int | None = None,
@@ -155,7 +155,7 @@ class IntegritySealer:
 
         for rel_path in sorted(files_data.keys()):
             raw = files_data[rel_path]
-            digest = self.compute_bytes_checksum(raw)
+            digest = cls.compute_bytes_checksum(raw)
             size = len(raw)
             total_bytes += size
             file_checksums.append(
@@ -185,7 +185,7 @@ class IntegritySealer:
 
     @classmethod
     def verify_manifest_and_files(
-        self,
+        cls,
         manifest_json: str,
         files_data: dict[str, bytes],
     ) -> IntegrityVerificationResult:
@@ -228,7 +228,7 @@ class IntegritySealer:
             if len(actual_bytes) != expected_fc.size_bytes:
                 corrupted.append(rel)
                 continue
-            actual_digest = self.compute_bytes_checksum(actual_bytes)
+            actual_digest = cls.compute_bytes_checksum(actual_bytes)
             if actual_digest != expected_fc.blake2b_256:
                 corrupted.append(rel)
 

@@ -33,12 +33,6 @@ from myrm_agent_harness.agent.security.approval_flow import (
     DEFAULT_USER_ID,
     get_allowlist,
 )
-from myrm_agent_harness.core.security.spend_governance import (
-    compute_action_digest,
-    is_financial_or_spend_tool,
-    is_irreversible_social_action,
-    parse_spend_amount,
-)
 from myrm_agent_harness.agent.security.audit import record_decision
 from myrm_agent_harness.agent.security.engine import (
     evaluate_tool_call,
@@ -55,6 +49,12 @@ from myrm_agent_harness.agent.security.types import (
     PermissionAction,
     RecentToolCall,
     SecurityConfig,
+)
+from myrm_agent_harness.core.security.spend_governance import (
+    compute_action_digest,
+    is_financial_or_spend_tool,
+    is_irreversible_social_action,
+    parse_spend_amount,
 )
 
 from . import _batch_review
@@ -428,6 +428,16 @@ async def evaluate_tool_batch(
             extra_ctx["hide_allow_always"] = True
             record_decision(tool_name, "SOCIAL_IRREVERSIBLE_GATE_ESCALATED", reason)
 
+        if action == PermissionAction.ALLOW and auto_mode_enabled and is_threshold_breached(session_key) != ThresholdBreach.NONE:
+            breach = is_threshold_breached(session_key)
+            action = PermissionAction.ASK
+            reason = f"Auto-mode suspended ({breach.value} denial threshold breached) — explicit approval required"
+            extra_ctx = extra_ctx or {}
+            extra_ctx["auto_mode_suspended"] = breach.value
+            extra_ctx["high_risk"] = True
+            extra_ctx["hide_allow_always"] = True
+            record_decision(tool_name, "AUTO_MODE_SUSPENDED_ALLOW_ESCALATED", reason)
+
         if action == PermissionAction.ALLOW:
             from myrm_agent_harness.agent.security.guards.taint_tracker import (
                 get_taint_tracker,
@@ -473,6 +483,7 @@ async def evaluate_tool_batch(
                 extra_ctx = extra_ctx or {}
                 extra_ctx["high_risk"] = True
 
+                # Smart Intent Guard: Try LLM review for taint conflict if enabled
                 if (
                     auto_mode_enabled
                     and _batch_review._security_reviewer is not None
@@ -536,6 +547,10 @@ async def evaluate_tool_batch(
                             reason = f"{reason}\n\n AI Security Reviewer Note:\n{review_result.reason}"
                             extra_ctx = extra_ctx or {}
                             extra_ctx["high_risk"] = True
+            else:
+                # Auto Mode outbound check: external CLI actions that pass
+                # the deterministic engine as ALLOW still need Classifier review
+                # to prevent prompt-injection → malicious-delegation attacks.
                 if (
                     permission_type == "invoke_external_agent"
                     and auto_mode_enabled
@@ -925,8 +940,8 @@ async def evaluate_tool_batch(
                     extra_ctx = extra_ctx or {}
                     extra_ctx["high_risk"] = True
 
-        elif auto_mode_enabled and is_threshold_breached() != ThresholdBreach.NONE:
-            breach = is_threshold_breached()
+        elif auto_mode_enabled and is_threshold_breached(session_key) != ThresholdBreach.NONE:
+            breach = is_threshold_breached(session_key)
             logger.warning(
                 "[AUTO_MODE_SUSPENDED] Denial threshold breached (%s) — "
                 "tool %s falling through to HITL approval (session: %s)",

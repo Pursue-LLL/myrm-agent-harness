@@ -48,6 +48,7 @@ class DenialState:
     per_tool: dict[str, int] = field(default_factory=dict)
     consecutive: int = 0
     total: int = 0
+    consecutive_approvals: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,16 +78,16 @@ def _get_active_session_key() -> str:
         return ""
 
 
-def _get_state() -> DenialState:
-    session_key = _get_active_session_key()
-    if session_key:
-        if session_key not in _session_denial_registry:
+def _get_state(session_key: str | None = None) -> DenialState:
+    target_key = session_key or _get_active_session_key()
+    if target_key:
+        if target_key not in _session_denial_registry:
             if len(_session_denial_registry) >= _MAX_SESSION_REGISTRY_SIZE:
                 # Evict oldest recorded entry to bound memory
                 first_key = next(iter(_session_denial_registry))
                 _session_denial_registry.pop(first_key, None)
-            _session_denial_registry[session_key] = DenialState()
-        return _session_denial_registry[session_key]
+            _session_denial_registry[target_key] = DenialState()
+        return _session_denial_registry[target_key]
 
     try:
         return _denial_state_var.get()
@@ -99,15 +100,21 @@ def _get_state() -> DenialState:
 def reset_denial_counter(session_key: str | None = None) -> None:
     """Reset denial counters for a specific session or local context.
 
-    If session_key is provided or bound, explicitly clears that session's state.
+    If session_key is explicitly provided, clears that specific session's state from the registry.
+    If session_key is None, resets the local ContextVar state without wiping persistent session state.
     """
-    target_key = session_key or _get_active_session_key()
-    if target_key and target_key in _session_denial_registry:
-        del _session_denial_registry[target_key]
+    if session_key:
+        _session_denial_registry.pop(session_key, None)
     _denial_state_var.set(DenialState())
 
 
-def record_denial(tool_name: str) -> str:
+def clear_all_session_denials_for_tests() -> None:
+    """Completely wipe all in-memory session denial states (for test fixtures)."""
+    _session_denial_registry.clear()
+    _denial_state_var.set(DenialState())
+
+
+def record_denial(tool_name: str, session_key: str | None = None) -> str:
     """Increment denial counters and return proactive guidance hint.
 
     Every denial gets a guidance message telling the agent to find a
@@ -116,25 +123,37 @@ def record_denial(tool_name: str) -> str:
 
     Returns a hint string to append to the denial ToolMessage.
     """
-    state = _get_state()
+    state = _get_state(session_key)
     state.per_tool[tool_name] = state.per_tool.get(tool_name, 0) + 1
     state.consecutive += 1
     state.total += 1
+    state.consecutive_approvals = 0
 
     breach = _check_breach(state)
     return _build_hint(state, breach)
 
 
-def record_approval() -> None:
-    """Reset consecutive denial counter on a successful allowed operation."""
-    state = _get_state()
+def record_approval(session_key: str | None = None) -> None:
+    """Record a successful allowed operation, resetting consecutive denials and decaying total denials."""
+    state = _get_state(session_key)
     if state.consecutive > 0:
         state.consecutive = 0
 
+    # If currently in TOTAL breach, a successful explicit approval decays total below threshold to unblock auto-mode
+    if state.total >= _TOTAL_THRESHOLD:
+        state.total = _TOTAL_THRESHOLD - 1
+        state.consecutive_approvals = 0
+    else:
+        state.consecutive_approvals += 1
+        # Self-healing decay: 3 consecutive safe executions decay 1 accumulated denial
+        if state.consecutive_approvals >= 3 and state.total > 0:
+            state.total -= 1
+            state.consecutive_approvals = 0
 
-def is_threshold_breached() -> ThresholdBreach:
+
+def is_threshold_breached(session_key: str | None = None) -> ThresholdBreach:
     """Check current denial state against thresholds without incrementing."""
-    return _check_breach(_get_state())
+    return _check_breach(_get_state(session_key))
 
 
 def _check_breach(state: DenialState) -> ThresholdBreach:

@@ -37,6 +37,15 @@ from myrm_agent_harness.core.security.remote_ops_ledger import (
     compute_action_fingerprint,
     derive_recovery_hint,
 )
+from myrm_agent_harness.core.security.spend_governance import (
+    SpendPolicy,
+    SpendReceipt,
+    compute_action_digest,
+    is_financial_or_spend_tool,
+    is_irreversible_social_action,
+    parse_spend_amount,
+    verify_action_digest,
+)
 
 __all__ = [
     "ActionRecoveryHint",
@@ -51,6 +60,9 @@ __all__ = [
     "MissingSemanticsPolicy",
     "RemoteOpsActionRecord",
     "SemanticsCategory",
+    "SpendPolicy",
+    "SpendReceipt",
+    "compute_action_digest",
     "compute_action_fingerprint",
     "derive_recovery_hint",
     "enforce_missing_semantics",
@@ -58,6 +70,10 @@ __all__ = [
     "evaluate_missing_capability",
     "get_missing_semantics_matrix",
     "get_registered_contract",
+    "is_financial_or_spend_tool",
+    "is_irreversible_social_action",
     "list_registered_contracts",
+    "parse_spend_amount",
     "register_missing_semantics_contract",
+    "verify_action_digest",
 ]

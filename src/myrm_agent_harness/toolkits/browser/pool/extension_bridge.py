@@ -35,6 +35,8 @@ class ExtensionTab:
         title: Current page title.
         domain: Extracted domain from URL for authorization checks.
         active: Whether this is the currently active tab.
+        window_id: Chrome window ID containing the tab (0 if unspecified).
+        index: Zero-based tab position index within the window.
     """
 
     tab_id: int
@@ -42,6 +44,8 @@ class ExtensionTab:
     title: str
     domain: str
     active: bool = False
+    window_id: int = 0
+    index: int = 0
 
 
 @dataclass

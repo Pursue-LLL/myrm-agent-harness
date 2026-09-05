@@ -1402,3 +1402,106 @@ async def test_time_bound_allow_always_integration_with_middleware(monkeypatch):
     assert interrupt_called is True, "Expired allowlist entry must re-trigger approval interrupt for human verification"
 
 
+@pytest.mark.asyncio
+async def test_session_scoped_denial_persistence() -> None:
+    """Test that DenialState persists across runs when bound to a session."""
+    from myrm_agent_harness.agent.middlewares._session_context import set_approval_session
+    from myrm_agent_harness.agent.middlewares.approval.helpers import (
+        ThresholdBreach,
+        is_threshold_breached,
+        record_denial,
+        reset_denial_counter,
+    )
+
+    session_id = "test_session_persistence_001"
+    set_approval_session(session_id)
+    reset_denial_counter(session_id)
+
+    assert is_threshold_breached() == ThresholdBreach.NONE
+
+    # Run 1: 2 consecutive denials
+    record_denial("tool_x")
+    record_denial("tool_y")
+    assert is_threshold_breached() == ThresholdBreach.NONE
+
+    # Simulate next run starting: ordinary local ContextVar reset shouldn't wipe session state
+    reset_denial_counter()  # local reset without session key
+    # But because session context is bound, state should be preserved
+    record_denial("tool_z")
+    assert is_threshold_breached() == ThresholdBreach.CONSECUTIVE
+
+    # Explicit session reset clears it
+    reset_denial_counter(session_id)
+    assert is_threshold_breached() == ThresholdBreach.NONE
+
+
+@pytest.mark.asyncio
+async def test_irreversible_social_action_blocks_allowlist_bypass(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that git push and channel notifications cannot bypass approval via allowlist."""
+    from myrm_agent_harness.agent.security.approval_flow import AllowlistEntry, get_allowlist
+
+    user_id = "test_user_irreversible"
+    set_approval_user_id(user_id)
+    allowlist = get_allowlist()
+    await allowlist.load_user(user_id)
+    # Add a broad allow entry for shell_exec and channel_notify
+    await allowlist.add(user_id, AllowlistEntry(permission="shell_exec", tool_name="shell_exec"))
+    await allowlist.add(user_id, AllowlistEntry(permission="channel_notify", tool_name="channel_notify"))
+
+    middleware = ToolApprovalMiddleware()
+
+    interrupt_calls = []
+
+    def mock_interrupt(payload):
+        interrupt_calls.append(payload)
+        return {
+            "decisions": [
+                {"type": "deny", "allow_always": False}
+            ]
+        }
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.approval.middleware.interrupt",
+        mock_interrupt,
+    )
+
+    # 1. git push tool call
+    state_git = {
+        "messages": [
+            AIMessage(
+                content="Pushing code.",
+                tool_calls=[
+                    ToolCall(
+                        type="tool_call",
+                        name="shell_exec",
+                        args={"command": "git push origin main --force"},
+                        id="call_git_push",
+                    ),
+                ],
+            )
+        ]
+    }
+    await middleware.aafter_model(state_git, MockRuntime())
+    assert len(interrupt_calls) == 1, "git push must trigger interrupt even with allowlist match"
+
+    # 2. channel_notify tool call
+    state_notify = {
+        "messages": [
+            AIMessage(
+                content="Broadcasting alert.",
+                tool_calls=[
+                    ToolCall(
+                        type="tool_call",
+                        name="channel_notify",
+                        args={"message": "Production deployment starting"},
+                        id="call_channel_notify",
+                    ),
+                ],
+            )
+        ]
+    }
+    await middleware.aafter_model(state_notify, MockRuntime())
+    assert len(interrupt_calls) == 2, "channel_notify must trigger interrupt even with allowlist match"
+
+
+

@@ -104,3 +104,23 @@ class TestAriaRenderer:
         # Estimated tokens should be roughly chars / 4
         assert meta.estimated_tokens > 20
         assert meta.estimated_tokens < 50
+
+    def test_render_with_hover_and_blocked(self) -> None:
+        """Test rendering with hover hints and blocked prefix."""
+        node1 = AriaNode(role="button", name="Products", indent=0)
+        enhanced1 = EnhancedNode(
+            node=node1,
+            ref_id="e0",
+            hover_hint="[hover first: Shoes | Bags]",
+        )
+        node2 = AriaNode(role="button", name="Old Button", indent=0)
+        enhanced2 = EnhancedNode(
+            node=node2,
+            is_blocked=True,
+        )
+
+        text, meta = render_to_yaml([enhanced1, enhanced2], compact=False)
+        assert '- button "Products" [ref=e0] [hover first: Shoes | Bags]' in text
+        assert '- [blocked] button "Old Button"' in text
+        assert meta.ref_count == 1
+
