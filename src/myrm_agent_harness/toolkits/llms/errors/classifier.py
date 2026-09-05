@@ -305,7 +305,12 @@ _MEDIA_REJECTED_RE = re.compile(
 )
 
 _PROVIDER_POLICY_BLOCKED_RE = re.compile(
-    r"no endpoints available matching your (?:guardrail|data policy)",
+    r"no endpoints available matching your (?:guardrail|data policy)"
+    r"|organization has been (?:disabled|suspended|blocked)"
+    r"|third[- ]party (?:client|app|application|integration) not (?:permitted|allowed|supported|authorized)"
+    r"|credential is not authorized for (?:direct )?api access"
+    r"|subscription tier does not allow (?:external|api|tool)"
+    r"|blocked by provider policy",
     re.IGNORECASE,
 )
 

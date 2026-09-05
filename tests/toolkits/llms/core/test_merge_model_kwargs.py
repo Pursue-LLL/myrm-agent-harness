@@ -229,3 +229,13 @@ class TestCreateLitellmModel:
         )
         call_kwargs = mock_cls.call_args[1]
         assert call_kwargs["extra_body"]["options"]["num_ctx"] == 32768
+
+    @patch("myrm_agent_harness.toolkits.llms.core.llm.ChatLiteLLM")
+    def test_vercel_ai_gateway_endpoint_injects_attribution_headers(self, mock_cls: MagicMock) -> None:
+        """Vercel AI Gateway endpoint should automatically inject Attribution Headers."""
+        create_litellm_model("openai/gpt-4o", base_url="https://ai-gateway.vercel.sh/v1")
+        call_kwargs = mock_cls.call_args[1]
+        model_kwargs = call_kwargs.get("model_kwargs", {})
+        assert model_kwargs["extra_headers"]["HTTP-Referer"] == "https://myrm.ai"
+        assert model_kwargs["extra_headers"]["X-Title"] == "Myrm Agent"
+

@@ -12,7 +12,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | __init__.py | Package | Browser toolkit public entry point. Aggregates and exports the module's core API | ✅ |
 | __main__.py | Internal | CLI entry point for browser toolkit diagnostics. | ✅ |
 | exceptions.py | Core | Exception hierarchy definition. RefNotFoundError provides structured diagnostic info, including URL change suggestions; message + format_for_llm output are redacted at construction to keep query-string credentials out of LLM tool errors. | ✅ |
-| observability.py | Core | Observability module for the browser toolkit. Provides video recording, progress notifications, and checkpoint monitoring | ✅ |
+| observability.py | Core | Observability module for the browser toolkit. Provides video recording, progress notifications, checkpoint monitoring, context-level network data transfer metrics, and 3-minute runaway watchdog. | ✅ |
 | recording_manager.py | Core | Unified browser recording manager. Provides lifecycle management and file management | ✅ |
 | url_routing.py | Core | URL routing for hybrid private/public network navigation. Detects private URLs for Extension Bridge fallback in sandbox mode. | ✅ |
 
