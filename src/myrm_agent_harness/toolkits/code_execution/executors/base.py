@@ -308,7 +308,9 @@ class CodeExecutor(ABC):
         else:
             resolved = (wp / clean).resolve()
 
-        if not str(resolved).startswith(str(wp)):
+        from myrm_agent_harness.core.security.path_security import is_within_boundary
+
+        if not is_within_boundary(resolved, wp):
             raise ValueError(f"Path traversal detected: {relative_path} (workspace is {wp})")
         return str(resolved)
 

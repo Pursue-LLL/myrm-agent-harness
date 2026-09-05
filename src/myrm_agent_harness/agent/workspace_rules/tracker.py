@@ -189,12 +189,9 @@ class SubdirectoryContextTracker:
 
     def _is_within_workspace(self, directory: Path) -> bool:
         """Check that directory is within the workspace boundary."""
-        try:
-            workspace = Path(self._workspace_root).resolve()
-            resolved = directory.resolve()
-            return resolved.is_relative_to(workspace)
-        except (OSError, ValueError):
-            return False
+        from myrm_agent_harness.core.security.path_security import is_within_boundary
+
+        return is_within_boundary(directory, self._workspace_root)
 
 
 _tracker_var: ContextVar[SubdirectoryContextTracker] = ContextVar("subdirectory_tracker")

@@ -19,6 +19,7 @@ from .manifest import AgentPluginManifestMeta, decode_manifest_json, parse_manif
 from .mcp_config import decode_mcp_json, parse_mcp_servers, validate_mcp_top_level
 from .models import (
     PluginAgent,
+    PluginCapabilityTier,
     PluginDiagnostic,
     PluginDiagnosticLevel,
     PluginMcpServer,
@@ -32,6 +33,7 @@ __all__ = [
     "AgentPluginPacker",
     "AgentPluginParser",
     "PluginAgent",
+    "PluginCapabilityTier",
     "PluginDiagnostic",
     "PluginDiagnosticLevel",
     "PluginMcpServer",

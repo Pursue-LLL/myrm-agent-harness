@@ -49,6 +49,27 @@ _INLINE_FLAGS = frozenset({"-c", "-e", "--eval", "-eval"})
 
 _ENV_VAR_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
 
+_WRAPPER_COMMANDS = frozenset(
+    {
+        "nohup",
+        "time",
+        "sudo",
+        "nice",
+        "env",
+        "exec",
+    }
+)
+
+_CLAUSE_DELIMITERS = frozenset(
+    {
+        "&&",
+        "||",
+        ";",
+        "|",
+        "&",
+    }
+)
+
 _SCRIPT_EXTENSIONS = frozenset(
     {
         ".sh",
@@ -65,6 +86,75 @@ _SCRIPT_EXTENSIONS = frozenset(
 )
 
 
+def _split_into_clauses(tokens: list[str]) -> list[list[str]]:
+    """Split token list by shell clause separators (&&, ||, ;, |, &)."""
+    clauses: list[list[str]] = []
+    current: list[str] = []
+    for token in tokens:
+        if token in _CLAUSE_DELIMITERS:
+            if current:
+                clauses.append(current)
+                current = []
+        else:
+            current.append(token)
+    if current:
+        clauses.append(current)
+    return clauses
+
+
+def _extract_candidate_token_from_clause(clause: list[str]) -> str | None:
+    """Extract candidate mutable script file token from a single command clause."""
+    idx = 0
+    # Step 1: Skip leading environment variable assignments
+    while idx < len(clause) and _ENV_VAR_ASSIGNMENT_RE.match(clause[idx]):
+        idx += 1
+
+    # Step 2: Skip shell wrapper commands (nohup, time, sudo, env, nice, exec)
+    while idx < len(clause) and os.path.basename(clause[idx]).lower() in _WRAPPER_COMMANDS:
+        idx += 1
+        # env command may have flags (e.g. env -i FOO=bar python script.py)
+        while idx < len(clause) and (
+            clause[idx].startswith("-") or _ENV_VAR_ASSIGNMENT_RE.match(clause[idx])
+        ):
+            idx += 1
+
+    if idx >= len(clause):
+        return None
+
+    prog_token = clause[idx]
+    base_prog = os.path.basename(prog_token).lower()
+    rest_args = clause[idx + 1 :]
+
+    if base_prog in _INTERPRETERS:
+        skip_next = False
+        for arg in rest_args:
+            if skip_next:
+                skip_next = False
+                continue
+            if arg in _INLINE_FLAGS:
+                return None
+            if arg == "-m":
+                skip_next = True
+                continue
+            if arg.startswith("-") and not arg.startswith("./"):
+                # Flag parameter (e.g. -u, -v, --flag)
+                continue
+            # First non-flag argument to interpreter is the script operand
+            return arg
+        return None
+
+    if (
+        prog_token.startswith("./")
+        or prog_token.startswith("../")
+        or prog_token.startswith("/")
+        or any(prog_token.endswith(ext) for ext in _SCRIPT_EXTENSIONS)
+    ):
+        # Direct script invocation: ./deploy.sh, /tmp/run.py, scripts/build.sh
+        return prog_token
+
+    return None
+
+
 def extract_script_file_operand(
     command: str,
     workspace_root: str | None = None,
@@ -73,8 +163,11 @@ def extract_script_file_operand(
 
     Handles:
     - Environment variable prefixes: ``VAR=val python script.py``
+    - Wrapper prefixes: ``nohup python script.py``, ``sudo bash ./run.sh``
+    - Compound pipelines / chains: ``cd /dir && python3 main.py``, ``python app.py || true``
     - Interpreter invocations: ``bash ./run.sh``, ``python3 main.py``
     - Inline evaluation flags: ``python -c '...'`` -> returns None (inline, not a file operand)
+    - Python module executions: ``python -m pytest`` -> returns None (module, not script file)
     - Direct script invocations: ``./build.sh``, ``scripts/migrate.py``
     - Symlink resolution: traverses to the underlying real canonical path.
 
@@ -85,8 +178,6 @@ def extract_script_file_operand(
     if not stripped:
         return None
 
-    # Fast check: pipeline operators generally indicate multi-command streaming
-    # We still inspect the first segment if cleanly splittable
     try:
         tokens = shlex.split(stripped)
     except ValueError:
@@ -96,50 +187,15 @@ def extract_script_file_operand(
     if not tokens:
         return None
 
-    # Step 1: Skip leading environment variable assignments
-    idx = 0
-    while idx < len(tokens) and _ENV_VAR_ASSIGNMENT_RE.match(tokens[idx]):
-        idx += 1
+    clauses = _split_into_clauses(tokens)
+    for clause in clauses:
+        candidate = _extract_candidate_token_from_clause(clause)
+        if candidate:
+            resolved = _resolve_existing_real_path(candidate, workspace_root)
+            if resolved:
+                return resolved
 
-    if idx >= len(tokens):
-        return None
-
-    prog_token = tokens[idx]
-    base_prog = os.path.basename(prog_token).lower()
-    rest_args = tokens[idx + 1 :]
-
-    candidate_file_token: str | None = None
-
-    if base_prog in _INTERPRETERS:
-        # Check for inline evaluation flags (e.g. python -c "print(1)")
-        # If an inline flag is present before any non-flag token, this is inline code
-        skip_next = False
-        for arg in rest_args:
-            if skip_next:
-                skip_next = False
-                continue
-            if arg in _INLINE_FLAGS:
-                return None
-            if arg.startswith("-") and not arg.startswith("./"):
-                # Flag parameter (e.g. -u, -v, --flag)
-                continue
-            # First non-flag argument to interpreter is the script operand
-            candidate_file_token = arg
-            break
-    elif (
-        prog_token.startswith("./")
-        or prog_token.startswith("../")
-        or prog_token.startswith("/")
-        or any(prog_token.endswith(ext) for ext in _SCRIPT_EXTENSIONS)
-    ):
-        # Direct script invocation: ./deploy.sh, /tmp/run.py, scripts/build.sh
-        candidate_file_token = prog_token
-
-    if not candidate_file_token:
-        return None
-
-    # Resolve candidate file path against workspace_root or cwd
-    return _resolve_existing_real_path(candidate_file_token, workspace_root)
+    return None
 
 
 def _resolve_existing_real_path(

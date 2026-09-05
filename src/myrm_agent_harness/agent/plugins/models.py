@@ -30,6 +30,25 @@ class PluginDiagnosticLevel(StrEnum):
     INFO = "info"
 
 
+class PluginCapabilityTier(StrEnum):
+    """Granular sandbox capability tier for plugins and their MCP components.
+
+    READ_ONLY: Pure deterministic transformation without network, file writes, or shell exec.
+    NETWORK: External HTTP/HTTPS outbound traffic (e.g. REST APIs, SSE/streamable_http MCP).
+    FS_READ: Read-only access to local workspace files.
+    FS_WRITE: Mutating/writing files to local workspace.
+    SHELL_EXEC: Spawning child processes or executing terminal/cli commands (stdio MCP servers).
+    DESTRUCTIVE: Unrestricted shell commands or system-level administrative actions.
+    """
+
+    READ_ONLY = "read_only"
+    NETWORK = "network"
+    FS_READ = "fs_read"
+    FS_WRITE = "fs_write"
+    SHELL_EXEC = "shell_exec"
+    DESTRUCTIVE = "destructive"
+
+
 @dataclass(frozen=True)
 class PluginDiagnostic:
     """A structured per-component failure report (spec §7.2.2 / §11.3)."""
@@ -96,8 +115,9 @@ class PluginMcpServer:
     env_key_names: list[str] = field(default_factory=list)
     raw_env: dict[str, str] = field(default_factory=dict)
     is_runnable: bool = True
-    missing_artifacts: tuple[str, ...] = ()
+    capabilities: tuple[PluginCapabilityTier, ...] = ()
     missing_artifact: str | None = None
+    missing_artifacts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -112,6 +132,7 @@ class AgentPluginManifestMeta:
     repository: str | None = None
     license: str | None = None
     keywords: tuple[str, ...] = ()
+    declared_capabilities: tuple[PluginCapabilityTier, ...] = ()
 
 
 @dataclass
@@ -140,6 +161,19 @@ class PluginParseResult:
     diagnostics: list[PluginDiagnostic] = field(default_factory=list)
     schemas: list[str] = field(default_factory=list)  # recognized $schema URIs
     files: dict[str, bytes] = field(default_factory=dict)  # non-skill bundled files
+
+    @property
+    def aggregated_capabilities(self) -> tuple[PluginCapabilityTier, ...]:
+        """Aggregate all declared and inferred capabilities across manifest and servers."""
+        caps: set[PluginCapabilityTier] = set()
+        if self.meta and self.meta.declared_capabilities:
+            caps.update(self.meta.declared_capabilities)
+        for s in self.servers:
+            caps.update(s.capabilities)
+        # If no server or manifest requested special capabilities, default to read_only
+        if not caps:
+            caps.add(PluginCapabilityTier.READ_ONLY)
+        return tuple(sorted(caps, key=lambda c: c.value))
 
     def add_diagnostic(
         self,

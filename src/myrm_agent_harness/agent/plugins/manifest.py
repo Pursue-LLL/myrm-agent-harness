@@ -58,6 +58,7 @@ _ALLOWED_FIELDS = frozenset(
         "repository",
         "license",
         "keywords",
+        "capabilities",
         "extensions",
     }
 )
@@ -173,6 +174,23 @@ def parse_manifest(
     else:
         raise ManifestSchemaValidationError("plugin.json 'keywords' must be an array of strings")
 
+    from .models import PluginCapabilityTier
+
+    caps_raw = raw.get("capabilities")
+    declared_capabilities: list[PluginCapabilityTier] = []
+    if caps_raw is not None:
+        if not isinstance(caps_raw, list) or not all(isinstance(c, str) for c in caps_raw):
+            raise ManifestSchemaValidationError("plugin.json 'capabilities' must be an array of strings")
+        for cap_str in caps_raw:
+            try:
+                declared_capabilities.append(PluginCapabilityTier(cap_str.lower()))
+            except ValueError:
+                # Disallow unknown capability strings or treat as reportable validation error
+                raise ManifestSchemaValidationError(
+                    f"plugin.json contains invalid capability '{cap_str}'",
+                    code="manifest_invalid_capability",
+                )
+
     meta = AgentPluginManifestMeta(
         name=name,
         version=version,
@@ -182,6 +200,7 @@ def parse_manifest(
         repository=repository,
         license=license_,
         keywords=keywords,
+        declared_capabilities=tuple(declared_capabilities),
     )
     return meta, reported
 

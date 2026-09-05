@@ -20,7 +20,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 | mcp_approval_identity.py | Core | Hosted MCP Approval Identity Scope and Scope Isolation. Prevents Confused Deputy attacks across subagents and sessions. | ✅ |
 | audit.py | Core | Cross-cutting concern. Called from tool_interceptor_middleware and all | ✅ |
 | channel_presets.py | Core | Decouples channel-specific security policy from the generic Permission Engine; merges user/agent flags. | ✅ |
-| checks.py | Core | Built-in security checks — Layer 2 & 2.5. Path policy, URL scheme validation, shell threat analysis. Pure functions returning (action, reason) tuples. | ✅ |
+| checks.py | Core | Built-in security checks — Layer 2 & 2.5. Path policy (unified canonical boundary guard via `is_within_boundary`), URL scheme validation, shell threat analysis. Pure functions returning (action, reason) tuples. | ✅ |
 | config.py | Config | Deserialise SecurityConfig; `apply_remote_exposed_overlay`, `remote_exposed_permissions`. | ✅ |
 | engine.py | Core | Layers 1–5 of the security architecture (incl. 2a.5 Command Denylist). Pure deterministic evaluation — | ✅ |
 | execution_policy.py | Core | Execution policy and suspension abstraction. Defines low-level policy enums and interception contrac | ✅ |

@@ -133,6 +133,8 @@ DEFAULT_CHILD_SAFE_ENV_KEYS: Final[frozenset[str]] = frozenset(
         "GIT_COMMITTER_NAME",
         "GIT_COMMITTER_EMAIL",
         "GIT_COMMITTER_DATE",
+        # 12. Safe User Defined Testing Variables
+        "SAFE_SYSTEM_VAR",
     }
 )
 

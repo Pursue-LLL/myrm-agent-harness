@@ -10,6 +10,8 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
+import pytest
+
 from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
     EnvInheritPolicy,
     build_isolated_child_env,
@@ -303,4 +305,35 @@ class TestExecutorAndHookSubprocessIsolation:
         )
         assert "Auth_Token" not in res
         assert res.get("NORMAL_VAR") == "val"
+
+    @pytest.mark.asyncio
+    async def test_command_hook_execution_strips_host_credentials(self) -> None:
+        """Integration test: CommandHookDefinition execution strips parent env secrets."""
+        from myrm_agent_harness.agent.hooks.executor import HookExecutor
+        from myrm_agent_harness.agent.hooks.types import CommandHookDefinition
+
+        executor = HookExecutor()
+        # A command hook printing environment variables to stdout
+        hook = CommandHookDefinition(
+            command="python3 -c 'import os, json; print(json.dumps(dict(os.environ)))'",
+            timeout_seconds=5,
+        )
+        toxic_host = {
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "AUTHORIZATION": "Bearer super_secret_hook_token",
+            "DATABASE_URL": "postgres://user:pass@internal-db:5432",
+            "SSH_AUTH_SOCK": "/tmp/ssh_hook.sock",
+            "MYRM_VAULT_MASTER_KEY": "hook_vault_key",
+        }
+        with patch.dict(os.environ, toxic_host, clear=True):
+            res = await executor._run_command(hook=hook, event="tool_preflight", payload={"test": 123})
+            assert res.success is True
+            # Parse output json
+            import json
+            hook_env = json.loads(res.output)
+            assert "AUTHORIZATION" not in hook_env
+            assert "DATABASE_URL" not in hook_env
+            assert "SSH_AUTH_SOCK" not in hook_env
+            assert "MYRM_VAULT_MASTER_KEY" not in hook_env
+            assert hook_env.get("HOOK_EVENT") == "tool_preflight"
 

@@ -163,6 +163,8 @@ def _parse_stdio(name: str, entry: dict[str, Any]) -> PluginMcpServer | None:
     env_key_names = [str(k) for k in env] if isinstance(env, dict) else []
     raw_env = {str(k): str(v) for k, v in env.items()} if isinstance(env, dict) else {}
 
+    from .models import PluginCapabilityTier
+
     return PluginMcpServer(
         name=name,
         server_type="stdio",
@@ -173,6 +175,7 @@ def _parse_stdio(name: str, entry: dict[str, Any]) -> PluginMcpServer | None:
         cwd=cwd,
         env_key_names=env_key_names,
         raw_env=raw_env,
+        capabilities=(PluginCapabilityTier.SHELL_EXEC,),
     )
 
 
@@ -219,6 +222,8 @@ def _parse_remote(name: str, entry: dict[str, Any], *, is_sse: bool) -> PluginMc
     if unknown:
         return None
 
+    from .models import PluginCapabilityTier
+
     return PluginMcpServer(
         name=name,
         server_type="sse" if is_sse else "streamable_http",
@@ -227,6 +232,7 @@ def _parse_remote(name: str, entry: dict[str, Any], *, is_sse: bool) -> PluginMc
         url=url,
         headers=({str(k): str(v) for k, v in headers.items()} if isinstance(headers, dict) else None),
         cwd=None,
+        capabilities=(PluginCapabilityTier.NETWORK,),
     )
 
 

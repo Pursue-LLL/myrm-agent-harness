@@ -321,6 +321,30 @@ class TestCanonicalPathContainmentGuard:
         assert is_within_boundary(evil_file, root) is False
         assert is_within_boundary(sibling_evil, root) is False
 
+    def test_executor_base_workspace_containment_prefix_attack(self, tmp_path: Path) -> None:
+        """Verify BaseExecutor.resolve_path blocks prefix-truncation traversal attacks."""
+        from myrm_agent_harness.toolkits.code_execution.executors.base import BaseExecutor
+
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        ws_evil = tmp_path / "ws_evil"
+        ws_evil.mkdir()
+        evil_file = ws_evil / "hack.sh"
+        evil_file.write_text("malicious")
+
+        class DummyExecutor(BaseExecutor):
+            async def execute_bash(self, context):
+                raise NotImplementedError
+
+        executor = DummyExecutor(workspace_path=str(ws))
+
+        import pytest
+
+        # Relative path resolving to sibling with common prefix must be blocked
+        with pytest.raises(ValueError, match="Path traversal detected"):
+            import asyncio
+            asyncio.run(executor.resolve_path("../ws_evil/hack.sh"))
+
     def test_policy_engine_symlink_containment(self, tmp_path: Path) -> None:
         """Verify check_path_policy blocks symlink escapes pointing outside workspace."""
         from myrm_agent_harness.agent.security.checks import check_path_policy

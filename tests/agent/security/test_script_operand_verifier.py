@@ -69,6 +69,36 @@ class TestScriptOperandExtraction:
     def test_non_existent_file_returns_none(self, tmp_path: Path) -> None:
         assert extract_script_file_operand("bash non_existent.sh", workspace_root=str(tmp_path)) is None
 
+    def test_compound_command_with_cd_and_script(self, tmp_path: Path) -> None:
+        """cd /workspace && python3 task.py should successfully extract task.py."""
+        script = tmp_path / "task.py"
+        script.write_text("print('task')")
+
+        cmd = f"cd {tmp_path} && python3 task.py"
+        extracted = extract_script_file_operand(cmd, workspace_root=str(tmp_path))
+        assert extracted == str(script.resolve())
+
+    def test_wrapper_command_nohup_and_sudo(self, tmp_path: Path) -> None:
+        """nohup python3 worker.py and sudo bash setup.sh should resolve script operand."""
+        script1 = tmp_path / "worker.py"
+        script1.write_text("print('worker')")
+        extracted1 = extract_script_file_operand(
+            "nohup python3 worker.py > worker.log 2>&1 &", workspace_root=str(tmp_path)
+        )
+        assert extracted1 == str(script1.resolve())
+
+        script2 = tmp_path / "setup.sh"
+        script2.write_text("#!/bin/sh\necho setup")
+        extracted2 = extract_script_file_operand(
+            "sudo bash setup.sh", workspace_root=str(tmp_path)
+        )
+        assert extracted2 == str(script2.resolve())
+
+    def test_python_module_flag_does_not_extract_module_as_script(self, tmp_path: Path) -> None:
+        """python3 -m unittest should not treat unittest as a script file."""
+        cmd = "python3 -m unittest discover"
+        assert extract_script_file_operand(cmd, workspace_root=str(tmp_path)) is None
+
 
 class TestScriptDigestAndIntegrity:
     """Tests for file content digest and TOCTOU verification."""

@@ -255,3 +255,36 @@ def filter_valid_servers(
         diagnostics.extend(diags)
         return valid_servers
     return valid_servers, diags
+
+
+def infer_server_capabilities(server: PluginMcpServer) -> tuple[PluginCapabilityTier, ...]:
+    """Statically infer the sandbox capability tier for an MCP server entry.
+
+    Heuristics:
+    1. Remote transports (streamable_http, sse) require NETWORK capability.
+    2. Local stdio transport spawns child processes, thus requiring SHELL_EXEC and FS_WRITE.
+    3. Commands executing compilers, package managers, or explicit shell scripts also flag DESTRUCTIVE if dangerous.
+    """
+    from .models import PluginCapabilityTier
+
+    caps: set[PluginCapabilityTier] = set()
+
+    if server.server_type in ("streamable_http", "sse"):
+        caps.add(PluginCapabilityTier.NETWORK)
+    elif server.server_type == "stdio":
+        caps.add(PluginCapabilityTier.SHELL_EXEC)
+        caps.add(PluginCapabilityTier.FS_WRITE)
+        caps.add(PluginCapabilityTier.FS_READ)
+
+        # Inspect command for dangerous/destructive interpreters or root scripts
+        cmd = (server.command or "").strip().lower()
+        if cmd in ("bash", "sh", "zsh", "sudo") or any(
+            arg in ("-c", "rm", "dd", "mkfs") for arg in (server.args or [])
+        ):
+            caps.add(PluginCapabilityTier.DESTRUCTIVE)
+
+    if not caps:
+        caps.add(PluginCapabilityTier.READ_ONLY)
+
+    return tuple(sorted(caps, key=lambda c: c.value))
+
