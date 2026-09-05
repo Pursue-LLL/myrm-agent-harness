@@ -850,7 +850,7 @@ async def evaluate_tool_batch(
                 record_decision(
                     tool_name, "SKILL_HOOK_BLOCK", skill_hook_verdict.reason
                 )
-                hint = record_denial(tool_name)
+                hint = record_denial(tool_name, session_key)
                 auto_denied.append(
                     (
                         idx,
@@ -940,7 +940,7 @@ async def evaluate_tool_batch(
                             tool_name, "LLM_REVIEW_ALLOW", review_result.reason
                         )
                         auto_approved.append((idx, tool_call))
-                        record_approval()
+                        record_approval(session_key)
                         continue
                     if review_result.decision == ReviewDecision.DENY:
                         logger.warning(
