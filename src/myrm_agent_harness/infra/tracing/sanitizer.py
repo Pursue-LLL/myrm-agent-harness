@@ -111,12 +111,14 @@ class TraceSpanSanitizer:
                     val = json.dumps(sanitized_dict, ensure_ascii=False)
                 elif isinstance(parsed, list):
                     sanitized_list = [
-                        self.sanitize_payload(item)
-                        if isinstance(item, Mapping)
-                        else (
-                            self.sanitize_string_value(item)
-                            if isinstance(item, str)
-                            else item
+                        (
+                            self.sanitize_payload(item)
+                            if isinstance(item, Mapping)
+                            else (
+                                self.sanitize_string_value(item)
+                                if isinstance(item, str)
+                                else item
+                            )
                         )
                         for item in parsed
                     ]
@@ -159,9 +161,9 @@ class TraceSpanSanitizer:
         sanitized: dict[str, AttributeValue] = {}
         for k, v in attributes.items():
             lower_k = k.lower()
-            if any(keyword in lower_k for keyword in _SENSITIVE_KEY_KEYWORDS) and not any(
-                lower_k.startswith(p) for p in self._safe_prefixes
-            ):
+            if any(
+                keyword in lower_k for keyword in _SENSITIVE_KEY_KEYWORDS
+            ) and not any(lower_k.startswith(p) for p in self._safe_prefixes):
                 # High-risk raw key blocked
                 sanitized[k] = "[REDACTED_SENSITIVE_KEY]"
                 continue
@@ -185,11 +187,15 @@ class TraceSpanSanitizer:
                 sanitized[k] = self.sanitize_payload(v)
             elif isinstance(v, (list, tuple)):
                 sanitized[k] = [
-                    self.sanitize_string_value(item)
-                    if isinstance(item, str)
-                    else self.sanitize_payload(item)
-                    if isinstance(item, Mapping)
-                    else item
+                    (
+                        self.sanitize_string_value(item)
+                        if isinstance(item, str)
+                        else (
+                            self.sanitize_payload(item)
+                            if isinstance(item, Mapping)
+                            else item
+                        )
+                    )
                     for item in v
                 ]
             else:
