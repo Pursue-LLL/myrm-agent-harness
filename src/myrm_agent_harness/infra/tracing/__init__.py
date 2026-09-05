@@ -65,6 +65,11 @@ from .propagation import (
     inject_trace_context,
 )
 from .sampling import IntelligentSampler, create_intelligent_sampler
+from .sanitizer import (
+    TraceSpanSanitizer,
+    sanitize_trace_attributes,
+    sanitize_trace_payload,
+)
 from .tracer import (
     get_tracer,
     setup_tracing,
@@ -97,6 +102,7 @@ __all__ = [
     "SPAN_AGENT_TURN",
     "SPAN_LLM_REQUEST",
     "SPAN_TOOL_CALL",
+    "TraceSpanSanitizer",
     "create_intelligent_sampler",
     "extract_trace_context",
     "get_current_span_id",
@@ -107,6 +113,8 @@ __all__ = [
     "record_gen_ai_agent_turn",
     "record_gen_ai_llm_request",
     "record_gen_ai_tool_call",
+    "sanitize_trace_attributes",
+    "sanitize_trace_payload",
     "setup_metrics",
     "setup_tracing",
     "shutdown_metrics",
