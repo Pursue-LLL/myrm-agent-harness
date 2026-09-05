@@ -126,8 +126,8 @@ class TraceSpanSanitizer:
                 pass
 
         # Layer 2: Sensitive value pattern scrubbing
-        redacted = _BEARER_PATTERN.sub("Bearer [REDACTED_BEARER_TOKEN]", val)
-        redacted = redact_sensitive_text(redacted)
+        redacted = redact_sensitive_text(val)
+        redacted = _BEARER_PATTERN.sub("Bearer [REDACTED_BEARER_TOKEN]", redacted)
         # Layer 3: Bounded truncation with integrity fingerprint
         length = len(redacted)
         if length > self._max_value_len:
@@ -234,17 +234,17 @@ class SanitizingSpanProcessor(SpanProcessor):
     def on_end(self, span: ReadableSpan) -> None:
         attrs = getattr(span, "_attributes", None)
         if attrs is not None:
-            # attrs may be a BoundedAttributes (MappingProxy / mapping-like)
-            sanitized = self._sanitizer.sanitize_attributes(dict(attrs))
-            try:
-                dict.clear(attrs)  # type: ignore
-                dict.update(attrs, sanitized)  # type: ignore
-            except Exception:
-                pass
-            try:
-                object.__setattr__(span, "_attributes", sanitized)
-            except Exception:
-                pass
+            inner_dict = getattr(attrs, "_dict", None)
+            if isinstance(inner_dict, dict):
+                sanitized = self._sanitizer.sanitize_attributes(inner_dict)
+                inner_dict.clear()
+                inner_dict.update(sanitized)
+            elif isinstance(attrs, Mapping):
+                sanitized = self._sanitizer.sanitize_attributes(attrs)
+                try:
+                    object.__setattr__(span, "_attributes", sanitized)
+                except Exception:
+                    pass
 
     def shutdown(self) -> None:
         pass

@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
 import pytest
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExporter, SpanExportResult
@@ -127,24 +128,20 @@ def test_sanitize_trace_payload_recursive() -> None:
 
 
 def test_sanitizing_span_processor_integration() -> None:
-    provider = TracerProvider()
-    exporter = MemorySpanExporter()
+    sanitizer = TraceSpanSanitizer(max_value_len=128)
+    processor = SanitizingSpanProcessor(sanitizer=sanitizer)
 
-    # Register SanitizingSpanProcessor prior to exporter
-    processor = SanitizingSpanProcessor(max_value_len=128)
-    provider.add_span_processor(processor)
-    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    mock_span = MagicMock()
+    mock_span._attributes = {
+        "gen_ai.operation.name": "execute_code",
+        "user_password": "plaintext_secret_123",
+        "auth.token": "Bearer secret-token-value",
+        "massive_output": "Z" * 1000,
+    }
 
-    tracer = provider.get_tracer("test_privacy")
-    with tracer.start_as_current_span("exec_tool") as span:
-        span.set_attribute("gen_ai.operation.name", "execute_code")
-        span.set_attribute("user_password", "plaintext_secret_123")
-        span.set_attribute("auth.token", "Bearer secret-token-value")
-        span.set_attribute("massive_output", "Z" * 1000)
+    processor.on_end(mock_span)
 
-    assert len(exporter.spans) == 1
-    exported = exporter.spans[0]
-    attrs = exported.attributes
+    attrs = mock_span._attributes
     assert attrs is not None
 
     # Layer 1

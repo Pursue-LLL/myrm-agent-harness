@@ -595,3 +595,41 @@ class TestCheckTokenizerHealth:
         ):
             report = await check_tokenizer_health()
             assert report.status == "fail"
+
+
+class TestCheckLocalTraceExportAudit:
+    @pytest.mark.asyncio
+    async def test_local_trace_only_clean_pass(self):
+        from myrm_agent_harness.observability.diagnostics.probes import check_local_trace_export_audit
+
+        with patch.dict("os.environ", {"MYRM_LOCAL_TRACE_ONLY": "1", "OTEL_EXPORTER_OTLP_ENDPOINT": ""}):
+            report = await check_local_trace_export_audit()
+            assert report.status == "pass"
+            assert report.code == "OK_LOCAL_TRACE_ISOLATION"
+            assert report.component_name == "TraceExportAudit"
+
+    @pytest.mark.asyncio
+    async def test_local_trace_only_remote_leak_risk(self):
+        from myrm_agent_harness.observability.diagnostics.probes import check_local_trace_export_audit
+
+        with patch.dict(
+            "os.environ",
+            {
+                "MYRM_LOCAL_TRACE_ONLY": "1",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://telemetry.remote-cloud.com:4317",
+            },
+        ):
+            report = await check_local_trace_export_audit()
+            assert report.status == "fail"
+            assert report.code == "ERR_TRACE_REMOTE_LEAK_RISK"
+            assert "blocked" in report.detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_standard_mode_pass(self):
+        from myrm_agent_harness.observability.diagnostics.probes import check_local_trace_export_audit
+
+        with patch.dict("os.environ", {"MYRM_LOCAL_TRACE_ONLY": "0", "OTEL_EXPORTER_OTLP_ENDPOINT": ""}):
+            report = await check_local_trace_export_audit()
+            assert report.status == "pass"
+            assert report.code == "OK_TRACE_EXPORT_STANDARD"
+
