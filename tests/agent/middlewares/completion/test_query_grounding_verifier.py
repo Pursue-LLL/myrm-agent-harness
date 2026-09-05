@@ -275,3 +275,40 @@ async def test_completion_guard_blocks_ungrounded_entity_query() -> None:
     assert tc["name"] == "_completion_check"
     assert "query_grounding_reason" in tc["args"]
     assert "no query or MCP tool was executed" in str(tc["args"]["query_grounding_reason"])
+
+
+@pytest.mark.asyncio
+async def test_completion_guard_blocks_multi_entity_missing_one_query() -> None:
+    reset_completion_guard()
+    reset_loop_guard()
+
+    # 模拟会话中有一次 OD-9921 的成功工具调用，但缺少 TK-8802 的查询记录
+    from myrm_agent_harness.agent.security.guards.loop_guard import get_loop_guard
+
+    loop_guard = get_loop_guard()
+    loop_guard.record_call(
+        tool_name="mcp__erp__query_order",
+        args={"order_id": "OD-9921"},
+        success_level=SuccessLevel.FULL_SUCCESS,
+    )
+
+    guard = CompletionGuard(enabled=True)
+    messages = [
+        HumanMessage(content="帮我查一下订单 OD-9921 和工单 TK-8802 的状态"),
+        AIMessage(content="订单 OD-9921 已发货，工单 TK-8802 已由运维团队处理完毕。"),
+    ]
+    state = {"messages": messages}
+    result = await guard.aafter_model(state, runtime={})
+
+    assert result is not None
+    assert "messages" in result
+    patched_msg = result["messages"][0]
+    assert isinstance(patched_msg, AIMessage)
+    assert len(patched_msg.tool_calls) == 1
+    tc = patched_msg.tool_calls[0]
+    assert tc["name"] == "_completion_check"
+    assert "query_grounding_reason" in tc["args"]
+    reason_str = str(tc["args"]["query_grounding_reason"])
+    assert "TK-8802" in reason_str
+    assert "multiple business entities" in reason_str
+
