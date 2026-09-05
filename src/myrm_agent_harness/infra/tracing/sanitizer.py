@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Mapping, Sequence
 
 from myrm_agent_harness.core.security.redact.engine import redact_sensitive_text
@@ -50,7 +51,15 @@ _SENSITIVE_KEY_KEYWORDS: tuple[str, ...] = (
     "auth_header",
     "authorization",
     "cookie",
+    "api_key",
+    "apikey",
+    "secret_key",
+    "access_key",
+    "private_key",
+    "key",
 )
+
+_BEARER_PATTERN = re.compile(r"Bearer\s+([A-Za-z0-9._~+/-]+=*)", re.IGNORECASE)
 
 
 class TraceSpanSanitizer:
@@ -77,6 +86,7 @@ class TraceSpanSanitizer:
             return val
         # Layer 2: Sensitive value pattern scrubbing
         redacted = redact_sensitive_text(val)
+        redacted = _BEARER_PATTERN.sub("Bearer [REDACTED_BEARER_TOKEN]", redacted)
         # Layer 3: Bounded truncation with integrity fingerprint
         length = len(redacted)
         if length > self._max_value_len:
