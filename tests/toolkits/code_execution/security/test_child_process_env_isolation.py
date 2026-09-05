@@ -309,10 +309,11 @@ class TestExecutorAndHookSubprocessIsolation:
     @pytest.mark.asyncio
     async def test_command_hook_execution_strips_host_credentials(self) -> None:
         """Integration test: CommandHookDefinition execution strips parent env secrets."""
-        from myrm_agent_harness.agent.hooks.executor import HookExecutor
+        from myrm_agent_harness.agent.hooks.executor import HookExecutor, HookRegistry
         from myrm_agent_harness.agent.hooks.types import CommandHookDefinition
 
-        executor = HookExecutor()
+        registry = HookRegistry()
+        executor = HookExecutor(registry)
         # A command hook printing environment variables to stdout
         hook = CommandHookDefinition(
             command="python3 -c 'import os, json; print(json.dumps(dict(os.environ)))'",
