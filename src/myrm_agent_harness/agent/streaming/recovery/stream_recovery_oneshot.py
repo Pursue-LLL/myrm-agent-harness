@@ -562,7 +562,8 @@ def _shrink_oversized_images(
     # Tier 2 Aggregate Fallback: If no single image was oversized individually
     # but the provider/gateway rejected the request with IMAGE_TOO_LARGE or 413,
     # perform aggregate progressive downsampling on older historical images.
-    if shrunk_count == 0 and len(messages) > 1:
+    # If messages has only 1 turn, downsample that turn's images directly.
+    if shrunk_count == 0 and messages:
         shrunk_count = _evict_aggregate_historical_images(messages)
 
     return shrunk_count
@@ -571,8 +572,9 @@ def _shrink_oversized_images(
 def _evict_aggregate_historical_images(messages: list[BaseMessage]) -> int:
     """Progressively compress or placeholder older images when aggregate payload overflows.
 
-    Protects the latest message (Focus Window) and downsamples historical base64
-    images to 512px WebP (quality 0.5) to clear gateway payload restrictions.
+    Protects the latest message (Focus Window) when multiple messages exist;
+    if only 1 message exists, processes all images in that message.
+    Downsamples base64 images to 512px WebP (quality 0.5) to clear gateway payload restrictions.
     """
     import base64
     import io
@@ -586,14 +588,14 @@ def _evict_aggregate_historical_images(messages: list[BaseMessage]) -> int:
     compressor = ImageCompressor()
     evicted_count = 0
 
-    # Protect the latest message turn (last message in sequence)
-    target_messages = messages[:-1]
+    # Protect the latest message turn if multiple turns exist, else process all
+    target_messages = messages[:-1] if len(messages) > 1 else messages
 
     for msg in target_messages:
         content = getattr(msg, "content", None)
         if not isinstance(content, list):
             continue
-        for idx, part in enumerate(content):
+        for part in content:
             if not isinstance(part, dict) or part.get("type") != "image_url":
                 continue
             image_url = part.get("image_url")

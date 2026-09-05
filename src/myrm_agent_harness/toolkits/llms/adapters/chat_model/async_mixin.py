@@ -268,6 +268,9 @@ class ChatLiteLLMAsyncMixin:
                     evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
                         message_dicts, target_bytes=4 * 1024 * 1024
                     )
+                    CumulativeImageBudgetGovernor.emergency_evict(
+                        messages, target_bytes=4 * 1024 * 1024
+                    )
                     if evicted > 0:
                         logger.warning(
                             f" Payload overflow 400/413 intercepted: evicted {evicted} historical images, retrying (attempt {attempt + 1})"
@@ -517,9 +520,12 @@ class ChatLiteLLMAsyncMixin:
                     CumulativeImageBudgetGovernor,
                 )
 
-                if is_payload_overflow(e) and attempt < max_attempts - 1:
+                if is_payload_overflow(e) and attempt < max_attempts - 1 and agg.chunk_count == 0:
                     evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
                         message_dicts, target_bytes=4 * 1024 * 1024
+                    )
+                    CumulativeImageBudgetGovernor.emergency_evict(
+                        messages, target_bytes=4 * 1024 * 1024
                     )
                     if evicted > 0:
                         logger.warning(

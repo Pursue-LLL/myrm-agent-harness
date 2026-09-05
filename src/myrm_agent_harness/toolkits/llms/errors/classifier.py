@@ -273,12 +273,17 @@ _PAYLOAD_TOO_LARGE_RE = re.compile(
     r"payload too large"
     r"|request entity too large"
     r"|request body too large"
+    r"|client intended to send too large body"
+    r"|body size exceeds"
+    r"|request body exceeds"
+    r"|request size exceeds"
     r"|entity too large"
     r"|client_max_body_size"
     r"|exceeded the maximum request size"
-    r"|request size exceeds"
     r"|exceeds.+maximum.+request.+size"
-    r"|maximum payload size exceeded",
+    r"|maximum payload size exceeded"
+    r"|body exceeds size limit"
+    r"|request exceeds maximum.+size",
     re.IGNORECASE,
 )
 
@@ -412,8 +417,8 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
     if normalized.status_code == 400 and _DUPLICATE_TOOL_USE_ID_RE.search(msg):
         return FailoverReason.DUPLICATE_TOOL_USE_ID
 
-    # 0b. Per-image size limit exceeded — must precede generic 400 / overflow
-    if _IMAGE_TOO_LARGE_RE.search(msg):
+    # 0b. Per-image size or Gateway payload limit exceeded — must precede generic 400 / overflow
+    if _IMAGE_TOO_LARGE_RE.search(msg) or _PAYLOAD_TOO_LARGE_RE.search(msg):
         return FailoverReason.IMAGE_TOO_LARGE
 
     # 0b2. Model rejects multimodal input entirely — must precede generic 400
@@ -486,6 +491,8 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
         return FailoverReason.BILLING
 
     if normalized.status_code == 413:
+        if _PAYLOAD_TOO_LARGE_RE.search(msg) or _IMAGE_TOO_LARGE_RE.search(msg):
+            return FailoverReason.IMAGE_TOO_LARGE
         return FailoverReason.CONTEXT_OVERFLOW
 
     if normalized.status_code == 429:

@@ -36,7 +36,7 @@ import asyncio
 import base64
 import io
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
 from langchain_core.messages import BaseMessage
 from PIL import Image
@@ -86,7 +86,7 @@ def _downsample_base64_image(
         return None
 
     try:
-        header, b64_str = data_url.split(";base64,", 1)
+        _header, b64_str = data_url.split(";base64,", 1)
         raw_bytes = base64.b64decode(b64_str)
 
         with Image.open(io.BytesIO(raw_bytes)) as img:
@@ -243,17 +243,20 @@ class CumulativeImageBudgetGovernor:
         message_dicts: list[dict[str, Any]],
         target_bytes: int = 5 * 1024 * 1024,
     ) -> int:
-        """Synchronously evict and textify historical images in raw dict messages.
+        """Synchronously downsample or evict images in raw dict messages.
 
         Designed for in-flight 400/413 Payload Too Large recovery in adapter mixins.
-        Processes from oldest message to newest message, protecting the last message
-        (current turn) whenever possible.
+        Operates in two progressive stages:
+          - Stage 1: Downsample base64 images to compact 512px WebP format,
+            preserving visual content so multimodal perception continues to work.
+          - Stage 2: If payload still exceeds target_bytes, evict historical images
+            from oldest to newest into text placeholders, protecting the latest turn.
 
-        Returns the number of image entries replaced with text summaries.
+        Returns the number of images modified (downsampled or textified).
         """
-        evicted_count = 0
+        modified_count = 0
         total_bytes = 0
-        image_entries: list[tuple[int, int, dict[str, Any], int]] = []
+        image_entries: list[tuple[int, int, dict[str, Any], int, str]] = []
 
         for m_idx, msg in enumerate(message_dicts):
             content = msg.get("content")
@@ -273,38 +276,153 @@ class CumulativeImageBudgetGovernor:
                 if is_base64_data_url(url):
                     size = estimate_base64_byte_size(url)
                     total_bytes += size
-                    image_entries.append((m_idx, c_idx, part, size))
+                    image_entries.append((m_idx, c_idx, part, size, url))
 
         if not image_entries or total_bytes <= target_bytes:
             return 0
 
-        # Protect the last message turn if there are multiple turns with images
-        last_m_idx = max(m_idx for m_idx, _, _, _ in image_entries)
-        candidates = [e for e in image_entries if e[0] < last_m_idx]
-        if not candidates:
-            # If all images are in the last turn, evict from oldest image entry in that turn
-            candidates = image_entries[:-1] if len(image_entries) > 1 else image_entries
-
-        for m_idx, c_idx, part, size in candidates:
+        # Stage 1: Downsample all large images to compact WebP first (preserve visual reasoning)
+        for idx, (m_idx, c_idx, part, size, url) in enumerate(image_entries):
             if total_bytes <= target_bytes:
                 break
+            if size <= 2 * 1024:  # Tiny icon, skipping downsample
+                continue
 
-            msg_content = message_dicts[m_idx]["content"]
-            msg_content[c_idx] = {
-                "type": "text",
-                "text": f"[Historical Image omitted: payload reduced {size // 1024}KB to recover from gateway limit]",
-            }
-            total_bytes -= size
-            evicted_count += 1
+            downsampled_url = _downsample_base64_image(url, max_dim=512, quality=0.65)
+            if downsampled_url and downsampled_url != url:
+                new_size = estimate_base64_byte_size(downsampled_url)
+                saved = size - new_size
+                if saved > 0:
+                    if part.get("type") == "image_url" and isinstance(part.get("image_url"), dict):
+                        part["image_url"]["url"] = downsampled_url
+                    elif part.get("type") == "image" and isinstance(part.get("source"), dict):
+                        # Update Anthropic source dict format
+                        _, b64 = downsampled_url.split(";base64,", 1)
+                        part["source"]["data"] = b64
+                        part["source"]["media_type"] = "image/webp"
 
-        if evicted_count > 0:
+                    total_bytes -= saved
+                    image_entries[idx] = (m_idx, c_idx, part, new_size, downsampled_url)
+                    modified_count += 1
+
+        # Stage 2: If still over budget, convert historical images from oldest to newest into text
+        if total_bytes > target_bytes:
+            last_m_idx = max(m_idx for m_idx, _, _, _, _ in image_entries)
+            candidates = [e for e in image_entries if e[0] < last_m_idx]
+            if not candidates:
+                candidates = image_entries[:-1] if len(image_entries) > 1 else image_entries
+
+            for m_idx, c_idx, _part, size, _ in candidates:
+                if total_bytes <= target_bytes:
+                    break
+
+                msg_content = message_dicts[m_idx]["content"]
+                msg_content[c_idx] = {
+                    "type": "text",
+                    "text": f"[Historical Image omitted: payload reduced {size // 1024}KB to recover from gateway limit]",
+                }
+                total_bytes -= size
+                modified_count += 1
+
+        if modified_count > 0:
             logger.warning(
-                "[MediaBudgetGovernor] Emergency evicted %d images, reduced payload to %d bytes",
-                evicted_count,
+                "[MediaBudgetGovernor] Emergency recovered %d images, reduced payload to %d bytes",
+                modified_count,
                 total_bytes,
             )
 
-        return evicted_count
+        return modified_count
+
+    @classmethod
+    def emergency_evict(
+        cls,
+        messages: list[Any],
+        target_bytes: int = 5 * 1024 * 1024,
+    ) -> int:
+        """Unified emergency eviction supporting both BaseMessage instances and raw dicts."""
+        if not messages:
+            return 0
+        if isinstance(messages[0], dict):
+            return cls.emergency_evict_from_message_dicts(messages, target_bytes=target_bytes)
+
+        modified_count = 0
+        total_bytes = 0
+        image_entries: list[tuple[int, int, dict[str, Any], int, str]] = []
+
+        for m_idx, msg in enumerate(messages):
+            content = getattr(msg, "content", None)
+            if not isinstance(content, list):
+                continue
+            for c_idx, part in enumerate(content):
+                if not isinstance(part, dict):
+                    continue
+                url = ""
+                if part.get("type") == "image_url" and isinstance(part.get("image_url"), dict):
+                    url = part["image_url"].get("url", "")
+                elif part.get("type") == "image" and isinstance(part.get("source"), dict):
+                    data = part["source"].get("data", "")
+                    media_type = part["source"].get("media_type", "image/png")
+                    url = f"data:{media_type};base64,{data}"
+
+                if is_base64_data_url(url):
+                    size = estimate_base64_byte_size(url)
+                    total_bytes += size
+                    image_entries.append((m_idx, c_idx, part, size, url))
+
+        if not image_entries or total_bytes <= target_bytes:
+            return 0
+
+        # Stage 1: Downsample all large images to compact WebP first
+        for idx, (m_idx, c_idx, part, size, url) in enumerate(image_entries):
+            if total_bytes <= target_bytes:
+                break
+            if size <= 32 * 1024:
+                continue
+
+            downsampled_url = _downsample_base64_image(url, max_dim=512, quality=0.65)
+            if downsampled_url and downsampled_url != url:
+                new_size = estimate_base64_byte_size(downsampled_url)
+                saved = size - new_size
+                if saved > 0:
+                    if part.get("type") == "image_url" and isinstance(part.get("image_url"), dict):
+                        part["image_url"]["url"] = downsampled_url
+                    elif part.get("type") == "image" and isinstance(part.get("source"), dict):
+                        _, b64 = downsampled_url.split(";base64,", 1)
+                        part["source"]["data"] = b64
+                        part["source"]["media_type"] = "image/webp"
+
+                    total_bytes -= saved
+                    image_entries[idx] = (m_idx, c_idx, part, new_size, downsampled_url)
+                    modified_count += 1
+
+        # Stage 2: Convert historical to text
+        if total_bytes > target_bytes:
+            last_m_idx = max(m_idx for m_idx, _, _, _, _ in image_entries)
+            candidates = [e for e in image_entries if e[0] < last_m_idx]
+            if not candidates:
+                candidates = image_entries[:-1] if len(image_entries) > 1 else image_entries
+
+            for m_idx, c_idx, _part, size, _ in candidates:
+                if total_bytes <= target_bytes:
+                    break
+
+                msg_content = getattr(messages[m_idx], "content", None)
+                if isinstance(msg_content, list) and c_idx < len(msg_content):
+                    msg_content[c_idx] = {
+                        "type": "text",
+                        "text": f"[Historical Image omitted: payload reduced {size // 1024}KB to recover from gateway limit]",
+                    }
+                    total_bytes -= size
+                    modified_count += 1
+
+        if modified_count > 0:
+            logger.warning(
+                "[MediaBudgetGovernor] Emergency recovered %d images in BaseMessages, reduced payload to %d bytes",
+                modified_count,
+                total_bytes,
+            )
+
+        return modified_count
 
 
 class MediaBudgetGovernorProcessor(BaseProcessor):

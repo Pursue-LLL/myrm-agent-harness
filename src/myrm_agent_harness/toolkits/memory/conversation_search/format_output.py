@@ -15,6 +15,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
+    finalize_recall_tool_output,
+    recall_preamble_overhead_chars,
+    sanitize_recalled_content,
+)
 from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import (
     pack_tool_result_with_sources,
 )
@@ -26,11 +31,6 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     ConversationIndexCoverage,
     ConversationSearchHit,
     ConversationSearchResponse,
-)
-from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
-    finalize_recall_tool_output,
-    recall_preamble_overhead_chars,
-    sanitize_recalled_content,
 )
 
 
@@ -83,7 +83,11 @@ async def format_conversation_search_response(
     output_chars = sum(len(line) + 1 for line in lines)
     sources: list[dict[str, object]] = []
     truncated = response.truncated
-    is_expanded_view = len(response.hits) == 1 and bool(response.hits[0].message_id and not response.query)
+    is_expanded_view = (
+        len(response.hits) == 1
+        and response.mode != "recent"
+        and bool(response.hits[0].message_id and not response.query)
+    )
 
     for index, hit in enumerate(response.hits, start=1):
         block = format_conversation_hit(index, hit, is_expanded=is_expanded_view)
