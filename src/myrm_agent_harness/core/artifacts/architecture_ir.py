@@ -56,11 +56,17 @@ class ArchitectureNode(BaseModel):
 
     id: str = Field(description="全局唯一、语义稳定的组件标识符，例如: api-gateway")
     label: str = Field(description="节点展示名称，例如: API Gateway")
-    type: str = Field(default="service", description="组件类别，对齐 ArchitectureNodeType")
+    type: str = Field(
+        default="service", description="组件类别，对齐 ArchitectureNodeType"
+    )
     group_id: str | None = Field(default=None, description="所属分组边界 ID")
-    tech_stack: str | None = Field(default=None, description="技术栈标签，例如: FastAPI / Redis")
+    tech_stack: str | None = Field(
+        default=None, description="技术栈标签，例如: FastAPI / Redis"
+    )
     description: str = Field(default="", description="组件简要功能说明")
-    status: str = Field(default="normal", description="状态标记: normal | new | deprecated | modified")
+    status: str = Field(
+        default="normal", description="状态标记: normal | new | deprecated | modified"
+    )
 
 
 class ArchitectureEdge(BaseModel):
@@ -86,12 +92,18 @@ class ArchitectureIR(BaseModel):
     """标准架构图 JSON IR 数据模型"""
 
     title: str = Field(description="架构图标题")
-    diagram_type: DiagramType = Field(default=DiagramType.ARCHITECTURE, description="图谱类型")
+    diagram_type: DiagramType = Field(
+        default=DiagramType.ARCHITECTURE, description="图谱类型"
+    )
     version: str = Field(default="1.0.0", description="语义版本号")
     description: str = Field(default="", description="架构设计背景与摘要")
     nodes: list[ArchitectureNode] = Field(default_factory=list, description="节点清单")
-    edges: list[ArchitectureEdge] = Field(default_factory=list, description="连线关系清单")
-    groups: list[ArchitectureGroup] = Field(default_factory=list, description="分组清单")
+    edges: list[ArchitectureEdge] = Field(
+        default_factory=list, description="连线关系清单"
+    )
+    groups: list[ArchitectureGroup] = Field(
+        default_factory=list, description="分组清单"
+    )
     metadata: dict[str, str] = Field(default_factory=dict, description="额外扩展元数据")
 
 
@@ -101,8 +113,12 @@ class ValidationReceipt(BaseModel):
     is_valid: bool = Field(description="是否通过校验门禁")
     node_count: int = Field(description="有效节点总数")
     edge_count: int = Field(description="有效连线总数")
-    sanitized_dangling_edges: int = Field(default=0, description="自动修剪的悬空非法边数量")
-    isolated_nodes: list[str] = Field(default_factory=list, description="孤立未连接节点清单")
+    sanitized_dangling_edges: int = Field(
+        default=0, description="自动修剪的悬空非法边数量"
+    )
+    isolated_nodes: list[str] = Field(
+        default_factory=list, description="孤立未连接节点清单"
+    )
     errors: list[str] = Field(default_factory=list, description="阻断性错误列表")
     warnings: list[str] = Field(default_factory=list, description="温和预警与提示信息")
 
@@ -174,7 +190,9 @@ def validate_and_sanitize_architecture_ir(
         tgt = edge.target.strip()
         if src not in seen_ids or tgt not in seen_ids:
             sanitized_dangling += 1
-            warnings.append(f"Dangling edge removed: {src} -> {tgt} (one or both nodes missing)")
+            warnings.append(
+                f"Dangling edge removed: {src} -> {tgt} (one or both nodes missing)"
+            )
             continue
         edge.source = src
         edge.target = tgt

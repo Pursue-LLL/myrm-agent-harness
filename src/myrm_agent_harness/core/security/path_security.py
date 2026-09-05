@@ -12,7 +12,9 @@ module, ensuring a single set of definitions and consistent checks.
 - BLOCKED_DEVICE_NAMES: frozenset[str] — Windows reserved device names
 - SENSITIVE_FILE_PATTERNS: tuple[str, ...] — glob patterns for sensitive files
 - PROTECTED_INSTRUCTION_PATTERNS: tuple[str, ...] — glob patterns for protected instruction files
-- coerce_filesystem_path(value) -> Path | None — runtime path coercion; rejects unittest.mock objects
+- MAX_PATH_LENGTH: int — maximum allowed path length (4096 bytes)
+- is_content_not_path(value) -> bool — disambiguates multiline/oversized text from filesystem path
+- coerce_filesystem_path(value) -> Path | None — runtime path coercion; rejects unittest.mock objects and text content
 - is_dangerous_path(path) -> bool — unified check function
 - is_blocked_device_path(path) -> bool — pre-IO device path blocklist check
 - is_sensitive_file(path) -> bool — sensitive file check function
@@ -219,11 +221,13 @@ def safe_join_path(base_dir: str | Path, user_input: str | Path) -> Path:
         拼接并规范化后的虚拟绝对路径 (Path)
 
     Raises:
-        ValueError: 如果检测到任何路径攻击或解析失败
+        ValueError: 如果检测到任何路径攻击、解析失败或传入文本内容而非路径
     """
     input_str = str(user_input)
     if "\0" in input_str:
         raise ValueError("Null byte injection detected in path")
+    if is_content_not_path(input_str):
+        raise ValueError("Invalid path: content or multiline string cannot be parsed as a filesystem path")
 
     user_path = Path(user_input)
     if user_path.is_absolute():
@@ -251,8 +255,28 @@ def safe_join_path(base_dir: str | Path, user_input: str | Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Path coercion (runtime type guard)
+# Path coercion and content disambiguation (runtime type guard)
 # ---------------------------------------------------------------------------
+
+MAX_PATH_LENGTH: int = 4096
+
+
+def is_content_not_path(value: object) -> bool:
+    """Return True if *value* is clearly multiline/oversized text content rather than a path.
+
+    Defends against bugs where memory plugins or URI guards misclassify code snippets,
+    Markdown text, or multiline strings as filesystem paths, preventing OS Errno 36
+    (File name too long) and false-positive security alerts.
+    """
+    if not isinstance(value, str):
+        return False
+    if len(value) > MAX_PATH_LENGTH:
+        return True
+    if "\n" in value or "\r" in value:
+        return True
+    if "```" in value:
+        return True
+    return False
 
 
 def _is_unittest_mock(value: object) -> bool:
@@ -264,8 +288,7 @@ def coerce_filesystem_path(value: object) -> Path | None:
     """Coerce a runtime value to a filesystem path, or return None if invalid.
 
     Only ``str``, ``Path``, and non-mock ``os.PathLike`` are accepted. Rejects
-    MagicMock and other mock objects that implement ``__fspath__`` but stringify
-    to garbage directories when passed to ``Path()``/``mkdir()``.
+    MagicMock, multiline text, oversized content, and other non-path objects.
     """
     if value is None:
         return None
@@ -275,7 +298,7 @@ def coerce_filesystem_path(value: object) -> Path | None:
         return value
     if isinstance(value, str):
         stripped = value.strip()
-        if not stripped:
+        if not stripped or is_content_not_path(stripped):
             return None
         return Path(stripped)
     if isinstance(value, os.PathLike):
@@ -294,8 +317,13 @@ def is_dangerous_path(path: str) -> bool:
     Uses canonical boundary guard — stricter than
     substring matching and immune to partial-name false positives.
     """
-    normalised = os.path.realpath(os.path.expanduser(path))
-    return any(is_within_boundary(normalised, dp) for dp in DANGEROUS_PATHS)
+    if not path or not path.strip() or is_content_not_path(path):
+        return False
+    try:
+        normalised = os.path.realpath(os.path.expanduser(path))
+        return any(is_within_boundary(normalised, dp) for dp in DANGEROUS_PATHS)
+    except Exception:
+        return False
 
 
 def is_blocked_device_path(path: str) -> bool:
@@ -305,7 +333,7 @@ def is_blocked_device_path(path: str) -> bool:
     POSIX special filesystems) as well as filesystem stat mode checks when the
     path exists. Immune to trailing spaces, slashes, or alternate casings.
     """
-    if not path or not path.strip():
+    if not path or not path.strip() or is_content_not_path(path):
         return False
 
     cleaned = path.strip()
@@ -353,9 +381,14 @@ def is_blocked_device_path(path: str) -> bool:
 
 def is_sensitive_file(path: str) -> bool:
     """Check if *path* matches any sensitive file pattern."""
-    path_obj = Path(path)
-    abs_path = str(path_obj.absolute())
-    file_name = path_obj.name
+    if not path or not path.strip() or is_content_not_path(path):
+        return False
+    try:
+        path_obj = Path(path)
+        abs_path = str(path_obj.absolute())
+        file_name = path_obj.name
+    except Exception:
+        return False
 
     for pattern in SENSITIVE_FILE_PATTERNS:
         if fnmatch(abs_path, pattern):
@@ -374,27 +407,30 @@ def is_protected_instruction_file(path: str) -> bool:
     are high-risk persistence vectors for indirect prompt injection and MUST
     require human approval.
     """
-    if not path or not str(path).strip():
+    if not path or not str(path).strip() or is_content_not_path(path):
         return False
-    path_obj = Path(path)
-    file_name_folded = path_obj.name.casefold()
-
     try:
-        resolved_path = str(path_obj.resolve()).replace("\\", "/")
+        path_obj = Path(path)
+        file_name_folded = path_obj.name.casefold()
+
+        try:
+            resolved_path = str(path_obj.resolve()).replace("\\", "/")
+        except Exception:
+            resolved_path = str(path_obj.absolute()).replace("\\", "/")
+
+        resolved_folded = resolved_path.casefold()
+
+        for pattern in PROTECTED_INSTRUCTION_PATTERNS:
+            pattern_folded = pattern.casefold()
+            if fnmatch(resolved_folded, pattern_folded):
+                return True
+            file_pattern = pattern_folded.replace("**/", "")
+            if fnmatch(file_name_folded, file_pattern):
+                return True
+            norm_relative = str(path_obj).replace("\\", "/").casefold()
+            if fnmatch(norm_relative, pattern_folded):
+                return True
     except Exception:
-        resolved_path = str(path_obj.absolute()).replace("\\", "/")
-
-    resolved_folded = resolved_path.casefold()
-
-    for pattern in PROTECTED_INSTRUCTION_PATTERNS:
-        pattern_folded = pattern.casefold()
-        if fnmatch(resolved_folded, pattern_folded):
-            return True
-        file_pattern = pattern_folded.replace("**/", "")
-        if fnmatch(file_name_folded, file_pattern):
-            return True
-        norm_relative = str(path_obj).replace("\\", "/").casefold()
-        if fnmatch(norm_relative, pattern_folded):
-            return True
+        return False
     return False
 

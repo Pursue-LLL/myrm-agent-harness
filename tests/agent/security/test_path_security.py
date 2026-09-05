@@ -11,11 +11,15 @@ import pytest
 from myrm_agent_harness.agent.security.path_security import (
     BLOCKED_DEVICE_NAMES,
     DANGEROUS_PATHS,
+    MAX_PATH_LENGTH,
     SENSITIVE_FILE_PATTERNS,
     coerce_filesystem_path,
     is_blocked_device_path,
+    is_content_not_path,
     is_dangerous_path,
+    is_protected_instruction_file,
     is_sensitive_file,
+    safe_join_path,
 )
 from myrm_agent_harness.core.security.path_security import is_within_boundary
 
@@ -427,5 +431,45 @@ class TestCanonicalPathContainmentGuard:
 
         assert is_under_disabled_skill_root(inside_path, [disabled_root]) is True
         assert is_under_disabled_skill_root(outside_path, [disabled_root]) is False
+
+
+class TestContentNotPathDisambiguation:
+    """Test is_content_not_path() and safe isolation of text/code content from path checks."""
+
+    def test_normal_paths_not_identified_as_content(self) -> None:
+        assert is_content_not_path("/etc/passwd") is False
+        assert is_content_not_path("src/core/security.py") is False
+        assert is_content_not_path("./relative/path/to/file.txt") is False
+
+    def test_multiline_strings_identified_as_content(self) -> None:
+        multiline_snippet = "def hello():\n    return 'world'"
+        assert is_content_not_path(multiline_snippet) is True
+        assert is_content_not_path("line1\r\nline2") is True
+
+    def test_code_fences_identified_as_content(self) -> None:
+        markdown_code = "```python\nprint('hello')\n```"
+        assert is_content_not_path(markdown_code) is True
+
+    def test_oversized_text_identified_as_content(self) -> None:
+        huge_text = "a" * (MAX_PATH_LENGTH + 10)
+        assert is_content_not_path(huge_text) is True
+
+    def test_coerce_filesystem_path_rejects_content(self) -> None:
+        assert coerce_filesystem_path("def foo():\n    pass") is None
+        assert coerce_filesystem_path("```python\nx = 1\n```") is None
+        assert coerce_filesystem_path("x" * (MAX_PATH_LENGTH + 1)) is None
+
+    def test_path_guards_safely_ignore_content_without_crashing(self) -> None:
+        content_with_dangerous_pattern = "Review /etc/passwd and config\nMore content here"
+        # Should cleanly return False instead of raising File name too long or OSError
+        assert is_dangerous_path(content_with_dangerous_pattern) is False
+        assert is_blocked_device_path(content_with_dangerous_pattern) is False
+        assert is_sensitive_file(content_with_dangerous_pattern) is False
+        assert is_protected_instruction_file(content_with_dangerous_pattern) is False
+
+    def test_safe_join_path_raises_on_content(self, tmp_path: Path) -> None:
+        with pytest.raises(ValueError, match="Invalid path: content or multiline string"):
+            safe_join_path(tmp_path, "def main():\n    print('fail')")
+
 
 
