@@ -1543,8 +1543,8 @@ async def test_irreversible_social_action_blocks_allowlist_bypass(monkeypatch: p
     }
     await middleware.aafter_model(state_git, MockRuntime())
     assert len(interrupt_calls) == 1, "git push must trigger interrupt even with allowlist match"
-    assert interrupt_calls[0]["review_config"]["hide_allow_always"] is True
-    assert interrupt_calls[0]["review_config"]["socially_irreversible"] is True
+    assert interrupt_calls[0]["reviewConfigs"][0]["hideAllowAlways"] is True
+    assert interrupt_calls[0]["reviewConfigs"][0]["sociallyIrreversible"] is True
 
     # 2. channel_notify tool call
     state_notify = {
@@ -1564,8 +1564,8 @@ async def test_irreversible_social_action_blocks_allowlist_bypass(monkeypatch: p
     }
     await middleware.aafter_model(state_notify, MockRuntime())
     assert len(interrupt_calls) == 2, "channel_notify must trigger interrupt even with allowlist match"
-    assert interrupt_calls[1]["review_config"]["hide_allow_always"] is True
-    assert interrupt_calls[1]["review_config"]["socially_irreversible"] is True
+    assert interrupt_calls[1]["reviewConfigs"][0]["hideAllowAlways"] is True
+    assert interrupt_calls[1]["reviewConfigs"][0]["sociallyIrreversible"] is True
 
 
 
