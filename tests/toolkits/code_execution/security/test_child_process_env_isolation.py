@@ -285,3 +285,22 @@ class TestExecutorAndHookSubprocessIsolation:
         assert "REDIS_URL" not in cleaned_env
         assert cleaned_env.get("BUILD_STEP") == "compile"
 
+    def test_ptc_orchestration_allows_pythonpath(self) -> None:
+        env_with_ptc = {
+            "PATH": "/usr/bin",
+            "_MYRM_PTC_SOCKET": "/tmp/ptc.sock",
+            "PYTHONPATH": "/opt/custom/lib",
+        }
+        res = sanitize_env(env_with_ptc, inherit_policy=EnvInheritPolicy.ALL)
+        assert res.get("PYTHONPATH") == "/opt/custom/lib"
+
+    def test_build_isolated_child_env_post_override_scrubs_case_variants(self) -> None:
+        # Construct an env where an override attempts to inject a mixed-case credential
+        res = build_isolated_child_env(
+            base_env={"PATH": "/usr/bin"},
+            extra_env={"Auth_Token": "leak_me", "NORMAL_VAR": "val"},
+            inherit_policy=EnvInheritPolicy.CORE,
+        )
+        assert "Auth_Token" not in res
+        assert res.get("NORMAL_VAR") == "val"
+
