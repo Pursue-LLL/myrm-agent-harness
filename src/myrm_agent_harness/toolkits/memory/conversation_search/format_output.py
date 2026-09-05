@@ -19,6 +19,7 @@ from myrm_agent_harness.toolkits.memory.agent_surface.tool_result_sources import
     pack_tool_result_with_sources,
 )
 from myrm_agent_harness.toolkits.memory.conversation_search.types import (
+    MAX_EXPANDED_SNIPPET_CHARS,
     MAX_SNIPPET_CHARS,
     MAX_SUMMARY_CHARS,
     MAX_TOOL_OUTPUT_CHARS,
@@ -82,16 +83,17 @@ async def format_conversation_search_response(
     output_chars = sum(len(line) + 1 for line in lines)
     sources: list[dict[str, object]] = []
     truncated = response.truncated
+    is_expanded_view = len(response.hits) == 1 and bool(response.hits[0].message_id and not response.query)
 
     for index, hit in enumerate(response.hits, start=1):
-        block = format_conversation_hit(index, hit)
+        block = format_conversation_hit(index, hit, is_expanded=is_expanded_view)
         block_cost = len(block) + 1
         if output_chars + block_cost > max_output_chars:
             truncated = True
             break
         lines.append(block)
         output_chars += block_cost
-        sources.append(source_ref(hit))
+        sources.append(source_ref(hit, is_expanded=is_expanded_view))
 
     if truncated:
         lines.append("[conversation_search_budget] Results were truncated. Refine the query for more detail.")
@@ -100,7 +102,9 @@ async def format_conversation_search_response(
     return pack_tool_result_with_sources(body, sources)
 
 
-def format_conversation_hit(index: int, hit: ConversationSearchHit) -> str:
+def format_conversation_hit(
+    index: int, hit: ConversationSearchHit, *, is_expanded: bool = False
+) -> str:
     title = hit.title or "Untitled conversation"
     when = format_time(hit.updated_at or hit.created_at)
     header = f"{index}. {title} (conversation_id: {hit.conversation_id}, score: {hit.score:.2f}, source: {hit.source}"
@@ -109,17 +113,25 @@ def format_conversation_hit(index: int, hit: ConversationSearchHit) -> str:
     if when:
         header += f", {when}"
     header += ")"
-    snippet = _safe_bounded(hit.snippet, MAX_SNIPPET_CHARS)
+    snippet_limit = MAX_EXPANDED_SNIPPET_CHARS if is_expanded else MAX_SNIPPET_CHARS
+    snippet = _safe_bounded(hit.snippet, snippet_limit)
     summary = _safe_bounded(hit.summary or "", MAX_SUMMARY_CHARS)
     parts = [header]
     if summary:
         parts.append(f"summary: {summary}")
     if snippet:
         parts.append(f"snippet: {snippet}")
+    if not is_expanded and hit.message_id:
+        parts.append(
+            f"tip: pass expand_conversation_id='{hit.conversation_id}' and expand_message_id='{hit.message_id}' to view full surrounding context"
+        )
     return "\n".join(parts)
 
 
-def source_ref(hit: ConversationSearchHit) -> dict[str, object]:
+def source_ref(
+    hit: ConversationSearchHit, *, is_expanded: bool = False
+) -> dict[str, object]:
+    snippet_limit = MAX_EXPANDED_SNIPPET_CHARS if is_expanded else MAX_SNIPPET_CHARS
     if hit.source_ref is not None:
         ref = hit.source_ref.model_dump(mode="json", exclude_none=True)
     else:
@@ -128,7 +140,7 @@ def source_ref(hit: ConversationSearchHit) -> dict[str, object]:
             "conversation_id": hit.conversation_id,
             "message_id": hit.message_id,
             "title": hit.title,
-            "snippet": _safe_bounded(hit.snippet, MAX_SNIPPET_CHARS),
+            "snippet": _safe_bounded(hit.snippet, snippet_limit),
             "summary": _safe_bounded(hit.summary or "", MAX_SUMMARY_CHARS) or None,
             "score": round(hit.score, 4),
             "created_at": hit.created_at.isoformat() if hit.created_at else None,

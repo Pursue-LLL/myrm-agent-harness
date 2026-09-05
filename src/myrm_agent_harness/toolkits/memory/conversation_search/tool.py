@@ -63,6 +63,9 @@ class ConversationSearchInput(BaseModel):
     min_score: float = Field(default=0.2, ge=0.0, le=1.0)
     since: datetime | None = None
     until: datetime | None = None
+    expand_conversation_id: str | None = Field(default=None, max_length=255)
+    expand_message_id: str | None = Field(default=None, max_length=255)
+    expand_window: int = Field(default=5, ge=1, le=20)
 
     @field_validator("query", mode="before")
     @classmethod
@@ -85,6 +88,9 @@ def create_conversation_search_tool(provider: ConversationSearchProtocol) -> obj
         min_score: float = 0.2,
         since: datetime | None = None,
         until: datetime | None = None,
+        expand_conversation_id: str | None = None,
+        expand_message_id: str | None = None,
+        expand_window: int = 5,
     ) -> str:
         """Search prior conversations for exact evidence and precomputed summaries.
 
@@ -104,6 +110,9 @@ def create_conversation_search_tool(provider: ConversationSearchProtocol) -> obj
             min_score=min_score,
             since=since,
             until=until,
+            expand_conversation_id=expand_conversation_id,
+            expand_message_id=expand_message_id,
+            expand_window=expand_window,
         )
         response = await provider.search(request)
         return await format_conversation_search_response(response)

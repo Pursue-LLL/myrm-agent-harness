@@ -864,3 +864,51 @@ class TestHandleMediaRejected:
         mock_fallback.assert_awaited_once()
         assert mock_fallback.await_args is not None
         assert mock_fallback.await_args.kwargs.get("file_content_reader") is reader
+
+    def test_aggregate_historical_image_eviction(self) -> None:
+        """Verify that when no single image exceeds the per-image threshold,
+        _shrink_oversized_images activates aggregate fallback to evict/compress
+        historical images while protecting the latest turn.
+        """
+        # Create a small valid test PNG (< 4MB and <= 2048px)
+        img = Image.new("RGB", (200, 200), color=(255, 0, 0))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        data_url = f"data:image/png;base64,{b64}"
+
+        # Turn 1: Historical message with image
+        msg1 = HumanMessage(
+            content=[
+                {"type": "text", "text": "First screenshot"},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ]
+        )
+        # Turn 2: Latest message (Focus Window) with image
+        msg2 = HumanMessage(
+            content=[
+                {"type": "text", "text": "Latest screenshot"},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ]
+        )
+
+        messages = [msg1, msg2]
+        # Max dimension is large enough so single-image check passes without shrinking
+        count = _shrink_oversized_images(messages, max_dimension=4096)
+
+        # Aggregate eviction should have triggered on the historical message (msg1)
+        assert count == 1
+
+        # Check msg1 was compressed to WebP or converted to placeholder
+        part1 = msg1.content[1]
+        if part1.get("type") == "image_url":
+            assert "data:image/webp;base64," in part1["image_url"]["url"]
+        else:
+            assert part1.get("type") == "text"
+            assert "[Historical image omitted" in part1.get("text", "")
+
+        # Check msg2 (latest focus round) was untouched
+        part2 = msg2.content[1]
+        assert part2.get("type") == "image_url"
+        assert part2["image_url"]["url"] == data_url
+

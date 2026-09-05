@@ -204,6 +204,7 @@ def create_memory_tools(
         until: str | None = None,
         expand_conversation_id: str | None = None,
         expand_message_id: str | None = None,
+        expand_window: int = 5,
     ) -> str | dict[str, object]:
         """Search long-term memory."""
         if profile_key:
@@ -267,6 +268,7 @@ def create_memory_tools(
                     until=parsed_until,
                     expand_conversation_id=expand_conversation_id,
                     expand_message_id=expand_message_id,
+                    expand_window=expand_window,
                     timeout_seconds=timeout_seconds,
                 )
                 session_text, session_sources = unpack_corpus_tool_result(session_result)

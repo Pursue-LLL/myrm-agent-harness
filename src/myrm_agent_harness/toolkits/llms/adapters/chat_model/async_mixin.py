@@ -255,10 +255,24 @@ class ChatLiteLLMAsyncMixin:
                 else:
                     logger.error(f" Empty choices after {max_attempts} attempts.")
             except Exception as e:
+                from myrm_agent_harness.agent.context_management.pipeline.processors.media_budget_governor import (
+                    CumulativeImageBudgetGovernor,
+                )
                 from myrm_agent_harness.toolkits.llms.errors.classifier import (
                     is_context_overflow,
+                    is_payload_overflow,
                     parse_available_output_tokens_from_error,
                 )
+
+                if is_payload_overflow(e) and attempt < max_attempts - 1:
+                    evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
+                        message_dicts, target_bytes=4 * 1024 * 1024
+                    )
+                    if evicted > 0:
+                        logger.warning(
+                            f" Payload overflow 400/413 intercepted: evicted {evicted} historical images, retrying (attempt {attempt + 1})"
+                        )
+                        continue
 
                 if is_context_overflow(e):
                     available = parse_available_output_tokens_from_error(e)
@@ -487,6 +501,7 @@ class ChatLiteLLMAsyncMixin:
                 )
                 from myrm_agent_harness.toolkits.llms.errors.classifier import (
                     is_context_overflow,
+                    is_payload_overflow,
                     parse_available_output_tokens_from_error,
                 )
 
@@ -495,6 +510,20 @@ class ChatLiteLLMAsyncMixin:
                     if stripped:
                         logger.warning(
                             f" Gateway streaming rejected params {stripped}, retrying without them (attempt {attempt + 1})"
+                        )
+                        continue
+
+                from myrm_agent_harness.agent.context_management.pipeline.processors.media_budget_governor import (
+                    CumulativeImageBudgetGovernor,
+                )
+
+                if is_payload_overflow(e) and attempt < max_attempts - 1:
+                    evicted = CumulativeImageBudgetGovernor.emergency_evict_from_message_dicts(
+                        message_dicts, target_bytes=4 * 1024 * 1024
+                    )
+                    if evicted > 0:
+                        logger.warning(
+                            f" Streaming payload overflow 400/413 intercepted: evicted {evicted} historical images, retrying (attempt {attempt + 1})"
                         )
                         continue
 

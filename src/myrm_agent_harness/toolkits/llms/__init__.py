@@ -9,6 +9,7 @@ if TYPE_CHECKING:
         classify_error,
         extract_retry_after,
         is_context_overflow,
+        is_payload_overflow,
     )
     from .errors.resilient import resilient_llm_call
     from .fallback import FallbackModel, ManagedLLM, ScenarioType
@@ -25,6 +26,7 @@ __all__ = [
     "create_litellm_model",
     "extract_retry_after",
     "is_context_overflow",
+    "is_payload_overflow",
     "llm_manager",
     "resilient_llm_call",
 ]
@@ -65,6 +67,10 @@ _LAZY_IMPORTS = {
     "is_context_overflow": (
         "myrm_agent_harness.toolkits.llms.errors.classifier",
         "is_context_overflow",
+    ),
+    "is_payload_overflow": (
+        "myrm_agent_harness.toolkits.llms.errors.classifier",
+        "is_payload_overflow",
     ),
     "resilient_llm_call": (
         "myrm_agent_harness.toolkits.llms.errors.resilient",

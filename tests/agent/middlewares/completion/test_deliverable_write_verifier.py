@@ -260,3 +260,27 @@ class TestCheckUnwrittenDeliverables:
         assert len(items) == 1
         assert items[0].language == "json"
 
+    def test_filename_hint_inferred_from_preceding_markdown_header(self) -> None:
+        response_text = (
+            "我为你编写了网关路由服务：\n\n"
+            "### 1. 核心网关服务 `src/gateway/server.py`\n\n"
+            "```python\n"
+            "import asyncio\n"
+            "from fastapi import FastAPI\n\n"
+            "app = FastAPI()\n\n"
+            "@app.get('/health')\n"
+            "async def health_check():\n"
+            "    return {'status': 'healthy'}\n"
+            "```\n"
+        )
+        reason, items = check_unwritten_deliverables(
+            content=response_text,
+            records=[],
+            latest_user_text="请实现网关服务并保存到项目",
+        )
+        assert reason is not None
+        assert len(items) == 1
+        assert items[0].filename_hint == "src/gateway/server.py"
+        assert items[0].suggested_ext == ".py"
+
+

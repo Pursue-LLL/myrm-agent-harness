@@ -153,7 +153,7 @@ def has_successful_file_write_calls(records: list[CallRecord]) -> bool:
     return False
 
 
-def _extract_filename_hint(code_body: str) -> str | None:
+def _extract_filename_hint(code_body: str, preceding_text: str | None = None) -> str | None:
     lines = code_body.strip().splitlines()
     for line in lines[:3]:
         line_clean = line.strip()
@@ -161,6 +161,22 @@ def _extract_filename_hint(code_body: str) -> str | None:
             match = pattern.search(line_clean)
             if match:
                 return match.group(1).strip()
+
+    if preceding_text:
+        # Check last 3 lines preceding the code block for markdown headers or path hints
+        pre_lines = [l.strip() for l in preceding_text.strip().splitlines() if l.strip()]
+        for line in reversed(pre_lines[-3:]):
+            for pattern in _FILENAME_HINT_PATTERNS:
+                match = pattern.search(line)
+                if match:
+                    return match.group(1).strip()
+            # Also check markdown header path like `### 1. app/server.py` or `**config.yaml**`
+            header_match = re.search(r"[`*#\s]*([a-zA-Z0-9_\-./]+\.(?:py|ts|tsx|js|jsx|html|css|sh|sql|json|yaml|yml|md|csv))\b", line)
+            if header_match:
+                candidate = header_match.group(1).strip()
+                if not candidate.startswith(("http:", "https:", "www.")):
+                    return candidate
+
     return None
 
 
@@ -203,7 +219,9 @@ def detect_unwritten_deliverables(
         if raw_lang in ("bash", "sh", "shell", "zsh") and _is_bash_command_snippet(lines):
             continue
 
-        filename_hint = _extract_filename_hint(body)
+        # Extract pre-match window for markdown headers like `### 1. app/server.py`
+        preceding_text = text[: match.start()]
+        filename_hint = _extract_filename_hint(body, preceding_text=preceding_text)
         suggested_ext = _LANG_TO_EXT_MAP.get(raw_lang, ".txt")
         is_code = raw_lang not in ("markdown", "md", "csv", "json", "yaml", "yml")
 
@@ -216,10 +234,10 @@ def detect_unwritten_deliverables(
         elif not is_code and is_explicit_deliverable:
             # Structured data (csv, json, yaml) under explicit deliverable intent:
             # Wide tables or compact JSON configs might have fewer lines but substantial payload
-            is_substantive = line_count >= 10 or (line_count >= 5 and byte_count >= 250)
+            is_substantive = line_count >= 10 or (line_count >= 5 and byte_count >= 180)
         elif not is_code:
             # Standard structured data deliverable
-            is_substantive = line_count >= 14 or (line_count >= 6 and byte_count >= 350)
+            is_substantive = line_count >= 14 or (line_count >= 6 and byte_count >= 280)
         elif is_explicit_deliverable:
             # User specifically requested writing/implementing a code artifact
             is_substantive = line_count >= 12

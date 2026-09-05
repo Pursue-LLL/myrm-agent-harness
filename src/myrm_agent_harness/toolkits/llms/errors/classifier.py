@@ -269,6 +269,19 @@ _IMAGE_TOO_LARGE_RE = re.compile(
     re.IGNORECASE,
 )
 
+_PAYLOAD_TOO_LARGE_RE = re.compile(
+    r"payload too large"
+    r"|request entity too large"
+    r"|request body too large"
+    r"|entity too large"
+    r"|client_max_body_size"
+    r"|exceeded the maximum request size"
+    r"|request size exceeds"
+    r"|exceeds.+maximum.+request.+size"
+    r"|maximum payload size exceeded",
+    re.IGNORECASE,
+)
+
 _LONG_CONTEXT_TIER_RE = re.compile(
     r"extra usage.+(?:required|needed).+long context",
     re.IGNORECASE,
@@ -487,6 +500,20 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
 def is_context_overflow(exc: Exception) -> bool:
     """Return ``True`` if *exc* signals a context-window overflow."""
     return classify_error(exc) == ErrorKind.CONTEXT_OVERFLOW
+
+
+def is_payload_overflow(exc: Exception) -> bool:
+    """Return ``True`` if *exc* indicates HTTP 413 or Payload/Request/Entity Too Large."""
+    normalized = normalize_provider_error(exc)
+    if normalized.status_code == 413:
+        return True
+    msg = normalized.message.lower()
+    if _PAYLOAD_TOO_LARGE_RE.search(msg) or _IMAGE_TOO_LARGE_RE.search(msg):
+        return True
+    if "413" in msg and ("payload" in msg or "entity" in msg or "too large" in msg):
+        return True
+    reason = classify_failover_reason(exc)
+    return reason == FailoverReason.IMAGE_TOO_LARGE
 
 
 def extract_retry_after(exc: Exception) -> float | None:

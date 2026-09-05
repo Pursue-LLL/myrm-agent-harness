@@ -470,6 +470,12 @@ def _shrink_oversized_images(
     a pixel-correct downscale is accepted even if its bytes grew (PNG
     re-encode can increase bytes).
 
+    If no single image exceeds the individual thresholds (e.g. multiple legal
+    ~2MB images whose sum exceeds an external proxy gateway's body limit),
+    automatically activates Tier 2 aggregate eviction: degrades older historical
+    images to 512px WebP thumbnails or semantic text placeholders, preserving
+    the latest focus round.
+
     Returns the number of images actually replaced.  Returns 0 if any image
     was oversized but could not be shrunk (unshrinkable), because retrying
     would re-send the same rejected payload.
@@ -553,7 +559,82 @@ def _shrink_oversized_images(
         )
         return 0
 
+    # Tier 2 Aggregate Fallback: If no single image was oversized individually
+    # but the provider/gateway rejected the request with IMAGE_TOO_LARGE or 413,
+    # perform aggregate progressive downsampling on older historical images.
+    if shrunk_count == 0 and len(messages) > 1:
+        shrunk_count = _evict_aggregate_historical_images(messages)
+
     return shrunk_count
+
+
+def _evict_aggregate_historical_images(messages: list[BaseMessage]) -> int:
+    """Progressively compress or placeholder older images when aggregate payload overflows.
+
+    Protects the latest message (Focus Window) and downsamples historical base64
+    images to 512px WebP (quality 0.5) to clear gateway payload restrictions.
+    """
+    import base64
+    import io
+
+    from myrm_agent_harness.utils.image_utils import (
+        estimate_base64_byte_size,
+        is_base64_data_url,
+    )
+    from myrm_agent_harness.utils.media.image_compressor import ImageCompressor
+
+    compressor = ImageCompressor()
+    evicted_count = 0
+
+    # Protect the latest message turn (last message in sequence)
+    target_messages = messages[:-1]
+
+    for msg in target_messages:
+        content = getattr(msg, "content", None)
+        if not isinstance(content, list):
+            continue
+        for idx, part in enumerate(content):
+            if not isinstance(part, dict) or part.get("type") != "image_url":
+                continue
+            image_url = part.get("image_url")
+            if not isinstance(image_url, dict):
+                continue
+            url = image_url.get("url", "")
+            if not isinstance(url, str) or not is_base64_data_url(url):
+                continue
+
+            try:
+                b64_data = url.split(";base64,", 1)[1]
+                raw_bytes = base64.b64decode(b64_data)
+                original_size = estimate_base64_byte_size(url)
+
+                compressed = compressor.compress(
+                    io.BytesIO(raw_bytes),
+                    quality=0.5,
+                    max_dimension=512,
+                )
+                if compressed and len(compressed) < original_size:
+                    new_b64 = base64.b64encode(compressed).decode("ascii")
+                    image_url["url"] = f"data:image/webp;base64,{new_b64}"
+                    evicted_count += 1
+                else:
+                    # If compression yields no gain, replace with semantic placeholder
+                    part.clear()
+                    part.update({
+                        "type": "text",
+                        "text": f"[Historical image omitted to reduce aggregate payload: {original_size // 1024}KB]",
+                    })
+                    evicted_count += 1
+            except Exception as evict_err:
+                logger.warning("[_evict_aggregate] Fallback eviction failed: %s", evict_err)
+
+    if evicted_count > 0:
+        logger.info(
+            "[_evict_aggregate] Successfully compressed/evicted %d historical image(s) for aggregate recovery",
+            evicted_count,
+        )
+
+    return evicted_count
 
 
 def _decode_image_dimensions(data_url: str) -> tuple[int, int] | None:

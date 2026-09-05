@@ -212,3 +212,41 @@ async def test_conversation_search_tool_with_degraded_index_notice() -> None:
     assert isinstance(result, dict)
     content = str(result.get("content", ""))
     assert "[Notice: Conversation index is currently rebuilding or degraded; coverage may be partial]" in content
+
+
+@pytest.mark.asyncio
+async def test_conversation_search_tool_expanded_view_preserves_long_content() -> None:
+    long_content = "Step " + ("x" * 2000) + " end of detailed context"
+    class ExpandProvider:
+        async def search(self, request: ConversationSearchRequest) -> ConversationSearchResponse:
+            assert request.expand_conversation_id == "chat-1"
+            assert request.expand_message_id == "msg-1"
+            return ConversationSearchResponse(
+                mode="search",
+                query="",
+                hits=[
+                    ConversationSearchHit(
+                        conversation_id="chat-1",
+                        title="Deployment plan",
+                        snippet=long_content,
+                        summary=None,
+                        score=1.0,
+                        source="conversation_index",
+                        message_id="msg-1",
+                    )
+                ],
+            )
+
+    provider = ExpandProvider()
+    search_tool = create_conversation_search_tool(provider)
+    result = await search_tool.ainvoke({
+        "query": "",
+        "expand_conversation_id": "chat-1",
+        "expand_message_id": "msg-1",
+    })
+
+    assert isinstance(result, dict)
+    content = str(result.get("content", ""))
+    assert "end of detailed context" in content
+    assert len(content) > 1500
+

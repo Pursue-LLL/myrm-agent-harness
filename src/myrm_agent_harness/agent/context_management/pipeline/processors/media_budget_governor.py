@@ -237,6 +237,75 @@ class CumulativeImageBudgetGovernor:
 
         return downsampled_count, textified_count
 
+    @classmethod
+    def emergency_evict_from_message_dicts(
+        cls,
+        message_dicts: list[dict[str, Any]],
+        target_bytes: int = 5 * 1024 * 1024,
+    ) -> int:
+        """Synchronously evict and textify historical images in raw dict messages.
+
+        Designed for in-flight 400/413 Payload Too Large recovery in adapter mixins.
+        Processes from oldest message to newest message, protecting the last message
+        (current turn) whenever possible.
+
+        Returns the number of image entries replaced with text summaries.
+        """
+        evicted_count = 0
+        total_bytes = 0
+        image_entries: list[tuple[int, int, dict[str, Any], int]] = []
+
+        for m_idx, msg in enumerate(message_dicts):
+            content = msg.get("content")
+            if not isinstance(content, list):
+                continue
+            for c_idx, part in enumerate(content):
+                if not isinstance(part, dict):
+                    continue
+                url = ""
+                if part.get("type") == "image_url" and isinstance(part.get("image_url"), dict):
+                    url = part["image_url"].get("url", "")
+                elif part.get("type") == "image" and isinstance(part.get("source"), dict):
+                    data = part["source"].get("data", "")
+                    media_type = part["source"].get("media_type", "image/png")
+                    url = f"data:{media_type};base64,{data}"
+
+                if is_base64_data_url(url):
+                    size = estimate_base64_byte_size(url)
+                    total_bytes += size
+                    image_entries.append((m_idx, c_idx, part, size))
+
+        if not image_entries or total_bytes <= target_bytes:
+            return 0
+
+        # Protect the last message turn if there are multiple turns with images
+        last_m_idx = max(m_idx for m_idx, _, _, _ in image_entries)
+        candidates = [e for e in image_entries if e[0] < last_m_idx]
+        if not candidates:
+            # If all images are in the last turn, evict from oldest image entry in that turn
+            candidates = image_entries[:-1] if len(image_entries) > 1 else image_entries
+
+        for m_idx, c_idx, part, size in candidates:
+            if total_bytes <= target_bytes:
+                break
+
+            msg_content = message_dicts[m_idx]["content"]
+            msg_content[c_idx] = {
+                "type": "text",
+                "text": f"[Historical Image omitted: payload reduced {size // 1024}KB to recover from gateway limit]",
+            }
+            total_bytes -= size
+            evicted_count += 1
+
+        if evicted_count > 0:
+            logger.warning(
+                "[MediaBudgetGovernor] Emergency evicted %d images, reduced payload to %d bytes",
+                evicted_count,
+                total_bytes,
+            )
+
+        return evicted_count
+
 
 class MediaBudgetGovernorProcessor(BaseProcessor):
     """ContextPipeline processor enforcing cumulative multi-turn image payload budgets."""
