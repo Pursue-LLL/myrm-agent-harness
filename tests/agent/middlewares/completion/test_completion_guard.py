@@ -224,6 +224,7 @@ class TestCompletionGuardTriggerConditions:
     @pytest.mark.asyncio
     async def test_blocks_when_long_code_lines_without_write(self) -> None:
         """Substantial code deliverable without write calls should be blocked."""
+        code_lines = "\n".join(f"line_{i} = {i} * 2" for i in range(40))
         msg_content = f"Here is the complete implementation:\n```python\n# filename: app.py\n{code_lines}\n```"
         state = _make_state(
             [

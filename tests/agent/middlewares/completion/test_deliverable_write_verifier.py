@@ -159,6 +159,18 @@ class TestCheckUnwrittenDeliverables:
         assert items == []
         assert check_unwritten_deliverable(content=code, records=[_record("file_write_tool")]) is None
 
+    def test_with_failed_write_call_blocks(self) -> None:
+        code = "```python\n# filename: script.py\nprint('hello')\nprint('world')\nprint('test')\nprint('more')\nprint('lines')\n```"
+        # If write tool failed with FAILURE level, it must not be considered a successful write
+        failed_record = _record("file_write_tool", level=SuccessLevel.FAILURE)
+        reason, items = check_unwritten_deliverables(
+            content=code,
+            records=[failed_record],
+        )
+        assert reason is not None
+        assert "Substantial unpersisted deliverables detected" in reason
+        assert len(items) == 1
+
     def test_without_write_returns_reason_and_items(self) -> None:
         code = "```python\n# filename: script.py\nprint('hello')\nprint('world')\nprint('test')\nprint('more')\nprint('lines')\n```"
         reason, items = check_unwritten_deliverables(
@@ -172,3 +184,38 @@ class TestCheckUnwrittenDeliverables:
 
         single_reason = check_unwritten_deliverable(content=code, records=[])
         assert single_reason == reason
+
+    def test_multiple_code_blocks_aggregated(self) -> None:
+        code_1 = "```python\n# filename: a.py\nprint(1)\nprint(2)\nprint(3)\nprint(4)\nprint(5)\n```"
+        code_2 = "```typescript\n// filename: b.ts\nconst x = 1;\nconst y = 2;\nconst z = 3;\nconst w = 4;\nconst v = 5;\n```"
+        content = f"Here are two files:\n{code_1}\nand\n{code_2}"
+        reason, items = check_unwritten_deliverables(
+            content=content,
+            records=[],
+        )
+        assert reason is not None
+        assert len(items) == 2
+        assert items[0].filename_hint == "a.py"
+        assert items[1].filename_hint == "b.ts"
+        assert "a.py" in reason
+        assert "b.ts" in reason
+
+    def test_pedagogical_with_full_executable_structure_detected(self) -> None:
+        # If user asks educational question, but assistant produces a huge 30-line full entrypoint file,
+        # it should be recognized as a substantive deliverable.
+        full_app_lines = [f"line_{i} = {i}" for i in range(25)]
+        code = (
+            "```python\n"
+            + "\n".join(full_app_lines)
+            + "\nif __name__ == '__main__':\n"
+            + "    print('run')\n"
+            + "```"
+        )
+        reason, items = check_unwritten_deliverables(
+            content=code,
+            records=[],
+            latest_user_text="请解释一下 Python 程序的结构是什么原理？",
+        )
+        assert reason is not None
+        assert len(items) == 1
+        assert items[0].language == "python"
