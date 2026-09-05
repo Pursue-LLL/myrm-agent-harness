@@ -119,6 +119,18 @@ def is_irreversible_social_action(tool_name: str, args: dict[str, object] | None
                             break
                         if tokens[sub_idx] == "upload":
                             return True
+                if token in ("docker", "podman"):
+                    for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                        if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                            break
+                        if tokens[sub_idx] == "push":
+                            return True
+                if token == "gh":
+                    for sub_idx in range(idx + 1, min(idx + 8, len(tokens))):
+                        if tokens[sub_idx] in (";", "&&", "||", "|", "&"):
+                            break
+                        if tokens[sub_idx] in ("release", "pr") and sub_idx + 1 < len(tokens) and tokens[sub_idx + 1] in ("create", "merge"):
+                            return True
 
     return False
 
