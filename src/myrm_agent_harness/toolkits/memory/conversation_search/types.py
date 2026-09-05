@@ -129,3 +129,4 @@ class ConversationSearchResponse(BaseModel):
     coverage: ConversationIndexCoverage | None = Field(default=None, description="Index coverage report if available")
     relaxed: bool = Field(default=False, description="True if query fell back to relaxed CJK token matching")
     query_tokens: list[str] = Field(default_factory=list, description="Effective tokens used for full-text search")
+    recall_debug: dict[str, object] | None = Field(default=None, description="Multi-source RRF recall debug stats if available")
