@@ -174,6 +174,7 @@ __all__ = [
     "build_cjk_index_segment",
     "build_cjk_query_tokens",
     "build_cjk_query_token_tiers",
+    "CjkFtsQueryPlanner",
     "fuse_rrf_deterministic",
     "RankedList",
     "FusedHit",
@@ -221,6 +222,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ComplianceViolation": (
         "myrm_agent_harness.runtime.diagnostics.compliance",
         "ComplianceViolation",
+    ),
+    "CjkFtsQueryPlanner": (
+        "myrm_agent_harness.utils.db.fts5",
+        "CjkFtsQueryPlanner",
     ),
     "ConfidenceEvolutionEngine": (
         "myrm_agent_harness.toolkits.memory.strategies.merger",
@@ -700,6 +705,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "build_cjk_query_token_tiers": (
         "myrm_agent_harness.toolkits.retriever.cjk_tokenizer",
         "build_cjk_query_token_tiers",
+    ),
+    "CjkFtsQueryPlanner": (
+        "myrm_agent_harness.utils.db.fts5",
+        "CjkFtsQueryPlanner",
     ),
     "fuse_rrf_deterministic": (
         "myrm_agent_harness.toolkits.retriever.fusion_strategies",
