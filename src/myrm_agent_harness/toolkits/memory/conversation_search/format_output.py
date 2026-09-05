@@ -59,10 +59,18 @@ async def format_conversation_search_response(
 
     if not response.hits:
         if response.mode == "recent":
-            msg = f"{notice}\nNo previous conversations found." if notice else "No previous conversations found."
+            msg = (
+                f"{notice}\nNo previous conversations found."
+                if notice
+                else "No previous conversations found."
+            )
             return pack_tool_result_with_sources(msg, [])
         if response.rejected_reason:
-            msg = f"{notice}\n{response.rejected_reason}" if notice else response.rejected_reason
+            msg = (
+                f"{notice}\n{response.rejected_reason}"
+                if notice
+                else response.rejected_reason
+            )
             return pack_tool_result_with_sources(msg, [])
         msg = (
             f"{notice}\nNo matching conversations found in indexed history."
@@ -100,7 +108,9 @@ async def format_conversation_search_response(
         sources.append(source_ref(hit, is_expanded=is_expanded_view))
 
     if truncated:
-        lines.append("[conversation_search_budget] Results were truncated. Refine the query for more detail.")
+        lines.append(
+            "[conversation_search_budget] Results were truncated. Refine the query for more detail."
+        )
 
     body = finalize_recall_tool_output("\n\n".join(lines))
     return pack_tool_result_with_sources(body, sources)

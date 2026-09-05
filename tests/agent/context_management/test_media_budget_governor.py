@@ -204,10 +204,10 @@ class TestMediaBudgetGovernorProcessor:
         assert proc.name == "media_budget_governor"
 
     @pytest.mark.asyncio
-    async def test_processor_should_process_false_on_empty(self) -> None:
+    async def test_processor_should_process_always_true(self) -> None:
         proc = MediaBudgetGovernorProcessor()
         ctx = ProcessorContext(messages=[], user_query="hello")
-        assert await proc.should_process(ctx) is False
+        assert await proc.should_process(ctx) is True
 
 
 class TestMediaBudgetGovernorEdgeCases:
@@ -216,11 +216,16 @@ class TestMediaBudgetGovernorEdgeCases:
     @pytest.mark.asyncio
     async def test_tier4_focus_window_safety_net(self) -> None:
         """When images are only in focus window and exceed budget, Tier 4 activates."""
-        # Single turn with 2 large images (>250KB each)
-        img1 = _make_dummy_base64_image(width=1200, height=1200)
-        img2 = _make_dummy_base64_image(width=1200, height=1200)
+        import os
+        # Single turn with 2 genuinely large images (>300KB each via random noise)
+        raw_noise = os.urandom(600 * 600 * 3)
+        img = Image.frombytes("RGB", (600, 600), raw_noise)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=95)
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        img1 = f"data:image/jpeg;base64,{b64}"
+        img2 = img1
         size1 = estimate_base64_byte_size(img1)
-        size2 = estimate_base64_byte_size(img2)
 
         # Budget is lower than total focus payload
         gov = CumulativeImageBudgetGovernor(
@@ -282,3 +287,20 @@ class TestMediaBudgetGovernorEdgeCases:
         assert evicted >= 1
         part = message_dicts[0]["content"][0]
         assert part["type"] in ("image", "text")
+
+    def test_emergency_evict_base_messages_direct(self) -> None:
+        raw = b"C" * (300 * 1024)
+        b64 = base64.b64encode(raw).decode("ascii")
+        url = f"data:image/png;base64,{b64}"
+        msgs: list[BaseMessage] = [
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": url}},
+                    {"type": "image_url", "image_url": {"url": url}},
+                ]
+            )
+        ]
+        evicted = CumulativeImageBudgetGovernor.emergency_evict(
+            msgs, target_bytes=50 * 1024, force_shrink=True
+        )
+        assert evicted >= 1

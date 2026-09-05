@@ -20,7 +20,9 @@ from typing import TYPE_CHECKING
 from langchain_core.tools import tool
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from myrm_agent_harness.toolkits.memory.conversation_search.format_output import format_conversation_search_response
+from myrm_agent_harness.toolkits.memory.conversation_search.format_output import (
+    format_conversation_search_response,
+)
 from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     CONVERSATION_SEARCH_TOOL_NAME,
     DEFAULT_CONVERSATION_SEARCH_LIMIT,
@@ -32,7 +34,9 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.memory.protocols.conversation_search import ConversationSearchProtocol
+    from myrm_agent_harness.toolkits.memory.protocols.conversation_search import (
+        ConversationSearchProtocol,
+    )
 
 
 class ConversationSearchInput(BaseModel):
@@ -47,7 +51,11 @@ class ConversationSearchInput(BaseModel):
         ),
         max_length=500,
     )
-    limit: int = Field(default=DEFAULT_CONVERSATION_SEARCH_LIMIT, ge=1, le=MAX_CONVERSATION_SEARCH_LIMIT)
+    limit: int = Field(
+        default=DEFAULT_CONVERSATION_SEARCH_LIMIT,
+        ge=1,
+        le=MAX_CONVERSATION_SEARCH_LIMIT,
+    )
     mode: ConversationSearchMode | None = Field(
         default=None,
         description="Optional mode: 'search' or 'recent'. Empty query and '*' automatically use recent mode.",

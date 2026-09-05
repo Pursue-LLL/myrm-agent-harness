@@ -17,7 +17,9 @@ class FakeConversationSearchProvider:
     def __init__(self) -> None:
         self.requests: list[ConversationSearchRequest] = []
 
-    async def search(self, request: ConversationSearchRequest) -> ConversationSearchResponse:
+    async def search(
+        self, request: ConversationSearchRequest
+    ) -> ConversationSearchResponse:
         self.requests.append(request)
         if not request.query:
             return ConversationSearchResponse(
@@ -139,7 +141,9 @@ def test_conversation_search_input_rejects_extra_fields() -> None:
 @pytest.mark.asyncio
 async def test_conversation_search_tool_with_partial_coverage_notice() -> None:
     class PartialCoverageProvider:
-        async def search(self, request: ConversationSearchRequest) -> ConversationSearchResponse:
+        async def search(
+            self, request: ConversationSearchRequest
+        ) -> ConversationSearchResponse:
             return ConversationSearchResponse(
                 mode="search",
                 query=request.query,
@@ -158,14 +162,19 @@ async def test_conversation_search_tool_with_partial_coverage_notice() -> None:
 
     assert isinstance(result, dict)
     content = str(result.get("content", ""))
-    assert "[Notice: Conversation search covered 15/20 sessions (75.0%); 5 sessions pending index]" in content
+    assert (
+        "[Notice: Conversation search covered 15/20 sessions (75.0%); 5 sessions pending index]"
+        in content
+    )
     assert "No matching conversations found in indexed history." in content
 
 
 @pytest.mark.asyncio
 async def test_conversation_search_tool_with_full_coverage_quiet() -> None:
     class FullCoverageProvider:
-        async def search(self, request: ConversationSearchRequest) -> ConversationSearchResponse:
+        async def search(
+            self, request: ConversationSearchRequest
+        ) -> ConversationSearchResponse:
             return ConversationSearchResponse(
                 mode="search",
                 query=request.query,
@@ -191,7 +200,9 @@ async def test_conversation_search_tool_with_full_coverage_quiet() -> None:
 @pytest.mark.asyncio
 async def test_conversation_search_tool_with_degraded_index_notice() -> None:
     class DegradedProvider:
-        async def search(self, request: ConversationSearchRequest) -> ConversationSearchResponse:
+        async def search(
+            self, request: ConversationSearchRequest
+        ) -> ConversationSearchResponse:
             return ConversationSearchResponse(
                 mode="search",
                 query=request.query,
@@ -211,14 +222,20 @@ async def test_conversation_search_tool_with_degraded_index_notice() -> None:
 
     assert isinstance(result, dict)
     content = str(result.get("content", ""))
-    assert "[Notice: Conversation index is currently rebuilding or degraded; coverage may be partial]" in content
+    assert (
+        "[Notice: Conversation index is currently rebuilding or degraded; coverage may be partial]"
+        in content
+    )
 
 
 @pytest.mark.asyncio
 async def test_conversation_search_tool_expanded_view_preserves_long_content() -> None:
     long_content = "Step " + ("x" * 2000) + " end of detailed context"
+
     class ExpandProvider:
-        async def search(self, request: ConversationSearchRequest) -> ConversationSearchResponse:
+        async def search(
+            self, request: ConversationSearchRequest
+        ) -> ConversationSearchResponse:
             assert request.expand_conversation_id == "chat-1"
             assert request.expand_message_id == "msg-1"
             return ConversationSearchResponse(
@@ -239,11 +256,13 @@ async def test_conversation_search_tool_expanded_view_preserves_long_content() -
 
     provider = ExpandProvider()
     search_tool = create_conversation_search_tool(provider)
-    result = await search_tool.ainvoke({
-        "query": "",
-        "expand_conversation_id": "chat-1",
-        "expand_message_id": "msg-1",
-    })
+    result = await search_tool.ainvoke(
+        {
+            "query": "",
+            "expand_conversation_id": "chat-1",
+            "expand_message_id": "msg-1",
+        }
+    )
 
     assert isinstance(result, dict)
     content = str(result.get("content", ""))
@@ -254,11 +273,15 @@ async def test_conversation_search_tool_expanded_view_preserves_long_content() -
 
 
 @pytest.mark.asyncio
-async def test_conversation_search_tool_expand_window_parameter_and_tip_behavior() -> None:
+async def test_conversation_search_tool_expand_window_parameter_and_tip_behavior() -> (
+    None
+):
     captured_window: list[int] = []
 
     class WindowVerifyProvider:
-        async def search(self, request: ConversationSearchRequest) -> ConversationSearchResponse:
+        async def search(
+            self, request: ConversationSearchRequest
+        ) -> ConversationSearchResponse:
             captured_window.append(request.expand_window)
             return ConversationSearchResponse(
                 mode="search",
@@ -278,12 +301,14 @@ async def test_conversation_search_tool_expand_window_parameter_and_tip_behavior
 
     provider = WindowVerifyProvider()
     search_tool = create_conversation_search_tool(provider)
-    result = await search_tool.ainvoke({
-        "query": "",
-        "expand_conversation_id": "chat-2",
-        "expand_message_id": "msg-2",
-        "expand_window": 8,
-    })
+    result = await search_tool.ainvoke(
+        {
+            "query": "",
+            "expand_conversation_id": "chat-2",
+            "expand_message_id": "msg-2",
+            "expand_window": 8,
+        }
+    )
 
     assert captured_window == [8]
     assert isinstance(result, dict)
@@ -294,9 +319,13 @@ async def test_conversation_search_tool_expand_window_parameter_and_tip_behavior
 
 
 @pytest.mark.asyncio
-async def test_conversation_search_tool_recent_mode_does_not_trigger_expanded_view() -> None:
+async def test_conversation_search_tool_recent_mode_does_not_trigger_expanded_view() -> (
+    None
+):
     class RecentSingleHitProvider:
-        async def search(self, request: ConversationSearchRequest) -> ConversationSearchResponse:
+        async def search(
+            self, request: ConversationSearchRequest
+        ) -> ConversationSearchResponse:
             return ConversationSearchResponse(
                 mode="recent",
                 query="",
@@ -325,5 +354,3 @@ async def test_conversation_search_tool_recent_mode_does_not_trigger_expanded_vi
     assert len(content) < 1200
     # And tip should be present because it's not expanded view and has message_id
     assert "tip: pass expand_conversation_id='chat-recent'" in content
-
-

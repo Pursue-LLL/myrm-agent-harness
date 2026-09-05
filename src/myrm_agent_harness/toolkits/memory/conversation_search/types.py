@@ -110,11 +110,21 @@ class ConversationIndexCoverage(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    total_conversations: int = Field(default=0, ge=0, description="Total conversations in canonical store")
-    indexed_conversations: int = Field(default=0, ge=0, description="Conversations indexed in FTS/vector index")
-    coverage_ratio: float = Field(default=1.0, ge=0.0, le=1.0, description="Fraction of indexed conversations")
-    unindexed_recent_count: int = Field(default=0, ge=0, description="Count of unindexed/backfilling conversations")
-    indexing_degraded: bool = Field(default=False, description="True if index is rebuilding or degraded")
+    total_conversations: int = Field(
+        default=0, ge=0, description="Total conversations in canonical store"
+    )
+    indexed_conversations: int = Field(
+        default=0, ge=0, description="Conversations indexed in FTS/vector index"
+    )
+    coverage_ratio: float = Field(
+        default=1.0, ge=0.0, le=1.0, description="Fraction of indexed conversations"
+    )
+    unindexed_recent_count: int = Field(
+        default=0, ge=0, description="Count of unindexed/backfilling conversations"
+    )
+    indexing_degraded: bool = Field(
+        default=False, description="True if index is rebuilding or degraded"
+    )
 
 
 class ConversationSearchResponse(BaseModel):
@@ -127,7 +137,16 @@ class ConversationSearchResponse(BaseModel):
     truncated: bool = False
     query: str = ""
     rejected_reason: str | None = None
-    coverage: ConversationIndexCoverage | None = Field(default=None, description="Index coverage report if available")
-    relaxed: bool = Field(default=False, description="True if query fell back to relaxed CJK token matching")
-    query_tokens: list[str] = Field(default_factory=list, description="Effective tokens used for full-text search")
-    recall_debug: dict[str, object] | None = Field(default=None, description="Multi-source RRF recall debug stats if available")
+    coverage: ConversationIndexCoverage | None = Field(
+        default=None, description="Index coverage report if available"
+    )
+    relaxed: bool = Field(
+        default=False,
+        description="True if query fell back to relaxed CJK token matching",
+    )
+    query_tokens: list[str] = Field(
+        default_factory=list, description="Effective tokens used for full-text search"
+    )
+    recall_debug: dict[str, object] | None = Field(
+        default=None, description="Multi-source RRF recall debug stats if available"
+    )

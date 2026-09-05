@@ -271,7 +271,9 @@ def create_memory_tools(
                     expand_window=expand_window,
                     timeout_seconds=timeout_seconds,
                 )
-                session_text, session_sources = unpack_corpus_tool_result(session_result)
+                session_text, session_sources = unpack_corpus_tool_result(
+                    session_result
+                )
                 aggregated_sources.extend(session_sources)
                 sections.append(f"## Sessions\n{session_text}")
 
@@ -325,9 +327,8 @@ def create_memory_tools(
             record_wiki_memory_save_rejection()
             return wiki_memory_save_rejection_message()
 
-        if (
-            category in ("knowledge", "event")
-            and looks_like_transient_business_fact(content)
+        if category in ("knowledge", "event") and looks_like_transient_business_fact(
+            content
         ):
             record_transient_fact_rejection()
             return transient_fact_save_rejection_message()
@@ -366,7 +367,9 @@ def create_memory_tools(
                         return "Event already exists in session (duplicate detected)"
                     return f"Event buffered (ID: {mem.id})"
                 mem = await manager.add_event(
-                    content, event_type="agent_observation", write_target=effective_write_target
+                    content,
+                    event_type="agent_observation",
+                    write_target=effective_write_target,
                 )
                 return f"Event {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 

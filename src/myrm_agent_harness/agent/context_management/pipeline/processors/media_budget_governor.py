@@ -240,7 +240,7 @@ class CumulativeImageBudgetGovernor:
             for item in focus_items:
                 if total_bytes <= self.max_cumulative_bytes:
                     break
-                if item.byte_size <= 250 * 1024:
+                if item.byte_size <= 4 * 1024:
                     continue
 
                 downsampled_url = await asyncio.to_thread(
