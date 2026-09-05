@@ -15,7 +15,6 @@ from myrm_agent_harness.toolkits.web_search.providers.chain import (
     ProviderQuotaStatus,
     ProviderQuotaTracker,
     _should_stop_chain,
-    search_provider_chain,
 )
 
 
@@ -105,12 +104,13 @@ def test_provider_quota_tracker_workflow() -> None:
 
 def test_browser_run_telemetry_bandwidth_and_watchdog() -> None:
     """测试 BrowserRunTelemetry 带宽度量与看门狗计数"""
+    import time
+
     from myrm_agent_harness.toolkits.browser.observability import (
         BrowserObservability,
         BrowserRunTelemetry,
         RecordingConfig,
     )
-    import time
 
     telemetry = BrowserRunTelemetry()
     telemetry.record_compute(12.5)
@@ -126,6 +126,7 @@ def test_browser_run_telemetry_bandwidth_and_watchdog() -> None:
 
     obs = BrowserObservability(RecordingConfig(), telemetry=telemetry)
     start_time = time.monotonic() - 200.0
+    telemetry.last_activity_time = start_time
     safe = obs.check_action_watchdog(action_start_time=start_time, timeout_seconds=180.0)
     assert safe is False
     assert obs.telemetry.watchdog_tripped_count == 1
