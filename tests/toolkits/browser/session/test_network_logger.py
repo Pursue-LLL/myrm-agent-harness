@@ -704,3 +704,45 @@ class TestNetworkLoggerEdgeCases:
         parts = logger._format_request(req, 1)
 
         assert "[FAIL] Network Error" in " ".join(parts)
+
+    def test_telemetry_chunked_and_post_data_bandwidth_compensation(self):
+        """Test telemetry bandwidth compensation for chunked responses and post_data payloads."""
+        from myrm_agent_harness.toolkits.browser.observability import BrowserRunTelemetry
+
+        telemetry = BrowserRunTelemetry()
+        logger = NetworkLogger(telemetry=telemetry)
+
+        # 1. Standard Content-Length
+        req1 = Mock()
+        req1.resource_type = "xhr"
+        req1.method = "GET"
+        req1.url = "https://example.com/api"
+        req1.post_data = None
+
+        logger._pending[req1] = time.time()
+        res1 = Mock()
+        res1.request = req1
+        res1.status = 200
+        res1.status_text = "OK"
+        res1.headers = {"content-length": "2048"}
+        logger._on_response(res1)
+        assert telemetry.total_bytes_transferred == 2048
+
+        # 2. Chunked transfer encoding without content-length
+        req2 = Mock()
+        req2.resource_type = "fetch"
+        req2.method = "POST"
+        req2.url = "https://example.com/stream"
+        req2.post_data = "hello world payload"
+
+        logger._pending[req2] = time.time()
+        res2 = Mock()
+        res2.request = req2
+        res2.status = 200
+        res2.status_text = "OK"
+        res2.headers = {"transfer-encoding": "chunked", "content-type": "text/event-stream"}
+        logger._on_response(res2)
+
+        # Transferred should include at least baseline 1024 + post_data bytes (19 bytes)
+        assert telemetry.total_bytes_transferred >= 2048 + 1024 + 19
+

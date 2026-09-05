@@ -213,3 +213,44 @@ class TestBrowserObservability:
         # Video should be deleted
         assert not video_file.exists()
         assert obs.video_path is None
+
+    def test_browser_telemetry_and_heartbeat_watchdog(self) -> None:
+        """Test telemetry accumulation and active heartbeat awareness watchdog."""
+        import time
+
+        obs = BrowserObservability(recording_config=RecordingConfig(enabled=False))
+        telemetry = obs.telemetry
+
+        telemetry.record_compute(12.5)
+        telemetry.record_request(success=True, bytes_transferred=4096)
+        telemetry.record_request(success=False, bytes_transferred=0)
+
+        snap = telemetry.snapshot()
+        assert snap["active_compute_seconds"] == 12.5
+        assert snap["total_bytes_transferred"] == 4096
+        assert snap["request_count"] == 2
+        assert snap["failed_request_count"] == 1
+
+        mono_now = time.monotonic()
+        # 1. Total duration within threshold -> Safe
+        assert obs.check_action_watchdog(mono_now - 10.0, timeout_seconds=180.0) is True
+
+        # 2. Total duration > timeout, but active heartbeat within idle threshold -> Safe (eliminates Goodhart false positive)
+        telemetry.last_activity_time = mono_now - 10.0
+        assert (
+            obs.check_action_watchdog(
+                mono_now - 200.0, timeout_seconds=180.0, activity_idle_threshold=60.0
+            )
+            is True
+        )
+
+        # 3. Total duration > timeout AND idle time > threshold -> Trip watchdog (hung infinite loop)
+        telemetry.last_activity_time = mono_now - 80.0
+        assert (
+            obs.check_action_watchdog(
+                mono_now - 200.0, timeout_seconds=180.0, activity_idle_threshold=60.0
+            )
+            is False
+        )
+        assert telemetry.watchdog_tripped_count == 1
+

@@ -207,6 +207,14 @@ class NetworkLogger:
                 cl = response.headers.get("content-length")
                 if cl:
                     bytes_transferred = int(cl)
+                elif response.headers.get("transfer-encoding", "").lower() == "chunked":
+                    # Chunked response compensation: measure header frame size plus baseline slice
+                    header_bytes = sum(len(k) + len(v) + 4 for k, v in response.headers.items())
+                    bytes_transferred = max(header_bytes, 1024)
+                # Upload payload bandwidth compensation
+                if request.post_data:
+                    bytes_transferred += len(request.post_data.encode("utf-8", errors="ignore"))
+
             if self._telemetry is not None:
                 self._telemetry.record_request(
                     success=response.status < 400,

@@ -152,10 +152,19 @@ class TestBrowserRunTelemetry:
         obs.telemetry.record_compute(0.5)
         assert obs.telemetry.active_compute_seconds == 0.5
 
-        # Check action watchdog
+        # Check action watchdog with active heartbeat
         now = time.monotonic()
+        # Normal within duration
         assert obs.check_action_watchdog(now, timeout_seconds=10.0) is True
-        assert obs.check_action_watchdog(now - 20.0, timeout_seconds=10.0) is False
+
+        # Total elapsed > timeout, but active heartbeat is fresh -> Safe, no trip
+        obs.telemetry.last_activity_time = now
+        assert obs.check_action_watchdog(now - 20.0, timeout_seconds=10.0, activity_idle_threshold=5.0) is True
+
+        # Total elapsed > timeout AND idle > threshold -> Tripped!
+        obs.telemetry.last_activity_time = now - 10.0
+        assert obs.check_action_watchdog(now - 20.0, timeout_seconds=10.0, activity_idle_threshold=5.0) is False
+        assert obs.telemetry.watchdog_tripped_count == 1
 
         # Task status & cleanup
         obs.mark_task_status(success=True)
@@ -199,3 +208,32 @@ class TestBrowserRunTelemetry:
 
         assert telemetry.request_count == 1
         assert telemetry.total_bytes_transferred == 0
+
+    def test_network_logger_chunked_transfer_compensation(self) -> None:
+        """Verify NetworkLogger estimates bandwidth for Chunked responses missing Content-Length."""
+        telemetry = BrowserRunTelemetry()
+        logger = NetworkLogger(telemetry=telemetry)
+
+        mock_req = MagicMock()
+        mock_req.method = "POST"
+        mock_req.url = "https://test.local/stream"
+        mock_req.resource_type = "fetch"
+        mock_req.post_data = "request-body-payload"
+
+        mock_resp = MagicMock()
+        mock_resp.request = mock_req
+        mock_resp.status = 200
+        mock_resp.status_text = "OK"
+        mock_resp.headers = {
+            "transfer-encoding": "chunked",
+            "server": "nginx",
+        }
+
+        logger._on_request(mock_req)
+        logger._on_response(mock_resp)
+
+        assert telemetry.request_count == 1
+        # Should record chunked header estimate plus post_data payload length
+        expected_bytes = 1024 + len("request-body-payload".encode("utf-8"))
+        assert telemetry.total_bytes_transferred == expected_bytes
+        assert telemetry.last_activity_time > 0.0

@@ -71,6 +71,7 @@ class BrowserRunTelemetry:
     failed_request_count: int = 0
     page_count: int = 0
     watchdog_tripped_count: int = 0
+    last_activity_time: float = field(default_factory=time.monotonic)
 
     @property
     def total_duration_seconds(self) -> float:
@@ -78,13 +79,19 @@ class BrowserRunTelemetry:
         current = self.end_time if self.end_time is not None else time.time()
         return max(0.0, current - self.start_time)
 
+    def record_activity(self) -> None:
+        """Refresh active heartbeat timestamp."""
+        self.last_activity_time = time.monotonic()
+
     def record_transfer(self, bytes_transferred: int) -> None:
         """Record transferred network bytes."""
+        self.last_activity_time = time.monotonic()
         if bytes_transferred > 0:
             self.total_bytes_transferred += bytes_transferred
 
     def record_request(self, *, success: bool, bytes_transferred: int = 0) -> None:
         """Record completed or failed request and optional transferred bytes."""
+        self.last_activity_time = time.monotonic()
         self.request_count += 1
         if not success:
             self.failed_request_count += 1
@@ -93,6 +100,7 @@ class BrowserRunTelemetry:
 
     def record_compute(self, duration_seconds: float) -> None:
         """Record active compute/action execution duration."""
+        self.last_activity_time = time.monotonic()
         if duration_seconds > 0:
             self.active_compute_seconds += duration_seconds
 
@@ -113,6 +121,7 @@ class BrowserRunTelemetry:
             "failed_request_count": self.failed_request_count,
             "page_count": self.page_count,
             "watchdog_tripped_count": self.watchdog_tripped_count,
+            "last_activity_time": self.last_activity_time,
         }
 
 
@@ -164,6 +173,12 @@ class BrowserObservability:
                     cl = headers.get("content-length")
                     if cl and cl.isdigit():
                         size = int(cl)
+                    elif headers.get("transfer-encoding", "").lower() == "chunked":
+                        # Chunked response compensation
+                        header_bytes = sum(len(k) + len(v) + 4 for k, v in headers.items())
+                        size = max(header_bytes, 1024)
+                if request.post_data:
+                    size += len(request.post_data.encode("utf-8", errors="ignore"))
                 self._telemetry.record_request(success=True, bytes_transferred=size)
             except Exception:
                 self._telemetry.record_request(success=True, bytes_transferred=0)
@@ -182,21 +197,33 @@ class BrowserObservability:
         self,
         action_start_time: float,
         timeout_seconds: float = 180.0,
+        activity_idle_threshold: float = 60.0,
     ) -> bool:
-        """Check if single action compute duration exceeded safety watchdog threshold (default 3 minutes).
+        """Check if single action compute duration exceeded safety watchdog threshold.
+
+        Features active heartbeat awareness: if action exceeded total timeout (default 180s),
+        it will only trip if the session has also been idle without any network/compute
+        heartbeat activity for ``activity_idle_threshold`` (default 60s). This prevents
+        killing legitimate heavy-throughput actions (e.g. streaming/large downloads)
+        while firmly stopping hung infinite loops.
 
         Returns:
             True if within safe duration limits; False if tripped/hung.
         """
-        elapsed = time.monotonic() - action_start_time
+        now = time.monotonic()
+        elapsed = now - action_start_time
         if elapsed > timeout_seconds:
-            self._telemetry.watchdog_tripped_count += 1
-            logger.warning(
-                "Browser action exceeded watchdog threshold (%.1fs > %.1fs); potential infinite loop detected",
-                elapsed,
-                timeout_seconds,
-            )
-            return False
+            idle_time = now - self._telemetry.last_activity_time
+            if idle_time > activity_idle_threshold:
+                self._telemetry.watchdog_tripped_count += 1
+                logger.warning(
+                    "Browser action exceeded watchdog threshold (elapsed=%.1fs > %.1fs, idle=%.1fs > %.1fs); potential infinite loop detected",
+                    elapsed,
+                    timeout_seconds,
+                    idle_time,
+                    activity_idle_threshold,
+                )
+                return False
         return True
 
     @property

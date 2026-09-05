@@ -687,6 +687,36 @@ class TestExtractRetryAfter:
         assert extract_retry_after(current) is None
 
         # But with a shorter chain (depth 3 → depth 0), it should find it
+        short_current = deepest
+        for i in range(1, 4):
+            exc = Exception(f"depth {i}")
+            exc.__cause__ = short_current
+            short_current = exc
+        assert extract_retry_after(short_current) == 120.0
+
+
+# ============================================================================
+# classify_failover_reason — PROVIDER_POLICY_BLOCKED & Anthropic policy signals
+# ============================================================================
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "No endpoints available matching your guardrail restrictions and data policy",
+        "No endpoints available matching your data policy",
+        "Your organization has been disabled due to policy violation",
+        "Third-party client not permitted for this subscription tier",
+        "Your credential is not authorized for direct API access",
+        "Subscription tier does not allow external integration",
+        "Request blocked by provider policy",
+    ],
+)
+def test_classify_provider_policy_blocked(msg: str) -> None:
+    exc = Exception(msg)
+    reason = classify_failover_reason(exc)
+    assert reason == FailoverReason.PROVIDER_POLICY_BLOCKED
+
         shallow = Exception("depth 0 with response")
         shallow.response = FakeResponse()
         current = shallow
