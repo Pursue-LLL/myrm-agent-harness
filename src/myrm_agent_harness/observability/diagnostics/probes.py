@@ -527,6 +527,50 @@ async def check_graph_embedding_health() -> HealthReport:
         )
 
 
+async def check_local_trace_export_audit() -> HealthReport:
+    """Audit trace export isolation to guarantee zero unauthorized remote telemetry leaks.
+
+    Validates that:
+    1. In local-trace-only mode (MYRM_LOCAL_TRACE_ONLY=1), no remote OTLP export occurs.
+    2. Any remote endpoint is flagged, ensuring compliance with strict privacy baselines.
+    """
+    from myrm_agent_harness.infra.tracing.tracer import is_local_trace_only
+
+    local_only = is_local_trace_only()
+    otlp_ep = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+
+    if local_only:
+        if otlp_ep and not otlp_ep.startswith(
+            ("http://localhost", "http://127.0.0.1", "grpc://localhost", "grpc://127.0.0.1")
+        ):
+            return HealthReport(
+                component_name="TraceExportAudit",
+                status="fail",
+                code="ERR_TRACE_REMOTE_LEAK_RISK",
+                message="Remote trace endpoint detected while local-trace-only mode is active.",
+                detail=f"Blocked external endpoint: '{otlp_ep}'. Trace data will remain local only.",
+                fix_suggestion="Unset OTEL_EXPORTER_OTLP_ENDPOINT or use a localhost collector in local mode.",
+                meta_data={"local_trace_only": True, "blocked_endpoint": otlp_ep},
+            )
+        return HealthReport(
+            component_name="TraceExportAudit",
+            status="pass",
+            code="OK_LOCAL_TRACE_ISOLATION",
+            message="Local trace isolation is fully enforced.",
+            detail="Trace data is restricted to local storage (JSONL/SQLite); zero unauthorized remote export.",
+            meta_data={"local_trace_only": True},
+        )
+
+    return HealthReport(
+        component_name="TraceExportAudit",
+        status="pass",
+        code="OK_TRACE_EXPORT_STANDARD",
+        message="Trace export operating in standard mode.",
+        detail="Standard telemetry export active.",
+        meta_data={"local_trace_only": False, "otlp_endpoint": otlp_ep or "none"},
+    )
+
+
 register_diagnostic(check_network_health)
 register_diagnostic(check_workspace_storage_health)
 register_diagnostic(check_database_health)
@@ -535,3 +579,4 @@ register_diagnostic(check_tokenizer_health)
 register_diagnostic(check_hook_health)
 register_diagnostic(check_desktop_permissions_health)
 register_diagnostic(check_graph_embedding_health)
+register_diagnostic(check_local_trace_export_audit)

@@ -233,13 +233,12 @@ class SanitizingSpanProcessor(SpanProcessor):
 
     def on_end(self, span: ReadableSpan) -> None:
         attrs = getattr(span, "_attributes", None)
-        if isinstance(attrs, dict):
-            sanitized = self._sanitizer.sanitize_attributes(attrs)
-            # ReadableSpan._attributes is a BoundedAttributes dict where __delitem__ is disallowed.
-            # Directly updating or replacing attributes dict ensures safe in-place replacement.
+        if attrs is not None:
+            # attrs may be a BoundedAttributes (MappingProxy / mapping-like)
+            sanitized = self._sanitizer.sanitize_attributes(dict(attrs))
             try:
-                dict.clear(attrs)
-                dict.update(attrs, sanitized)
+                dict.clear(attrs)  # type: ignore
+                dict.update(attrs, sanitized)  # type: ignore
             except Exception:
                 pass
             try:
