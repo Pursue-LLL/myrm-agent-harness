@@ -261,7 +261,26 @@ class HttpFetcher:
                     cookie_jar,
                     use_http3=use_http3,
                 )
-                response = await AsyncFetcher.get(request_url, **kwargs)
+                try:
+                    response = await AsyncFetcher.get(request_url, **kwargs)
+                except Exception as exc:
+                    if request_url != current_url:
+                        logger.info(
+                            "HttpFetcher DNS-pinned URL failed at %s (%s); retrying with validated domain %s",
+                            request_url,
+                            exc,
+                            current_url,
+                        )
+                        fallback_headers = request_headers.copy()
+                        fallback_headers.pop("Host", None)
+                        fallback_kwargs = self._build_request_kwargs(
+                            fallback_headers,
+                            cookie_jar,
+                            use_http3=use_http3,
+                        )
+                        response = await AsyncFetcher.get(current_url, **fallback_kwargs)
+                    else:
+                        raise
 
                 if response.status in (301, 302, 303, 307, 308):
                     location = response.headers.get("Location") or response.headers.get("location")

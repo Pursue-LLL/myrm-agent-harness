@@ -815,6 +815,41 @@ async def test_fetch_with_redirects_ssrf_rewrites_url(install_fake_scrapling: As
     assert install_fake_scrapling.call_args.args[0] == "https://10.0.0.1/safe"
 
 
+@pytest.mark.asyncio
+async def test_fetch_with_redirects_pinned_ip_tls_mismatch_fallback(install_fake_scrapling: AsyncMock) -> None:
+    fetcher = HttpFetcher()
+    mock_response = MagicMock()
+    mock_response.status = 200
+    mock_response.body = _success_result().html.encode()
+    mock_response.encoding = "utf-8"
+    mock_response.url = "https://blocked.example/article"
+    mock_response.headers = {"content-type": "text/html"}
+
+    # First call with pinned IP fails with TLS error, second call with domain succeeds
+    install_fake_scrapling.side_effect = [
+        Exception("curl: (60) SSL: no alternative certificate subject name"),
+        mock_response,
+    ]
+
+    with patch(
+        "myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher.async_pin_url",
+        new=AsyncMock(return_value=("https://10.0.0.1/safe", {"Host": "blocked.example"})),
+    ):
+        result = await fetcher._fetch_with_redirects(
+            "https://blocked.example/article",
+            headers={},
+            cookie_jar=None,
+            enable_ssrf_shield=True,
+            allowed_hosts=["blocked.example"],
+            use_http3=False,
+        )
+
+    assert result is not None
+    assert install_fake_scrapling.call_count == 2
+    assert install_fake_scrapling.call_args_list[0].args[0] == "https://10.0.0.1/safe"
+    assert install_fake_scrapling.call_args_list[1].args[0] == "https://blocked.example/article"
+
+
 def test_is_http3_retry_enabled_truthy_variants(monkeypatch: pytest.MonkeyPatch) -> None:
     from myrm_agent_harness.toolkits.web_fetch.probe.http3_probe import is_http3_retry_enabled
 

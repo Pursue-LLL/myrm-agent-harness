@@ -397,7 +397,7 @@ class RetrieverManager:
         """
         start_time = time.perf_counter()
 
-        if not documents:
+        if not documents or top_k <= 0:
             return []
 
         if not queries:
@@ -426,7 +426,8 @@ class RetrieverManager:
             selected_docs = []
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
-        recall_rate = len(selected_docs) / min(top_k, len(documents)) if documents else 0.0
+        denominator = min(top_k, len(documents))
+        recall_rate = len(selected_docs) / denominator if denominator > 0 else 0.0
 
         logger.info(
             f"BM25 retrieval: queries={len(queries)}, docs={len(documents)}, "

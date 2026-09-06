@@ -86,3 +86,56 @@ async def test_chunk_filter_zero_recall_and_cross_language_bounded_fallback() ->
 
     # Must be bounded by max_retained_chunks (3), NOT 0 and NOT 10!
     assert 0 < len(filtered) <= 3
+
+
+@pytest.mark.asyncio
+async def test_bm25_empty_documents_and_queries_boundary() -> None:
+    """Verify boundary conditions: empty docs, empty queries, top_k > len(docs), top_k <= 0."""
+    manager = RetrieverManager()
+    doc = Document(page_content="Single document", metadata={"title": "Doc 1"})
+
+    # 1. Empty documents
+    empty_docs = await manager.bm25_retrieval_only(queries=["test"], documents=[], top_k=5)
+    assert empty_docs == []
+
+    # 2. Empty queries -> fallback to original order up to top_k
+    no_query_docs = await manager.bm25_retrieval_only(queries=[], documents=[doc], top_k=5)
+    assert len(no_query_docs) == 1
+    assert no_query_docs[0].metadata["title"] == "Doc 1"
+
+    # 3. top_k > len(documents) -> safe slice, no index out of bound
+    oversized = await manager.bm25_retrieval_only(queries=["Single"], documents=[doc], top_k=99)
+    assert len(oversized) == 1
+
+    # 4. top_k <= 0 -> safe empty return
+    zero_topk = await manager.bm25_retrieval_only(queries=["Single"], documents=[doc], top_k=0)
+    assert zero_topk == []
+
+
+@pytest.mark.asyncio
+async def test_bm25_cjk_mixed_english_precision_and_partial_hit() -> None:
+    """Verify CJK mixed with English keywords precision and partial query consensus."""
+    manager = RetrieverManager()
+    docs = [
+        Document(
+            page_content="Unrelated news about cooking and recipes with fresh ingredients.",
+            metadata={"title": "Recipe Guide"},
+        ),
+        Document(
+            page_content="MiniMax M3 大模型在长文本问答与 Agent 评测中的基准表现测试。",
+            metadata={"title": "MiniMax M3 Benchmark"},
+        ),
+        Document(
+            page_content="General deep learning models review without specific mention of M3.",
+            metadata={"title": "General AI Overview"},
+        ),
+    ]
+
+    # Two queries: one exact hit, one generic hit
+    queries = ["MiniMax M3 大模型 评测", "未知科学概念 绝密实验"]
+    results = await manager.bm25_retrieval_only(queries=queries, documents=docs, top_k=2)
+
+    assert len(results) >= 1
+    # MiniMax M3 Benchmark document must rank #1
+    assert results[0].metadata["title"] == "MiniMax M3 Benchmark"
+

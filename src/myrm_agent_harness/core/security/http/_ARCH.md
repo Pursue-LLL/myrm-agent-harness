@@ -37,4 +37,4 @@ SSRF-protected outbound HTTP primitives shared by harness toolkits, agent pipeli
 - `myrm-agent-server/app/services/kanban/kanban_attach_handler.py`
 
 Browser Playwright navigation uses `toolkits/browser/navigation/ssrf_guard.py` (`async_pin_url`, not httpx).
-`http_fetcher.py` uses per-hop `async_pin_url` via scrapling (security-equivalent).
+`http_fetcher.py` uses per-hop `async_pin_url` via scrapling with validated domain fallback on TLS SAN mismatch (security-equivalent).
