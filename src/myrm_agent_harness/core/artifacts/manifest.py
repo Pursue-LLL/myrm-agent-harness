@@ -162,6 +162,12 @@ class DeliverableManifest(BaseModel):
     agent_id: str | None = Field(default=None, description="产出该交付包的智能体 ID")
     goal_id: str | None = Field(default=None, description="关联的目标 ID")
     task_prompt: str = Field(default="", description="触发本次交付的原始任务意图")
+    fact_check_sheet_uri: str | None = Field(
+        default=None, description="挂载的事实核查单 URI (如 vault://fcs_xxx 或 markdown 路径)"
+    )
+    evidence_sources: list[str] = Field(
+        default_factory=list, description="交付包依赖的只读原始事实证据来源 URI 列表"
+    )
     items: list[DeliverableItem] = Field(
         default_factory=list, description="交付物清单列表"
     )
