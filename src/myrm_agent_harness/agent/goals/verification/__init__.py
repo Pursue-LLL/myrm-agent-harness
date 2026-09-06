@@ -19,6 +19,14 @@ from myrm_agent_harness.agent.goals.verification.base import (
     ReviewSeverity,
     VerificationResult,
 )
+from myrm_agent_harness.agent.goals.verification.fault_attribution import (
+    FaultAttribution,
+    FaultCategory,
+    FaultClassificationResult,
+    FaultKind,
+    classify_execution_fault,
+    classify_fault,
+)
 from myrm_agent_harness.agent.goals.verification.gatekeeper import (
     VerificationGatekeeper,
 )
@@ -28,9 +36,15 @@ from myrm_agent_harness.agent.goals.verification.security import (
 
 __all__ = [
     "AggregatedVerificationResult",
+    "FaultAttribution",
+    "FaultCategory",
+    "FaultClassificationResult",
+    "FaultKind",
     "ReviewComment",
     "ReviewSeverity",
     "SecurityScanCriterion",
     "VerificationGatekeeper",
     "VerificationResult",
+    "classify_execution_fault",
+    "classify_fault",
 ]

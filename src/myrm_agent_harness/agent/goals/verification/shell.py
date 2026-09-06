@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any
 
 from myrm_agent_harness.agent.goals.verification.base import (
     BaseCriterion,
+    ReviewComment,
+    ReviewSeverity,
     VerificationResult,
 )
 from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
@@ -61,18 +63,64 @@ class ShellCriterion(BaseCriterion):
             if result.stderr:
                 error_msg += f"Stderr:\n{result.stderr}\n"
 
+            from myrm_agent_harness.agent.goals.verification.fault_attribution import (
+                classify_fault,
+            )
+
+            fault_res = classify_fault(
+                command=self.command,
+                exit_code=result.exit_code,
+                stdout=result.stdout or "",
+                stderr=result.stderr or "",
+            )
+
+            comments = []
+            if fault_res.is_infra_fault and fault_res.guidance:
+                comments.append(
+                    ReviewComment(
+                        message=fault_res.guidance,
+                        severity=ReviewSeverity.CRITICAL,
+                        fix_suggestion="Resolve infrastructure/environment issue rather than modifying application code.",
+                    )
+                )
+
             return VerificationResult(
                 passed=False,
                 criterion_label=self.command,
                 reason=f"Shell command failed: {self.command}",
                 error_logs=error_msg,
+                comments=comments,
+                fault_kind=fault_res.kind.value,
+                fault_guidance=fault_res.guidance,
             )
         except Exception as e:
+            from myrm_agent_harness.agent.goals.verification.fault_attribution import (
+                classify_fault,
+            )
+
+            fault_res = classify_fault(
+                command=self.command,
+                exit_code=-1,
+                exception=e,
+            )
+            comments = []
+            if fault_res.is_infra_fault and fault_res.guidance:
+                comments.append(
+                    ReviewComment(
+                        message=fault_res.guidance,
+                        severity=ReviewSeverity.CRITICAL,
+                        fix_suggestion="Resolve environment execution issue.",
+                    )
+                )
+
             return VerificationResult(
                 passed=False,
                 criterion_label=self.command,
                 reason=f"Failed to execute verification command: {self.command}",
                 error_logs=str(e),
+                comments=comments,
+                fault_kind=fault_res.kind.value,
+                fault_guidance=fault_res.guidance,
             )
 
     @classmethod

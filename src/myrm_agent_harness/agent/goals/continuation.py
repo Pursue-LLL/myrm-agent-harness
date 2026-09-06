@@ -66,6 +66,9 @@ from .continuation_drift import (  # noqa: E402
 from .continuation_drift import (  # noqa: E402
     check_goal_drift as _check_goal_drift,
 )
+from .continuation_git_drift import (  # noqa: E402
+    check_git_drift_and_rebase as _check_git_drift_and_rebase,
+)
 
 
 def _is_wait_expired(goal: Goal) -> bool:
@@ -94,8 +97,17 @@ async def _run_acceptance_verification(
     When verification fails, increments verification_retries on the goal.
     When retries exceed the threshold, pauses the goal to prevent infinite loops.
     """
+    passed, _ = await _run_acceptance_verification_with_guidance(goal_provider, goal)
+    return passed
+
+
+async def _run_acceptance_verification_with_guidance(
+    goal_provider: GoalProvider,
+    goal: Goal,
+) -> tuple[bool, str | None]:
+    """Run VerificationGatekeeper and return (passed, infra_guidance)."""
     if not goal.acceptance_criteria:
-        return True
+        return True, None
 
     from .verification.gatekeeper import VerificationGatekeeper
 
@@ -112,13 +124,13 @@ async def _run_acceptance_verification(
                 updated.verification_retries,
             )
             await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
-        return False
+        return False, None
 
     await goal_provider.record_acceptance_results(goal.goal_id, result.to_dicts())
 
     if result.passed:
         logger.info("Goal %s: acceptance criteria verification passed", goal.goal_id)
-        return True
+        return True, None
 
     updated_goal = await goal_provider.increment_verification_retries(goal.goal_id)
     new_retries = updated_goal.verification_retries
@@ -130,7 +142,7 @@ async def _run_acceptance_verification(
             new_retries,
         )
         await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
-        return False
+        return False, result.infra_guidance
 
     logger.info(
         "Goal %s: verification failed (retry %d/%d, %d/%d passed)",
@@ -140,7 +152,7 @@ async def _run_acceptance_verification(
         len(result.per_criterion) - result.failed_count,
         len(result.per_criterion),
     )
-    return False
+    return False, result.infra_guidance
 
 
 def _extract_last_ai_response(messages: list[BaseMessage]) -> str:
@@ -496,6 +508,12 @@ async def check_continuation(
         if checkpoint_decision is not None:
             return checkpoint_decision
 
+    # 6.5d Long-running baseline drift detection & safe rebase gate
+    if tools_called_this_turn:
+        drift_rebase_decision = await _check_git_drift_and_rebase(goal_provider, goal)
+        if drift_rebase_decision is not None:
+            return drift_rebase_decision
+
     # 7. Semantic completion judge (skip first N turns)
     last_judge_reason: str | None = None
     if goal.turns_used >= _JUDGE_SKIP_INITIAL_TURNS and tools_called_this_turn:
@@ -522,7 +540,7 @@ async def check_continuation(
             )
 
         if judge_reason is None:
-            verification_passed = await _run_acceptance_verification(goal_provider, goal)
+            verification_passed, infra_guidance = await _run_acceptance_verification_with_guidance(goal_provider, goal)
             if verification_passed:
                 violations = _check_protected_integrity(goal.goal_id)
                 if violations:
@@ -544,6 +562,8 @@ async def check_continuation(
                     f"Acceptance criteria verification failed {refreshed.verification_retries} times — paused",
                     refreshed,
                 )
+            if infra_guidance:
+                last_judge_reason = f"Verification failed due to infrastructure environment failure:\n{infra_guidance}"
 
         # Track consecutive judge parse failures (circuit breaker)
         if parse_failed:

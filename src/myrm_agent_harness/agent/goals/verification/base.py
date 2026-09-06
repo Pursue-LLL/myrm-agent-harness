@@ -98,6 +98,12 @@ class VerificationResult:
     wait: bool = False
     duration_ms: int = 0
     comments: list[ReviewComment] = field(default_factory=list)
+    fault_kind: str | None = None
+    fault_guidance: str | None = None
+
+    @property
+    def is_infra_fault(self) -> bool:
+        return self.fault_kind == "INFRA_ENVIRONMENT_FAILURE"
 
     @property
     def critical_count(self) -> int:
@@ -124,6 +130,10 @@ class VerificationResult:
             result["error_logs"] = self.error_logs
         if self.comments:
             result["comments"] = [c.to_dict() for c in self.comments]
+        if self.fault_kind:
+            result["fault_kind"] = self.fault_kind
+        if self.fault_guidance:
+            result["fault_guidance"] = self.fault_guidance
         return result
 
 
@@ -165,6 +175,19 @@ class AggregatedVerificationResult:
     def to_dicts(self) -> list[dict[str, object]]:
         """Serialize all per-criterion results for metadata storage."""
         return [r.to_dict() for r in self.per_criterion]
+
+    @property
+    def has_infra_fault(self) -> bool:
+        """True if any failed criterion was diagnosed as an environment/infrastructure failure."""
+        return any(not r.passed and r.is_infra_fault for r in self.per_criterion)
+
+    @property
+    def infra_guidance(self) -> str | None:
+        """Combined infrastructure fault guidance to instruct agent not to mutate business code."""
+        items = [
+            r.fault_guidance for r in self.per_criterion if not r.passed and r.fault_guidance
+        ]
+        return "\n\n".join(items) if items else None
 
 
 class BaseCriterion(ABC):
