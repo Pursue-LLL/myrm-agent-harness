@@ -59,7 +59,9 @@ _DEFAULT_MAX_VERIFICATION_RETRIES = 3
 
 _WAIT_TIMEOUT_PAUSE_REASON = "Wait timeout exceeded — goal paused"
 
-from .continuation_checkpoint import check_todo_checkpoint as _check_todo_checkpoint  # noqa: E402
+from .continuation_checkpoint import (
+    check_todo_checkpoint as _check_todo_checkpoint,
+)  # noqa: E402
 from .continuation_drift import (  # noqa: E402
     _DRIFT_CHECK_INTERVAL,
 )
@@ -121,7 +123,9 @@ async def _run_acceptance_verification_with_guidance(
         gatekeeper = VerificationGatekeeper(goal.acceptance_criteria)
         result = await gatekeeper.verify_all(goal_provider)
     except Exception:
-        logger.exception("Goal %s: acceptance criteria verification crashed", goal.goal_id)
+        logger.exception(
+            "Goal %s: acceptance criteria verification crashed", goal.goal_id
+        )
         updated = await goal_provider.increment_verification_retries(goal.goal_id)
         if updated.verification_retries >= max_retries:
             logger.warning(
@@ -217,12 +221,16 @@ async def _judge_completion(
     if goal.subgoals:
         criteria += "\n\nCRITICAL - Newly Added Subgoals (Latest subgoals take absolute precedence):\n"
         for i, sg in enumerate(goal.subgoals):
-            criteria += f"{i + 1}. {sg.get('text')} (Added at: {sg.get('created_at')})\n"
+            criteria += (
+                f"{i + 1}. {sg.get('text')} (Added at: {sg.get('created_at')})\n"
+            )
 
     content = last_response[:_JUDGE_RESPONSE_MAX_CHARS]
 
     try:
-        result = await goal_provider.evaluate_semantic(criteria, content, context_messages=collected_messages)
+        result = await goal_provider.evaluate_semantic(
+            criteria, content, context_messages=collected_messages
+        )
         if result.passed:
             logger.info("Judge verdict: DONE for goal %s", goal.goal_id)
             return None, False, False
@@ -254,7 +262,9 @@ def _check_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
     return verify_protected_integrity(goal_id)
 
 
-def _make_tamper_decision(goal: Goal, violations: list[ProtectedFileViolation]) -> ContinuationDecision:
+def _make_tamper_decision(
+    goal: Goal, violations: list[ProtectedFileViolation]
+) -> ContinuationDecision:
     """Build a 'continue' decision with tamper violation details for the agent to fix."""
     detail = ", ".join(f"{v.path} ({v.kind})" for v in violations)
     msg = (
@@ -297,7 +307,9 @@ async def _maybe_auto_enter_wait_for_background_bash(
     if not hasattr(goal_provider, "enter_wait"):
         return None
 
-    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import get_loop_guard
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
+        get_loop_guard,
+    )
 
     from .wait_background_bash import (
         WAIT_ON_BACKGROUND_JOB_ID_KEY,
@@ -365,7 +377,9 @@ async def check_continuation(
                     _WAIT_TIMEOUT_PAUSE_REASON,
                     latest,
                 )
-            wait_reason = str(latest.metadata.get("wait_reason") or "Waiting for external process")
+            wait_reason = str(
+                latest.metadata.get("wait_reason") or "Waiting for external process"
+            )
             return _make_decision("wait", wait_reason, latest)
 
         deferred = await resolve_deferred_tool_completion(goal_provider, session_id)
@@ -397,7 +411,9 @@ async def check_continuation(
     # Track no-progress streak for convergence detection
     if not tools_called_this_turn:
         await goal_provider.suppress_continuation(session_id)
-    goal = await goal_provider.record_progress(goal.goal_id, made_progress=tools_called_this_turn)
+    goal = await goal_provider.record_progress(
+        goal.goal_id, made_progress=tools_called_this_turn
+    )
 
     if goal.status == GoalStatus.ACTIVE and tools_called_this_turn:
         auto_wait = await _maybe_auto_enter_wait_for_background_bash(
@@ -421,15 +437,25 @@ async def check_continuation(
     # 5. Budget exhausted? (account_usage already transitions to BUDGET_LIMITED)
     if goal.status == GoalStatus.BUDGET_LIMITED:
         if _wrapup_already_injected(collected_messages):
-            logger.warning("Goal %s stopped: budget limited (wrap-up complete)", goal.goal_id)
+            logger.warning(
+                "Goal %s stopped: budget limited (wrap-up complete)", goal.goal_id
+            )
             return _make_decision("budget", "Budget exhausted", goal)
 
         # Grant one wrap-up turn: inject a summary prompt so the LLM
         # can produce a graceful conclusion instead of stopping mid-sentence.
         wrapup_text = build_wrapup_prompt(goal)
         collected_messages.append(HumanMessage(content=wrapup_text, name="developer"))
-        logger.info("Goal %s: injecting wrap-up prompt for graceful budget conclusion", goal.goal_id)
-        return _make_decision("continue", "Budget exhausted — wrap-up turn granted", goal, message=wrapup_text)
+        logger.info(
+            "Goal %s: injecting wrap-up prompt for graceful budget conclusion",
+            goal.goal_id,
+        )
+        return _make_decision(
+            "continue",
+            "Budget exhausted — wrap-up turn granted",
+            goal,
+            message=wrapup_text,
+        )
 
     # 6. Convergence detection + suppression (zero tool calls)
     is_suppressed = await goal_provider.is_continuation_suppressed(session_id)
@@ -485,14 +511,20 @@ async def check_continuation(
         logger.warning("Goal %s stopped: suppressed (zero progress)", goal.goal_id)
         await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
         await goal_provider.reset_suppression(session_id)
-        return _make_decision("suppressed", "No tool calls — paused to prevent spinning", goal)
+        return _make_decision(
+            "suppressed", "No tool calls — paused to prevent spinning", goal
+        )
 
     # 6.5a Sandbox boundary escalation: PAUSE goal if LoopGuard flagged permission probing
-    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import get_loop_guard as _get_lg
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
+        get_loop_guard as _get_lg,
+    )
 
     _lg = _get_lg()
     if _lg.sandbox_boundary_triggered:
-        logger.warning("Goal %s paused: sandbox boundary violation detected", goal.goal_id)
+        logger.warning(
+            "Goal %s paused: sandbox boundary violation detected", goal.goal_id
+        )
         await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
         await goal_provider.update_metadata(
             goal.goal_id,
@@ -506,7 +538,9 @@ async def check_continuation(
 
     # 6.5b Goal drift detection (skip first few turns; only when tools were called)
     if goal.turns_used >= _DRIFT_CHECK_INTERVAL and tools_called_this_turn:
-        drift_decision = await _check_goal_drift(goal_provider, goal, collected_messages)
+        drift_decision = await _check_goal_drift(
+            goal_provider, goal, collected_messages
+        )
         if drift_decision is not None:
             return drift_decision
 
@@ -526,7 +560,9 @@ async def check_continuation(
     # If acceptance criteria are configured, tools were executed, and physical verification passes 100%,
     # complete immediately without waiting for _JUDGE_SKIP_INITIAL_TURNS or burning redundant LLM turns.
     if goal.acceptance_criteria and tools_called_this_turn:
-        verification_passed, _ = await _run_acceptance_verification_with_guidance(goal_provider, goal)
+        verification_passed, _ = await _run_acceptance_verification_with_guidance(
+            goal_provider, goal
+        )
         if verification_passed:
             violations = _check_protected_integrity(goal.goal_id)
             if violations:
@@ -537,9 +573,16 @@ async def check_continuation(
                 )
                 return _make_tamper_decision(goal, violations)
 
-            logger.info("Goal %s completed via fast-path physical verification short-circuit", goal.goal_id)
-            await finalize_goal_complete(goal_provider, goal, source="physical_short_circuit")
-            return _make_decision("done", "Physical acceptance criteria 100% passed (fast-path)", goal)
+            logger.info(
+                "Goal %s completed via fast-path physical verification short-circuit",
+                goal.goal_id,
+            )
+            await finalize_goal_complete(
+                goal_provider, goal, source="physical_short_circuit"
+            )
+            return _make_decision(
+                "done", "Physical acceptance criteria 100% passed (fast-path)", goal
+            )
 
     # 7. Semantic completion judge (skip first N turns if no acceptance criteria short-circuit)
     last_judge_reason: str | None = None
@@ -557,7 +600,9 @@ async def check_continuation(
                 judge_reason,
             )
             if hasattr(goal_provider, "enter_wait"):
-                await goal_provider.enter_wait(goal.goal_id, reason=judge_reason or "Blocked — needs user input")
+                await goal_provider.enter_wait(
+                    goal.goal_id, reason=judge_reason or "Blocked — needs user input"
+                )
             else:
                 await goal_provider.update_status(goal.goal_id, GoalStatus.WAIT)
             return _make_decision(
@@ -567,7 +612,9 @@ async def check_continuation(
             )
 
         if judge_reason is None:
-            verification_passed, infra_guidance = await _run_acceptance_verification_with_guidance(goal_provider, goal)
+            verification_passed, infra_guidance = (
+                await _run_acceptance_verification_with_guidance(goal_provider, goal)
+            )
             if verification_passed:
                 violations = _check_protected_integrity(goal.goal_id)
                 if violations:
@@ -578,9 +625,16 @@ async def check_continuation(
                     )
                     return _make_tamper_decision(goal, violations)
 
-                logger.info("Goal %s completed by semantic judge (verification passed)", goal.goal_id)
-                await finalize_goal_complete(goal_provider, goal, source="semantic_judge")
-                return _make_decision("done", "Semantic judge determined goal is complete", goal)
+                logger.info(
+                    "Goal %s completed by semantic judge (verification passed)",
+                    goal.goal_id,
+                )
+                await finalize_goal_complete(
+                    goal_provider, goal, source="semantic_judge"
+                )
+                return _make_decision(
+                    "done", "Semantic judge determined goal is complete", goal
+                )
             # Verification failed — check if retries exhausted (goal already PAUSED inside helper)
             refreshed = await goal_provider.get_goal(goal.goal_id)
             if refreshed and refreshed.status == GoalStatus.PAUSED:
@@ -594,8 +648,13 @@ async def check_continuation(
 
         # Track consecutive judge parse failures (circuit breaker)
         if parse_failed:
-            goal = await goal_provider.record_judge_parse_result(goal.goal_id, parse_failed=True)
-            if goal.consecutive_judge_parse_failures >= _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES:
+            goal = await goal_provider.record_judge_parse_result(
+                goal.goal_id, parse_failed=True
+            )
+            if (
+                goal.consecutive_judge_parse_failures
+                >= _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES
+            ):
                 logger.warning(
                     "Goal %s auto-paused: judge returned unparseable output %d turns in a row",
                     goal.goal_id,
@@ -612,7 +671,9 @@ async def check_continuation(
             last_judge_reason = None
         else:
             if goal.consecutive_judge_parse_failures > 0:
-                goal = await goal_provider.record_judge_parse_result(goal.goal_id, parse_failed=False)
+                goal = await goal_provider.record_judge_parse_result(
+                    goal.goal_id, parse_failed=False
+                )
             last_judge_reason = judge_reason
 
     # Refresh Goal-scoped protected_paths ContextVar so InvariantValidator

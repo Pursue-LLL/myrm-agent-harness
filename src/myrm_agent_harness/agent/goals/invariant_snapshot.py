@@ -57,7 +57,11 @@ def _resolve_patterns(patterns: list[str], workspace_root: str) -> dict[str, str
     """
     snapshot: dict[str, str] = {}
     for pattern in patterns:
-        full_pattern = os.path.join(workspace_root, pattern) if not os.path.isabs(pattern) else pattern
+        full_pattern = (
+            os.path.join(workspace_root, pattern)
+            if not os.path.isabs(pattern)
+            else pattern
+        )
         for path in glob.glob(full_pattern, recursive=True):
             if os.path.isfile(path):
                 abs_path = os.path.abspath(path)
@@ -70,7 +74,9 @@ def _resolve_patterns(patterns: list[str], workspace_root: str) -> dict[str, str
 _snapshots: dict[str, tuple[dict[str, str], list[str], str]] = {}
 
 
-def capture_protected_snapshot(goal_id: str, patterns: list[str], workspace_root: str) -> int:
+def capture_protected_snapshot(
+    goal_id: str, patterns: list[str], workspace_root: str
+) -> int:
     """Capture baseline hashes for all files matching the Goal's protected_paths.
 
     Call this when a Goal is activated.
@@ -111,17 +117,29 @@ def verify_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
         current_hash = current_snapshot.get(path)
         if current_hash is None:
             violations.append(
-                ProtectedFileViolation(path=path, pattern=_find_matching_pattern(path, patterns), kind="deleted")
+                ProtectedFileViolation(
+                    path=path,
+                    pattern=_find_matching_pattern(path, patterns),
+                    kind="deleted",
+                )
             )
         elif current_hash != original_hash:
             violations.append(
-                ProtectedFileViolation(path=path, pattern=_find_matching_pattern(path, patterns), kind="modified")
+                ProtectedFileViolation(
+                    path=path,
+                    pattern=_find_matching_pattern(path, patterns),
+                    kind="modified",
+                )
             )
 
     for path in current_snapshot:
         if path not in original_snapshot:
             violations.append(
-                ProtectedFileViolation(path=path, pattern=_find_matching_pattern(path, patterns), kind="created")
+                ProtectedFileViolation(
+                    path=path,
+                    pattern=_find_matching_pattern(path, patterns),
+                    kind="created",
+                )
             )
 
     if violations:
@@ -132,12 +150,16 @@ def verify_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
             ", ".join(f"{v.path} ({v.kind})" for v in violations),
         )
     else:
-        logger.info("[InvariantSnapshot] All protected files intact for goal %s", goal_id)
+        logger.info(
+            "[InvariantSnapshot] All protected files intact for goal %s", goal_id
+        )
 
     return violations
 
 
-def register_protected_artifact(goal_id: str, file_path: str, workspace_root: str | None = None) -> bool:
+def register_protected_artifact(
+    goal_id: str, file_path: str, workspace_root: str | None = None
+) -> bool:
     """Dynamically register a newly created artifact (e.g. test file) into protected snapshot.
 
     Computes SHA-256 and locks the file so subsequent tampering or weakening
@@ -145,14 +167,20 @@ def register_protected_artifact(goal_id: str, file_path: str, workspace_root: st
     Returns True if successfully registered, False if file cannot be read.
     """
     if not os.path.isabs(file_path):
-        root = workspace_root or (_snapshots[goal_id][2] if goal_id in _snapshots else os.getcwd())
+        root = workspace_root or (
+            _snapshots[goal_id][2] if goal_id in _snapshots else os.getcwd()
+        )
         abs_path = os.path.abspath(os.path.join(root, file_path))
     else:
         abs_path = os.path.abspath(file_path)
 
     file_hash = _file_hash(abs_path)
     if not file_hash:
-        logger.warning("[InvariantSnapshot] Failed to hash artifact for goal %s: %s", goal_id, abs_path)
+        logger.warning(
+            "[InvariantSnapshot] Failed to hash artifact for goal %s: %s",
+            goal_id,
+            abs_path,
+        )
         return False
 
     entry = _snapshots.get(goal_id)
@@ -166,7 +194,12 @@ def register_protected_artifact(goal_id: str, file_path: str, workspace_root: st
         if file_path not in patterns and abs_path not in patterns:
             patterns.append(file_path)
 
-    logger.info("[InvariantSnapshot] Dynamically protected artifact for goal %s: %s (sha256=%s)", goal_id, abs_path, file_hash[:8])
+    logger.info(
+        "[InvariantSnapshot] Dynamically protected artifact for goal %s: %s (sha256=%s)",
+        goal_id,
+        abs_path,
+        file_hash[:8],
+    )
     return True
 
 

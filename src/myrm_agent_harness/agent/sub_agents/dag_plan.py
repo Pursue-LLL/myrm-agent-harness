@@ -28,6 +28,8 @@ class PlanStep(BaseModel):
     allow_failure: bool = False
     agent_type: str | None = None
     readonly: bool = False
+    requires_verification: bool = False
+    verifier_prompt: str | None = None
 
 
 class GraphPatch(BaseModel):

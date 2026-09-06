@@ -190,7 +190,16 @@ async def execute_dag_plan(
 
             for dep_id in dependencies:
                 if dep_id in current_results and current_results[dep_id].success:
-                    filtered_results[dep_id] = current_results[dep_id].result
+                    dep_res = current_results[dep_id]
+                    if dep_res.verification and dep_res.verification.passed:
+                        filtered_results[dep_id] = {
+                            "status": "verified_completed",
+                            "verification_summary": dep_res.verification.summary,
+                            "findings": list(dep_res.verification.findings),
+                            "result": dep_res.result,
+                        }
+                    else:
+                        filtered_results[dep_id] = dep_res.result
 
             step_context["dag_previous_results"] = filtered_results
             plan_rev = getattr(plan, "revision", 1)
@@ -220,33 +229,67 @@ async def execute_dag_plan(
                 if step_id in fission_resume_payload:
                     resume_cmd = Command(resume=fission_resume_payload[step_id])
                 else:
-                    sub_task_results = {
-                        dep_id: current_results[dep_id].result
-                        for dep_id in getattr(step, "dependencies", [])
-                        if dep_id in current_results and current_results[dep_id].success
-                    }
+                    sub_task_results = {}
+                    for dep_id in getattr(step, "dependencies", []):
+                        if dep_id in current_results and current_results[dep_id].success:
+                            dep_res = current_results[dep_id]
+                            # If dependency has structured verification summary, pass concise verified state
+                            if dep_res.verification and dep_res.verification.passed:
+                                sub_task_results[dep_id] = {
+                                    "status": "verified_completed",
+                                    "verification_summary": dep_res.verification.summary,
+                                    "findings": list(dep_res.verification.findings),
+                                    "result": dep_res.result,
+                                }
+                            else:
+                                sub_task_results[dep_id] = dep_res.result
                     resume_cmd = Command(resume=sub_task_results)
+
+            requires_verify = bool(
+                getattr(step, "requires_verification", False)
+                or getattr(step, "risk_level", "low") in ("high", "critical")
+            )
+            step_verifier_prompt = getattr(step, "verifier_prompt", None) or ""
 
             for attempt in range(max_node_retries):
                 try:
                     step_agent_type = getattr(step, "agent_type", None) or "general"
                     step_timeout = config.timeout_seconds
                     async with asyncio.timeout(step_timeout):
-                        result = await manager.spawn_child(
-                            task_id=f"dag-{step_id}",
-                            agent_type=step_agent_type,
-                            task_description=(
-                                f"Execute step: {desc}\n"
-                                f"Expected output: {expected}\n"
-                                f"Current plan revision: {plan_rev}"
-                            ),
-                            config=config,
-                            context=step_context,
-                            tool_registry_getter=tool_registry_getter,
-                            wait=True,
-                            cancel_token=cancel_token,
-                            resume_command=resume_cmd,
-                        )
+                        if requires_verify:
+                            result = await run_with_verification(
+                                manager=manager,
+                                worker_type=step_agent_type,
+                                worker_task=(
+                                    f"Execute step: {desc}\n"
+                                    f"Expected output: {expected}\n"
+                                    f"Current plan revision: {plan_rev}"
+                                ),
+                                config=config,
+                                context=step_context,
+                                tool_registry_getter=tool_registry_getter,
+                                max_rounds=2,
+                                verifier_task_template=step_verifier_prompt,
+                                cancel_token=cancel_token,
+                                task_id=f"dag-{step_id}",
+                                verification_mode="adversarial",
+                            )
+                        else:
+                            result = await manager.spawn_child(
+                                task_id=f"dag-{step_id}",
+                                agent_type=step_agent_type,
+                                task_description=(
+                                    f"Execute step: {desc}\n"
+                                    f"Expected output: {expected}\n"
+                                    f"Current plan revision: {plan_rev}"
+                                ),
+                                config=config,
+                                context=step_context,
+                                tool_registry_getter=tool_registry_getter,
+                                wait=True,
+                                cancel_token=cancel_token,
+                                resume_command=resume_cmd,
+                            )
 
                     if isinstance(result, dict):
                         raw_inner_res = result.get("result")

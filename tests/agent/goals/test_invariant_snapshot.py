@@ -63,7 +63,9 @@ class TestVerifyProtectedIntegrity:
         capture_protected_snapshot("g1", ["tests/**"], workspace)
         violations = verify_protected_integrity("g1")
         assert violations == []
-        assert "g1" in _snapshots  # non-destructive: snapshot preserved for repeated verify
+        assert (
+            "g1" in _snapshots
+        )  # non-destructive: snapshot preserved for repeated verify
 
     def test_detects_modified_file(self, workspace: str):
         capture_protected_snapshot("g1", ["tests/**"], workspace)
@@ -139,7 +141,9 @@ class TestRegisterProtectedArtifact:
         assert "test_dynamic.py" in violations[0].path
 
     def test_register_nonexistent_file(self, workspace: str):
-        ok = register_protected_artifact("g1", "nonexistent.py", workspace_root=workspace)
+        ok = register_protected_artifact(
+            "g1", "nonexistent.py", workspace_root=workspace
+        )
         assert ok is False
 
     def test_register_creates_new_snapshot_if_none_exists(self, workspace: str):
@@ -155,10 +159,11 @@ class TestRegisterProtectedArtifact:
         dyn_file_2 = os.path.join(workspace, "new_file_2.py")
         with open(dyn_file_2, "w") as f:
             f.write("content 2")
-        ok2 = register_protected_artifact("new_goal", dyn_file_2, workspace_root=workspace)
+        ok2 = register_protected_artifact(
+            "new_goal", dyn_file_2, workspace_root=workspace
+        )
         assert ok2 is True
         assert verify_protected_integrity("new_goal") == []
-
 
 
 class TestClearSnapshot:

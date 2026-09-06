@@ -2230,6 +2230,79 @@ class TestRunAlternatives:
         assert (parent_ws / "file_a.txt").read_text(encoding="utf-8") == "from_a"
         assert (parent_ws / "file_b.txt").exists()
         assert (parent_ws / "file_b.txt").read_text(encoding="utf-8") == "from_b"
+
+    @pytest.mark.asyncio
+    async def test_execute_dag_plan_with_verified_step(self, tmp_path):
+        from myrm_agent_harness.agent.sub_agents.dag_plan import Plan, PlanStep
+
+        step1 = PlanStep(
+            step_id="step1",
+            description="High risk task",
+            expected_output="evidence",
+            risk_level="high",
+            requires_verification=True,
+            verifier_prompt="Check strictly",
+        )
+        step2 = PlanStep(
+            step_id="step2",
+            description="Downstream step",
+            expected_output="done",
+            dependencies=["step1"],
+        )
+        plan = Plan(goal="Test DAG verified", steps=[step1, step2])
+
+        mgr = MagicMock()
+        mgr.children = {}
+        mgr.child_results = {}
+
+        with patch("myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification") as mock_verify:
+            from myrm_agent_harness.agent.sub_agents.types import VerificationSummary
+            mock_verify.return_value = SubAgentResult(
+                success=True,
+                task_id="dag-step1",
+                agent_type="general",
+                result="step 1 success output",
+                status=SubAgentStatus.COMPLETED,
+                completed_at=time.time(),
+                verification=VerificationSummary(
+                    passed=True,
+                    rounds=1,
+                    max_rounds=2,
+                    confidence=0.98,
+                    summary="Auditor passed with zero flaws",
+                    findings=(),
+                ),
+            )
+            mgr.spawn_child = AsyncMock(
+                return_value=SubAgentResult(
+                    success=True,
+                    task_id="dag-step2",
+                    agent_type="general",
+                    result="step 2 success",
+                    status=SubAgentStatus.COMPLETED,
+                    completed_at=time.time(),
+                )
+            )
+
+            res = await execute_dag_plan(
+                plan=plan,
+                manager=mgr,
+                context={"workspace_path": str(tmp_path)},
+                tool_registry_getter=lambda: [],
+                max_concurrent=2,
+            )
+
+            assert res["success"] is True
+            mock_verify.assert_called_once()
+            assert plan.steps[0].status == "completed"
+            assert plan.steps[1].status == "completed"
+            # Verify context received verified state for downstream step
+            spawn_call = mgr.spawn_child.call_args
+            step2_context = spawn_call.kwargs["context"]
+            assert "dag_previous_results" in step2_context
+            step1_prev = step2_context["dag_previous_results"]["step1"]
+            assert step1_prev["status"] == "verified_completed"
+            assert step1_prev["verification_summary"] == "Auditor passed with zero flaws"
         mgr = MagicMock()
         mgr.children = {}
         mgr.child_results = {}

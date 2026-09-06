@@ -14,8 +14,16 @@ from myrm_agent_harness.agent.goals.continuation import (
     check_continuation,
 )
 from myrm_agent_harness.agent.goals.invariant_snapshot import ProtectedFileViolation
-from myrm_agent_harness.agent.goals.types import ContinuationDecision, Goal, GoalBudget, GoalStatus
-from myrm_agent_harness.agent.goals.verification.base import AggregatedVerificationResult, VerificationResult
+from myrm_agent_harness.agent.goals.types import (
+    ContinuationDecision,
+    Goal,
+    GoalBudget,
+    GoalStatus,
+)
+from myrm_agent_harness.agent.goals.verification.base import (
+    AggregatedVerificationResult,
+    VerificationResult,
+)
 
 
 @pytest.fixture
@@ -91,7 +99,9 @@ async def test_check_continuation_cancelled(mock_goal_provider):
     )
     assert decision.should_continue is False
     assert decision.verdict == "cancelled"
-    mock_goal_provider.update_status.assert_called_once_with("test-goal", GoalStatus.PAUSED)
+    mock_goal_provider.update_status.assert_called_once_with(
+        "test-goal", GoalStatus.PAUSED
+    )
 
 
 @pytest.mark.asyncio
@@ -132,7 +142,9 @@ async def test_check_continuation_suppressed(mock_goal_provider):
     )
     assert decision.should_continue is False
     assert decision.verdict == "suppressed"
-    mock_goal_provider.update_status.assert_called_once_with("test-goal", GoalStatus.PAUSED)
+    mock_goal_provider.update_status.assert_called_once_with(
+        "test-goal", GoalStatus.PAUSED
+    )
     mock_goal_provider.reset_suppression.assert_called_once_with("s1")
 
 
@@ -274,7 +286,9 @@ def test_extract_last_ai_response_no_messages():
 @pytest.mark.asyncio
 async def test_judge_completion_empty_response():
     provider = AsyncMock()
-    goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE
+    )
     reason, parse_failed, wait = await _judge_completion(provider, goal, "   ")
     assert reason == ""
     assert parse_failed is False
@@ -285,9 +299,15 @@ async def test_judge_completion_empty_response():
 @pytest.mark.asyncio
 async def test_judge_completion_passed():
     provider = AsyncMock()
-    provider.evaluate_semantic.return_value = VerificationResult(passed=True, reason="done")
-    goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed, wait = await _judge_completion(provider, goal, "Task is complete.")
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=True, reason="done"
+    )
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE
+    )
+    reason, parse_failed, wait = await _judge_completion(
+        provider, goal, "Task is complete."
+    )
     assert reason is None
     assert parse_failed is False
     assert wait is False
@@ -296,7 +316,9 @@ async def test_judge_completion_passed():
 @pytest.mark.asyncio
 async def test_judge_completion_with_subgoals():
     provider = AsyncMock()
-    provider.evaluate_semantic.return_value = VerificationResult(passed=True, reason=None)
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=True, reason=None
+    )
     goal = Goal(
         goal_id="g1",
         session_id="s1",
@@ -304,7 +326,9 @@ async def test_judge_completion_with_subgoals():
         status=GoalStatus.ACTIVE,
         subgoals=[{"text": "Subgoal 1", "created_at": "2026-09-06T12:00:00"}],
     )
-    reason, parse_failed, wait = await _judge_completion(provider, goal, "Subgoal done.")
+    reason, parse_failed, wait = await _judge_completion(
+        provider, goal, "Subgoal done."
+    )
     assert reason is None
     assert parse_failed is False
     criteria_called = provider.evaluate_semantic.call_args[0][0]
@@ -315,9 +339,15 @@ async def test_judge_completion_with_subgoals():
 @pytest.mark.asyncio
 async def test_judge_completion_not_passed():
     provider = AsyncMock()
-    provider.evaluate_semantic.return_value = VerificationResult(passed=False, reason="still working")
-    goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed, wait = await _judge_completion(provider, goal, "Still working on it.")
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=False, reason="still working"
+    )
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE
+    )
+    reason, parse_failed, wait = await _judge_completion(
+        provider, goal, "Still working on it."
+    )
     assert reason == "still working"
     assert parse_failed is False
     assert wait is False
@@ -326,9 +356,15 @@ async def test_judge_completion_not_passed():
 @pytest.mark.asyncio
 async def test_judge_completion_parse_failed():
     provider = AsyncMock()
-    provider.evaluate_semantic.return_value = VerificationResult(passed=False, reason="garbage text", parse_failed=True)
-    goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed, wait = await _judge_completion(provider, goal, "Still working on it.")
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=False, reason="garbage text", parse_failed=True
+    )
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE
+    )
+    reason, parse_failed, wait = await _judge_completion(
+        provider, goal, "Still working on it."
+    )
     assert reason == "garbage text"
     assert parse_failed is True
     assert wait is False
@@ -338,8 +374,12 @@ async def test_judge_completion_parse_failed():
 async def test_judge_completion_not_implemented():
     provider = AsyncMock()
     provider.evaluate_semantic.side_effect = NotImplementedError
-    goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed, wait = await _judge_completion(provider, goal, "Some response")
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE
+    )
+    reason, parse_failed, wait = await _judge_completion(
+        provider, goal, "Some response"
+    )
     assert reason == ""
     assert parse_failed is False
     assert wait is False
@@ -349,8 +389,12 @@ async def test_judge_completion_not_implemented():
 async def test_judge_completion_error_failopen():
     provider = AsyncMock()
     provider.evaluate_semantic.side_effect = RuntimeError("API down")
-    goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed, wait = await _judge_completion(provider, goal, "Some response")
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE
+    )
+    reason, parse_failed, wait = await _judge_completion(
+        provider, goal, "Some response"
+    )
     assert reason == ""
     assert parse_failed is False
     assert wait is False
@@ -363,8 +407,12 @@ async def test_judge_completion_wait():
     provider.evaluate_semantic.return_value = VerificationResult(
         passed=False, reason="needs user credentials", wait=True
     )
-    goal = Goal(goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE)
-    reason, parse_failed, wait = await _judge_completion(provider, goal, "I need your API key to proceed.")
+    goal = Goal(
+        goal_id="g1", session_id="s1", objective="obj", status=GoalStatus.ACTIVE
+    )
+    reason, parse_failed, wait = await _judge_completion(
+        provider, goal, "I need your API key to proceed."
+    )
     assert reason == "needs user credentials"
     assert parse_failed is False
     assert wait is True
@@ -387,7 +435,9 @@ async def test_check_continuation_semantic_judge_completes():
     provider.get_active_goal.return_value = goal
     provider.get_goal.return_value = goal
     provider.is_continuation_suppressed.return_value = False
-    provider.evaluate_semantic.return_value = VerificationResult(passed=True, reason="goal done")
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=True, reason="goal done"
+    )
     provider.record_progress.return_value = goal
 
     messages = [AIMessage(content="I have completed the task successfully.")]
@@ -979,13 +1029,17 @@ async def test_judge_parse_failure_increments_counter():
 
     assert decision.should_continue is True
     assert decision.verdict == "continue"
-    provider.record_judge_parse_result.assert_called_once_with("parse-goal", parse_failed=True)
+    provider.record_judge_parse_result.assert_called_once_with(
+        "parse-goal", parse_failed=True
+    )
 
 
 @pytest.mark.asyncio
 async def test_judge_parse_failure_auto_pause_at_threshold():
     """Three consecutive parse failures triggers auto-pause."""
-    from myrm_agent_harness.agent.goals.continuation import _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES
+    from myrm_agent_harness.agent.goals.continuation import (
+        _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES,
+    )
 
     provider = AsyncMock()
     goal = Goal(
@@ -1077,7 +1131,9 @@ async def test_judge_parse_success_resets_counter():
 
     assert decision.should_continue is True
     assert decision.verdict == "continue"
-    provider.record_judge_parse_result.assert_called_once_with("parse-goal", parse_failed=False)
+    provider.record_judge_parse_result.assert_called_once_with(
+        "parse-goal", parse_failed=False
+    )
 
 
 @pytest.mark.asyncio
@@ -1165,7 +1221,9 @@ async def test_judge_api_error_does_not_count_as_parse_failure():
     # API error → _judge_completion returns ("", False) → parse_failed=False
     # Since goal had consecutive_judge_parse_failures=2 > 0, the counter is RESET
     # (not incremented). This prevents flaky networks from tripping the auto-pause.
-    provider.record_judge_parse_result.assert_called_once_with("api-err-goal", parse_failed=False)
+    provider.record_judge_parse_result.assert_called_once_with(
+        "api-err-goal", parse_failed=False
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1236,7 +1294,9 @@ async def test_acceptance_verification_fail_increments_retries():
         return_value=AggregatedVerificationResult(
             passed=False,
             per_criterion=[
-                VerificationResult(passed=False, criterion_label="false", reason="cmd failed"),
+                VerificationResult(
+                    passed=False, criterion_label="false", reason="cmd failed"
+                ),
             ],
         )
     )
@@ -1275,7 +1335,9 @@ async def test_acceptance_verification_fail_fuse_pauses():
         return_value=AggregatedVerificationResult(
             passed=False,
             per_criterion=[
-                VerificationResult(passed=False, criterion_label="false", reason="still failing"),
+                VerificationResult(
+                    passed=False, criterion_label="false", reason="still failing"
+                ),
             ],
         )
     )
@@ -1343,17 +1405,23 @@ async def test_judge_done_verification_exhausted_suppressed():
     provider.record_progress.return_value = goal
 
     mock_gatekeeper = MagicMock()
-    mock_gatekeeper.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=False))
+    mock_gatekeeper.verify_all = AsyncMock(
+        return_value=AggregatedVerificationResult(passed=False)
+    )
 
-    with patch(
-        "myrm_agent_harness.agent.goals.continuation._judge_completion",
-        return_value=(None, False, False),
-    ), patch(
-        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
-        return_value=mock_gatekeeper,
-    ), patch(
-        "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
-        return_value=[],
+    with (
+        patch(
+            "myrm_agent_harness.agent.goals.continuation._judge_completion",
+            return_value=(None, False, False),
+        ),
+        patch(
+            "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+            return_value=mock_gatekeeper,
+        ),
+        patch(
+            "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
+            return_value=[],
+        ),
     ):
         decision = await check_continuation(
             goal_provider=provider,
@@ -1455,7 +1523,9 @@ async def test_convergence_blocked_by_tamper():
     provider.is_continuation_suppressed.return_value = True
     provider.record_progress.return_value = converged_goal
 
-    fake_violations = [ProtectedFileViolation(path="tests/x.py", pattern="tests/**", kind="modified")]
+    fake_violations = [
+        ProtectedFileViolation(path="tests/x.py", pattern="tests/**", kind="modified")
+    ]
     with patch(
         "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
         return_value=fake_violations,
@@ -1494,11 +1564,15 @@ async def test_semantic_judge_blocked_by_tamper():
     provider.get_active_goal.return_value = goal
     provider.get_goal.return_value = goal
     provider.is_continuation_suppressed.return_value = False
-    provider.evaluate_semantic.return_value = VerificationResult(passed=True, reason="done")
+    provider.evaluate_semantic.return_value = VerificationResult(
+        passed=True, reason="done"
+    )
     provider.record_progress.return_value = goal
 
     messages = [AIMessage(content="I have completed the task.")]
-    fake_violations = [ProtectedFileViolation(path="src/main.py", pattern="src/**", kind="deleted")]
+    fake_violations = [
+        ProtectedFileViolation(path="src/main.py", pattern="src/**", kind="deleted")
+    ]
     with patch(
         "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
         return_value=fake_violations,
@@ -1566,7 +1640,9 @@ async def test_acceptance_verification_custom_max_retries():
     provider.increment_verification_retries.return_value = updated_goal_4
 
     mock_gatekeeper = MagicMock()
-    mock_gatekeeper.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=False))
+    mock_gatekeeper.verify_all = AsyncMock(
+        return_value=AggregatedVerificationResult(passed=False)
+    )
     with patch(
         "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
         return_value=mock_gatekeeper,
@@ -1612,14 +1688,19 @@ async def test_fast_path_physical_verification_short_circuit():
     provider.record_progress.return_value = goal
 
     mock_gatekeeper = MagicMock()
-    mock_gatekeeper.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=True))
+    mock_gatekeeper.verify_all = AsyncMock(
+        return_value=AggregatedVerificationResult(passed=True)
+    )
 
-    with patch(
-        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
-        return_value=mock_gatekeeper,
-    ), patch(
-        "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
-        return_value=[],
+    with (
+        patch(
+            "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+            return_value=mock_gatekeeper,
+        ),
+        patch(
+            "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
+            return_value=[],
+        ),
     ):
         decision = await check_continuation(
             goal_provider=provider,
@@ -1657,16 +1738,21 @@ async def test_fast_path_physical_verification_blocks_on_tamper():
     provider.record_progress.return_value = goal
 
     mock_gatekeeper = MagicMock()
-    mock_gatekeeper.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=True))
+    mock_gatekeeper.verify_all = AsyncMock(
+        return_value=AggregatedVerificationResult(passed=True)
+    )
 
     mock_violation = MagicMock(path="/app/test.py", kind="modified", pattern="**/*.py")
 
-    with patch(
-        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
-        return_value=mock_gatekeeper,
-    ), patch(
-        "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
-        return_value=[mock_violation],
+    with (
+        patch(
+            "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+            return_value=mock_gatekeeper,
+        ),
+        patch(
+            "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
+            return_value=[mock_violation],
+        ),
     ):
         decision = await check_continuation(
             goal_provider=provider,
@@ -1685,4 +1771,3 @@ async def test_fast_path_physical_verification_blocks_on_tamper():
         assert "Protected file tamper detected" in decision.reason
         # Must not complete when tampered!
         provider.update_status.assert_not_called()
-
