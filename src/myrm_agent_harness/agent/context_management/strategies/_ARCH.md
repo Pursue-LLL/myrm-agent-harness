@@ -18,6 +18,7 @@ Three-tier context reduction strategies: Filter, Compress, Summarize.
 | `compression/` | Compression guards: anti-thrash protection, effectiveness tracking, and formatting utilities. |
 | `filters/` | Content-type detection, structural and semantic filtering implementations. |
 | `session_notes/` | Real-time structured session notes. Zero-API-cost compression source. |
+| `reasoning/` | Reasoning preservation strategy: multi-provider raw thinking extraction, heuristic decision anchor mining, and session-scoped immutable ledger. |
 | `summary/` | Summarization strategy: LLM-based structured summarize, quality audit, message reconstruction, prompt templates, circuit breaker, and progress timeout. |
 
 ## Key Dependencies
