@@ -20,6 +20,7 @@ from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
 
 from .binary_validator import BinaryValidator
 from .config_protection_validator import ConfigProtectionValidator
+from .evidence_readonly_validator import EvidenceReadOnlyValidator
 from .invariant_validator import InvariantValidator
 from .path_validator import PathValidator
 from .permission_validator import PermissionValidator
@@ -57,13 +58,16 @@ class ValidatorChain:
         # 构建验证器链：
         # 1. 路径验证（路径遍历、符号链接、危险路径）
         # 2. Goal 不变量保护（物理阻止对 protected_paths 的写操作）
-        # 3. 敏感文件检测（credentials、keys 等）
-        # 4. 配置文件保护（防止 Agent 削弱 linter/formatter 规则）
-        # 5. 二进制数据检测（防止写入乱码）
-        # 6. 文件大小验证
-        # 7. 权限验证（文件存在性、操作合法性）
+        # 3. 证据链只读保护（物理阻止对 evidence/、user_inputs/ 原始素材的覆写）
+        # 4. 敏感文件检测（credentials、keys 等）
+        # 5. 配置文件保护（防止 Agent 削弱 linter/formatter 规则）
+        # 6. 二进制数据检测（防止写入乱码）
+        # 7. 文件大小验证
+        # 8. 权限验证（文件存在性、操作合法性）
         self.chain = PathValidator(allowed_base_paths, config)
         self.chain.set_next(InvariantValidator()).set_next(
+            EvidenceReadOnlyValidator()
+        ).set_next(
             SensitiveFileValidator(config, block_sensitive_reads)
         ).set_next(ConfigProtectionValidator()).set_next(BinaryValidator()).set_next(SizeValidator(strategy)).set_next(
             PermissionValidator(strategy)

@@ -19,6 +19,7 @@ module, ensuring a single set of definitions and consistent checks.
 - is_blocked_device_path(path) -> bool — pre-IO device path blocklist check
 - is_sensitive_file(path) -> bool — sensitive file check function
 - is_protected_instruction_file(path) -> bool — protected instruction check function
+- is_evidence_readonly_file(path) -> bool — read-only session evidence check function
 - is_within_boundary(target, boundary) -> bool — boundary check immune to symlink escape
 - safe_join_path(base_dir, user_input) -> Path — secure path resolution against traversal
 
@@ -188,6 +189,23 @@ PROTECTED_INSTRUCTION_PATTERNS: tuple[str, ...] = (
     "**/.myrm/rules/**",
     "**/.claude/CLAUDE.md",
     "**/.github/copilot-instructions.md",
+)
+
+# ---------------------------------------------------------------------------
+# Session Evidence and Read-only Input File Patterns
+# ---------------------------------------------------------------------------
+
+EVIDENCE_READONLY_PATTERNS: tuple[str, ...] = (
+    "**/evidence/**",
+    "**/evidence/*",
+    "evidence/**",
+    "evidence/*",
+    "**/user_inputs/**",
+    "**/user_inputs/*",
+    "user_inputs/**",
+    "user_inputs/*",
+    "**/.evidence/**",
+    "**/.evidence/*",
 )
 
 # ---------------------------------------------------------------------------
@@ -452,3 +470,29 @@ def is_protected_instruction_file(path: str) -> bool:
     except Exception:
         return False
     return False
+
+
+def is_evidence_readonly_file(path: str) -> bool:
+    """Check if *path* falls under a protected session evidence or user input directory.
+
+    Evidence directories (e.g. `evidence/`, `user_inputs/`) store read-only raw factual
+    sources pulled by tools or provided by users. The Agent must NOT overwrite or modify
+    these raw materials during multi-step execution.
+    """
+    if not path or not str(path).strip() or is_content_not_path(path):
+        return False
+    try:
+        path_obj = Path(path)
+        abs_norm = str(path_obj.absolute()).replace("\\", "/")
+        norm_relative = str(path_obj).replace("\\", "/")
+
+        for pattern in EVIDENCE_READONLY_PATTERNS:
+            if fnmatch(abs_norm, pattern) or fnmatch(norm_relative, pattern):
+                return True
+            pattern_tail = pattern.replace("**/", "")
+            if fnmatch(norm_relative, pattern_tail) or fnmatch(path_obj.name, pattern_tail):
+                return True
+    except Exception:
+        return False
+    return False
+

@@ -189,13 +189,64 @@ def parse_loop_command_input(raw_input: str) -> tuple[int, str]:
     - Suffix interval: ``/loop check deploy every 2 hours`` -> (7200000, "check deploy")
     - Chinese suffix interval: ``/loop 检查部署 每隔2小时`` -> (7200000, "检查部署")
     - No interval (defaults to 10m): ``/loop 帮我盯竞品动态`` -> (600000, "帮我盯竞品动态")
+    - Pure interval without prompt: ``/loop 5m`` -> (300000, "")
+    - Aliases: ``/repeat 10m check deploy``, ``/cron 30m monitor logs``
+    - Enclosing quotes stripped from prompt
     - Empty prompt: ``/loop`` -> (600000, "")
     """
     import re
 
-    args = re.sub(r"^/loop\s*", "", raw_input.strip(), flags=re.IGNORECASE).strip()
+    args = re.sub(
+        r"^(?:/)?(?:loop|repeat|cron)\s*",
+        "",
+        raw_input.strip(),
+        flags=re.IGNORECASE,
+    ).strip()
     if not args:
         return (_DEFAULT_LOOP_INTERVAL_MS, "")
+
+    def _clean_prompt(p: str) -> str:
+        trimmed = p.strip()
+        if (
+            (trimmed.startswith('"') and trimmed.endswith('"') and len(trimmed) >= 2)
+            or (trimmed.startswith("'") and trimmed.endswith("'") and len(trimmed) >= 2)
+        ):
+            return trimmed[1:-1].strip()
+        return trimmed
+
+    unit_regex = (
+        r"(?:s|sec|secs|second|seconds|秒|秒钟|"
+        r"m|min|mins|minute|minutes|分|分钟|"
+        r"h|hr|hrs|hour|hours|个?小时|个?钟头|"
+        r"d|day|days|天)"
+    )
+
+    def _is_pure_interval(s: str) -> bool:
+        c = s.strip().lower()
+        if c in ("每天", "每日", "daily", "day"):
+            return True
+        norm = re.sub(r"^(?:every|each|每隔|每)\s*", "", c).strip()
+        if norm in (
+            "半小时",
+            "半个小时",
+            "半个钟头",
+            "1个半小时",
+            "一个半小时",
+            "1.5h",
+            "1.5小时",
+            "每天",
+            "每日",
+            "天",
+            "day",
+            "daily",
+        ):
+            return True
+        pattern = rf"^(\d+)\s*{unit_regex}?$"
+        return bool(re.match(pattern, norm))
+
+    # 0. Pure interval expression without prompt: e.g. "/loop 5m", "/loop every 1h", "/loop 每天"
+    if _is_pure_interval(args):
+        return (parse_natural_interval(args), "")
 
     # 1. Special natural phrases at prefix: e.g. "半小时 检查构建" or "每隔半小时 检查构建"
     special_prefix_match = re.match(
@@ -205,16 +256,10 @@ def parse_loop_command_input(raw_input: str) -> tuple[int, str]:
     )
     if special_prefix_match:
         interval_str = special_prefix_match.group(1)
-        prompt = special_prefix_match.group(2).strip()
+        prompt = _clean_prompt(special_prefix_match.group(2))
         return (parse_natural_interval(interval_str), prompt)
 
     # 2. Try prefix interval: e.g. "5m do something", "10分钟 检查PR", "every 2 hours do something", "每隔2小时 检查"
-    unit_regex = (
-        r"(?:s|sec|secs|second|seconds|秒|秒钟|"
-        r"m|min|mins|minute|minutes|分|分钟|"
-        r"h|hr|hrs|hour|hours|个?小时|个?钟头|"
-        r"d|day|days|天)"
-    )
     prefix_match = re.match(
         rf"^(?:every\s+|each\s+|每隔?\s*)?(\d+\s*{unit_regex})\s+(.+)$",
         args,
@@ -222,7 +267,7 @@ def parse_loop_command_input(raw_input: str) -> tuple[int, str]:
     )
     if prefix_match:
         interval_str = prefix_match.group(1)
-        prompt = prefix_match.group(2).strip()
+        prompt = _clean_prompt(prefix_match.group(2))
         return (parse_natural_interval(interval_str), prompt)
 
     # 3. Try prefix pure digits: e.g. "10 check something"
@@ -231,7 +276,7 @@ def parse_loop_command_input(raw_input: str) -> tuple[int, str]:
         val = int(prefix_digit_match.group(1))
         # If val is reasonable interval (1-1440 minutes), treat as interval
         if 1 <= val <= 1440:
-            return (val * 60_000, prefix_digit_match.group(2).strip())
+            return (val * 60_000, _clean_prompt(prefix_digit_match.group(2)))
 
     # 4. Try suffix interval: e.g. "check something every 2 hours" or "检查构建 每隔10分钟"
     suffix_match = re.search(
@@ -241,7 +286,7 @@ def parse_loop_command_input(raw_input: str) -> tuple[int, str]:
     )
     if suffix_match:
         interval_str = suffix_match.group(1)
-        prompt = args[: suffix_match.start()].strip()
+        prompt = _clean_prompt(args[: suffix_match.start()])
         return (parse_natural_interval(interval_str), prompt)
 
     # 5. Try suffix plain interval: e.g. "check something 10m" or "检查构建 10分钟"
@@ -252,11 +297,11 @@ def parse_loop_command_input(raw_input: str) -> tuple[int, str]:
     )
     if suffix_plain_match:
         interval_str = suffix_plain_match.group(1)
-        prompt = args[: suffix_plain_match.start()].strip()
+        prompt = _clean_prompt(args[: suffix_plain_match.start()])
         return (parse_natural_interval(interval_str), prompt)
 
     # 6. Fallback: treat whole text as prompt with default interval
-    return (_DEFAULT_LOOP_INTERVAL_MS, args)
+    return (_DEFAULT_LOOP_INTERVAL_MS, _clean_prompt(args))
 
 
 # ---------------------------------------------------------------------------

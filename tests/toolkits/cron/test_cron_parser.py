@@ -174,3 +174,50 @@ class TestParseLoopCommandInput:
         ms, prompt = parse_loop_command_input("/loop")
         assert ms == 600_000
         assert prompt == ""
+
+    def test_pure_interval_without_prompt(self) -> None:
+        ms1, p1 = parse_loop_command_input("/loop 5m")
+        assert ms1 == 300_000
+        assert p1 == ""
+
+        ms2, p2 = parse_loop_command_input("/loop every 2h")
+        assert ms2 == 7_200_000
+        assert p2 == ""
+
+        ms3, p3 = parse_loop_command_input("/loop 半小时")
+        assert ms3 == 1_800_000
+        assert p3 == ""
+
+        ms4, p4 = parse_loop_command_input("/loop 每天")
+        assert ms4 == 86_400_000
+        assert p4 == ""
+
+        ms5, p5 = parse_loop_command_input("/loop 15")
+        assert ms5 == 900_000
+        assert p5 == ""
+
+    def test_command_aliases(self) -> None:
+        ms_rep, p_rep = parse_loop_command_input("/repeat 10m check deploy")
+        assert ms_rep == 600_000
+        assert p_rep == "check deploy"
+
+        ms_cron, p_cron = parse_loop_command_input("/cron 30m monitor logs")
+        assert ms_cron == 1_800_000
+        assert p_cron == "monitor logs"
+
+        ms_empty, p_empty = parse_loop_command_input("/repeat 5m")
+        assert ms_empty == 300_000
+        assert p_empty == ""
+
+    def test_enclosing_quotes_stripped(self) -> None:
+        ms_dbl, p_dbl = parse_loop_command_input('/loop 5m "检查 PR 状态"')
+        assert ms_dbl == 300_000
+        assert p_dbl == "检查 PR 状态"
+
+        ms_sgl, p_sgl = parse_loop_command_input("/loop 1h 'monitor service'")
+        assert ms_sgl == 3_600_000
+        assert p_sgl == "monitor service"
+
+        ms_sfx, p_sfx = parse_loop_command_input('/loop "检查部署" every 10m')
+        assert ms_sfx == 600_000
+        assert p_sfx == "检查部署"
