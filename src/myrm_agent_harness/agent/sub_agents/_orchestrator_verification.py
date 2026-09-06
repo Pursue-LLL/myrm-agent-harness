@@ -155,6 +155,7 @@ async def run_with_verification(
     verification_mode: Literal[
         "adversarial", "auditor_blind", "multi_skeptic"
     ] = "adversarial",
+    complexity_tier: str | None = None,
 ) -> SubAgentResult:
     """Execute a worker then verify via an adversarial verifier, retrying on failure.
 
@@ -224,6 +225,7 @@ async def run_with_verification(
             wait=True,
             cancel_token=cancel_token,
             internal=worker_internal,
+            complexity_tier=complexity_tier,
         )
         if isinstance(worker_result, dict):
             worker_result = _spawn_dict_to_subagent_result(

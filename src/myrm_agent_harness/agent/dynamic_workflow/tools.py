@@ -181,6 +181,10 @@ class SpawnSubagentInput(BaseModel):
         le=5,
         description="Max adversarial verification rounds (1-5).",
     )
+    complexity_tier: str | None = Field(
+        default=None,
+        description="Optional model tier hint ('simple', 'standard', 'reasoning').",
+    )
 
 
 class SpawnSubagentTool(BaseTool):
@@ -232,6 +236,7 @@ class SpawnSubagentTool(BaseTool):
         ] = "none",
         verifier_agent_type: str | None = None,
         max_verification_rounds: int = 2,
+        complexity_tier: str | None = None,
     ) -> object:
         raise NotImplementedError("SpawnSubagentTool only supports async execution.")
 
@@ -246,6 +251,7 @@ class SpawnSubagentTool(BaseTool):
         ] = "none",
         verifier_agent_type: str | None = None,
         max_verification_rounds: int = 2,
+        complexity_tier: str | None = None,
     ) -> object:
         if self.cancel_token and getattr(self.cancel_token, "is_cancelled", False):
             return {
@@ -265,6 +271,7 @@ class SpawnSubagentTool(BaseTool):
             verification_mode=verification_mode,
             verifier_agent_type=verifier_agent_type,
             max_verification_rounds=max_verification_rounds,
+            complexity_tier=complexity_tier,
         )
 
         if self.store:
@@ -386,6 +393,7 @@ class SpawnSubagentTool(BaseTool):
                                 cancel_token=cast(
                                     "CancellationToken | None", self.cancel_token
                                 ),
+                                complexity_tier=complexity_tier,
                             )
                         else:
                             manager = getattr(
@@ -444,6 +452,7 @@ class SpawnSubagentTool(BaseTool):
                                 ),
                                 task_id=task_id,
                                 verification_mode=v_mode_param,
+                                complexity_tier=complexity_tier,
                             )
                     else:
                         result = await cast(
@@ -462,6 +471,7 @@ class SpawnSubagentTool(BaseTool):
                             cancel_token=cast(
                                 "CancellationToken | None", self.cancel_token
                             ),
+                            complexity_tier=complexity_tier,
                         )
             except Exception as e:
                 logger.error("DW spawn failed: task=%s error=%s", task_id, e)

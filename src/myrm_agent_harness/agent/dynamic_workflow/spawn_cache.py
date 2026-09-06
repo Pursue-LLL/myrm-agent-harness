@@ -22,6 +22,7 @@ class SpawnCacheParams:
     verification_mode: Literal["none", "adversarial", "auditor_blind", "multi_skeptic"]
     verifier_agent_type: str | None
     max_verification_rounds: int
+    complexity_tier: str | None = None
 
     def fingerprint(self) -> str:
         payload = json.dumps(asdict(self), sort_keys=True, ensure_ascii=False)
@@ -43,6 +44,7 @@ def spawn_cache_params_from_json(raw: str) -> SpawnCacheParams | None:
             verification_mode=data["verification_mode"],
             verifier_agent_type=data.get("verifier_agent_type"),
             max_verification_rounds=int(data["max_verification_rounds"]),
+            complexity_tier=data.get("complexity_tier"),
         )
     except (KeyError, TypeError, ValueError):
         return None

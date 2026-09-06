@@ -1270,3 +1270,56 @@ async def test_steer_child_tool_success_and_fallback(mock_parent_agent):
     res3 = await tool_no_attr._arun(task_id="child_any", message="msg")
     assert res3["success"] is False
     assert "does not support steer_child" in res3["error"]
+
+
+@pytest.mark.asyncio
+async def test_spawn_subagent_complexity_tier_and_cache_fingerprint(mock_parent_agent):
+    from myrm_agent_harness.agent.dynamic_workflow.spawn_cache import (
+        SpawnCacheParams,
+        spawn_cache_params_from_json,
+    )
+    from myrm_agent_harness.agent.dynamic_workflow.tools import DwVerificationMode
+
+    # 1. Fingerprint test
+    p_none = SpawnCacheParams("general", "task", False, "none", None, 2, None)
+    p_reasoning = SpawnCacheParams("general", "task", False, "none", None, 2, "reasoning")
+    assert p_none.fingerprint() != p_reasoning.fingerprint()
+
+    # 2. JSON roundtrip test
+    json_str = '{"agent_type":"general","task_description":"task","readonly":false,"verification_mode":"none","verifier_agent_type":null,"max_verification_rounds":2,"complexity_tier":"reasoning"}'
+    parsed = spawn_cache_params_from_json(json_str)
+    assert parsed is not None
+    assert parsed.complexity_tier == "reasoning"
+
+    # 3. Tool direct spawn passes complexity_tier
+    mock_parent_agent._spawn_child.return_value = {"success": True, "result": "ok"}
+    tool = SpawnSubagentTool(
+        parent_agent=mock_parent_agent,
+        tool_registry_getter=lambda: [],
+        workflow_id="wf_tier_test",
+    )
+    res = await tool._arun(
+        task_id="task_tier_1",
+        agent_type="generalPurpose",
+        task_description="analyze architecture",
+        complexity_tier="reasoning",
+    )
+    assert res["success"] is True
+    assert mock_parent_agent._spawn_child.call_args.kwargs["complexity_tier"] == "reasoning"
+
+    # 4. Verified spawn passes complexity_tier
+    mock_parent_agent._subagent_manager = MagicMock()
+    with patch(
+        "myrm_agent_harness.agent.sub_agents.orchestrator.run_with_verification"
+    ) as mock_verify:
+        mock_verify.return_value = {"success": True, "result": "verified_tier_ok"}
+        res_v = await tool._arun(
+            task_id="task_tier_verify",
+            agent_type="generalPurpose",
+            task_description="audited step",
+            verification_mode=DwVerificationMode.ADVERSARIAL.value,
+            complexity_tier="simple",
+        )
+        assert res_v["success"] is True
+        assert mock_verify.call_args.kwargs["complexity_tier"] == "simple"
+
