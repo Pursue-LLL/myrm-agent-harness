@@ -250,3 +250,52 @@ class TestVideoEngineUrlExtraction:
 
         body = json.loads(result_str)
         assert body["mode"] == "V2V (video-to-video)"
+
+
+@pytest.mark.asyncio
+async def test_generator_moderation_blocked_error_aborts_without_retry() -> None:
+    """Verify that ModerationBlockedError skips retries and aborts failover immediately."""
+    from unittest.mock import MagicMock
+    from myrm_agent_harness.toolkits.llms.video.generator import VideoGenerator
+    from myrm_agent_harness.toolkits.llms.video.models import (
+        ModerationBlockedError,
+        VideoGenerationConfig,
+    )
+    from myrm_agent_harness.toolkits.llms.video.providers.base import VideoGenerationProvider
+
+    class MockFailingProvider(VideoGenerationProvider):
+        @property
+        def provider_id(self) -> str:
+            return "mock-mod"
+
+        @property
+        def display_name(self) -> str:
+            return "Mock Mod"
+
+        @property
+        def default_model(self) -> str:
+            return "mod-1"
+
+        @property
+        def supported_models(self):
+            return ()
+
+        @property
+        def capabilities(self):
+            from myrm_agent_harness.toolkits.llms.video.models import ProviderCapabilities
+            return ProviderCapabilities()
+
+        async def generate(self, *args, **kwargs):
+            raise ModerationBlockedError("Explicit moderation block: NSFW")
+
+    registry = MagicMock()
+    registry.get.return_value = MockFailingProvider()
+    config = VideoGenerationConfig(provider="mock-mod", model="mod-1", max_retries=3)
+
+    gen = VideoGenerator(config, registry)
+
+    with pytest.raises(ModerationBlockedError) as exc_info:
+        await gen.generate("unsafe scene")
+
+    assert "Explicit moderation block: NSFW" in str(exc_info.value)
+

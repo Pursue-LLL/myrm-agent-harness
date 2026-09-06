@@ -79,6 +79,8 @@ async def run_parallel_task_requests(
     max_concurrent: int | None = None,
     budget_admission: _BatchBudgetAdmission | None = None,
     on_progress: Callable[[int, str, dict[str, object] | None], Awaitable[None]] | None = None,
+    strict_completeness: bool = False,
+    min_completeness_ratio: float = 0.0,
 ) -> dict[str, object]:
     """Run TaskRequest items concurrently via an existing delegate_task tool."""
     if not tasks:
@@ -245,8 +247,32 @@ async def run_parallel_task_requests(
                 }
             )
 
+    summary_data = batch_summary(final_results)
+    gate_passed = True
+    gate_error: str | None = None
+
+    if strict_completeness and not summary_data.get("all_success"):
+        gate_passed = False
+        gate_error = (
+            f"Strict completeness gate failed: {summary_data.get('failed_count')} of "
+            f"{summary_data.get('total_count')} tasks failed."
+        )
+    elif min_completeness_ratio > 0.0:
+        ratio = float(summary_data.get("completeness_ratio") or 0.0)
+        if ratio < min_completeness_ratio:
+            gate_passed = False
+            gate_error = (
+                f"Fleet completeness ratio {ratio:.1%} is below required threshold "
+                f"{min_completeness_ratio:.1%}."
+            )
+
+    if not gate_passed:
+        summary_data["gate_passed"] = False
+        summary_data["success"] = False
+        summary_data["completeness_gate_error"] = gate_error
+
     payload: dict[str, object] = {
-        **batch_summary(final_results),
+        **summary_data,
         "results": final_results,
         "budget_admission": (budget_admission.to_dict() if budget_admission else None),
     }

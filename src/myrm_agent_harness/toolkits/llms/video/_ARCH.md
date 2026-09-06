@@ -8,9 +8,9 @@ Video generation module — multi-provider video generation with failover.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `__init__.py` | Package | Video generation module — multi-provider video generation with failover. | ✅ |
-| `_helpers.py` | Internal | Used by generator.py for retry logic, error formatting, and content validation. | ✅ |
-| `generator.py` | Core | Video generation orchestrator. | ✅ |
-| `models.py` | Core | Pure data types with no business logic. Mirrors the image module's models.py. | ✅ |
+| `_helpers.py` | Internal | Used by generator.py for retry logic, error formatting, content validation, and non-retryable classification (including ModerationBlockedError). | ✅ |
+| `generator.py` | Core | Video generation orchestrator with ModerationBlockedError fast-fail dispatch. | ✅ |
+| `models.py` | Core | Pure data types with no business logic. Includes ModerationBlockedError and ProviderCapabilities. | ✅ |
 | `task_store.py` | Core | Framework provides Protocol + two implementations (in-memory default, file-based). | ✅ |
 | `async_video_engine.py` | Core | Async enqueue adapter (`task_id` immediate return) for non-blocking video generation. | ✅ |
 | `video_engine.py` | Core | Video generation engine; LangChain adapter in server `media_tools/`. | ✅ |

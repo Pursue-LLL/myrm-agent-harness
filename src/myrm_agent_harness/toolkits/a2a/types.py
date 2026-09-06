@@ -1,6 +1,6 @@
 """A2A (Agent-to-Agent) protocol data models.
 
-Pydantic frozen models aligned with the Google A2A spec.
+Pydantic frozen models aligned with Google A2A v1.0 spec and JSON-RPC 2.0.
 Reference: a2a-go/a2a/agent.go
 
 [INPUT]
@@ -13,20 +13,27 @@ no - Base type definition module
 - AgentInterface: Transport endpoint declaration
 - AgentProvider: Service provider metadata
 - TransportProtocol: Transport protocol enum
+- TaskStatus: Task lifecycle state enum
+- TaskRole: Message role enum (user, agent)
+- TaskMessage: Individual message in A2A task history
+- TaskArtifact: Artifact output produced by A2A task
+- A2ATask: Complete task record with status and artifacts
+- JsonRpcRequest / JsonRpcResponse / JsonRpcError: JSON-RPC 2.0 protocol models
+- WebhookNotification: Signed push event payload
 
 [POS]
 A2A protocol type definitions. Provides all Agent-to-Agent protocol
-data structures for agent discovery and capability declaration.
+data structures for agent discovery, capability declaration, and task RPC.
 """
 
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 
 from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
-# Enums
+# Enums & Constants
 # ---------------------------------------------------------------------------
 
 
@@ -38,15 +45,45 @@ class TransportProtocol(StrEnum):
     HTTP_JSON = "HTTP+JSON"
 
 
-# A2A spec 当前稳定版本
-A2A_PROTOCOL_VERSION = "0.2.2"
+class TaskStatus(StrEnum):
+    """A2A Task execution lifecycle states."""
+
+    PENDING = "pending"
+    WORKING = "working"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class TaskRole(StrEnum):
+    """Participant role in A2A task exchange."""
+
+    USER = "user"
+    AGENT = "agent"
+
+
+class JsonRpcErrorCode(IntEnum):
+    """Standard JSON-RPC 2.0 and A2A-specific error codes."""
+
+    PARSE_ERROR = -32700
+    INVALID_REQUEST = -32600
+    METHOD_NOT_FOUND = -32601
+    INVALID_PARAMS = -32602
+    INTERNAL_ERROR = -32603
+    UNAUTHORIZED = -32001
+    TASK_NOT_FOUND = -32004
+    RATE_LIMITED = -32029
+
+
+# A2A spec 稳定版本
+A2A_PROTOCOL_VERSION = "1.0.0"
 
 # 标准 well-known 路径
 WELL_KNOWN_AGENT_CARD_PATH = "/.well-known/agent-card.json"
 
 
 # ---------------------------------------------------------------------------
-# Data Models (frozen Pydantic models)
+# Discovery & Capability Models
 # ---------------------------------------------------------------------------
 
 
@@ -161,5 +198,93 @@ class AgentCard(BaseModel, frozen=True):
     # 图标和文档链接
     icon_url: str | None = Field(default=None, alias="iconUrl")
     documentation_url: str | None = Field(default=None, alias="documentationUrl")
+
+    model_config = {"populate_by_name": True}
+
+
+# ---------------------------------------------------------------------------
+# Task & Execution Models
+# ---------------------------------------------------------------------------
+
+
+class TaskMessage(BaseModel, frozen=True):
+    """Single message in an A2A task history."""
+
+    role: TaskRole
+    content: str
+    timestamp: float
+
+
+class TaskArtifact(BaseModel, frozen=True):
+    """Artifact produced during task execution."""
+
+    name: str
+    uri: str
+    mime_type: str = Field(default="text/plain", alias="mimeType")
+    description: str = ""
+
+    model_config = {"populate_by_name": True}
+
+
+class A2ATask(BaseModel, frozen=True):
+    """A2A Task representation tracking async lifecycle and outputs."""
+
+    task_id: str = Field(alias="taskId")
+    status: TaskStatus = TaskStatus.PENDING
+    messages: list[TaskMessage] = Field(default_factory=list)
+    artifacts: list[TaskArtifact] = Field(default_factory=list)
+    created_at: float = Field(alias="createdAt")
+    updated_at: float = Field(alias="updatedAt")
+    error: str | None = None
+    agent_id: str | None = Field(default=None, alias="agentId")
+    push_url: str | None = Field(default=None, alias="pushUrl")
+    push_secret: str | None = Field(default=None, alias="pushSecret")
+
+    model_config = {"populate_by_name": True}
+
+
+# ---------------------------------------------------------------------------
+# JSON-RPC 2.0 Models
+# ---------------------------------------------------------------------------
+
+
+class JsonRpcError(BaseModel, frozen=True):
+    """Standard JSON-RPC 2.0 error object."""
+
+    code: int
+    message: str
+    data: object | None = None
+
+
+class JsonRpcRequest(BaseModel, frozen=True):
+    """JSON-RPC 2.0 request envelope."""
+
+    jsonrpc: str = "2.0"
+    method: str
+    params: dict[str, object] | None = None
+    id: str | int | None = None
+
+
+class JsonRpcResponse(BaseModel, frozen=True):
+    """JSON-RPC 2.0 response envelope."""
+
+    jsonrpc: str = "2.0"
+    result: object | None = None
+    error: JsonRpcError | None = None
+    id: str | int | None = None
+
+
+# ---------------------------------------------------------------------------
+# Webhook / Push Notification Models
+# ---------------------------------------------------------------------------
+
+
+class WebhookNotification(BaseModel, frozen=True):
+    """HMAC-signed push notification delivered to caller webhook."""
+
+    delivery_id: str = Field(alias="deliveryId")
+    event: str
+    timestamp: float
+    task: A2ATask
 
     model_config = {"populate_by_name": True}

@@ -225,6 +225,20 @@ class VideoGenerationError(Exception):
         self.latency_ms = latency_ms
 
 
+class ModerationBlockedError(VideoGenerationError):
+    """Raised when video generation is blocked by provider content moderation or safety policy."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        violation_reason: str | None = None,
+        latency_ms: float = 0.0,
+    ) -> None:
+        super().__init__(message, latency_ms=latency_ms)
+        self.violation_reason = violation_reason
+
+
 TaskState = MediaTaskState
 """Backward-compatible alias. Use MediaTaskState for new code."""
 

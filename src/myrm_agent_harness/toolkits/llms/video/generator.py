@@ -38,6 +38,7 @@ from .models import (
     VideoGenerationConfig,
     VideoGenerationError,
     VideoResult,
+    ModerationBlockedError,
 )
 from .providers.base import ProviderOutput, ProviderRegistry
 
@@ -168,6 +169,15 @@ class VideoGenerator:
                     latency_ms=sum(a.latency_ms for a in attempts),
                 ) from None
 
+            except ModerationBlockedError:
+                self._error_count += 1
+                logger.warning(
+                    "Video generation blocked by content moderation on %s/%s; aborting failover.",
+                    cfg.provider,
+                    effective_model,
+                )
+                raise
+
             except VideoGenerationError as e:
                 attempts.append(
                     FailoverAttempt(
@@ -296,6 +306,40 @@ class VideoGenerator:
                 )
 
             except Exception as exc:
+                msg_lower = str(exc).lower()
+                is_422 = getattr(exc, "status_code", None) == 422 or getattr(exc, "code", None) == 422
+                has_safety_keywords = (
+                    "content_filter" in msg_lower
+                    or "moderation" in msg_lower
+                    or "sensitive" in msg_lower
+                    or "safety" in msg_lower
+                    or "policy" in msg_lower
+                    or "violation" in msg_lower
+                    or "nsfw" in msg_lower
+                    or "copyright" in msg_lower
+                )
+                is_mod_blocked = (
+                    isinstance(exc, ModerationBlockedError)
+                    or (is_422 and has_safety_keywords)
+                    or "content_filter" in msg_lower
+                    or "moderation" in msg_lower
+                    or "sensitive content" in msg_lower
+                    or "safety policy" in msg_lower
+                    or "nsfw" in msg_lower
+                )
+                if is_mod_blocked:
+                    elapsed_ms = (time.monotonic() - t0) * 1000
+                    reason = "Content safety or moderation policy violation"
+                    if "nsfw" in msg_lower:
+                        reason = "Content flagged for NSFW safety policy violation"
+                    elif "copyright" in msg_lower:
+                        reason = "Content flagged for potential copyright or IP violation"
+                    raise ModerationBlockedError(
+                        safe_truncate(f"Video generation rejected by safety filter: {exc}"),
+                        violation_reason=reason,
+                        latency_ms=elapsed_ms,
+                    ) from exc
+
                 last_error = exc
                 if not is_retryable(exc) or attempt >= config.max_retries:
                     break

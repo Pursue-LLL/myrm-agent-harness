@@ -31,6 +31,7 @@ from .models import (
     VideoGenerationError,
     VideoResolution,
     VideoResult,
+    ModerationBlockedError,
 )
 from .providers import ProviderRegistry, VideoGenerationProvider, get_registry
 from .task_store import FileVideoTaskStore, InMemoryVideoTaskStore, VideoTaskStore
@@ -43,6 +44,7 @@ __all__ = [
     "InMemoryVideoTaskStore",
     "MediaCallback",
     "MediaMeta",
+    "ModerationBlockedError",
     "OverrideIgnored",
     "ProviderCapabilities",
     "ProviderRegistry",

@@ -19,6 +19,7 @@ _NON_RETRYABLE_NAMES = frozenset(
     {
         "AuthenticationError",
         "BadRequestError",
+        "ModerationBlockedError",
         "NotFoundError",
         "ValueError",
     }
