@@ -99,12 +99,25 @@ class ReasoningAnchorProcessor(BaseProcessor):
         if last_human_idx != -1:
             human_msg = context.messages[last_human_idx]
             raw_content = human_msg.content
+            rendered_block = ledger.render_anchors_context()
             if isinstance(raw_content, str):
-                rendered_block = ledger.render_anchors_context()
                 # Remove any existing anchor block to prevent repeated stacking
                 cleaned_content = _ANCHOR_BLOCK_REGEX.sub("", raw_content).rstrip()
                 updated_content = f"{cleaned_content}\n\n{rendered_block}"
                 human_msg.content = updated_content
+            elif isinstance(raw_content, list):
+                # Multimodal content block list: locate or append text block
+                cleaned_list: list[object] = []
+                for item in raw_content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        t_text = str(item.get("text", ""))
+                        cleaned_t = _ANCHOR_BLOCK_REGEX.sub("", t_text).rstrip()
+                        if cleaned_t:
+                            cleaned_list.append({"type": "text", "text": cleaned_t})
+                    else:
+                        cleaned_list.append(item)
+                cleaned_list.append({"type": "text", "text": rendered_block})
+                human_msg.content = cleaned_list  # type: ignore[assignment]
 
         if extracted_count > 0:
             logger.info(

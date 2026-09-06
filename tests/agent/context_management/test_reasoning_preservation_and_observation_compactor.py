@@ -155,6 +155,36 @@ class TestReasoningAnchorProcessor:
         assert "[PRESERVED REASONING ANCHORS & CONSTRAINTS]" in str(last_human.content)
         assert "数据库连接必须增加重试机制" in str(last_human.content)
 
+    @pytest.mark.asyncio
+    async def test_pipeline_multimodal_human_message_injection(self) -> None:
+        session_id = "test_pipe_multimodal_session"
+        clear_session_anchor_ledger(session_id)
+
+        ai_msg = AIMessage(
+            content="Plan approved.",
+            additional_kwargs={
+                "reasoning_content": "- 铁律: 禁止跨客户bundle复制"
+            },
+        )
+        human_msg = HumanMessage(
+            content=[
+                {"type": "text", "text": "Check this screenshot."},
+                {"type": "image_url", "image_url": "data:image/png;base64,xxxx"},
+            ]
+        )
+        ctx = ProcessorContext(
+            messages=[ai_msg, human_msg],
+            user_query="inspect",
+            chat_id=session_id,
+        )
+        processor = ReasoningAnchorProcessor()
+        res = await processor.process(ctx)
+
+        last_human = res.messages[-1]
+        assert isinstance(last_human.content, list)
+        text_blocks = [b for b in last_human.content if isinstance(b, dict) and b.get("type") == "text"]
+        assert any("禁止跨客户bundle复制" in str(b.get("text")) for b in text_blocks)
+
 
 class TestConsumptionAwareCompaction:
     """Verify tool consumption state tracking and semantic observation cards."""
