@@ -15,7 +15,9 @@ from myrm_agent_harness.core.config.llm import CustomModelDef
 _WEAK_CONTEXT_THRESHOLD = 16_384
 _MEDIUM_CONTEXT_THRESHOLD = 65_536
 
-_PARAM_SIZE_PATTERN = re.compile(r"[:\-_](\d+(?:\.\d+)?)\s*[bB](?:[_\-:]|$)", re.IGNORECASE)
+_PARAM_SIZE_PATTERN = re.compile(
+    r"[:\-_](\d+(?:\.\d+)?)\s*[bB](?:[_\-:]|$)", re.IGNORECASE
+)
 
 _MEDIUM_MODEL_SUBSTRINGS: frozenset[str] = frozenset(
     {
@@ -84,7 +86,9 @@ def infer_model_tier(
         if s in nl:
             # Specific known low/medium variants within strong families (e.g. gpt-4o-mini, gemini-2.0-flash)
             # Only trigger medium if the variant marker is present and the model is not explicitly marked "pro" or "max"
-            if any(m in nl for m in ("mini", "flash", "haiku")) and not any(p in nl for p in ("pro", "max", "opus")):
+            if any(m in nl for m in ("mini", "flash", "haiku")) and not any(
+                p in nl for p in ("pro", "max", "opus")
+            ):
                 return ModelTier.MEDIUM
             return ModelTier.STRONG
 
