@@ -196,6 +196,7 @@ def build_default_processors(
         PostCompactionRefetchGuardProcessor,
         PostCompactionRereadProcessor,
         PreCompactProcessor,
+        ReasoningAnchorProcessor,
         SessionNotesProcessor,
         SummarizeProcessor,
         ThinkingBlockCleaner,
@@ -238,6 +239,7 @@ def build_default_processors(
     )
 
     processors: list[BaseProcessor] = [
+        ReasoningAnchorProcessor(),
         ThinkingBlockCleaner(),
         VisionFallbackProcessor(file_content_reader=file_content_reader),
         MediaFilterProcessor(),

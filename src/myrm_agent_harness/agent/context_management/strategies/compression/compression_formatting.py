@@ -137,6 +137,9 @@ def generate_compressed_content_with_stats(
         "lines": tool_stats.get("lines", "?"),
         "chars": tool_stats.get("chars", "?"),
         "tokens": tool_stats.get("tokens", "?"),
+        "findings": tool_stats.get("findings", ""),
+        "summary": tool_stats.get("summary", ""),
+        "error": tool_stats.get("error", ""),
     }
 
     try:

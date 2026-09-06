@@ -28,9 +28,10 @@ and before CacheTtlPruneProcessor in the default pipeline.
 from __future__ import annotations
 
 import hashlib
-from typing import TYPE_CHECKING
+import re
+from typing import TYPE_CHECKING, Sequence
 
-from langchain_core.messages import BaseMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_content_tokens
@@ -57,6 +58,41 @@ def _content_text(content: str | object) -> str | None:
     return content if isinstance(content, str) else None
 
 
+def sanitize_multimodal_content(content: str | object) -> tuple[str | None, bool]:
+    """Extract string content and isolate large base64 media payloads if present."""
+    if isinstance(content, str):
+        return content, False
+    if isinstance(content, list):
+        has_media = False
+        text_parts: list[str] = []
+        for block in content:
+            if isinstance(block, dict):
+                b_type = str(block.get("type", ""))
+                if b_type in ("image", "image_url") or "base64" in block:
+                    has_media = True
+                    text_parts.append("[IMAGE_OMITTED_MEDIA_POINTER: base64 payload isolated]")
+                elif "text" in block and isinstance(block["text"], str):
+                    text_parts.append(block["text"])
+            elif isinstance(block, str):
+                text_parts.append(block)
+        if text_parts:
+            return "\n".join(text_parts), has_media
+    return None, False
+
+
+def is_tool_result_consumed(messages: Sequence[BaseMessage], tool_idx: int) -> bool:
+    """Determine if a ToolMessage has been consumed by a subsequent AIMessage.
+
+    A ToolMessage is considered CONSUMED if there is at least one AIMessage
+    after it in the conversation history. If no subsequent AIMessage exists,
+    the tool result is in the ACTIVE phase and must not be pruned.
+    """
+    for i in range(tool_idx + 1, len(messages)):
+        if isinstance(messages[i], AIMessage):
+            return True
+    return False
+
+
 def build_memory_truncated_placeholder(
     *,
     tool_name: str,
@@ -66,12 +102,22 @@ def build_memory_truncated_placeholder(
     tail_chars: int = 400,
     reason: str | None = None,
 ) -> str:
-    """Build a deterministic in-memory truncated placeholder preserving head & tail (DSH style)."""
+    """Build a deterministic in-memory truncated placeholder preserving head & tail (DSH style) with semantic findings."""
     original_chars = len(content)
     reason_info = f" [{reason}]" if reason else ""
+
+    findings_info = ""
+    error_match = re.search(
+        r"(?:(?:error|exception|fail(?:ed)?|assertionerror|traceback)[:\s][^\n]{0,100})",
+        content,
+        re.IGNORECASE,
+    )
+    if error_match:
+        findings_info = f" Finding: {error_match.group(0).strip()}."
+
     marker = (
         f"[Tool output pruned: original size {original_chars} chars, ~{est_tokens} tokens{reason_info}. "
-        f"Content pruned: {tool_name} output (~{est_tokens} tokens) truncated for recovery. "
+        f"Content pruned: {tool_name} output (~{est_tokens} tokens) truncated for recovery.{findings_info} "
         f"Preserved head & tail for context.]"
     )
     if original_chars <= head_chars + tail_chars:
@@ -132,6 +178,9 @@ async def prune_tool_results_deterministic(
             continue
         tool_name = msg.name or "unknown"
         if protection_config.is_active_prune_never(tool_name):
+            continue
+
+        if not force and not is_tool_result_consumed(messages, i):
             continue
 
         content_str = _content_text(msg.content)

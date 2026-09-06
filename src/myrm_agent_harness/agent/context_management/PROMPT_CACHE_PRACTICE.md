@@ -583,7 +583,9 @@ BUILTIN_PROTECTED_TOOLS = frozenset({"skill_select_tool", "todo_write", "file_re
 都复用这条链，避免不同入口出现不同的缓存行为：
 
 ```
-ThinkingBlockCleaner     ← 首先清理 thinking blocks，减少无效 token
+ReasoningAnchorProcessor ← 提取思考链决策/约束锚点并稳定注入尾部 Human，杜绝缓存破坏
+       ↓
+ThinkingBlockCleaner     ← 清理历史非活跃 thinking blocks，减少无效 token
        ↓
 VisionFallbackProcessor  ← text-only 主模型 + visionFallbackModel 时将 image block 转为文本（在 MediaFilter 剥离前）
        ↓
@@ -591,11 +593,11 @@ MediaFilterProcessor     ← 文本模型主动剥离 image/video/audio（避免
        ↓
 FilterProcessor                ← 大型工具结果 → 磁盘持久化 + 智能预览 + 文件引用
        ↓
-ActiveToolResultPruneProcessor ← 每步主动归档超 2048 tok 的旧工具结果（零 API 成本、protected tools 豁免）
+ActiveToolResultPruneProcessor ← 消费感知型每步主动归档超 2048 tok 的已消费工具结果（零 API 成本、protected tools 豁免）
        ↓
 CacheTtlPruneProcessor         ← cache 过期时归档/裁剪旧工具结果（零 API 成本、结构化引用、预算化恢复）
        ↓
-CompressProcessor        ← 旧工具调用 → 紧凑格式（批量清理）
+CompressProcessor        ← 旧工具调用 → 紧凑格式（批量清理、提取错误与定义）
        ↓
 SessionNotesProcessor    ← 笔记就绪时零 API 压缩；未就绪时自然透传
        ↓
