@@ -108,7 +108,7 @@ def build_memory_truncated_placeholder(
 
     findings_info = ""
     error_match = re.search(
-        r"(?:(?:error|exception|fail(?:ed)?|assertionerror|traceback)[:\s][^\n]{0,100})",
+        r"(?:(?:error|exception|fail(?:ed)?|assertionerror|traceback|panic)[:\s][^\n]{0,100})",
         content,
         re.IGNORECASE,
     )

@@ -27,11 +27,11 @@ from langchain_core.messages import AIMessage
 
 # Explicit decision signal prefixes (case-insensitive normalized)
 _DECISION_PREFIX_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"^(?:(?:核心)?结论|决策|确定方案|决定|最终结论)[:：]\s*(.+)$", re.IGNORECASE), "decision"),
+    (re.compile(r"^(?:(?:核心)?结论|(?:核心)?决策|确定方案|决定|最终结论)[:：]\s*(.+)$", re.IGNORECASE), "decision"),
     (re.compile(r"^(?:CONCLUSION|DECISION|STRATEGY)[:：]\s*(.+)$", re.IGNORECASE), "decision"),
-    (re.compile(r"^(?:硬性约束|架构约束|铁律|原则|禁止)[:：]\s*(.+)$", re.IGNORECASE), "constraint"),
+    (re.compile(r"^(?:硬性约束|架构约束|铁律|原则|禁止|约束)[:：]\s*(.+)$", re.IGNORECASE), "constraint"),
     (re.compile(r"^(?:CONSTRAINT|RULE|INVARIANT)[:：]\s*(.+)$", re.IGNORECASE), "constraint"),
-    (re.compile(r"^(?:已验证|根因定位|排查结果|关键发现|证实)[:：]\s*(.+)$", re.IGNORECASE), "finding"),
+    (re.compile(r"^(?:已验证|根因定位|排查结果|关键发现|证实|发现)[:：]\s*(.+)$", re.IGNORECASE), "finding"),
     (re.compile(r"^(?:VERIFIED|ROOT CAUSE|FINDING|DISCOVERY)[:：]\s*(.+)$", re.IGNORECASE), "finding"),
 )
 
