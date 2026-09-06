@@ -24,6 +24,7 @@ from .anchor_extractor import ReasoningAnchor
 _LEDGERS_LOCK = threading.Lock()
 _SESSION_LEDGERS: dict[str, SessionAnchorLedger] = {}
 _DEFAULT_MAX_ANCHORS = 10
+_MAX_ACTIVE_SESSIONS = 500
 
 
 class SessionAnchorLedger:
@@ -78,6 +79,10 @@ def get_session_anchor_ledger(session_id: str, *, max_anchors: int = _DEFAULT_MA
     """Get or create the singleton anchor ledger for a specific session."""
     with _LEDGERS_LOCK:
         if session_id not in _SESSION_LEDGERS:
+            if len(_SESSION_LEDGERS) >= _MAX_ACTIVE_SESSIONS:
+                # Evict oldest registered session ledger to prevent unbounded memory growth
+                oldest_key = next(iter(_SESSION_LEDGERS))
+                del _SESSION_LEDGERS[oldest_key]
             _SESSION_LEDGERS[session_id] = SessionAnchorLedger(session_id, max_anchors=max_anchors)
         return _SESSION_LEDGERS[session_id]
 

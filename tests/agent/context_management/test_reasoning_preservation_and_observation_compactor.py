@@ -119,6 +119,16 @@ class TestSessionAnchorLedger:
         ledger.record_anchor(anc2)
         assert len(ledger.get_anchors()) == 1
 
+    def test_global_session_eviction(self) -> None:
+        from myrm_agent_harness.agent.context_management.strategies.reasoning.anchor_ledger import (
+            _SESSION_LEDGERS,
+            get_session_anchor_ledger,
+        )
+        # Create many sessions to trigger bounded eviction
+        for i in range(550):
+            get_session_anchor_ledger(f"bulk_session_{i}")
+        assert len(_SESSION_LEDGERS) <= 500
+
 
 class TestReasoningAnchorProcessor:
     """Verify pipeline integration and prompt cache preservation."""
