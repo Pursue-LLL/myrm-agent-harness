@@ -26,6 +26,7 @@ from .processors import (
     CompressProcessor,
     ExplicitCacheProcessor,
     FilterProcessor,
+    ReasoningAnchorProcessor,
     SessionNotesProcessor,
     SummarizeProcessor,
     ThinkingBlockCleaner,
@@ -39,6 +40,7 @@ __all__ = [
     "ExplicitCacheProcessor",
     "FilterProcessor",
     "ProcessorContext",
+    "ReasoningAnchorProcessor",
     "SessionNotesProcessor",
     "SummarizeProcessor",
     # 处理器
