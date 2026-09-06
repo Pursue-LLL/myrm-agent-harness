@@ -29,6 +29,7 @@ def test_build_default_processors_without_session_notes() -> None:
     names = [processor.name for processor in processors]
 
     assert names == [
+        "ReasoningAnchorProcessor",
         "ThinkingBlockCleaner",
         "vision_fallback",
         "media_filter",
@@ -103,6 +104,7 @@ def test_build_default_processors_with_session_notes() -> None:
     names = [processor.name for processor in processors]
 
     assert names == [
+        "ReasoningAnchorProcessor",
         "ThinkingBlockCleaner",
         "vision_fallback",
         "media_filter",
