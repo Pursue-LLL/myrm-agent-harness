@@ -1120,3 +1120,30 @@ async def test_file_operation_service_version_mismatch_raises_structured_tool_er
         assert err.diagnostic_info.get("error_category") == "version_conflict"
         assert "Call file_edit_tool again directly" in err.recovery_suggestions[2]
 
+
+@pytest.mark.asyncio
+async def test_evidence_readonly_validator_blocks_write_in_chain() -> None:
+    """ValidatorChain blocks write attempts to evidence/ paths."""
+    from myrm_agent_harness.agent.meta_tools.file_ops.validators.validator_chain import (
+        ValidatorChain,
+    )
+
+    strategy = AsyncMock()
+    chain = ValidatorChain(strategy)
+
+    ctx = OperationContext(
+        operation=OperationType.CREATE,
+        path="/workspace/evidence/interview_raw.pdf",
+    )
+    with pytest.raises(PermissionError, match="resides in a read-only session evidence"):
+        await chain.validate(ctx, "/workspace/evidence/interview_raw.pdf")
+
+    # VIEW operation must be allowed
+    view_ctx = OperationContext(
+        operation=OperationType.VIEW,
+        path="/workspace/evidence/interview_raw.pdf",
+    )
+    strategy.exists = AsyncMock(return_value=True)
+    await chain.validate(view_ctx, "/workspace/evidence/interview_raw.pdf")
+
+

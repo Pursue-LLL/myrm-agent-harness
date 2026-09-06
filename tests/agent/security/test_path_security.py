@@ -471,5 +471,17 @@ class TestContentNotPathDisambiguation:
         with pytest.raises(ValueError, match="Invalid path: content or multiline string"):
             safe_join_path(tmp_path, "def main():\n    print('fail')")
 
+    def test_evidence_readonly_file_detection(self) -> None:
+        from myrm_agent_harness.core.security.path_security import is_evidence_readonly_file
+
+        assert is_evidence_readonly_file("evidence/fact_check.pdf") is True
+        assert is_evidence_readonly_file("/workspace/sessions/s1/evidence/interview.docx") is True
+        assert is_evidence_readonly_file("user_inputs/dataset.csv") is True
+        assert is_evidence_readonly_file(".evidence/doc.txt") is True
+        assert is_evidence_readonly_file("working/temp.txt") is False
+        assert is_evidence_readonly_file("artifacts/final.pdf") is False
+        assert is_evidence_readonly_file("src/main.py") is False
+
+
 
 
