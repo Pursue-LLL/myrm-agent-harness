@@ -73,6 +73,34 @@ class TestReasoningAnchorExtractor:
         extracted = extract_raw_reasoning(msg)
         assert "Evaluated schema and chosen strategy A." in (extracted or "")
 
+    def test_extract_raw_reasoning_thinking_blocks_dicts_and_strings(self) -> None:
+        msg = AIMessage(
+            content="",
+            additional_kwargs={
+                "thinking_blocks": [
+                    "raw string thought",
+                    {"type": "thinking", "thinking": "dict thought"},
+                ]
+            },
+        )
+        extracted = extract_raw_reasoning(msg)
+        assert "raw string thought" in (extracted or "")
+        assert "dict thought" in (extracted or "")
+
+    def test_extract_raw_reasoning_none_cases(self) -> None:
+        msg1 = AIMessage(content="Just a normal text without thinking.")
+        assert extract_raw_reasoning(msg1) is None
+        assert extract_reasoning_anchors(None) == []
+        assert extract_reasoning_anchors("   \n\n  ") == []
+
+    def test_extract_decision_anchors_conclusive_fallback(self) -> None:
+        # No explicit prefix, should trigger conclusive fallback
+        raw_reasoning = "We have explored multiple paths. Ultimately, using sqlite wal mode solved all concurrency issues."
+        anchors = extract_reasoning_anchors(raw_reasoning, turn_index=5, max_anchors=1)
+        assert len(anchors) == 1
+        assert anchors[0].category == "finding"
+        assert "sqlite wal mode solved all concurrency issues" in anchors[0].content
+
     def test_extract_decision_anchors_with_explicit_patterns(self) -> None:
         reasoning = (
             "We have two options: JWT or Session.\n"
@@ -118,6 +146,22 @@ class TestSessionAnchorLedger:
         ledger.record_anchor(anc1)
         ledger.record_anchor(anc2)
         assert len(ledger.get_anchors()) == 1
+
+    def test_ledger_filter_and_clear(self) -> None:
+        ledger = SessionAnchorLedger("test_session_ops", max_anchors=10)
+        anc1 = ReasoningAnchor("a1", 1, "decision", "Decision 1")
+        anc2 = ReasoningAnchor("a2", 2, "constraint", "Constraint 2")
+        ledger.record_anchors([anc1, anc2])
+
+        assert len(ledger.get_anchors(category="decision")) == 1
+        assert len(ledger.get_anchors(category="constraint")) == 1
+        assert len(ledger.get_anchors(category="non_existent")) == 0
+        rendered = ledger.render_anchors_context(max_count=1)
+        assert "Constraint 2" in rendered
+
+        ledger.clear()
+        assert len(ledger.get_anchors()) == 0
+        assert ledger.render_anchors_context() == ""
 
     def test_global_session_eviction(self) -> None:
         from myrm_agent_harness.agent.context_management.strategies.reasoning.anchor_ledger import (
