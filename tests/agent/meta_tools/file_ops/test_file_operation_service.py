@@ -1131,7 +1131,9 @@ async def test_evidence_readonly_validator_blocks_write_in_chain() -> None:
     strategy = AsyncMock()
     chain = ValidatorChain(strategy)
 
+    executor = AsyncMock()
     ctx = OperationContext(
+        executor=executor,
         operation=OperationType.CREATE,
         path="/workspace/evidence/interview_raw.pdf",
     )
@@ -1140,6 +1142,7 @@ async def test_evidence_readonly_validator_blocks_write_in_chain() -> None:
 
     # VIEW operation must be allowed
     view_ctx = OperationContext(
+        executor=executor,
         operation=OperationType.VIEW,
         path="/workspace/evidence/interview_raw.pdf",
     )
