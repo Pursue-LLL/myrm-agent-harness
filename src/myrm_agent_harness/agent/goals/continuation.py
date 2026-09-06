@@ -55,7 +55,7 @@ _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES = 3
 
 _WRAPUP_SENTINEL = GOAL_WRAPUP_PREFIX
 
-_MAX_VERIFICATION_RETRIES = 3
+_DEFAULT_MAX_VERIFICATION_RETRIES = 3
 
 _WAIT_TIMEOUT_PAUSE_REASON = "Wait timeout exceeded — goal paused"
 
@@ -109,6 +109,12 @@ async def _run_acceptance_verification_with_guidance(
     if not goal.acceptance_criteria:
         return True, None
 
+    max_retries = (
+        goal.budget.max_verification_retries
+        if goal.budget and goal.budget.max_verification_retries is not None
+        else _DEFAULT_MAX_VERIFICATION_RETRIES
+    )
+
     from .verification.gatekeeper import VerificationGatekeeper
 
     try:
@@ -117,11 +123,12 @@ async def _run_acceptance_verification_with_guidance(
     except Exception:
         logger.exception("Goal %s: acceptance criteria verification crashed", goal.goal_id)
         updated = await goal_provider.increment_verification_retries(goal.goal_id)
-        if updated.verification_retries >= _MAX_VERIFICATION_RETRIES:
+        if updated.verification_retries >= max_retries:
             logger.warning(
-                "Goal %s: verification crashed %d times — pausing to prevent infinite loop",
+                "Goal %s: verification crashed %d times (max=%d) — pausing to prevent infinite loop",
                 goal.goal_id,
                 updated.verification_retries,
+                max_retries,
             )
             await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
         return False, None
@@ -135,11 +142,12 @@ async def _run_acceptance_verification_with_guidance(
     updated_goal = await goal_provider.increment_verification_retries(goal.goal_id)
     new_retries = updated_goal.verification_retries
 
-    if new_retries >= _MAX_VERIFICATION_RETRIES:
+    if new_retries >= max_retries:
         logger.warning(
-            "Goal %s: verification failed %d times — pausing to prevent infinite loop",
+            "Goal %s: verification failed %d times (max=%d) — pausing to prevent infinite loop",
             goal.goal_id,
             new_retries,
+            max_retries,
         )
         await goal_provider.update_status(goal.goal_id, GoalStatus.PAUSED)
         return False, result.infra_guidance
@@ -148,7 +156,7 @@ async def _run_acceptance_verification_with_guidance(
         "Goal %s: verification failed (retry %d/%d, %d/%d passed)",
         goal.goal_id,
         new_retries,
-        _MAX_VERIFICATION_RETRIES,
+        max_retries,
         len(result.per_criterion) - result.failed_count,
         len(result.per_criterion),
     )
@@ -514,7 +522,26 @@ async def check_continuation(
         if drift_rebase_decision is not None:
             return drift_rebase_decision
 
-    # 7. Semantic completion judge (skip first N turns)
+    # 6.5e Fast-path: Instant physical verification short-circuit for early completion
+    # If acceptance criteria are configured, tools were executed, and physical verification passes 100%,
+    # complete immediately without waiting for _JUDGE_SKIP_INITIAL_TURNS or burning redundant LLM turns.
+    if goal.acceptance_criteria and tools_called_this_turn:
+        verification_passed, _ = await _run_acceptance_verification_with_guidance(goal_provider, goal)
+        if verification_passed:
+            violations = _check_protected_integrity(goal.goal_id)
+            if violations:
+                logger.warning(
+                    "Goal %s fast-path completion blocked: %d protected file violation(s)",
+                    goal.goal_id,
+                    len(violations),
+                )
+                return _make_tamper_decision(goal, violations)
+
+            logger.info("Goal %s completed via fast-path physical verification short-circuit", goal.goal_id)
+            await finalize_goal_complete(goal_provider, goal, source="physical_short_circuit")
+            return _make_decision("done", "Physical acceptance criteria 100% passed (fast-path)", goal)
+
+    # 7. Semantic completion judge (skip first N turns if no acceptance criteria short-circuit)
     last_judge_reason: str | None = None
     if goal.turns_used >= _JUDGE_SKIP_INITIAL_TURNS and tools_called_this_turn:
         last_response = _extract_last_ai_response(collected_messages)

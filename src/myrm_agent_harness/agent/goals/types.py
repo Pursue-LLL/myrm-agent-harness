@@ -66,6 +66,10 @@ class GoalBudget:
     max_loop_restarts: int = 10
     """Safety cap for loop_on_pause to prevent infinite restart cycles."""
 
+    max_verification_retries: int | None = 3
+    """Maximum verification self-healing retry attempts before pausing to prevent infinite loops.
+    Defaults to 3, can be tuned via rigor levels (e.g. 0 for fast draft, 8 for rigorous)."""
+
 
 @dataclass
 class Goal:

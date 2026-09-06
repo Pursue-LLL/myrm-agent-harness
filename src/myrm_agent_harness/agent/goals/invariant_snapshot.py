@@ -137,6 +137,39 @@ def verify_protected_integrity(goal_id: str) -> list[ProtectedFileViolation]:
     return violations
 
 
+def register_protected_artifact(goal_id: str, file_path: str, workspace_root: str | None = None) -> bool:
+    """Dynamically register a newly created artifact (e.g. test file) into protected snapshot.
+
+    Computes SHA-256 and locks the file so subsequent tampering or weakening
+    during continuation self-healing turns will be caught and blocked.
+    Returns True if successfully registered, False if file cannot be read.
+    """
+    if not os.path.isabs(file_path):
+        root = workspace_root or (_snapshots[goal_id][2] if goal_id in _snapshots else os.getcwd())
+        abs_path = os.path.abspath(os.path.join(root, file_path))
+    else:
+        abs_path = os.path.abspath(file_path)
+
+    file_hash = _file_hash(abs_path)
+    if not file_hash:
+        logger.warning("[InvariantSnapshot] Failed to hash artifact for goal %s: %s", goal_id, abs_path)
+        return False
+
+    entry = _snapshots.get(goal_id)
+    if entry is None:
+        patterns = [file_path]
+        root = workspace_root or os.path.dirname(abs_path)
+        _snapshots[goal_id] = ({abs_path: file_hash}, patterns, root)
+    else:
+        original_snapshot, patterns, root = entry
+        original_snapshot[abs_path] = file_hash
+        if file_path not in patterns and abs_path not in patterns:
+            patterns.append(file_path)
+
+    logger.info("[InvariantSnapshot] Dynamically protected artifact for goal %s: %s (sha256=%s)", goal_id, abs_path, file_hash[:8])
+    return True
+
+
 def clear_snapshot(goal_id: str) -> None:
     """Clear the snapshot for a goal (e.g. on cancellation)."""
     _snapshots.pop(goal_id, None)

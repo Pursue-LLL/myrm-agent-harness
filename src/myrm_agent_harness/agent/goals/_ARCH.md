@@ -5,10 +5,12 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 
 ## 核心概念
 
-- **GoalBudget**: 4 维预算控制 — max_tokens / max_usd / max_time_seconds / max_turns + convergence_window / loop_on_pause / max_loop_restarts 自适应循环控制
+- **GoalBudget**: 4 维预算控制 — max_tokens / max_usd / max_time_seconds / max_turns + convergence_window / loop_on_pause / max_loop_restarts 自适应循环控制 + max_verification_retries 独立自愈验证重试上限解耦
 - **turns_used**: 精确的 turn 计数，每次 account_usage(turn_delta=1) 递增
 - **no_progress_streak**: 连续零工具调用轮次计数器，用于收敛检测
 - **ContinuationDecision**: guard chain 的结构化返回值，包含 verdict / reason / turns 指标。verdict 含 `convergence`、`loop_restart`、`wait`（外部等待，跳过 judge）、`drift_nudge`（轨迹偏离软提醒）、`drift_pause`（轨迹偏离/沙箱边界硬暂停）及 `done`/`budget` 等
+- **Fast-Path Physical Verification**: 当配置了验收准则且物理验收 100% 通过（Exit Code 0 且无篡改）时，执行即时完工短路，跳过初始轮次机械跳过等待，立省多余 LLM 轮次
+- **Dynamic Invariant Snapshot**: 支持任务执行过程中动态生成测试工件的哈希注册（`register_protected_artifact`），防范多轮自修阶段模型篡改或改弱断言
 - **Convergence Mode**: 当 convergence_window 已设置且 no_progress_streak ≥ K 时，标记 Goal 为 COMPLETE(convergence) 而非 BUDGET_LIMITED，节省 token 并改善 UX
 - **Loop-on-Pause**: 当 loop_on_pause=True 且未超过 max_loop_restarts 时，PAUSED 后立即以新 context 重启，而非等待 Cron 分钟级延迟
 - **Semantic Judge**: 使用廉价 LLM 判断目标是否语义完成，三段式 prompt (角色 + DONE 条件 + JSON 输出格式)

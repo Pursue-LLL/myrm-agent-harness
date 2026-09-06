@@ -294,6 +294,25 @@ async def test_judge_completion_passed():
 
 
 @pytest.mark.asyncio
+async def test_judge_completion_with_subgoals():
+    provider = AsyncMock()
+    provider.evaluate_semantic.return_value = VerificationResult(passed=True, reason=None)
+    goal = Goal(
+        goal_id="g1",
+        session_id="s1",
+        objective="obj",
+        status=GoalStatus.ACTIVE,
+        subgoals=[{"text": "Subgoal 1", "created_at": "2026-09-06T12:00:00"}],
+    )
+    reason, parse_failed, wait = await _judge_completion(provider, goal, "Subgoal done.")
+    assert reason is None
+    assert parse_failed is False
+    criteria_called = provider.evaluate_semantic.call_args[0][0]
+    assert "CRITICAL - Newly Added Subgoals" in criteria_called
+    assert "Subgoal 1" in criteria_called
+
+
+@pytest.mark.asyncio
 async def test_judge_completion_not_passed():
     provider = AsyncMock()
     provider.evaluate_semantic.return_value = VerificationResult(passed=False, reason="still working")
@@ -1299,6 +1318,61 @@ async def test_acceptance_verification_crash_increments_retries():
 
 
 @pytest.mark.asyncio
+async def test_judge_done_verification_exhausted_suppressed():
+    """Semantic judge says done, but verification retries exhausted → decision suppressed."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="g_fail",
+        session_id="s1",
+        objective="o",
+        status=GoalStatus.ACTIVE,
+        turns_used=3,
+        acceptance_criteria=[{"type": "shell"}],
+    )
+    paused_goal = Goal(
+        goal_id="g_fail",
+        session_id="s1",
+        objective="o",
+        status=GoalStatus.PAUSED,
+        verification_retries=3,
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = paused_goal
+    provider.increment_verification_retries.return_value = paused_goal
+    provider.is_continuation_suppressed.return_value = False
+    provider.record_progress.return_value = goal
+
+    mock_gatekeeper = MagicMock()
+    mock_gatekeeper.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=False))
+
+    with patch(
+        "myrm_agent_harness.agent.goals.continuation._judge_completion",
+        return_value=(None, False, False),
+    ), patch(
+        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+        return_value=mock_gatekeeper,
+    ), patch(
+        "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
+        return_value=[],
+    ):
+        decision = await check_continuation(
+            goal_provider=provider,
+            session_id="s1",
+            cancel_token=None,
+            steering_token=None,
+            collected_messages=[AIMessage(content="I think I'm done")],
+            tools_called_this_turn=True,
+            net_tokens_this_turn=10,
+            cost_this_turn=0.01,
+            time_this_turn_seconds=1,
+        )
+
+        assert decision.should_continue is False
+        assert decision.verdict == "suppressed"
+        assert "Acceptance criteria verification failed 3 times" in decision.reason
+
+
+@pytest.mark.asyncio
 async def test_acceptance_verification_crash_fuse_pauses():
     """Gatekeeper crash exceeding threshold → PAUSE the goal (fuse protection)."""
     provider = AsyncMock()
@@ -1465,3 +1539,150 @@ class TestParseDriftScore:
 
         assert _parse_drift_score("no structured score") is None
         assert _parse_drift_score('{"drift_score": "high"}') is None
+
+
+@pytest.mark.asyncio
+async def test_acceptance_verification_custom_max_retries():
+    """Tuned max_verification_retries from GoalBudget governs retry pause fuse."""
+    provider = AsyncMock()
+    # Goal has budget with max_verification_retries = 5
+    goal = Goal(
+        goal_id="g_retries",
+        session_id="s1",
+        objective="o",
+        status=GoalStatus.ACTIVE,
+        budget=GoalBudget(max_verification_retries=5),
+        acceptance_criteria=[{"type": "shell"}],
+    )
+    # 4th failure should NOT pause
+    updated_goal_4 = Goal(
+        goal_id="g_retries",
+        session_id="s1",
+        objective="o",
+        status=GoalStatus.ACTIVE,
+        verification_retries=4,
+        budget=GoalBudget(max_verification_retries=5),
+    )
+    provider.increment_verification_retries.return_value = updated_goal_4
+
+    mock_gatekeeper = MagicMock()
+    mock_gatekeeper.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=False))
+    with patch(
+        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+        return_value=mock_gatekeeper,
+    ):
+        passed = await _run_acceptance_verification(provider, goal)
+        assert passed is False
+    provider.update_status.assert_not_called()
+
+    # 5th failure exceeds threshold → triggers PAUSED
+    updated_goal_5 = Goal(
+        goal_id="g_retries",
+        session_id="s1",
+        objective="o",
+        status=GoalStatus.ACTIVE,
+        verification_retries=5,
+        budget=GoalBudget(max_verification_retries=5),
+    )
+    provider.increment_verification_retries.return_value = updated_goal_5
+    with patch(
+        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+        return_value=mock_gatekeeper,
+    ):
+        passed = await _run_acceptance_verification(provider, goal)
+        assert passed is False
+    provider.update_status.assert_called_once_with("g_retries", GoalStatus.PAUSED)
+
+
+@pytest.mark.asyncio
+async def test_fast_path_physical_verification_short_circuit():
+    """Turn 1 with acceptance criteria passes 100% physically → completes immediately (no 2-turn skip wait)."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="fast-goal",
+        session_id="s1",
+        objective="Generate report and test",
+        status=GoalStatus.ACTIVE,
+        turns_used=1,  # Normally would be skipped by _JUDGE_SKIP_INITIAL_TURNS = 2
+        acceptance_criteria=[{"type": "shell"}],
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.is_continuation_suppressed.return_value = False
+    provider.record_progress.return_value = goal
+
+    mock_gatekeeper = MagicMock()
+    mock_gatekeeper.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=True))
+
+    with patch(
+        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+        return_value=mock_gatekeeper,
+    ), patch(
+        "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
+        return_value=[],
+    ):
+        decision = await check_continuation(
+            goal_provider=provider,
+            session_id="s1",
+            cancel_token=None,
+            steering_token=None,
+            collected_messages=[AIMessage(content="Report generated.")],
+            tools_called_this_turn=True,
+            net_tokens_this_turn=100,
+            cost_this_turn=0.01,
+            time_this_turn_seconds=2,
+        )
+
+    assert decision.should_continue is False
+    assert decision.verdict == "done"
+    assert "fast-path" in decision.reason
+    provider.update_status.assert_called_once_with("fast-goal", GoalStatus.COMPLETE)
+
+
+@pytest.mark.asyncio
+async def test_fast_path_physical_verification_blocks_on_tamper():
+    """Fast path verifies physical acceptance, but blocks completion if protected artifact was tampered."""
+    provider = AsyncMock()
+    goal = Goal(
+        goal_id="tampered-goal",
+        session_id="s1",
+        objective="Generate report and test",
+        status=GoalStatus.ACTIVE,
+        turns_used=1,
+        acceptance_criteria=[{"type": "shell"}],
+    )
+    provider.get_active_goal.return_value = goal
+    provider.get_goal.return_value = goal
+    provider.is_continuation_suppressed.return_value = False
+    provider.record_progress.return_value = goal
+
+    mock_gatekeeper = MagicMock()
+    mock_gatekeeper.verify_all = AsyncMock(return_value=AggregatedVerificationResult(passed=True))
+
+    mock_violation = MagicMock(path="/app/test.py", kind="modified", pattern="**/*.py")
+
+    with patch(
+        "myrm_agent_harness.agent.goals.verification.gatekeeper.VerificationGatekeeper",
+        return_value=mock_gatekeeper,
+    ), patch(
+        "myrm_agent_harness.agent.goals.continuation._check_protected_integrity",
+        return_value=[mock_violation],
+    ):
+        decision = await check_continuation(
+            goal_provider=provider,
+            session_id="s1",
+            cancel_token=None,
+            steering_token=None,
+            collected_messages=[AIMessage(content="Report generated.")],
+            tools_called_this_turn=True,
+            net_tokens_this_turn=100,
+            cost_this_turn=0.01,
+            time_this_turn_seconds=2,
+        )
+
+        assert decision.should_continue is True
+        assert decision.verdict == "continue"
+        assert "Protected file tamper detected" in decision.reason
+        # Must not complete when tampered!
+        provider.update_status.assert_not_called()
+

@@ -11,6 +11,7 @@ from myrm_agent_harness.agent.goals.invariant_snapshot import (
     _snapshots,
     capture_protected_snapshot,
     clear_snapshot,
+    register_protected_artifact,
     verify_protected_integrity,
 )
 
@@ -111,6 +112,53 @@ class TestVerifyProtectedIntegrity:
         violations = verify_protected_integrity("g1")
         assert len(violations) == 1
         assert violations[0].kind == "modified"
+
+
+class TestRegisterProtectedArtifact:
+    def test_dynamic_register_and_tamper_detection(self, workspace: str):
+        # Initial snapshot without dynamic test file
+        capture_protected_snapshot("g1", [], workspace)
+
+        # Agent dynamically generates a test file
+        dyn_test = os.path.join(workspace, "tests", "test_dynamic.py")
+        with open(dyn_test, "w") as f:
+            f.write("assert calculate_tax(100) == 10")
+
+        # Dynamically protect it
+        ok = register_protected_artifact("g1", dyn_test, workspace_root=workspace)
+        assert ok is True
+        assert verify_protected_integrity("g1") == []
+
+        # Subsequent self-healing step weakens or modifies the assertion
+        with open(dyn_test, "w") as f:
+            f.write("assert True")  # weakened assertion!
+
+        violations = verify_protected_integrity("g1")
+        assert len(violations) == 1
+        assert violations[0].kind == "modified"
+        assert "test_dynamic.py" in violations[0].path
+
+    def test_register_nonexistent_file(self, workspace: str):
+        ok = register_protected_artifact("g1", "nonexistent.py", workspace_root=workspace)
+        assert ok is False
+
+    def test_register_creates_new_snapshot_if_none_exists(self, workspace: str):
+        dyn_file = os.path.join(workspace, "new_file.py")
+        with open(dyn_file, "w") as f:
+            f.write("initial content")
+
+        ok = register_protected_artifact("new_goal", dyn_file, workspace_root=workspace)
+        assert ok is True
+        assert verify_protected_integrity("new_goal") == []
+
+        # Also test append to patterns if already existing
+        dyn_file_2 = os.path.join(workspace, "new_file_2.py")
+        with open(dyn_file_2, "w") as f:
+            f.write("content 2")
+        ok2 = register_protected_artifact("new_goal", dyn_file_2, workspace_root=workspace)
+        assert ok2 is True
+        assert verify_protected_integrity("new_goal") == []
+
 
 
 class TestClearSnapshot:
