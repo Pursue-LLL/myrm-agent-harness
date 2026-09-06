@@ -339,6 +339,7 @@ def _split_code(full_code: str) -> tuple[str, str]:
 
 def main():
     result = {{"success": False, "result": None, "error": None, "stdout": "", "stderr": ""}}
+    _myrm_flush_figures = None
 
     # Capture stdout with bounded string buffer
     captured_stdout = BoundedStringIO()

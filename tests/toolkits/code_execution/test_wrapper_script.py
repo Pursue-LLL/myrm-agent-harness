@@ -90,6 +90,15 @@ class TestMatplotlibFigureCapture:
         stdout_restore_pos = script.find("sys.stdout = original_stdout")
         assert -1 < finally_pos < flush_pos < stdout_restore_pos
 
+    def test_flush_figures_bound_before_try(self) -> None:
+        """_myrm_flush_figures must be initialized before try block in main to prevent UnboundLocalError."""
+        script = generate_wrapper_script()
+        main_pos = script.find("def main():")
+        assert main_pos > -1, "def main() must be present in wrapper script"
+        var_pos = script.find("_myrm_flush_figures = None", main_pos)
+        try_pos = script.find("try:", main_pos)
+        assert -1 < main_pos < var_pos < try_pos, "_myrm_flush_figures must be initialized before try block in main"
+
 
 class TestParseExecutionOutput:
     """parse_execution_output should handle various output formats."""

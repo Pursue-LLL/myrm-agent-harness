@@ -40,8 +40,9 @@ def inject_capacity_signal(
 
 def batch_summary(results: list[dict[str, object]]) -> dict[str, object]:
     """Aggregate per-task results into a resume-friendly batch summary with structured handover aggregation."""
+    total_count = len(results)
     completed_count = sum(1 for item in results if item.get("success") is True)
-    failed_count = len(results) - completed_count
+    failed_count = total_count - completed_count
     all_success = failed_count == 0
     if all_success:
         status = "completed"
@@ -49,11 +50,45 @@ def batch_summary(results: list[dict[str, object]]) -> dict[str, object]:
         status = "partial_success"
     else:
         status = "failed"
-    failure_reasons = [
-        str(item.get("error") or item.get("reason") or "unknown_failure")
-        for item in results
-        if item.get("success") is not True
-    ]
+
+    completeness_ratio = round(completed_count / total_count, 4) if total_count > 0 else 0.0
+
+    failure_reasons: list[str] = []
+    missing_tasks: list[dict[str, object]] = []
+
+    for index, item in enumerate(results):
+        if item.get("success") is not True:
+            err = str(item.get("error") or item.get("reason") or "unknown_failure")
+            failure_reasons.append(err)
+            task_idx = int(item.get("task_index", index))
+            agent_t = str(item.get("agent_type") or "general")
+            t_id = str(item.get("task_id") or "") if item.get("task_id") is not None else None
+            m_entry: dict[str, object] = {
+                "task_index": task_idx,
+                "agent_type": agent_t,
+                "error": err,
+            }
+            if t_id:
+                m_entry["task_id"] = t_id
+            missing_tasks.append(m_entry)
+
+    completeness_warning: str | None = None
+    if failed_count > 0:
+        missing_summary_items = []
+        for m in missing_tasks[:5]:
+            t_label = m.get("task_id") or f"task_{m.get('task_index')}"
+            a_type = m.get("agent_type")
+            err = m.get("error")
+            missing_summary_items.append(f"[{t_label}: {a_type} - {err}]")
+        if len(missing_tasks) > 5:
+            missing_summary_items.append(f"...and {len(missing_tasks) - 5} more")
+        missing_summary = ", ".join(missing_summary_items)
+        completeness_warning = (
+            f"⚠️ FLEET INCOMPLETE: Expected {total_count} subtasks, but {failed_count} failed "
+            f"({completeness_ratio:.1%} completed). Missing tasks: {missing_summary}. "
+            "Downstream synthesis MUST explicitly disclose these gaps and MUST NOT impersonate a 100% complete dataset!"
+        )
+
     handoff_states: list[dict[str, object]] = []
     all_artifact_refs: list[str] = []
     all_citations: list[str] = []
@@ -89,13 +124,18 @@ def batch_summary(results: list[dict[str, object]]) -> dict[str, object]:
     summary: dict[str, object] = {
         "success": all_success,
         "status": status,
-        "total_count": len(results),
+        "total_count": total_count,
         "completed_count": completed_count,
         "failed_count": failed_count,
+        "completeness_ratio": completeness_ratio,
         "failure_reasons": failure_reasons,
+        "missing_tasks": missing_tasks,
         "all_success": all_success,
         "partial_success": completed_count > 0 and failed_count > 0,
+        "gate_passed": True,
     }
+    if completeness_warning is not None:
+        summary["completeness_warning"] = completeness_warning
     if handoff_states:
         summary["handoff_states"] = handoff_states
     if all_artifact_refs:
