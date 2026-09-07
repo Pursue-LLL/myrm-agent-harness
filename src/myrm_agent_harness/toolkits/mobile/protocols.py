@@ -1,183 +1,128 @@
-"""Mobile toolkit protocols defining modular contracts.
+"""Mobile device protocols and abstraction interfaces.
 
 [INPUT]
-- types::MobileDevice, ScreencapResult, MobileHierarchy, MobileActionResult, SensitiveActionVerdict, Point2D, KeyCode, TouchAction
+- types::DeviceInfo, MobileActionResult, MobileScreenshotResult, MobileUIDumpResult, TouchGesture, MobileKey
 
 [OUTPUT]
-- MobileDeviceManagerProtocol
-- MobileInspectorProtocol
-- MobileInputControllerProtocol
-- MobileAppManagerProtocol
-- MobileSafetyBarrierProtocol
-- MobileBridgeEngineProtocol
+- MobileDeviceManagerProtocol, MobileInspectorProtocol, MobileInputControllerProtocol, MobileAppManagerProtocol, MobileBridgeProtocol
 
 [POS]
-Protocol contracts for platform-agnostic Android wireless debugging and automation.
+Dependency-inversion boundaries for Android ADB abstraction layers.
 """
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Protocol
 
 from myrm_agent_harness.toolkits.mobile.types import (
-    KeyCode,
+    DeviceInfo,
     MobileActionResult,
-    MobileDevice,
-    MobileHierarchy,
-    Point2D,
-    ScreencapResult,
-    SensitiveActionVerdict,
-    TouchAction,
+    MobileKey,
+    MobileScreenshotResult,
+    MobileUIDumpResult,
+    TouchGesture,
 )
 
 
-@runtime_checkable
 class MobileDeviceManagerProtocol(Protocol):
-    """Manages ADB device discovery, pairing, and dynamic wireless connection."""
+    """Protocol for discovering, pairing and connecting to Android devices."""
 
-    async def list_devices(self) -> list[MobileDevice]:
-        """List all connected or reachable ADB devices."""
+    async def list_devices(self) -> list[DeviceInfo]:
+        """List all attached or discovered wireless devices."""
         ...
 
-    async def pair_device(self, host: str, port: int, pairing_code: str) -> MobileActionResult:
-        """Perform Android 11+ one-time wireless pairing handshake."""
+    async def pair_wireless(self, host: str, port: int, pairing_code: str) -> bool:
+        """Pair with an Android 11+ device via pairing code."""
         ...
 
-    async def connect_device(self, host: str, port: int = 5555) -> MobileActionResult:
-        """Connect to device via TCP/IP."""
+    async def connect_wireless(self, host: str, port: int) -> bool:
+        """Connect to an Android device via Wi-Fi."""
         ...
 
-    async def disconnect_device(self, host_or_serial: str) -> MobileActionResult:
+    async def disconnect(self, serial: str) -> bool:
         """Disconnect wireless device."""
         ...
 
-    async def ensure_active_device(self, preferred_serial: str | None = None) -> MobileDevice:
-        """Resolve and verify online status of target device."""
+    async def get_device_info(self, serial: str | None = None) -> DeviceInfo | None:
+        """Get properties and screen resolution of the active device."""
         ...
 
 
-@runtime_checkable
 class MobileInspectorProtocol(Protocol):
-    """Captures screen imagery and extracts structural UI hierarchy."""
+    """Protocol for screen capture and accessibility hierarchy inspection."""
 
     async def screencap(
-        self,
-        serial: str | None = None,
-        max_dimension: int | None = 1920,
-        quality: int = 80,
-    ) -> ScreencapResult:
-        """Capture screenshot as bytes/base64."""
+        self, serial: str | None = None, quality: int = 80
+    ) -> MobileScreenshotResult:
+        """Capture the screen as bytes."""
         ...
 
-    async def dump_hierarchy(
-        self,
-        serial: str | None = None,
-        compressed: bool = True,
-    ) -> MobileHierarchy:
-        """Extract and parse UI Automator accessibility tree."""
+    async def dump_ui_hierarchy(
+        self, serial: str | None = None, timeout_s: float = 5.0
+    ) -> MobileUIDumpResult:
+        """Extract current Accessibility XML tree and compute clickable element coordinates."""
         ...
 
-    async def get_screen_resolution(self, serial: str | None = None) -> Point2D:
-        """Get physical screen resolution (width, height)."""
+    async def get_top_activity(self, serial: str | None = None) -> tuple[str, str]:
+        """Return (package, activity) of current foreground app."""
         ...
 
 
-@runtime_checkable
 class MobileInputControllerProtocol(Protocol):
-    """Executes normalized or pixel-level touch, gesture, and text inputs."""
+    """Protocol for sending touch gestures, keystrokes, and text to device."""
 
     async def tap(
-        self,
-        x: int | float,
-        y: int | float,
-        normalized: bool = False,
-        serial: str | None = None,
+        self, x: int | float, y: int | float, normalized: bool = False, serial: str | None = None
     ) -> MobileActionResult:
-        """Perform tap at coordinate."""
+        """Tap at (x, y) coordinates."""
         ...
 
     async def swipe(
         self,
-        x1: int | float,
-        y1: int | float,
-        x2: int | float,
-        y2: int | float,
+        start_x: int | float,
+        start_y: int | float,
+        end_x: int | float,
+        end_y: int | float,
         duration_ms: int = 300,
         normalized: bool = False,
         serial: str | None = None,
     ) -> MobileActionResult:
-        """Perform swipe/drag gesture."""
+        """Perform a swipe gesture from start to end."""
         ...
 
-    async def type_text(
-        self,
-        text: str,
-        use_broadcast_ime: bool = True,
-        serial: str | None = None,
-    ) -> MobileActionResult:
-        """Inject text, supporting Chinese and Unicode characters."""
+    async def type_text(self, text: str, serial: str | None = None) -> MobileActionResult:
+        """Input text (supports Chinese and Unicode via Broadcast IME or base64 fallback)."""
         ...
 
-    async def press_key(
-        self,
-        key_code: KeyCode | int,
-        serial: str | None = None,
-    ) -> MobileActionResult:
-        """Simulate hardware key event."""
+    async def press_key(self, key: MobileKey, serial: str | None = None) -> MobileActionResult:
+        """Simulate hardware or navigation key press."""
         ...
 
 
-@runtime_checkable
 class MobileAppManagerProtocol(Protocol):
-    """Manages Android application lifecycles and intent dispatching."""
+    """Protocol for launching, stopping, and monitoring apps."""
 
     async def launch_app(
-        self,
-        package_or_alias: str,
-        activity: str | None = None,
-        serial: str | None = None,
+        self, package_or_alias: str, activity: str | None = None, serial: str | None = None
     ) -> MobileActionResult:
-        """Launch app by package name or common alias."""
+        """Launch an application by package name or common alias (e.g. 'wechat', 'settings')."""
         ...
 
-    async def terminate_app(
-        self,
-        package_name: str,
-        serial: str | None = None,
-    ) -> MobileActionResult:
-        """Force stop package."""
+    async def stop_app(self, package_name: str, serial: str | None = None) -> MobileActionResult:
+        """Force stop a background or foreground app."""
         ...
 
-    async def get_current_app(self, serial: str | None = None) -> tuple[str, str]:
-        """Get current foreground (package, activity)."""
-        ...
-
-
-@runtime_checkable
-class MobileSafetyBarrierProtocol(Protocol):
-    """Evaluates screen hierarchy and action intent to intercept high-risk operations."""
-
-    def evaluate_hierarchy(self, hierarchy: MobileHierarchy) -> SensitiveActionVerdict:
-        """Check if current visible screen contains sensitive UI patterns."""
-        ...
-
-    def evaluate_action(
-        self,
-        action: TouchAction | str,
-        target_text: str = "",
-        target_package: str = "",
-    ) -> SensitiveActionVerdict:
-        """Evaluate if proposed mobile action should be gated or confirmed."""
+    async def list_installed_packages(
+        self, third_party_only: bool = True, serial: str | None = None
+    ) -> list[str]:
+        """List installed package names on device."""
         ...
 
 
-@runtime_checkable
-class MobileBridgeEngineProtocol(
-    MobileDeviceManagerProtocol,
-    MobileInspectorProtocol,
-    MobileInputControllerProtocol,
-    MobileAppManagerProtocol,
-    Protocol,
-):
-    """Composite facade protocol for high-level mobile wireless bridge operations."""
-    ...
+class MobileBridgeProtocol(Protocol):
+    """Unified facade protocol for complete mobile automation."""
+
+    device_manager: MobileDeviceManagerProtocol
+    inspector: MobileInspectorProtocol
+    input_controller: MobileInputControllerProtocol
+    app_manager: MobileAppManagerProtocol

@@ -385,18 +385,7 @@ class DesktopSession(ComputerSession):
         async with self._action_lock:
             from myrm_agent_harness.toolkits.computer_use import safety
 
-            # [SECURITY] Sensitive app guard — lightweight foreground app check.
-            fg_info = inspect_backend(self._backend)
-            fg_app = str(fg_info.get("app_name", "") or "")
-            fg_title = str(fg_info.get("window_title", "") or "")
-            fg_app_id = str(fg_info.get("app_id", "") or "")
-
-            blocked = safety.is_sensitive_app(fg_app, fg_title, fg_app_id)
-            if blocked:
-                logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
-                return f"Safety: {blocked}"
-
-            # Reject invalid key / type payloads before FG/screenshot revalidation —
+            # Reject invalid key / type payloads before any display I/O —
             # argument safety must not require a capturable display to fail closed.
             if action == "key":
                 if not text:
@@ -418,6 +407,17 @@ class DesktopSession(ComputerSession):
                 text_blocked = safety.is_dangerous_type_text(text)
                 if text_blocked:
                     return f"Safety: {text_blocked}"
+
+            # [SECURITY] Sensitive app guard — lightweight foreground app check.
+            fg_info = inspect_backend(self._backend)
+            fg_app = str(fg_info.get("app_name", "") or "")
+            fg_title = str(fg_info.get("window_title", "") or "")
+            fg_app_id = str(fg_info.get("app_id", "") or "")
+
+            blocked = safety.is_sensitive_app(fg_app, fg_title, fg_app_id)
+            if blocked:
+                logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
+                return f"Safety: {blocked}"
 
             # [SECURITY] Foreground permission gate for coordinate-based actions.
             if safety.is_foreground_required(action):

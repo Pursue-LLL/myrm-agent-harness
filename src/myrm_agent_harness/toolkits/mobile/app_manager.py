@@ -1,76 +1,145 @@
-"""Application lifecycle and package manager for Android devices.
+"""Mobile application lifecycle and intent manager.
 
 [INPUT]
-- types.py, protocols.py, device_manager.py
+- types::MobileActionResult
+- protocols::MobileAppManagerProtocol
+- device_manager::MobileDeviceManager
 
 [OUTPUT]
-- MobileAppManager
+- MobileAppManager: Launches apps by package or alias, terminates packages, inspects foreground Activity
 
 [POS]
-Handles package launches with alias resolution (e.g. 'wechat' -> 'com.tencent.mm'), force stop, and app enumeration.
+App lifecycle controller in toolkits/mobile.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 
-from .protocols import MobileAppManagerProtocol
+from myrm_agent_harness.toolkits.mobile.device_manager import MobileDeviceManager
+from myrm_agent_harness.toolkits.mobile.protocols import MobileAppManagerProtocol
+from myrm_agent_harness.toolkits.mobile.types import MobileActionResult
 
 logger = logging.getLogger(__name__)
 
+# Common app package aliases for zero-guess launching
 COMMON_APP_ALIASES: dict[str, str] = {
     "wechat": "com.tencent.mm",
     "weixin": "com.tencent.mm",
+    "微信": "com.tencent.mm",
     "feishu": "com.ss.android.lark",
     "lark": "com.ss.android.lark",
-    "wework": "com.tencent.wework",
+    "飞书": "com.ss.android.lark",
     "dingtalk": "com.alibaba.android.rimet",
-    "chrome": "com.android.chrome",
-    "browser": "com.android.browser",
+    "钉钉": "com.alibaba.android.rimet",
     "settings": "com.android.settings",
+    "设置": "com.android.settings",
+    "browser": "com.android.chrome",
+    "chrome": "com.android.chrome",
+    "浏览器": "com.android.chrome",
     "camera": "com.android.camera",
-    "gallery": "com.android.gallery3d",
+    "相机": "com.android.camera",
+    "contacts": "com.android.contacts",
+    "通讯录": "com.android.contacts",
+    "messages": "com.google.android.apps.messaging",
+    "短信": "com.google.android.apps.messaging",
+    "alipay": "com.eg.android.AlipayGphone",
+    "支付宝": "com.eg.android.AlipayGphone",
+    "taobao": "com.taobao.taobao",
+    "淘宝": "com.taobao.taobao",
+    "meituan": "com.sankuai.meituan",
+    "美团": "com.sankuai.meituan",
 }
 
 
 class MobileAppManager(MobileAppManagerProtocol):
-    """Manages application launch and lifecycle on Android devices."""
+    """Manages application startup, termination, and foreground inspection."""
 
-    def __init__(self, device_manager: Any) -> None:
-        self.dm = device_manager
+    def __init__(self, device_manager: MobileDeviceManager) -> None:
+        self.device_manager = device_manager
 
-    async def launch_app(self, serial: str, package_or_alias: str) -> bool:
-        """Launch application using monkey launcher to bypass explicit Activity discovery."""
-        target_pkg = COMMON_APP_ALIASES.get(package_or_alias.lower(), package_or_alias)
+    def resolve_package_name(self, package_or_alias: str) -> str:
+        """Resolve friendly alias to actual Android package name."""
+        cleaned = package_or_alias.strip().lower()
+        return COMMON_APP_ALIASES.get(cleaned, package_or_alias.strip())
 
-        # Monkey tool launches the default launcher intent reliably
-        cmd = f"monkey -p {target_pkg} -c android.intent.category.LAUNCHER 1"
-        out = await self.dm.execute_shell(serial, cmd)
+    async def launch_app(
+        self,
+        package_or_alias: str,
+        activity: str | None = None,
+        serial: str | None = None,
+    ) -> MobileActionResult:
+        """Launch Android application via monkey or am start."""
+        device = await self.device_manager.ensure_active_device(serial)
+        pkg = self.resolve_package_name(package_or_alias)
 
-        if "Events injected: 1" in out:
-            logger.info("Successfully launched app %s on %s", target_pkg, serial)
-            return True
+        if activity:
+            target = f"{pkg}/{activity}" if not activity.startswith(pkg) else activity
+            code, stdout, stderr = await self.device_manager._run_adb(
+                "-s", device.serial, "shell", "am", "start", "-n", target
+            )
+        else:
+            # Use monkey tool to launch default main activity
+            code, stdout, stderr = await self.device_manager._run_adb(
+                "-s",
+                device.serial,
+                "shell",
+                "monkey",
+                "-p",
+                pkg,
+                "-c",
+                "android.intent.category.LAUNCHER",
+                "1",
+            )
 
-        # Fallback to am start if monkey fails
-        am_cmd = f"am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n {target_pkg}"
-        out_am = await self.dm.execute_shell(serial, am_cmd)
-        return "Error" not in out_am
+        success = code == 0 and "Events injected: 1" in (stdout + stderr) or code == 0
+        return MobileActionResult(
+            success=success,
+            action="launch_app",
+            message=f"Launched app '{pkg}'" if success else (stderr or stdout),
+            exit_code=code,
+            data={"package": pkg, "activity": activity or ""},
+        )
 
-    async def stop_app(self, serial: str, package_name: str) -> bool:
-        """Force stop package."""
-        target_pkg = COMMON_APP_ALIASES.get(package_name.lower(), package_name)
-        out = await self.dm.execute_shell(serial, f"am force-stop {target_pkg}")
-        return "Error" not in out
+    async def terminate_app(
+        self,
+        package_name: str,
+        serial: str | None = None,
+    ) -> MobileActionResult:
+        """Force stop target package via `am force-stop`."""
+        device = await self.device_manager.ensure_active_device(serial)
+        pkg = self.resolve_package_name(package_name)
 
-    async def list_installed_apps(self, serial: str, third_party_only: bool = True) -> list[str]:
-        """List package names of installed applications."""
-        flag = "-3" if third_party_only else ""
-        out = await self.dm.execute_shell(serial, f"pm list packages {flag}".strip())
-        packages = []
-        for line in out.splitlines():
-            line = line.strip()
-            if line.startswith("package:"):
-                packages.append(line.replace("package:", ""))
-        return packages
+        code, stdout, stderr = await self.device_manager._run_adb(
+            "-s", device.serial, "shell", "am", "force-stop", pkg
+        )
+        return MobileActionResult(
+            success=code == 0,
+            action="terminate_app",
+            message=f"Terminated app '{pkg}'" if code == 0 else stderr,
+            exit_code=code,
+            data={"package": pkg},
+        )
+
+    async def get_current_app(self, serial: str | None = None) -> tuple[str, str]:
+        """Detect active foreground package and Activity."""
+        device = await self.device_manager.ensure_active_device(serial)
+        code, stdout, _ = await self.device_manager._run_adb(
+            "-s", device.serial, "shell", "dumpsys", "window", "displays"
+        )
+        if code == 0 and "mCurrentFocus" in stdout:
+            match = re.search(r"mCurrentFocus=Window\{[^}]* ([\w\.]+)/([\w\.]+)\}", stdout)
+            if match:
+                return match.group(1), match.group(2)
+
+        # Fallback dumpsys activity
+        code, stdout, _ = await self.device_manager._run_adb(
+            "-s", device.serial, "shell", "dumpsys", "activity", "activities"
+        )
+        if code == 0:
+            match = re.search(r"mResumedActivity: ActivityRecord\{[^}]* ([\w\.]+)/([\w\.]+)", stdout)
+            if match:
+                return match.group(1), match.group(2)
+
+        return "Unknown", "Unknown"

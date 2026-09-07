@@ -1,131 +1,196 @@
-"""Touch, gesture, keyboard, and hardware button input controller for Android devices.
+"""Mobile touch, gesture, and text input controller.
 
 [INPUT]
-- types.py, protocols.py, device_manager.py
+- types::KeyCode, MobileActionResult, Point2D
+- protocols::MobileInputControllerProtocol
+- device_manager::MobileDeviceManager
+- inspector::MobileInspector
 
 [OUTPUT]
-- MobileInputController
+- MobileInputController: Simulates taps, swipes, hardware keys, and Unicode/Chinese text inputs
 
 [POS]
-Handles precise coordinate clicks, normalized gestures, and Chinese/Unicode Base64 text injection.
+Input and gesture automation layer in toolkits/mobile.
 """
 
 from __future__ import annotations
 
 import base64
 import logging
-import shlex
-from typing import Any
 
-from .protocols import MobileInputProtocol
-from .types import MobileKeyEvent
+from myrm_agent_harness.toolkits.mobile.device_manager import MobileDeviceManager
+from myrm_agent_harness.toolkits.mobile.inspector import MobileInspector
+from myrm_agent_harness.toolkits.mobile.protocols import MobileInputControllerProtocol
+from myrm_agent_harness.toolkits.mobile.types import KeyCode, MobileActionResult
 
 logger = logging.getLogger(__name__)
 
-KEYEVENT_MAP: dict[MobileKeyEvent, int] = {
-    "HOME": 3,
-    "BACK": 4,
-    "POWER": 26,
-    "TAB": 61,
-    "ENTER": 66,
-    "DELETE": 67,
-    "VOLUME_UP": 24,
-    "VOLUME_DOWN": 25,
-    "APP_SWITCH": 187,
-}
 
+class MobileInputController(MobileInputControllerProtocol):
+    """Executes touch inputs and key events via ADB shell."""
 
-class MobileInputController(MobileInputProtocol):
-    """Controls touch inputs and text injection on Android devices."""
-
-    def __init__(self, device_manager: Any) -> None:
-        self.dm = device_manager
-
-    def _resolve_coords(
+    def __init__(
         self,
-        serial: str,
+        device_manager: MobileDeviceManager,
+        inspector: MobileInspector,
+    ) -> None:
+        self.device_manager = device_manager
+        self.inspector = inspector
+
+    async def _resolve_coordinates(
+        self,
         x: int | float,
         y: int | float,
-        is_normalized: bool,
+        normalized: bool,
+        serial: str | None,
     ) -> tuple[int, int]:
-        """Convert normalized (0.0~1.0) coordinates to absolute pixels."""
-        if not is_normalized:
+        """Convert normalized (0.0-1.0) or raw coordinates to physical integer pixel values."""
+        if not normalized:
             return int(x), int(y)
 
-        cached_dev = getattr(self.dm, "_cached_devices", {}).get(serial)
-        screen_w = cached_dev.screen_width if cached_dev else 1080
-        screen_h = cached_dev.screen_height if cached_dev else 2400
-
-        abs_x = int(float(x) * screen_w)
-        abs_y = int(float(y) * screen_h)
-        return abs_x, abs_y
+        res = await self.inspector.get_screen_resolution(serial)
+        px_x = int(float(x) * res.x)
+        px_y = int(float(y) * res.y)
+        return max(0, min(res.x - 1, px_x)), max(0, min(res.y - 1, px_y))
 
     async def tap(
         self,
-        serial: str,
         x: int | float,
         y: int | float,
-        is_normalized: bool = False,
-    ) -> bool:
+        normalized: bool = False,
+        serial: str | None = None,
+    ) -> MobileActionResult:
         """Tap at coordinate."""
-        abs_x, abs_y = self._resolve_coords(serial, x, y, is_normalized)
-        out = await self.dm.execute_shell(serial, f"input tap {abs_x} {abs_y}")
-        return "Error" not in out
+        device = await self.device_manager.ensure_active_device(serial)
+        target_x, target_y = await self._resolve_coordinates(x, y, normalized, device.serial)
+
+        code, stdout, stderr = await self.device_manager._run_adb(
+            "-s", device.serial, "shell", "input", "tap", str(target_x), str(target_y)
+        )
+        return MobileActionResult(
+            success=code == 0,
+            action="tap",
+            message=f"Tapped at ({target_x}, {target_y})" if code == 0 else stderr,
+            exit_code=code,
+            data={"x": target_x, "y": target_y, "normalized": normalized},
+        )
 
     async def swipe(
         self,
-        serial: str,
-        start_x: int | float,
-        start_y: int | float,
-        end_x: int | float,
-        end_y: int | float,
+        x1: int | float,
+        y1: int | float,
+        x2: int | float,
+        y2: int | float,
         duration_ms: int = 300,
-        is_normalized: bool = False,
-    ) -> bool:
-        """Swipe between coordinates with specified duration."""
-        x1, y1 = self._resolve_coords(serial, start_x, start_y, is_normalized)
-        x2, y2 = self._resolve_coords(serial, end_x, end_y, is_normalized)
-        out = await self.dm.execute_shell(
-            serial,
-            f"input swipe {x1} {y1} {x2} {y2} {duration_ms}",
+        normalized: bool = False,
+        serial: str | None = None,
+    ) -> MobileActionResult:
+        """Execute swipe gesture."""
+        device = await self.device_manager.ensure_active_device(serial)
+        start_x, start_y = await self._resolve_coordinates(x1, y1, normalized, device.serial)
+        end_x, end_y = await self._resolve_coordinates(x2, y2, normalized, device.serial)
+
+        code, stdout, stderr = await self.device_manager._run_adb(
+            "-s",
+            device.serial,
+            "shell",
+            "input",
+            "swipe",
+            str(start_x),
+            str(start_y),
+            str(end_x),
+            str(end_y),
+            str(duration_ms),
         )
-        return "Error" not in out
-
-    async def input_text(self, serial: str, text: str, clear_before: bool = False) -> bool:
-        """Inject text, automatically handling non-ASCII / Chinese characters."""
-        if clear_before:
-            # Select all and delete
-            await self.dm.execute_shell(serial, "input keyevent 29 --meta 113")  # Ctrl+A
-            await self.dm.execute_shell(serial, "input keyevent 67")  # DEL
-
-        # Check if text is pure ASCII
-        if all(ord(c) < 128 for c in text):
-            # Escape spaces and shell specials
-            escaped = text.replace(" ", "%s").replace("&", "\\&").replace(";", "\\;")
-            out = await self.dm.execute_shell(serial, f"input text {shlex.quote(escaped)}")
-            return "Error" not in out
-
-        # For non-ASCII (Chinese / Emojis), try broadcast IME or Base64 clipboard
-        b64_str = base64.b64encode(text.encode("utf-8")).decode("ascii")
-        # 1. Try ADBKeyboard / FastInput broadcast if installed
-        out = await self.dm.execute_shell(
-            serial,
-            f"am broadcast -a ADB_INPUT_B64 --es msg {b64_str}",
+        return MobileActionResult(
+            success=code == 0,
+            action="swipe",
+            message=f"Swiped ({start_x},{start_y}) -> ({end_x},{end_y}) in {duration_ms}ms" if code == 0 else stderr,
+            exit_code=code,
+            data={
+                "start_x": start_x,
+                "start_y": start_y,
+                "end_x": end_x,
+                "end_y": end_y,
+                "duration_ms": duration_ms,
+            },
         )
-        if "Broadcast completed: result=0" in out:
-            return True
 
-        # 2. Fallback: URL encode spaces and try standard input
+    async def type_text(
+        self,
+        text: str,
+        use_broadcast_ime: bool = True,
+        serial: str | None = None,
+    ) -> MobileActionResult:
+        """Inject text into focused input field, handling Chinese and Unicode via Base64 injection."""
+        device = await self.device_manager.ensure_active_device(serial)
+
+        # If ASCII only and broadcast IME not forced, use standard input text with escape
+        is_ascii = all(ord(c) < 128 for c in text)
+        if is_ascii and not use_broadcast_ime:
+            escaped_text = text.replace(" ", "%s").replace("&", "\\&").replace("<", "\\<").replace(">", "\\>")
+            code, stdout, stderr = await self.device_manager._run_adb(
+                "-s", device.serial, "shell", "input", "text", escaped_text
+            )
+            return MobileActionResult(
+                success=code == 0,
+                action="type_text",
+                message="Injected ASCII text via input text" if code == 0 else stderr,
+                exit_code=code,
+            )
+
+        # Unicode/Chinese text injection: Attempt ADBKeyBoard / Broadcast IME injection first
+        b64_text = base64.b64encode(text.encode("utf-8")).decode("ascii")
+        code, stdout, stderr = await self.device_manager._run_adb(
+            "-s",
+            device.serial,
+            "shell",
+            "am",
+            "broadcast",
+            "-a",
+            "ADB_INPUT_B64",
+            "--es",
+            "msg",
+            b64_text,
+        )
+
+        # If broadcast IME succeeded
+        if code == 0 and "result=-1" in (stdout + stderr):
+            return MobileActionResult(
+                success=True,
+                action="type_text",
+                message=f"Injected Unicode text via Broadcast IME: '{text}'",
+                exit_code=0,
+            )
+
+        # Fallback: Character by character or fallback input text
         escaped_text = text.replace(" ", "%s")
-        out = await self.dm.execute_shell(serial, f"input text {shlex.quote(escaped_text)}")
-        return "Error" not in out
+        code, stdout, stderr = await self.device_manager._run_adb(
+            "-s", device.serial, "shell", "input", "text", escaped_text
+        )
+        return MobileActionResult(
+            success=code == 0,
+            action="type_text",
+            message=f"Injected text via input fallback: '{text}'" if code == 0 else stderr,
+            exit_code=code,
+        )
 
-    async def press_key(self, serial: str, key: MobileKeyEvent) -> bool:
-        """Send hardware key event."""
-        keycode = KEYEVENT_MAP.get(key)
-        if keycode is None:
-            logger.warning("Unsupported keyevent: %s", key)
-            return False
+    async def press_key(
+        self,
+        key_code: KeyCode | int,
+        serial: str | None = None,
+    ) -> MobileActionResult:
+        """Simulate hardware key event."""
+        device = await self.device_manager.ensure_active_device(serial)
+        code_val = key_code.value if isinstance(key_code, KeyCode) else int(key_code)
 
-        out = await self.dm.execute_shell(serial, f"input keyevent {keycode}")
-        return "Error" not in out
+        code, stdout, stderr = await self.device_manager._run_adb(
+            "-s", device.serial, "shell", "input", "keyevent", str(code_val)
+        )
+        return MobileActionResult(
+            success=code == 0,
+            action="press_key",
+            message=f"Pressed key code {code_val}" if code == 0 else stderr,
+            exit_code=code,
+            data={"key_code": code_val},
+        )

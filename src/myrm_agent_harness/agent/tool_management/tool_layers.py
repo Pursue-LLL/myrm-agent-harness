@@ -105,10 +105,9 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "desktop_interact_tool": ToolLayer.EXTENDED,
     "desktop_vision_tool": ToolLayer.EXTENDED,
     # --- 移动端真机自动化工具 ---
-    "mobile_screencap_tool": ToolLayer.EXTENDED,
-    "mobile_ui_dump_tool": ToolLayer.EXTENDED,
-    "mobile_input_tool": ToolLayer.EXTENDED,
-    "mobile_launch_app_tool": ToolLayer.EXTENDED,
+    "mobile_snapshot_tool": ToolLayer.EXTENDED,
+    "mobile_interact_tool": ToolLayer.EXTENDED,
+    "mobile_global_tool": ToolLayer.EXTENDED,
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
     # --- Goal / planning 工具 ---

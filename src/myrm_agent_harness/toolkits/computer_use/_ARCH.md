@@ -12,7 +12,8 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | types.py | Config | Shared types: ComputerAction, DesktopInteractAction, ScreenInfo, ActionResult, PermissionStatus, ExecutionMode, ForegroundPermissionCallback, ComputerUseConfig | ✅ |
 | capture_probe.py | Core | PNG capturable probe (center-sample non-black/white) for PermissionStatus.screen_recording_capturable | ✅ |
 | app_identity.py | Core | Stable trust keys: `resolve_trust_key`, `trust_key_matches` (bundle_id / win exe / linux app id) | ✅ |
-| safety.py | Core | Blocked key combos, operator-as-key rejection (lone `*`/`/`/`+`/`-`/`%`/`=`), dangerous type-text guardrails, sensitive app guard (incl. terminal/shell + SelfAppGuard via bundle_id / host names), foreground permission classification | ✅ |
+| iphone_mirror.py | Core | iPhone Mirroring (`com.apple.ScreenContinuity`) probe (`probe_iphone_mirror_state`), viewport bounds & state gate | ✅ |
+| safety.py | Core | Blocked key combos, operator-as-key rejection (lone `*`/`/`/`+`/`-`/`%`/`=`), dangerous type-text guardrails, sensitive app guard (incl. terminal/shell + SelfAppGuard via bundle_id / host names), iPhone Mirroring connect popup guard, foreground permission classification | ✅ |
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |
 | som_overlay.py | Core | SOM numbered overlay on JPEG; agent path when `include_screenshot=True`, inspector refresh when screenshot captured; stable [N]↔@dref map (cap 80) | ✅ |
