@@ -27,10 +27,10 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     SkillRecord,
 )
 from myrm_agent_harness.backends.skills.scanning import (
-    SkillTrustRecommendation,
     compute_scan_summary,
     scan_skill_content,
 )
+from myrm_agent_harness.backends.skills.scanning.scanner import SkillTrustRecommendation
 from myrm_agent_harness.eval.leakage_guard import (
     evaluate_pareto_generalization,
     is_test_case_spec,
@@ -166,7 +166,7 @@ class ProposalBuilder:
 
         security_scan_summary_dict = None
         if evolution_type != EvolutionType.OPTIMIZE_DESCRIPTION and content:
-            scan_res = scan_skill_content(content)
+            scan_res = scan_skill_content(skill.name, content)
             scan_sum = compute_scan_summary(scan_res)
             security_scan_summary_dict = scan_sum.to_dict()
 

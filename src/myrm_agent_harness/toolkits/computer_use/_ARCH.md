@@ -12,7 +12,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 | types.py | Config | Shared types: ComputerAction, DesktopInteractAction, ScreenInfo, ActionResult, PermissionStatus, ExecutionMode, ForegroundPermissionCallback, ComputerUseConfig | ✅ |
 | capture_probe.py | Core | PNG capturable probe (center-sample non-black/white) for PermissionStatus.screen_recording_capturable | ✅ |
 | app_identity.py | Core | Stable trust keys: `resolve_trust_key`, `trust_key_matches` (bundle_id / win exe / linux app id) | ✅ |
-| safety.py | Core | Blocked key combos, dangerous type-text guardrails, sensitive app guard (incl. terminal/shell + SelfAppGuard via bundle_id / host names), foreground permission classification | ✅ |
+| safety.py | Core | Blocked key combos, operator-as-key rejection (`*`/`/`/`+`), dangerous type-text guardrails, sensitive app guard (incl. terminal/shell + SelfAppGuard via bundle_id / host names), foreground permission classification | ✅ |
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
 | coordinate_scaler.py | Core | DPI-aware coordinate transformer | ✅ |
 | som_overlay.py | Core | SOM numbered overlay on JPEG; agent path when `include_screenshot=True`, inspector refresh when screenshot captured; stable [N]↔@dref map (cap 80) | ✅ |
@@ -55,7 +55,7 @@ Agent → desktop_agent_tools (3 tools)
     
 1. **Semantic-first**: AX/UIA/AT-SPI tree → @dref interact; vision only when AX is empty
 2. **View updates**: `desktop_snapshot` emits `DESKTOP_VIEW_UPDATE` via ToolProgressSink for frontend Desktop Inspector
-3. **Safety in session**: Blocked key combos (macOS + Windows), dangerous type-text patterns, sensitive application guard (`is_sensitive_app`, including terminal/shell apps). Enforced in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action`
+3. **Safety in session**: Blocked key combos (macOS + Windows), operator-as-key rejection for lone printable operators on vision `key`, dangerous type-text patterns, sensitive application guard (`is_sensitive_app`, including terminal/shell apps). Enforced in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action`
 4. **Multimodal responses**: Vision capture/actions return text + JPEG image blocks
 5. **Platform auto-detection**: reuses `detect_platform()` from code_execution
 6. **Security & Re-validation**: shared `_revalidate_if_stale_after_approval()` after approval delay — interact verifies @dref; vision refreshes screenshot/scaler

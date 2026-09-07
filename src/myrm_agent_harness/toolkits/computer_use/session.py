@@ -333,6 +333,11 @@ class ComputerSession:
 
     async def key_press(self, keys: str) -> ActionResult:
         """Press key combination."""
+        from myrm_agent_harness.toolkits.computer_use import safety
+
+        operator_blocked = safety.is_operator_as_key_name(keys)
+        if operator_blocked:
+            return ActionResult(success=False, error=operator_blocked)
         result = await self._backend.key(keys)
         if result.success:
             await asyncio.sleep(self._config.screenshot_delay)

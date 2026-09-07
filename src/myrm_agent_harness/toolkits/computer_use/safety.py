@@ -1,7 +1,8 @@
 """Safety guardrails for desktop control tools.
 
-Three guardrail types:
+Four guardrail types:
 - Blocked key combos: prevents dangerous system shortcuts (macOS + Windows)
+- Operator-as-key rejection: printable operators must not be used as vision `key` names
 - Dangerous type-text patterns: prevents shell injection via typed text
 - Sensitive app guard: prevents interaction with financial, communication,
   and password management applications
@@ -12,6 +13,10 @@ from __future__ import annotations
 import re
 
 from myrm_agent_harness.toolkits.computer_use.types import ModifierKey
+
+# Sole key tokens that models mistake for "key names" (KimiCU calculator pitfall).
+# Use type / click @dref instead — never vision key= or keyboard press of these alone.
+_OPERATOR_AS_KEY_TOKENS: frozenset[str] = frozenset({"*", "/", "+"})
 
 _KEY_ALIASES: dict[str, str] = {
     "command": "cmd",
@@ -55,6 +60,23 @@ def is_blocked_key_combo(keys: str) -> str | None:
     canon = canonicalize_key_combo(keys)
     if canon in _BLOCKED_KEY_COMBOS:
         return f"Blocked dangerous key combination: {keys}"
+    return None
+
+
+def is_operator_as_key_name(keys: str) -> str | None:
+    """Reject sole printable operators used as vision ``key`` / keyboard key names.
+
+    Combos that include modifiers (e.g. ``ctrl+/``) are allowed — only a lone
+    ``*``, ``/``, or ``+`` token is treated as the calculator false-key anti-pattern.
+    """
+    canon = canonicalize_key_combo(keys)
+    if len(canon) == 1 and next(iter(canon)) in _OPERATOR_AS_KEY_TOKENS:
+        token = next(iter(canon))
+        return (
+            f"Rejected printable operator {token!r} as a key name. "
+            "Use desktop_vision_tool action=type (or desktop_interact_tool type/set_value), "
+            "or click the matching calculator/@dref button via desktop_interact_tool."
+        )
     return None
 
 

@@ -146,8 +146,11 @@ def register_desktop_mcp_tools(
         description=(
             "Perform a semantic action on a desktop element identified by @dref from desktop_snapshot_tool.\n\n"
             "Always call desktop_snapshot_tool first to obtain current @drefs, then call this tool with the valid ref.\n"
-            "Actions: 'click', 'dblclick', 'set_value' (atomic text replace), 'fill', 'type', 'press' (e.g. Return/Escape), "
-            "'hover', 'focus', 'scroll'."
+            "Actions: 'click', 'dblclick', 'set_value' (atomic text replace), 'fill', 'type', "
+            "'press' (activate/AXPress the @dref control — not a keyboard key name), "
+            "'hover', 'focus', 'scroll', 'toggle'/'check'/'uncheck', 'expand'/'collapse', 'invoke'. "
+            "For Return/Escape/hotkeys use desktop_vision_tool action=key; never pass printable operators "
+            "('*', '/', '+') as key names — type them or click the calculator/@dref button."
         ),
     )
     async def desktop_interact(

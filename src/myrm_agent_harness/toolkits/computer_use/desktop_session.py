@@ -458,6 +458,14 @@ class DesktopSession(ComputerSession):
                 key_blocked = safety.is_blocked_key_combo(text)
                 if key_blocked:
                     return f"Safety: {key_blocked}"
+                operator_blocked = safety.is_operator_as_key_name(text)
+                if operator_blocked:
+                    remedy_hint = (
+                        "[REMEDY_HINT: Printable operators are not keyboard key names. "
+                        "Use action=type to enter the character, or desktop_interact_tool "
+                        "to click the calculator/@dref button.]"
+                    )
+                    return f"Safety: {operator_blocked}\n{remedy_hint}"
                 result = await self.key_press(text)
             elif action == "scroll":
                 if coordinate is None or len(coordinate) != 2 or not scroll_direction:

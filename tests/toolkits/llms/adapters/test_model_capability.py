@@ -102,3 +102,15 @@ class TestModelCapabilityDetector:
         assert not detector.is_mimo_model(provider="", model="", base_url="")
         assert not detector.is_deepseek_model(provider="", model="", base_url="")
         assert not detector.is_kimi_model(provider="", model="", base_url="")
+
+    def test_is_local_weak_endpoint(self, detector):
+        """Test local weak endpoint detection for grammar/schema transport."""
+        assert detector.is_local_weak_endpoint(provider="ollama", model="", base_url="")
+        assert detector.is_local_weak_endpoint(provider="vllm", model="", base_url="")
+        assert detector.is_local_weak_endpoint(provider="", model="ollama/qwen2.5-coder:7b", base_url="")
+        assert detector.is_local_weak_endpoint(provider="", model="local/gemma-2-9b", base_url="")
+        assert detector.is_local_weak_endpoint(provider="openai-like", model="qwen", base_url="http://127.0.0.1:8000/v1")
+        assert detector.is_local_weak_endpoint(provider="openai-like", model="qwen", base_url="http://localhost:11434/v1")
+        assert detector.is_local_weak_endpoint(provider="openai-like", model="qwen", base_url="http://llama-server:8080/v1")
+        assert not detector.is_local_weak_endpoint(provider="openai", model="gpt-4o", base_url="https://api.openai.com/v1")
+        assert not detector.is_local_weak_endpoint(provider="anthropic", model="claude-3-7-sonnet", base_url="https://api.anthropic.com/v1")

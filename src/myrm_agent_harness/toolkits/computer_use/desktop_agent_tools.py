@@ -121,11 +121,22 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
             description="Element @dref obtained from the latest desktop_snapshot_tool call (e.g. 'd3'). Do not guess refs.",
         )
         action: DesktopInteractAction = Field(
-            description="Action to perform: 'click', 'dblclick', 'set_value' (atomic text replace, recommended for text inputs), 'fill' (focus and fill), 'type' (keyboard keystroke simulation), 'fill_credential' (inject vault credential), 'press' (special keys like Return/Escape), 'hover', 'focus', 'scroll'.",
+            description=(
+                "Action to perform: 'click', 'dblclick', 'set_value' (atomic text replace, recommended for text inputs), "
+                "'fill' (focus and fill), 'type' (keyboard keystroke simulation), 'fill_credential' (inject vault credential), "
+                "'press' (activate/AXPress the @dref control — same family as click, not a keyboard key name), "
+                "'hover', 'focus', 'scroll', 'toggle'/'check'/'uncheck', 'expand'/'collapse', 'invoke'."
+            ),
         )
         text: str = Field(
             default="",
-            description=f"Text for set_value/fill/type, key name for press (e.g. 'Return'), or credential label for fill_credential (available: {labels_str}; append '-totp' for TOTP token).",
+            description=(
+                f"Text for set_value/fill/type, or credential label for fill_credential "
+                f"(available: {labels_str}; append '-totp' for TOTP token). "
+                "Unused for press/click/hover/focus (those activate the @dref element). "
+                "For Return/Escape/hotkeys use desktop_vision_tool action=key — never pass printable operators "
+                "('*', '/', '+') as key names; type them or click the calculator/@dref button."
+            ),
         )
         modifiers: list[ModifierKey] | None = Field(
             default=None,
@@ -166,7 +177,11 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         )
         text: str | None = Field(
             default=None,
-            description="Text to type for 'type' action, or key combination (e.g. 'Return', 'ctrl+c') for 'key' action.",
+            description=(
+                "Text to type for 'type' action, or key combination for 'key' action "
+                "(e.g. 'Return', 'Escape', 'ctrl+c'). Do not pass printable operators "
+                "('*', '/', '+') as key names — use type or click calculator/@dref via desktop_interact_tool."
+            ),
         )
         scroll_direction: ScrollDirection | None = Field(
             default=None,
