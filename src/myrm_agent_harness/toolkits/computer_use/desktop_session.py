@@ -396,6 +396,23 @@ class DesktopSession(ComputerSession):
                 logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
                 return f"Safety: {blocked}"
 
+            # Reject invalid key names before FG/screenshot revalidation — lone
+            # operators must not require a capturable display to fail closed.
+            if action == "key":
+                if not text:
+                    return "Error: text (key combo) is required for key action"
+                key_blocked = safety.is_blocked_key_combo(text)
+                if key_blocked:
+                    return f"Safety: {key_blocked}"
+                operator_blocked = safety.is_operator_as_key_name(text)
+                if operator_blocked:
+                    remedy_hint = (
+                        "[REMEDY_HINT: Printable operators are not keyboard key names. "
+                        "Use action=type to enter the character, or desktop_interact_tool "
+                        "to click the calculator/@dref button.]"
+                    )
+                    return f"Safety: {operator_blocked}\n{remedy_hint}"
+
             # [SECURITY] Foreground permission gate for coordinate-based actions.
             if safety.is_foreground_required(action):
                 app_denied = await self.check_app_approval(
@@ -453,19 +470,7 @@ class DesktopSession(ComputerSession):
                     return f"Safety: {text_blocked}"
                 result = await self.type_text(text)
             elif action == "key":
-                if not text:
-                    return "Error: text (key combo) is required for key action"
-                key_blocked = safety.is_blocked_key_combo(text)
-                if key_blocked:
-                    return f"Safety: {key_blocked}"
-                operator_blocked = safety.is_operator_as_key_name(text)
-                if operator_blocked:
-                    remedy_hint = (
-                        "[REMEDY_HINT: Printable operators are not keyboard key names. "
-                        "Use action=type to enter the character, or desktop_interact_tool "
-                        "to click the calculator/@dref button.]"
-                    )
-                    return f"Safety: {operator_blocked}\n{remedy_hint}"
+                # Invalid key/operator names already rejected above (pre-FG).
                 result = await self.key_press(text)
             elif action == "scroll":
                 if coordinate is None or len(coordinate) != 2 or not scroll_direction:
