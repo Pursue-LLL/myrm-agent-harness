@@ -976,3 +976,39 @@ class TestNotifyCompaction:
 
         assert len(guard._output_history) == 0
         assert guard._last_recorded_call_index == -1
+
+
+class TestUnattendedCircuitBreaker:
+    """Tests for RunawayCircuitBreakException under unattended_mode."""
+
+    def test_unattended_mode_circuit_breaker_error_signatures(self) -> None:
+        """Unattended mode raises RunawayCircuitBreakException upon reaching error signature threshold."""
+        from myrm_agent_harness.agent.errors.agent_errors import RunawayCircuitBreakException
+
+        guard = LoopGuard(unattended_mode=True, unattended_runaway_threshold=3)
+        for i in range(2):
+            guard.pre_check(f"tool_{i}", {"arg": i})
+            guard.record_result(f"tool_{i}", {"arg": i}, "Error: connection refused 127.0.0.1:8080")
+
+        guard.pre_check("tool_final", {"arg": "final"})
+        with pytest.raises(RunawayCircuitBreakException) as exc_info:
+            guard.record_result("tool_final", {"arg": "final"}, "Error: connection refused 127.0.0.1:8080")
+
+        assert "RUNAWAY_CIRCUIT_BREAKER" in str(exc_info.value)
+        assert exc_info.value.loop_kind == LoopKind.ERROR_SIGNATURE.value
+        assert exc_info.value.consecutive_count == 3
+
+    def test_attended_mode_does_not_raise_circuit_breaker(self) -> None:
+        """Standard interactive mode does not trigger RunawayCircuitBreakException."""
+        from myrm_agent_harness.agent.errors.agent_errors import RunawayCircuitBreakException
+
+        guard = LoopGuard(unattended_mode=False)
+        for i in range(2):
+            guard.pre_check(f"tool_{i}", {"arg": i})
+            guard.record_result(f"tool_{i}", {"arg": i}, "Error: connection refused 127.0.0.1:8080")
+
+        # Third failure does not raise RunawayCircuitBreakException in attended mode
+        guard.pre_check("tool_2", {"arg": 2})
+        verdict = guard.record_result("tool_2", {"arg": 2}, "Error: connection refused 127.0.0.1:8080")
+        assert verdict.action != LoopAction.BREAK or verdict.loop_kind != "circuit_break"
+

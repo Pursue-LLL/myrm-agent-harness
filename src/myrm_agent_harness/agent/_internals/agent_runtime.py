@@ -321,9 +321,15 @@ async def run_agent_loop(
     message_id = message_id or str(uuid4())
     start_time = time.time()
     is_resume = isinstance(query, Command)
+    unattended = bool(
+        (context and context.get("unattended_mode"))
+        or getattr(agent_state, "unattended_mode", False)
+        or getattr(getattr(agent_state, "config", None), "unattended_mode", False)
+    )
     reset_all_guards(
         is_resume=is_resume,
         graph_recursion_limit=agent_state.config.recursion_limit,
+        unattended_mode=unattended,
     )
 
     # Align SnapshotStore / DiffCollector with this assistant turn (server message id).

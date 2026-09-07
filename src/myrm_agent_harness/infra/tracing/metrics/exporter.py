@@ -139,6 +139,9 @@ def setup_metrics(
         logger.info("Metrics initialized with Console exporter")
 
     elif exporter == MetricsExporter.OTLP:
+        if not otlp_endpoint:
+            raise ValueError("otlp_endpoint is required for OTLP exporter")
+
         # OTLP exporter
         try:
             from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
@@ -147,9 +150,6 @@ def setup_metrics(
         except (ImportError, TypeError):
             logger.error("OTLP exporter not available. Install: uv add opentelemetry-exporter-otlp-proto-grpc")
             raise
-
-        if not otlp_endpoint:
-            raise ValueError("otlp_endpoint is required for OTLP exporter")
 
         otlp_exporter = OTLPMetricExporter(endpoint=otlp_endpoint)
         reader = PeriodicExportingMetricReader(

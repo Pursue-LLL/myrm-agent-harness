@@ -9,6 +9,7 @@
 - WindowsAxSnapshot: Windows accessibility snapshot container with metadata and refs
 - capture_ax_snapshot: Windows UI Automation tree capture with targeted window resolution and auto-restore
 - invoke_ax_element: Element action execution via UIA pattern invocation or SendKeys
+- _apply_uia_toggle_action: Idempotent check/uncheck via ToggleState; toggle always flips
 - inspect_foreground: Frontmost window inspection with COM/PowerShell native routing hints
 
 [POS]
@@ -281,6 +282,95 @@ def capture_ax_snapshot(
     return WindowsAxSnapshot(meta=meta, refs=refs)
 
 
+def _apply_uia_toggle_action(target: object, normalized: str, auto: object) -> None:
+    """Apply toggle/check/uncheck via TogglePattern (Click fallback).
+
+    ``check`` / ``uncheck`` are idempotent when ``ToggleState`` is readable:
+    already-On + check and already-Off + uncheck are no-ops. Indeterminate
+    may require a second Toggle to reach the requested side (MS cycle order).
+    """
+    get_pattern = getattr(target, "GetTogglePattern", None)
+    pattern = None
+    if callable(get_pattern):
+        try:
+            pattern = get_pattern()
+        except Exception:
+            pattern = None
+
+    if pattern is None or not hasattr(pattern, "Toggle"):
+        target.Click()  # type: ignore[attr-defined]
+        return
+
+    if normalized == "toggle":
+        pattern.Toggle()
+        return
+
+    want_on = normalized == "check"
+    on_val = 1
+    off_val = 0
+    state_enum = getattr(auto, "ToggleState", None)
+    if state_enum is not None:
+        if hasattr(state_enum, "On") and isinstance(getattr(state_enum, "On"), int):
+            on_val = int(state_enum.On)
+        if hasattr(state_enum, "Off") and isinstance(getattr(state_enum, "Off"), int):
+            off_val = int(state_enum.Off)
+
+    def _current_state() -> object | None:
+        try:
+            return getattr(pattern, "ToggleState", None)
+        except Exception:
+            return None
+
+    current = _current_state()
+    if want_on and current == on_val:
+        return
+    if not want_on and current == off_val:
+        return
+
+    pattern.Toggle()
+    current = _current_state()
+    if want_on and current != on_val:
+        pattern.Toggle()
+    elif not want_on and current != off_val:
+        pattern.Toggle()
+
+
+def _apply_uia_expand_collapse(target: object, action: str) -> None:
+    get_pattern = getattr(target, "GetExpandCollapsePattern", None)
+    pattern = None
+    if callable(get_pattern):
+        try:
+            pattern = get_pattern()
+        except Exception:
+            pattern = None
+
+    if pattern is not None:
+        if action == "expand" and hasattr(pattern, "Expand"):
+            pattern.Expand()
+            return
+        elif action == "collapse" and hasattr(pattern, "Collapse"):
+            pattern.Collapse()
+            return
+
+    target.Click()  # type: ignore[attr-defined]
+
+
+def _apply_uia_invoke(target: object) -> None:
+    get_pattern = getattr(target, "GetInvokePattern", None)
+    pattern = None
+    if callable(get_pattern):
+        try:
+            pattern = get_pattern()
+        except Exception:
+            pattern = None
+
+    if pattern is not None and hasattr(pattern, "Invoke"):
+        pattern.Invoke()
+        return
+
+    target.Click()  # type: ignore[attr-defined]
+
+
 def invoke_ax_element(
     backend_key: str,
     action: str,
@@ -338,45 +428,11 @@ def invoke_ax_element(
         if normalized in {"fill", "type", "set_value"}:
             target.SendKeys(text)  # type: ignore[attr-defined]
         elif normalized in {"toggle", "check", "uncheck"}:
-            pattern = None
-            if hasattr(target, "GetTogglePattern"):
-                pattern = target.GetTogglePattern()  # type: ignore[attr-defined]
-            if pattern is not None and hasattr(pattern, "Toggle"):
-                pattern.Toggle()
-            elif hasattr(target, "Toggle"):
-                target.Toggle()  # type: ignore[attr-defined]
-            else:
-                target.Click()  # type: ignore[attr-defined]
-        elif normalized == "expand":
-            pattern = None
-            if hasattr(target, "GetExpandCollapsePattern"):
-                pattern = target.GetExpandCollapsePattern()  # type: ignore[attr-defined]
-            if pattern is not None and hasattr(pattern, "Expand"):
-                pattern.Expand()
-            elif hasattr(target, "Expand"):
-                target.Expand()  # type: ignore[attr-defined]
-            else:
-                target.Click()  # type: ignore[attr-defined]
-        elif normalized == "collapse":
-            pattern = None
-            if hasattr(target, "GetExpandCollapsePattern"):
-                pattern = target.GetExpandCollapsePattern()  # type: ignore[attr-defined]
-            if pattern is not None and hasattr(pattern, "Collapse"):
-                pattern.Collapse()
-            elif hasattr(target, "Collapse"):
-                target.Collapse()  # type: ignore[attr-defined]
-            else:
-                target.Click()  # type: ignore[attr-defined]
+            _apply_uia_toggle_action(target, normalized, auto)
+        elif normalized in {"expand", "collapse"}:
+            _apply_uia_expand_collapse(target, normalized)
         elif normalized == "invoke":
-            pattern = None
-            if hasattr(target, "GetInvokePattern"):
-                pattern = target.GetInvokePattern()  # type: ignore[attr-defined]
-            if pattern is not None and hasattr(pattern, "Invoke"):
-                pattern.Invoke()
-            elif hasattr(target, "Invoke"):
-                target.Invoke()  # type: ignore[attr-defined]
-            else:
-                target.Click()  # type: ignore[attr-defined]
+            _apply_uia_invoke(target)
         elif normalized in {
             "click",
             "press",

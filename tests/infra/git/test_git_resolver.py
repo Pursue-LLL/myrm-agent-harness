@@ -155,3 +155,33 @@ def test_resolve_git_metadata_empty_head(tmp_path: Path):
     assert meta.branch is None
     assert meta.commit is None
 
+
+def test_resolve_git_metadata_relative_worktree_and_cache_eviction(tmp_path: Path):
+    """Test linked worktree with relative path and LRU cache eviction limit."""
+    from myrm_agent_harness.infra.git.git_resolver import _CACHE_LOCK, _METADATA_CACHE
+
+    main_git = tmp_path / "main_repo" / ".git" / "worktrees" / "wt_rel"
+    main_git.mkdir(parents=True)
+    (main_git / "HEAD").write_text("ref: refs/heads/rel-branch\n", encoding="utf-8")
+
+    wt_repo = tmp_path / "worktree_rel_dir"
+    wt_repo.mkdir()
+    rel_path = Path("..") / "main_repo" / ".git" / "worktrees" / "wt_rel"
+    (wt_repo / ".git").write_text(f"gitdir: {rel_path}\n", encoding="utf-8")
+
+    meta = resolve_git_metadata(wt_repo)
+    assert meta.branch == "rel-branch"
+    assert meta.is_worktree is True
+
+    # Test cache capacity eviction (> 64)
+    with _CACHE_LOCK:
+        _METADATA_CACHE.clear()
+        for i in range(70):
+            _METADATA_CACHE[f"fake_key_{i}"] = (0.0, meta)
+
+    # Resolving now triggers cache clear and insertion
+    resolve_git_metadata(wt_repo)
+    with _CACHE_LOCK:
+        assert len(_METADATA_CACHE) <= 64
+
+

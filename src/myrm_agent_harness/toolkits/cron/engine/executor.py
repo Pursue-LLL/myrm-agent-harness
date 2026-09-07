@@ -210,13 +210,19 @@ class JobExecutor:
 
         prev_hash = await self._store.get_latest_integrity_hash(job.id) or GENESIS_HASH
 
+        run_status = (
+            RunStatus.CIRCUIT_BREAK
+            if getattr(result, "circuit_broken", False)
+            else (RunStatus.OK if result.success else RunStatus.ERROR)
+        )
+
         run = CronRunRecord(
             id=secrets.token_urlsafe(12),
             job_id=job.id,
             started_at=started,
             finished_at=finished,
             duration_ms=duration_ms,
-            status=RunStatus.OK if result.success else RunStatus.ERROR,
+            status=run_status,
             output=result.output[:_MAX_OUTPUT_CHARS] if result.output else None,
             error=result.error[:1000] if result.error else None,
             model=model,
@@ -555,7 +561,15 @@ class JobExecutor:
             await self._handle_once_completion(job, result, new_failures, finished)
             return
 
-        if not result.success and new_failures > job.max_retries:
+        if getattr(result, "circuit_broken", False):
+            job.status = JobStatus.PAUSED
+            job.next_run_at = None
+            logger.warning(
+                "Job %s auto-paused due to circuit break: %s",
+                job.id,
+                result.error,
+            )
+        elif not result.success and new_failures > job.max_retries:
             job.status = JobStatus.PAUSED
             job.next_run_at = None
             logger.warning(
@@ -574,7 +588,11 @@ class JobExecutor:
             job.next_run_at = finished + timedelta(milliseconds=backoff)
 
         job.last_run_at = finished
-        job.last_status = RunStatus.OK if result.success else RunStatus.ERROR
+        job.last_status = (
+            RunStatus.CIRCUIT_BREAK
+            if getattr(result, "circuit_broken", False)
+            else (RunStatus.OK if result.success else RunStatus.ERROR)
+        )
         job.last_error = result.error if not result.success else None
         job.consecutive_failures = new_failures
 

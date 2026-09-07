@@ -210,7 +210,20 @@ async def run_pre_call_guards(
     try:
         loop_verdict = loop_guard.pre_check(tool_name, tool_args)
     except Exception as pre_check_exc:
-        from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
+        from myrm_agent_harness.agent.errors.agent_errors import (
+            RunawayCircuitBreakException,
+            ToolStuckException,
+        )
+
+        if isinstance(pre_check_exc, RunawayCircuitBreakException):
+            logger.error(
+                "RunawayCircuitBreakException triggered in unattended mode [%s]: %s",
+                tool_name,
+                pre_check_exc,
+            )
+            # Do NOT swallow with interrupt or ToolMessage: escalate directly out of LangGraph
+            # to let Server stop runaway loops and prevent retries.
+            raise pre_check_exc
 
         if isinstance(pre_check_exc, ToolStuckException):
             from langgraph.types import interrupt
@@ -603,7 +616,29 @@ async def run_post_call_guards(
         )
         result_text = extract_text_content(result.content)
 
-    post_verdict = loop_guard.record_result(tool_name, tool_args, result_text)
+    try:
+        post_verdict = loop_guard.record_result(tool_name, tool_args, result_text)
+    except Exception as post_check_exc:
+        from myrm_agent_harness.agent.errors.agent_errors import (
+            RunawayCircuitBreakException,
+            ToolStuckException,
+        )
+
+        if isinstance(post_check_exc, RunawayCircuitBreakException):
+            logger.error(
+                "RunawayCircuitBreakException triggered in unattended mode (post-result) [%s]: %s",
+                tool_name,
+                post_check_exc,
+            )
+            raise post_check_exc
+        if isinstance(post_check_exc, ToolStuckException):
+            logger.warning(
+                "ToolStuckException raised during record_result [%s]: %s",
+                tool_name,
+                str(post_check_exc)[:200],
+            )
+        raise post_check_exc
+
     if post_verdict.action == LoopAction.BREAK:
         post_loop_kind = getattr(post_verdict, "loop_kind", None)
         if post_loop_kind == "sandbox_boundary":

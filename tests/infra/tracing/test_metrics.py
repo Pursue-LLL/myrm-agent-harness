@@ -237,3 +237,99 @@ def test_metrics_collector_with_cardinality_firewall():
 
     mock_counter.add.assert_called_once_with(1, attributes={"tool": "file_read"})
 
+
+def test_dynamic_label_manager_lru_and_threshold():
+    """Verify DynamicLabelManager tracks frequent entities and falls back to 'other'."""
+    from myrm_agent_harness.infra.tracing.metrics.cardinality import DynamicLabelManager
+
+    manager = DynamicLabelManager(max_tracked=2, access_threshold=2)
+
+    # First access - below threshold -> 'other'
+    assert manager.get_label_value("model-a") == "other"
+    # Second access - meets threshold -> tracked
+    assert manager.get_label_value("model-a") == "model-a"
+
+    # model-b first access -> 'other'
+    assert manager.get_label_value("model-b") == "other"
+    # model-b second access -> tracked (cache now has model-a, model-b)
+    assert manager.get_label_value("model-b") == "model-b"
+
+    # model-c first and second access - cache is full
+    assert manager.get_label_value("model-c") == "other"
+    # Third access to model-c (count 3) exceeds model-a/b (count 2), evicts least frequent
+    assert manager.get_label_value("model-c") == "other"
+    assert manager.get_label_value("model-c") == "model-c"
+
+    # Test thread safety and utility functions
+    assert len(manager.get_tracked_entities()) <= 2
+    manager.clear()
+    assert len(manager.get_tracked_entities()) == 0
+
+
+def test_metrics_collector_gauge_and_histogram():
+    """Verify MetricsCollector gauge and histogram methods sanitize labels properly."""
+    from unittest.mock import MagicMock
+    from myrm_agent_harness.infra.tracing.metrics.collector import MetricsCollector
+
+    mock_meter = MagicMock()
+    mock_gauge = MagicMock()
+    mock_histogram = MagicMock()
+    mock_meter.create_gauge.return_value = mock_gauge
+    mock_meter.create_histogram.return_value = mock_histogram
+
+    collector = MetricsCollector(mock_meter)
+    collector.gauge("agent.memory.mb", 512.0, labels={"session_id": "s1", "tier": "standard"})
+    mock_gauge.record.assert_called_once_with(512.0, attributes={"tier": "standard"})
+
+    collector.histogram("agent.turn.duration_ms", 120.5, labels={"workspace": "/tmp/ws", "status": "ok"})
+    mock_histogram.record.assert_called_once_with(120.5, attributes={"status": "ok"})
+
+
+def test_force_flush_metrics_bounded():
+    """Verify force_flush_metrics handles uninitialized and active states."""
+    from myrm_agent_harness.infra.tracing.metrics import (
+        MetricsExporter,
+        force_flush_metrics,
+        setup_metrics,
+    )
+
+    # Uninitialized returns False
+    assert not force_flush_metrics()
+
+    setup_metrics(service_name="test-flush", exporter=MetricsExporter.CONSOLE)
+    # Active console provider flush completes quickly
+    assert force_flush_metrics(timeout_ms=1000.0) is True
+
+
+def test_setup_metrics_validation_and_accessors():
+    """Verify input validation and status accessors for metrics exporter."""
+    from myrm_agent_harness.infra.tracing.metrics import (
+        MetricsExporter,
+        get_meter_provider,
+        is_metrics_initialized,
+        setup_metrics,
+        shutdown_metrics,
+    )
+
+    # Initial state
+    assert not is_metrics_initialized()
+    assert get_meter_provider() is None
+
+    # Invalid exporter
+    with pytest.raises(ValueError, match="Unsupported exporter"):
+        setup_metrics(exporter="unsupported_type")  # type: ignore
+
+    # Missing OTLP endpoint
+    with pytest.raises(ValueError, match="otlp_endpoint is required"):
+        setup_metrics(exporter=MetricsExporter.OTLP, otlp_endpoint="")
+
+    # Valid console setup
+    setup_metrics(service_name="test-accessors", exporter=MetricsExporter.CONSOLE)
+    assert is_metrics_initialized()
+    assert get_meter_provider() is not None
+
+    # Clean shutdown
+    assert shutdown_metrics(timeout_ms=1000.0) is True
+    assert not is_metrics_initialized()
+    assert get_meter_provider() is None
+

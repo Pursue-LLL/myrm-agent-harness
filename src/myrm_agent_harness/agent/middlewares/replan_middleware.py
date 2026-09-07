@@ -86,6 +86,9 @@ class ReplanMiddleware(AgentMiddleware[Any, Any]):
         from myrm_agent_harness.agent._internals.agent_recovery import (
             build_error_context,
         )
+        from myrm_agent_harness.agent.resilience.error_recovery import (
+            ErrorSelfCorrectionGovernor,
+        )
         from myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core import (
             get_tool_suggestion,
         )
@@ -96,7 +99,21 @@ class ReplanMiddleware(AgentMiddleware[Any, Any]):
             target=target or "unknown",
             error=str(error),
         )
-        error_content = f"ToolExecutionError: {error}\n\n{error_context}\n\nDiagnostic Hint: {suggestion}"
+        governor = ErrorSelfCorrectionGovernor(max_recovery_attempts=self.max_attempts)
+        outcome = governor.diagnose_and_suggest_repair(
+            operation=tool_name,
+            target=target or "unknown",
+            error_message=str(error),
+            attempt=attempts,
+        )
+
+        error_content = (
+            f"ToolExecutionError: {error}\n\n"
+            f"{error_context}\n\n"
+            f"### Autonomous Self-Correction Guidance\n"
+            f"{outcome.diagnostic_details}\n\n"
+            f"Diagnostic Hint: {suggestion}"
+        )
         return ToolMessage(
             content=error_content,
             name=tool_name,

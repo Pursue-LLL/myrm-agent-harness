@@ -37,13 +37,15 @@ _PERSONA_HINTS: tuple[tuple[str, str], ...] = (
     ("hobbies", "Interests, activities, sports with frequency/skill level"),
     ("daily_routine", "Wake/sleep times, commute, recurring habits"),
     ("life_events", "Milestones: moves, graduations, births, anniversaries"),
-    ("preferences", "Food, music, travel, entertainment with specifics"),
+    ("preferences", "Food, music, travel, entertainment, preferred AI models and developer tools with specifics"),
+    ("tooling_habits", "Favorite developer tools, editors, AI models, local endpoints if mentioned"),
     ("pets", "Pet names, species, age, health notes"),
     ("goals", "Personal aspirations with timeline if mentioned"),
 )
 
 _WORK_ASSISTANT_HINTS: tuple[tuple[str, str], ...] = (
-    ("tech_stack", "Languages, frameworks, tools with versions when stated"),
+    ("tech_stack", "Languages, frameworks, tools, preferred AI models with versions when stated"),
+    ("model_preferences", "User preferences for AI models and provider affinities across tasks (e.g. coding, reasoning, fast review)"),
     ("project_decisions", "Architecture/design decisions with rationale and context"),
     ("team_context", "Team members, roles, reporting lines"),
     ("deadlines", "Project milestones with dates and deliverables"),

@@ -47,9 +47,9 @@ action_space.py — ASCS _profiler
 
 | 文件 | 职责 |
 |------|------|
-| `tool_layers.py` | 四层优先级注册表；未登记名默认 EXTERNAL + WARNING |
+| `tool_layers.py` | 四层优先级注册表；未登记名默认 EXTERNAL + WARNING；支持 `register_tool_layers` 批量注册 |
 | `tool_catalog.py` | LLM Tool 角色/加载条件；Product ID 由 `TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` 派生 |
-| `registry.py` | 去重、排序、`ToolBindMode` 三分绑定 |
+| `registry.py` | 去重、排序、`ToolBindMode` 三分绑定；提供 `ToolRegistry.register_external_layer_specs` 显式批量注册入口 |
 | `lifecycle_manager.py` | 工具 init/cleanup 编排 |
 | `lifecycle_protocol.py` | `LifecycleAwareTool` Protocol |
 | `action_space.py` | ActionSpaceProfiler / ASCS |
@@ -67,7 +67,8 @@ action_space.py — ASCS _profiler
 | 框架元工具 | `meta_tools/` | Agent 绑定工具实现 |
 | 通用工具 | `toolkits/` | 可独立 import 的原语 |
 
-Server `_tool_layer_bootstrap.py` 将 server vendor 工具注册为 EXTERNAL 层。
+Server `_tool_layer_bootstrap.py` 通过 `ToolRegistry.register_external_layer_specs` 显式注册 server 专有工具为 EXTERNAL 层（如 `channel_notify_tool`, `image_tool`, `video_tool`, `tts_generate`, `artifact_publish`）。
+
 
 ---
 

@@ -107,9 +107,21 @@ class LoopDetectorMixin:
                 break
 
         if streak >= 3 and failure_streak >= 2:
-            from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
+            from myrm_agent_harness.agent.errors.agent_errors import (
+                RunawayCircuitBreakException,
+                ToolStuckException,
+            )
 
             self._record_detection(tool_name, LoopKind.REPETITION, streak, args_hash)
+            if getattr(self, "_unattended_mode", False):
+                raise RunawayCircuitBreakException(
+                    f"RUNAWAY_CIRCUIT_BREAKER: 连续 {streak} 次使用相同参数调用工具 '{tool_name}' 且均报错, "
+                    f"触发无人值守硬熔断, 阻断后续重试以防止算力浪费。",
+                    loop_kind=LoopKind.REPETITION.value,
+                    tool_name=tool_name,
+                    consecutive_count=streak,
+                    signature_hash=args_hash,
+                )
             raise ToolStuckException(
                 f"TOOL_STUCK_EXCEPTION: 连续 {streak} 次使用相同参数调用工具 '{tool_name}' 且均报错, 强行切断防止死循环。"
             )
@@ -341,10 +353,21 @@ class LoopDetectorMixin:
                 break
 
         if failure_streak >= 3:
-            from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
+            from myrm_agent_harness.agent.errors.agent_errors import (
+                RunawayCircuitBreakException,
+                ToolStuckException,
+            )
 
             last_failed_tool = past_calls[-1].tool_name
             self._record_detection(last_failed_tool, LoopKind.CONSECUTIVE_FAILURES, failure_streak)
+            if getattr(self, "_unattended_mode", False):
+                raise RunawayCircuitBreakException(
+                    f"RUNAWAY_CIRCUIT_BREAKER: 连续 {failure_streak} 次工具调用失败, "
+                    f"触发无人值守硬熔断, 阻断后续重试以防止算力浪费。",
+                    loop_kind=LoopKind.CONSECUTIVE_FAILURES.value,
+                    tool_name=last_failed_tool,
+                    consecutive_count=failure_streak,
+                )
             raise ToolStuckException(
                 f"TOOL_STUCK_EXCEPTION: 连续 {failure_streak} 次工具调用失败, 强行切断防止死循环浪费资源。"
             )
@@ -382,6 +405,20 @@ class LoopDetectorMixin:
                 ),
                 backoff_hint="Stop attempting restricted operations. Ask the user for guidance.",
                 loop_kind="sandbox_boundary",
+            )
+
+        unattended_max = getattr(self, "_unattended_runaway_threshold", 3)
+        if getattr(self, "_unattended_mode", False) and count >= unattended_max:
+            from myrm_agent_harness.agent.errors.agent_errors import RunawayCircuitBreakException
+
+            self._record_detection(tool_name, LoopKind.ERROR_SIGNATURE, count)
+            raise RunawayCircuitBreakException(
+                f"RUNAWAY_CIRCUIT_BREAKER: 相同错误已连续出现 {count} 次 (signature: {sig[:80]}), "
+                f"触发无人值守硬熔断, 阻断后续重试以防止算力浪费。",
+                loop_kind=LoopKind.ERROR_SIGNATURE.value,
+                tool_name=tool_name,
+                consecutive_count=count,
+                signature_hash=sig,
             )
 
         if count >= self._error_sig_threshold:

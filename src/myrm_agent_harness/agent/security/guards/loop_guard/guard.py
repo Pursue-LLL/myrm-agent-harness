@@ -187,6 +187,8 @@ class LoopGuard(LoopDetectorMixin):
         poll_tools: frozenset[str] = frozenset(),
         stats_db: LoopGuardStatsDB | None = None,
         enable_stats: bool = False,
+        unattended_mode: bool = False,
+        unattended_runaway_threshold: int = 3,
     ) -> None:
         self._window: deque[CallRecord] = deque(maxlen=window_size)
         self._warn_threshold = warn_threshold
@@ -198,6 +200,8 @@ class LoopGuard(LoopDetectorMixin):
         self._dim_warn_streak = diminishing_warn_streak
         self._dim_break_streak = diminishing_break_streak
         self._error_sig_threshold = error_signature_threshold
+        self._unattended_mode = unattended_mode
+        self._unattended_runaway_threshold = unattended_runaway_threshold
         self._poll_tools = poll_tools
         self._metrics = LoopGuardMetrics()
         self._last_warning_tool: str | None = None
@@ -229,6 +233,15 @@ class LoopGuard(LoopDetectorMixin):
         self._budget_warn = warn
         self._budget_critical = critical
         self._budget_stuck = stuck
+
+    @property
+    def unattended_mode(self) -> bool:
+        """Whether this loop guard instance operates under unattended background mode."""
+        return self._unattended_mode
+
+    @unattended_mode.setter
+    def unattended_mode(self, value: bool) -> None:
+        self._unattended_mode = bool(value)
 
     def _thresholds(self, tool_name: str, args: dict[str, object] | None = None) -> tuple[int, int]:
         """Return (warn, break) thresholds, relaxed 2x for poll/idempotent tools."""

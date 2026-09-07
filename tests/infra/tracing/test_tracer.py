@@ -274,3 +274,20 @@ def test_vcs_metadata_injection_in_tracing_resource():
     shutdown_tracing()
 
 
+def test_force_flush_tracing_bounded():
+    """Verify force_flush_tracing operates cleanly with bounded timeout."""
+    from myrm_agent_harness.infra.tracing import (
+        force_flush_tracing,
+        setup_tracing,
+        shutdown_tracing,
+    )
+
+    shutdown_tracing()
+    # Uninitialized returns False
+    assert force_flush_tracing() is False
+
+    setup_tracing(service_name="test-flush-tracing", console_export=False)
+    assert force_flush_tracing(timeout_ms=1000.0) is True
+    shutdown_tracing()
+
+

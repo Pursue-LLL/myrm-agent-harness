@@ -10,7 +10,7 @@ Detailed design: [ERROR_SYSTEM.md](ERROR_SYSTEM.md)
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Agent execution errors with unified diagnostics. | — |
-| agent_errors.py | Core | Agent execution errors. ToolStuckException is converted to GraphInterrupt by tool_interceptor_middleware to truly halt agent execution. | ✅ |
+| agent_errors.py | Core | Agent execution errors (AgentBusyError, ToolStuckException, RunawayCircuitBreakException for unattended circuit breaking). | ✅ |
 | tool_error_category.py | Core | Canonical StrEnum for all tool error categories. Values match frontend i18n keys. | ✅ |
 | tool_execution_error.py | Core | Unified tool execution error with structured diagnostics. | ✅ |
 | operator_error_sanitizer.py | Core | Operator error sanitizer stripping tracebacks, paths, and internal causes for WebUI/Tauri. | ✅ |

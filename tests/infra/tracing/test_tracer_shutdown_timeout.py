@@ -100,3 +100,26 @@ def test_concurrent_shutdown_observability_dual_channel():
     assert elapsed < 1.0
     mock_tracer_provider.shutdown.assert_called_once()
     mock_meter_provider.shutdown.assert_called_once()
+
+
+def test_concurrent_flush_observability_dual_channel():
+    """Verify flush_observability flushes both tracing and metrics concurrently within timeout."""
+    mock_tracer_provider = MagicMock()
+    mock_meter_provider = MagicMock()
+
+    tracer._initialized = True
+    tracer._tracer_provider = mock_tracer_provider
+
+    from myrm_agent_harness.infra.tracing.metrics import exporter as metrics_exporter
+    metrics_exporter._initialized = True
+    metrics_exporter._meter_provider = mock_meter_provider
+
+    start = time.perf_counter()
+    results = tracer.flush_observability(timeout_ms=500.0)
+    elapsed = time.perf_counter() - start
+
+    assert results["tracing"] is True
+    assert results["metrics"] is True
+    assert elapsed < 1.0
+    mock_tracer_provider.force_flush.assert_called_once()
+    mock_meter_provider.force_flush.assert_called_once()

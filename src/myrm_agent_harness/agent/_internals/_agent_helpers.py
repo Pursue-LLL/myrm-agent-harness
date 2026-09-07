@@ -48,7 +48,12 @@ def _fire_and_forget(coro: Coroutine[object, object, object]) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
-def reset_all_guards(*, is_resume: bool = False, graph_recursion_limit: int = 100) -> None:
+def reset_all_guards(
+    *,
+    is_resume: bool = False,
+    graph_recursion_limit: int = 100,
+    unattended_mode: bool = False,
+) -> None:
     """Reset all per-request guard state before a new agent run.
 
     Args:
@@ -57,6 +62,8 @@ def reset_all_guards(*, is_resume: bool = False, graph_recursion_limit: int = 10
             are still detected.
         graph_recursion_limit: LangGraph recursion limit, forwarded to
             LoopGuard for dynamic budget threshold calculation.
+        unattended_mode: When ``True``, enables strict runaway loop circuit breaker
+            for background/unattended agent executions.
     """
     from myrm_agent_harness.agent.middlewares._session_context import (
         reset_terminal_errors,
@@ -91,6 +98,7 @@ def reset_all_guards(*, is_resume: bool = False, graph_recursion_limit: int = 10
     reset_loop_guard(
         is_resume=is_resume,
         graph_recursion_limit=graph_recursion_limit,
+        unattended_mode=unattended_mode,
     )
     reset_frequency_guard()
     reset_tool_turn_budget_guard()

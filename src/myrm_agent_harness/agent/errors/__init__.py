@@ -7,7 +7,11 @@ and intelligently truncated output previews.
 
 from myrm_agent_harness.utils.errors import ToolErrorCategory
 
-from .agent_errors import AgentBusyError
+from .agent_errors import (
+    AgentBusyError,
+    RunawayCircuitBreakException,
+    ToolStuckException,
+)
 from .diagnostics import DiagnosticResult, ErrorContext, LLMErrorDiagnostic
 from .fault_side import (
     FaultSide,
@@ -32,9 +36,11 @@ __all__ = [
     "LLMErrorDiagnostic",
     "OperatorErrorCode",
     "OperatorErrorSanitizer",
+    "RunawayCircuitBreakException",
     "SanitizedOperatorError",
     "ToolErrorCategory",
     "ToolExecutionError",
+    "ToolStuckException",
     "classify_diagnostic_fault_side",
     "classify_fault_side",
     "classify_llm_fault_side",

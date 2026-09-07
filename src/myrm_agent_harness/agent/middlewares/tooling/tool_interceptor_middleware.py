@@ -103,8 +103,16 @@ def _get_session_loop_guard() -> LoopGuard | None:
     return _session_loop_guards.get(_loop_guard_session_key())
 
 
-def _create_loop_guard(*, graph_recursion_limit: int = 100) -> LoopGuard:
-    return LoopGuard(poll_tools=_BASH_POLL_TOOLS, graph_recursion_limit=graph_recursion_limit)
+def _create_loop_guard(
+    *,
+    graph_recursion_limit: int = 100,
+    unattended_mode: bool = False,
+) -> LoopGuard:
+    return LoopGuard(
+        poll_tools=_BASH_POLL_TOOLS,
+        graph_recursion_limit=graph_recursion_limit,
+        unattended_mode=unattended_mode,
+    )
 
 
 def get_loop_guard() -> LoopGuard:
@@ -118,7 +126,12 @@ def get_loop_guard() -> LoopGuard:
     return _bind_loop_guard(_create_loop_guard())
 
 
-def reset_loop_guard(*, is_resume: bool = False, graph_recursion_limit: int = 100) -> None:
+def reset_loop_guard(
+    *,
+    is_resume: bool = False,
+    graph_recursion_limit: int = 100,
+    unattended_mode: bool = False,
+) -> None:
     """Reset the session-scoped loop guard state.
 
     Called at the start of each agent run and at each Goal continuation turn.
@@ -131,12 +144,13 @@ def reset_loop_guard(*, is_resume: bool = False, graph_recursion_limit: int = 10
     if guard is None:
         guard = _get_session_loop_guard()
     if guard is None:
-        _bind_loop_guard(_create_loop_guard(graph_recursion_limit=graph_recursion_limit))
+        _bind_loop_guard(_create_loop_guard(graph_recursion_limit=graph_recursion_limit, unattended_mode=unattended_mode))
         return
     guard.reset(
         preserve_error_signatures=is_resume,
         preserve_call_window=is_resume,
     )
+    guard.unattended_mode = unattended_mode
     guard._configure_budget(graph_recursion_limit)
     _bind_loop_guard(guard)
 

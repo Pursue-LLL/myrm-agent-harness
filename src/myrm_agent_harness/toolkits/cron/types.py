@@ -52,6 +52,7 @@ class RunStatus(StrEnum):
     OK = "ok"
     ERROR = "error"
     SKIPPED = "skipped"
+    CIRCUIT_BREAK = "circuit_break"
 
 
 class TransientErrorKind(StrEnum):
@@ -384,6 +385,8 @@ class JobResult:
     incremental_delta: str = ""
     skipped: bool = False
     skip_reason: str | None = None
+    circuit_broken: bool = False
+    circuit_break_reason: str | None = None
 
 
 # ---------------------------------------------------------------------------

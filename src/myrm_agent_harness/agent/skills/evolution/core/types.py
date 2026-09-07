@@ -580,6 +580,7 @@ class EvolutionProposal:
     # proposal finalization; None when the skill has no bound eval_cases or the
     # evolution type has no code content (e.g. OPTIMIZE_DESCRIPTION).
     change_manifest: dict[str, Any] | None = None
+    security_scan_summary: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -606,6 +607,7 @@ class EvolutionProposal:
             "target_pathology": self.target_pathology.value,
             "created_at": self.created_at.isoformat(),
             "change_manifest": self.change_manifest,
+            "security_scan_summary": self.security_scan_summary,
         }
 
 

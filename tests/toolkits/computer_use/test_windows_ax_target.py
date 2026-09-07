@@ -52,6 +52,10 @@ def _make_auto(process_names: dict[int, str], windows: list[MagicMock]) -> Magic
     auto.GetRootControl.return_value = root
     auto.GetForegroundControl.return_value = windows[0] if windows else None
     auto.GetProcessNameByPid.side_effect = lambda pid: process_names.get(pid, "")
+    # Mirror uiautomation.ToggleState enum used by idempotent check/uncheck.
+    auto.ToggleState.On = 1
+    auto.ToggleState.Off = 0
+    auto.ToggleState.Indeterminate = 2
     return auto
 
 
@@ -724,3 +728,72 @@ class TestWindowsAxPatternActions:
             res = module.invoke_ax_element("0", "toggle")
         assert res.success is True
         button.Click.assert_called_once()
+
+    def test_check_is_noop_when_already_on(self) -> None:
+        button = _make_button("Agree")
+        toggle_pattern = MagicMock()
+        toggle_pattern.ToggleState = 1  # On
+        button.GetTogglePattern.return_value = toggle_pattern
+        window = _make_window("Form", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "Form"}, [window])
+
+        with _module_with_auto(auto) as module:
+            res = module.invoke_ax_element("0", "check")
+        assert res.success is True
+        toggle_pattern.Toggle.assert_not_called()
+
+    def test_uncheck_is_noop_when_already_off(self) -> None:
+        button = _make_button("Agree")
+        toggle_pattern = MagicMock()
+        toggle_pattern.ToggleState = 0  # Off
+        button.GetTogglePattern.return_value = toggle_pattern
+        window = _make_window("Form", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "Form"}, [window])
+
+        with _module_with_auto(auto) as module:
+            res = module.invoke_ax_element("0", "uncheck")
+        assert res.success is True
+        toggle_pattern.Toggle.assert_not_called()
+
+    def test_check_toggles_when_off(self) -> None:
+        button = _make_button("Agree")
+        toggle_pattern = MagicMock()
+        toggle_pattern.ToggleState = 0  # Off → after Toggle becomes On
+        def _flip() -> None:
+            toggle_pattern.ToggleState = 1
+
+        toggle_pattern.Toggle.side_effect = _flip
+        button.GetTogglePattern.return_value = toggle_pattern
+        window = _make_window("Form", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "Form"}, [window])
+
+        with _module_with_auto(auto) as module:
+            res = module.invoke_ax_element("0", "check")
+        assert res.success is True
+        toggle_pattern.Toggle.assert_called_once()
+
+    def test_uncheck_from_indeterminate_toggles_twice(self) -> None:
+        button = _make_button("TriState")
+        toggle_pattern = MagicMock()
+        # MS cycle: Indeterminate → On → Off
+        states = [2, 1, 0]
+        toggle_pattern.ToggleState = states[0]
+
+        def _advance() -> None:
+            idx = states.index(toggle_pattern.ToggleState)
+            toggle_pattern.ToggleState = states[min(idx + 1, len(states) - 1)]
+
+        toggle_pattern.Toggle.side_effect = _advance
+        button.GetTogglePattern.return_value = toggle_pattern
+        window = _make_window("Form", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "Form"}, [window])
+
+        with _module_with_auto(auto) as module:
+            res = module.invoke_ax_element("0", "uncheck")
+        assert res.success is True
+        assert toggle_pattern.Toggle.call_count == 2
+        assert toggle_pattern.ToggleState == 0
