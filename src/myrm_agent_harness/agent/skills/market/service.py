@@ -74,6 +74,7 @@ from .sources.lobehub import LobeHubSource
 from .sources.modelscope import ModelScopeSource
 from .sources.prebuilt import PrebuiltSkillSource
 from .sources.skills_sh import SkillsShSource
+from .sources.static_index import StaticIndexSkillSource
 from .transaction import (
     SkillInstallTransaction,
     build_skill_receipt,

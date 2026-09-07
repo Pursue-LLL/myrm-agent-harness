@@ -50,6 +50,7 @@ _SCANNABLE_EXTENSIONS = frozenset(
 
 SOURCE_PRIORITY = {
     "prebuilt": 100,
+    "static_index": 80,
     "clawhub": 60,
     "skills_sh": 50,
     "github": 30,
