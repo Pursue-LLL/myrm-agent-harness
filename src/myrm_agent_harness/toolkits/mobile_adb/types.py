@@ -1,107 +1,114 @@
-"""Type definitions for Mobile ADB toolkit.
+"""Type definitions and data models for Mobile ADB Toolkit.
 
 [INPUT]
 - (none)
 
 [OUTPUT]
-- MobileAction, MobileDeviceState, MobileDeviceInfo, MobileScreenInfo, MobileUIElement, MobileElementRef, MobileActionResult, MobileBridgeConfig
+- MobileActionType, MobileUIElement, MobileDeviceState, MobileActionResult, MobileSessionConfig
 
 [POS]
-Shared type definitions consumed by all mobile_adb submodules.
+Type definitions and data structures for Android Wireless ADB control and semantic UI inspection.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
-MobileAction = Literal[
-    "tap",
-    "double_tap",
+MobileActionType = Literal[
+    "click",
     "long_press",
-    "swipe",
-    "drag",
-    "type_text",
+    "input_text",
+    "clear_text",
     "key_event",
+    "scroll",
+    "swipe",
     "launch_app",
     "stop_app",
-    "press_back",
-    "press_home",
-    "press_recents",
+    "back",
+    "home",
+]
+
+MobileVisionActionType = Literal[
+    "tap_coordinate",
+    "swipe_coordinate",
+    "screencap",
+    "press_key",
     "wait",
 ]
 
-MobileDeviceState = Literal[
-    "disconnected",
-    "unauthorized",
-    "connecting",
-    "connected",
-    "pairing",
-]
+
+class MobileDeviceConnectionStatus(str, Enum):
+    """Device wireless connection status."""
+
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+    UNAUTHORIZED = "unauthorized"
+    PAIRING_REQUIRED = "pairing_required"
 
 
-@dataclass(frozen=True)
-class MobileScreenInfo:
-    """Screen resolution and density info for a mobile device."""
-
-    width: int
-    height: int
-    density_dpi: int = 420
-
-
-@dataclass(frozen=True)
-class MobileDeviceInfo:
-    """Metadata describing a connected or paired mobile device."""
-
-    device_id: str
-    host: str
-    port: int
-    model: str = "Unknown Android Device"
-    state: MobileDeviceState = "disconnected"
-    screen_info: MobileScreenInfo | None = None
-    pairing_port: int | None = None
-    is_wireless: bool = True
-
-
-@dataclass(frozen=True)
+@dataclass(slots=True)
 class MobileUIElement:
-    """Semantic UI element extracted from Android Accessibility / UIAutomator dump."""
+    """Parsed accessibility UI element node from Android uiautomator dump."""
 
-    ref_id: str
-    resource_id: str
+    ref_id: str  # e.g., "@mref_1"
     class_name: str
-    package_name: str
+    resource_id: str
     text: str
     content_desc: str
     bounds: tuple[int, int, int, int]  # (left, top, right, bottom)
-    center_x: int
-    center_y: int
-    is_clickable: bool
-    is_editable: bool
-    is_scrollable: bool
-    is_focused: bool
+    clickable: bool
+    scrollable: bool
+    editable: bool
+    enabled: bool
+    focused: bool
+    package_name: str = ""
+
+    @property
+    def center(self) -> tuple[int, int]:
+        """Calculate the center coordinate (X, Y) of the element."""
+        left, top, right, bottom = self.bounds
+        return (left + right) // 2, (top + bottom) // 2
+
+    def to_summary(self) -> str:
+        """Render concise summary for LLM prompt context."""
+        parts = [f"[{self.ref_id}]"]
+        if self.text:
+            parts.append(f'text="{self.text}"')
+        if self.content_desc:
+            parts.append(f'desc="{self.content_desc}"')
+        if self.resource_id:
+            short_id = self.resource_id.split("/")[-1]
+            parts.append(f"id={short_id}")
+        parts.append(f"role={self.class_name.split('.')[-1]}")
+        center_x, center_y = self.center
+        parts.append(f"pos=({center_x},{center_y})")
+        return " ".join(parts)
 
 
-@dataclass
+@dataclass(slots=True)
+class MobileDeviceState:
+    """Snapshot state of a target Android mobile device."""
+
+    device_id: str
+    ip_address: str
+    port: int
+    connection_status: MobileDeviceConnectionStatus
+    current_package: str = ""
+    current_activity: str = ""
+    screen_width: int = 1080
+    screen_height: int = 2400
+    elements: list[MobileUIElement] = field(default_factory=list)
+    xml_tree: str = ""
+
+
+@dataclass(slots=True)
 class MobileActionResult:
-    """Result of an action performed on a mobile device."""
+    """Result of an executed mobile action."""
 
     success: bool
+    action: str
     message: str
     error: str | None = None
-    elapsed_ms: float = 0.0
-    screenshot_base64: str | None = None
-    ui_elements: list[MobileUIElement] = field(default_factory=list)
-
-
-@dataclass
-class MobileBridgeConfig:
-    """Configuration options for ADB Wireless Bridge."""
-
-    adb_path: str = "adb"
-    connect_timeout_seconds: float = 10.0
-    command_timeout_seconds: float = 15.0
-    default_host: str = "127.0.0.1"
-    default_port: int = 5555
-    auto_reconnect: bool = True
+    data: dict[str, Any] = field(default_factory=dict)

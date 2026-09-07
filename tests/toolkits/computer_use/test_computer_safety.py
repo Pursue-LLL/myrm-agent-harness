@@ -286,6 +286,37 @@ class TestComputerActionSafetyIntegration:
         assert "type" in result.lower() or "calculator" in result.lower()
 
     @pytest.mark.asyncio
+    async def test_operator_reject_before_screenshot_revalidation(
+        self, session, action_tool
+    ) -> None:
+        """Lone operators fail closed without needing a capturable display."""
+        session._revalidate_if_stale_after_approval = AsyncMock(
+            return_value="Safety Re-validation failed: screencapture failed"
+        )
+        session.check_foreground_permission = AsyncMock(return_value=None)
+        session.check_app_approval = AsyncMock(return_value=None)
+
+        result = await action_tool.ainvoke({"action": "key", "text": "*"})
+        assert isinstance(result, str)
+        assert "Rejected printable operator" in result
+        assert "REMEDY_HINT" in result
+        assert "screencapture" not in result.lower()
+        session._revalidate_if_stale_after_approval.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_operator_reject_skips_screen_revalidation(self, session, action_tool) -> None:
+        """Lone operators must fail closed before screenshot revalidation."""
+        session.check_app_approval = AsyncMock(return_value=None)
+        session.check_foreground_permission = AsyncMock(return_value=None)
+        session._revalidate_if_stale_after_approval = AsyncMock(
+            return_value="Safety Re-validation failed: screencapture failed"
+        )
+        result = await action_tool.ainvoke({"action": "key", "text": "+"})
+        assert isinstance(result, str)
+        assert "Rejected printable operator" in result
+        session._revalidate_if_stale_after_approval.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_blocked_type_returns_safety_message(self, action_tool) -> None:
         result = await action_tool.ainvoke(
             {

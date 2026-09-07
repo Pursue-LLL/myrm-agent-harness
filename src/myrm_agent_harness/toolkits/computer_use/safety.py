@@ -211,6 +211,31 @@ def is_self_app(
     return None
 
 
+def is_iphone_mirror_blocked_action(
+    app_name: str,
+    window_title: str = "",
+    app_id: str = "",
+    action_text: str = "",
+) -> str | None:
+    """Block unauthorized automated clicks on iPhone Mirroring connect/pairing dialogs."""
+    lower_name = app_name.lower()
+    lower_id = app_id.lower()
+    if "screencontinuity" not in lower_id and "iphone" not in lower_name:
+        return None
+
+    lower_title = window_title.lower() if window_title else ""
+    lower_action = action_text.lower() if action_text else ""
+
+    # Check if window is waiting for manual connect/passcode confirmation
+    if any(k in lower_title for k in ["connect", "连接", "解锁", "unlock", "passcode"]):
+        if any(k in lower_action for k in ["connect", "连接", "confirm", "确认", "ok"]):
+            return (
+                f"Blocked: Agent must NOT automatically click connect/pairing prompt on '{app_name}'. "
+                "User must manually confirm connection and unlock their iPhone."
+            )
+    return None
+
+
 def is_sensitive_app(
     app_name: str,
     window_title: str = "",

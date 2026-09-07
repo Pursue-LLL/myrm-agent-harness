@@ -396,8 +396,8 @@ class DesktopSession(ComputerSession):
                 logger.warning("[SECURITY] Sensitive app guard (vision): %s", blocked)
                 return f"Safety: {blocked}"
 
-            # Reject invalid key names before FG/screenshot revalidation — lone
-            # operators must not require a capturable display to fail closed.
+            # Reject invalid key / type payloads before FG/screenshot revalidation —
+            # argument safety must not require a capturable display to fail closed.
             if action == "key":
                 if not text:
                     return "Error: text (key combo) is required for key action"
@@ -412,6 +412,12 @@ class DesktopSession(ComputerSession):
                         "to click the calculator/@dref button.]"
                     )
                     return f"Safety: {operator_blocked}\n{remedy_hint}"
+            elif action == "type":
+                if not text:
+                    return "Error: text is required for type action"
+                text_blocked = safety.is_dangerous_type_text(text)
+                if text_blocked:
+                    return f"Safety: {text_blocked}"
 
             # [SECURITY] Foreground permission gate for coordinate-based actions.
             if safety.is_foreground_required(action):
@@ -463,15 +469,11 @@ class DesktopSession(ComputerSession):
                     modifiers=modifiers,
                 )
             elif action == "type":
-                if not text:
-                    return "Error: text is required for type action"
-                text_blocked = safety.is_dangerous_type_text(text)
-                if text_blocked:
-                    return f"Safety: {text_blocked}"
-                result = await self.type_text(text)
+                # Dangerous type payloads already rejected above (pre-FG).
+                result = await self.type_text(text or "")
             elif action == "key":
                 # Invalid key/operator names already rejected above (pre-FG).
-                result = await self.key_press(text)
+                result = await self.key_press(text or "")
             elif action == "scroll":
                 if coordinate is None or len(coordinate) != 2 or not scroll_direction:
                     return "Error: coordinate and scroll_direction are required for scroll"

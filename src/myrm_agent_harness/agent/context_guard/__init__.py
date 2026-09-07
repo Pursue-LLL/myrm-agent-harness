@@ -1,6 +1,19 @@
-"""Context guard subsystem for protecting LLM context window from message overflow and context bombs.
+"""Context guard subsystem for protecting LLM context windows against context bombs.
 
-Exports SpilloverEngine, EphemeralTransientSweeper, and related schemas.
+[INPUT]
+- .types: ContextGuardConfig, SpilloverPayload, SpilloverResult
+- .spillover_engine: SpilloverEngine
+- .sweeper: EphemeralTransientSweeper
+
+[OUTPUT]
+- ContextGuardConfig
+- SpilloverPayload
+- SpilloverResult
+- SpilloverEngine
+- EphemeralTransientSweeper
+
+[POS]
+Harness-level context safety module providing automatic file spillover and cleanup.
 """
 
 from __future__ import annotations

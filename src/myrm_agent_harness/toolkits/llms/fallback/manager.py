@@ -609,6 +609,30 @@ class ModelFallbackManager[T]:
             raise RuntimeError("No models available")
 
     def reset_cooldowns(self) -> None:
-        """Reset all cooldown periods (for testing)."""
+        """Reset all cooldown periods (for testing or manual user recovery)."""
         for candidate in self._candidates:
             candidate.cooldown_until = 0.0
+            candidate.consecutive_failures = 0
+            candidate.probe_count = 0
+            candidate.last_error_reason = None
+
+    def get_candidates_status(self) -> list[dict[str, Any]]:
+        """Get snapshot of all candidates with real-time cooldown and health status."""
+        now_ms = time.time() * 1000
+        results: list[dict[str, Any]] = []
+        for c in self._candidates:
+            is_cooldown = c.is_in_cooldown(now_ms)
+            remaining_ms = max(0, int(c.cooldown_until - now_ms)) if is_cooldown else 0
+            results.append({
+                "name": c.name,
+                "priority": c.priority,
+                "in_cooldown": is_cooldown,
+                "remaining_cooldown_ms": remaining_ms,
+                "consecutive_failures": c.consecutive_failures,
+                "last_error_reason": c.last_error_reason.value if c.last_error_reason else None,
+                "probe_count": c.probe_count,
+                "cost": c.cost,
+                "latency": c.latency,
+                "quality": c.quality,
+            })
+        return results

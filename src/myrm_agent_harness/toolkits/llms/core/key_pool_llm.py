@@ -252,3 +252,15 @@ class KeyPoolLLM(BaseChatModel):
             "pool_size": self._pool.size,
             "pool_strategy": self._pool.strategy.value,
         }
+
+    def get_pool_stats(self) -> dict[str, object]:
+        """Get underlying credential pool stats for observability."""
+        if self._pool is None:
+            return {}
+        return self._pool.stats()
+
+    def reset_cooldowns(self, key_suffix: str | None = None) -> int:
+        """Reset cooldown timers in the credential pool."""
+        if self._pool is None:
+            return 0
+        return self._pool.reset_cooldowns(key_suffix)

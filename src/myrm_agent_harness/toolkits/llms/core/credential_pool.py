@@ -287,6 +287,10 @@ class CredentialPool:
                 reset_count += 1
         return reset_count
 
+    def get_status_snapshot(self) -> dict[str, object]:
+        """Alias for stats() to adhere to standard health observability contract."""
+        return self.stats()
+
     def stats(self) -> dict[str, object]:
         """Pool statistics for observability."""
         now = time.monotonic()

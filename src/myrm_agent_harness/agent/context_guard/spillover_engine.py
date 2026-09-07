@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 from pathlib import Path
 from uuid import uuid4
@@ -22,18 +23,22 @@ class SpilloverEngine:
 
     def process_content(
         self,
-        content: str,
+        content: str | list[dict[str, object] | str] | dict[str, object],
         *,
         base_dir: Path | str,
         role: str = "user",
         custom_prefix: str = "payload",
     ) -> SpilloverResult:
-        """Evaluate message length and spill to disk if it exceeds safety threshold."""
-        char_count = len(content)
+        """Evaluate message length and spill to disk if it exceeds safety threshold.
+
+        Robustly extracts plain text from complex multimodal payloads if necessary.
+        """
+        raw_text = self._extract_text(content)
+        char_count = len(raw_text)
         if char_count <= self.config.max_message_chars:
             return SpilloverResult(
                 spilled=False,
-                sanitized_content=content,
+                sanitized_content=raw_text,
                 original_char_count=char_count,
             )
 
@@ -43,27 +48,23 @@ class SpilloverEngine:
         spillover_dir.mkdir(parents=True, exist_ok=True)
 
         # Set secure directory permissions if POSIX
-        try:
+        with contextlib.suppress(OSError):
             spillover_dir.chmod(0o700)
-        except OSError:
-            pass
 
         spill_id = f"{custom_prefix}_{uuid4().hex[:8]}"
         file_name = f"{spill_id}.md"
         target_file = spillover_dir / file_name
 
         # Calculate metrics
-        sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        lines = content.count("\n") + 1
-        preview = content[: self.config.preview_chars].strip()
+        sha256 = hashlib.sha256(raw_text.encode("utf-8")).hexdigest()
+        lines = raw_text.count("\n") + 1
+        preview = raw_text[: self.config.preview_chars].strip()
 
         # Atomic file write
         temp_file = target_file.with_suffix(".tmp")
-        temp_file.write_text(content, encoding="utf-8")
-        try:
+        temp_file.write_text(raw_text, encoding="utf-8")
+        with contextlib.suppress(OSError):
             temp_file.chmod(0o600)
-        except OSError:
-            pass
         temp_file.replace(target_file)
 
         logger.info(
@@ -102,3 +103,26 @@ class SpilloverEngine:
             payload=payload,
             original_char_count=char_count,
         )
+
+    @staticmethod
+    def _extract_text(content: str | list[dict[str, object] | str] | dict[str, object] | object) -> str:
+        """Extract plain text string from str, list, or dict structures."""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    if item.get("type") == "text" and "text" in item:
+                        parts.append(str(item["text"]))
+                    elif "content" in item and isinstance(item["content"], str):
+                        parts.append(item["content"])
+            return "\n".join(parts)
+        if isinstance(content, dict):
+            if "text" in content:
+                return str(content["text"])
+            if "content" in content:
+                return str(content["content"])
+        return str(content or "")
