@@ -98,16 +98,7 @@ def _matches_host(base_url: str, hosts: tuple[str, ...]) -> bool:
 
 
 class ModelCapabilityDetector:
-    """Detects model capabilities for reasoning_content handling.
-
-    This detector identifies models that require special reasoning_content
-    handling, such as complete echo-back or placeholder filling.
-
-    Usage:
-        detector = ModelCapabilityDetector()
-        if detector.needs_reasoning_content_echo(provider, model, base_url):
-            # Handle reasoning_content specially
-    """
+    """Detects model capabilities for reasoning_content handling and local transport."""
 
     def needs_reasoning_content_echo(
         self,
@@ -220,124 +211,35 @@ class ModelCapabilityDetector:
             or _matches_host(base_url, _KIMI_HOSTS)
         )
 
-    def supports_grammar_constrained_tool_calls(
-        self,
-        provider: str = "",
-        model: str = "",
-        base_url: str = "",
-    ) -> bool:
-        """Return True when the model endpoint is a local or compatible engine supporting grammar transport.
-
-        Endpoints such as llama-server, Ollama, vLLM, and local loopback instances benefit
-        from structured response_format / JSON Schema grammar constraints to ensure 100%
-        valid tool calls on weak or small edge models.
-
-        Args:
-            provider: Provider name (e.g. "ollama", "vllm", "local")
-            model: Model name
-            base_url: Base URL for API calls
-
-        Returns:
-            True if grammar / constrained JSON transport is supported and recommended
-        """
-        provider_lower = (provider or "").lower()
-        if provider_lower in _LOCAL_GRAMMAR_PROVIDERS:
-            return True
-        if _matches_host(base_url, _LOCAL_GRAMMAR_HOSTS):
-            return True
-        return False
-
-    def is_local_weak_endpoint(
-        self,
-        provider: str = "",
-        model: str = "",
-        base_url: str = "",
-    ) -> bool:
-        """Return True when the model is served from a local endpoint.
-
-        Local small/weak models (llama-server, Ollama, vLLM, LMStudio) benefit
-        from grammar/schema-constrained transport to ensure 100% valid tool calls.
-
-        Args:
-            provider: Provider name (e.g. "ollama", "openai-like")
-            model: Model name (e.g. "qwen2.5-coder:7b")
-            base_url: Base URL for API calls
-
-        Returns:
-            True if served from a local loopback/framework endpoint
-        """
-        provider_lower = (provider or "").lower()
-        model_lower = (model or "").lower()
-        return (
-            provider_lower in {"ollama", "vllm", "llama", "local", "lmstudio"}
-            or _matches_prefix(model, _LOCAL_WEAK_PREFIXES)
-            or _matches_host(base_url, _LOCAL_WEAK_HOSTS)
-        )
-
     def is_local_endpoint(
         self,
         provider: str = "",
         model: str = "",
         base_url: str = "",
     ) -> bool:
-        """Return True when the model is served from a local or private loopback endpoint.
-
-        Detects Ollama, llama-server, vLLM, SGLang, and local loopback OpenAI-compatible gateways.
-
-        Args:
-            provider: Provider name (e.g. "ollama", "openai-like")
-            model: Model name (e.g. "qwen2.5:7b", "ollama/qwen2.5-coder")
-            base_url: Base URL for API calls (e.g. "http://127.0.0.1:11434/v1")
-
-        Returns:
-            True if the target is a local endpoint
-        """
-        provider_lower = (provider or "").lower()
-        model_lower = (model or "").lower()
-        base_url_lower = (base_url or "").lower()
-
-        if provider_lower in _LOCAL_PROVIDERS:
-            return True
-        if _matches_prefix(model, _LOCAL_MODEL_PREFIXES):
-            return True
-        if any(h in base_url_lower for h in _LOCAL_HOST_SUBSTRINGS):
-            return True
-        return False
-
-    def supports_json_schema_constrained_tool_calls(
-        self,
-        provider: str = "",
-        model: str = "",
-        base_url: str = "",
-    ) -> bool:
-        """Return True when the model/endpoint benefits from JSON Schema grammar constraint transport.
-
-        For weak local models running on local endpoints (llama-server, Ollama, vLLM),
-        enforcing constrained decoding via response_format / JSON Schema ensures 100%
-        valid tool call JSON syntax and eliminates malformed tool retries.
-
-        Args:
-            provider: Provider name
-            model: Model name
-            base_url: Base URL for API calls
-
-        Returns:
-            True if grammar constraint transport should be enabled
-        """
-        return self.is_local_endpoint(provider, model, base_url)
-
-    def is_local_endpoint(
-        self,
-        provider: str = "",
-        model: str = "",
-        base_url: str = "",
-    ) -> bool:
-        """Return True when the provider or base_url points to a local or loopback inference engine.
+        """Return True when the provider, model prefix or base_url points to a local or loopback inference engine.
 
         Detects llama-server, Ollama, vLLM, LM Studio, Exo, and other local loopback hosts.
         """
         provider_lower = (provider or "").lower()
-        if provider_lower in {"ollama", "local", "llama", "llama-cpp", "llama_cpp", "vllm", "lmstudio", "exo"}:
+        model_lower = (model or "").lower()
+        local_keywords = (
+            "ollama",
+            "local",
+            "llama",
+            "llama-cpp",
+            "llama_cpp",
+            "vllm",
+            "lmstudio",
+            "exo",
+            "sglang",
+        )
+        if provider_lower in local_keywords:
+            return True
+        if any(
+            model_lower.startswith(f"{kw}/") or model_lower.startswith(f"{kw}:")
+            for kw in local_keywords
+        ):
             return True
         if not base_url:
             return False
@@ -364,7 +266,7 @@ class ModelCapabilityDetector:
         model: str = "",
         base_url: str = "",
     ) -> bool:
-        """Alias for is_local_endpoint for backward and semantic compatibility."""
+        """Alias for is_local_endpoint for semantic clarity."""
         return self.is_local_endpoint(provider, model, base_url)
 
     def supports_grammar_constrained_tool_calls(
@@ -378,7 +280,13 @@ class ModelCapabilityDetector:
         Local inference servers (llama-server, Ollama, vLLM) benefit from structured
         JSON/Grammar constraints on tool calling to prevent malformed syntax.
         """
-        if not self.is_local_endpoint(provider, model, base_url):
-            return False
-        # Cloud frontier endpoints or non-local providers use native function calling
-        return True
+        return self.is_local_endpoint(provider, model, base_url)
+
+    def supports_json_schema_constrained_tool_calls(
+        self,
+        provider: str = "",
+        model: str = "",
+        base_url: str = "",
+    ) -> bool:
+        """Return True when the model/endpoint benefits from JSON Schema grammar constraint transport."""
+        return self.is_local_endpoint(provider, model, base_url)

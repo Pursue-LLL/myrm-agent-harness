@@ -66,19 +66,23 @@ def is_blocked_key_combo(keys: str) -> str | None:
 def is_operator_as_key_name(keys: str) -> str | None:
     """Reject sole printable operators used as vision ``key`` / keyboard key names.
 
-    Combos that include modifiers (e.g. ``ctrl+/``) are allowed — only a lone
-    printable operator token (``*``, ``/``, ``+``, ``-``, ``%``, ``=``) is treated
-    as the calculator false-key anti-pattern.
+    Combos that include modifiers (e.g. ``ctrl+/``, ``ctrl+-``) are allowed.
+    Lone ``+`` is matched on the stripped string first: ``canonicalize_key_combo``
+    splits on ``+`` and would otherwise drop the token.
     """
-    canon = canonicalize_key_combo(keys)
-    if len(canon) == 1 and next(iter(canon)) in _OPERATOR_AS_KEY_TOKENS:
+    stripped = keys.strip()
+    if stripped in _OPERATOR_AS_KEY_TOKENS:
+        token = stripped
+    else:
+        canon = canonicalize_key_combo(keys)
+        if len(canon) != 1 or next(iter(canon)) not in _OPERATOR_AS_KEY_TOKENS:
+            return None
         token = next(iter(canon))
-        return (
-            f"Rejected printable operator {token!r} as a key name. "
-            "Use desktop_vision_tool action=type (or desktop_interact_tool type/set_value), "
-            "or click the matching calculator/@dref button via desktop_interact_tool."
-        )
-    return None
+    return (
+        f"Rejected printable operator {token!r} as a key name. "
+        "Use desktop_vision_tool action=type (or desktop_interact_tool type/set_value), "
+        "or click the matching calculator/@dref button via desktop_interact_tool."
+    )
 
 
 def is_dangerous_type_text(text: str) -> str | None:

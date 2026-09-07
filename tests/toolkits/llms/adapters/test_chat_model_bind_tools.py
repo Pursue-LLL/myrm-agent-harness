@@ -54,3 +54,31 @@ def test_inject_allowed_params_excludes_allowed_tools_from_force_whitelist() -> 
     }
     ChatLiteLLM._inject_allowed_params(params)
     assert "tool_choice" not in params["allowed_openai_params"]
+
+
+def test_bind_tools_injects_grammar_json_schema_for_local_endpoints() -> None:
+    """Local weak model endpoints (e.g. llama-server on localhost) get structured tool call schema."""
+    llm = ChatLiteLLM(model="openai/qwen2.5-coder:7b", api_base="http://127.0.0.1:8080/v1")
+    sample_tools = [{"type": "function", "function": {"name": "read_file", "parameters": {}}}]
+
+    with patch.object(ChatLiteLLM, "bind", return_value=MagicMock()) as mock_bind:
+        llm.bind_tools(sample_tools)
+
+    bind_kwargs = mock_bind.call_args.kwargs
+    assert "response_format" in bind_kwargs
+    rf = bind_kwargs["response_format"]
+    assert rf["type"] == "json_schema"
+    assert rf["json_schema"]["name"] == "tool_calls_transport"
+
+
+def test_bind_tools_skips_grammar_json_schema_for_cloud_endpoints() -> None:
+    """Cloud endpoints (e.g. OpenAI/Anthropic) use native tool calling without forcing response_format."""
+    llm = ChatLiteLLM(model="gpt-4o", api_base="https://api.openai.com/v1")
+    sample_tools = [{"type": "function", "function": {"name": "read_file", "parameters": {}}}]
+
+    with patch.object(ChatLiteLLM, "bind", return_value=MagicMock()) as mock_bind:
+        llm.bind_tools(sample_tools)
+
+    bind_kwargs = mock_bind.call_args.kwargs
+    assert "response_format" not in bind_kwargs
+

@@ -234,11 +234,16 @@ def scan_skill_content(
 
     _scan_invisible_unicode(content, result)
 
-    # AST analysis for Python files
+    # AST analysis for Python files and Markdown embedded code blocks
     if file_extension == ".py" or (not file_extension and _looks_like_python(content)):
         from myrm_agent_harness.backends.skills.scanning.ast_analyzer import analyze_python_ast
 
         ast_findings = analyze_python_ast(content, skill_name)
+        result.ast_findings.extend(ast_findings)
+    elif file_extension == ".md" or (not file_extension and "```" in content):
+        from myrm_agent_harness.backends.skills.scanning.ast_analyzer import analyze_markdown_python_ast
+
+        ast_findings = analyze_markdown_python_ast(content, skill_name)
         result.ast_findings.extend(ast_findings)
 
     result.scan_duration_ms = (time.monotonic() - start_time) * 1000

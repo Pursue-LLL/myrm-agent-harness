@@ -167,6 +167,13 @@ class ProposalBuilder:
         security_scan_summary_dict = None
         if evolution_type != EvolutionType.OPTIMIZE_DESCRIPTION and content:
             scan_res = scan_skill_content(skill.name, content)
+            if scan_res.trust_recommendation == SkillTrustRecommendation.REJECT:
+                logger.warning(
+                    "ProposalBuilder: variant for skill '%s' rejected by security scan: %s",
+                    skill.name,
+                    scan_res.summary,
+                )
+                return None
             scan_sum = compute_scan_summary(scan_res)
             security_scan_summary_dict = scan_sum.to_dict()
 

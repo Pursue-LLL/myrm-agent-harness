@@ -214,22 +214,6 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             score = max(0.0, score - penalty)
             reason = f"[Regression penalty: -{penalty:.2f}] {reason}"
 
-        # 3.5 Security Sanitization Gate
-        from myrm_agent_harness.backends.skills.scanning.scanner import (
-            SkillTrustRecommendation,
-            compute_scan_summary,
-            scan_skill_content,
-        )
-
-        scan_result = scan_skill_content(old_skill.name, best_variant)
-        if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
-            logger.warning(
-                f"FIX evolution for '{old_skill.name}' rejected by security scan: {scan_result.summary}"
-            )
-            return None
-
-        security_summary_dict = compute_scan_summary(scan_result).to_dict()
-
         # 4. Build Proposal
         proposal = self._proposal_builder.build_proposal(
             skill=old_skill,
@@ -240,7 +224,6 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             task_context=task_context or "",
             trajectory=trajectory,
             is_general=is_general,
-            security_scan_summary=security_summary_dict,
         )
 
         # 4.5 Persist learning: record successful fix as evolution constraint

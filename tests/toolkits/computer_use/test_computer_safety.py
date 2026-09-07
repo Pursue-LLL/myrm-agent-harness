@@ -3,6 +3,7 @@
 Covers:
 - canonicalize_key_combo: alias normalization to canonical frozenset
 - is_blocked_key_combo: all 9 blocked combos (5 macOS + 4 Windows) + safe combos pass through
+- is_operator_as_key_name: lone printable operators rejected; modifier combos allowed
 - is_dangerous_type_text: all 5 dangerous patterns + safe text passes
 - Integration in desktop_vision_tool: safety check before execution
 """
@@ -17,9 +18,11 @@ from myrm_agent_harness.toolkits.computer_use.safety import (
     _BLOCKED_KEY_COMBOS,
     _DANGEROUS_TYPE_PATTERNS,
     _KEY_ALIASES,
+    _OPERATOR_AS_KEY_TOKENS,
     canonicalize_key_combo,
     is_blocked_key_combo,
     is_dangerous_type_text,
+    is_operator_as_key_name,
 )
 
 
@@ -139,6 +142,29 @@ class TestIsBlockedKeyCombo:
         assert is_blocked_key_combo("backspace+cmd+option") is not None
 
 
+class TestIsOperatorAsKeyName:
+    """Lone printable operators must not be used as vision key names."""
+
+    @pytest.mark.parametrize("token", sorted(_OPERATOR_AS_KEY_TOKENS))
+    def test_lone_operator_rejected(self, token: str) -> None:
+        result = is_operator_as_key_name(token)
+        assert result is not None
+        assert "Rejected printable operator" in result
+        assert token in result
+
+    def test_whitespace_around_operator_rejected(self) -> None:
+        assert is_operator_as_key_name(" * ") is not None
+
+    def test_modifier_plus_operator_allowed(self) -> None:
+        assert is_operator_as_key_name("ctrl+/") is None
+        assert is_operator_as_key_name("cmd+-") is None
+
+    def test_special_keys_allowed(self) -> None:
+        assert is_operator_as_key_name("Return") is None
+        assert is_operator_as_key_name("Escape") is None
+        assert is_operator_as_key_name("ctrl+c") is None
+
+
 class TestIsDangerousTypeText:
     """is_dangerous_type_text: detect dangerous command patterns."""
 
@@ -249,6 +275,15 @@ class TestComputerActionSafetyIntegration:
         assert isinstance(result, str)
         assert "Safety" in result
         assert "Blocked" in result
+
+    @pytest.mark.asyncio
+    async def test_operator_as_key_returns_safety_and_remedy(self, action_tool) -> None:
+        result = await action_tool.ainvoke({"action": "key", "text": "*"})
+        assert isinstance(result, str)
+        assert "Safety" in result
+        assert "Rejected printable operator" in result
+        assert "REMEDY_HINT" in result
+        assert "type" in result.lower() or "calculator" in result.lower()
 
     @pytest.mark.asyncio
     async def test_blocked_type_returns_safety_message(self, action_tool) -> None:
