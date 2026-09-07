@@ -283,6 +283,32 @@ class BaseSkillMarketService:
             except Exception as exc:
                 logger.warning("Failed to parse plugin.json during preview: %s", exc)
 
+        prerequisites_report: dict[str, object] | None = None
+        try:
+            from myrm_agent_harness.backends.skills.dependency_checker import (
+                HostPrerequisiteProbe,
+                SkillPrerequisiteContract,
+            )
+
+            req_data: dict[str, object] = {}
+            if detail.extra_manifest and isinstance(detail.extra_manifest, dict):
+                req_data.update(detail.extra_manifest.get("requirements") or {})
+                req_data.update(detail.extra_manifest.get("dependencies") or {})
+            if "requirements.json" in skill_files.files:
+                import json
+                try:
+                    loaded_req = json.loads(skill_files.files["requirements.json"].decode("utf-8"))
+                    if isinstance(loaded_req, dict):
+                        req_data.update(loaded_req)
+                except Exception:
+                    pass
+
+            if req_data:
+                contract = SkillPrerequisiteContract.from_dict(req_data)
+                prerequisites_report = HostPrerequisiteProbe.evaluate(contract).to_dict()
+        except Exception as exc:
+            logger.debug("Failed to evaluate prerequisites during preview: %s", exc)
+
         return SkillPreviewResult(
             skill_id=detail.id,
             name=skill_files.name,
@@ -294,6 +320,7 @@ class BaseSkillMarketService:
             package_type=package_type,
             installed_skills=installed_skills or [skill_files.name],
             declared_mcp_servers=declared_mcp_servers,
+            prerequisites=prerequisites_report,
         )
 
     async def install(
@@ -470,11 +497,11 @@ class BaseSkillMarketService:
 
         # 3. Remove main target directory
         try:
-            from myrm_agent_harness.backends.skills.scanning.category_guard import (
-                validate_safe_install_target,
+            from myrm_agent_harness.backends.skills.scanning.path_security import (
+                assert_safe_install_target,
             )
 
-            validate_safe_install_target(target_dir)
+            assert_safe_install_target(target_dir)
             shutil.rmtree(target_dir)
         except Exception as e:
             return SkillInstallResult(

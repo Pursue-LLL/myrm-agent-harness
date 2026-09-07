@@ -1,199 +1,184 @@
-"""Host environment prerequisite probing engine and remediation command generator.
+"""Host prerequisite and system dependency probe engine.
 
 [INPUT]
-- types.py
+- models.py, remediation.py
 
 [OUTPUT]
-- HostPrerequisiteProbe, evaluate_skill_prerequisites
+- PrerequisiteProbe, check_skill_prerequisites, parse_prerequisites_from_frontmatter
 
 [POS]
-Lightweight, non-blocking environment scanner that inspects CLI binaries, Python modules, and generates OS-specific package manager install commands.
+Lightweight, non-blocking asynchronous probe inspecting binary presence, OS compatibility, and Python packages.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import logging
-import os
+import re
 import shutil
-import sys
-from typing import Any, Literal
+from typing import Any
 
-from .types import (
+from .models import (
     BinaryDependency,
     DependencyCheckItem,
-    PrerequisiteCheckReport,
-    PrerequisiteStatus,
+    DependencyStatus,
+    PrerequisiteReport,
+    PythonDependency,
     SkillPrerequisites,
 )
+from .remediation import generate_remediation_command, get_current_os
 
 logger = logging.getLogger(__name__)
 
-# Common CLI binary to package manager name mappings
-DEFAULT_BINARY_PKG_MAP: dict[str, dict[Literal["darwin", "linux", "win32"], str]] = {
-    "ffmpeg": {"darwin": "ffmpeg", "linux": "ffmpeg", "win32": "ffmpeg"},
-    "pandoc": {"darwin": "pandoc", "linux": "pandoc", "win32": "JohnMacFarlane.Pandoc"},
-    "pdftotext": {"darwin": "poppler", "linux": "poppler-utils", "win32": "poppler"},
-    "pdfimages": {"darwin": "poppler", "linux": "poppler-utils", "win32": "poppler"},
-    "tesseract": {"darwin": "tesseract", "linux": "tesseract-ocr", "win32": "UB-Mannheim.TesseractOCR"},
-    "git": {"darwin": "git", "linux": "git", "win32": "Git.Git"},
-    "docker": {"darwin": "docker", "linux": "docker.io", "win32": "Docker.DockerDesktop"},
-    "graphviz": {"darwin": "graphviz", "linux": "graphviz", "win32": "Graphviz.Graphviz"},
-    "tree": {"darwin": "tree", "linux": "tree", "win32": "tree"},
-    "jq": {"darwin": "jq", "linux": "jq", "win32": "jqlang.jq"},
-}
 
+class PrerequisiteProbe:
+    """Probes host environment against skill prerequisite contracts."""
 
-class HostPrerequisiteProbe:
-    """Probes the host operating system, binary PATH, and Python environment."""
-
-    def __init__(self, custom_binary_map: dict[str, dict[str, str]] | None = None) -> None:
-        self._binary_pkg_map = dict(DEFAULT_BINARY_PKG_MAP)
-        if custom_binary_map:
-            for k, v in custom_binary_map.items():
-                self._binary_pkg_map[k] = v  # type: ignore
-
-    @property
-    def current_os(self) -> Literal["darwin", "linux", "win32"]:
-        if sys.platform == "darwin":
-            return "darwin"
-        elif sys.platform.startswith("linux"):
-            return "linux"
-        return "win32"
+    def __init__(self) -> None:
+        self.current_os = get_current_os()
 
     def check_binary(self, dep: BinaryDependency) -> DependencyCheckItem:
-        """Check if an executable binary is present in system PATH."""
-        bin_path = shutil.which(dep.name)
-        satisfied = bin_path is not None
+        """Probe for executable binary presence in system PATH."""
+        candidates = [dep.name, *dep.aliases]
+        detected_path: str | None = None
 
-        install_cmd = None
-        if not satisfied:
-            install_cmd = self._generate_binary_install_command(dep)
+        for name in candidates:
+            path = shutil.which(name)
+            if path:
+                detected_path = path
+                break
+
+        if not detected_path:
+            remediation_cmd = generate_remediation_command(dep)
+            return DependencyCheckItem(
+                name=dep.name,
+                dep_type="binary",
+                status=DependencyStatus.MISSING,
+                remediation_cmd=remediation_cmd,
+                message=f"Executable binary '{dep.name}' not found in system PATH.",
+            )
 
         return DependencyCheckItem(
-            category="binary",
             name=dep.name,
-            satisfied=satisfied,
-            required=dep.required,
-            current_path=bin_path,
-            install_command=install_cmd,
-            description=dep.description,
+            dep_type="binary",
+            status=DependencyStatus.READY,
+            detected_path=detected_path,
+            message=f"Binary ready at {detected_path}",
         )
 
-    def check_python_package(self, package_name: str) -> DependencyCheckItem:
-        """Check if a Python package or module is importable."""
-        # Normalize package name (e.g. 'beautifulsoup4' -> 'bs4' or direct check)
-        mod_name = package_name.replace("-", "_").split("==")[0].split(">=")[0].split("<=")[0]
-        try:
-            spec = importlib.util.find_spec(mod_name)
-            satisfied = spec is not None
-        except Exception:
-            satisfied = False
-
-        install_cmd = None if satisfied else f"pip install {package_name}"
+    def check_python_package(self, dep: PythonDependency) -> DependencyCheckItem:
+        """Probe for Python library availability."""
+        spec = importlib.util.find_spec(dep.package_name)
+        if spec is None:
+            return DependencyCheckItem(
+                name=dep.package_name,
+                dep_type="python",
+                status=DependencyStatus.MISSING,
+                remediation_cmd=f"pip install '{dep.package_name}'",
+                message=f"Python package '{dep.package_name}' is not installed.",
+            )
 
         return DependencyCheckItem(
-            category="python",
-            name=package_name,
-            satisfied=satisfied,
-            required=True,
-            install_command=install_cmd,
-            description=f"Python module '{package_name}'",
+            name=dep.package_name,
+            dep_type="python",
+            status=DependencyStatus.READY,
+            message=f"Python package '{dep.package_name}' is installed.",
         )
 
-    def _generate_binary_install_command(self, dep: BinaryDependency) -> str:
-        """Generate platform-specific installation command (Homebrew / Apt / Winget)."""
-        os_key = self.current_os
-        pkg_name = dep.package_names.get(os_key) or self._binary_pkg_map.get(dep.name, {}).get(os_key, dep.name)
-
-        if os_key == "darwin":
-            return f"brew install {pkg_name}"
-        elif os_key == "linux":
-            return f"sudo apt-get install -y {pkg_name}"
-        else:
-            return f"winget install {pkg_name}"
-
-    def evaluate(self, prerequisites: SkillPrerequisites) -> PrerequisiteCheckReport:
-        """Evaluate full prerequisites contract against current host system."""
+    def evaluate(self, skill_id: str, prereqs: SkillPrerequisites) -> PrerequisiteReport:
+        """Evaluate full prerequisites contract for a skill."""
         items: list[DependencyCheckItem] = []
-        os_key = self.current_os
+        os_compatible = self.current_os in prereqs.supported_os
 
-        # 1. OS Compatibility Check
-        if prerequisites.supported_os:
-            os_supported = os_key in prerequisites.supported_os
+        if not os_compatible:
             items.append(
                 DependencyCheckItem(
-                    category="os",
-                    name=os_key,
-                    satisfied=os_supported,
-                    required=True,
-                    description=f"Operating system support: {', '.join(prerequisites.supported_os)}",
+                    name=f"OS: {self.current_os}",
+                    dep_type="os",
+                    status=DependencyStatus.MISSING,
+                    message=f"Skill requires {prereqs.supported_os}, but host is {self.current_os}.",
                 )
             )
-            if not os_supported:
-                return PrerequisiteCheckReport(
-                    status=PrerequisiteStatus.UNSUPPORTED_OS,
-                    is_ready=False,
-                    items=items,
-                    remediation_commands=[],
-                    summary_message=f"Current OS '{os_key}' is not supported by this skill (requires {', '.join(prerequisites.supported_os)}).",
-                )
 
-        # 2. Binary Dependencies Check
-        missing_required_bin = False
-        missing_optional_bin = False
-        remediation_cmds: list[str] = []
+        for b in prereqs.binaries:
+            items.append(self.check_binary(b))
 
-        for dep in prerequisites.binaries:
-            item = self.check_binary(dep)
-            items.append(item)
-            if not item.satisfied:
-                if item.required:
-                    missing_required_bin = True
-                else:
-                    missing_optional_bin = True
-                if item.install_command:
-                    remediation_cmds.append(item.install_command)
+        for p in prereqs.python_packages:
+            items.append(self.check_python_package(p))
 
-        # 3. Python Package Dependencies Check
-        missing_py = False
-        for py_pkg in prerequisites.python_packages:
-            item = self.check_python_package(py_pkg)
-            items.append(item)
-            if not item.satisfied:
-                missing_py = True
-                if item.install_command:
-                    remediation_cmds.append(item.install_command)
+        missing_items = [it for it in items if it.status != DependencyStatus.READY]
+        is_ready = len(missing_items) == 0 and os_compatible
 
-        # Determine overall status
-        if missing_required_bin or missing_py:
-            status = PrerequisiteStatus.MISSING_REQUIRED
-            is_ready = False
-            summary = "Required system dependencies or Python packages are missing."
-        elif missing_optional_bin:
-            status = PrerequisiteStatus.MISSING_OPTIONAL
-            is_ready = True  # Ready to run with core functionality
-            summary = "All required dependencies are satisfied; some optional tools are missing."
+        if is_ready:
+            summary = "All system prerequisites and binary dependencies are satisfied."
         else:
-            status = PrerequisiteStatus.READY
-            is_ready = True
-            summary = "All runtime prerequisites and system dependencies are ready."
+            missing_names = ", ".join(it.name for it in missing_items)
+            summary = f"Missing prerequisites: {missing_names}"
 
-        return PrerequisiteCheckReport(
-            status=status,
+        return PrerequisiteReport(
+            skill_id=skill_id,
             is_ready=is_ready,
-            items=items,
-            remediation_commands=remediation_cmds,
-            summary_message=summary,
+            items=tuple(items),
+            missing_count=len(missing_items),
+            os_compatible=os_compatible,
+            summary=summary,
         )
 
 
-def evaluate_skill_prerequisites(prerequisites: SkillPrerequisites | dict[str, Any] | None) -> PrerequisiteCheckReport:
-    """Convenience helper to evaluate prerequisites against host probe."""
-    if isinstance(prerequisites, dict):
-        prerequisites = SkillPrerequisites.from_dict(prerequisites)
-    elif prerequisites is None:
-        prerequisites = SkillPrerequisites()
+def parse_prerequisites_from_frontmatter(metadata: dict[str, Any]) -> SkillPrerequisites:
+    """Parse structured prerequisites from frontmatter YAML dictionary."""
+    supported_os: list[str] = metadata.get("supported_os", ["macos", "linux", "windows"])
+    binaries: list[BinaryDependency] = []
+    python_packages: list[PythonDependency] = []
 
-    probe = HostPrerequisiteProbe()
-    return probe.evaluate(prerequisites)
+    # Parse binaries
+    raw_binaries = metadata.get("binaries") or metadata.get("dependencies", {}).get("binaries", [])
+    if isinstance(raw_binaries, list):
+        for b in raw_binaries:
+            if isinstance(b, str):
+                binaries.append(BinaryDependency(name=b))
+            elif isinstance(b, dict) and "name" in b:
+                binaries.append(
+                    BinaryDependency(
+                        name=b["name"],
+                        min_version=b.get("min_version"),
+                        aliases=tuple(b.get("aliases", ())),
+                        description=b.get("description", ""),
+                        package_names=b.get("package_names", {}),
+                    )
+                )
+
+    # Parse python packages
+    raw_python = metadata.get("python_packages") or metadata.get("dependencies", {}).get(
+        "python", []
+    )
+    if isinstance(raw_python, list):
+        for p in raw_python:
+            if isinstance(p, str):
+                python_packages.append(PythonDependency(package_name=p))
+            elif isinstance(p, dict) and "package_name" in p:
+                python_packages.append(
+                    PythonDependency(
+                        package_name=p["package_name"],
+                        version_constraint=p.get("version_constraint"),
+                    )
+                )
+
+    return SkillPrerequisites(
+        supported_os=tuple(supported_os),
+        binaries=tuple(binaries),
+        python_packages=tuple(python_packages),
+    )
+
+
+def check_skill_prerequisites(
+    skill_id: str,
+    metadata: dict[str, Any] | SkillPrerequisites,
+) -> PrerequisiteReport:
+    """Convenience functional entry for checking prerequisites."""
+    probe = PrerequisiteProbe()
+    if isinstance(metadata, SkillPrerequisites):
+        prereqs = metadata
+    else:
+        prereqs = parse_prerequisites_from_frontmatter(metadata)
+    return probe.evaluate(skill_id, prereqs)

@@ -1,0 +1,140 @@
+"""Remediation and package manager installation command generator.
+
+[INPUT]
+- models.py
+
+[OUTPUT]
+- get_current_os, detect_package_managers, generate_remediation_command
+
+[POS]
+Generates system-aware one-click installation commands across macOS (brew), Linux (apt/pacman/dnf), and Windows (winget/choco).
+"""
+
+from __future__ import annotations
+
+import os
+import platform
+import shutil
+from typing import Literal
+
+from .models import BinaryDependency
+
+COMMON_BINARY_PACKAGES: dict[str, dict[str, str]] = {
+    "ffmpeg": {
+        "brew": "brew install ffmpeg",
+        "apt": "sudo apt-get install -y ffmpeg",
+        "pacman": "sudo pacman -S ffmpeg",
+        "dnf": "sudo dnf install -y ffmpeg",
+        "winget": "winget install Gyan.FFmpeg",
+        "choco": "choco install ffmpeg",
+    },
+    "pandoc": {
+        "brew": "brew install pandoc",
+        "apt": "sudo apt-get install -y pandoc",
+        "pacman": "sudo pacman -S pandoc-cli",
+        "dnf": "sudo dnf install -y pandoc",
+        "winget": "winget install JohnMacFarlane.Pandoc",
+        "choco": "choco install pandoc",
+    },
+    "pdftotext": {
+        "brew": "brew install poppler",
+        "apt": "sudo apt-get install -y poppler-utils",
+        "pacman": "sudo pacman -S poppler",
+        "dnf": "sudo dnf install -y poppler-utils",
+        "winget": "winget install poppler",
+        "choco": "choco install poppler",
+    },
+    "graphviz": {
+        "brew": "brew install graphviz",
+        "apt": "sudo apt-get install -y graphviz",
+        "pacman": "sudo pacman -S graphviz",
+        "dnf": "sudo dnf install -y graphviz",
+        "winget": "winget install Graphviz.Graphviz",
+        "choco": "choco install graphviz",
+    },
+    "tesseract": {
+        "brew": "brew install tesseract",
+        "apt": "sudo apt-get install -y tesseract-ocr",
+        "pacman": "sudo pacman -S tesseract",
+        "dnf": "sudo dnf install -y tesseract",
+        "winget": "winget install UB-Mannheim.TesseractOCR",
+        "choco": "choco install tesseract",
+    },
+}
+
+
+def get_current_os() -> Literal["macos", "linux", "windows"]:
+    """Identify the current host operating system."""
+    sys_name = platform.system().lower()
+    if "darwin" in sys_name:
+        return "macos"
+    if "windows" in sys_name:
+        return "windows"
+    return "linux"
+
+
+def detect_available_package_managers() -> list[str]:
+    """Detect package managers available in host PATH."""
+    mgrs: list[str] = []
+    current_os = get_current_os()
+
+    if current_os == "macos":
+        if shutil.which("brew"):
+            mgrs.append("brew")
+    elif current_os == "linux":
+        for mgr in ["apt", "pacman", "dnf", "yum", "apk"]:
+            if shutil.which(mgr):
+                mgrs.append(mgr)
+    elif current_os == "windows":
+        for mgr in ["winget", "choco", "scoop"]:
+            if shutil.which(mgr):
+                mgrs.append(mgr)
+
+    return mgrs
+
+
+def generate_remediation_command(binary_dep: BinaryDependency) -> str | None:
+    """Generate exact installation command for the current host environment."""
+    current_os = get_current_os()
+    available_mgrs = detect_available_package_managers()
+
+    # 1. Check custom declared package_names in BinaryDependency
+    for mgr in available_mgrs:
+        if mgr in binary_dep.package_names:
+            pkg = binary_dep.package_names[mgr]
+            if mgr == "brew":
+                return f"brew install {pkg}"
+            if mgr in ("apt", "apt-get"):
+                return f"sudo apt-get install -y {pkg}"
+            if mgr == "winget":
+                return f"winget install {pkg}"
+            if mgr == "choco":
+                return f"choco install {pkg}"
+            if mgr == "pacman":
+                return f"sudo pacman -S {pkg}"
+
+    # 2. Check built-in common catalog
+    name_key = binary_dep.name.lower()
+    if name_key in COMMON_BINARY_PACKAGES:
+        pkg_map = COMMON_BINARY_PACKAGES[name_key]
+        for mgr in available_mgrs:
+            if mgr in pkg_map:
+                return pkg_map[mgr]
+
+        # Fallback to default manager for OS if none detected in PATH
+        if current_os == "macos" and "brew" in pkg_map:
+            return pkg_map["brew"]
+        if current_os == "linux" and "apt" in pkg_map:
+            return pkg_map["apt"]
+        if current_os == "windows" and "winget" in pkg_map:
+            return pkg_map["winget"]
+
+    # 3. Generic fallback
+    if current_os == "macos":
+        return f"brew install {binary_dep.name}"
+    if current_os == "linux":
+        return f"sudo apt-get install -y {binary_dep.name}"
+    if current_os == "windows":
+        return f"winget install {binary_dep.name}"
+
+    return None
