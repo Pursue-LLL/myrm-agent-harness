@@ -452,7 +452,7 @@ async def check_desktop_permissions_health() -> HealthReport:
         missing.append("Screen Recording")
 
     platform_label = status.platform or "local"
-    capturable = getattr(status, "screen_recording_capturable", None)
+    capturable = status.screen_recording_capturable
 
     # Same ruler as PermissionStatus.capture_ready (grants OK ∧ capturable is True).
     if status.capture_ready:
@@ -463,7 +463,7 @@ async def check_desktop_permissions_health() -> HealthReport:
             message="Desktop permissions are granted and capture is ready.",
             detail=(
                 f"Platform: {platform_label}. Accessibility, Screen Recording, "
-                "and capture probe are OK."
+                "and usable screen capture are OK."
             ),
             meta_data={
                 "accessibility": status.accessibility,
@@ -481,9 +481,9 @@ async def check_desktop_permissions_health() -> HealthReport:
             code="WARN_DESKTOP_CAPTURE_NOT_READY",
             message="Desktop permissions look granted but screen capture is not usable.",
             detail=(
-                f"Platform: {platform_label}. Capture probe did not verify a usable "
-                "frame (failed, empty/pure-black, or not probed). Re-grant Screen "
-                "Recording and unlock the display, then recheck."
+                f"Platform: {platform_label}. Screen capture did not return a usable "
+                "frame (empty, pure-black/white, or capture tools unavailable). "
+                "Re-grant Screen Recording and unlock the display, then recheck."
             ),
             fix_suggestion=(
                 "Re-enable Screen Recording for this app, unlock the display, "
@@ -512,6 +512,7 @@ async def check_desktop_permissions_health() -> HealthReport:
             "accessibility": status.accessibility,
             "screen_recording": status.screen_recording,
             "screen_recording_capturable": capturable,
+            "capture_ready": False,
             "platform": platform_label,
             "settings_deeplinks": status.settings_deeplinks,
         },
