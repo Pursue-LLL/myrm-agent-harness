@@ -174,6 +174,13 @@ class SkillInstallTransaction:
         target_dir = target_dir.resolve()
         source_dir = source_dir.resolve()
 
+        # Category bucket collision and junction safety validation
+        from myrm_agent_harness.backends.skills.scanning.path_security import (
+            assert_safe_install_target,
+        )
+
+        assert_safe_install_target(target_dir)
+
         backup_temp: Path | None = None
         if target_dir.exists():
             backup_temp = Path(

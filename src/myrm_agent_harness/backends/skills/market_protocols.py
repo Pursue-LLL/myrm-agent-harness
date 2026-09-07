@@ -40,6 +40,8 @@ class SkillSearchResult:
     keywords: list[str] = field(default_factory=list)
     declared_mcp_servers: list[str] = field(default_factory=list)
     extra_manifest: dict[str, object] | None = None
+    prerequisites: dict[str, object] | None = None
+    """Prerequisites contract and status report for host system and CLI binaries."""
 
 
 @dataclass(frozen=True, slots=True)

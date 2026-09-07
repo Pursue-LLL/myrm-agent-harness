@@ -156,7 +156,11 @@ class TestCircuitBreakerThreadSafety:
             t.join(timeout=5)
 
         assert len(errors) == 0
-        assert cb.state in (CircuitState.CLOSED, CircuitState.OPEN, CircuitState.HALF_OPEN)
+        assert cb.state in (
+            CircuitState.CLOSED,
+            CircuitState.OPEN,
+            CircuitState.HALF_OPEN,
+        )
 
     def test_concurrent_state_reads(self):
         cb = CircuitBreaker(failure_threshold=1, timeout_ms=10)
@@ -204,4 +208,3 @@ class TestCircuitBreakerRegistry:
 
         assert reg.reset_one("non-existent") is False
         assert reg.reset_all() == 1
-

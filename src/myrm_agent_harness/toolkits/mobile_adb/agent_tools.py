@@ -1,7 +1,7 @@
 """LangChain Tool adapter for Mobile ADB Automation.
 
 [INPUT]
-- myrm_agent_harness.toolkits.mobile_adb.session::MobileADBSession
+- myrm_agent_harness.toolkits.mobile_adb.session::MobileSession
 
 [OUTPUT]
 - create_mobile_adb_tools(session) -> list[BaseTool]:
@@ -21,10 +21,10 @@ from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.mobile_adb.session import MobileADBSession
+    from myrm_agent_harness.toolkits.mobile_adb.session import MobileSession
 
 
-def create_mobile_adb_tools(session: MobileADBSession) -> list[object]:
+def create_mobile_adb_tools(session: MobileSession) -> list[object]:
     """Create 3 LangChain tools for Mobile ADB automation."""
 
     class MobileSnapshotInput(BaseModel):

@@ -286,3 +286,16 @@ class TestCreateMessageDictsPromotion:
         message_dicts, _ = model._create_message_dicts(messages, stop=None)
         assert message_dicts[0]["role"] == "developer"
         assert message_dicts[0]["content"] == "Be concise."
+
+    def test_service_tier_included_in_allowed_params(self) -> None:
+        """Verify service_tier is preserved in allowed_openai_params for speed tier passthrough."""
+        from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
+            _FRAMEWORK_REQUIRED_OPENAI_PARAMS,
+        )
+
+        assert "service_tier" in _FRAMEWORK_REQUIRED_OPENAI_PARAMS
+        params: dict[str, object] = {"service_tier": "ultrafast"}
+        ChatLiteLLM._inject_allowed_params(params)
+        allowed = params.get("allowed_openai_params", [])
+        assert isinstance(allowed, list)
+        assert "service_tier" in allowed

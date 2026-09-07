@@ -123,6 +123,10 @@ class SkillPreviewResult:
     package_type: str = "skill"
     installed_skills: list[str] = field(default_factory=list)
     declared_mcp_servers: list[str] = field(default_factory=list)
+    prerequisites: dict[str, object] | None = None
+    """Prerequisite status evaluation report."""
+    prerequisites: dict[str, object] | None = None
+    """Prerequisite status report evaluating host OS, binaries, and Python dependencies."""
 
 
 class BaseSkillMarketService:
@@ -466,6 +470,11 @@ class BaseSkillMarketService:
 
         # 3. Remove main target directory
         try:
+            from myrm_agent_harness.backends.skills.scanning.category_guard import (
+                validate_safe_install_target,
+            )
+
+            validate_safe_install_target(target_dir)
             shutil.rmtree(target_dir)
         except Exception as e:
             return SkillInstallResult(

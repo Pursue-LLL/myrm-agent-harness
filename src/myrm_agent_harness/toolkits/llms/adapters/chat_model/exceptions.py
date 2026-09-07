@@ -34,6 +34,7 @@ _FRAMEWORK_REQUIRED_OPENAI_PARAMS: frozenset[str] = frozenset(
         "store",
         "previous_response_id",
         "reasoning_effort",
+        "service_tier",
     }
 )
 

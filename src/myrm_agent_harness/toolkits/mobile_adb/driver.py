@@ -102,6 +102,86 @@ class AdbDeviceDriver:
             message=out.strip() or err.strip(),
         )
 
+    async def list_devices(self) -> list[dict[str, Any]]:
+        """Parse ``adb devices -l`` into serializable device rows."""
+        code, out, err = await self._run_adb("devices", "-l")
+        if code != 0:
+            logger.warning("adb devices failed: %s", err or out)
+            return []
+
+        devices: list[dict[str, Any]] = []
+        for line in out.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("List of devices"):
+                continue
+            parts = stripped.split()
+            if len(parts) < 2:
+                continue
+            device_id, state = parts[0], parts[1]
+            host = device_id
+            port = 5555
+            if ":" in device_id:
+                host_part, port_part = device_id.rsplit(":", 1)
+                host = host_part
+                if port_part.isdigit():
+                    port = int(port_part)
+            model = ""
+            for token in parts[2:]:
+                if token.startswith("model:"):
+                    model = token.removeprefix("model:")
+                    break
+            devices.append(
+                {
+                    "device_id": device_id,
+                    "host": host,
+                    "port": port,
+                    "model": model,
+                    "state": state,
+                    "is_wireless": ":" in device_id,
+                    "screen_info": None,
+                }
+            )
+        return devices
+
+    async def tap_at(self, target: str, x: int, y: int) -> MobileActionResult:
+        """Tap absolute screen coordinates."""
+        code, out, err = await self._run_adb(
+            "-s", target, "shell", "input", "tap", str(x), str(y)
+        )
+        return MobileActionResult(
+            success=code == 0,
+            action="tap",
+            message=out.strip() or f"tapped ({x},{y})",
+            error=None if code == 0 else (err or out),
+        )
+
+    async def swipe(
+        self,
+        target: str,
+        x: int,
+        y: int,
+        end_x: int,
+        end_y: int,
+    ) -> MobileActionResult:
+        """Swipe from (x,y) to (end_x,end_y)."""
+        code, out, err = await self._run_adb(
+            "-s",
+            target,
+            "shell",
+            "input",
+            "swipe",
+            str(x),
+            str(y),
+            str(end_x),
+            str(end_y),
+        )
+        return MobileActionResult(
+            success=code == 0,
+            action="swipe",
+            message=out.strip() or "swipe completed",
+            error=None if code == 0 else (err or out),
+        )
+
     async def get_device_state(self, target: str) -> MobileDeviceState:
         """Capture current device state, top activity, and parse UI tree."""
         # 1. Get current focused window/package

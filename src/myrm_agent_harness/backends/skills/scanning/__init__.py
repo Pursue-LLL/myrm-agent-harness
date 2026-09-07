@@ -72,6 +72,13 @@ from myrm_agent_harness.backends.skills.scanning.vuln_cache import (
     VulnScanCache,
     get_vuln_cache,
 )
+from myrm_agent_harness.backends.skills.scanning.path_security import (
+    CategoryBucketCollisionError,
+    PathRedirectSecurityError,
+    assert_safe_install_target,
+    is_category_bucket,
+    is_path_redirect,
+)
 from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract_zip
 
 __all__ = [
@@ -80,10 +87,12 @@ __all__ = [
     "AdvisoryFinding",
     "AstScanFinding",
     "CacheStats",
+    "CategoryBucketCollisionError",
     "DeclaredDependency",
     "InstalledSkillRescanEngine",
     "KnownAdvisory",
     "PackageAuditFinding",
+    "PathRedirectSecurityError",
     "ScanFinding",
     "ScanResult",
     "ScanResultCache",
@@ -93,6 +102,7 @@ __all__ = [
     "VulnCacheEntry",
     "VulnScanCache",
     "analyze_python_ast",
+    "assert_safe_install_target",
     "audit_package_json",
     "audit_package_manifest_dict",
     "audit_skill_directory",
@@ -107,6 +117,8 @@ __all__ = [
     "extract_dependencies_from_uv_lock",
     "extract_skill_dependencies",
     "format_scan_report",
+    "is_category_bucket",
+    "is_path_redirect",
     "get_known_advisories_catalog",
     "get_rescan_engine",
     "get_scan_cache",
