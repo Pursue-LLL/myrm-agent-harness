@@ -4,14 +4,16 @@ Supports durable state checkpointing for multi-hour marathon tasks,
 allowing seamless resume on transient crashes or interruptions.
 
 [INPUT]
-- typing: Any, Optional, Dict, List
+- dataclasses: asdict, dataclass, field
 - pathlib: Path
+- myrm_agent_harness.utils.logger_utils: get_agent_logger
 
 [OUTPUT]
-- MarathonCheckpointer: Durable task checkpoint manager.
+- MarathonCheckpointRecord: Immutable snapshot record of task step state and completed milestones
+- MarathonCheckpointer: Durable task checkpoint manager providing atomic persistence and resume capabilities
 
 [POS]
-Harness resilience checkpointer for long-running workflows.
+Harness resilience durable checkpointer for crash recovery during long-running tasks.
 """
 
 from __future__ import annotations

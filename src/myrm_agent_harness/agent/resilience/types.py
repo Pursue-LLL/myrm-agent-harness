@@ -1,15 +1,18 @@
 """Marathon error self-correction and execution budget types.
 
 [INPUT]
-- typing: Any, Optional, Dict, List
+- dataclasses: dataclass, field
+- enum: StrEnum
+- typing: Any
 
 [OUTPUT]
-- DiagnosticHypothesis: A generated hypothesis and candidate fix.
-- RecoveryAction: Action taken by self-correction governor (RETRY, ALTERNATIVE_TOOL, SANITIZE_INPUT, ESCALATE).
-- ExecutionBudgetState: State of dynamic execution budget and step quotas.
+- RecoveryActionType: Enumeration of recovery actions (RETRY, ALTERNATIVE_TOOL, SANITIZE_INPUT, ENV_REPAIR, ESCALATE)
+- DiagnosticHypothesis: Generated diagnostic hypothesis with root cause analysis and suggested fix
+- ErrorCorrectionOutcome: Structured outcome of a self-correction attempt
+- ExecutionBudgetConfig: Multi-dimensional configuration for step quotas, token ceilings, and consecutive error limits
 
 [POS]
-Domain types for error self-correction and execution budget governance.
+Domain models and types for harness error self-correction and execution budget governance.
 """
 
 from __future__ import annotations

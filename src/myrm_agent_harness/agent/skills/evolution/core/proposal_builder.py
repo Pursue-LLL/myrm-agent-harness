@@ -26,6 +26,11 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionType,
     SkillRecord,
 )
+from myrm_agent_harness.backends.skills.scanning import (
+    SkillTrustRecommendation,
+    compute_scan_summary,
+    scan_skill_content,
+)
 from myrm_agent_harness.eval.leakage_guard import (
     evaluate_pareto_generalization,
     is_test_case_spec,
@@ -159,6 +164,12 @@ class ProposalBuilder:
         if edit_summary and isinstance(edit_summary.get("updated_eval_cases"), list):
             updated_eval_cases = edit_summary["updated_eval_cases"]
 
+        security_scan_summary_dict = None
+        if evolution_type != EvolutionType.OPTIMIZE_DESCRIPTION and content:
+            scan_res = scan_skill_content(content)
+            scan_sum = compute_scan_summary(scan_res)
+            security_scan_summary_dict = scan_sum.to_dict()
+
         proposal = EvolutionProposal(
             skill_id=skill.skill_id,
             evolution_type=evolution_type,
@@ -173,6 +184,7 @@ class ProposalBuilder:
             edit_summary=edit_summary,
             updated_eval_cases=updated_eval_cases,
             created_at=datetime.now(),
+            security_scan_summary=security_scan_summary_dict,
             change_manifest=build_change_manifest(
                 eval_cases=(
                     updated_eval_cases

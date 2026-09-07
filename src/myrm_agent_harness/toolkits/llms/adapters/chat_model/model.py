@@ -509,6 +509,50 @@ class ChatLiteLLM(
             bind_kwargs["tool_choice"] = tool_choice_param
         if parallel_tool_calls is not None:
             bind_kwargs["parallel_tool_calls"] = parallel_tool_calls
+
+        # Local weak model grammar / structured output constraint transport
+        from myrm_agent_harness.toolkits.llms.adapters.model_capability import (
+            ModelCapabilityDetector,
+        )
+
+        detector = ModelCapabilityDetector()
+        api_base_url = str(self.api_base or "")
+        custom_provider = str(self.custom_llm_provider or "")
+        if (
+            openai_tools
+            and detector.supports_json_schema_constrained_tool_calls(
+                provider=custom_provider,
+                model=model_id,
+                base_url=api_base_url,
+            )
+            and "response_format" not in kwargs
+        ):
+            # Inject constrained tool call array schema for local llama-server/ollama/vLLM endpoints
+            bind_kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "tool_calls_transport",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "tool_calls": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string"},
+                                        "arguments": {"type": "object"},
+                                    },
+                                    "required": ["name", "arguments"],
+                                },
+                            }
+                        },
+                        "required": ["tool_calls"],
+                    },
+                },
+            }
+
         if kwargs:
             bind_kwargs.update(kwargs)
 

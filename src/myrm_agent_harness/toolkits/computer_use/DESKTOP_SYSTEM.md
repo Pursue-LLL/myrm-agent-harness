@@ -121,11 +121,11 @@ Channel security: IM strips `!desktop_*`; Cron denies `desktop_capture` / `deskt
 
 ## Agent Prompt Rules
 
-Injected via server `DESKTOP_CONTROL_RULES` (`myrm-agent-server/app/ai_agents/prompts/shared_rules.py`) when `enable_computer_use` (factory appends the English singleton for KV-cache stability):
+Injected via server `DESKTOP_CONTROL_RULES` (`myrm-agent-server/app/ai_agents/prompts/shared_rules.py`) when `mount_desktop_prompt` is true (`mount_resolver`: equals computer_use mount; factory appends the English singleton for KV-cache stability):
 
 - Workflow order: snapshot → interact
 - Prefer @dref; use `set_value` for atomic field replacement; use vision only when AX is empty or interact failed
-- Never treat printable operators (`*`, `/`, `+`, …) as `press`/`key` names — use `type` or click calculator/@dref buttons
+- Never treat printable operators (`*`, `/`, `+`) as `press`/`key` names — use `type` or click calculator/@dref buttons
 - Targeted scope: to act on a specific app without changing the foreground, snapshot with `scope="target"` + `app_name`, then interact via its `@dref` refs
 - macOS permission: ask user to grant Accessibility before retry
 - Per-app first approval via Web UI (`DesktopControlApprovalBanner`)
