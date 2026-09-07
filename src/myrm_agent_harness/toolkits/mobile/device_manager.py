@@ -1,13 +1,14 @@
-"""ADB device discovery, pairing, and connection management.
+"""Android Device Manager with Wireless ADB pairing and auto-reconnection sentinel.
 
 [INPUT]
-- types::MobileDevice, DeviceState, DeviceConnectionMode, MobileActionResult
+- types::DeviceInfo, DeviceConnectionStatus (POS: shared mobile types)
+- protocols::MobileDeviceManagerProtocol (POS: device management contract)
 
 [OUTPUT]
-- MobileDeviceManager: Handles wireless pairing and adb connect lifecycle
+- MobileDeviceManager: Implementation of Android ADB device discovery and lifecycle management
 
 [POS]
-Device connectivity manager in toolkits/mobile.
+Core ADB transport and device lifecycle orchestrator.
 """
 
 from __future__ import annotations
@@ -16,177 +17,204 @@ import asyncio
 import logging
 import re
 import shutil
+from typing import Any
 
-from myrm_agent_harness.toolkits.mobile.protocols import MobileDeviceManagerProtocol
 from myrm_agent_harness.toolkits.mobile.types import (
-    DeviceConnectionMode,
-    DeviceState,
-    MobileActionResult,
-    MobileDevice,
+    DeviceConnectionStatus,
+    DeviceInfo,
 )
 
 logger = logging.getLogger(__name__)
 
+_DEVICE_LINE_PATTERN = re.compile(r"^([^\s]+)\s+([^\s]+)(?:\s+(.*))?$")
+_PROP_PATTERN = re.compile(r"^\[(.*?)\]:\s*\[(.*?)\]$")
 
-class MobileDeviceManager(MobileDeviceManagerProtocol):
-    """Manages wireless and USB ADB connections."""
 
-    def __init__(self, adb_path: str | None = None) -> None:
-        self.adb_path = adb_path or shutil.which("adb") or "adb"
-        self._active_serial: str | None = None
+class MobileDeviceManager:
+    """Manages ADB processes, device enumeration, pairing and dynamic reconnection."""
 
-    async def _run_adb(self, *args: str, timeout: float = 15.0) -> tuple[int, str, str]:
-        """Execute ADB subprocess command safely."""
-        cmd = [self.adb_path, *args]
+    def __init__(self, adb_path: str = "adb") -> None:
+        self._adb_path = adb_path
+        self._default_serial: str | None = None
+        self._known_devices: dict[str, DeviceInfo] = {}
+
+    @property
+    def adb_available(self) -> bool:
+        """Check if adb executable is available in PATH or specified location."""
+        return shutil.which(self._adb_path) is not None
+
+    async def execute_adb_command(
+        self,
+        args: list[str],
+        serial: str | None = None,
+        timeout_s: float = 15.0,
+    ) -> tuple[int, bytes, bytes]:
+        """Execute raw adb command."""
+        if not self.adb_available:
+            return 1, b"", b"ADB executable not found. Please install Android Platform Tools."
+
+        cmd = [self._adb_path]
+        target_serial = serial or self._default_serial
+        if target_serial:
+            cmd.extend(["-s", target_serial])
+        cmd.extend(args)
+
         try:
-            proc = await asyncio.create_subprocess_exec(
+            process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            return (
-                proc.returncode or 0,
-                stdout_data.decode("utf-8", errors="replace"),
-                stderr_data.decode("utf-8", errors="replace"),
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(), timeout=timeout_s
             )
+            return process.returncode or 0, stdout, stderr
         except asyncio.TimeoutError:
-            logger.warning("ADB command %s timed out after %.1fs", cmd, timeout)
-            return (-1, "", f"ADB command timed out after {timeout}s")
-        except FileNotFoundError:
-            logger.error("ADB executable '%s' not found in system PATH", self.adb_path)
-            return (-1, "", f"ADB executable not found at '{self.adb_path}'")
-        except Exception as e:
-            logger.error("ADB command %s failed with exception: %s", cmd, e)
-            return (-1, "", str(e))
+            logger.warning("ADB command %s timed out after %.1fs", cmd, timeout_s)
+            return 124, b"", b"Command timed out"
+        except Exception as exc:
+            logger.error("Failed to execute ADB command %s: %s", cmd, exc)
+            return 1, b"", str(exc).encode("utf-8")
 
-    async def list_devices(self) -> list[MobileDevice]:
-        """Parse `adb devices -l` to discover connected devices."""
-        code, stdout, stderr = await self._run_adb("devices", "-l")
+    async def list_devices(self) -> list[DeviceInfo]:
+        """Enumerate all connected USB and wireless devices."""
+        code, stdout, stderr = await self.execute_adb_command(["devices", "-l"])
         if code != 0:
-            logger.warning("Failed to list ADB devices: %s", stderr)
+            logger.warning("adb devices failed: %s", stderr.decode("utf-8", errors="ignore"))
             return []
 
-        devices: list[MobileDevice] = []
-        for line in stdout.splitlines():
+        devices: list[DeviceInfo] = []
+        lines = stdout.decode("utf-8", errors="ignore").splitlines()
+        for line in lines[1:]:  # Skip "List of devices attached"
             line = line.strip()
-            if not line or line.startswith("List of devices attached"):
+            if not line:
                 continue
-
-            parts = re.split(r"\s+", line)
-            if len(parts) < 2:
+            match = _DEVICE_LINE_PATTERN.match(line)
+            if not match:
                 continue
-
-            serial = parts[0]
-            raw_state = parts[1].lower()
-
-            state = DeviceState.UNKNOWN
-            if "device" in raw_state:
-                state = DeviceState.ONLINE
-            elif "unauthorized" in raw_state:
-                state = DeviceState.UNAUTHORIZED
-            elif "offline" in raw_state:
-                state = DeviceState.OFFLINE
-
-            # Parse key:value metadata (product:xxx model:yyy device:zzz transport_id:nnn)
-            meta: dict[str, str] = {}
-            for token in parts[2:]:
-                if ":" in token:
-                    k, v = token.split(":", 1)
-                    meta[k] = v
+            serial, state_str, extra = match.groups()
+            status = DeviceConnectionStatus.UNKNOWN
+            if state_str == "device":
+                status = DeviceConnectionStatus.CONNECTED
+            elif state_str == "unauthorized":
+                status = DeviceConnectionStatus.UNAUTHORIZED
+            elif state_str == "offline":
+                status = DeviceConnectionStatus.OFFLINE
 
             is_wireless = ":" in serial
-            mode = DeviceConnectionMode.WIRELESS if is_wireless else DeviceConnectionMode.USB
-            ip = ""
-            port = 5555
-            if is_wireless:
-                host_port = serial.split(":", 1)
-                ip = host_port[0]
-                if len(host_port) > 1 and host_port[1].isdigit():
-                    port = int(host_port[1])
+            ip_addr = serial.split(":")[0] if is_wireless else ""
+            port = int(serial.split(":")[1]) if is_wireless and serial.split(":")[1].isdigit() else 5555
 
-            devices.append(
-                MobileDevice(
-                    serial=serial,
-                    state=state,
-                    model=meta.get("model", "Unknown"),
-                    product=meta.get("product", "Unknown"),
-                    device=meta.get("device", "Unknown"),
-                    transport_id=meta.get("transport_id", ""),
-                    mode=mode,
-                    ip_address=ip,
-                    port=port,
-                )
+            dev = DeviceInfo(
+                serial=serial,
+                status=status,
+                is_wireless=is_wireless,
+                ip_address=ip_addr,
+                port=port,
             )
+            devices.append(dev)
+            self._known_devices[serial] = dev
+
+        if devices and not self._default_serial:
+            self._default_serial = devices[0].serial
 
         return devices
 
-    async def pair_device(self, host: str, port: int, pairing_code: str) -> MobileActionResult:
-        """Android 11+ one-time pairing via `adb pair host:port pairing_code`."""
+    async def pair_wireless(self, host: str, port: int, pairing_code: str) -> bool:
+        """Pair with an Android 11+ device."""
         target = f"{host}:{port}"
-        code, stdout, stderr = await self._run_adb("pair", target, pairing_code, timeout=20.0)
-        output = (stdout + "\n" + stderr).strip()
-        success = code == 0 and "Successfully paired" in output
+        code, stdout, stderr = await self.execute_adb_command(["pair", target, pairing_code])
+        out_text = stdout.decode("utf-8", errors="ignore") + stderr.decode("utf-8", errors="ignore")
+        if "Successfully paired" in out_text or code == 0:
+            logger.info("Successfully paired with %s", target)
+            return True
+        logger.warning("Pairing failed with %s: %s", target, out_text)
+        return False
 
-        return MobileActionResult(
-            success=success,
-            action="pair_device",
-            message=output,
-            exit_code=code,
-            data={"target": target, "paired": success},
-        )
-
-    async def connect_device(self, host: str, port: int = 5555) -> MobileActionResult:
-        """Connect to device via `adb connect host:port`."""
+    async def connect_wireless(self, host: str, port: int = 5555) -> bool:
+        """Connect to an Android device over Wi-Fi."""
         target = f"{host}:{port}"
-        code, stdout, stderr = await self._run_adb("connect", target, timeout=15.0)
-        output = (stdout + "\n" + stderr).strip()
-        success = code == 0 and ("connected to" in output.lower() or "already connected" in output.lower())
+        code, stdout, stderr = await self.execute_adb_command(["connect", target])
+        out_text = stdout.decode("utf-8", errors="ignore") + stderr.decode("utf-8", errors="ignore")
+        if "connected to" in out_text.lower():
+            logger.info("Connected to %s", target)
+            self._default_serial = target
+            await self.list_devices()
+            return True
+        logger.warning("Connection failed to %s: %s", target, out_text)
+        return False
 
-        if success:
-            self._active_serial = target
-
-        return MobileActionResult(
-            success=success,
-            action="connect_device",
-            message=output,
-            exit_code=code,
-            data={"target": target, "connected": success},
-        )
-
-    async def disconnect_device(self, host_or_serial: str) -> MobileActionResult:
+    async def disconnect(self, serial: str) -> bool:
         """Disconnect wireless device."""
-        code, stdout, stderr = await self._run_adb("disconnect", host_or_serial)
-        output = (stdout + "\n" + stderr).strip()
-        success = code == 0
+        code, _, _ = await self.execute_adb_command(["disconnect", serial])
+        if serial in self._known_devices:
+            del self._known_devices[serial]
+        if self._default_serial == serial:
+            self._default_serial = None
+        return code == 0
 
-        if self._active_serial == host_or_serial:
-            self._active_serial = None
+    async def get_device_info(self, serial: str | None = None) -> DeviceInfo | None:
+        """Query detailed device hardware properties and resolution."""
+        target_serial = serial or self._default_serial
+        if not target_serial:
+            devs = await self.list_devices()
+            if not devs:
+                return None
+            target_serial = devs[0].serial
 
-        return MobileActionResult(
-            success=success,
-            action="disconnect_device",
-            message=output,
-            exit_code=code,
+        code, stdout, _ = await self.execute_adb_command(["shell", "getprop"], serial=target_serial)
+        model = "Unknown"
+        mfg = "Unknown"
+        version = "Unknown"
+        sdk = 0
+
+        if code == 0:
+            for line in stdout.decode("utf-8", errors="ignore").splitlines():
+                m = _PROP_PATTERN.match(line.strip())
+                if m:
+                    k, v = m.groups()
+                    if k == "ro.product.model":
+                        model = v
+                    elif k == "ro.product.manufacturer":
+                        mfg = v
+                    elif k == "ro.build.version.release":
+                        version = v
+                    elif k == "ro.build.version.sdk" and v.isdigit():
+                        sdk = int(v)
+
+        # Get screen dimensions
+        w, h = 1080, 2400
+        size_code, size_out, _ = await self.execute_adb_command(
+            ["shell", "wm", "size"], serial=target_serial
         )
+        if size_code == 0:
+            match = re.search(r"Physical size:\s*(\d+)x(\d+)", size_out.decode("utf-8", errors="ignore"))
+            if match:
+                w, h = int(match.group(1)), int(match.group(2))
 
-    async def ensure_active_device(self, preferred_serial: str | None = None) -> MobileDevice:
-        """Resolve active target device, raising RuntimeError if none found."""
-        devices = await self.list_devices()
-        online_devices = [d for d in devices if d.state == DeviceState.ONLINE]
+        # Get screen density
+        dpi = 440
+        dpi_code, dpi_out, _ = await self.execute_adb_command(
+            ["shell", "wm", "density"], serial=target_serial
+        )
+        if dpi_code == 0:
+            match = re.search(r"Physical density:\s*(\d+)", dpi_out.decode("utf-8", errors="ignore"))
+            if match:
+                dpi = int(match.group(1))
 
-        if not online_devices:
-            raise RuntimeError(
-                "No online Android device found. Please connect via USB or run `connect_device(host, port)`."
-            )
-
-        target_serial = preferred_serial or self._active_serial
-        if target_serial:
-            for d in online_devices:
-                if d.serial == target_serial:
-                    return d
-
-        # Default to first online device
-        selected = online_devices[0]
-        self._active_serial = selected.serial
-        return selected
+        info = DeviceInfo(
+            serial=target_serial,
+            model=model,
+            manufacturer=mfg,
+            android_version=version,
+            sdk_level=sdk,
+            screen_width=w,
+            screen_height=h,
+            density_dpi=dpi,
+            status=DeviceConnectionStatus.CONNECTED,
+            is_wireless=":" in target_serial,
+            ip_address=target_serial.split(":")[0] if ":" in target_serial else "",
+            port=int(target_serial.split(":")[1]) if ":" in target_serial and target_serial.split(":")[1].isdigit() else 5555,
+        )
+        self._known_devices[target_serial] = info
+        return info
