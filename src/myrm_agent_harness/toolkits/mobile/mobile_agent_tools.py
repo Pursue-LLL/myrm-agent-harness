@@ -1,249 +1,262 @@
-"""LangChain compatible Agent tool definitions for mobile Android device automation.
+"""LangChain tool surface for Mobile Wireless ADB automation.
 
 [INPUT]
-- device_manager.py, inspector.py, input_controller.py, app_manager.py, types.py
+- mobile_bridge::MobileBridge (POS: unified mobile automation facade)
+- types::KeyCode, TouchAction (POS: mobile types)
 
 [OUTPUT]
-- create_mobile_tools, mobile_device_connect_tool, mobile_snapshot_tool, mobile_interact_tool
+- create_mobile_tools(bridge) -> list[BaseTool]: 5 LangChain agent tools
+  - mobile_device_tool
+  - mobile_snapshot_tool
+  - mobile_touch_tool
+  - mobile_input_tool
+  - mobile_app_tool
 
 [POS]
-High-level Agent tools exposing mobile connectivity, perception (visual + UI hierarchy), and interaction.
+LangChain adapter layer in toolkits/mobile.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Literal
-from langchain_core.tools import StructuredTool
+from typing import Any
+
+from langchain.tools import tool
 from pydantic import BaseModel, Field
 
-from .app_manager import MobileAppManager
-from .device_manager import AdbDeviceManager
-from .input_controller import MobileInputController
-from .inspector import MobileInspector
-from .types import MobileActionResult, MobileKeyEvent, MobileTouchAction
+from myrm_agent_harness.toolkits.mobile.mobile_bridge import MobileBridge
+from myrm_agent_harness.toolkits.mobile.types import KeyCode
 
 
-# Pydantic Schemas for Tools
-class MobileDeviceConnectInput(BaseModel):
-    """Input for mobile device discovery, pairing, and connection."""
+def create_mobile_tools(bridge: MobileBridge | None = None) -> list[object]:
+    """Create 5 LangChain mobile tools bound to *bridge*."""
+    active_bridge = bridge or MobileBridge()
 
-    action: Literal["list", "pair", "connect", "disconnect"] = Field(
-        ...,
-        description="Action to perform: 'list' (discover devices), 'pair' (Android 11+ pairing code), 'connect' (connect by IP:port), 'disconnect'.",
-    )
-    host: str | None = Field(
-        None,
-        description="IP address of the wireless Android device (e.g. '192.168.1.50').",
-    )
-    port: int | None = Field(
-        None,
-        description="Port number (e.g. 5555 for connect, or pairing port for pair).",
-    )
-    pairing_code: str | None = Field(
-        None,
-        description="6-digit pairing code from Android Wireless Debugging settings.",
-    )
-    serial: str | None = Field(
-        None,
-        description="Device serial (e.g. '192.168.1.50:5555' or USB serial).",
-    )
-
-
-class MobileSnapshotInput(BaseModel):
-    """Input for mobile screen and UI hierarchy inspection."""
-
-    serial: str = Field(..., description="Target device serial.")
-    include_screenshot: bool = Field(
-        True,
-        description="Whether to capture and return Base64 image of the screen.",
-    )
-    include_ui_tree: bool = Field(
-        True,
-        description="Whether to dump and return the interactive UI element hierarchy.",
-    )
-
-
-class MobileInteractInput(BaseModel):
-    """Input for mobile touch, gesture, text typing, and key events."""
-
-    serial: str = Field(..., description="Target device serial.")
-    action: Literal["tap", "swipe", "input_text", "press_key", "launch_app", "stop_app"] = Field(
-        ...,
-        description="Interaction action to perform.",
-    )
-    x: float | None = Field(
-        None,
-        description="X coordinate (absolute pixel integer or 0.0~1.0 normalized float).",
-    )
-    y: float | None = Field(
-        None,
-        description="Y coordinate (absolute pixel integer or 0.0~1.0 normalized float).",
-    )
-    end_x: float | None = Field(
-        None,
-        description="End X coordinate for swipe gesture.",
-    )
-    end_y: float | None = Field(
-        None,
-        description="End Y coordinate for swipe gesture.",
-    )
-    duration_ms: int = Field(300, description="Swipe duration in milliseconds.")
-    text: str | None = Field(None, description="Text string to type into focused input.")
-    key: MobileKeyEvent | None = Field(
-        None,
-        description="Hardware key to press ('HOME', 'BACK', 'APP_SWITCH', 'ENTER', etc.).",
-    )
-    package_or_alias: str | None = Field(
-        None,
-        description="App package or common alias (e.g. 'wechat', 'settings', 'chrome').",
-    )
-    is_normalized: bool = Field(
-        False,
-        description="Set to true if x/y coordinates are normalized (0.0~1.0).",
-    )
-
-
-def create_mobile_tools(
-    device_manager: AdbDeviceManager | None = None,
-) -> list[StructuredTool]:
-    """Factory creating LangChain StructuredTools for mobile device automation."""
-    dm = device_manager or AdbDeviceManager()
-    inspector = MobileInspector(dm)
-    input_ctrl = MobileInputController(dm)
-    app_mgr = MobileAppManager(dm)
-
-    async def _handle_device_connect(**kwargs: Any) -> str:
-        action = kwargs.get("action")
-        host = kwargs.get("host")
-        port = kwargs.get("port")
-        serial = kwargs.get("serial")
-        code = kwargs.get("pairing_code")
-
-        if action == "list":
-            devices = await dm.list_devices()
-            return json.dumps(
-                {"devices": [d.to_dict() for d in devices], "count": len(devices)},
-                ensure_ascii=False,
-            )
-        elif action == "pair":
-            if not host or not port or not code:
-                return "Error: 'host', 'port', and 'pairing_code' are required for pair action."
-            ok = await dm.pair_wireless_device(host, port, code)
-            return json.dumps(
-                {"success": ok, "message": "Pairing succeeded" if ok else "Pairing failed"}
-            )
-        elif action == "connect":
-            if not host or not port:
-                return "Error: 'host' and 'port' are required for connect action."
-            dev = await dm.connect_device(host, port)
-            return json.dumps(
-                {
-                    "success": dev is not None,
-                    "device": dev.to_dict() if dev else None,
-                },
-                ensure_ascii=False,
-            )
-        elif action == "disconnect":
-            if not serial:
-                return "Error: 'serial' is required for disconnect action."
-            ok = await dm.disconnect_device(serial)
-            return json.dumps({"success": ok})
-
-        return f"Unknown action: {action}"
-
-    async def _handle_snapshot(**kwargs: Any) -> str:
-        serial = kwargs.get("serial", "")
-        include_img = kwargs.get("include_screenshot", True)
-        include_tree = kwargs.get("include_ui_tree", True)
-
-        img_b64 = None
-        tree_summary = None
-        top_act = await inspector.get_top_activity(serial)
-
-        if include_img:
-            img_b64 = await inspector.capture_screenshot(serial)
-
-        elem_count = 0
-        if include_tree:
-            root_node, tree_summary = await inspector.dump_ui_hierarchy(serial)
-            if root_node:
-                elem_count = len(root_node.children)
-
-        res = MobileActionResult(
-            success=True,
-            message="Snapshot captured successfully",
-            screenshot_base64=img_b64,
-            ui_tree_summary=tree_summary,
-            top_activity=top_act,
-            element_count=elem_count,
+    # ---------------- 1. Device Management Tool ----------------
+    class DeviceInput(BaseModel):
+        action: str = Field(
+            description="Action to perform: 'list' (discover devices), 'connect' (connect IP:port), 'pair' (pair Android 11+ with code), 'disconnect' (disconnect device).",
         )
-        return json.dumps(res.to_dict(), ensure_ascii=False)
+        host: str = Field(default="", description="IP address or hostname of the Android device.")
+        port: int = Field(default=5555, description="Port number (default 5555 for connect, pairing port for pair).")
+        pairing_code: str = Field(default="", description="6-digit Wi-Fi pairing code when action='pair'.")
 
-    async def _handle_interact(**kwargs: Any) -> str:
-        serial = kwargs.get("serial", "")
-        action = kwargs.get("action")
-        is_norm = kwargs.get("is_normalized", False)
+    @tool("mobile_device_tool", args_schema=DeviceInput)
+    async def mobile_device_tool(
+        action: str,
+        host: str = "",
+        port: int = 5555,
+        pairing_code: str = "",
+    ) -> str:
+        """Discover, pair, or connect to Android mobile devices over Wireless ADB or USB."""
+        action_clean = action.strip().lower()
+        if action_clean == "list":
+            devices = await active_bridge.list_devices()
+            if not devices:
+                return "No Android devices found. Make sure Wireless Debugging or USB debugging is enabled."
+            out = ["Connected / Available Android Devices:"]
+            for d in devices:
+                mode_str = "Wireless" if d.is_wireless else "USB"
+                out.append(f"- [{d.state.value.upper()}] {d.serial} ({d.model}, {mode_str})")
+            return "\n".join(out)
 
-        success = False
-        msg = ""
+        elif action_clean == "pair":
+            if not host or not pairing_code:
+                return "Error: 'host' and 'pairing_code' are required for action='pair'."
+            res = await active_bridge.pair_device(host, port, pairing_code)
+            return f"Pairing result: {res.message}"
 
-        if action == "tap":
-            x, y = kwargs.get("x"), kwargs.get("y")
-            if x is None or y is None:
-                return "Error: x and y are required for tap."
-            success = await input_ctrl.tap(serial, x, y, is_normalized=is_norm)
-            msg = f"Tapped at ({x}, {y})"
-        elif action == "swipe":
-            x1, y1 = kwargs.get("x"), kwargs.get("y")
-            x2, y2 = kwargs.get("end_x"), kwargs.get("end_y")
-            dur = kwargs.get("duration_ms", 300)
-            if any(v is None for v in (x1, y1, x2, y2)):
-                return "Error: start and end coordinates required for swipe."
-            success = await input_ctrl.swipe(
-                serial, x1, y1, x2, y2, duration_ms=dur, is_normalized=is_norm
+        elif action_clean == "connect":
+            if not host:
+                return "Error: 'host' is required for action='connect'."
+            res = await active_bridge.connect_device(host, port)
+            return f"Connection result: {res.message}"
+
+        elif action_clean == "disconnect":
+            target = f"{host}:{port}" if host else ""
+            res = await active_bridge.disconnect_device(target)
+            return f"Disconnect result: {res.message}"
+
+        return f"Unknown device action: '{action}'."
+
+    # ---------------- 2. Snapshot & Inspection Tool ----------------
+    class SnapshotInput(BaseModel):
+        include_screenshot: bool = Field(
+            default=False,
+            description="Set to true to capture screen bitmap alongside hierarchy XML tree.",
+        )
+        query: str = Field(
+            default="",
+            description="Optional search text to filter matching UI elements on screen.",
+        )
+        compressed: bool = Field(
+            default=True,
+            description="Use compressed hierarchy dump to optimize speed and token efficiency.",
+        )
+
+    @tool("mobile_snapshot_tool", args_schema=SnapshotInput)
+    async def mobile_snapshot_tool(
+        include_screenshot: bool = False,
+        query: str = "",
+        compressed: bool = True,
+    ) -> str:
+        """Inspect the current Android mobile screen, dumping the accessibility tree and interactive elements."""
+        try:
+            hierarchy = await active_bridge.dump_hierarchy(compressed=compressed)
+            verdict = active_bridge.evaluate_hierarchy(hierarchy)
+
+            out = [
+                f"Screen Resolution: {hierarchy.screen_width}x{hierarchy.screen_height}",
+                f"Safety Status: {verdict.risk_level} ({verdict.reason})",
+            ]
+
+            if query:
+                matches = hierarchy.find_by_text(query)
+                out.append(f"\nMatching Elements for '{query}' ({len(matches)} found):")
+                for node in matches[:20]:
+                    nc = node.bounds.to_normalized_center(hierarchy.screen_width, hierarchy.screen_height)
+                    out.append(
+                        f"- [{node.class_name.split('.')[-1]}] '{node.text or node.content_desc}' id={node.resource_id} bounds={node.bounds.left},{node.bounds.top}~{node.bounds.right},{node.bounds.bottom} center=({node.bounds.center.x},{node.bounds.center.y}) norm_center=({nc[0]},{nc[1]})"
+                    )
+            else:
+                interactives = hierarchy.find_all_interactive()
+                out.append(f"\nInteractive Elements ({len(interactives)} found):")
+                for node in interactives[:30]:
+                    label = node.text or node.content_desc or node.resource_id.split("/")[-1] or "Element"
+                    nc = node.bounds.to_normalized_center(hierarchy.screen_width, hierarchy.screen_height)
+                    out.append(
+                        f"- [{node.class_name.split('.')[-1]}] '{label}' bounds={node.bounds.left},{node.bounds.top}~{node.bounds.right},{node.bounds.bottom} norm_center=({nc[0]},{nc[1]})"
+                    )
+
+            if include_screenshot:
+                screencap = await active_bridge.screencap()
+                out.append(f"\n[Screenshot captured: {screencap.width}x{screencap.height} PNG, base64_len={len(screencap.base64_data)}]")
+
+            return "\n".join(out)
+        except Exception as e:
+            return f"Mobile snapshot error: {e}"
+
+    # ---------------- 3. Touch & Gesture Tool ----------------
+    class TouchInput(BaseModel):
+        action: str = Field(
+            description="Touch action: 'tap' (tap single coordinate), 'swipe' (swipe from x1,y1 to x2,y2).",
+        )
+        x: float = Field(default=0.0, description="X coordinate (pixel integer or 0.0-1.0 normalized float).")
+        y: float = Field(default=0.0, description="Y coordinate (pixel integer or 0.0-1.0 normalized float).")
+        x2: float = Field(default=0.0, description="End X coordinate for swipe.")
+        y2: float = Field(default=0.0, description="End Y coordinate for swipe.")
+        duration_ms: int = Field(default=300, description="Swipe duration in milliseconds.")
+        normalized: bool = Field(
+            default=False,
+            description="True if coordinates are given as normalized floats (0.0 - 1.0).",
+        )
+
+    @tool("mobile_touch_tool", args_schema=TouchInput)
+    async def mobile_touch_tool(
+        action: str,
+        x: float = 0.0,
+        y: float = 0.0,
+        x2: float = 0.0,
+        y2: float = 0.0,
+        duration_ms: int = 300,
+        normalized: bool = False,
+    ) -> str:
+        """Perform touch actions (tap or swipe) on the Android screen."""
+        action_clean = action.strip().lower()
+        if action_clean == "tap":
+            res = await active_bridge.tap(x=x, y=y, normalized=normalized)
+            return res.message
+        elif action_clean == "swipe":
+            res = await active_bridge.swipe(
+                x1=x,
+                y1=y,
+                x2=x2,
+                y2=y2,
+                duration_ms=duration_ms,
+                normalized=normalized,
             )
-            msg = f"Swiped from ({x1},{y1}) to ({x2},{y2})"
-        elif action == "input_text":
-            text = kwargs.get("text", "")
-            success = await input_ctrl.input_text(serial, text)
-            msg = f"Typed text: {text}"
-        elif action == "press_key":
-            key = kwargs.get("key")
-            if not key:
-                return "Error: key is required for press_key."
-            success = await input_ctrl.press_key(serial, key)
-            msg = f"Pressed key: {key}"
-        elif action == "launch_app":
-            pkg = kwargs.get("package_or_alias", "")
-            success = await app_mgr.launch_app(serial, pkg)
-            msg = f"Launched app: {pkg}"
-        elif action == "stop_app":
-            pkg = kwargs.get("package_or_alias", "")
-            success = await app_mgr.stop_app(serial, pkg)
-            msg = f"Stopped app: {pkg}"
-        else:
-            return f"Unknown action: {action}"
+            return res.message
+        return f"Unknown touch action: '{action}'. Use 'tap' or 'swipe'."
 
-        return json.dumps({"success": success, "message": msg}, ensure_ascii=False)
+    # ---------------- 4. Text & Key Input Tool ----------------
+    class InputParams(BaseModel):
+        action: str = Field(
+            description="Input action: 'type' (enter text including Chinese/Unicode), 'key' (press hardware key: home, back, enter, power, app_switch).",
+        )
+        text: str = Field(default="", description="Text to type into active input field.")
+        key_name: str = Field(
+            default="",
+            description="Key name when action='key' (e.g. 'home', 'back', 'enter', 'app_switch', 'volume_up', 'volume_down').",
+        )
+
+    @tool("mobile_input_tool", args_schema=InputParams)
+    async def mobile_input_tool(
+        action: str,
+        text: str = "",
+        key_name: str = "",
+    ) -> str:
+        """Type text (with Chinese/Unicode support) or simulate hardware keys on Android."""
+        action_clean = action.strip().lower()
+        if action_clean == "type":
+            if not text:
+                return "Error: 'text' cannot be empty for action='type'."
+            res = await active_bridge.type_text(text=text)
+            return res.message
+        elif action_clean == "key":
+            key_map: dict[str, KeyCode] = {
+                "home": KeyCode.HOME,
+                "back": KeyCode.BACK,
+                "enter": KeyCode.ENTER,
+                "power": KeyCode.POWER,
+                "app_switch": KeyCode.APP_SWITCH,
+                "volume_up": KeyCode.VOLUME_UP,
+                "volume_down": KeyCode.VOLUME_DOWN,
+                "menu": KeyCode.MENU,
+                "notification": KeyCode.NOTIFICATION,
+            }
+            code = key_map.get(key_name.strip().lower())
+            if not code:
+                return f"Unsupported key name: '{key_name}'. Supported: {', '.join(key_map.keys())}."
+            res = await active_bridge.press_key(code)
+            return res.message
+        return f"Unknown input action: '{action}'. Use 'type' or 'key'."
+
+    # ---------------- 5. App Lifecycle Tool ----------------
+    class AppInput(BaseModel):
+        action: str = Field(
+            description="App action: 'launch' (open app by package or alias like 'wechat','feishu','browser','settings'), 'terminate' (force stop app), 'current' (get foreground app).",
+        )
+        app_name_or_package: str = Field(
+            default="",
+            description="App package name or friendly alias (e.g. 'wechat', 'feishu', 'settings', 'browser', 'com.tencent.mm').",
+        )
+
+    @tool("mobile_app_tool", args_schema=AppInput)
+    async def mobile_app_tool(
+        action: str,
+        app_name_or_package: str = "",
+    ) -> str:
+        """Launch, terminate, or inspect foreground Android applications."""
+        action_clean = action.strip().lower()
+        if action_clean == "launch":
+            if not app_name_or_package:
+                return "Error: 'app_name_or_package' is required for action='launch'."
+            res = await active_bridge.launch_app(app_name_or_package)
+            return res.message
+        elif action_clean == "terminate":
+            if not app_name_or_package:
+                return "Error: 'app_name_or_package' is required for action='terminate'."
+            res = await active_bridge.terminate_app(app_name_or_package)
+            return res.message
+        elif action_clean == "current":
+            pkg, act = await active_bridge.get_current_app()
+            return f"Foreground Application: Package='{pkg}', Activity='{act}'"
+        return f"Unknown app action: '{action}'. Use 'launch', 'terminate', or 'current'."
 
     return [
-        StructuredTool.from_function(
-            coroutine=_handle_device_connect,
-            name="mobile_device_connect",
-            description="Manage mobile Android device discovery, wireless pairing, and connection via ADB.",
-            args_schema=MobileDeviceConnectInput,
-        ),
-        StructuredTool.from_function(
-            coroutine=_handle_snapshot,
-            name="mobile_snapshot",
-            description="Capture Android screen visual bitmap and structural Accessibility UI element hierarchy.",
-            args_schema=MobileSnapshotInput,
-        ),
-        StructuredTool.from_function(
-            coroutine=_handle_interact,
-            name="mobile_interact",
-            description="Execute touch gestures, clicks, Chinese/Unicode typing, hardware keys, and app launches on Android.",
-            args_schema=MobileInteractInput,
-        ),
+        mobile_device_tool,
+        mobile_snapshot_tool,
+        mobile_touch_tool,
+        mobile_input_tool,
+        mobile_app_tool,
     ]
