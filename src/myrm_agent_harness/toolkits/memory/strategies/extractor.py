@@ -302,10 +302,11 @@ For preferences, additionally classify:
 - **preference_strength**: 0.9=strong, 0.6=clear, 0.3=mild, 0.1=slight
 
 **Dialectic Reasoning (Cognitive Deriver)**:
-You must look beyond explicit statements and perform dialectic reasoning to extract deep, implicit user traits across 3 specific dimensions. Record these as `ProfileEntry` (`memory_type="profile"`) so they are injected directly into the System Prompt:
+You must look beyond explicit statements and perform dialectic reasoning to extract deep, implicit user traits across 4 specific dimensions. Record these as `ProfileEntry` (`memory_type="profile"`) so they are injected directly into the System Prompt:
 1. **reply_style**: Formal/casual, concise/detailed, code-only/explained. (e.g., `profile_key="reply_style"`, `profile_value="Concise, direct answers, pure code"`)
 2. **cognitive_depth**: Beginner/expert, needs underlying principles or just solutions. (e.g., `profile_key="cognitive_depth"`, `profile_value="Expert level, skip basics"`)
-3. **proactivity**: Proactive warnings/passive execution. (e.g., `profile_key="proactivity"`, `profile_value="Proactively warn about security risks"`)"""
+3. **proactivity**: Proactive warnings/passive execution. (e.g., `profile_key="proactivity"`, `profile_value="Proactively warn about security risks"`)
+4. **model_affinity**: Preferred AI models and task-model associations. (e.g., `profile_key="model_affinity"`, `profile_value="Prefers Claude 3.7 Sonnet for coding/refactoring, DeepSeek-R1 for reasoning"`)"""
 
 _REFLECTION_SECTION = """
 ## Structured Reflection (before extracting)

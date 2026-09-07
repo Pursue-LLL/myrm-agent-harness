@@ -106,12 +106,13 @@ class ErrorSelfCorrectionGovernor:
         for pattern, action_type, root_cause, hint in _ERROR_PATTERNS:
             match = pattern.search(error_message)
             if match:
-                matched_entity = match.group(1) if match.groups() else ""
+                matched_entity = match.group(1) if match.lastindex and match.group(1) else ""
+                root_cause_text = f"{root_cause}: {matched_entity}".strip(": ") if matched_entity else root_cause
                 hypotheses.append(
                     DiagnosticHypothesis(
                         hypothesis_id=f"hyp-{uuid4().hex[:8]}",
                         error_summary=f"{operation} failed with {root_cause}",
-                        root_cause_guess=f"{root_cause}: {matched_entity}".strip(": "),
+                        root_cause_guess=root_cause_text,
                         action_type=action_type,
                         suggested_fix={"matched_entity": matched_entity, "hint": hint},
                         confidence_score=0.85,

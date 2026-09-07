@@ -1,7 +1,7 @@
 """Unit tests for TerminalLogDistiller.
 
-Tests ANSI code stripping, carriage return progress clearing, error pattern detection,
-tail window preservation, and token compression metrics.
+Tests short output passthrough, ANSI stripping, progress churn filtering,
+error anchor context extraction, and high compression ratio efficiency.
 """
 
 from __future__ import annotations
@@ -10,70 +10,90 @@ import pytest
 
 from myrm_agent_harness.toolkits.code_execution.utils.log_distiller import (
     DistilledLogResult,
-    clean_terminal_noise,
-    distill_terminal_output,
-    is_progress_noise_line,
+    TerminalLogDistiller,
 )
 
 
-def test_clean_terminal_noise_ansi_and_carriage_return() -> None:
-    # Text with ANSI colors and \r progress rewrite
-    raw = "\x1b[32mStarting build...\x1b[0m\r\x1b[33mProgress: 10%\x1b[0m\r\x1b[32mProgress: 100% Done\x1b[0m\nNext step"
-    cleaned = clean_terminal_noise(raw)
-    assert "Starting build..." not in cleaned
-    assert "Progress: 100% Done" in cleaned
-    assert "Next step" in cleaned
-    assert "\x1b[" not in cleaned
+def test_short_output_passthrough() -> None:
+    distiller = TerminalLogDistiller(passthrough_threshold_lines=80)
+    raw = "total 16\n-rw-r--r-- 1 user staff 120 Aug 26 12:00 package.json\n-rw-r--r-- 1 user staff 540 Aug 26 12:00 README.md"
+    result = distiller.distill(raw, exit_code=0, raw_log_path="/tmp/cmd_1.log")
+
+    assert result.is_passthrough is True
+    assert result.raw_line_count == 3
+    assert result.distilled_line_count == 3
+    assert result.compression_ratio == 0.0
+    assert "package.json" in result.distilled_text
+    assert result.exit_code == 0
+    assert result.raw_log_path == "/tmp/cmd_1.log"
 
 
-def test_is_progress_noise_line() -> None:
-    assert is_progress_noise_line(" [ 45% ] Building C object") is True
-    assert is_progress_noise_line("80% [==================>     ]") is True
-    assert is_progress_noise_line("downloading package 1.2MB/s") is True
-    assert is_progress_noise_line("npm ERR! code E404") is False
-    assert is_progress_noise_line("fatal: destination path already exists") is False
+def test_ansi_and_carriage_return_cleansing() -> None:
+    distiller = TerminalLogDistiller(passthrough_threshold_lines=10)
+    # Generate 30 lines with ANSI color codes and carriage returns
+    lines = [f"\x1b[32m[INFO]\x1b[0m Starting step {i}\r" for i in range(30)]
+    lines.append("\x1b[31mnpm ERR! code ETIMEDOUT\x1b[0m")
+    lines.append("\x1b[31mnpm ERR! syscall connect\x1b[0m")
+    raw = "\n".join(lines)
+
+    result = distiller.distill(raw, exit_code=1)
+
+    assert result.is_passthrough is False
+    assert "\x1b[32m" not in result.distilled_text
+    assert "\r" not in result.distilled_text
+    assert "NPM_ERROR" in result.extracted_error_signals
+    assert "NETWORK_TIMEOUT" in result.extracted_error_signals
+    assert "npm ERR! code ETIMEDOUT" in result.distilled_text
 
 
-def test_distill_short_output_bypass() -> None:
-    short_log = "Line 1: init\nLine 2: done\n"
-    res = distill_terminal_output(short_log)
-    assert res.original_line_count == 2
-    assert res.distilled_line_count == 2
-    assert res.compression_ratio == 1.0
-    assert "Line 1: init" in res.distilled_text
+def test_massive_progress_churn_distillation() -> None:
+    distiller = TerminalLogDistiller(default_max_lines=50, passthrough_threshold_lines=50)
+
+    # Simulate 500 lines of npm/docker download progress
+    raw_lines: list[str] = ["Building package dependencies..."]
+    for i in range(1, 400):
+        raw_lines.append(f"[{i % 100}%] downloading: {i * 10} kB/s ...")
+    raw_lines.append("Analyzing configuration files...")
+    raw_lines.append("CRITICAL: Error occurred in reverse proxy listener:")
+    raw_lines.append("HTTP 403 Forbidden: Host not in trustedHosts list")
+    raw_lines.append("Aborting server daemon...")
+    for i in range(405, 500):
+        raw_lines.append(f"Progress: [====>     ] {i}/500")
+    raw_lines.append("Process terminated with exit code 1")
+
+    raw = "\n".join(raw_lines)
+    result = distiller.distill(raw, exit_code=1, raw_log_path=".myrm/tee/cmd_deploy.log")
+
+    assert result.is_passthrough is False
+    assert result.raw_line_count == len(raw_lines)
+    assert result.distilled_line_count < 60
+    assert result.compression_ratio > 0.85
+    assert "HTTP_403_FORBIDDEN" in result.extracted_error_signals
+    assert "HTTP 403 Forbidden: Host not in trustedHosts list" in result.distilled_text
+    assert "[DISTILLED LOG:" in result.distilled_text
+    assert "raw_log: .myrm/tee/cmd_deploy.log" in result.distilled_text
+    assert "exit_code: 1" in result.distilled_text
 
 
-def test_distill_long_noisy_build_log_with_error_anchor() -> None:
-    # Generate 300 lines of noisy progress followed by a fatal error and tail
-    lines: list[str] = ["Building project..."]
-    for i in range(1, 150):
-        lines.append(f"[{i}%] Compiling chunk {i}.js ... downloading 2.4MB/s")
-    
-    # Inject critical error anchor in the middle
-    lines.append("TypeError: Cannot find module '@types/node'")
-    lines.append("    at Function.Module._resolveFilename (node:internal/modules/cjs/loader:1077:15)")
-    lines.append("npm ERR! A complete log of this run can be found in /root/.npm/_logs/error.log")
+def test_multiple_error_signals_anchoring() -> None:
+    distiller = TerminalLogDistiller(default_max_lines=60, passthrough_threshold_lines=20)
 
-    for i in range(151, 280):
-        lines.append(f"[{i}%] Compiling fallback {i}.js")
+    raw_lines: list[str] = [f"Init step {i}" for i in range(30)]
+    raw_lines.append("Error: listen EADDRINUSE: address already in use :::8080")
+    raw_lines.append("Failed to bind socket")
+    for i in range(30):
+        raw_lines.append(f"Subsystem polling attempt {i}...")
+    raw_lines.append("Traceback (most recent call last):")
+    raw_lines.append("  File 'app.py', line 42, in connect")
+    raw_lines.append("ConnectionRefusedError: [Errno 111] Connection refused")
+    for i in range(20):
+        raw_lines.append(f"Cleaning up worker {i}...")
 
-    # Tail exit state
-    lines.append("Build failed with exit code 1")
-    lines.append("Fatal error occurred during bundle synthesis")
+    raw = "\n".join(raw_lines)
+    result = distiller.distill(raw, exit_code=1)
 
-    raw_output = "\n".join(lines)
-    res = distill_terminal_output(raw_output, max_lines=40, raw_log_path="/tmp/build.log")
-
-    assert res.original_line_count > 250
-    assert res.distilled_line_count <= 40 + 5  # footer included
-    assert res.compression_ratio < 0.3
-    assert "MODULE_NOT_FOUND" in res.matched_error_tags or "FATAL_PANIC" in res.matched_error_tags
-    assert "Cannot find module" in res.distilled_text
-    assert "Build failed with exit code 1" in res.distilled_text
-    assert "[Raw full log saved at: /tmp/build.log]" in res.distilled_text
-
-
-def test_distill_empty_input() -> None:
-    res = distill_terminal_output("")
-    assert res.distilled_text == ""
-    assert res.original_line_count == 0
+    assert "SOCKET_EADDRINUSE" in result.extracted_error_signals
+    assert "PYTHON_TRACEBACK" in result.extracted_error_signals
+    assert "SOCKET_ECONNREFUSED" in result.extracted_error_signals
+    assert "EADDRINUSE" in result.distilled_text
+    assert "ConnectionRefusedError" in result.distilled_text

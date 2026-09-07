@@ -1007,3 +1007,30 @@ class TestRunAndRecordTracing:
 
         assert job.consecutive_failures == 3
 
+    @pytest.mark.asyncio
+    async def test_circuit_break_pauses_job_and_marks_run_status(self) -> None:
+        """When JobResult is circuit_broken, run status is CIRCUIT_BREAK and job is auto-paused."""
+        executor, store, delivery = _make_executor()
+        job = _make_job()
+        runner = AsyncMock()
+        runner.run = AsyncMock(
+            return_value=JobResult(
+                success=False,
+                error="RUNAWAY_CIRCUIT_BREAKER: 3 identical failures",
+                circuit_broken=True,
+                circuit_break_reason="Runaway loop detected",
+            )
+        )
+
+        saved_runs = []
+        store.save_run = AsyncMock(side_effect=lambda r: saved_runs.append(r) or r)
+
+        await executor.run_and_record(job, runner)
+
+        assert len(saved_runs) == 1
+        assert saved_runs[0].status == RunStatus.CIRCUIT_BREAK
+        assert job.status == JobStatus.PAUSED
+        assert job.next_run_at is None
+        assert job.last_status == RunStatus.CIRCUIT_BREAK
+
+

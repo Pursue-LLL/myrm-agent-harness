@@ -25,6 +25,11 @@ from myrm_agent_harness.toolkits.code_execution.session.persistent_session impor
     SessionConfig,
     SessionExecutionResult,
 )
+from myrm_agent_harness.toolkits.code_execution.session.log_distiller import (
+    DistilledLogResult,
+    TerminalLogDistiller,
+    distill_terminal_output,
+)
 from myrm_agent_harness.toolkits.code_execution.session.shell_flavor import (
     ShellFlavor,
 )
@@ -33,11 +38,14 @@ from myrm_agent_harness.toolkits.code_execution.session.stream_output_processor 
 )
 
 __all__ = [
+    "DistilledLogResult",
     "LocalPersistentSession",
     "PersistentSession",
     "SessionConfig",
     "SessionExecutionResult",
     "ShellFlavor",
     "StreamOutputProcessor",
+    "TerminalLogDistiller",
     "create_persistent_session",
+    "distill_terminal_output",
 ]

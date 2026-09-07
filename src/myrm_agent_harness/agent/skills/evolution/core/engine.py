@@ -588,6 +588,22 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
         if not is_safe:
             return None
 
+        # 3. Multi-dimensional security sanitization scan
+        from myrm_agent_harness.backends.skills.scanning.scanner import (
+            SkillTrustRecommendation,
+            compute_scan_summary,
+            scan_skill_content,
+        )
+
+        scan_result = scan_skill_content(result.name, result.content)
+        if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
+            logger.warning(
+                f"Slice-extracted skill '{result.name}' rejected by security scan: {scan_result.summary}"
+            )
+            return None
+
+        security_summary_dict = compute_scan_summary(scan_result).to_dict()
+
         from datetime import datetime
 
         proposal = EvolutionProposal(
@@ -602,6 +618,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             is_general=result.is_general,
             created_at=datetime.now(),
             agent_id=agent_id,
+            security_scan_summary=security_summary_dict,
         )
 
         return proposal
@@ -696,6 +713,22 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             logger.warning(f"Skill {result.name} rejected: Sandbox dry-run failed: {error_msg}")
             return None
 
+        # Multi-dimensional security sanitization scan
+        from myrm_agent_harness.backends.skills.scanning.scanner import (
+            SkillTrustRecommendation,
+            compute_scan_summary,
+            scan_skill_content,
+        )
+
+        scan_result = scan_skill_content(result.name, result.content)
+        if scan_result.trust_recommendation == SkillTrustRecommendation.REJECT:
+            logger.warning(
+                f"Captured skill '{result.name}' rejected by security scan: {scan_result.summary}"
+            )
+            return None
+
+        security_summary_dict = compute_scan_summary(scan_result).to_dict()
+
         # Build proposal with form routing metadata
         from datetime import datetime
 
@@ -723,6 +756,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             recommended_form=result.recommended_form,
             form_metadata=form_metadata,
             created_at=datetime.now(),
+            security_scan_summary=security_summary_dict,
         )
 
         return proposal
