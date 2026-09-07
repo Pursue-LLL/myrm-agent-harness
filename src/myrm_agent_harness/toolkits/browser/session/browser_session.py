@@ -663,11 +663,13 @@ class BrowserSession(
         if self._download_manager:
             stats["downloads"] = len(self._download_manager.downloads)
 
-        stats["telemetry"] = self._observability.telemetry.snapshot()
+        stats["telemetry"] = self.runtime_telemetry.snapshot()
 
         return stats
 
     @property
     def runtime_telemetry(self) -> BrowserRunTelemetry:
         """Runtime compute and network telemetry for this browser session."""
-        return self._observability.telemetry
+        if self._observability is not None:
+            return self._observability.telemetry
+        return self._telemetry
