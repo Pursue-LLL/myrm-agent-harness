@@ -232,10 +232,20 @@ def get_tool_replay_safety(tool_name: str) -> ReplaySafety:
 
 
 def register_tool_layer(tool_name: str, layer: ToolLayer) -> None:
-    """注册工具层级
+    """注册单个工具层级
 
     Args:
         tool_name: 工具名称
         layer: 工具层级
     """
     _TOOL_LAYERS[tool_name] = layer
+
+
+def register_tool_layers(specs: dict[str, ToolLayer]) -> None:
+    """批量注册外部/业务工具层级规范 (Idempotent explicit layer registration).
+
+    Args:
+        specs: 工具名到层级的映射字典
+    """
+    _TOOL_LAYERS.update(specs)
+

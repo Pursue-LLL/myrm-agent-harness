@@ -369,6 +369,7 @@ class TestCheckDesktopPermissionsHealth:
         assert "Accessibility" in report.message
         assert report.meta_data is not None
         assert report.meta_data.get("accessibility") is False
+        assert report.meta_data.get("capture_ready") is False
         assert report.meta_data.get("settings_deeplinks") == {
             "accessibility": accessibility_deeplink,
         }

@@ -308,3 +308,15 @@ class ToolRegistry:
         for entry in self._entries:
             result.setdefault(entry.source, []).append(entry.tool.name)
         return result
+
+    @staticmethod
+    def register_external_layer_specs(specs: dict[str, ToolLayer]) -> None:
+        """Register external tool layer specifications into the global tool layers mapping.
+
+        Parameters
+        ----------
+        specs:
+            Mapping from tool names to ToolLayer enum members.
+        """
+        _TOOL_LAYERS.update(specs)
+

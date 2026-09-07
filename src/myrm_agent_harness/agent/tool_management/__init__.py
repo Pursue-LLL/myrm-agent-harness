@@ -56,6 +56,7 @@ __all__ = [
     "probe_tool_env_health",
     "probe_tool_runtime_health",
     "register_tool_layer",
+    "register_tool_layers",
     "tool_layer_snapshot_label",
     "with_dynamic_hints",
 ]

@@ -141,3 +141,26 @@ async def test_interact_tool_forwards_wait_seconds(
         modifiers=None,
         wait_seconds=3.0,
     )
+
+
+@pytest.mark.asyncio
+async def test_interact_tool_supports_new_pattern_actions(
+    session: DesktopSession,
+) -> None:
+    session.desktop_interact = AsyncMock(return_value="Action 'expand' succeeded")
+    tools = create_desktop_tools(session)
+    interact_tool = next(t for t in tools if t.name == "desktop_interact_tool")
+    for action_name in ["toggle", "expand", "collapse", "invoke", "check", "uncheck"]:
+        session.desktop_interact.reset_mock()
+        result = await interact_tool.ainvoke({
+            "ref": "d5",
+            "action": action_name,
+        })
+        assert result == "Action 'expand' succeeded"
+        session.desktop_interact.assert_awaited_once_with(
+            ref="d5",
+            action=action_name,
+            text="",
+            modifiers=None,
+            wait_seconds=0.0,
+        )
