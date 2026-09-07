@@ -135,7 +135,7 @@ class ProposalBuilder:
         task_context: str = "",
         trajectory: str = "",
         is_general: bool = False,
-    ) -> EvolutionProposal:
+    ) -> EvolutionProposal | None:
         """Create the proposal structure.
 
         Args:

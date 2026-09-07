@@ -156,6 +156,18 @@ class SessionPersistence:
                 try:
                     js_code = _build_localstorage_script(local_storage, origin)
                     await context.add_init_script(js_code)
+                    # Also immediately execute on existing pages in context matching origin
+                    for page in context.pages:
+                        try:
+                            page_url = page.url
+                            if page_url and page_url != "about:blank":
+                                from urllib.parse import urlparse
+                                parsed = urlparse(page_url)
+                                page_origin = f"{parsed.scheme}://{parsed.netloc}"
+                                if page_origin == origin:
+                                    await page.evaluate(js_code)
+                        except Exception:
+                            pass
                     local_storage_count += len(local_storage)
                 except Exception as exc:
                     logger.warning("Failed to inject localStorage for %s (origin %s): %s", domain, origin, exc)

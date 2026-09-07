@@ -40,7 +40,7 @@ class DiagnosticHypothesis:
     error_summary: str
     root_cause_guess: str
     action_type: RecoveryActionType
-    suggested_fix: dict[str, Any] = field(default_factory=dict)
+    suggested_fix: dict[str, str | int | float | bool] = field(default_factory=dict)
     confidence_score: float = 0.8
     reasoning: str = ""
 
@@ -54,7 +54,7 @@ class ErrorCorrectionOutcome:
     original_error: str
     diagnostic_details: str
     attempts_made: int
-    repaired_output: Any = None
+    repaired_output: str | int | float | bool | dict[str, str] | None = None
     fallback_message: str | None = None
 
 

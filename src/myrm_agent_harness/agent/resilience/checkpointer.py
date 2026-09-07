@@ -22,7 +22,7 @@ import json
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Sequence
 from uuid import uuid4
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -41,8 +41,8 @@ class MarathonCheckpointRecord:
     timestamp: float
     completed_steps: list[str] = field(default_factory=list)
     pending_steps: list[str] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
-    state_payload: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, str | int | float | bool] = field(default_factory=dict)
+    state_payload: dict[str, str | int | float | bool | list[str]] = field(default_factory=dict)
 
 
 class MarathonCheckpointer:
@@ -60,8 +60,8 @@ class MarathonCheckpointer:
         step_name: str,
         completed_steps: list[str] | None = None,
         pending_steps: list[str] | None = None,
-        state_payload: dict[str, Any] | None = None,
-        metadata: dict[str, Any] | None = None,
+        state_payload: dict[str, str | int | float | bool | list[str]] | None = None,
+        metadata: dict[str, str | int | float | bool] | None = None,
     ) -> MarathonCheckpointRecord:
         """Atomically persist a checkpoint snapshot to disk."""
         checkpoint_id = f"chk-{session_id}-{step_index:04d}-{uuid4().hex[:6]}"
