@@ -235,7 +235,8 @@ class BrowserSession(
         self._snapshot_manager: SnapshotManager | None = None
         self._interactor: Interactor | None = None
         self._extractor: Extractor | None = None
-        self._network_logger = NetworkLogger(telemetry=self._observability.telemetry)
+        self._telemetry = observability.telemetry if observability is not None else BrowserRunTelemetry()
+        self._network_logger = NetworkLogger(telemetry=self._telemetry)
         self._network_intelligence = NetworkIntelligence()
         self._web_vitals = WebVitalsCollector()
         self._console_logger = ConsoleLogger()
