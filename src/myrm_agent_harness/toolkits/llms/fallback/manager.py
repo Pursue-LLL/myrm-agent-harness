@@ -541,6 +541,10 @@ class ModelFallbackManager[T]:
                         policy = get_probe_policy(error_reason)
                         backoff_multiplier = 2 ** min(candidate.consecutive_failures, 5)
                         actual_cooldown_ms = min(policy.cooldown_ms * backoff_multiplier, 10 * 60 * 1000)
+                        get_circuit_breaker_registry().get_or_create(
+                            candidate.name,
+                            timeout_ms=int(actual_cooldown_ms),
+                        ).record_failure(error_reason=error_reason.value)
                         self._cooldown_counter.add(1, {"model": candidate.name, "error_reason": error_reason.value})
                         logger.warning(
                             f"Model {candidate.name} failed with {error_reason.value} "
@@ -617,6 +621,9 @@ class ModelFallbackManager[T]:
             candidate.consecutive_failures = 0
             candidate.probe_count = 0
             candidate.last_error_reason = None
+            cb = get_circuit_breaker_registry().get(candidate.name)
+            if cb:
+                cb.reset()
 
     def get_candidates_status(self) -> list[dict[str, Any]]:
         """Get snapshot of all candidates with real-time cooldown and health status."""

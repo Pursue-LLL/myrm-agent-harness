@@ -113,6 +113,8 @@ class StaticIndexSkillSource:
 
     async def force_refresh(self) -> bool:
         """Manually trigger index sync from remote CDN ignoring local TTL."""
+        if not self._is_loaded:
+            self._load_from_disk_cache()
         return await self._sync_remote_index(force=True)
 
     async def _ensure_index_loaded(self) -> None:

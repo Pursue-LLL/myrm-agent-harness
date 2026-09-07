@@ -31,7 +31,7 @@ from myrm_agent_harness.toolkits.mobile.types import (
 logger = logging.getLogger(__name__)
 
 _BOUNDS_PATTERN = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
-_ACTIVITY_PATTERN = re.compile(r"mResumedActivity:\s*ActivityRecord\{[^\s]+\s+[^\s]+\s+([^\s/]+)/([^\s]+)")
+_ACTIVITY_PATTERN = re.compile(r"mResumedActivity:\s*ActivityRecord\{[^\s]+\s+[^\s]+\s+([^\s/]+)/([^\s\}]+)")
 _TOP_FOCUSED_PATTERN = re.compile(r"mCurrentFocus=Window\{[^\s]+\s+[^\s]+\s+([^\s/]+)/([^\s\}]+)")
 
 

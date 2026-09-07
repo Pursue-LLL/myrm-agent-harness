@@ -469,10 +469,10 @@ class DesktopSession(ComputerSession):
                     modifiers=modifiers,
                 )
             elif action == "type":
-                # Dangerous type payloads already rejected above (pre-FG).
+                # Dangerous type payloads are rejected at method entry (no display I/O).
                 result = await self.type_text(text or "")
             elif action == "key":
-                # Invalid key/operator names already rejected above (pre-FG).
+                # Operator / blocked-key payloads are rejected at method entry (no display I/O).
                 result = await self.key_press(text or "")
             elif action == "scroll":
                 if coordinate is None or len(coordinate) != 2 or not scroll_direction:
