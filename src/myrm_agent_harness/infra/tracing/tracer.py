@@ -58,6 +58,13 @@ logger = logging.getLogger(__name__)
 
 _tracer_provider: TracerProvider | None = None
 _initialized = False
+_active_posture: dict[str, Any] = {
+    "endpoint": None,
+    "protocol": "http/protobuf",
+    "headers_configured": False,
+    "exporter_type": "none",
+    "degraded_reason": None,
+}
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -127,14 +134,26 @@ def get_telemetry_posture() -> dict[str, object]:
 
     Safe for SRE health probes, diagnostic status cards, and administrative introspection.
     """
-    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
-    protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf").strip().lower()
+    endpoint = _active_posture["endpoint"] or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+    protocol = (
+        _active_posture["protocol"]
+        if _initialized
+        else os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf").strip().lower()
+    )
     local_trace_only = is_local_trace_only()
-    has_headers = bool(parse_otlp_headers())
+    has_headers = (
+        _active_posture["headers_configured"]
+        if _initialized
+        else bool(parse_otlp_headers())
+    )
+    exporter_type = _active_posture["exporter_type"]
+    degraded_reason = _active_posture["degraded_reason"]
 
     status = "noop"
-    if _initialized:
-        status = "active" if endpoint else "console"
+    if degraded_reason:
+        status = "degraded_console"
+    elif _initialized:
+        status = "active" if exporter_type.startswith("otlp") or endpoint else "console"
     elif not HAS_OTEL_SDK:
         status = "missing_sdk"
     elif local_trace_only:
@@ -142,7 +161,7 @@ def get_telemetry_posture() -> dict[str, object]:
 
     # Redact endpoint credentials if present
     sanitized_endpoint = endpoint
-    if "@" in endpoint:
+    if endpoint and "@" in endpoint:
         try:
             from urllib.parse import urlparse, urlunparse
 
@@ -169,6 +188,8 @@ def get_telemetry_posture() -> dict[str, object]:
         "protocol": protocol,
         "headers_configured": has_headers,
         "local_trace_only": local_trace_only,
+        "exporter_type": exporter_type,
+        "degraded_reason": degraded_reason,
         "three_tier_semantics": True,
         "prompt_cache_metering": True,
     }
@@ -285,6 +306,13 @@ def setup_tracing(
                 http_exporter = HttpOTLPSpanExporter(**exporter_kwargs)
                 _tracer_provider.add_span_processor(BatchSpanProcessor(http_exporter))
                 exporter_created = True
+                _active_posture.update({
+                    "endpoint": otlp_endpoint,
+                    "protocol": "http/protobuf",
+                    "headers_configured": bool(headers_dict),
+                    "exporter_type": "otlp_http",
+                    "degraded_reason": None,
+                })
                 logger.info(
                     "OTLP HTTP trace exporter configured: %s (headers=%d)",
                     otlp_endpoint,
@@ -317,6 +345,13 @@ def setup_tracing(
                 exporter = OTLPSpanExporter(**grpc_kwargs)
                 _tracer_provider.add_span_processor(BatchSpanProcessor(exporter))
                 exporter_created = True
+                _active_posture.update({
+                    "endpoint": otlp_endpoint,
+                    "protocol": "grpc",
+                    "headers_configured": bool(headers_dict),
+                    "exporter_type": "otlp_grpc",
+                    "degraded_reason": None,
+                })
                 logger.info("OTLP gRPC trace exporter configured: %s", otlp_endpoint)
             except (ImportError, TypeError, Exception) as exc:
                 logger.warning(
@@ -326,8 +361,22 @@ def setup_tracing(
                 _tracer_provider.add_span_processor(
                     BatchSpanProcessor(ConsoleSpanExporter())
                 )
+                _active_posture.update({
+                    "endpoint": otlp_endpoint,
+                    "protocol": protocol,
+                    "headers_configured": bool(headers_dict),
+                    "exporter_type": "console",
+                    "degraded_reason": f"OTLP export fallback to console: {exc}",
+                })
     elif console_export:
         _tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+        _active_posture.update({
+            "endpoint": None,
+            "protocol": "console",
+            "headers_configured": False,
+            "exporter_type": "console",
+            "degraded_reason": None,
+        })
 
     # Set as global tracer provider
     trace.set_tracer_provider(_tracer_provider)
@@ -465,6 +514,13 @@ def shutdown_tracing(timeout_ms: float = 1500.0) -> bool:
     provider = _tracer_provider
     _tracer_provider = None
     _initialized = False
+    _active_posture.update({
+        "endpoint": None,
+        "protocol": "http/protobuf",
+        "headers_configured": False,
+        "exporter_type": "none",
+        "degraded_reason": None,
+    })
 
     if not hasattr(provider, "shutdown"):
         return True

@@ -83,12 +83,18 @@ async def run_python_subprocess(
             for sp in venv_lib.glob("python*/site-packages"):
                 extra_paths.append(str(sp))
 
-        python_path = os.pathsep.join(extra_paths + sys.path)
-        process_env["PYTHONPATH"] = python_path
+        valid_sys_paths = [p for p in sys.path if p]
+        python_path = os.pathsep.join(extra_paths + valid_sys_paths)
 
         if env:
-            process_env.update(sanitize_env(env))
+            sanitized_user_env = sanitize_env(env)
+            user_pythonpath = sanitized_user_env.pop("PYTHONPATH", None)
+            process_env.update(sanitized_user_env)
+            if user_pythonpath:
+                python_path = f"{user_pythonpath}{os.pathsep}{python_path}"
             logger.debug(f" User env vars: {list(env.keys())}")
+
+        process_env["PYTHONPATH"] = python_path
 
         # Post-override scrubbing guarantee: strip any non-inheritable host secrets (Codex #38941)
         from myrm_agent_harness.toolkits.code_execution.security.env_isolation import (
@@ -96,7 +102,9 @@ async def run_python_subprocess(
         )
 
         for k in list(process_env.keys()):
-            if is_non_inheritable_env_var(k):
+            if k == "PYTHONPATH":
+                continue
+            if is_non_inheritable_env_var(k, process_env.get(k)):
                 process_env.pop(k, None)
 
         logger.info(f" [LocalExecutor] Using Python: {python_executable}")
