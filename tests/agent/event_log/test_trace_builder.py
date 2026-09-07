@@ -33,11 +33,15 @@ class InMemoryBackend:
         for e in events:
             self._events.setdefault(e.session_id, []).append(e)
 
-    async def get_events(self, session_id: str, event_filter: EventFilter | None = None) -> list[StructuredEvent]:
+    async def get_events(
+        self, session_id: str, event_filter: EventFilter | None = None
+    ) -> list[StructuredEvent]:
         events = self._events.get(session_id, [])
         if event_filter:
             if event_filter.start_sequence is not None:
-                events = [e for e in events if e.sequence >= event_filter.start_sequence]
+                events = [
+                    e for e in events if e.sequence >= event_filter.start_sequence
+                ]
             if event_filter.start_time is not None:
                 events = [e for e in events if e.timestamp >= event_filter.start_time]
             if event_filter.end_time is not None:
@@ -140,7 +144,9 @@ class TestBuildTrace:
             _event(3, "tool_end", tool_name="file_read", duration_ms=100.0),
             _event(4, "tool_start", tool_name="bash"),
             _event(5, "tool_end", tool_name="bash", duration_ms=500.0),
-            _event(6, "session_end", summary={"input_tokens": 100, "output_tokens": 50}),
+            _event(
+                6, "session_end", summary={"input_tokens": 100, "output_tokens": 50}
+            ),
         ]
         backend = InMemoryBackend({"sess-1": events})
         trace = await build_trace(backend, "sess-1")
@@ -479,11 +485,15 @@ class TestEdgeCases:
         backend = InMemoryBackend(
             {
                 "sess-1": [
-                    _event(1, "session_start", session_id="sess-1", _task_type="coding"),
+                    _event(
+                        1, "session_start", session_id="sess-1", _task_type="coding"
+                    ),
                     _event(2, "session_end", session_id="sess-1"),
                 ],
                 "sess-2": [
-                    _event(1, "session_start", session_id="sess-2", _task_type="search"),
+                    _event(
+                        1, "session_start", session_id="sess-2", _task_type="search"
+                    ),
                     _event(2, "session_end", session_id="sess-2"),
                 ],
             }
@@ -694,11 +704,35 @@ class TestLineageAttribution:
         """Concurrent calls to the same tool must pair by tool_call_id, not FIFO order."""
         events = [
             _event(1, "session_start"),
-            _event(2, "tool_start", tool_name="bash", tool_call_id="call-a", message_id="msg-1"),
-            _event(3, "tool_start", tool_name="bash", tool_call_id="call-b", message_id="msg-2"),
+            _event(
+                2,
+                "tool_start",
+                tool_name="bash",
+                tool_call_id="call-a",
+                message_id="msg-1",
+            ),
+            _event(
+                3,
+                "tool_start",
+                tool_name="bash",
+                tool_call_id="call-b",
+                message_id="msg-2",
+            ),
             # End events arrive in reversed completion order.
-            _event(4, "tool_end", tool_name="bash", tool_call_id="call-b", duration_ms=200.0),
-            _event(5, "tool_end", tool_name="bash", tool_call_id="call-a", duration_ms=100.0),
+            _event(
+                4,
+                "tool_end",
+                tool_name="bash",
+                tool_call_id="call-b",
+                duration_ms=200.0,
+            ),
+            _event(
+                5,
+                "tool_end",
+                tool_name="bash",
+                tool_call_id="call-a",
+                duration_ms=100.0,
+            ),
             _event(6, "session_end"),
         ]
         backend = InMemoryBackend({"sess-1": events})
@@ -718,9 +752,22 @@ class TestLineageAttribution:
         """tool_failure must consume the pending tool matching its tool_call_id."""
         events = [
             _event(1, "session_start"),
-            _event(2, "tool_start", tool_name="bash", tool_call_id="call-a", message_id="msg-1"),
+            _event(
+                2,
+                "tool_start",
+                tool_name="bash",
+                tool_call_id="call-a",
+                message_id="msg-1",
+            ),
             _event(3, "tool_start", tool_name="bash", tool_call_id="call-b"),
-            _event(4, "tool_failure", tool_name="bash", tool_call_id="call-a", error="boom", duration_ms=30.0),
+            _event(
+                4,
+                "tool_failure",
+                tool_name="bash",
+                tool_call_id="call-a",
+                error="boom",
+                duration_ms=30.0,
+            ),
             _event(5, "session_end"),
         ]
         backend = InMemoryBackend({"sess-1": events})
@@ -736,8 +783,16 @@ class TestLineageAttribution:
         """tool_call_id and message_id survive to_dict serialization."""
         events = [
             _event(1, "session_start"),
-            _event(2, "tool_start", tool_name="bash", tool_call_id="call-1", message_id="msg-1"),
-            _event(3, "tool_end", tool_name="bash", tool_call_id="call-1", duration_ms=50.0),
+            _event(
+                2,
+                "tool_start",
+                tool_name="bash",
+                tool_call_id="call-1",
+                message_id="msg-1",
+            ),
+            _event(
+                3, "tool_end", tool_name="bash", tool_call_id="call-1", duration_ms=50.0
+            ),
             _event(4, "session_end"),
         ]
         backend = InMemoryBackend({"sess-1": events})
@@ -774,8 +829,20 @@ class TestLineageAttribution:
         events = [
             _event(1, "session_start"),
             _event(2, "tool_start", tool_name="web_search"),  # legacy, no id
-            _event(3, "tool_start", tool_name="web_search", tool_call_id="call-9", message_id="msg-9"),
-            _event(4, "tool_end", tool_name="web_search", tool_call_id="call-9", duration_ms=500.0),
+            _event(
+                3,
+                "tool_start",
+                tool_name="web_search",
+                tool_call_id="call-9",
+                message_id="msg-9",
+            ),
+            _event(
+                4,
+                "tool_end",
+                tool_name="web_search",
+                tool_call_id="call-9",
+                duration_ms=500.0,
+            ),
             _event(5, "session_end"),
         ]
         backend = InMemoryBackend({"sess-1": events})
@@ -1211,7 +1278,9 @@ class TestFaultSideAttribution:
                 error_type="MyrmLLMError",
                 error_kind="rate_limit",
                 fault_side="env",
-                recovery_actions=[{"id": "retry", "label": "Retry", "url": "command://retry"}],
+                recovery_actions=[
+                    {"id": "retry", "label": "Retry", "url": "command://retry"}
+                ],
             ),
             _event(3, "session_end"),
         ]
@@ -1222,7 +1291,9 @@ class TestFaultSideAttribution:
         err = trace.errors[0]
         assert err["fault_side"] == "env"
         assert err["error_kind"] == "rate_limit"
-        assert err["recovery_actions"] == [{"id": "retry", "label": "Retry", "url": "command://retry"}]
+        assert err["recovery_actions"] == [
+            {"id": "retry", "label": "Retry", "url": "command://retry"}
+        ]
 
         d = trace.to_dict()
         assert d["errors"][0]["fault_side"] == "env"
@@ -1256,7 +1327,10 @@ class TestFaultSideAttribution:
                 diagnostic_result={
                     "error_type": "billing",
                     "user_message": "Billing limit reached",
-                    "resolution_steps": ["Top up your account", "Retry in a few minutes"],
+                    "resolution_steps": [
+                        "Top up your account",
+                        "Retry in a few minutes",
+                    ],
                     "locale": "en",
                 },
             ),
@@ -1275,7 +1349,10 @@ class TestFaultSideAttribution:
         }
 
         d = trace.to_dict()
-        assert d["errors"][0]["diagnostic_result"]["resolution_steps"][0] == "Top up your account"
+        assert (
+            d["errors"][0]["diagnostic_result"]["resolution_steps"][0]
+            == "Top up your account"
+        )
 
     @pytest.mark.asyncio
     async def test_error_without_diagnostic_omits_field(self) -> None:
@@ -1297,7 +1374,14 @@ class TestFaultSideAttribution:
         events = [
             _event(1, "session_start"),
             _event(2, "tool_start", tool_name="bash", tool_call_id="c1"),
-            _event(3, "tool_failure", tool_name="bash", tool_call_id="c1", error="segfault", fault_side="harness_tool"),
+            _event(
+                3,
+                "tool_failure",
+                tool_name="bash",
+                tool_call_id="c1",
+                error="segfault",
+                fault_side="harness_tool",
+            ),
             _event(4, "session_end"),
         ]
         backend = InMemoryBackend({"sess-1": events})
@@ -1380,3 +1464,99 @@ class TestCommonHelpers:
         assert _int_or_zero(3.7) == 3  # floats truncate
         assert _int_or_zero(None) == 0
         assert _int_or_zero("12") == 0  # non-numeric falls back to zero
+
+
+class TestTraceRetryAndAnomalies:
+    """Tests for LLM retry attempt tracking and heuristic anomaly detection."""
+
+    @pytest.mark.asyncio
+    async def test_llm_attempt_and_retry_recorded(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "token_usage",
+                duration_ms=1200.0,
+                attempt=3,
+                retry_count=2,
+                usage={
+                    "prompt_tokens": 100,
+                    "completion_tokens": 50,
+                    "total_tokens": 150,
+                },
+                model_name="deepseek-v3",
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.llm_calls) == 1
+        lc = trace.llm_calls[0]
+        assert lc.attempt == 3
+        assert lc.retry_count == 2
+
+        d = trace.to_dict()
+        assert d["llm_calls"][0]["attempt"] == 3
+        assert d["llm_calls"][0]["retry_count"] == 2
+        # Check retry backoff anomaly
+        assert any(a["anomaly_type"] == "retry_backoff" for a in d["anomalies"])
+
+    @pytest.mark.asyncio
+    async def test_tool_loop_anomaly_detected(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="code_search", input_data={"q": "foo"}),
+            _event(
+                3, "tool_end", tool_name="code_search", success=False, error="timeout"
+            ),
+            _event(4, "tool_start", tool_name="code_search", input_data={"q": "foo"}),
+            _event(
+                5, "tool_end", tool_name="code_search", success=False, error="timeout"
+            ),
+            _event(6, "tool_start", tool_name="code_search", input_data={"q": "foo"}),
+            _event(
+                7, "tool_end", tool_name="code_search", success=False, error="timeout"
+            ),
+            _event(8, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-loop": events})
+        trace = await build_trace(backend, "sess-loop")
+
+        loop_anomalies = [a for a in trace.anomalies if a.anomaly_type == "tool_loop"]
+        assert len(loop_anomalies) == 1
+        assert loop_anomalies[0].severity == "critical"
+        assert loop_anomalies[0].tool_name == "code_search"
+
+    @pytest.mark.asyncio
+    async def test_token_surge_anomaly_detected(self) -> None:
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "token_usage",
+                usage={
+                    "prompt_tokens": 4000,
+                    "completion_tokens": 100,
+                    "total_tokens": 4100,
+                },
+            ),
+            _event(
+                3,
+                "token_usage",
+                usage={
+                    "prompt_tokens": 20000,
+                    "completion_tokens": 100,
+                    "total_tokens": 20100,
+                },
+            ),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-surge": events})
+        trace = await build_trace(backend, "sess-surge")
+
+        surge_anomalies = [
+            a for a in trace.anomalies if a.anomaly_type == "token_surge"
+        ]
+        assert len(surge_anomalies) == 1
+        assert surge_anomalies[0].severity == "warning"

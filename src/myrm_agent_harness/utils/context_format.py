@@ -529,7 +529,7 @@ def format_documents_with_metadata(
 
 _EXTERNAL_SOURCE_CITATION_REMINDER = (
     "\n\nWhen you use facts from the content above in your reply, "
-    "add numbered source markers matching the source indices shown in this result."
+    "add numbered source markers matching the source indices shown in this result (e.g. [1] or 【1】)."
 )
 
 

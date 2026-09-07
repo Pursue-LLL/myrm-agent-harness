@@ -78,20 +78,6 @@ class SessionTarget(StrEnum):
     DAILY = "daily"
 
 
-class UnattendedSecurityMode(StrEnum):
-    """Execution security mode for unattended/scheduled cron jobs.
-
-    Controls least-privilege tool suite narrowing and filesystem write containment.
-    - READONLY: Default safe sandbox. Strips write/shell/code_execute tools.
-    - SCOPED: Allows writes only if strictly contained within declared `allowed_roots`.
-    - ELEVATED: Full tool execution rights (for explicit trusted admin/build jobs).
-    """
-
-    READONLY = "readonly"
-    SCOPED = "scoped"
-    ELEVATED = "elevated"
-
-
 # ---------------------------------------------------------------------------
 # Value objects
 # ---------------------------------------------------------------------------
@@ -223,7 +209,7 @@ class CronJob:
     required_capabilities: tuple[str, ...] = ()
     allowed_roots: tuple[str, ...] = ()
     tools_allowed: tuple[str, ...] | None = None
-    security_mode: UnattendedSecurityMode = UnattendedSecurityMode.READONLY
+    skill_ids: tuple[str, ...] = ()
 
     max_retries: int = 2
     retry_backoff_ms: int = 30_000
@@ -296,7 +282,8 @@ class CronJobPatch:
     allowed_roots: tuple[str, ...] | None = None
     tools_allowed: tuple[str, ...] | None = None
     clear_tools_allowed: bool = False
-    security_mode: UnattendedSecurityMode | None = None
+    skill_ids: tuple[str, ...] | None = None
+    clear_skill_ids: bool = False
     delivery: DeliveryConfig | None = None
     failure_delivery: DeliveryConfig | None = None
     clear_failure_delivery: bool = False

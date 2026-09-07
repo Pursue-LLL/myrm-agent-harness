@@ -124,11 +124,15 @@ class ComputerBackend(Protocol):
         """
         ...
 
-    async def check_permissions(self) -> PermissionStatus:
+    async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
         """Probe OS-level permissions required for desktop automation.
 
+        Args:
+            probe_capture: When True, run a functional screen-capture sample.
+                Default False keeps Doctor/permission polls lightweight.
+
         Returns:
-            PermissionStatus with per-capability booleans and deep-link URLs
-            to the OS settings page where the user can grant access.
+            PermissionStatus with grant booleans, optional capturable result,
+            and deep-link URLs to the OS settings page.
         """
         ...

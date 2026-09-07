@@ -76,7 +76,11 @@ from myrm_agent_harness.toolkits.cron.protocols import (
     StreamListener,
     TriggerProvider,
 )
-from myrm_agent_harness.toolkits.cron.runners import NotificationRunner, RouterJobRunner, ShellJobRunner
+from myrm_agent_harness.toolkits.cron.runners import (
+    NotificationRunner,
+    RouterJobRunner,
+    ShellJobRunner,
+)
 from myrm_agent_harness.toolkits.cron.situation import (
     SituationContext,
     SituationReportBuilder,
@@ -113,7 +117,6 @@ from myrm_agent_harness.toolkits.cron.types import (
     ScheduleKind,
     SessionTarget,
     TransientErrorKind,
-    UnattendedSecurityMode,
 )
 
 __all__ = [

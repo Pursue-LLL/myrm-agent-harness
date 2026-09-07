@@ -9,6 +9,7 @@ Used to uniquely identify automation workflows across manual chat/kanban runs an
 - workflow_template_id: str | None (Bound workflow template)
 - command: str | None (Optional shell/script command)
 - tools_allowed: tuple[str, ...] | list[str] | None (Allowed tools whitelist)
+- skill_ids: tuple[str, ...] | list[str] | None (Job-scoped skill IDs merged at runtime)
 
 [OUTPUT]
 - canonicalize_text: Normalizes whitespace and case for stable hashing
@@ -45,6 +46,7 @@ def compute_workflow_fingerprint(
     workflow_template_id: str | None = None,
     command: str | None = None,
     tools_allowed: Sequence[str] | None = None,
+    skill_ids: Sequence[str] | None = None,
 ) -> str:
     """Compute a deterministic SHA-256 fingerprint for a workflow specification.
 
@@ -54,6 +56,7 @@ def compute_workflow_fingerprint(
         workflow_template_id: Workflow template ID if template-based.
         command: Command string if shell/script based.
         tools_allowed: Sequence of allowed tools (will be sorted for determinism).
+        skill_ids: Sequence of job-scoped skill IDs (will be sorted for determinism).
 
     Returns:
         Hex-encoded SHA-256 string (64 characters).
@@ -68,8 +71,16 @@ def compute_workflow_fingerprint(
     else:
         sorted_tools = ""
 
+    if skill_ids:
+        sorted_skills = ",".join(sorted(s.strip() for s in skill_ids if s.strip()))
+    else:
+        sorted_skills = ""
+
     # Construct standard deterministic canonical representation
-    raw_signature = f"agent:{canon_agent}|tmpl:{canon_template}|tools:{sorted_tools}|cmd:{canon_cmd}|prompt:{canon_prompt}"
+    raw_signature = (
+        f"agent:{canon_agent}|tmpl:{canon_template}|tools:{sorted_tools}"
+        f"|skills:{sorted_skills}|cmd:{canon_cmd}|prompt:{canon_prompt}"
+    )
     return hashlib.sha256(raw_signature.encode("utf-8")).hexdigest()
 
 

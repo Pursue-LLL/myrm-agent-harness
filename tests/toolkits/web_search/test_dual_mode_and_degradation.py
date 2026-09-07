@@ -289,7 +289,6 @@ class TestPrecisionModeConfig:
         assert WebSearchTools._BM25_TOP_K_CHUNKS == 50
         assert WebSearchTools._RERANK_TOP_K == 20
         assert WebSearchTools._RERANK_SCORE_THRESHOLD == 0.6
-        assert WebSearchTools._ENABLE_CHUNK_MERGE is True
         assert WebSearchTools._FUSION_WEIGHTS == (0.6, 0.1, 0.2, 0.1)
         assert WebSearchTools._FUSION_SCORE_THRESHOLD == 0.6
 

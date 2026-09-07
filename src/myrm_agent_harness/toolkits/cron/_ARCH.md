@@ -18,7 +18,7 @@ cross-task data piping (inject referenced jobs' latest successful output), incre
 |------|------|-------------|-------|
 | __init__.py | Package | Cron toolkit entry point. Aggregates scheduling engine, CRUD manager, protocols, built-in | ✅ |
 | _cron_tool_description.py | Core | `cron_manage_tool` LLM-visible description SSOT (EN/ZH); isolated from engine imports for prompt audits. | ✅ |
-| cron_agent_tools.py | Core | Agent tool for scheduled task management. Blueprint catalog via `action=blueprints` (not Turn1 schema injection). Supports `default_delivery`, `reminder` jobs, cron-execution mutating guard, incremental monitoring, context chaining, active hours. **`required_capabilities` / `tools_allowed` CSV params** on add/update; `BlueprintFiller` 5-tuple includes caps + tools. | ✅ |
+| cron_agent_tools.py | Core | Agent tool for scheduled task management. Blueprint catalog via `action=blueprints` (not Turn1 schema injection). Supports `default_delivery`, `reminder` jobs, cron-execution mutating guard, incremental monitoring, context chaining, active hours. **`required_capabilities` / `tools_allowed` / `skill_ids` CSV params** on add/update; `BlueprintFiller` includes caps + tools + skills. | ✅ |
 | delivery.py | Core | Built-in webhook ResultDelivery for cron job results. | ✅ |
 | delivery_guard.py | Core | Exact-token `[SILENT]` detection for delivery filtering (`is_silent_output`). | ✅ |
 | heartbeat.py | Core | Heartbeat — convenience layer over CronManager for periodic agent self-checks. Supports both INTERVAL and CRON scheduling (time-of-day triggers). Optional `agent_id` binding to inherit Agent Profile (model, prompt, skills). | ✅ |
@@ -28,7 +28,7 @@ cross-task data piping (inject referenced jobs' latest successful output), incre
 | situation.py | Core | Situation Report — pluggable context aggregator for heartbeat ticks. SituationSection Protocol + SituationReportBuilder (concurrent build, token budget, fault-tolerant) + SituationContext. | ✅ |
 | stores.py | Core | Built-in in-memory CronStore for development and testing. | ✅ |
 | triggers.py | Core | Trigger type definitions and security helpers. | ✅ |
-| types.py | Config | Cron job domain types. `JobType.REMINDER` for zero-LLM prompt delivery. JobResult supports `skipped` + `skip_reason`. **`CronJob.required_capabilities` + `CronJob.tools_allowed`**; `CronJobPatch` supports `clear_tools_allowed`. Agent jobs may bind **`workflow_template_id` + `workflow_template_args`** for pinned DW reruns (server runner passes through). | ✅ |
+| types.py | Config | Cron job domain types. `JobType.REMINDER` for zero-LLM prompt delivery. JobResult supports `skipped` + `skip_reason`. **`CronJob.required_capabilities` + `CronJob.tools_allowed` + `CronJob.skill_ids`**; `CronJobPatch` supports `clear_tools_allowed` / `clear_skill_ids`. Agent jobs may bind **`workflow_template_id` + `workflow_template_args`** for pinned DW reruns (server runner passes through). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

@@ -409,9 +409,9 @@ class ComputerSession:
         result.screenshot_size = screenshot.screenshot_size
         return result
 
-    async def check_permissions(self) -> PermissionStatus:
+    async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
         """Probe OS-level permissions required for desktop automation."""
-        return await self._backend.check_permissions()
+        return await self._backend.check_permissions(probe_capture=probe_capture)
 
     async def close(self) -> None:
         """Release backend resources (e.g. cua-driver MCP subprocess)."""

@@ -88,7 +88,6 @@ class WebSearchTools:
     _BM25_TOP_K_CHUNKS: int = 50
     _RERANK_TOP_K: int = 20
     _RERANK_SCORE_THRESHOLD: float = 0.6
-    _ENABLE_CHUNK_MERGE: bool = True
     _FUSION_WEIGHTS: tuple[float, float, float, float] = (0.6, 0.1, 0.2, 0.1)
     _FUSION_SCORE_THRESHOLD: float = 0.6
     _AUTOCUT_CONFIG: AutocutConfig = AutocutConfig(enabled=True, jump_ratio=0.2, min_keep=1)
@@ -335,47 +334,46 @@ def _cap_chunks_per_doc(
     chunks: list[Document],
     max_chunks_per_doc: int,
 ) -> list[Document]:
-    """Select top relevance chunks per document, maintaining global rerank order.
+    """Select top relevance chunks per document URL and restore intra-document narrative order.
 
-    Each chunk remains an independent, semantically coherent search snippet with distinct chunk boundaries.
+    Across documents: global ranking follows the highest-relevance chunk per URL.
+    Within each document: retained chunks are sorted in ascending order of chunk_index
+    to prevent temporal or causal inversions in the synthesized LLM prompt context.
 
     Args:
         chunks: Reranker-sorted chunk list (descending by relevance)
         max_chunks_per_doc: Max chunks to keep per document URL
 
     Returns:
-        Filtered document list with at most max_chunks_per_doc chunks per URL.
+        Filtered document list with at most max_chunks_per_doc chunks per URL,
+        sorted by URL relevance descending and intra-URL chunk_index ascending.
     """
     if not chunks or max_chunks_per_doc <= 0:
         return chunks
 
-    from collections import Counter
+    from collections import defaultdict
 
-    url_counts: Counter[str] = Counter()
-    selected: list[Document] = []
+    url_to_chunks: dict[str, list[Document]] = defaultdict(list)
+    url_order: list[str] = []
 
     for chunk in chunks:
         url = (chunk.metadata or {}).get("url", "unknown")
-        if url_counts[url] < max_chunks_per_doc:
-            url_counts[url] += 1
-            selected.append(chunk)
+        if url not in url_to_chunks:
+            url_order.append(url)
+        if len(url_to_chunks[url]) < max_chunks_per_doc:
+            url_to_chunks[url].append(chunk)
+
+    selected: list[Document] = []
+    for url in url_order:
+        retained = url_to_chunks[url]
+        retained.sort(key=lambda c: int((c.metadata or {}).get("chunk_index", 0)))
+        selected.extend(retained)
 
     logger.info(
         f"Chunk capping: {len(chunks)} chunks → {len(selected)} chunks "
-        f"(max {max_chunks_per_doc} per doc, preserving discrete boundaries and rerank order)"
+        f"(max {max_chunks_per_doc} per doc, restored intra-doc narrative order)"
     )
     return selected
-
-
-def _merge_adjacent_chunks(
-    chunks: list[Document],
-    max_chunks_per_doc: int,
-    enable_merge: bool = True,
-) -> list[Document]:
-    """Compatibility alias for per-document chunk capping."""
-    if not chunks or not enable_merge:
-        return chunks
-    return _cap_chunks_per_doc(chunks, max_chunks_per_doc)
 
 
 async def _chunk_document_async(
@@ -458,21 +456,55 @@ async def _precision_mode_search(
         f"(chunked={chunked_count}, intact={kept_intact_count}) in {chunk_time_ms:.0f}ms"
     )
 
-    # 2. BM25 filter top-50 chunks
+    # 2. BM25 filter candidate mapping per query (prunes cross-product pairs)
     bm25_start = time.perf_counter()
-    bm25_filtered = await retriever_manager.bm25_retrieval_only(
-        queries=questions, documents=all_chunks, top_k=tools._BM25_TOP_K_CHUNKS
-    )
-    bm25_time_ms = (time.perf_counter() - bm25_start) * 1000
-    logger.info(f"BM25 filtering: {len(all_chunks)} chunks → {len(bm25_filtered)} chunks in {bm25_time_ms:.0f}ms")
+    query_doc_mapping: dict[str, list[tuple[Document, float]]] | None = None
+    if hasattr(retriever_manager, "bm25_retrieval_with_mapping"):
+        try:
+            res = retriever_manager.bm25_retrieval_with_mapping(
+                queries=questions,
+                documents=all_chunks,
+                top_k_per_query=min(tools._BM25_TOP_K_CHUNKS, 20),
+            )
+            if asyncio.iscoroutine(res):
+                res = await res
+            if isinstance(res, dict):
+                query_doc_mapping = res
+        except Exception as e:
+            logger.debug(f"bm25_retrieval_with_mapping failed, falling back: {e}")
+            query_doc_mapping = None
+
+    seen_ids: set[int] = set()
+    bm25_filtered: list[Document] = []
+
+    if query_doc_mapping is not None:
+        for pairs in query_doc_mapping.values():
+            if isinstance(pairs, list):
+                for item in pairs:
+                    if isinstance(item, tuple) and len(item) == 2:
+                        doc = item[0]
+                        if id(doc) not in seen_ids:
+                            seen_ids.add(id(doc))
+                            bm25_filtered.append(doc)
 
     if not bm25_filtered:
-        logger.warning("BM25 returned 0 chunks in precision mode")
-        return []
+        # Fallback to bm25_retrieval_only if mapping unavailable or returned 0 hits
+        bm25_filtered = await retriever_manager.bm25_retrieval_only(
+            queries=questions, documents=all_chunks, top_k=tools._BM25_TOP_K_CHUNKS
+        )
+        if not bm25_filtered and all_chunks:
+            bm25_filtered = all_chunks[: tools._BM25_TOP_K_CHUNKS]
+        query_doc_mapping = {q: [(doc, 1.0) for doc in bm25_filtered] for q in questions}
+
+    bm25_time_ms = (time.perf_counter() - bm25_start) * 1000
+    total_pairs = sum(len(v) for v in query_doc_mapping.values()) if query_doc_mapping else 0
+    logger.info(
+        f"BM25 mapping: {len(all_chunks)} chunks → {len(bm25_filtered)} unique docs, "
+        f"{total_pairs} rerank pairs across {len(questions)} queries in {bm25_time_ms:.0f}ms"
+    )
 
     # 3. Reranker rerank top-20 chunks, auto-degrade to BM25 on failure
     rerank_start = time.perf_counter()
-    query_doc_mapping = {q: [(doc, 1.0) for doc in bm25_filtered] for q in questions}
     degraded = False
 
     try:

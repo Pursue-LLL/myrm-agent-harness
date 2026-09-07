@@ -382,32 +382,69 @@ class LinuxBackend:
         except Exception:
             return False
 
-    async def check_permissions(self) -> PermissionStatus:
+    async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
         """Probe Linux environment readiness for desktop automation.
 
         Checks hard dependencies: xdotool (input), scrot/gnome-screenshot (capture),
-        and DISPLAY env var (X11 server connectivity).
+        and DISPLAY/Wayland. Optional functional capture when probe_capture=True.
         """
         has_xdotool = shutil.which("xdotool") is not None
         has_screenshot = shutil.which("scrot") is not None or shutil.which("gnome-screenshot") is not None
         has_display = bool(os.getenv("DISPLAY"))
+        wayland = bool(os.getenv("WAYLAND_DISPLAY"))
 
         deeplinks: dict[str, str] = {}
         if not has_xdotool:
-            deeplinks["input_tools"] = "sudo apt install -y xdotool"
+            deeplinks["accessibility"] = "https://wiki.gnome.org/Accessibility"
         if not has_screenshot:
-            deeplinks["screenshot_tools"] = "sudo apt install -y scrot"
-        if not has_display:
+            deeplinks["screen_recording"] = "https://wiki.gnome.org/Accessibility"
+        if not has_display and not wayland:
             deeplinks["display"] = "export DISPLAY=:0"
             if shutil.which("Xvfb") is None and shutil.which("xvfb-run") is None:
-                deeplinks["xvfb"] = "sudo apt install -y xvfb && Xvfb :99 -screen 0 1920x1080x24 &"
+                deeplinks["xvfb"] = "Install Xvfb or use a graphical session"
+
+        accessibility = has_xdotool and (has_display or wayland)
+        screen_recording = has_screenshot and (has_display or wayland)
+        capturable: bool | None = None
+        if probe_capture:
+            capturable = False
+            if screen_recording and has_display:
+                capturable = await asyncio.to_thread(_probe_linux_capturable)
 
         return PermissionStatus(
-            accessibility=has_xdotool and has_display,
-            screen_recording=has_screenshot and has_display,
+            accessibility=accessibility,
+            screen_recording=screen_recording,
+            screen_recording_capturable=capturable,
             platform="linux",
             settings_deeplinks=deeplinks,
         )
+
+
+def _probe_linux_capturable() -> bool:
+    """Functional capture probe via scrot or gnome-screenshot."""
+    from myrm_agent_harness.toolkits.computer_use.capture_probe import (
+        png_bytes_look_capturable,
+    )
+
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        if shutil.which("scrot"):
+            cmd = ["scrot", "-o", str(tmp_path)]
+        elif shutil.which("gnome-screenshot"):
+            cmd = ["gnome-screenshot", "-f", str(tmp_path)]
+        else:
+            return False
+        result = subprocess.run(cmd, capture_output=True, timeout=1.5, check=False)
+        if result.returncode != 0 or not tmp_path.is_file():
+            return False
+        return png_bytes_look_capturable(tmp_path.read_bytes())
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
 
 
 def _detect_linux_resolution(display_prefix: str) -> tuple[int, int]:

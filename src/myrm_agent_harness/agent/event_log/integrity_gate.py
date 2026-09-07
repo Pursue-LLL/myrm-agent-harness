@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 
 _PACKAGE = "event_log.integrity"
 
-_STEP_OPEN_TYPES = frozenset({"task_step_start", "step_start", "turn_start", "session_start"})
-_STEP_CLOSE_TYPES = frozenset({"task_step_end", "step_end", "turn_end", "session_end"})
+_STEP_OPEN_TYPES = frozenset({"task_step_start", "step_start", "turn_start"})
+_STEP_CLOSE_TYPES = frozenset({"task_step_end", "step_end", "turn_end"})
 _ENCLOSED_REQUIRED_TYPES = frozenset(
     {
         "tool_start",

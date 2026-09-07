@@ -38,7 +38,7 @@ from ._pairing import (
     _replace_tool_record,
 )
 from ._tasks_steps import _process_tasks_step
-from .trace_types import ExecutionTrace, ToolCallRecord, TraceMetadata, TraceOutcome
+from .trace_types import ExecutionTrace, ToolCallRecord, TraceAnomaly, TraceMetadata, TraceOutcome
 from .types import EventFilter, StructuredEvent
 
 if TYPE_CHECKING:
@@ -140,7 +140,88 @@ def _aggregate_events(session_id: str, events: list[StructuredEvent]) -> Executi
     elif trace.end_time > 0:
         trace.outcome = TraceOutcome.SUCCESS
 
+    trace.anomalies = _detect_trace_anomalies(trace)
     return trace
+
+
+def _detect_trace_anomalies(trace: ExecutionTrace) -> list[TraceAnomaly]:
+    """Lightweight heuristic anomaly detection for execution traces.
+
+    Runs pure rule-based diagnostics to identify:
+    1. Tool loops (consecutive failures or identical tool calls >= 3)
+    2. Prompt token surges (>200% growth and >= 16k tokens)
+    3. Model provider retries / backoffs (attempts >= 2)
+    """
+    anomalies: list[TraceAnomaly] = []
+
+    # 1. Tool loop detection
+    if len(trace.tool_calls) >= 3:
+        consecutive_count = 1
+        for i in range(1, len(trace.tool_calls)):
+            prev = trace.tool_calls[i - 1]
+            curr = trace.tool_calls[i]
+            is_same_tool = curr.tool_name == prev.tool_name
+            is_both_failed = not curr.success and not prev.success
+            is_same_input = (
+                bool(curr.input_data)
+                and curr.input_data == prev.input_data
+            )
+            if is_same_tool and (is_both_failed or is_same_input):
+                consecutive_count += 1
+                if consecutive_count >= 3:
+                    anomalies.append(
+                        TraceAnomaly(
+                            anomaly_type="tool_loop",
+                            severity="critical",
+                            message=f"Tool '{curr.tool_name}' failed or repeated consecutively {consecutive_count} times (potential loop detected).",
+                            tool_name=curr.tool_name,
+                            step_sequence=curr.sequence,
+                            details={"consecutive_count": consecutive_count, "tool_name": curr.tool_name},
+                        )
+                    )
+                    break
+            else:
+                consecutive_count = 1
+
+    # 2. Token surge detection
+    for i in range(1, len(trace.llm_calls)):
+        prev_lc = trace.llm_calls[i - 1]
+        curr_lc = trace.llm_calls[i]
+        if prev_lc.prompt_tokens > 0:
+            growth = (curr_lc.prompt_tokens - prev_lc.prompt_tokens) / prev_lc.prompt_tokens
+            if growth > 2.0 and curr_lc.prompt_tokens >= 16000:
+                anomalies.append(
+                    TraceAnomaly(
+                        anomaly_type="token_surge",
+                        severity="warning",
+                        message=f"Prompt tokens surged by {int(growth * 100)}% (to {curr_lc.prompt_tokens} tokens) in step {curr_lc.sequence}.",
+                        step_sequence=curr_lc.sequence,
+                        details={
+                            "previous_tokens": prev_lc.prompt_tokens,
+                            "current_tokens": curr_lc.prompt_tokens,
+                            "growth_ratio": round(growth, 2),
+                        },
+                    )
+                )
+                break
+
+    # 3. Provider retry / backoff detection
+    retried_calls = [
+        lc for lc in trace.llm_calls
+        if (getattr(lc, "attempt", 1) or 1) >= 2 or (getattr(lc, "retry_count", 0) or 0) >= 1
+    ]
+    if retried_calls:
+        max_attempt = max(getattr(lc, "attempt", 1) or 1 for lc in retried_calls)
+        anomalies.append(
+            TraceAnomaly(
+                anomaly_type="retry_backoff",
+                severity="warning",
+                message=f"Model provider experienced retries/backoff (max attempt: {max_attempt}) due to rate limit or transient network errors.",
+                details={"retried_call_count": len(retried_calls), "max_attempt": max_attempt},
+            )
+        )
+
+    return anomalies
 
 
 def _extract_metadata(event: StructuredEvent) -> TraceMetadata:

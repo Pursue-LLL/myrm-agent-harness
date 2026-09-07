@@ -10,6 +10,7 @@ with native desktop applications via accessibility trees (@dref) with coordinate
 |------|------|-------------|-------|
 | __init__.py | Package | Exports create_desktop_tools, create_desktop_session | ✅ |
 | types.py | Config | Shared types: ComputerAction, DesktopInteractAction, ScreenInfo, ActionResult, PermissionStatus, ExecutionMode, ForegroundPermissionCallback, ComputerUseConfig | ✅ |
+| capture_probe.py | Core | PNG capturable probe (center-sample non-black/white) for PermissionStatus.screen_recording_capturable | ✅ |
 | app_identity.py | Core | Stable trust keys: `resolve_trust_key`, `trust_key_matches` (bundle_id / win exe / linux app id) | ✅ |
 | safety.py | Core | Blocked key combos, dangerous type-text guardrails, sensitive app guard (incl. terminal/shell + SelfAppGuard via bundle_id / host names), foreground permission classification | ✅ |
 | screenshot_processor.py | Core | Binary-search downsampling pipeline | ✅ |
@@ -59,7 +60,7 @@ Agent → desktop_agent_tools (3 tools)
 5. **Platform auto-detection**: reuses `detect_platform()` from code_execution
 6. **Security & Re-validation**: shared `_revalidate_if_stale_after_approval()` after approval delay — interact verifies @dref; vision refreshes screenshot/scaler
 7. **Credential Vault integration**: `fill_credential` resolves secrets without exposing them in LLM context
-8. **Permission probing**: `DesktopSession.check_permissions()` + server `GET /webui/desktop/permissions`; Settings Doctor surfaces the same probe via `observability/diagnostics/probes.check_desktop_permissions_health` (`DesktopControl` component).
+8. **Permission probing**: `check_permissions(probe_capture=False|True)` — default grant-only; `probe_capture=True` sets `screen_recording_capturable`. Doctor uses capture probe; `GET /webui/desktop/permissions?probe_capture=true` for recheck. `all_granted` = OS grants; `capture_ready` folds capturable. Windows deeplinks never use `pip install`.
 9. **Native API routing hints**: `inspect_foreground()` appends AppleScript/COM/D-Bus hints in snapshot recommendation text
 10. **Background input (cua-driver)**: optional focus-free input proxy
 11. **Desktop control gate**: `check_app_approval` on interact and vision mutating actions; uses snapshot meta or `inspect_backend()` fallback; `check_foregroundPermission` for coordinate/healer paths with operation-scoped waiver after app approval. Server `DesktopControlGate` via `ForegroundPermissionCallback` (empty app fail-closed). LOCAL `background_strict`; sandbox auto-grants. SSE `desktop_control_approval_request` opens Desktop Inspector; resolve `POST /webui/desktop/approval/resolve`. Persist `{workspace}/.agent/desktop_control/approved_apps.json` keyed by stable `app_id` when available; list/revoke via `GET/DELETE /webui/desktop/trust/apps`

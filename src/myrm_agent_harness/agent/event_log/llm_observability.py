@@ -22,13 +22,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-PROMPT_PREVIEW_MAX_LEN = 500
+PROMPT_PREVIEW_MAX_LEN = 32768
 
 _pending_tasks: set[asyncio.Task[None]] = set()
 
 
 def build_prompt_preview(message_dicts: list[dict[str, object]], *, max_len: int = PROMPT_PREVIEW_MAX_LEN) -> str:
-    """Build a truncated preview of messages for replay — never mutates inputs."""
+    """Build a structured preview of messages for replay — never mutates inputs."""
     parts: list[str] = []
     for msg in message_dicts:
         role = msg.get("role", "?")
@@ -43,7 +43,7 @@ def build_prompt_preview(message_dicts: list[dict[str, object]], *, max_len: int
     if len(combined) <= max_len:
         return combined
     omitted = len(combined) - max_len
-    return f"{combined[:max_len]}... ({omitted} chars truncated)"
+    return f"{combined[:max_len]}\n... [truncated {omitted} chars]"
 
 
 async def record_llm_request(model_name: str, message_dicts: list[dict[str, object]]) -> None:

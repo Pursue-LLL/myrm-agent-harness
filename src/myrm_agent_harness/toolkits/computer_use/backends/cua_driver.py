@@ -256,8 +256,8 @@ class CuaDriverBackend:
     async def is_browser_active(self) -> bool:
         return await self._fallback.is_browser_active()
 
-    async def check_permissions(self) -> PermissionStatus:
-        return await self._fallback.check_permissions()
+    async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
+        return await self._fallback.check_permissions(probe_capture=probe_capture)
 
     async def wait(self, seconds: float) -> ActionResult:
         return await self._fallback.wait(seconds)

@@ -18,7 +18,15 @@ from .types import StructuredEvent
 class _PendingLLMRequest:
     """Tracks an llm_request waiting for its token_usage completion."""
 
-    __slots__ = ("message_count", "model_name", "prompt_preview", "sequence", "start_time")
+    __slots__ = (
+        "attempt",
+        "message_count",
+        "model_name",
+        "prompt_preview",
+        "retry_count",
+        "sequence",
+        "start_time",
+    )
 
     def __init__(
         self,
@@ -27,18 +35,26 @@ class _PendingLLMRequest:
         model_name: str | None,
         prompt_preview: str | None,
         message_count: int,
+        attempt: int = 1,
+        retry_count: int = 0,
     ) -> None:
         self.sequence = sequence
         self.start_time = start_time
         self.model_name = model_name
         self.prompt_preview = prompt_preview
         self.message_count = message_count
+        self.attempt = attempt
+        self.retry_count = retry_count
 
 
 def _handle_llm_request(
     event: StructuredEvent, pending_llm: list[_PendingLLMRequest]
 ) -> None:
     """Queue an llm_request waiting for its token_usage completion."""
+    raw_attempt = event.data.get("attempt") or event.data.get("retry_attempt") or 1
+    raw_retry = event.data.get("retry_count") or 0
+    attempt = int(raw_attempt) if isinstance(raw_attempt, (int, float)) else 1
+    retry_count = int(raw_retry) if isinstance(raw_retry, (int, float)) else 0
     pending_llm.append(
         _PendingLLMRequest(
             sequence=event.sequence,
@@ -46,6 +62,8 @@ def _handle_llm_request(
             model_name=_str_or_none(event.data.get("model_name")),
             prompt_preview=_str_or_none(event.data.get("prompt_preview")),
             message_count=_int_or_zero(event.data.get("message_count")),
+            attempt=attempt,
+            retry_count=retry_count,
         )
     )
 
@@ -90,6 +108,18 @@ def _handle_token_usage(
     elif "cache_read_input_tokens" in usage:
         cached_tokens = int(usage.get("cache_read_input_tokens", 0))
 
+    raw_attempt = (
+        payload_data.get("attempt")
+        or payload_data.get("retry_attempt")
+        or (pending_req.attempt if pending_req else 1)
+    )
+    attempt = int(raw_attempt) if isinstance(raw_attempt, (int, float)) else 1
+    raw_retry = (
+        payload_data.get("retry_count")
+        or (pending_req.retry_count if pending_req else 0)
+    )
+    retry_count = int(raw_retry) if isinstance(raw_retry, (int, float)) else 0
+
     trace.llm_calls.append(
         LLMCallRecord(
             sequence=sequence,
@@ -108,5 +138,7 @@ def _handle_token_usage(
             completion_tokens=int(usage.get("completion_tokens", 0)),
             total_tokens=int(usage.get("total_tokens", 0)),
             cache_read_tokens=cached_tokens,
+            attempt=attempt,
+            retry_count=retry_count,
         )
     )

@@ -27,13 +27,28 @@ class TestPermissionStatus:
         status = PermissionStatus()
         assert status.accessibility is True
         assert status.screen_recording is True
+        assert status.screen_recording_capturable is None
         assert status.all_granted is True
+        assert status.capture_ready is True
         assert status.platform == ""
         assert status.settings_deeplinks == {}
 
     def test_all_granted_both_true(self) -> None:
-        status = PermissionStatus(accessibility=True, screen_recording=True)
+        status = PermissionStatus(
+            accessibility=True,
+            screen_recording=True,
+            screen_recording_capturable=True,
+        )
         assert status.all_granted is True
+
+    def test_capture_ready_false_when_probe_fails(self) -> None:
+        status = PermissionStatus(
+            accessibility=True,
+            screen_recording=True,
+            screen_recording_capturable=False,
+        )
+        assert status.all_granted is True
+        assert status.capture_ready is False
 
     def test_all_granted_accessibility_false(self) -> None:
         status = PermissionStatus(accessibility=False, screen_recording=True)
@@ -247,13 +262,40 @@ class TestCheckMacosPermissions:
                 "myrm_agent_harness.toolkits.computer_use.backends.macos._check_screen_recording",
                 return_value=True,
             ),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos._probe_screencapture_capturable",
+                return_value=True,
+            ),
         ):
-            status = _check_macos_permissions()
+            status = _check_macos_permissions(True)
             assert status.accessibility is True
             assert status.screen_recording is True
+            assert status.screen_recording_capturable is True
             assert status.all_granted is True
             assert status.platform == "macos"
             assert status.settings_deeplinks == _MACOS_DEEPLINKS
+
+    def test_capture_not_ready(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_macos_permissions
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_accessibility",
+                return_value=True,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos._check_screen_recording",
+                return_value=True,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos._probe_screencapture_capturable",
+                return_value=False,
+            ),
+        ):
+            status = _check_macos_permissions(True)
+            assert status.screen_recording_capturable is False
+            assert status.all_granted is True
+            assert status.capture_ready is False
 
     def test_accessibility_denied(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.backends.macos import _check_macos_permissions
@@ -267,8 +309,12 @@ class TestCheckMacosPermissions:
                 "myrm_agent_harness.toolkits.computer_use.backends.macos._check_screen_recording",
                 return_value=True,
             ),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos._probe_screencapture_capturable",
+                return_value=True,
+            ),
         ):
-            status = _check_macos_permissions()
+            status = _check_macos_permissions(True)
             assert status.accessibility is False
             assert status.screen_recording is True
             assert status.all_granted is False
@@ -286,7 +332,7 @@ class TestCheckMacosPermissions:
                 return_value=False,
             ),
         ):
-            status = _check_macos_permissions()
+            status = _check_macos_permissions(True)
             assert status.accessibility is True
             assert status.screen_recording is False
             assert status.all_granted is False
@@ -303,8 +349,12 @@ class TestCheckMacosPermissions:
                 "myrm_agent_harness.toolkits.computer_use.backends.macos._check_screen_recording",
                 return_value=False,
             ),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.backends.macos._probe_screencapture_capturable",
+                return_value=False,
+            ),
         ):
-            status = _check_macos_permissions()
+            status = _check_macos_permissions(True)
             assert status.accessibility is False
             assert status.screen_recording is False
             assert status.all_granted is False
@@ -329,6 +379,7 @@ class TestMacOSBackendCheckPermissions:
         expected = PermissionStatus(
             accessibility=True,
             screen_recording=False,
+            screen_recording_capturable=False,
             platform="macos",
             settings_deeplinks={"accessibility": "url://a"},
         )

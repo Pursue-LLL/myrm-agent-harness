@@ -40,7 +40,11 @@ class LinuxAxSnapshot:
     refs: dict[str, ElementRef]
 
 
-def _try_pyatspi_snapshot(target_app: str | None = None) -> LinuxAxSnapshot | None:
+def _try_pyatspi_snapshot(
+    target_app: str | None = None,
+    query: str | None = None,
+    role: str | None = None,
+) -> LinuxAxSnapshot | None:
     try:
         import pyatspi  # type: ignore[import-untyped]
     except ImportError:
@@ -55,6 +59,9 @@ def _try_pyatspi_snapshot(target_app: str | None = None) -> LinuxAxSnapshot | No
     window_title = ""
     app_id = ""
     counter = 0
+
+    query_lower = (query or "").lower().strip()
+    role_lower = (role or "").lower().strip()
 
     def walk(node: object) -> None:
         nonlocal counter, app_name, window_title, app_id
@@ -75,26 +82,35 @@ def _try_pyatspi_snapshot(target_app: str | None = None) -> LinuxAxSnapshot | No
                 app_id = f"linux:{name.strip().lower()}"
 
         if role_name in _INTERACTIVE_ROLES:
-            try:
-                component = node.queryComponent()  # type: ignore[attr-defined]
-                extents = component.getExtents(0)  # type: ignore[attr-defined]
-            except Exception:
-                extents = None
-            if extents and extents.width > 0 and extents.height > 0:
-                ref_id = f"d{counter}"
-                refs[ref_id] = ElementRef(
-                    ref_id=ref_id,
-                    role=role_name,
-                    name=name,
-                    bbox=BBox(extents.x, extents.y, extents.width, extents.height),
-                    backend_key=str(counter),
-                    actions=(
-                        ("click", "fill")
-                        if role_name in {"text", "entry"}
-                        else ("click",)
-                    ),
-                )
-                counter += 1
+            match_query = True
+            if query_lower:
+                match_query = query_lower in name.lower()
+
+            match_role = True
+            if role_lower:
+                match_role = role_lower in role_name.lower()
+
+            if match_query and match_role:
+                try:
+                    component = node.queryComponent()  # type: ignore[attr-defined]
+                    extents = component.getExtents(0)  # type: ignore[attr-defined]
+                except Exception:
+                    extents = None
+                if extents and extents.width > 0 and extents.height > 0:
+                    ref_id = f"d{counter}"
+                    refs[ref_id] = ElementRef(
+                        ref_id=ref_id,
+                        role=role_name,
+                        name=name,
+                        bbox=BBox(extents.x, extents.y, extents.width, extents.height),
+                        backend_key=str(counter),
+                        actions=(
+                            ("click", "fill")
+                            if role_name in {"text", "entry"}
+                            else ("click",)
+                        ),
+                    )
+                    counter += 1
 
         try:
             for idx in range(node.childCount):  # type: ignore[attr-defined]
@@ -133,17 +149,20 @@ def _try_pyatspi_snapshot(target_app: str | None = None) -> LinuxAxSnapshot | No
 
 
 def capture_ax_snapshot(
-    scope: SnapshotScope, app_name: str | None = None
+    scope: SnapshotScope,
+    app_name: str | None = None,
+    query: str | None = None,
+    role: str | None = None,
 ) -> LinuxAxSnapshot:
     if scope == "target":
         if not app_name:
             raise AXTreeEmptyError("target scope requires app_name")
-        snapshot = _try_pyatspi_snapshot(target_app=app_name)
+        snapshot = _try_pyatspi_snapshot(target_app=app_name, query=query, role=role)
         if snapshot is None:
             raise AXTreeEmptyError(f"target window not found for app '{app_name}'")
         return snapshot
 
-    pyatspi_snapshot = _try_pyatspi_snapshot()
+    pyatspi_snapshot = _try_pyatspi_snapshot(query=query, role=role)
     if pyatspi_snapshot is not None:
         return pyatspi_snapshot
 

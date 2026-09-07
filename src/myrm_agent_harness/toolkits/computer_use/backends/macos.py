@@ -270,9 +270,9 @@ class MacOSBackend:
         """Check if the currently active (frontmost) window is a web browser."""
         return await asyncio.to_thread(_is_browser_active)
 
-    async def check_permissions(self) -> PermissionStatus:
+    async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
         """Probe macOS Accessibility and Screen Recording TCC permissions."""
-        return await asyncio.to_thread(_check_macos_permissions)
+        return await asyncio.to_thread(_check_macos_permissions, probe_capture)
 
 
 _AX_TEXT_SCRIPT = """
@@ -573,12 +573,42 @@ def _check_screen_recording() -> bool:
         return False
 
 
-def _check_macos_permissions() -> PermissionStatus:
+def _probe_screencapture_capturable(*, timeout_s: float = 1.5) -> bool:
+    """Functional capture probe: screencapture must yield a non-black usable PNG."""
+    from myrm_agent_harness.toolkits.computer_use.capture_probe import (
+        png_bytes_look_capturable,
+    )
+
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        result = subprocess.run(
+            ["screencapture", "-x", "-C", "-t", "png", str(tmp_path)],
+            capture_output=True,
+            timeout=timeout_s,
+            check=False,
+        )
+        if result.returncode != 0 or not tmp_path.is_file():
+            return False
+        return png_bytes_look_capturable(tmp_path.read_bytes())
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def _check_macos_permissions(probe_capture: bool = False) -> PermissionStatus:
     accessibility = _check_accessibility()
     screen_recording = _check_screen_recording()
+    capturable: bool | None = None
+    if probe_capture:
+        capturable = (
+            _probe_screencapture_capturable() if screen_recording else False
+        )
     return PermissionStatus(
         accessibility=accessibility,
         screen_recording=screen_recording,
+        screen_recording_capturable=capturable,
         platform="macos",
         settings_deeplinks=_MACOS_DEEPLINKS,
     )

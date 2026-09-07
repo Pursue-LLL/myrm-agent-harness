@@ -430,7 +430,7 @@ async def check_desktop_permissions_health() -> HealthReport:
         from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
 
         session = create_computer_session()
-        status = await session.check_permissions()
+        status = await session.check_permissions(probe_capture=True)
     except Exception as exc:
         logger.warning("Desktop permissions probe failed: %s", exc)
         return HealthReport(
@@ -452,13 +452,48 @@ async def check_desktop_permissions_health() -> HealthReport:
         missing.append("Screen Recording")
 
     platform_label = status.platform or "local"
-    if not missing:
+    capturable = getattr(status, "screen_recording_capturable", None)
+
+    if not missing and capturable is not False:
         return HealthReport(
             component_name="DesktopControl",
             status="pass",
             code="OK_DESKTOP_PERMISSIONS",
-            message="Desktop permissions are granted.",
-            detail=f"Platform: {platform_label}. Accessibility and Screen Recording are OK.",
+            message="Desktop permissions are granted and capture is ready.",
+            detail=(
+                f"Platform: {platform_label}. Accessibility, Screen Recording, "
+                "and capture probe are OK."
+            ),
+            meta_data={
+                "accessibility": status.accessibility,
+                "screen_recording": status.screen_recording,
+                "screen_recording_capturable": capturable,
+                "platform": platform_label,
+            },
+        )
+
+    if not missing and capturable is False:
+        return HealthReport(
+            component_name="DesktopControl",
+            status="warn",
+            code="WARN_DESKTOP_CAPTURE_NOT_READY",
+            message="Desktop permissions look granted but screen capture is not usable.",
+            detail=(
+                f"Platform: {platform_label}. Capture probe failed "
+                "(empty, pure-black, or timed out). Re-grant Screen Recording "
+                "and unlock the display, then recheck."
+            ),
+            fix_suggestion=(
+                "Re-enable Screen Recording for this app, unlock the display, "
+                "then recheck from Settings."
+            ),
+            meta_data={
+                "accessibility": status.accessibility,
+                "screen_recording": status.screen_recording,
+                "screen_recording_capturable": False,
+                "platform": platform_label,
+                "settings_deeplinks": status.settings_deeplinks,
+            },
         )
 
     missing_text = ", ".join(missing)
@@ -473,6 +508,7 @@ async def check_desktop_permissions_health() -> HealthReport:
             "missing": missing_text,
             "accessibility": status.accessibility,
             "screen_recording": status.screen_recording,
+            "screen_recording_capturable": capturable,
             "platform": platform_label,
             "settings_deeplinks": status.settings_deeplinks,
         },

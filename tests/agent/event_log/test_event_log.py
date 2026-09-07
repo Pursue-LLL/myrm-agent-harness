@@ -110,6 +110,7 @@ class TestPersistentEventTypes:
     def test_includes_takeover_trace(self) -> None:
         types = get_persistent_event_types()
         assert "takeover_trace" in types
+        assert "fork_point" in types
 
 
 # ============================================================================
@@ -123,10 +124,10 @@ class TestCapDataSize:
         assert _cap_data_size(data) is data
 
     def test_large_string_truncated(self) -> None:
-        data = {"big": "x" * 10000}
+        data = {"big": "x" * 100000}
         capped = _cap_data_size(data)
-        assert len(capped["big"]) < 10000  # type: ignore[arg-type]
-        assert "[truncated]" in str(capped["big"])
+        assert len(capped["big"]) < 100000  # type: ignore[arg-type]
+        assert "[truncated" in str(capped["big"])
 
     def test_non_string_values_untouched(self) -> None:
         data = {"count": 42, "items": [1, 2, 3]}

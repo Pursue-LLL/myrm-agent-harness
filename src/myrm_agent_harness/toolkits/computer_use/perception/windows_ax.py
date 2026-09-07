@@ -57,7 +57,11 @@ class WindowsAxSnapshot:
 
 
 def _collect_controls(
-    control: object, refs: dict[str, ElementRef], counter: list[int]
+    control: object,
+    refs: dict[str, ElementRef],
+    counter: list[int],
+    query: str | None = None,
+    role: str | None = None,
 ) -> None:
     if counter[0] >= _MAX_ELEMENTS:
         return
@@ -65,6 +69,9 @@ def _collect_controls(
         children = control.GetChildren()  # type: ignore[attr-defined]
     except Exception:
         return
+
+    query_lower = (query or "").lower().strip()
+    role_lower = (role or "").lower().strip()
 
     for child in children:
         if counter[0] >= _MAX_ELEMENTS:
@@ -78,27 +85,37 @@ def _collect_controls(
                 value = pattern.Value if pattern else ""
             except Exception:
                 pass
-            try:
-                rect = child.BoundingRectangle
-            except Exception:
-                rect = None
-            if rect and rect.width() > 0 and rect.height() > 0:
-                ref_id = f"d{counter[0]}"
-                refs[ref_id] = ElementRef(
-                    ref_id=ref_id,
-                    role=control_type,
-                    name=name or value,
-                    bbox=BBox(rect.left, rect.top, rect.width(), rect.height()),
-                    backend_key=str(counter[0]),
-                    actions=(
-                        ("click", "fill")
-                        if control_type == "EditControl"
-                        else ("click",)
-                    ),
-                    value=value,
-                )
-                counter[0] += 1
-        _collect_controls(child, refs, counter)
+
+            match_query = True
+            if query_lower:
+                match_query = query_lower in name.lower() or query_lower in value.lower()
+
+            match_role = True
+            if role_lower:
+                match_role = role_lower in control_type.lower()
+
+            if match_query and match_role:
+                try:
+                    rect = child.BoundingRectangle
+                except Exception:
+                    rect = None
+                if rect and rect.width() > 0 and rect.height() > 0:
+                    ref_id = f"d{counter[0]}"
+                    refs[ref_id] = ElementRef(
+                        ref_id=ref_id,
+                        role=control_type,
+                        name=name or value,
+                        bbox=BBox(rect.left, rect.top, rect.width(), rect.height()),
+                        backend_key=str(counter[0]),
+                        actions=(
+                            ("click", "fill")
+                            if control_type == "EditControl"
+                            else ("click",)
+                        ),
+                        value=value,
+                    )
+                    counter[0] += 1
+        _collect_controls(child, refs, counter, query=query, role=role)
 
 
 def _resolve_windows_app_id(control: object) -> str:
@@ -224,7 +241,10 @@ def _ensure_window_active_for_target(control: object) -> None:
 
 
 def capture_ax_snapshot(
-    scope: SnapshotScope, app_name: str | None = None
+    scope: SnapshotScope,
+    app_name: str | None = None,
+    query: str | None = None,
+    role: str | None = None,
 ) -> WindowsAxSnapshot:
     try:
         import uiautomation as auto
@@ -246,7 +266,7 @@ def capture_ax_snapshot(
     window_name = getattr(control, "Name", "") or ""
     app_id = _resolve_windows_app_id(control)
     refs: dict[str, ElementRef] = {}
-    _collect_controls(control, refs, [0])
+    _collect_controls(control, refs, [0], query=query, role=role)
     if not refs:
         raise AXTreeEmptyError(window_name or "foreground window")
 

@@ -251,20 +251,29 @@ class WindowsBackend:
         """Check if the currently active (frontmost) window is a web browser."""
         return await asyncio.to_thread(_is_browser_active_win)
 
-    async def check_permissions(self) -> PermissionStatus:
-        """Probe pyautogui/mss availability for Windows desktop automation."""
+    async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
+        """Probe Windows desktop automation readiness (runtime + optional capture)."""
         has_pyautogui = _check_import("pyautogui")
         has_mss = _check_import("mss")
 
+        # Honest OS/docs deep links — never emit pip install for packaged Desktop.
+        windows_guide = "https://support.microsoft.com/windows/accessibility"
         deeplinks: dict[str, str] = {}
         if not has_pyautogui:
-            deeplinks["input_tools"] = "pip install pyautogui"
+            deeplinks["accessibility"] = windows_guide
         if not has_mss:
-            deeplinks["screenshot_tools"] = "pip install mss"
+            deeplinks["screen_recording"] = windows_guide
+
+        capturable: bool | None = None
+        if probe_capture:
+            capturable = False
+            if has_mss:
+                capturable = await asyncio.to_thread(_probe_mss_capturable)
 
         return PermissionStatus(
             accessibility=has_pyautogui,
             screen_recording=has_mss,
+            screen_recording_capturable=capturable,
             platform="windows",
             settings_deeplinks=deeplinks,
         )
@@ -275,6 +284,26 @@ def _check_import(module_name: str) -> bool:
     from importlib.util import find_spec
 
     return find_spec(module_name) is not None
+
+
+def _probe_mss_capturable() -> bool:
+    """Functional capture probe via mss primary monitor PNG."""
+    from myrm_agent_harness.toolkits.computer_use.capture_probe import (
+        png_bytes_look_capturable,
+    )
+
+    try:
+        import mss
+        import mss.tools
+
+        with mss.mss() as sct:
+            if len(sct.monitors) < 2:
+                return False
+            img = sct.grab(sct.monitors[1])
+            png = mss.tools.to_png(img.rgb, img.size)
+        return png_bytes_look_capturable(png)
+    except Exception:
+        return False
 
 
 def _detect_screen_info() -> tuple[int, int, float]:

@@ -9,16 +9,22 @@ Google A2A 协议的框架级基础设施，与 `acp/`（IDE↔Agent）和 `mcp/
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Public A2A exports (AgentCard, AgentSkill, A2ACardResolver, …) | ✅ |
-| types.py | Core | A2A data models (AgentCard, AgentSkill, … Pydantic frozen models) | ✅ |
-| protocols.py | Core | AgentCardProvider Protocol (framework–business boundary contract) | ✅ |
+| __init__.py | Package | Public A2A exports (AgentCard, A2ATask, A2ACardResolver, A2AClient, tools, …) | ✅ |
+| types.py | Core | A2A data models (AgentCard, A2ATask, JsonRpc, Webhook Pydantic frozen models) | ✅ |
+| protocols.py | Core | AgentCardProvider & A2ATaskService Protocols (framework–business boundary) | ✅ |
+| security.py | Core | Pure HMAC-SHA256 signature calculation, verification & token sanitizers | ✅ |
 | resolver.py | Core | A2ACardResolver — discover third-party AgentCard via URL (SSRF guard + TTL cache) | ✅ |
+| client.py | Core | A2AClient — SSRF-protected JSON-RPC 2.0 outbound client for remote task execution | ✅ |
+| tools.py | Core | A2ACallTool & A2AOrchestrateTool — agent tools with 'all', 'first', 'best' fan-out | ✅ |
 
 ## 依赖关系
 
 - `types.py` ← 无外部依赖
 - `protocols.py` ← `types.py`
+- `security.py` ← 无外部依赖
 - `resolver.py` ← `types.py` + `httpx` + `core/security/http/secure_fetch.py`（`secure_get`）
+- `client.py` ← `types.py` + `httpx` + `core/security/http/secure_fetch.py`（`secure_request`）
+- `tools.py` ← `client.py` + `types.py`
 
 ## SSRF 边界
 

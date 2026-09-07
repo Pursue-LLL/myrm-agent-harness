@@ -39,16 +39,24 @@ def capture_snapshot(
     backend: ComputerBackend,
     scope: SnapshotScope,
     app_name: str | None = None,
+    query: str | None = None,
+    role: str | None = None,
 ) -> tuple[SnapshotMeta, dict[str, ElementRef]]:
     platform = type(backend).__name__
     if platform == "MacOSBackend":
-        snapshot = macos_ax.capture_ax_snapshot(scope, app_name)
+        snapshot = macos_ax.capture_ax_snapshot(
+            scope, app_name=app_name, query=query, role=role
+        )
         return snapshot.meta, snapshot.refs
     if platform == "WindowsBackend":
-        snapshot = windows_ax.capture_ax_snapshot(scope, app_name)
+        snapshot = windows_ax.capture_ax_snapshot(
+            scope, app_name=app_name, query=query, role=role
+        )
         return snapshot.meta, snapshot.refs
     if platform == "LinuxBackend":
-        snapshot = linux_ax.capture_ax_snapshot(scope, app_name)
+        snapshot = linux_ax.capture_ax_snapshot(
+            scope, app_name=app_name, query=query, role=role
+        )
         return snapshot.meta, snapshot.refs
     raise RuntimeError(f"Unsupported backend for AX snapshot: {platform}")
 

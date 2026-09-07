@@ -37,6 +37,18 @@ class TraceOutcome(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class TraceAnomaly:
+    """Heuristic anomaly detection signal in an agent execution trace."""
+
+    anomaly_type: str  # "tool_loop", "token_surge", "retry_backoff"
+    severity: str  # "warning", "critical"
+    message: str
+    tool_name: str | None = None
+    step_sequence: int | None = None
+    details: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class TraceMetadata:
     """Context dimensions extracted from event data ``_``-prefixed keys."""
 
@@ -81,6 +93,8 @@ class LLMCallRecord:
     completion_tokens: int = 0
     total_tokens: int = 0
     cache_read_tokens: int = 0
+    attempt: int = 1
+    retry_count: int = 0
 
 
 @dataclass(slots=True)
@@ -106,6 +120,7 @@ class ExecutionTrace:
     llm_calls: list[LLMCallRecord] = field(default_factory=list)
     errors: list[dict[str, object]] = field(default_factory=list)
     human_feedback: list[dict[str, object]] = field(default_factory=list)
+    anomalies: list[TraceAnomaly] = field(default_factory=list)
     first_irrecoverable_index: int | None = None
     first_irrecoverable_timestamp: float | None = None
 
@@ -159,11 +174,24 @@ class ExecutionTrace:
                     "completion_tokens": lc.completion_tokens,
                     "total_tokens": lc.total_tokens,
                     "cache_read_tokens": lc.cache_read_tokens,
+                    "attempt": lc.attempt,
+                    "retry_count": lc.retry_count,
                 }
                 for lc in self.llm_calls
             ],
             "errors": self.errors,
             "human_feedback": self.human_feedback,
+            "anomalies": [
+                {
+                    "anomaly_type": a.anomaly_type,
+                    "severity": a.severity,
+                    "message": a.message,
+                    "tool_name": a.tool_name,
+                    "step_sequence": a.step_sequence,
+                    "details": a.details,
+                }
+                for a in self.anomalies
+            ],
             "first_irrecoverable_index": self.first_irrecoverable_index,
             "first_irrecoverable_timestamp": self.first_irrecoverable_timestamp,
             "total_events": self.total_events,

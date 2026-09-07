@@ -112,13 +112,16 @@ def register_desktop_mcp_tools(
             "Required workflow: Always call desktop_snapshot_tool first to obtain current @dref "
             "element references, then call desktop_interact_tool(ref=@dref, action=...) to act on elements.\n"
             "Use scope='foreground' (default) for active window, or scope='target' with app_name to inspect "
-            "background apps. Use desktop_vision_tool only when the AX tree is empty or semantic interact fails."
+            "background apps. Use query/role to filter elements and wait_seconds to handle loading animations."
         ),
     )
     async def desktop_snapshot(
         scope: SnapshotScope = "foreground",
         app_name: str = "",
         include_screenshot: bool = False,
+        query: str = "",
+        role: str = "",
+        wait_seconds: float = 0.0,
     ) -> list[TextContent | ImageContent]:
         session = session_resolver()
         if session is None:
@@ -132,6 +135,9 @@ def register_desktop_mcp_tools(
             scope=scope,
             app_name=app_name or None,
             include_screenshot=include_screenshot,
+            query=query or None,
+            role=role or None,
+            wait_seconds=wait_seconds,
         )
         return _convert_to_mcp_content(raw_result)
 
@@ -149,6 +155,7 @@ def register_desktop_mcp_tools(
         action: DesktopInteractAction,
         text: str = "",
         modifiers: list[ModifierKey] | None = None,
+        wait_seconds: float = 0.0,
     ) -> list[TextContent | ImageContent]:
         session = session_resolver()
         if session is None:
@@ -163,6 +170,7 @@ def register_desktop_mcp_tools(
             action=action,
             text=text,
             modifiers=modifiers,
+            wait_seconds=wait_seconds,
         )
         return _convert_to_mcp_content(raw_result)
 

@@ -16,9 +16,9 @@ from myrm_agent_harness.agent.middlewares import _session_context
 
 class TestBuildPromptPreview:
     def test_truncates_long_content(self) -> None:
-        long = "x" * 600
-        preview = build_prompt_preview([{"role": "user", "content": long}], max_len=500)
-        assert len(preview) <= 530
+        long = "x" * 40000
+        preview = build_prompt_preview([{"role": "user", "content": long}], max_len=32768)
+        assert len(preview) <= 33000
         assert "truncated" in preview
 
     def test_includes_roles(self) -> None:

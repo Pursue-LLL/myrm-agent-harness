@@ -165,11 +165,20 @@ class DesktopSession(ComputerSession):
         scope: SnapshotScope = "foreground",
         app_name: str | None = None,
         include_screenshot: bool = False,
+        query: str | None = None,
+        role: str | None = None,
+        wait_seconds: float = 0.0,
     ) -> str | list[object]:
         from myrm_agent_harness.toolkits.computer_use import safety
 
+        if wait_seconds > 0:
+            effective_delay = min(max(float(wait_seconds), 0.0), 10.0)
+            await asyncio.sleep(effective_delay)
+
         try:
-            meta, refs = capture_snapshot(self._backend, scope, app_name)
+            meta, refs = capture_snapshot(
+                self._backend, scope, app_name=app_name, query=query, role=role
+            )
         except AXPermissionRequiredError as exc:
             await self._emit_permission_view_update()
             return str(exc)
@@ -248,6 +257,7 @@ class DesktopSession(ComputerSession):
         action: DesktopInteractAction,
         text: str = "",
         modifiers: list[ModifierKey] | None = None,
+        wait_seconds: float = 0.0,
     ) -> str | list[object]:
         async with self._action_lock:
             meta = self._refs.meta
@@ -327,7 +337,10 @@ class DesktopSession(ComputerSession):
                             f"{ax_result.error}; bbox fallback: {bbox_result.error}\n{remedy_hint}"
                         )
 
-                await asyncio.sleep(self._config.screenshot_delay)
+                base_delay = self._config.screenshot_delay
+                if wait_seconds > 0:
+                    base_delay += min(max(float(wait_seconds), 0.0), 10.0)
+                await asyncio.sleep(base_delay)
                 if self._refs.meta and self._refs.meta.app_name:
                     follow_up = await self.desktop_snapshot(
                         scope="target",
@@ -582,9 +595,9 @@ class DesktopSession(ComputerSession):
             meta=meta,
         )
 
-    async def check_permissions(self) -> PermissionStatus:
+    async def check_permissions(self, *, probe_capture: bool = False) -> PermissionStatus:
         """Delegate to the platform backend to probe OS-level permissions."""
-        return await super().check_permissions()
+        return await super().check_permissions(probe_capture=probe_capture)
 
     def export_registry_view(self) -> dict[str, object] | None:
         """Return last DRefRegistry snapshot for inspector/API without re-capturing AX."""

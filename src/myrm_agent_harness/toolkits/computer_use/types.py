@@ -171,18 +171,31 @@ KNOWN_BROWSER_NAMES = frozenset(
 class PermissionStatus:
     """OS-level permission status for desktop automation.
 
-    Each field indicates whether the corresponding permission is granted.
-    ``settings_deeplinks`` maps permission names to OS Settings URLs.
+    ``accessibility`` / ``screen_recording`` are OS grant signals.
+    ``screen_recording_capturable`` is optional functional capture readiness
+    (None = not probed; True/False = probe result). Empty or pure-black frames
+    count as not capturable. ``settings_deeplinks`` maps names to Settings URLs.
     """
 
     accessibility: bool = True
     screen_recording: bool = True
+    screen_recording_capturable: bool | None = None
     platform: str = ""
     settings_deeplinks: dict[str, str] = field(default_factory=dict)
 
     @property
     def all_granted(self) -> bool:
+        """OS grants only (Hermes-style ready). Capture probe is separate."""
         return self.accessibility and self.screen_recording
+
+    @property
+    def capture_ready(self) -> bool:
+        """True when grants are OK and capture probe did not fail."""
+        if not self.all_granted:
+            return False
+        if self.screen_recording_capturable is False:
+            return False
+        return True
 
 
 class ExecutionMode(Enum):

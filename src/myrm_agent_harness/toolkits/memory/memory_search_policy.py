@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
     MemorySearchBackends,
+    MemorySearchCorpus,
     MemorySearchPolicy,
-    resolve_effective_backends,
+    resolve_search_corpora,
 )
 
 __all__ = [
     "MemorySearchBackends",
+    "MemorySearchCorpus",
     "MemorySearchPolicy",
-    "resolve_effective_backends",
+    "resolve_search_corpora",
 ]
+

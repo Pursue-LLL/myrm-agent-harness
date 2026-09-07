@@ -136,11 +136,11 @@ class TestAdjacentChunkMerging:
 
         capped = _cap_chunks_per_doc(chunks, max_chunks_per_doc=3)
 
-        # 验证：按相关度保留前 3 个独立切片，第 4 个切片被截断
+        # 验证：按相关度保留前 3 个独立切片，且同一文档内部严格按 chunk_index 升序保序
         assert len(capped) == 3, f"Expected 3 capped docs, got {len(capped)}"
         assert capped[0].page_content == "Chunk 3 content"
-        assert capped[1].page_content == "Chunk 15 content"
-        assert capped[2].page_content == "Chunk 4 content"
+        assert capped[1].page_content == "Chunk 4 content"
+        assert capped[2].page_content == "Chunk 15 content"
 
     def test_cap_chunks_disabled_when_non_positive(self):
         """验证 max_chunks_per_doc <= 0 时直接返回全部切片"""
@@ -168,13 +168,15 @@ class TestAdjacentChunkMerging:
 
         selected = _cap_chunks_per_doc(chunks, max_chunks_per_doc=2)
 
-        # 验证全局顺序：必须是 URL A Top (Rank 0) -> URL B Core 1 (Rank 1) -> URL B Core 2 (Rank 2) -> URL A Tail (Rank 3)
+        # 验证全局顺序与同文档保序：
+        # URL A 为首要命中来源，其切片按 chunk_index 升序汇聚：URL A Top (chunk 0) -> URL A Tail (chunk 9)
+        # URL B 为次要命中来源，其切片按 chunk_index 升序汇聚：URL B Core 1 (chunk 1) -> URL B Core 2 (chunk 2)
         # URL B Excess Part 被截断（已达到 2 个切片限制）
         assert len(selected) == 4
         assert selected[0].page_content == "URL A Top Content"
-        assert selected[1].page_content == "URL B Core Part 1"
-        assert selected[2].page_content == "URL B Core Part 2"
-        assert selected[3].page_content == "URL A Tail Content"
+        assert selected[1].page_content == "URL A Tail Content"
+        assert selected[2].page_content == "URL B Core Part 1"
+        assert selected[3].page_content == "URL B Core Part 2"
 
 
 class TestPrecisionModePerformance:

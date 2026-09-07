@@ -56,22 +56,40 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
             default=False,
             description="Set to true only when visual layout, icons, canvas areas, or colors must be inspected alongside the AX tree.",
         )
+        query: str = Field(
+            default="",
+            description="Optional keyword query to filter and prioritize matching elements in the accessibility tree, bypassing hard element count limits.",
+        )
+        role: str = Field(
+            default="",
+            description="Optional role filter (e.g. 'button', 'text field', 'menu item') to narrow down accessibility elements.",
+        )
+        wait_seconds: float = Field(
+            default=0.0,
+            description="Optional delay in seconds (0.0-10.0) before taking the snapshot to wait for UI rendering or animations.",
+        )
 
     @tool("desktop_snapshot_tool", args_schema=SnapshotInput)
     async def desktop_snapshot(
         scope: SnapshotScope = "foreground",
         app_name: str = "",
         include_screenshot: bool = False,
+        query: str = "",
+        role: str = "",
+        wait_seconds: float = 0.0,
     ) -> str | list[object]:
         """Capture the active desktop accessibility (AX) tree with @dref element IDs.
 
         Required workflow: Always call desktop_snapshot_tool first to obtain current @dref element references, then call desktop_interact_tool(ref=@dref, action=...) to act on elements.
-        Use scope='foreground' (default) for active window, or scope='target' with app_name to inspect background apps. Use desktop_vision_tool only when the AX tree is empty or semantic interact fails.
+        Use scope='foreground' (default) for active window, or scope='target' with app_name to inspect background apps. Use query/role to filter elements and wait_seconds for animations.
         """
         result = await session.desktop_snapshot(
             scope=scope,
             app_name=app_name or None,
             include_screenshot=include_screenshot,
+            query=query or None,
+            role=role or None,
+            wait_seconds=wait_seconds,
         )
 
         warning_msg = ""
@@ -113,6 +131,10 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
             default=None,
             description="Optional modifier keys for click-based actions (e.g. ['shift'], ['ctrl']).",
         )
+        wait_seconds: float = Field(
+            default=0.0,
+            description="Optional delay in seconds (0.0-10.0) after performing the action before capturing the follow-up snapshot (useful for waiting for modal dialogs, exports, or network operations to settle).",
+        )
 
     @tool("desktop_interact_tool", args_schema=InteractInput)
     async def desktop_interact(
@@ -120,6 +142,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
         action: DesktopInteractAction,
         text: str = "",
         modifiers: list[ModifierKey] | None = None,
+        wait_seconds: float = 0.0,
     ) -> str | list[object]:
         """Perform a semantic action on a desktop element identified by @dref from desktop_snapshot_tool.
 
@@ -130,6 +153,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
             action=action,
             text=text,
             modifiers=modifiers,
+            wait_seconds=wait_seconds,
         )
 
     class VisionInput(BaseModel):

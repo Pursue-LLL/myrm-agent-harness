@@ -117,10 +117,14 @@ def _build_app_selector(target_app: str | None) -> str:
     )
 
 
-def _build_ax_snapshot_script(*, target_app: str | None = None) -> str:
+def _build_ax_snapshot_script(
+    *, target_app: str | None = None, query: str | None = None, role: str | None = None
+) -> str:
     role_filter = _applescript_string_list(_SNAPSHOT_ROLE_FILTER)
     always_emit_roles = _applescript_string_list(_SNAPSHOT_ALWAYS_EMIT_ROLES)
     app_selector = _build_app_selector(target_app)
+    query_str = (query or "").lower().strip().replace('"', '\\"')
+    role_str = (role or "").lower().strip().replace('"', '\\"')
     return f"""
 on escapeText(t)
     if t is missing value then return ""
@@ -179,7 +183,12 @@ tell application "System Events"
     end try
     try
         set maxElements to count of uiElements
-        if maxElements > {_MAX_ELEMENTS} then set maxElements to {_MAX_ELEMENTS}
+        set targetQuery to "{query_str}"
+        set targetRole to "{role_str}"
+        if targetQuery is "" and targetRole is "" then
+            if maxElements > {_MAX_ELEMENTS} then set maxElements to {_MAX_ELEMENTS}
+        end if
+        set collectedCount to 0
         repeat with i from 1 to maxElements
             set elem to item i of uiElements
             try
@@ -195,12 +204,34 @@ tell application "System Events"
                     end try
                     if elemName is missing value then set elemName to ""
                     if elemValue is missing value then set elemValue to ""
-                    if elemName is not "" or elemValue is not "" or elemRole is in {{{always_emit_roles}}} then
-                        set safeName to my escapeText(elemName)
-                        set safeValue to my escapeText(elemValue)
-                        set elemPos to position of elem
-                        set elemSize to size of elem
-                        set end of outputLines to ((i as text) & "|||" & elemRole & "|||" & safeName & "|||" & safeValue & "|||" & (item 1 of elemPos as text) & "|||" & (item 2 of elemPos as text) & "|||" & (item 1 of elemSize as text) & "|||" & (item 2 of elemSize as text))
+                    
+                    set matchQuery to true
+                    if targetQuery is not "" then
+                        set lowerName to (elemName as text)
+                        set lowerVal to (elemValue as text)
+                        if (lowerName does not contain targetQuery) and (lowerVal does not contain targetQuery) then
+                            set matchQuery to false
+                        end if
+                    end if
+                    
+                    set matchRole to true
+                    if targetRole is not "" then
+                        set lowerRole to (elemRole as text)
+                        if lowerRole does not contain targetRole then
+                            set matchRole to false
+                        end if
+                    end if
+                    
+                    if matchQuery and matchRole then
+                        if elemName is not "" or elemValue is not "" or elemRole is in {{{always_emit_roles}}} then
+                            set safeName to my escapeText(elemName)
+                            set safeValue to my escapeText(elemValue)
+                            set elemPos to position of elem
+                            set elemSize to size of elem
+                            set end of outputLines to ((i as text) & "|||" & elemRole & "|||" & safeName & "|||" & safeValue & "|||" & (item 1 of elemPos as text) & "|||" & (item 2 of elemPos as text) & "|||" & (item 1 of elemSize as text) & "|||" & (item 2 of elemSize as text))
+                            set collectedCount to collectedCount + 1
+                            if collectedCount >= {_MAX_ELEMENTS} then exit repeat
+                        end if
                     end if
                 end if
             end try
@@ -358,20 +389,32 @@ def _parse_ax_output(
 
 
 def capture_ax_snapshot(
-    scope: SnapshotScope, app_name: str | None = None
+    scope: SnapshotScope,
+    app_name: str | None = None,
+    query: str | None = None,
+    role: str | None = None,
 ) -> MacAxSnapshot:
     target_app = _resolve_target_app(scope, app_name)
 
-    if target_app is not None:
-        targeted_script = _build_ax_snapshot_script(target_app=target_app)
+    if target_app is not None or query or role:
+        script = _build_ax_snapshot_script(
+            target_app=target_app, query=query, role=role
+        )
         try:
-            result = _run_ax_snapshot(targeted_script)
-            return _parse_ax_output(result, effective_scope=scope)
-        except AXTreeEmptyError:
-            logger.info(
-                "Targeted AX snapshot for '%s' failed, falling back to foreground",
-                target_app,
+            result = _run_ax_snapshot(script)
+            return _parse_ax_output(
+                result, effective_scope=scope if target_app else "foreground"
             )
+        except AXTreeEmptyError:
+            if target_app is not None:
+                logger.info(
+                    "Targeted AX snapshot for '%s' failed, falling back to foreground",
+                    target_app,
+                )
+                if query or role:
+                    fallback_script = _build_ax_snapshot_script(query=query, role=role)
+                    result = _run_ax_snapshot(fallback_script)
+                    return _parse_ax_output(result, effective_scope="foreground")
 
     result = _run_ax_snapshot(_AX_SNAPSHOT_SCRIPT)
     return _parse_ax_output(result, effective_scope="foreground")
