@@ -454,7 +454,8 @@ async def check_desktop_permissions_health() -> HealthReport:
     platform_label = status.platform or "local"
     capturable = getattr(status, "screen_recording_capturable", None)
 
-    if not missing and capturable is not False:
+    # Same ruler as PermissionStatus.capture_ready (grants OK ∧ capturable is True).
+    if status.capture_ready:
         return HealthReport(
             component_name="DesktopControl",
             status="pass",
@@ -468,20 +469,21 @@ async def check_desktop_permissions_health() -> HealthReport:
                 "accessibility": status.accessibility,
                 "screen_recording": status.screen_recording,
                 "screen_recording_capturable": capturable,
+                "capture_ready": True,
                 "platform": platform_label,
             },
         )
 
-    if not missing and capturable is False:
+    if not missing:
         return HealthReport(
             component_name="DesktopControl",
             status="warn",
             code="WARN_DESKTOP_CAPTURE_NOT_READY",
             message="Desktop permissions look granted but screen capture is not usable.",
             detail=(
-                f"Platform: {platform_label}. Capture probe failed "
-                "(empty, pure-black, or timed out). Re-grant Screen Recording "
-                "and unlock the display, then recheck."
+                f"Platform: {platform_label}. Capture probe did not verify a usable "
+                "frame (failed, empty/pure-black, or not probed). Re-grant Screen "
+                "Recording and unlock the display, then recheck."
             ),
             fix_suggestion=(
                 "Re-enable Screen Recording for this app, unlock the display, "
@@ -490,7 +492,8 @@ async def check_desktop_permissions_health() -> HealthReport:
             meta_data={
                 "accessibility": status.accessibility,
                 "screen_recording": status.screen_recording,
-                "screen_recording_capturable": False,
+                "screen_recording_capturable": capturable,
+                "capture_ready": False,
                 "platform": platform_label,
                 "settings_deeplinks": status.settings_deeplinks,
             },

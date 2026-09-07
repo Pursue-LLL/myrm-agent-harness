@@ -24,7 +24,7 @@ SPAN_LLM_REQUEST: str = "llm.request"
 SPAN_TOOL_CALL: str = "tool.call"
 
 # Backwards-compatible alias for span names
-GEN_AI_AGENT_TURN: str = SPAN_AGENT_TURN
+GEN_AI_AGENT_TURN: str = "gen_ai.agent.turn"
 GEN_AI_SERVER_TTFT_MS: str = "gen_ai.server.ttft_ms"
 
 # --- GenAI Semantic Attributes (OTel GenAI v0.6+ SSOT) ---
@@ -48,7 +48,8 @@ GEN_AI_LATENCY_TTFT_MS: str = "gen_ai.latency.ttft_ms"
 
 # Tool Execution
 GEN_AI_TOOL_NAME: str = "gen_ai.tool.name"
-GEN_AI_TOOL_CALL_ID: str = "gen_ai.tool.call_id"
+GEN_AI_TOOL_CALL_ID: str = "gen_ai.tool.call.id"
+GEN_AI_TOOL_CALL_ID_ALIAS: str = "gen_ai.tool.call_id"
 GEN_AI_TOOL_STATUS: str = "gen_ai.tool.status"
 GEN_AI_TOOL_DURATION_MS: str = "gen_ai.tool.duration_ms"
 
@@ -131,5 +132,7 @@ def record_gen_ai_tool_call(
     span.set_attribute(GEN_AI_TOOL_STATUS, status)
     if tool_call_id:
         span.set_attribute(GEN_AI_TOOL_CALL_ID, tool_call_id)
+        # Also set call_id alias for backwards compatibility
+        span.set_attribute("gen_ai.tool.call_id", tool_call_id)
     if duration_ms is not None and duration_ms >= 0:
         span.set_attribute(GEN_AI_TOOL_DURATION_MS, round(duration_ms, 2))
