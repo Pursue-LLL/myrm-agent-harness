@@ -654,3 +654,73 @@ class TestWindowsInspectForeground:
         assert result["app_name"] == "Microsoft Excel - Book1"
         assert result["interactive_estimate"] == 1
         assert "COM/PowerShell" in result["recommendation"]
+
+
+class TestWindowsAxPatternActions:
+    """windows_ax.invoke_ax_element pattern-based branches."""
+
+    def test_invoke_toggle_pattern(self) -> None:
+        button = _make_button("DarkModeSwitch")
+        toggle_pattern = MagicMock()
+        button.GetTogglePattern.return_value = toggle_pattern
+        window = _make_window("Settings", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "SystemSettings"}, [window])
+
+        with _module_with_auto(auto) as module:
+            res = module.invoke_ax_element("0", "toggle")
+        assert res.success is True
+        toggle_pattern.Toggle.assert_called_once()
+
+    def test_invoke_expand_pattern(self) -> None:
+        button = _make_button("ProjectsFolder")
+        expand_pattern = MagicMock()
+        button.GetExpandCollapsePattern.return_value = expand_pattern
+        window = _make_window("VSCode", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "Code"}, [window])
+
+        with _module_with_auto(auto) as module:
+            res = module.invoke_ax_element("0", "expand")
+        assert res.success is True
+        expand_pattern.Expand.assert_called_once()
+
+    def test_invoke_collapse_pattern(self) -> None:
+        button = _make_button("ProjectsFolder")
+        expand_pattern = MagicMock()
+        button.GetExpandCollapsePattern.return_value = expand_pattern
+        window = _make_window("VSCode", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "Code"}, [window])
+
+        with _module_with_auto(auto) as module:
+            res = module.invoke_ax_element("0", "collapse")
+        assert res.success is True
+        expand_pattern.Collapse.assert_called_once()
+
+    def test_invoke_invoke_pattern(self) -> None:
+        button = _make_button("ExportBtn")
+        invoke_pattern = MagicMock()
+        button.GetInvokePattern.return_value = invoke_pattern
+        window = _make_window("App", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "App"}, [window])
+
+        with _module_with_auto(auto) as module:
+            res = module.invoke_ax_element("0", "invoke")
+        assert res.success is True
+        invoke_pattern.Invoke.assert_called_once()
+
+    def test_pattern_fallback_to_click_when_no_pattern(self) -> None:
+        button = _make_button("CustomItem")
+        button.GetTogglePattern.return_value = None
+        button.GetExpandCollapsePattern.return_value = None
+        button.GetInvokePattern.return_value = None
+        window = _make_window("App", 100)
+        window.GetChildren.return_value = [button]
+        auto = _make_auto({100: "App"}, [window])
+
+        with _module_with_auto(auto) as module:
+            res = module.invoke_ax_element("0", "toggle")
+        assert res.success is True
+        button.Click.assert_called_once()

@@ -6,16 +6,90 @@ Prevents metrics explosion by limiting high-cardinality labels.
 
 [OUTPUT]
 - DynamicLabelManager: 动态标签管理器
+- sanitize_metric_labels: 指标高基数防爆防火墙清洗函数
+- HIGH_CARDINALITY_LABEL_BLOCKLIST: 阻断的高散列维度名单
 
 [POS]
-Metrics cardinality control. Maintains an LRU cache for high-frequency entities and aggregates low-frequency ones as 'other'.
-
+Metrics cardinality control. Maintains an LRU cache for high-frequency entities,
+aggregates low-frequency ones as 'other', and strips unbounded high-cardinality keys.
 """
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections import OrderedDict
+from collections.abc import Mapping
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# High-cardinality label keys that must NEVER become metric dimensions.
+# These keys have unbounded cardinality (e.g. UUIDs, filesystem paths, hashes).
+# They belong in distributed Trace Spans and log contexts, NOT metric time series.
+HIGH_CARDINALITY_LABEL_BLOCKLIST: frozenset[str] = frozenset({
+    "session_id",
+    "turn_id",
+    "conversation_id",
+    "user_id",
+    "trace_id",
+    "span_id",
+    "request_id",
+    "workspace",
+    "workspace_dir",
+    "tool_call_id",
+    "filepath",
+    "file_path",
+    "command",
+})
+
+
+def sanitize_metric_labels(
+    labels: Mapping[str, Any] | None,
+    drop_blocklist: bool = True,
+    max_label_length: int = 128,
+) -> dict[str, str]:
+    """Sanitize and protect metric attributes against cardinality explosion.
+
+    1. Filters out unbounded high-cardinality identifiers (e.g. session_id, workspace).
+    2. Coerces non-string values to bounded strings.
+    3. Truncates overly long label values.
+
+    Args:
+        labels: Raw label mapping passed by caller.
+        drop_blocklist: Whether to strip known high-cardinality keys. Defaults to True.
+        max_label_length: Maximum allowed string length for any label value.
+
+    Returns:
+        Cleaned, bounded dictionary of string labels.
+    """
+    if not labels:
+        return {}
+
+    sanitized: dict[str, str] = {}
+    stripped_keys: list[str] = []
+
+    for key, value in labels.items():
+        if value is None:
+            continue
+
+        normalized_key = str(key).strip().lower()
+        if drop_blocklist and normalized_key in HIGH_CARDINALITY_LABEL_BLOCKLIST:
+            stripped_keys.append(str(key))
+            continue
+
+        str_val = str(value)
+        if len(str_val) > max_label_length:
+            str_val = str_val[:max_label_length]
+        sanitized[str(key)] = str_val
+
+    if stripped_keys and logger.isEnabledFor(logging.DEBUG):
+        logger.debug(
+            "[CardinalityFirewall] Stripped high-cardinality label(s) from metric: %s",
+            stripped_keys,
+        )
+
+    return sanitized
 
 
 class DynamicLabelManager:

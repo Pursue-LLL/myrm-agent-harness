@@ -64,6 +64,8 @@ _active_posture: dict[str, Any] = {
     "headers_configured": False,
     "exporter_type": "none",
     "degraded_reason": None,
+    "git_branch": None,
+    "git_commit": None,
 }
 
 P = ParamSpec("P")
@@ -145,8 +147,10 @@ def get_telemetry_posture() -> dict[str, object]:
         _active_posture["headers_configured"]
         or bool(parse_otlp_headers())
     )
-    exporter_type = _active_posture["exporter_type"]
-    degraded_reason = _active_posture["degraded_reason"]
+    exporter_type = _active_posture.get("exporter_type", "none")
+    degraded_reason = _active_posture.get("degraded_reason")
+    git_branch = _active_posture.get("git_branch")
+    git_commit = _active_posture.get("git_commit")
 
     status = "noop"
     if degraded_reason:
@@ -189,6 +193,8 @@ def get_telemetry_posture() -> dict[str, object]:
         "local_trace_only": local_trace_only,
         "exporter_type": exporter_type,
         "degraded_reason": degraded_reason,
+        "git_branch": git_branch,
+        "git_commit": git_commit,
         "three_tier_semantics": True,
         "prompt_cache_metering": True,
     }
@@ -249,13 +255,26 @@ def setup_tracing(
         return
 
     from .sampling import create_intelligent_sampler
+    from ..git.git_resolver import resolve_git_metadata
+
+    # Resolve VCS Git metadata via pure filesystem inspection (zero subprocess)
+    git_meta = resolve_git_metadata()
+    resource_attributes: dict[str, Any] = {
+        SERVICE_NAME: service_name,
+    }
+    if git_meta.branch:
+        resource_attributes[VCS_REF_HEAD_NAME] = git_meta.branch
+        resource_attributes[VCS_REPOSITORY_REF_TYPE] = "branch"
+    if git_meta.commit:
+        resource_attributes[VCS_REPOSITORY_CHANGE_ID] = git_meta.commit
+
+    _active_posture.update({
+        "git_branch": git_meta.branch,
+        "git_commit": git_meta.commit[:7] if git_meta.commit else None,
+    })
 
     # Create resource
-    resource = Resource(
-        attributes={
-            SERVICE_NAME: service_name,
-        }
-    )
+    resource = Resource(attributes=resource_attributes)
 
     # Create intelligent sampler (errors 100%, critical 100%, normal by rate)
     sampler = create_intelligent_sampler(base_rate=sample_rate)
@@ -492,6 +511,126 @@ def trace_async(
     return decorator
 
 
+def force_flush_tracing(timeout_ms: float = 1500.0) -> bool:
+    """Force flush active tracer provider with bounded timeout and daemon thread isolation.
+
+    Args:
+        timeout_ms: Maximum wait duration in milliseconds (default 1500ms).
+
+    Returns:
+        True if flush completed within timeout, False if it timed out or uninitialized.
+    """
+    global _tracer_provider, _initialized
+
+    if not _initialized or _tracer_provider is None:
+        return False
+
+    provider = _tracer_provider
+    if not hasattr(provider, "force_flush"):
+        return True
+
+    flush_error: list[Exception] = []
+
+    def _worker() -> None:
+        try:
+            provider.force_flush()
+        except Exception as exc:
+            flush_error.append(exc)
+
+    thread = threading.Thread(target=_worker, name="otel-tracing-bounded-flush", daemon=True)
+    thread.start()
+    timeout_sec = max(0.01, timeout_ms / 1000.0)
+    thread.join(timeout=timeout_sec)
+
+    if thread.is_alive():
+        logger.warning(
+            "Tracing provider force_flush timed out after %.1fms (daemon thread detached)",
+            timeout_ms,
+        )
+        return False
+
+    if flush_error:
+        logger.error("Error during tracing force_flush: %s", flush_error[0])
+        return False
+
+    return True
+
+
+def flush_observability(timeout_ms: float = 1500.0) -> dict[str, bool]:
+    """Concurrently flush both Tracing and Metrics providers within a unified bounded timeout.
+
+    Guarantees dual-channel isolation: if one provider hangs or encounters network delay,
+    the other completes independently without blocking the caller.
+
+    Args:
+        timeout_ms: Maximum wait duration in milliseconds (default 1500ms).
+
+    Returns:
+        Dictionary mapping provider channel ('tracing', 'metrics') to completion boolean.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    results: dict[str, bool] = {"tracing": False, "metrics": False}
+
+    def _flush_metrics() -> bool:
+        try:
+            from .metrics.exporter import force_flush_metrics
+
+            return force_flush_metrics(timeout_ms=timeout_ms)
+        except Exception:
+            return False
+
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="otel-dual-flush") as executor:
+        futures = {
+            executor.submit(force_flush_tracing, timeout_ms): "tracing",
+            executor.submit(_flush_metrics): "metrics",
+        }
+        for future in as_completed(futures):
+            key = futures[future]
+            try:
+                results[key] = future.result()
+            except Exception:
+                results[key] = False
+
+    return results
+
+
+def shutdown_observability(timeout_ms: float = 1500.0) -> dict[str, bool]:
+    """Concurrently shutdown both Tracing and Metrics providers with bounded timeout.
+
+    Args:
+        timeout_ms: Maximum wait duration in milliseconds (default 1500ms).
+
+    Returns:
+        Dictionary mapping provider channel to success status.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    results: dict[str, bool] = {"tracing": False, "metrics": False}
+
+    def _shutdown_metrics() -> bool:
+        try:
+            from .metrics.exporter import shutdown_metrics
+
+            return shutdown_metrics(timeout_ms=timeout_ms)
+        except Exception:
+            return False
+
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="otel-dual-shutdown") as executor:
+        futures = {
+            executor.submit(shutdown_tracing, timeout_ms): "tracing",
+            executor.submit(_shutdown_metrics): "metrics",
+        }
+        for future in as_completed(futures):
+            key = futures[future]
+            try:
+                results[key] = future.result()
+            except Exception:
+                results[key] = False
+
+    return results
+
+
 def shutdown_tracing(timeout_ms: float = 1500.0) -> bool:
     """Gracefully shutdown tracing provider with bounded timeout and daemon thread isolation.
 
@@ -519,6 +658,8 @@ def shutdown_tracing(timeout_ms: float = 1500.0) -> bool:
         "headers_configured": False,
         "exporter_type": "none",
         "degraded_reason": None,
+        "git_branch": None,
+        "git_commit": None,
     })
 
     if not hasattr(provider, "shutdown"):
@@ -573,5 +714,11 @@ from .gen_ai_conventions import (
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_TOTAL_TOKENS,
+    SPAN_AGENT_TURN,
+    SPAN_LLM_REQUEST,
+    SPAN_TOOL_CALL,
+    VCS_REF_HEAD_NAME,
+    VCS_REPOSITORY_CHANGE_ID,
+    VCS_REPOSITORY_REF_TYPE,
 )
 

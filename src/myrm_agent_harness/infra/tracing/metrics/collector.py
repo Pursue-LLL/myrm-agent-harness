@@ -15,15 +15,18 @@ Simplified metrics collection with automatic trace_id labeling.
 
 from __future__ import annotations
 
+from typing import Any
 from opentelemetry.metrics import Meter
 
+from .cardinality import sanitize_metric_labels
 from .meter import get_meter
 
 
 class MetricsCollector:
     """Simplified metrics collector with unified API.
 
-    Provides counter, gauge, and histogram recording with automatic labeling.
+    Provides counter, gauge, and histogram recording with automatic labeling
+    and cardinality explosion protection via CardinalityFirewall.
     """
 
     def __init__(self, meter: Meter) -> None:
@@ -32,47 +35,50 @@ class MetricsCollector:
         self._histograms: dict[str, object] = {}
         self._gauges: dict[str, object] = {}
 
-    def counter(self, name: str, value: int | float, labels: dict[str, str] | None = None) -> None:
+    def counter(self, name: str, value: int | float, labels: dict[str, Any] | None = None) -> None:
         """Record counter metric.
 
         Args:
             name: Metric name
             value: Counter value
-            labels: Optional labels
+            labels: Optional labels (sanitized against cardinality explosion)
         """
         if name not in self._counters:
             self._counters[name] = self._meter.create_counter(name)
 
+        safe_labels = sanitize_metric_labels(labels)
         counter = self._counters[name]
-        counter.add(value, attributes=labels or {})  # type: ignore[attr-defined]
+        counter.add(value, attributes=safe_labels)  # type: ignore[attr-defined]
 
-    def gauge(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
+    def gauge(self, name: str, value: float, labels: dict[str, Any] | None = None) -> None:
         """Record gauge metric (absolute value, not cumulative).
 
         Args:
             name: Metric name
             value: Gauge value (absolute, not delta)
-            labels: Optional labels
+            labels: Optional labels (sanitized against cardinality explosion)
         """
         if name not in self._gauges:
             self._gauges[name] = self._meter.create_gauge(name)
 
+        safe_labels = sanitize_metric_labels(labels)
         gauge = self._gauges[name]
-        gauge.record(value, attributes=labels or {})  # type: ignore[attr-defined]
+        gauge.record(value, attributes=safe_labels)  # type: ignore[attr-defined]
 
-    def histogram(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
+    def histogram(self, name: str, value: float, labels: dict[str, Any] | None = None) -> None:
         """Record histogram metric.
 
         Args:
             name: Metric name
             value: Histogram value
-            labels: Optional labels
+            labels: Optional labels (sanitized against cardinality explosion)
         """
         if name not in self._histograms:
             self._histograms[name] = self._meter.create_histogram(name)
 
+        safe_labels = sanitize_metric_labels(labels)
         histogram = self._histograms[name]
-        histogram.record(value, attributes=labels or {})  # type: ignore[attr-defined]
+        histogram.record(value, attributes=safe_labels)  # type: ignore[attr-defined]
 
 
 _collector: MetricsCollector | None = None

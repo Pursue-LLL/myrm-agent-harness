@@ -9,7 +9,7 @@
 - check_qdrant_health: Check Qdrant vector database reachability.
 - check_tokenizer_health: Verify tokenizer backend and CJK quality gate.
 - check_hook_health: Check hook system registration status and configuration.
-- check_desktop_permissions_health: Probe OS-level Accessibility / Screen Recording for desktop control.
+- check_desktop_permissions_health: DesktopControl probe — grants + capture (`probe_capture=True`); PASS only when capture_ready.
 - check_graph_embedding_health: Probe knowledge graph embedding engine and vector indices.
 
 [POS]
@@ -454,7 +454,7 @@ async def check_desktop_permissions_health() -> HealthReport:
     platform_label = status.platform or "local"
     capturable = status.screen_recording_capturable
 
-    # Same ruler as PermissionStatus.capture_ready (grants OK ∧ capturable is True).
+    # PASS iff PermissionStatus.capture_ready (grants OK ∧ capturable is True).
     if status.capture_ready:
         return HealthReport(
             component_name="DesktopControl",

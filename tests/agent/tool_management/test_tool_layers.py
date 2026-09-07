@@ -93,6 +93,28 @@ class TestRegisterToolLayer:
         assert get_tool_layer("web_search_tool") == ToolLayer.CORE
         register_tool_layer("web_search_tool", original)
 
+    def test_register_tool_layers_batch(self):
+        from myrm_agent_harness.agent.tool_management.tool_layers import register_tool_layers
+
+        register_tool_layers({
+            "test_batch_tool_1": ToolLayer.HIGH_PRIORITY,
+            "test_batch_tool_2": ToolLayer.EXTERNAL,
+        })
+        assert get_tool_layer("test_batch_tool_1") == ToolLayer.HIGH_PRIORITY
+        assert get_tool_layer("test_batch_tool_2") == ToolLayer.EXTERNAL
+        del _TOOL_LAYERS["test_batch_tool_1"]
+        del _TOOL_LAYERS["test_batch_tool_2"]
+
+    def test_tool_registry_register_external_layer_specs(self):
+        from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
+
+        ToolRegistry.register_external_layer_specs({
+            "test_registry_ext_tool": ToolLayer.HIGH_PRIORITY,
+        })
+        assert get_tool_layer("test_registry_ext_tool") == ToolLayer.HIGH_PRIORITY
+        del _TOOL_LAYERS["test_registry_ext_tool"]
+
+
 
 class TestHighPriorityLayerSortKey:
     def test_web_search_before_memory_block(self) -> None:

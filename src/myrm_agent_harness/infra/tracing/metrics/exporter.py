@@ -24,6 +24,7 @@ Metrics exporter configuration. Provides Console and OTLP export without the HTT
 from __future__ import annotations
 
 import logging
+import threading
 from enum import StrEnum
 from typing import Any
 
@@ -108,7 +109,25 @@ def setup_metrics(
         logger.debug("Metrics already initialized")
         return
 
-    resource = Resource(attributes={SERVICE_NAME: service_name})
+    from ...git.git_resolver import resolve_git_metadata
+    from ..gen_ai_conventions import (
+        VCS_REF_HEAD_NAME,
+        VCS_REPOSITORY_CHANGE_ID,
+        VCS_REPOSITORY_REF_TYPE,
+    )
+
+    # Resolve VCS Git metadata via pure filesystem inspection (zero subprocess)
+    git_meta = resolve_git_metadata()
+    resource_attributes: dict[str, Any] = {
+        SERVICE_NAME: service_name,
+    }
+    if git_meta.branch:
+        resource_attributes[VCS_REF_HEAD_NAME] = git_meta.branch
+        resource_attributes[VCS_REPOSITORY_REF_TYPE] = "branch"
+    if git_meta.commit:
+        resource_attributes[VCS_REPOSITORY_CHANGE_ID] = git_meta.commit
+
+    resource = Resource(attributes=resource_attributes)
 
     if exporter == MetricsExporter.CONSOLE:
         # Console exporter for development
@@ -161,22 +180,99 @@ def get_meter_provider() -> MeterProvider | None:
     return _meter_provider
 
 
-def shutdown_metrics() -> None:
-    """Gracefully shutdown metrics provider and flush buffered metrics.
+def force_flush_metrics(timeout_ms: float = 1500.0) -> bool:
+    """Force flush buffered metrics with bounded timeout and daemon thread isolation.
 
-    Call on process exit to ensure all buffered metric data points are exported.
+    Args:
+        timeout_ms: Maximum wait duration in milliseconds (default 1500ms).
+
+    Returns:
+        True if flush completed within timeout, False if it timed out or uninitialized.
     """
     global _meter_provider, _initialized
 
     if not _initialized or _meter_provider is None:
-        return
+        return False
 
-    try:
-        if hasattr(_meter_provider, "shutdown"):
-            _meter_provider.shutdown()
-        logger.info("Metrics provider shutdown complete")
-    except Exception as exc:
-        logger.error("Error during metrics shutdown: %s", exc)
-    finally:
-        _meter_provider = None
-        _initialized = False
+    provider = _meter_provider
+    if not hasattr(provider, "force_flush"):
+        return True
+
+    flush_error: list[Exception] = []
+
+    def _worker() -> None:
+        try:
+            provider.force_flush()
+        except Exception as exc:
+            flush_error.append(exc)
+
+    thread = threading.Thread(target=_worker, name="otel-metrics-bounded-flush", daemon=True)
+    thread.start()
+    timeout_sec = max(0.01, timeout_ms / 1000.0)
+    thread.join(timeout=timeout_sec)
+
+    if thread.is_alive():
+        logger.warning(
+            "Metrics force_flush timed out after %.1fms (daemon thread detached)",
+            timeout_ms,
+        )
+        return False
+
+    if flush_error:
+        logger.error("Error during metrics force_flush: %s", flush_error[0])
+        return False
+
+    return True
+
+
+def shutdown_metrics(timeout_ms: float = 1500.0) -> bool:
+    """Gracefully shutdown metrics provider with bounded timeout and daemon thread isolation.
+
+    Uses a dedicated daemon thread to invoke meter provider shutdown so that if remote
+    OTLP endpoints hang or network lags, the process/session exit is not blocked indefinitely,
+    preventing process hangs and deadlocks.
+
+    Args:
+        timeout_ms: Maximum wait duration in milliseconds (default 1500ms).
+
+    Returns:
+        True if shutdown completed within timeout, False if it timed out or was already uninitialized.
+    """
+    global _meter_provider, _initialized
+
+    if not _initialized or _meter_provider is None:
+        return False
+
+    provider = _meter_provider
+    _meter_provider = None
+    _initialized = False
+
+    if not hasattr(provider, "shutdown"):
+        return True
+
+    shutdown_error: list[Exception] = []
+
+    def _worker() -> None:
+        try:
+            provider.shutdown()
+        except Exception as exc:
+            shutdown_error.append(exc)
+
+    thread = threading.Thread(target=_worker, name="otel-metrics-bounded-shutdown", daemon=True)
+    thread.start()
+    timeout_sec = max(0.01, timeout_ms / 1000.0)
+    thread.join(timeout=timeout_sec)
+
+    if thread.is_alive():
+        logger.warning(
+            "Metrics provider shutdown timed out after %.1fms (daemon thread detached)",
+            timeout_ms,
+        )
+        return False
+
+    if shutdown_error:
+        logger.error("Error during metrics shutdown: %s", shutdown_error[0])
+        return False
+
+    logger.info("Metrics provider shutdown complete")
+    return True

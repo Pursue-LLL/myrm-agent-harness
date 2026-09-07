@@ -247,3 +247,30 @@ def test_degraded_console_posture_when_exporters_fail(monkeypatch):
 
     shutdown_tracing()
 
+
+def test_vcs_metadata_injection_in_tracing_resource():
+    """Verify VCS git branch and commit metadata is captured into resource and posture."""
+    from myrm_agent_harness.infra.tracing import (
+        get_telemetry_posture,
+        setup_tracing,
+        shutdown_tracing,
+        tracer,
+    )
+
+    shutdown_tracing()
+    setup_tracing(service_name="test-vcs-svc", console_export=True)
+
+    posture = get_telemetry_posture()
+    # If in git repo, git_branch is populated, otherwise None without crash
+    assert "git_branch" in posture
+    assert "git_commit" in posture
+    assert tracer._tracer_provider is not None
+    # Check attributes of provider's resource
+    resource_attrs = tracer._tracer_provider.resource.attributes
+    assert "service.name" in resource_attrs
+    if posture["git_branch"]:
+        assert "vcs.ref.head.name" in resource_attrs
+
+    shutdown_tracing()
+
+

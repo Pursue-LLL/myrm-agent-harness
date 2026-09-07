@@ -105,7 +105,7 @@ Server wiring: `agent._desktop_session` → `AgentGateway.get_active_desktop_ses
 | Surface | Role |
 |---------|------|
 | `GET /webui/desktop/permissions` | OS grants by default; optional `?probe_capture=true` sets `screen_recording_capturable`. Response includes `all_granted` (grants only) and `capture_ready` (grants ∧ capturable is True). Temporary session closed after probe |
-| `CuPermissionInline` (Agent config) | Three-state UX when `computer_use` is enabled locally: verified / grants-ok-unverified / missing (+ API error). First load is grant-only; Recheck uses `probe_capture=true` |
+| `CuPermissionInline` (Agent config) | Four-state UX when `computer_use` is enabled locally: verified / grants-ok-unverified / capture_failed / missing (+ API error). capture_failed = grants OK but live probe failed (honest title). First load is grant-only; Recheck uses `probe_capture=true` |
 | Settings Doctor `DesktopControl` probe | `check_desktop_permissions_health()` always runs `probe_capture=True`; PASS only when `PermissionStatus.capture_ready`; otherwise WARN for missing grants or `WARN_DESKTOP_CAPTURE_NOT_READY` |
 | Server regression | `myrm-agent-server/tests/api/health/test_doctor.py::test_desktop_control_probe_in_doctor`; `tests/api/webui/test_desktop_permissions.py` (probe session close) |
 | Frontend vitest | `DoctorDashboard.desktopControlWarn.test.tsx`; `CuPermissionInline.test.tsx`; `DesktopPermissionsCard.test.tsx` (5 cases); `DesktopControlApprovalBanner.test.tsx`; `DesktopLiveView.permissionBanner.test.tsx`; `lib/desktop/permissionDeepLink.test.ts` (6 files, 22 cases) |

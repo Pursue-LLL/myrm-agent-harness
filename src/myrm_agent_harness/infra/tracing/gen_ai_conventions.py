@@ -53,6 +53,11 @@ GEN_AI_TOOL_CALL_ID_ALIAS: str = "gen_ai.tool.call_id"
 GEN_AI_TOOL_STATUS: str = "gen_ai.tool.status"
 GEN_AI_TOOL_DURATION_MS: str = "gen_ai.tool.duration_ms"
 
+# --- VCS Semantic Conventions (OpenTelemetry Resource Attributes) ---
+VCS_REF_HEAD_NAME: str = "vcs.ref.head.name"
+VCS_REPOSITORY_CHANGE_ID: str = "vcs.repository.change.id"
+VCS_REPOSITORY_REF_TYPE: str = "vcs.repository.ref.type"
+
 
 def record_gen_ai_agent_turn(
     span: Span,

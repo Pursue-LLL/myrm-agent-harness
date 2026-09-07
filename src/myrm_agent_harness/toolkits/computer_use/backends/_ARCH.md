@@ -40,17 +40,24 @@ If cua-driver fails for any individual action, it transparently falls back to th
 - `xdotool` (Linux input simulation)
 - `cua-driver` (macOS/Windows/Linux background input, optional, MIT license)
 - `mcp` (Python MCP SDK, required only when cua-driver is used)
+- `computer_use.capture_probe` + Pillow (optional decode) when `probe_capture=True`
 
 ## check_permissions() Protocol
 
-All backends implement `check_permissions() -> PermissionStatus`. This probes OS-level
-permissions required for desktop automation:
+All backends implement `check_permissions(*, probe_capture: bool = False) -> PermissionStatus`.
 
-| Platform | Accessibility Check | Screen Recording Check |
-|----------|-------------------|----------------------|
-| **macOS** | `AXIsProcessTrusted()` via ctypes (authoritative for current process) **+ osascript capability probe** (`get name of every process whose frontmost is true`; AX snapshots execute in the osascript subprocess, whose TCC grant is a separate per-binary entry — guards the partial-grant case) | `CGPreflightScreenCaptureAccess` via ctypes (detects TCC Screen Recording denial) |
-| **Windows** | Always granted (no TCC) | Always granted (no TCC) |
-| **Linux** | Always granted (X11/Wayland has no per-app permission gate) | Always granted |
+- **Default (`probe_capture=False`)**: OS grant signals only (`accessibility`, `screen_recording`).
+  `screen_recording_capturable` stays `None`. `all_granted` ignores capturable.
+- **`probe_capture=True`**: After grants, take a short capture sample and set
+  `screen_recording_capturable` via shared `computer_use/capture_probe.py`
+  (`png_bytes_look_capturable`). Doctor and FE Recheck use this path.
+  `PermissionStatus.capture_ready` is True only when grants OK **and** capturable is True.
+- Missing Pillow → capturable False (cannot verify; never fake ready).
 
-macOS returns `settings_deeplinks` with `x-apple.systempreferences:` URLs for one-click
-navigation to System Settings → Privacy & Security.
+| Platform | Accessibility Check | Screen Recording Check | Capture sample (when probing) |
+|----------|-------------------|----------------------|-------------------------------|
+| **macOS** | `AXIsProcessTrusted()` via ctypes **+ osascript** frontmost-process capability probe (osascript is a separate TCC binary) | `CGPreflightScreenCaptureAccess` via ctypes | `screencapture` PNG → luminance gate |
+| **Windows** | Always granted (no TCC) | Always granted (no TCC) | mss/GDI PNG → luminance gate; deeplinks are OS/docs URLs only |
+| **Linux** | Always granted (no per-app TCC) | Always granted | scrot/gnome-screenshot PNG → luminance gate |
+
+macOS returns `settings_deeplinks` with `x-apple.systempreferences:` URLs for System Settings → Privacy & Security.

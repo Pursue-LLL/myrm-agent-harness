@@ -195,3 +195,45 @@ def test_setup_metrics_otlp_success():
     except (ImportError, TypeError):
         # If package not installed, should raise informative error
         pytest.skip("OTLP exporter package not installed")
+
+
+def test_sanitize_metric_labels_blocks_high_cardinality():
+    """Verify CardinalityFirewall strips unbounded keys and preserves safe keys."""
+    from myrm_agent_harness.infra.tracing.metrics import sanitize_metric_labels
+
+    raw_labels = {
+        "session_id": "sess_abc123",
+        "turn_id": "turn_001",
+        "workspace": "/home/user/my_project",
+        "tool": "bash",
+        "status": "success",
+        "count": 42,
+    }
+    sanitized = sanitize_metric_labels(raw_labels)
+
+    assert "session_id" not in sanitized
+    assert "turn_id" not in sanitized
+    assert "workspace" not in sanitized
+    assert sanitized["tool"] == "bash"
+    assert sanitized["status"] == "success"
+    assert sanitized["count"] == "42"
+
+
+def test_metrics_collector_with_cardinality_firewall():
+    """Verify MetricsCollector transparently cleans high-cardinality labels."""
+    from unittest.mock import MagicMock
+    from myrm_agent_harness.infra.tracing.metrics.collector import MetricsCollector
+
+    mock_meter = MagicMock()
+    mock_counter = MagicMock()
+    mock_meter.create_counter.return_value = mock_counter
+
+    collector = MetricsCollector(mock_meter)
+    collector.counter(
+        "agent.tool.calls",
+        1,
+        labels={"session_id": "sess-999", "tool": "file_read"},
+    )
+
+    mock_counter.add.assert_called_once_with(1, attributes={"tool": "file_read"})
+

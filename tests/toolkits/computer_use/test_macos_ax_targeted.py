@@ -294,6 +294,18 @@ class TestInvokeAxElement:
         assert not result.success
         assert "Unsupported" in result.error
 
+    def test_pattern_actions_supported(self) -> None:
+        mock_result = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="OK", stderr=""
+        )
+        with patch(
+            "myrm_agent_harness.toolkits.computer_use.perception.macos_ax.subprocess.run",
+            return_value=mock_result,
+        ):
+            for action_name in ["toggle", "expand", "collapse", "invoke", "check", "uncheck"]:
+                result = invoke_ax_element("1", action_name)
+                assert result.success
+
     def test_click_success(self) -> None:
         mock_result = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="OK", stderr=""
