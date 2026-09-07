@@ -57,9 +57,11 @@ from myrm_agent_harness.backends.skills.market_protocols import (
     SkillSearchResult,
 )
 from myrm_agent_harness.backends.skills.prerequisites import (
-    HostPrerequisitesProbe,
-    PrerequisitesCheckResult,
-    SkillPrerequisitesContract,
+    DependencyCheckItem,
+    DependencyStatus,
+    PrerequisiteProbe,
+    PrerequisiteReport,
+    SkillPrerequisites,
 )
 from myrm_agent_harness.backends.skills.memory import InMemorySkillBackend
 from myrm_agent_harness.backends.skills.permission_templates import (
@@ -119,9 +121,11 @@ __all__ = [
     "SkillInstallReceipt",
     "SkillInstallResult",
     "SkillMarketBackend",
-    "SkillPrerequisitesContract",
-    "PrerequisitesCheckResult",
-    "HostPrerequisitesProbe",
+    "SkillPrerequisites",
+    "PrerequisiteReport",
+    "PrerequisiteProbe",
+    "DependencyCheckItem",
+    "DependencyStatus",
     # Permission system
     "SkillPermission",
     "SkillResourceWriteResult",

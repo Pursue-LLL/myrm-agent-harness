@@ -93,7 +93,23 @@ CACHE_MAX_ENTRIES = 100
 CACHE_TTL_SECONDS = 300
 
 
-def _resolve_install_error(error: ValueError) -> tuple[str, str]:
+def _resolve_install_error(error: Exception) -> tuple[str, str]:
+    from myrm_agent_harness.backends.skills.scanning.path_security import (
+        CategoryBucketCollisionError,
+        PathRedirectSecurityError,
+    )
+
+    if isinstance(error, CategoryBucketCollisionError):
+        return (
+            str(error),
+            "CATEGORY_BUCKET_COLLISION",
+        )
+    if isinstance(error, PathRedirectSecurityError):
+        return (
+            str(error),
+            "PATH_REDIRECT_ATTACK",
+        )
+
     violation = classify_archive_security_issue(error)
     if violation is None:
         return str(error), ""
