@@ -66,6 +66,7 @@ class CircuitBreaker:
         self._state = CircuitState.CLOSED
         self._failure_count = 0
         self._last_failure_time: float = 0.0
+        self._last_error_reason: str | None = None
         self._half_open_calls = 0
         self._lock = threading.Lock()
 
@@ -143,6 +144,7 @@ class CircuitBreaker:
             self._state = CircuitState.CLOSED
             self._failure_count = 0
             self._half_open_calls = 0
+            self._last_error_reason = None
             logger.info("Circuit breaker reset to CLOSED state")
 
     def _transition_to_open(self) -> None:
@@ -162,7 +164,7 @@ class CircuitBreaker:
         self._failure_count = 0
         self._half_open_calls = 0
 
-    def get_stats(self) -> dict[str, int | str]:
+    def get_stats(self) -> dict[str, int | str | None]:
         """Get circuit breaker statistics.
 
         Returns:
@@ -179,6 +181,8 @@ class CircuitBreaker:
                 "failure_count": self._failure_count,
                 "half_open_calls": self._half_open_calls,
                 "retry_after_ms": retry_ms,
+                "last_failure_time": int(self._last_failure_time) if self._last_failure_time > 0 else 0,
+                "last_error_reason": self._last_error_reason,
             }
 
 
@@ -215,7 +219,7 @@ class CircuitBreakerRegistry:
         with self._lock:
             return self._breakers.get(key)
 
-    def get_all_stats(self) -> dict[str, dict[str, int | str]]:
+    def get_all_stats(self) -> dict[str, dict[str, int | str | None]]:
         """Get snapshots of all registered circuit breakers."""
         with self._lock:
             items = list(self._breakers.items())

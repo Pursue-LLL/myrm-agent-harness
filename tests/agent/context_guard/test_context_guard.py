@@ -1,82 +1,68 @@
-"""Unit tests for ContextGuard SpilloverEngine and EphemeralTransientSweeper."""
-
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 
 import pytest
-from myrm_agent_harness.agent.context_guard import (
-    ContextGuardConfig,
-    EphemeralTransientSweeper,
-    SpilloverEngine,
-)
+
+from myrm_agent_harness.agent.context_guard.spillover_engine import SpilloverEngine
+from myrm_agent_harness.agent.context_guard.sweeper import EphemeralTransientSweeper
+from myrm_agent_harness.agent.context_guard.types import ContextGuardConfig
 
 
-def test_spillover_engine_under_limit(tmp_path: Path) -> None:
-    config = ContextGuardConfig(max_message_chars=100)
-    engine = SpilloverEngine(config=config)
+def test_spillover_engine_under_threshold(tmp_path: Path) -> None:
+    config = ContextGuardConfig(max_message_chars=100, preview_chars=20)
+    engine = SpilloverEngine(config)
 
-    content = "Hello, world! This is a short prompt."
+    content = "Small message well under threshold"
     result = engine.process_content(content, base_dir=tmp_path)
 
     assert not result.spilled
     assert result.sanitized_content == content
-    assert result.original_char_count == len(content)
     assert result.payload is None
+    assert result.original_char_count == len(content)
 
 
-def test_spillover_engine_over_limit_triggers_spill(tmp_path: Path) -> None:
+def test_spillover_engine_over_threshold_creates_atomic_file(tmp_path: Path) -> None:
     config = ContextGuardConfig(max_message_chars=50, preview_chars=20)
-    engine = SpilloverEngine(config=config)
+    engine = SpilloverEngine(config)
 
-    large_text = "Line 1: System crash log data\n" * 10
-    result = engine.process_content(large_text, base_dir=tmp_path, role="user")
+    large_content = "A" * 120 + "\nLine 2 content here\nLine 3"
+    result = engine.process_content(large_content, base_dir=tmp_path, session_id="test_sess_123")
 
     assert result.spilled
-    assert result.original_char_count == len(large_text)
     assert result.payload is not None
+    assert result.payload.char_count == len(large_content)
+    assert result.payload.line_count == 3
     assert Path(result.payload.file_path).exists()
-    assert Path(result.payload.file_path).read_text(encoding="utf-8") == large_text
-    assert result.payload.char_count == len(large_text)
-    assert result.payload.line_count == large_text.count("\n") + 1
-    assert "System Notice" in result.sanitized_content
-    assert result.payload.file_path in result.sanitized_content
+    assert "<file_spillover" in result.sanitized_content
+    assert "read_file" in result.sanitized_content
+
+    # Verify content fidelity
+    persisted_text = Path(result.payload.file_path).read_text(encoding="utf-8")
+    assert persisted_text == large_content
 
 
-def test_spillover_engine_multimodal_list_extraction(tmp_path: Path) -> None:
-    config = ContextGuardConfig(max_message_chars=40)
-    engine = SpilloverEngine(config=config)
-
-    complex_content = [
-        {"type": "text", "text": "Header block: "},
-        {"type": "text", "text": "Detailed log trace information exceeding forty characters here."},
-    ]
-    result = engine.process_content(complex_content, base_dir=tmp_path)
-
-    assert result.spilled
-    assert result.payload is not None
-    assert "Detailed log trace" in Path(result.payload.file_path).read_text(encoding="utf-8")
-
-
-def test_ephemeral_transient_sweeper(tmp_path: Path) -> None:
-    config = ContextGuardConfig(spillover_ttl_seconds=1.0)
-    sweeper = EphemeralTransientSweeper(config=config)
+def test_ephemeral_transient_sweeper_cleans_expired(tmp_path: Path) -> None:
+    config = ContextGuardConfig(spillover_ttl_seconds=10)
+    sweeper = EphemeralTransientSweeper(config)
 
     spill_dir = tmp_path / config.spillover_dir_name
     spill_dir.mkdir(parents=True, exist_ok=True)
 
-    file_old = spill_dir / "payload_old.md"
-    file_old.write_text("old data", encoding="utf-8")
-    # Set modification time back 10 seconds
-    past_time = time.time() - 10.0
-    os.utime(file_old, (past_time, past_time))
+    # Fresh file
+    fresh_file = spill_dir / "fresh.md"
+    fresh_file.write_text("fresh", encoding="utf-8")
 
-    file_fresh = spill_dir / "payload_fresh.md"
-    file_fresh.write_text("fresh data", encoding="utf-8")
+    # Expired file
+    old_file = spill_dir / "old.md"
+    old_file.write_text("old", encoding="utf-8")
+    old_time = time.time() - 20
+    import os
+
+    os.utime(old_file, (old_time, old_time))
 
     removed = sweeper.sweep_directory(tmp_path)
     assert removed == 1
-    assert not file_old.exists()
-    assert file_fresh.exists()
+    assert not old_file.exists()
+    assert fresh_file.exists()

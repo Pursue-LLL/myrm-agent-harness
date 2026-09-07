@@ -29,6 +29,7 @@ class SpilloverEngine:
         base_dir: Path | str,
         role: str = "user",
         custom_prefix: str = "payload",
+        session_id: str | None = None,
     ) -> SpilloverResult:
         """Evaluate message length and adaptive token pressure.
 

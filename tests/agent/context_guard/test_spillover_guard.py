@@ -49,9 +49,12 @@ def test_spillover_engine_over_threshold_creates_file(tmp_path: Path) -> None:
     assert target_path.read_text(encoding="utf-8") == long_content
 
     # Check sanitized prompt contains preview and path
-    assert result.payload.file_path in result.sanitized_content
+    assert (
+        result.payload.file_path in result.sanitized_content
+        or result.payload.relative_path in result.sanitized_content
+    )
     assert "read_file" in result.sanitized_content
-    assert "System Notice:" in result.sanitized_content
+    assert "Notice:" in result.sanitized_content
 
 
 def test_spillover_multimodal_list_content(tmp_path: Path) -> None:

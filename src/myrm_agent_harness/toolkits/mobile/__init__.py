@@ -1,27 +1,15 @@
-"""Mobile toolkit - Wireless Android Debug Bridge and automation suite.
+"""Android Wireless ADB & Mobile Device Automation Toolkit.
 
 [INPUT]
-- types (POS: domain models, Point2D, MobileNode, ScreencapResult, SensitiveActionVerdict)
-- protocols (POS: MobileDeviceManagerProtocol, MobileInspectorProtocol, etc.)
-- device_manager (POS: MobileDeviceManager)
-- inspector (POS: MobileInspector)
-- input_controller (POS: MobileInputController)
-- app_manager (POS: MobileAppManager)
-- safety (POS: MobileSafetyBarrier)
-- mobile_bridge (POS: MobileBridge facade)
-- mobile_agent_tools (POS: optional LangChain adapter create_mobile_tools)
+- mobile_bridge::MobileBridge, create_mobile_bridge (POS: facade)
+- types::DeviceInfo, UIElementNode, MobileActionResult, MobileScreenshotResult, MobileUIDumpResult (POS: shared types)
+- protocols::MobileBridgeProtocol, MobileDeviceManagerProtocol, MobileInspectorProtocol, MobileInputControllerProtocol, MobileAppManagerProtocol (POS: contracts)
 
 [OUTPUT]
-- MobileBridge
-- MobileDeviceManager
-- MobileInspector
-- MobileInputController
-- MobileAppManager
-- MobileSafetyBarrier
-- create_mobile_tools
+- MobileBridge, create_mobile_bridge, DeviceInfo, UIElementNode, MobileActionResult, MobileScreenshotResult, MobileUIDumpResult
 
 [POS]
-Package export entry point for myrm_agent_harness.toolkits.mobile.
+Generic Android ADB automation package.
 """
 
 from __future__ import annotations
@@ -30,56 +18,50 @@ from myrm_agent_harness.toolkits.mobile.app_manager import MobileAppManager
 from myrm_agent_harness.toolkits.mobile.device_manager import MobileDeviceManager
 from myrm_agent_harness.toolkits.mobile.input_controller import MobileInputController
 from myrm_agent_harness.toolkits.mobile.inspector import MobileInspector
-from myrm_agent_harness.toolkits.mobile.mobile_agent_tools import create_mobile_tools
-from myrm_agent_harness.toolkits.mobile.mobile_bridge import MobileBridge
+from myrm_agent_harness.toolkits.mobile.mobile_bridge import (
+    MobileBridge,
+    create_mobile_bridge,
+)
 from myrm_agent_harness.toolkits.mobile.protocols import (
     MobileAppManagerProtocol,
-    MobileBridgeEngineProtocol,
+    MobileBridgeProtocol,
     MobileDeviceManagerProtocol,
     MobileInputControllerProtocol,
     MobileInspectorProtocol,
-    MobileSafetyBarrierProtocol,
 )
-from myrm_agent_harness.toolkits.mobile.safety import MobileSafetyBarrier
+from myrm_agent_harness.toolkits.mobile.safety import MobileSafetyGuard
 from myrm_agent_harness.toolkits.mobile.types import (
-    DeviceConnectionMode,
-    DeviceState,
-    ElementBounds,
-    KeyCode,
+    DeviceConnectionStatus,
+    DeviceInfo,
     MobileActionResult,
-    MobileDevice,
-    MobileHierarchy,
-    MobileNode,
-    Point2D,
-    ScreencapResult,
-    SensitiveActionVerdict,
-    TouchAction,
+    MobileActionType,
+    MobileKey,
+    MobileScreenshotResult,
+    MobileUIDumpResult,
+    TouchGesture,
+    UIElementNode,
 )
 
 __all__ = [
-    "DeviceConnectionMode",
-    "DeviceState",
-    "ElementBounds",
-    "KeyCode",
+    "DeviceConnectionStatus",
+    "DeviceInfo",
     "MobileActionResult",
+    "MobileActionType",
     "MobileAppManager",
     "MobileAppManagerProtocol",
     "MobileBridge",
-    "MobileBridgeEngineProtocol",
-    "MobileDevice",
+    "MobileBridgeProtocol",
     "MobileDeviceManager",
     "MobileDeviceManagerProtocol",
-    "MobileHierarchy",
     "MobileInputController",
     "MobileInputControllerProtocol",
     "MobileInspector",
     "MobileInspectorProtocol",
-    "MobileNode",
-    "MobileSafetyBarrier",
-    "MobileSafetyBarrierProtocol",
-    "Point2D",
-    "ScreencapResult",
-    "SensitiveActionVerdict",
-    "TouchAction",
-    "create_mobile_tools",
+    "MobileKey",
+    "MobileSafetyGuard",
+    "MobileScreenshotResult",
+    "MobileUIDumpResult",
+    "TouchGesture",
+    "UIElementNode",
+    "create_mobile_bridge",
 ]

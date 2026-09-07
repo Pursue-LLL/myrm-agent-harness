@@ -6,6 +6,7 @@ from .github import GitHubSkillSource
 from .modelscope import ModelScopeSource
 from .prebuilt import PrebuiltSkillSource
 from .skills_sh import SkillsShSource
+from .static_index import StaticIndexSkillSource
 from .wellknown import WellKnownSkillSource
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "PrebuiltSkillSource",
     "SkillSource",
     "SkillsShSource",
+    "StaticIndexSkillSource",
     "WellKnownSkillSource",
 ]
