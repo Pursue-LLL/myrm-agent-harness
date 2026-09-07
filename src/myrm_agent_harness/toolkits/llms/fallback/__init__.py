@@ -17,7 +17,12 @@ Provides sophisticated model fallback management with:
 Enhanced model fallback management. Supports cooldown periods, candidate pools, and decision logging.
 """
 
-from .circuit_breaker import CircuitBreaker, CircuitState
+from .circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerRegistry,
+    CircuitState,
+    get_circuit_breaker_registry,
+)
 from .config import PRESET_CONFIGS, ProbeConfig, get_preset_config
 from .context import (
     FailoverEmitter,
@@ -49,6 +54,7 @@ __all__ = [
     "PRESET_CONFIGS",
     "PRESET_STRATEGIES",
     "CircuitBreaker",
+    "CircuitBreakerRegistry",
     "CircuitState",
     "FailoverCallback",
     "FailoverEmitter",
@@ -69,6 +75,7 @@ __all__ = [
     "failover_emitter_ctx",
     "generate_quantified_reason",
     "get_active_failover_emitter",
+    "get_circuit_breaker_registry",
     "get_global_probe_throttle",
     "get_preset_config",
     "get_preset_strategy",
