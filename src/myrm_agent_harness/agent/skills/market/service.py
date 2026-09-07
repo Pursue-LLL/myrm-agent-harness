@@ -140,8 +140,6 @@ class SkillPreviewResult:
     installed_skills: list[str] = field(default_factory=list)
     declared_mcp_servers: list[str] = field(default_factory=list)
     prerequisites: dict[str, object] | None = None
-    """Prerequisite status evaluation report."""
-    prerequisites: dict[str, object] | None = None
     """Prerequisite status report evaluating host OS, binaries, and Python dependencies."""
 
 

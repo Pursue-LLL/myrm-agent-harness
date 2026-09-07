@@ -42,7 +42,6 @@ class SkillSearchResult:
     extra_manifest: dict[str, object] | None = None
     prerequisites: dict[str, object] | None = None
     prerequisites_report: dict[str, object] | None = None
-    prerequisites: dict[str, object] | None = None
     """Prerequisites contract and status report for host system and CLI binaries."""
 
 

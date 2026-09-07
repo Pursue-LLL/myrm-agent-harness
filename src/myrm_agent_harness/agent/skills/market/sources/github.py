@@ -39,12 +39,18 @@ GITHUB_SKILL_QUERY_SUFFIX = "SKILL.md in:path"
 class GitHubSkillSource:
     """GitHub 技能数据源
 
-    通过 GitHub Code/Repository Search API 搜索技能。
+    通过 GitHub Code/Repository Search API 搜索技能，同时支持合流 extra_taps 私有源。
     搜索策略：query + "SKILL.md in:path" 确保结果包含 SKILL.md。
     """
 
-    def __init__(self, token: str | None = None):
+    def __init__(self, token: str | None = None, extra_taps: list[Any] | None = None):
         self._token = token
+        self._tap_source = None
+        if extra_taps:
+            from myrm_agent_harness.agent.skills.market.taps import GitHubTapSource, TapSubscription
+
+            tap_subs = [t if isinstance(t, TapSubscription) else TapSubscription(**t) for t in extra_taps]
+            self._tap_source = GitHubTapSource(tap_subs)
 
     @property
     def source_name(self) -> str:
@@ -53,6 +59,13 @@ class GitHubSkillSource:
     async def search(self, query: str, limit: int = 10) -> list[SkillSearchResult]:
         search_query = f"{query} {GITHUB_SKILL_QUERY_SUFFIX}"
         headers = self._build_headers()
+
+        tap_results: list[SkillSearchResult] = []
+        if self._tap_source:
+            try:
+                tap_results = await self._tap_source.search(query, limit=limit)
+            except Exception as exc:
+                logger.warning("Tap search failed during GitHub source search: %s", exc)
 
         try:
             async with create_httpx_client(timeout=GITHUB_SEARCH_TIMEOUT) as client:
@@ -63,20 +76,23 @@ class GitHubSkillSource:
                 )
                 if resp.status_code == 403:
                     logger.warning("GitHub API rate limit exceeded")
-                    return []
+                    return tap_results[:limit]
                 if resp.status_code != 200:
                     logger.warning(f"GitHub search failed: {resp.status_code}")
-                    return []
+                    return tap_results[:limit]
 
                 data = resp.json()
-                return self._parse_code_search_results(data, limit)
+                gh_results = self._parse_code_search_results(data, limit)
+                # Combine tap results first (higher priority for custom sources)
+                combined = tap_results + [r for r in gh_results if r.id not in {t.id for t in tap_results}]
+                return combined[:limit]
 
         except httpx.TimeoutException:
             logger.warning("GitHub search timed out")
-            return []
+            return tap_results[:limit]
         except Exception as e:
             logger.warning(f"GitHub search error: {e}")
-            return []
+            return tap_results[:limit]
 
     async def get_detail(self, skill_id: str) -> SkillSearchResult | None:
         parts = skill_id.split("/", 2)
