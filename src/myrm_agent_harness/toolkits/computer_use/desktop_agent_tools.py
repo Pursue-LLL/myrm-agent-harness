@@ -135,7 +135,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
                 f"(available: {labels_str}; append '-totp' for TOTP token). "
                 "Unused for press/click/hover/focus (those activate the @dref element). "
                 "For Return/Escape/hotkeys use desktop_vision_tool action=key — never pass printable operators "
-                "('*', '/', '+') as key names; type them or click the calculator/@dref button."
+                "('*', '/', '+', '-', '%', '=') as key names; type them or click the calculator/@dref button."
             ),
         )
         modifiers: list[ModifierKey] | None = Field(
@@ -180,7 +180,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
             description=(
                 "Text to type for 'type' action, or key combination for 'key' action "
                 "(e.g. 'Return', 'Escape', 'ctrl+c'). Do not pass printable operators "
-                "('*', '/', '+') as key names — use type or click calculator/@dref via desktop_interact_tool."
+                "('*', '/', '+', '-', '%', '=') as key names — use type or click calculator/@dref via desktop_interact_tool."
             ),
         )
         scroll_direction: ScrollDirection | None = Field(

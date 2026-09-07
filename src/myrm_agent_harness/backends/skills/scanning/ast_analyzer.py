@@ -53,12 +53,17 @@ def is_python_file(file_path: str) -> bool:
     return Path(file_path).suffix.lower() in _PYTHON_EXTENSIONS
 
 
-def analyze_python_ast(source: str, file_label: str = "") -> list[AstScanFinding]:
+def analyze_python_ast(
+    source: str,
+    file_label: str = "",
+    line_offset: int = 0,
+) -> list[AstScanFinding]:
     """Analyze Python source code via AST for security threats.
 
     Args:
         source: Python source code string
         file_label: Optional label for error messages
+        line_offset: Optional line offset to adjust finding line numbers (e.g. for embedded snippets)
 
     Returns:
         List of findings (empty if clean)
@@ -69,35 +74,98 @@ def analyze_python_ast(source: str, file_label: str = "") -> list[AstScanFinding
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
+        err_lineno = (exc.lineno + line_offset) if exc.lineno is not None else None
         return [
             AstScanFinding(
                 threat_type="ast_parse_error",
                 severity="info",
                 description=f"Syntax error in {file_label or 'source'}: {exc.msg}",
-                line_number=exc.lineno,
+                line_number=err_lineno,
             )
         ]
 
-    visitor = _SecurityVisitor()
+    visitor = _SecurityVisitor(line_offset=line_offset)
     visitor.visit(tree)
     return visitor.findings
+
+
+def extract_python_blocks_from_markdown(markdown_content: str) -> list[tuple[int, str]]:
+    """Extract Python code blocks and their 1-based start line numbers from Markdown text.
+
+    Finds standard triple-backtick code blocks tagged with python/py:
+    ```python
+    code...
+    ```
+
+    Args:
+        markdown_content: Raw Markdown text
+
+    Returns:
+        List of (start_line_number, python_code_string) tuples
+    """
+    blocks: list[tuple[int, str]] = []
+    lines = markdown_content.split("\n")
+    in_python_block = False
+    current_block_lines: list[str] = []
+    block_start_line = 0
+
+    for idx, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if not in_python_block:
+            if stripped.startswith("```") and stripped.lower() in ("```python", "```py"):
+                in_python_block = True
+                block_start_line = idx  # 1-based line of opening ```python
+                current_block_lines = []
+        else:
+            if stripped.startswith("```"):
+                # End of code block
+                in_python_block = False
+                if current_block_lines:
+                    blocks.append((block_start_line, "\n".join(current_block_lines)))
+                current_block_lines = []
+            else:
+                current_block_lines.append(line)
+
+    return blocks
+
+
+def analyze_markdown_python_ast(markdown_content: str, file_label: str = "") -> list[AstScanFinding]:
+    """Extract and analyze all embedded Python code blocks from Markdown content.
+
+    Args:
+        markdown_content: Raw Markdown text containing python code blocks
+        file_label: Optional label for findings
+
+    Returns:
+        List of AstScanFinding objects with correctly mapped original line numbers
+    """
+    blocks = extract_python_blocks_from_markdown(markdown_content)
+    all_findings: list[AstScanFinding] = []
+    for start_line, code in blocks:
+        # block_start_line is the ``` line, first line of code is start_line + 1, so line_offset = start_line
+        findings = analyze_python_ast(code, file_label=file_label, line_offset=start_line)
+        all_findings.extend(findings)
+    return all_findings
 
 
 class _SecurityVisitor(ast.NodeVisitor):
     """AST visitor that detects dangerous patterns."""
 
-    __slots__ = ("findings",)
+    __slots__ = ("findings", "line_offset")
 
-    def __init__(self) -> None:
+    def __init__(self, line_offset: int = 0) -> None:
         self.findings: list[AstScanFinding] = []
+        self.line_offset = line_offset
 
     def _add(self, threat_type: str, severity: str, description: str, node: ast.AST) -> None:
+        raw_lineno = getattr(node, "lineno", None)
+        adjusted_lineno = (raw_lineno + self.line_offset) if raw_lineno is not None else None
         self.findings.append(
             AstScanFinding(
                 threat_type=threat_type,
                 severity=severity,
                 description=description,
-                line_number=getattr(node, "lineno", None),
+                line_number=adjusted_lineno,
             )
         )
 

@@ -150,7 +150,7 @@ def register_desktop_mcp_tools(
             "'press' (activate/AXPress the @dref control — not a keyboard key name), "
             "'hover', 'focus', 'scroll', 'toggle'/'check'/'uncheck', 'expand'/'collapse', 'invoke'. "
             "For Return/Escape/hotkeys use desktop_vision_tool action=key; never pass printable operators "
-            "('*', '/', '+') as key names — type them or click the calculator/@dref button."
+            "('*', '/', '+', '-', '%', '=') as key names — type them or click the calculator/@dref button."
         ),
     )
     async def desktop_interact(
