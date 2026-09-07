@@ -59,6 +59,7 @@ from myrm_agent_harness.backends.skills.market_protocols import (
 from myrm_agent_harness.backends.skills.prerequisites import (
     DependencyCheckItem,
     DependencyStatus,
+    HostPrerequisitesProbe,
     PrerequisiteProbe,
     PrerequisiteReport,
     SkillPrerequisites,
@@ -124,6 +125,7 @@ __all__ = [
     "SkillPrerequisites",
     "PrerequisiteReport",
     "PrerequisiteProbe",
+    "HostPrerequisitesProbe",
     "DependencyCheckItem",
     "DependencyStatus",
     # Permission system

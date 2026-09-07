@@ -87,3 +87,26 @@ def test_remediation_engine_known_packages() -> None:
     assert "brew install ffmpeg && brew install pandoc" in remediation["macos"]
     assert "sudo apt-get update && sudo apt-get install -y ffmpeg && sudo apt-get update && sudo apt-get install -y pandoc" in remediation["linux"]
     assert "winget install Gyan.FFmpeg && winget install JohnMacFarlane.Pandoc" in remediation["windows"]
+
+
+def test_host_prerequisite_probe_unsupported_os() -> None:
+    contract = SkillPrerequisiteContract(
+        os=["linux"],
+        binaries=[],
+        python_packages=[],
+    )
+    with patch.object(HostPrerequisiteProbe, "get_current_os", return_value="macos"):
+        report = HostPrerequisiteProbe.evaluate(contract)
+        assert report.is_satisfied is False
+        assert report.supported_os is False
+        assert "not in supported list" in report.diagnostic_message
+
+
+def test_empty_contract_evaluation() -> None:
+    contract = SkillPrerequisiteContract.from_dict(None)
+    report = HostPrerequisiteProbe.evaluate(contract)
+    assert report.is_satisfied is True
+    assert report.supported_os is True
+    assert len(report.missing_binaries) == 0
+    assert len(report.missing_python_packages) == 0
+
