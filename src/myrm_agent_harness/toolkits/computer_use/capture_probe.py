@@ -31,7 +31,8 @@ def png_bytes_look_capturable(data: bytes, *, min_bytes: int = _MIN_PNG_BYTES) -
     try:
         from PIL import Image
     except ImportError:
-        return True
+        # Missing decoder → cannot verify frame usability; never fake ready.
+        return False
 
     try:
         img = Image.open(io.BytesIO(data))

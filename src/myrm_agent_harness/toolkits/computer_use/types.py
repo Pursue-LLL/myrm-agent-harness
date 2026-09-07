@@ -190,12 +190,11 @@ class PermissionStatus:
 
     @property
     def capture_ready(self) -> bool:
-        """True when grants are OK and capture probe did not fail."""
-        if not self.all_granted:
-            return False
-        if self.screen_recording_capturable is False:
-            return False
-        return True
+        """True only when OS grants are OK and capture probe passed.
+
+        ``screen_recording_capturable is None`` (not probed) is not ready.
+        """
+        return self.all_granted and self.screen_recording_capturable is True
 
 
 class ExecutionMode(Enum):

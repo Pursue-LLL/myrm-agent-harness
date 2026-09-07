@@ -4,6 +4,7 @@
 - agent.base_agent::BaseAgent (POS: Parent agent providing llm / model_resolver)
 - agent.sub_agents.builder::resolve_llm (POS: 4-level model resolution chain)
 - agent.sub_agents.types::SubagentConfig (POS: Model routing carrier)
+- agent.skills.mcp.progress_payload::build_workflow_stage_event (POS: DW workflow_stage SSE event builder)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — str / block list / think 剥离 / reasoning 回退)
 - utils.token_economics.tracker::record_token_error (POS: Token/cost bookkeeping on failure)
 - utils.runtime.cancellation::CancellationToken
@@ -152,6 +153,8 @@ class LlmQueryTool(BaseTool):
 
     parent_agent: object
     cancel_token: object | None = None
+    event_queue: asyncio.Queue[dict[str, object]] | None = None
+    message_id: str | None = None
 
     def _run(
         self,
@@ -317,10 +320,52 @@ class LlmQueryBatchedTool(LlmQueryTool):
 
         semaphore = asyncio.Semaphore(max_concurrent)
         started = time.perf_counter()
+        total_prompts = len(prompts)
+        completed_count = 0
+        lock = asyncio.Lock()
+
+        def _emit_stage(
+            message: str,
+            *,
+            current: int,
+            progress: int,
+            level: str = "info",
+        ) -> None:
+            if self.event_queue is None or not self.message_id:
+                return
+            from myrm_agent_harness.agent.skills.mcp.progress_payload import (
+                build_workflow_stage_event,
+            )
+
+            event = build_workflow_stage_event(
+                self.message_id,
+                message,
+                category="llm_query_batched",
+                step_index=current,
+                total_steps=total_prompts,
+                progress=progress,
+                level=level,
+            )
+            try:
+                self.event_queue.put_nowait(event)
+            except Exception:
+                pass
+
+        _emit_stage(
+            f"Running {total_prompts} parallel LLM sub-queries...",
+            current=0,
+            progress=0,
+        )
 
         async def _run_one(prompt: str) -> dict[str, object]:
+            nonlocal completed_count
+            if self.cancel_token is not None and getattr(self.cancel_token, "is_cancelled", False):
+                return {"success": False, "error": "Workflow cancelled by user."}
+
             async with semaphore:
-                return await self._query_one(
+                if self.cancel_token is not None and getattr(self.cancel_token, "is_cancelled", False):
+                    return {"success": False, "error": "Workflow cancelled by user."}
+                res = await self._query_one(
                     prompt=prompt,
                     system=system,
                     model=model,
@@ -329,10 +374,35 @@ class LlmQueryBatchedTool(LlmQueryTool):
                     llm=llm,
                     model_name=model_name,
                 )
+                async with lock:
+                    completed_count += 1
+                    current = completed_count
+                pct = int((current / total_prompts) * 100) if total_prompts > 0 else 100
+                _emit_stage(
+                    f"LLM sub-queries: {current}/{total_prompts} completed.",
+                    current=current,
+                    progress=pct,
+                )
+                return res
 
         results = await asyncio.gather(*(_run_one(p) for p in prompts))
         duration_ms = (time.perf_counter() - started) * 1000
         failed = sum(1 for r in results if not r.get("success"))
+
+        if failed > 0:
+            _emit_stage(
+                f"LLM sub-queries finished: {total_prompts - failed}/{total_prompts} succeeded, {failed} failed.",
+                current=total_prompts,
+                progress=100,
+                level="warn",
+            )
+        else:
+            _emit_stage(
+                f"LLM sub-queries finished: {total_prompts}/{total_prompts} completed.",
+                current=total_prompts,
+                progress=100,
+                level="info",
+            )
 
         return {
             "success": True,

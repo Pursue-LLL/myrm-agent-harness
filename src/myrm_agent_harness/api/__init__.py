@@ -17,6 +17,9 @@ from __future__ import annotations
 from importlib import import_module
 
 __all__ = [
+    "ProviderBalanceProbeProtocol",
+    "ProviderBalanceResult",
+    "ProviderBalanceStatus",
     "SEAL_FILENAME",
     "SEAL_MAGIC_HEADER",
     "AdvisoryAck",
@@ -820,6 +823,18 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "EnvInheritPolicy": (
         "myrm_agent_harness.toolkits.code_execution.security.env_isolation",
         "EnvInheritPolicy",
+    ),
+    "ProviderBalanceProbeProtocol": (
+        "myrm_agent_harness.toolkits.llms.probe",
+        "ProviderBalanceProbeProtocol",
+    ),
+    "ProviderBalanceResult": (
+        "myrm_agent_harness.toolkits.llms.probe",
+        "ProviderBalanceResult",
+    ),
+    "ProviderBalanceStatus": (
+        "myrm_agent_harness.toolkits.llms.probe",
+        "ProviderBalanceStatus",
     ),
 }
 

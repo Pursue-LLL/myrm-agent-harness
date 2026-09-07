@@ -73,8 +73,10 @@ from .sanitizer import (
 )
 from .tracer import (
     assert_local_trace_only,
+    get_telemetry_posture,
     get_tracer,
     is_local_trace_only,
+    parse_otlp_headers,
     setup_tracing,
     shutdown_tracing,
     trace_async,
@@ -113,9 +115,11 @@ __all__ = [
     "get_current_span_id",
     "get_current_trace_id",
     "get_meter",
+    "get_telemetry_posture",
     "get_tracer",
     "inject_trace_context",
     "is_local_trace_only",
+    "parse_otlp_headers",
     "record_gen_ai_agent_turn",
     "record_gen_ai_llm_request",
     "record_gen_ai_tool_call",

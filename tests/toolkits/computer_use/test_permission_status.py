@@ -29,7 +29,7 @@ class TestPermissionStatus:
         assert status.screen_recording is True
         assert status.screen_recording_capturable is None
         assert status.all_granted is True
-        assert status.capture_ready is True
+        assert status.capture_ready is False
         assert status.platform == ""
         assert status.settings_deeplinks == {}
 
@@ -40,6 +40,16 @@ class TestPermissionStatus:
             screen_recording_capturable=True,
         )
         assert status.all_granted is True
+        assert status.capture_ready is True
+
+    def test_capture_ready_false_when_not_probed(self) -> None:
+        status = PermissionStatus(
+            accessibility=True,
+            screen_recording=True,
+            screen_recording_capturable=None,
+        )
+        assert status.all_granted is True
+        assert status.capture_ready is False
 
     def test_capture_ready_false_when_probe_fails(self) -> None:
         status = PermissionStatus(

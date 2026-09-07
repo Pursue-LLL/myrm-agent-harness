@@ -149,3 +149,33 @@ def test_record_gen_ai_semantic_conventions():
     record_gen_ai_agent_turn(non_recording)
     non_recording.set_attribute.assert_not_called()
 
+
+def test_parse_otlp_headers():
+    """Test standard W3C/OTel header string parsing."""
+    from myrm_agent_harness.infra.tracing import parse_otlp_headers
+
+    raw = "Authorization=Bearer%20secret-token,X-Custom-Header=value123,InvalidPart"
+    headers = parse_otlp_headers(raw)
+    assert headers["Authorization"] == "Bearer secret-token"
+    assert headers["X-Custom-Header"] == "value123"
+    assert "InvalidPart" not in headers
+
+
+def test_get_telemetry_posture_and_redaction(monkeypatch):
+    """Test telemetry posture probe and credential redaction."""
+    from myrm_agent_harness.infra.tracing import get_telemetry_posture
+
+    monkeypatch.setenv(
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "http://user:secretpass@apm.internal:4318/v1/traces",
+    )
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_HEADERS", "Authorization=Bearer%20abc")
+
+    posture = get_telemetry_posture()
+    assert posture["protocol"] == "http/protobuf"
+    assert posture["headers_configured"] is True
+    assert "secretpass" not in str(posture["endpoint"])
+    assert "[REDACTED]" in str(posture["endpoint"])
+    assert posture["three_tier_semantics"] is True
+    assert posture["prompt_cache_metering"] is True

@@ -78,7 +78,7 @@ Summarization LLM → 用户可读 Markdown
 | `NotifyProgressTool` | `myrm_tools.notify()` | PTC 脚本阶段进度 → SSE `workflow_stage` | 零 Turn1 bind |
 | `HumanAskTool` | `myrm_tools.human_ask()` | PTC 脚本中途向用户提问/决策门控 → 挂起并等待 PhaseWaiter 响应 | 零 Turn1 bind · 接 Server /agents/human-gate-response |
 | `LlmQueryTool` | `myrm_tools.llm_query()` | 单发轻量 LLM 直调（无子 agent / 无工具）；默认 light tier 模型；共享 delegate 预算熔断；响应提取复用 `chat_utils::extract_answer_text`（兼容 str / Anthropic block list / 内联 think 剥离 / reasoning 模型 content 空时回退 `reasoning_content`） | 复用 `resolve_llm` 4 级链路；token 记账由 adapter 层（ChatLiteLLM 非流式记账）统一处理 |
-| `LlmQueryBatchedTool` | `myrm_tools.llm_query_batched()` | 并发批量 LLM 直调（保序、单条失败隔离、硬上限 200、整批共享一次模型解析、预算熔断） | 复用 `LlmQueryTool._query_one`；同 adapter 层统一记账 |
+| `LlmQueryBatchedTool` | `myrm_tools.llm_query_batched()` | 并发批量 LLM 直调（保序、单条失败隔离、硬上限 200、整批共享一次模型解析、预算熔断；接入 `event_queue` 自动派发 `workflow_stage` 百分比进度并具备 `cancel_token` 级联安全熔断） | 复用 `LlmQueryTool._query_one`；同 adapter 层统一记账 |
 
 登记：`scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES`。完整分类见 [TOOL_MANAGEMENT_SYSTEM.md](../tool_management/TOOL_MANAGEMENT_SYSTEM.md) §内部分类。
 

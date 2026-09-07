@@ -70,7 +70,7 @@ SSE events (message / message_end / status)
 | `paths.py` | Template library | `resolve_workflow_events_db_path` — SQLite path SSOT under `{harness_root}/.myrm/workflow_events.db`. |
 | `spawn_cache.py` | Cache SSOT | `SpawnCacheParams` fingerprint for durable replay. |
 | `tools.py` | PTC Tools | `SpawnSubagentTool` (WorkflowRunGuard, cache fingerprint, ISOLATED_COPY + merge, `verification_mode` support for standard, `auditor_blind`, and `multi_skeptic` verification patterns) / `NotifyProgressTool` / `HumanAskTool` (Mid-Run Human-in-the-Loop Gate via PhaseWaiter / ask_gate) / `SteerChildTool` (`myrm_tools.steer_child` 运行时向子智能体注入引导修正指令). |
-| `llm_query_tool.py` | PTC Tools | `LlmQueryTool` / `LlmQueryBatchedTool` — 轻量 LLM 直调原语（无子 agent）；批量保序、异常隔离、共享预算熔断（token 记账由 adapter 层统一处理），且整批共享一次模型解析；响应提取复用 `utils.chat_utils::extract_answer_text`（兼容 str / Anthropic block list / 内联 think 剥离 / reasoning 模型 content 空时回退 reasoning_content） |
+| `llm_query_tool.py` | PTC Tools | `LlmQueryTool` / `LlmQueryBatchedTool` — 轻量 LLM 直调原语（无子 agent）；批量保序、异常隔离、共享预算熔断（token 记账由 adapter 层统一处理），且整批共享一次模型解析；响应提取复用 `utils.chat_utils::extract_answer_text`（兼容 str / Anthropic block list / 内联 think 剥离 / reasoning 模型 content 空时回退 reasoning_content）；接入 `event_queue` 实时派发 `llm_query_batched` 步进百分比阶段事件并具备 `cancel_token` 级联安全熔断。 |
 | `notify_stream.py` | Streaming | `iter_notify_events_while_task_runs` concurrently drains the notify queue while PTC execution runs; honors `cancel_token` cancellation. |
 | `_ARCH.md` | Doc | This architecture document. |
 

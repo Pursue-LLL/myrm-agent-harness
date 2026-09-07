@@ -487,3 +487,66 @@ async def test_ptc_batched_stub_passes_list_to_tool() -> None:
     assert '"success": true' in (result.stdout or "")
     assert "reply:q1" in (result.stdout or "")
     assert "reply:q2" in (result.stdout or "")
+
+
+@pytest.mark.asyncio
+async def test_llm_query_batched_emits_progress_events() -> None:
+    import asyncio
+    from langchain_core.messages import AIMessage
+
+    parent = MagicMock()
+    parent.model_resolver = None
+    parent.llm = AsyncMock()
+    parent.llm.ainvoke.return_value = AIMessage(content="done")
+
+    event_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+    tool = LlmQueryBatchedTool(
+        parent_agent=parent,
+        event_queue=event_queue,
+        message_id="msg_test_123",
+    )
+
+    res = await tool._arun(prompts=["p1", "p2"])
+    assert res["success"] is True
+
+    events: list[dict[str, object]] = []
+    while not event_queue.empty():
+        events.append(event_queue.get_nowait())
+
+    # Initial start + 2 progress events + 1 finish event = 4 events
+    assert len(events) == 4
+    assert events[0]["data"]["notify_category"] == "llm_query_batched"
+    assert events[0]["data"]["notify_step_index"] == 0
+    assert events[1]["data"]["notify_step_index"] == 1
+    assert events[2]["data"]["notify_step_index"] == 2
+    assert events[3]["data"]["notify_progress"] == 100
+
+
+@pytest.mark.asyncio
+async def test_llm_query_batched_honors_cancellation_cascade() -> None:
+    from langchain_core.messages import AIMessage
+
+    class MockCancelToken:
+        def __init__(self) -> None:
+            self.is_cancelled = False
+
+    cancel_token = MockCancelToken()
+    parent = MagicMock()
+    parent.model_resolver = None
+    parent.llm = AsyncMock()
+    parent.llm.ainvoke.return_value = AIMessage(content="done")
+
+    tool = LlmQueryBatchedTool(
+        parent_agent=parent,
+        cancel_token=cancel_token,
+    )
+
+    cancel_token.is_cancelled = True
+    res = await tool._arun(prompts=["p1", "p2"])
+    assert res["success"] is True
+    # Both sub-queries should be marked failed with cancellation error and no network calls
+    for item in res["results"]:
+        assert item["success"] is False
+        assert "cancelled" in item["error"].lower()
+    parent.llm.ainvoke.assert_not_called()
+

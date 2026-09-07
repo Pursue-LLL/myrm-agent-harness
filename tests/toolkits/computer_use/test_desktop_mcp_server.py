@@ -214,7 +214,9 @@ async def test_desktop_tools_execution_with_session() -> None:
     # 1. Snapshot tool
     res_snap = await server.mcp.call_tool("desktop_snapshot_tool", {"scope": "target", "app_name": "Finder"})
     assert getattr(res_snap.content[0], "text", None) == "Snapshot result"
-    mock_session.desktop_snapshot.assert_awaited_once_with(scope="target", app_name="Finder", include_screenshot=False)
+    mock_session.desktop_snapshot.assert_awaited_once_with(
+        scope="target", app_name="Finder", include_screenshot=False, query=None, role=None, wait_seconds=0.0
+    )
 
     # 2. Interact tool (ModifierKey literal allows 'ctrl', 'shift', 'alt', 'meta')
     res_int = await server.mcp.call_tool(
@@ -223,7 +225,7 @@ async def test_desktop_tools_execution_with_session() -> None:
     )
     assert getattr(res_int.content[0], "text", None) == "Interact result"
     mock_session.desktop_interact.assert_awaited_once_with(
-        ref="@dref_button", action="click", text="Submit", modifiers=["meta"]
+        ref="@dref_button", action="click", text="Submit", modifiers=["meta"], wait_seconds=0.0
     )
 
     # 3. Vision capture tool

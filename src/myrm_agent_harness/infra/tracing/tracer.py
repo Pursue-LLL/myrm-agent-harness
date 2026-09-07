@@ -15,6 +15,8 @@ Framework design:
 
 [OUTPUT]
 - setup_tracing: 初始化追踪（业务层调用）
+- get_telemetry_posture: 遥测态势探针与脱敏元数据（SRE诊断与前端卡片）
+- parse_otlp_headers: W3C/OTel 标准标头解析
 - is_local_trace_only: 本地 Trace 模式判定
 - assert_local_trace_only: 本地 Trace 零泄漏断言
 - get_tracer: 获取追踪器（框架内部使用）
@@ -63,17 +65,113 @@ T = TypeVar("T")
 
 def is_local_trace_only() -> bool:
     """Return True if local-trace-only security isolation is enforced."""
-    return os.getenv("MYRM_LOCAL_TRACE_ONLY", "").strip().lower() in ("1", "true", "yes", "on")
+    return os.getenv("MYRM_LOCAL_TRACE_ONLY", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 def assert_local_trace_only(endpoint: str | None = None) -> None:
     """Verify that no remote endpoint is configured when local-trace-only mode is active."""
-    if (is_local_trace_only()) and endpoint and not (
-        endpoint.startswith(("http://localhost", "http://127.0.0.1", "grpc://localhost", "grpc://127.0.0.1"))
+    if (
+        (is_local_trace_only())
+        and endpoint
+        and not (
+            endpoint.startswith(
+                (
+                    "http://localhost",
+                    "http://127.0.0.1",
+                    "grpc://localhost",
+                    "grpc://127.0.0.1",
+                )
+            )
+        )
     ):
         raise PermissionError(
             f"Security Policy Violation: Remote trace export to '{endpoint}' is blocked in local-trace-only mode."
         )
+
+
+def parse_otlp_headers(raw_headers: str | None = None) -> dict[str, str]:
+    """Parse W3C / OpenTelemetry standard comma-separated key=value headers string.
+
+    Supports URL-encoded characters as per OTel spec (e.g. key1=val1,key2=val2).
+    """
+    raw = (
+        raw_headers
+        if raw_headers is not None
+        else os.getenv("OTEL_EXPORTER_OTLP_HEADERS", "")
+    )
+    if not raw or not raw.strip():
+        return {}
+
+    import urllib.parse
+
+    headers: dict[str, str] = {}
+    for part in raw.split(","):
+        part = part.strip()
+        if not part or "=" not in part:
+            continue
+        k, v = part.split("=", 1)
+        key = urllib.parse.unquote(k.strip())
+        val = urllib.parse.unquote(v.strip())
+        if key:
+            headers[key] = val
+    return headers
+
+
+def get_telemetry_posture() -> dict[str, object]:
+    """Return read-only posture and health metadata of current OpenTelemetry tracing state.
+
+    Safe for SRE health probes, diagnostic status cards, and administrative introspection.
+    """
+    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+    protocol = os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf").strip().lower()
+    local_trace_only = is_local_trace_only()
+    has_headers = bool(parse_otlp_headers())
+
+    status = "noop"
+    if _initialized:
+        status = "active" if endpoint else "console"
+    elif not HAS_OTEL_SDK:
+        status = "missing_sdk"
+    elif local_trace_only:
+        status = "local_only"
+
+    # Redact endpoint credentials if present
+    sanitized_endpoint = endpoint
+    if "@" in endpoint:
+        try:
+            from urllib.parse import urlparse, urlunparse
+
+            parsed = urlparse(endpoint)
+            netloc = f"{parsed.username or ''}:[REDACTED]@{parsed.hostname}{f':{parsed.port}' if parsed.port else ''}"
+            sanitized_endpoint = urlunparse(
+                (
+                    parsed.scheme,
+                    netloc,
+                    parsed.path,
+                    parsed.params,
+                    parsed.query,
+                    parsed.fragment,
+                )
+            )
+        except Exception:
+            sanitized_endpoint = "[FILTERED]"
+
+    return {
+        "status": status,
+        "initialized": _initialized,
+        "has_sdk": HAS_OTEL_SDK,
+        "endpoint": sanitized_endpoint or None,
+        "protocol": protocol,
+        "headers_configured": has_headers,
+        "local_trace_only": local_trace_only,
+        "three_tier_semantics": True,
+        "prompt_cache_metering": True,
+    }
 
 
 def setup_tracing(
@@ -81,6 +179,8 @@ def setup_tracing(
     console_export: bool = True,
     sample_rate: float = 0.1,
     otlp_endpoint: str | None = None,
+    otlp_headers: dict[str, str] | str | None = None,
+    otlp_protocol: str | None = None,
     local_trace_only: bool = False,
 ) -> None:
     """Initialize OpenTelemetry tracing.
@@ -103,9 +203,19 @@ def setup_tracing(
     if local_trace_only or is_local_trace_only():
         assert_local_trace_only(otlp_endpoint)
         if otlp_endpoint and not (
-            otlp_endpoint.startswith(("http://localhost", "http://127.0.0.1", "grpc://localhost", "grpc://127.0.0.1"))
+            otlp_endpoint.startswith(
+                (
+                    "http://localhost",
+                    "http://127.0.0.1",
+                    "grpc://localhost",
+                    "grpc://127.0.0.1",
+                )
+            )
         ):
-            logger.warning("Local-trace-only mode active: ignoring remote OTLP endpoint '%s'", otlp_endpoint)
+            logger.warning(
+                "Local-trace-only mode active: ignoring remote OTLP endpoint '%s'",
+                otlp_endpoint,
+            )
             otlp_endpoint = None
 
     if not HAS_OTEL_SDK:
@@ -140,15 +250,82 @@ def setup_tracing(
 
     # Add exporter
     if otlp_endpoint:
-        try:
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        # Determine protocol
+        protocol = (
+            otlp_protocol
+            or os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
+            or (
+                "grpc"
+                if ":4317" in otlp_endpoint or otlp_endpoint.startswith("grpc://")
+                else "http/protobuf"
+            )
+        ).lower()
 
-            exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
-            _tracer_provider.add_span_processor(BatchSpanProcessor(exporter))
-            logger.info("OTLP trace exporter configured: %s", otlp_endpoint)
-        except (ImportError, TypeError):
-            logger.warning("opentelemetry-exporter-otlp not installed, falling back to console")
-            _tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+        # Resolve headers
+        headers_dict: dict[str, str] = {}
+        if isinstance(otlp_headers, dict):
+            headers_dict = dict(otlp_headers)
+        elif isinstance(otlp_headers, str):
+            headers_dict = parse_otlp_headers(otlp_headers)
+        else:
+            headers_dict = parse_otlp_headers()
+
+        exporter_created = False
+        # Try HTTP/Protobuf first if protocol is http or endpoint matches http(s)
+        if "http" in protocol or protocol == "http/protobuf":
+            try:
+                from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+                    OTLPSpanExporter as HttpOTLPSpanExporter,
+                )
+
+                exporter_kwargs: dict[str, Any] = {"endpoint": otlp_endpoint}
+                if headers_dict:
+                    exporter_kwargs["headers"] = headers_dict
+
+                http_exporter = HttpOTLPSpanExporter(**exporter_kwargs)
+                _tracer_provider.add_span_processor(BatchSpanProcessor(http_exporter))
+                exporter_created = True
+                logger.info(
+                    "OTLP HTTP trace exporter configured: %s (headers=%d)",
+                    otlp_endpoint,
+                    len(headers_dict),
+                )
+            except (ImportError, TypeError, Exception) as exc:
+                logger.debug(
+                    "Failed to initialize OTLP HTTP exporter, falling back to gRPC/console: %s",
+                    exc,
+                )
+
+        if not exporter_created:
+            try:
+                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                    OTLPSpanExporter,
+                )
+
+                grpc_kwargs: dict[str, Any] = {"endpoint": otlp_endpoint}
+                # Check if TLS should be used
+                if otlp_endpoint.startswith("https://"):
+                    grpc_kwargs["insecure"] = False
+                elif not otlp_endpoint.startswith("http://"):
+                    grpc_kwargs["insecure"] = True
+                else:
+                    grpc_kwargs["insecure"] = True
+
+                if headers_dict:
+                    grpc_kwargs["headers"] = tuple(headers_dict.items())
+
+                exporter = OTLPSpanExporter(**grpc_kwargs)
+                _tracer_provider.add_span_processor(BatchSpanProcessor(exporter))
+                exporter_created = True
+                logger.info("OTLP gRPC trace exporter configured: %s", otlp_endpoint)
+            except (ImportError, TypeError, Exception) as exc:
+                logger.warning(
+                    "opentelemetry-exporter-otlp not usable (%s), falling back to console",
+                    exc,
+                )
+                _tracer_provider.add_span_processor(
+                    BatchSpanProcessor(ConsoleSpanExporter())
+                )
     elif console_export:
         _tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
 
@@ -156,7 +333,9 @@ def setup_tracing(
     trace.set_tracer_provider(_tracer_provider)
 
     _initialized = True
-    logger.info("Tracing initialized: service=%s, sample_rate=%.1f", service_name, sample_rate)
+    logger.info(
+        "Tracing initialized: service=%s, sample_rate=%.1f", service_name, sample_rate
+    )
 
 
 def is_tracing_initialized() -> bool:
@@ -333,4 +512,3 @@ GEN_AI_TOOL_CALL_ID = "gen_ai.tool.call.id"
 GEN_AI_TOOL_STATUS = "gen_ai.tool.status"
 GEN_AI_AGENT_TURN = "gen_ai.agent.turn"
 GEN_AI_SERVER_TTFT_MS = "gen_ai.server.ttft_ms"
-

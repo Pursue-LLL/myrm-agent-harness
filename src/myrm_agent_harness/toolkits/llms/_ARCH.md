@@ -16,6 +16,7 @@ Toolkits Llms module.
 
 | Submodule | Description |
 |-----------|-------------|
+| probe/ | Lightweight provider balance probe contracts and normalized data models. |
 | consensus/ | Multi-model consensus (MoA) inference — parallel reference queries + aggregator synthesis (arXiv:2406.04692). |
 | _media_shared/ | Shared across video/ and image/ modules. Keeps media-specific logic |
 | adapters/ | LLM layer: LangChain , messageconverts, handles, toolcallsparse, Schema normalize; **wire/** Responses API transport |

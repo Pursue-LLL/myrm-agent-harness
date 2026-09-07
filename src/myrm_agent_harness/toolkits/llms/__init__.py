@@ -13,6 +13,11 @@ if TYPE_CHECKING:
     )
     from .errors.resilient import resilient_llm_call
     from .fallback import FallbackModel, ManagedLLM, ScenarioType
+    from .probe import (
+        ProviderBalanceProbeProtocol,
+        ProviderBalanceResult,
+        ProviderBalanceStatus,
+    )
 
 __all__ = [
     "ChatLiteLLM",
@@ -21,6 +26,9 @@ __all__ = [
     "FallbackModel",
     "LLMManager",
     "ManagedLLM",
+    "ProviderBalanceProbeProtocol",
+    "ProviderBalanceResult",
+    "ProviderBalanceStatus",
     "ScenarioType",
     "classify_error",
     "create_litellm_model",
@@ -36,6 +44,18 @@ _LAZY_IMPORTS = {
     "CredentialPoolStrategy": (
         "myrm_agent_harness.toolkits.llms.core.credential_pool",
         "CredentialPoolStrategy",
+    ),
+    "ProviderBalanceProbeProtocol": (
+        "myrm_agent_harness.toolkits.llms.probe",
+        "ProviderBalanceProbeProtocol",
+    ),
+    "ProviderBalanceResult": (
+        "myrm_agent_harness.toolkits.llms.probe",
+        "ProviderBalanceResult",
+    ),
+    "ProviderBalanceStatus": (
+        "myrm_agent_harness.toolkits.llms.probe",
+        "ProviderBalanceStatus",
     ),
     "create_litellm_model": (
         "myrm_agent_harness.toolkits.llms.core.llm",

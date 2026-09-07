@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import builtins
 import io
+
+import pytest
 
 from myrm_agent_harness.toolkits.computer_use.capture_probe import png_bytes_look_capturable
 
@@ -42,3 +45,21 @@ def test_rejects_pure_white() -> None:
 
 def test_accepts_varied_frame() -> None:
     assert png_bytes_look_capturable(_varied_png()) is True
+
+
+def test_rejects_when_pillow_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    data = _varied_png()
+    for mod in [k for k in sys.modules if k == "PIL" or k.startswith("PIL.")]:
+        monkeypatch.delitem(sys.modules, mod, raising=False)
+
+    real_import = builtins.__import__
+
+    def _block_pil(name: str, *args: object, **kwargs: object) -> object:
+        if name == "PIL" or name.startswith("PIL."):
+            raise ImportError("blocked for test")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _block_pil)
+    assert png_bytes_look_capturable(data) is False

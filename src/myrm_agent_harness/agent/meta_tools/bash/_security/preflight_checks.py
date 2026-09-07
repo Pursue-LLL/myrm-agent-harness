@@ -15,7 +15,8 @@ check_install_packages: Verify install package names exist on public registries.
 
 [POS]
 Security preflight for bash commands. Validates URLs against data exfiltration,
-blocks access to sensitive paths (.ssh, .aws, etc.), blocks myrm_tools in bash (command AST,
+blocks access to sensitive paths (.ssh, .aws, etc.), blocks destructive workspace commands
+(git reset --hard, rm -rf *, git clean, etc.), blocks myrm_tools in bash (command AST,
 referenced script files under workspace), detects interactive commands that would hang in a non-TTY environment, and verifies
 package names in install commands against public registries (anti-slopsquatting).
 """
@@ -374,14 +375,14 @@ _DESTRUCTIVE_COMMAND_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
     (
         re.compile(
-            r"\bgit\s+checkout\s+(?:-[a-zA-Z]+\s+|--force\s+)*(?:--\s+)?(?:\.|\-\-)(?:[\s;&|]|$)",
+            r"\bgit\s+checkout\s+(?:-[a-zA-Z]+\s+|--force\s+)*(?:--\s+)?\.(?:[\s;&|]|$)",
             re.IGNORECASE,
         ),
-        "git checkout . / --",
+        "git checkout .",
     ),
     (
         re.compile(
-            r"\bgit\s+restore\s+(?:[^\n;&|]*\s+)?(?:\.|\*|--worktree\b)(?:[\s;&|]|$)",
+            r"\bgit\s+restore\s+(?:[^\n;&|]*\s+)?(?:\.|\*)(?:[\s;&|]|$)",
             re.IGNORECASE,
         ),
         "git restore . / *",
@@ -408,6 +409,80 @@ def _strip_quotes_for_destructive_check(text: str) -> str:
     return cleaned
 
 
+def _detect_destructive_tokens(segment: str) -> str | None:
+    """Token-based semantic detection to catch flag permutations and argument displacement."""
+    tokens = segment.strip().split()
+    if not tokens:
+        return None
+
+    # Git command inspection
+    if "git" in tokens:
+        git_idx = tokens.index("git")
+        args = tokens[git_idx + 1 :]
+        if args:
+            subcmd_idx = 0
+            while subcmd_idx < len(args) and args[subcmd_idx].startswith("-"):
+                if args[subcmd_idx] in ("-C", "-c", "--git-dir", "--work-tree") and subcmd_idx + 1 < len(args):
+                    subcmd_idx += 2
+                else:
+                    subcmd_idx += 1
+
+            if subcmd_idx < len(args):
+                subcmd = args[subcmd_idx]
+                sub_args = args[subcmd_idx + 1 :]
+
+                if subcmd == "reset":
+                    for arg in sub_args:
+                        if arg in ("--hard", "--merge"):
+                            return f"git reset {arg}"
+
+                elif subcmd == "checkout":
+                    target_tokens = set(sub_args)
+                    if "." in target_tokens and "-b" not in sub_args and "-B" not in sub_args:
+                        return "git checkout ."
+
+                elif subcmd == "restore":
+                    target_tokens = set(sub_args)
+                    if "." in target_tokens or "*" in target_tokens:
+                        return "git restore ."
+
+                elif subcmd == "clean":
+                    flags: set[str] = set()
+                    for arg in sub_args:
+                        if arg.startswith("-") and not arg.startswith("--"):
+                            flags.update(arg[1:])
+                        elif arg in ("--force", "-f"):
+                            flags.add("f")
+                    if "f" in flags and ("d" in flags or "x" in flags):
+                        return "git clean -fd"
+
+    # rm command inspection
+    if "rm" in tokens:
+        rm_idx = tokens.index("rm")
+        if rm_idx == 0 or tokens[rm_idx - 1] in ("sudo", "env", "xargs", "do", "then") or any(t == "xargs" for t in tokens[:rm_idx]):
+            rm_args = tokens[rm_idx + 1 :]
+            rm_flags: set[str] = set()
+            targets: list[str] = []
+            for arg in rm_args:
+                if arg == "--":
+                    continue
+                if arg.startswith("-") and not arg.startswith("--"):
+                    rm_flags.update(arg[1:])
+                elif arg in ("--recursive", "-r", "-R"):
+                    rm_flags.add("r")
+                elif arg in ("--force", "-f"):
+                    rm_flags.add("f")
+                else:
+                    targets.append(arg)
+
+            if "r" in rm_flags and "f" in rm_flags:
+                for t in targets:
+                    if t in ("*", ".", "/", "./", "./*", ".*"):
+                        return f"rm -rf {t}"
+
+    return None
+
+
 def check_destructive_commands(command: str) -> None:
     """Block destructive commands that irreversibly wipe workspace state.
 
@@ -422,10 +497,12 @@ def check_destructive_commands(command: str) -> None:
 
     for candidate in candidates:
         sanitized = _strip_quotes_for_destructive_check(candidate)
+
+        # 1. Fast regex scan
         for pattern, label in _DESTRUCTIVE_COMMAND_PATTERNS:
             if pattern.search(sanitized):
                 logger.warning(
-                    "Destructive workspace command blocked: %s in %s",
+                    "Destructive workspace command blocked (regex): %s in %s",
                     label,
                     command[:100],
                 )
@@ -435,7 +512,32 @@ def check_destructive_commands(command: str) -> None:
                     "If the user explicitly requested resetting the workspace, please ask the user for confirmation.",
                     user_hint=(
                         f"Destructive command '{label}' is prohibited to protect uncommitted changes. "
-                        "Inspect errors and resolve issues without wiping the workspace."
+                        "Inspect errors and resolve issues without wiping the workspace. "
+                        "If you need to discard changes in a specific file, use git checkout -- <file> or target the specific file."
+                    ),
+                    diagnostic_info={
+                        "destructive_command_prohibited": True,
+                        "command_label": label,
+                    },
+                )
+
+        # 2. Token-based semantic scan for displaced flags and permutations
+        segments = re.split(r"[;&|\n]+", sanitized)
+        for segment in segments:
+            if label := _detect_destructive_tokens(segment):
+                logger.warning(
+                    "Destructive workspace command blocked (semantic): %s in %s",
+                    label,
+                    command[:100],
+                )
+                raise ToolError(
+                    f"Command blocked (destructive workspace command): Detected '{label}' in command '{command.strip()}'. "
+                    "Destructive commands that permanently discard uncommitted changes or wipe workspace files are prohibited. "
+                    "If the user explicitly requested resetting the workspace, please ask the user for confirmation.",
+                    user_hint=(
+                        f"Destructive command '{label}' is prohibited to protect uncommitted changes. "
+                        "Inspect errors and resolve issues without wiping the workspace. "
+                        "If you need to discard changes in a specific file, use git checkout -- <file> or target the specific file."
                     ),
                     diagnostic_info={
                         "destructive_command_prohibited": True,
