@@ -2178,6 +2178,25 @@ class TestGoalLearningsExtraction:
         )
         assert result == []
 
+    @pytest.mark.asyncio
+    async def test_model_affinity_profile_extraction_parsing(self):
+        """Verify model_affinity profile entries parse correctly from extractor."""
+        json_resp = """[
+            {
+                "memory_type": "profile",
+                "profile_key": "model_affinity",
+                "profile_value": "Prefers Claude 3.7 Sonnet for coding and DeepSeek-R1 for reasoning",
+                "confidence": 0.95
+            }
+        ]"""
+        items = _parse_response(json_resp)
+        assert len(items) == 1
+        entry = items[0]
+        assert entry.memory_type == MemoryType.PROFILE
+        assert entry.profile_key == "model_affinity"
+        assert entry.profile_value is not None and "Claude 3.7 Sonnet" in entry.profile_value
+        assert entry.confidence == 0.95
+
 
 # ============================================================================
 # Main
