@@ -96,6 +96,23 @@ class TestModelCapabilityDetector:
         assert detector.is_deepseek_model(provider="DEEPSEEK", model="", base_url="")
         assert detector.is_kimi_model(provider="KIMI-CODING", model="", base_url="")
 
+    def test_is_local_endpoint_and_grammar_transport(self, detector):
+        """Test local/edge endpoint detection for grammar constraint transport."""
+        assert detector.is_local_endpoint(provider="ollama", model="qwen2.5:7b", base_url="")
+        assert detector.is_local_endpoint(provider="", model="ollama/qwen2.5-coder", base_url="")
+        assert detector.is_local_endpoint(provider="openai-like", model="qwen2.5-7b-instruct", base_url="http://127.0.0.1:8000/v1")
+        assert detector.is_local_endpoint(provider="", model="llama-server-qwen", base_url="http://localhost:8080/v1")
+        assert detector.is_local_endpoint(provider="vllm", model="meta-llama/Llama-3.1-8B-Instruct", base_url="http://0.0.0.0:8000/v1")
+        assert detector.supports_json_schema_constrained_tool_calls(
+            provider="ollama", model="qwen2.5:7b", base_url="http://127.0.0.1:11434/v1"
+        )
+        assert not detector.is_local_endpoint(
+            provider="openai", model="gpt-4o", base_url="https://api.openai.com/v1"
+        )
+        assert not detector.supports_json_schema_constrained_tool_calls(
+            provider="anthropic", model="claude-3-7-sonnet-20250219", base_url="https://api.anthropic.com/v1"
+        )
+
     def test_empty_inputs(self, detector):
         """Test empty inputs."""
         assert not detector.needs_reasoning_content_echo(provider="", model="", base_url="")
@@ -107,10 +124,14 @@ class TestModelCapabilityDetector:
         """Test local weak endpoint detection for grammar/schema transport."""
         assert detector.is_local_weak_endpoint(provider="ollama", model="", base_url="")
         assert detector.is_local_weak_endpoint(provider="vllm", model="", base_url="")
+        assert detector.is_local_weak_endpoint(provider="llama-cpp", model="", base_url="")
         assert detector.is_local_weak_endpoint(provider="", model="ollama/qwen2.5-coder:7b", base_url="")
         assert detector.is_local_weak_endpoint(provider="", model="local/gemma-2-9b", base_url="")
         assert detector.is_local_weak_endpoint(provider="openai-like", model="qwen", base_url="http://127.0.0.1:8000/v1")
         assert detector.is_local_weak_endpoint(provider="openai-like", model="qwen", base_url="http://localhost:11434/v1")
         assert detector.is_local_weak_endpoint(provider="openai-like", model="qwen", base_url="http://llama-server:8080/v1")
+        assert detector.supports_grammar_constrained_tool_calls(provider="ollama", model="", base_url="")
+        assert detector.supports_grammar_constrained_tool_calls(provider="openai-like", model="qwen", base_url="http://127.0.0.1:8000/v1")
         assert not detector.is_local_weak_endpoint(provider="openai", model="gpt-4o", base_url="https://api.openai.com/v1")
         assert not detector.is_local_weak_endpoint(provider="anthropic", model="claude-3-7-sonnet", base_url="https://api.anthropic.com/v1")
+        assert not detector.supports_grammar_constrained_tool_calls(provider="openai", model="gpt-4o", base_url="https://api.openai.com/v1")

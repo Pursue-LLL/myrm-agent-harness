@@ -39,18 +39,39 @@ def test_apply_ephemeral_override_sets_max_tokens():
     assert get_ephemeral_max_output_tokens() is None
 
 
-def test_apply_ephemeral_override_noop_when_unset():
-    """When ContextVar is None, _apply_ephemeral_output_override is a no-op."""
-    from myrm_agent_harness.agent.streaming.recovery.stream_recovery_truncation import (
-        reset_ephemeral_max_output_tokens,
+def test_bind_tools_local_grammar_transport():
+    """Verify local weak endpoints receive constrained response_format schema."""
+    local_model = ChatLiteLLM(
+        model="qwen2.5-coder:7b",
+        api_base="http://127.0.0.1:8000/v1",
+        custom_llm_provider="openai-like",
     )
+    test_tool = {
+        "type": "function",
+        "function": {
+            "name": "bash",
+            "description": "Run bash command",
+            "parameters": {
+                "type": "object",
+                "properties": {"command": {"type": "string"}},
+                "required": ["command"],
+            },
+        },
+    }
+    bound = local_model.bind_tools([test_tool])
+    assert "response_format" in bound.kwargs
+    rf = bound.kwargs["response_format"]
+    assert rf.get("type") == "json_schema"
+    assert rf.get("json_schema", {}).get("name") == "tool_calls_transport"
 
-    reset_ephemeral_max_output_tokens()
-    params: dict[str, object] = {"max_tokens": 4000}
-
-    ChatLiteLLM._apply_ephemeral_output_override(params)
-
-    assert params["max_tokens"] == 4000
+    # Cloud models must NOT have forced local response_format
+    cloud_model = ChatLiteLLM(
+        model="gpt-4o",
+        api_base="https://api.openai.com/v1",
+        custom_llm_provider="openai",
+    )
+    bound_cloud = cloud_model.bind_tools([test_tool])
+    assert "response_format" not in bound_cloud.kwargs
 
 
 def test_sync_ephemeral_output_cap_fast_fail(chat_model, messages, monkeypatch):

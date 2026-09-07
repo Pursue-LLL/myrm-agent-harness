@@ -43,6 +43,7 @@ from myrm_agent_harness.backends.skills.types.types_requires import MCPSkillData
 from myrm_agent_harness.backends.skills.types.types_security import SecurityFindingDetail, SecurityScanSummary
 from myrm_agent_harness.backends.skills.types.types_usage import SkillUsageStats
 from myrm_agent_harness.backends.skills.types.types_visibility import skill_visible_for_tools
+from myrm_agent_harness.backends.skills.scanning.scanner import SkillTrustRecommendation
 
 __all__ = [
     "MCPSkillData",
@@ -60,6 +61,7 @@ __all__ = [
     "SkillRequires",
     "SkillStateProtocol",
     "SkillTrust",
+    "SkillTrustRecommendation",
     "SkillUsageStats",
     "skill_visible_for_tools",
 ]

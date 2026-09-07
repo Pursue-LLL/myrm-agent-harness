@@ -16,7 +16,7 @@ from myrm_agent_harness.toolkits.computer_use.types import ModifierKey
 
 # Sole key tokens that models mistake for "key names" (KimiCU calculator pitfall).
 # Use type / click @dref instead — never vision key= or keyboard press of these alone.
-_OPERATOR_AS_KEY_TOKENS: frozenset[str] = frozenset({"*", "/", "+"})
+_OPERATOR_AS_KEY_TOKENS: frozenset[str] = frozenset({"*", "/", "+", "-", "%", "="})
 
 _KEY_ALIASES: dict[str, str] = {
     "command": "cmd",
@@ -67,7 +67,8 @@ def is_operator_as_key_name(keys: str) -> str | None:
     """Reject sole printable operators used as vision ``key`` / keyboard key names.
 
     Combos that include modifiers (e.g. ``ctrl+/``) are allowed — only a lone
-    ``*``, ``/``, or ``+`` token is treated as the calculator false-key anti-pattern.
+    printable operator token (``*``, ``/``, ``+``, ``-``, ``%``, ``=``) is treated
+    as the calculator false-key anti-pattern.
     """
     canon = canonicalize_key_combo(keys)
     if len(canon) == 1 and next(iter(canon)) in _OPERATOR_AS_KEY_TOKENS:

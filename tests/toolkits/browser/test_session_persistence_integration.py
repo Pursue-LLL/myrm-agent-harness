@@ -109,7 +109,10 @@ async def _plant_state(session: BrowserSession, origin: str) -> None:
 
 async def _read_state(session: BrowserSession, origin: str) -> tuple[str, str]:
     """Navigate and read back cookie + localStorage from the page."""
-    await session.new_tab(origin)
+    if not session.list_tabs():
+        await session.new_tab(origin)
+    else:
+        await session.navigate(origin)
     cookie = await session.evaluate("document.cookie")
     local = await session.evaluate("localStorage.getItem('integ_key')")
     return str(cookie), str(local)
