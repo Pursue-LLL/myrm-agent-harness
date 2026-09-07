@@ -27,6 +27,12 @@ DesktopInteractAction = Literal[
     "hover",
     "focus",
     "scroll",
+    "toggle",
+    "expand",
+    "collapse",
+    "invoke",
+    "check",
+    "uncheck",
 ]
 
 DesktopVisionAction = Literal[
