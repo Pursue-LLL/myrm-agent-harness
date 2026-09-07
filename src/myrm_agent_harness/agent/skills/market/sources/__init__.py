@@ -3,6 +3,7 @@
 from .aliyun import AliyunSource
 from .base import SkillSource
 from .github import GitHubSkillSource
+from .github_tap import GitHubTapSkillSource
 from .modelscope import ModelScopeSource
 from .prebuilt import PrebuiltSkillSource
 from .skills_sh import SkillsShSource
@@ -12,6 +13,7 @@ from .wellknown import WellKnownSkillSource
 __all__ = [
     "AliyunSource",
     "GitHubSkillSource",
+    "GitHubTapSkillSource",
     "ModelScopeSource",
     "PrebuiltSkillSource",
     "SkillSource",

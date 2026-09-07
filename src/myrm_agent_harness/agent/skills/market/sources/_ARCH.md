@@ -15,6 +15,7 @@ individual failures are logged and silently skipped.
 | clawhub.py | Core | Provides ClawHubSource. | ✅ |
 | clawhub_registry.py | Core | ClawHub registry URL SSOT (`CLAWHUB_URL`), legacy env bootstrap, strict JSON probe. | ✅ |
 | github.py | Core | Provides GitHubSkillSource, GitHubRef, parse_github_url. | ✅ |
+| github_tap.py | Core | Custom GitHub repository tap source for private and organization skill collection subscription. | ✅ |
 | lobehub.py | Core | Provides LobeHubSource. | ✅ |
 | modelscope.py | Core | ModelScope 魔搭社区技能搜索源（搜索无需认证，80K+ 技能）。 | ✅ |
 | prebuilt.py | Core | Prebuilt skill search source. | ✅ |

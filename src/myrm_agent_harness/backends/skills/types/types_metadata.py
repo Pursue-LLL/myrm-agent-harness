@@ -154,6 +154,13 @@ class SkillMetadata:
     scope_agent_id: str | None = None
     """Agent ID that owns this skill, for multi-agent scoping."""
 
+    specialized_model: str | None = None
+    """Optional specialized small/domain model declared for this skill (e.g. "qwen-2.5-coder-1.5b").
+    When set, sub-tasks or executions under this skill route to this lightweight specialized model."""
+
+    model_tier: str | None = None
+    """Optional complexity routing tier recommendation ("simple" | "standard" | "reasoning")."""
+
     config_schema: dict[str, object] | None = None
     """JSON Schema describing typed configuration for SkillInstanceConfig.config_overrides.
     Parsed from SKILL.md frontmatter `config-schema` field. When present, enables

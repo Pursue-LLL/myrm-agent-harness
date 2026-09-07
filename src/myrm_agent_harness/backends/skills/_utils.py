@@ -144,6 +144,12 @@ class SkillFrontmatter:
     scope_agent_id: str | None = None
     """Agent ID that owns this skill (for Multi-Agent scoping)."""
 
+    specialized_model: str | None = None
+    """Specialized small or fine-tuned model slug declared for this skill execution (Model-As-A-Skill)."""
+
+    model_tier: str | None = None
+    """Recommended model complexity tier for this skill (e.g. 'simple', 'standard', 'reasoning')."""
+
     required_permissions: list[SkillPermission] = field(default_factory=list)
     """Permissions required by this skill, declared in SKILL.md frontmatter as:
 

@@ -12,6 +12,7 @@ Skill market module — search, install, update, and manage skills from external
 | helpers.py | Core | Skill market helper functions (write_origin with version, parent_plugin & declared_mcp_servers provenance, ranking, dedup). | ✅ |
 | sanitizer.py | Core | Provides is_blocked_file, sanitize_skill_files. | ✅ |
 | service.py | Core | Skill market service with deterministic multi-source merge, canonical archive-security mapping, dynamic source registration, Agent Plugins 1.0.0 multi-skill unpack & preview/install MCP transparency, version downgrade guardrail validation, cascading uninstall, and managed receipt generation. | ✅ |
+| taps.py | Core | TapSubscription, TapDirectoryScanner, and GitHubTapSource for personal/enterprise private GitHub repo catalog synchronization. | ✅ |
 | transaction.py | Core | Skill installation transaction and snapshot rollback manager with immutable receipt builder. | ✅ |
 
 | Submodule | Description |

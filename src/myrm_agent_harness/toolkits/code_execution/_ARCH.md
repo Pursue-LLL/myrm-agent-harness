@@ -18,6 +18,7 @@ Detailed design: [EXECUTION_SYSTEM.md](EXECUTION_SYSTEM.md)
 | platform.py | Core | Cross-platform runtime detection, shell configuration, and unified `<environment>` system prompt tag (OS + Shell + Python toolchain + VNC visual desktop). | ✅ |
 | python_extractor.py | Core | Quote-aware Python extraction from bash commands; pipe stdin + ``cat *.py | python3`` feeder path extraction; ``cat > path <<EOF`` heredoc unwrap for MCP PTC bash; SSOT for code_detector, SkillExecutor, PTC verifier, preflight guards. | ✅ |
 | git_digest.py | Core | Git repository history & change digest extractor. Extracts branch, dirty state, and recent commit summaries in milliseconds. | ✅ |
+| remote_ssh.py | Core | Asynchronous remote SSH execution engine with security interception, timeout watchdogs, and log distillation. | ✅ |
 | sandbox_snapshot.py | Core | Sandbox bootstrap snapshot generator. Captures initial workspace state, git status, language runtimes, and package managers into compact XML. | ✅ |
 
 | Submodule | Description |

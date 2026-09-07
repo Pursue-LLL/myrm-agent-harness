@@ -85,15 +85,46 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_VISION_KEY_TOOL_NAMES = frozenset({"desktop_vision_tool", "desktop_vision"})
+
 # Re-export for backward compatibility
 __all__ = [
     "apply_approval_decisions",
     "build_interrupt_payload",
     "evaluate_tool_batch",
     "is_yolo_mode_active",
+    "operator_as_key_deny_message",
     "register_security_reviewer",
     "reset_runtime_domains",
 ]
+
+
+def operator_as_key_deny_message(
+    tool_name: str, tool_input: dict[str, object]
+) -> str | None:
+    """Fail-closed before HITL: lone printable operators are never key names.
+
+    Matches ``desktop_vision_action`` runtime Safety + REMEDY_HINT so the model
+    receives the same remediation without an approval card or display I/O.
+    """
+    if tool_name not in _VISION_KEY_TOOL_NAMES:
+        return None
+    if str(tool_input.get("action", "") or "").strip().lower() != "key":
+        return None
+    text = tool_input.get("text")
+    if not isinstance(text, str) or not text.strip():
+        return None
+    from myrm_agent_harness.toolkits.computer_use import safety
+
+    blocked = safety.is_operator_as_key_name(text)
+    if blocked is None:
+        return None
+    remedy = (
+        "[REMEDY_HINT: Printable operators are not keyboard key names. "
+        "Use action=type to enter the character, or desktop_interact_tool "
+        "to click the calculator/@dref button.]"
+    )
+    return f"Safety: {blocked}\n{remedy}"
 
 
 def is_yolo_mode_active(config: SecurityConfig, *, session_key: str = "") -> bool:
@@ -172,6 +203,20 @@ async def evaluate_tool_batch(
         for idx, tool_call in enumerate(tool_calls):
             tool_name = tool_call.get("name", "unknown")
             tool_input: dict[str, object] = tool_call.get("args", {})
+            operator_deny = operator_as_key_deny_message(tool_name, tool_input)
+            if operator_deny is not None:
+                logger.warning(
+                    "[OPERATOR_AS_KEY] Auto-deny %s before YOLO/HITL (session: %s)",
+                    tool_name,
+                    session_key,
+                )
+                record_decision(
+                    tool_name,
+                    "OPERATOR_AS_KEY_DENY",
+                    "Lone printable operator rejected as vision key name",
+                )
+                auto_denied.append((idx, tool_call, operator_deny))
+                continue
             permission_type = resolve_permission_type(tool_name, tool_input)
             action, reason = evaluate_tool_call(
                 permission_type,
@@ -265,6 +310,21 @@ async def evaluate_tool_batch(
     for idx, tool_call in enumerate(tool_calls):
         tool_name = tool_call.get("name", "unknown")
         tool_input: dict[str, object] = tool_call.get("args", {})
+
+        operator_deny = operator_as_key_deny_message(tool_name, tool_input)
+        if operator_deny is not None:
+            logger.warning(
+                "[OPERATOR_AS_KEY] Auto-deny %s before HITL (session: %s)",
+                tool_name,
+                session_key,
+            )
+            record_decision(
+                tool_name,
+                "OPERATOR_AS_KEY_DENY",
+                "Lone printable operator rejected as vision key name",
+            )
+            auto_denied.append((idx, tool_call, operator_deny))
+            continue
 
         permission_type = resolve_permission_type(tool_name, tool_input)
         action, reason = evaluate_tool_call(

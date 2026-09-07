@@ -99,9 +99,17 @@ class LLMConfig(BaseModel):
     def _strip_whitespace(cls, v: str) -> str:
         return v.strip() if isinstance(v, str) else v
 
-    @field_validator("base_url", "reasoning_effort", mode="before")
+    @field_validator("base_url", mode="before")
     @classmethod
-    def _normalize_string_fields(cls, v: str | None) -> str | None:
+    def _normalize_base_url(cls, v: str | None) -> str | None:
+        if not isinstance(v, str):
+            return v
+        cleaned = v.strip().rstrip("/")
+        return cleaned or None
+
+    @field_validator("reasoning_effort", mode="before")
+    @classmethod
+    def _normalize_reasoning_effort(cls, v: str | None) -> str | None:
         if not isinstance(v, str):
             return v
         cleaned = v.strip()
