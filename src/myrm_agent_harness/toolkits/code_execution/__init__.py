@@ -61,6 +61,9 @@ from myrm_agent_harness.toolkits.code_execution.git_digest import (
     extract_repo_history_digest,
 )
 from myrm_agent_harness.toolkits.code_execution.remote_ssh import (
+    RemoteSSHConfig,
+    RemoteSSHExecutor,
+    RemoteSSHResult,
     execute_remote_ssh_command,
 )
 from myrm_agent_harness.toolkits.code_execution.sandbox_snapshot import (
@@ -114,7 +117,5 @@ __all__ = [
     "generate_sandbox_bootstrap_snapshot",
     "format_bootstrap_snapshot_xml",
     # Remote SSH Operations
-    "RemoteSSHConfig",
-    "RemoteSSHExecutor",
-    "RemoteSSHResult",
+    "execute_remote_ssh_command",
 ]

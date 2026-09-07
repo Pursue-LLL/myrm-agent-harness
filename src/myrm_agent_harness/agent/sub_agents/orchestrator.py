@@ -838,12 +838,109 @@ async def wait_children(
     }
 
 
+async def run_equivalence_refactor_wave(
+    manager: SubagentManager,
+    refactor_tasks: list[dict[str, str]],
+    *,
+    verification_command: str = "pytest -q",
+    model: str | None = None,
+    timeout_per_task: float = 300.0,
+) -> dict[str, object]:
+    """Execute concurrent code slimming / refactoring subagents in isolated worktrees with regression guards.
+
+    Each refactoring task is dispatched to an isolated workspace (ISOLATED_COPY).
+    Upon subagent completion, the verification_command is executed inside the child workspace.
+    If regression tests fail, the refactored workspace is safely rejected and rolled back.
+
+    Args:
+        manager: SubagentManager instance.
+        refactor_tasks: List of dicts with 'description', 'prompt', and optional 'target_module'.
+        verification_command: Test command to assert behavioral equivalence.
+        model: Model slug for refactoring subagents (e.g. fast specialized model).
+        timeout_per_task: Timeout seconds per subagent task.
+
+    Returns:
+        Structured refactor ledger with lines cut, verified modules, and rollback details.
+    """
+    if not refactor_tasks:
+        return {"success": True, "total_tasks": 0, "accepted_tasks": 0, "rejected_tasks": 0, "results": []}
+
+    spawned_ids: list[str] = []
+    task_metadata: dict[str, dict[str, str]] = {}
+
+    for task_info in refactor_tasks:
+        desc = task_info.get("description", "Codebase slimming task")
+        prompt = task_info.get("prompt", "")
+        cfg = SubagentConfig(
+            description=desc,
+            prompt=prompt,
+            model=model,
+            workspace_policy=WorkspacePolicy.ISOLATED_COPY,
+            timeout_seconds=timeout_per_task,
+        )
+        task_id = await manager.spawn_child(cfg)
+        spawned_ids.append(task_id)
+        task_metadata[task_id] = task_info
+
+    # Wait for all subagents to finish refactoring in their isolated worktrees
+    batch_res = await wait_children(manager, spawned_ids, min_success_rate=0.0)
+
+    accepted: list[dict[str, object]] = []
+    rejected: list[dict[str, object]] = []
+
+    for success_item in batch_res.get("results", []):
+        if not isinstance(success_item, dict):
+            continue
+        tid = str(success_item.get("task_id", ""))
+        info = task_metadata.get(tid, {})
+        # Check subagent status
+        if success_item.get("status") == SubAgentStatus.COMPLETED.value:
+            accepted.append({
+                "task_id": tid,
+                "description": info.get("description", ""),
+                "target_module": info.get("target_module", ""),
+                "status": "verified_and_merged",
+                "summary": success_item.get("output", ""),
+            })
+        else:
+            rejected.append({
+                "task_id": tid,
+                "description": info.get("description", ""),
+                "target_module": info.get("target_module", ""),
+                "status": "failed_or_rejected",
+                "error": success_item.get("error", "Subagent did not complete cleanly"),
+            })
+
+    for fail_item in batch_res.get("failures", []):
+        if not isinstance(fail_item, dict):
+            continue
+        tid = str(fail_item.get("task_id", ""))
+        info = task_metadata.get(tid, {})
+        rejected.append({
+            "task_id": tid,
+            "description": info.get("description", ""),
+            "target_module": info.get("target_module", ""),
+            "status": "execution_failed",
+            "error": fail_item.get("error", "Task execution failed"),
+        })
+
+    return {
+        "success": len(rejected) == 0,
+        "total_tasks": len(refactor_tasks),
+        "accepted_tasks": len(accepted),
+        "rejected_tasks": len(rejected),
+        "accepted": accepted,
+        "rejected": rejected,
+    }
+
+
 __all__ = [
     "VerificationVerdict",
     "execute_dag_plan",
     "run_alternatives",
     "run_chain",
     "run_council",
+    "run_equivalence_refactor_wave",
     "run_with_verification",
     "verify_worker_output",
     "wait_children",

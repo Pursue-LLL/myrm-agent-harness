@@ -213,3 +213,47 @@ async def test_mcp_readonly_but_destructive_stays_pending():
         assert len(auto_approved) == 0
         assert len(auto_denied) == 0
         assert len(pending) == 1
+
+
+@pytest.mark.asyncio
+async def test_desktop_vision_operator_key_auto_denied_before_hitl():
+    """Lone operator as vision key is auto-denied (no approval card)."""
+    config = SecurityConfig(auto_mode_enabled=False, path_policy=PathPolicy())
+    tool_call = ToolCall(
+        name="desktop_vision_tool",
+        args={"action": "key", "text": "*"},
+        id="call_op_key",
+    )
+    auto_approved, auto_denied, pending = await evaluate_tool_batch(
+        tool_calls=[tool_call],
+        config=config,
+        is_cron=False,
+        workspace_root="/workspace",
+        session_key="test_op_key",
+        args_hashes={},
+    )
+    assert len(auto_approved) == 0
+    assert len(pending) == 0
+    assert len(auto_denied) == 1
+    _idx, _tc, msg = auto_denied[0]
+    assert "Rejected printable operator" in msg
+    assert "REMEDY_HINT" in msg
+
+
+def test_operator_as_key_deny_message_allows_modifier_combo():
+    from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
+        operator_as_key_deny_message,
+    )
+
+    assert (
+        operator_as_key_deny_message(
+            "desktop_vision_tool", {"action": "key", "text": "ctrl+/"}
+        )
+        is None
+    )
+    assert (
+        operator_as_key_deny_message(
+            "desktop_vision_tool", {"action": "type", "text": "*"}
+        )
+        is None
+    )

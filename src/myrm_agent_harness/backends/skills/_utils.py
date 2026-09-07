@@ -237,6 +237,12 @@ _KNOWN_FRONTMATTER_FIELDS = frozenset(
         "fallback-for-tool-groups",
         "fallback_for_tool_groups",
         "scope_agent_id",
+        "specialized-model",
+        "specialized_model",
+        "specializedModel",
+        "model-tier",
+        "model_tier",
+        "modelTier",
         "required_permissions",
     }
 )
@@ -651,6 +657,22 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
     if raw_schema and isinstance(raw_schema, dict):
         config_schema = dict(raw_schema)
 
+    # specialized-model: optional model slug (Model-As-A-Skill)
+    specialized_model: str | None = None
+    raw_spec_model = parsed.get("specialized-model") or parsed.get("specialized_model") or parsed.get("specializedModel")
+    if raw_spec_model:
+        sm = str(raw_spec_model).strip()
+        if sm:
+            specialized_model = sm
+
+    # model-tier: optional model complexity tier (e.g. "simple", "standard", "reasoning")
+    model_tier: str | None = None
+    raw_model_tier = parsed.get("model-tier") or parsed.get("model_tier") or parsed.get("modelTier")
+    if raw_model_tier:
+        mt = str(raw_model_tier).strip().lower()
+        if mt:
+            model_tier = mt
+
     # scope_agent_id: optional, agent ID that owns this skill
     scope_agent_id: str | None = None
     if "scope_agent_id" in parsed:
@@ -698,6 +720,8 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         config_schema=config_schema,
         contract=contract,
         scope_agent_id=scope_agent_id,
+        specialized_model=specialized_model,
+        model_tier=model_tier,
         required_permissions=required_permissions,
     )
 

@@ -5,15 +5,11 @@ with automatic log distillation and timeout enforcement.
 
 [INPUT]
 - .utils.log_distiller::TerminalLogDistiller
-- asyncio, time, subprocess, logging
-- typing::Dict, Any, Optional, Tuple
-- pydantic::BaseModel, Field
+- asyncio, time, subprocess, logging, dataclasses
+- typing::Dict, Any, Optional, Tuple, List
 
 [OUTPUT]
-- RemoteSSHConfig: Connection configuration for remote host.
-- RemoteSSHResult: Result payload from SSH command run.
-- RemoteSSHExecutor: Class interface for remote command execution.
-- execute_remote_ssh_command: Core dispatch function for remote SSH execution.
+- RemoteSSHConfig, RemoteSSHResult, RemoteSSHExecutor, execute_remote_ssh_command
 
 [POS]
 Harness code execution toolkit in myrm_agent_harness/toolkits/code_execution/.
@@ -22,11 +18,10 @@ Harness code execution toolkit in myrm_agent_harness/toolkits/code_execution/.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import logging
 import time
 from typing import Optional, Tuple
-
-from pydantic import BaseModel, Field
 
 from myrm_agent_harness.toolkits.code_execution.utils.log_distiller import (
     TerminalLogDistiller,
@@ -35,46 +30,54 @@ from myrm_agent_harness.toolkits.code_execution.utils.log_distiller import (
 logger = logging.getLogger("myrm.harness.remote_ssh")
 
 
-class RemoteSSHConfig(BaseModel):
-    """Configuration descriptor for remote SSH target host."""
+@dataclass
+class RemoteSSHConfig:
+    """Connection parameters for remote SSH execution."""
 
-    host: str = Field(..., description="Target hostname or IP address")
-    port: int = Field(default=22, ge=1, le=65535, description="SSH port")
-    user: Optional[str] = Field(default=None, description="SSH username")
-    identity_file: Optional[str] = Field(default=None, description="Path to SSH private key")
-    timeout_seconds: int = Field(default=60, ge=1, le=3600, description="Execution timeout in seconds")
+    host: str
+    port: int = 22
+    user: Optional[str] = None
+    identity_file: Optional[str] = None
+    connect_timeout: int = 10
+    timeout_seconds: int = 60
 
 
-class RemoteSSHResult(BaseModel):
-    """Structured execution output from remote SSH invocation."""
+@dataclass
+class RemoteSSHResult:
+    """Execution output from remote host."""
 
-    exit_code: int = Field(..., description="Process exit code")
-    stdout: str = Field(default="", description="Captured standard output (distilled)")
-    stderr: str = Field(default="", description="Captured standard error")
-    duration_ms: int = Field(default=0, ge=0, description="Execution duration in milliseconds")
+    exit_code: int
+    stdout: str = ""
+    stderr: str = ""
+    duration_ms: int = 0
+    is_distilled: bool = False
 
 
 class RemoteSSHExecutor:
-    """Class wrapper for remote SSH execution."""
+    """Autonomous execution agent for remote SSH targets."""
 
-    def __init__(self, config: RemoteSSHConfig) -> None:
+    def __init__(self, config: RemoteSSHConfig, distill_logs: bool = True) -> None:
         self.config = config
+        self.distill_logs = distill_logs
+        self.distiller = TerminalLogDistiller() if distill_logs else None
 
-    async def execute(self, command: str, distill_logs: bool = True) -> RemoteSSHResult:
-        exit_code, stdout, stderr, duration_ms = await execute_remote_ssh_command(
+    async def execute(self, command: str, timeout_seconds: int = 60) -> RemoteSSHResult:
+        """Execute command asynchronously with timeout and log distillation."""
+        exit_code, stdout, stderr, duration = await execute_remote_ssh_command(
             host=self.config.host,
             command=command,
-            timeout_seconds=self.config.timeout_seconds,
+            timeout_seconds=timeout_seconds,
             port=self.config.port,
             user=self.config.user,
             identity_file=self.config.identity_file,
-            distill_logs=distill_logs,
+            distill_logs=self.distill_logs,
         )
         return RemoteSSHResult(
             exit_code=exit_code,
             stdout=stdout,
             stderr=stderr,
-            duration_ms=duration_ms,
+            duration_ms=duration,
+            is_distilled=self.distill_logs,
         )
 
 
@@ -137,16 +140,7 @@ async def execute_remote_ssh_command(
 
     except asyncio.TimeoutError:
         duration_ms = int((time.perf_counter() - start_time) * 1000)
-        try:
-            proc.kill()
-        except Exception:
-            pass
-        return (
-            -1,
-            "",
-            f"Remote SSH execution timed out after {timeout_seconds}s on {target}",
-            duration_ms,
-        )
-    except Exception as e:
+        return 124, "", f"Command timed out after {timeout_seconds}s", duration_ms
+    except Exception as exc:
         duration_ms = int((time.perf_counter() - start_time) * 1000)
-        return -1, "", f"Failed to execute SSH command: {e}", duration_ms
+        return 1, "", str(exc), duration_ms

@@ -125,7 +125,7 @@ Injected via server `DESKTOP_CONTROL_RULES` (`myrm-agent-server/app/ai_agents/pr
 
 - Workflow order: snapshot → interact
 - Prefer @dref; use `set_value` for atomic field replacement; use vision only when AX is empty or interact failed
-- Never pass printable operators (`*`, `/`, `+`, `-`, `%`, `=`) as `desktop_vision_tool` `key=` names — use `type` or click calculator/@dref; interact `press` activates the @dref control (not a keyboard key name). Runtime rejects lone operator tokens on vision `key` **before** FG/screenshot revalidation (display-independent) with REMEDY_HINT.
+- Never pass printable operators (`*`, `/`, `+`, `-`, `%`, `=`) as `desktop_vision_tool` `key=` names — use `type` or click calculator/@dref; interact `press` activates the @dref control (not a keyboard key name). Runtime rejects lone operator tokens on vision `key` **before** FG/screenshot revalidation (display-independent) with REMEDY_HINT; approval middleware also auto-denies the same args **before HITL** so users never approve an always-rejected call.
 - Targeted scope: to act on a specific app without changing the foreground, snapshot with `scope="target"` + `app_name`, then interact via its `@dref` refs
 - macOS permission: ask user to grant Accessibility before retry
 - Per-app first approval via Web UI (`DesktopControlApprovalBanner`)

@@ -45,6 +45,12 @@ from myrm_agent_harness.backends.skills.decorators import (
     session_id_var,
 )
 from myrm_agent_harness.backends.skills.factory import SkillBackend
+from myrm_agent_harness.backends.skills.model_resolver import (
+    DEFAULT_TIER_MODELS,
+    SkillModelResolutionResult,
+    SkillModelResolutionSource,
+    SkillModelResolver,
+)
 from myrm_agent_harness.backends.skills.local import (
     LocalSkillBackend,
     scan_workspace_skills,
@@ -59,12 +65,16 @@ from myrm_agent_harness.backends.skills.market_protocols import (
 from myrm_agent_harness.backends.skills.prerequisites import (
     DependencyCheckItem,
     DependencyStatus,
-    HostPrerequisitesProbe,
     PrerequisiteProbe,
     PrerequisiteReport,
     SkillPrerequisites,
 )
 from myrm_agent_harness.backends.skills.memory import InMemorySkillBackend
+from myrm_agent_harness.backends.skills.model_resolver import (
+    SkillModelResolutionResult,
+    SkillModelResolutionSource,
+    SkillModelResolver,
+)
 from myrm_agent_harness.backends.skills.permission_templates import (
     TEMPLATE_PERMISSIONS,
     PermissionTemplate,
@@ -100,6 +110,10 @@ from myrm_agent_harness.backends.skills.workflow_compiler import (
 )
 
 __all__ = [
+    "DEFAULT_TIER_MODELS",
+    "SkillModelResolutionResult",
+    "SkillModelResolutionSource",
+    "SkillModelResolver",
     "DesktopEvent",
     "WorkflowIntentPlan",
     "WorkflowPlanStep",
@@ -122,6 +136,10 @@ __all__ = [
     "SkillInstallReceipt",
     "SkillInstallResult",
     "SkillMarketBackend",
+    "SkillModelResolutionResult",
+    "SkillModelResolutionSource",
+    "SkillModelResolver",
+    "DEFAULT_TIER_MAPPING",
     "SkillPrerequisites",
     "PrerequisiteReport",
     "PrerequisiteProbe",

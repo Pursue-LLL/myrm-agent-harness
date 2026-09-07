@@ -158,6 +158,8 @@ def build_skill_metadata(
         config_schema=frontmatter.config_schema,
         contract=frontmatter.contract,
         scope_agent_id=frontmatter.scope_agent_id,
+        specialized_model=frontmatter.specialized_model,
+        model_tier=frontmatter.model_tier,
         required_permissions=frontmatter.required_permissions,
         trust=trust,
         token_cost=get_token_count(content) if content else None,
