@@ -186,7 +186,7 @@ class StaticIndexSkillSource:
                 async with create_httpx_client(timeout=DEFAULT_SYNC_TIMEOUT) as client:
                     resp = await client.get(target_url, headers=headers)
                     if resp.status_code == 304:
-                        if not self._is_loaded:
+                        if not self._is_loaded or not self._entries:
                             self._load_from_disk_cache()
                         self._last_synced_at = time.time()
                         return True

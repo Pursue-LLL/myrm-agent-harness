@@ -117,6 +117,10 @@ __all__ = [
     "SessionOverlay",
     "SkillAgent",
     "SkillBackend",
+    "SkillCompoundingMetrics",
+    "SkillHealthEvaluator",
+    "SkillHealthScore",
+    "SkillHealthStatus",
     "SkillRescanResult",
     "SourceClaim",
     "SpendControlConfig",
@@ -799,6 +803,22 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "dequantize_int8": (
         "myrm_agent_harness.toolkits.vector.quantization",
         "dequantize_int8",
+    ),
+    "SkillCompoundingMetrics": (
+        "myrm_agent_harness.observability.digest.types",
+        "SkillCompoundingMetrics",
+    ),
+    "SkillHealthScore": (
+        "myrm_agent_harness.observability.digest.types",
+        "SkillHealthScore",
+    ),
+    "SkillHealthStatus": (
+        "myrm_agent_harness.observability.digest.types",
+        "SkillHealthStatus",
+    ),
+    "SkillHealthEvaluator": (
+        "myrm_agent_harness.observability.digest.health_evaluator",
+        "SkillHealthEvaluator",
     ),
     "cosine_similarity_int8": (
         "myrm_agent_harness.toolkits.vector.quantization",

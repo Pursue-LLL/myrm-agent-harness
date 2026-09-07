@@ -1,13 +1,13 @@
-"""Mobile device protocols and abstraction interfaces.
+"""Protocols and interfaces for Mobile ADB Bridge Toolkit.
 
 [INPUT]
-- types::DeviceInfo, MobileActionResult, MobileScreenshotResult, MobileUIDumpResult, TouchGesture, MobileKey
+- types.py: MobileDevice, MobileUIElement, MobileActionResult, MobileOrientation
 
 [OUTPUT]
-- MobileDeviceManagerProtocol, MobileInspectorProtocol, MobileInputControllerProtocol, MobileAppManagerProtocol, MobileBridgeProtocol
+- DeviceManagerProtocol, UIInspectorProtocol, InputControllerProtocol, SafetyBarrierProtocol
 
 [POS]
-Dependency-inversion boundaries for Android ADB abstraction layers.
+Abstract protocol definitions decoupling mobile implementation modules.
 """
 
 from __future__ import annotations
@@ -15,114 +15,86 @@ from __future__ import annotations
 from typing import Protocol
 
 from myrm_agent_harness.toolkits.mobile.types import (
-    DeviceInfo,
     MobileActionResult,
-    MobileKey,
-    MobileScreenshotResult,
-    MobileUIDumpResult,
-    TouchGesture,
+    MobileDevice,
+    MobileOrientation,
+    MobileUIElement,
 )
 
 
-class MobileDeviceManagerProtocol(Protocol):
-    """Protocol for discovering, pairing and connecting to Android devices."""
+class DeviceManagerProtocol(Protocol):
+    """Protocol for discovering, connecting and managing Android devices."""
 
-    async def list_devices(self) -> list[DeviceInfo]:
-        """List all attached or discovered wireless devices."""
+    async def list_devices(self) -> list[MobileDevice]:
+        """List all attached/wireless Android devices."""
         ...
 
-    async def pair_wireless(self, host: str, port: int, pairing_code: str) -> bool:
-        """Pair with an Android 11+ device via pairing code."""
+    async def connect_wireless(self, host: str, port: int, pair_code: str = "") -> MobileDevice:
+        """Connect to a wireless debugging device with optional pairing."""
         ...
 
-    async def connect_wireless(self, host: str, port: int) -> bool:
-        """Connect to an Android device via Wi-Fi."""
+    async def get_device_info(self, serial: str) -> MobileDevice:
+        """Fetch screen dimensions, model name and density."""
         ...
 
-    async def disconnect(self, serial: str) -> bool:
-        """Disconnect wireless device."""
+    async def get_orientation(self, serial: str) -> MobileOrientation:
+        """Get current screen orientation."""
         ...
 
-    async def get_device_info(self, serial: str | None = None) -> DeviceInfo | None:
-        """Get properties and screen resolution of the active device."""
+    async def wake_and_unlock(self, serial: str) -> bool:
+        """Ensure device screen is awake and unlocked."""
         ...
 
 
-class MobileInspectorProtocol(Protocol):
-    """Protocol for screen capture and accessibility hierarchy inspection."""
+class UIInspectorProtocol(Protocol):
+    """Protocol for capturing screenshots and dumping UI hierarchies."""
 
-    async def screencap(
-        self, serial: str | None = None, quality: int = 80
-    ) -> MobileScreenshotResult:
-        """Capture the screen as bytes."""
+    async def capture_screenshot(self, serial: str) -> bytes:
+        """Capture raw screenshot bytes from device."""
         ...
 
     async def dump_ui_hierarchy(
-        self, serial: str | None = None, timeout_s: float = 5.0
-    ) -> MobileUIDumpResult:
-        """Extract current Accessibility XML tree and compute clickable element coordinates."""
-        ...
-
-    async def get_top_activity(self, serial: str | None = None) -> tuple[str, str]:
-        """Return (package, activity) of current foreground app."""
+        self, serial: str, screen_size: tuple[int, int]
+    ) -> list[MobileUIElement]:
+        """Dump UIAutomator XML and parse into normalized UI elements."""
         ...
 
 
-class MobileInputControllerProtocol(Protocol):
-    """Protocol for sending touch gestures, keystrokes, and text to device."""
+class InputControllerProtocol(Protocol):
+    """Protocol for sending touch, gesture, text and key events."""
 
-    async def tap(
-        self, x: int | float, y: int | float, normalized: bool = False, serial: str | None = None
-    ) -> MobileActionResult:
-        """Tap at (x, y) coordinates."""
+    async def tap(self, serial: str, x: int, y: int) -> bool:
+        """Tap at physical coordinates."""
         ...
 
     async def swipe(
         self,
-        start_x: int | float,
-        start_y: int | float,
-        end_x: int | float,
-        end_y: int | float,
+        serial: str,
+        start_x: int,
+        start_y: int,
+        end_x: int,
+        end_y: int,
         duration_ms: int = 300,
-        normalized: bool = False,
-        serial: str | None = None,
-    ) -> MobileActionResult:
-        """Perform a swipe gesture from start to end."""
+    ) -> bool:
+        """Perform swipe gesture."""
         ...
 
-    async def type_text(self, text: str, serial: str | None = None) -> MobileActionResult:
-        """Input text (supports Chinese and Unicode via Broadcast IME or base64 fallback)."""
+    async def input_text(self, serial: str, text: str) -> bool:
+        """Input Unicode / Chinese text safely."""
         ...
 
-    async def press_key(self, key: MobileKey, serial: str | None = None) -> MobileActionResult:
-        """Simulate hardware or navigation key press."""
+    async def send_key(self, serial: str, key_code: int) -> bool:
+        """Send Android KeyEvent (e.g. 3=Home, 4=Back)."""
         ...
 
-
-class MobileAppManagerProtocol(Protocol):
-    """Protocol for launching, stopping, and monitoring apps."""
-
-    async def launch_app(
-        self, package_or_alias: str, activity: str | None = None, serial: str | None = None
-    ) -> MobileActionResult:
-        """Launch an application by package name or common alias (e.g. 'wechat', 'settings')."""
-        ...
-
-    async def stop_app(self, package_name: str, serial: str | None = None) -> MobileActionResult:
-        """Force stop a background or foreground app."""
-        ...
-
-    async def list_installed_packages(
-        self, third_party_only: bool = True, serial: str | None = None
-    ) -> list[str]:
-        """List installed package names on device."""
+    async def launch_app(self, serial: str, package_or_intent: str) -> bool:
+        """Launch app by package name or deep intent."""
         ...
 
 
-class MobileBridgeProtocol(Protocol):
-    """Unified facade protocol for complete mobile automation."""
+class SafetyBarrierProtocol(Protocol):
+    """Protocol for inspecting sensitive interfaces and triggering HITL barriers."""
 
-    device_manager: MobileDeviceManagerProtocol
-    inspector: MobileInspectorProtocol
-    input_controller: MobileInputControllerProtocol
-    app_manager: MobileAppManagerProtocol
+    def check_sensitive_elements(self, elements: list[MobileUIElement]) -> tuple[bool, str]:
+        """Check if current UI contains sensitive password/payment triggers."""
+        ...

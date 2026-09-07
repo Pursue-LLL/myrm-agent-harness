@@ -83,6 +83,26 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.agent.durable",
         "ManualDriveEffectsGate",
     ),
+    "SpilloverEngine": (
+        "myrm_agent_harness.agent.context_guard",
+        "SpilloverEngine",
+    ),
+    "EphemeralTransientSweeper": (
+        "myrm_agent_harness.agent.context_guard",
+        "EphemeralTransientSweeper",
+    ),
+    "ContextGuardConfig": (
+        "myrm_agent_harness.agent.context_guard",
+        "ContextGuardConfig",
+    ),
+    "SpilloverResult": (
+        "myrm_agent_harness.agent.context_guard",
+        "SpilloverResult",
+    ),
+    "SpilloverPayload": (
+        "myrm_agent_harness.agent.context_guard",
+        "SpilloverPayload",
+    ),
 }
 
 __all__ = [
@@ -92,7 +112,9 @@ __all__ = [
     "AgentRuntimeConfig",
     "BaseAgent",
     "CompletionStatus",
+    "ContextGuardConfig",
     "DurableAgentRuntime",
+    "EphemeralTransientSweeper",
     "EventLogBackend",
     "FileEventLogBackend",
     "GracefulShutdownManager",
@@ -106,6 +128,9 @@ __all__ = [
     "ManualDriveEffectsGate",
     "ReplaySafetyAuditor",
     "SkillAgent",
+    "SpilloverEngine",
+    "SpilloverPayload",
+    "SpilloverResult",
     "SqliteDurableStorage",
     "SubAgentResult",
     "SubAgentStatus",
