@@ -15,6 +15,7 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | creation_protocols.py | Core | SkillWriteBackend protocol and save/delete/write result types. | ✅ |
 | credential_checker.py | Core | Optional DX helper for detecting missing skill credentials. | ✅ |
 | credential_validator.py | Core | Validates skill credential files without full file_ops validators. | ✅ |
+| dependency_checker.py | Core | SkillPrerequisiteContract, HostPrerequisiteProbe, and RemediationEngine for OS, binary CLI, and Python prerequisites sniffing and self-healing. | ✅ |
 | market_protocols.py | Core | SkillMarketBackend protocol and search/install result types. | ✅ |
 | factory.py | Core | SkillBackend factory for local, storage, memory, and composite backends. | ✅ |
 | forgetting_strategy.py | Core | Curator forgetting strategies (pinned, evolution lock, grace, source-aware). | ✅ |

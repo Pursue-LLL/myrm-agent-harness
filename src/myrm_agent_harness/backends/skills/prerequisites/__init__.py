@@ -37,6 +37,7 @@ __all__ = [
     "BinaryDependency",
     "DependencyCheckItem",
     "DependencyStatus",
+    "HostPrerequisitesProbe",
     "PrerequisiteProbe",
     "PrerequisiteReport",
     "PythonDependency",
