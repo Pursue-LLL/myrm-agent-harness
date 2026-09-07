@@ -92,6 +92,16 @@ class TestBuildAxSnapshotScript:
         script = _build_ax_snapshot_script(target_app="Finder")
         assert 'value of attribute "AXMinimized" of window 1 of targetApp' in script
 
+    def test_query_filter_injected_in_script(self) -> None:
+        script = _build_ax_snapshot_script(query="Submit Button")
+        assert 'set targetQuery to "submit button"' in script
+        assert "matchQuery" in script
+
+    def test_role_filter_injected_in_script(self) -> None:
+        script = _build_ax_snapshot_script(role="button")
+        assert 'set targetRole to "button"' in script
+        assert "matchRole" in script
+
 
 class TestBuildAxInvokeScript:
     def test_default_uses_frontmost(self) -> None:

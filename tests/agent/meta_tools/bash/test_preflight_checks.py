@@ -13,6 +13,7 @@ import pytest
 
 from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import (
     check_command_url_exfiltration,
+    check_destructive_commands,
     check_interactive_command,
     check_sensitive_paths,
 )
@@ -140,3 +141,59 @@ class TestCheckUnquotedBackgroundAmpersand:
         )
 
         assert check_unquoted_background_ampersand(command) is None
+
+
+class TestCheckDestructiveCommands:
+    """Test destructive workspace command preflight detection."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git reset --hard",
+            "git reset --hard HEAD~1",
+            "git reset --merge ORIG_HEAD",
+            "git checkout .",
+            "git checkout -- .",
+            "git checkout -f .",
+            "git checkout --force .",
+            "git restore .",
+            "git restore *",
+            "git restore --worktree .",
+            "git clean -fd",
+            "git clean -fxd",
+            "git clean -xdf",
+            "rm -rf *",
+            "rm -rf .",
+            "rm -rf /",
+            "rm -rf ./",
+            "cd /repo && git reset --hard",
+            "python build.py && git clean -fd",
+        ],
+    )
+    def test_blocks_destructive_commands(self, command: str) -> None:
+        with pytest.raises(ToolError, match="destructive workspace command"):
+            check_destructive_commands(command)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git status",
+            "git add .",
+            "git add -A",
+            'git commit -m "feat: safe update"',
+            "git checkout main",
+            "git checkout -b feature-test",
+            "git reset HEAD app.py",
+            "git restore app.py",
+            "git restore --staged app.py",
+            "git clean -n",
+            "rm -rf dist/",
+            "rm -rf build/",
+            "rm -rf .pytest_cache/",
+            "rm -rf __pycache__/",
+            'echo "git reset --hard is a bad command"',
+        ],
+    )
+    def test_allows_safe_commands(self, command: str) -> None:
+        check_destructive_commands(command)
+

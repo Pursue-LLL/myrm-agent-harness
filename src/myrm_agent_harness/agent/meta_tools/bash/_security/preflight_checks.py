@@ -7,6 +7,7 @@ utils.errors::ToolError (POS: Agent tool error with format_for_llm protocol)
 [OUTPUT]
 check_command_url_exfiltration: Block commands with URL data exfiltration.
 check_sensitive_paths: Block commands accessing sensitive directories.
+check_destructive_commands: Block destructive commands that irreversibly wipe workspace state.
 check_myrm_tools_import: Block myrm_tools in bash via AST, shell `-c`, `-m`, pipe stdin, cat|pipe `.py`, and referenced `.py` files.
 check_unquoted_background_ampersand: Detect unquoted background ampersand operators that would detach orphan processes.
 check_interactive_command: Detect commands requiring interactive stdin.
@@ -360,6 +361,87 @@ def check_sensitive_paths(command: str) -> None:
             f"Command blocked (security): Access to sensitive path '{sensitive_path}' is strictly prohibited.",
             user_hint=f"The command attempts to access a protected path ({sensitive_path}). This is blocked by the security sandbox.",
         )
+
+
+# ---------------------------------------------------------------------------
+# Destructive Command Preflight
+# ---------------------------------------------------------------------------
+
+_DESTRUCTIVE_COMMAND_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"\bgit\s+reset\s+--(?:hard|merge)\b", re.IGNORECASE),
+        "git reset --hard / --merge",
+    ),
+    (
+        re.compile(
+            r"\bgit\s+checkout\s+(?:-[a-zA-Z]+\s+|--force\s+)*(?:--\s+)?(?:\.|\-\-)(?:[\s;&|]|$)",
+            re.IGNORECASE,
+        ),
+        "git checkout . / --",
+    ),
+    (
+        re.compile(
+            r"\bgit\s+restore\s+(?:[^\n;&|]*\s+)?(?:\.|\*|--worktree\b)(?:[\s;&|]|$)",
+            re.IGNORECASE,
+        ),
+        "git restore . / *",
+    ),
+    (
+        re.compile(r"\bgit\s+clean\s+-[a-zA-Z]*[fdx]", re.IGNORECASE),
+        "git clean -fd / -xdf",
+    ),
+    (
+        re.compile(
+            r"\brm\s+-[a-zA-Z]*[rf][a-zA-Z]*\s+(?:\*|\.|\/|\.\/)(?:[\s;&|]|$)",
+            re.IGNORECASE,
+        ),
+        "rm -rf * / . / /",
+    ),
+)
+
+
+def _strip_quotes_for_destructive_check(text: str) -> str:
+    """Strip quoted literals so harmless mentions in echo/grep pass without false alarms."""
+    cleaned = re.sub(r"\\.", " ", text)
+    cleaned = re.sub(r"'[^']*'", "''", cleaned)
+    cleaned = re.sub(r'"[^"]*"', '""', cleaned)
+    return cleaned
+
+
+def check_destructive_commands(command: str) -> None:
+    """Block destructive commands that irreversibly wipe workspace state.
+
+    Raises:
+        ToolError: If destructive workspace command is detected.
+    """
+    from myrm_agent_harness.utils.errors import ToolError
+
+    candidates = [command]
+    if payload := _extract_shell_c_payload(command):
+        candidates.append(payload)
+
+    for candidate in candidates:
+        sanitized = _strip_quotes_for_destructive_check(candidate)
+        for pattern, label in _DESTRUCTIVE_COMMAND_PATTERNS:
+            if pattern.search(sanitized):
+                logger.warning(
+                    "Destructive workspace command blocked: %s in %s",
+                    label,
+                    command[:100],
+                )
+                raise ToolError(
+                    f"Command blocked (destructive workspace command): Detected '{label}' in command '{command.strip()}'. "
+                    "Destructive commands that permanently discard uncommitted changes or wipe workspace files are prohibited. "
+                    "If the user explicitly requested resetting the workspace, please ask the user for confirmation.",
+                    user_hint=(
+                        f"Destructive command '{label}' is prohibited to protect uncommitted changes. "
+                        "Inspect errors and resolve issues without wiping the workspace."
+                    ),
+                    diagnostic_info={
+                        "destructive_command_prohibited": True,
+                        "command_label": label,
+                    },
+                )
 
 
 # ---------------------------------------------------------------------------

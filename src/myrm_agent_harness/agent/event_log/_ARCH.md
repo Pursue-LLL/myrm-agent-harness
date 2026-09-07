@@ -22,6 +22,7 @@ Detailed design: [EVENT_LOG_SYSTEM.md](EVENT_LOG_SYSTEM.md)
 | _pairing.py | Core | Tool-call pairing state machine: `_PendingTool` tracks a `tool_start` awaiting its terminal event; `_pop_pending` prefers exact `tool_call_id` match. | ✅ |
 | _llm.py | Core | LLM call aggregation: `_PendingLLMRequest` queues each `llm_request`; `_handle_token_usage` pairs it FIFO with the next `token_usage` event, extracting attempt and retry_count into `LLMCallRecord`. | ✅ |
 | _tasks_steps.py | Core | Merges streaming `tasks_steps` progress events into the trace. | ✅ |
+| _context_doctor.py | Core | Pure function token breakdown (system, chat, tool, file) and hotspot analyzer for execution traces. | ✅ |
 | llm_observability.py | Core | Passive llm_request event recording with truncated prompt preview for replay. | ✅ |
 | trace_types.py | Config | TraceAnomaly data structure for heuristic diagnosis. LLMCallRecord includes attempt and retry_count. ToolCallRecord carries fault_side + tool_call_id/message_id; ExecutionTrace carries anomalies and first_irrecoverable_index/timestamp. | ✅ |
 | types.py | Config | Single source of truth for event log data structures. | ✅ |

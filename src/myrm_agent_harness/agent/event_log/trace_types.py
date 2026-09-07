@@ -121,6 +121,7 @@ class ExecutionTrace:
     errors: list[dict[str, object]] = field(default_factory=list)
     human_feedback: list[dict[str, object]] = field(default_factory=list)
     anomalies: list[TraceAnomaly] = field(default_factory=list)
+    context_breakdown: dict[str, object] | None = None
     first_irrecoverable_index: int | None = None
     first_irrecoverable_timestamp: float | None = None
 
@@ -192,6 +193,7 @@ class ExecutionTrace:
                 }
                 for a in self.anomalies
             ],
+            "context_breakdown": self.context_breakdown,
             "first_irrecoverable_index": self.first_irrecoverable_index,
             "first_irrecoverable_timestamp": self.first_irrecoverable_timestamp,
             "total_events": self.total_events,

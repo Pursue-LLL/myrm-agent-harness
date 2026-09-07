@@ -37,6 +37,7 @@ from ._pairing import (
     _pop_pending,
     _replace_tool_record,
 )
+from ._context_doctor import analyze_context_breakdown
 from ._tasks_steps import _process_tasks_step
 from .trace_types import ExecutionTrace, ToolCallRecord, TraceAnomaly, TraceMetadata, TraceOutcome
 from .types import EventFilter, StructuredEvent
@@ -141,6 +142,7 @@ def _aggregate_events(session_id: str, events: list[StructuredEvent]) -> Executi
         trace.outcome = TraceOutcome.SUCCESS
 
     trace.anomalies = _detect_trace_anomalies(trace)
+    trace.context_breakdown = analyze_context_breakdown(trace).to_dict()
     return trace
 
 

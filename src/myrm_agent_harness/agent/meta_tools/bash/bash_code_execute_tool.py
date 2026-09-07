@@ -48,6 +48,7 @@ from myrm_agent_harness.agent.meta_tools.bash._executor.auto_yield import (
 )
 from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import (
     check_command_url_exfiltration,
+    check_destructive_commands,
     check_install_packages,
     check_interactive_command,
     check_myrm_tools_import,
@@ -152,6 +153,7 @@ def create_bash_code_execute_tool(
 
             check_command_url_exfiltration(command)
             check_sensitive_paths(command)
+            check_destructive_commands(command)
             check_myrm_tools_import(command, workspace_root=workspace_root)
 
             interactive_msg = check_interactive_command(command)

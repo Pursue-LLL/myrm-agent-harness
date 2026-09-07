@@ -87,5 +87,57 @@ async def test_snapshot_tool_forwards_target_scope_and_app_name(
     result = await snapshot_tool.ainvoke({"scope": "target", "app_name": "Mail"})
     assert result == "tree text"
     session.desktop_snapshot.assert_awaited_once_with(
-        scope="target", app_name="Mail", include_screenshot=False
+        scope="target",
+        app_name="Mail",
+        include_screenshot=False,
+        query=None,
+        role=None,
+        wait_seconds=0.0,
+    )
+
+
+@pytest.mark.asyncio
+async def test_snapshot_tool_forwards_query_role_and_wait_seconds(
+    session: DesktopSession,
+) -> None:
+    session._backend.is_browser_active = AsyncMock(return_value=False)
+    session.desktop_snapshot = AsyncMock(return_value="filtered tree")
+    tools = create_desktop_tools(session)
+    snapshot_tool = next(t for t in tools if t.name == "desktop_snapshot_tool")
+    result = await snapshot_tool.ainvoke({
+        "scope": "foreground",
+        "query": "Settings",
+        "role": "button",
+        "wait_seconds": 2.5,
+    })
+    assert result == "filtered tree"
+    session.desktop_snapshot.assert_awaited_once_with(
+        scope="foreground",
+        app_name=None,
+        include_screenshot=False,
+        query="Settings",
+        role="button",
+        wait_seconds=2.5,
+    )
+
+
+@pytest.mark.asyncio
+async def test_interact_tool_forwards_wait_seconds(
+    session: DesktopSession,
+) -> None:
+    session.desktop_interact = AsyncMock(return_value="Action 'click' succeeded")
+    tools = create_desktop_tools(session)
+    interact_tool = next(t for t in tools if t.name == "desktop_interact_tool")
+    result = await interact_tool.ainvoke({
+        "ref": "d3",
+        "action": "click",
+        "wait_seconds": 3.0,
+    })
+    assert result == "Action 'click' succeeded"
+    session.desktop_interact.assert_awaited_once_with(
+        ref="d3",
+        action="click",
+        text="",
+        modifiers=None,
+        wait_seconds=3.0,
     )

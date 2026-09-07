@@ -89,7 +89,12 @@ async def test_desktop_tools_execution_with_session() -> None:
     assert snapshot_res.content[0].type == "text"
     assert getattr(snapshot_res.content[0], "text", None) == "Window tree AX"
     mock_session.desktop_snapshot.assert_awaited_once_with(
-        scope="foreground", app_name=None, include_screenshot=False
+        scope="foreground",
+        app_name=None,
+        include_screenshot=False,
+        query=None,
+        role=None,
+        wait_seconds=0.0,
     )
 
     # Test invoking interact tool
@@ -98,6 +103,13 @@ async def test_desktop_tools_execution_with_session() -> None:
     )
     assert len(interact_res.content) == 1
     assert getattr(interact_res.content[0], "text", None) == "Clicked button"
+    mock_session.desktop_interact.assert_awaited_once_with(
+        ref="@d1",
+        action="click",
+        text="",
+        modifiers=None,
+        wait_seconds=0.0,
+    )
     mock_session.desktop_interact.assert_awaited_once_with(
         ref="@d1", action="click", text="", modifiers=None
     )
