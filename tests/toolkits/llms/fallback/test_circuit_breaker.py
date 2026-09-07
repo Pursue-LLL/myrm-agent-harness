@@ -180,3 +180,28 @@ class TestCircuitBreakerThreadSafety:
             t.join(timeout=5)
 
         assert len(errors) == 0
+
+
+class TestCircuitBreakerRegistry:
+    def test_registry_get_or_create_and_stats(self):
+        from myrm_agent_harness.toolkits.llms.fallback.circuit_breaker import (
+            CircuitBreakerRegistry,
+        )
+
+        reg = CircuitBreakerRegistry()
+        cb1 = reg.get_or_create("provider:model-a")
+        assert cb1 is not None
+        assert reg.get("provider:model-a") is cb1
+
+        cb1.record_failure()
+        stats = reg.get_all_stats()
+        assert "provider:model-a" in stats
+        assert stats["provider:model-a"]["failure_count"] == 1
+
+        reset_ok = reg.reset_one("provider:model-a")
+        assert reset_ok is True
+        assert cb1.get_stats()["failure_count"] == 0
+
+        assert reg.reset_one("non-existent") is False
+        assert reg.reset_all() == 1
+

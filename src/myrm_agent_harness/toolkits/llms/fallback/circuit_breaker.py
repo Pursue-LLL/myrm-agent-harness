@@ -178,3 +178,68 @@ class CircuitBreaker:
                 "half_open_calls": self._half_open_calls,
                 "retry_after_ms": retry_ms,
             }
+
+
+class CircuitBreakerRegistry:
+    """Thread-safe global registry for per-provider/model CircuitBreakers.
+
+    Allows runtime monitoring and dashboard introspection of all active
+    model provider circuit breakers across the harness and server.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._breakers: dict[str, CircuitBreaker] = {}
+
+    def get_or_create(
+        self,
+        key: str,
+        failure_threshold: int = 5,
+        timeout_ms: int = 30_000,
+        half_open_max_calls: int = 1,
+    ) -> CircuitBreaker:
+        """Get or create a named CircuitBreaker instance."""
+        with self._lock:
+            if key not in self._breakers:
+                self._breakers[key] = CircuitBreaker(
+                    failure_threshold=failure_threshold,
+                    timeout_ms=timeout_ms,
+                    half_open_max_calls=half_open_max_calls,
+                )
+            return self._breakers[key]
+
+    def get(self, key: str) -> CircuitBreaker | None:
+        """Get an existing CircuitBreaker if present."""
+        with self._lock:
+            return self._breakers.get(key)
+
+    def get_all_stats(self) -> dict[str, dict[str, int | str]]:
+        """Get snapshots of all registered circuit breakers."""
+        with self._lock:
+            items = list(self._breakers.items())
+        return {key: cb.get_stats() for key, cb in items}
+
+    def reset_all(self) -> int:
+        """Reset all registered circuit breakers to CLOSED."""
+        with self._lock:
+            items = list(self._breakers.values())
+        for cb in items:
+            cb.reset()
+        return len(items)
+
+    def reset_one(self, key: str) -> bool:
+        """Reset a specific circuit breaker if found."""
+        with self._lock:
+            cb = self._breakers.get(key)
+        if cb:
+            cb.reset()
+            return True
+        return False
+
+
+_GLOBAL_CIRCUIT_BREAKER_REGISTRY = CircuitBreakerRegistry()
+
+
+def get_circuit_breaker_registry() -> CircuitBreakerRegistry:
+    """Get the global circuit breaker registry singleton."""
+    return _GLOBAL_CIRCUIT_BREAKER_REGISTRY
