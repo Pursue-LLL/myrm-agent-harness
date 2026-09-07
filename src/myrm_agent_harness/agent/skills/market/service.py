@@ -136,6 +136,7 @@ class BaseSkillMarketService:
         skill_store: InstalledSkillStore | None = None,
     ) -> None:
         sources: list[SkillSource] = [
+            StaticIndexSkillSource(),
             ClawHubSource(),
             GitHubSkillSource(token=github_token),
             SkillsShSource(),

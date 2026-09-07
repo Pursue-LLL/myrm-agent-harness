@@ -19,7 +19,9 @@ def test_spillover_short_text_no_spill() -> None:
 def test_spillover_long_text_spilled() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         engine = SpilloverEngine(ContextGuardConfig(max_message_chars=20))
-        long_content = "This is a very long text that definitely exceeds twenty characters limit."
+        long_content = (
+            "This is a very long text that definitely exceeds twenty characters limit."
+        )
         res = engine.process_content(long_content, base_dir=tmpdir)
         assert res.spilled is True
         assert res.payload is not None
@@ -36,4 +38,6 @@ def test_spillover_multimodal_list_content() -> None:
         ]
         res = engine.process_content(parts, base_dir=tmpdir)
         assert res.spilled is True
-        assert "Part one content\nPart two content" in Path(res.payload.file_path).read_text(encoding="utf-8")
+        assert "Part one content\nPart two content" in Path(
+            res.payload.file_path
+        ).read_text(encoding="utf-8")

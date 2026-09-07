@@ -41,7 +41,10 @@ def test_spillover_engine_over_threshold_creates_file(tmp_path: Path) -> None:
     assert isinstance(result.payload, SpilloverPayload)
     assert result.payload.char_count == len(long_content)
     assert result.payload.line_count == 3
-    assert result.payload.sha256_digest == hashlib.sha256(long_content.encode("utf-8")).hexdigest()
+    assert (
+        result.payload.sha256_digest
+        == hashlib.sha256(long_content.encode("utf-8")).hexdigest()
+    )
 
     # Check file existence and content
     target_path = Path(result.payload.file_path)
@@ -63,7 +66,10 @@ def test_spillover_multimodal_list_content(tmp_path: Path) -> None:
 
     multimodal_content: list[dict[str, object] | str] = [
         {"type": "text", "text": "This is part 1 of the prompt. "},
-        {"type": "text", "text": "And this is part 2 which makes it overflow beyond 40 characters."},
+        {
+            "type": "text",
+            "text": "And this is part 2 which makes it overflow beyond 40 characters.",
+        },
     ]
     result = engine.process_content(multimodal_content, base_dir=tmp_path)
 
@@ -89,6 +95,7 @@ def test_ephemeral_sweeper_cleans_stale_files(tmp_path: Path) -> None:
     # Mock mtime
     past_time = time.time() - 100
     import os
+
     os.utime(file_old, (past_time, past_time))
 
     removed = sweeper.sweep_directory(tmp_path)

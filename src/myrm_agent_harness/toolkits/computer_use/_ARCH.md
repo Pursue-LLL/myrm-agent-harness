@@ -56,7 +56,7 @@ Agent → desktop_agent_tools (3 tools)
     
 1. **Semantic-first**: AX/UIA/AT-SPI tree → @dref interact; vision only when AX is empty
 2. **View updates**: `desktop_snapshot` emits `DESKTOP_VIEW_UPDATE` via ToolProgressSink for frontend Desktop Inspector
-3. **Safety in session**: Blocked key combos (macOS + Windows), operator-as-key rejection for lone printable operators on vision `key`, dangerous type-text patterns, sensitive application guard (`is_sensitive_app`, including terminal/shell apps). Enforced in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action`
+3. **Safety in session**: Blocked key combos (macOS + Windows); operator-as-key rejection for lone printable operators (`* / + - % =`) on vision `key` **before** FG/screenshot revalidation; dangerous type-text patterns (also pre-FG); sensitive application guard (`is_sensitive_app`, including terminal/shell apps). Enforced in `desktop_snapshot`, `desktop_interact`, and `desktop_vision_action`
 4. **Multimodal responses**: Vision capture/actions return text + JPEG image blocks
 5. **Platform auto-detection**: reuses `detect_platform()` from code_execution
 6. **Security & Re-validation**: shared `_revalidate_if_stale_after_approval()` after approval delay — interact verifies @dref; vision refreshes screenshot/scaler

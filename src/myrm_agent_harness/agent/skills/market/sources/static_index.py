@@ -33,6 +33,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_INDEX_URL: Final[str] = (
     "https://raw.githubusercontent.com/open-perplexity/skills-index/main/skills-index.json.gz"
 )
+DEFAULT_MIRROR_URLS: Final[tuple[str, ...]] = (
+    "https://raw.githubusercontent.com/open-perplexity/skills-index/main/skills-index.json.gz",
+    "https://cdn.jsdelivr.net/gh/open-perplexity/skills-index@main/skills-index.json.gz",
+    "https://fastly.jsdelivr.net/gh/open-perplexity/skills-index@main/skills-index.json.gz",
+)
 DEFAULT_CACHE_DIR: Final[Path] = Path.home() / ".myrm" / "cache"
 DEFAULT_TTL_SECONDS: Final[float] = 6 * 3600.0  # 6 hours
 DEFAULT_SYNC_TIMEOUT: Final[float] = 10.0
@@ -126,12 +131,29 @@ class StaticIndexSkillSource:
 
     def _load_from_disk_cache(self) -> bool:
         if not self._cache_file.exists():
+            uncompressed_file = self._cache_dir / "skills-index.json"
+            if uncompressed_file.exists():
+                try:
+                    data = json.loads(uncompressed_file.read_text(encoding="utf-8"))
+                    items = data if isinstance(data, list) else (data.get("skills") or data.get("items") or [])
+                    if isinstance(items, list):
+                        self._load_from_raw_dicts(items)
+                        self._is_loaded = True
+                        return True
+                except Exception as err:
+                    logger.warning("Failed to load uncompressed skills index disk cache: %s", err)
             return False
+
         try:
-            with gzip.open(self._cache_file, "rt", encoding="utf-8") as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                self._load_from_raw_dicts(data)
+            try:
+                with gzip.open(self._cache_file, "rt", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (gzip.BadGzipFile, OSError):
+                data = json.loads(self._cache_file.read_text(encoding="utf-8"))
+
+            items = data if isinstance(data, list) else (data.get("skills") or data.get("items") or [])
+            if isinstance(items, list):
+                self._load_from_raw_dicts(items)
                 self._is_loaded = True
                 return True
         except Exception as err:
@@ -156,6 +178,8 @@ class StaticIndexSkillSource:
             async with create_httpx_client(timeout=DEFAULT_SYNC_TIMEOUT) as client:
                 resp = await client.get(self._index_url, headers=headers)
                 if resp.status_code == 304:
+                    if not self._is_loaded:
+                        self._load_from_disk_cache()
                     self._last_synced_at = time.time()
                     return True
 
@@ -170,8 +194,16 @@ class StaticIndexSkillSource:
                         compressed_bytes = gzip.compress(content_bytes)
 
                     data = json.loads(raw_json)
+                    items: list[dict[str, Any]] | None = None
                     if isinstance(data, list):
-                        self._load_from_raw_dicts(data)
+                        items = data
+                    elif isinstance(data, dict):
+                        raw_items = data.get("skills") or data.get("items") or []
+                        if isinstance(raw_items, list):
+                            items = raw_items
+
+                    if items is not None:
+                        self._load_from_raw_dicts(items)
                         self._is_loaded = True
                         self._last_synced_at = time.time()
 

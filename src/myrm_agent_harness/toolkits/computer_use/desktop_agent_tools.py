@@ -124,7 +124,7 @@ def create_desktop_tools(session: DesktopSession) -> list[object]:
             description=(
                 "Action to perform: 'click', 'dblclick', 'set_value' (atomic text replace, recommended for text inputs), "
                 "'fill' (focus and fill), 'type' (keyboard keystroke simulation), 'fill_credential' (inject vault credential), "
-                "'press' (activate/AXPress the @dref control — same family as click, not a keyboard key name), "
+                "'press' (activate the @dref control — same family as click, not a keyboard key name), "
                 "'hover', 'focus', 'scroll', 'toggle'/'check'/'uncheck', 'expand'/'collapse', 'invoke'."
             ),
         )

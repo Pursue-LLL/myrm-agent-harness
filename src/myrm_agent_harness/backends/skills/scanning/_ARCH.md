@@ -22,7 +22,6 @@ Skill content security scanning — regex patterns, Python AST analysis, package
 | vuln_cache.py | Core | Vulnerability scan result cache with 24-hour TTL and disk persistence. | ✅ |
 | zip_extract.py | Core | Secure ZIP extraction (compression ratio / entry-count / total-size limits, symlink/path traversal defense, executable-binary rejection). | ✅ |
 | scanning_write_backend.py | Core | Framework-level security wrapper that enforces mandatory scanning before skill writes. | ✅ |
-| scanning_write_backend.py | Core | Framework-level security wrapper that enforces mandatory scanning before skill writes. | ✅ |
 
 ## Key Dependencies
 

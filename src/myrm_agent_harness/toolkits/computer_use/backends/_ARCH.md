@@ -13,6 +13,7 @@ Platform-specific implementations of the ComputerBackend protocol. Provides macO
 | macos_input.py | Core | macOS input primitives — Quartz CGEvent keyboard/mouse (replaces pyautogui). | ✅ |
 | windows.py | Core | Windows backend — mss + pyautogui + ctypes/user32 + uiautomation. | ✅ |
 | linux.py | Core | Linux backend — scrot/gnome-screenshot + xdotool + DISPLAY auto-detection. | ✅ |
+| android/ | Submodule | Android Wireless ADB backend — WebP screencap + XML pruning + UTF-8 injection. | ✅ |
 | cua_driver.py | Enhancement | Background-input backend via cua-driver MCP. Wraps a native backend. | ✅ |
 
 ## Backend Selection (session.py → create_computer_session)

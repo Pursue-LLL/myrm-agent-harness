@@ -28,6 +28,7 @@ from myrm_agent_harness.toolkits.llms.errors import FailoverReason, classify_fai
 from myrm_agent_harness.toolkits.llms.errors.classifier import classify_error
 
 from .config import ProbeConfig
+from .circuit_breaker import get_circuit_breaker_registry
 from .context import get_active_failover_emitter
 from .events import FailoverCallback, FailoverEvent, RecoveryCallback, RecoveryEvent
 from .health_check import lightweight_health_check
@@ -444,6 +445,7 @@ class ModelFallbackManager[T]:
 
                     # Reset consecutive failures on success
                     candidate.consecutive_failures = 0
+                    get_circuit_breaker_registry().get_or_create(candidate.name).record_success()
 
                     if is_probe:
                         # Calculate downtime and save probe count before recording success

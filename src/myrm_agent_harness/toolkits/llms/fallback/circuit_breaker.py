@@ -179,6 +179,8 @@ class CircuitBreaker:
             return {
                 "state": self._state.value,
                 "failure_count": self._failure_count,
+                "failure_threshold": self.failure_threshold,
+                "timeout_ms": self.timeout_ms,
                 "half_open_calls": self._half_open_calls,
                 "retry_after_ms": retry_ms,
                 "last_failure_time": int(self._last_failure_time) if self._last_failure_time > 0 else 0,

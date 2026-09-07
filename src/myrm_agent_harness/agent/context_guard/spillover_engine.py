@@ -68,8 +68,13 @@ class SpilloverEngine:
         try:
             target_file.resolve().relative_to(spillover_dir.resolve())
         except ValueError as err:
-            logger.error("Security violation: spillover target escaped directory: %s", target_file)
-            raise PermissionError("Path traversal detected in spillover target file") from err
+            logger.error(
+                "Security violation: spillover target escaped directory: %s",
+                target_file,
+            )
+            raise PermissionError(
+                "Path traversal detected in spillover target file"
+            ) from err
 
         lines = raw_text.count("\n") + 1
         preview = raw_text[: self.config.preview_chars].strip()
@@ -101,7 +106,7 @@ class SpilloverEngine:
 
         # Generate transparent, deterministic XML reference instruction prompt
         sanitized_content = (
-            f"<file_spillover path=\"{relative_path}\" chars=\"{char_count}\" lines=\"{lines}\" digest=\"{sha256[:16]}\">\n"
+            f'<file_spillover path="{relative_path}" chars="{char_count}" lines="{lines}" digest="{sha256[:16]}">\n'
             f"<preview>\n{preview}\n...\n</preview>\n"
             f"<instruction>\n"
             f"Notice: The {role} provided a large document payload ({char_count:,} characters, ~{token_pressure:,} tokens) "
@@ -133,7 +138,9 @@ class SpilloverEngine:
         )
 
     @staticmethod
-    def _extract_text(content: str | list[dict[str, object] | str] | dict[str, object] | object) -> str:
+    def _extract_text(
+        content: str | list[dict[str, object] | str] | dict[str, object] | object,
+    ) -> str:
         """Extract plain text string from str, list, or dict structures."""
         if isinstance(content, str):
             return content
