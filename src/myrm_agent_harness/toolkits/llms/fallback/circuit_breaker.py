@@ -116,7 +116,7 @@ class CircuitBreaker:
                     self._transition_to_closed()
                     logger.info("Circuit breaker closed after successful recovery")
 
-    def record_failure(self) -> None:
+    def record_failure(self, error_reason: str | None = None) -> None:
         """Record a failed call.
 
         In CLOSED state: Increment failure count, open if threshold exceeded
@@ -125,6 +125,8 @@ class CircuitBreaker:
         with self._lock:
             now_ms = time.time() * 1000
             self._last_failure_time = now_ms
+            if error_reason:
+                self._last_error_reason = error_reason
 
             if self._state == CircuitState.CLOSED:
                 self._failure_count += 1
