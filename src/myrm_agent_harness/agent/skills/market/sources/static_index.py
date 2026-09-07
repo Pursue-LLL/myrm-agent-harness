@@ -113,8 +113,6 @@ class StaticIndexSkillSource:
 
     async def force_refresh(self) -> bool:
         """Manually trigger index sync from remote CDN ignoring local TTL."""
-        if not self._is_loaded:
-            self._load_from_disk_cache()
         return await self._sync_remote_index(force=True)
 
     async def _ensure_index_loaded(self) -> None:
@@ -163,7 +161,14 @@ class StaticIndexSkillSource:
         return False
 
     async def _sync_remote_index(self, force: bool = False) -> bool:
-        if not self._index_url:
+        candidate_urls: list[str] = []
+        if self._index_url:
+            candidate_urls.append(self._index_url)
+        for mirror in DEFAULT_MIRROR_URLS:
+            if mirror not in candidate_urls:
+                candidate_urls.append(mirror)
+
+        if not candidate_urls:
             return False
 
         headers: dict[str, str] = {}
@@ -176,52 +181,53 @@ class StaticIndexSkillSource:
             except Exception:
                 pass
 
-        try:
-            async with create_httpx_client(timeout=DEFAULT_SYNC_TIMEOUT) as client:
-                resp = await client.get(self._index_url, headers=headers)
-                if resp.status_code == 304:
-                    if not self._is_loaded:
-                        self._load_from_disk_cache()
-                    self._last_synced_at = time.time()
-                    return True
-
-                if resp.status_code == 200:
-                    content_bytes = resp.content
-                    # Check if response is gzipped
-                    if content_bytes[:2] == b"\x1f\x8b":
-                        raw_json = gzip.decompress(content_bytes).decode("utf-8")
-                        compressed_bytes = content_bytes
-                    else:
-                        raw_json = content_bytes.decode("utf-8")
-                        compressed_bytes = gzip.compress(content_bytes)
-
-                    data = json.loads(raw_json)
-                    items: list[dict[str, Any]] | None = None
-                    if isinstance(data, list):
-                        items = data
-                    elif isinstance(data, dict):
-                        raw_items = data.get("skills") or data.get("items") or []
-                        if isinstance(raw_items, list):
-                            items = raw_items
-
-                    if items is not None:
-                        self._load_from_raw_dicts(items)
-                        self._is_loaded = True
+        for target_url in candidate_urls:
+            try:
+                async with create_httpx_client(timeout=DEFAULT_SYNC_TIMEOUT) as client:
+                    resp = await client.get(target_url, headers=headers)
+                    if resp.status_code == 304:
+                        if not self._is_loaded:
+                            self._load_from_disk_cache()
                         self._last_synced_at = time.time()
-
-                        # Persist to disk cache
-                        try:
-                            self._cache_dir.mkdir(parents=True, exist_ok=True)
-                            self._cache_file.write_bytes(compressed_bytes)
-                            new_etag = resp.headers.get("etag") or resp.headers.get("ETag")
-                            if new_etag:
-                                self._etag_file.write_text(new_etag, encoding="utf-8")
-                        except Exception as write_err:
-                            logger.warning("Failed to write skills index to disk: %s", write_err)
-
                         return True
-        except Exception as e:
-            logger.debug("Remote skills index sync failed (using local snapshot): %s", e)
+
+                    if resp.status_code == 200:
+                        content_bytes = resp.content
+                        # Check if response is gzipped
+                        if content_bytes[:2] == b"\x1f\x8b":
+                            raw_json = gzip.decompress(content_bytes).decode("utf-8")
+                            compressed_bytes = content_bytes
+                        else:
+                            raw_json = content_bytes.decode("utf-8")
+                            compressed_bytes = gzip.compress(content_bytes)
+
+                        data = json.loads(raw_json)
+                        items: list[dict[str, Any]] | None = None
+                        if isinstance(data, list):
+                            items = data
+                        elif isinstance(data, dict):
+                            raw_items = data.get("skills") or data.get("items") or []
+                            if isinstance(raw_items, list):
+                                items = raw_items
+
+                        if items is not None:
+                            self._load_from_raw_dicts(items)
+                            self._is_loaded = True
+                            self._last_synced_at = time.time()
+
+                            # Persist to disk cache
+                            try:
+                                self._cache_dir.mkdir(parents=True, exist_ok=True)
+                                self._cache_file.write_bytes(compressed_bytes)
+                                new_etag = resp.headers.get("etag") or resp.headers.get("ETag")
+                                if new_etag:
+                                    self._etag_file.write_text(new_etag, encoding="utf-8")
+                            except Exception as write_err:
+                                logger.warning("Failed to write skills index to disk: %s", write_err)
+
+                            return True
+            except Exception as e:
+                logger.debug("Remote skills index sync mirror '%s' failed: %s", target_url, e)
 
         self._last_synced_at = time.time()  # Prevent immediate retries on connection failure
         return False
