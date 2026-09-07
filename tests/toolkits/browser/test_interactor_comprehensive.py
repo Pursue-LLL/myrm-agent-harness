@@ -1460,6 +1460,7 @@ async def test_interact_exception_with_dialog():
 @pytest.mark.asyncio
 async def test_interact_exception_no_dialog():
     page = AsyncMock(spec=Page)
+    page.is_closed.return_value = False
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
     with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
@@ -1474,6 +1475,26 @@ async def test_interact_exception_no_dialog():
 
             with pytest.raises(Exception, match="TargetClosedError"):
                 await interactor.interact("click", "e0")
+
+
+@pytest.mark.asyncio
+async def test_interact_exception_tab_closed():
+    page = AsyncMock(spec=Page)
+    page.is_closed.return_value = True
+    interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+        mock_loc = AsyncMock()
+        mock_loc.click.side_effect = Exception("TargetClosedError")
+        mock_resolve.return_value = mock_loc
+
+        with patch("myrm_agent_harness.toolkits.computer_use.session.create_computer_session") as mock_create:
+            mock_cu = AsyncMock()
+            mock_cu.backend.has_blocking_dialog.return_value = False
+            mock_create.return_value = mock_cu
+
+            res = await interactor.interact("click", "e0")
+            assert "The browser tab was closed or detached" in res
 
 
 @pytest.mark.asyncio
