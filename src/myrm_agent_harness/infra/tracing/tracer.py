@@ -143,8 +143,7 @@ def get_telemetry_posture() -> dict[str, object]:
     local_trace_only = is_local_trace_only()
     has_headers = (
         _active_posture["headers_configured"]
-        if _initialized
-        else bool(parse_otlp_headers())
+        or bool(parse_otlp_headers())
     )
     exporter_type = _active_posture["exporter_type"]
     degraded_reason = _active_posture["degraded_reason"]
@@ -554,17 +553,25 @@ def shutdown_tracing(timeout_ms: float = 1500.0) -> bool:
 
 
 # =====================================================================
-# OpenTelemetry GenAI Semantic Conventions (SSOT)
+# OpenTelemetry GenAI Semantic Conventions (Re-exported from SSOT)
 # =====================================================================
-GEN_AI_SYSTEM = "gen_ai.system"
-GEN_AI_REQUEST_MODEL = "gen_ai.request.model"
-GEN_AI_RESPONSE_MODEL = "gen_ai.response.model"
-GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
-GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
-GEN_AI_USAGE_CACHE_READ_TOKENS = "gen_ai.usage.cache_read_tokens"
-GEN_AI_USAGE_TOTAL_TOKENS = "gen_ai.usage.total_tokens"
-GEN_AI_TOOL_NAME = "gen_ai.tool.name"
-GEN_AI_TOOL_CALL_ID = "gen_ai.tool.call.id"
-GEN_AI_TOOL_STATUS = "gen_ai.tool.status"
-GEN_AI_AGENT_TURN = "gen_ai.agent.turn"
-GEN_AI_SERVER_TTFT_MS = "gen_ai.server.ttft_ms"
+from .gen_ai_conventions import (
+    GEN_AI_AGENT_TURN,
+    GEN_AI_CACHE_HIT_RATIO,
+    GEN_AI_CONVERSATION_ID,
+    GEN_AI_LATENCY_TTFT_MS,
+    GEN_AI_OPERATION_NAME,
+    GEN_AI_REQUEST_MODEL,
+    GEN_AI_RESPONSE_MODEL,
+    GEN_AI_SERVER_TTFT_MS,
+    GEN_AI_SYSTEM,
+    GEN_AI_TOOL_CALL_ID,
+    GEN_AI_TOOL_NAME,
+    GEN_AI_TOOL_STATUS,
+    GEN_AI_TURN_ID,
+    GEN_AI_USAGE_CACHE_READ_TOKENS,
+    GEN_AI_USAGE_INPUT_TOKENS,
+    GEN_AI_USAGE_OUTPUT_TOKENS,
+    GEN_AI_USAGE_TOTAL_TOKENS,
+)
+

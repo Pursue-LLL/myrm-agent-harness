@@ -163,8 +163,9 @@ def test_parse_otlp_headers():
 
 def test_get_telemetry_posture_and_redaction(monkeypatch):
     """Test telemetry posture probe and credential redaction."""
-    from myrm_agent_harness.infra.tracing import get_telemetry_posture
+    from myrm_agent_harness.infra.tracing import get_telemetry_posture, shutdown_tracing
 
+    shutdown_tracing()
     monkeypatch.setenv(
         "OTEL_EXPORTER_OTLP_ENDPOINT",
         "http://user:secretpass@apm.internal:4318/v1/traces",
@@ -183,6 +184,8 @@ def test_get_telemetry_posture_and_redaction(monkeypatch):
 
 def test_active_posture_from_args_without_env_vars(monkeypatch):
     """Test that setup_tracing via args correctly updates active posture without OS env vars."""
+    import sys
+    from unittest.mock import MagicMock
     from myrm_agent_harness.infra.tracing import (
         get_telemetry_posture,
         setup_tracing,
@@ -195,28 +198,33 @@ def test_active_posture_from_args_without_env_vars(monkeypatch):
 
     shutdown_tracing()
 
-    setup_tracing(
-        service_name="test-args-svc",
-        otlp_endpoint="http://custom-host:4318/v1/traces",
-        otlp_protocol="http/protobuf",
-        otlp_headers="X-Token=custom123",
-        sample_rate=0.5,
-    )
+    mock_module = MagicMock()
+    mock_exporter_cls = MagicMock()
+    mock_module.OTLPSpanExporter = mock_exporter_cls
 
-    posture = get_telemetry_posture()
-    assert posture["status"] == "active"
-    assert posture["endpoint"] == "http://custom-host:4318/v1/traces"
-    assert posture["protocol"] == "http/protobuf"
-    assert posture["headers_configured"] is True
-    assert posture["exporter_type"] == "otlp_http"
-    assert posture["degraded_reason"] is None
+    with monkeypatch.context() as m:
+        m.setitem(sys.modules, "opentelemetry.exporter.otlp.proto.http.trace_exporter", mock_module)
+        setup_tracing(
+            service_name="test-args-svc",
+            otlp_endpoint="http://custom-host:4318/v1/traces",
+            otlp_protocol="http/protobuf",
+            otlp_headers="X-Token=custom123",
+            sample_rate=0.5,
+        )
+
+        posture = get_telemetry_posture()
+        assert posture["status"] == "active"
+        assert posture["endpoint"] == "http://custom-host:4318/v1/traces"
+        assert posture["protocol"] == "http/protobuf"
+        assert posture["headers_configured"] is True
+        assert posture["exporter_type"] == "otlp_http"
+        assert posture["degraded_reason"] is None
 
     shutdown_tracing()
 
 
 def test_degraded_console_posture_when_exporters_fail(monkeypatch):
     """Test that posture accurately flags degraded_console when remote exporters cannot initialize."""
-    from unittest.mock import patch
     from myrm_agent_harness.infra.tracing import (
         get_telemetry_posture,
         setup_tracing,
@@ -226,24 +234,16 @@ def test_degraded_console_posture_when_exporters_fail(monkeypatch):
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
     shutdown_tracing()
 
-    # Simulate both HTTP and gRPC exporter failure
-    with patch(
-        "opentelemetry.exporter.otlp.proto.http.trace_exporter.OTLPSpanExporter",
-        side_effect=RuntimeError("HTTP connection failed"),
-    ), patch(
-        "opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter",
-        side_effect=RuntimeError("gRPC socket error"),
-    ):
-        setup_tracing(
-            service_name="test-degraded-svc",
-            otlp_endpoint="http://broken-collector:4318",
-            otlp_protocol="http/protobuf",
-        )
+    setup_tracing(
+        service_name="test-degraded-svc",
+        otlp_endpoint="http://broken-collector:4318",
+        otlp_protocol="http/protobuf",
+    )
 
-        posture = get_telemetry_posture()
-        assert posture["status"] == "degraded_console"
-        assert posture["exporter_type"] == "console"
-        assert "fallback to console" in str(posture["degraded_reason"])
+    posture = get_telemetry_posture()
+    assert posture["status"] == "degraded_console"
+    assert posture["exporter_type"] == "console"
+    assert "fallback to console" in str(posture["degraded_reason"])
 
     shutdown_tracing()
 

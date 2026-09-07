@@ -23,6 +23,10 @@ SPAN_AGENT_TURN: str = "agent.turn"
 SPAN_LLM_REQUEST: str = "llm.request"
 SPAN_TOOL_CALL: str = "tool.call"
 
+# Backwards-compatible alias for span names
+GEN_AI_AGENT_TURN: str = SPAN_AGENT_TURN
+GEN_AI_SERVER_TTFT_MS: str = "gen_ai.server.ttft_ms"
+
 # --- GenAI Semantic Attributes (OTel GenAI v0.6+ SSOT) ---
 GEN_AI_SYSTEM: str = "gen_ai.system"
 GEN_AI_OPERATION_NAME: str = "gen_ai.operation.name"
