@@ -280,6 +280,12 @@ def invoke_ax_element(
             "focus",
             "dblclick",
             "double_click",
+            "toggle",
+            "expand",
+            "collapse",
+            "invoke",
+            "check",
+            "uncheck",
         }:
             try:
                 action_if = target.queryAction()  # type: ignore[attr-defined]

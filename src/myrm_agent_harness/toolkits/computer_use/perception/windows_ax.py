@@ -337,6 +337,46 @@ def invoke_ax_element(
     try:
         if normalized in {"fill", "type", "set_value"}:
             target.SendKeys(text)  # type: ignore[attr-defined]
+        elif normalized in {"toggle", "check", "uncheck"}:
+            pattern = None
+            if hasattr(target, "GetTogglePattern"):
+                pattern = target.GetTogglePattern()  # type: ignore[attr-defined]
+            if pattern is not None and hasattr(pattern, "Toggle"):
+                pattern.Toggle()
+            elif hasattr(target, "Toggle"):
+                target.Toggle()  # type: ignore[attr-defined]
+            else:
+                target.Click()  # type: ignore[attr-defined]
+        elif normalized == "expand":
+            pattern = None
+            if hasattr(target, "GetExpandCollapsePattern"):
+                pattern = target.GetExpandCollapsePattern()  # type: ignore[attr-defined]
+            if pattern is not None and hasattr(pattern, "Expand"):
+                pattern.Expand()
+            elif hasattr(target, "Expand"):
+                target.Expand()  # type: ignore[attr-defined]
+            else:
+                target.Click()  # type: ignore[attr-defined]
+        elif normalized == "collapse":
+            pattern = None
+            if hasattr(target, "GetExpandCollapsePattern"):
+                pattern = target.GetExpandCollapsePattern()  # type: ignore[attr-defined]
+            if pattern is not None and hasattr(pattern, "Collapse"):
+                pattern.Collapse()
+            elif hasattr(target, "Collapse"):
+                target.Collapse()  # type: ignore[attr-defined]
+            else:
+                target.Click()  # type: ignore[attr-defined]
+        elif normalized == "invoke":
+            pattern = None
+            if hasattr(target, "GetInvokePattern"):
+                pattern = target.GetInvokePattern()  # type: ignore[attr-defined]
+            if pattern is not None and hasattr(pattern, "Invoke"):
+                pattern.Invoke()
+            elif hasattr(target, "Invoke"):
+                target.Invoke()  # type: ignore[attr-defined]
+            else:
+                target.Click()  # type: ignore[attr-defined]
         elif normalized in {
             "click",
             "press",

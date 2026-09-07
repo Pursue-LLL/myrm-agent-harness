@@ -503,6 +503,12 @@ def invoke_ax_element(
         "press",
         "focus",
         "hover",
+        "toggle",
+        "expand",
+        "collapse",
+        "invoke",
+        "check",
+        "uncheck",
     }:
         return ActionResult(success=False, error=f"Unsupported AX action: {action}")
 

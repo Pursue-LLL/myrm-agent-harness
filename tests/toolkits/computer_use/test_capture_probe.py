@@ -31,8 +31,45 @@ def _varied_png() -> bytes:
     return buf.getvalue()
 
 
-def test_rejects_tiny_buffer() -> None:
+def test_rejects_below_min_bytes() -> None:
+    assert png_bytes_look_capturable(b"x" * 10) is False
+
+
+def test_rejects_corrupt_png_payload() -> None:
+    # Long enough to pass the byte gate, but not a valid PNG → decode fail path.
     assert png_bytes_look_capturable(b"x" * 100) is False
+
+
+def test_rejects_undersized_image() -> None:
+    assert png_bytes_look_capturable(_solid_png((40, 80, 120), size=(4, 4))) is False
+
+
+def test_rejects_non_rgb_tuple_pixel(monkeypatch: pytest.MonkeyPatch) -> None:
+    from PIL import Image
+
+    data = _varied_png()
+    real_open = Image.open
+
+    class _BadPixelImage:
+        def __init__(self, wrapped: Image.Image) -> None:
+            self._wrapped = wrapped
+
+        def convert(self, mode: str) -> "_BadPixelImage":
+            self._wrapped = self._wrapped.convert(mode)
+            return self
+
+        @property
+        def size(self) -> tuple[int, int]:
+            return self._wrapped.size
+
+        def getpixel(self, xy: tuple[int, int]) -> int:
+            return 0  # not an RGB tuple → reject
+
+    def _open_bad(buf: object) -> _BadPixelImage:
+        return _BadPixelImage(real_open(buf))
+
+    monkeypatch.setattr(Image, "open", _open_bad)
+    assert png_bytes_look_capturable(data) is False
 
 
 def test_rejects_pure_black() -> None:
