@@ -146,6 +146,7 @@ __all__ = [
     "WorkflowPlanStep",
     "WorkflowSkillCompiler",
     "check_permission_for_tool_call",
+    "check_skill_prerequisites",
     "compile_workflow_plan_to_skill_markdown",
     "get_template_permissions",
     "log_permission_usage",

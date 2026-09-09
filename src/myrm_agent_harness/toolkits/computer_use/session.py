@@ -86,8 +86,6 @@ class ComputerSession:
         self._user_takeover_event.set()
         logger.info("ComputerSession resumed: user takeover finished")
 
-    _user_takeover_timeout: float = 600.0
-
     @property
     def user_takeover_timeout(self) -> float:
         """Configured timeout in seconds before user takeover wait aborts with hard error."""

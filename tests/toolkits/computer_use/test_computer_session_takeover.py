@@ -60,9 +60,9 @@ class TestComputerSessionTakeoverGate:
         assert not session._user_takeover_event.is_set()
 
         # Mutation operations must also raise UserTakeoverTimeoutError when attempting to run
-        with patch.object(session, "_ensure_not_user_takeover", side_effect=UserTakeoverTimeoutError("Locked")):
-            with pytest.raises(UserTakeoverTimeoutError):
-                await session.type_text("malicious or stray input")
+        session.user_takeover_timeout = 0.05
+        with pytest.raises(UserTakeoverTimeoutError):
+            await session.type_text("malicious or stray input")
 
         # Backend type_text should NOT have been called while locked!
         mock_backend.type_text.assert_not_called()

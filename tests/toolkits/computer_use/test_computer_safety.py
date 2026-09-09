@@ -721,6 +721,7 @@ class TestSafetyEdgeBranches:
         assert is_operator_as_key_name(" / ") is not None
         assert is_operator_as_key_name(" % ") is not None
         assert is_operator_as_key_name(" = ") is not None
+        assert is_operator_as_key_name("+*") is not None
 
     def test_is_foreground_required(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.safety import is_foreground_required

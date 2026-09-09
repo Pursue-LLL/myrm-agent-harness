@@ -33,11 +33,11 @@ from .probe import PrerequisiteProbe as HostPrerequisitesProbe
 from .probe import PrerequisiteProbe as HostPrerequisiteProbe
 from .probe import check_skill_prerequisites as probe_skill_prerequisites
 from .remediation import (
+    AutoRemedyGenerator,
     detect_available_package_managers,
     generate_remediation_command,
     get_current_os,
 )
-from .remedy import AutoRemedyGenerator
 
 __all__ = [
     "AutoRemedyGenerator",
