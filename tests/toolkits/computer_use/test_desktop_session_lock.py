@@ -175,3 +175,41 @@ async def test_interact_failure_returns_structured_remedy_hint(
         assert "BBoxClickFailed" in str(res)
         assert "[REMEDY_HINT:" in str(res)
         assert "Suggested remedies:" in str(res)
+
+
+@pytest.mark.asyncio
+async def test_desktop_takeover_lock_prevents_unauthorized_actions(
+    mock_backend: MagicMock, mock_config: MagicMock
+) -> None:
+    from myrm_agent_harness.toolkits.browser.exceptions import UserTakeoverTimeoutError
+
+    session = DesktopSession(backend=mock_backend, config=mock_config)
+    session._last_snapshot_time = time.time()
+    meta = SnapshotMeta(ref_count=1, app_name="App", window_title="Window", scope="foreground")
+    elem = ElementRef(ref_id="d1", role="button", name="Button", bbox=(10, 10, 50, 50), backend_key="k1")
+    session._refs.replace({"d1": elem}, meta)
+
+    assert session.user_takeover_active is False
+    assert session._user_takeover_event.is_set()
+
+    # Pause for user takeover
+    await session.pause_for_takeover()
+    assert session.user_takeover_active is True
+    assert not session._user_takeover_event.is_set()
+
+    # Waiting with short timeout should raise UserTakeoverTimeoutError and keep session locked
+    with pytest.raises(UserTakeoverTimeoutError) as exc_info:
+        await session._ensure_not_user_takeover(timeout=0.05)
+    assert "User takeover wait timed out" in str(exc_info.value)
+    assert session.user_takeover_active is True
+    assert not session._user_takeover_event.is_set()
+
+    # Mutation via desktop_vision_action should be rejected via timeout error
+    with pytest.raises(UserTakeoverTimeoutError):
+        await session.desktop_vision_action(action="mouse_move", coordinate=[100, 100], timeout=0.05)
+
+    # Resume takeover
+    await session.resume_from_takeover()
+    assert session.user_takeover_active is False
+    assert session._user_takeover_event.is_set()
+

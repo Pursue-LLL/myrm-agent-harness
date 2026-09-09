@@ -187,7 +187,9 @@ class BrowserNavigationError(BrowserSessionError):
             diagnostic_info["error_text"] = error_text
 
         recovery_suggestions = self._generate_suggestions(url, status_code, error_text)
-        error_code = f"BROWSER_NAV_{status_code}" if status_code else "BROWSER_NAV_FAILED"
+        error_code = (
+            f"BROWSER_NAV_{status_code}" if status_code else "BROWSER_NAV_FAILED"
+        )
 
         super().__init__(
             message,
@@ -233,7 +235,9 @@ class BrowserNavigationError(BrowserSessionError):
                     ]
                 )
             elif status_code >= 400:
-                suggestions.append(f"HTTP {status_code} error - check the URL and server status")
+                suggestions.append(
+                    f"HTTP {status_code} error - check the URL and server status"
+                )
 
         if error_text:
             if "net::ERR_NAME_NOT_RESOLVED" in error_text:
@@ -365,7 +369,9 @@ class RefNotFoundError(BrowserToolError):
         self.last_snapshot_url = last_snapshot_url
 
         context_info = (
-            "\n".join(f'  - {r["ref"]}: {r["role"]} "{r["name"]}"' for r in context_refs[:5])
+            "\n".join(
+                f'  - {r["ref"]}: {r["role"]} "{r["name"]}"' for r in context_refs[:5]
+            )
             if context_refs
             else "  (none)"
         )
@@ -419,7 +425,9 @@ class RefNotFoundError(BrowserToolError):
         return ("none", last_url, current_url)
 
     @staticmethod
-    def _generate_suggestion(current_url: str | None, last_snapshot_url: str | None) -> str:
+    def _generate_suggestion(
+        current_url: str | None, last_snapshot_url: str | None
+    ) -> str:
         """Generate intelligent suggestion based on URL change detection.
 
         Args:
@@ -435,7 +443,9 @@ class RefNotFoundError(BrowserToolError):
                 "Call browser_snapshot(diff=False) to get fresh refs, then retry the interaction."
             )
 
-        change_type, last_norm, curr_norm = RefNotFoundError._classify_url_change(last_snapshot_url, current_url)
+        change_type, last_norm, curr_norm = RefNotFoundError._classify_url_change(
+            last_snapshot_url, current_url
+        )
         # Redact before surfacing URLs to the LLM: query-string credentials (OAuth
         # code, signed params) must not leak through the tool error message.
         last_norm = redact_sensitive_text(last_norm)
@@ -484,4 +494,3 @@ class UserTakeoverTimeoutError(BrowserError):
                 "Ask the user if they wish to resume the session or abort the task",
             ],
         )
-

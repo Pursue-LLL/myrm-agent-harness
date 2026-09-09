@@ -259,6 +259,7 @@ class DesktopSession(ComputerSession):
         modifiers: list[ModifierKey] | None = None,
         wait_seconds: float = 0.0,
     ) -> str | list[object]:
+        await self._ensure_not_user_takeover()
         async with self._action_lock:
             meta = self._refs.meta
             app_name = meta.app_name if meta else ""

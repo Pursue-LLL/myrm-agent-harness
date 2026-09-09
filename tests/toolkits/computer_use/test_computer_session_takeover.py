@@ -40,7 +40,9 @@ class TestComputerSessionTakeoverGate:
     """Test user takeover gate on ComputerSession."""
 
     @pytest.mark.asyncio
-    async def test_takeover_pause_and_timeout_lock(self, mock_backend: MagicMock) -> None:
+    async def test_takeover_pause_and_timeout_lock(
+        self, mock_backend: MagicMock
+    ) -> None:
         session = ComputerSession(backend=mock_backend)
         # Mock take_screenshot to avoid PIL decode in test
         session.take_screenshot = AsyncMock(return_value=ActionResult(success=True))

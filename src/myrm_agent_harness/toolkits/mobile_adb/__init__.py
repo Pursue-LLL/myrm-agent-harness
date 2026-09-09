@@ -18,6 +18,7 @@ from myrm_agent_harness.toolkits.mobile_adb.mobile_agent_tools import (
     create_mobile_adb_tools,
 )
 from myrm_agent_harness.toolkits.mobile_adb.parser import MobileUIParser
+from myrm_agent_harness.toolkits.mobile_adb.safety import MobileSafetyGuard
 from myrm_agent_harness.toolkits.mobile_adb.session import MobileSession
 from myrm_agent_harness.toolkits.mobile_adb.types import (
     MobileActionResult,
@@ -33,6 +34,7 @@ __all__ = [
     "MobileActionType",
     "MobileDeviceConnectionStatus",
     "MobileDeviceState",
+    "MobileSafetyGuard",
     "MobileSession",
     "MobileUIElement",
     "MobileUIParser",
