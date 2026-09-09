@@ -67,6 +67,7 @@ class ComputerSession:
         self._user_takeover_event: asyncio.Event = asyncio.Event()
         self._user_takeover_event.set()
         self._user_takeover_active: bool = False
+        self._user_takeover_timeout: float = 600.0
 
     @property
     def user_takeover_active(self) -> bool:

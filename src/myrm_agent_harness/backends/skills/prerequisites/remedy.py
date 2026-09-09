@@ -1,4 +1,4 @@
-"""Auto remedy command generator for missing binaries and Python packages.
+"""Auto remedy command generator for missing binaries and Python packages (Facade over remediation).
 
 [INPUT]
 - missing binaries, missing packages, target OS
@@ -8,17 +8,17 @@
 
 [POS]
 myrm_agent_harness.backends.skills.prerequisites.remedy
-Produces ready-to-execute copyable install commands across Homebrew, Apt, Winget, and UV.
 """
 
 from __future__ import annotations
 
 import logging
+from typing import Final
 
 logger = logging.getLogger(__name__)
 
 # Common CLI binary to package mappings across package managers
-BINARY_PACKAGE_MAP: dict[str, dict[str, str]] = {
+BINARY_PACKAGE_MAP: Final[dict[str, dict[str, str]]] = {
     "ffmpeg": {
         "macos": "brew install ffmpeg",
         "linux": "sudo apt-get update && sudo apt-get install -y ffmpeg",
@@ -87,10 +87,9 @@ class AutoRemedyGenerator:
                     bin_cmds.append(f"sudo apt-get install -y {b}")
 
         if bin_cmds:
-            sep = " && " if len(bin_cmds) > 1 else ""
             remedies["system_install"] = " && ".join(bin_cmds)
 
-        # 2. Python Package Remedies (prefer uv pip install / pip install)
+        # 2. Python Package Remedies (prefer uv pip install)
         if missing_packages:
             pkgs_str = " ".join(missing_packages)
             remedies["python_install"] = f"uv pip install {pkgs_str}"

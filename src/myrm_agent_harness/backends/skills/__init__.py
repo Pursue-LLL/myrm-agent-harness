@@ -79,9 +79,11 @@ from myrm_agent_harness.backends.skills.permission_validator import (
 from myrm_agent_harness.backends.skills.prerequisites import (
     DependencyCheckItem,
     DependencyStatus,
+    HostPrerequisiteProbe,
     PrerequisiteProbe,
     PrerequisiteReport,
     SkillPrerequisites,
+    check_skill_prerequisites,
 )
 from myrm_agent_harness.backends.skills.protocols import (
     ABTestStoreProtocol,
@@ -112,6 +114,7 @@ __all__ = [
     "DependencyStatus",
     "DesktopEvent",
     "InMemorySkillBackend",
+    "HostPrerequisiteProbe",
     "LocalSkillBackend",
     "PermissionTemplate",
     "PrerequisiteProbe",
