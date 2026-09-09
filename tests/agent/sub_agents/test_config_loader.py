@@ -619,3 +619,61 @@ class TestDeepAuditYamlIntegration:
         assert "race condition" in prompt
         assert "data exfiltration" in prompt
         assert "prompt injection" in prompt
+
+
+class TestStructureDeliverablePresetsIntegration:
+    """Integration tests for structure-planner, layout-designer, and format-verifier presets."""
+
+    @pytest.fixture
+    def core_subagents_dir(self):
+        monorepo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+        path = (
+            monorepo_root
+            / "myrm-agent"
+            / "myrm-agent-server"
+            / "app"
+            / "config"
+            / "subagents"
+            / "core"
+        )
+        if not path.exists():
+            pytest.skip("core subagents directory not found")
+        return path
+
+    def test_structure_planner_loads_successfully(self, core_subagents_dir):
+        path = core_subagents_dir / "structure-planner.yaml"
+        loader = SubagentConfigLoader()
+        config = loader.load_from_yaml(path, expected_name="structure-planner")
+
+        assert config is not None
+        assert isinstance(config, SubagentConfig)
+        assert config.theme_color == "blue"
+        assert "file_read_tool" in config.tools
+        assert "file_write_tool" in config.disallowed_tools
+        assert "file_edit_tool" in config.disallowed_tools
+
+    def test_layout_designer_loads_successfully(self, core_subagents_dir):
+        path = core_subagents_dir / "layout-designer.yaml"
+        loader = SubagentConfigLoader()
+        config = loader.load_from_yaml(path, expected_name="layout-designer")
+
+        assert config is not None
+        assert isinstance(config, SubagentConfig)
+        assert config.theme_color == "purple"
+        assert "file_read_tool" in config.tools
+        assert "file_write_tool" in config.disallowed_tools
+        assert "file_edit_tool" in config.disallowed_tools
+
+    def test_format_verifier_loads_successfully(self, core_subagents_dir):
+        path = core_subagents_dir / "format-verifier.yaml"
+        loader = SubagentConfigLoader()
+        config = loader.load_from_yaml(path, expected_name="format-verifier")
+
+        assert config is not None
+        assert isinstance(config, SubagentConfig)
+        assert config.theme_color == "green"
+        assert "file_read_tool" in config.tools
+        assert "bash_code_execute_tool" in config.tools
+        assert "file_write_tool" in config.disallowed_tools
+        assert "file_edit_tool" in config.disallowed_tools
+

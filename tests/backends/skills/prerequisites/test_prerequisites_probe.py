@@ -99,3 +99,11 @@ def test_auto_remedy_generator_cross_platform() -> None:
 
     remedies_win = gen.generate_remedies(["ffmpeg"], [], target_os="windows")
     assert "winget install Gyan.FFmpeg" in remedies_win["system_install"]
+
+
+def test_real_system_smoke_detection() -> None:
+    """Real system smoke test ensuring no-mock detection on actual environment."""
+    probe = HostPrerequisiteProbe()
+    assert probe.is_binary_available("python3") is True
+    assert probe.is_binary_available("non_existent_binary_xyz123") is False
+

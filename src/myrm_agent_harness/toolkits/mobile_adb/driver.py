@@ -20,6 +20,10 @@ import shlex
 import shutil
 from typing import Any
 
+from myrm_agent_harness.toolkits.mobile_adb.app_aliases import (
+    COMMON_APP_ALIASES,
+    resolve_package_alias,
+)
 from myrm_agent_harness.toolkits.mobile_adb.parser import MobileUIParser
 from myrm_agent_harness.toolkits.mobile_adb.safety import MobileSafetyGuard
 from myrm_agent_harness.toolkits.mobile_adb.types import (

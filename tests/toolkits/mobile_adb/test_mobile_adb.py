@@ -106,3 +106,24 @@ def test_mobile_safety_guard() -> None:
     assert is_risky is True
     assert "Sensitive action barrier triggered" in (reason or "")
 
+
+@pytest.mark.asyncio
+async def test_mobile_session_pair_and_connect_flow() -> None:
+    session = MobileSession(default_device="")
+    with pytest.MonkeyPatch.context() as mp:
+        from unittest.mock import AsyncMock
+        mock_pair = AsyncMock(return_value=MobileActionResult(success=True, action="pair", message="Successfully paired"))
+        mock_connect = AsyncMock(return_value=MobileActionResult(success=True, action="connect", message="connected to 192.168.1.100:5555"))
+        mp.setattr(session.driver, "pair", mock_pair)
+        mp.setattr(session.driver, "connect", mock_connect)
+
+        pair_res = await session.pair_device("192.168.1.100", 37123, "123456")
+        assert pair_res.success is True
+
+        conn_res = await session.connect_device("192.168.1.100", 5555)
+        assert conn_res.success is True
+        assert session.default_device == "192.168.1.100:5555"
+        assert "192.168.1.100:5555" in session._connected_devices
+
+
+

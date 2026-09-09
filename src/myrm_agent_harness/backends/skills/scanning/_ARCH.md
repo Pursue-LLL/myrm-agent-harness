@@ -22,7 +22,6 @@ Skill content security scanning — regex patterns, Python AST analysis, package
 | vuln_cache.py | Core | Vulnerability scan result cache with 24-hour TTL and disk persistence. | ✅ |
 | zip_extract.py | Core | Secure ZIP extraction (compression ratio / entry-count / total-size limits, symlink/path traversal defense, executable-binary rejection). | ✅ |
 | scanning_write_backend.py | Core | Framework-level security wrapper that enforces mandatory scanning before skill writes. | ✅ |
-| category_guard.py | Core | Thin compatibility facade forwarding to path_security.py. | ✅ |
 | path_security.py | Core | Filesystem path security (symlinks, Windows directory junctions) and category bucket collision defense (GitHub Issue #75983). | ✅ |
 | quality_linter.py | Core | SkillQualityLinter auditing SKILL.md against 7 Golden Rules (Routing description, Negative boundary, Imperative style, Output template, Worked examples, 1-Level deep). | ✅ |
 
