@@ -237,3 +237,69 @@ required_permissions:
         "file_write",
         "code_interpreter",
     ]
+
+
+def test_parse_skill_frontmatter_specialized_model_and_tier():
+    content = """---
+description: High-efficiency code refactoring skill
+specialized_model: qwen-2.5-coder-1.5b
+model_tier: simple
+---
+# Action
+"""
+    fm = parse_skill_frontmatter(content, "refactor-skill")
+    assert fm.specialized_model == "qwen-2.5-coder-1.5b"
+    assert fm.model_tier == "simple"
+
+    meta = build_skill_metadata(
+        skill_name="refactor-skill",
+        frontmatter=fm,
+        storage_path="/tmp/skills/refactor-skill",
+        content=content,
+        trust=SkillTrust.INSTALLED,
+    )
+    assert meta.specialized_model == "qwen-2.5-coder-1.5b"
+    assert meta.model_tier == "simple"
+
+
+def test_parse_skill_frontmatter_specialized_model_aliases():
+    content = """---
+description: Complex math skill
+specialized-model: deepseek-r1-distill-qwen-1.5b
+model-tier: reasoning
+---
+# Math
+"""
+    fm = parse_skill_frontmatter(content, "math-skill")
+    assert fm.specialized_model == "deepseek-r1-distill-qwen-1.5b"
+    assert fm.model_tier == "reasoning"
+
+
+def test_parse_frontmatter_generic():
+    from myrm_agent_harness.backends.skills._utils import parse_frontmatter
+
+    content = """---
+name: sample-skill
+description: Comprehensive sample skill description
+version: 1.0.0
+---
+# Main Content
+
+This is the body content.
+"""
+    frontmatter, body = parse_frontmatter(content)
+    assert frontmatter.get("name") == "sample-skill"
+    assert frontmatter.get("version") == "1.0.0"
+    assert "# Main Content" in body
+    assert "This is the body content." in body
+
+
+def test_parse_frontmatter_empty_or_no_frontmatter():
+    from myrm_agent_harness.backends.skills._utils import parse_frontmatter
+
+    content = "# Just plain markdown without frontmatter"
+    frontmatter, body = parse_frontmatter(content)
+    assert frontmatter == {}
+    assert body == content
+
+

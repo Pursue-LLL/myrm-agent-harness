@@ -6,7 +6,7 @@ utils.errors::ToolError (POS: Agent tool error with format_for_llm protocol)
 
 [OUTPUT]
 check_command_url_exfiltration: Block commands with URL data exfiltration.
-check_sensitive_paths: Block commands accessing sensitive directories.
+check_sensitive_paths: Block commands accessing sensitive directories or credentials.
 check_destructive_commands: Block destructive commands that irreversibly wipe workspace state.
 check_myrm_tools_import: Block myrm_tools in bash via AST, shell `-c`, `-m`, pipe stdin, cat|pipe `.py`, and referenced `.py` files.
 check_unquoted_background_ampersand: Detect unquoted background ampersand operators that would detach orphan processes.
@@ -15,7 +15,7 @@ check_install_packages: Verify install package names exist on public registries.
 
 [POS]
 Security preflight for bash commands. Validates URLs against data exfiltration,
-blocks access to sensitive paths (.ssh, .aws, etc.), blocks destructive workspace commands
+blocks access to sensitive paths (.ssh, .aws, id_rsa, etc.), blocks destructive workspace commands
 (git reset --hard, rm -rf *, git clean, etc.), blocks myrm_tools in bash (command AST,
 referenced script files under workspace), detects interactive commands that would hang in a non-TTY environment, and verifies
 package names in install commands against public registries (anti-slopsquatting).
@@ -342,20 +342,38 @@ def check_command_url_exfiltration(command: str) -> None:
 # ---------------------------------------------------------------------------
 
 _SENSITIVE_PATH_RE = re.compile(
-    r'(?:^|[\s"\'=/])(?:\.ssh|\.aws|\.npmrc|\.gnupg|\.docker|\.kube|\.bash_history|\.zsh_history)(?:/|[\s"\']|$)',
+    r'(?:^|[\s"\'=/])(?:\.ssh|\.aws|\.npmrc|\.gnupg|\.docker|\.kube|\.bash_history|\.zsh_history|id_rsa|id_ed25519|id_ecdsa|id_dsa|authorized_keys|etc/shadow|etc/passwd)(?:/|[\s"\'$]|$)',
+    re.IGNORECASE,
+)
+
+_COMMIT_MESSAGE_PATTERN = re.compile(
+    r'(?:^|[\s;&|])git\s+commit\s+(?:-[a-zA-Z]*m[a-zA-Z]*|--message(?:=|\s+))\s*(?:\'([^\']*)\'|"([^"]*)")',
+    re.IGNORECASE,
+)
+_ECHO_PRINT_PATTERN = re.compile(
+    r'(?:^|[\s;&|])(?:echo|printf)\s+(?:\'([^\']*)\'|"([^"]*)")',
     re.IGNORECASE,
 )
 
 
+def _strip_benign_text_literals_for_sensitive_check(command: str) -> str:
+    """Strip commit message strings and echo print literals to prevent false alarms on commit texts."""
+    cleaned = _COMMIT_MESSAGE_PATTERN.sub(" git commit ", command)
+    cleaned = _ECHO_PRINT_PATTERN.sub(" echo ", cleaned)
+    return cleaned
+
+
 def check_sensitive_paths(command: str) -> None:
-    """Block commands that access sensitive directories (.ssh, .aws, etc.).
+    """Block commands that access sensitive directories (.ssh, .aws, etc.) or credentials (id_rsa, shadow, etc.).
 
     Raises:
         ToolError: If sensitive path access is detected.
     """
     from myrm_agent_harness.utils.errors import ToolError
 
-    if match := _SENSITIVE_PATH_RE.search(command):
+    eval_cmd = _strip_benign_text_literals_for_sensitive_check(command)
+
+    if match := _SENSITIVE_PATH_RE.search(eval_cmd):
         sensitive_path = match.group(0).strip(" \"'=/")
         logger.warning(f" Sensitive path access detected: {command[:100]}")
         raise ToolError(

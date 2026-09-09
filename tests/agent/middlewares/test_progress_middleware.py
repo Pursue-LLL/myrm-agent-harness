@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from langchain.agents.middleware import ModelRequest, ModelResponse
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.meta_tools.progress.schemas import (
     TodoItem,
@@ -283,6 +283,34 @@ async def test_all_incomplete_blocked_triggers_special_instruction() -> None:
     assert isinstance(last_msg, HumanMessage)
     assert "[ALL REMAINING TASKS BLOCKED]" in last_msg.content
     assert "Call `todo_write(merge=true)` to mark unachievable tasks as 'cancelled'" in last_msg.content
+
+
+@pytest.mark.asyncio
+async def test_tool_loop_does_not_modify_earlier_messages_preserving_cache() -> None:
+    """During tool calling loops, historical HumanMessages must remain bit-for-bit unchanged."""
+    store = TodoStore(
+        goal="Refactor",
+        todos=[TodoItem(id="t1", content="step 1", status=TodoStatus.IN_PROGRESS)],
+    )
+    middleware = progress_middleware(AsyncMock(return_value=store))
+    original_human = HumanMessage(content="Please refactor auth module")
+    tool_msg = ToolMessage(content="file content", tool_call_id="call_1")
+    request = ModelRequest(
+        model=AsyncMock(),
+        messages=[
+            original_human,
+            AIMessage(content="", tool_calls=[{"name": "file_read", "args": {}, "id": "call_1"}]),
+            tool_msg,
+        ],
+    )
+    handler = AsyncMock(return_value=ModelResponse(result=[]))
+    await middleware.awrap_model_call(request, handler)
+    passed_request = handler.await_args.args[0]
+    # First HumanMessage must be completely untouched to guarantee KV cache preservation
+    assert passed_request.messages[0] is original_human
+    assert passed_request.messages[0].content == "Please refactor auth module"
+    assert passed_request.messages == request.messages
+
 
 
 

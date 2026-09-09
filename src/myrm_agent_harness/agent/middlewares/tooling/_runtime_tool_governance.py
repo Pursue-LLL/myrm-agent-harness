@@ -28,7 +28,7 @@ from myrm_agent_harness.core.security.tool_registry import (
     resolve_safety_metadata,
 )
 
-_UI_TOOLS: frozenset[str] = frozenset({"render_ui_tool", "update_ui_data_tool"})
+_UI_TOOLS: frozenset[str] = frozenset()
 
 _READ_ONLY_TOOL_ALLOWLIST: frozenset[str] = frozenset(
     {

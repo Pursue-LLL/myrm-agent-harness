@@ -84,8 +84,6 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
 | 26 | ask_question_tool | 118 | `harness/agent/meta_tools/clarification/clarification_agent_tools.py` | 结构化澄清；`requires_confirmation` 驱动危险强调；middleware 强制单轮单次 | server mount policy (interactive web_chat) |
-| 27 | render_ui_tool | 223 | `harness/agent/meta_tools/interaction/render_ui_tool.py` | 交互式 UI 渲染（表单/卡片/表格）；spec 见 `.agent/docs/A2UI_REFERENCE.md` | enable_render_ui=True |
-| 28 | update_ui_data_tool | ~95 | `harness/agent/meta_tools/interaction/update_ui_data_tool.py` | 交互式 UI 数据增量更新（SSE data_update）；与 render_ui 同 gate | enable_render_ui=True |
 | 29 | **request_answer_user_tool** | **1,024** | `harness/agent/meta_tools/answer_user_tool.py` | 搜索 Agent 终局自审门 | 默认关闭（`answer_tool` opt-in，EXTENDED 层） |
 
 ### 4.6 子 Agent 委托工具（有子 Agent 配置时加载；空 catalog 零 bind）

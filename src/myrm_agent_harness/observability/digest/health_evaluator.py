@@ -88,10 +88,10 @@ class SkillHealthEvaluator:
 
         if final_score >= 80.0 and success_rate >= 0.90:
             status = SkillHealthStatus.STAR
-            recommendation = "🌟 Star compounding asset! High adoption and zero friction across team."
+            recommendation = "Star compounding asset! High adoption and zero friction across team."
         elif success_rate < 0.65 or retry_penalty >= 0.20:
             status = SkillHealthStatus.AT_RISK
-            recommendation = "⚠️ At-risk asset. High failure/retry rate detected; review prompt and parameters."
+            recommendation = "At-risk asset. High failure/retry rate detected; review prompt and parameters."
         else:
             status = SkillHealthStatus.HEALTHY
             recommendation = "Healthy asset in active rotation."

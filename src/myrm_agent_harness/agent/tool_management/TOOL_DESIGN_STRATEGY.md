@@ -117,7 +117,6 @@ class ToolLayer(IntEnum):
 | Wiki 工具 | `enabled_builtin_tools: wiki` | wiki_query_tool, wiki_ingest_tool (Turn1)；wiki_compile/maintain 仅 REST/admin | ~95 |
 | 统一知识检索 | wiki + memory 双开 | memory_search_tool (1个) | ~55 |
 | 子 Agent 工具 | SubagentManagementExtension + entitlements | delegate_task_tool, subagent_control_tool, send_teammate_message_tool (orchestrator) | TBD |
-| UI 渲染工具 | `enabled_builtin_tools: render_ui` | render_ui_tool | 223 |
 | 答案自审工具 | `enabled_builtin_tools: answer_tool` | request_answer_user_tool | ~120 |
 | Goal / planning 工具 | active Goal / `planning` opt-in | complete_goal_tool, todo_write | ~270 |
 | 看板工具 | `enabled_builtin_tools: kanban` | orchestrator 3 + worker 6；board CRUD 走 REST/GUI | -
@@ -363,7 +362,6 @@ const staleCoreSkills = useMemo(() => {
 | 定时任务工具 | 启用 Cron | 1 | ~827 |
 | Wiki 工具 | 有 Wiki 目录 | 4 | ~250 |
 | 子 Agent 工具 | 有子 Agent 配置 | 8 | ~411 |
-| UI 渲染工具 | enable_render_ui | 1 | 223 |
 | 看板工具 | 启用看板 | 15 | - |
 
 ### 7.3 按需加载 (On-Demand Load)

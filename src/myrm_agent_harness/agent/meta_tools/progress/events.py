@@ -47,16 +47,17 @@ def emit_todo_progress_events(store: TodoStore) -> None:
                 "is_plan": True,
                 "status": "in_progress",
                 "data": [{"text": root_label}],
+                "revision": store.revision,
             },
         )
 
         for item in store.todos:
-            _emit_todo_step(item)
+            _emit_todo_step(item, revision=store.revision)
     except Exception as exc:
         logger.warning("Failed to emit todo progress events: %s", exc)
 
 
-def _emit_todo_step(item: TodoItem) -> None:
+def _emit_todo_step(item: TodoItem, *, revision: int = 0) -> None:
     dispatch_custom_event(
         "tasks_steps",
         {
@@ -65,5 +66,6 @@ def _emit_todo_step(item: TodoItem) -> None:
             "is_plan": True,
             "status": _ui_status(item.status),
             "data": [{"text": item.content}],
+            "revision": revision,
         },
     )

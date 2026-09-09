@@ -1208,8 +1208,6 @@ class TestMixedMessageGuard:
         ("tool_name", "args"),
         [
             ("ask_question_tool", {"question": "Which quarter?"}),
-            ("render_ui_tool", {"component": "KanbanBoard"}),
-            ("update_ui_data_tool", {"surface_id": "sb1", "data": {"done": 3}}),
             ("browser_ask_human_tool", {"reason": "Enter SMS code"}),
         ],
     )

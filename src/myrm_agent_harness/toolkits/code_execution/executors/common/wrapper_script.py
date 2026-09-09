@@ -7,7 +7,7 @@ Shared wrapper for all executors. Handles:
 4. Matplotlib inline figure capture (Jupyter-grade, via vault:// zero-copy pointers)
 
 [INPUT]
-- toolkits.code_execution.security.audit_sandbox::install (POS: Install PEP 578 audit hook)
+- toolkits.code_execution.security.audit_sandbox::get_audit_hook_source_code (POS: Self-contained PEP 578 audit hook source code generator for zero-dependency execution wrapping)
 
 [OUTPUT]
 - ExecutionOutput: Parsed execution output.
@@ -46,6 +46,7 @@ def generate_wrapper_script(
     timeout: int | None = None,
     memory_limit_mb: int | None = None,
     max_output_bytes: int = 5 * 1024 * 1024,
+    readonly_workspace: bool = False,
 ) -> str:
     """Generate the execution wrapper script.
 
@@ -56,6 +57,7 @@ def generate_wrapper_script(
         timeout: Hard CPU timeout in seconds.
         memory_limit_mb: Hard memory limit in MB.
         max_output_bytes: Max size for stdout buffer to prevent memory overflow.
+        readonly_workspace: Whether the workspace is strictly read-only.
 
     Returns:
         Wrapper script content.
@@ -120,6 +122,12 @@ class BoundedStringIO(io.StringIO):
 '''
 
     allowed_hosts_str = repr(set(allowed_hosts)) if allowed_hosts is not None else "None"
+
+    # Single Source of Truth (SSOT): retrieve audit hook code directly from audit_sandbox
+    from myrm_agent_harness.toolkits.code_execution.security.audit_sandbox import (
+        get_audit_hook_source_code,
+    )
+    audit_hook_code = get_audit_hook_source_code()
 
     return f'''#!/usr/bin/env python3
 """Unified execution wrapper script.
@@ -334,6 +342,13 @@ def _split_code(full_code: str) -> tuple[str, str]:
 
 
 # ============================================================
+# Self-contained inlined PEP 578 Audit Hook (Zero host dependency)
+# ============================================================
+
+{audit_hook_code}
+
+
+# ============================================================
 # Main execution logic
 # ============================================================
 
@@ -360,16 +375,18 @@ def main():
             exec(mcp_code, mcp_globals, mcp_globals)
 
         # Phase 2: Install PEP 578 Audit Hook to lock down the process
-        # Using the framework's native security engine
-        from myrm_agent_harness.toolkits.code_execution.security import audit_sandbox
-
         # We need the workspace path. The executor resolves it and sets cwd.
         workspace_path = os.getcwd()
 
-        audit_sandbox.install(
+        # Guarantee workspace directory has highest precedence for local module imports
+        if workspace_path not in sys.path:
+            sys.path.insert(0, workspace_path)
+
+        install(
             workspace_path=workspace_path,
             allow_network={allow_network},
-            allowed_hosts={allowed_hosts_str}
+            allowed_hosts={allowed_hosts_str},
+            readonly_workspace={readonly_workspace}
         )
 
         # Phase 3: Create user code execution env (inheriting builtins naturally, but heavily secured by PEP 578)

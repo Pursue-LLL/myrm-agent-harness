@@ -421,11 +421,16 @@ def analyze_command(command: str, *, _depth: int = 0) -> tuple[CommandThreat, ..
         if match:
             if desc == "semicolon command chaining" and _FIND_EXEC_TERMINATOR_RE.search(normalized):
                 continue
+            detail_msg = desc
+            if desc == "semicolon command chaining":
+                detail_msg = (
+                    "semicolon command chaining (';' is forbidden; use '&&' or separate lines/calls)"
+                )
             threats.append(
                 CommandThreat(
                     level=ThreatLevel.BLOCK,
                     category="injection",
-                    detail=desc,
+                    detail=detail_msg,
                     evidence=match.group(0),
                 )
             )

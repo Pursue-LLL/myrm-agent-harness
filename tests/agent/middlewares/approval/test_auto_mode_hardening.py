@@ -294,6 +294,8 @@ async def test_live_transcript_classifier_with_model() -> None:
     if not api_key or not base_url:
         pytest.skip(f"BASIC_API_KEY / BASIC_BASE_URL not configured (path={env_test_path}, exists={env_test_path.is_file()}, keys={list(vals.keys())})")
 
+    from myrm_agent_harness.agent.config.litellm_routing import normalize_env_model_selection_string
+    model_name = normalize_env_model_selection_string(model_name)
     chat_model = create_litellm_model(
         model=model_name,
         api_key=api_key,

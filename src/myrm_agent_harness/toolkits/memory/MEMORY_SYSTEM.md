@@ -972,3 +972,24 @@ rating_new = rating_old + alpha * (normalized - rating_old)
 - **多语言支持**：强制启用 `trigram` 分词器，确保中英文混合搜索的 100% 召回率。
 - **混合检索**：底层并行触发 FTS5（精准关键词匹配）和 Vector（语义匹配），并使用 RRF（倒数排序融合）算法进行数学重排。
 - **语法清洗**：提供严格的 FTS5 查询语法清洗（Sanitization），支持带点号和连字符的代码文件名防切词，拦截崩溃注入。
+
+---
+
+## 十四、ReTree 树状工作记忆系统 (working_tree)
+
+作为与长期记忆（`MemoryManager`）互补的**运行时执行期工作记忆**模块，基于上海交通大学 ReTree 架构规范构建：
+
+- **核心定位**：解决多跳搜索与长程复杂调研中的上下文无界膨胀与错误事实级联污染。
+- **证据树容器（`EvidenceTree`）**：以有向无环图（DAG）形式组织多步搜索证据，节点携带有界精炼摘要（`BoundedSummary`）、精确 URL 证据与指纹（`EvidenceSource`）及版本修订记录（`RevisionRecord`）。
+- **两阶段冲突检测（`FastContradictionDetector`）**：
+  - Stage 1 确定性预检：通过 SHA-256 指纹去重、实体与关键词重叠检索、否定模式词表进行毫秒级矛盾初筛。
+  - Stage 2 语义仲裁：轻量 Fast-LLM 判定事实冲突（`CONTRADICTION`）或时态版本演化（`TEMPORAL_UPDATE`）。
+- **原子四步回溯修复与级联剪枝（`TreeRepairEngine`）**：
+  1. 根因追溯：沿因果依赖反向定位最初引入错误事实的根因节点；
+  2. 证据热替换：原地替换为最新确凿证据与指纹；
+  3. 摘要重编译：重新生成并收敛当前节点的有界摘要；
+  4. 级联软剪枝：将直接或间接依赖该错误事实的所有下游派生节点置为 `PRUNED_INVALIDATED`，彻底阻断错误传播；
+  5. 震荡阻尼保护：当节点反复修订达到阈值（`MAX_REVISIONS_PER_NODE = 2`）时，自动冻结为 `DISPUTED` 争议状态，保留多方观点并阻断无限震荡。
+- **KV Cache 友好切片**：工作记忆切片输出严格依据节点生成时间戳正序稳定排列，固化 Prompt 前缀，最大化模型推理时的 KV 缓存命中率。
+- **详细设计**：详见 [working_tree/_ARCH.md](working_tree/_ARCH.md)。
+

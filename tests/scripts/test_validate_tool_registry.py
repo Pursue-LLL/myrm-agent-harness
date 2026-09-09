@@ -794,11 +794,9 @@ def test_canonical_params_completed_for_management_tools() -> None:
     assert TOOL_CANONICAL_PARAMS["skill_market_tool"] == ["action", "skill_id"]
     assert TOOL_CANONICAL_PARAMS["skill_select_tool"] == ["skill_names"]
     assert TOOL_CANONICAL_PARAMS["todo_write"] == ["merge"]
-    assert TOOL_CANONICAL_PARAMS["update_ui_data_tool"] == ["surface_id"]
     for control_signal in (
         "ask_question_tool",
         "complete_goal_tool",
-        "render_ui_tool",
         "request_answer_user_tool",
     ):
         assert TOOL_CANONICAL_PARAMS[control_signal] == []

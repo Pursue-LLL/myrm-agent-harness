@@ -81,3 +81,51 @@ class TestConstantsExport:
         assert "xiaomi_mimo" in segs
         lengths = [len(s) for s in segs]
         assert lengths == sorted(lengths, reverse=True)
+
+
+class TestOpenCodeSessionAffinity:
+    """验证 OpenCode 网关的会话亲和性请求头自动注入机制。"""
+
+    def test_opencode_affinity_header_injected(self) -> None:
+        from myrm_agent_harness.core.context_vars import prompt_routing_key_var
+        from myrm_agent_harness.toolkits.llms.core.llm import ChatLiteLLM
+
+        token = prompt_routing_key_var.set("test-sess-123")
+        try:
+            llm = ChatLiteLLM(
+                model="openai/deepseek-v4-flash",
+                api_base="https://opencode.ai/zen/go/v1",
+                api_key="test-key",
+            )
+            params: dict[str, object] = {}
+            llm._inject_prompt_routing_key(params)
+            assert "extra_headers" in params
+            assert isinstance(params["extra_headers"], dict)
+            assert params["extra_headers"]["x-opencode-session"] == "test-sess-123"
+        finally:
+            prompt_routing_key_var.reset(token)
+
+    def test_existing_header_not_overwritten(self) -> None:
+        from myrm_agent_harness.toolkits.llms.core.llm import ChatLiteLLM
+
+        llm = ChatLiteLLM(
+            model="openai/deepseek-v4-flash",
+            api_base="https://opencode.ai/zen/go/v1",
+            api_key="test-key",
+        )
+        params: dict[str, object] = {"extra_headers": {"x-opencode-session": "custom-session"}}
+        llm._inject_prompt_routing_key(params)
+        assert params["extra_headers"]["x-opencode-session"] == "custom-session"
+
+    def test_non_opencode_endpoint_untouched(self) -> None:
+        from myrm_agent_harness.toolkits.llms.core.llm import ChatLiteLLM
+
+        llm = ChatLiteLLM(
+            model="openai/gpt-4o",
+            api_base="https://api.openai.com/v1",
+            api_key="test-key",
+        )
+        params: dict[str, object] = {}
+        llm._inject_prompt_routing_key(params)
+        assert "extra_headers" not in params
+

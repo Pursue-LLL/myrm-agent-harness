@@ -18,4 +18,4 @@ knowledge direction, compile/query configs, and recursive file system operations
 | section_contract.py | Contract | Managed block SSOT: extract/replace/append + `parse_editor_sections` for GUI | ✅ |
 | canonical_registry.py | Contract | `canonical_id` / alias index, page lease hash, write-time dedup helpers | ✅ |
 | fact_trust_contract.py | Contract | FactStatus + FactTrustLevel + FactTrustPolicy; resolve_fact_status with frontmatter override and directory path inference | ✅ |
-| refactor.py | Core | LinkRefactorEngine — update relative markdown links when wiki files move or rename | ✅ |
+| refactor.py | Core | LinkRefactorEngine — RefactorReport, short-wikilink disambiguation, canonical_id pinning, supersedes/aliases injection, and markdown/wikilink updates across wiki move/rename events | ✅ |

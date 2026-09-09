@@ -79,6 +79,12 @@ from myrm_agent_harness.backends.skills.scanning.path_security import (
     is_category_bucket,
     is_path_redirect,
 )
+from myrm_agent_harness.backends.skills.scanning.quality_linter import (
+    QualityRuleId,
+    SkillQualityLinter,
+    SkillQualityReport,
+    SkillQualityViolation,
+)
 from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract_zip
 
 __all__ = [
@@ -87,6 +93,10 @@ __all__ = [
     "AdvisoryFinding",
     "AstScanFinding",
     "CacheStats",
+    "QualityRuleId",
+    "SkillQualityLinter",
+    "SkillQualityReport",
+    "SkillQualityViolation",
     "CategoryBucketCollisionError",
     "DeclaredDependency",
     "InstalledSkillRescanEngine",

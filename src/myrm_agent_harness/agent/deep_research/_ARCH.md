@@ -24,6 +24,7 @@ Orchestration signal schemas: `../orchestration/signals/deep_research.py` (not A
 - `utils`
 - `agent/meta_tools/clarification`
 - `agent/orchestration/signals/deep_research`
+- `toolkits/memory/working_tree`
 
 ## Lifecycle Phases
 

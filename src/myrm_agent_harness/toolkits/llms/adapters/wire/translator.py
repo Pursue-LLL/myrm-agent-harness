@@ -84,7 +84,10 @@ def _append_responses_reasoning_items(result: list[dict[str, Any]], msg: dict[st
         return
     for item in items:
         if isinstance(item, dict) and item.get("type") == "reasoning":
-            result.append(dict(item))
+            entry = dict(item)
+            if "summary" not in entry:
+                entry["summary"] = []
+            result.append(entry)
 
 
 def _append_assistant_message(

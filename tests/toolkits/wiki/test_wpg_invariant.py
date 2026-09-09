@@ -195,3 +195,36 @@ async def test_reindex_after_move_skips_directory_sidecars(wiki_structure: WikiS
     )
     assert reindexed == 0
     assert await indexer.search("Sidecar abstract", limit=5) == []
+
+
+@pytest.mark.asyncio
+async def test_reindex_after_move_syncs_modified_referrers(wiki_structure: WikiStructure) -> None:
+    # 1. Setup target concept
+    target_path = wiki_structure.get_concept_file_path("Tech/Architecture")
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    target_path.write_text("---\ntype: concept\n---\nNew target architecture.", encoding="utf-8")
+
+    # 2. Setup referencing concept that points to Tech/Architecture
+    ref_path = wiki_structure.get_concept_file_path("Team/Guide")
+    ref_path.parent.mkdir(parents=True, exist_ok=True)
+    ref_content = "---\ntype: concept\n---\nRefers to [[Tech/Architecture]] for details."
+    ref_path.write_text(ref_content, encoding="utf-8")
+
+    indexer = WikiIndexer(wiki_structure)
+
+    reindexed = await reindex_concepts_after_move(
+        wiki_structure,
+        indexer,
+        mappings=[ConceptPathMapping(old_concept="Tech/OldArch", new_concept="Tech/Architecture")],
+        modified_referrers=["Team/Guide"],
+    )
+
+    # 1 target + 1 referrer reindexed = 2
+    assert reindexed == 2
+    # Verify referrer content indexed in FTS
+    results = await indexer.search("Architecture", limit=5)
+    assert any(r[0] == "Team/Guide" for r in results)
+    # Verify outgoing edges updated to point to Tech/Architecture
+    edges = indexer.get_outgoing_edges("Team/Guide")
+    assert any(e[0] == "Tech/Architecture" for e in edges)
+

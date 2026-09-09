@@ -20,7 +20,7 @@ MCP Skills — Agent-layer MCP skill transformation.
 | progress_payload.py | Core | Shared notify/progress field SSOT (`parse_ptc_notify_params`, `build_workflow_stage_event`, `build_ptc_notify_payload`). Used by PTC `notify_handler` and DW `NotifyProgressTool`. | ✅ |
 | notify_registry.py | Core | Session→RunnableConfig registry (with `session_scope` async ctx mgr) so the IPC task can resolve the caller's config for `notify` dispatch. | ✅ |
 | client_templates.py | Core | Provides MCPError, generate_ipc_client_code. Injects `_SESSION_ID` / `_WORKSPACE_ROOT` into the in-script IPC client. | ✅ |
-| core_generator.py | Core | MCP Skill Generator — MCP-to-Skill conversion with progressive disclosure. Reads tools + instructions from a warm pooled connection (`conn.tools_by_server` / `conn.instructions_by_server`), reusing the same persistent session at runtime (no separate enumeration spawn). | ✅ |
+| core_generator.py | Core | MCP Skill Generator — MCP-to-Skill conversion with progressive disclosure. Injects pushy activation contracts into skill descriptions. Reads tools + instructions from a warm pooled connection (`conn.tools_by_server` / `conn.instructions_by_server`), reusing the same persistent session at runtime (no separate enumeration spawn). | ✅ |
 | executor.py | Core | Provides SkillExecutionContext, SkillExecutor. Propagates `session_id` / `workspace_root` to the generated client code. | ✅ |
 | ipc_proxy.py | Core | Provides MCPIPCRequest/Response/Server, `IPCCallContext` + `get_ipc_call_context` (ContextVar) so builtin handlers can read per-call session metadata. | ✅ |
 | tool_name_utils.py | Core | resolve_mcp_tool_name — canonical MCP tool name matching (_/- aliases, server prefix strip). | ✅ |

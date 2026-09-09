@@ -46,7 +46,10 @@ from myrm_agent_harness.toolkits.llms.consensus.moa_overlay_types import (
     MoAOverlayConfig,
     PrivacyFilterMode,
 )
-from myrm_agent_harness.toolkits.llms.consensus.types import ReferenceResponse
+from myrm_agent_harness.toolkits.llms.consensus.types import (
+    PrivacyRedactor,
+    ReferenceResponse,
+)
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -136,6 +139,7 @@ def create_moa_advisor_middleware(
     *,
     config: MoAOverlayConfig | None = None,
     unattended: bool = False,
+    privacy_redactor: PrivacyRedactor | None = None,
 ) -> Any:
     """Build MoA advisor overlay middleware bound to pre-resolved reference LLMs."""
     overlay_cfg = config or MoAOverlayConfig()
@@ -171,7 +175,7 @@ def create_moa_advisor_middleware(
             await _emit_overlay_active(ref_names)
 
         async def _on_ref_done(ref: ReferenceResponse) -> None:
-            sse_ref = apply_privacy_to_ref(ref, sse_privacy_mode(privacy_mode))
+            sse_ref = apply_privacy_to_ref(ref, sse_privacy_mode(privacy_mode), privacy_redactor)
             await _emit_ref_done(
                 sse_ref.model,
                 success=sse_ref.success,
@@ -194,7 +198,7 @@ def create_moa_advisor_middleware(
             )
             return await handler(request)
 
-        inject_refs = [apply_privacy_to_ref(r, inject_privacy_mode(privacy_mode)) for r in successful]
+        inject_refs = [apply_privacy_to_ref(r, inject_privacy_mode(privacy_mode), privacy_redactor) for r in successful]
         injection = build_advisor_injection_block(inject_refs)
         if not injection:
             return await handler(request)

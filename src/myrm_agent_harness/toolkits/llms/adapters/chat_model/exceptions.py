@@ -35,6 +35,7 @@ _FRAMEWORK_REQUIRED_OPENAI_PARAMS: frozenset[str] = frozenset(
         "previous_response_id",
         "reasoning_effort",
         "service_tier",
+        "extra_headers",
     }
 )
 

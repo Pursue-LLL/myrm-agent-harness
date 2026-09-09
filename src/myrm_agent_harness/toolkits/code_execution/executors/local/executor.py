@@ -191,6 +191,7 @@ class LocalExecutor(LocalFileOpsMixin, CodeExecutor):
             timeout=context.timeout or self.config.local.max_execution_time,
             memory_limit_mb=self.config.local.max_memory_mb,
             max_output_bytes=self.config.local.max_output_bytes,
+            readonly_workspace=context.readonly_workspace,
         )
 
         with tempfile.NamedTemporaryFile(

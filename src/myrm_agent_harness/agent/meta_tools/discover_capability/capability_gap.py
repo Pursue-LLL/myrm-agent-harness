@@ -11,7 +11,7 @@
 [POS]
 Detects when a user query matches **substring triggers** for a GUI-togglable builtin tool group
 that is not enabled on the current Agent profile. Primary runtime consumer: server
-``entitlement_gap_preflight`` render_ui **surface_unavailable** intent detection (form-fill queries on IM).
+capability gap intent detection.
 Substring enable-and-resend SSE toasts were removed; registry entries remain for intent matching only.
 ``skill_market`` / ``skill_manage`` are profile toggles but excluded from this registry (install/author via Settings or explicit profile opt-in).
 ``AGENT_BASELINE_BUILTIN_TOOLS`` (file_ops, code_execute) are forced at runtime and omitted from
@@ -93,25 +93,6 @@ CAPABILITY_GAP_REGISTRY: tuple[CapabilityGapEntry, ...] = (
     ),
     CapabilityGapEntry("wiki", "wiki", ("wiki", "知识库", "personal wiki")),
     CapabilityGapEntry("kanban", "kanban", ("kanban", "看板", "task board")),
-    CapabilityGapEntry(
-        "render_ui",
-        "render_ui",
-        (
-            "render ui",
-            "interactive ui",
-            "ui artifact",
-            "渲染界面",
-            "interactive form",
-            "multi-field form",
-            "fill out",
-            "fill in",
-            "填表",
-            "表单",
-            "填写",
-            "部署配置",
-            "配置表单",
-        ),
-    ),
     CapabilityGapEntry(
         "structured_clarify",
         "structured_clarify",

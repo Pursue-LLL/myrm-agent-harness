@@ -55,10 +55,18 @@ from myrm_agent_harness.toolkits.cron.types import (
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.cron.manager import CronManager
 
-# Blueprint filler: (blueprint_id, values_dict, tz) -> (schedule_dict, prompt, name, caps, tools) | None
+# Blueprint filler: (blueprint_id, values_dict, tz) -> (schedule_dict, prompt, name, caps, tools, skills) | None
 BlueprintFiller = Callable[
     [str, dict[str, str], str | None],
-    tuple[dict[str, str | int | None], str, str, tuple[str, ...], tuple[str, ...] | None] | None,
+    tuple[
+        dict[str, str | int | None],
+        str,
+        str,
+        tuple[str, ...],
+        tuple[str, ...] | None,
+        tuple[str, ...] | None,
+    ]
+    | None,
 ]
 BlueprintCatalogProvider = Callable[[], str]
 DeliveryResolver = Callable[[str], DeliveryConfig]
@@ -166,6 +174,7 @@ def create_cron_tools(
         reminder: bool = False,
         required_capabilities: str = "",
         tools_allowed: str = "",
+        skill_ids: str = "",
     ) -> str:
         effective_model = model.strip() or current_model
 
@@ -184,6 +193,7 @@ def create_cron_tools(
         bp_name = name
         bp_required_capabilities: tuple[str, ...] = ()
         bp_tools_allowed: tuple[str, ...] | None = None
+        bp_skill_ids: tuple[str, ...] = ()
 
         if action == "add" and blueprint.strip() and blueprint_filler:
             bp_values: dict[str, str] = {}
@@ -197,11 +207,12 @@ def create_cron_tools(
             if fill_result is None:
                 return f"Error: unknown blueprint '{blueprint.strip()}'. Use list action or check available blueprints."
 
-            sched_dict, filled_prompt, filled_name, filled_caps, filled_tools = fill_result
+            sched_dict, filled_prompt, filled_name, filled_caps, filled_tools, filled_skills = fill_result
             bp_prompt = filled_prompt
             bp_name = bp_name or filled_name
             bp_required_capabilities = filled_caps
             bp_tools_allowed = filled_tools
+            bp_skill_ids = filled_skills or ()
 
             sched_kind = sched_dict.get("kind", "")
             if sched_kind == "cron" and sched_dict.get("expr"):
@@ -214,6 +225,7 @@ def create_cron_tools(
             _parse_csv_tuple(required_capabilities) if required_capabilities.strip() else bp_required_capabilities
         )
         effective_tools_allowed = tuple(_parse_csv_tuple(tools_allowed)) if tools_allowed.strip() else bp_tools_allowed
+        effective_skill_ids = tuple(_parse_csv_tuple(skill_ids)) if skill_ids.strip() else bp_skill_ids
 
         dispatch = {
             "add": lambda: _do_add(
@@ -252,6 +264,7 @@ def create_cron_tools(
                 reminder=reminder,
                 required_capabilities=effective_required_capabilities,
                 tools_allowed=effective_tools_allowed,
+                skill_ids=effective_skill_ids,
                 resolve_delivery=_resolve_delivery,
             ),
             "list": lambda: _do_list(manager, user_id, name_filter),
@@ -278,6 +291,7 @@ def create_cron_tools(
                 if required_capabilities.strip()
                 else None,
                 tools_allowed=tuple(_parse_csv_tuple(tools_allowed)) if tools_allowed.strip() else None,
+                skill_ids=tuple(_parse_csv_tuple(skill_ids)) if skill_ids.strip() else None,
             ),
             "remove": lambda: _do_remove(manager, user_id, job_id),
             "run": lambda: _do_run(manager, user_id, job_id),
@@ -543,6 +557,7 @@ async def _do_add(
     reminder: bool = False,
     required_capabilities: tuple[str, ...] = (),
     tools_allowed: tuple[str, ...] | None = None,
+    skill_ids: tuple[str, ...] = (),
     *,
     resolve_delivery: DeliveryResolver,
 ) -> str:
@@ -649,6 +664,7 @@ async def _do_add(
             triggers=trigger_config,
             required_capabilities=required_capabilities,
             tools_allowed=tools_allowed,
+            skill_ids=skill_ids,
         )
     except ValueError as exc:
         return str(exc)
@@ -729,6 +745,7 @@ async def _do_update(
     session_mode: str = "",
     required_capabilities: tuple[str, ...] | None = None,
     tools_allowed: tuple[str, ...] | None = None,
+    skill_ids: tuple[str, ...] | None = None,
 ) -> str:
     if not job_id:
         return "job_id required. Use action='list' first."
@@ -770,6 +787,8 @@ async def _do_update(
         session_target=parsed_session_target,
         required_capabilities=required_capabilities,
         tools_allowed=tools_allowed,
+        skill_ids=skill_ids,
+        clear_skill_ids=skill_ids is not None and len(skill_ids) == 0,
     )
 
     try:

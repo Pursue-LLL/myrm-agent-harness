@@ -63,8 +63,8 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
         Args:
             todos: List of task items. Each item must be a dict with:
                 - id: Unique string identifier (e.g. "1", "2", "setup_db")
-                - content: Concrete, actionable step description
-                - status: One of "pending" | "in_progress" | "completed" | "cancelled" | "blocked"
+                - content: Concrete, actionable step description (optional in merge=True if updating status only)
+                - status: One of "pending" | "in_progress" | "completed" | "cancelled" | "blocked" (optional in merge=True to retain existing status)
             merge: Mode flag.
                 - False (default): Initialize or overwrite the full task list.
                 - True: Incrementally update specified items by id (pass only changed items).
@@ -93,10 +93,12 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
             )
 
         corrected_count = _enforce_single_in_progress(merged_items)
+        next_revision = (current.revision + 1) if current else 1
 
         store = TodoStore(
             goal=goal if goal is not None else (current.goal if current else None),
             todos=merged_items,
+            revision=next_revision,
         )
         write_todos_sync_to_workspace(root, store)
         emit_todo_progress_events(store)
@@ -114,6 +116,7 @@ def create_todo_write_tool(workspace_root: str | None) -> BaseTool:
             "completed": completed,
             "cancelled": cancelled,
             "blocked": blocked,
+            "revision": store.revision,
         }
         if corrected_count > 0:
             summary["note"] = (

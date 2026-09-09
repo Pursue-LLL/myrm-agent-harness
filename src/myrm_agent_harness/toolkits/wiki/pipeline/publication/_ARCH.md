@@ -3,7 +3,7 @@
 ## Overview
 Wiki Publish Gate (WPG) SSOT. All published concept writes and indexer upserts route through
 `publish_concept_article`. Pending SQLite drafts are promoted on approve via the same path.
-Move/rename reindexes via `reindex_concepts_after_move` (frontmatter-aware, no publish stamp).
+Move/rename reindexes via `reindex_concepts_after_move` (frontmatter-aware, no publish stamp; synchronizes referencing inbound links and graph edges).
 New pending drafts demote stale published articles via `stale_guard`.
 `repair_publication_status` grandfathers missing `publish_status` only; explicit draft/blocked pages are preserved.
 
@@ -14,7 +14,7 @@ New pending drafts demote stale published articles via `stale_guard`.
 | `__init__.py` | Package | Re-exports publish API | ✅ |
 | publish.py | Core | `publish_concept_article`, `repair_publication_status`, outcome types | ✅ |
 | stale_guard.py | Core | Stale source detection, demote on pending stage, `StalePendingApprovalError` on approve | ✅ |
-| path_change.py | Core | `reindex_concepts_after_move` for vault move/rename; skips directory sidecars | ✅ |
+| path_change.py | Core | `ConceptPathMapping`, `reindex_concepts_after_move` for vault move/rename; skips directory sidecars and synchronizes referencing concept FTS and wiki graph edges | ✅ |
 
 ## Key Dependencies
 

@@ -16,7 +16,6 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 from langchain.agents.middleware import ModelRequest, ModelResponse, wrap_model_call
 from langchain_core.messages import HumanMessage
@@ -105,7 +104,7 @@ def _build_progress_injection(store: TodoStore, incomplete: list[TodoItem]) -> s
 
 def progress_middleware(
     get_todos_fn: Callable[[str | None], Awaitable[TodoStore | None]],
-) -> Any:
+) -> Callable[[ModelRequest, Callable[[ModelRequest], Awaitable[ModelResponse]]], Awaitable[ModelResponse]]:
     """Inject active todo focus into the last HumanMessage (non-persistent)."""
 
     @wrap_model_call(name="progress_middleware")  # type: ignore[arg-type]
@@ -129,35 +128,41 @@ def progress_middleware(
         injection_text = _build_progress_injection(store, incomplete)
 
         new_messages = list(request.messages)
-        last_human_idx = -1
-        for i in range(len(new_messages) - 1, -1, -1):
-            if isinstance(new_messages[i], HumanMessage):
-                last_human_idx = i
-                break
+        if not new_messages:
+            return await handler(request)
 
-        if last_human_idx != -1:
-            last_msg = new_messages[last_human_idx]
-            if isinstance(last_msg.content, str):
-                cleaned_content = _strip_previous_progress(last_msg.content)
-                new_messages[last_human_idx] = HumanMessage(
-                    content=f"{cleaned_content}\n\n{injection_text}" if cleaned_content else injection_text,
-                    id=last_msg.id,
-                )
-            elif isinstance(last_msg.content, list):
-                cleaned_parts: list[dict[str, Any]] = []
-                for part in last_msg.content:
-                    if isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str):
-                        cleaned_text = _strip_previous_progress(part["text"])
-                        if cleaned_text:
-                            cleaned_parts.append({**part, "text": cleaned_text})
-                    else:
-                        cleaned_parts.append(part)
-                new_messages[last_human_idx] = HumanMessage(
-                    content=[*cleaned_parts, {"type": "text", "text": f"\n\n{injection_text}"}],
-                    id=last_msg.id,
-                )
-        else:
-            new_messages.append(HumanMessage(content=injection_text))
+        # Append-Only cache preservation:
+        # In multi-turn tool loops (where last message is AIMessage or ToolMessage),
+        # past HumanMessages MUST NOT be rewritten or stripped, as modifying historical
+        # messages breaks KV cache prefix matching. The model already sees latest task
+        # state via the ToolMessage from todo_write.
+        if not isinstance(new_messages[-1], HumanMessage):
+            if not any(isinstance(m, HumanMessage) for m in new_messages):
+                # Fallback for synthetic requests without any HumanMessage
+                new_messages.append(HumanMessage(content=injection_text))
+                return await handler(request.override(messages=new_messages))
+            return await handler(request)
+
+        last_msg = new_messages[-1]
+        if isinstance(last_msg.content, str):
+            cleaned_content = _strip_previous_progress(last_msg.content)
+            new_messages[-1] = HumanMessage(
+                content=f"{cleaned_content}\n\n{injection_text}" if cleaned_content else injection_text,
+                id=last_msg.id,
+            )
+        elif isinstance(last_msg.content, list):
+            cleaned_parts: list[dict[str, object]] = []
+            for part in last_msg.content:
+                if isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str):
+                    cleaned_text = _strip_previous_progress(part["text"])
+                    if cleaned_text:
+                        cleaned_parts.append({**part, "text": cleaned_text})
+                else:
+                    cleaned_parts.append(part)
+            new_messages[-1] = HumanMessage(
+                content=[*cleaned_parts, {"type": "text", "text": f"\n\n{injection_text}"}],
+                id=last_msg.id,
+            )
 
         return await handler(request.override(messages=new_messages))
 

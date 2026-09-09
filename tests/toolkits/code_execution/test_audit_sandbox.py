@@ -115,3 +115,77 @@ def test_file_isolation_rename_blocked_outside_workspace(audit_hook):
         SecurityError, match=r"Destructive file operation \(os\.rename\) outside allowed workspace blocked"
     ):
         hook("os.rename", (allowed_src, outside_dst, None, None))
+
+
+def test_readonly_workspace_blocks_destructive_writes(tmp_path):
+    hook_capture = []
+
+    def mock_addaudithook(hook):
+        hook_capture.append(hook)
+
+    with patch("sys.addaudithook", side_effect=mock_addaudithook):
+        install(workspace_path=str(tmp_path), allow_network=False, readonly_workspace=True)
+
+    hook = hook_capture[0]
+    workspace_file = os.path.join(str(tmp_path), "test.py")
+
+    with pytest.raises(SecurityError, match="Write operation inside workspace blocked by readonly_workspace policy"):
+        hook("open", (workspace_file, "w", 0))
+
+    with pytest.raises(SecurityError, match="Destructive file operation.*blocked by readonly_workspace policy"):
+        hook("os.remove", (workspace_file, None))
+
+    # Writes to system tempdir are still permitted for Python runtime internals
+    tmp_path_file = os.path.join(tempfile.gettempdir(), "test_runtime.tmp")
+    hook("open", (tmp_path_file, "w", 0))
+
+
+def test_udp_sendto_and_bind_blocked_when_network_disabled(audit_hook):
+    hook, _ = audit_hook
+    with pytest.raises(SecurityError, match="Network access is blocked by sandbox policy"):
+        hook("socket.sendto", (None, None))
+
+    with pytest.raises(SecurityError, match="Network access is blocked by sandbox policy"):
+        hook("socket.bind", (None,))
+
+
+def test_sensitive_git_and_docker_credentials_blocked_outside_workspace(audit_hook):
+    hook, workspace = audit_hook
+    with pytest.raises(SecurityError, match="Read access to sensitive file blocked"):
+        hook("open", ("/Users/dummy/.git-credentials", "r", 0))
+
+    with pytest.raises(SecurityError, match="Read access to sensitive file blocked"):
+        hook("open", ("/Users/dummy/.docker/config.json", "r", 0))
+
+    # Safe read inside workspace is not blocked
+    safe_file = os.path.join(workspace, "config.json")
+    hook("open", (safe_file, "r", 0))
+
+
+def test_real_cpython_socket_args_signature(tmp_path):
+    """Test that audit hook works with real CPython (socket_instance, address) signature."""
+    hook_capture = []
+    with patch("sys.addaudithook", side_effect=lambda h: hook_capture.append(h)):
+        install(str(tmp_path), allow_network=True, allowed_hosts=frozenset(["api.github.com"]))
+    hook = hook_capture[0]
+
+    dummy_socket = object()
+
+    # Allowed host with real (socket, address) signature
+    hook("socket.connect", (dummy_socket, ("api.github.com", 443)))
+
+    # Blocked host with real (socket, address) signature
+    with pytest.raises(SecurityError, match=r"Network access to 'evil\.com' is blocked"):
+        hook("socket.connect", (dummy_socket, ("evil.com", 80)))
+
+    # AF_UNIX socket sendto/bind string path allowed when network=False
+    hook_no_net_capture = []
+    with patch("sys.addaudithook", side_effect=lambda h: hook_no_net_capture.append(h)):
+        install(str(tmp_path), allow_network=False)
+    hook_no_net = hook_no_net_capture[0]
+
+    hook_no_net("socket.connect", (dummy_socket, "/tmp/mcp.sock"))
+    hook_no_net("socket.sendto", (dummy_socket, b"data", "/dev/log"))
+    hook_no_net("socket.bind", (dummy_socket, "/tmp/service.sock"))
+
+

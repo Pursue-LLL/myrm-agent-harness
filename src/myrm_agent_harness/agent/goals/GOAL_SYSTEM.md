@@ -100,7 +100,7 @@ Goal System 负责管理长期任务（Long-running Tasks）的生命周期、�
 2. Server 创建 Goal；Harness `intercept_goal_and_plan` 应用 protected paths / 快照。
 3. 主 Agent 启动；若启用 `planning` 组则 bind `todo_write`，Agent 自行分解 todos。
 4. `ProgressMiddleware` 在末位 HumanMessage 注入活跃 todo 焦点；`goal_focus_middleware` 在 ACTIVE goal 的用户发起轮注入 objective 提醒（continuation/wrap-up 轮自动跳过）。
-5. Agent 试图在未完成 todos 时结束 → `CompletionGuard` 拦截。
+5. `ProgressMiddleware` 持续注入活跃 todo 焦点，引导 Agent 执行未完成任务或标记取消/阻塞。
 6. Agent 调用 `todo_write(merge=true)` 标记完成 → SSE → 前端更新打勾。
 
 ### 8. DAG 并发执行引擎 (DAG Executor)

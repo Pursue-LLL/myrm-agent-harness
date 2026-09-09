@@ -54,6 +54,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | relational/ | Relational Store — abstract interface and SQLite implementation.                  |
 | strategies/ | Optional memory strategies: forgetting, extraction, deduplication, consolidation, preference stability, recurrence-triggered consolidation, staleness review. |
 | proactive/ | Proactive follow-up track — LLM implicit commitment extraction, `CommitmentStore` protocol, heartbeat delivery. See [COMMITMENT_SYSTEM.md](proactive/COMMITMENT_SYSTEM.md). |
+| working_tree/ | ReTree topological self-correcting tree working memory engine, evidence DAG container, two-stage contradiction detector, and cascading backtracking repair engine. See [working_tree/_ARCH.md](working_tree/_ARCH.md). |
 
 ## Key Dependencies
 

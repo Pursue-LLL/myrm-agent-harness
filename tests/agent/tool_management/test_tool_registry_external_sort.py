@@ -16,7 +16,7 @@ def _tool(name: str) -> StructuredTool:
 
 def test_mcp_tools_sort_after_harness_extended_tools() -> None:
     reg = ToolRegistry()
-    harness_extended = ("kanban_show", "render_ui_tool", "wiki_query_tool")
+    harness_extended = ("kanban_show", "ask_question_tool", "wiki_query_tool")
     for name in harness_extended:
         reg.register(_tool(name), source=ToolSource.META)
     reg.register(_tool("mcp__github__search_repositories"), source=ToolSource.USER)

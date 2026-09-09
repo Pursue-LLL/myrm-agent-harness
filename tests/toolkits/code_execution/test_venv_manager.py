@@ -126,3 +126,17 @@ class TestVenvManagerRewritePipCommand:
 
         result = await manager.rewrite_pip_command("pip list")
         assert result == "pip list"
+
+
+class TestVenvManagerCreation:
+    """Verify venv creation behavior without redundant external network upgrade."""
+
+    @pytest.mark.asyncio
+    async def test_creation_falls_back_cleanly(self):
+        config = MagicMock()
+        config.local.shared_venv_path = "/nonexistent/read-only/path"
+        config.local.auto_create_venv = True
+        manager = VenvManager(config)
+        # Should gracefully fall back to sys.executable on permission error
+        py_exec = await manager.get_python_executable()
+        assert Path(py_exec).exists()

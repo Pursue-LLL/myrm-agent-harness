@@ -35,39 +35,6 @@ def test_extract_recent_human_text_handles_segment_list_content() -> None:
     assert extract_recent_human_text(messages) == "segment A segment B"
 
 
-def test_runtime_governance_disables_ui_tools_without_ui_intent() -> None:
-    tool_names = ["render_ui_tool", "update_ui_data_tool", "web_search_tool"]
-    allowed, reasons = derive_runtime_allowed_tools(
-        tool_names=tool_names,
-        recent_human_text="请解释一下这个问题的根因",
-    )
-
-    assert allowed == frozenset({"web_search_tool"})
-    assert "ui_intent_gate" in reasons
-
-
-def test_runtime_governance_keeps_ui_tools_for_ui_intent() -> None:
-    tool_names = ["render_ui_tool", "update_ui_data_tool", "web_search_tool"]
-    allowed, reasons = derive_runtime_allowed_tools(
-        tool_names=tool_names,
-        recent_human_text="请把结果做成可视化 dashboard 图表",
-    )
-
-    assert allowed is None
-    assert reasons == ()
-
-
-def test_runtime_governance_ui_keyword_does_not_match_build_substring() -> None:
-    tool_names = ["render_ui_tool", "web_fetch_tool"]
-    allowed, reasons = derive_runtime_allowed_tools(
-        tool_names=tool_names,
-        recent_human_text="please build and deploy this service",
-    )
-
-    assert allowed == frozenset({"web_fetch_tool"})
-    assert "ui_intent_gate" in reasons
-
-
 def test_runtime_governance_readonly_intent_filters_mutation_tools() -> None:
     tool_names = [
         "web_fetch_tool",

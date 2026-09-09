@@ -45,12 +45,6 @@ from myrm_agent_harness.backends.skills.decorators import (
     session_id_var,
 )
 from myrm_agent_harness.backends.skills.factory import SkillBackend
-from myrm_agent_harness.backends.skills.model_resolver import (
-    DEFAULT_TIER_MODELS,
-    SkillModelResolutionResult,
-    SkillModelResolutionSource,
-    SkillModelResolver,
-)
 from myrm_agent_harness.backends.skills.local import (
     LocalSkillBackend,
     scan_workspace_skills,
@@ -62,15 +56,9 @@ from myrm_agent_harness.backends.skills.market_protocols import (
     SkillMarketBackend,
     SkillSearchResult,
 )
-from myrm_agent_harness.backends.skills.prerequisites import (
-    DependencyCheckItem,
-    DependencyStatus,
-    PrerequisiteProbe,
-    PrerequisiteReport,
-    SkillPrerequisites,
-)
 from myrm_agent_harness.backends.skills.memory import InMemorySkillBackend
 from myrm_agent_harness.backends.skills.model_resolver import (
+    DEFAULT_TIER_MODELS,
     SkillModelResolutionResult,
     SkillModelResolutionSource,
     SkillModelResolver,
@@ -87,6 +75,13 @@ from myrm_agent_harness.backends.skills.permission_validator import (
     map_permission_to_skill_permission,
     set_permission_usage_callback,
     validate_skill_permissions,
+)
+from myrm_agent_harness.backends.skills.prerequisites import (
+    DependencyCheckItem,
+    DependencyStatus,
+    PrerequisiteProbe,
+    PrerequisiteReport,
+    SkillPrerequisites,
 )
 from myrm_agent_harness.backends.skills.protocols import (
     ABTestStoreProtocol,
@@ -110,23 +105,17 @@ from myrm_agent_harness.backends.skills.workflow_compiler import (
 )
 
 __all__ = [
-    "DEFAULT_TIER_MODELS",
-    "SkillModelResolutionResult",
-    "SkillModelResolutionSource",
-    "SkillModelResolver",
-    "DesktopEvent",
-    "WorkflowIntentPlan",
-    "WorkflowPlanStep",
-    "WorkflowSkillCompiler",
-    "compile_workflow_plan_to_skill_markdown",
-    "TEMPLATE_PERMISSIONS",
     "ABTestStoreProtocol",
     "CompositeSkillBackend",
+    "DEFAULT_TIER_MODELS",
+    "DependencyCheckItem",
+    "DependencyStatus",
+    "DesktopEvent",
     "InMemorySkillBackend",
     "LocalSkillBackend",
-    # Permission templates
     "PermissionTemplate",
-    # Decorators
+    "PrerequisiteProbe",
+    "PrerequisiteReport",
     "QuarantineAwareSkillBackend",
     "ScanningSkillWriteBackend",
     "SkillBackend",
@@ -139,15 +128,8 @@ __all__ = [
     "SkillModelResolutionResult",
     "SkillModelResolutionSource",
     "SkillModelResolver",
-    "DEFAULT_TIER_MAPPING",
-    "SkillPrerequisites",
-    "PrerequisiteReport",
-    "PrerequisiteProbe",
-    "HostPrerequisitesProbe",
-    "DependencyCheckItem",
-    "DependencyStatus",
-    # Permission system
     "SkillPermission",
+    "SkillPrerequisites",
     "SkillResourceWriteResult",
     "SkillSaveResult",
     "SkillSearchResult",
@@ -155,8 +137,13 @@ __all__ = [
     "SkillWriteBackend",
     "SnapshotStoreProtocol",
     "StorageSkillBackend",
+    "TEMPLATE_PERMISSIONS",
     "VersionAwareSkillBackend",
+    "WorkflowIntentPlan",
+    "WorkflowPlanStep",
+    "WorkflowSkillCompiler",
     "check_permission_for_tool_call",
+    "compile_workflow_plan_to_skill_markdown",
     "get_template_permissions",
     "log_permission_usage",
     "map_permission_to_skill_permission",

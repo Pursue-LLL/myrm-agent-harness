@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from myrm_agent_harness.observability.digest.health_evaluator import SkillHealthEvaluator
+from myrm_agent_harness.observability.digest.health_evaluator import (
+    SkillHealthEvaluator,
+)
 from myrm_agent_harness.observability.digest.types import (
     SkillCompoundingMetrics,
     SkillHealthStatus,
@@ -45,7 +47,9 @@ def test_stale_skill_inactive_over_threshold():
         distinct_sessions=4,
         last_invoked_at=old_time,
     )
-    score = SkillHealthEvaluator.evaluate(metrics, reference_time=now, stale_days_threshold=30)
+    score = SkillHealthEvaluator.evaluate(
+        metrics, reference_time=now, stale_days_threshold=30
+    )
     assert score.health_score == 15.0
     assert score.status == SkillHealthStatus.STALE
     assert "Inactive for 45 days" in score.actionable_recommendation

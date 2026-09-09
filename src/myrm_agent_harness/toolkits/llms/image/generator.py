@@ -41,6 +41,7 @@ from .models import (
     MediaCallback,
     MediaMeta,
 )
+from .types import get_profile
 
 __all__ = [
     "FailoverAttempt",
@@ -142,18 +143,41 @@ class ImageGenerator:
             ImageGenerationError: If generation fails across all models.
         """
         if reference_image_urls:
-            ref_bytes = await _download_reference_images(
-                reference_image_urls,
-                allow_private_networks=allow_private_networks,
-            )
-            if ref_bytes:
-                return await self._generate_with_references(
-                    prompt=prompt,
-                    ref_bytes=ref_bytes,
-                    size=size,
-                    n=n,
-                    cancellation_event=cancellation_event,
+            profile = get_profile(self._config.model)
+            # When active model is pure text-to-image (does not support edit/image input, e.g. DALL-E 3),
+            # avoid sending invalid aimage_edit requests or wasting bandwidth on binary downloads.
+            if profile and not profile.supports_edit and profile.max_input_images == 0:
+                logger.info(
+                    "Model %s does not support native edit/image inputs; appending reference URLs as prompt context",
+                    self._config.model,
                 )
+                ref_context = f" (Reference: {', '.join(reference_image_urls)})"
+                if len(prompt) + len(ref_context) <= profile.max_prompt_length:
+                    prompt = f"{prompt}{ref_context}"
+            else:
+                ref_bytes = await _download_reference_images(
+                    reference_image_urls,
+                    allow_private_networks=allow_private_networks,
+                )
+                if ref_bytes:
+                    try:
+                        return await self._generate_with_references(
+                            prompt=prompt,
+                            ref_bytes=ref_bytes,
+                            size=size,
+                            n=n,
+                            cancellation_event=cancellation_event,
+                        )
+                    except ImageGenerationError as exc:
+                        logger.warning(
+                            "Native reference generation failed for %s (%s); falling back to text-guided generation",
+                            self._config.model,
+                            exc,
+                        )
+                        ref_context = f" (Reference: {', '.join(reference_image_urls)})"
+                        max_len = profile.max_prompt_length if profile else 4000
+                        if len(prompt) + len(ref_context) <= max_len:
+                            prompt = f"{prompt}{ref_context}"
 
         from litellm import aimage_generation
 

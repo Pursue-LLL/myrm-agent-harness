@@ -23,6 +23,7 @@ Skill content security scanning — regex patterns, Python AST analysis, package
 | zip_extract.py | Core | Secure ZIP extraction (compression ratio / entry-count / total-size limits, symlink/path traversal defense, executable-binary rejection). | ✅ |
 | scanning_write_backend.py | Core | Framework-level security wrapper that enforces mandatory scanning before skill writes. | ✅ |
 | category_guard.py | Core | Category bucket collision and directory junction/symlink redirection traversal defense. | ✅ |
+| quality_linter.py | Core | SkillQualityLinter auditing SKILL.md against 7 Golden Rules (Routing description, Negative boundary, Imperative style, Output template, Worked examples, 1-Level deep). | ✅ |
 
 ## Key Dependencies
 

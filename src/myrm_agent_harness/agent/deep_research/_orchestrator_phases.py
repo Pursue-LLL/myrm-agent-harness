@@ -39,6 +39,7 @@ from .helpers import (
     accumulate_usage,
     build_research_subagent_config,
     extract_tool_calls,
+    format_research_context,
 )
 from .prompts import CLARIFICATION_PROMPT
 
@@ -131,8 +132,10 @@ class DeepResearchPhasesMixin:
         messages: list[BaseMessage] = [SystemMessage(content=system_prompt), *history]
 
         finalize_schema = [
-            t for t in build_orchestrator_tools(include_think=False) if t["function"]["name"] == FINALIZE_TOOL_NAME
-        ]  # type: ignore[index]
+            t
+            for t in build_orchestrator_tools(include_think=False)
+            if isinstance(t, dict) and isinstance(t.get("function"), dict) and t["function"].get("name") == FINALIZE_TOOL_NAME
+        ]
 
         ask_question_schema = build_signal_schema(
             "ask_question_tool",
@@ -141,10 +144,10 @@ class DeepResearchPhasesMixin:
         )
 
         tools_to_bind = [*finalize_schema, ask_question_schema]
-        bound_llm = self._llm.bind_tools(tools_to_bind)  # type: ignore[attr-defined, arg-type]
+        bound_llm = self._llm.bind_tools(tools_to_bind)
         response = await asyncio.wait_for(
             bound_llm.ainvoke(messages),
-            timeout=self._config.llm_call_timeout_seconds,  # type: ignore[attr-defined]
+            timeout=self._config.llm_call_timeout_seconds,
         )
 
         if not isinstance(response, AIMessage):
@@ -366,7 +369,7 @@ class DeepResearchPhasesMixin:
         from .helpers import accumulate_usage, audit_citations, format_numbered_sources
         from .prompts import FINAL_REPORT_PROMPT, FINAL_REPORT_QUERY
 
-        self._phase = DeepResearchPhase.REPORT  # type: ignore[attr-defined]
+        self._phase = DeepResearchPhase.REPORT
 
         system_prompt = FINAL_REPORT_PROMPT.format(current_datetime=datetime_str)
         user_query = FINAL_REPORT_QUERY.format(
@@ -459,49 +462,11 @@ class DeepResearchPhasesMixin:
         )
 
     def _format_research_context(self) -> str:
-        """Format all research agent results into a single context block.
-
-        Applies max_report_context_chars budget. When the total exceeds the
-        limit, the earliest tasks are truncated first (most recent results are
-        typically the most refined and valuable for the final report).
-        """
-        if not self._result.agent_results:  # type: ignore[attr-defined]
-            return ""
-
-        limit = self._config.max_report_context_chars  # type: ignore[attr-defined]
-        separator = "\n\n---\n\n"
-
-        parts: list[str] = []
-        for i, entry in enumerate(self._result.agent_results, 1):  # type: ignore[attr-defined]
-            task = entry.get("task", "Unknown task")
-            result = entry.get("result", "No result")
-            parts.append(f"## Research Task {i}: {task}\n\n{result}")
-
-        full = separator.join(parts)
-        if len(full) <= limit:
-            return full
-
-        kept: list[str] = []
-        budget = limit
-        for part in reversed(parts):
-            cost = len(part) + len(separator)
-            if budget >= cost:
-                kept.append(part)
-                budget -= cost
-            elif budget > len(separator) + 100:
-                trunc = part[: budget - len(separator) - 50]
-                trunc += "\n\n[Truncated — prioritizing most recent research]"
-                kept.append(trunc)
-                break
-            else:
-                break
-
-        kept.reverse()
-        logger.info(
-            "[deep-research] Report context: %d/%d tasks kept, %d/%d chars",
-            len(kept),
-            len(parts),
-            len(separator.join(kept)),
-            len(full),
+        """Format all research agent results into a single context block, respecting tree pruning."""
+        evidence_tree_data = getattr(self._result, "evidence_tree", None)  # type: ignore[attr-defined]
+        return format_research_context(
+            agent_results=self._result.agent_results,  # type: ignore[attr-defined]
+            max_chars=self._config.max_report_context_chars,  # type: ignore[attr-defined]
+            evidence_tree_data=evidence_tree_data,
         )
-        return separator.join(kept)
+

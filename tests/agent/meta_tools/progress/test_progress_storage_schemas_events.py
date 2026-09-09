@@ -83,6 +83,24 @@ def test_merge_todo_items_merge_mode_preserves_order_and_updates() -> None:
     assert merged[0].status == TodoStatus.COMPLETED
 
 
+def test_merge_todo_items_preserves_status_when_status_omitted() -> None:
+    """When merge=True and incoming payload only updates content, keep existing status."""
+    current = [
+        TodoItem(id="1", content="original content", status=TodoStatus.IN_PROGRESS),
+        TodoItem(id="2", content="task 2", status=TodoStatus.COMPLETED),
+    ]
+    incoming = parse_todo_payload(
+        [{"id": "1", "content": "refined content"}],
+        allow_empty_content=True,
+    )
+    merged = merge_todo_items(current, incoming, merge=True)
+    assert len(merged) == 2
+    assert merged[0].id == "1"
+    assert merged[0].content == "refined content"
+    assert merged[0].status == TodoStatus.IN_PROGRESS  # Must not reset to PENDING
+    assert merged[1].status == TodoStatus.COMPLETED
+
+
 def test_parse_todo_payload_valid() -> None:
     items = parse_todo_payload([{"id": "1", "content": "step", "status": "in_progress"}])
     assert len(items) == 1
@@ -93,8 +111,6 @@ def test_parse_todo_payload_valid() -> None:
     ("payload", "match"),
     [
         ([1], "must be an object"),
-        ([{"content": "x"}], "id is required"),
-        ([{"id": "1"}], "content is required"),
         ([{"id": "1", "content": "x", "status": "bogus"}], "is invalid"),
     ],
 )
@@ -103,12 +119,17 @@ def test_parse_todo_payload_validation_errors(payload: list[object], match: str)
         parse_todo_payload(payload)
 
 
-def test_merge_todo_items_validation_errors() -> None:
-    with pytest.raises(ValueError, match="content is required when initializing"):
-        merge_todo_items([], [TodoItem(id="1", content="")], merge=False)
+def test_parse_todo_payload_tolerates_missing_id_and_synonym_keys() -> None:
+    items = parse_todo_payload([{"task": "Auto task without explicit id", "status": "pending"}])
+    assert len(items) == 1
+    assert items[0].id == "task_1"
+    assert items[0].content == "Auto task without explicit id"
 
-    with pytest.raises(ValueError, match="content is required for new item"):
-        merge_todo_items([], [TodoItem(id="new_id", content="")], merge=True)
+
+def test_merge_todo_items_falls_back_to_id_when_content_empty() -> None:
+    merged = merge_todo_items([], [TodoItem(id="1", content="")], merge=False)
+    assert len(merged) == 1
+    assert merged[0].content == "1"
 
 
 
@@ -128,6 +149,7 @@ def test_incomplete_todos_excludes_completed_and_cancelled() -> None:
 def test_to_plan_compat_maps_all_statuses() -> None:
     store = TodoStore(
         goal=None,
+        revision=42,
         todos=[
             TodoItem(id="1", content="a", status=TodoStatus.IN_PROGRESS),
             TodoItem(id="2", content="b", status=TodoStatus.COMPLETED),
@@ -138,8 +160,31 @@ def test_to_plan_compat_maps_all_statuses() -> None:
     )
     plan = store.to_plan_compat()
     assert plan["goal"] == "Task progress"
-    statuses = [step["status"] for step in plan["steps"]]  # type: ignore[index]
-    assert statuses == ["in_progress", "completed", "skipped", "pending", "blocked"]
+    assert plan["revision"] == 42
+    assert plan["reasoning"] == ""
+    steps = plan["steps"]
+    assert len(steps) == 5
+    assert steps[0] == {"step_id": "1", "description": "a", "expected_output": "", "status": "in_progress"}
+    assert steps[1] == {"step_id": "2", "description": "b", "expected_output": "", "status": "completed"}
+    assert steps[2] == {"step_id": "3", "description": "c", "expected_output": "", "status": "skipped"}
+    assert steps[3] == {"step_id": "4", "description": "d", "expected_output": "", "status": "pending"}
+    assert steps[4] == {"step_id": "5", "description": "e", "expected_output": "", "status": "blocked"}
+
+
+def test_merge_todo_items_status_only_update_preserves_content() -> None:
+    """When merge=True and incoming payload only updates status, keep existing content."""
+    current = [
+        TodoItem(id="step_a", content="Do step A carefully", status=TodoStatus.PENDING),
+    ]
+    incoming = parse_todo_payload(
+        [{"id": "step_a", "status": "completed"}],
+        allow_empty_content=True,
+    )
+    merged = merge_todo_items(current, incoming, merge=True)
+    assert len(merged) == 1
+    assert merged[0].id == "step_a"
+    assert merged[0].content == "Do step A carefully"
+    assert merged[0].status == TodoStatus.COMPLETED
 
 
 @pytest.mark.asyncio
@@ -196,8 +241,10 @@ def test_emit_todo_progress_events_dispatches_root_and_steps() -> None:
     root_call = mock_dispatch.call_args_list[0].args
     assert root_call[0] == "tasks_steps"
     assert root_call[1]["step_key"] == "progress_root"
+    assert "revision" in root_call[1]
     step_statuses = [call.args[1]["status"] for call in mock_dispatch.call_args_list[1:]]
     assert step_statuses == ["success", "skipped", "blocked"]
+    assert all("revision" in call.args[1] for call in mock_dispatch.call_args_list[1:])
 
 
 def test_emit_todo_progress_events_swallows_dispatch_errors() -> None:

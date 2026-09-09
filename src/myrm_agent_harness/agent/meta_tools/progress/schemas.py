@@ -36,6 +36,7 @@ class TodoItem(BaseModel):
     id: str
     content: str
     status: TodoStatus = TodoStatus.PENDING
+    explicit_status: bool = Field(default=True, exclude=True)
 
 
 class TodoStore(BaseModel):
@@ -43,6 +44,7 @@ class TodoStore(BaseModel):
 
     goal: str | None = None
     todos: list[TodoItem] = Field(default_factory=list)
+    revision: int = 0
 
     def incomplete_todos(self) -> list[TodoItem]:
         return [item for item in self.todos if item.status not in (TodoStatus.COMPLETED, TodoStatus.CANCELLED)]
@@ -52,6 +54,7 @@ class TodoStore(BaseModel):
         return {
             "goal": self.goal or "Task progress",
             "reasoning": "",
+            "revision": self.revision,
             "steps": [
                 {
                     "step_id": item.id,

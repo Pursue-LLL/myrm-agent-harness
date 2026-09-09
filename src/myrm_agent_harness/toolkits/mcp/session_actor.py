@@ -1108,6 +1108,9 @@ def _describe_error(exc: Exception) -> str:
     """One-line cause for logs and start errors (transient marker stays terse)."""
     if isinstance(exc, _TransientStartError):
         return str(exc)
+    if isinstance(exc, BaseExceptionGroup):
+        sub_causes = "; ".join(f"{type(e).__name__}: {e}" for e in exc.exceptions)
+        return f"{type(exc).__name__}: {exc} [nested: {sub_causes}]"
     return f"{type(exc).__name__}: {exc}"
 
 

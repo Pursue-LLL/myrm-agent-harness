@@ -294,7 +294,9 @@ class ForegroundPermissionCallback(Protocol):
 class ComputerUseConfig:
     """Configuration for computer use session."""
 
-    image_constraints: ImageConstraints = field(default_factory=lambda: DEFAULT_IMAGE_CONSTRAINTS)
+    image_constraints: ImageConstraints = field(
+        default_factory=lambda: DEFAULT_IMAGE_CONSTRAINTS
+    )
     screenshot_delay: float = 1.0
     typing_delay_ms: int = 12
     typing_chunk_size: int = 50

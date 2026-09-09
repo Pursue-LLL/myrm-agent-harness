@@ -16,9 +16,9 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
 | `plan_confirm_middleware.py` | Core | Plan-phase HITL: intercept first plan and major re-plans via `interrupt()` with 3+ items for user review. | ✅ |
-| `progress_middleware.py` | Core | Idempotent active todo compact focus injection into last HumanMessage. | ✅ |
+| `progress_middleware.py` | Core | Append-Only active todo focus injection into current HumanMessage with KV cache preservation. | ✅ |
 | `goal_focus_middleware.py` | Core | ACTIVE goal objective injection into last HumanMessage. | ✅ |
-| `moa_advisor_middleware.py` | Core | Agent-loop MoA advisor overlay — ref fan-out, transient HumanMessage tail, skip SSE for budget pressure and insufficient refs (`moa_overlay_skipped`). | ✅ |
+| `moa_advisor_middleware.py` | Core | Agent-loop MoA advisor overlay — ref fan-out, transient HumanMessage tail, skip SSE for budget pressure and insufficient refs (`moa_overlay_skipped`), supports injected `privacy_redactor` for reference PII/secret scrubbing. | ✅ |
 | `rate_limit.py` | Core | Proactive provider 429 throttling. | ✅ |
 | `replan_middleware.py` | Core | Dynamic replan loop on tool errors. | ✅ |
 | `session_access_middleware.py` | Core | Inject per-turn HITL session directory access context (`<session-access>` block) before each model call; dedup via marker. | ✅ |

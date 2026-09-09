@@ -66,3 +66,18 @@ def test_security_boundary_middleware_after_model_noop():
     result = middleware.after_model(state, None)
 
     assert result is None
+
+
+def test_security_boundary_middleware_global_idempotency_prevents_duplicate():
+    """Validates that if messages[0] already contains boundary rules, it will not duplicate."""
+    middleware = SecurityBoundaryMiddleware()
+    state = {
+        "messages": [
+            SystemMessage(content=f"{SECURITY_BOUNDARY_SYSTEM_RULES}\n<tool_guidance>foo</tool_guidance>"),
+            HumanMessage(content="hello"),
+        ]
+    }
+
+    result = middleware.before_model(state, None)
+    assert result is None
+

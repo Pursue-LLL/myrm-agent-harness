@@ -258,16 +258,25 @@ class ChatLiteLLM(
             "api_key": self.api_key or self.openai_api_key,
         }
 
-        # Inject Authorization header for providers that might need it explicitly (like minimax)
+        # Collect and inject extra headers (e.g. Authorization or gateway affinity)
         api_key_val = self.api_key or self.openai_api_key
-        logger.debug(
-            f"_client_params api_key_val type: {type(api_key_val)}, val: {str(api_key_val)[:5]}***"
+        raw_extra_headers = self.model_kwargs.get("extra_headers")
+        extra_headers: dict[str, str] = (
+            dict(raw_extra_headers) if isinstance(raw_extra_headers, dict) else {}
         )
-        if api_key_val:
-            extra_headers = self.model_kwargs.get("extra_headers", {})
-            if "Authorization" not in extra_headers:
-                extra_headers["Authorization"] = f"Bearer {api_key_val}"
-                creds["extra_headers"] = extra_headers
+        if api_key_val and "authorization" not in {k.lower() for k in extra_headers}:
+            extra_headers["Authorization"] = f"Bearer {api_key_val}"
+
+        if self._is_opencode_endpoint() and not any(k.lower() == "x-opencode-session" for k in extra_headers):
+            from myrm_agent_harness.core.context_vars import (
+                chat_id_var,
+                prompt_routing_key_var,
+            )
+            session_val = prompt_routing_key_var.get() or chat_id_var.get() or "sess-default-open-affinity"
+            extra_headers["x-opencode-session"] = session_val
+
+        if extra_headers:
+            creds["extra_headers"] = extra_headers
 
         return {**self._default_params, **creds}
 
@@ -316,23 +325,43 @@ class ChatLiteLLM(
             logger.info(" Ephemeral max_tokens override applied: %d", override)
 
     def _inject_prompt_routing_key(self, params: dict[str, object]) -> None:
-        """Inject OpenAI prompt_cache_key for KV cache routing affinity.
+        """Inject session-scoped routing keys for KV cache and gateway affinity.
 
-        Only activates for native OpenAI endpoints (api.openai.com).
-        Uses the session-scoped routing key from ContextVar to ensure requests
-        within a conversation route to the same inference node, maximizing
-        prefix cache hit rate.
+        1. Native OpenAI: injects `prompt_cache_key` into params.
+        2. OpenCode relay: injects `x-opencode-session` into `extra_headers`.
         """
-        from myrm_agent_harness.core.context_vars import prompt_routing_key_var
+        from myrm_agent_harness.core.context_vars import (
+            chat_id_var,
+            prompt_routing_key_var,
+        )
 
-        routing_key = prompt_routing_key_var.get()
-        if not routing_key:
-            return
+        routing_key = prompt_routing_key_var.get() or chat_id_var.get()
 
-        if not self._is_openai_native_endpoint():
-            return
+        # 1. Native OpenAI endpoint affinity
+        if routing_key and self._is_openai_native_endpoint():
+            params["prompt_cache_key"] = routing_key
 
-        params["prompt_cache_key"] = routing_key
+        # 2. OpenCode relay endpoint session affinity
+        if self._is_opencode_endpoint():
+            session_val = routing_key or "sess-default-open-affinity"
+            raw_headers = params.get("extra_headers")
+            extra_headers: dict[str, str] = (
+                dict(raw_headers) if isinstance(raw_headers, dict) else {}
+            )
+            if not any(k.lower() == "x-opencode-session" for k in extra_headers):
+                extra_headers["x-opencode-session"] = session_val
+                params["extra_headers"] = extra_headers
+
+    def _is_opencode_endpoint(self) -> bool:
+        """Detect whether this instance targets an OpenCode relay endpoint."""
+        api_base = (self.api_base or "").lower()
+        provider = (self.custom_llm_provider or "").lower()
+        model = (self.model or "").lower()
+        return (
+            "opencode.ai" in api_base
+            or provider.startswith("opencode")
+            or "opencode" in model
+        )
 
     def _is_openai_native_endpoint(self) -> bool:
         """Detect whether this instance targets a native OpenAI API endpoint."""

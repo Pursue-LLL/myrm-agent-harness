@@ -55,13 +55,12 @@ class SecurityBoundaryMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             # Insert immediately after the first SystemMessage
             insert_idx = first_system_idx + 1
 
-        # Check if already injected (idempotency)
-        if insert_idx < len(messages):
-            existing_msg = messages[insert_idx]
+        # Check if already injected anywhere in messages (global idempotency guard)
+        for msg in messages:
             if (
-                isinstance(existing_msg, SystemMessage)
-                and isinstance(existing_msg.content, str)
-                and "<data_boundary_rules" in existing_msg.content
+                isinstance(msg, SystemMessage)
+                and isinstance(msg.content, str)
+                and "<data_boundary_rules" in msg.content
             ):
                 return None
 

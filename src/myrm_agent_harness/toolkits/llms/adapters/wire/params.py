@@ -31,12 +31,20 @@ def build_responses_kwargs(
         if reasoning_effort is not None:
             reasoning = {"effort": str(reasoning_effort)}
 
+    api_base = params.get("api_base")
+    if isinstance(api_base, str):
+        api_base = api_base.rstrip("/")
+        if api_base.endswith("/responses"):
+            api_base = api_base[: -len("/responses")]
+        elif api_base.endswith("/chat/completions"):
+            api_base = api_base[: -len("/chat/completions")]
+
     kwargs: dict[str, Any] = {
         "model": params.get("model"),
         "input": responses_input,
         "max_output_tokens": max_output,
         "api_key": params.get("api_key"),
-        "api_base": params.get("api_base"),
+        "api_base": api_base,
         "stream": bool(params.get("stream")),
     }
     if instructions:

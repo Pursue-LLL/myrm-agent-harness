@@ -117,8 +117,6 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "browser_interact_tool",
         "browser_manage_tool",
         "request_answer_user_tool",
-        "render_ui_tool",
-        "update_ui_data_tool",
         "todo_write",
         "desktop_snapshot_tool",
         "desktop_interact_tool",
@@ -189,13 +187,11 @@ AUTO_APPROVED_BUILTIN_TOOLS: dict[str, str] = {
     "memory_manage_tool": "user_visible",  # memory housekeeping, user-visible + audited
     "memory_save_tool": "user_visible",  # memory writes, user-visible + scan-audited
     "memory_search_tool": "read_only",
-    "render_ui_tool": "display",
     "request_answer_user_tool": "internal",  # answer-phase gating signal
     "skill_market_tool": "user_visible",  # skill install from market, trust-scanned + user-visible
     "skill_search_tool": "read_only",
     "skill_select_tool": "read_only",
     "todo_write": "display",  # progress plan UI
-    "update_ui_data_tool": "display",
     "web_search_tool": "read_only",
     "wiki_apply_tool": "user_visible",  # apply compiled wiki entry into store
     "wiki_ingest_tool": "user_visible",  # ingest external content into wiki
@@ -329,7 +325,6 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
     ),
     "planning": frozenset({"todo_write"}),
     "answer_tool": frozenset({"request_answer_user_tool"}),
-    "render_ui": frozenset({"render_ui_tool", "update_ui_data_tool"}),
     "structured_clarify": frozenset({"ask_question_tool"}),
     "cron": frozenset({"cron_manage_tool"}),
     "image_generation": frozenset({"image_tool"}),
@@ -396,11 +391,9 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "cron_manage_tool": ["action", "job_id", "name_filter"],
     "delegate_task_tool": ["mode", "agent_type"],
     "invoke_acp_agent_tool": ["agent_name"],
-    "render_ui_tool": [],
     "request_answer_user_tool": [],
     "subagent_control_tool": ["action", "task_id"],
     "todo_write": ["merge"],
-    "update_ui_data_tool": ["surface_id"],
 }
 
 
@@ -659,12 +652,6 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_read_only=True, is_concurrent_safe=True, is_idempotent=True
     ),
     "request_answer_user_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "render_ui_tool": SafetyMetadata(
-        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
-    ),
-    "update_ui_data_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=True, is_idempotent=True
     ),
     # Concurrent-safe but not read-only (independent execution contexts)

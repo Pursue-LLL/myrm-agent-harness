@@ -84,27 +84,27 @@ def merge_todo_items(
     or appends newly created items.
     """
     if not merge:
-        for idx, item in enumerate(incoming):
+        for item in incoming:
             if not item.content:
-                msg = f"todos[{idx}].content is required when initializing or replacing task list"
-                raise ValueError(msg)
+                item.content = item.id
         return incoming
 
     by_id = {item.id: item for item in current}
     order: list[str] = [item.id for item in current]
 
-    for idx, item in enumerate(incoming):
+    for item in incoming:
         if item.id in by_id:
             old_item = by_id[item.id]
             resolved_content = item.content if item.content else old_item.content
-            resolved_status = item.status
+            # Inherit existing status on partial updates when incoming item omits status
+            resolved_status = item.status if item.explicit_status else old_item.status
             by_id[item.id] = TodoItem(id=item.id, content=resolved_content, status=resolved_status)
         else:
             if not item.content:
-                msg = f"todos[{idx}].content is required for new item with id '{item.id}'"
+                msg = f"content is required for new item '{item.id}'"
                 raise ValueError(msg)
             order.append(item.id)
-            by_id[item.id] = item
+            by_id[item.id] = TodoItem(id=item.id, content=item.content, status=item.status)
 
     return [by_id[item_id] for item_id in order if item_id in by_id]
 
@@ -124,19 +124,33 @@ def parse_todo_payload(raw_items: list[object], *, allow_empty_content: bool = F
         if not isinstance(raw, dict):
             msg = f"todos[{index}] must be an object"
             raise ValueError(msg)
-        item_id = str(raw.get("id", "")).strip()
-        content = str(raw.get("content", "")).strip()
+        item_id = str(raw.get("id") or raw.get("step_id") or raw.get("key") or "").strip()
+        content = str(
+            raw.get("content")
+            or raw.get("description")
+            or raw.get("title")
+            or raw.get("task")
+            or raw.get("name")
+            or raw.get("todo")
+            or ""
+        ).strip()
         if not item_id:
-            msg = f"todos[{index}].id is required"
-            raise ValueError(msg)
+            # If id is missing, assign a deterministic synthetic id from index
+            item_id = f"task_{index + 1}"
         if not content and not allow_empty_content:
-            msg = f"todos[{index}].content is required"
-            raise ValueError(msg)
-        status_raw = str(raw.get("status", TodoStatus.PENDING.value)).strip()
-        try:
-            status = TodoStatus(status_raw)
-        except ValueError as exc:
-            msg = f"todos[{index}].status '{status_raw}' is invalid. Valid statuses are: [{valid_statuses_str}]"
-            raise ValueError(msg) from exc
-        parsed.append(TodoItem(id=item_id, content=content, status=status))
+            # Fallback to item_id if content is still empty on initialization
+            content = item_id
+        has_status = "status" in raw and raw["status"] is not None
+        if has_status:
+            status_raw = str(raw["status"]).strip()
+            try:
+                status = TodoStatus(status_raw)
+            except ValueError as exc:
+                msg = f"todos[{index}].status '{status_raw}' is invalid. Valid statuses are: [{valid_statuses_str}]"
+                raise ValueError(msg) from exc
+            explicit_status = True
+        else:
+            status = TodoStatus.PENDING
+            explicit_status = False
+        parsed.append(TodoItem(id=item_id, content=content, status=status, explicit_status=explicit_status))
     return parsed

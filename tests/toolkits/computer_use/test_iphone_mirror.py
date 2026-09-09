@@ -50,10 +50,13 @@ def test_probe_iphone_mirror_state_not_supported() -> None:
 def test_probe_iphone_mirror_state_not_running() -> None:
     mock_sub = MagicMock()
     mock_sub.stdout = "NOT_RUNNING"
-    with patch(
-        "myrm_agent_harness.toolkits.computer_use.iphone_mirror.is_iphone_mirror_supported",
-        return_value=True,
-    ), patch("subprocess.run", return_value=mock_sub):
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.iphone_mirror.is_iphone_mirror_supported",
+            return_value=True,
+        ),
+        patch("subprocess.run", return_value=mock_sub),
+    ):
         res = probe_iphone_mirror_state()
         assert res.state == IPhoneMirrorState.NOT_RUNNING
         assert res.is_supported is True
@@ -63,10 +66,13 @@ def test_probe_iphone_mirror_state_not_running() -> None:
 def test_probe_iphone_mirror_state_blocked_connect() -> None:
     mock_sub = MagicMock()
     mock_sub.stdout = "WINDOW|iPhone Locked - Click Connect to start|100,200,400,800"
-    with patch(
-        "myrm_agent_harness.toolkits.computer_use.iphone_mirror.is_iphone_mirror_supported",
-        return_value=True,
-    ), patch("subprocess.run", return_value=mock_sub):
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.iphone_mirror.is_iphone_mirror_supported",
+            return_value=True,
+        ),
+        patch("subprocess.run", return_value=mock_sub),
+    ):
         res = probe_iphone_mirror_state()
         assert res.state == IPhoneMirrorState.BLOCKED_CONNECT_PROMPT
         assert res.window_bounds == (100, 200, 400, 800)
@@ -76,10 +82,13 @@ def test_probe_iphone_mirror_state_blocked_connect() -> None:
 def test_probe_iphone_mirror_state_ready() -> None:
     mock_sub = MagicMock()
     mock_sub.stdout = "WINDOW|iPhone (Pursue's iPhone)|150,250,420,880"
-    with patch(
-        "myrm_agent_harness.toolkits.computer_use.iphone_mirror.is_iphone_mirror_supported",
-        return_value=True,
-    ), patch("subprocess.run", return_value=mock_sub):
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.iphone_mirror.is_iphone_mirror_supported",
+            return_value=True,
+        ),
+        patch("subprocess.run", return_value=mock_sub),
+    ):
         res = probe_iphone_mirror_state()
         assert res.state == IPhoneMirrorState.READY
         assert res.window_bounds == (150, 250, 420, 880)

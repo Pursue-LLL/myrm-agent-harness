@@ -51,8 +51,8 @@ async def test_skips_override_when_allowlist_becomes_empty(
 
     request = _FakeRequest(
         tools=[
-            SimpleNamespace(name="render_ui_tool"),
-            SimpleNamespace(name="update_ui_data_tool"),
+            SimpleNamespace(name="dummy_tool_a"),
+            SimpleNamespace(name="dummy_tool_b"),
         ],
         messages=[HumanMessage(content="Please explain this issue.")],
         model=SimpleNamespace(model="gpt-4o", model_name="gpt-4o", api_base=None),
@@ -118,9 +118,10 @@ async def test_applies_allowed_tools_when_restriction_is_non_empty(
 
     request = _FakeRequest(
         tools=[
-            SimpleNamespace(name="render_ui_tool"),
+            SimpleNamespace(name="dummy_tool_a"),
             SimpleNamespace(name="web_search_tool"),
         ],
+        replace_all: true
         messages=[HumanMessage(content="Please explain this issue.")],
         model=SimpleNamespace(model="gpt-4o", model_name="gpt-4o", api_base=None),
     )
@@ -154,9 +155,10 @@ async def test_skips_allowed_tools_for_openai_like_models(
 
     request = _FakeRequest(
         tools=[
-            SimpleNamespace(name="render_ui_tool"),
+            SimpleNamespace(name="dummy_tool_a"),
             SimpleNamespace(name="web_search_tool"),
         ],
+        replace_all: true
         messages=[HumanMessage(content="Please explain this issue.")],
         model=SimpleNamespace(
             model="openai-like/agnes-2.5-flash",
@@ -207,9 +209,10 @@ async def test_skips_allowed_tools_for_local_proxy_via_managed_llm(
     )
     request = _FakeRequest(
         tools=[
-            SimpleNamespace(name="render_ui_tool"),
+            SimpleNamespace(name="dummy_tool_a"),
             SimpleNamespace(name="web_search_tool"),
         ],
+        replace_all: true
         messages=[HumanMessage(content="查一下明天北京到上海的高铁")],
         model=ManagedLLM(main_llm=inner),
     )

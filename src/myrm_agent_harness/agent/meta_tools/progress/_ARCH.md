@@ -24,8 +24,9 @@ SSOT: `{workspace_root}/.myrm/progress/todos.json`
 - **Single in_progress**: When multiple items are set to `in_progress`, only the last one is kept; others are auto-corrected to `pending` with a `note` field in the response.
 - **Blocked State Support**: Supports `pending`, `in_progress`, `completed`, `cancelled`, and `blocked` statuses. When an item is marked `blocked`, it releases `in_progress` concurrency to allow dynamic replanning or unblocking.
 - **Smart Focus Scheduling**: `ProgressMiddleware` automatically bypasses `blocked` items and prioritizes actionable `in_progress` or `pending` tasks as `Current focus`, appending non-blocking replanning guidance.
-- **Precision Completion Diagnostics**: `CompletionGuard` distinguishes actionable from blocked items, offering targeted guidance to cancel permanently unfulfillable items via `todo_write(merge=true)`.
-- **Partial Update Support**: In `merge=True` mode, `content` is optional for existing items, allowing status-only updates while preserving existing descriptions. New items require `content`.
+- **Precision Completion Diagnostics**: `ProgressMiddleware` distinguishes actionable from blocked items, offering targeted guidance to cancel permanently unfulfillable items via `todo_write(merge=true)` when all remaining items are blocked.
+- **Partial Update Support**: In `merge=True` mode, `content` and `status` are independently optional for existing items; omitting `content` preserves the existing description, while omitting `status` preserves the existing lifecycle status (e.g. `in_progress`). New items require `content`.
+- **Monotonic Revision Sequence**: `TodoStore` maintains a monotonic `revision` counter incremented on each write, emitted in `tasks_steps` SSE payloads, and exported via `to_plan_compat()` to guarantee end-to-end client-side state ordering and race condition immunity.
 - **Self-Healing Error Diagnostics**: Invalid status values return the complete list of valid enum values to facilitate agent self-correction.
 
 ## Bind conditions

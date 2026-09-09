@@ -9,7 +9,7 @@ Execution security — shell command analysis, blacklists, validators, and C-lev
 |------|------|-------------|-------|
 | __init__.py | Package | Execution security — shell command analysis, blacklists, and validators. | — |
 | archive_sanitizer.py | Core | Archive extraction security hardening. | ✅ |
-| audit_sandbox.py | Core | PEP 578 Audit Hook. Provides C-level interception of dangerous operations (network, fs, process, memory) to prevent LLM code escapes. | ✅ |
+| audit_sandbox.py | Core | PEP 578 Audit Hook. Provides C-level interception of dangerous operations (network, fs, process, memory) to prevent LLM code escapes, readonly_workspace filesystem protection, adaptive socket address resolution, zero-dependency source code generation, and sensitive credential shields. | ✅ |
 | blacklist.py | Core | Security blacklists for code execution. | ✅ |
 | env_isolation.py | Core | Child process environment variable isolation, sensitive token stripping, and safe inheritance SSOT. | ✅ |
 | risk_classifier.py | Core | Command risk classifier for shell_exec auto-allow decisions. | ✅ |

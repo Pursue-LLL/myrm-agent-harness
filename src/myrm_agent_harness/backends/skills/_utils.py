@@ -197,6 +197,32 @@ def _parse_frontmatter_yaml(content: str, skill_dir_name: str) -> dict[str, obje
     return parsed
 
 
+def parse_frontmatter(content: str) -> tuple[dict[str, object], str]:
+    """Extract YAML frontmatter and body from markdown content.
+
+    Args:
+        content: Full SKILL.md file content
+
+    Returns:
+        tuple of (parsed_yaml_dict, body_markdown)
+    """
+    match = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", content, re.DOTALL)
+    if not match:
+        return {}, content
+
+    frontmatter_text = match.group(1)
+    body = match.group(2)
+
+    try:
+        parsed = yaml.safe_load(frontmatter_text)
+        if isinstance(parsed, dict):
+            return parsed, body
+    except yaml.YAMLError:
+        pass
+
+    return {}, body
+
+
 _KNOWN_FRONTMATTER_FIELDS = frozenset(
     {
         "name",

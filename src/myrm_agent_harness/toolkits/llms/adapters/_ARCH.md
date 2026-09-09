@@ -19,7 +19,7 @@ LLM adapter layer: LangChain-compatible LiteLLM interface, provider-specific mes
 | stream_aggregator.py | Core | Stream aggregation & XML tag purging; `finalize_stream` exports Responses wire `responses_reasoning_items` on the final yielded chunk for `agenerate_from_stream` | ✅ |
 | streaming.py | Core | Streaming response parsing, incremental tool call merging | ✅ |
 | native_compaction.py | Core | OpenAI Responses API native server-side compaction bridge DTO, route eligibility gating, and param builder | ✅ |
-| tool_call_parsers.py | Core | Unified tool call format parsing for multiple LLMs (incl. XML and DeepSeek DSML) | ✅ |
+| tool_call_parsers.py | Core | Unified tool call format parsing for multiple LLMs (OpenAI, GLM XML, Anthropic XML, Qwen XML JSON, DeepSeek inline, DeepSeek DSML, Leaked raw JSON) and tag purging | ✅ |
 | tool_recovery.py | Core | Cross-provider tool call argument recovery with fallback strategies | ✅ |
 | wire/ | Core | OpenCode wire transport (responses + anthropic messages). See [wire/_ARCH.md](wire/_ARCH.md). | ✅ |
 

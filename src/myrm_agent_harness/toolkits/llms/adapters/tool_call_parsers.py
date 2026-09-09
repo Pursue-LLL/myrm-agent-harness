@@ -13,7 +13,7 @@
 
 [POS]
 Tool call parser module. Unified handling of tool call formats from multiple LLMs.
-Parses by priority: OpenAI standard format, GLM XML, Anthropic XML, DeepSeek inline.
+Parses by priority: OpenAI standard format, GLM XML, Anthropic XML, Qwen XML JSON, DeepSeek inline, DeepSeek DSML, Leaked raw JSON.
 Provides HTML entity decoding (xAI/Grok workaround), called by adapters.converters after args parsing.
 As the parser layer, depended on by adapters.converters for cross-model tool call compatibility.
 """
@@ -133,6 +133,12 @@ def parse_tool_calls(
     tool_calls = _parse_deepseek_dsml_format(response_dict, available_tools)
     if tool_calls:
         logger.warning(f" Parsed {len(tool_calls)} tool calls (DeepSeek DSML format)")
+        return tool_calls
+
+    # 6. Leaked JSON tool_calls format (e.g. Gemini / Llama raw JSON in text)
+    tool_calls = _parse_leaked_json_tool_calls_format(content, available_tools)
+    if tool_calls:
+        logger.warning(f" Parsed from content {len(tool_calls)} tool calls (Leaked JSON format)")
         return tool_calls
 
     return []
@@ -522,6 +528,110 @@ def _parse_deepseek_dsml_format(
     return tool_calls
 
 
+def _parse_leaked_json_tool_calls_format(
+    content: str,
+    available_tools: list[str] | None = None,
+) -> list[ToolCallDict]:
+    """Parse tool calls leaked as raw JSON in message content.
+
+    Handles formats:
+    - {"tool_calls": [{"name": "foo", "arguments": {...}}]}
+    - {"tool_calls": [{"function": {"name": "foo", "arguments": {...}}}]}
+    - Markdown-wrapped ```json {"tool_calls": [...]} ```
+    - Single tool call dict: {"name": "foo", "arguments": {...}} if name in available_tools
+    """
+    if not content or ("tool_calls" not in content and "name" not in content):
+        return []
+
+    stripped = content.strip()
+    json_candidates: list[str] = []
+
+    # Check for markdown code fences
+    fence_pattern = re.compile(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", re.IGNORECASE)
+    fences = fence_pattern.findall(stripped)
+    if fences:
+        json_candidates.extend(fences)
+
+    # Check if the whole content or a substring is a JSON object
+    if stripped.startswith("{") and stripped.endswith("}"):
+        json_candidates.append(stripped)
+    else:
+        # Scan for balanced or top-level JSON objects containing "tool_calls" or "name"
+        obj_pattern = re.compile(r"(\{\s*\"tool_calls\"\s*:\s*\[[\s\S]*?\]\s*\})", re.IGNORECASE)
+        for match in obj_pattern.findall(stripped):
+            json_candidates.append(match)
+
+    tool_calls: list[ToolCallDict] = []
+    seen_signatures: set[str] = set()
+
+    for candidate in json_candidates:
+        parsed_obj: object = None
+        with contextlib.suppress(Exception):
+            parsed_obj = json.loads(candidate)
+
+        if not isinstance(parsed_obj, dict):
+            continue
+
+        raw_calls: list[object] = []
+        if "tool_calls" in parsed_obj and isinstance(parsed_obj["tool_calls"], list):
+            raw_calls.extend(parsed_obj["tool_calls"])
+        elif "name" in parsed_obj and isinstance(parsed_obj["name"], str):
+            raw_calls.append(parsed_obj)
+
+        for idx, item in enumerate(raw_calls):
+            if not isinstance(item, dict):
+                continue
+
+            tool_name = ""
+            args_val: object = None
+
+            if "function" in item and isinstance(item["function"], dict):
+                fn = item["function"]
+                tool_name = str(fn.get("name", "")).strip()
+                args_val = fn.get("arguments", {})
+            elif "name" in item and isinstance(item["name"], str):
+                tool_name = item["name"].strip()
+                args_val = item.get("arguments", {})
+
+            if not tool_name:
+                continue
+
+            # Verify against available_tools when available
+            if available_tools and tool_name not in available_tools:
+                continue
+
+            # Serialize arguments safely
+            if isinstance(args_val, dict):
+                args_str = json.dumps(args_val, ensure_ascii=False)
+            elif isinstance(args_val, str):
+                args_str = args_val
+            else:
+                args_str = json.dumps(args_val or {}, ensure_ascii=False)
+
+            sig = f"{tool_name}:{args_str}"
+            if sig in seen_signatures:
+                continue
+            seen_signatures.add(sig)
+
+            call_id = item.get("id")
+            if not call_id or not isinstance(call_id, str):
+                call_id = f"call_{uuid4().hex[:24]}"
+
+            tool_calls.append(
+                {
+                    "id": call_id,
+                    "index": len(tool_calls),
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "arguments": args_str,
+                    },
+                }
+            )
+
+    return tool_calls
+
+
 # ============================================================================
 # XML Tool Tag Cleaner
 # ============================================================================
@@ -537,18 +647,23 @@ _FUNCTION_CALLS_PATTERN = re.compile(
     r"<(?:antml:)?(?:function|tool)_calls>.*?</(?:antml:)?(?:function|tool)_calls>",
     re.DOTALL,
 )
+_LEAKED_JSON_TOOL_CALLS_PATTERN = re.compile(
+    r"```(?:json)?\s*\{\s*\"tool_calls\"\s*:\s*\[[\s\S]*?\]\s*\}\s*```|\{\s*\"tool_calls\"\s*:\s*\[[\s\S]*?\]\s*\}",
+    re.IGNORECASE,
+)
 
 
 def clean_xml_tool_tags(text: str) -> str:
-    """Strip leaked XML tool call tags from text content.
+    """Strip leaked XML and raw JSON tool call tags from text content.
 
     Handles DSML fullwidth-pipe format, standard invoke/tool_call tags,
-    and function_calls/tool_calls wrapper tags. Supports both closed
-    and unclosed (truncated) variants.
+    function_calls/tool_calls wrapper tags, and leaked raw JSON tool_calls blocks.
+    Supports both closed and unclosed (truncated) variants.
     """
     if not text:
         return text
     text = _FUNCTION_CALLS_PATTERN.sub("", text)
+    text = _LEAKED_JSON_TOOL_CALLS_PATTERN.sub("", text)
     text = _DSML_PATTERN.sub("", text)
     text = _DSML_UNCLOSED_PATTERN.sub("", text)
     text = _XML_TOOL_PATTERN.sub("", text)

@@ -121,8 +121,32 @@ from myrm_agent_harness.toolkits.memory.types import (
     ToolRulePriority,
     create_pitfall_memory,
 )
+from myrm_agent_harness.toolkits.memory.working_tree import (
+    BoundedSummary,
+    ConflictType,
+    ConflictVerdict,
+    EvidenceNode,
+    EvidenceNodeStatus,
+    EvidenceSource,
+    EvidenceTree,
+    FastContradictionDetector,
+    RevisionRecord,
+    TreeRepairEngine,
+    TreeRepairResult,
+)
 
 __all__ = [
+    "BoundedSummary",
+    "ConflictType",
+    "ConflictVerdict",
+    "EvidenceNode",
+    "EvidenceNodeStatus",
+    "EvidenceSource",
+    "EvidenceTree",
+    "FastContradictionDetector",
+    "RevisionRecord",
+    "TreeRepairEngine",
+    "TreeRepairResult",
     "CONVERSATION_SEARCH_TOOL_NAME",
     "AgentMemoryPolicy",
     "AnyMemory",

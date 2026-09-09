@@ -123,7 +123,10 @@ def probe_iphone_mirror_state() -> IPhoneMirrorProbeResult:
 
             # Detect locked / connect prompt by title and window heuristics
             title_lower = title.lower()
-            if any(k in title_lower for k in ["connect", "连接", "解锁", "unlock", "passcode"]):
+            if any(
+                k in title_lower
+                for k in ["connect", "连接", "解锁", "unlock", "passcode"]
+            ):
                 return IPhoneMirrorProbeResult(
                     state=IPhoneMirrorState.BLOCKED_CONNECT_PROMPT,
                     is_supported=True,

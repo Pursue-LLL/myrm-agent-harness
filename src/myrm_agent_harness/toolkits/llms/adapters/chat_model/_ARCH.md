@@ -8,8 +8,8 @@ LangChain LiteLLM chat-model adapter: aggregate root (`model.py`) plus sync/asyn
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Sub-package exports. | — |
-| model.py | Core | `ChatLiteLLM`, `clean_model_kwargs`: config, bind_tools, structured_output, prompt-cache routing. Aggregate root composing the mixins below. | ✅ |
-| exceptions.py | Core | Shared adapter exceptions (`EmptyChoicesError`/`EmptyStreamError`/`StreamStallTimeoutError`) and OpenAI param whitelist constants (including `service_tier` speed passthrough). | ✅ |
+| model.py | Core | `ChatLiteLLM`, `clean_model_kwargs`: config, bind_tools, structured_output, prompt-cache routing, and OpenCode gateway session-affinity headers injection. Aggregate root composing the mixins below. | ✅ |
+| exceptions.py | Core | Shared adapter exceptions (`EmptyChoicesError`/`EmptyStreamError`/`StreamStallTimeoutError`) and OpenAI param whitelist constants (including `service_tier` and `extra_headers` passthrough). | ✅ |
 | message_mixin.py | Core | `ChatLiteLLMMessageMixin`: message normalization, developer-role promotion, reasoning_content stamp, outbound wire projection sanitization, image_url detail sanitization, ChatResult assembly. | ✅ |
 | sync_mixin.py | Core | `ChatLiteLLMSyncMixin`: synchronous generation and streaming with empty-response retry and unified token-usage recording. | ✅ |
 | async_mixin.py | Core | `ChatLiteLLMAsyncMixin`: asynchronous generation and streaming with concurrency gate and stream stall detection, unified token-usage recording. | ✅ |

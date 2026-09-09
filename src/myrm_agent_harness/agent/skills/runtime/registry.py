@@ -148,6 +148,8 @@ def get_metadata_summary(
                 [
                     "<skills>",
                     " <routing_rules>",
+                    " If the user request directly matches an active tool or capability already provided in the tools schema, call that tool directly instead of selecting skills.",
+                    " If the user explicitly requests or mentions a skill by name: use skill_select_tool on turn 1 before proceeding.",
                     " If exactly one skill clearly applies to the user's request: use skill_select_tool to read its SKILL.md.",
                     " If multiple skills may apply: ask the user which to use.",
                     " If no skill applies: proceed without skills.",
@@ -175,6 +177,8 @@ def get_metadata_summary(
     lines = [
         "<skills>",
         " <routing_rules>",
+        " If the user request directly matches an active tool or capability already provided in the tools schema, call that tool directly instead of selecting skills.",
+        " If the user explicitly requests or mentions a skill by name: use skill_select_tool on turn 1 before proceeding.",
         " If exactly one skill clearly applies to the user's request: use skill_select_tool to read its SKILL.md.",
         " If multiple skills may apply: ask the user which to use.",
         " If no skill applies: proceed without skills.",

@@ -400,3 +400,47 @@ async def test_injection_empty_skips_override() -> None:
     handler.assert_awaited_once()
     passed_request = handler.await_args.args[0]
     assert passed_request is request
+
+
+@pytest.mark.asyncio
+async def test_middleware_privacy_redaction_applied() -> None:
+    """When privacy_filter is enabled and privacy_redactor is supplied, reference output must be redacted."""
+    from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+        create_moa_advisor_middleware as _create,
+    )
+
+    mock_llm = MagicMock()
+    fake_redactor = MagicMock(side_effect=lambda text: text.replace("sk-secret1234567890", "[redacted secret]"))
+
+    middleware = _create(
+        [mock_llm],
+        config=MoAOverlayConfig(min_successful=1, privacy_filter="full"),
+        unattended=False,
+        privacy_redactor=fake_redactor,
+    )
+    request = ModelRequest(messages=[HumanMessage(content="hello")], model=mock_llm)
+    handler = AsyncMock(return_value=ModelResponse(result=MagicMock()))
+
+    raw_content = "Here is my key: sk-secret1234567890 for testing."
+    refs = [
+        ReferenceResponse(
+            model="ref-a",
+            content=raw_content,
+            elapsed_seconds=0.5,
+            success=True,
+        )
+    ]
+
+    with patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+        new_callable=AsyncMock,
+        return_value=refs,
+    ):
+        await middleware.awrap_model_call(request, handler)
+
+    handler.assert_awaited_once()
+    passed_request = handler.await_args.args[0]
+    last_msg = passed_request.messages[-1]
+    assert "[redacted secret]" in str(last_msg.content)
+    assert "sk-secret1234567890" not in str(last_msg.content)
+    assert fake_redactor.called

@@ -17,10 +17,16 @@ from myrm_agent_harness.agent.orchestration.signals.deep_research import (
     build_orchestrator_tools,
 )
 from myrm_agent_harness.agent.streaming.types import AgentEventType
+from myrm_agent_harness.toolkits.memory.working_tree import (
+    ConflictType,
+    EvidenceTree,
+    FastContradictionDetector,
+    TreeRepairEngine,
+)
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
-from .helpers import accumulate_usage, extract_tool_calls
+from .helpers import accumulate_usage, create_evidence_node_from_task_result, extract_tool_calls
 
 if TYPE_CHECKING:
     pass
@@ -29,6 +35,8 @@ logger = get_agent_logger(__name__)
 
 
 class DeepResearchPlanResearchMixin:
+    """Mixin providing plan generation and research execution loop."""
+
     async def _phase_plan(
         self, query: str, history: list[BaseMessage], message_id: str, datetime_str: str
     ) -> AsyncGenerator[dict[str, object]]:
@@ -119,6 +127,12 @@ class DeepResearchPlanResearchMixin:
             HumanMessage(content=reminder),
         ]
 
+        evidence_tree = EvidenceTree(
+            root_id="root_plan", root_claim=self._result.research_plan or "Deep Research Goal"
+        )
+        detector = FastContradictionDetector(arbitrator_llm=self._llm)
+        repair_engine = TreeRepairEngine(tree=evidence_tree)
+
         while cycle < max_cycles:
             if self._is_cancelled() or self._is_timed_out():  # type: ignore[attr-defined]
                 logger.warning(
@@ -128,7 +142,7 @@ class DeepResearchPlanResearchMixin:
                 )
                 break
 
-            bound_llm = self._llm.bind_tools(tool_schemas)  # type: ignore[attr-defined, arg-type]
+            bound_llm = self._llm.bind_tools(tool_schemas)  # type: ignore[attr-defined]
             response = await asyncio.wait_for(
                 bound_llm.ainvoke(orch_messages),
                 timeout=self._config.llm_call_timeout_seconds,  # type: ignore[attr-defined]
@@ -186,10 +200,58 @@ class DeepResearchPlanResearchMixin:
                 while not agent_event_queue.empty():
                     yield agent_event_queue.get_nowait()
                 results = dispatch_future.result()
-                for task_info, result_text in zip(dispatch_tasks, results, strict=True):
+                for task_idx, (task_info, result_text) in enumerate(zip(dispatch_tasks, results, strict=True)):
                     orch_messages.append(
                         ToolMessage(content=truncate_for_orchestrator(result_text), tool_call_id=task_info["tc_id"])
                     )
+                    active_nodes = evidence_tree.get_active_nodes()
+                    candidate_node = create_evidence_node_from_task_result(
+                        cycle=cycle,
+                        task_idx=task_idx,
+                        task_text=task_info["task"],
+                        result_text=result_text,
+                        existing_nodes=active_nodes,
+                    )
+                    verdict = await detector.acheck_conflict(
+                        new_claim=candidate_node.claim,
+                        new_summary=candidate_node.bounded_summary.summary,
+                        existing_nodes=active_nodes,
+                        new_content_hash=candidate_node.source.content_hash,
+                    )
+
+                    if (
+                        verdict.conflict_type in (ConflictType.CONTRADICTION, ConflictType.TEMPORAL_UPDATE)
+                        and verdict.conflicting_node_id
+                    ):
+                        repair_res = repair_engine.apply_repair(
+                            target_node_id=verdict.conflicting_node_id,
+                            new_claim=candidate_node.claim,
+                            new_summary=candidate_node.bounded_summary,
+                            new_source=candidate_node.source,
+                            conflict_type=verdict.conflict_type,
+                            reason=verdict.reason,
+                        )
+                        logger.info(
+                            "[deep-research] Working tree repair applied: target=%s, pruned=%s, disputed=%s",
+                            repair_res.target_node_id,
+                            repair_res.pruned_node_ids,
+                            repair_res.is_disputed,
+                        )
+                        yield self._make_event(  # type: ignore[attr-defined]
+                            AgentEventType.STATUS,
+                            message_id,
+                            data={
+                                "phase": "evidence_repair",
+                                "target_node_id": repair_res.target_node_id,
+                                "pruned_nodes": repair_res.pruned_node_ids,
+                                "is_disputed": repair_res.is_disputed,
+                                "summary": repair_res.resolution_summary,
+                            },
+                        )
+                    else:
+                        evidence_tree.add_node(candidate_node)
+
+                self._result.evidence_tree = evidence_tree.to_dict()  # type: ignore[attr-defined]
                 cycle += 1
                 self._result.cycle_count = cycle  # type: ignore[attr-defined]
                 self._update_cost_estimate()  # type: ignore[attr-defined]
@@ -254,7 +316,7 @@ class DeepResearchPlanResearchMixin:
                         },
                     )
                     break
-                if not self._budget_warning_sent and self._is_budget_warning():  # type: ignore[attr-defined]
+                if not getattr(self, "_budget_warning_sent", False) and self._is_budget_warning():  # type: ignore[attr-defined]
                     self._budget_warning_sent = True  # type: ignore[attr-defined]
                     logger.warning(
                         "[deep-research] Budget warning ($%.4f >= %.0f%% of $%.2f) at cycle %d",

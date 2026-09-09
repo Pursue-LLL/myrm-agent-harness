@@ -2,25 +2,11 @@
 
 ## Overview
 
-Agent meta-tools for declarative UI rendering via the UIArtifact system.
-
-Spec progressive disclosure: `render_ui_tool` docstring with minimal example skeleton + bundled
-`A2UI_COMPONENT_REFERENCE.md` (wheel) seeded to `{workspace}/.agent/docs/A2UI_REFERENCE.md`
-when `enable_render_ui` is on (server `tool_setup`).
-
-Bundled vs workspace filename mapping: `A2UI_COMPONENT_REFERENCE.md` → `A2UI_REFERENCE.md`.
+Agent meta-tools for client interaction and surface capability resolution.
 
 ## File Index
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Re-exports `render_ui`, `render_ui_tool`, `update_ui_data`, `update_ui_data_tool`. | — |
-| `a2ui_spec.py` | Core | Allowed types SSOT, bundled reference loader, workspace seed, adjacency + action-reference validation. | ✅ |
-| `A2UI_COMPONENT_REFERENCE.md` | Config | Full component props manual (wheel force-include). | — |
-| `render_ui_tool.py` | Core | A2UI declarative UI tool; fail-closed graph/type/action/registry validation. | ✅ |
-| `update_ui_data_tool.py` | Core | Incremental `UIDataUpdate` patches for existing surfaces (SSE `data_update`). | ✅ |
-| `inline_ui_capability.py` | Core | `ClientSurface` + `supports_inline_interactive_ui()` — WEB_CHAT + web/tauri only. | ✅ |
-
-## Key Dependencies
-
-- `agent/artifacts/` — `UIArtifact`, `get_ui_registry`, `UIComponentType`
+| `__init__.py` | Package | Re-exports `ClientSurface`, `resolve_client_surface`, `supports_inline_interactive_ui`. | — |
+| `inline_ui_capability.py` | Core | `ClientSurface` + `supports_inline_interactive_ui()` — Client surface capability resolution. | ✅ |

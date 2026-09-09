@@ -663,3 +663,32 @@ class TestDesktopVisionCaptureTool:
 
         assert isinstance(result, str)
         assert "failed" in result.lower()
+
+
+class TestSafetyEdgeBranches:
+    """Cover edge branches in safety.py for full safety coverage."""
+
+    def test_self_app_detection(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.safety import is_self_app
+
+        assert is_self_app("App", app_id="com.myrmagent.app") is not None
+        assert is_self_app("Cursor", app_id="todesktop.cursor") is not None
+        assert is_self_app("Myrm Desktop", app_id="") is not None
+        assert is_self_app("Unknown", window_title="Myrm Agent - Workspace") is not None
+        assert is_self_app("Calculator", app_id="com.apple.calculator") is None
+
+    def test_iphone_mirror_blocked_actions(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.safety import is_iphone_mirror_blocked_action
+
+        res = is_iphone_mirror_blocked_action(
+            app_name="iPhone Mirroring",
+            window_title="Enter Passcode to Unlock",
+            app_id="com.apple.ScreenContinuity",
+            action_text="Confirm",
+        )
+        assert res is not None
+        assert "Blocked" in res
+
+        # Non-matching action or app
+        assert is_iphone_mirror_blocked_action("Calculator", app_id="com.apple.calc") is None
+

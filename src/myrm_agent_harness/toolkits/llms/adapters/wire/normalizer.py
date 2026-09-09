@@ -118,8 +118,10 @@ def extract_responses_reasoning_items(response: dict[str, Any]) -> list[dict[str
         if isinstance(encrypted, str) and encrypted.strip():
             entry["encrypted_content"] = encrypted
         summary = item.get("summary")
-        if isinstance(summary, list) and summary:
+        if isinstance(summary, list):
             entry["summary"] = summary
+        else:
+            entry["summary"] = []
         if len(entry) > 1:
             preserved.append(entry)
     return preserved

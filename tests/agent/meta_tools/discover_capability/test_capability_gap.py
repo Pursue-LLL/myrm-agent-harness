@@ -30,29 +30,6 @@ def test_detect_capability_gap_none_when_enabled() -> None:
     assert detect_capability_gap("open the website", groups) is None
 
 
-def test_detect_capability_gap_render_ui_when_disabled() -> None:
-    hit = detect_capability_gap(
-        "please render ui form",
-        frozenset({"web", "memory", "file_ops", "shell"}),
-    )
-    assert hit is not None
-    assert hit.tool_id == "render_ui"
-
-
-def test_detect_capability_gap_render_ui_zh_form_triggers() -> None:
-    hit = detect_capability_gap(
-        "帮我填表准备 staging 部署配置",
-        frozenset({"web", "memory", "file_ops", "shell"}),
-    )
-    assert hit is not None
-    assert hit.tool_id == "render_ui"
-
-
-def test_detect_capability_gap_none_when_render_ui_enabled() -> None:
-    groups = frozenset({"web", "memory", "file_ops", "shell", "render_ui"})
-    assert detect_capability_gap("please render ui form", groups) is None
-
-
 def test_detect_capability_gap_none_when_image_generation_enabled() -> None:
     groups = frozenset({"web", "memory", "file_ops", "shell", "image_generation"})
     assert detect_capability_gap("generate image of a cat", groups) is None

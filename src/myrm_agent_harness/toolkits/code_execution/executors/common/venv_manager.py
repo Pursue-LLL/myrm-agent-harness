@@ -101,48 +101,36 @@ class VenvManager:
         Falls back to system Python if creation fails.
         """
         logger.warning(f" [VenvManager] Creating shared venv: {venv_path}")
-        venv_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            venv_path.parent.mkdir(parents=True, exist_ok=True)
 
-        process = await asyncio.create_subprocess_exec(
-            sys.executable,
-            "-m",
-            "venv",
-            str(venv_path),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _stdout, stderr = await guarded_communicate(process, 120, label="venv create")
+            process = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-m",
+                "venv",
+                str(venv_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _stdout, stderr = await guarded_communicate(process, 120, label="venv create")
 
-        if process.returncode != 0:
-            error_msg = stderr.decode("utf-8", errors="replace")
-            logger.error(f" [VenvManager] Failed to create venv: {error_msg}")
+            if process.returncode != 0:
+                error_msg = stderr.decode("utf-8", errors="replace")
+                logger.error(f" [VenvManager] Failed to create venv: {error_msg}")
+                self._python_executable = sys.executable
+                self._venv_initialized = True
+                return self._python_executable
+
+            python_path = venv_path / "bin" / "python"
+            self._python_executable = str(python_path)
+            self._venv_initialized = True
+            logger.warning(f" [VenvManager] Shared venv created: {venv_path}")
+            return self._python_executable
+        except Exception as exc:
+            logger.error(f" [VenvManager] Failed to create venv: {exc}")
             self._python_executable = sys.executable
             self._venv_initialized = True
             return self._python_executable
-
-        await self._install_base_packages(venv_path)
-
-        python_path = venv_path / "bin" / "python"
-        self._python_executable = str(python_path)
-        self._venv_initialized = True
-        logger.warning(f" [VenvManager] Shared venv created: {venv_path}")
-        return self._python_executable
-
-    async def _install_base_packages(self, venv_path: Path) -> None:
-        """Install base packages (pip upgrade) in the venv."""
-        pip_path = venv_path / "bin" / "pip"
-        if not pip_path.exists():
-            return
-
-        logger.warning(" [VenvManager] Installing base packages...")
-        await asyncio.create_subprocess_exec(
-            str(pip_path),
-            "install",
-            "--upgrade",
-            "pip",
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
 
     async def rewrite_pip_command(self, command: str) -> str:
         """Rewrite pip install commands to use the shared venv's pip.

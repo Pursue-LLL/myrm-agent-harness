@@ -81,7 +81,8 @@ CRON_MANAGE_TOOL_DESCRIPTION_EN = """Manage scheduled tasks, recurring automatio
 - webhook_url: Optional webhook URL to deliver execution results (e.g. Slack/Feishu webhook).
 - failure_webhook_url: Optional webhook URL dedicated for failure alerting.
 - required_capabilities: Comma-separated required capabilities (e.g. "web_search_tool,net_fetch").
-- tools_allowed: Comma-separated tool IDs allowed during task execution (e.g. "web_search,memory").""".strip()
+- tools_allowed: Comma-separated tool IDs allowed during task execution (e.g. "web_search,memory").
+- skill_ids: Comma-separated skill IDs enabled during task execution (e.g. "host-server-ops,db-diagnostics").""".strip()
 
 CRON_MANAGE_TOOL_DESCRIPTION_ZH = """管理定时任务、周期性自动化与一次性提醒（支持创建、查询、修改、删除、即时触发、暂停、恢复与模板检索）。
 
@@ -141,7 +142,8 @@ CRON_MANAGE_TOOL_DESCRIPTION_ZH = """管理定时任务、周期性自动化与�
 - webhook_url：结果接收的 Webhook 地址（如飞书/钉钉/Slack 机器人）。
 - failure_webhook_url：仅接收失败告警的专用 Webhook 地址。
 - required_capabilities：任务执行所需的系统能力（逗号分隔，如 "web_search_tool,net_fetch"）。
-- tools_allowed：任务执行期间挂载的工具列表（逗号分隔，如 "web_search,memory"）。""".strip()
+- tools_allowed：任务执行期间挂载的工具列表（逗号分隔，如 "web_search,memory"）。
+- skill_ids：任务执行期间挂载的技能 ID 列表（逗号分隔，如 "host-server-ops,db-diagnostics"）。""".strip()
 
 CRON_MANAGE_TOOL_DESCRIPTION = CRON_MANAGE_TOOL_DESCRIPTION_EN
 

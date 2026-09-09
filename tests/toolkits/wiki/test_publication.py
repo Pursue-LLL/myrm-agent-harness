@@ -142,3 +142,151 @@ async def test_repair_publication_status_keeps_draft_out_of_search(wiki_structur
     metadata, _body = parse_frontmatter(article.read_text(encoding="utf-8"))
     assert metadata[PUBLISH_STATUS_KEY] == WikiPublishStatus.DRAFT.value
     assert await indexer.search("Do not republish", limit=5) == []
+
+
+@pytest.mark.asyncio
+async def test_reindex_concepts_after_move_deduplication(wiki_structure: WikiStructure) -> None:
+    from myrm_agent_harness.toolkits.wiki.pipeline.publication.path_change import (
+        ConceptPathMapping,
+        reindex_concepts_after_move,
+    )
+
+    indexer = WikiIndexer(wiki_structure)
+
+    # Prepare concept A and concept B
+    path_a = wiki_structure.get_concept_file_path("topic_a_new")
+    path_a.parent.mkdir(parents=True, exist_ok=True)
+    path_a.write_text("---\ntype: concept\npublish_status: published\n---\n\n## Content A\nHello from A.\n", encoding="utf-8")
+
+    path_b = wiki_structure.get_concept_file_path("topic_b")
+    path_b.parent.mkdir(parents=True, exist_ok=True)
+    path_b.write_text("---\ntype: concept\npublish_status: published\n---\n\n## Content B\nHello from B.\n", encoding="utf-8")
+
+    # Mappings move topic_a -> topic_a_new
+    mappings = [ConceptPathMapping(old_concept="topic_a", new_concept="topic_a_new")]
+
+    # Referrers contains topic_a_new (already in mappings) AND duplicate topic_b
+    referrers = ["topic_a_new", "topic_b", path_b]
+
+    count = await reindex_concepts_after_move(wiki_structure, indexer, mappings, modified_referrers=referrers)
+
+    # 1 for topic_a_new in mappings + 1 for topic_b in referrers = 2 (duplicates skipped)
+    assert count == 2
+
+    # Search works for both
+    res_a = await indexer.search("Hello from A", limit=5)
+    assert any(name == "topic_a_new" for name, _ in res_a)
+    res_b = await indexer.search("Hello from B", limit=5)
+    assert any(name == "topic_b" for name, _ in res_b)
+
+
+@pytest.mark.asyncio
+async def test_reindex_concepts_after_move_edge_cases(wiki_structure: WikiStructure) -> None:
+    from myrm_agent_harness.toolkits.wiki.pipeline.publication.path_change import (
+        ConceptPathMapping,
+        reindex_concepts_after_move,
+    )
+
+    indexer = WikiIndexer(wiki_structure)
+
+    # 1. Non-existent file
+    m_missing = ConceptPathMapping(old_concept="ghost_old", new_concept="ghost_new")
+
+    # 2. Sidecar path
+    sidecar_path, _ = wiki_structure.get_directory_sidecar_paths("cat")
+    sidecar_path.write_text("---\ntype: concept\n---\nSidecar content", encoding="utf-8")
+    m_sidecar = ConceptPathMapping(old_concept="cat_old", new_concept="cat/.abstract")
+
+    # 3. Invalid frontmatter in mappings
+    invalid_map_page = wiki_structure.get_concept_file_path("map_invalid")
+    invalid_map_page.write_text("No frontmatter in map", encoding="utf-8")
+    m_invalid = ConceptPathMapping(old_concept="inv_old", new_concept="map_invalid")
+
+    # 4. Valid page
+    valid_page = wiki_structure.get_concept_file_path("valid_note")
+    valid_page.write_text("---\ntype: concept\npublish_status: published\n---\nValid", encoding="utf-8")
+    m_valid = ConceptPathMapping(old_concept="v_old", new_concept="valid_note")
+    m_duplicate = ConceptPathMapping(old_concept="v_old2", new_concept="valid_note")
+
+    # 5. Invalid frontmatter in referrer
+    invalid_ref_page = wiki_structure.get_concept_file_path("ref_invalid")
+    invalid_ref_page.write_text("No frontmatter in ref", encoding="utf-8")
+
+    # Referrers: external path, sidecar, invalid frontmatter with .md suffix, non-existent
+    ext_path = wiki_structure.base_dir / "external.md"
+    ext_path.write_text("external", encoding="utf-8")
+
+    referrers = [
+        ext_path,  # ValueError on relative_to
+        sidecar_path,  # _is_directory_sidecar
+        "ref_invalid.md",  # invalid frontmatter with .md suffix
+        "missing_referrer",  # not exists
+    ]
+
+    count = await reindex_concepts_after_move(
+        wiki_structure,
+        indexer,
+        [m_missing, m_sidecar, m_invalid, m_valid, m_duplicate],
+        modified_referrers=referrers,
+    )
+
+    # Only m_valid should be reindexed
+    assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_reindex_concepts_after_move_io_error_and_async_edges(
+    wiki_structure: WikiStructure,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from myrm_agent_harness.toolkits.wiki.pipeline.publication.path_change import (
+        ConceptPathMapping,
+        reindex_concepts_after_move,
+    )
+
+    indexer = WikiIndexer(wiki_structure)
+
+    # Mock extract_and_upsert_edges to return an awaitable coroutine
+    async def fake_extract_and_upsert_edges(concept: str, content: str) -> None:
+        pass
+
+    monkeypatch.setattr(indexer, "extract_and_upsert_edges", fake_extract_and_upsert_edges)
+
+    map_err_path = wiki_structure.get_concept_file_path("map_err")
+    map_err_path.write_text("dummy", encoding="utf-8")
+
+    map_ok_path = wiki_structure.get_concept_file_path("map_ok")
+    map_ok_path.write_text("---\ntype: concept\npublish_status: published\n---\nOk", encoding="utf-8")
+
+    ref_err_path = wiki_structure.get_concept_file_path("ref_err")
+    ref_err_path.write_text("dummy", encoding="utf-8")
+
+    ref_ok_path = wiki_structure.get_concept_file_path("ref_ok")
+    ref_ok_path.write_text("---\ntype: concept\npublish_status: published\n---\nRef Ok", encoding="utf-8")
+
+    real_read_text = Path.read_text
+
+    def simulated_read_text(self: Path, encoding: str = "utf-8", errors: str | None = None) -> str:
+        if "err" in self.name:
+            raise OSError("Simulated disk error")
+        return real_read_text(self, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", simulated_read_text)
+
+    mappings = [
+        ConceptPathMapping(old_concept="old_map_err", new_concept="map_err"),
+        ConceptPathMapping(old_concept="old_map_ok", new_concept="map_ok"),
+    ]
+    referrers = [ref_err_path, ref_ok_path]
+
+    count = await reindex_concepts_after_move(
+        wiki_structure,
+        indexer,
+        mappings,
+        modified_referrers=referrers,
+    )
+
+    assert count == 2
+
+
+

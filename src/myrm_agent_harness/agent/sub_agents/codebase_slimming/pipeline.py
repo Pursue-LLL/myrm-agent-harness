@@ -102,7 +102,7 @@ class CodebaseSlimmingPipeline:
 
             # 1. Execute inside isolated clone
             try:
-                async with isolated_workspace(self.workspace_dir) as iso_dir:
+                async with isolated_workspace(self.workspace_dir) as (iso_dir, _):
                     # Run custom worker (e.g. LLM or deterministic AST remover)
                     lines_cut = await worker_fn(iso_dir, task)
 

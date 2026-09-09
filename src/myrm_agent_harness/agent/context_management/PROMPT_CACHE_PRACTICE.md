@@ -279,13 +279,26 @@ Human: 用户第一句 …                             ← varies
 
 **业务侧入账 Human 前缀（IM + pipeline）**：`myrm-agent-server/app/core/utils/delivery_provenance.py` 提供统一横幅与 `resolve_general_agent_pipeline_labels`。IM 仍由 `app/core/channel_bridge/agent_executor/helpers.py::build_channel_inbound_query` 调用 `prepend_plain_banner`（支持多模态图片+文本）。HTTP/SSE `/agent-stream` LangGraph 主路径在 `general_agent/stream_pipeline.py::execute_stream_pipeline` **进入 `SkillAgent.run` 之前**：先 **INFO `general_agent_delivery_labels`**（`channel_label`/`ingress_label`），再 **`apply_delivery_banner`**；其中 `GeneralAgent.channel_name=="web_chat"` 仍等价 `http_gui`/`browser_sse`，`cron`/`eval`/`headless_wakeup` 等由其映射。**Headless wakeup** 在 `app/services/agent/wakeup_handler.py` 显式改写 `channel_name=headless_wakeup` 并在 `memory_channel_id` 缺省时 **写回 `web_chat`**，以免记忆分区随投递前缀漂移。FastLane/DeepResearch 在 `myrm-agent-server/app/api/agents/general_agent/streaming.py` 使用 `apply_general_agent_pipeline_banner` + `GeneralAgentParams.channel_name`；FastSearch（`action_mode=="fast"`）走同一 GeneralAgent 管线，`workspaces_storage_root` 由 `app/ai_agents/general_agent/agent.py` 在构建 runtime context 时统一写入。群组上下文块仍仅在 IM executor 拼接。
 
-### 2.6 只增不改的消息历史
+### 2.6 只增不改的消息历史与单调前缀铁律（Append-Only Law）
 
-框架遵循"只追加不修改"原则：
+框架遵循严格的"只追加不修改"（Append-Only）单调缓存原则：
 
 - **压缩**使用紧凑格式**替换**工具结果内容，但不删除消息——消息结构（类型、顺序）保持不变
 - **摘要**是唯一会改变消息结构的操作，作为最后手段触发
 - 历史消息的时间戳一旦注入就不再修改（确定性注入）
+
+#### 2.6.1 核心铁律：严禁回溯修改或剥离历史消息（Anti-Stripping Rule）
+
+根据主流大模型提供商（Anthropic Claude、OpenAI 等）官方 Prefix Cache 规范及 Cache Diagnostics 准则：
+
+> **Anthropic 官方黄金法则**：
+> *"Treat the history as append-only; echo assistant content and tool results back verbatim."*
+> *若历史消息数组中的任何前序消息被修改、重排、截断或剥离，将被诊断为 `messages_changed`，导致从变动点开始往后的所有缓存全部作废重算！*
+
+**硬性约束**：
+1. **严禁回溯剥离（In-place Strip）**：严禁在第 N 轮试图回头使用正则或文本替换，剥离/删除第 N-1 轮中注入的临时提示文本、提词板或引导语。这不仅无法“净化”上下文，反而会瞬间摧毁自该轮次以来的全部已缓存 Token（包括后续所有的 Assistant 思考与 Tool 结果）。
+2. **状态更新走 Append-Only**：任务清单（Todo/Task/Progress）的流转与状态变更，天然应作为工具（如 `todo_write`）的执行结果以 `ToolMessage` 形式自然沉淀在对话流末尾；或通过后续轮次的新消息追加告知，绝不能向已缓存的历史消息“动刀”。
+3. **原样回传（Echo Verbatim）**：发送给 API 的完整 `messages` 数组，历史部分必须保持字符级、字节级完全一致。
 
 ---
 
@@ -1004,7 +1017,7 @@ Turn 12 (会话结束):
 | Bound 技能 XML（含 MCP `mcp_*_skill`） | 首条 HumanMessage ``<bound_skills hidden_count="N">``（``skill_catalog_delivery.py`` + ``get_metadata_summary()``）；新消息与 **Command resume** 均经 ``apply_bound_skill_catalog_for_stream`` / ``apply_bound_skill_catalog_for_resume`` 刷新；catalog 变化且 ``hidden_skill_count > 0`` 时同步 ``skill_search_tool`` 索引（``agent_runtime._sync_skill_search_index_after_catalog_change``，stream+resume SSOT，不改 tool schema） | messages[] 前缀；bind 变时不触发 ``tool_definitions_changed`` |
 | skill_select_tool 静态规则 | ``skill_select_tool.description``（无 embed XML、无 skill 名；``skill_search_tool`` 提示经 dynamic_hints + weave 条件注入） | tool schema 前缀跨 Profile 稳定（≤20 内联 bind 时不挂载 search） |
 | MCP 函数文档 | skill workspace ``/mcp/.../*.md``；经 ``skill_select_tool`` 返回 ToolMessage | 对话消息，非 system/tool schema |
-| Active todo focus | ``progress_middleware`` **追加到最后一个 HumanMessage** | 不破坏 system prefix cache |
+| Active todo focus | ``progress_middleware`` 追加到当前轮 HumanMessage（瞬时/尾部） | 保证 system prefix cache；**注意**：后续轮次严禁回溯剥离已缓存轮次，否则触发 ``messages_changed`` |
 | Session Notes 摘要 | ``SessionNotesProcessor`` 注入 **HumanMessage** | 不破坏 cache |
 | Summarize 摘要 | ``SummarizeProcessor`` 注入 **HumanMessage** | 不破坏 cache |
 | 记忆上下文 | ``memory_context_middleware`` **SystemMessage** (one-shot) | 仅首轮 baseline 建立 |
@@ -1347,7 +1360,11 @@ messages.append(HumanMessage(content=dynamic_notification))
 1. 首先判断内容是否每次调用都可能变化
 2. 如果是动态内容，**必须**使用 `HumanMessage`
 3. 在代码中添加注释说明原因（参考上述三处修复）
+4. **【反面避坑禁令】严禁“先注入、后剥离”的反模式**：
+   - 不得为了追求“会话历史纯洁”而在下一轮次剥离前一轮注入的文本！任何对前序 `HumanMessage` 内容的修改都会触发 `messages_changed` 导致整段消息缓存彻底失效。
+   - 任务清单（Todo/Task）状态演进优先采用 `ToolMessage` 原样追加（Append-Only）的标准实践，严禁搞 In-place 历史重写。
 
 **文档引用**：
 - 详见 `CONTEXT_ENGINEERING.md` § Prompt Cache Best Practices
 - 参考 Anthropic Claude API 官方指南：[Dynamic content in user messages](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching#dynamic-content-in-user-messages)
+- 参考 Anthropic Claude 官方诊断手册：[Cache diagnostics: messages_changed](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics)

@@ -107,6 +107,42 @@ async def test_todo_write_partial_update_inherits_content(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_todo_write_partial_update_inherits_status_and_increments_revision(tmp_path) -> None:
+    """When merge=True, updating only content inherits previous status, and revision increments."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    tool = create_todo_write_tool(str(workspace))
+
+    first = await tool.ainvoke(
+        {
+            "todos": [
+                {"id": "1", "content": "Step one", "status": "in_progress"},
+                {"id": "2", "content": "Step two", "status": "pending"},
+            ],
+            "merge": False,
+        }
+    )
+    first_data = json.loads(first)
+    assert first_data["summary"]["revision"] == 1
+    assert first_data["summary"]["in_progress"] == 1
+
+    # Update only content for item 1 (no status provided)
+    second = await tool.ainvoke(
+        {
+            "todos": [{"id": "1", "content": "Step one refined description"}],
+            "merge": True,
+        }
+    )
+    second_data = json.loads(second)
+    assert second_data["summary"]["revision"] == 2
+    assert second_data["summary"]["in_progress"] == 1  # Crucial: status not reset to pending!
+
+    todos_by_id = {t["id"]: t for t in second_data["todos"]}
+    assert todos_by_id["1"]["content"] == "Step one refined description"
+    assert todos_by_id["1"]["status"] == "in_progress"
+
+
+@pytest.mark.asyncio
 async def test_todo_write_partial_update_rejects_new_item_without_content(tmp_path) -> None:
     """When merge=True, a completely new item id still requires content."""
     workspace = tmp_path / "ws"
@@ -300,6 +336,27 @@ async def test_todo_write_blocked_status(tmp_path) -> None:
     assert data["summary"]["blocked"] == 1
     assert data["summary"]["in_progress"] == 1
     assert data["todos"][0]["status"] == "blocked"
+
+
+@pytest.mark.asyncio
+async def test_todo_write_increments_revision_across_multiple_mutations(tmp_path) -> None:
+    """Every successful write operation monotonically increments revision sequence."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    tool = create_todo_write_tool(str(workspace))
+
+    r1 = await tool.ainvoke({"todos": [{"id": "1", "content": "First", "status": "pending"}], "merge": False})
+    d1 = json.loads(r1)
+    assert d1["summary"]["revision"] == 1
+
+    r2 = await tool.ainvoke({"todos": [{"id": "1", "status": "in_progress"}], "merge": True})
+    d2 = json.loads(r2)
+    assert d2["summary"]["revision"] == 2
+
+    r3 = await tool.ainvoke({"todos": [{"id": "2", "content": "Second", "status": "pending"}], "merge": True})
+    d3 = json.loads(r3)
+    assert d3["summary"]["revision"] == 3
+    assert d3["summary"]["total"] == 2
 
 
 # ---------------------------------------------------------------------------

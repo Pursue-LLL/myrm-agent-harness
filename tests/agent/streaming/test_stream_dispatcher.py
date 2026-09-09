@@ -158,7 +158,7 @@ async def test_dispatch_custom_agent_status(ctx):
 
 @pytest.mark.asyncio
 async def test_dispatch_custom_ui_update(ctx):
-    """Custom event with name='ui_update' dispatches UI_UPDATE (render_ui realtime path)."""
+    """Custom event with name='ui_update' dispatches UI_UPDATE."""
     executor = _make_executor(ctx)
     artifact_payload = {
         "surface_id": "form_realtime",

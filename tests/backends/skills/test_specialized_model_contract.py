@@ -15,6 +15,7 @@ import pytest
 
 from myrm_agent_harness.backends.skills._runtime import build_skill_metadata
 from myrm_agent_harness.backends.skills._utils import parse_skill_frontmatter
+from myrm_agent_harness.backends.skills.types import SkillTrust
 
 
 def test_specialized_model_frontmatter_parsing() -> None:
@@ -32,10 +33,11 @@ Executes formatting without polluting main context.
     assert frontmatter.model_tier == "simple"
 
     metadata = build_skill_metadata(
-        frontmatter=frontmatter,
         skill_name="ast_formatter_skill",
+        frontmatter=frontmatter,
         storage_path="/tmp/ast_formatter",
         content=content,
+        trust=SkillTrust.TRUSTED,
     )
     assert metadata.specialized_model == "qwen-2.5-coder-1.5b"
     assert metadata.model_tier == "simple"
@@ -65,10 +67,11 @@ description: Standard general purpose skill without specialized model declaratio
     assert fm.model_tier is None
 
     metadata = build_skill_metadata(
-        frontmatter=fm,
         skill_name="general_skill",
+        frontmatter=fm,
         storage_path="/tmp/general",
         content=content_default,
+        trust=SkillTrust.TRUSTED,
     )
     assert metadata.specialized_model is None
     assert metadata.model_tier is None

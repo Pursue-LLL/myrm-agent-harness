@@ -71,6 +71,31 @@ def _strip_reasoning_include(params: dict[str, Any]) -> dict[str, Any]:
     return params_copy
 
 
+def _normalize_responses_tools(raw_tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert OpenAI chat completion tools {type: 'function', function: {...}} to Responses API tools."""
+    normalized: list[dict[str, Any]] = []
+    for t in raw_tools:
+        if not isinstance(t, dict):
+            continue
+        if t.get("type") == "function" and isinstance(t.get("function"), dict):
+            fn = t["function"]
+            if "name" in fn:
+                tool_dict: dict[str, Any] = {
+                    "type": "function",
+                    "name": fn["name"],
+                }
+                if "description" in fn:
+                    tool_dict["description"] = fn["description"]
+                if "parameters" in fn:
+                    tool_dict["parameters"] = fn["parameters"]
+                if "strict" in fn:
+                    tool_dict["strict"] = fn["strict"]
+                normalized.append(tool_dict)
+                continue
+        normalized.append(t)
+    return normalized
+
+
 def _response_to_dict(response: object) -> dict[str, Any]:
     if hasattr(response, "model_dump"):
         return dict(response.model_dump())
@@ -81,6 +106,8 @@ def _response_to_dict(response: object) -> dict[str, Any]:
 
 def invoke_responses_sync(client: Any, message_dicts: list[dict[str, Any]], params: dict[str, Any]) -> dict[str, Any]:
     responses_kwargs = build_responses_kwargs(message_dicts, params)
+    if "tools" in responses_kwargs and isinstance(responses_kwargs["tools"], list):
+        responses_kwargs["tools"] = _normalize_responses_tools(responses_kwargs["tools"])
     try:
         response = client.responses(**responses_kwargs)
     except Exception as exc:
@@ -89,7 +116,10 @@ def invoke_responses_sync(client: Any, message_dicts: list[dict[str, Any]], para
         logger.warning("Responses reasoning replay rejected; retrying without include/replay items")
         fallback_messages = _strip_reasoning_replay(message_dicts)
         fallback_params = _strip_reasoning_include(params)
-        response = client.responses(**build_responses_kwargs(fallback_messages, fallback_params))
+        fallback_kwargs = build_responses_kwargs(fallback_messages, fallback_params)
+        if "tools" in fallback_kwargs and isinstance(fallback_kwargs["tools"], list):
+            fallback_kwargs["tools"] = _normalize_responses_tools(fallback_kwargs["tools"])
+        response = client.responses(**fallback_kwargs)
     response_dict = _response_to_dict(response)
     assert_responses_payload_not_failed(response_dict)
     return responses_dict_to_chat_completion(response_dict)
@@ -101,6 +131,8 @@ async def invoke_responses_async(
     params: dict[str, Any],
 ) -> dict[str, Any]:
     responses_kwargs = build_responses_kwargs(message_dicts, params)
+    if "tools" in responses_kwargs and isinstance(responses_kwargs["tools"], list):
+        responses_kwargs["tools"] = _normalize_responses_tools(responses_kwargs["tools"])
     try:
         response = await client.aresponses(**responses_kwargs)
     except Exception as exc:
@@ -109,7 +141,10 @@ async def invoke_responses_async(
         logger.warning("Responses reasoning replay rejected; retrying without include/replay items")
         fallback_messages = _strip_reasoning_replay(message_dicts)
         fallback_params = _strip_reasoning_include(params)
-        response = await client.aresponses(**build_responses_kwargs(fallback_messages, fallback_params))
+        fallback_kwargs = build_responses_kwargs(fallback_messages, fallback_params)
+        if "tools" in fallback_kwargs and isinstance(fallback_kwargs["tools"], list):
+            fallback_kwargs["tools"] = _normalize_responses_tools(fallback_kwargs["tools"])
+        response = await client.aresponses(**fallback_kwargs)
     response_dict = _response_to_dict(response)
     assert_responses_payload_not_failed(response_dict)
     return responses_dict_to_chat_completion(response_dict)
@@ -121,6 +156,8 @@ def _iter_responses_stream(
     params: dict[str, Any],
 ) -> Iterator[object]:
     responses_kwargs = build_responses_kwargs(message_dicts, {**params, "stream": True})
+    if "tools" in responses_kwargs and isinstance(responses_kwargs["tools"], list):
+        responses_kwargs["tools"] = _normalize_responses_tools(responses_kwargs["tools"])
     try:
         yield from client.responses(**responses_kwargs)
     except Exception as exc:
@@ -129,7 +166,10 @@ def _iter_responses_stream(
         logger.warning("Responses reasoning replay rejected; retrying stream without include/replay items")
         fallback_messages = _strip_reasoning_replay(message_dicts)
         fallback_params = _strip_reasoning_include(params)
-        yield from client.responses(**build_responses_kwargs(fallback_messages, {**fallback_params, "stream": True}))
+        fallback_kwargs = build_responses_kwargs(fallback_messages, {**fallback_params, "stream": True})
+        if "tools" in fallback_kwargs and isinstance(fallback_kwargs["tools"], list):
+            fallback_kwargs["tools"] = _normalize_responses_tools(fallback_kwargs["tools"])
+        yield from client.responses(**fallback_kwargs)
 
 
 async def _aiter_responses_stream(
@@ -138,6 +178,8 @@ async def _aiter_responses_stream(
     params: dict[str, Any],
 ) -> AsyncIterator[object]:
     responses_kwargs = build_responses_kwargs(message_dicts, {**params, "stream": True})
+    if "tools" in responses_kwargs and isinstance(responses_kwargs["tools"], list):
+        responses_kwargs["tools"] = _normalize_responses_tools(responses_kwargs["tools"])
     try:
         stream = await client.aresponses(**responses_kwargs)
     except Exception as exc:
@@ -146,9 +188,10 @@ async def _aiter_responses_stream(
         logger.warning("Responses reasoning replay rejected; retrying stream without include/replay items")
         fallback_messages = _strip_reasoning_replay(message_dicts)
         fallback_params = _strip_reasoning_include(params)
-        stream = await client.aresponses(
-            **build_responses_kwargs(fallback_messages, {**fallback_params, "stream": True})
-        )
+        fallback_kwargs = build_responses_kwargs(fallback_messages, {**fallback_params, "stream": True})
+        if "tools" in fallback_kwargs and isinstance(fallback_kwargs["tools"], list):
+            fallback_kwargs["tools"] = _normalize_responses_tools(fallback_kwargs["tools"])
+        stream = await client.aresponses(**fallback_kwargs)
     async for event in stream:
         yield event
 
