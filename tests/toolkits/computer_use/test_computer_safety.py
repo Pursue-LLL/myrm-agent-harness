@@ -155,6 +155,11 @@ class TestIsOperatorAsKeyName:
     def test_whitespace_around_operator_rejected(self) -> None:
         assert is_operator_as_key_name(" * ") is not None
 
+    def test_canonicalized_single_operator_combo_rejected(self) -> None:
+        result = is_operator_as_key_name("+*")
+        assert result is not None
+        assert "Rejected printable operator '*'" in result
+
     def test_modifier_plus_operator_allowed(self) -> None:
         assert is_operator_as_key_name("ctrl+/") is None
         assert is_operator_as_key_name("cmd+-") is None
@@ -722,6 +727,48 @@ class TestSafetyEdgeBranches:
         assert is_operator_as_key_name(" % ") is not None
         assert is_operator_as_key_name(" = ") is not None
         assert is_operator_as_key_name("+*") is not None
+        assert is_operator_as_key_name("ctrl+shift+a") is None
+        assert is_operator_as_key_name("") is None
+        assert is_operator_as_key_name("   ") is None
+
+    def test_self_app_edge_branches(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.safety import is_self_app
+
+        assert is_self_app("com.myrmagent.app", app_id="com.myrmagent.app") is not None
+        assert is_self_app("Some App", window_title="desktop control panel") is not None
+        assert is_self_app("Some App", window_title="desktop inspector window") is not None
+        assert is_self_app("Some App", window_title="control approval prompt") is not None
+        assert is_self_app("random_app", window_title="normal window", app_id="org.example.app") is None
+
+    def test_iphone_mirror_additional_branches(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.safety import is_iphone_mirror_blocked_action
+
+        # Matching screen continuity and connect title, matching action
+        assert (
+            is_iphone_mirror_blocked_action(
+                app_name="iPhone",
+                window_title="连接 iPhone",
+                app_id="com.apple.ScreenContinuity",
+                action_text="确认",
+            )
+            is not None
+        )
+        assert (
+            is_iphone_mirror_blocked_action(
+                app_name="iPhone",
+                window_title="解锁以继续",
+                app_id="com.apple.ScreenContinuity",
+                action_text="OK",
+            )
+            is not None
+        )
+
+    def test_sensitive_app_window_title_match(self) -> None:
+        from myrm_agent_harness.toolkits.computer_use.safety import is_sensitive_app
+
+        # Match against sensitive window title
+        assert is_sensitive_app("Browser", window_title="1Password - Vault") is not None
+        assert is_sensitive_app("Safari", window_title="招商银行 网银") is not None
 
     def test_is_foreground_required(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.safety import is_foreground_required

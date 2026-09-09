@@ -185,3 +185,4 @@ Does your code need to import anything from agent/?
 | web_search/ | Web search — multi-engine search tools with result aggregation. |
 | wiki/ | Self-evolving knowledge base — LLM-powered wiki article generation, management, and proactive knowledge-gap analysis. |
 | filesystem_suggest/ | Local path suggestion — bounded file enumeration and GUI-friendly fuzzy ranking for `@` mentions. |
+| mobile_adb/ | Android mobile device automation — wireless debugging pairing, screen capture, UI dump, and input relay via ADB. |

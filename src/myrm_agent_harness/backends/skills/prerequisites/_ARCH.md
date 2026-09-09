@@ -10,6 +10,7 @@ Skill Runtime Prerequisites & System Dependency Check Toolkit. Standardizes the 
 | `__init__.py` | Package | Exports `PrerequisiteProbe`, `SkillPrerequisites`, `PrerequisiteReport`, and remediation helpers |
 | `models.py` | Models | Typed contracts: `BinaryDependency`, `PythonDependency`, `SkillPrerequisites`, `DependencyCheckItem`, `PrerequisiteReport`, `DependencyStatus` |
 | `remediation.py` | Engine | System detection and one-click package manager installation command generator (macOS brew, Linux apt/pacman/dnf, Windows winget/choco) |
+| `remedy.py` | Engine | Package mapping lookup and auto remediation generator |
 | `probe.py` | Probe | Lightweight asynchronous host inspector and frontmatter parser |
 
 ## Architecture
